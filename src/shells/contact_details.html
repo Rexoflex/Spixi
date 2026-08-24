@@ -52,15 +52,17 @@
   /* Boot state: shown until the FIRST coalesced commit lands, so we never paint an
      empty panel that flashes to filled ~120ms later (the flicker fix). A lightweight
      centered spinner — replaced wholesale by the real panel on first render. */
-  .contact-boot { display: flex; align-items: center; justify-content: center; }
-  .contact-boot__spinner {
-    width: 28px; height: 28px; border-radius: var(--radius-full);
-    border: 3px solid var(--outline-neutral-02);
-    border-top-color: var(--icon-action-default, var(--surface-action-default));
-    animation: contact-boot-spin var(--duration-700, 700ms) linear infinite;
-  }
-  @keyframes contact-boot-spin { to { transform: rotate(360deg); } }
-  @media (prefers-reduced-motion: reduce) { .contact-boot__spinner { animation: none; } }
+  /* ★ A8 (Batch A 2026-08-24): the boot skeleton — hero disc + three rows, the shape
+     of the panel to come; the same neutral wash + slow shimmer chat-info.css uses. */
+  .contact-boot { display: flex; flex-direction: column; gap: var(--spacing-16); padding: var(--spacing-24) var(--spacing-16); }
+  .contact-boot__hero { display: flex; flex-direction: column; align-items: center; gap: var(--spacing-12); padding-block: var(--spacing-16); }
+  .contact-boot__disc { width: 80px; height: 80px; border-radius: var(--radius-full); background: var(--surface-neutral-02); }
+  .contact-boot__row { display: flex; align-items: center; gap: var(--spacing-12); min-height: 56px; padding: var(--spacing-4); }
+  .contact-boot__dot { flex: none; width: var(--size-avatar-40); height: var(--size-avatar-40); border-radius: var(--radius-full); background: var(--surface-neutral-02); }
+  .contact-boot__line { height: 14px; border-radius: var(--radius-full); background: var(--surface-neutral-02); }
+  .contact-boot__disc, .contact-boot__dot, .contact-boot__line { animation: contact-boot-shimmer 1.4s var(--easing-standard) infinite; }
+  @keyframes contact-boot-shimmer { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+  @media (prefers-reduced-motion: reduce) { .contact-boot__disc, .contact-boot__dot, .contact-boot__line { animation: none; } }
   /* N27 (#367): the blocking-group list inside the remove-blocked modal.
      max-height + scroll (loop MAJOR M1): the list is data-driven and c-modal
      has no overflow of its own — many groups (or landscape) must scroll the
@@ -90,7 +92,15 @@
 </head>
 <body>
   <div id="contact-root">
-    <div class="contact-boot"><div class="contact-boot__spinner" role="status" aria-label="Loading"></div></div>
+    <!-- ★ A8 (Batch A 2026-08-24): the boot cover is a SKELETON of the panel (hero disc
+         + three rows), not a lone spinner — the shape of what is coming. role=status +
+         aria-busy for AT; the first coalesced commit swaps it for the filled panel. -->
+    <div class="contact-boot" role="status" aria-label="Loading" aria-busy="true">
+      <div class="contact-boot__hero" aria-hidden="true"><span class="contact-boot__disc"></span><span class="contact-boot__line" style="width:46%"></span></div>
+      <div class="contact-boot__row" aria-hidden="true"><span class="contact-boot__dot"></span><span class="contact-boot__line" style="width:62%"></span></div>
+      <div class="contact-boot__row" aria-hidden="true"><span class="contact-boot__dot"></span><span class="contact-boot__line" style="width:54%"></span></div>
+      <div class="contact-boot__row" aria-hidden="true"><span class="contact-boot__dot"></span><span class="contact-boot__line" style="width:70%"></span></div>
+    </div>
   </div>
 
 <script src="../components/icons.iife.js"></script>
@@ -196,6 +206,8 @@
     avatarPath: null,    // setAvatar — rendered in the c-chat-info hero; onerror → gradient fallback
     txs: [],             // committed tx rows (txlist-item opts)
     txsBuf: null,        // accumulator between clearRecentActivity and the settle
+    sharedGroups: null,  // ★ A4: [{ name, address }] once setSharedGroups answers; null = not yet; undefined = no answer (strip hidden)
+    membersLanded: false,   // ★ A8: the first roster commit landed
     // #248: entry-dependent context — 'chat' (header/row-menu → "Chat info"/"Group
     // info", no Message action) vs 'contact' (directory → "Contact details").
     context: 'contact',
@@ -298,6 +310,10 @@
         avatar: state.avatarPath,
         avatarSeed: state.address,
         memberCount: state.group.count,
+        // ★ A8 (Batch A, loop r1 relocation — the in-chat takeover is dead code since #249,
+        // THIS surface is the info): skeleton rows until the roster's first commit lands
+        // (clearMembers → addMember×N → the 120 ms settle) or 2.5 s pass
+        loading: !state.membersLanded && state.members.length === 0 && Date.now() - bootAt < 2500,
         members: state.members.map((m) => ({
           name: m.name, address: m.address, avatar: m.avatar,
           owner: !!(state.group.owner && m.address && m.address !== '[Unknown]' && m.address === state.group.owner),
@@ -365,6 +381,11 @@
       nickname: '',                    // no separate wire-name vs override signal; name = display name,
                                        // edit prefills empty w/ name as placeholder (empty = clear override)
       txs: state.txs,
+      // ★ A4 (Batch A 2026-08-24): groups you are both in — asked at boot
+      // (ixian:sharedGroups), answered by setSharedGroups; null until then.
+      sharedGroups: state.sharedGroups,
+      loading: state.sharedGroups === null,
+      onOpenGroup: (g) => { if (g && g.address) bridge.send('ixian:openChat:' + g.address); },
       // A4: `capabilities` is a FEATURE-GATE bag ("this surface supports presence"),
       // not a live-value channel — it was carrying state.online since #142 and
       // nothing ever read it. The live value now rides the top-level `online` opt.
@@ -437,6 +458,8 @@
       address: state.address,
       avatar: state.avatarPath,
       txs: state.txs.map((t) => [t.txid, t.direction, t.status, t.amount, t.timeText, t.name]),
+      shared: state.sharedGroups ? state.sharedGroups.map((g) => g.address).sort() : String(state.sharedGroups),   // ★ A4 (null / undefined / list)
+      landed: state.membersLanded || (Date.now() - bootAt >= 2500),   // ★ A8
       // #248: context + group meta/roster affect the rendered panel too. Loop C-6:
       // signature sorted by address so a re-pushed roster in a different order
       // never forces a needless rebuild (would drop an open search/sheet).
@@ -475,7 +498,7 @@
   function scheduleCommit() { clearTimeout(commitTimer); commitTimer = setTimeout(commitAndBuild, 120); }
   function commitAndBuild() {
     if (state.txsBuf !== null) { state.txs = state.txsBuf; state.txsBuf = null; }
-    if (state.membersBuf !== null) { state.members = state.membersBuf; state.membersBuf = null; }   // #248 roster
+    if (state.membersBuf !== null) { state.members = state.membersBuf; state.membersBuf = null; state.membersLanded = true; }   // #248 roster · A8
     buildIfChanged();
   }
 
@@ -487,6 +510,13 @@
    * + updateScreen (→ scheduleCommit), and this fallback timer force-builds even if a
    * push never arrives, so the screen can never hang on the spinner. */
   setTimeout(() => { if (!built) commitAndBuild(); }, 1200);
+  const bootAt = Date.now();
+  // ★ A8: the roster skeleton ends on its own after 2.5 s (a bot room with no roster
+  // would otherwise shimmer forever — the honest note takes over); ★ A4 belt (loop r1):
+  // ContactDetails can answer NOTHING to ixian:sharedGroups on an old exe — after 4 s
+  // the strip hides instead of shimmering forever
+  setTimeout(() => { if (!state.membersLanded) scheduleCommit(); }, 2600);
+  setTimeout(() => { if (state.sharedGroups === null) { state.sharedGroups = undefined; scheduleCommit(); } }, 4000);
 
   /* —————————————————————————————————————————————————————————————————————————
    * C#→JS handlers — page globals (executeUiCommand resolves bare fnRefs).
@@ -567,6 +597,13 @@
     },
     setAddress(address) { state.address = address || ''; scheduleCommit(); },
     setNickname(nick) { state.name = nick || ''; scheduleCommit(); },
+    // ★ A4 (Batch A): the shared-groups answer — flat name/address pairs (C# escapes each arg)
+    setSharedGroups(address, ...pairs) {
+      const groups = [];
+      for (let i = 0; i + 1 < pairs.length; i += 2) groups.push({ name: String(pairs[i] || ''), address: String(pairs[i + 1] || '') });
+      state.sharedGroups = groups;
+      scheduleCommit();
+    },
     // Real contact photo → the c-chat-info hero (resolves today on WinUI; every
     // platform once BE cutover X1 lands the data: URI). Commit so the hero updates
     // when the photo arrives; the coalescer + edit-guard keep it churn-safe, and
@@ -642,7 +679,10 @@
 
   /* —— page ready — fire ixian:onload on the window LOAD event (#177 load-timing
    *    invariant): firing during parse races C#'s first push. ————————————————— */
-  function signalReady() { bridge.ready(); }
+  function signalReady() {
+    bridge.ready();
+    bridge.send('ixian:sharedGroups');   // ★ A4: ask once at boot; the strip shows a skeleton line until the answer
+  }
   if (document.readyState === 'complete') signalReady();
   else window.addEventListener('load', signalReady, { once: true });
 </script>

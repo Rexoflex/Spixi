@@ -651,3 +651,27 @@
                                        Pay/Request; span the row, flex:1 splits it */
 }
 .c-member__actions > .c-button { flex: 1; }
+
+/* ★ A8 (Batch A 2026-08-24): skeleton rows while the roster / shared-groups pushes
+   land. Neutral wash, a slow shimmer (off under reduced motion), never interactive. */
+.c-chat-info__member--skeleton { cursor: default; pointer-events: none; }
+.c-chat-info__skeleton-avatar {
+  flex: none;
+  width: var(--size-avatar-40); height: var(--size-avatar-40);
+  border-radius: var(--radius-full);
+  background: var(--surface-neutral-02);
+}
+.c-chat-info__skeleton-line {
+  height: 14px;
+  border-radius: var(--radius-full);
+  background: var(--surface-neutral-02);
+}
+.c-chat-info__skeleton-avatar, .c-chat-info__skeleton-line {
+  animation: c-chat-info-shimmer 1.4s var(--easing-standard) infinite;
+}
+@keyframes c-chat-info-shimmer { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .c-chat-info__skeleton-avatar, .c-chat-info__skeleton-line { animation: none; } }
+/* ★ A4: the shared-groups strip (1:1) — the members-list grammar, group avatars */
+.c-chat-info__shared { display: flex; flex-direction: column; gap: var(--spacing-4); }
+.c-chat-info__shared-list { display: flex; flex-direction: column; }
+.c-chat-info__shared-row:disabled { cursor: default; }

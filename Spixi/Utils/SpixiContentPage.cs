@@ -613,6 +613,12 @@ namespace SPIXI
             // context (§1/#221 unchanged) — parking changes WHEN it is torn down,
             // never what it can reach.
             public bool parkOnClose = false;
+            /* ★ Batch C (#546) C3 — #533 ②: WARM AFTER FIRST PAINT. The op stages exactly
+             * like any load-then-present push, but on load it is PARKED (hidden, WebView
+             * alive, data pushed) instead of presented — the same slot parkOnClose fills,
+             * so the next Account tap is representParkedOverlay's instant path from the
+             * FIRST open on. Presentation-lifecycle only, like parkOnClose. */
+            public bool parkOnLoad = false;
             // W7: the inset this stage was staged with (#245 rail strip for the Account
             // peer pane; zero for every other op). Remembered so a page opened FROM this
             // overlay can inherit the SAME geometry and cover its opener exactly —
@@ -1862,7 +1868,66 @@ namespace SPIXI
         // parkOnClose (#315, iOS-46 route (a)): close hides + keeps the overlay warm
         // instead of disposing it (see PreloadOp.parkOnClose). Only HomePage's
         // narrow-mode Account push sets it.
-        public void pushPageLoaded(SpixiContentPage target, int timeoutMs = 4000, string? tag = null, int column = -1, SpixiContentPage? replaces = null, Thickness stageMargin = default, bool parkOnClose = false)
+        /* ★ Batch C (#546) C3: pre-create an overlay page into the PARKED slot without
+         * presenting it. Fail-closed guards (all return false = nothing warmed, the tap
+         * path stays the fresh-construct one): a lock up · a preload in flight · a
+         * parked page already there · overlay mode not holding · no host grid. The
+         * caller decides WHEN (HomePage: after the chats list first paints). */
+        public bool warmParkedOverlay(SpixiContentPage target, int timeoutMs = 6000)
+        {
+            lock (preloadLock)
+            {
+                if (modalOverlayOp != null || preloadPending || activePreload != null || parkedOverlay != null)
+                {
+                    try { target.Dispose(); } catch { }
+                    return false;
+                }
+                SpixiContentPage? oh = overlayHost;
+                bool overlayModeHolds = oh != null && oh == this
+                    && (Application.Current?.MainPage as NavigationPage)?.Navigation.NavigationStack.LastOrDefault() == oh;
+                if (!overlayModeHolds || overlayStack.Count > 0)
+                {
+                    try { target.Dispose(); } catch { }
+                    return false;
+                }
+            }
+            lock (preloadLock) { warmPending = true; warmClaimRequested = false; }
+            pushPageLoaded(target, timeoutMs, "settings", -1, null, default, true, true);
+            return true;
+        }
+        private static bool warmPending = false;   // the warm push is between the tap and staging
+
+        /* ★ C3 (#546, loop r1): an Account TAP while the warm page is still STAGING must
+         * not be silently dropped (pushPageLoaded drops a new target while a preload is
+         * active). If the in-flight preload IS the warm-parked page of this type, flip it
+         * to PRESENT-on-load — the tap's answer arrives when the load finishes, which is
+         * sooner than a fresh construct. True = the caller is done (a present is coming).
+         * The flip happens under the preload lock, before presentPreload's park branch
+         * reads parkOnLoad; if the park already happened, this returns false and the
+         * caller's representParkedOverlay path presents the parked page instantly. */
+        private static bool warmClaimRequested = false;   // loop r1 MINOR-4: a claim inside the preloadPending window
+        public static bool claimWarmingOverlay<T>() where T : SpixiContentPage
+        {
+            lock (preloadLock)
+            {
+                if (activePreload != null && activePreload.parkOnLoad && activePreload.target is T)
+                {
+                    activePreload.parkOnLoad = false;
+                    return true;
+                }
+                // loop r1 MINOR-4: warmParkedOverlay sets preloadPending one dispatcher turn
+                // before activePreload exists — a tap in that window claims by FLAG; the
+                // staging turn consumes it (below) and the op presents on load.
+                if (preloadPending && warmPending)
+                {
+                    warmClaimRequested = true;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public void pushPageLoaded(SpixiContentPage target, int timeoutMs = 4000, string? tag = null, int column = -1, SpixiContentPage? replaces = null, Thickness stageMargin = default, bool parkOnClose = false, bool parkOnLoad = false)
         {
             lock (preloadLock)
             {
@@ -1877,6 +1942,7 @@ namespace SPIXI
                 // intentionally lost rather than shown under the lock).
                 if (modalOverlayOp != null)
                 {
+                    warmPending = false; warmClaimRequested = false;   // loop r2 R2-4: no stuck warm flags
                     try { target.Dispose(); } catch { }
                     return;
                 }
@@ -1908,7 +1974,7 @@ namespace SPIXI
                 if (hostGrid == null || targetContent == null)
                 {
                     // Nowhere to stage — plain push (pre-fix behaviour).
-                    lock (preloadLock) { preloadPending = false; }
+                    lock (preloadLock) { preloadPending = false; warmPending = false; warmClaimRequested = false; }   // r2 R2-4
                     presentPlain(target);
                     return;
                 }
@@ -1953,6 +2019,21 @@ namespace SPIXI
                 // #315: parking only makes sense for the in-place overlay presentation —
                 // a push-fallback page leaves the host grid at present time.
                 op.parkOnClose = parkOnClose && overlayMode;
+                op.parkOnLoad = parkOnLoad && overlayMode;   // C3 (#546): a non-overlay fallback cannot park — it presents
+                // loop r2 R2-4: the warm flags clear on EVERY staging outcome — a stuck
+                // warmPending made a later claim return true with no present coming
+                lock (preloadLock)
+                {
+                    warmPending = false;
+                    if (warmClaimRequested)
+                    {
+                        warmClaimRequested = false;            // a tap landed inside the pending window (MINOR-4)
+                        if (op.parkOnLoad)
+                        {
+                            op.parkOnLoad = false;             // present on load instead of parking
+                        }
+                    }
+                }
 
                 try
                 {
@@ -2161,6 +2242,13 @@ namespace SPIXI
             });
         }
 
+        // C3 loop r1: the park decision reads parkOnLoad UNDER the lock, so a concurrent
+        // claimWarmingOverlay flip (an Account tap mid-load) reliably turns the park into a present
+        private static bool parkOnLoadNow(PreloadOp op)
+        {
+            lock (preloadLock) { return op.parkOnLoad; }
+        }
+
         private static void presentPreload(PreloadOp op, string reason)
         {
             if (!op.tryFinish())
@@ -2259,6 +2347,37 @@ namespace SPIXI
                             // modal branch this used to also serve.
                             await Task.Delay(250);
                             op.target.applyPlatformPageChrome();
+                        }
+                    }
+                    else if (op.overlayMode && parkOnLoadNow(op))
+                    {
+                        // ★ C3 (#546): WARM PARK — loaded, data pushed, never shown. The stage
+                        // stays hidden in the host grid exactly as a parked-on-close page does;
+                        // representParkedOverlay presents it on the first Account tap. A page
+                        // that only PRESENTED via the timeout (WebView wedged, pageLoaded false)
+                        // is not worth keeping — dispose it, the tap constructs fresh (#46 r2
+                        // MINOR-1, the same rule parkOnClose applies). A parked slot claimed
+                        // meanwhile (a manual open that closed while we loaded) wins: never two.
+                        bool parkedNow = false;
+                        lock (preloadLock)
+                        {
+                            if (reason != "timeout" && op.target.pageLoaded && parkedOverlay == null && modalOverlayOp == null)
+                            {
+                                parkedOverlay = op;
+                                parkedNow = true;
+                            }
+                        }
+                        if (!parkedNow)
+                        {
+                            op.hostGrid.Children.Remove(op.stage);
+                            op.stage.Content = null;
+                            op.target.Content = op.targetContent;
+                            op.target.Dispose();
+                            Logging.info("warm park skipped (" + reason + ")");
+                        }
+                        else
+                        {
+                            Logging.info("warm park ready: " + op.target.GetType().Name);
                         }
                     }
                     else if (op.overlayMode)

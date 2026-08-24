@@ -333,14 +333,16 @@ img, svg { display: block; max-width: 100%; }
 html:root .c-chatlist-item, html:root .c-txlist-item,
 html:root .c-contacts__row, html:root .c-settings__row,
 html:root .c-app-item__open, html:root .c-apps-recents__item,
-html:root .c-wallet-receive__contact, html:root .c-settings-dl__open {
+html:root .c-wallet-receive__contact, html:root .c-settings-dl__open,
+html:root .c-contact-row {                                     /* ★ W-j: the shared money-picker row */
   position: relative;
   isolation: isolate;
 }
 html:root .c-chatlist-item::before, html:root .c-txlist-item::before,
 html:root .c-contacts__row::before, html:root .c-settings__row::before,
 html:root .c-app-item__open::before, html:root .c-apps-recents__item::before,
-html:root .c-wallet-receive__contact::before, html:root .c-settings-dl__open::before {
+html:root .c-wallet-receive__contact::before, html:root .c-settings-dl__open::before,
+html:root .c-contact-row::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -363,7 +365,7 @@ html:root .c-wallet-receive__contact::before, html:root .c-settings-dl__open::be
    declare one carry their own). background-color only now: the sweep no longer
    animates row background properties. */
 html:root .c-contacts__row, html:root .c-apps-recents__item,
-html:root .c-wallet-receive__contact {
+html:root .c-wallet-receive__contact, html:root .c-contact-row {
   transition: background-color 200ms var(--easing-standard, ease-out);
 }
 html:root .fab {
@@ -466,6 +468,7 @@ html:root .c-app-item[data-pressfade] .c-app-item__open[aria-current]::before {
   html:root .c-settings__row, html:root .c-app-item, html:root .c-app-item__open,
   html:root .c-apps-recents__item,
   html:root .c-wallet-receive__contact,
+  html:root .c-contact-row, /* ★ W-j: the shared money-picker row */
   html:root .c-settings-dl__open, /* D-16 r4: every press family — a pin derives membership */
   html:root .c-button, html:root .c-chip,
   html:root .c-bottomnav__item, html:root .fab {

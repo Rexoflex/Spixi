@@ -278,6 +278,7 @@ export function renderChatsList(listEl, state, opts = {}) {
     if (opts.rowMenu !== false) {                        // long-press/right-click → context sheet (step 4)
       attachChatRowMenu(el, {
         chat: c, host: opts.host, strings, capabilities: caps,
+        onNeedGroups: opts.onNeedGroups,                 // A4/A5: the remove-contact sheet asks C# for the shared groups
         onAction: (action, detail) => applyChatRowAction(listEl, state, c, action, opts, detail),
       });
     }
@@ -323,7 +324,8 @@ export function applyChatRowAction(listEl, state, chat, action, opts = {}, detai
     // delete + deleteContact both remove the row; the wipe granularity (media,
     // contact) rides `detail`/`action` to the bridge intent (onPersist → BE).
     case 'delete':
-    case 'deleteContact': state.chats = (state.chats || []).filter((c) => c !== chat); break;
+    case 'deleteContact':
+    case 'revokeRequest': state.chats = (state.chats || []).filter((c) => c !== chat); break;   // B1: a revoked request row goes too
     case 'info': if (opts.onChatInfo) opts.onChatInfo(chat); return;   // stub — no model change
     default: return;
   }

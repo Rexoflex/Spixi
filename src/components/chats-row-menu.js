@@ -14,7 +14,7 @@
  * (it has no swipe / open), so a stalled handshake is never an un-removable trap.
  *
  * openChatRowMenu({ chat, host, onAction, strings, capabilities, handshaking }) → sheet
- *   onAction(action) — 'pin' | 'mute' | 'markRead' | 'info' | 'delete' | 'cancelHandshake'
+ *   onAction(action) — 'pin' | 'mute' | 'markRead' | 'info' | 'delete' | 'cancelHandshake' | 'revokeRequest' (B1)
  * attachChatRowMenu(row, opts) — wires long-press + right-click on the row
  */
 import { getStrings } from './strings-runtime.js';
@@ -22,12 +22,14 @@ import { icon } from './icons.js';
 import { createAvatar } from './avatar.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 import { createModal, openModal } from './modal.js';
+import { createButton } from './button.js';
 import { closeChatRowSwipe } from './chats-swipe.js';
+import { isOverlayOpen } from './overlay.js';
 
 const CHATMENU_LONG_PRESS_MS = 500;   // §5b
 const CHATMENU_MOVE_CANCEL_PX = 10;   // §5b: >10px move = scroll intent
 
-export function openChatRowMenu({ chat = {}, host, onAction, strings = getStrings(), capabilities = {}, handshaking = false } = {}) {
+export function openChatRowMenu({ chat = {}, host, onAction, onNeedGroups, strings = getStrings(), capabilities = {}, handshaking = false } = {}) {
   closeChatRowSwipe();                              // any open swipe drawer closes when a sheet takes over (single-open invariant across row types)
   const content = document.createElement('div');
   content.className = 'c-msgmenu';                 // reuse the sheet-menu styling
@@ -87,10 +89,20 @@ export function openChatRowMenu({ chat = {}, host, onAction, strings = getString
   // never shown broken (decided model) — flip on when the §8 verbs land. The
   // confirm is the TWO-STEP flow (Damir 2026-07-07): step 1 removes the row,
   // step 2 opts into wiping history + files + the contact.
-  if (capabilities.delete) {
+  /* ★ B1 (Damir, Batch B 2026-08-24): an OUTGOING PENDING contact request row does
+     not "delete" — it REVOKES, and only through a PROMPT (never silently). Verified at
+     source: SingleChatPage's `ixian:undorequest` is `FriendList.removeFriend` with a
+     "TODO: notify the other party" — the peer is NOT told and their copy of the request
+     stays until they act on it; the copy says exactly that. */
+  if (capabilities.delete && chat.request) {
+    item('circle-x', strings.revokeRequest || 'Revoke request', () => {
+      closeSheet(sheet);
+      openRevokeRequestFlow({ chat, host, onAction, strings });
+    }, true);
+  } else if (capabilities.delete) {
     item('trash', strings.deleteChat || 'Delete chat', () => {
       closeSheet(sheet);
-      openDeleteFlow({ chat, host, onAction, strings });
+      openDeleteFlow({ chat, host, onAction, onNeedGroups, strings });
     }, true);
   }
 
@@ -113,30 +125,238 @@ function deletePeerHeader(chat, strings) {
   return h;
 }
 
-/** One labelled checkbox row → { row, input }. */
+/** One option row → { row, input }. ★ A7 (Damir, Batch A 2026-08-24): the GROUP-CREATION
+ *  checkbox grammar (contacts-shell pickerRow: role=checkbox + aria-checked + the trailing
+ *  select circle), not the off-brand native <input type=checkbox>. `input` keeps the old
+ *  shape for callers (`.checked`) — it is the row itself now. */
 function deleteCheckbox(label, { checked = false, disabled = false } = {}) {
-  const row = document.createElement('label');
+  const row = document.createElement('button');
+  row.type = 'button';
   row.className = 'c-delete-chat__opt';
-  const input = document.createElement('input');
-  input.type = 'checkbox';
-  input.checked = checked;
-  if (disabled) input.disabled = true;
+  row.setAttribute('role', 'checkbox');
+  row.setAttribute('aria-checked', String(!!checked));
+  if (disabled) { row.disabled = true; row.setAttribute('aria-disabled', 'true'); }
   const txt = document.createElement('span');
+  txt.className = 'c-delete-chat__opt-label';
   txt.textContent = label;
-  row.append(input, txt);
-  return { row, input };
+  const check = document.createElement('span');
+  check.className = 'c-delete-chat__check';
+  check.setAttribute('aria-hidden', 'true');
+  check.append(icon('check', { size: 16 }));
+  row.append(txt, check);
+  const api = { row, get checked() { return row.getAttribute('aria-checked') === 'true'; } };
+  row.addEventListener('click', () => {
+    if (row.disabled) return;
+    row.setAttribute('aria-checked', String(!api.checked));
+  });
+  return { row, input: api };
+}
+
+/** ★ A5 (Damir's shape, Batch A 2026-08-24) — REMOVE CONTACT is a BOTTOM SHEET.
+ *  It leads with the peer, states what goes (your copy — they keep theirs), and shows
+ *  the groups you are BOTH in (A4's data, asked through onNeedGroups → the shell's
+ *  `ixian:sharedGroups:<addr>` → setRemoveSheetGroups). Verified at source:
+ *  Core's FriendList.removeFriend REFUSES a contact who is in any of your groups
+ *  (isFriendInGroup), so a shared group is a BLOCKER, not decoration — the sheet
+ *  offers to leave those groups first (multi-select, the pickerRow grammar) behind an
+ *  additional confirm, and Remove stays disabled until every blocker is ticked.
+ *  Groups and bots: the same sheet reads "Leave group" (no blockers).
+ *  onRemove({ leaveGroups: [addresses] }) fires ONCE, after the confirm.
+ *  Alternatives explored for the handoff: (a) two modals (the old shape — no room for
+ *  the group list, and the refusal came AFTER the tap); (b) block + explain only (honest
+ *  but a dead end: the user has to find each group and leave it by hand); (c) THIS —
+ *  explain + offer the fix in place. */
+export function openRemoveContactSheet({ chat = {}, host, strings = getStrings(), onNeedGroups, onRemove, onKeep } = {}) {
+  const isGroup = chat.type === 'group' || chat.type === 'bot' || chat.isGroup === true;
+  const content = document.createElement('div');
+  content.className = 'c-remove-contact';
+  content.append(deletePeerHeader(chat, strings));
+
+  const body = document.createElement('p');
+  body.className = 'c-delete-chat__body';
+  body.textContent = isGroup
+    ? (strings.leaveGroupBody || 'Leave this group? You stop receiving its messages. Your copy of the chat is removed from this device.')
+    : (strings.removeSheetBody || 'Remove this contact from your device? Their chat and files go with them. They keep their copy.');
+  content.append(body);
+
+  /* shared groups strip (1:1 only) */
+  let groupsEl = null;
+  let hint = null;
+  const selected = new Set();
+  let groups = null;                                     // null = loading
+  if (!isGroup) {
+    groupsEl = document.createElement('div');
+    groupsEl.className = 'c-remove-contact__groups';
+    const gTitle = document.createElement('h3');
+    gTitle.className = 'c-remove-contact__title';
+    gTitle.textContent = strings.sharedGroupsTitle || 'Groups you are both in';
+    groupsEl.append(gTitle);
+    hint = document.createElement('p');
+    hint.className = 'c-remove-contact__hint';
+    hint.setAttribute('role', 'status');
+    hint.textContent = strings.sharedGroupsLoading || 'Checking your groups…';
+    groupsEl.append(hint);
+    content.append(groupsEl);
+  }
+
+  const err = document.createElement('p');
+  err.className = 'c-remove-contact__error';
+  err.setAttribute('role', 'alert');
+  err.hidden = true;
+  content.append(err);
+
+  const actions = document.createElement('div');
+  actions.className = 'c-remove-contact__actions';
+  let sheet = null;
+  const keep = createButton({ label: strings.keepContact || 'Keep contact', type: 'text', size: 44,
+    onClick: () => { closeSheet(sheet); } });
+  const remove = createButton({
+    label: isGroup ? (strings.leaveGroup || 'Leave group') : (strings.removeContact || 'Remove contact'),
+    type: 'fill', size: 44, intent: 'destructive',
+    onClick: () => confirmRemove(),
+  });
+  remove.classList.add('c-remove-contact__cta');
+  const removeLabel = remove.querySelector('.c-button__label');
+  actions.append(keep, remove);
+  content.append(actions);
+
+  function blockersLeft() {
+    if (!groups) return [];
+    return groups.filter((g) => !selected.has(g.address));
+  }
+  function syncCta() {
+    if (isGroup) { remove.disabled = false; return; }
+    if (groups === null) { remove.disabled = true; return; }   // still loading → no blind remove
+    const left = blockersLeft().length;
+    remove.disabled = left > 0;
+    if (removeLabel) {
+      removeLabel.textContent = selected.size
+        ? (strings.leaveAndRemove || 'Leave {n} & remove').split('{n}').join(String(selected.size))
+        : (strings.removeContact || 'Remove contact');
+    }
+    if (hint) {
+      hint.textContent = !groups.length
+        ? (strings.noSharedGroupsRemovable || 'No shared groups. This contact can be removed.')
+        : (left
+          ? (strings.sharedGroupsBlock || 'A contact who is in one of your groups cannot be removed. Tick the groups to leave them first, or keep the contact.')
+          : (strings.sharedGroupsReady || 'You will leave the ticked groups and their chats are removed from this device. Then the contact is removed.'));
+    }
+  }
+  function renderGroups() {
+    if (!groupsEl) return;
+    for (const old of groupsEl.querySelectorAll('.c-remove-contact__row')) old.remove();
+    for (const g of groups || []) {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'c-remove-contact__row';
+      row.setAttribute('role', 'checkbox');
+      row.setAttribute('aria-checked', String(selected.has(g.address)));
+      row.append(createAvatar({ name: g.name || '', address: g.address || '', size: 40, group: true }));
+      const nm = document.createElement('span');
+      nm.className = 'c-remove-contact__rowname';
+      nm.textContent = g.name || g.address || '';
+      const check = document.createElement('span');
+      check.className = 'c-delete-chat__check';
+      check.setAttribute('aria-hidden', 'true');
+      check.append(icon('check', { size: 16 }));
+      row.append(nm, check);
+      row.addEventListener('click', () => {
+        const on = !selected.has(g.address);
+        if (on) selected.add(g.address); else selected.delete(g.address);
+        row.setAttribute('aria-checked', String(on));
+        syncCta();
+      });
+      groupsEl.insertBefore(row, hint);
+    }
+    syncCta();
+  }
+  let fired = false;                                     // loop r1 A-1: the destructive verb fires ONCE per sheet
+  function confirmRemove() {
+    if (remove.disabled || fired) return;
+    const leaveGroups = [...selected];
+    const fire = () => { if (fired) return; fired = true; if (onRemove) onRemove({ leaveGroups }); closeSheet(sheet); };
+    if (!leaveGroups.length) { fire(); return; }
+    // the additional confirm step — leaving groups is its own destructive act
+    openModal(createModal({
+      title: (strings.leaveGroupsConfirmTitle || 'Leave {n} groups and remove {name}?')
+        .split('{n}').join(String(leaveGroups.length)).split('{name}').join(chat.name || chat.address || ''),
+      // loop r1 A-4 (C#): leaving a group REMOVES that group's chat from this device
+      // (Core removeFriend → deleteMessages) — the copy says so
+      body: strings.leaveGroupsConfirmBody || 'You leave the ticked groups first. Their chats are removed from this device. Then the contact is removed.',
+      role: 'alertdialog', host,
+      actions: [
+        { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
+        { label: strings.leaveAndRemoveConfirm || 'Leave & remove', type: 'fill', intent: 'destructive', onClick: fire },
+      ],
+    }));
+  }
+
+  sheet = createSheet({ content, host, strings,
+    title: isGroup ? (strings.leaveGroupTitle || 'Leave group?') : (strings.removeSheetTitle || 'Remove contact?'),
+    onDismiss: () => { if (liveRemoveSheet === sheet) liveRemoveSheet = null; if (!sheet._removed && onKeep) onKeep(); } });
+  sheet._removed = false;
+  sheet._address = chat.address || '';
+  liveRemoveSheet = sheet;
+  sheet._setGroups = (list) => { groups = (list || []).filter((g) => g && g.address); renderGroups(); };
+  sheet._setError = (msg) => { err.hidden = !msg; err.textContent = msg || ''; };
+  const origFire = onRemove;
+  onRemove = (p) => { sheet._removed = true; if (origFire) origFire(p); };
+  syncCta();
+  openSheet(sheet);
+  if (!isGroup) {
+    if (onNeedGroups) {
+      onNeedGroups(chat.address);                          // the shell asks C#; the answer lands via setRemoveSheetGroups
+      // loop r2 R2-3: a belt — an old exe answers NOTHING; after 4 s the hint says so.
+      // Remove stays DISABLED (a blind remove would hit Core's refusal anyway), Keep is the exit.
+      const belt = setTimeout(() => {
+        if (groups !== null || !isOverlayOpen(sheet)) return;
+        if (hint) hint.textContent = strings.sharedGroupsUnknown || 'Could not check your groups. Keep the contact and try again.';
+      }, 4000);
+      sheet.addEventListener('transitionend', () => { if (!isOverlayOpen(sheet)) clearTimeout(belt); }, { once: true });
+    } else {
+      sheet._setGroups(chat.sharedGroups || []);           // static hosts (demos): what the chat carries
+    }
+  }
+  return sheet;
+}
+
+/** The shell's answer to onNeedGroups: the LIVE remove sheet for `address` takes
+ *  [{ name, address }] (name/address pairs from C#). A late answer for another peer,
+ *  or for a sheet already gone, is dropped. Returns true when applied. */
+let liveRemoveSheet = null;
+// loop r1 A-3: "live" = ON THE OVERLAY STACK (isOverlayOpen) — a sheet in its 400 ms
+// exit is still connected but pointer-dead, and it must not swallow a late answer
+export function setRemoveSheetGroups(address, groups) {
+  const sh = liveRemoveSheet;
+  if (!sh || !isOverlayOpen(sh) || String(sh._address || '') !== String(address || '')) return false;
+  sh._setGroups(groups || []);
+  return true;
+}
+
+/** The shell's report of the verb's outcome: 'blocked' re-opens the question with the
+ *  blocking groups named; anything else is the shell's toast. Returns true when a live
+ *  sheet took it. */
+export function setRemoveSheetResult(address, status, groups, strings = getStrings()) {
+  const sh = liveRemoveSheet;
+  if (!sh || !isOverlayOpen(sh) || String(sh._address || '') !== String(address || '')) return false;
+  if (status === 'blocked') {
+    sh._setGroups(groups || []);
+    sh._setError(strings.removeBlockedInline || 'Still a member of the groups above. Tick them to leave first.');
+    return true;
+  }
+  return false;
 }
 
 /** Two-step delete confirm (CH3, Damir 2026-07-07, redesigned after F5). Step 1
  *  "Delete chat" leads with the peer avatar + name and CHECKBOXES so it's clear
  *  exactly what goes: the chat (fixed — that's the action) + optionally downloaded
- *  media & files. Confirming removes the row and opens step 2, an explicit "Delete
- *  contact?" escalation (the most destructive — the counterpart keeps their copy).
- *  Each terminal fires onAction(action, { media }) so the shell records the intent
- *  (row removal now via the session tombstone; the on-device wipe + contact removal
- *  land at the BE cutover, CH3). Overlay layer is a stack → opening step 2 from
- *  step 1's action is safe (step 2 takes focus; step 1 auto-dismisses). */
-export function openDeleteFlow({ chat = {}, host, onAction, strings = getStrings() } = {}) {
+ *  media & files. Confirming removes the row and opens step 2 — ★ A5: the REMOVE-
+ *  CONTACT SHEET (openRemoveContactSheet), no longer a second modal.
+ *  Each terminal fires onAction(action, detail) so the shell emits the verb
+ *  (★ A6: `ixian:removehistory:<addr>` / `ixian:removecontact:<addr>:<leave>` —
+ *  before this batch nothing reached C#, and the contact stayed on disk).
+ *  opts.onNeedGroups(addr) → the shell asks C# for the shared groups. */
+export function openDeleteFlow({ chat = {}, host, onAction, onNeedGroups, strings = getStrings() } = {}) {
   const content = document.createElement('div');
   content.className = 'c-delete-chat';
   content.append(deletePeerHeader(chat, strings));
@@ -144,6 +364,7 @@ export function openDeleteFlow({ chat = {}, host, onAction, strings = getStrings
   optsWrap.className = 'c-delete-chat__opts';
   // "Delete chat" is fixed-on (you're in the delete-chat flow) — a checked+disabled
   // box states the outcome plainly; "media & files" is the real toggle.
+  let step1Fired = false;
   const cbChat = deleteCheckbox(strings.deleteChatOpt || 'Delete chat', { checked: true, disabled: true });
   const cbMedia = deleteCheckbox(strings.deleteMediaOpt || 'Delete media & files');
   optsWrap.append(cbChat.row, cbMedia.row);
@@ -156,26 +377,39 @@ export function openDeleteFlow({ chat = {}, host, onAction, strings = getStrings
       { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },   // safe action focused (APG)
       { label: strings.delete || 'Delete', type: 'fill', intent: 'destructive',
         onClick: () => {
+          if (step1Fired) return;                              // loop r1 A-2: one shot (modal actions get no event)
+          step1Fired = true;
           const media = cbMedia.input.checked;
           if (onAction) onAction('delete', { media });          // removes the row (+ media intent)
-          const step2 = document.createElement('div');
-          step2.className = 'c-delete-chat';
-          step2.append(deletePeerHeader(chat, strings));         // avatar + name on top
-          const body2 = document.createElement('p');
-          body2.className = 'c-delete-chat__body';
-          body2.textContent = strings.deleteContactBody || 'Also remove this contact from your device? They keep their copy of the chat.';
-          step2.append(body2);
-          openModal(createModal({
-            title: strings.deleteContactTitle || 'Delete contact too?',
-            content: step2,
-            role: 'alertdialog', host,
-            actions: [
-              { label: strings.keepContact || 'Keep contact', type: 'text', autofocus: true },
-              { label: strings.deleteContact || 'Delete contact', type: 'fill', intent: 'destructive',
-                onClick: () => { if (onAction) onAction('deleteContact', { media }); } },
-            ],
-          }));
+          openRemoveContactSheet({
+            chat, host, strings, onNeedGroups,
+            onRemove: ({ leaveGroups }) => { if (onAction) onAction('deleteContact', { media, leaveGroups }); },
+          });
         } },
+    ],
+  }));
+}
+
+/** ★ B1: the revoke prompt for an outgoing pending contact request. Honest copy —
+ *  the withdrawal is LOCAL (removeFriend); the peer keeps their copy of the request
+ *  (no protocol withdraw verb — RC1, BE). onAction('revokeRequest') fires ONCE. */
+export function openRevokeRequestFlow({ chat = {}, host, onAction, strings = getStrings() } = {}) {
+  const content = document.createElement('div');
+  content.className = 'c-delete-chat';
+  content.append(deletePeerHeader(chat, strings));
+  const body = document.createElement('p');
+  body.className = 'c-delete-chat__body';
+  body.textContent = strings.revokeRequestBody
+    || 'The request is withdrawn on this device and the chat is removed. They are not told: their copy of the request stays until they act on it.';
+  content.append(body);
+  let fired = false;
+  openModal(createModal({
+    title: strings.revokeRequestTitle || 'Revoke the contact request?',
+    content, role: 'alertdialog', host,
+    actions: [
+      { label: strings.keepContactRequest || 'Keep request', type: 'text', autofocus: true },
+      { label: strings.revokeRequestConfirm || 'Revoke', type: 'fill', intent: 'destructive',
+        onClick: () => { if (fired) return; fired = true; if (onAction) onAction('revokeRequest'); } },
     ],
   }));
 }

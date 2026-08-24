@@ -60,7 +60,30 @@ export function b64ToUtf8(b64) {
  */
 export function createNativeBridge({ emit, win } = {}) {
   const w = win || window;
-  const sink = emit || ((command) => { w.location.href = command; });
+  /* ★ Batch A loop r1 (A-1/A-2, 2026-08-24): the DEFAULT sink is a SERIALIZED outbox.
+     The MAUI WebView processes ONE URL navigation at a time, so two `location.href`
+     sets in the same turn drop the first. launch.html found this (#N75) and queued
+     its own sends; every other shell still emitted raw. The delete flow (A6) emits
+     `ixian:removehistory:` and `ixian:sharedGroups:` in one click handler, the W9
+     request loop emits one `ixian:sendrequest:` per ticked contact, contact_details
+     emits `ixian:onload` + `ixian:sharedGroups` back to back — all the same class.
+     The FIRST command still goes out synchronously (drain runs at once); each later
+     one lands on its own macrotask. C# cancels every ixian: navigation (e.Cancel),
+     so the WebView stays on the page and the next command fires cleanly.
+     An injected `emit` (tests, the demo mock layer, launch.html's own queue) bypasses it. */
+  const outbox = [];
+  let draining = false;
+  const drain = () => {
+    if (!outbox.length) { draining = false; return; }
+    // loop r2 R2-1: a throwing href set must cost ONE command, never the whole bridge
+    try { w.location.href = outbox.shift(); }
+    finally { setTimeout(drain, 0); }
+  };
+  const queued = (command) => {
+    outbox.push(command);
+    if (!draining) { draining = true; drain(); }
+  };
+  const sink = emit || queued;
   let readySent = false;
 
   const capabilities = (w.SPIXI_ENV && w.SPIXI_ENV.capabilities) || {};

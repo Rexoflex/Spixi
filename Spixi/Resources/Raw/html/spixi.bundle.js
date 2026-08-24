@@ -685,6 +685,9 @@ const PRESSABLE_ROW = [
   '.c-app-item',
   '.c-apps-recents__item',
   '.c-wallet-receive__contact',
+  /* ★ W-j (2026-08-24): the shared money-picker row (contact-row.js) — Send AND
+     Receive rows. Send rows had NO press feedback before this (never listed). */
+  '.c-contact-row',
   /* D-16 r3 (Opus finding 2): the Downloads FILE row. Its canonical fill block
      lives in settings-app.css; before this only the destructive "Delete all"
      row on that screen was pressable — two grammars, the wrong way round. */
@@ -2477,14 +2480,27 @@ function openOverlay(el, opts) {
   }
   stack.push({ el, scrim, opts, opener });
 
-  // enter transitions: two rAFs so initial styles paint first
+  // enter transitions: two rAFs so initial styles paint first.
+  // ★ Batch W loop r3 (R3-1): an overlay dismissed INSIDE those two frames must not
+  // re-acquire data-open from this deferred setter — a dying sheet that lights up
+  // again hit-tests (the #46 MAJOR-3 class) and reads as "open" to any slot logic.
   requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (!stack.some((s) => s.el === el)) return;
     scrim.dataset.open = '';
     el.dataset.open = '';
   }));
 
   const target = el.querySelector('[data-autofocus]') || focusables(el)[0] || el;
   target.focus({ preventScroll: true });
+}
+
+/** ★ Batch W loop r3: is this overlay PRESENTED — on the stack, i.e. opened and not
+ *  yet dismissed? The stack entry is removed SYNCHRONOUSLY at dismissal (below), while
+ *  the node lingers ~400 ms for the exit transition and data-open lands two frames
+ *  after open — so neither the DOM nor the attribute is a timing-safe "open" oracle.
+ *  Slot logic (one review sheet per compose) asks this instead. */
+function isOverlayOpen(el) {
+  return !!el && stack.some((s) => s.el === el);
 }
 
 /** Dismiss a specific overlay (default: top of stack). Returns true if one closed. */
@@ -4343,7 +4359,7 @@ function setPaymentStatus(row, patch = {}) {
 function createAppBubble({
   name = '',
   iconUrl = null,
-  state = 'invite',        // invite (them→you) | invited (you→them) | missing | declined | in-session | ended
+  state = 'invite',        // invite (them→you) | invited (you→them) | missing | declined | canceled (B2) | in-session | ended
   direction = null,        // override — bridge knows localSender (audit)
   timestamp = null,
   gutter = false,          // group chats: align with gutter-indented text bubbles (C8)
@@ -4356,6 +4372,7 @@ function createAppBubble({
     ? (strings.appSession || 'App session')
     : (strings.appInvite || 'App invite');
   const { row, el } = card(dir, title, timestamp, 'app', gutter);
+  if (state === 'declined' || state === 'canceled') el.dataset.state = state;   // terminal tombstones: void tone (css)
 
   const id = document.createElement('div');
   id.className = 'c-tcard__app';
@@ -4386,6 +4403,7 @@ function createAppBubble({
     invited: strings.youInvited || 'You have sent an invite',
     missing: strings.invitedYou || 'Invited you to join',
     declined: strings.declinedInvite || 'You declined this invite',
+    canceled: strings.canceledInvite || 'You canceled this invite',   // ★ B2 (#533 ①): the sender's terminal tombstone
     'in-session': strings.inSession || 'In session',
     ended: strings.sessionEnded || 'Session ended',
   }[state] || ''; // audit r2: unknown state rendered "undefined"
@@ -6501,9 +6519,11 @@ function setRequestAccepting(row, strings = getStrings()) {
  * (it has no swipe / open), so a stalled handshake is never an un-removable trap.
  *
  * openChatRowMenu({ chat, host, onAction, strings, capabilities, handshaking }) → sheet
- *   onAction(action) — 'pin' | 'mute' | 'markRead' | 'info' | 'delete' | 'cancelHandshake'
+ *   onAction(action) — 'pin' | 'mute' | 'markRead' | 'info' | 'delete' | 'cancelHandshake' | 'revokeRequest' (B1)
  * attachChatRowMenu(row, opts) — wires long-press + right-click on the row
  */
+
+
 
 
 
@@ -6514,7 +6534,7 @@ function setRequestAccepting(row, strings = getStrings()) {
 const CHATMENU_LONG_PRESS_MS = 500;   // §5b
 const CHATMENU_MOVE_CANCEL_PX = 10;   // §5b: >10px move = scroll intent
 
-function openChatRowMenu({ chat = {}, host, onAction, strings = getStrings(), capabilities = {}, handshaking = false } = {}) {
+function openChatRowMenu({ chat = {}, host, onAction, onNeedGroups, strings = getStrings(), capabilities = {}, handshaking = false } = {}) {
   closeChatRowSwipe();                              // any open swipe drawer closes when a sheet takes over (single-open invariant across row types)
   const content = document.createElement('div');
   content.className = 'c-msgmenu';                 // reuse the sheet-menu styling
@@ -6574,10 +6594,20 @@ function openChatRowMenu({ chat = {}, host, onAction, strings = getStrings(), ca
   // never shown broken (decided model) — flip on when the §8 verbs land. The
   // confirm is the TWO-STEP flow (Damir 2026-07-07): step 1 removes the row,
   // step 2 opts into wiping history + files + the contact.
-  if (capabilities.delete) {
+  /* ★ B1 (Damir, Batch B 2026-08-24): an OUTGOING PENDING contact request row does
+     not "delete" — it REVOKES, and only through a PROMPT (never silently). Verified at
+     source: SingleChatPage's `ixian:undorequest` is `FriendList.removeFriend` with a
+     "TODO: notify the other party" — the peer is NOT told and their copy of the request
+     stays until they act on it; the copy says exactly that. */
+  if (capabilities.delete && chat.request) {
+    item('circle-x', strings.revokeRequest || 'Revoke request', () => {
+      closeSheet(sheet);
+      openRevokeRequestFlow({ chat, host, onAction, strings });
+    }, true);
+  } else if (capabilities.delete) {
     item('trash', strings.deleteChat || 'Delete chat', () => {
       closeSheet(sheet);
-      openDeleteFlow({ chat, host, onAction, strings });
+      openDeleteFlow({ chat, host, onAction, onNeedGroups, strings });
     }, true);
   }
 
@@ -6600,30 +6630,238 @@ function deletePeerHeader(chat, strings) {
   return h;
 }
 
-/** One labelled checkbox row → { row, input }. */
+/** One option row → { row, input }. ★ A7 (Damir, Batch A 2026-08-24): the GROUP-CREATION
+ *  checkbox grammar (contacts-shell pickerRow: role=checkbox + aria-checked + the trailing
+ *  select circle), not the off-brand native <input type=checkbox>. `input` keeps the old
+ *  shape for callers (`.checked`) — it is the row itself now. */
 function deleteCheckbox(label, { checked = false, disabled = false } = {}) {
-  const row = document.createElement('label');
+  const row = document.createElement('button');
+  row.type = 'button';
   row.className = 'c-delete-chat__opt';
-  const input = document.createElement('input');
-  input.type = 'checkbox';
-  input.checked = checked;
-  if (disabled) input.disabled = true;
+  row.setAttribute('role', 'checkbox');
+  row.setAttribute('aria-checked', String(!!checked));
+  if (disabled) { row.disabled = true; row.setAttribute('aria-disabled', 'true'); }
   const txt = document.createElement('span');
+  txt.className = 'c-delete-chat__opt-label';
   txt.textContent = label;
-  row.append(input, txt);
-  return { row, input };
+  const check = document.createElement('span');
+  check.className = 'c-delete-chat__check';
+  check.setAttribute('aria-hidden', 'true');
+  check.append(icon('check', { size: 16 }));
+  row.append(txt, check);
+  const api = { row, get checked() { return row.getAttribute('aria-checked') === 'true'; } };
+  row.addEventListener('click', () => {
+    if (row.disabled) return;
+    row.setAttribute('aria-checked', String(!api.checked));
+  });
+  return { row, input: api };
+}
+
+/** ★ A5 (Damir's shape, Batch A 2026-08-24) — REMOVE CONTACT is a BOTTOM SHEET.
+ *  It leads with the peer, states what goes (your copy — they keep theirs), and shows
+ *  the groups you are BOTH in (A4's data, asked through onNeedGroups → the shell's
+ *  `ixian:sharedGroups:<addr>` → setRemoveSheetGroups). Verified at source:
+ *  Core's FriendList.removeFriend REFUSES a contact who is in any of your groups
+ *  (isFriendInGroup), so a shared group is a BLOCKER, not decoration — the sheet
+ *  offers to leave those groups first (multi-select, the pickerRow grammar) behind an
+ *  additional confirm, and Remove stays disabled until every blocker is ticked.
+ *  Groups and bots: the same sheet reads "Leave group" (no blockers).
+ *  onRemove({ leaveGroups: [addresses] }) fires ONCE, after the confirm.
+ *  Alternatives explored for the handoff: (a) two modals (the old shape — no room for
+ *  the group list, and the refusal came AFTER the tap); (b) block + explain only (honest
+ *  but a dead end: the user has to find each group and leave it by hand); (c) THIS —
+ *  explain + offer the fix in place. */
+function openRemoveContactSheet({ chat = {}, host, strings = getStrings(), onNeedGroups, onRemove, onKeep } = {}) {
+  const isGroup = chat.type === 'group' || chat.type === 'bot' || chat.isGroup === true;
+  const content = document.createElement('div');
+  content.className = 'c-remove-contact';
+  content.append(deletePeerHeader(chat, strings));
+
+  const body = document.createElement('p');
+  body.className = 'c-delete-chat__body';
+  body.textContent = isGroup
+    ? (strings.leaveGroupBody || 'Leave this group? You stop receiving its messages. Your copy of the chat is removed from this device.')
+    : (strings.removeSheetBody || 'Remove this contact from your device? Their chat and files go with them. They keep their copy.');
+  content.append(body);
+
+  /* shared groups strip (1:1 only) */
+  let groupsEl = null;
+  let hint = null;
+  const selected = new Set();
+  let groups = null;                                     // null = loading
+  if (!isGroup) {
+    groupsEl = document.createElement('div');
+    groupsEl.className = 'c-remove-contact__groups';
+    const gTitle = document.createElement('h3');
+    gTitle.className = 'c-remove-contact__title';
+    gTitle.textContent = strings.sharedGroupsTitle || 'Groups you are both in';
+    groupsEl.append(gTitle);
+    hint = document.createElement('p');
+    hint.className = 'c-remove-contact__hint';
+    hint.setAttribute('role', 'status');
+    hint.textContent = strings.sharedGroupsLoading || 'Checking your groups…';
+    groupsEl.append(hint);
+    content.append(groupsEl);
+  }
+
+  const err = document.createElement('p');
+  err.className = 'c-remove-contact__error';
+  err.setAttribute('role', 'alert');
+  err.hidden = true;
+  content.append(err);
+
+  const actions = document.createElement('div');
+  actions.className = 'c-remove-contact__actions';
+  let sheet = null;
+  const keep = createButton({ label: strings.keepContact || 'Keep contact', type: 'text', size: 44,
+    onClick: () => { closeSheet(sheet); } });
+  const remove = createButton({
+    label: isGroup ? (strings.leaveGroup || 'Leave group') : (strings.removeContact || 'Remove contact'),
+    type: 'fill', size: 44, intent: 'destructive',
+    onClick: () => confirmRemove(),
+  });
+  remove.classList.add('c-remove-contact__cta');
+  const removeLabel = remove.querySelector('.c-button__label');
+  actions.append(keep, remove);
+  content.append(actions);
+
+  function blockersLeft() {
+    if (!groups) return [];
+    return groups.filter((g) => !selected.has(g.address));
+  }
+  function syncCta() {
+    if (isGroup) { remove.disabled = false; return; }
+    if (groups === null) { remove.disabled = true; return; }   // still loading → no blind remove
+    const left = blockersLeft().length;
+    remove.disabled = left > 0;
+    if (removeLabel) {
+      removeLabel.textContent = selected.size
+        ? (strings.leaveAndRemove || 'Leave {n} & remove').split('{n}').join(String(selected.size))
+        : (strings.removeContact || 'Remove contact');
+    }
+    if (hint) {
+      hint.textContent = !groups.length
+        ? (strings.noSharedGroupsRemovable || 'No shared groups. This contact can be removed.')
+        : (left
+          ? (strings.sharedGroupsBlock || 'A contact who is in one of your groups cannot be removed. Tick the groups to leave them first, or keep the contact.')
+          : (strings.sharedGroupsReady || 'You will leave the ticked groups and their chats are removed from this device. Then the contact is removed.'));
+    }
+  }
+  function renderGroups() {
+    if (!groupsEl) return;
+    for (const old of groupsEl.querySelectorAll('.c-remove-contact__row')) old.remove();
+    for (const g of groups || []) {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'c-remove-contact__row';
+      row.setAttribute('role', 'checkbox');
+      row.setAttribute('aria-checked', String(selected.has(g.address)));
+      row.append(createAvatar({ name: g.name || '', address: g.address || '', size: 40, group: true }));
+      const nm = document.createElement('span');
+      nm.className = 'c-remove-contact__rowname';
+      nm.textContent = g.name || g.address || '';
+      const check = document.createElement('span');
+      check.className = 'c-delete-chat__check';
+      check.setAttribute('aria-hidden', 'true');
+      check.append(icon('check', { size: 16 }));
+      row.append(nm, check);
+      row.addEventListener('click', () => {
+        const on = !selected.has(g.address);
+        if (on) selected.add(g.address); else selected.delete(g.address);
+        row.setAttribute('aria-checked', String(on));
+        syncCta();
+      });
+      groupsEl.insertBefore(row, hint);
+    }
+    syncCta();
+  }
+  let fired = false;                                     // loop r1 A-1: the destructive verb fires ONCE per sheet
+  function confirmRemove() {
+    if (remove.disabled || fired) return;
+    const leaveGroups = [...selected];
+    const fire = () => { if (fired) return; fired = true; if (onRemove) onRemove({ leaveGroups }); closeSheet(sheet); };
+    if (!leaveGroups.length) { fire(); return; }
+    // the additional confirm step — leaving groups is its own destructive act
+    openModal(createModal({
+      title: (strings.leaveGroupsConfirmTitle || 'Leave {n} groups and remove {name}?')
+        .split('{n}').join(String(leaveGroups.length)).split('{name}').join(chat.name || chat.address || ''),
+      // loop r1 A-4 (C#): leaving a group REMOVES that group's chat from this device
+      // (Core removeFriend → deleteMessages) — the copy says so
+      body: strings.leaveGroupsConfirmBody || 'You leave the ticked groups first. Their chats are removed from this device. Then the contact is removed.',
+      role: 'alertdialog', host,
+      actions: [
+        { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
+        { label: strings.leaveAndRemoveConfirm || 'Leave & remove', type: 'fill', intent: 'destructive', onClick: fire },
+      ],
+    }));
+  }
+
+  sheet = createSheet({ content, host, strings,
+    title: isGroup ? (strings.leaveGroupTitle || 'Leave group?') : (strings.removeSheetTitle || 'Remove contact?'),
+    onDismiss: () => { if (liveRemoveSheet === sheet) liveRemoveSheet = null; if (!sheet._removed && onKeep) onKeep(); } });
+  sheet._removed = false;
+  sheet._address = chat.address || '';
+  liveRemoveSheet = sheet;
+  sheet._setGroups = (list) => { groups = (list || []).filter((g) => g && g.address); renderGroups(); };
+  sheet._setError = (msg) => { err.hidden = !msg; err.textContent = msg || ''; };
+  const origFire = onRemove;
+  onRemove = (p) => { sheet._removed = true; if (origFire) origFire(p); };
+  syncCta();
+  openSheet(sheet);
+  if (!isGroup) {
+    if (onNeedGroups) {
+      onNeedGroups(chat.address);                          // the shell asks C#; the answer lands via setRemoveSheetGroups
+      // loop r2 R2-3: a belt — an old exe answers NOTHING; after 4 s the hint says so.
+      // Remove stays DISABLED (a blind remove would hit Core's refusal anyway), Keep is the exit.
+      const belt = setTimeout(() => {
+        if (groups !== null || !isOverlayOpen(sheet)) return;
+        if (hint) hint.textContent = strings.sharedGroupsUnknown || 'Could not check your groups. Keep the contact and try again.';
+      }, 4000);
+      sheet.addEventListener('transitionend', () => { if (!isOverlayOpen(sheet)) clearTimeout(belt); }, { once: true });
+    } else {
+      sheet._setGroups(chat.sharedGroups || []);           // static hosts (demos): what the chat carries
+    }
+  }
+  return sheet;
+}
+
+/** The shell's answer to onNeedGroups: the LIVE remove sheet for `address` takes
+ *  [{ name, address }] (name/address pairs from C#). A late answer for another peer,
+ *  or for a sheet already gone, is dropped. Returns true when applied. */
+let liveRemoveSheet = null;
+// loop r1 A-3: "live" = ON THE OVERLAY STACK (isOverlayOpen) — a sheet in its 400 ms
+// exit is still connected but pointer-dead, and it must not swallow a late answer
+function setRemoveSheetGroups(address, groups) {
+  const sh = liveRemoveSheet;
+  if (!sh || !isOverlayOpen(sh) || String(sh._address || '') !== String(address || '')) return false;
+  sh._setGroups(groups || []);
+  return true;
+}
+
+/** The shell's report of the verb's outcome: 'blocked' re-opens the question with the
+ *  blocking groups named; anything else is the shell's toast. Returns true when a live
+ *  sheet took it. */
+function setRemoveSheetResult(address, status, groups, strings = getStrings()) {
+  const sh = liveRemoveSheet;
+  if (!sh || !isOverlayOpen(sh) || String(sh._address || '') !== String(address || '')) return false;
+  if (status === 'blocked') {
+    sh._setGroups(groups || []);
+    sh._setError(strings.removeBlockedInline || 'Still a member of the groups above. Tick them to leave first.');
+    return true;
+  }
+  return false;
 }
 
 /** Two-step delete confirm (CH3, Damir 2026-07-07, redesigned after F5). Step 1
  *  "Delete chat" leads with the peer avatar + name and CHECKBOXES so it's clear
  *  exactly what goes: the chat (fixed — that's the action) + optionally downloaded
- *  media & files. Confirming removes the row and opens step 2, an explicit "Delete
- *  contact?" escalation (the most destructive — the counterpart keeps their copy).
- *  Each terminal fires onAction(action, { media }) so the shell records the intent
- *  (row removal now via the session tombstone; the on-device wipe + contact removal
- *  land at the BE cutover, CH3). Overlay layer is a stack → opening step 2 from
- *  step 1's action is safe (step 2 takes focus; step 1 auto-dismisses). */
-function openDeleteFlow({ chat = {}, host, onAction, strings = getStrings() } = {}) {
+ *  media & files. Confirming removes the row and opens step 2 — ★ A5: the REMOVE-
+ *  CONTACT SHEET (openRemoveContactSheet), no longer a second modal.
+ *  Each terminal fires onAction(action, detail) so the shell emits the verb
+ *  (★ A6: `ixian:removehistory:<addr>` / `ixian:removecontact:<addr>:<leave>` —
+ *  before this batch nothing reached C#, and the contact stayed on disk).
+ *  opts.onNeedGroups(addr) → the shell asks C# for the shared groups. */
+function openDeleteFlow({ chat = {}, host, onAction, onNeedGroups, strings = getStrings() } = {}) {
   const content = document.createElement('div');
   content.className = 'c-delete-chat';
   content.append(deletePeerHeader(chat, strings));
@@ -6631,6 +6869,7 @@ function openDeleteFlow({ chat = {}, host, onAction, strings = getStrings() } = 
   optsWrap.className = 'c-delete-chat__opts';
   // "Delete chat" is fixed-on (you're in the delete-chat flow) — a checked+disabled
   // box states the outcome plainly; "media & files" is the real toggle.
+  let step1Fired = false;
   const cbChat = deleteCheckbox(strings.deleteChatOpt || 'Delete chat', { checked: true, disabled: true });
   const cbMedia = deleteCheckbox(strings.deleteMediaOpt || 'Delete media & files');
   optsWrap.append(cbChat.row, cbMedia.row);
@@ -6643,26 +6882,39 @@ function openDeleteFlow({ chat = {}, host, onAction, strings = getStrings() } = 
       { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },   // safe action focused (APG)
       { label: strings.delete || 'Delete', type: 'fill', intent: 'destructive',
         onClick: () => {
+          if (step1Fired) return;                              // loop r1 A-2: one shot (modal actions get no event)
+          step1Fired = true;
           const media = cbMedia.input.checked;
           if (onAction) onAction('delete', { media });          // removes the row (+ media intent)
-          const step2 = document.createElement('div');
-          step2.className = 'c-delete-chat';
-          step2.append(deletePeerHeader(chat, strings));         // avatar + name on top
-          const body2 = document.createElement('p');
-          body2.className = 'c-delete-chat__body';
-          body2.textContent = strings.deleteContactBody || 'Also remove this contact from your device? They keep their copy of the chat.';
-          step2.append(body2);
-          openModal(createModal({
-            title: strings.deleteContactTitle || 'Delete contact too?',
-            content: step2,
-            role: 'alertdialog', host,
-            actions: [
-              { label: strings.keepContact || 'Keep contact', type: 'text', autofocus: true },
-              { label: strings.deleteContact || 'Delete contact', type: 'fill', intent: 'destructive',
-                onClick: () => { if (onAction) onAction('deleteContact', { media }); } },
-            ],
-          }));
+          openRemoveContactSheet({
+            chat, host, strings, onNeedGroups,
+            onRemove: ({ leaveGroups }) => { if (onAction) onAction('deleteContact', { media, leaveGroups }); },
+          });
         } },
+    ],
+  }));
+}
+
+/** ★ B1: the revoke prompt for an outgoing pending contact request. Honest copy —
+ *  the withdrawal is LOCAL (removeFriend); the peer keeps their copy of the request
+ *  (no protocol withdraw verb — RC1, BE). onAction('revokeRequest') fires ONCE. */
+function openRevokeRequestFlow({ chat = {}, host, onAction, strings = getStrings() } = {}) {
+  const content = document.createElement('div');
+  content.className = 'c-delete-chat';
+  content.append(deletePeerHeader(chat, strings));
+  const body = document.createElement('p');
+  body.className = 'c-delete-chat__body';
+  body.textContent = strings.revokeRequestBody
+    || 'The request is withdrawn on this device and the chat is removed. They are not told: their copy of the request stays until they act on it.';
+  content.append(body);
+  let fired = false;
+  openModal(createModal({
+    title: strings.revokeRequestTitle || 'Revoke the contact request?',
+    content, role: 'alertdialog', host,
+    actions: [
+      { label: strings.keepContactRequest || 'Keep request', type: 'text', autofocus: true },
+      { label: strings.revokeRequestConfirm || 'Revoke', type: 'fill', intent: 'destructive',
+        onClick: () => { if (fired) return; fired = true; if (onAction) onAction('revokeRequest'); } },
     ],
   }));
 }
@@ -7148,6 +7400,7 @@ function renderChatsList(listEl, state, opts = {}) {
     if (opts.rowMenu !== false) {                        // long-press/right-click → context sheet (step 4)
       attachChatRowMenu(el, {
         chat: c, host: opts.host, strings, capabilities: caps,
+        onNeedGroups: opts.onNeedGroups,                 // A4/A5: the remove-contact sheet asks C# for the shared groups
         onAction: (action, detail) => applyChatRowAction(listEl, state, c, action, opts, detail),
       });
     }
@@ -7193,7 +7446,8 @@ function applyChatRowAction(listEl, state, chat, action, opts = {}, detail = {})
     // delete + deleteContact both remove the row; the wipe granularity (media,
     // contact) rides `detail`/`action` to the bridge intent (onPersist → BE).
     case 'delete':
-    case 'deleteContact': state.chats = (state.chats || []).filter((c) => c !== chat); break;
+    case 'deleteContact':
+    case 'revokeRequest': state.chats = (state.chats || []).filter((c) => c !== chat); break;   // B1: a revoked request row goes too
     case 'info': if (opts.onChatInfo) opts.onChatInfo(chat); return;   // stub — no model change
     default: return;
   }
@@ -10540,21 +10794,163 @@ function openMissingTxSheet({ host, strings = getStrings(), onExplorer, scan = n
   return sheet;
 }
 
+/* ---- src/components/contact-row.js ---- */
+/**
+ * c-contact-row — ONE contact-row grammar for the money pickers (★ W-j, Damir
+ * F5 2026-08-23: "the Send/Receive rows look smaller than the Contacts directory
+ * rows"). The anatomy is the Contacts DIRECTORY row (contacts-shell pickerRow):
+ * avatar-48 (with the online dot) + name + the #211 truncated address sub-line,
+ * 64px min-height, the same padding and gap. Receive keeps its trailing
+ * multi-select circle (W9); Send rows are plain tap-to-pick.
+ *
+ * Why a builder and not only CSS: three screens drifted because each built its
+ * own row. Now Send and Receive call this one function; contacts-shell keeps its
+ * pickerRow (the smoke test keys on `.c-contacts__row` in 15+ places — #537), and a
+ * cascade-aware smoke pin holds the two stylesheets to the SAME numbers.
+ *
+ * createContactRow({ contact, strings, select, checked, className, onClick })
+ *   contact  { name?, address, avatar?, online?, pending?, isGroup? }
+ *   select   false → a plain button row (Send)
+ *            'checkbox' → role=checkbox + aria-checked + the trailing circle (Receive)
+ *   checked  initial aria-checked for select rows
+ *   className  extra surface class(es) — base.css / pressable.js key on them
+ *   onClick  the tap handler (the caller patches aria-checked itself)
+ * → <button class="c-contact-row …">
+ *
+ * Free fns: contactDisplayName(c) — nick, else the middle-truncated address
+ *           (the #276/#279 echo class: name === address is NOT a nick).
+ *           setContactRowChecked(row, on)
+ */
+
+
+
+
+
+function rowHasNick(c) { return !!c.name && c.name !== c.address; }
+
+/** Nick when present; else the #211 middle-truncated address (9…6, directory canon). */
+function contactDisplayName(c) {
+  if (!c) return '';
+  if (rowHasNick(c)) return c.name;
+  return c.address ? truncateAddressMiddle(c.address, 9, 6) : (c.name || '');
+}
+
+/** The directory sub-line: truncated address under a nick; "Address-only contact" otherwise. */
+function contactSubLine(c, strings = getStrings()) {
+  if (!c) return '';
+  if (rowHasNick(c)) return truncateAddressMiddle(c.address, 9, 6);
+  return strings.addressOnly || 'Address-only contact';
+}
+
+function createContactRow({
+  contact = {}, strings = getStrings(), select = false, checked = false, className = '', onClick,
+} = {}) {
+  const c = contact || {};
+  const row = document.createElement('button');
+  row.type = 'button';
+  row.className = 'c-contact-row' + (className ? ' ' + className : '');
+  if (c.pending) row.dataset.pending = '';
+  // loop r1 m4/m10 — the directory's F2/C9 rule, carried: in SELECT mode a row
+  // that cannot be a target is DISABLED and says why on its sub-line. Address-less
+  // rows would collapse onto one Set key (F2); a pending contact cannot receive
+  // (the #275/#301 fake-delivery class). Plain (Send) rows keep #255: pickable.
+  const blocked = !c.address || (select === 'checkbox' && c.pending);   // loop r2 R2-4: address-less is blocked in BOTH forms
+  if (blocked) { row.disabled = true; row.dataset.blocked = ''; }
+
+  row.append(createAvatar({
+    src: c.avatar || null, name: c.name || '', address: c.address || '', size: 48,
+    online: !!c.online, group: !!c.isGroup,
+  }));
+
+  const col = document.createElement('span');
+  col.className = 'c-contact-row__col';
+  const name = document.createElement('span');
+  name.className = 'c-contact-row__name';
+  name.textContent = contactDisplayName(c);
+  const sub = document.createElement('span');
+  sub.className = 'c-contact-row__sub';
+  sub.textContent = (blocked && c.pending) ? (strings.noGroupPending || 'Can’t be added until they accept')
+    : (blocked && !c.address) ? (strings.noAddressYet || 'No address yet')          // loop r3 n3: a blocked row says why
+      : contactSubLine(c, strings);
+  col.append(name, sub);
+  row.append(col);
+
+  if (c.pending) {
+    // #255: the honest "request pending" signal — still pickable on Send (money
+    // goes to the address, not the friendship). Badge grammar = the directory's.
+    const badge = createBadge({ label: strings.requestSent || 'Request sent', type: 'warning', weight: 'tonal' });
+    badge.classList.add('c-contact-row__badge');
+    row.append(badge);
+    row.setAttribute('aria-label', contactDisplayName(c) + ', ' + (strings.contactPendingLabel || 'request sent')
+      + (blocked ? ', ' + (strings.noGroupPending || 'Can’t be added until they accept') : ''));
+  }
+
+  if (select === 'checkbox') {
+    row.setAttribute('role', 'checkbox');
+    row.setAttribute('aria-checked', String(!!checked && !blocked));
+    const check = document.createElement('span');
+    check.className = 'c-contact-row__check';
+    check.setAttribute('aria-hidden', 'true');
+    check.append(icon('check', { size: 16 }));
+    row.append(check);
+  }
+
+  if (onClick && !blocked) row.addEventListener('click', onClick);
+  return row;
+}
+
+/** Patch a select row's checked state IN PLACE (no re-render → focus stays on the row). */
+function setContactRowChecked(row, on) {
+  if (row) row.setAttribute('aria-checked', String(!!on));
+  return row;
+}
+
+/** The "Send to an address" row: the same anatomy with a glyph disc in the avatar slot. */
+function createGlyphRow({ glyph = 'qrcode', label = '', className = '', onClick } = {}) {
+  const row = document.createElement('button');
+  row.type = 'button';
+  row.className = 'c-contact-row' + (className ? ' ' + className : '');
+  const disc = document.createElement('span');
+  disc.className = 'c-contact-row__glyph';
+  disc.append(icon(glyph, { size: 22 }));
+  const col = document.createElement('span');
+  col.className = 'c-contact-row__col';
+  const name = document.createElement('span');
+  name.className = 'c-contact-row__name';
+  name.textContent = label;
+  col.append(name);
+  row.append(disc, col);
+  if (onClick) row.addEventListener('click', onClick);
+  return row;
+}
+
 /* ---- src/components/wallet-send.js ---- */
 /**
  * c-wallet-send — the send flow, slice 2 (spec §3, #133: ONE screen + review sheet).
  * Replaces the legacy 3-page hop (wallet_send → send2 → sent):
  *
- * 1. RECIPIENT — search over contacts (deterministic avatars) OR a raw address input
- *    ("Send to an address" reveal) OR QR (`ixian:quickscan` via onQuickScan; the shell
- *    calls setSendAddress with the scan result). Selecting shows a recipient row with ✕.
- * 2. AMOUNT — decimal-sanitized input (≤8 decimals, chain precision), Available line,
+ * ★ W-i (Damir, screenshots 2026-08-23): AMOUNT ON TOP. Both money screens lead
+ * with the amount — you decide how much first, and the number stays visible while
+ * you browse. Order: amount section (input + Available + fee line + Max) → the
+ * recipient section (search → "Send to an address" → the contact list; a picked
+ * recipient REPLACES the list) → Review at the bottom.
+ *
+ * 1. AMOUNT — decimal-sanitized input (≤8 decimals, chain precision), Available line,
  *    Max (balance − fee, #77 truncation), live fee + total; inline insufficient error.
+ *    ★ W-k: `enterkeyhint` + Enter/Next/Go → blur(), so the soft keyboard drops and
+ *    the contact list under it is browsable right after typing.
+ * 2. RECIPIENT — search over contacts OR a raw address input ("Send to an address"
+ *    reveal) OR QR (`ixian:sendScan` via onQuickScan; the shell calls setSendAddress /
+ *    setSendRecipient with the scan result). Selecting shows a recipient row with ✕.
+ *    ★ W-j: the rows are the shared c-contact-row (the Contacts DIRECTORY anatomy:
+ *    avatar-48 + name + truncated address + online dot) — contact-row.js.
  * 3. REVIEW = c-sheet (#26 deliberateness step): recipient · amount · fee · total +
  *    explicit Confirm (latched → loading, #29/#72④) / Cancel. onSend(payload, ctrl) —
  *    the bridge runs the real send: ctrl.done() → success morph → onDone(payload)
  *    (shell returns home; the pending row arrives via addPaymentActivity); ctrl.fail(msg)
  *    → inline error in the sheet, Confirm re-enabled (retry stays possible).
+ *    ★ W-d: the sheet is the exported `openPaymentReview` — the chat's request-in
+ *    Pay opens the SAME sheet (fee quoted live) before the native confirm.
  *
  * Numbers: user input is RAW here (the one surface where FE math is unavoidable —
  * validation + Max + total); display strings still follow #77 (truncate, never round).
@@ -10564,7 +10960,9 @@ function openMissingTxSheet({ host, strings = getStrings(), onExplorer, scan = n
  *
  * createWalletSend({ contacts, balance, fee, strings, host,
  *                    onQuickScan, onSend, onDone }) → view
- * Free fn (#44): setSendAddress(el, address) — QR-scan result lands in the address path.
+ * Free fns (#44): setSendAddress(el, address) — QR-scan result lands in the address path.
+ *                 setSendRecipient(el, contact) — ★ W-f: programmatic contact pick (a
+ *                 scanned address that IS a contact shows nickname + avatar, not raw).
  *
  * ★ W6 (#523): `fee: null` = UNKNOWN. The fee line shows a pending state, Max is
  * disabled, and Continue stays disabled until a quote lands — no invented fee, ever.
@@ -10574,10 +10972,11 @@ function openMissingTxSheet({ host, strings = getStrings(), onExplorer, scan = n
  * NATIVE confirm shows C#'s own numbers and is the authority (SECURITY.md).
  * ★ ctrl.fail('') = SILENT re-enable (the user canceled the native confirm — no
  * error text); any non-empty msg renders as before.
- * ★ #255: a contact row with `pending: true` renders a "Pending" tag — a request
+ * ★ #255: a contact row with `pending: true` renders a "Request sent" tag — a request
  * you sent that the peer has not accepted. Still pickable (money goes to the
  * address, not the friendship); the tag is the honest signal.
  */
+
 
 
 
@@ -10598,6 +10997,26 @@ function fromUnits(u) {
   return (neg ? '-' : '') + i + (d ? '.' + d : '');
 }
 
+/* ★ W-k: Enter / Next / Go on an amount field drops the soft keyboard. A form-less
+   input has no submit to fire, so the key is otherwise a no-op that leaves the
+   keyboard covering the list. `enterkeyhint="done"` labels the key; the handler
+   blurs. Shared with wallet-receive (same rule, both screens).
+   Loop r1: the IME guard (the composer.js house rule — Enter committing a
+   composition must not blur mid-commit), and DESKTOP is exempt: there is no soft
+   keyboard to drop, and ejecting a keyboard user to <body> on the commit key is
+   a regression, not a feature. Touch = no data-desktop on <html> (the #228 flag). */
+function attachAmountKeyboardDismiss(input) {
+  if (!input) return input;
+  input.setAttribute('enterkeyhint', 'done');
+  input.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+    if (document.documentElement.hasAttribute('data-desktop')) return;
+    e.preventDefault();
+    try { input.blur(); } catch (err) { /* jsdom / unfocused */ }
+  });
+  return input;
+}
+
 let walletSendSeq = 0;                                     // aria-controls ids (receive-audit n2)
 
 function createWalletSend({
@@ -10613,7 +11032,7 @@ function createWalletSend({
   const addrFieldId = 'c-wallet-send-addrfield-' + (++walletSendSeq);
   let balU = toUnits(balance);
   let feeU = (fee === null || fee === undefined) ? null : toUnits(fee);
-  const state = { recipient: null, amount: '', sending: false, attempt: 0 };
+  const state = { recipient: null, amount: '', sending: false, attempt: 0, review: null };   // review = the ONE open sheet (loop r1 M4)
   let quoteTimer = null;
   let lastQuoteKey = '';
   let quotedKey = '';                                      // the (addr:amount) pair feeU actually ANSWERS
@@ -10640,192 +11059,9 @@ function createWalletSend({
     }, 350);
   }
 
-  /* ——— recipient section ——— */
-  const recSec = document.createElement('section');
-  recSec.className = 'c-wallet-send__section';
-  const recTitle = document.createElement('h2');
-  recTitle.className = 'c-wallet-send__label';
-  recTitle.textContent = strings.sendTo || 'Send to';
-  recSec.append(recTitle);
-
-  /* selected recipient row (hidden until picked) */
-  const picked = document.createElement('div');
-  picked.className = 'c-wallet-send__picked';
-  picked.hidden = true;
-  recSec.append(picked);
-
-  /* picker: search + contact rows + address reveal */
-  const picker = document.createElement('div');
-  picker.className = 'c-wallet-send__picker';
-  const search = createSearchField({
-    placeholder: strings.searchContacts || 'Search contacts',
-    onInput: (v) => renderContacts(v),
-    strings,
-  });
-  picker.append(search);
-  const rows = document.createElement('div');
-  rows.className = 'c-wallet-send__contacts';           // appended after the address row below
-
-  // "Send to an address" sits ON TOP of the contacts, aligned with them — a contact-style
-  // row whose avatar slot is the qrcode glyph (Damir #136); tapping expands the input below
-  const addrRow = document.createElement('button');
-  addrRow.type = 'button';
-  addrRow.className = 'c-wallet-send__contact';
-  addrRow.setAttribute('aria-expanded', 'false');
-  addrRow.setAttribute('aria-controls', (addrFieldId));   // reveal linked for AT (receive-audit n2, applied here too)
-  const addrGlyph = document.createElement('span');
-  addrGlyph.className = 'c-wallet-send__addrglyph';
-  addrGlyph.append(icon('qrcode', { size: 20 }));
-  const addrLabel = document.createElement('span');
-  addrLabel.className = 'c-wallet-send__contactname';
-  addrLabel.textContent = strings.sendToAddress || 'Send to an address';
-  addrRow.append(addrGlyph, addrLabel);
-  picker.append(addrRow);
-
-  const addrField = document.createElement('div');
-  addrField.className = 'c-wallet-send__addrfield';
-  addrField.id = addrFieldId;
-  addrField.hidden = true;
-  const addrInput = document.createElement('input');
-  addrInput.className = 'c-wallet-send__addrinput';
-  addrInput.type = 'text';
-  addrInput.autocomplete = 'off';
-  addrInput.spellcheck = false;
-  addrInput.placeholder = strings.ixianAddress || 'Ixian address';
-  addrInput.setAttribute('aria-label', strings.ixianAddress || 'Ixian address');
-  addrField.append(addrInput);
-  if (onQuickScan) {                                     // #264 no-dead-buttons: no handler → no scan button
-    const scanBtn = document.createElement('button');
-    scanBtn.type = 'button';
-    scanBtn.className = 'c-wallet-send__scan';
-    scanBtn.setAttribute('aria-label', strings.scan || 'Scan');
-    scanBtn.append(icon('scan', { size: 20 }));
-    scanBtn.addEventListener('click', onQuickScan);      // → ixian:quickscan; result via setSendAddress
-    addrField.append(scanBtn);
-  }
-  const addrUse = createButton({
-    label: strings.useAddress || 'Use this address', type: 'outline', size: 44, width: 'full',
-    onClick: () => {
-      const a = addrInput.value.trim();
-      if (a.length < 12) { setSendError(el, strings.badAddress || 'That doesn’t look like an Ixian address.'); return; }
-      pick({ address: a });
-    },
-  });
-  addrField.append(addrUse);
-  picker.append(addrField);
-  addrRow.addEventListener('click', () => {
-    const open = addrField.hidden;
-    addrField.hidden = !open;
-    addrRow.setAttribute('aria-expanded', String(open));
-    if (open) addrInput.focus();
-  });
-
-  picker.append(rows);                                   // contacts BELOW the address row (Damir #136)
-
-  const errLine = document.createElement('p');
-  errLine.className = 'c-wallet-send__error';
-  errLine.setAttribute('role', 'alert');
-  errLine.hidden = true;
-  addrField.append(errLine);   // under the input it validates — it rendered BELOW the contacts (Damir bug, round 3)
-  recSec.append(picker);
-  el.append(recSec);
-
-  function renderContacts(q) {
-    const needle = (q || '').trim().toLocaleLowerCase();
-    rows.textContent = '';
-    const list = contacts.filter((c) => !needle
-      || (c.name || '').toLocaleLowerCase().includes(needle)
-      || (c.address || '').toLocaleLowerCase().includes(needle))
-      .sort((a, b) => (a.name || a.address || '').localeCompare(b.name || b.address || ''));
-    // #142 (Damir 2026-07-05c): NO caps — the #136 window forced you to know
-    // the name; the full A–Z list scrolls and search narrows. The amount
-    // section never competes: picking COLLAPSES the picker to the picked row,
-    // and until a recipient exists the amount can't be submitted anyway.
-    for (const c of list) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'c-wallet-send__contact';
-      b.append(createAvatar({ name: c.name, address: c.address, size: 40 }));
-      const t = document.createElement('span');
-      t.className = 'c-wallet-send__contactname';
-      t.textContent = c.name || c.address;
-      b.append(t);
-      if (c.pending) {                                   // #255: honest "request pending" tag
-        const tag = document.createElement('span');
-        tag.className = 'c-wallet-send__pendingtag';
-        tag.textContent = strings.pendingContact || 'Request pending';
-        b.append(tag);
-      }
-      b.addEventListener('click', () => pick({ ...c, contact: true }));
-      rows.append(b);
-    }
-    if (!list.length && needle) {
-      const none = document.createElement('p');
-      none.className = 'c-wallet-send__none';
-      none.setAttribute('role', 'note');
-      none.textContent = (strings.noContactMatch || 'No contact matches “{q}”. You can paste their address instead.').split('{q}').join(q);
-      rows.append(none);
-    }
-  }
-
-  function pick(recipient) {
-    state.recipient = recipient;
-    errLine.hidden = true;
-    addrErr = false;                                       // a new recipient gets a fresh verdict
-    maxSendU = null;
-    picked.textContent = '';
-    picked.hidden = false;
-    picker.hidden = true;
-    if (recipient.contact) picked.append(createAvatar({ name: recipient.name, address: recipient.address, src: recipient.avatar || null, size: 40 }));
-    else {
-      const glyph = document.createElement('span');
-      glyph.className = 'c-wallet-send__pickedglyph';
-      glyph.append(icon('qrcode', { size: 20 }));
-      picked.append(glyph);
-    }
-    const pt = document.createElement('span');
-    pt.className = 'c-wallet-send__pickedtext';
-    const pn = document.createElement('span');
-    pn.className = 'c-wallet-send__pickedname';
-    pn.textContent = recipient.name || (strings.address || 'Address');
-    pt.append(pn);
-    const pa = document.createElement('span');
-    pa.className = 'c-wallet-send__pickedaddr u-tabular';
-    pa.textContent = recipient.address;
-    pt.append(pa);
-    picked.append(pt);
-    if (!lockedRecipient) {                              // locked = the peer is fixed, no ✕ (#139)
-      const clear = document.createElement('button');
-      clear.type = 'button';
-      clear.className = 'c-wallet-send__clear';
-      clear.setAttribute('aria-label', strings.changeRecipient || 'Change recipient');
-      clear.append(icon('x', { size: 18 }));
-      clear.addEventListener('click', () => {
-        state.recipient = null;
-        lastQuoteKey = '';                               // a new recipient must re-quote (W6)
-        quotedKey = '';                                  // …and the old answer is nobody's (loop MAJOR)
-        feeU = (fee === null || fee === undefined) ? null : toUnits(fee);
-        maxSendU = null;
-        addrErr = false;
-        if (quoteTimer) { clearTimeout(quoteTimer); quoteTimer = null; }
-        picked.hidden = true;
-        picker.hidden = false;
-        sync();
-        const si = picker.querySelector('input');
-        if (si) si.focus();                              // focus back into the picker (audit m2)
-      });
-      picked.append(clear);
-    }
-    sync();
-    // W6: a pick with no amount asks for the balance + the SOLVED Max ceiling
-    // (amount '0' = the balance/Max quote; the per-amount fee still gates Review)
-    if (onQuote && amountU() <= 0n) onQuote(recipient.address, '0');
-    amtInput.focus();                                    // picker collapses under you — focus flows to the amount (audit m2)
-  }
-
-  /* ——— amount section ——— */
+  /* ——— amount section (★ W-i: FIRST) ——— */
   const amtSec = document.createElement('section');
-  amtSec.className = 'c-wallet-send__section';
+  amtSec.className = 'c-wallet-send__section c-wallet-send__section--amount';
   const amtTitle = document.createElement('h2');
   amtTitle.className = 'c-wallet-send__label';
   amtTitle.textContent = strings.amount || 'Amount';
@@ -10839,6 +11075,7 @@ function createWalletSend({
   amtInput.inputMode = 'decimal';
   amtInput.placeholder = '0';
   amtInput.setAttribute('aria-label', strings.amount || 'Amount');
+  attachAmountKeyboardDismiss(amtInput);                   // ★ W-k
   amtInput.addEventListener('input', (e) => {
     // ★ I-6 (#360): the field DISPLAYS the locale's grouping as you type; the
     // canonical '.'-decimal ungrouped value lives in state.amount and is the
@@ -10918,6 +11155,207 @@ function createWalletSend({
   amtSec.append(insuff);
   el.append(amtSec);
 
+  /* ——— recipient section (★ W-i: SECOND) ——— */
+  const recSec = document.createElement('section');
+  recSec.className = 'c-wallet-send__section c-wallet-send__section--recipient';
+  const recTitle = document.createElement('h2');
+  recTitle.className = 'c-wallet-send__label';
+  recTitle.textContent = strings.sendTo || 'Send to';
+  recSec.append(recTitle);
+
+  /* selected recipient row (hidden until picked). Loop r1 A-6: a focusable GROUP
+     with an accessible name, so a pick has a named focus target; the hidden live
+     line below announces it (the receive screen's `__live` grammar). */
+  const picked = document.createElement('div');
+  picked.className = 'c-wallet-send__picked';
+  picked.hidden = true;
+  picked.tabIndex = -1;
+  picked.setAttribute('role', 'group');
+  recSec.append(picked);
+  const live = document.createElement('p');
+  live.className = 'c-wallet-send__live';
+  live.setAttribute('aria-live', 'polite');
+  recSec.append(live);
+
+  /* picker: search + contact rows + address reveal */
+  const picker = document.createElement('div');
+  picker.className = 'c-wallet-send__picker';
+  const search = createSearchField({
+    placeholder: strings.searchContacts || 'Search contacts',
+    onInput: (v) => renderContacts(v),
+    strings,
+  });
+  picker.append(search);
+  // loop r1 m6: the address row and the contact rows share ONE card, so the glyph
+  // and the avatars sit on the same left edge (the directory card grammar).
+  const listCard = document.createElement('div');
+  listCard.className = 'c-wallet-send__list';
+  picker.append(listCard);
+  const rows = document.createElement('div');
+  rows.className = 'c-wallet-send__contacts';           // appended after the address row below
+
+  // "Send to an address" sits ON TOP of the contacts, aligned with them — a contact-style
+  // row whose avatar slot is the qrcode glyph (Damir #136); tapping expands the input below.
+  // ★ W-j: built by the shared glyph-row builder, so it is the directory anatomy too.
+  const addrRow = createGlyphRow({
+    glyph: 'qrcode', label: strings.sendToAddress || 'Send to an address',
+    className: 'c-wallet-send__contact c-wallet-send__addrrow',
+  });
+  addrRow.setAttribute('aria-expanded', 'false');
+  addrRow.setAttribute('aria-controls', (addrFieldId));   // reveal linked for AT (receive-audit n2, applied here too)
+  listCard.append(addrRow);
+
+  const addrField = document.createElement('div');
+  addrField.className = 'c-wallet-send__addrfield';
+  addrField.id = addrFieldId;
+  addrField.hidden = true;
+  const addrInput = document.createElement('input');
+  addrInput.className = 'c-wallet-send__addrinput';
+  addrInput.type = 'text';
+  addrInput.autocomplete = 'off';
+  addrInput.spellcheck = false;
+  addrInput.placeholder = strings.ixianAddress || 'Ixian address';
+  addrInput.setAttribute('aria-label', strings.ixianAddress || 'Ixian address');
+  addrField.append(addrInput);
+  if (onQuickScan) {                                     // #264 no-dead-buttons: no handler → no scan button
+    const scanBtn = document.createElement('button');
+    scanBtn.type = 'button';
+    scanBtn.className = 'c-wallet-send__scan';
+    scanBtn.setAttribute('aria-label', strings.scan || 'Scan');
+    scanBtn.append(icon('scan', { size: 20 }));
+    scanBtn.addEventListener('click', onQuickScan);      // → ixian:sendScan; result via setSendAddress
+    addrField.append(scanBtn);
+  }
+  const addrUse = createButton({
+    label: strings.useAddress || 'Use this address', type: 'outline', size: 44, width: 'full',
+    onClick: () => {
+      const a = addrInput.value.trim();
+      if (a.length < 12) { setSendError(el, strings.badAddress || 'That doesn’t look like an Ixian address.'); return; }
+      pick({ address: a });
+    },
+  });
+  addrField.append(addrUse);
+  listCard.append(addrField);
+  addrRow.addEventListener('click', () => {
+    const open = addrField.hidden;
+    addrField.hidden = !open;
+    addrRow.setAttribute('aria-expanded', String(open));
+    if (open) addrInput.focus();
+  });
+
+  listCard.append(rows);                                 // contacts BELOW the address row (Damir #136)
+
+  const errLine = document.createElement('p');
+  errLine.className = 'c-wallet-send__error';
+  errLine.setAttribute('role', 'alert');
+  errLine.hidden = true;
+  addrField.append(errLine);   // under the input it validates — it rendered BELOW the contacts (Damir bug, round 3)
+  recSec.append(picker);
+  el.append(recSec);
+
+  function renderContacts(q) {
+    const needle = (q || '').trim().toLocaleLowerCase();
+    rows.textContent = '';
+    const list = contacts.filter((c) => !needle
+      || (c.name || '').toLocaleLowerCase().includes(needle)
+      || (c.address || '').toLocaleLowerCase().includes(needle))
+      .sort((a, b) => (a.name || a.address || '').localeCompare(b.name || b.address || ''));
+    // #142 (Damir 2026-07-05c): NO caps — the #136 window forced you to know
+    // the name; the full A–Z list scrolls and search narrows. The amount
+    // section never competes: picking COLLAPSES the picker to the picked row,
+    // and until a recipient exists the amount can't be submitted anyway.
+    for (const c of list) {
+      // ★ W-j: the shared directory row (avatar-48 + name + truncated address +
+      // online dot; #255 pending badge). The surface class stays as an alias for
+      // the shells/pins; the anatomy lives in contact-row.css.
+      rows.append(createContactRow({
+        contact: c, strings, className: 'c-wallet-send__contact',
+        onClick: () => pick({ ...c, contact: true }),
+      }));
+    }
+    if (!list.length && needle) {
+      const none = document.createElement('p');
+      none.className = 'c-wallet-send__none';
+      none.setAttribute('role', 'note');
+      none.textContent = (strings.noContactMatch || 'No contact matches “{q}”. You can paste their address instead.').split('{q}').join(q);
+      rows.append(none);
+    }
+  }
+
+  function pick(recipient) {
+    if (!recipient || !recipient.address) return;          // loop r2 R2-4: no address, no recipient (the F2 rule, Send side)
+    state.recipient = recipient;
+    errLine.hidden = true;
+    addrErr = false;                                       // a new recipient gets a fresh verdict
+    maxSendU = null;
+    picked.textContent = '';
+    picked.hidden = false;
+    picker.hidden = true;
+    if (recipient.contact) picked.append(createAvatar({ name: recipient.name, address: recipient.address, src: recipient.avatar || null, size: 48, online: !!recipient.online }));
+    else {
+      const glyph = document.createElement('span');
+      glyph.className = 'c-wallet-send__pickedglyph';
+      glyph.append(icon('qrcode', { size: 22 }));
+      picked.append(glyph);
+    }
+    // ★ W-b: the picked stack is NAME over the MUTED TRUNCATED address (#211) —
+    // a raw-address pick titles as the truncated address with an "Address" sub.
+    // The FULL address is shown at the decision moment, on the review sheet (#99).
+    const pt = document.createElement('span');
+    pt.className = 'c-wallet-send__pickedtext';
+    const pn = document.createElement('span');
+    pn.className = 'c-wallet-send__pickedname';
+    const hasName = !!recipient.name && recipient.name !== recipient.address;
+    pn.textContent = hasName ? recipient.name : truncateAddressMiddle(recipient.address, 9, 6);
+    pt.append(pn);
+    const pa = document.createElement('span');
+    pa.className = 'c-wallet-send__pickedaddr u-tabular';
+    pa.textContent = hasName ? truncateAddressMiddle(recipient.address, 9, 6) : (strings.address || 'Address');
+    pt.append(pa);
+    picked.append(pt);
+    picked.setAttribute('aria-label', (strings.sendTo || 'Send to') + ': ' + pn.textContent);
+    live.textContent = (strings.sendTo || 'Send to') + ': ' + pn.textContent;
+    addrRow.setAttribute('aria-expanded', 'false');       // loop r1 A-5: the field is hidden with the picker
+    if (!lockedRecipient) {                              // locked = the peer is fixed, no ✕ (#139)
+      const clear = document.createElement('button');
+      clear.type = 'button';
+      clear.className = 'c-wallet-send__clear';
+      clear.setAttribute('aria-label', strings.changeRecipient || 'Change recipient');
+      clear.append(icon('x', { size: 18 }));
+      clear.addEventListener('click', () => {
+        state.recipient = null;
+        lastQuoteKey = '';                               // a new recipient must re-quote (W6)
+        quotedKey = '';                                  // …and the old answer is nobody's (loop MAJOR)
+        feeU = (fee === null || fee === undefined) ? null : toUnits(fee);
+        maxSendU = null;
+        addrErr = false;
+        if (quoteTimer) { clearTimeout(quoteTimer); quoteTimer = null; }
+        picked.hidden = true;
+        picker.hidden = false;
+        live.textContent = '';
+        sync();
+        const si = picker.querySelector('input');
+        if (si) si.focus();                              // focus back into the picker (audit m2)
+      });
+      picked.append(clear);
+    }
+    sync();
+    // W6: a pick with no amount asks for the balance + the SOLVED Max ceiling
+    // (amount '0' = the balance/Max quote; the per-amount fee still gates Review)
+    if (onQuote && amountU() <= 0n) onQuote(recipient.address, '0');
+    // ★ W-i: the amount sits ABOVE the list now. Empty amount → the field. With an
+    // amount already typed the pick completes the form: Review takes focus when it
+    // is ARMED; on the quote flow it is still gated (no fee answers the new pair
+    // yet — loop r1 m1/A-2: focus() on a disabled button is a no-op and the focused
+    // row was just hidden, so focus fell to <body>), so the named picked GROUP takes
+    // it instead. Never back up into the field: that raises the keyboard over the button.
+    if (!state.amount) amtInput.focus();
+    else if (!cont.disabled) cont.focus();
+    else picked.focus();
+  }
+  el._pick = pick;                                         // ★ W-f: setSendRecipient hook
+  el._locked = !!lockedRecipient;                          // loop r1 m3: setSendRecipient refuses a locked compose
+
   /* ——— continue ——— */
   const cont = createButton({
     label: strings.reviewSend || 'Review', type: 'fill', size: 56, width: 'full',
@@ -10951,7 +11389,7 @@ function createWalletSend({
       // C# rejected the picked address (quote error:'address') — say it, gate it.
       feeLine.textContent = '';
       insuff.hidden = false;
-      insuff.textContent = strings.badAddress || 'That doesn\u2019t look like an Ixian address.';
+      insuff.textContent = strings.badAddress || 'That doesn’t look like an Ixian address.';
       cont.disabled = true;
       return;
     }
@@ -10959,7 +11397,7 @@ function createWalletSend({
       // W6 pending state: the honest line, no numbers invented and no STALE ones —
       // a fee quoted for another (recipient, amount) pair never shows (loop MAJOR).
       feeLine.textContent = (a > 0n && state.recipient)
-        ? (strings.feePending || 'Calculating network fee\u2026')
+        ? (strings.feePending || 'Calculating network fee…')
         : (strings.feeUnknown || 'The network fee shows when the recipient and amount are set.');
       insuff.hidden = true;
       cont.disabled = true;
@@ -10970,7 +11408,7 @@ function createWalletSend({
     // ★ I-6 r2 (#360, loop r1 MINOR-5): same convention as the available line one
     // row up — a grouped line above an ungrouped '.'-decimal line was the exact
     // mixed convention the money.js header warns against, on one screen.
-    feeLine.textContent = (strings.feeAndTotal || 'Network fee {f} IXI \u00b7 Total {t} IXI')
+    feeLine.textContent = (strings.feeAndTotal || 'Network fee {f} IXI · Total {t} IXI')
       .split('{f}').join(groupAmountDisplay(fromUnits(feeU))).split('{t}').join(groupAmountDisplay(fromUnits(total)));
     const over = a > 0n && a + feeU > balU;
     insuff.hidden = !over;                                 // unhide BEFORE text → alert announces
@@ -10983,131 +11421,289 @@ function createWalletSend({
   // are the ECHO of the asked pair — a fee is applied ONLY when it answers the pair
   // on screen (loop MAJOR: no stale-recipient fee). Calls without an echo (tests,
   // legacy) apply to the current pair.
+  // Loop r3 R3-2/R3-3 (the same rule as the review sheet's safeUnits): a bridge value
+  // is a number ONLY as a raw canonical decimal — anything else is dropped, never thrown
+  // (a throw here stranded the compose on "Calculating…" with ✕ as the only exit) and
+  // never coerced; the recipient echo compares string-exact.
+  const strictUnits = (v) => {
+    const t = String(v == null ? '' : v).trim();
+    if (!/^\d+(\.\d+)?$/.test(t)) return null;
+    try { return toUnits(t); } catch (e) { return null; }
+  };
   el._applySendQuote = ({ fee: qFee, balance: qBal, max: qMax, address: qAddr, amount: qAmt, error: qErr } = {}) => {
-    if (qBal !== null && qBal !== undefined && qBal !== '') { balU = toUnits(qBal); renderAvail(); }
+    const b = strictUnits(qBal);
+    if (b !== null) { balU = b; renderAvail(); }
     const echoed = qAddr !== undefined;
-    const matchesRecipient = !echoed || (state.recipient && state.recipient.address === qAddr);
+    const matchesRecipient = !echoed || (state.recipient && String(state.recipient.address) === String(qAddr));
     if (qErr === 'address' && matchesRecipient) { addrErr = true; sync(); return; }
-    if (qMax !== null && qMax !== undefined && qMax !== '' && matchesRecipient) maxSendU = toUnits(qMax);
-    if (qFee !== null && qFee !== undefined && qFee !== '') {
-      const key = echoed ? qAddr + ':' + (qAmt == null ? '' : String(qAmt)) : currentKey();
-      if (!echoed || key === currentKey()) { feeU = toUnits(qFee); quotedKey = key; }
+    const mx = strictUnits(qMax);
+    if (mx !== null && matchesRecipient) maxSendU = mx;
+    const f = strictUnits(qFee);
+    if (f !== null) {
+      const key = echoed ? String(qAddr) + ':' + (qAmt == null ? '' : String(qAmt)) : currentKey();
+      if (!echoed || key === currentKey()) { feeU = f; quotedKey = key; }
     }
     sync();
   };
 
-  /* ——— review sheet (#26) ——— */
+  /* ——— review sheet (#26) — the shared openPaymentReview, fee KNOWN at open ——— */
   function openSendReview() {
     if (!valid() || state.sending) return;               // per-VIEW in-flight token (audit C1)
+    // loop r1 M4: ONE review sheet per compose — a double tap stacked two, and the
+    // survivor could fire a second send. Loop r2 R2-3: "one" = one OPEN sheet — a sheet
+    // in its exit transition (data-open dropped, removal ~400 ms later) does not block.
+    if (state.review && state.review.isOpen()) return;
+    if (state.review) state.review = null;
     const r = state.recipient;
-    const aU = amountU();
     const feeAtOpen = feeU;                              // loop fix: the sheet and the payload use ONE fee
-    const content = document.createElement('div');
-    content.className = 'c-sendreview';
-
-    const who = document.createElement('div');
-    who.className = 'c-sendreview__who';
-    if (r.contact) who.append(createAvatar({ name: r.name, address: r.address, src: r.avatar || null, size: 48 }));
-    const wt = document.createElement('div');
-    wt.className = 'c-sendreview__whotext';
-    const wn = document.createElement('div');
-    wn.className = 'c-sendreview__name';
-    wn.textContent = r.name || (strings.address || 'Address');
-    const wa = document.createElement('div');
-    wa.className = 'c-sendreview__addr u-tabular';
-    wa.textContent = r.address;
-    wt.append(wn, wa);
-    who.append(wt);
-    content.append(who);
-
-    const rowsBox = document.createElement('div');
-    rowsBox.className = 'c-sendreview__rows';
-    const row = (label, value) => {
-      const rr = document.createElement('div');
-      rr.className = 'c-sendreview__row';
-      const l = document.createElement('span'); l.className = 'c-sendreview__rowlabel'; l.textContent = label;
-      const v = document.createElement('span'); v.className = 'c-sendreview__rowvalue u-tabular'; v.textContent = value;
-      rr.append(l, v);
-      return rr;
-    };
-    // EXACT values at the confirm moment (audit M3) — what you approve is what is sent.
-    // ★ I-6 (#360): grouped for READING, full precision kept — separators are the
-    // user's only defence against a mistyped zero at exactly this moment.
-    rowsBox.append(
-      row(strings.amount || 'Amount', groupAmountDisplay(fromUnits(aU)) + ' IXI'),
-      row(strings.fee || 'Fee', groupAmountDisplay(fromUnits(feeAtOpen)) + ' IXI'),
-      row(strings.total || 'Total', groupAmountDisplay(fromUnits(aU + feeAtOpen)) + ' IXI'),
-    );
-    content.append(rowsBox);
-
-    const sheetErr = document.createElement('p');
-    sheetErr.className = 'c-wallet-send__error';
-    sheetErr.setAttribute('role', 'alert');
-    sheetErr.hidden = true;
-    content.append(sheetErr);
-
-    const actions = document.createElement('div');
-    actions.className = 'c-sendreview__actions';
-    const cancel = createButton({ label: strings.cancel || 'Cancel', type: 'text', size: 44,
-      onClick: () => { if (!state.sending) closeSheet(sheet); } });
-    const confirm = createButton({ label: strings.confirmSend || 'Confirm & send', type: 'fill', size: 44,
-      icon: icon('arrow-up-right', { size: 18 }),
-      onClick: (e) => {
-        if (e.currentTarget.dataset.acted !== undefined || state.sending) return;   // #72④ latch + view token
-        e.currentTarget.dataset.acted = '';
+    state.review = openPaymentReview({
+      recipient: r, amount: state.amount, fee: fromUnits(feeAtOpen), host, strings,
+      onConfirm: (payload, ctrl) => {
+        // the per-VIEW token: one send in flight per compose (audit C1)
         state.sending = true;
         const attempt = ++state.attempt;                 // invalidates stale bridge callbacks
-        // money in flight → the sheet must NOT be dismissible (audit C1): no Esc, no
-        // scrim, Cancel disabled; fail() restores the safe-dismiss paths for retry
-        cancel.disabled = true;
-        setOverlayOpts(sheet, { host, lightDismiss: false, escDismiss: false });
-        sheetErr.hidden = true;
-        setLoading(confirm, true);
-        const payload = { recipients: [{ address: r.address, name: r.name }], amount: state.amount, fee: fromUnits(feeAtOpen) };
-        const done = () => {
-          if (attempt !== state.attempt) return;         // stale callback from a superseded attempt
-          state.sending = false;
-          setLoading(confirm, false);
-          setSuccess(confirm, { label: strings.sent || 'Sent' });
-          setTimeout(() => { closeSheet(sheet); if (onDone) onDone(payload); }, 900);
-        };
-        const fail = (msg) => {
-          if (attempt !== state.attempt) return;
-          state.sending = false;
-          setLoading(confirm, false);
-          delete confirm.dataset.acted;                  // retry stays possible
-          cancel.disabled = false;
-          setOverlayOpts(sheet, { host, lightDismiss: false, escDismiss: true });
-          if (msg === '') {                              // #523: native-confirm cancel — silent re-enable
-            sheetErr.hidden = true;
-            sheetErr.textContent = '';
-            return;
-          }
-          sheetErr.hidden = false;                       // unhide BEFORE text → alert announces
-          sheetErr.textContent = msg || strings.sendFailed || 'The payment could not be sent. Please try again.';
-        };
-        if (onSend) onSend(payload, { done, fail }); else done();
-      } });
-    actions.append(cancel, confirm);                               // #60: two short labels side-by-side
-    content.append(actions);
-
-    // lightDismiss OFF from the start — a money confirmation is explicit (#56 modal
-    // philosophy); Esc stays a safe dismiss until the send is actually in flight
-    const sheet = createSheet({ content, host, strings, lightDismiss: false,
-      title: strings.reviewTitle || 'Review payment' });
-    openSheet(sheet);
-    return sheet;
+        const done = () => { if (attempt !== state.attempt) return; state.sending = false; ctrl.done(); };
+        const fail = (msg) => { if (attempt !== state.attempt) return; state.sending = false; ctrl.fail(msg); };
+        // loop r1 M3: a throwing bridge call is a failure — the per-view token must
+        // not stay latched (the compose could never open a review again)
+        try { if (onSend) onSend(payload, { done, fail }); else done(); }
+        catch (err) { fail(null); }
+      },
+      onDone: (payload) => { state.review = null; if (onDone) onDone(payload); },
+      onCancel: () => { state.review = null; },
+    });
+    if (!state.review) return;
   }
+  // loop r1 M4: a compose torn down by the shell must not leave a live sheet behind it
+  el._closeReview = () => { if (state.review) { state.review.close(true); state.review = null; } };
 
   renderContacts('');
   if (lockedRecipient) pick({ ...lockedRecipient, contact: !!lockedRecipient.name });   // chat Pay: straight to the amount
   return el;
 }
 
-/** QR-scan result lands here (shell wires `ixian:quickscan` → setSendAddress). Accepts
+/** ★ W-d — THE review sheet, exported. Recipient · amount · fee · total + Confirm/
+ *  Cancel (#26). Used by the compose (fee known at open) AND by the chat's
+ *  request-in Pay (fee: null → quoted live through `setQuote`; Confirm stays
+ *  disabled until a fee answers, and an insufficient balance shows inline).
+ *
+ *  openPaymentReview({ recipient: { name?, address, avatar?, contact? }, amount,
+ *                      fee, balance?, host, strings, onQuote, onConfirm, onDone,
+ *                      onCancel, title }) → { sheet, setQuote(q), close() }
+ *    onConfirm(payload, ctrl) — the bridge runs the real send; ctrl.done() →
+ *      success morph → onDone(payload); ctrl.fail(msg) → inline error, retry;
+ *      ctrl.fail('') → silent re-enable (native confirm canceled).
+ *    onQuote(address, amount) fires once at open when fee is null.
+ *    setQuote({ fee, balance, error, address, amount }) — the shell's answer; an
+ *      echo for another pair is dropped (the W6 loop-MAJOR rule holds here too).
+ *    onCancel() fires when the user closes the sheet without sending. */
+function openPaymentReview({
+  recipient = {}, amount = '', fee = null, balance = null, host, strings = getStrings(),
+  onQuote, onConfirm, onDone, onCancel, title, quoteTimeoutMs = 15000,
+} = {}) {
+  const r = recipient || {};
+  // loop r1 m7: the amount is SANITIZED here, not trusted — a grouped/localized or
+  // empty value must not throw before the sheet exists (the caller's controller
+  // would never be assigned and the card latch would never release).
+  // Loop r2 R2-2: the guard GATES, it does not coerce — only a raw canonical decimal
+  // (digits, one '.') is a number here; 'abc', '1e3', '-1', a grouped '1,234' are
+  // null. C# pushes IxiNumber.ToString() (invariant) — anything else is not a fee.
+  const safeUnits = (v) => {
+    const t = String(v == null ? '' : v).trim();
+    if (!/^\d+(\.\d+)?$/.test(t)) return null;
+    try { return toUnits(t); } catch (e) { return null; }
+  };
+  const aU = safeUnits(amount);
+  if (aU === null || aU <= 0n) return null;              // loop r1 A-4: a zero/unparseable amount has no sheet
+  let feeU = (fee === null || fee === undefined || fee === '') ? null : safeUnits(fee);
+  let balU = (balance === null || balance === undefined || balance === '') ? null : safeUnits(balance);
+  let sending = false;
+  let attempt = 0;
+  let sent = false;                                      // terminal: done() ran (loop r1 M5)
+  let failedAttempt = 0;                                 // the attempt fail() retired (loop r1 M5)
+  let quoteWait = 0;
+  let quoteDead = false;                                 // the quote answered EMPTY or timed out (loop r1 A-4)
+  const content = document.createElement('div');
+  content.className = 'c-sendreview';
+
+  const who = document.createElement('div');
+  who.className = 'c-sendreview__who';
+  if (r.contact || r.name) who.append(createAvatar({ name: r.name, address: r.address, src: r.avatar || null, size: 48 }));
+  const wt = document.createElement('div');
+  wt.className = 'c-sendreview__whotext';
+  const wn = document.createElement('div');
+  wn.className = 'c-sendreview__name';
+  wn.textContent = (r.name && r.name !== r.address) ? r.name : (strings.address || 'Address');
+  const wa = document.createElement('div');
+  wa.className = 'c-sendreview__addr u-tabular';
+  wa.textContent = r.address || '';
+  wt.append(wn, wa);
+  who.append(wt);
+  content.append(who);
+
+  const rowsBox = document.createElement('div');
+  rowsBox.className = 'c-sendreview__rows';
+  const row = (label) => {
+    const rr = document.createElement('div');
+    rr.className = 'c-sendreview__row';
+    const l = document.createElement('span'); l.className = 'c-sendreview__rowlabel'; l.textContent = label;
+    const v = document.createElement('span'); v.className = 'c-sendreview__rowvalue u-tabular';
+    rr.append(l, v);
+    rowsBox.append(rr);
+    return v;
+  };
+  // EXACT values at the confirm moment (audit M3) — what you approve is what is sent.
+  // ★ I-6 (#360): grouped for READING, full precision kept — separators are the
+  // user's only defence against a mistyped zero at exactly this moment.
+  const amountVal = row(strings.amount || 'Amount');
+  const feeVal = row(strings.fee || 'Fee');
+  const totalVal = row(strings.total || 'Total');
+  amountVal.textContent = groupAmountDisplay(fromUnits(aU)) + ' IXI';
+  content.append(rowsBox);
+
+  const sheetErr = document.createElement('p');
+  sheetErr.className = 'c-wallet-send__error';
+  sheetErr.setAttribute('role', 'alert');
+  sheetErr.hidden = true;
+  content.append(sheetErr);
+  const showErr = (msg) => { sheetErr.hidden = false; sheetErr.textContent = msg; };   // unhide BEFORE text → alert announces
+  const clearErr = () => { sheetErr.hidden = true; sheetErr.textContent = ''; };
+
+  const actions = document.createElement('div');
+  actions.className = 'c-sendreview__actions';
+  let sheet = null;
+  const cancel = createButton({ label: strings.cancel || 'Cancel', type: 'text', size: 44,
+    onClick: () => { if (!sending) closeSheet(sheet); } });
+  const confirm = createButton({ label: strings.confirmSend || 'Confirm & send', type: 'fill', size: 44,
+    icon: icon('arrow-up-right', { size: 18 }),
+    onClick: (e) => {
+      if (e.currentTarget.dataset.acted !== undefined || sending || sent || feeU === null) return;   // #72④ latch + fee gate
+      e.currentTarget.dataset.acted = '';
+      sending = true;
+      const my = ++attempt;                              // invalidates stale bridge callbacks
+      // money in flight → the sheet must NOT be dismissible (audit C1): no Esc, no
+      // scrim, Cancel disabled; fail() restores the safe-dismiss paths for retry
+      cancel.disabled = true;
+      setOverlayOpts(sheet, { host, lightDismiss: false, escDismiss: false });
+      clearErr();
+      setLoading(confirm, true);
+      const payload = { recipients: [{ address: r.address, name: r.name }], amount: fromUnits(aU), fee: fromUnits(feeU) };
+      const done = () => {
+        if (my !== attempt || sent || failedAttempt === my) return;   // stale, already done, or retired by fail() (loop r1 M5)
+        sending = false;
+        sent = true;                                     // TERMINAL: a second done() is a no-op, onDone fires once
+        setLoading(confirm, false);
+        setSuccess(confirm, { label: strings.sent || 'Sent' });
+        setTimeout(() => { closeSheet(sheet); if (onDone) onDone(payload); }, 900);
+      };
+      const fail = (msg) => {
+        if (my !== attempt || sent || failedAttempt === my) return;
+        failedAttempt = my;                              // this attempt is over — a late done() cannot revive it (loop r1 M5)
+        sending = false;
+        setLoading(confirm, false);
+        delete confirm.dataset.acted;                    // retry stays possible
+        cancel.disabled = false;
+        setOverlayOpts(sheet, { host, lightDismiss: false, escDismiss: true });
+        if (msg === '') {                                // #523: native-confirm cancel — silent re-enable
+          clearErr();
+          return;
+        }
+        showErr(msg || strings.sendFailed || 'The payment could not be sent. Please try again.');
+      };
+      // loop r1 M3: a throwing hand-off must not brick the sheet with every exit
+      // locked — the throw is a failure, and fail() restores the dismiss paths.
+      try { if (onConfirm) onConfirm(payload, { done, fail }); else done(); }
+      catch (err) { fail(null); }
+    } });
+  actions.append(cancel, confirm);                                 // #60: two short labels side-by-side
+  content.append(actions);
+
+  /* the fee/total rows + the Confirm gate. fee null → the honest pending line and
+     a disabled Confirm (W6: no invented fee, ever). A known balance that cannot
+     cover amount + fee shows the insufficient error and keeps the gate shut.
+     loop r1 M1: NEVER while a send is in flight — a late quote must not rewrite
+     the numbers under the spinner or touch a loading button.
+     loop r1 M2: the error is RETRACTED when a later quote clears it. */
+  let overShown = false;
+  function render() {
+    if (sending || sent) return;
+    if (quoteDead) {
+      feeVal.textContent = '—';
+      totalVal.textContent = '—';
+      confirm.disabled = true;
+      return;
+    }
+    if (feeU === null) {
+      feeVal.textContent = strings.feePending || 'Calculating network fee…';
+      totalVal.textContent = '—';
+      confirm.disabled = true;
+      return;
+    }
+    feeVal.textContent = groupAmountDisplay(fromUnits(feeU)) + ' IXI';
+    totalVal.textContent = groupAmountDisplay(fromUnits(aU + feeU)) + ' IXI';
+    const over = balU !== null && aU + feeU > balU;
+    if (over) { showErr(strings.insufficient || 'Not enough IXI to cover this amount plus the network fee.'); overShown = true; }
+    else if (overShown) { clearErr(); overShown = false; }
+    confirm.disabled = over;
+  }
+  render();
+
+  // lightDismiss OFF from the start — a money confirmation is explicit (#56 modal
+  // philosophy); Esc stays a safe dismiss until the send is actually in flight
+  sheet = createSheet({ content, host, strings, lightDismiss: false,
+    title: title || strings.reviewTitle || 'Review payment',
+    onDismiss: () => { if (quoteWait) { clearTimeout(quoteWait); quoteWait = 0; } if (!sent && onCancel) onCancel(); } });
+  openSheet(sheet);
+  // loop r1 A-4: a quote that never answers (or answers EMPTY — C#'s "no estimate"
+  // grammar) must not hang the sheet on "Calculating…" with Cancel as the only exit.
+  const quoteFailed = () => {
+    if (sending || sent || feeU !== null) return;
+    quoteDead = true;
+    showErr(strings.feeUnavailable || 'The network fee could not be estimated. Close this and try again.');
+    render();
+  };
+  if (feeU === null && onQuote) {
+    onQuote(r.address, fromUnits(aU));
+    quoteWait = setTimeout(() => { quoteWait = 0; quoteFailed(); }, quoteTimeoutMs);
+  }
+
+  const ctrl = {
+    sheet,
+    setQuote({ fee: qFee, balance: qBal, error: qErr, address: qAddr, amount: qAmt } = {}) {
+      // the echo pair must be THIS pair — a quote for another recipient/amount is dropped
+      if (qAddr !== undefined && String(qAddr) !== String(r.address || '')) return;   // loop r2 R2-4: string-exact
+      if (qAmt !== undefined && qAmt !== null && String(qAmt) !== '') {
+        const echoedU = safeUnits(qAmt);                 // loop r1 m2: a non-numeric echo never throws
+        if (echoedU === null || echoedU !== aU) return;
+      }
+      if (sending || sent) return;                       // loop r1 M1: nothing changes under an in-flight send
+      if (quoteWait) { clearTimeout(quoteWait); quoteWait = 0; }
+      if (qBal !== null && qBal !== undefined && qBal !== '') { const b = safeUnits(qBal); if (b !== null) balU = b; }
+      if (qErr === 'address') {
+        quoteDead = true;
+        showErr(strings.badAddress || 'That doesn\u2019t look like an Ixian address.');
+        render();                                        // loop r1 M2: the fee row leaves "Calculating…"
+        return;
+      }
+      const f = (qFee !== null && qFee !== undefined && qFee !== '') ? safeUnits(qFee) : null;
+      if (f !== null) { feeU = f; if (quoteDead) { quoteDead = false; clearErr(); } }   // loop r2 n1: only a QUOTE error is the quote's to clear
+      else if (feeU === null) { quoteFailed(); return; } // an echo-matched EMPTY fee = no estimate (loop r1 A-4)
+      render();
+    },
+    close(force) { if (!sending || force) closeSheet(sheet); },
+    isSending() { return sending; },
+    // loop r2 R2-3 / r3 R3-1: "open" = on the overlay stack (removed synchronously at
+    // dismissal) — not the DOM node (lingers ~400 ms) and not data-open (lands 2 frames in)
+    isOpen() { return isOverlayOpen(sheet); },
+  };
+  return ctrl;
+}
+
+/** QR-scan result lands here (shell wires `ixian:sendScan` → setSendAddress). Accepts
  *  the legacy QR formats `addr`, `addr:ixi`, `addr:send:amount`. */
 function setSendAddress(el, scanned) {
   if (!el) return el;
+  if (el._locked) return el;                               // loop r1 m3: the locked peer is never redirected
   const raw = String(scanned || '');
   const parts = raw.split(':');
   const address = parts[0] || '';
@@ -11118,6 +11714,8 @@ function setSendAddress(el, scanned) {
   const input = el.querySelector('.c-wallet-send__addrinput');
   const field = el.querySelector('.c-wallet-send__addrfield');
   if (field) field.hidden = false;
+  const addrRow = el.querySelector('.c-wallet-send__addrrow');
+  if (addrRow) addrRow.setAttribute('aria-expanded', 'true');
   if (input) { input.value = address; input.focus(); }
   if (parts[1] === 'send' && parts[2]) {
     const amt = el.querySelector('.c-wallet-send__amount');
@@ -11130,6 +11728,29 @@ function setSendAddress(el, scanned) {
   return el;
 }
 
+/** ★ W-f (Damir F5 2026-08-23): a scanned address that IS a contact picks the
+ *  contact — nickname + avatar on the picked row, not the raw-address glyph. The
+ *  shell looks the scan up in its roster and calls this on a hit (setSendAddress
+ *  on a miss). `scanned` may carry the QR tail (`:send:<amount>`) — the amount is
+ *  seeded exactly as setSendAddress does. Returns false when el is not a compose. */
+function setSendRecipient(el, contact, scanned) {
+  if (!el || typeof el._pick !== 'function' || !contact || !contact.address) return false;
+  if (el._locked) return false;                            // loop r1 m3: the #139 locked peer is never redirected
+  const clearBtn = el.querySelector('.c-wallet-send__clear');
+  if (clearBtn) clearBtn.click();                          // a scan supersedes the current pick
+  const field = el.querySelector('.c-wallet-send__addrfield');
+  if (field) field.hidden = true;
+  const addrRow = el.querySelector('.c-wallet-send__addrrow');
+  if (addrRow) addrRow.setAttribute('aria-expanded', 'false');   // loop r1 A-5
+  const parts = String(scanned || '').split(':');
+  if (parts[1] === 'send' && parts[2]) {
+    const amt = el.querySelector('.c-wallet-send__amount');
+    if (amt) { amt.value = groupAmountDisplay(parts[2]); amt.dispatchEvent(new Event('input', { bubbles: true })); }
+  }
+  el._pick({ ...contact, contact: true });
+  return true;
+}
+
 /** W6 (#523): a fee/balance quote lands here (shell wires the `setSendQuote` push).
  *  Values are RAW decimal strings from C# (never display-formatted). Missing/empty
  *  members leave that half unchanged. */
@@ -11140,12 +11761,19 @@ function setSendQuote(el, quote) {
 
 /** Inline error on the send view (shell hook parity with apps-add's setAddError). */
 function setSendError(el, msg) {
-  const err = el && el.querySelector('.c-wallet-send__error');
+  // ★ W-i: the amount section (and ITS error line) now sits ABOVE the address
+  // field — target the address field's own line while the picker is OPEN; once a
+  // recipient is picked that field is hidden (loop r1 n5), so the VISIBLE amount-
+  // section line takes the message instead. Never an invisible error.
+  const picker = el && el.querySelector('.c-wallet-send__picker');
+  const err = el && ((picker && !picker.hidden) ? el.querySelector('.c-wallet-send__addrfield .c-wallet-send__error') : el.querySelector('.c-wallet-send__section--amount .c-wallet-send__error'))
+    || (el && el.querySelector('.c-wallet-send__error'));
   if (!err) return el;
   err.hidden = !msg;                                     // unhide BEFORE text → alert announces (audit m3)
   err.textContent = msg || '';
   return el;
 }
+
 
 /* ---- src/components/qr.js ---- */
 /**
@@ -13556,6 +14184,8 @@ function setQrValue(svg, text, { ecc = 'M', quiet = 4, label } = {}) {
 
 
 
+
+
 /* ★ #527 (Damir, 2026-08-23) — RECEIVE INVERTED. The surface is REQUEST-FIRST:
  * the amount input and the W9 contact multi-select render open by default (no
  * reveal row, no collapse machinery). The QR + full address + copy + Share moved
@@ -13622,6 +14252,7 @@ function createWalletReceive({
   amtInput.inputMode = 'decimal';                          // mobile decimal pad (#136④ parity)
   amtInput.placeholder = '0';
   amtInput.setAttribute('aria-label', strings.requestAmount || 'Request an amount');
+  attachAmountKeyboardDismiss(amtInput);                   // ★ W-k: Enter/Next/Go → blur (list browsable)
   const unit = document.createElement('span');
   unit.className = 'c-wallet-receive__unit';
   unit.textContent = 'IXI';
@@ -13817,36 +14448,22 @@ function createWalletReceive({
     // covering the tail.
     const cap = 50;
     for (const c of list.slice(0, cap)) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'c-wallet-receive__contact';
-      // #342 (Damir F5 item (d)): pass the photo. Option: contacts[].avatar. The roster that feeds this picker
-      // carries `avatar` (home.html requestableContacts → contactsRoster), and every
-      // other contact row in the app shows it. Only this one dropped the argument, so
-      // the request-from-a-contact list was all gradients while the chats list beside
-      // it showed real faces. `|| null` keeps the gradient fallback for a contact with
-      // no stored avatar, which is the correct render, not a failure.
-      b.append(createAvatar({ name: c.name, address: c.address, src: c.avatar || null, size: 40 }));
-      const t = document.createElement('span');
-      t.className = 'c-wallet-receive__contactname';
-      t.textContent = c.name || c.address;
-      /* W9 — the group-creation row grammar (contacts-shell pickerRow): an
-         independent multi-select roster is role=checkbox + aria-checked (NOT
-         aria-pressed, which is for toggle buttons), with the trailing check
-         circle as the affordance. */
-      const check = document.createElement('span');
-      check.className = 'c-wallet-receive__check';
-      check.setAttribute('aria-hidden', 'true');
-      check.append(icon('check', { size: 16 }));
-      b.append(t, check);
-      b.setAttribute('role', 'checkbox');
-      b.setAttribute('aria-checked', String(state.selected.has(c.address)));
+      /* ★ W-j: the shared c-contact-row (the Contacts DIRECTORY anatomy: avatar-48
+         with the photo (#342) + online dot, name, the #211 truncated address sub-line)
+         in its W9 CHECKBOX form — role=checkbox + aria-checked + the trailing circle
+         (contacts-shell pickerRow grammar). The surface class stays as an alias for
+         base.css / pressable.js / the pins; the anatomy lives in contact-row.css. */
+      const b = createContactRow({
+        contact: c, strings, select: 'checkbox', checked: state.selected.has(c.address),
+        className: 'c-wallet-receive__contact',
+      });
+      if (b.disabled) { rows.append(b); continue; }        // loop r1 m4/m10: blocked rows never tick
       b.addEventListener('click', () => {
         // A tick is not a send — no amount gate here, and no latch. Patched in
         // place so the tapped row keeps keyboard focus (contacts-shell rule).
         const on = !state.selected.has(c.address);
         if (on) state.selected.add(c.address); else state.selected.delete(c.address);
-        b.setAttribute('aria-checked', String(on));
+        setContactRowChecked(b, on);
         if (result && !result.hidden) showResult('', 'ok');   // a new pick retires a stale outcome line
         syncCta();
       });
@@ -13914,24 +14531,40 @@ let addrSheetLive = null;                                  // loop fix: a double
 function openAddressSheet({ address = '', strings = getStrings(), host, onShare } = {}) {
   // audit m2 holds for the EXPORT too: no address, no confidently scannable garbage QR
   if (!String(address).trim()) return null;
+  // loop r1 m9: a sheet torn down WITHOUT dismissOverlay (its screen closed under
+  // it) left the latch set and the button dead for the document's life.
+  if (addrSheetLive && !addrSheetLive.isConnected) addrSheetLive = null;
   if (addrSheetLive) return addrSheetLive;
+  /* ★ W-c (Damir F5 2026-08-23): the sheet SCROLLS INTERNALLY (max-height in
+     wallet-receive.css — the desktop dialog cut the chip + explainer, and a short
+     phone viewport had no scroll at all), the QR card scales with min(), and the
+     surface got the PREMIUM pass — this is the one address surface (Account reuses
+     it, #527), so it is polished once: QR card → caption → the address chip →
+     Share → the explainer block with its info disc. */
   const content = document.createElement('div');
-  content.className = 'c-addr-sheet';
+  content.className = 'c-addr-sheet u-scroll';
+  // loop r1 A-8: a capped scroll region must be keyboard-reachable — focusable, named
+  content.tabIndex = 0;
+  content.setAttribute('role', 'group');
+  content.setAttribute('aria-label', strings.addressInfoTitle || 'Your Ixian address');
   const qrValue = address + ':ixi';                        // legacy receive format (wallet_request parity)
 
+  const qrWrap = document.createElement('div');
+  qrWrap.className = 'c-addr-sheet__qrwrap';
   const card = document.createElement('div');
-  card.className = 'c-wallet-receive__qrcard';             // N86 sizing rules ride along unchanged
+  card.className = 'c-wallet-receive__qrcard c-addr-sheet__qrcard';   // N86 sizing rules ride along
   card.append(createQrSvg(qrValue, { label: strings.qrReceiveLabel || 'QR code: your Ixian address' }));
-  content.append(card);
+  qrWrap.append(card);
+  content.append(qrWrap);
 
   const caption = document.createElement('p');
-  caption.className = 'c-wallet-receive__caption';
+  caption.className = 'c-wallet-receive__caption c-addr-sheet__caption';
   caption.textContent = strings.receiveCaption || 'Scan to send IXI to this address';
   content.append(caption);
 
   /* full address + honest copy morph (#99 chip pattern; audit m1/m6 rules kept) */
   const addrRow = document.createElement('div');
-  addrRow.className = 'c-wallet-receive__addr';
+  addrRow.className = 'c-wallet-receive__addr c-addr-sheet__addr';
   const addrValue = document.createElement('span');
   addrValue.className = 'c-wallet-receive__addrvalue u-tabular';
   addrValue.textContent = address;
@@ -13940,17 +14573,19 @@ function openAddressSheet({ address = '', strings = getStrings(), host, onShare 
   copy.className = 'c-wallet-receive__copy';
   const copyIdle = (strings.copy || 'Copy') + ', ' + (strings.yourAddress || 'Your address');
   copy.setAttribute('aria-label', copyIdle);
-  copy.append(icon('copy', { size: 16 }));
+  copy.append(icon('copy', { size: 18 }));
   let copyTimer = null;
   const copyMorph = (glyph, label) => {
     copy.textContent = '';
-    copy.append(icon(glyph, { size: 16 }));
+    copy.append(icon(glyph, { size: 18 }));
     copy.setAttribute('aria-label', label);
+    copy.dataset.state = glyph === 'check' ? 'ok' : 'fail';
     if (copyTimer) clearTimeout(copyTimer);                // overlapping clicks: latest wins (audit m6)
     copyTimer = setTimeout(() => {
       copy.textContent = '';
-      copy.append(icon('copy', { size: 16 }));
+      copy.append(icon('copy', { size: 18 }));
       copy.setAttribute('aria-label', copyIdle);
+      delete copy.dataset.state;
       copyTimer = null;
     }, 1400);
   };
@@ -13970,31 +14605,57 @@ function openAddressSheet({ address = '', strings = getStrings(), host, onShare 
   content.append(addrRow);
 
   if (onShare) {
-    content.append(createButton({
+    const share = createButton({
       label: strings.shareAddress || 'Share address', type: 'outline', size: 44, width: 'full',
       icon: icon('share-3', { size: 18 }),
       onClick: () => onShare({ address, amount: null, value: qrValue }),
-    }));
+    });
+    share.classList.add('c-addr-sheet__share');
+    content.append(share);
   }
 
   /* the folded-in explainer (ONE surface — no second address-info sheet).
-     EXACT existing keys — extract-strings conflict-gates on drifted fallbacks. */
+     EXACT existing keys — extract-strings conflict-gates on drifted fallbacks.
+     W-c: an info disc leads the block; the safety line carries the shield glyph. */
+  const explain = document.createElement('div');
+  explain.className = 'c-addr-sheet__explain';
+  const disc = document.createElement('span');
+  disc.className = 'c-disc';
+  disc.dataset.hue = 'info';
+  disc.dataset.grad = String(discGrad('info-circle'));
+  disc.setAttribute('aria-hidden', 'true');
+  disc.append(icon('info-circle', { size: 18 }));
+  const explainText = document.createElement('div');
+  explainText.className = 'c-addr-sheet__explaintext';
   const info = document.createElement('p');
   info.className = 'c-addr-sheet__info';
   info.textContent = strings.addressInfoBody
     || 'This is your address on the Ixian network. Share it, or let someone scan the code, and they can add you as a contact or send you IXI.';
-  content.append(info);
   const safety = document.createElement('p');
-  safety.className = 'c-addr-sheet__info';
-  safety.textContent = strings.addressInfoSafety
-    || 'Sharing it is safe: it never gives anyone access to your wallet.';
-  content.append(safety);
+  safety.className = 'c-addr-sheet__info c-addr-sheet__info--safe';
+  const shield = icon('shield-lock', { size: 16 });
+  shield.setAttribute('aria-hidden', 'true');
+  safety.append(shield, document.createTextNode(strings.addressInfoSafety
+    || 'Sharing it is safe: it never gives anyone access to your wallet.'));
+  explainText.append(info, safety);
+  explain.append(disc, explainText);
+  content.append(explain);
 
   const sheet = createSheet({ content, host, strings, title: strings.addressInfoTitle || 'Your Ixian address',
     onDismiss: () => { addrSheetLive = null; } });
+  sheet.classList.add('c-sheet--addr');                   // W-c: desktop dialog width cap lives on the sheet
   addrSheetLive = sheet;
   openSheet(sheet);
   return sheet;
+}
+
+/** Loop r2 n5: the screen that opened the address sheet closes it on its way out —
+ *  a sheet must not outlive its screen (the takeover's Back left it + its scrim on top
+ *  of the wallet home). Safe when nothing is open. */
+function closeAddressSheet() {
+  const live = addrSheetLive;
+  addrSheetLive = null;
+  if (live && live.isConnected) { try { closeSheet(live); } catch (e) { /* already dismissing */ } }
 }
 
 /** Free fn (#44): set the request amount programmatically (tests / bridge deep-link).
@@ -14820,6 +15481,9 @@ function createChatInfo({
   onContactRequest,              // member sheet passthrough
   onViewContact,                 // member sheet passthrough (relation 'contact' → contact page)
   onDeleteHistory, onRemoveContact, onLeave,   // (ctrl)
+  loading = false,               // ★ A8: the roster/pushes are still landing → skeleton rows (members) instead of an empty section
+  sharedGroups = undefined,      // ★ A4 (1:1): [{ name, address }] groups you are BOTH in; null = asked, not yet answered (skeleton); [] = none; undefined = the surface has no such data (no strip)
+  onOpenGroup,                   // ★ A4: tap a shared-group row → the shell opens that group chat
   onTx,
   onTxAll,                       // "View all" → full payment history (shell nav)
   strings = getStrings(),
@@ -15300,7 +15964,7 @@ function createChatInfo({
      bar's people icon opens exactly this list; screenshots on file). FLAGGED
      component change (desktop-split-spec §6d), not a silent edit; the full bot
      roster feed + paging stays a §9 BE ask — shells feed what the bridge gives. */
-  if ((kind === 'group' || kind === 'bot') && members.length) {
+  if ((kind === 'group' || kind === 'bot') && (members.length || kind === 'bot' || loading)) {
     const sec = document.createElement('div');
     sec.className = 'c-chat-info__members';
     let count = memberCount || members.length;
@@ -15327,8 +15991,8 @@ function createChatInfo({
       host: host || el.closest('.demo-phone') || undefined,   // audit m6: shell passes host
       // #249 loop C-1: owner/admin ride into the sheet so its identity block can
       // badge them consistently with the row list.
-      member: { name: m.name, address: m.address, avatar: blind ? null : m.avatar, owner: m.owner, admin: m.admin },
-      blind,
+      member: { name: m.name, address: m.address, avatar: (blind && kind === 'group') ? null : m.avatar, owner: m.owner, admin: m.admin },
+      blind: blind && kind === 'group',                 // ★ A1: the sheet follows the row — a bot member is shown as legacy showed it
       relation: m.relation || 'none',
       // audit M2 family: mark pending IMMEDIATELY — reopening the sheet must
       // not offer a second request while the first is on the wire.
@@ -15382,6 +16046,25 @@ function createChatInfo({
 
     function renderMembers() {
       listEl.replaceChildren();
+      /* ★ A8 (Damir's override of #264-no-skeletons): while the roster pushes land
+         (ixian:loadContacts → addContact × N, one EvaluateJavaScriptAsync each) the
+         section shows three skeleton rows, not an empty list or a "no members" lie.
+         aria-busy tells AT the region is loading; the rows are aria-hidden. */
+      if (loading && !members.length) {
+        listEl.setAttribute('aria-busy', 'true');
+        for (let i = 0; i < 3; i++) {
+          const sk = document.createElement('div');
+          sk.className = 'c-chat-info__member c-chat-info__member--skeleton';
+          sk.setAttribute('aria-hidden', 'true');
+          const av = document.createElement('span'); av.className = 'c-chat-info__skeleton-avatar';
+          const ln = document.createElement('span'); ln.className = 'c-chat-info__skeleton-line';
+          ln.style.width = (58 + i * 14) + '%';
+          sk.append(av, ln);
+          listEl.append(sk);
+        }
+        return;
+      }
+      listEl.removeAttribute('aria-busy');
       const matches = (query
         ? members.filter((m) =>
             (m.name || '').toLowerCase().includes(query) ||
@@ -15394,12 +16077,23 @@ function createChatInfo({
         row.className = 'c-chat-info__member';
         // blind group hides identity → suppress the real photo too (matches the
         // hidden address); non-blind rows show the per-sender avatar, gradient-safe.
-        row.append(createAvatar({ src: blind ? null : m.avatar, name: m.name, address: blind ? '' : m.address, size: 40 }));
+        /* ★ A1 (Damir, Batch A 2026-08-24 — "check the legacy"): a BOT room lists its
+           members the way the legacy channel list did (chat.js addContact: nick + avatar,
+           for every member C# pushes) — nickname when present, else the #211 truncated
+           address, WITH the photo. The #348 MAJOR-5 masking stays for blind GROUPS, where
+           C# itself masks the address ('[Unknown]') and the shell has nothing to show;
+           for a bot C# never masks (loadContacts masks `type == Group` only, xaml:658-665),
+           so hiding here only hid what every legacy user already saw. The roster itself is
+           what the protocol carries: getUsers is fetched at settingsGeneratedTime/userCount
+           change and ONLY for userCount < 500 (Ixian-Core CoreStreamProcessor.cs:2685-2703,
+           frozen) — a larger public room lists the members seen locally. BE row. */
+        const maskRow = blind && kind === 'group';
+        row.append(createAvatar({ src: maskRow ? null : m.avatar, name: m.name, address: maskRow ? '' : m.address, size: 40 }));
         const nm = document.createElement('span');
         nm.className = 'c-chat-info__member-name';
         // Loop B-5 (#370): the nameless non-blind fallback follows the #211 canon —
         // the member SHEET already truncates the same address one tap deeper.
-        nm.textContent = m.name || (blind ? (strings.hiddenMember || 'Hidden member') : truncateAddressMiddle(m.address));
+        nm.textContent = m.name || (maskRow ? (strings.hiddenMember || 'Hidden member') : truncateAddressMiddle(m.address));
         row.append(nm);
         if (m.owner) {
           // #248 (Damir): the group owner gets an "Owner" chip (owner identity via
@@ -15419,11 +16113,59 @@ function createChatInfo({
       if (!matches.length) {
         const none = document.createElement('div');
         none.className = 'c-chat-info__member-note';
-        none.textContent = strings.noMembers || 'No members match.';
+        // ★ A1: an EMPTY bot roster is a protocol fact (getUsers only for < 500 users,
+        // Ixian-Core frozen) — say what is true, not "no match"
+        none.textContent = (!members.length && kind === 'bot')
+          ? (strings.membersNotSynced || 'Members are not listed for this room yet.')
+          : (strings.noMembers || 'No members match.');
         listEl.append(none);
       }
     }
     renderMembers();
+  }
+
+  /* ——— ★ A4 (Batch A 2026-08-24): groups you are BOTH in (1:1 only) ———
+     Data: the shell asks `ixian:sharedGroups` (ContactDetails) → `setSharedGroups`
+     (name/address pairs) — the SAME enumeration Core's removeFriend refuses on, so the
+     strip is also the honest preview of what the remove-contact sheet will ask.
+     null = not answered yet (skeleton line while `loading`), [] = none (one quiet line). */
+  if (kind === 'contact' && sharedGroups !== undefined) {
+    const sec = document.createElement('div');
+    sec.className = 'c-chat-info__shared';
+    sec.append(sectionLabel(strings.sharedGroupsTitle || 'Groups you are both in'));
+    const list = document.createElement('div');
+    list.className = 'c-chat-info__shared-list';
+    if (sharedGroups === null) {
+      list.setAttribute('aria-busy', 'true');
+      const sk = document.createElement('div');
+      sk.className = 'c-chat-info__member c-chat-info__member--skeleton';
+      sk.setAttribute('aria-hidden', 'true');
+      const av = document.createElement('span'); av.className = 'c-chat-info__skeleton-avatar';
+      const ln = document.createElement('span'); ln.className = 'c-chat-info__skeleton-line'; ln.style.width = '52%';
+      sk.append(av, ln);
+      list.append(sk);
+    } else if (!sharedGroups.length) {
+      const none = document.createElement('div');
+      none.className = 'c-chat-info__member-note';
+      none.textContent = strings.noSharedGroups || 'No shared groups.';
+      list.append(none);
+    } else {
+      for (const g of sharedGroups) {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'c-chat-info__member c-chat-info__shared-row';
+        row.append(createAvatar({ name: g.name || '', address: g.address || '', size: 40, group: true }));
+        const nm = document.createElement('span');
+        nm.className = 'c-chat-info__member-name';
+        nm.textContent = g.name || truncateAddressMiddle(g.address || '');
+        row.append(nm);
+        if (onOpenGroup) { row.append(icon('chevron-right', { size: 18 })); row.addEventListener('click', () => onOpenGroup(g)); }
+        else row.disabled = true;
+        list.append(row);
+      }
+    }
+    sec.append(list);
+    body.append(sec);
   }
 
   /* ——— payments with this contact (1:1 activity, txlist-item reuse) ———
@@ -15522,7 +16264,11 @@ function createChatInfo({
       run: (ctrl) => onRemoveContact(ctrl),
     }));
   }
-  if (kind === 'group' && onLeave) {
+  /* ★ A2 (Batch A): Leave for GROUPS and BOTS — the #248 comment "bots have no
+     in-chat leave verb" was wrong at source: SingleChatPage's `ixian:leave` handles
+     a bot (pendingDeletion + sendLeave, xaml:383-387), exactly as ContactDetails does.
+     The shells already emit it; only this render gate withheld the row. */
+  if ((kind === 'group' || kind === 'bot') && onLeave) {
     dangerRow(strings.leaveGroup || 'Leave group', 'arrow-back-up', () => ({
       title: strings.leaveTitle || 'Leave this group?',
       bodyText: strings.leaveBody || 'You’ll stop receiving messages. Rejoining needs a new invite.',
@@ -15530,7 +16276,15 @@ function createChatInfo({
       run: (ctrl) => onLeave(ctrl),
     }));
   }
-  if (danger.childElementCount) body.append(danger);
+  /* ★ A3 (Damir, Batch A 2026-08-24): ACTIONS ON TOP. The destructive rows
+     (Delete chat history · Remove contact / Leave group) sit right under the
+     identity block — after the quick-action row when the surface has one
+     (contact: Message · Pay · Request), else straight after the hero — not at the
+     bottom of a long members list where they were out of reach. */
+  if (danger.childElementCount) {
+    const moneyRow = body.querySelector('.c-chat-info__money');
+    (moneyRow || hero).insertAdjacentElement('afterend', danger);
+  }
 
   /* shared destructive-confirm machinery: alertdialog, Cancel autofocused
      (APG safe action, #136⑤ precedent), confirm latched + loading, dismissal
@@ -16849,11 +17603,14 @@ function mountContacts({
   overlay.className = 'contacts-takeover';
 
   let closed = false;
-  const close = () => {
+  /* ★ C4 (#547): onClose carries the REASON — 'back' when the user pressed the
+     takeover's own Back (the return-to-Account hop keys on it), anything else when
+     the shell closed it programmatically (a tab tap, an app launch, a chat open). */
+  const close = (reason) => {
     if (closed) return;
     closed = true;
     overlay.remove();
-    if (onClose) onClose();
+    if (onClose) onClose(reason === 'back' ? 'back' : 'auto');
   };
 
   /* #265 ⑤ — step 2: group setup (name / photo / blind) over the picker. The
@@ -16911,7 +17668,7 @@ function mountContacts({
     contacts: getRoster ? getRoster() : [],
     purpose,
     strings,
-    onBack: close,                         // close the takeover — never an ixian: nav verb
+    onBack: () => close('back'),           // close the takeover — never an ixian: nav verb (C4: the user's own Back)
     // Add contact → ContactNewPage. Leave the takeover OPEN underneath (see docblock).
     onAddContact: () => bridge.send('ixian:newcontact'),
     // Create group → IN-SHELL multi-select (the picker flips itself; the topbar
@@ -18791,24 +19548,19 @@ function createSettingsDanger({
     heavy.append(b);
   };
 
+  /* ★ Batch C (#545, Damir #532): ONE destructive door. "Delete account" is the FULL
+     wipe — wallet included — and lands on welcome; the separate "Delete wallet" card is
+     GONE (redundant). The copy states the whole list and the one thing that matters:
+     without the backup file AND the password nobody can recover it. onDeleteWallet is
+     still accepted as an opt for older callers but renders nothing. */
   if (onDeleteAccount) card(
-    strings.deleteAccount || 'Delete account data',
-    strings.deleteAccountSub || 'Removes contacts, history and your avatar. Your wallet stays.',
+    strings.deleteAccount || 'Delete account',
+    strings.deleteAccountSub || 'Removes everything from this device: wallet, contacts, chats, files and settings.',
     () => ({
-      title: strings.deleteAccountTitle || 'Delete account data?',
-      bodyText: strings.deleteAccountBody || 'Contacts, chat history and your avatar are removed. Your wallet is kept. Spixi will ask you to confirm with your PIN.',
-      confirmLabel: strings.deleteConfirm || 'Delete',
+      title: strings.deleteAccountTitle || 'Delete this account?',
+      bodyText: strings.deleteAccountBody || 'Your wallet, contacts, chat history, files and settings are removed from this device. Without your backup file AND your password nobody can recover the account. Spixi asks you to confirm with your PIN, then shows the welcome screen.',
+      confirmLabel: strings.deleteAccountConfirm || 'Delete account',
       run: (ctrl) => onDeleteAccount(ctrl),
-    }),
-  );
-  if (onDeleteWallet) card(
-    strings.deleteWallet || 'Delete wallet',
-    strings.deleteWalletSub || 'Removes the wallet from this device and restarts Spixi.',
-    () => ({
-      title: strings.deleteWalletTitle || 'Delete wallet?',
-      bodyText: strings.deleteWalletBody || 'Your wallet is removed from this device. Without your backup file AND your password it cannot be recovered by anyone. Spixi will ask you to confirm with your PIN, then restart.',
-      confirmLabel: strings.deleteWalletConfirm || 'Delete wallet',
-      run: (ctrl) => onDeleteWallet(ctrl),
     }),
   );
 
@@ -21826,7 +22578,30 @@ function b64ToUtf8(b64) {
  */
 function createNativeBridge({ emit, win } = {}) {
   const w = win || window;
-  const sink = emit || ((command) => { w.location.href = command; });
+  /* ★ Batch A loop r1 (A-1/A-2, 2026-08-24): the DEFAULT sink is a SERIALIZED outbox.
+     The MAUI WebView processes ONE URL navigation at a time, so two `location.href`
+     sets in the same turn drop the first. launch.html found this (#N75) and queued
+     its own sends; every other shell still emitted raw. The delete flow (A6) emits
+     `ixian:removehistory:` and `ixian:sharedGroups:` in one click handler, the W9
+     request loop emits one `ixian:sendrequest:` per ticked contact, contact_details
+     emits `ixian:onload` + `ixian:sharedGroups` back to back — all the same class.
+     The FIRST command still goes out synchronously (drain runs at once); each later
+     one lands on its own macrotask. C# cancels every ixian: navigation (e.Cancel),
+     so the WebView stays on the page and the next command fires cleanly.
+     An injected `emit` (tests, the demo mock layer, launch.html's own queue) bypasses it. */
+  const outbox = [];
+  let draining = false;
+  const drain = () => {
+    if (!outbox.length) { draining = false; return; }
+    // loop r2 R2-1: a throwing href set must cost ONE command, never the whole bridge
+    try { w.location.href = outbox.shift(); }
+    finally { setTimeout(drain, 0); }
+  };
+  const queued = (command) => {
+    outbox.push(command);
+    if (!draining) { draining = true; drain(); }
+  };
+  const sink = emit || queued;
   let readySent = false;
 
   const capabilities = (w.SPIXI_ENV && w.SPIXI_ENV.capabilities) || {};
@@ -22638,5 +23413,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, ignorePushedTheme: ignorePushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openDeleteFlow: openDeleteFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, createWalletSend: createWalletSend, setSendAddress: setSendAddress, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, ignorePushedTheme: ignorePushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

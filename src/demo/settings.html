@@ -188,11 +188,7 @@
         ctrl.done();
         toast('C# would ask for your PIN first (LockPage), then delete account data');
       }, 1100),
-      onDeleteWallet: (ctrl) => setTimeout(() => {           // ixian:delete → auth, shutdown, Launch
-        if (bridgeFails) { ctrl.fail('Authentication was canceled.'); return; }
-        ctrl.done();
-        toast('C# would auth via PIN, delete the wallet, shut down and restart to Launch');
-      }, 1100),
+      // #545 C2: the delete-wallet card is retired — the handler renders nothing (kept for the old-caller contract)
     }));
   }
 

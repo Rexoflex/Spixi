@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<resources>
+
+  <!-- C5 (#534, #548, Batch C 2026-08-24): THEME-AWARE SPLASH, the Android 12+
+       system splash under a DARK OS theme. Damir's dial: dark = a near-black ground
+       + the WHITE Spixi logo; light = the existing #144576 splash (values-v31, untouched).
+       The ground is the grey-900 token (#13171b, tokens.css) = the shells' own dark
+       instant background, so the splash and the first shell frame are one surface.
+       The icon: a STATIC white logomark (drawable/spixi_splash_icon_night.xml; no
+       animation: #336 reverted the animated one as "barely noticeable, mark too big and
+       clipped, dots too fast"; this mark sits at about 52% of the 108dp viewport, inside
+       the Android-12 safe circle, and does not move). The launcher icon it replaces reads
+       as a coloured tile on black; the white mark is the brand on this ground.
+       THE LIMIT (#534): the OS splash follows the OS theme, not the in-app override; a
+       light OS with Spixi set dark still gets the light splash. Pre-31 devices read
+       layout-night/splash_screen.xml instead. -->
+  <style name="MainTheme" parent="MainTheme.Base">
+    <item name="android:windowSplashScreenBackground">#13171b</item>
+    <item name="android:windowSplashScreenAnimatedIcon">@drawable/spixi_splash_icon_night</item>
+  </style>
+
+</resources>

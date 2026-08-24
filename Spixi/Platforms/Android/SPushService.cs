@@ -214,6 +214,24 @@ namespace Spixi
         /// `clearNotifications` cancels EVERYTHING, which would also wipe unread message
         /// rows the user has not seen, so a targeted cancel was needed.
         /// </summary>
+        /* ★ D1 (#549, Batch D 2026-08-24) — THE MISSED-CALL ROW WAS BEING SWEPT.
+         * Damir: "the remote hang-up removes the incoming-call notification and NO
+         * missed-call notification remains." Traced, not guessed: VoIPManager.endVoIPSession
+         * DOES re-post the row as "Missed call" (3.14) — and then HomePage.updateScreen
+         * (the ~1 s UI tick, HomePage.xaml.cs:3070) calls clearNotifications, which was
+         * `manager.CancelAll()`: every row on the shade, every tick, whenever Home is on
+         * screen. The missed call lived for at most one tick. SingleChatPage.onResume
+         * (:2813) and its loader (:937) run the same sweep when the unread count is 0.
+         *
+         * The sweep exists for MESSAGE rows (you are looking at the list, the backlog is
+         * seen). A missed call is not a backlog item — the tray exists to hold it. So call
+         * rows carry a TAG (`CALL_TAG`, the notification's own tag slot), the sweep
+         * enumerates the active rows and cancels only the untagged ones, and the two
+         * call-specific cancels (answered / the call-back chat opened) use the tag. No id
+         * scheme changes: the id is still CRC32 of the address (NOTIF-4), so the missed row
+         * still REPLACES the incoming row it grew from. */
+        public const string CALL_TAG = "spixi.call";
+
         public static void cancelNotification(int messageId)
         {
             try
@@ -221,10 +239,13 @@ namespace Spixi
                 if (manager != null)
                 {
                     manager.Cancel(messageId);
+                    manager.Cancel(CALL_TAG, messageId);   // a call id (NotificationPrefs.notificationIdFor(addr, true)) lives under the tag
                 }
                 else
                 {
-                    NotificationManagerCompat.From(Android.App.Application.Context)?.Cancel(messageId);
+                    var nm = NotificationManagerCompat.From(Android.App.Application.Context);
+                    nm?.Cancel(messageId);
+                    nm?.Cancel(CALL_TAG, messageId);
                 }
             }
             catch (Exception e)
@@ -233,16 +254,50 @@ namespace Spixi
             }
         }
 
+        /// <summary>The message-row sweep: every ACTIVE row EXCEPT the tagged call rows (D1, #549).</summary>
         public static void clearNotifications(int unreadCount)
         {
-            if (manager != null)
+            try
             {
-                manager.CancelAll();
+                if (manager == null)
+                {
+                    manager = (NotificationManager)Android.App.Application.Context.GetSystemService("notification");
+                }
+                bool swept = false;
+                if (manager != null && Build.VERSION.SdkInt >= BuildVersionCodes.M)
+                {
+                    var active = manager.GetActiveNotifications();
+                    if (active != null)
+                    {
+                        foreach (var sbn in active)
+                        {
+                            if (sbn == null || sbn.Tag == CALL_TAG)
+                            {
+                                continue;                  // a missed call stays on the shade
+                            }
+                            manager.Cancel(sbn.Tag, sbn.Id);
+                        }
+                        swept = true;
+                    }
+                }
+                if (!swept)
+                {
+                    // pre-M (no GetActiveNotifications): the old blanket sweep — a missed
+                    // call cannot be spared there; logged so an F5 on such a device is explicable
+                    Logging.info("clearNotifications: blanket sweep (no active-notification API)");
+                    if (manager != null)
+                    {
+                        manager.CancelAll();
+                    }
+                    else
+                    {
+                        NotificationManagerCompat.From(Android.App.Application.Context)?.CancelAll();
+                    }
+                }
             }
-            else
+            catch (Exception e)
             {
-                var notificationManager = NotificationManagerCompat.From(Android.App.Application.Context);
-                notificationManager?.CancelAll();
+                Logging.warn("clearNotifications failed: " + e.Message);
             }
 
             clearRemoteNotifications(unreadCount);
@@ -332,7 +387,14 @@ namespace Spixi
             }
 
             var notification = builder.Build();
-            manager.Notify(messageId, notification);
+            if (isCall)
+            {
+                manager.Notify(CALL_TAG, messageId, notification);   // D1 (#549): tagged, so the message sweep spares it
+            }
+            else
+            {
+                manager.Notify(messageId, notification);
+            }
         }
 
         static void CreateNotificationChannel()

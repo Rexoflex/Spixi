@@ -504,7 +504,7 @@ namespace SPIXI
         {
             if (friend.bot || friend.type == FriendType.Group)
             {
-                Utils.sendUiCommand(this, "payRequestResult", msg_id, "cancel", "");
+                Utils.sendUiCommand(this, "payRequestResult", msg_id, "gone", "");   // Batch W loop r1 A-1: unpayable ≠ user cancel
                 return;
             }
             FriendMessage? msg = null;
@@ -935,6 +935,25 @@ namespace SPIXI
                 if (unreadCount == 0)
                 {
                     SPushService.clearNotifications(unreadCount);
+                }
+
+                /* ★ D1 (#549, loop r1 MAJOR-3): the call-row cancel lives HERE, on the load
+                 * path that runs on EVERY open — App.OnResume dispatches onResume() to the
+                 * NavigationPage's CurrentPage only, and since #225 a conversation is an
+                 * OVERLAY inside HomePage, so SingleChatPage.onResume never fires in overlay
+                 * mode. The message sweep now spares call rows; THIS is the one place the
+                 * missed call is "seen" (its bubble is in this log), so this contact's call
+                 * row clears on open. Other contacts' missed calls stay. */
+                try
+                {
+                    if (friend != null && friend.walletAddress != null)
+                    {
+                        SPushService.cancelNotification(SPIXI.Meta.SNotificationPrefs.notificationIdFor(friend.walletAddress, true));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("onLoad: could not clear the call row: " + ex.Message);
                 }
 
                 UIHelpers.refreshAppRequests = true;
@@ -1675,6 +1694,28 @@ namespace SPIXI
                     }
                     break;
 
+                case "cancelInvite":
+                    // ★ Batch B (#544) B2 — app-invite CANCEL (#533 ①, the locked shape): the
+                    // RECIPIENT's invite is REMOVED through the existing msgDelete path, and the
+                    // SENDER'S copy STAYS (the shell paints it as a persistent "Canceled"
+                    // tombstone — the #214 declined pattern; the user keeps the bubble unless
+                    // they delete it). So: sendMsgDelete to the peer, NO local delete. Guarded to
+                    // an OWN appSession message — anything else is a no-op (a crafted id must
+                    // not turn into a remote delete of somebody else's message).
+                    {
+                        FriendMessage inv_msg = friend.getMessages(selectedChannel)?.Find(x => x.id != null && x.id.SequenceEqual(msg_id));
+                        if (inv_msg != null && inv_msg.type == FriendMessageType.appSession && inv_msg.localSender && !friend.bot)
+                        {
+                            StreamProcessor.sendMsgDelete(friend, msg_id, selectedChannel);
+                            Utils.sendUiCommand(this, "cancelInviteResult", Crypto.hashToString(msg_id), "ok");
+                        }
+                        else
+                        {
+                            Utils.sendUiCommand(this, "cancelInviteResult", Crypto.hashToString(msg_id), "fail");
+                        }
+                    }
+                    break;
+
                 case "deleteMessage":
                     // #334 (file-send Cancel): deleting an OWN un-completed file OFFER
                     // is the cancel path — ALSO kill the in-memory outgoing transfer,
@@ -2228,6 +2269,18 @@ namespace SPIXI
 
             if (message.type == FriendMessageType.appSession)
             {
+                /* ★ B2 (#544, loop r1 MAJOR-2) — THE BLANKED-INVITE GHOST GUARD. The
+                 * "existing delete path" (msgDelete → Friend.deleteMessage, Friend.cs:949)
+                 * does not REMOVE a row — it BLANKS it (fm.message = "") and keeps the
+                 * type. On the recipient's next load this branch then parsed app_id = ""
+                 * and pushed a nameless "Missing" invite with live Join/Decline — a ghost
+                 * of the invite the sender canceled. Same class, same answer as the #529
+                 * payment ghost guard: a blanked row renders NOTHING. */
+                if (string.IsNullOrEmpty(message.message))
+                {
+                    return;
+                }
+
                 MiniAppManager am = Node.MiniAppManager;
 
                 string app_id;
@@ -2790,6 +2843,8 @@ namespace SPIXI
             {
                 SPushService.clearNotifications(unreadCount);
             }
+            // (the D1 call-row cancel lives on the LOAD path above — onResume never fires
+            //  for an overlay conversation, loop r1 MAJOR-3)
         }
     }
 }

@@ -60,6 +60,21 @@ namespace SPIXI
         }
 
         /// <summary>
+        /// ★ W-g (Batch W, loop r1 B-1/C-1): where the "Confirm payments" gate can ACT.
+        /// confirmAndAuth skips Plugin.Fingerprint on WinUI (the LockPage:382 rule), so
+        /// there the toggle is a no-op switch — SettingsPage withholds the cap + the seed.
+        /// ONE predicate for both sites. MacCatalyst is NOT gated here: whether Touch ID
+        /// answers IsAvailableAsync there is a device fact for the Mac session, not a
+        /// source fact. The runtime residual (a device with nothing enrolled →
+        /// IsAvailableAsync false → the explicit native confirm stands) is documented,
+        /// not gated: it is async device state, and the native confirm is still the wall.
+        /// </summary>
+        public static bool paymentAuthSupported()
+        {
+            return Device.RuntimePlatform != Device.WinUI;
+        }
+
+        /// <summary>
         /// W6 — `ixian:feeQuery:&lt;addr&gt;:&lt;amount&gt;` →
         /// `setSendQuote(addr, amount, fee, balance, maxAmount, error)`.
         /// Amount "0" = balance + Max quote (fee slot empty → the review stays gated).
@@ -261,17 +276,21 @@ namespace SPIXI
             }
             try
             {
+                // ★ Batch W loop r1 A-1: an UNPAYABLE request is "gone", never "cancel".
+                // "cancel" is reserved for the user backing out of the native confirm —
+                // the shell renders it as a SILENT re-enable, which for these five cases
+                // was a permanent silent no-op on Confirm & send.
                 if (requestMsg == null || requestMsg.type != FriendMessageType.requestFunds
                     || requestMsg.localSender || requestMsg.message.StartsWith(":"))
                 {
                     // unknown / own / already paid or declined — nothing to pay
-                    Utils.sendUiCommand(page, "payRequestResult", msgIdHex, "cancel", "");
+                    Utils.sendUiCommand(page, "payRequestResult", msgIdHex, "gone", "");
                     return;
                 }
                 IxiNumber amount = parseAmount(requestMsg.message);
                 if (amount <= (long)0)
                 {
-                    Utils.sendUiCommand(page, "payRequestResult", msgIdHex, "cancel", "");
+                    Utils.sendUiCommand(page, "payRequestResult", msgIdHex, "gone", "");
                     return;
                 }
 
@@ -300,8 +319,8 @@ namespace SPIXI
                 }
                 if (requestMsg.message.StartsWith(":"))
                 {
-                    // settled while the confirm was open (remote decline echo / double path)
-                    Utils.sendUiCommand(page, "payRequestResult", msgIdHex, "cancel", "");
+                    // settled while the confirm was open (remote decline echo / double path) — "gone" (loop r1 A-1)
+                    Utils.sendUiCommand(page, "payRequestResult", msgIdHex, "gone", "");
                     return;
                 }
 

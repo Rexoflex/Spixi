@@ -58,12 +58,14 @@
  */
 import { getStrings } from './strings-runtime.js';
 import { createButton } from './button.js';
-import { createAvatar } from './avatar.js';
 import { createSearchField } from './search-field.js';
 import { createQrSvg } from './qr.js';                     // #303: setQrValue import dropped — the QR never re-encodes
-import { createSheet, openSheet } from './sheet.js';       // #527: the address moved into a bottom sheet
+import { createSheet, openSheet, closeSheet } from './sheet.js';   // #527: the address moved into a bottom sheet · r2: closeAddressSheet
 import { sanitizeAmount, canonicalAmount, amountInputToCanonical, groupAmountDisplay, amountCaretAfterFormat } from './money.js';   // #143 shared money module · ★ I-6 (#360) display grouping
 import { icon } from './icons.js';
+import { createContactRow, setContactRowChecked } from './contact-row.js';   // ★ W-j: the shared directory row
+import { attachAmountKeyboardDismiss } from './wallet-send.js';             // ★ W-k: Enter/Next/Go drops the keyboard
+import { discGrad } from './disc.js';
 
 /* ★ #527 (Damir, 2026-08-23) — RECEIVE INVERTED. The surface is REQUEST-FIRST:
  * the amount input and the W9 contact multi-select render open by default (no
@@ -131,6 +133,7 @@ export function createWalletReceive({
   amtInput.inputMode = 'decimal';                          // mobile decimal pad (#136④ parity)
   amtInput.placeholder = '0';
   amtInput.setAttribute('aria-label', strings.requestAmount || 'Request an amount');
+  attachAmountKeyboardDismiss(amtInput);                   // ★ W-k: Enter/Next/Go → blur (list browsable)
   const unit = document.createElement('span');
   unit.className = 'c-wallet-receive__unit';
   unit.textContent = 'IXI';
@@ -326,36 +329,22 @@ export function createWalletReceive({
     // covering the tail.
     const cap = 50;
     for (const c of list.slice(0, cap)) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'c-wallet-receive__contact';
-      // #342 (Damir F5 item (d)): pass the photo. Option: contacts[].avatar. The roster that feeds this picker
-      // carries `avatar` (home.html requestableContacts → contactsRoster), and every
-      // other contact row in the app shows it. Only this one dropped the argument, so
-      // the request-from-a-contact list was all gradients while the chats list beside
-      // it showed real faces. `|| null` keeps the gradient fallback for a contact with
-      // no stored avatar, which is the correct render, not a failure.
-      b.append(createAvatar({ name: c.name, address: c.address, src: c.avatar || null, size: 40 }));
-      const t = document.createElement('span');
-      t.className = 'c-wallet-receive__contactname';
-      t.textContent = c.name || c.address;
-      /* W9 — the group-creation row grammar (contacts-shell pickerRow): an
-         independent multi-select roster is role=checkbox + aria-checked (NOT
-         aria-pressed, which is for toggle buttons), with the trailing check
-         circle as the affordance. */
-      const check = document.createElement('span');
-      check.className = 'c-wallet-receive__check';
-      check.setAttribute('aria-hidden', 'true');
-      check.append(icon('check', { size: 16 }));
-      b.append(t, check);
-      b.setAttribute('role', 'checkbox');
-      b.setAttribute('aria-checked', String(state.selected.has(c.address)));
+      /* ★ W-j: the shared c-contact-row (the Contacts DIRECTORY anatomy: avatar-48
+         with the photo (#342) + online dot, name, the #211 truncated address sub-line)
+         in its W9 CHECKBOX form — role=checkbox + aria-checked + the trailing circle
+         (contacts-shell pickerRow grammar). The surface class stays as an alias for
+         base.css / pressable.js / the pins; the anatomy lives in contact-row.css. */
+      const b = createContactRow({
+        contact: c, strings, select: 'checkbox', checked: state.selected.has(c.address),
+        className: 'c-wallet-receive__contact',
+      });
+      if (b.disabled) { rows.append(b); continue; }        // loop r1 m4/m10: blocked rows never tick
       b.addEventListener('click', () => {
         // A tick is not a send — no amount gate here, and no latch. Patched in
         // place so the tapped row keeps keyboard focus (contacts-shell rule).
         const on = !state.selected.has(c.address);
         if (on) state.selected.add(c.address); else state.selected.delete(c.address);
-        b.setAttribute('aria-checked', String(on));
+        setContactRowChecked(b, on);
         if (result && !result.hidden) showResult('', 'ok');   // a new pick retires a stale outcome line
         syncCta();
       });
@@ -423,24 +412,40 @@ let addrSheetLive = null;                                  // loop fix: a double
 export function openAddressSheet({ address = '', strings = getStrings(), host, onShare } = {}) {
   // audit m2 holds for the EXPORT too: no address, no confidently scannable garbage QR
   if (!String(address).trim()) return null;
+  // loop r1 m9: a sheet torn down WITHOUT dismissOverlay (its screen closed under
+  // it) left the latch set and the button dead for the document's life.
+  if (addrSheetLive && !addrSheetLive.isConnected) addrSheetLive = null;
   if (addrSheetLive) return addrSheetLive;
+  /* ★ W-c (Damir F5 2026-08-23): the sheet SCROLLS INTERNALLY (max-height in
+     wallet-receive.css — the desktop dialog cut the chip + explainer, and a short
+     phone viewport had no scroll at all), the QR card scales with min(), and the
+     surface got the PREMIUM pass — this is the one address surface (Account reuses
+     it, #527), so it is polished once: QR card → caption → the address chip →
+     Share → the explainer block with its info disc. */
   const content = document.createElement('div');
-  content.className = 'c-addr-sheet';
+  content.className = 'c-addr-sheet u-scroll';
+  // loop r1 A-8: a capped scroll region must be keyboard-reachable — focusable, named
+  content.tabIndex = 0;
+  content.setAttribute('role', 'group');
+  content.setAttribute('aria-label', strings.addressInfoTitle || 'Your Ixian address');
   const qrValue = address + ':ixi';                        // legacy receive format (wallet_request parity)
 
+  const qrWrap = document.createElement('div');
+  qrWrap.className = 'c-addr-sheet__qrwrap';
   const card = document.createElement('div');
-  card.className = 'c-wallet-receive__qrcard';             // N86 sizing rules ride along unchanged
+  card.className = 'c-wallet-receive__qrcard c-addr-sheet__qrcard';   // N86 sizing rules ride along
   card.append(createQrSvg(qrValue, { label: strings.qrReceiveLabel || 'QR code: your Ixian address' }));
-  content.append(card);
+  qrWrap.append(card);
+  content.append(qrWrap);
 
   const caption = document.createElement('p');
-  caption.className = 'c-wallet-receive__caption';
+  caption.className = 'c-wallet-receive__caption c-addr-sheet__caption';
   caption.textContent = strings.receiveCaption || 'Scan to send IXI to this address';
   content.append(caption);
 
   /* full address + honest copy morph (#99 chip pattern; audit m1/m6 rules kept) */
   const addrRow = document.createElement('div');
-  addrRow.className = 'c-wallet-receive__addr';
+  addrRow.className = 'c-wallet-receive__addr c-addr-sheet__addr';
   const addrValue = document.createElement('span');
   addrValue.className = 'c-wallet-receive__addrvalue u-tabular';
   addrValue.textContent = address;
@@ -449,17 +454,19 @@ export function openAddressSheet({ address = '', strings = getStrings(), host, o
   copy.className = 'c-wallet-receive__copy';
   const copyIdle = (strings.copy || 'Copy') + ', ' + (strings.yourAddress || 'Your address');
   copy.setAttribute('aria-label', copyIdle);
-  copy.append(icon('copy', { size: 16 }));
+  copy.append(icon('copy', { size: 18 }));
   let copyTimer = null;
   const copyMorph = (glyph, label) => {
     copy.textContent = '';
-    copy.append(icon(glyph, { size: 16 }));
+    copy.append(icon(glyph, { size: 18 }));
     copy.setAttribute('aria-label', label);
+    copy.dataset.state = glyph === 'check' ? 'ok' : 'fail';
     if (copyTimer) clearTimeout(copyTimer);                // overlapping clicks: latest wins (audit m6)
     copyTimer = setTimeout(() => {
       copy.textContent = '';
-      copy.append(icon('copy', { size: 16 }));
+      copy.append(icon('copy', { size: 18 }));
       copy.setAttribute('aria-label', copyIdle);
+      delete copy.dataset.state;
       copyTimer = null;
     }, 1400);
   };
@@ -479,31 +486,57 @@ export function openAddressSheet({ address = '', strings = getStrings(), host, o
   content.append(addrRow);
 
   if (onShare) {
-    content.append(createButton({
+    const share = createButton({
       label: strings.shareAddress || 'Share address', type: 'outline', size: 44, width: 'full',
       icon: icon('share-3', { size: 18 }),
       onClick: () => onShare({ address, amount: null, value: qrValue }),
-    }));
+    });
+    share.classList.add('c-addr-sheet__share');
+    content.append(share);
   }
 
   /* the folded-in explainer (ONE surface — no second address-info sheet).
-     EXACT existing keys — extract-strings conflict-gates on drifted fallbacks. */
+     EXACT existing keys — extract-strings conflict-gates on drifted fallbacks.
+     W-c: an info disc leads the block; the safety line carries the shield glyph. */
+  const explain = document.createElement('div');
+  explain.className = 'c-addr-sheet__explain';
+  const disc = document.createElement('span');
+  disc.className = 'c-disc';
+  disc.dataset.hue = 'info';
+  disc.dataset.grad = String(discGrad('info-circle'));
+  disc.setAttribute('aria-hidden', 'true');
+  disc.append(icon('info-circle', { size: 18 }));
+  const explainText = document.createElement('div');
+  explainText.className = 'c-addr-sheet__explaintext';
   const info = document.createElement('p');
   info.className = 'c-addr-sheet__info';
   info.textContent = strings.addressInfoBody
     || 'This is your address on the Ixian network. Share it, or let someone scan the code, and they can add you as a contact or send you IXI.';
-  content.append(info);
   const safety = document.createElement('p');
-  safety.className = 'c-addr-sheet__info';
-  safety.textContent = strings.addressInfoSafety
-    || 'Sharing it is safe: it never gives anyone access to your wallet.';
-  content.append(safety);
+  safety.className = 'c-addr-sheet__info c-addr-sheet__info--safe';
+  const shield = icon('shield-lock', { size: 16 });
+  shield.setAttribute('aria-hidden', 'true');
+  safety.append(shield, document.createTextNode(strings.addressInfoSafety
+    || 'Sharing it is safe: it never gives anyone access to your wallet.'));
+  explainText.append(info, safety);
+  explain.append(disc, explainText);
+  content.append(explain);
 
   const sheet = createSheet({ content, host, strings, title: strings.addressInfoTitle || 'Your Ixian address',
     onDismiss: () => { addrSheetLive = null; } });
+  sheet.classList.add('c-sheet--addr');                   // W-c: desktop dialog width cap lives on the sheet
   addrSheetLive = sheet;
   openSheet(sheet);
   return sheet;
+}
+
+/** Loop r2 n5: the screen that opened the address sheet closes it on its way out —
+ *  a sheet must not outlive its screen (the takeover's Back left it + its scrim on top
+ *  of the wallet home). Safe when nothing is open. */
+export function closeAddressSheet() {
+  const live = addrSheetLive;
+  addrSheetLive = null;
+  if (live && live.isConnected) { try { closeSheet(live); } catch (e) { /* already dismissing */ } }
 }
 
 /** Free fn (#44): set the request amount programmatically (tests / bridge deep-link).

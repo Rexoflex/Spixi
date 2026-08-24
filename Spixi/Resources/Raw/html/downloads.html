@@ -488,6 +488,100 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 [data-theme="dark"] .c-topbar[data-connecting-bar] { border-bottom-color: transparent; }
 
 </style>
+<style data-src="../styles/components/avatar.css">
+/* c-avatar — photo or deterministic gradient placeholder (DECISIONS.md #34, #364).
+   N1 rework (supersedes #37): JS stamps the anchor INDEX (data-hue 0..11);
+   the 12 gradients below are hand-tuned per anchor and serve BOTH themes
+   (the c-disc #170 grammar — vivid fill + white ink, mode-agnostic).
+   Every pair is computed ≥ 4.5:1 under white ink at BOTH stops (#364 table).
+   Recipe: stop1 = hsl(h, 62%, L1) · stop2 = hsl(h+25, 58%, L1−10). */
+
+.c-avatar[data-hue="0"]  { --av-c1: hsl(0, 62%, 52%);   --av-c2: hsl(25, 58%, 42%);  }
+.c-avatar[data-hue="1"]  { --av-c1: hsl(22, 62%, 43%);  --av-c2: hsl(47, 58%, 33%);  }
+.c-avatar[data-hue="2"]  { --av-c1: hsl(40, 62%, 35%);  --av-c2: hsl(65, 58%, 25%);  }
+.c-avatar[data-hue="3"]  { --av-c1: hsl(95, 62%, 31%);  --av-c2: hsl(120, 58%, 21%); }
+.c-avatar[data-hue="4"]  { --av-c1: hsl(135, 62%, 32%); --av-c2: hsl(160, 58%, 22%); }
+.c-avatar[data-hue="5"]  { --av-c1: hsl(165, 62%, 31%); --av-c2: hsl(190, 58%, 21%); }
+.c-avatar[data-hue="6"]  { --av-c1: hsl(190, 62%, 35%); --av-c2: hsl(215, 58%, 25%); }
+.c-avatar[data-hue="7"]  { --av-c1: hsl(215, 62%, 50%); --av-c2: hsl(240, 58%, 40%); }
+.c-avatar[data-hue="8"]  { --av-c1: hsl(245, 62%, 58%); --av-c2: hsl(270, 58%, 48%); }
+.c-avatar[data-hue="9"]  { --av-c1: hsl(275, 62%, 55%); --av-c2: hsl(300, 58%, 45%); }
+.c-avatar[data-hue="10"] { --av-c1: hsl(305, 62%, 47%); --av-c2: hsl(330, 58%, 37%); }
+.c-avatar[data-hue="11"] { --av-c1: hsl(335, 62%, 51%); --av-c2: hsl(0, 58%, 41%);   }
+
+.c-avatar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border-radius: var(--radius-full);
+  /* B5 (#231): container border DROPPED — gradient placeholders go borderless
+     (Telegram-class, lighter list rhythm); the hairline moves to the PHOTO img
+     only (below) so a light photo still separates from a light surface. Outer
+     size unchanged (border-box) → photo and gradient variants render the same
+     footprint + identical circular mask. */
+  /* N1 (#364): white ink in BOTH themes — the anchor gradients are dark enough
+     everywhere (≥ 4.5:1 computed). Literal #fff on purpose, exactly like
+     c-disc (base.css): a theme-flipping token here re-breaks dark mode. */
+  color: #fff; /* initials/glyph over gradient */
+  overflow: visible;
+}
+
+/* Known sizes from size tokens (unknown sizes: inline fallback in avatar.js).
+   Initials scale ≈ 0.38 × avatar size. */
+.c-avatar[data-size="24"] { width: var(--size-avatar-24); height: var(--size-avatar-24); }
+.c-avatar[data-size="24"] .c-avatar__initials { font-size: 9px; }
+.c-avatar[data-size="40"] { width: var(--size-avatar-40); height: var(--size-avatar-40); }
+.c-avatar[data-size="40"] .c-avatar__initials { font-size: 15px; }
+.c-avatar[data-size="48"] { width: var(--size-avatar-48); height: var(--size-avatar-48); }
+.c-avatar[data-size="48"] .c-avatar__initials { font-size: 18px; }
+/* W2 (#302): 64 = the chat-info HERO. It has rendered at that size since #142 but
+   had no rule here at all, so it fell through to avatar.js's inline width/height
+   fallback and its initials kept the base font-size instead of the 0.38× scale.
+   Sizing stays inline — no --size-avatar-64 token exists yet (flag at the next
+   Figma mirror); this pins the initials scale and the hero-scale presence dot. */
+.c-avatar[data-size="64"] .c-avatar__initials { font-size: 24px; }
+.c-avatar[data-size="64"] .c-avatar__dot { width: 16px; height: 16px; }
+
+.c-avatar[data-placeholder] {
+  /* Fallbacks = anchor 7 (blue): a stale bundle that never stamps data-hue
+     still paints a legible gradient instead of a transparent disc. */
+  background-image: linear-gradient(135deg,
+    var(--av-c1, hsl(215, 62%, 50%)),
+    var(--av-c2, hsl(240, 58%, 40%)));
+}
+
+.c-avatar__img {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-full);
+  border: var(--outline-width-1) solid var(--outline-neutral-02); /* B5 (#231): photos-only hairline */
+  object-fit: cover;
+}
+
+.c-avatar__initials {
+  font-family: var(--font-secondary);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0;
+  user-select: none;
+  -webkit-user-select: none; /* WebKit honors only the prefixed form */
+}
+
+.c-avatar__dot {
+  position: absolute;
+  inset-inline-end: 0; /* RTL-logical (audit) */
+  inset-block-end: 0;
+  width: 12px;  /* sanctioned: dot scale is avatar-relative, not a size token */
+  height: 12px;
+  border-radius: var(--radius-full);
+  background: var(--surface-presence-online);
+  /* ring = surface-screen: shows a mismatched halo on hover/selected row surfaces —
+     known + accepted for now; proper fix needs a design decision (audit LOW) */
+  border: var(--outline-width-2) solid var(--surface-screen);
+}
+
+</style><!-- W-h gate (2026-08-24): createTopbar can render an avatar variant — linked so no topbar variant is ever unstyled here -->
 <style data-src="../styles/components/overlay.css">
 /* Overlay layer: scrim + c-sheet + c-modal (docs/overlays-spec.md, DECISIONS #56).
    Overlays position inside their HOST (shell root / demo phone), not the viewport. */
@@ -561,7 +655,9 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    needed. Focus is not affected: pointer-events does not change focusability, so
    the open-time focus move and the exit focus restore both still work. */
 html:root .c-sheet:not([data-open]),
-html:root .c-sheet:not([data-open]) * {
+html:root .c-sheet:not([data-open]) *,
+html:root .c-modal:not([data-open]),
+html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSING modal's action re-entered `fire` on a second tap — same hole, same rule */
   pointer-events: none;
 }
 
@@ -612,6 +708,12 @@ html:root .c-sheet:not([data-open]) * {
 
 .c-modal__actions {
   display: flex;
+  /* ★ Batch B/C loop r1 M-1 (2026-08-24): WRAP. A long localized confirm label
+     ("Supprimer le compte", "Отменить приглашение") overflowed the fixed pair —
+     nowrap labels + flex-basis 0 + min-width:auto has no out. Wrapping drops the
+     long action onto its own full-width row (the remove-contact sheet's answer);
+     short pairs render exactly as before. */
+  flex-wrap: wrap;
   gap: var(--spacing-8);
   justify-content: flex-end;
   /* rich `content` slots carry no trailing margin (only __body does) — without this the
@@ -619,7 +721,7 @@ html:root .c-sheet:not([data-open]) * {
      Collapses with __body's margin-block-end so plain modals keep their 24 gap. */
   margin-block-start: var(--spacing-24);
 }
-.c-modal__actions .c-button { flex: 1 1 0; } /* equal-width pair (spec ②) */
+.c-modal__actions .c-button { flex: 1 1 0; } /* equal-width pair (spec ②). ⚠ NO min-width:0 here — loop r2 R2-1: with flex-basis 0 a used min of 0 makes every item's hypothetical size 0, so the wrap above could NEVER fire; min-width:auto (the label's min-content) is what trips it. Measured in Chrome: with auto, the long confirm wraps to its own full row; with 0 it spilled 43px past its button */
 
 /* ═════════ DESKTOP presentation (:root[data-desktop] — Batch C, #256 M6) ═════════
    Bottom sheets read poorly on desktop → they PRESENT as centered dialogs; three

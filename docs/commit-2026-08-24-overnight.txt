@@ -1,0 +1,25 @@
+# Run these from the repo root (PowerShell). Never `git add -A`.
+# _deliveries/ is gitignored; _scratch/ is NOT — do not add it.
+
+git --no-optional-locks status
+
+# 1. the new/untracked files:
+git add Spixi/Utils/SContacts.cs
+git add src/components/contact-row.js src/styles/components/contact-row.css
+git add Spixi/Platforms/Android/Resources/values-night-v31 Spixi/Platforms/Android/Resources/layout-night Spixi/Platforms/Android/Resources/drawable/spixi_splash_icon_night.xml
+git add docs/f5-checklist-2026-08-24-overnight.md docs/f5-findings-2026-08-24-overnight.md docs/handoff-2026-08-25-morning.md docs/commit-2026-08-24-overnight.txt docs/commit-message-2026-08-24.txt
+git add docs/opus-review-verdict-batch-w.md docs/opus-review-verdict-batch-a.md docs/opus-review-verdict-batch-bcd.md
+git add docs/opus-review-brief-batch-w.md docs/opus-review-brief-batch-a.md docs/opus-review-brief-batch-bcd.md
+git add docs/opus-review-batch-w-r1-components.md docs/opus-review-batch-w-r1-gates-i18n-a11y.md docs/opus-review-batch-w-r1-shells-cs.md docs/opus-review-batch-w-r2.md docs/opus-review-batch-w-r3.md
+git add docs/opus-review-batch-a-r1-components-pins.md docs/opus-review-batch-a-r1-cs-shells.md docs/opus-review-batch-a-r2.md
+git add docs/opus-review-batch-bcd-r1-cs.md docs/opus-review-batch-bcd-r1-shells.md docs/opus-review-batch-bcd-r2.md
+
+# 2. the modified files (tracked — -u stages modifications only, nothing untracked):
+git add -u
+
+# 3. verify _scratch/ and _deliveries/ are NOT staged, then commit:
+git --no-optional-locks status
+git commit -F docs/commit-message-2026-08-24.txt
+
+# The message itself lives in docs/commit-message-2026-08-24.txt (one file, -F reads it).
+# git push does NOT work from the bridge - push from your own shell.

@@ -671,7 +671,9 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    needed. Focus is not affected: pointer-events does not change focusability, so
    the open-time focus move and the exit focus restore both still work. */
 html:root .c-sheet:not([data-open]),
-html:root .c-sheet:not([data-open]) * {
+html:root .c-sheet:not([data-open]) *,
+html:root .c-modal:not([data-open]),
+html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSING modal's action re-entered `fire` on a second tap — same hole, same rule */
   pointer-events: none;
 }
 
@@ -722,6 +724,12 @@ html:root .c-sheet:not([data-open]) * {
 
 .c-modal__actions {
   display: flex;
+  /* ★ Batch B/C loop r1 M-1 (2026-08-24): WRAP. A long localized confirm label
+     ("Supprimer le compte", "Отменить приглашение") overflowed the fixed pair —
+     nowrap labels + flex-basis 0 + min-width:auto has no out. Wrapping drops the
+     long action onto its own full-width row (the remove-contact sheet's answer);
+     short pairs render exactly as before. */
+  flex-wrap: wrap;
   gap: var(--spacing-8);
   justify-content: flex-end;
   /* rich `content` slots carry no trailing margin (only __body does) — without this the
@@ -729,7 +737,7 @@ html:root .c-sheet:not([data-open]) * {
      Collapses with __body's margin-block-end so plain modals keep their 24 gap. */
   margin-block-start: var(--spacing-24);
 }
-.c-modal__actions .c-button { flex: 1 1 0; } /* equal-width pair (spec ②) */
+.c-modal__actions .c-button { flex: 1 1 0; } /* equal-width pair (spec ②). ⚠ NO min-width:0 here — loop r2 R2-1: with flex-basis 0 a used min of 0 makes every item's hypothetical size 0, so the wrap above could NEVER fire; min-width:auto (the label's min-content) is what trips it. Measured in Chrome: with auto, the long confirm wraps to its own full row; with 0 it spilled 43px past its button */
 
 /* ═════════ DESKTOP presentation (:root[data-desktop] — Batch C, #256 M6) ═════════
    Bottom sheets read poorly on desktop → they PRESENT as centered dialogs; three

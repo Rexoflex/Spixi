@@ -1153,24 +1153,19 @@ export function createSettingsDanger({
     heavy.append(b);
   };
 
+  /* ★ Batch C (#545, Damir #532): ONE destructive door. "Delete account" is the FULL
+     wipe — wallet included — and lands on welcome; the separate "Delete wallet" card is
+     GONE (redundant). The copy states the whole list and the one thing that matters:
+     without the backup file AND the password nobody can recover it. onDeleteWallet is
+     still accepted as an opt for older callers but renders nothing. */
   if (onDeleteAccount) card(
-    strings.deleteAccount || 'Delete account data',
-    strings.deleteAccountSub || 'Removes contacts, history and your avatar. Your wallet stays.',
+    strings.deleteAccount || 'Delete account',
+    strings.deleteAccountSub || 'Removes everything from this device: wallet, contacts, chats, files and settings.',
     () => ({
-      title: strings.deleteAccountTitle || 'Delete account data?',
-      bodyText: strings.deleteAccountBody || 'Contacts, chat history and your avatar are removed. Your wallet is kept. Spixi will ask you to confirm with your PIN.',
-      confirmLabel: strings.deleteConfirm || 'Delete',
+      title: strings.deleteAccountTitle || 'Delete this account?',
+      bodyText: strings.deleteAccountBody || 'Your wallet, contacts, chat history, files and settings are removed from this device. Without your backup file AND your password nobody can recover the account. Spixi asks you to confirm with your PIN, then shows the welcome screen.',
+      confirmLabel: strings.deleteAccountConfirm || 'Delete account',
       run: (ctrl) => onDeleteAccount(ctrl),
-    }),
-  );
-  if (onDeleteWallet) card(
-    strings.deleteWallet || 'Delete wallet',
-    strings.deleteWalletSub || 'Removes the wallet from this device and restarts Spixi.',
-    () => ({
-      title: strings.deleteWalletTitle || 'Delete wallet?',
-      bodyText: strings.deleteWalletBody || 'Your wallet is removed from this device. Without your backup file AND your password it cannot be recovered by anyone. Spixi will ask you to confirm with your PIN, then restart.',
-      confirmLabel: strings.deleteWalletConfirm || 'Delete wallet',
-      run: (ctrl) => onDeleteWallet(ctrl),
     }),
   );
 

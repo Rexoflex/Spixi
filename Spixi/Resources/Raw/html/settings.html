@@ -701,7 +701,9 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    needed. Focus is not affected: pointer-events does not change focusability, so
    the open-time focus move and the exit focus restore both still work. */
 html:root .c-sheet:not([data-open]),
-html:root .c-sheet:not([data-open]) * {
+html:root .c-sheet:not([data-open]) *,
+html:root .c-modal:not([data-open]),
+html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSING modal's action re-entered `fire` on a second tap — same hole, same rule */
   pointer-events: none;
 }
 
@@ -752,6 +754,12 @@ html:root .c-sheet:not([data-open]) * {
 
 .c-modal__actions {
   display: flex;
+  /* ★ Batch B/C loop r1 M-1 (2026-08-24): WRAP. A long localized confirm label
+     ("Supprimer le compte", "Отменить приглашение") overflowed the fixed pair —
+     nowrap labels + flex-basis 0 + min-width:auto has no out. Wrapping drops the
+     long action onto its own full-width row (the remove-contact sheet's answer);
+     short pairs render exactly as before. */
+  flex-wrap: wrap;
   gap: var(--spacing-8);
   justify-content: flex-end;
   /* rich `content` slots carry no trailing margin (only __body does) — without this the
@@ -759,7 +767,7 @@ html:root .c-sheet:not([data-open]) * {
      Collapses with __body's margin-block-end so plain modals keep their 24 gap. */
   margin-block-start: var(--spacing-24);
 }
-.c-modal__actions .c-button { flex: 1 1 0; } /* equal-width pair (spec ②) */
+.c-modal__actions .c-button { flex: 1 1 0; } /* equal-width pair (spec ②). ⚠ NO min-width:0 here — loop r2 R2-1: with flex-basis 0 a used min of 0 makes every item's hypothetical size 0, so the wrap above could NEVER fire; min-width:auto (the label's min-content) is what trips it. Measured in Chrome: with auto, the long confirm wraps to its own full row; with 0 it spilled 43px past its button */
 
 /* ═════════ DESKTOP presentation (:root[data-desktop] — Batch C, #256 M6) ═════════
    Bottom sheets read poorly on desktop → they PRESENT as centered dialogs; three
@@ -1799,6 +1807,118 @@ button.c-settings-howto__join:disabled {
 }
 
 </style><!-- About / How-to takeovers (c-settings-about/-howto/-links) -->
+<style data-src="../styles/components/search-field.css">
+/* c-search-field — text-field/large specialization (docs/chip-search-spec.md,
+   DECISIONS #51). Permanent transparent border prevents the Figma default→hover
+   layout jump; focus fakes the spec's 2px border via box-shadow (no shift). */
+
+.c-search-field {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-height: var(--size-target-min); /* Figma ≈40px — raised to touch minimum (#51) */
+  padding: var(--spacing-8) var(--spacing-12);
+  border: var(--outline-width-1) solid transparent; /* Figma: none; see header */
+  border-radius: var(--radius-full);
+  background: var(--surface-neutral-02);
+  /* glyph ink shares the placeholder's text token — one resting ink for the
+     whole empty field (deliberate; icon-neutral-* would split the pair) */
+  color: var(--text-neutral-02);
+  /* 100ms intentional: micro-interaction, matches chip/chatlist hover */
+  transition: background-color var(--duration-100) var(--easing-standard),
+              border-color var(--duration-100) var(--easing-standard),
+              box-shadow var(--duration-100) var(--easing-standard);
+}
+
+/* #228 desktop density: pointer targets may go tighter than the 44px touch
+   minimum (TG search ≈32–36px). Mobile keeps --size-target-min. */
+:root[data-desktop] .c-search-field {
+  min-height: 36px;
+  padding-block: var(--spacing-4);
+}
+
+/* Figma text-field used outline-info (hover) + text-action-default (focus) as
+   borders — confirmed errors by Damir 2026-07-02; action OUTLINE roles are the
+   correct family (#51). Mirror back to Figma text-field/large. */
+@media (hover: hover) and (pointer: fine) {
+  .c-search-field:hover {
+    background: var(--surface-neutral-03);
+    border-color: var(--outline-action-hover);
+  }
+}
+
+.c-search-field:focus-within {
+  background: var(--surface-neutral-01);
+  border-color: var(--outline-action-default);
+  box-shadow: 0 0 0 1px var(--outline-action-default); /* 1px border + 1px shadow ≈ spec 2px */
+}
+
+/* ★ BUG-3 — ACTIVE FILTER (Damir F5 2026-08-13: "I had active search bar stuff in").
+   A field holding a query is not a resting input: it is HIDING ROWS, so it stops
+   looking neutral and wears the ACTION outline permanently — not only while focused
+   — with the glyph and the clear affordance in action ink. Placed AFTER :hover and
+   :focus-within (equal specificity, source order decides) so the filtering state
+   out-ranks a passing hover; focus stays distinguishable because it adds the
+   box-shadow + surface change, which this rule does not touch.
+   Semantic tokens only; nothing here is density- or viewport-dependent. */
+.c-search-field[data-active] {
+  border-color: var(--outline-action-default);
+  color: var(--text-action-default);
+}
+.c-search-field[data-active] .c-search-field__clear { color: var(--text-action-default); }
+
+.c-search-field__icon { flex: none; }
+
+.c-search-field__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0 var(--spacing-4);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md); /* 16px — no iOS focus zoom */
+  line-height: var(--line-height-body-md);
+  letter-spacing: var(--tracking-body-md);
+  color: var(--text-neutral-01);
+  caret-color: var(--text-action-default);
+}
+.c-search-field__input::placeholder { color: var(--text-neutral-02); opacity: 1; }
+/* sanctioned #51 deviation from the #23 ring: text fields show focus as the
+   container's action border+shadow (Figma text-field treatment), not the ring */
+.c-search-field__input:focus { outline: none; }
+/* custom clear button is the affordance — hide the native WebKit one */
+.c-search-field__input::-webkit-search-cancel-button { display: none; }
+
+.c-search-field__clear {
+  flex: none;
+  display: flex;
+  border: 0;
+  padding: var(--spacing-4);
+  margin: calc(-1 * var(--spacing-4)); /* bigger hit area, same layout */
+  background: transparent;
+  color: var(--text-neutral-02);
+  cursor: pointer;
+  border-radius: var(--radius-full);
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+}
+/* 44px tap target (same pattern as chip) — glyph stays 18px visual */
+.c-search-field__clear::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  transform: translate(-50%, -50%);
+}
+@media (hover: hover) and (pointer: fine) {
+  .c-search-field__clear:hover { color: var(--text-neutral-01); }
+}
+/* pressed after hover (source-order rule) */
+.c-search-field__clear:active { color: var(--text-action-pressed); }
+
+</style><!-- ★ W-h gate find (loop r1 G-2): createSettingsDownloads mounts a c-search-field in the PANE route (downloadsInline) — it rendered as a bare UA input here -->
 <style data-src="../styles/components/launch-shell.css">
 /* c-launch — welcome carousel · create · restore · retry (★ N76 removed the
    onboarding tail: the backup nudge moved to the first-asset trigger and the
@@ -3384,6 +3504,15 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="delivered"] { color: var(--icon-bubble-delivered); }
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="read"] { color: var(--icon-bubble-read); }
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="failed"] { color: var(--icon-bubble-failed); }
+/* ★ A9 (Damir, Batch A 2026-08-24): the OUTGOING timestamp + status glyphs sit at 0.7
+   alpha — quieter than the message text — and ONLY the READ tick stays at 1.0 (it is the
+   one state worth the eye). Opacity goes on the CHILDREN (time, edited, the glyphs) —
+   a box-level opacity would cap the read tick at 0.7 too, since a child can never be
+   more opaque than its parent. The failed glyph keeps 1.0 as well (an error must not
+   be dimmed — the #48 rule). Received bubbles are untouched. */
+.c-bubble-row[data-direction="sent"] .c-bubble__meta > * { opacity: 0.7; }
+.c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="read"],
+.c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="failed"] { opacity: 1; }
 /* A2 (#302): paid marker. Inherits the meta ink on BOTH directions — those inks are
    already AA-tuned per direction two rules up (--text-bubble-*-meta), so the glyph
    needs no token of its own and reads correctly in light and dark. flex:none stops
@@ -4974,8 +5103,10 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
         onBack: showHub,
         onDeleteHistory: (ctrl) => { bridge.send('ixian:deleteh'); ctrl.done(); },     // UNGATED C#-side (spec §8-2)
         onDeleteDownloads: (ctrl) => { bridge.send('ixian:deleted'); ctrl.done(); },
-        onDeleteAccount: (ctrl) => { bridge.send('ixian:deletea'); ctrl.done(); },     // C# LockPage auth gate
-        onDeleteWallet: (ctrl) => { bridge.send('ixian:delete'); ctrl.done(); },       // C# LockPage auth → shutdown → Launch
+        onDeleteAccount: (ctrl) => { bridge.send('ixian:deletea'); ctrl.done(); },     // C# LockPage auth gate → the FULL wipe (#545)
+        // ★ Batch C (#545) C2: onDeleteWallet is GONE — the delete-wallet row was redundant next
+        // to the full wipe (#532, Damir); its verb is retired C#-side (an old shell's emit maps to
+        // the full wipe). ONE destructive door.
         strings,
       });
       case 'about': return createSettingsAbout({
@@ -5349,6 +5480,23 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
          and filed it as a BE gap; it was ours. */
       else { state.dirtyLock = false; syncSave(); }
       scheduleRebuild();
+    },
+
+    /* ★ Batch C (#545) C1 — step 6 of the full wipe: every `spixi.*` localStorage key
+       goes (pins · mutes · drafts · the declined/canceled invite sets · pattern/text
+       prefs · mention seen-state · the F5 checklist counters). WebView storage is ONE
+       store per app on every platform, so clearing it from this page clears it for all
+       shells. Keys are enumerated first (never a blanket clear — a shell may host
+       a third-party origin's keys on desktop dev builds), and the count is logged for
+       the F5 checklist. Never throws into the C# push. */
+    wipeLocalState() {
+      let n = 0;
+      try {
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('spixi.')) keys.push(k); }
+        for (const k of keys) { try { localStorage.removeItem(k); n += 1; } catch (e) { /* one key must not stop the sweep */ } }
+      } catch (e) { /* storage unavailable — nothing to wipe */ }
+      dbg('wipeLocalState: ' + n + ' spixi.* keys removed');
     },
 
     // PA1 (#525): the authoritative "Confirm payments" value — pushed at onLoad

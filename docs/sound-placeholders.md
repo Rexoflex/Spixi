@@ -1,5 +1,10 @@
 # The in-app effect sounds (four at the #497 drop → TWO since the 2026-08-23 SND-2 reversal, #518)
 
+★ **2026-08-24 (#535, Damir's message at the start of the overnight session): the pair is
+now `minimal/swipe` (sent) + `minimal/drag-start` (received)** — "same base we are using,
+just to replace with these." Same pack, same −16 dBFS peak, same mono/44.1 kHz/96 kbps
+encode, same two file names. The 2026-08-23 paragraph below is the previous state.
+
 ★ **2026-08-23, the sound-picks INTERVIEW (#521): Damir named exact cues — the shipped
 pair is now `minimal/queued` (sent) + `minimal/warning` (received), at a QUIETER −16 dBFS
 peak (his call: −12 read too loud on device).** The history below records the earlier
@@ -30,8 +35,8 @@ answer. Not added unilaterally.
 
 | File | Cue taken | The library's own definition | Length |
 |---|---|---|---|
-| `message_sent.mp3` | `minimal/queued` (#521; was `mechanical/send`) | *"An item enters a queue"* — a dry, tiny tick | 0.34 s |
-| `message_received.mp3` | `minimal/warning` (#521; was `mechanical/receive`) | *"Something needs the user's attention"* — one soft low knock | 0.57 s |
+| `message_sent.mp3` | `minimal/swipe` (#535; was `minimal/queued` #521, `mechanical/send` #497) | *"A touch gesture moves content spatially."* — a short airy whoosh | 0.37 s |
+| `message_received.mp3` | `minimal/drag-start` (#535; was `minimal/warning` #521, `mechanical/receive` #497) | *"An object lifts from its resting place."* — one soft lift | 0.29 s |
 | ~~`tx_sent.mp3`~~ | `mechanical/purchase` | **RETIRED 2026-08-23 (#518)** — deleted from disk | 0.50 s |
 | ~~`tx_received.mp3`~~ | `mechanical/reward` | **RETIRED 2026-08-23 (#518)** — deleted from disk | 0.47 s |
 
@@ -72,8 +77,13 @@ Rejected on register: `arcade`, `sci-fi`, `cinematic`. Rejected on LENGTH: `drea
 ## What was done to the files
 
 Gain-adjusted to a **−16.0 dBFS** peak since #521 (Damir: quieter; the #497 drop used
-−12.0), verified on the encoded output (both files measure −16.0 exactly),
-then re-encoded mono / 44.1 kHz / 96 kbps. Nothing else — no trimming, no EQ.
+−12.0), verified on the encoded output, then re-encoded mono / 44.1 kHz / 96 kbps.
+Nothing else — no trimming, no EQ. #535 measurements (ffmpeg astats on the ENCODED files):
+`message_received.mp3` −16.00 dBFS · `message_sent.mp3` −15.95 dBFS — `swipe` ships
+STEREO at source and the mono downmix plus the 96 kbps encode leaves a 0.05 dB residual
+the gain loop cannot remove (the encoder's own peak drift); inaudible, recorded honestly.
+Source: `npm pack uisfx@0.4.0` (CC0 audio, unchanged), `sounds/minimal/drag-start.mp3`
+and `sounds/minimal/swipe.mp3`.
 
 ★ Why −12: the four CALL sounds beside them (`default_ringtone`, `dialing_tone`, `busy_tone`,
 `error_tone`) are much louder, and an effect that competes with a ringtone is the first thing

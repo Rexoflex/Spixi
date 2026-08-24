@@ -88,6 +88,9 @@ export const PRESSABLE_ROW = [
   '.c-app-item',
   '.c-apps-recents__item',
   '.c-wallet-receive__contact',
+  /* ★ W-j (2026-08-24): the shared money-picker row (contact-row.js) — Send AND
+     Receive rows. Send rows had NO press feedback before this (never listed). */
+  '.c-contact-row',
   /* D-16 r3 (Opus finding 2): the Downloads FILE row. Its canonical fill block
      lives in settings-app.css; before this only the destructive "Delete all"
      row on that screen was pressable — two grammars, the wrong way round. */

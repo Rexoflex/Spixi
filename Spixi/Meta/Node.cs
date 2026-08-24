@@ -387,7 +387,14 @@ namespace SPIXI.Meta
                     {
                         PeerStorage.savePeersFile();
 
-                        if (Config.enablePushNotifications)
+                        /* ★ F5-3 (#553) — the same guard family as App.EnsureNodeRunning.
+                         * A half-started node can run this loop with NO wallet loaded
+                         * (running=true latches before the wallet read in start()).
+                         * fetchPushMessages signs with the primary key
+                         * (Ixian-Core/Streaming/OfflinePushMessages.cs:112) and threw the
+                         * same KeyNotFoundException at 12:28:06 in fatalexception.txt.
+                         * No wallet → skip the fetch, keep the loop alive. */
+                        if (Config.enablePushNotifications && IxianHandler.wallets.Count > 0)
                         {
                             /* ★★ m10 (#46 loop, ROUND 2): the OTHER caller of the fetch, and the
                              * one that made the round-1 lock a promise the code did not keep.

@@ -4083,11 +4083,23 @@ namespace SPIXI
                     // legacy remove sites do (ContactDetails:241 popToRoot · SingleChatPage:391).
                     // Resolved BEFORE the removal: getChatPage matches on the Friend reference.
                     var chat_page = Utils.getChatPage(f);
+                    /* ★ F5-2 (#555, r2 per loop A-4/A-5/A-9) — BREADCRUMBS, the chats-row
+                     * entry point. ONE flush (the writer thread drains continuously; four
+                     * unbounded flush spins on the UI thread was ANR-shaped). ⚠ This body
+                     * already sits inside a catch-all, so a MANAGED throw here is logged
+                     * today — these lines earn their keep on a NATIVE crash or a later
+                     * async turn (the checklist says so). "dispatched", not "done":
+                     * popPageAsync is fire-and-forget (A-4). status is the fixed
+                     * ok/left/blocked/fail vocabulary — no user data. */
+                    IXICore.Meta.Logging.info("[CRASHDIAG] removecontact: start (leave=" + leave + ", openChat=" + (chat_page != null) + ")");
                     status = SContacts.removeContact(f, leave, out blockers);
+                    IXICore.Meta.Logging.info("[CRASHDIAG] removecontact: status=" + status + ", closing the open chat");
+                    IXICore.Meta.Logging.flush();
                     if ((status == "ok" || status == "left") && chat_page != null)
                     {
                         try { chat_page.popPageAsync(); } catch (Exception) { }
                     }
+                    IXICore.Meta.Logging.info("[CRASHDIAG] removecontact: teardown dispatched");
                 }
             }
             catch (Exception)

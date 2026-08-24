@@ -1369,6 +1369,38 @@ public partial class App : Application
     {
         try
         {
+            /* ★ F5-3 (#553) — the restore race. The launch/account flow stops the node
+             * and owns its lifecycle until a wallet is loaded. The restore FILE PICKER
+             * bounces MainActivity OnResume, and this method then restarted the node
+             * with NO wallet: Node.start() latches running=true (Node.cs:169) BEFORE
+             * it reads the wallet (Node.cs:230), so the KeyNotFoundException left a
+             * half-started zombie. The real restore then got "Cannot start Node, it is
+             * already running" and connectToNetwork never ran — "Connecting…" forever
+             * (fatalexception.txt, 2026-08-24 12:28:00). The guard: no wallet loaded →
+             * this method must not touch the node. IxianHandler.wallets is filled only
+             * by Node.loadWallet / generateWallet, so it is the honest "a wallet is
+             * loaded" signal (same predicate as CreateWindow's push guard). */
+            if (IxianHandler.wallets.Count == 0)
+            {
+                Logging.info("EnsureNodeRunning: no wallet is loaded - the launch flow owns the node, not restarting");
+                return;
+            }
+            /* ★ F5-3 r2 (#553, loop A-3): the wallet guard's boundary was one step
+             * early — the launch flow owns the node until HomePage STARTS it, and the
+             * window between Node.loadWallet() (restore/retry) and HomePage's own
+             * Node.start() still admitted a double start (HomePage's start then
+             * returns false → the fatal-alert branch, F-3's face). This method
+             * RESUMES a node; it never boots one. Node.startCounter increments late
+             * in start() (Node.cs:225 — past PresenceList.init at :210, the logged
+             * zombie's throw site) and nothing resets it — "has started at least
+             * once this process-life" is the ownership boundary. A throw AFTER :225
+             * would count; that window is two lines and was not the observed
+             * mechanism. */
+            if (Node.startCounter == 0)
+            {
+                Logging.info("EnsureNodeRunning: the node has not started yet this run - the boot flow owns the first start");
+                return;
+            }
             if (IxianHandler.status == NodeStatus.stopped
                 || IxianHandler.status == NodeStatus.stopping)
             {

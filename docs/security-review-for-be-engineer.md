@@ -308,3 +308,30 @@ FE-fixable; the shell already renders the honest fallback for each.
    retried every few seconds ACROSS RESTARTS (all three 2026-08-24 logs). The client
    never acks/drops an undecryptable offline message, so the S2 redelivers it
    forever — battery + log churn, and it buries real errors.
+5. **The push payload carries no message KIND (2026-08-25, the F5-1 fix session).**
+   `OfflinePushMessages.sendPushMessage` (Ixian-Core Streaming/OfflinePushMessages.cs:64)
+   posts `tag/data/pk/push/fa` — the type sits inside the ENCRYPTED StreamMessage, so a
+   cold push (app killed, no node) reaches the Android lane with only the sender address.
+   The cold lane must post SOMETHING (a lost push is worse) and can only post a generic
+   untagged "New Message" row (SPushService.postOurPushRow) — a CALL push through that
+   lane cannot ride the call channel or the CALL_TAG the sweep spares. The FE fix session
+   closed the on-open heal (the voiceCall/voiceCallEnd ordering race, #554), so the tray
+   self-corrects once the app opens; a correctly-flavoured row at PUSH time needs a
+   coarse kind flag ("call" | "message") in the push parameters + the OneSignal
+   additionalData. One added field, no content: the flag classifies, it reveals nothing
+   the `fa` field does not already reveal.
+6. **★ CRASH — `StreamClientManager.getClient` is infinite self-recursion; leaving a
+   bot room kills the app (2026-08-25, logcat-proven).** The static facade
+   (Ixian-Core `Network/StreamClientManager.cs:118-121`) returns `getClient(...)` —
+   ITSELF — instead of `streamClientManager.getClient(...)` (every sibling method
+   delegates to the instance; this one recurses). Its ONLY caller is the
+   `leaveConfirmed` handler (`CoreStreamProcessor.cs:1408`): user leaves a bot →
+   `sendLeave` → the server answers `leaveConfirmed` → `removeFriend` runs, then
+   `getClient` → StackOverflowException on the stream worker → process death,
+   uncatchable, nothing in ixian.log (`crash-logcat.txt`, 2026-08-25 19:02:44:
+   `FATAL UNHANDLED EXCEPTION: System.StackOverflowException` with the recursive
+   frames). Deterministic on every confirmed bot leave; the defect is in the frozen
+   core, so it is plausibly pre-fork (the legacy app too). ⚠ It also explains
+   row 3 (post-leave streaming): the `sendBye` on the line after the crash NEVER
+   runs, so the server never learns the client left. One line fixes both:
+   `return streamClientManager.getClient(clientAddress, fullyConnected);`.

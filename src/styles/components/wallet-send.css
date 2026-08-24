@@ -36,16 +36,23 @@
 .c-wallet-send__picker { display: flex; flex-direction: column; gap: var(--spacing-12); }
 /* ★ W-j (Damir F5 2026-08-23): the row anatomy MOVED to contact-row.css — the rows
    are the shared c-contact-row (directory grammar). `.c-wallet-send__contact` stays
-   on the element as an ALIAS for the pins; no layout of its own. The list is the
-   directory CARD (contacts-shell .c-contacts__list grammar) so the three screens
-   read as one. */
-.c-wallet-send__list {                                   /* loop r1 m6: address row + contacts share ONE card (same left edge) */
-  display: flex; flex-direction: column;
+   on the element as an ALIAS for the pins; no layout of its own.
+   ★ F5-4 (#556) said FLAT; ★ #560 (Damir, screenshots 2026-08-25) SUPERSEDES it:
+   "straight contacts list" meant THE DIRECTORY LOOK — the same card the Contacts
+   screen uses (loop E-2 had flagged exactly this at source). The card returns,
+   BYTE-PARITY with .c-contacts__list (background / radius-16 / 4px inset /
+   elevation-1 — the #149③ anti-drift rule: one grammar, verbatim). The real
+   "extra paddings on the side" was the DOUBLE 16px — the takeover body AND the
+   component both padded; the shell now zeroes the inner one (home.html). */
+.c-wallet-send__list {
+  display: flex;
+  flex-direction: column;
   background: var(--surface-card);
   border-radius: var(--radius-16);
   padding: var(--spacing-4);
   box-shadow: var(--elevation-1);
 }
+/* the address field keeps the in-card inset that aligns it with the rows */
 .c-wallet-send__list .c-wallet-send__addrfield { padding: var(--spacing-4) var(--spacing-8) var(--spacing-8); }
 .c-wallet-send__contacts { display: flex; flex-direction: column; }
 /* hidden live region (the receive screen's grammar): announces the pick */

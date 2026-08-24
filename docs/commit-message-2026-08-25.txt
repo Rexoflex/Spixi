@@ -1,0 +1,54 @@
+F5 fixes + menu batch + fold-ins + walk day (#553-#575): restore race, missed call, crash diagnostic, anchored menus, QR sheet reuse, hide request, bot-leave crash mitigated
+
+F5 (the 2026-08-24 walk, #552):
+- #553 restore race: EnsureNodeRunning guards (wallet loaded + startCounter
+  ownership; the wipe resets it) + the node-loop fetch wallet clause
+- #554 missed call, TWO mechanisms: the VoIP session-check thread race
+  (ordered deferral, mini-app fall-through kept on its thread) and the
+  endVoIPSession predicate that made the re-post unreachable; a local
+  decline never reads as missed; cold-push kind gap = BE row 1e-5
+- #555 bot-removal crash DIAGNOSTIC: UnhandledExceptionRaiser hook +
+  flushed [CRASHDIAG] breadcrumbs on all three leave paths (logcat owed)
+- #556 address sheet: QR at Account proportions, desktop persistent slim
+  scrollbar, flat explainer glyph
+- #558 Max dial (B): "Select a recipient to use Max." hint, localized
+
+Batch E (#557): mobile anchored dropdown for message + chats-row menus
+(above the pressed row, safe-area bounded, no new z-index - #519 holds);
+mobile scrim 0.7; desktop #268 stands with the ctx-source press-wash
+retune; Account QR + address info = openAddressSheet reuse; dev-HUD rail
+offset.
+
+Same-day fold-ins (Damir):
+- #560 money lists = the contacts-directory card (parity-pinned), the
+  32->16 double inset fixed, Receive un-capped (page scrolls) with a
+  sticky Send request
+- #561 row swipe off on desktop; the commit-fire settles before it fires
+- #562 outgoing request: HIDE, don't destroy - one explain-flow on both
+  surfaces, no verb, the Friend record survives so a later accept
+  completes and resurrects the chat; durable spixi.hidereq tombstone,
+  evidence-decided both ways
+
+Opus loop: THREE rounds, PASS (docs/opus-review-verdict-f5-batch-e.md).
+Pipeline: bundle 292 - shells 18 - smoke 3040/3 KNOWN (new baseline) -
+cs-syntax 144+1 - locales CLEAN 771. Ixian-Core 097341a untouched.
+
+Walk day (2026-08-25, Damir's artifact walk - ALL 47 checks PASS):
+- #564 empty restore alert: 4 keys x13 lang files + ?? fallbacks
+- #565 backup/restore hardening: forward-slash zip entries, backslash
+  stray rehoming, exists-guards on the Acc move (silent wallet-only
+  degrade closed for the guarded cases)
+- #566 bot-leave crash ROOT-CAUSED via the #555 diagnostic + logcat:
+  frozen-core StreamClientManager.getClient self-recursion on
+  leaveConfirmed = deterministic StackOverflow (BE row 1e-6)
+- #567 mitigation at all four leave sites: sendLeave -> immediate
+  removeFriend, pendingDeletion retired (Android AND desktop)
+- #568 desktop restore picker root-caused from ixian.log: WinUI
+  FileOpenPicker COMException E_FAIL inside MAUI - fallback queued
+- #569-#575 walk findings logged (tip-sheet truncation, short-bubble
+  pill collision, hidden-request unread leak, one QR row not two,
+  mobile pressed-row highlight, declined-call bubble label, headless
+  ring crash SSpixiPermissions/SPlatformUtils null Activity, phantom
+  missed-call answer overlay, address-sheet polish spec)
+
+Walk-day pipeline: smoke 3049/3 KNOWN (new baseline) - cs-syntax 144+1.

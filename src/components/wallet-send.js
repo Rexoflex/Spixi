@@ -55,7 +55,7 @@ import { createButton, setLoading, setSuccess } from './button.js';
 import { createSearchField } from './search-field.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 import { createModal, openModal } from './modal.js';
-import { setOverlayOpts, isOverlayOpen } from './overlay.js';
+import { setOverlayOpts, isOverlayOpen, overlayId } from './overlay.js';   // overlayId: the house id mint (F5-6 hint)
 import { icon } from './icons.js';
 import { createContactRow, createGlyphRow } from './contact-row.js';   // ★ W-j shared row
 import { sanitizeAmount, toUnits, amountInputToCanonical, groupAmountDisplay, amountCaretAfterFormat } from './money.js';   // #143 shared money module · ★ I-6 (#360) display grouping
@@ -207,6 +207,17 @@ export function createWalletSend({
     } });
   amtRow.append(amtInput, unit, maxBtn);
   amtSec.append(amtRow);
+
+  /* ★ F5-6 (#558, Damir 2026-08-25 — dial answered: option B). Max stays gated
+     until a recipient is picked (#523: Max = balance − fee, the fee needs a
+     quote, a quote needs a recipient — no invented numbers). The gate now
+     EXPLAINS itself: one quiet hint line while no recipient is set, gone the
+     moment one is. aria-describedby ties it to the disabled control. */
+  const maxHint = document.createElement('p');
+  maxHint.className = 'c-wallet-send__meta c-wallet-send__maxhint';
+  maxHint.id = overlayId('c-ws-maxhint');   // house id mint
+  maxHint.textContent = strings.maxNeedsRecipient || 'Select a recipient to use Max.';
+  amtSec.append(maxHint);
 
   const availLine = document.createElement('p');
   availLine.className = 'c-wallet-send__meta u-tabular';
@@ -458,6 +469,10 @@ export function createWalletSend({
     const a = amountU();
     const fresh = feeU !== null && (!quoteFlow || quotedKey === currentKey());
     maxBtn.disabled = !state.recipient || (maxSendU === null && !fresh);
+    // F5-6 (#558 B): the hint speaks exactly while the RECIPIENT is the reason
+    maxHint.hidden = !!state.recipient;
+    if (state.recipient) maxBtn.removeAttribute('aria-describedby');
+    else maxBtn.setAttribute('aria-describedby', maxHint.id);
     if (addrErr) {
       // C# rejected the picked address (quote error:'address') — say it, gate it.
       feeLine.textContent = '';

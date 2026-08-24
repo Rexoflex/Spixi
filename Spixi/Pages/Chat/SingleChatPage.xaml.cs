@@ -375,21 +375,22 @@ namespace SPIXI
                 if(friend.bot
                    || friend.type == FriendType.Group)
                 {
-                    if (!friend.bot)
-                    {
-                        StreamProcessor.sendLeave(friend, null);
-                        FriendList.removeFriend(friend);
-                    }
-                    else
-                    {
-                        friend.pendingDeletion = true;
-                        friend.save();
-                        StreamProcessor.sendLeave(friend, null);
-                    }
+                    /* ★ F5-2 r2 (#555, loop A-6): the THIRD leave path — currently
+                     * unreachable (chat.html routes info taps to ixian:details), but one
+                     * shell edit from live. Bracketed like the other two so the
+                     * diagnostic cannot exonerate a path it never watched. */
+                    IXICore.Meta.Logging.info("[CRASHDIAG] chatleave: start (bot=" + friend.bot + ")");
+                    // ★ #567: one grammar for group AND bot (the pendingDeletion wait
+                    // fed the BE §1e-6 core crash — see SContacts.leaveGroup).
+                    StreamProcessor.sendLeave(friend, null);
+                    FriendList.removeFriend(friend);
                     UIHelpers.shouldRefreshContacts = true;
+                    IXICore.Meta.Logging.info("[CRASHDIAG] chatleave: sent, presenting the alert");
+                    IXICore.Meta.Logging.flush();
                     displaySpixiAlert(SpixiLocalization._SL("contact-details-removedcontact-title"), SpixiLocalization._SL("contact-details-removedcontact-text"), SpixiLocalization._SL("global-dialog-ok"));
                     popPageAsync();
                     homePage?.removeDetailContent();
+                    IXICore.Meta.Logging.info("[CRASHDIAG] chatleave: teardown dispatched");
                 }
             }
             else if (current_url.StartsWith("ixian:openLink:", StringComparison.Ordinal))

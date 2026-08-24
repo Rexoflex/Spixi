@@ -541,3 +541,41 @@ and adds one validation gate on scanned data.
 | **Per-contact call-row cancel on chat open** | `SingleChatPage.onResume` | No exposure | — | The id is CRC32 of the address (the existing scheme); one warn line with the exception message, no address |
 
 **Batch D adds no verb, no push, no key, no fetch, no sink; two fixed-text log lines.**
+
+## The F5 fix batch + Batch E (2026-08-25, #553–#557) — the sweep, applied WHILE building
+
+| Item | file:line | Verdict | Evidence | Action |
+|---|---|---|---|---|
+| **F5-3 wallet-loaded guards** (EnsureNodeRunning · the mainLoop fetch condition) | `App.xaml.cs` EnsureNodeRunning · `Meta/Node.cs` mainLoop | No exposure — the guards NARROW: code that ran with no wallet now does not run | `IxianHandler.wallets.Count` reads a count, touches no key material | One new fixed-text log line ("no wallet is loaded - the launch flow owns the node"); carries no address, no path |
+| **F5-1 VoIP session-check deferral** (accept/reject/end re-check on the main thread) | `Network/StreamProcessor.cs` handleAppRequestAccept/Reject/EndSession | No exposure — reordering of EXISTING handling; no new parse, no new sink | The deferred block runs the same code the sync path ran; `MainThread.BeginInvokeOnMainThread` is the same dispatcher handleAppRequest already used for this session's creation | Three new `[NOTIFDIAG]` log lines, fixed text, no address/session bytes |
+| **F5-2 crash diagnostic** (UnhandledExceptionRaiser hook + breadcrumbs) | `Platforms/Android/MainApplication.cs` · `Pages/Contacts/ContactDetails.xaml.cs` · `Pages/Home/HomePage.xaml.cs` | ⚠ REACH, accepted knowingly: the hook logs `args.Exception` VERBATIM into ixian.log — an exception message can carry user data (the Address-ctor class this project already logs around) | ixian.log is DevPage-shareable and `maxLogCount` = 5 (the standing RELEASE BLOCKER row) | Accepted for the diagnostic's life: the crash it hunts is unlogged today, and the stack IS the deliverable. The breadcrumb lines are fixed text + two booleans + the SContacts status word (the fixed ok/left/blocked/fail vocabulary — loop A-7 correction), no address. The hook fires only for exceptions with managed frames (a pure Java-side throw goes to Java's default handler — A-7). 🟡 RETIRE or logSafe-wrap the hook's message once F5-2 is closed — carried on the fix session's plate |
+| **Batch E (a) anchored dropdown** | `desktop-anchors.js` anchorSheetToRow + overlay.css `[data-m-anchor]` | No exposure — presentation-only; the #56 overlay grammar, focus trap and money-sheet JS locks untouched | Reads rects, writes inline left/top/width on the OPEN sheet | z-order re-verified: no new z-index anywhere (pinned) |
+| **Batch E (b)/(c) scrim + highlight retune** | tokens.css `--surface-scrim-deep` · overlay.css | No exposure — colors | — | — |
+| **Batch E (d) Account QR reuse** | settings-shell.js · settings.html | No exposure — REMOVES a surface (the hub's second QR construction); the sheet it opens is the SHIPPED #527 surface, unchanged | `openAddressSheet` renders the address the hub already renders in its chip | No new verb, no new key, no new fetch |
+
+**The batch adds no verb, no spixi.* key, no WebView setting, no HTML sink, no network fetch. New log lines: 1 (F5-3) + 3 (F5-1, `[NOTIFDIAG]`) + 7 breadcrumbs + 1 hook line (`[CRASHDIAG]` family) — all fixed text except the F5-2 hook's exception body, accepted above with its retirement condition.**
+
+### The same-day fold-ins (#560–#562), through the gate
+
+| Item | file:line | Verdict | Evidence | Action |
+|---|---|---|---|---|
+| **#560 money-list parity + sticky CTA** | wallet-send.css · wallet-receive.css · home.html (takeover padding) | No exposure — CSS only | — | — |
+| **#561 swipe: desktop gate + settle-then-fire** | chats-swipe.js | No exposure — gesture presentation; the fired ACTIONS are unchanged | The 280 ms deferral delays the SAME onAction; no new action | — |
+| **#562 hide request** | chats-row-menu.js · chat.html · home.html | ⚠ ONE new localStorage key family: `spixi.hidereq.<addr>` — ADDRESS-BEARING key name; value = the hide time (un-armed) or {ts, unread} JSON (the armed durable tombstone). Same class as the shipped `spixi.draft.<addr>`/`spixi.exdel.<addr>` (MAJOR #4 partition premise applies to the whole family; no message content, no secret) | The key is written by the chat shell, consumed and REMOVED by home.html; sends NO verb (a REMOVED send — the FE stops calling `ixian:undorequest` from two surfaces; the C# verb remains for the incoming Decline) | Rides the MAJOR #4 mini-app-partition row like its siblings; nothing new to fix before handover |
+
+**No new verb, no new fetch, no new sink; one new address-bearing localStorage key in an existing accepted family; two REMOVED verb emissions.**
+
+### The walk-day fixes (#564–#565), through the gate
+
+| Item | file:line | Verdict | Evidence | Action |
+|---|---|---|---|---|
+| **#564 restore-alert strings + fallbacks** | 13 × `Resources/Raw/lang/*.txt` · LaunchPage alert sites | No exposure — fixed text | — | — |
+| **#565 backup separator + restore hardening** | BackupPage (zip entry names) · LaunchPage (normalizer + exists-guards) | No exposure — same files, same paths, C# names every path itself (no WebView-supplied names) | The normalizer only rehomes files INSIDE the tmp extraction dir whose names carry a backslash; `Path.GetFileName` strips any directory part first | One new fixed-text warn line ("the backup carries NO Acc tree") — no address, no filename |
+
+### The #567 bot-leave mitigation, through the gate
+
+| Item | file:line | Verdict | Evidence | Action |
+|---|---|---|---|---|
+| **#567 one leave grammar (sendLeave → immediate removeFriend, 4 sites)** | SContacts.cs leaveGroup · ContactDetails.xaml.cs (ixian:leave + onRemove) · SingleChatPage.xaml.cs (ixian:leave) | No exposure — behavior-order change on EXISTING calls; no new verb, no key, no sink, no fetch. The existing [CRASHDIAG] breadcrumbs carry no address (bot= flag only). Removal now happens BEFORE the server acknowledges — a lost `sendLeave` leaves the server thinking membership persists, which is the SAME residual the baseline crash produced (sendBye never ran); net server-knowledge exposure is unchanged or better. | Mutation-proven pins #567 ①–④ | BE §1e-6 restores the acknowledged grammar |
+
+**#568 (queued, not built): the planned Win32 open-dialog fallback keeps the gate lens — the path comes from the OS dialog, never from the WebView; log line prints the exception only.**

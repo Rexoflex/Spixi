@@ -154,7 +154,10 @@
     font-size: 10px; line-height: 14px;
     pointer-events: none;
   }
-  :root[data-desktop] .dev-hud { right: var(--spacing-8); }   /* no FAB to clear */
+  /* ★ Batch E rider (#557): on desktop the HUD is fixed-position and sat OVER the
+     72px nav rail — offset by the shared token (--layout-rail-width, the single FE
+     source the rail column reads). No FAB to clear on the right. */
+  :root[data-desktop] .dev-hud { left: calc(var(--layout-rail-width) + var(--spacing-8)); right: var(--spacing-8); }
   .dev-hud__cell { white-space: nowrap; }
   /* ★ the two HUD regions (#401): C#-pushed counters, then the shell PROBE line
      (AND-7 insets + the F-5 boot timeline). The probe wraps to its own row and must
@@ -184,6 +187,13 @@
     flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
     padding: var(--spacing-16);
   }
+  /* ★ #560 (Damir, screenshots 2026-08-25): the money screens sat at 32px from
+     each edge — this body pads 16 AND the component pads 16. The Contacts panel
+     sits at 16. One inset owns it: the host keeps its 16, the component's inner
+     padding zeroes HERE (scoped — the chat attach-Pay compose hosts the same
+     component elsewhere and keeps the component default). */
+  .wallet-takeover__body > .c-wallet-send,
+  .wallet-takeover__body > .c-wallet-receive { padding: 0; }
 
   /* ============================================================================
      DESKTOP NAV RAIL (spec 6e.1, DECISIONS #232 ④) — gated on :root[data-desktop]
@@ -1247,14 +1257,19 @@
     // C# answers with `setSharedGroups(addr, name, addr, …)` (below).
     onNeedGroups: (addr) => { if (addr) bridge.send('ixian:sharedGroups:' + addr); },
     onPersist: (action, chat, detail) => {
-      /* ★ B1 (Batch B): revoking an OUTGOING pending request from the list → the
-         address-scoped `ixian:undorequest:<addr>` (HomePage, #543). The row is gone
-         locally; C# answers `undoRequestResult` and a refusal un-tombstones it. */
+      /* ★ #562 (Damir 2026-08-25) SUPERSEDES B1's removeFriend revoke: HIDE, don't
+         destroy. Damir's repro: a revoked request's Friend record was gone, so the
+         peer's later accept landed in a void — the recipient got a chat that looked
+         connected and could never deliver (RC1's cost, now with evidence). The verb
+         is NOT sent: the Friend record stays alive so a future accept COMPLETES.
+         The row is tombstoned locally (the #193 evidence rule) — and the accept's
+         own pushes (the Contact-Accepted event = a newer message) resurrect the
+         chat, which is exactly the promised "if they accept, it comes back".
+         The picker's pending badge (requestAddrs) deliberately STAYS: the request
+         is still live outbound. True removal remains Delete contact, afterwards. */
       if (action === 'revokeRequest' && chat && chat.address) {
-        bridge.send('ixian:undorequest:' + chat.address);
-        deletedChats.set(chat.address, { ts: Number(chat.timestamp) || 0, unread: Number(chat.unread) || 0 });
-        requestAddrs.delete(chat.address);
-        if (pinnedChats.delete(chat.address)) savePins();   // loop r1 m-1: a revoked row sheds its pin (the delete twin's rule)
+        hideReqArm(chat.address, Number(chat.timestamp) || 0, Number(chat.unread) || 0);   // durable — a hide must survive a restart
+        if (pinnedChats.delete(chat.address)) savePins();   // a hidden row sheds its pin (the delete twin's rule)
         leaveRequestsFilterIfEmpty();
         return;
       }
@@ -1277,6 +1292,7 @@
         // Capture the tail the user deleted (timestamp + unread) so a LATER message can
         // prove itself new (BUG-1b).
         deletedChats.set(chat.address, { ts: Number(chat.timestamp) || 0, unread: Number(chat.unread) || 0 });
+        hideReqClear(chat.address);              // #562: a REAL delete sheds any durable hide key (one tombstone owner at a time)
         reactionExcerpts.delete(chat.address);   // CH8: drop sticky excerpt with the row (no stale re-apply on resurrect)
         dropExdelHint(chat.address);      // Q12: a deleted ROW sheds its deleted-tail hint too
         if (pinnedChats.delete(chat.address)) savePins();   // 6e.3: a deleted chat sheds its pin
@@ -1867,6 +1883,60 @@
   }
   window.addEventListener('storage', (e) => { if (e && e.key && e.key.indexOf(EXDEL_PREFIX) === 0 && e.newValue) applyExdelHints(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) applyExdelHints(); });
+
+  /* ★ #562 — HIDDEN outgoing requests. The key family `spixi.hidereq.<addr>` IS
+   * the durable tombstone (the pins/draft class — survives restarts, unlike the
+   * session delete-chat tombstone: a hide that silently undoes itself on the
+   * next launch would betray its own words). Two writers: the chat shell's
+   * waiting strip (raw timestamp = un-armed) and this document (armed JSON
+   * {ts, unread} — the row's REAL tail, never zeros, which the next flush's
+   * unchanged tail would "beat" and resurrect instantly). Arming happens where
+   * the tail is known: the storage listener (row in the model) or addChat (the
+   * first push that carries the row). EVIDENCE still resurrects (#193): a
+   * genuinely newer message — the peer's accept — clears the key AND the map.
+   * The Friend record is untouched throughout. */
+  const HIDEREQ_PREFIX = 'spixi.hidereq.';
+  function hideReqArm(addr, ts, unread) {
+    deletedChats.set(addr, { ts: ts || 0, unread: unread || 0 });
+    try { localStorage.setItem(HIDEREQ_PREFIX + addr, JSON.stringify({ ts: ts || 0, unread: unread || 0 })); } catch (e) {}
+  }
+  function hideReqClear(addr) {
+    try { localStorage.removeItem(HIDEREQ_PREFIX + addr); } catch (e) {}
+  }
+  // boot: seed the map from every ARMED key (a raw-timestamp key waits for its row)
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || k.indexOf(HIDEREQ_PREFIX) !== 0) continue;
+      try {
+        const v = JSON.parse(localStorage.getItem(k));
+        if (v && typeof v === 'object') deletedChats.set(k.slice(HIDEREQ_PREFIX.length), { ts: Number(v.ts) || 0, unread: Number(v.unread) || 0 });
+      } catch (e) { /* raw timestamp — armed by addChat at the first push */ }
+    }
+  } catch (e) {}
+  function consumeHideReqs() {
+    let changed = false;
+    try {
+      const keys = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.indexOf(HIDEREQ_PREFIX) === 0) keys.push(k);
+      }
+      for (const k of keys) {
+        const addr = k.slice(HIDEREQ_PREFIX.length);
+        const row = (state.chats || []).find((c) => c && c.address === addr);
+        if (!row) continue;                    // addChat arms it at the next push
+        hideReqArm(addr, Number(row.timestamp) || 0, Number(row.unread) || 0);
+        const at = state.chats.indexOf(row);
+        if (at >= 0) state.chats.splice(at, 1);   // in place — the component holds this array
+        if (pinnedChats.delete(addr)) savePins();
+        changed = true;
+      }
+    } catch (e) {}
+    if (changed) { leaveRequestsFilterIfEmpty(); scheduleChatsRender(); }
+  }
+  window.addEventListener('storage', (e) => { if (e && e.key && e.key.indexOf(HIDEREQ_PREFIX) === 0 && e.newValue) consumeHideReqs(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) consumeHideReqs(); });
   window.addEventListener('focus', applyExdelHints);
 
   /* —————————————————————————————————————————————————————————————————————————
@@ -2953,6 +3023,28 @@
       let t = Number(timestamp);
       if (t && t < 1e12) t *= 1000;              // legacy may send Unix seconds → ms
       const n = Number(unread) || 0;
+      /* ★ #562: an UN-ARMED hide key (the chat shell's raw timestamp) arms at the
+         first push that carries the row's REAL tail — so the flush re-pushing the
+         SAME tail cannot resurrect it, and a genuinely newer message (the peer's
+         accept) still can. An armed key was seeded into the map at boot. */
+      try {
+        const hk = HIDEREQ_PREFIX + wallet;
+        const hv = localStorage.getItem(hk);
+        if (hv != null) {
+          let armed = false;
+          try { const p = JSON.parse(hv); armed = !!p && typeof p === 'object'; } catch (e2) {}
+          if (!armed) {
+            /* r3 MINOR-2: EVIDENCE decides the arming too. The un-armed value is
+             * the HIDE TIME (chat shell, Date.now) — a first push whose tail is
+             * already NEWER than the hide (the accept raced the arming) must
+             * CLEAR, not arm at the accept's own tail (which would hide the chat
+             * permanently and break the modal's literal promise). */
+            const hidAt = Number(hv) || 0;
+            if (hidAt && t && t > hidAt) hideReqClear(wallet);
+            else hideReqArm(wallet, t || 0, n);
+          }
+        }
+      } catch (e) {}
       // Deleted this session (CH3 tombstone): a STRUCTURAL re-flush of the SAME state
       // must keep it gone. ★ BUG-1b: but EVIDENCE OF NEW ACTIVITY resurrects it in EVERY
       // push path, flush included — a message newer than the tail the user deleted, or an
@@ -2963,7 +3055,10 @@
       const tomb = deletedChats.get(wallet);
       if (tomb) {
         const revived = (t && t > tomb.ts) || n > tomb.unread;
-        if (revived || !chatsFlushing) deletedChats.delete(wallet);   // lone push keeps its legacy resurrect
+        if (revived || !chatsFlushing) {
+          deletedChats.delete(wallet);   // lone push keeps its legacy resurrect
+          hideReqClear(wallet);          // ★ #562: a resurrected chat sheds its DURABLE hide key too — or the next visibility tick re-hides it
+        }
         else return;                            // re-flush, nothing new → stay deleted
       }
       const chat = {

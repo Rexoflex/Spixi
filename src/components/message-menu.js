@@ -21,6 +21,7 @@
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
+import { anchorSheetToRow } from './desktop-anchors.js';   // ★ Batch E (a) (#557): mobile anchored dropdown
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 
@@ -139,6 +140,13 @@ export function openMessageMenu({
 
   const sheet = createSheet({ content, host, strings, onDismiss: untint });
   openSheet(sheet);
+  /* ★ Batch E (a) (#557, Damir 2026-08-22): on MOBILE the menu anchors to the
+   * pressed message — ABOVE it when there is room, so it can never cover what it
+   * acts on (the 4.1 fix, structural). Aligned with the BUBBLE (sent sits right,
+   * received left). Desktop is untouched: the helper no-ops there and the #268
+   * grammar (centered dialog / right-click dropdown) owns the presentation.
+   * The lift (#506②) and the deeper mobile scrim ((b)) ride along unchanged. */
+  anchorSheetToRow(sheet, row, { host, align: tinted });
   return sheet;
 }
 

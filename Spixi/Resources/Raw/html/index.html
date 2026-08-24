@@ -1321,6 +1321,11 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   transition: opacity var(--duration-200) var(--easing-standard);
 }
 .c-scrim[data-open] { opacity: 1; }
+/* ★ Batch E (b) (#557, Damir 2026-08-22): the MOBILE scrim is one level deeper
+   (0.6 → 0.7) — the lifted message (#506②) reads better against the darker
+   ground. Desktop keeps 0.6 for its centred dialogs; anchored desktop menus
+   stay wash-free (#268, [data-dt-clear] below). */
+:root:not([data-desktop]) .c-scrim { background: var(--surface-scrim-deep); }
 
 /* —— bottom sheet (z-44) ————————————————————————————————————————————————
    ⚠ #506②: this used to be z-40 and sat above its scrim by SOURCE ORDER alone.
@@ -1497,7 +1502,17 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 :root[data-desktop] .c-sheet[data-dt-anchor][data-open] { transform: none; }
 /* right-click context menu: rounded on all corners, source row highlighted */
 :root[data-desktop] .c-sheet[data-dt-anchor="menu"] { border-radius: var(--radius-16); min-width: 260px; }
-:root[data-desktop] [data-dt-ctx-source] { background: var(--surface-interactive-selected); border-radius: var(--radius-12); }
+/* ★ Batch E (c) (#557, Damir 2026-08-22): #268 STANDS (no wash) and the source
+   highlight is RETUNED — the SELECTED tint read as a selection state on the
+   right-clicked row. It now rides the #519 press wash (--surface-press-row-hover,
+   the alpha recipe that lands one perceptual level on EVERY ground — the plain
+   press step is invisible on a card, the 5c-iii lesson), so the row reads as
+   "held", not "chosen".
+   ⚠ loop E-4 (r2): :not([aria-current]) is LOAD-BEARING — this (0,3,0) shorthand
+   would otherwise REPLACE the OPEN conversation's tonal selected paint (0,2,0)
+   in the desktop split view, visually deselecting the row under its own menu.
+   The selected row keeps its tonal; the wash marks only unselected sources. */
+:root[data-desktop] [data-dt-ctx-source]:not([aria-current]) { background: var(--surface-press-row-hover); border-radius: var(--radius-12); }
 /* attach/share grid: popover RISING above the composer ⊕ (bottom-anchored) */
 :root[data-desktop] .c-sheet[data-dt-anchor="up"] {
   right: auto; top: auto; margin: 0;
@@ -1512,6 +1527,36 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    dismissal + the #56 stack/a11y grammar untouched) — it's just invisible.
    Centered sheets-as-dialogs and modals keep their wash. */
 :root[data-desktop] .c-scrim[data-dt-clear] { background: transparent; }
+
+/* ═════════ MOBILE anchored dropdown (Batch E (a), #557, Damir 2026-08-22) ═════════
+   The message menu + the chats-row menu present as a DROPDOWN anchored to the
+   pressed row (desktop-anchors.js anchorSheetToRow sets the tag + inline
+   left/top/width). Placement prefers ABOVE the row, so the menu can never cover
+   the message it acts on — the 4.1 fix, structural. Everything else about the
+   overlay is UNCHANGED: same z-44 (above the z-42 lifted row, #506②), same scrim
+   (one level deeper here, (b) above), same focus/Esc/stack grammar, and the
+   `:not([data-open])` pointer-events rule still covers the fade windows.
+   Enter/exit = FADE IN PLACE (the desktop [data-dt-anchor] rule): a panel that
+   slid from the bottom edge to mid-screen would point at the wrong origin. */
+:root:not([data-desktop]) .c-sheet[data-m-anchor] {
+  left: auto; right: auto; bottom: auto;
+  margin: 0;
+  max-width: none;
+  border-radius: var(--radius-16);
+  padding: var(--spacing-8) var(--spacing-12) var(--spacing-12);
+  /* ★ loop E-1 (r2): the dropdown must never leave the SAFE region or outgrow the
+     host — a menu taller than the screen with the body scroll locked is
+     unreachable UI, and a clamp to y=8 puts the react row under the Dynamic
+     Island (the #288 inset class). The height cap makes the menu its own
+     scroller; the JS clamp (anchorSheetToRow) keeps top ≥ safe-top + 8. */
+  max-height: calc(100% - var(--safe-top, 0px) - env(safe-area-inset-bottom, 0px) - 2 * var(--spacing-8));
+  overflow-y: auto;
+  transform: none;
+  opacity: 0;
+  transition: opacity var(--duration-200) var(--easing-decelerate);
+}
+:root:not([data-desktop]) .c-sheet[data-m-anchor][data-open] { transform: none; opacity: 1; }
+:root:not([data-desktop]) .c-sheet[data-m-anchor] .c-sheet__handle { display: none; }
 
 </style>
 <style data-src="../styles/components/toast.css">
@@ -3663,14 +3708,20 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    further down MEANT typing — fixed by making it SCROLL (cap raised in
    wallet-receive.js). The card treatment tried in round 1 is REVERTED: this strip
    already sits inside the request box, so a second surface stacked its padding on top
-   of that one and read cramped. Scroll only — no background, radius, padding or
-   elevation. Height cap keeps the amount field on screen with the keyboard up. */
+   of that one and read cramped. ★ #560 (Damir, screenshots 2026-08-25) REVERSES
+   both halves of that ruling: the capped 5-row INNER scroller was the "weird" he
+   flagged (scroll-inside-scroll on touch, the CTA detached from the pick), and
+   the list now wears the DIRECTORY CARD — byte-parity with .c-contacts__list
+   (#149③ anti-drift). Full-length list, the PAGE scrolls, the CTA below goes
+   STICKY so it stays reachable. The keyboard case is served by order (amount is
+   on top and W-k drops the keyboard on Enter), not by a cap. */
 .c-wallet-receive__contacts {
   display: flex;
   flex-direction: column;
-  max-height: 328px;              /* loop r1 m5: 5 × the 64px W-j row + the card padding — Damir's F5 "5 reachable" stands */
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  background: var(--surface-card);
+  border-radius: var(--radius-16);
+  padding: var(--spacing-4);
+  box-shadow: var(--elevation-1);
 }
 /* ★ W-j (Damir F5 2026-08-23): the row anatomy MOVED to contact-row.css — the rows
    are the shared c-contact-row now (directory grammar: avatar-48 + name + truncated
@@ -3695,8 +3746,18 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   color: var(--text-success);
 }
 .c-wallet-receive__result[data-tone='error'] { color: var(--text-error); }
-/* W9 CTA — the one thing on this surface that can send. Full width, primary. */
-.c-wallet-receive__cta { margin-block-start: var(--spacing-4); }
+/* W9 CTA — the one thing on this surface that can send. Full width, primary.
+   ★ #560: STICKY — the list is full-length now (the page scrolls), so the send
+   action pins itself to the bottom of the scroller, rows sliding beneath it,
+   reachable at any scroll depth and clear of the home indicator. elevation-2
+   separates it from the rows passing under. */
+.c-wallet-receive__cta {
+  margin-block-start: var(--spacing-4);
+  position: sticky;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--spacing-8));
+  z-index: 1;
+  box-shadow: var(--elevation-2);
+}
 .c-wallet-receive__none {
   margin: 0;
   padding: var(--spacing-8) var(--spacing-12);
@@ -3733,16 +3794,32 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    the INNER cap must bind first or the outer dialog scrolls with its own bar (the
    exact W-c symptom). 76vh − 24×2 padding − ~44 title/gap = the usable inner height. */
 :root[data-desktop] .c-addr-sheet { max-height: calc(76vh - 92px); }
+/* ★ F5-5 ② (#556, Damir F5 2026-08-24): the desktop dialog showed NO scrollbar on
+   overflow. Two causes: the OUTER dialog (.c-sheet, overflow-y:auto in overlay.css)
+   could scroll instead of this element, and the u-scroll thumb is hover-only.
+   The addr dialog now clips (the inner .c-addr-sheet is the one scroller), and its
+   thumb is PERSISTENT while it overflows — slim + themed, the contact-list look. */
+:root[data-desktop] .c-sheet--addr { overflow-y: hidden; }
+@media (hover: hover) and (pointer: fine) {
+  :root[data-desktop] .c-addr-sheet.u-scroll {
+    scrollbar-color: var(--outline-neutral-02) transparent;
+  }
+  :root[data-desktop] .c-addr-sheet.u-scroll::-webkit-scrollbar-thumb {
+    background: var(--outline-neutral-02);
+  }
+}
 .c-addr-sheet__qrwrap { display: flex; justify-content: center; }
 .c-addr-sheet__qrcard {
   /* scale with the viewport on BOTH axes: a short window shrinks the code before
-     it pushes the chip below the fold. --surface-qr stays near-white in both themes. */
+     it pushes the chip below the fold. --surface-qr stays near-white in both themes.
+     ★ F5-5 ① (#556, Damir F5 2026-08-24): card padding DROPPED to the Account
+     proportions (.c-settings__qr has none — N86). The SVG's own ISO quiet zone is
+     the white margin; the extra 20px ring doubled it. Radius joins the Account
+     family (radius-16); the hairline outline goes with the padding. */
   width: min(280px, 52dvh, 86vw, 100%);
-  padding: var(--spacing-20);
-  border-radius: var(--radius-24);
-  box-shadow: var(--elevation-2);
-  outline: var(--outline-width-1) solid var(--outline-neutral-01);
-  outline-offset: -1px;
+  padding: 0;
+  border-radius: var(--radius-16);
+  box-shadow: var(--elevation-1);
 }
 @supports not (height: 1dvh) { .c-addr-sheet__qrcard { width: min(280px, 52vh, 86vw, 100%); } }
 .c-addr-sheet__caption {
@@ -3768,14 +3845,16 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-addr-sheet__addr .c-wallet-receive__copy[data-state='ok'] { color: var(--icon-success); }
 .c-addr-sheet__addr .c-wallet-receive__copy[data-state='fail'] { color: var(--icon-error); }
 .c-addr-sheet__share { margin-block-start: calc(-1 * var(--spacing-4)); }
-/* the explainer block — an info disc leads two quiet lines; the safety line
-   carries the shield glyph inline */
+/* the explainer block — ★ F5-5 ③ (#556): ONE glyph level. The filled disc read as
+   an icon inside an icon (Damir screenshot); a bare tinted info-circle leads the
+   two quiet lines. The safety line keeps its inline shield glyph. */
 .c-addr-sheet__explain {
   display: flex; align-items: flex-start; gap: var(--spacing-12);
   padding: var(--spacing-12) var(--spacing-12) var(--spacing-12) var(--spacing-12);
   border-radius: var(--radius-16);
   background: var(--surface-neutral-02);
 }
+.c-addr-sheet__explainicon { flex: none; margin-top: 1px; color: var(--icon-info); display: inline-flex; }
 .c-addr-sheet__explaintext { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--spacing-8); }
 .c-addr-sheet__info {
   margin: 0;
@@ -3832,16 +3911,23 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-wallet-send__picker { display: flex; flex-direction: column; gap: var(--spacing-12); }
 /* ★ W-j (Damir F5 2026-08-23): the row anatomy MOVED to contact-row.css — the rows
    are the shared c-contact-row (directory grammar). `.c-wallet-send__contact` stays
-   on the element as an ALIAS for the pins; no layout of its own. The list is the
-   directory CARD (contacts-shell .c-contacts__list grammar) so the three screens
-   read as one. */
-.c-wallet-send__list {                                   /* loop r1 m6: address row + contacts share ONE card (same left edge) */
-  display: flex; flex-direction: column;
+   on the element as an ALIAS for the pins; no layout of its own.
+   ★ F5-4 (#556) said FLAT; ★ #560 (Damir, screenshots 2026-08-25) SUPERSEDES it:
+   "straight contacts list" meant THE DIRECTORY LOOK — the same card the Contacts
+   screen uses (loop E-2 had flagged exactly this at source). The card returns,
+   BYTE-PARITY with .c-contacts__list (background / radius-16 / 4px inset /
+   elevation-1 — the #149③ anti-drift rule: one grammar, verbatim). The real
+   "extra paddings on the side" was the DOUBLE 16px — the takeover body AND the
+   component both padded; the shell now zeroes the inner one (home.html). */
+.c-wallet-send__list {
+  display: flex;
+  flex-direction: column;
   background: var(--surface-card);
   border-radius: var(--radius-16);
   padding: var(--spacing-4);
   box-shadow: var(--elevation-1);
 }
+/* the address field keeps the in-card inset that aligns it with the rows */
 .c-wallet-send__list .c-wallet-send__addrfield { padding: var(--spacing-4) var(--spacing-8) var(--spacing-8); }
 .c-wallet-send__contacts { display: flex; flex-direction: column; }
 /* hidden live region (the receive screen's grammar): announces the pick */
@@ -4402,7 +4488,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     font-size: 10px; line-height: 14px;
     pointer-events: none;
   }
-  :root[data-desktop] .dev-hud { right: var(--spacing-8); }   /* no FAB to clear */
+  /* ★ Batch E rider (#557): on desktop the HUD is fixed-position and sat OVER the
+     72px nav rail — offset by the shared token (--layout-rail-width, the single FE
+     source the rail column reads). No FAB to clear on the right. */
+  :root[data-desktop] .dev-hud { left: calc(var(--layout-rail-width) + var(--spacing-8)); right: var(--spacing-8); }
   .dev-hud__cell { white-space: nowrap; }
   /* ★ the two HUD regions (#401): C#-pushed counters, then the shell PROBE line
      (AND-7 insets + the F-5 boot timeline). The probe wraps to its own row and must
@@ -4432,6 +4521,13 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
     padding: var(--spacing-16);
   }
+  /* ★ #560 (Damir, screenshots 2026-08-25): the money screens sat at 32px from
+     each edge — this body pads 16 AND the component pads 16. The Contacts panel
+     sits at 16. One inset owns it: the host keeps its 16, the component's inner
+     padding zeroes HERE (scoped — the chat attach-Pay compose hosts the same
+     component elsewhere and keeps the component default). */
+  .wallet-takeover__body > .c-wallet-send,
+  .wallet-takeover__body > .c-wallet-receive { padding: 0; }
 
   /* ============================================================================
      DESKTOP NAV RAIL (spec 6e.1, DECISIONS #232 ④) — gated on :root[data-desktop]
@@ -5496,14 +5592,19 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     // C# answers with `setSharedGroups(addr, name, addr, …)` (below).
     onNeedGroups: (addr) => { if (addr) bridge.send('ixian:sharedGroups:' + addr); },
     onPersist: (action, chat, detail) => {
-      /* ★ B1 (Batch B): revoking an OUTGOING pending request from the list → the
-         address-scoped `ixian:undorequest:<addr>` (HomePage, #543). The row is gone
-         locally; C# answers `undoRequestResult` and a refusal un-tombstones it. */
+      /* ★ #562 (Damir 2026-08-25) SUPERSEDES B1's removeFriend revoke: HIDE, don't
+         destroy. Damir's repro: a revoked request's Friend record was gone, so the
+         peer's later accept landed in a void — the recipient got a chat that looked
+         connected and could never deliver (RC1's cost, now with evidence). The verb
+         is NOT sent: the Friend record stays alive so a future accept COMPLETES.
+         The row is tombstoned locally (the #193 evidence rule) — and the accept's
+         own pushes (the Contact-Accepted event = a newer message) resurrect the
+         chat, which is exactly the promised "if they accept, it comes back".
+         The picker's pending badge (requestAddrs) deliberately STAYS: the request
+         is still live outbound. True removal remains Delete contact, afterwards. */
       if (action === 'revokeRequest' && chat && chat.address) {
-        bridge.send('ixian:undorequest:' + chat.address);
-        deletedChats.set(chat.address, { ts: Number(chat.timestamp) || 0, unread: Number(chat.unread) || 0 });
-        requestAddrs.delete(chat.address);
-        if (pinnedChats.delete(chat.address)) savePins();   // loop r1 m-1: a revoked row sheds its pin (the delete twin's rule)
+        hideReqArm(chat.address, Number(chat.timestamp) || 0, Number(chat.unread) || 0);   // durable — a hide must survive a restart
+        if (pinnedChats.delete(chat.address)) savePins();   // a hidden row sheds its pin (the delete twin's rule)
         leaveRequestsFilterIfEmpty();
         return;
       }
@@ -5526,6 +5627,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
         // Capture the tail the user deleted (timestamp + unread) so a LATER message can
         // prove itself new (BUG-1b).
         deletedChats.set(chat.address, { ts: Number(chat.timestamp) || 0, unread: Number(chat.unread) || 0 });
+        hideReqClear(chat.address);              // #562: a REAL delete sheds any durable hide key (one tombstone owner at a time)
         reactionExcerpts.delete(chat.address);   // CH8: drop sticky excerpt with the row (no stale re-apply on resurrect)
         dropExdelHint(chat.address);      // Q12: a deleted ROW sheds its deleted-tail hint too
         if (pinnedChats.delete(chat.address)) savePins();   // 6e.3: a deleted chat sheds its pin
@@ -6116,6 +6218,60 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   }
   window.addEventListener('storage', (e) => { if (e && e.key && e.key.indexOf(EXDEL_PREFIX) === 0 && e.newValue) applyExdelHints(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) applyExdelHints(); });
+
+  /* ★ #562 — HIDDEN outgoing requests. The key family `spixi.hidereq.<addr>` IS
+   * the durable tombstone (the pins/draft class — survives restarts, unlike the
+   * session delete-chat tombstone: a hide that silently undoes itself on the
+   * next launch would betray its own words). Two writers: the chat shell's
+   * waiting strip (raw timestamp = un-armed) and this document (armed JSON
+   * {ts, unread} — the row's REAL tail, never zeros, which the next flush's
+   * unchanged tail would "beat" and resurrect instantly). Arming happens where
+   * the tail is known: the storage listener (row in the model) or addChat (the
+   * first push that carries the row). EVIDENCE still resurrects (#193): a
+   * genuinely newer message — the peer's accept — clears the key AND the map.
+   * The Friend record is untouched throughout. */
+  const HIDEREQ_PREFIX = 'spixi.hidereq.';
+  function hideReqArm(addr, ts, unread) {
+    deletedChats.set(addr, { ts: ts || 0, unread: unread || 0 });
+    try { localStorage.setItem(HIDEREQ_PREFIX + addr, JSON.stringify({ ts: ts || 0, unread: unread || 0 })); } catch (e) {}
+  }
+  function hideReqClear(addr) {
+    try { localStorage.removeItem(HIDEREQ_PREFIX + addr); } catch (e) {}
+  }
+  // boot: seed the map from every ARMED key (a raw-timestamp key waits for its row)
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || k.indexOf(HIDEREQ_PREFIX) !== 0) continue;
+      try {
+        const v = JSON.parse(localStorage.getItem(k));
+        if (v && typeof v === 'object') deletedChats.set(k.slice(HIDEREQ_PREFIX.length), { ts: Number(v.ts) || 0, unread: Number(v.unread) || 0 });
+      } catch (e) { /* raw timestamp — armed by addChat at the first push */ }
+    }
+  } catch (e) {}
+  function consumeHideReqs() {
+    let changed = false;
+    try {
+      const keys = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.indexOf(HIDEREQ_PREFIX) === 0) keys.push(k);
+      }
+      for (const k of keys) {
+        const addr = k.slice(HIDEREQ_PREFIX.length);
+        const row = (state.chats || []).find((c) => c && c.address === addr);
+        if (!row) continue;                    // addChat arms it at the next push
+        hideReqArm(addr, Number(row.timestamp) || 0, Number(row.unread) || 0);
+        const at = state.chats.indexOf(row);
+        if (at >= 0) state.chats.splice(at, 1);   // in place — the component holds this array
+        if (pinnedChats.delete(addr)) savePins();
+        changed = true;
+      }
+    } catch (e) {}
+    if (changed) { leaveRequestsFilterIfEmpty(); scheduleChatsRender(); }
+  }
+  window.addEventListener('storage', (e) => { if (e && e.key && e.key.indexOf(HIDEREQ_PREFIX) === 0 && e.newValue) consumeHideReqs(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) consumeHideReqs(); });
   window.addEventListener('focus', applyExdelHints);
 
   /* —————————————————————————————————————————————————————————————————————————
@@ -7202,6 +7358,28 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
       let t = Number(timestamp);
       if (t && t < 1e12) t *= 1000;              // legacy may send Unix seconds → ms
       const n = Number(unread) || 0;
+      /* ★ #562: an UN-ARMED hide key (the chat shell's raw timestamp) arms at the
+         first push that carries the row's REAL tail — so the flush re-pushing the
+         SAME tail cannot resurrect it, and a genuinely newer message (the peer's
+         accept) still can. An armed key was seeded into the map at boot. */
+      try {
+        const hk = HIDEREQ_PREFIX + wallet;
+        const hv = localStorage.getItem(hk);
+        if (hv != null) {
+          let armed = false;
+          try { const p = JSON.parse(hv); armed = !!p && typeof p === 'object'; } catch (e2) {}
+          if (!armed) {
+            /* r3 MINOR-2: EVIDENCE decides the arming too. The un-armed value is
+             * the HIDE TIME (chat shell, Date.now) — a first push whose tail is
+             * already NEWER than the hide (the accept raced the arming) must
+             * CLEAR, not arm at the accept's own tail (which would hide the chat
+             * permanently and break the modal's literal promise). */
+            const hidAt = Number(hv) || 0;
+            if (hidAt && t && t > hidAt) hideReqClear(wallet);
+            else hideReqArm(wallet, t || 0, n);
+          }
+        }
+      } catch (e) {}
       // Deleted this session (CH3 tombstone): a STRUCTURAL re-flush of the SAME state
       // must keep it gone. ★ BUG-1b: but EVIDENCE OF NEW ACTIVITY resurrects it in EVERY
       // push path, flush included — a message newer than the tail the user deleted, or an
@@ -7212,7 +7390,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
       const tomb = deletedChats.get(wallet);
       if (tomb) {
         const revived = (t && t > tomb.ts) || n > tomb.unread;
-        if (revived || !chatsFlushing) deletedChats.delete(wallet);   // lone push keeps its legacy resurrect
+        if (revived || !chatsFlushing) {
+          deletedChats.delete(wallet);   // lone push keeps its legacy resurrect
+          hideReqClear(wallet);          // ★ #562: a resurrected chat sheds its DURABLE hide key too — or the next visibility tick re-hides it
+        }
         else return;                            // re-flush, nothing new → stay deleted
       }
       const chat = {

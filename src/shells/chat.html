@@ -583,6 +583,7 @@
      * push was the only thing that broke — which the boot gate cannot see and only
      * the END-TO-END push pin caught. Two different symptoms, one root cause. */
     applyPushedTheme,
+    openRevokeRequestFlow,   // ★ #562: the HIDE-request words — ONE surface with the chats-list flow
   } = window.Spixi;
 
   /* —— W5 chat pattern STYLE (Damir 2026-08-12) ——————————————————————————————
@@ -2978,13 +2979,28 @@
       txt.textContent = pendingStripText();
       // polite live region: the strip appears/disappears with the request state
       pendingStrip.setAttribute('role', 'status');
+      /* ★ #562 (Damir 2026-08-25) SUPERSEDES the ⑪ Cancel: HIDE, with the words.
+       * The old ixian:undorequest ran removeFriend — Damir's repro: the peer's
+       * later accept then landed in a void and their chat could never deliver
+       * (RC1's cost). The strip now opens the SAME explain-modal the chats-list
+       * row uses (one surface, #149③ rule); confirming writes the
+       * `spixi.hidereq.<addr>` handshake (home.html tombstones the row with its
+       * real tail) and leaves the chat. The Friend record LIVES — a future
+       * accept completes and the chat comes back, as the words promise. */
       const cancel = createButton({
-        label: (window.SL && window.SL.cancelRequest) || 'Cancel request',
-        type: 'text', size: 32, intent: 'destructive',
-        onClick: (e) => {
-          // one-shot: C# pops the page; a second tap on a dead friend must not re-fire
-          e.currentTarget.disabled = true;
-          bridge.send('ixian:undorequest');
+        label: (window.SL && window.SL.hideRequest) || 'Hide request',
+        type: 'text', size: 32,
+        onClick: () => {
+          openRevokeRequestFlow({
+            chat: { name: identityTitle(), address: identity.address || '' },
+            host: overlayHost,
+            strings: window.SL || {},
+            onAction: () => {
+              // r3 NIT: no identity yet → no key (a bare-prefix key could never be consumed)
+              try { if (identity.address) localStorage.setItem('spixi.hidereq.' + identity.address, String(Date.now())); } catch (err) {}
+              bridge.send('ixian:back');
+            },
+          });
         },
       });
       const disc = document.createElement('span');

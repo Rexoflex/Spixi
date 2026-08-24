@@ -25,6 +25,18 @@
  * anchorSheetAbove(sheet, trigger, { host, width }) → sheet
  *   Tags an already-open sheet as [data-dt-anchor="up"] — a popover rising
  *   from a trigger (the composer ⊕ attach grid), left-aligned with it.
+ *
+ * anchorSheetToRow(sheet, row, { host, align, width }) → sheet
+ *   ★ Batch E (a) (#557, Damir 2026-08-22) — the MOBILE half of this module.
+ *   The message menu and the chats-row menu present as an ANCHORED DROPDOWN
+ *   near the pressed row instead of a bottom sheet. Placement prefers ABOVE
+ *   the row, so the menu can never cover the message it acts on — the 4.1
+ *   fix, structural. No room above → below; neither → clamped. The overlay
+ *   machinery (scrim · focus trap · Esc · stack) is untouched: this only
+ *   TAGS ([data-m-anchor]) and inline-positions the open sheet, exactly the
+ *   desktop recipe's contract. No-ops ON desktop (the #268 grammar owns it)
+ *   and when a rect cannot be measured (jsdom, detached hosts) — those keep
+ *   the bottom sheet.
  */
 export function isDesktopPresentation() {
   return document.documentElement.hasAttribute('data-desktop');
@@ -89,6 +101,69 @@ export function attachContextMenuAnchors({ host = document.body, rows = '.c-bubb
     mo.disconnect();
     if (open) { delete open.row.dataset.dtCtxSource; open = null; }
   };
+}
+
+const M_MENU_W = 300;   // the desktop dropdown width (CTX_MENU_W) — one menu metric, two presentations
+const M_GAP = 8;
+
+export function anchorSheetToRow(sheet, row, { host = document.body, align = null, width = M_MENU_W, gap = M_GAP } = {}) {
+  if (isDesktopPresentation() || !sheet || !row) return sheet;
+  const fr = host.getBoundingClientRect();
+  const rr = row.getBoundingClientRect();
+  if (!fr.width || !rr.height) return sheet;   // unmeasurable → keep the bottom sheet (fail-soft)
+  sheet.dataset.mAnchor = '';
+  const w = Math.min(width, fr.width - 2 * M_GAP);
+  sheet.style.width = w + 'px';
+  // horizontal: align with the pressed BUBBLE when given (sent bubbles sit right,
+  // received left — the menu follows), else the row edge; clamped into the host
+  const ar = (align && align.getBoundingClientRect) ? align.getBoundingClientRect() : rr;
+  sheet.style.left = Math.round(Math.max(M_GAP, Math.min(ar.left - fr.left, fr.width - w - M_GAP))) + 'px';
+  /* ★ loop E-1 (r3, verdict R-1): the SAFE region bounds every placement — and it
+     must be MEASURED, not read. --safe-top (base.css:31) is an UNREGISTERED custom
+     property holding max(env(…), var(…)): getComputedStyle returns that token
+     stream verbatim, so parseFloat on it is NaN and the r2 read was a silent 0.
+     The repo's own prior art is home.html's probeMeasure — resolve the expression
+     through a real layout box (padding-top) and read the computed px back. When
+     the host is a framed sub-region (the demo phones) its own edges already clear
+     the viewport insets — the max(0, inset − outside-the-host) terms handle both. */
+  const resolvePx = (expr) => {
+    try {
+      const probe = document.createElement('div');
+      probe.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;padding-top:' + expr;
+      // r3 NIT N-g: documentElement, not the host — home.html observes childList
+      // on body (the anchor nudger); the root keeps the probe out of every observer
+      document.documentElement.append(probe);
+      const v = parseFloat(getComputedStyle(probe).paddingTop) || 0;
+      probe.remove();
+      return v;
+    } catch (e) { return 0; }
+  };
+  const safeTop = Math.max(0, resolvePx('var(--safe-top, 0px)') - Math.max(0, fr.top));
+  const winH = (window.innerHeight || fr.height);
+  const safeBottom = Math.max(0, resolvePx('env(safe-area-inset-bottom, 0px)') - Math.max(0, winH - fr.bottom));
+  const minTop = safeTop + M_GAP;
+  const maxBottom = fr.height - M_GAP - safeBottom;
+  // vertical: measure AFTER the width + the [data-m-anchor] max-height land
+  // (wrap + the cap change height). offsetHeight reads the layout box — the
+  // enter transform never distorts it.
+  const h = sheet.offsetHeight || 0;
+  const above = rr.top - fr.top - gap - h;
+  let top;
+  if (above >= minTop) {
+    top = above;                                   // preferred: ABOVE the row (the 4.1 fix)
+  } else {
+    top = rr.bottom - fr.top + gap;                // below
+    if (top + h > maxBottom) {
+      top = Math.max(minTop, maxBottom - h);       // tall row / short host: clamp inside the safe region
+    }
+  }
+  sheet.style.top = Math.round(top) + 'px';
+  /* ⚠ Stated residuals (loop E-6/E-7): the anchored menu keeps its measured
+     position across a list re-render (the action model is captured, only the
+     affordance can go stale — the overlay dismisses on every route out), and
+     iOS does not shrink the layout viewport for the soft keyboard (#303), so a
+     keyboard-covered placement resolves on the next open. Both accepted. */
+  return sheet;
 }
 
 export function anchorSheetAbove(sheet, trigger, { host = document.body, width = 380 } = {}) {

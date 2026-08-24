@@ -1091,21 +1091,27 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
      ⚠ Behavioural, not a source match: the code must not exist before the tap and must
      encode the right value after it. The old pin read `.c-qr` unconditionally and would
      now THROW on null — which is how it announced the change. */
+  /* ★ Batch E (d) (#557) REBASED N86 ② — rewritten in place so the ruling changing is
+     visible (the N86 grammar of this very block). The row no longer discloses an
+     inline code: it opens `openAddressSheet` — the ONE address surface (#443/#453),
+     QR + address + copy + Share + explainer. A `.c-settings__qr` box back in the hub
+     is the #149③ two-surfaces drift returning. */
   const qrToggle = d.querySelector('.c-settings__qr-toggle');
-  const qrEl = d.querySelector('.c-settings__qr');
-  ok(!!qrToggle && !!qrEl && qrEl.hidden && !qrEl.querySelector('svg'),
-    '★ N86 ②: the hub QR is BEHIND a "Show QR" row and is not even built until asked — most visits never open it');
+  ok(!!qrToggle && !d.querySelector('.c-settings__qr') && qrToggle.getAttribute('aria-haspopup') === 'dialog',
+    '★ Batch E (d): the hub builds NO QR box of its own — the "Show QR" row announces a dialog and the code lives on the shared sheet');
   ok(!!d.querySelector('.c-settings__address-value') && !!d.querySelector('.c-settings__copy'),
-    'N86 ②: the address chip and copy stay visible ALWAYS — only the code is revealed');
+    'N86 ② (held): the address chip and copy stay visible ALWAYS — only the code is behind the affordance');
   qrToggle.dispatchEvent(new W4.MouseEvent('click', { bubbles: true }));
-  ok(!qrEl.hidden && qrToggle.getAttribute('aria-expanded') === 'true',
-    '★ N86 ②: tapping the row opens it and announces the disclosure');
-  ok(!!qrEl.querySelector('svg path')
-     && (qrEl.querySelector('.c-qr') || {}).dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi',
-    'hero QR encodes the legacy address:ixi format — built on first open');
-  qrToggle.dispatchEvent(new W4.MouseEvent('click', { bubbles: true }));
-  ok(qrEl.hidden && qrToggle.getAttribute('aria-expanded') === 'false',
-    'N86 ②: and closes again — a one-way reveal would trap the glare it exists to avoid');
+  {
+    const eSheet = d.querySelector('.c-sheet--addr');
+    const eQr = d.querySelector('.c-addr-sheet .c-qr');
+    ok(!!eSheet && !!eQr && eQr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi'
+       && !!d.querySelector('.c-addr-sheet__explainicon'),
+      '★ Batch E (d): tapping the row opens the SHARED address sheet — legacy address:ixi encoding, the folded explainer riding along (one surface, no drift)');
+    W4.Spixi.dismissTopOverlay();
+    await sleep(450);
+    ok(!d.querySelector('.c-sheet--addr'), 'Batch E (d): and it dismisses cleanly — the hub owns no leftover surface');
+  }
 
   /* #147: tinted discs + card groups (#148: the disc is the shared .c-disc atom) */
   ok(d.querySelectorAll('.c-disc').length >= 8,
@@ -1919,6 +1925,42 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
     'Send-Max confirm carries the warning strip with ADAPTED text — the payment is irreversible, the fill is not (#150⑥ grammar)');
   ok(/\.c-wallet-send__max-warn \{[^}]*background: var\(--disc-error-bg\)/.test(wsCss),
     'Max strip rides the same error-tonal wash recipe as the delete confirms');
+  /* ★ F5-4 (#556) said FLAT; ★★ #560 (Damir, screenshots 2026-08-25) SUPERSEDES —
+     rewritten in place, again, so the ruling's arc is visible: "straight contacts
+     list" meant THE DIRECTORY LOOK (loop E-2 flagged the premise at source). The
+     pin is now PARITY, not absence: the send picker, the receive roster and the
+     contacts directory carry the SAME card declarations — the #149③ anti-drift
+     rule, mechanical. */
+  {
+    const cardDecls = (sel) => {
+      const rules = rulesFor(sel);
+      const want = {};
+      for (const r of rules) {
+        for (const d of cssDecls(r.body)) {
+          if (/^(background|box-shadow|border-radius|padding)$/.test(d.prop)) want[d.prop] = d.value;
+        }
+      }
+      return JSON.stringify(want, Object.keys(want).sort());
+    };
+    const dir = cardDecls('.c-contacts__list');
+    ok(dir.includes('surface-card') && dir.includes('radius-16') && dir.includes('elevation-1')
+      && cardDecls('.c-wallet-send__list') === dir
+      && cardDecls('.c-wallet-receive__contacts') === dir,
+      '★★ #560 (CASCADE-WIDE PARITY): the send picker AND the receive roster wear the directory card VERBATIM (.c-contacts__list — surface-card · radius-16 · 4px inset · elevation-1). One grammar, three surfaces; a drift on any one is red');
+    ok(/\.c-wallet-send__list \.c-wallet-send__addrfield \{ padding: var\(--spacing-4\) var\(--spacing-8\) var\(--spacing-8\); \}/.test(wsCss),
+      '★ #560: the revealed address field keeps the in-card inset that aligns it with the rows');
+    /* the receive roster is FULL-LENGTH — the capped inner scroller was the "weird" */
+    const recvRules = rulesFor('.c-wallet-receive__contacts');
+    ok(recvRules.length > 0 && recvRules.every((r) =>
+      cssDecls(r.body).every((d) => d.prop !== 'max-height' && !/^overflow/.test(d.prop))),
+      '★★ #560 (CASCADE-WIDE): no rule caps or inner-scrolls the receive roster — the PAGE scrolls, never a list inside it');
+    const wrcSticky = readFileSync(join(root, 'src/styles/components/wallet-receive.css'), 'utf8');
+    ok(/\.c-wallet-receive__cta \{[^}]*position: sticky;[^}]*bottom: calc\(env\(safe-area-inset-bottom, 0px\) \+ var\(--spacing-8\)\)/.test(wrcSticky),
+      '★ #560: "Send request" is STICKY at the safe bottom — reachable at any scroll depth of the full-length list');
+    /* the double side inset: the takeover body owns the ONE 16px */
+    ok(/\.wallet-takeover__body > \.c-wallet-send,\s*\.wallet-takeover__body > \.c-wallet-receive \{ padding: 0; \}/.test(readFileSync(join(root, 'src/shells/home.html'), 'utf8')),
+      '★ #560: the money takeovers zero the component\'s inner padding — content sits at the SAME 16px inset as Contacts (was 32)');
+  }
 }
 
 {
@@ -11754,10 +11796,17 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
     {
       /* ★★ N-4 — THE NODE-LOOP SIDE. Without it the serialisation is fiction: the pair
          that collides is this tick and a push callback, not two push callbacks. */
-      const loopFetch = nodeNC.slice(nodeNC.indexOf('if (Config.enablePushNotifications)'),
+      /* ★ F5-3 (#553) REBASED the anchor: the loop's fetch condition now ALSO guards
+         on a loaded wallet (a half-started node runs this loop with none, and
+         fetchPushMessages signs with the primary key — fatalexception.txt 12:28:06).
+         The anchor tracks the guarded line; the wallet clause is pinned below. */
+      const loopFetchAnchor = 'if (Config.enablePushNotifications && IxianHandler.wallets.Count > 0)';
+      ok(nodeNC.indexOf(loopFetchAnchor) > 0,
+        '★ F5-3 (#553): the node-loop fetch runs ONLY with a wallet loaded — Config.enablePushNotifications && IxianHandler.wallets.Count > 0. Drop the wallet clause and a zombie start (running latched, no wallet) throws KeyNotFoundException out of the fetch every 2.5 s');
+      const loopFetch = nodeNC.slice(nodeNC.indexOf(loopFetchAnchor),
         nodeNC.indexOf('// Update the friendlist') > 0
           ? nodeNC.indexOf('// Update the friendlist')
-          : nodeNC.indexOf('if (Config.enablePushNotifications)') + 2000);
+          : nodeNC.indexOf(loopFetchAnchor) + 2000);
       /* ⚠ THE CLEAR IS TESTED BY BRACE SCOPE, NOT BY POSITION. An index comparison
          ("after the guard, before the else") stays GREEN when the clear is moved one
          line down, past the closing brace of the taken branch and still above the else —
@@ -12202,8 +12251,13 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
     const voipNC2 = voip.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
     ok(/SPushService\.showLocalNotification\(\s*callNotifId,[\s\S]{0,300}?notification-missed-call/.test(voipNC2),
       '★ 3.14 (Damir on device): a MISSED call RE-POSTS the row as "Missed call" under the same id — it replaces the stale "Incoming call" instead of deleting the only record that the call happened');
-    ok(/if \(currentCallAccepted \|\| currentCallCalleeAccepted \|\| currentCallInitiator\)\s*\{\s*SPushService\.cancelNotification\(callNotifId\);/.test(voipNC2),
-      '★ 3.14: cancelled ONLY when the call was answered or we placed it — once you are talking there is nothing left to tell you');
+    /* ★ F5-1 r2 (loop A-1) REBASED — rewritten in place: the OLD form of this pin
+       asserted the OR-of-three predicate, which was the DEFECT (calleeAccepted
+       latches TRUE at ring time for every incoming call → the cancel always won →
+       the re-post above was dead code). ANSWERED = both ends accepted. */
+    ok(/bool answeredCall = currentCallAccepted && currentCallCalleeAccepted;/.test(voipNC2)
+      && /if \(answeredCall \|\| currentCallInitiator \|\| currentCallDeclinedLocally\)\s*\{\s*SPushService\.cancelNotification\(callNotifId\);/.test(voipNC2),
+      '★ 3.14/F5-1 r3 (A-1 + R-2): cancelled ONLY when the call was ANSWERED (both ends), placed by us, or DECLINED by us — the ring-time calleeAccepted latch can no longer make the cancel branch unconditional, and a local decline never reads back as "Missed call"');
     ok(/"call"\);/.test(voipNC2) && /false,\s*$/m.test(voipNC2.split('notification-missed-call')[1].split(');')[0] || 'x'),
       '★ 3.14: the replacement is SILENT and call-flavoured — the ringtone already happened, and the call id can never take down a message row');
   }
@@ -13016,20 +13070,22 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   ok(/quiet = 4/.test(qrJs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/[^\n]*$/gm, '')),
     '★ N86 ①: the 4-module QUIET ZONE is untouched, in CODE and not in a comment. It is the ISO/IEC 18004 minimum, not decoration — below four modules scanners begin to fail, and this code is a wallet address');
 
+  /* ★ Batch E (d) (#557) REBASED N86 ① — rewritten in place, never deleted. The hub
+     renders NO QR card of its own any more: the "Show QR" row opens openAddressSheet
+     (wallet-receive.css owns the card — padding 0 pinned by the F5-5 ① block). A
+     `.c-settings__qr` rule ANYWHERE is the #149③ two-surfaces drift returning. */
   const hubQr = rulesFor('.c-settings__qr');
   const infoQr = rulesFor('.c-chat-info__qr');
   const noneDeclares = (rules, prop) => rules.every((r) => cssDecls(r.body).every((d) => d.prop !== prop && !d.prop.startsWith(prop + '-')));
   const allDeclare = (rules, prop, value) =>
     rules.some((r) => cssDecls(r.body).some((d) => d.prop === prop && d.value === value))
     && rules.every((r) => cssDecls(r.body).every((d) => d.prop !== prop || d.value === value));
-  ok(hubQr.length > 0 && noneDeclares(hubQr, 'padding'),
-    '★ N86 ① (CASCADE-WIDE, every stylesheet): the hub QR card declares NO padding in ANY rule — the white square goes ≈209px → 185px, a 22% cut, with no effect on scanning. ⚠ The old pin read the FIRST rule in one file, so re-adding the padding through a later override rule left it green. That was one of the four vacuous pins this loop found');
+  ok(hubQr.length === 0,
+    '★ Batch E (d) (CASCADE-WIDE): NO stylesheet declares a .c-settings__qr card — the hub QR box is retired; the code lives on the shared address sheet only');
   ok(infoQr.length > 0 && noneDeclares(infoQr, 'padding'),
-    '★ N86 ① (CASCADE-WIDE): chat-info likewise — one batch, both surfaces, or they drift again');
-  ok(allDeclare(hubQr, 'border-radius', 'var(--radius-16)') && allDeclare(infoQr, 'border-radius', 'var(--radius-16)'),
-    '★ N86 ① (CASCADE-WIDE): the radius is var(--radius-16) on both surfaces and NO rule anywhere overrides it with another value. With the padding gone the curve eats the quiet zone\'s own corner. A 16px radius removes at most R(√2−1) = 6.63px of DIAGONAL depth, and the measured quiet zone is 16.44px in the worst case — so the curve stays inside the quiet zone and reaches no module. Raise the radius and that stops being true');
-  ok(/align-self: center/.test(hubQr.map((r) => r.body).join(';')),
-    'N86 ③: the hub card HUGS the code instead of spanning the hero — the chat-info parity #149③ was about');
+    '★ N86 ① (CASCADE-WIDE): chat-info keeps its inline card with NO padding in ANY rule — the quiet zone is the white margin');
+  ok(allDeclare(infoQr, 'border-radius', 'var(--radius-16)'),
+    '★ N86 ① (CASCADE-WIDE): the chat-info radius is var(--radius-16) and NO rule anywhere overrides it. With the padding gone the curve eats the quiet zone\'s own corner. A 16px radius removes at most R(√2−1) = 6.63px of DIAGONAL depth, and the measured quiet zone is 16.44px in the worst case — so the curve stays inside the quiet zone and reaches no module. Raise the radius and that stops being true');
 
   /* ══ ★★ PIN-G — #46 loop §5: THE QR NUMBERS ARE MEASURED, NOT RECALLED ══════════════
      HALF 1 IS LIVE. It runs the SHIPPED encoder in jsdom and reads the viewBox back. It
@@ -13066,44 +13122,52 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
       const i = src.indexOf(anchor);
       return i < 0 ? '' : src.slice(i, src.indexOf('*/', i));
     };
-    const hubDoc = grabDoc(setCssQ, '/* ★ N86 ① (Damir 2026-08-25)');
+    /* ★ Batch E (d) (#557) REBASED PIN-G HALF 2 — rewritten in place. The hub's
+       measured-geometry docblock LEFT with its card: chat-info.css is now the ONE
+       inline-QR surface carrying the numbers, and settings-shell.css carries the
+       supersession note pointing there. The old byte-identical pin guarded two
+       copies against drift; with one copy left, the guard is that NO second copy
+       (and no stale wrong number) creeps back into settings-shell.css. */
     const infoDoc = grabDoc(infoCssQ, '/* ★ N86 ① (Damir 2026-08-25)');
-    for (const [name, doc] of [['settings-shell.css', hubDoc], ['chat-info.css', infoDoc]]) {
-      ok(doc.length > 400 && /4\.51px per cell/.test(doc) && /18\.05px quiet zone/.test(doc)
-         && /16\.44px quiet zone/.test(doc) && /R\(√2−1\) = 6\.63px/.test(doc),
-        '★ PIN-G HALF 2 (#46 loop §5): ' + name + ' carries the MEASURED numbers — 4.51px per cell, 18.05px and 16.44px of quiet zone, and R(√2−1) = 6.63px of diagonal depth. The comment is what a future editor computes headroom from, on the surface that renders a wallet address');
-      ok(doc.length > 400 && !/185\/45/.test(doc) && !/≈3\.8px/.test(doc)
-         && !/≈4\.7px of DIAGONAL/.test(doc) && !/≈45-module grid/.test(doc),
-        '★ PIN-G HALF 2 (#46 loop §5): and ' + name + ' carries NONE of the three retired wrong numbers — "185/45 ≈ 4.1px" for a real address, "≈16.4px" as THE quiet zone, and "16 − 16/√2 ≈ 4.7px of DIAGONAL depth". The last one is the sagitta of the arc, a different measurement, and it understates the corner loss by 41%');
-    }
-    /* ⚠ #149③ IS THE RECORDED DEFECT: the two surfaces disagreeing about the same code. */
-    ok(hubDoc.length > 400 && hubDoc === infoDoc,
-      '★★ PIN-G HALF 2 (#149③): the two CSS docblocks are BYTE-IDENTICAL to each other. #149③ is the recorded defect of these two surfaces disagreeing about the same code, and a number corrected on one card and not the other is that defect returning in the place hardest to see');
-    const setDoc = setJs.slice(setJs.indexOf('★ WHY A ROW AND NOT A SMALL ALWAYS-VISIBLE CODE'), setJs.indexOf('★ WHY A ROW AND NOT A SMALL ALWAYS-VISIBLE CODE') + 1400);
-    ok(/4\.51px per cell/.test(setDoc) && /41 cells/.test(setDoc) && /4\.11px/.test(setDoc)
-       && !/≈3\.8px per module/.test(setDoc) && !/~41-module code/.test(setDoc),
-      '★ PIN-G HALF 2 (#46 loop §5): the settings-shell.js note that justifies the FULL-SIZE reveal is measured too — 41 cells at 4.51px, worst case 4.11px. It used to say "a ~41-module code runs ≈3.8px per module", which mixed the code count with the box count and gave a compact size of ≈100px instead of the real 82–90px');
+    ok(infoDoc.length > 400 && /4\.51px per cell/.test(infoDoc) && /18\.05px quiet zone/.test(infoDoc)
+       && /16\.44px quiet zone/.test(infoDoc) && /R\(√2−1\) = 6\.63px/.test(infoDoc),
+      '★ PIN-G HALF 2 (#46 loop §5): chat-info.css carries the MEASURED numbers — 4.51px per cell, 18.05px and 16.44px of quiet zone, and R(√2−1) = 6.63px of diagonal depth');
+    ok(infoDoc.length > 400 && !/185\/45/.test(infoDoc) && !/≈3\.8px/.test(infoDoc)
+       && !/≈4\.7px of DIAGONAL/.test(infoDoc) && !/≈45-module grid/.test(infoDoc),
+      '★ PIN-G HALF 2 (#46 loop §5): and it carries NONE of the three retired wrong numbers');
+    ok(!/★ N86 ① \(Damir 2026-08-25\)/.test(setCssQ) && /Batch E \(d\)/.test(setCssQ)
+       && /chat-info\.css/.test(setCssQ) && /wallet-receive\.css/.test(setCssQ),
+      '★★ PIN-G HALF 2 (#149③, Batch E rebase): settings-shell.css carries NO second geometry docblock — only the supersession note naming where the geometry now lives. A re-grown hub copy is the two-surfaces drift returning in the place hardest to see');
+    ok(!/★ WHY A ROW AND NOT A SMALL ALWAYS-VISIBLE CODE/.test(setJs) && /openAddressSheet/.test(setJs)
+       && /full scan[\s*]+size/.test(setJs),
+      '★ PIN-G HALF 2 (Batch E rebase): the settings-shell.js hub note now justifies the SHEET reuse — full scan size on the shared surface — instead of the retired inline reveal');
   }
 
   /* GEOMETRY GUARD — the two numbers the arithmetic above rests on, read CASCADE-WIDE so a
      later override rule in any stylesheet cannot move them out from under the comment. */
   {
+    /* ★ Batch E (d) (#557) REBASED: ONE inline surface left (chat-info). The hub svg
+       rule left with its card; a `.c-settings__qr svg` rule anywhere is regression. */
     const svgRules = cssRulesWhere((s) => /(^|\s)\.c-(settings|chat-info)__qr svg$/.test(s));
     const sizes = svgRules.flatMap((r) => cssDecls(r.body).filter((d) => d.prop === 'width' || d.prop === 'height'));
-    ok(svgRules.length === 2 && sizes.length === 4 && sizes.every((d) => d.value === '185px'),
-      '★★ PIN-G GEOMETRY (CASCADE-WIDE): the code renders at 185px on BOTH surfaces, and no rule in any stylesheet declares another width or height for it. Every number in the two comments is derived from this 185, so an override anywhere would make the whole safety argument false while the comment still reads correct');
+    ok(svgRules.length === 1 && /chat-info/.test(svgRules[0].selector)
+       && sizes.length === 2 && sizes.every((d) => d.value === '185px'),
+      '★★ PIN-G GEOMETRY (CASCADE-WIDE, Batch E rebase): chat-info is the ONE inline surface and its code renders at 185px with no overriding rule anywhere; the hub declares no QR svg rule at all — its code rides the shared sheet card');
   }
 
-  /* ② the reveal */
+  /* ② the affordance — ★ Batch E (d) (#557) REBASED N86 ②, rewritten in place.
+     The row no longer builds an inline code: it opens openAddressSheet. What N86 ②
+     protected carries over — the code never rests on the hub, it is built only when
+     asked, and it opens at full scan size (the sheet card, F5-5 ① pins). */
   const setNC = setJs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/[^\n]*$/gm, '');
-  ok(/qrBox\.hidden = true;/.test(setNC) && /c-settings__qr-toggle/.test(setNC),
-    '★ N86 ②: the hub QR is behind an explicit "Show QR" row instead of resting on screen — Damir: "quite overpowering" in dark mode. The hub is not a surface people open to be scanned');
-  ok(/if \(open && !qrBuilt\)/.test(setNC) && /createQrSvg\(address \+ ':ixi'/.test(setNC),
-    'N86 ②: built lazily on first open — most visits never open it');
-  ok(!/svg \{ width: 1[0-4]\dpx/.test(setCssQ) && /\.c-settings__qr svg \{ width: 185px/.test(setCssQ),
-    '★ N86 ②: it opens at FULL scan size. A compact code lands near 100px against the ≈2px-per-module a phone camera needs off another screen — and a QR that is visible but too small to scan is worse than no QR, because it looks functional');
-  ok(/aria-expanded/.test(setNC) && /aria-controls/.test(setNC),
-    'N86 ②: the disclosure is announced (aria-expanded + aria-controls)');
+  ok(!/qrBox/.test(setNC) && /c-settings__qr-toggle/.test(setNC),
+    '★ Batch E (d): the hub keeps the "Show QR" row and builds NO inline qrBox — the code never rests on the hub (N86 ②\'s point, now structural)');
+  ok(/openAddressSheet\(\{/.test(setNC) && !/createQrSvg\(/.test(setNC),
+    '★ Batch E (d): the row opens the SHARED address sheet; the hub encodes no QR of its own (built on open, lazy by construction)');
+  ok(!/svg \{ width: 1[0-4]\dpx/.test(setCssQ),
+    '★ N86 ② (held): no stylesheet shrinks a QR below scan size — a code that is visible but too small to scan looks functional and is not');
+  ok(/aria-haspopup/.test(setNC) && !/aria-expanded/.test(setNC),
+    'Batch E (d): the row announces a DIALOG (aria-haspopup); the aria-expanded disclosure left with the inline box');
 
   /* ⚠ the affordance must not be buried — #147 ruled scanning IS the add-me action */
   {
@@ -13115,10 +13179,14 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
       'N86 ②: the address chip and its copy button stay visible ALWAYS — only the code is behind the reveal');
   }
 
-  /* ③ the two surfaces use the same construction */
-  ok(/\.c-settings__qr-toggle\[aria-expanded='true'\] > \.c-settings__qr-chevron/.test(setCssQ)
-     && /\.c-chat-info__qr-toggle\[aria-expanded='true'\] > \.c-chat-info__qr-chevron/.test(infoCssQ),
-    'N86 ③: both toggles rotate their chevron through the same CHILD-combinator rule (the #137 M4 lesson) — same grammar on both surfaces');
+  /* ③ ★ Batch E (d) (#557) REBASED: the two rows now do DIFFERENT things by design —
+     chat-info still discloses inline (chevron rotates on aria-expanded), the hub
+     opens a dialog (static chevron-right, no rotation rule). Same-construction
+     was the guard while both revealed inline; a rotation rule back on the hub
+     chevron would claim a disclosure that no longer happens. */
+  ok(/\.c-chat-info__qr-toggle\[aria-expanded='true'\] > \.c-chat-info__qr-chevron/.test(infoCssQ)
+     && !/\.c-settings__qr-toggle\[aria-expanded/.test(setCssQ),
+    'Batch E (d): chat-info keeps its rotating disclosure chevron (CHILD combinator, the #137 M4 lesson); the hub chevron is static — it opens a dialog');
 }
 
 {
@@ -14127,10 +14195,13 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     await sleep(30);
     const sheetEl = d.querySelector('.c-sheet--addr');
     const addrC = d.querySelector('.c-addr-sheet');
+    /* F5-5 ③ (#556) REBASED W-c: the explainer leads with a FLAT tinted glyph now —
+       a `.c-disc` here is the regression (icon-in-icon, Damir screenshot) */
     ok(!!sheetEl && !!addrC && addrC.classList.contains('u-scroll') && !!addrC.querySelector('.c-addr-sheet__qrcard .c-qr')
-      && !!addrC.querySelector('.c-addr-sheet__explain .c-disc') && addrC.querySelectorAll('.c-addr-sheet__info').length === 2
+      && !!addrC.querySelector('.c-addr-sheet__explainicon svg') && !addrC.querySelector('.c-addr-sheet__explain .c-disc')
+      && addrC.querySelectorAll('.c-addr-sheet__info').length === 2
       && !!addrC.querySelector('.c-addr-sheet__info--safe svg'),
-      '★ W-c: the address sheet is its own scroll region (u-scroll), the QR card + chip + Share + the info-disc explainer are in it, the safety line carries the shield');
+      '★ W-c/F5-5③: the address sheet scrolls (u-scroll), QR card + chip + Share are in it, the explainer glyph is FLAT (no disc), the safety line carries the shield');
     W.Spixi.dismissTopOverlay();
     await sleep(450);
     rec.remove();
@@ -14139,6 +14210,29 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       && /:root\[data-desktop\] \.c-sheet--addr \{ width: min\(440px, 92%\); \}/.test(wrc)
       && /\.c-addr-sheet__qrcard \{[^}]*width: min\(280px, 52dvh, 86vw, 100%\)/.test(wrc),
       '★ W-c CSS: internal scroll with a viewport cap, the desktop dialog capped at 440px, the QR card scales on BOTH axes via min()');
+    /* ★ F5-5 ①/② (#556) CSS pins: the QR card is at Account proportions (padding 0 —
+       the SVG quiet zone is the margin), the addr DIALOG clips so the inner region is
+       the one scroller, and its thumb is persistent (slim + themed) while overflowing. */
+    ok(/\.c-addr-sheet__qrcard \{[^}]*padding: 0/.test(wrc)
+      && /:root\[data-desktop\] \.c-sheet--addr \{ overflow-y: hidden; \}/.test(wrc)
+      && /:root\[data-desktop\] \.c-addr-sheet\.u-scroll \{[^}]*scrollbar-color: var\(--outline-neutral-02\) transparent/.test(wrc)
+      && /:root\[data-desktop\] \.c-addr-sheet\.u-scroll::-webkit-scrollbar-thumb \{[^}]*background: var\(--outline-neutral-02\)/.test(wrc),
+      '★ F5-5 ①/② CSS: QR card padding 0 (Account proportions), the addr dialog clips, the inner scroller shows a persistent slim themed thumb on desktop');
+    /* ★★ loop C-1 (CASCADE-WIDE): the SHEET is now the Account code's ONE surface,
+       so the scan-size floor must live HERE — the old hub pin became unfalsifiable
+       when the hub rule left. Every width on the card is the min() whose first arg
+       (280) ≥ the measured 185 floor, and NO rule anywhere sizes the card's svg. */
+    {
+      const cardRules = rulesFor('.c-addr-sheet__qrcard');
+      const widths = cardRules.flatMap((r) => cssDecls(r.body).filter((d) => d.prop === 'width'));
+      ok(cardRules.length > 0 && widths.length > 0
+        && widths.every((d) => /^min\((\d+)px, 52d?vh, 86vw, 100%\)$/.test(d.value) && Number(d.value.match(/^min\((\d+)px/)[1]) >= 185),
+        '★★ F5-5/C-1 (CASCADE-WIDE): every .c-addr-sheet__qrcard width rule is the min() scale whose 280px ceiling stays ≥ the 185px scan floor — shrink it anywhere and this is red');
+      const svgShrink = cssRulesWhere((s) => /\.c-(addr-sheet(__qrcard)?|wallet-receive__qrcard)\s+(svg|\.c-qr)$/.test(s))
+        .flatMap((r) => cssDecls(r.body).filter((d) => (d.prop === 'width' || d.prop === 'height') && d.value !== '100%' && d.value !== 'auto'));
+      ok(svgShrink.length === 0,
+        '★★ F5-5/C-1 (CASCADE-WIDE): no rule in any stylesheet gives the sheet\'s QR svg a fixed size — it fills the card (100%/auto), so the card floor above is the ONLY size authority');
+    }
   }
 
   /* W-d — the review sheet BEFORE the native confirm, quoted live (behavioural). */
@@ -14338,8 +14432,8 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   ok(hpA.indexOf('StartsWith("ixian:removecontact:"') < hpA.indexOf('current_url.Contains("ixian:qrresult:")'),
     'A6 C# (#216/#393): the destructive verbs sit ABOVE the legacy Contains() branches — a crafted payload cannot hijack them');
   ok(/FriendList\.removeFriend\(friend\)/.test(scA) && /friend\.deleteHistory\(\)/.test(scA) && /CoreStreamProcessor\.sendLeave\(group, null\);\s*FriendList\.removeFriend\(group\);/.test(scA)
-    && /group\.pendingDeletion = true;\s*group\.save\(\);\s*CoreStreamProcessor\.sendLeave\(group, null\);/.test(scA),
-    '★ A6 C#: SContacts runs the SAME bodies ContactDetails runs — removeFriend / deleteHistory / the #248 leave (group: sendLeave+removeFriend · bot: pendingDeletion+sendLeave)');
+    && !/pendingDeletion = true/.test(scA),
+    '★ A6 C# (#567 rebase): SContacts runs the SAME bodies ContactDetails runs — removeFriend / deleteHistory / ONE leave grammar (sendLeave then immediate removeFriend; the bot pendingDeletion wait is RETIRED — it crashed in frozen-core getClient, BE §1e-6)');
   ok(/"removeContactResult", args\.ToArray\(\)/.test(hpA) && /"removeHistoryResult", addr, status/.test(hpA) && /"setSharedGroups", args\.ToArray\(\)/.test(hpA),
     'A6 C#: every outcome is PUSHED (removeContactResult / removeHistoryResult / setSharedGroups) — the shell can un-tombstone a refusal');
   {
@@ -14468,7 +14562,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       && !brows.some((r) => /Hidden member/.test(r.textContent)) && !!brows[0].querySelector('.c-avatar__img, .c-avatar'),
       '★★ A1: a BOT room lists its members as legacy did — nickname, else the #211 truncated address, with the avatar; "Hidden member" is gone from bot rows');
     const bdanger = [...bot.querySelectorAll('.c-chat-info__danger-row')];
-    ok(bdanger.some((r) => /Leave group/.test(r.textContent)), '★ A2: the bot info carries Leave (SingleChatPage ixian:leave handles bots: pendingDeletion + sendLeave)');
+    ok(bdanger.some((r) => /Leave group/.test(r.textContent)), '★ A2: the bot info carries Leave (SingleChatPage ixian:leave handles bots: sendLeave + immediate removeFriend, #567)');
     const bkids = [...bot.querySelector('.c-chat-info__body').children];
     ok(bkids.indexOf(bot.querySelector('.c-chat-info__danger')) === bkids.indexOf(bot.querySelector('.c-chat-info__hero')) + 1,
       '★ A3: on a group/bot the action rows sit DIRECTLY under the hero — on top, not under the members list');
@@ -14540,9 +14634,17 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       '★ loop r1 A-4 (cs): leaving a ticked group removes that group\'s chat from the device (Core removeFriend → deleteMessages) — the copy says so');
     ok(/if \(st === 'left'\)/.test(homeA) && /return leaveGroup\(friend\) \? "left" : "fail";/.test(scA) && /localStorage\.removeItem\(DRAFT_PREFIX \+ addr\)/.test(homeA),
       'loop r1: a group/bot LEAVE answers "left" (no "Contact removed" lie for a bot that stays until acknowledged) and the unsent draft goes with the chat (on the success answer, r2)');
-    ok(/var chat_page = Utils\.getChatPage\(f\);\s*status = SContacts\.removeContact\(f, leave, out blockers\);\s*if \(\(status == "ok" \|\| status == "left"\) && chat_page != null\)\s*\{\s*try \{ chat_page\.popPageAsync\(\); \}/.test(hpA)
-      && !/removeDetailContent\(\);\s*\}\s*\}\s*\}\s*catch \(Exception\)\s*\{\s*\/\/ loop r1: NO ex\.Message/.test(hpA),
-      '★ loop r1 A-3 (cs): the removed contact\'s OPEN conversation is closed through the page\'s overlay-aware popPageAsync (detailContent is never assigned — removeDetailContent closed nothing)');
+    /* ★ F5-2 (#555) REBASED loop r1 A-3: the CRASHDIAG breadcrumbs now sit between
+       the resolve and the removal — the pin tests the PROPERTY (resolve BEFORE
+       remove, pop on ok/left) by ORDER, not by adjacency. */
+    {
+      const iResolve = hpA.indexOf('var chat_page = Utils.getChatPage(f);');
+      const iRemove = hpA.indexOf('status = SContacts.removeContact(f, leave, out blockers);');
+      ok(iResolve > 0 && iRemove > iResolve
+        && /if \(\(status == "ok" \|\| status == "left"\) && chat_page != null\)\s*\{\s*try \{ chat_page\.popPageAsync\(\); \}/.test(hpA)
+        && !/removeDetailContent\(\);\s*\}\s*\}\s*\}\s*catch \(Exception\)\s*\{\s*\/\/ loop r1: NO ex\.Message/.test(hpA),
+        '★ loop r1 A-3 (cs, F5-2 rebase): the open conversation is RESOLVED before the removal and closed via popPageAsync on ok/left (detailContent is never assigned — removeDetailContent closed nothing)');
+    }
     ok(!/Logging\.(error|warn)\([^;]*ex\.Message/.test(scA) && !/ixian:removecontact failed: " \+ ex\.Message/.test(hpA),
       'loop r1: no handler logs ex.Message on a peer-supplied token (Core\'s Address ctor formats the base58 into it)');
     ok(/\.c-bubble-row\[data-direction="sent"\] \.c-bubble__meta > \* \{ opacity: 0\.7; \}/.test(mbcss)
@@ -14567,9 +14669,30 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     && /bool outgoingPending = f\.state == FriendState\.RequestSent;/.test(hpB) && !/outgoingPending = !f\.approved/.test(hpB)
     && /"undoRequestResult", addr, status/.test(hpB),
     '★ B1 C#: HomePage ixian:undorequest:<addr> is GUARDED on FriendState.RequestSent — the state the outgoing sites set and the row is built from; NOT `!approved`, which defaults TRUE for outgoing requests (#399) and would have made the revoke a dead feature — and answers undoRequestResult');
-  ok(/if \(action === 'revokeRequest' && chat && chat\.address\) \{\s*bridge\.send\('ixian:undorequest:' \+ chat\.address\);/.test(homeB) && /undoRequestResult\(address, status\) \{[\s\S]{0,700}?deletedChats\.delete\(addr\);/.test(homeB)
-    && /if \(pinnedChats\.delete\(chat\.address\)\) savePins\(\);\s*\/\/ loop r1 m-1/.test(homeB),
-    'B1 SHELL: revokeRequest emits the address-scoped verb and sheds the pin (loop r1 m-1); a refusal un-tombstones AND asks for the flush (m-2 — C# only flags the OK path)');
+  /* ★ #562 (Damir 2026-08-25) REBASED B1 SHELL — rewritten in place: HIDE, not
+     destroy. The removeFriend revoke made an accepted-later request a DEAD chat on
+     the peer's device (Damir's repro). The branch now sends NO verb — the Friend
+     record lives, the row tombstones locally, the peer's accept resurrects it.
+     A bridge.send back in this branch is the dead-chat regression returning. */
+  {
+    const revBranch = (homeB.match(/if \(action === 'revokeRequest' && chat && chat\.address\) \{[\s\S]{0,900}?return;\s*\}/) || [''])[0];
+    ok(revBranch !== '' && !/bridge\.send\(/.test(revBranch)
+      && /hideReqArm\(chat\.address/.test(revBranch)
+      && !/requestAddrs\.delete\(chat\.address\)/.test(revBranch)
+      && /pinnedChats\.delete\(chat\.address\)/.test(revBranch),
+      '★★ #562 SHELL: the hide branch emits NO verb (the Friend record must survive for a future accept), tombstones the row, KEEPS the picker pending badge (the request is still live outbound) and sheds the pin');
+    ok(/const HIDEREQ_PREFIX = 'spixi\.hidereq\.';/.test(homeB)
+      && /if \(hidAt && t && t > hidAt\) hideReqClear\(wallet\);\s*else hideReqArm\(wallet, t \|\| 0, n\);/.test(homeB)
+      && /indexOf\(HIDEREQ_PREFIX\) === 0 && e\.newValue\) consumeHideReqs\(\)/.test(homeB),
+      '★ #562: the chat-shell hide handshake (spixi.hidereq.*) ARMS with the row\'s REAL tail — in addChat (first push) AND on the storage event — so the flush\'s unchanged tail cannot resurrect what a genuinely newer message (the accept) still can');
+    ok(/function hideReqArm\(addr, ts, unread\) \{[\s\S]{0,400}?localStorage\.setItem\(HIDEREQ_PREFIX \+ addr, JSON\.stringify/.test(homeB)
+      && /hideReqClear\(wallet\);/.test(homeB)
+      && /hideReqArm\(chat\.address, Number\(chat\.timestamp\) \|\| 0/.test(homeB),
+      '★★ #562 DURABLE: the hide key IS the tombstone (survives restarts — a hide that undoes itself on relaunch betrays its words); a RESURRECTED chat sheds the key in the revive branch, or the next visibility tick would re-hide it');
+    ok(/openRevokeRequestFlow,/.test(chatB) && /if \(identity\.address\) localStorage\.setItem\('spixi\.hidereq\.' \+ identity\.address/.test(chatB)
+      && !/bridge\.send\('ixian:undorequest'\)/.test(chatB.slice(chatB.indexOf('function setComposerLock'), chatB.indexOf('function setComposerLock') + 3000)),
+      '★ #562: the chat waiting strip opens the SAME hide flow (one surface, #149③) and writes the handshake — the undorequest verb is gone from the strip');
+  }
   {
     const dom = await load('chats.html');
     const d = dom.window.document, W = dom.window;
@@ -14578,15 +14701,16 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       capabilities: { delete: true, pin: true, mute: true }, onAction: (a) => acted.push(a) });
     await sleep(30);
     const items = [...d.querySelectorAll('.c-msgmenu__item')];
-    ok(items.some((b) => /Revoke request/.test(b.textContent)) && !items.some((b) => /Delete chat/.test(b.textContent)),
-      '★ B1: an OUTGOING PENDING request row offers "Revoke request" instead of "Delete chat"');
-    items.find((b) => /Revoke request/.test(b.textContent)).click();
+    /* ★ #562 REBASED: the action is HIDE — non-destructive, with the words. */
+    ok(items.some((b) => /Hide request/.test(b.textContent)) && !items.some((b) => /Delete chat|Revoke/.test(b.textContent)),
+      '★ #562: an OUTGOING PENDING request row offers "Hide request" — never Delete, never a destructive Revoke');
+    items.find((b) => /Hide request/.test(b.textContent)).click();
     await sleep(60);
     const modal = [...d.querySelectorAll('.c-modal')].pop();
-    ok(!!modal && /Revoke the contact request\?/.test(modal.textContent) && /not told/.test(modal.textContent) && acted.length === 0,
-      '★★ B1: the delete NEVER auto-revokes — a PROMPT opens, its copy says the peer is not told, nothing fired yet');
-    [...modal.querySelectorAll('.c-button')].find((b) => /^Revoke$/.test(b.textContent.trim()))?.click();   // ?. — a mutated run must stay reportable (r2 n-3)
-    ok(acted.join() === 'revokeRequest', 'B1: the prompt\'s Revoke fires revokeRequest ONCE');
+    ok(!!modal && /Hide this request\?/.test(modal.textContent) && /if they accept it, the chat comes back/.test(modal.textContent) && acted.length === 0,
+      '★★ #562: never auto-hides — the PROMPT explains with words: they still see the request, an accept brings the chat back; nothing fired yet');
+    [...modal.querySelectorAll('.c-button')].find((b) => /^Hide$/.test(b.textContent.trim()))?.click();   // ?. — a mutated run must stay reportable (r2 n-3)
+    ok(acted.join() === 'revokeRequest', '#562: the prompt\'s Hide fires the (kept) revokeRequest action id ONCE');
     dom.window.close();
   }
   /* B2 — the locked shape (#533 ①) */
@@ -14731,6 +14855,288 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   ok(/Logging\.info\("clearNotifications: blanket sweep \(no active-notification API\)"\);/.test(andD),
     'D1 Android: pre-M devices fall back to the blanket sweep and say so in the log (an F5 there is explicable)');
 }
+
+/* ═══ ★★ BATCH E (the menu batch, #551 → #557) — anchored dropdowns · scrim · QR reuse ═══ */
+{
+  console.log('\n— Batch E: mobile anchored menus (a) · deeper scrim (b) · ctx-source retune (c) · QR sheet reuse (d) —');
+  const daJs = readFileSync(join(root, 'src/components/desktop-anchors.js'), 'utf8');
+  const mmJsE = readFileSync(join(root, 'src/components/message-menu.js'), 'utf8');
+  const crmJsE = readFileSync(join(root, 'src/components/chats-row-menu.js'), 'utf8');
+  const ovCssE = stripCssComments(readFileSync(join(root, 'src/styles/components/overlay.css'), 'utf8'));
+  const tokCssE = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8');
+  const homeShE = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+
+  /* — (a) the anchored dropdown: helper properties by ORDER, not adjacency — */
+  {
+    const fn = daJs.slice(daJs.indexOf('export function anchorSheetToRow'), daJs.indexOf('export function anchorSheetAbove'));
+    const iDesk = fn.indexOf('isDesktopPresentation()');
+    const iTag = fn.indexOf("sheet.dataset.mAnchor = ''");
+    const iWidth = fn.indexOf('sheet.style.width');
+    const iMeasure = fn.indexOf('sheet.offsetHeight');
+    const iTop = fn.indexOf('sheet.style.top');
+    ok(iDesk > 0 && iTag > iDesk && iWidth > iTag && iMeasure > iWidth && iTop > iMeasure,
+      '★★ Batch E (a) (#557): anchorSheetToRow no-ops ON desktop (the #268 grammar owns that), tags [data-m-anchor], sets the WIDTH before it measures (wrap changes height), and only then places the top — reorder any of that and the dropdown lands on stale geometry');
+    ok(/const above = rr\.top - fr\.top - gap - h;/.test(fn) && fn.indexOf('rr.bottom - fr.top + gap') > fn.indexOf('const above'),
+      '★★ Batch E (a): placement prefers ABOVE the pressed row — the menu can never cover the message it acts on (the 4.1 fix, structural); below is the fallback, clamp the last resort');
+    ok(/if \(!fr\.width \|\| !rr\.height\) return sheet;/.test(fn),
+      'Batch E (a): unmeasurable rects (jsdom, detached hosts) keep the bottom sheet — fail-soft, never a 0×0 dropdown');
+  }
+  ok(/anchorSheetToRow\(sheet, row, \{ host, align: tinted \}\)/.test(mmJsE),
+    '★ Batch E (a): the message menu anchors to the pressed row, aligned with the BUBBLE (sent sits right, received left)');
+  ok((crmJsE.match(/anchorSheetToRow\(sheet, row, \{ host \}\)/g) || []).length === 2
+     && (crmJsE.match(/openChatRowMenu\(\{ row, \.\.\.opts \}\)/g) || []).length === 3,
+    '★ Batch E (a): the chats-row menu anchors on BOTH exits (handshaking + main) and all three gestures thread the row through');
+  ok(/:root:not\(\[data-desktop\]\) \.c-sheet\[data-m-anchor\] \{[^}]*transform: none;[^}]*opacity: 0;/.test(ovCssE)
+     && /:root:not\(\[data-desktop\]\) \.c-sheet\[data-m-anchor\]\[data-open\] \{ transform: none; opacity: 1; \}/.test(ovCssE)
+     && /:root:not\(\[data-desktop\]\) \.c-sheet\[data-m-anchor\] \.c-sheet__handle \{ display: none; \}/.test(ovCssE),
+    '★ Batch E (a) CSS: the mobile anchored variant FADES IN PLACE (a panel sliding from the bottom edge would point at the wrong origin), drops the drag handle, and stays scoped OFF desktop');
+  /* r3 (loop E-1): the safe-region + own-scroller cap — a menu that outgrows the
+     host with body scroll locked is unreachable UI, and top=8 puts the react row
+     under the Dynamic Island (the #288 inset class). */
+  ok(/\.c-sheet\[data-m-anchor\] \{[^}]*max-height: calc\(100% - var\(--safe-top, 0px\) - env\(safe-area-inset-bottom, 0px\)[^}]*overflow-y: auto/.test(ovCssE),
+    '★★ Batch E (a) r3 (E-1) CSS: [data-m-anchor] caps its height inside the SAFE region and scrolls itself');
+  {
+    const fnE1 = readFileSync(join(root, 'src/components/desktop-anchors.js'), 'utf8');
+    const body = fnE1.slice(fnE1.indexOf('export function anchorSheetToRow'), fnE1.indexOf('export function anchorSheetAbove'));
+    /* r3 (verdict R-1): the inset must be MEASURED through a layout box (the
+       home.html probeMeasure prior art) — --safe-top is an unregistered custom
+       property holding max(env(…),var(…)), so getComputedStyle + parseFloat on
+       the PROPERTY is NaN → a silent 0 → the r2 "fix" was no fix. The probe
+       resolves padding-top to real px. A getPropertyValue read back in this
+       function is the regression. */
+    ok(/padding-top:' \+ expr/.test(body) && /getComputedStyle\(probe\)\.paddingTop/.test(body)
+       && /resolvePx\('var\(--safe-top, 0px\)'\)/.test(body)
+       && /resolvePx\('env\(safe-area-inset-bottom, 0px\)'\)/.test(body)
+       && !/getPropertyValue\('--safe-top'\)/.test(body),
+      '★★ Batch E (a) r3 (R-1): the safe insets are RESOLVED through a probe element (computed padding-top → px), never getPropertyValue-parsed — top AND bottom');
+    ok(/const minTop = safeTop \+ M_GAP;/.test(body) && /const maxBottom = fr\.height - M_GAP - safeBottom;/.test(body)
+       && /if \(above >= minTop\)/.test(body) && /top = Math\.max\(minTop, maxBottom - h\)/.test(body),
+      '★★ Batch E (a) r3 (E-1) JS: every vertical placement is bounded by minTop (safe-top floor) and maxBottom (safe-bottom ceiling) — no branch can land under an inset');
+  }
+  /* ★ the #519 z-order re-verify, structural: the dropdown is still a .c-sheet at
+     z-44 — no new z rule anywhere — so it stays above the z-42 lifted row and the
+     z-40 scrim exactly as #506② pinned. The [data-m-anchor] rules must not touch z. */
+  ok(!/data-m-anchor[^{]*\{[^}]*z-index/.test(ovCssE),
+    '★★ Batch E (a) / #519 z-order: the anchored variant declares NO z-index of its own — the sheet keeps z-44 over the z-42 lift over the z-40 scrim (the #506② layering, re-verified structurally)');
+
+  /* — (b) the mobile scrim, one level deeper — */
+  ok(/--surface-scrim-deep: rgba\(17, 18, 19, 0\.7\)/.test(tokCssE)
+     && /--surface-scrim: rgba\(17, 18, 19, 0\.6\)/.test(tokCssE)
+     && /:root:not\(\[data-desktop\]\) \.c-scrim \{ background: var\(--surface-scrim-deep\); \}/.test(ovCssE),
+    '★ Batch E (b) (#557): the MOBILE overlay scrim is one level deeper (0.6 → 0.7, same grey-1000 base); desktop dialogs keep 0.6 and desktop anchored menus stay wash-free (#268)');
+
+  /* — (c) desktop: #268 stands, the source highlight retuned — */
+  ok(/:root\[data-desktop\] \.c-scrim\[data-dt-clear\] \{ background: transparent; \}/.test(ovCssE),
+    '★ Batch E (c): #268 STANDS — anchored desktop menus carry no backdrop wash (thrice affirmed, not re-litigated)');
+  /* r2 (loop E-4): the :not([aria-current]) escape is part of the retune — without
+     it the (0,3,0) wash REPLACES the open conversation's tonal selected paint. */
+  ok(/:root\[data-desktop\] \[data-dt-ctx-source\]:not\(\[aria-current\]\) \{ background: var\(--surface-press-row-hover\)/.test(ovCssE)
+     && !/data-dt-ctx-source\](?::not\(\[aria-current\]\))? \{ background: var\(--surface-interactive-selected\)/.test(ovCssE),
+    '★ Batch E (c) r2: [data-dt-ctx-source] rides the #519 press wash on UNSELECTED rows only — the selected row keeps its tonal (E-4), and the SELECTED tint never returns as the wash');
+
+  /* — the dev-HUD rail rider — */
+  ok(/:root\[data-desktop\] \.dev-hud \{ left: calc\(var\(--layout-rail-width\) \+ var\(--spacing-8\)\)/.test(homeShE),
+    '★ Batch E rider (#557): the desktop dev HUD clears the 72px rail via the SHARED token (--layout-rail-width) — not a second bare 72 to drift');
+
+  /* — #561 (Damir, screenshots 2026-08-25): the row swipe — */
+  {
+    const swJs = readFileSync(join(root, 'src/components/chats-swipe.js'), 'utf8');
+    const iCap = swJs.indexOf('if (!leftEnabled && !rightEnabled) return rowEl;');
+    const iDesk = swJs.indexOf("documentElement.hasAttribute('data-desktop')) return rowEl;");
+    ok(iCap > 0 && iDesk > iCap && iDesk < swJs.indexOf('const wrap ='),
+      '★ #561: NO swipe wrapper on DESKTOP — a mouse drag is not a swipe (the stuck-open drawers in Damir\'s screenshot); the gate sits BEFORE any wrapper is built. Mobile untouched');
+    const fireBody = swJs.slice(swJs.indexOf('const fire = (action)'), swJs.indexOf('content.addEventListener(\'pointerdown\''));
+    const goDef = fireBody.slice(fireBody.indexOf('const go = '), fireBody.indexOf('};', fireBody.indexOf('const go = ')) + 2);
+    ok((fireBody.match(/onAction\(action\)/g) || []).length === 1 && /onAction\(action\)/.test(goDef)
+      && /e\.target !== content \|\| e\.propertyName !== 'transform'/.test(goDef)
+      && /addEventListener\('transitionend', go\)/.test(fireBody) && /setTimeout\(go, 280\)/.test(fireBody)
+      && fireBody.indexOf('setX(0, true)') > fireBody.indexOf('setTimeout(go, 280)'),
+      '★ #561: a commit-fire SETTLES FIRST — the ONE onAction call lives inside go() (transitionend, 280ms belt), so the action\'s re-render cannot tear the spring down mid-flight');
+  }
+
+  /* — (d) the stylesheet must travel with the surface (loop C-6, the #314 toast lesson) — */
+  ok(readFileSync(join(root, 'src/shells/settings.html'), 'utf8').includes('components/wallet-receive.css')
+     && readFileSync(join(root, 'src/demo/settings.html'), 'utf8').includes('components/wallet-receive.css'),
+    '★ Batch E (d) r2 (C-6): the settings SHELL and the settings DEMO both link wallet-receive.css — openAddressSheet renders unstyled without it');
+  ok(/closeAddressSheet\(\);/.test(readFileSync(join(root, 'src/shells/settings.html'), 'utf8')),
+    '★ Batch E (d) r2 (C-8): exitSettings closes the address sheet — this document PARKS, so a stranded sheet would survive into the next visit');
+
+  /* — F5-6 (#558, Damir: option B) — the Max gate explains itself — */
+  {
+    const wsF56 = readFileSync(join(root, 'src/components/wallet-send.js'), 'utf8');
+    ok(/c-wallet-send__maxhint/.test(wsF56) && /maxNeedsRecipient \|\| 'Select a recipient to use Max\.'/.test(wsF56)
+       && /maxHint\.hidden = !!state\.recipient;/.test(wsF56)
+       && /maxBtn\.setAttribute\('aria-describedby', maxHint\.id\)/.test(wsF56),
+      '★ F5-6 (#558 B): the disabled Max carries the "Select a recipient to use Max." hint — visible exactly while the recipient is the reason, tied to the control via aria-describedby; the #523 no-invented-fee gate itself is unchanged');
+  }
+}
+
+/* ═══ ★★ F5 FIX BATCH (2026-08-25, the 2026-08-24 overnight walk) — #553–#556 ═══ */
+{
+  console.log('\n— F5 fixes: restore race (F5-3) · missed-call race (F5-1) · crash diagnostic (F5-2) —');
+  const appF5 = readFileSync(join(root, 'Spixi/App.xaml.cs'), 'utf8');
+  const spF5 = readFileSync(join(root, 'Spixi/Network/StreamProcessor.cs'), 'utf8');
+  const mappF5 = readFileSync(join(root, 'Spixi/Platforms/Android/MainApplication.cs'), 'utf8');
+  const cdF5 = readFileSync(join(root, 'Spixi/Pages/Contacts/ContactDetails.xaml.cs'), 'utf8');
+
+  /* — F5-3 (#553): EnsureNodeRunning must not touch the node with no wallet loaded — */
+  {
+    const enr = appF5.slice(appF5.indexOf('public static void EnsureNodeRunning()'));
+    const iGuard = enr.indexOf('if (IxianHandler.wallets.Count == 0)');
+    const iBoot = enr.indexOf('if (Node.startCounter == 0)');
+    const iStatus = enr.indexOf('if (IxianHandler.status == NodeStatus.stopped');
+    const iStart = enr.indexOf('Node.preStart();');
+    ok(iGuard > 0 && iBoot > iGuard && iStatus > iBoot && iStart > iStatus
+      && /if \(IxianHandler\.wallets\.Count == 0\)\s*\{[^}]*return;\s*\}/.test(enr)
+      && /if \(Node\.startCounter == 0\)\s*\{[^}]*return;\s*\}/.test(enr),
+      '★★ F5-3 (#553, r2 + loop A-3): EnsureNodeRunning RETURNS with no wallet loaded AND before the node\'s FIRST completed start (Node.startCounter == 0 — this method resumes, it never boots), both BEFORE the status read and the restart. Closes the logged picker bounce AND the loadWallet→HomePage.start window');
+    /* r3 (verdict R-3): the wipe hands the node back to the launch flow — the
+       counter resets there, or the A-3 window returns on the post-wipe restore,
+       the exact path SettingsPage names as the F-3 suspect. */
+    const spSet = readFileSync(join(root, 'Spixi/Pages/Settings/SettingsPage.xaml.cs'), 'utf8');
+    ok(spSet.indexOf('Node.startCounter = 0;') > spSet.indexOf('IxianHandler.wallets.Clear()'),
+      '★ F5-3 r3 (R-3): wipeEverything resets Node.startCounter after clearing the wallet list — the post-wipe restore is guarded like a first boot');
+  }
+
+  /* — F5-1 (#554): the VoIP session-check race — the re-check queues BEHIND the
+     deferred session creation (handleAppRequest defers to the main thread; a fetched
+     voiceCall + voiceCallEnd pair otherwise loses the hangup and the tagged
+     "Missed call" re-post never runs) — */
+  {
+    /* ★ loop C-3 (r2): each leg's window is END-BOUNDED at the NEXT method
+       definition — the legs are adjacent, and an open-ended slice let one leg's
+       deferral satisfy its neighbour's pin (the mutation that proved it: deleting
+       the reject leg's deferral outright stayed green). */
+    const legs = ['handleAppRequestAccept', 'handleAppRequestReject', 'handleAppEndSession'];
+    for (const leg of legs) {
+      const iDef = spF5.indexOf('void ' + leg + '(');
+      const iNext = spF5.indexOf(' static void ', iDef + 20);   // the next method definition
+      const body = spF5.slice(iDef, iNext > iDef ? iNext : iDef + 3600);
+      const iSync = body.indexOf('VoIPManager.hasSession(');
+      const iDefer = body.indexOf('MainThread.BeginInvokeOnMainThread(');
+      const iRecheck = body.indexOf('VoIPManager.hasSession(', iDefer);
+      const iTask = body.indexOf('Task.Run(', iDefer);
+      const iDeferEnd = body.indexOf('});', iDefer);
+      const iFall = body.indexOf('getAppPage(');
+      ok(iDef > 0 && iSync > 0 && iDefer > iSync && iRecheck > iDefer && iTask > iRecheck,
+        '★★ F5-1 (#554) ' + leg + ' [end-bounded window, loop C-3]: sync fast path → main-thread ORDERING re-check → the handling hops back off the UI thread (Task.Run, loop A-2) — delete the deferral in THIS leg and this line is red');
+      ok(iDeferEnd > iDefer && iFall > iDeferEnd,
+        '★★ F5-1 r2 (loop A-2) ' + leg + ': the MINI-APP fall-through stays on the CALLING thread, AFTER (outside) the deferred block — a second queue hop could invert onNetworkData vs onRequestAccept');
+    }
+    ok((spF5.match(/\[NOTIFDIAG\] app (accept|reject|end-session) re-check found the VoIP session/g) || []).length === 3,
+      '★ F5-1 (#554): each re-check leg logs when the race actually fired — the repro evidence line');
+    /* r3 NIT N-h: the three deferred bodies are FENCED — receiveData's catch-all no
+       longer covers this hop, so a deleted guard would fail silently. */
+    ok((spF5.match(/Logging\.error\("Deferred VoIP (accept|reject|hangup) failed/g) || []).length === 3,
+      '★ F5-1 r3 (R-4): all three deferred VoIP Task.Run bodies carry their own catch + error line — a throw there is never silent');
+    /* ★★ loop A-1 — THE OTHER HALF OF THE EATER, in VoIPManager: the re-post is
+       reachable only if the predicate asks "ANSWERED", not "any flag set". The OR
+       of the three raw flags is the regression (calleeAccepted latches TRUE at
+       ring time for every incoming call → the cancel always won → the "Missed
+       call" re-post was DEAD CODE and the tray row vanished). */
+    {
+      const voipF5 = readFileSync(join(root, 'Spixi/VoIP/VoIPManager.cs'), 'utf8');
+      const endBody = voipF5.slice(voipF5.indexOf('private static void endVoIPSession()'), voipF5.indexOf('notification-missed-call') + 200);
+      ok(/bool answeredCall = currentCallAccepted && currentCallCalleeAccepted;/.test(endBody)
+        && /if \(answeredCall \|\| currentCallInitiator \|\| currentCallDeclinedLocally\)/.test(endBody)
+        && !/if \(currentCallAccepted \|\| currentCallCalleeAccepted \|\| currentCallInitiator\)/.test(endBody),
+        '★★ F5-1 r3 (loop A-1 + verdict R-2): endVoIPSession cancels an ANSWERED, self-placed, or LOCALLY DECLINED call — the OR-of-three that made the re-post unreachable is gone, and a decline the user made can never read back as "Missed call"');
+      ok(/currentCallDeclinedLocally = true;/.test(voipF5.slice(voipF5.indexOf('public static void rejectCall'))),
+        '★ F5-1 r3 (R-2): rejectCall latches the local decline BEFORE endVoIPSession — the one writer of the flag');
+      ok(/currentCallInitiator = false;/.test(voipF5.slice(voipF5.indexOf('currentCallSessionId = null;')))
+        && /currentCallDeclinedLocally = false;/.test(voipF5.slice(voipF5.indexOf('currentCallSessionId = null;'))),
+        'F5-1 r2/r3 (A-8 + R-2): currentCallInitiator AND currentCallDeclinedLocally reset with every other call field — a latched value would poison the predicate on the next call');
+    }
+  }
+
+  /* — F5-2 (#555): the crash diagnostic — the Android hook + the flush-bracketed
+     breadcrumbs. Without a captured stack there is no fix; this makes the NEXT
+     repro name its own site. — */
+  {
+    const iHook = mappF5.indexOf('AndroidEnvironment.UnhandledExceptionRaiser +=');
+    const iBase = mappF5.indexOf('base.OnCreate();');
+    /* ★ loop C-4 (r2): the flush must sit INSIDE the handler lambda — anywhere
+       between the hook and base.OnCreate satisfied the old pin while the dying
+       process lost the line. The handler block = from the += to its first `};`. */
+    const handlerBlock = mappF5.slice(iHook, mappF5.indexOf('};', iHook));
+    ok(iHook > 0 && iBase > iHook
+      && /\[CRASHDIAG\] Android unhandled exception/.test(handlerBlock)
+      && /Logging\.flush\(\);/.test(handlerBlock),
+      '★★ F5-2 (#555, r2 C-4): MainApplication registers the UnhandledExceptionRaiser hook BEFORE base.OnCreate, and the [CRASHDIAG] log + FLUSH sit INSIDE the handler — the stack survives the process death (a native crash or a pure Java-side throw still needs adb logcat, A-7)');
+    /* ★ loop C-5 (r2): BRACKETED is an ORDER claim — assert crumb/step interleaving
+       by index, not by count. All three entry points (A-6 added the chat-info leg). */
+    const orderOk = (src, pairs) => {
+      let last = -1;
+      for (const p of pairs) { const i = src.indexOf(p, last + 1); if (i < 0) return false; last = i; }
+      return true;
+    };
+    ok(orderOk(cdF5, ['[CRASHDIAG] leave: start', 'sendLeave(friend, null)', '[CRASHDIAG] leave: sent', 'displaySpixiAlert', '[CRASHDIAG] leave: popping to root', 'Logging.flush();', 'popToRootAsync();', '[CRASHDIAG] leave: teardown dispatched', '[CRASHDIAG] leave: first async nav turn drained']),
+      '★★ F5-2 r2 (C-5): the ContactDetails leave crumbs INTERLEAVE the teardown steps in order — start → sendLeave → sent → alert → pop-crumb → flush → pop → dispatched → the POSTED drained marker (A-4: the async turn is bracketed too)');
+    {
+      const hpF5 = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
+      ok(orderOk(hpF5, ['[CRASHDIAG] removecontact: start', 'SContacts.removeContact(f, leave, out blockers)', '[CRASHDIAG] removecontact: status=', 'Logging.flush();', 'popPageAsync', '[CRASHDIAG] removecontact: teardown dispatched']),
+        '★★ F5-2 r2 (C-5): the HomePage crumbs interleave the removal steps in order — and say "dispatched", not "done" (A-4)');
+      const scpF5c = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8');
+      ok(orderOk(scpF5c, ['[CRASHDIAG] chatleave: start', 'sendLeave(friend, null)', '[CRASHDIAG] chatleave: sent', '[CRASHDIAG] chatleave: teardown dispatched']),
+        '★ F5-2 r2 (A-6): the THIRD leave path (SingleChatPage — one shell edit from live) is bracketed too, so the diagnostic cannot exonerate a path it never watched');
+    }
+  }
+}
+
+/* ═══ ★ #564 — the EMPTY restore alert (Damir, Windows walk 2026-08-25) ═══════════
+   The four intro-restore-file-* alert keys never existed in ANY lang file and the
+   LaunchPage sites had no fallbacks — a failed file pick showed a BLANK native
+   dialog with only "Ok". Both halves pinned; the PICKER failure itself is a
+   separate finding (the ixian.log "Exception choosing file" line names it). */
+{
+  const enLang = readFileSync(join(root, 'Spixi/Resources/Raw/lang/en-us.txt'), 'utf8');
+  const slLang = readFileSync(join(root, 'Spixi/Resources/Raw/lang/sl-si.txt'), 'utf8');
+  ok(['intro-restore-file-error-title', 'intro-restore-file-selecterror-text',
+      'intro-restore-file-readerror-text', 'intro-restore-file-writeerror-text']
+      .every((k) => new RegExp('^' + k + ' = .{10,}', 'm').test(enLang) && new RegExp('^' + k + ' = .{10,}', 'm').test(slLang)),
+    '★ #564: the four restore-alert keys exist with real values in the lang files (en-us + a locale spot-check) — they were missing from ALL 13');
+  const lpF5 = readFileSync(join(root, 'Spixi/Pages/Launch/LaunchPage.xaml.cs'), 'utf8');
+  ok((lpF5.match(/_SL\("intro-restore-file-error-title"\) \?\? "/g) || []).length === 4
+     && !/_SL\("intro-restore-file-[a-z]+-text"\), SpixiLocalization/.test(lpF5),
+    '★ #564: every restore-alert site carries a ?? fallback (the #334 L1 honest-alert grammar) — an alert can never render EMPTY again');
+}
+
+/* ★ #565 — the A2 walk (Damir): backup/restore hardenings */
+{
+  const bp565 = readFileSync(join(root, 'Spixi/Pages/Settings/BackupPage.xaml.cs'), 'utf8');
+  const lp565 = readFileSync(join(root, 'Spixi/Pages/Launch/LaunchPage.xaml.cs'), 'utf8');
+  ok(bp565.includes('archive.CreateEntryFromFile(file, "Acc/" + file.Substring(file.IndexOf(root_path) + root_path.Length + 1).Replace(') 
+     && !bp565.includes('CreateEntryFromFile(file, Path.Combine("Acc"'),
+    '★ #565: backup zip entries use FORWARD slashes explicitly (APPNOTE 4.4.17) — Path.Combine wrote backslashes on Windows, and a PC-made backup extracted as garbage names on Android (silent wallet-only restore)');
+  ok(lp565.includes("if (strayName.IndexOf('") && lp565.includes("strayName.Replace('"),
+    '★ #565: the restore REHOMES backslash-named stray files — old Windows-made backups restore fully instead of degrading');
+  ok(/if \(Directory\.Exists\(accDest\)\)\s*\{\s*Directory\.Delete\(accDest, true\);/.test(lp565)
+     && /if \(Directory\.Exists\(accSrc\)\)/.test(lp565)
+     && /the backup carries NO Acc tree/.test(lp565)
+     && !/^\s*Directory\.Delete\(Path\.Combine\(Config\.spixiUserFolder, "Acc"\), true\);/m.test(lp565),
+    '★ #565: exists-guards on the Acc delete/move — a missing folder (post-wipe, fresh install, Acc-less backup) can no longer throw into the silent wallet-only catch; the Acc-less case logs itself');
+}
+
+/* ★ #567 — bot leave = ONE grammar (Damir: "mitigate", C10 logcat root cause).
+ * The pendingDeletion-until-leaveConfirmed wait fed the server's confirm into
+ * the frozen core's SELF-RECURSIVE StreamClientManager.getClient (BE §1e-6) =
+ * a deterministic StackOverflow. All four leave sites now do sendLeave then
+ * IMMEDIATE removeFriend; no site sets pendingDeletion any more. */
+{
+  const sc567 = readFileSync(join(root, 'Spixi/Utils/SContacts.cs'), 'utf8');
+  const cd567 = readFileSync(join(root, 'Spixi/Pages/Contacts/ContactDetails.xaml.cs'), 'utf8');
+  const scp567 = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8');
+  const leaveShape = /sendLeave\((?:friend|group), null\);\s*(?:\/\/[^\n]*\n\s*)*FriendList\.removeFriend\((?:friend|group)\);\s*(?:\/\/[^\n]*\n\s*)*UIHelpers\.shouldRefreshContacts = true;/;
+  ok(leaveShape.test(sc567) && !/pendingDeletion = true/.test(sc567),
+    '★ #567 ①: SContacts.leaveGroup = sendLeave → immediate removeFriend for group AND bot; pendingDeletion is never set');
+  ok((cd567.match(new RegExp(leaveShape.source, 'g')) || []).length >= 2 && !/pendingDeletion = true/.test(cd567),
+    '★ #567 ②③: ContactDetails ixian:leave AND onRemove() bot branch both use the one grammar; pendingDeletion is never set');
+  ok(/StreamProcessor\.sendLeave\(friend, null\);\s*(?:\/\/[^\n]*\n\s*)*FriendList\.removeFriend\(friend\);/.test(scp567) && !/pendingDeletion = true/.test(scp567),
+    '★ #567 ④: SingleChatPage ixian:leave (the third path) uses the one grammar; pendingDeletion is never set');
+  ok(/§1e-6/.test(sc567) && /getClient/.test(sc567),
+    '★ #567: the mechanism comment cites BE §1e-6 (the core one-line fix that may restore the acknowledged grammar later) — the mitigation is not silent');
+}
+
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.

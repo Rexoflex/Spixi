@@ -14,6 +14,7 @@ using System.IO;
 using System;
 using Microsoft.Maui.ApplicationModel;
 using System.Threading;
+using System.Threading.Tasks;   // F5-1 r2 (loop A-2): the deferred VoIP handling hops back off the UI thread
 using System.Linq;
 
 namespace SPIXI
@@ -718,8 +719,45 @@ namespace SPIXI
                 return;
             }
 
+            /* ★ F5-1 (#554, r2 shape per loop A-2) — the session-check RACE, accept leg.
+             * handleAppRequest creates the VoIP session on a DEFERRED main-thread block
+             * (the spixi.voip branch above), but this check ran on the stream thread. A
+             * fetched batch delivers the call and its follow-up back-to-back, so this
+             * check could run BEFORE the session existed and the event was lost. The main
+             * thread runs queued blocks in order, so a re-check queued here runs AFTER
+             * the pending session creation. The live-call path above is unchanged.
+             * ⚠ r2 (A-2): the deferral carries ONLY the VoIP re-check. The main-thread
+             * hop exists to ORDER the check behind the pending creation; the handling
+             * itself hops back off the UI thread (the VoIP handlers all re-guard on
+             * hasSession internally). The MINI-APP fall-through below stays on the
+             * CALLING thread — its page handlers self-dispatch, and a second queue hop
+             * could deliver onNetworkData before onRequestAccept. In the rare racing
+             * case the fall-through logs one stale "App session does not exist." line
+             * before the deferred block resolves the call — pre-existing shape. */
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (!VoIPManager.hasSession(app_data.sessionId))
+                {
+                    return;   // no racing creation — the synchronous app path already ran
+                }
+                Logging.info("[NOTIFDIAG] app accept re-check found the VoIP session on the main thread (F5-1 race)");
+                Task.Run(() =>
+                {
+                    // r3 (verdict R-4): receiveData's catch-all no longer covers this hop — fence it
+                    try
+                    {
+                        VoIPManager.onAcceptedCall(app_data.sessionId, app_data.data);
+                        UIHelpers.refreshAppRequests = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.error("Deferred VoIP accept failed: " + ex);
+                    }
+                });
+            });
+
             MiniAppPage? page = Node.MiniAppManager.getAppPage(group_sender_address, app_data.sessionId);
-            if(page == null)
+            if (page == null)
             {
                 Logging.info("App session does not exist.");
                 return;
@@ -749,6 +787,31 @@ namespace SPIXI
                 return;
             }
 
+            /* ★ F5-1 (#554, r2 per loop A-2) — the session-check RACE, reject leg. Same
+             * shape as the accept leg: the main-thread hop ORDERS the re-check behind the
+             * pending creation; the handling hops back off the UI thread; the mini-app
+             * fall-through stays on the calling thread. See handleAppRequestAccept. */
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (!VoIPManager.hasSession(session_id))
+                {
+                    return;
+                }
+                Logging.info("[NOTIFDIAG] app reject re-check found the VoIP session on the main thread (F5-1 race)");
+                Task.Run(() =>
+                {
+                    try
+                    {
+                        VoIPManager.onRejectedCall(session_id);
+                        UIHelpers.refreshAppRequests = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.error("Deferred VoIP reject failed: " + ex);   // R-4
+                    }
+                });
+            });
+
             MiniAppPage page = Node.MiniAppManager.getAppPage(group_sender_address, session_id);
             if (page == null)
             {
@@ -777,6 +840,39 @@ namespace SPIXI
                 UIHelpers.refreshAppRequests = true;
                 return;
             }
+
+            /* ★ F5-1 (#554, r2 per loop A-2) — the session-check RACE, end leg: HALF of
+             * the missed-call eater (the other half was the dead predicate in
+             * endVoIPSession — loop A-1, VoIPManager.cs:212). The offline fetch delivers
+             * a missed call as voiceCall + voiceCallEnd back-to-back on the fetch thread.
+             * The voiceCall leg queues its session creation for the main thread
+             * (handleAppRequest); this check ran on the fetch thread and found NO session
+             * yet → onHangupCall never ran → endVoIPSession never ran → no missed-call
+             * row, and the ring ran to timeout. The main-thread hop ORDERS the re-check
+             * behind the pending creation; the handling hops back off the UI thread
+             * (onHangupCall re-guards on hasSession); the mini-app fall-through stays on
+             * the calling thread (A-2). A repro that still loses the row logs the line
+             * below plus "endVoIPSession: could not update the call notification". */
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (!VoIPManager.hasSession(session_id))
+                {
+                    return;
+                }
+                Logging.info("[NOTIFDIAG] app end-session re-check found the VoIP session on the main thread (F5-1 race)");
+                Task.Run(() =>
+                {
+                    try
+                    {
+                        VoIPManager.onHangupCall(session_id);
+                        UIHelpers.refreshAppRequests = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.error("Deferred VoIP hangup failed: " + ex);   // R-4
+                    }
+                });
+            });
 
             MiniAppPage? page = Node.MiniAppManager.getAppPage(group_sender_address, session_id);
             if (page == null)

@@ -106,14 +106,20 @@
    further down MEANT typing — fixed by making it SCROLL (cap raised in
    wallet-receive.js). The card treatment tried in round 1 is REVERTED: this strip
    already sits inside the request box, so a second surface stacked its padding on top
-   of that one and read cramped. Scroll only — no background, radius, padding or
-   elevation. Height cap keeps the amount field on screen with the keyboard up. */
+   of that one and read cramped. ★ #560 (Damir, screenshots 2026-08-25) REVERSES
+   both halves of that ruling: the capped 5-row INNER scroller was the "weird" he
+   flagged (scroll-inside-scroll on touch, the CTA detached from the pick), and
+   the list now wears the DIRECTORY CARD — byte-parity with .c-contacts__list
+   (#149③ anti-drift). Full-length list, the PAGE scrolls, the CTA below goes
+   STICKY so it stays reachable. The keyboard case is served by order (amount is
+   on top and W-k drops the keyboard on Enter), not by a cap. */
 .c-wallet-receive__contacts {
   display: flex;
   flex-direction: column;
-  max-height: 328px;              /* loop r1 m5: 5 × the 64px W-j row + the card padding — Damir's F5 "5 reachable" stands */
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  background: var(--surface-card);
+  border-radius: var(--radius-16);
+  padding: var(--spacing-4);
+  box-shadow: var(--elevation-1);
 }
 /* ★ W-j (Damir F5 2026-08-23): the row anatomy MOVED to contact-row.css — the rows
    are the shared c-contact-row now (directory grammar: avatar-48 + name + truncated
@@ -138,8 +144,18 @@
   color: var(--text-success);
 }
 .c-wallet-receive__result[data-tone='error'] { color: var(--text-error); }
-/* W9 CTA — the one thing on this surface that can send. Full width, primary. */
-.c-wallet-receive__cta { margin-block-start: var(--spacing-4); }
+/* W9 CTA — the one thing on this surface that can send. Full width, primary.
+   ★ #560: STICKY — the list is full-length now (the page scrolls), so the send
+   action pins itself to the bottom of the scroller, rows sliding beneath it,
+   reachable at any scroll depth and clear of the home indicator. elevation-2
+   separates it from the rows passing under. */
+.c-wallet-receive__cta {
+  margin-block-start: var(--spacing-4);
+  position: sticky;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--spacing-8));
+  z-index: 1;
+  box-shadow: var(--elevation-2);
+}
 .c-wallet-receive__none {
   margin: 0;
   padding: var(--spacing-8) var(--spacing-12);
@@ -176,16 +192,32 @@
    the INNER cap must bind first or the outer dialog scrolls with its own bar (the
    exact W-c symptom). 76vh − 24×2 padding − ~44 title/gap = the usable inner height. */
 :root[data-desktop] .c-addr-sheet { max-height: calc(76vh - 92px); }
+/* ★ F5-5 ② (#556, Damir F5 2026-08-24): the desktop dialog showed NO scrollbar on
+   overflow. Two causes: the OUTER dialog (.c-sheet, overflow-y:auto in overlay.css)
+   could scroll instead of this element, and the u-scroll thumb is hover-only.
+   The addr dialog now clips (the inner .c-addr-sheet is the one scroller), and its
+   thumb is PERSISTENT while it overflows — slim + themed, the contact-list look. */
+:root[data-desktop] .c-sheet--addr { overflow-y: hidden; }
+@media (hover: hover) and (pointer: fine) {
+  :root[data-desktop] .c-addr-sheet.u-scroll {
+    scrollbar-color: var(--outline-neutral-02) transparent;
+  }
+  :root[data-desktop] .c-addr-sheet.u-scroll::-webkit-scrollbar-thumb {
+    background: var(--outline-neutral-02);
+  }
+}
 .c-addr-sheet__qrwrap { display: flex; justify-content: center; }
 .c-addr-sheet__qrcard {
   /* scale with the viewport on BOTH axes: a short window shrinks the code before
-     it pushes the chip below the fold. --surface-qr stays near-white in both themes. */
+     it pushes the chip below the fold. --surface-qr stays near-white in both themes.
+     ★ F5-5 ① (#556, Damir F5 2026-08-24): card padding DROPPED to the Account
+     proportions (.c-settings__qr has none — N86). The SVG's own ISO quiet zone is
+     the white margin; the extra 20px ring doubled it. Radius joins the Account
+     family (radius-16); the hairline outline goes with the padding. */
   width: min(280px, 52dvh, 86vw, 100%);
-  padding: var(--spacing-20);
-  border-radius: var(--radius-24);
-  box-shadow: var(--elevation-2);
-  outline: var(--outline-width-1) solid var(--outline-neutral-01);
-  outline-offset: -1px;
+  padding: 0;
+  border-radius: var(--radius-16);
+  box-shadow: var(--elevation-1);
 }
 @supports not (height: 1dvh) { .c-addr-sheet__qrcard { width: min(280px, 52vh, 86vw, 100%); } }
 .c-addr-sheet__caption {
@@ -211,14 +243,16 @@
 .c-addr-sheet__addr .c-wallet-receive__copy[data-state='ok'] { color: var(--icon-success); }
 .c-addr-sheet__addr .c-wallet-receive__copy[data-state='fail'] { color: var(--icon-error); }
 .c-addr-sheet__share { margin-block-start: calc(-1 * var(--spacing-4)); }
-/* the explainer block — an info disc leads two quiet lines; the safety line
-   carries the shield glyph inline */
+/* the explainer block — ★ F5-5 ③ (#556): ONE glyph level. The filled disc read as
+   an icon inside an icon (Damir screenshot); a bare tinted info-circle leads the
+   two quiet lines. The safety line keeps its inline shield glyph. */
 .c-addr-sheet__explain {
   display: flex; align-items: flex-start; gap: var(--spacing-12);
   padding: var(--spacing-12) var(--spacing-12) var(--spacing-12) var(--spacing-12);
   border-radius: var(--radius-16);
   background: var(--surface-neutral-02);
 }
+.c-addr-sheet__explainicon { flex: none; margin-top: 1px; color: var(--icon-info); display: inline-flex; }
 .c-addr-sheet__explaintext { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--spacing-8); }
 .c-addr-sheet__info {
   margin: 0;

@@ -226,8 +226,21 @@ namespace Spixi
         // ★ 3.14: signature parity — see the Android implementation. Not wired on this
         // platform (no per-id local notification surface here), but present so the shared
         // call site compiles and behaves identically everywhere.
+        /* ★ D1 (#549): the iOS twin of the Android tag — a call row's request identifier
+         * is "call-<id>", so the message sweep below can spare it and this cancel can
+         * reach it. Local rows only; the OneSignal push rows keep their own ids. */
+        public const string CALL_PREFIX = "call-";
         public static void cancelNotification(int messageId)
         {
+            try
+            {
+                UNUserNotificationCenter.Current.RemoveDeliveredNotifications(new string[] { messageId.ToString(), CALL_PREFIX + messageId.ToString() });
+                UNUserNotificationCenter.Current.RemovePendingNotificationRequests(new string[] { messageId.ToString(), CALL_PREFIX + messageId.ToString() });
+            }
+            catch (Exception e)
+            {
+                Logging.warn("cancelNotification failed: " + e.Message);
+            }
         }
 
         public static void clearNotifications(int unreadCount)
@@ -244,8 +257,38 @@ namespace Spixi
             {
                 try
                 {
-                    OneSignalNative.Notifications.ClearAll();
-                    UNUserNotificationCenter.Current.RemoveAllDeliveredNotifications();
+                    /* ★ D1 loop r1 MAJOR-4: OneSignalNative.Notifications.ClearAll() is the
+                     * SDK's app-wide removeAllDeliveredNotifications — it would erase the
+                     * `call-` rows one line before the sparing sweep below. DROPPED: the
+                     * enumerated removal covers the SDK's rows too (they are delivered
+                     * notifications like any other and carry no call- prefix). */
+                    // D1 (#549): remove the delivered rows EXCEPT the call rows (the missed call stays)
+                    UNUserNotificationCenter.Current.GetDeliveredNotifications((delivered) =>
+                    {
+                        try
+                        {
+                            var ids = new System.Collections.Generic.List<string>();
+                            if (delivered != null)
+                            {
+                                foreach (var n in delivered)
+                                {
+                                    string id = n?.Request?.Identifier ?? "";
+                                    if (id.Length > 0 && !id.StartsWith(CALL_PREFIX, StringComparison.Ordinal))
+                                    {
+                                        ids.Add(id);
+                                    }
+                                }
+                            }
+                            if (ids.Count > 0)
+                            {
+                                UNUserNotificationCenter.Current.RemoveDeliveredNotifications(ids.ToArray());
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Logging.warn("clearNotifications sweep failed: " + ex.Message);
+                        }
+                    });
                 }
                 catch (Exception e)
                 {
@@ -309,7 +352,7 @@ namespace Spixi
                 };
 
                 var trigger = UNTimeIntervalNotificationTrigger.CreateTrigger(0.25, false);
-                string identifier = messageId.ToString();
+                string identifier = (kind == "call" ? CALL_PREFIX : "") + messageId.ToString();   // D1 (#549): call rows are spared by the sweep
                 var request = UNNotificationRequest.FromIdentifier(identifier, content, trigger);
 
                 UNUserNotificationCenter.Current.AddNotificationRequest(request, (err) =>

@@ -81,6 +81,7 @@
 <link rel="stylesheet" href="../styles/components/txlist-item.css">
 <link rel="stylesheet" href="../styles/components/wallet-hero.css">
 <link rel="stylesheet" href="../styles/components/wallet-shell.css">
+<link rel="stylesheet" href="../styles/components/contact-row.css"><!-- ★ W-j: the shared money-picker row (Send + Receive) -->
 <link rel="stylesheet" href="../styles/components/wallet-receive.css"><!-- Receive/Request takeover (zero-C#) -->
 <link rel="stylesheet" href="../styles/components/wallet-send.css"><!-- Send compose/review takeover (BE-gated composeSend) -->
 <!-- apps tab (tab3, ARCHITECTURE section 5 — home shell internal view) -->
@@ -361,6 +362,7 @@
   const {
     createTopbar, createBottomNav, setNavBadge, setNavActive,
     createChatsList, renderChatsList, setChatsFilter, setChatsQuery, chatsUnreadTotal,
+    setRemoveSheetGroups, setRemoveSheetResult,   // ★ Batch A (A4/A5/A6): the remove-contact sheet's C# answers
     truncateAddressMiddle,               // B4 (#231): excerpt canon — addresses never shown in full
     createChatsHeader, attachChatsCollapse, setChatsHeaderCounts, acceptContactRequest, completeHandshake,
     createWarningBanner, setWarning,     // M16: actionable warnings only (connectivity = title-state)
@@ -380,10 +382,12 @@
     resetSearchFields,                   // ★ BUG-3: visit-scoped search reset (search-field.js)
     setChipSelected,
     createWalletReceive,                 // Receive/Request takeover (zero-C#)
+    closeAddressSheet,                   // r2 n5: the takeover closes its address sheet on the way out
     isDesktopPresentation,               // N38: Share hides on desktop (dead ladder; Copy beside it)
     createWalletSend,                    // Send compose/review takeover (cap-gated; W5/W6 live it)
     setSendQuote: applySendQuote,        // W6 (#523) — aliased: the bridge handler below shares
     setSendAddress,                      //   the name (the setScanProgress precedent above)
+    setSendRecipient,                    // ★ W-f: a scanned KNOWN address auto-picks the contact
     // apps (tab3)
     createAppsList, renderAppsList, setAppsQuery, setAppsLayout, createAppsHeader,
     setAppsHeaderEmpty,                  // nothing installed → hide the dead search/layout row
@@ -918,7 +922,7 @@
     // sheets/menus sit ABOVE takeovers (z-40 > z-30) — close the top one first.
     if (typeof dismissTopOverlay === 'function' && dismissTopOverlay()) return true;
     if (walletTakeover && walletTakeoverClose) { walletTakeoverClose(); return true; }
-    if (contactsView) { contactsView.close(); return true; }   // onClose nulls the handle + syncs
+    if (contactsView) { contactsView.close('back'); return true; }   // onClose nulls the handle + syncs · C4: hardware back IS the user's Back
     return false;
   }
   /* W2 (Damir, Windows F5 2026-08-12) — RAIL TAP WHILE A TAKEOVER IS OPEN.
@@ -1013,13 +1017,30 @@
    * (topbar): Add contact only; tap = contact details. 'app' + appId (mini-app
    * launch target): opens straight in the select grammar group creation uses, but
    * SINGLE-select; ✓ emits ixian:startappwith:<appId>:|<addr>. One open at a time. */
-  function openContacts(purpose, appId) {
+  /* ★ C4 (#547, #533 ③): `returnTo: 'account'` — the directory opened FROM the
+     Account hub's Contacts row goes BACK to Account, not to Chats. THE #294
+     MECHANISM, found first: the N42 row rode the #238 landtab hand-off, which EXITS
+     Account (parking it, #315), lands on Chats and opens this takeover — so its Back
+     could only ever reveal Chats. The IA move builds on exactly that: the takeover
+     remembers where it came from, and its OWN Back (reason 'back') re-presents
+     Account through the normal `ixian:settings` verb — instant, because the exit
+     parked the page (and C3 keeps it warm from boot). A programmatic close (a tab
+     tap, an app launch, a chat open) never re-opens Account. The old entry points
+     (topbar Contacts, the FAB) pass no returnTo and behave as before. */
+  function openContacts(purpose, appId, opts) {
+    const returnTo = (opts && opts.returnTo) || '';
     if (contactsView) contactsView.close();       // onClose nulls the handle
     leaveSurfaceSearch();   // BUG-3: a takeover covers the tab — its query does not outlive the visit
     contactsView = mountContacts({
       host: document.body, bridge, strings, purpose, appId: appId || '',
       getRoster: () => directoryRoster(),               // iOS-26: groups included in BOTH purposes
-      onClose: () => { contactsView = null; syncHomeOverlay(); },   // AND-29
+      onClose: (reason) => {
+        contactsView = null; syncHomeOverlay();         // AND-29
+        if (reason === 'back' && returnTo === 'account') {
+          setNavActive(nav, 'account');
+          deferToPaint(() => bridge.send('ixian:settings'));   // the same deferral the Account tab uses
+        }
+      },
     });
     syncHomeOverlay();   // AND-29: tell C# a takeover is up (hardware back closes it, not the app)
   }
@@ -1112,7 +1133,7 @@
       setNavActive(nav, 'chats');
       showView('chats');
       bridge.send('ixian:tab:' + NAV_TO_TAB.chats);
-      openContacts('directory');
+      openContacts('directory', '', { returnTo: 'account' });   // ★ C4: Back returns to Account, never Chats
       return;
     }
     if (id === 'account' || !NAV_TO_TAB[id]) return;
@@ -1222,10 +1243,39 @@
     //   delete {media:false} → row only (→ ixian:removehistory soft)
     //   delete {media:true}  → + on-device media/files purge
     //   deleteContact        → also remove the contact (→ ixian:remove)
+    // ★ Batch A (#539) A4/A5: the remove-contact sheet asks for the shared groups;
+    // C# answers with `setSharedGroups(addr, name, addr, …)` (below).
+    onNeedGroups: (addr) => { if (addr) bridge.send('ixian:sharedGroups:' + addr); },
     onPersist: (action, chat, detail) => {
+      /* ★ B1 (Batch B): revoking an OUTGOING pending request from the list → the
+         address-scoped `ixian:undorequest:<addr>` (HomePage, #543). The row is gone
+         locally; C# answers `undoRequestResult` and a refusal un-tombstones it. */
+      if (action === 'revokeRequest' && chat && chat.address) {
+        bridge.send('ixian:undorequest:' + chat.address);
+        deletedChats.set(chat.address, { ts: Number(chat.timestamp) || 0, unread: Number(chat.unread) || 0 });
+        requestAddrs.delete(chat.address);
+        if (pinnedChats.delete(chat.address)) savePins();   // loop r1 m-1: a revoked row sheds its pin (the delete twin's rule)
+        leaveRequestsFilterIfEmpty();
+        return;
+      }
       if ((action === 'delete' || action === 'deleteContact') && chat && chat.address) {
-        // no HomePage dispatch yet — intent only. Capture the tail the user deleted
-        // (timestamp + unread) so a LATER message can prove itself new (BUG-1b).
+        /* ★ Batch A (#539) — A6, THE DATA BUG. This branch said "no HomePage dispatch
+           yet — intent only" and tombstoned the row; the contact and its history stayed
+           on disk, and the next contacts flush showed the contact still in Contacts.
+           HomePage now dispatches the address-scoped twins of ContactDetails' verbs:
+             delete        → ixian:removehistory:<addr>          (the chat: history file + in-memory list)
+             deleteContact → ixian:removecontact:<addr>:<leave>  (the contact; leave=1 → leave every
+                                                                  shared group FIRST — Core refuses a group member)
+           Both answer with a result push (removeHistoryResult / removeContactResult) so a
+           refusal UN-tombstones the row: a row that vanished while the data stayed is the
+           lie this fixes. `detail.media` (on-device media purge) still has no verb — noted
+           in the handoff as a BE row, not faked. */
+        if (action === 'delete') bridge.send('ixian:removehistory:' + chat.address);
+        else bridge.send('ixian:removecontact:' + chat.address + ':' + ((detail && detail.leaveGroups && detail.leaveGroups.length) ? '1' : '0'));
+        // (the unsent draft is purged on the SUCCESS answer — removeHistoryResult ok — loop r2 R2-4:
+        //  a refused delete un-tombstones the row and must not have destroyed the draft)
+        // Capture the tail the user deleted (timestamp + unread) so a LATER message can
+        // prove itself new (BUG-1b).
         deletedChats.set(chat.address, { ts: Number(chat.timestamp) || 0, unread: Number(chat.unread) || 0 });
         reactionExcerpts.delete(chat.address);   // CH8: drop sticky excerpt with the row (no stale re-apply on resurrect)
         dropExdelHint(chat.address);      // Q12: a deleted ROW sheds its deleted-tail hint too
@@ -1867,13 +1917,14 @@
    * quote lands. No invented fee, ever. */
 
   /* setAddress delivers `new ExtendedAddress(primary, OfflineTag, null).ToString()`
-   * (HomePage.xaml.cs:673). Empirically the legacy pages (address.html,
-   * wallet_request.html) use that string verbatim as the wallet id and append `:ixi`
-   * for the QR — i.e. ToString() is the bare base58 address; OfflineTag is a C#-side
-   * payment flag, not part of the string. Defensive extraction anyway: strip anything
-   * from the first ':' (mirrors the legacy QR parse, bridge-audit-A:200 — "if payload
-   * contains :ixi take the prefix as wallet"), so we never double-suffix the
-   * component's own `:ixi`. NEEDS BE CONFIRMATION (be-cutover W-series). */
+   * (HomePage.xaml.cs:1703). ★ ANSWERED AT SOURCE (Batch W loop, 2026-08-24; closes
+   * be-cutover W7): ExtendedAddress.ToString() (Ixian-Core ExtendedAddress.cs:199-208)
+   * is the bare base58 address ONLY for Primary+no tag; for OfflineTag it is
+   * `<base58>_<base58(ext)>` — so the pushed string, the legacy QR and the new sheet
+   * QR all carry the EXTENDED form. That is correct: the legacy address.html used it
+   * verbatim and every scanner (SPayments.handleSignSend → `new ExtendedAddress(str)`)
+   * parses it. The roster, by contrast, carries bare `friend.walletAddress` — the W-f
+   * lookup compares the part before '_'. No colon is ever in the string. */
   function cleanReceiveAddress(raw) {
     // Use the pushed address VERBATIM (legacy address.html/wallet_request.html do —
     // ExtendedAddress.ToString() is a bare base58 address, no colon). An earlier
@@ -2057,7 +2108,7 @@
     const over = document.createElement('div');
     over.className = 'wallet-takeover';
     walletTakeover = over;
-    const close = () => { over.remove(); walletTakeover = null; walletTakeoverClose = null; syncHomeOverlay(); };  // AND-29
+    const close = () => { closeAddressSheet(); over.remove(); walletTakeover = null; walletTakeoverClose = null; syncHomeOverlay(); };  // AND-29 · r2 n5: no sheet outlives its screen
     walletTakeoverClose = close;   // AND-29: hardware back closes this takeover
     syncHomeOverlay();   // AND-29 v2: notify C# the wallet takeover is up
     // walletStrings IS the live dict + the explorer override (slWith) — the old
@@ -2178,6 +2229,7 @@
     over.className = 'wallet-takeover';
     walletTakeover = over;
     const close = () => {
+      if (walletSendView && walletSendView._closeReview) { try { walletSendView._closeReview(); } catch (e) {} }   // loop r1 M4: no orphan sheet
       over.remove(); walletTakeover = null; walletTakeoverClose = null;
       walletSendView = null; walletSendCtrl = null;           // stale pushes must find nobody
       clearWalletSendWait();
@@ -2210,13 +2262,16 @@
         // loop MAJOR fix: a dropped push must not strand a locked sheet forever —
         // the tipWait grammar. The copy must NOT claim failure: the tx may be out.
         clearWalletSendWait();
+        // Loop r2 R2-1 (Batch W): ABOVE C#'s 120 s confirm self-heal (SPayments.acquireConfirm)
+        // — at 30 s a slow user still had the native dialog open; the shell declared
+        // failure, dropped the ctrl, and the real 'ok' had nobody to land on.
         walletSendWait = setTimeout(() => {
           walletSendWait = 0;
           const c = walletSendCtrl;
           if (!c) return;
           walletSendCtrl = null;
           c.fail((window.SL && window.SL.sendNoAnswer) || 'No response from the app. Check your wallet activity before you try again.');
-        }, 30000);
+        }, 125000);
         bridge.send('ixian:signSend:' + r.address + ':' + payload.amount);
       },
       onDone: () => close(),             // success morph finished → close the takeover
@@ -2234,7 +2289,15 @@
     strings: walletStrings,
     onSend: mountWalletSend,                               // BE-gated compose; falls back to ixian:sendixi in v1
     onReceive: mountWalletReceive,                         // redesigned Receive takeover (zero-C#); falls back to native if no address yet
-    onScan: () => bridge.send('ixian:quickscan'),
+    /* ★ W-e (Android F5 2026-08-23): the wallet-hero scan is PAYMENT INTENT — a
+       receive QR (`addr:ixi`) must COMPOSE, not land in add-contact. The generic
+       `ixian:quickscan` routes only `:send` payloads to the compose (C#
+       processQRResult; `addr:ixi`/bare fall through to ContactNewPage — legacy
+       behaviour). `ixian:sendScan` (C# quickScanForSend, #523) returns EVERY
+       decoded payload through quickScanResult, which opens the compose and parses
+       addr / addr:ixi / addr:send:amount. Old exe (no caps): the legacy route. The
+       contacts flow keeps its own scan entry unchanged. */
+    onScan: () => bridge.send(bridge.cap('composeSend') ? 'ixian:sendScan' : 'ixian:quickscan'),
     // hero toggles its own state, then reports it → persist server-side (home.js
     // toggleBalance). #263 global hide: the rows follow the eye IMMEDIATELY (the
     // C# verb only persists — it doesn't echo a setHideBalance back).
@@ -3269,6 +3332,62 @@
        an undefined one throws while the arguments are evaluated, before the dispatcher can
        catch it (#258). Additive: an older exe never sends it and every row reads unmuted,
        which is exactly today's behaviour. */
+    /* ★ Batch A (#539–#541): the remove-contact answers. Pairs are flat name/address
+       (each arg transport-escaped by C#; rendered via textContent). */
+    setSharedGroups(address, ...pairs) {
+      const groups = [];
+      for (let i = 0; i + 1 < pairs.length; i += 2) groups.push({ name: String(pairs[i] || ''), address: String(pairs[i + 1] || '') });
+      if (!setRemoveSheetGroups(String(address || ''), groups)) dbg('setSharedGroups (no live sheet)');
+    },
+    removeContactResult(address, status, ...pairs) {
+      const addr = String(address || '');
+      const st = String(status || '');
+      const s = window.SL || {};
+      if (st === 'ok') {
+        try { showToast({ text: s.contactRemoved || 'Contact removed', tone: 'success', host: document.body, strings: s }); } catch (e) {}
+        return;
+      }
+      if (st === 'left') {                                // loop r1: a group/bot LEAVE — a bot stays until the server acknowledges
+        try { showToast({ text: s.leftGroupToast || 'You left the group', tone: 'success', host: document.body, strings: s }); } catch (e) {}
+        return;
+      }
+      // a refusal: the contact is STILL there — the tombstone must not lie about it
+      deletedChats.delete(addr);
+      const groups = [];
+      for (let i = 0; i + 1 < pairs.length; i += 2) groups.push({ name: String(pairs[i] || ''), address: String(pairs[i + 1] || '') });
+      if (st === 'blocked' && setRemoveSheetResult(addr, 'blocked', groups, s)) return;
+      const names = groups.map((g) => g.name || g.address).filter(Boolean).join(', ');
+      const text = st === 'blocked'
+        ? (s.removeBlockedToast || 'Not removed: still a member of {groups}. Leave the group first.').split('{groups}').join(names)
+        : (s.removeContactFailed || 'The contact could not be removed.');
+      try { showToast({ text, tone: 'error', host: document.body, strings: s }); } catch (e) {}
+    },
+    undoRequestResult(address, status) {
+      const addr = String(address || '');
+      const s = window.SL || {};
+      if (String(status || '') === 'ok') {
+        try { showToast({ text: s.requestRevoked || 'Request revoked', tone: 'success', host: document.body, strings: s }); } catch (e) {}
+        return;
+      }
+      // refused → un-tombstone; C# now flags shouldRefreshContacts on EVERY outcome
+      // (loop r2 R2-3 — the r1 tab-verb emit was decorative AND ran the #240
+      // overlay-exit sweep, tearing down an open pane on desktop), so the row
+      // returns on the flush already scheduled by the handler's own updateScreen.
+      deletedChats.delete(addr);
+      try { showToast({ text: s.revokeRequestFailed || 'The request could not be revoked.', tone: 'error', host: document.body, strings: s }); } catch (e) {}
+    },
+    removeHistoryResult(address, status) {
+      const addr = String(address || '');
+      if (String(status || '') === 'ok') {
+        // the C# re-flush carries the truth (no row without messages); the unsent DRAFT is the
+        // user's own plaintext and goes with the chat (loop r1) — only once the delete is real (r2 R2-4)
+        try { localStorage.removeItem(DRAFT_PREFIX + addr); } catch (e) { /* storage may be unavailable */ }
+        return;
+      }
+      deletedChats.delete(addr);                          // refused → the row may come back on the flush; never a silent lie
+      const s = window.SL || {};
+      try { showToast({ text: s.removeHistoryFailed || 'The chat history could not be deleted.', tone: 'error', host: document.body, strings: s }); } catch (e) {}
+    },
     setChatMuted(address, on) {
       const addr = address || '';
       if (!addr) return;
@@ -3342,7 +3461,21 @@
       // is send intent, so the receive view yields instead of silently eating it.
       if (!walletSendView && walletTakeover && walletTakeoverClose) walletTakeoverClose();
       if (!walletSendView) mountWalletSend();
-      if (walletSendView) setSendAddress(walletSendView, String(data || ''));
+      if (!walletSendView) return;
+      const raw = String(data || '');
+      // ★ W-f (Damir F5 2026-08-23): a scanned address that IS a contact picks the
+      // CONTACT (nickname + avatar), not the raw-address glyph row. People only —
+      // the #255/peopleRoster money fence — and the exact address, never a prefix.
+      // Loop r1 A-3 (verified at source): the receive QR is the EXTENDED form —
+      // HomePage:1703 pushes `new ExtendedAddress(primary, OfflineTag, null).ToString()`,
+      // which ExtendedAddress.cs:199-208 renders as `<base58>_<ext>` for any non-Primary
+      // flag — while the roster holds `friend.walletAddress.ToString()` (bare). Compare
+      // the base58 PAYMENT address (before '_', a char outside base58); C# re-adds
+      // OfflineTag for a friend on sign (SPayments.handleSignSend). Exact match, people only.
+      const scannedAddr = raw.split(':')[0].split('_')[0];
+      const known = scannedAddr ? peopleRoster().find((c) => c && c.address && String(c.address).split('_')[0] === scannedAddr) : null;
+      if (known && setSendRecipient(walletSendView, known, raw)) return;
+      setSendAddress(walletSendView, raw);
     },
     setVersion() { dbg('setVersion'); },
     // clearContacts/addContact/noContacts feed the contacts DIRECTORY roster

@@ -284,3 +284,27 @@ first (#215/#294). If real, the belt is to gate `SPayments.handleSignSend` /
 `handlePayRequest` on the lock-active field (same field #272 added), so a money
 confirm never opens while a lock is up.** Not fixed pre-emptively — no mechanism was
 reproduced, only surfaced by reading.
+
+## 1e. 🟡 Bot-group protocol rows (2026-08-24 F5 evidence, Ixian-Core frozen at 097341a)
+
+Four core-side items, each with file:line, surfaced by the A1/D1/F5 walk. None are
+FE-fixable; the shell already renders the honest fallback for each.
+
+1. **Roster gap — writers can be absent from the member list.** The client-side hook
+   that would fetch an unknown group sender's record on message arrival is COMMENTED
+   OUT (`CoreStreamProcessor.cs` ~:970, the "Add a pending chat list for bots" TODO).
+   A message is accepted; the roster is not updated. The shell shows the writer's
+   address on the bubble (SingleChatPage.resolveNick fallback) but the members list
+   only reads `friend.users.contacts`.
+2. **The 500-contact roster cap.** `BotUsers.setPubKey` (Ixian-Core
+   Streaming/Bot/Users/BotUsers.cs:193) DROPS entries past 500 — "TODO temporary
+   limit, should be removed after switching to db". A big public room can never list
+   more than 500 members on the client.
+3. **Post-leave streaming.** After a bot-group leave, the server keeps streaming that
+   group's messages — "Received message for group … that is invalid" repeats in every
+   log captured on 2026-08-24. Each is re-validated and re-logged forever.
+4. **No poison-message drop.** The same 4 undecryptable payloads ("mac check in
+   ChaCha20Poly1305 failed" → "Data length is negative: -1903019248" etc.) are
+   retried every few seconds ACROSS RESTARTS (all three 2026-08-24 logs). The client
+   never acks/drops an undecryptable offline message, so the S2 redelivers it
+   forever — battery + log churn, and it buries real errors.

@@ -350,3 +350,10 @@
 @media (hover: hover) and (pointer: fine) {
   .c-bubble-row > .c-fbubble__cancel:hover { color: var(--text-action-hover); }
 }
+
+/* ★ B2 (#533 ①): the app card's terminal tombstones — declined (theirs) / canceled (mine)
+   read VOID: muted name + sub, the icon dimmed. Nothing else on the card changes. */
+.c-tcard[data-state="declined"] .c-tcard__app-icon,
+.c-tcard[data-state="canceled"] .c-tcard__app-icon { opacity: var(--opacity-disabled); }
+.c-tcard[data-state="declined"] .c-tcard__app-name,
+.c-tcard[data-state="canceled"] .c-tcard__app-name { color: var(--text-neutral-02); }

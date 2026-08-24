@@ -450,3 +450,94 @@ address (`wallet_send_2.html:133` unwritten), the new one always does.
 NRE class (no null guard on a failed broadcast) · `requestFundsResponse` state mutation
 gated on an open chat page (`StreamProcessor.cs:234`) · the legacy pages themselves until
 the §5 repoint retires them.
+
+---
+
+## Batch W (2026-08-24 overnight, #536) — the wallet F5 follow-ups
+
+No new `ixian:` verb. No new push (one new status VALUE on an existing push, `gone` — row
+below). No new preference. ONE fixed-text log line (row below). The batch re-routes two
+EXISTING verbs, adds one validation gate on scanned data and moves presentation.
+
+| Item | file:line | Verdict | Evidence | Action |
+|---|---|---|---|---|
+| **Hero scan now emits `ixian:sendScan`** (was `ixian:quickscan`) | `home.html` hero `onScan` · `HomePage.quickScanForSend` | No NEW exposure — an existing verb, a second caller | `ixian:sendScan` introduced #523 (row above): same native ScanPage, decoded string returned verbatim as a push | The hero is PAYMENT intent; the payload lands in the compose's address input (value only) or — W-f — picks a roster contact by EXACT address equality (`c.address === scannedAddr`). Never a prefix match, never a name match. Old exe (no caps): the legacy `ixian:quickscan` route, unchanged |
+| **Request-in Pay → the review sheet → `ixian:payRequest:<id>`** | `chat.html openPayRequestReview` · `SPayments.handlePayRequest` | No NEW exposure — the same verb, one more explicit step BEFORE it | Baseline (#523): Pay emitted the verb directly | The sheet is a PROPOSAL surface: it shows the amount C# pushed for the card and a fee it asked for through `ixian:feeQuery` (read-only). Confirm emits the unchanged verb; C# still re-resolves the message, re-parses the amount, shows the NATIVE confirm (+ PA1 auth) and signs. The shell never sees a key. The sheet opens only for a purely numeric card amount (`/^\d+(\.\d+)?$/`); anything else keeps the direct verb |
+| **`setSendQuote` push routed to the review sheet** when no compose is open | `chat.html setSendQuote` | No exposure | Same push, same argument shape | Echo-matched: a quote for another (address, amount) pair is dropped in the sheet exactly as in the compose |
+| **Pending request-in Details DROPPED** | `chat.html buildPaymentRow` (`onDetails: null` under the cap) | REMOVES a route | The legacy `WalletContactRequestPage` (its :148 NRE class + the Decline #526 removed) is no longer reachable from the card | Old exe keeps the native view |
+| **"Confirm payments" HIDDEN on WinUI** (cap + seed withheld) | `SettingsPage:134-152` | REMOVES a no-op control | `SPayments.confirmAndAuth:381` returns before the biometric gate on WinUI | The preference is untouched; a Windows user who set it ON on another platform keeps the value — it is simply never presented where it cannot act |
+| **`setSendRecipient` free fn** | `wallet-send.js` | No exposure | — | Programmatic pick of a roster object the shell already holds; seeds the amount through the same input handler the keyboard uses (sanitized) |
+| **`openPaymentReview` export** | `wallet-send.js` | No exposure | The compose's own review sheet, extracted | Same DOM, same latch (#72④), same in-flight lock (audit C1). `textContent` only |
+| **Shared row `contact-row.js`** · `contact-row.css` · the W-h gate | components / smoke | No exposure | Presentation + a build-time gate | `textContent` only; the badge label is a string constant |
+| **Sounds #535** | `Resources/Raw/sounds/message_*.mp3` | No exposure | Same two asset paths | CC0 audio, same licence row as #497/#521 |
+
+| **`payRequestResult` gains a status value: `gone`** (loop r1 A-1) | `SPayments.handlePayRequest` (3×) · `SingleChatPage.onPayRequest` (1×) | INTRODUCED — a new VALUE on an existing push, not a new push | Baseline: "cancel" for six reasons | The five UNPAYABLE cases (not found / own / settled, zero, settled mid-confirm, group/bot) now say so; "cancel" is only the user backing out. The shell maps `gone` to a fixed localized sentence; the message slot stays empty. An old shell treats an unknown status as `fail` (its `else` branch) — never as success |
+| **`quickScanForSend` VALIDATES before it pushes** (loop r1 B-4) | `HomePage.quickScanForSend` | REMOVES reach — external data no longer enters the money compose unvalidated | Baseline (#523) forwarded `e.Value` verbatim | `ExtendedAddress.Validate` on the part before the first `:`; a failure logs a FIXED sentence (no payload in the log) and shows the legacy invalid-address alert |
+| **New log line** | `HomePage.quickScanForSend` (`Logging.warn`, fixed text) | INTRODUCED | — | "Scanned payload is not an Ixian address" — no payload, no address |
+| **Sheet teardown hooks `_closeReview` / `closePayReview`** | `wallet-send.js`, `chat.html`, `home.html` | No exposure | — | Close an orphaned overlay when its screen goes; nothing crosses |
+
+**Batch W adds NO `ixian:` verb, NO new push (one new status VALUE on `payRequestResult`),
+NO `spixi.*` localStorage key, NO WebView setting, NO HTML sink, NO network fetch and ONE
+fixed-text log line.** It removes one legacy route from the card, hides one no-op control
+and adds one validation gate on scanned data.
+
+---
+
+## Batch A (2026-08-24 overnight, #539–#541) — info · groups · the remove-contact data bug
+
+| Item | file:line | Verdict | Evidence | Action |
+|---|---|---|---|---|
+| **NEW verb `ixian:removehistory:<addr>`** (HomePage) | `HomePage.onRemoveHistoryFor` → `SContacts.removeHistory` | **INTRODUCED — address-scoped twin of ContactDetails' `ixian:removehistory`** | Baseline: the chats-list delete reached NO verb (the A6 bug) | `FriendList.getFriend(new Address(addr))` — an unknown/malformed address is a no-op inside try/catch (the A-4 rule); the body is `friend.deleteHistory()` — the legacy ContactDetails body. Result pushed |
+| **NEW verb `ixian:removecontact:<addr>:<leave>`** (HomePage) | `HomePage.onRemoveContactFor` → `SContacts.removeContact` | **INTRODUCED — DESTRUCTIVE, address-scoped** | Baseline: nothing | Placed ABOVE the Contains() branches (#216/#393). `leave` is a literal `1`/`0` token (anything else = 0). Bots/groups take the #248 leave body (result `left`); people take `FriendList.removeFriend` — Core's group-member REFUSAL stands; with `leave=1` C# leaves each shared group first (the user ticked them behind an additional confirm that states their chats go too). The removed contact's OPEN conversation (an overlay, #225) is closed through the page's own overlay-aware `popPageAsync` (loop r1: `removeDetailContent` closed nothing). Result pushed with the blocking groups on refusal |
+| **NEW verb `ixian:sharedGroups:<addr>`** (HomePage) · **`ixian:sharedGroups`** (ContactDetails) | `HomePage.onSharedGroupsFor` · `ContactDetails` | **INTRODUCED — read-only** | — | Enumerates `FriendList.friends` under the same lock Core uses; pushes name/address pairs, each arg transport-escaped, rendered via textContent |
+| **NEW verb `ixian:openChat:<addr>`** (ContactDetails) | `ContactDetails` | **INTRODUCED — navigation** | The arg-less `ixian:chat` existed | Only for a KNOWN friend (`FriendList.getFriend != null`); pops the overlay then `HomePage.onChat` — the existing route |
+| **NEW pushes `removeContactResult(addr, status, pairs…)` · `removeHistoryResult(addr, status)` · `setSharedGroups(addr, pairs…)`** | shells `home` / `contact_details` | **INTRODUCED** | — | Status enums + name/address pairs. The shell un-tombstones on a refusal (a vanished row with the data on disk was the lie). No HTML sink; textContent only |
+| **New log lines** | `SContacts.cs` (2× warn) · `HomePage` (3× error) · `ContactDetails` (2× warn) | INTRODUCED | — | FIXED TEXT ONLY (loop r1): no `ex.Message` on any handler whose token is peer-supplied — Core's `Address` ctor formats the base58 into its exception text. No address, no name reaches the log |
+| **The bridge OUTBOX (loop r1)** | `src/bridge/native.js createNativeBridge` | No exposure — transport ORDER | The MAUI WebView drops the first of two same-turn `location.href` sets (launch.html #N75) | Every shell's default sink serializes sends one macrotask apart. Nothing new crosses; commands that used to be DROPPED now arrive (a destructive verb landing where it was silently lost is the honest outcome — every one still sits behind the shell's confirm steps) |
+| **`.c-modal:not([data-open])` pointer-dead (loop r1)** | `overlay.css` | Closes a re-entry | A closing modal's action re-fired | Same rule sheets have had since #46 MAJOR-3 |
+| **A1: bot member identities shown** | `chat-info.js` (bot rows/sheet) | REVERSES the #348 MAJOR-5 masking for BOT rooms only | Legacy `chat.js addContact` showed nick + avatar for every pushed member; C# never masked bot rows (`loadContacts` masks `type == Group` only) | Nothing new crosses the bridge — the shell already held the data; blind GROUPS keep the mask. Recorded as Damir's call (#541) |
+| **A7 / A8 / A9 / A3** | components + CSS | No exposure | Presentation | — |
+
+**Batch A adds four `ixian:` verbs (one destructive, address-scoped, above the Contains block), three pushes, no `spixi.*` localStorage key, no WebView setting, no HTML sink, no network fetch, and nine fixed-text log lines.** The destructive verb runs the SAME body the legacy ContactDetails page has always run, behind the shell's two confirm steps.
+
+---
+
+## Batch B (2026-08-24 overnight, #543–#544) — requests lifecycle
+
+| Item | file:line | Verdict | Evidence | Action |
+|---|---|---|---|---|
+| **NEW verb `ixian:undorequest:<addr>`** (HomePage) | `HomePage.onUndoRequestFor` | **INTRODUCED — DESTRUCTIVE (removeFriend), address-scoped twin of SingleChatPage's page-scoped `ixian:undorequest`** | Baseline: deleting the "Request sent" row reached nothing | Above the Contains() block. GUARDED: 1:1 only, `!approved` AND the last message is MY `requestAdd` — the exact shape the row is built from; otherwise `fail`. No notification to the peer (none exists — RC1). Result pushed; fixed-text log |
+| **NEW context action `ixian:contextAction:cancelInvite:<id>`** (SingleChatPage) | the `contextAction` switch | **INTRODUCED — a REMOTE delete (sendMsgDelete) without the local half** | The plain `deleteMessage` action does both halves | GUARDED to an OWN `appSession` message in a non-bot chat: a crafted id for any other message answers `fail` and sends nothing. The sender's message stays on disk; the "Canceled" state is shell-side metadata |
+| **NEW pushes `undoRequestResult(addr, status)` · `cancelInviteResult(id, status)`** | shells `home` / `chat` | INTRODUCED | — | Status enums only |
+| **NEW localStorage key `spixi.app.canceled.<peer>`** | `chat.html` | INTRODUCED — same class as `spixi.app.declined.<peer>` (#214) | — | The user's OWN action metadata (which invites they withdrew); message ids only, no content. SECURITY.md-OK by the same reasoning as the declined set |
+| **New log line** | `HomePage.onUndoRequestFor` (1× error, fixed text) | INTRODUCED | — | No token |
+
+**Batch B adds one destructive address-scoped verb (guarded to one message shape), one remote-only context action (guarded to an own app invite), two pushes, one `spixi.*` key of the #214 class, and one fixed-text log line.**
+
+---
+
+## Batch C (2026-08-24 overnight, #545–#548) — account lifecycle + theme splash
+
+| Item | file:line | Verdict | Evidence | Action |
+|---|---|---|---|---|
+| **`ixian:deletea` = THE FULL WIPE** (SettingsPage) | `SettingsPage.wipeEverything` | CHANGED SCOPE — a destructive verb that now removes MORE (wallet + prefs + WebView keys) | Baseline: delete-account kept the wallet; delete-wallet was a second verb | Same LockPage auth gate, same two-hop dispatch, same `deleteInFlight` latch. The enumeration is in #545; the order (shutdown FIRST) is the F-3 fix. `Preferences.Default.Clear()` removes the plaintext `walletpass` (#346's concern) with everything else |
+| **`ixian:delete` (wallet) RETIRED** | `SettingsPage` dispatch | REMOVES a verb's own body | — | An old shell's emit maps to the full wipe behind the same gate — never a half-delete |
+| **NEW push `wipeLocalState`** | `settings.html` | INTRODUCED — a REMOVAL of `spixi.*` keys | — | Enumerates keys with the `spixi.` prefix and removes them; never a blanket `clear()`; no data crosses, a count is logged to the dev channel |
+| **`warmParkedOverlay` / `parkOnLoad`** | `SpixiContentPage`, `HomePage.warmAccountAfterFirstPaint` | No exposure — presentation lifecycle (#315's own rules) | — | A hidden, loaded SettingsPage in the parked slot — the same object a parked-on-close page is; every #315 guard applies (lock up → nothing; low memory → disposed). The page's own WebView isolation is unchanged (§1/#221) |
+| **C4 return hop** | `home.html openContacts`, `contacts-page.js` | No exposure | — | An `ixian:settings` emit on the user's own Back — an existing verb |
+| **Night splash resources** | `Platforms/Android/Resources/values-night-v31`, `drawable/spixi_splash_icon_night.xml`, `layout-night/splash_screen.xml` | No exposure | Resource files | — |
+| **New log lines** | `SettingsPage.wipeEverything` (9× error, each `"wipe: <step> threw: " + ex`) · `HomePage.warmAccountAfterFirstPaint` (1× info, 1× warn) · `SpixiContentPage` (2× info) | INTRODUCED | — | The wipe's exception texts carry no user data (storage paths at most — the same class the legacy wallet route logged) |
+
+**Batch C retires one verb, widens one destructive verb's scope to "everything" behind the same gate, adds one removal push, no `spixi.*` key, no WebView setting, no HTML sink, no network fetch.**
+
+---
+
+## Batch D (2026-08-24 overnight, #549) — the missed-call notification
+
+| Item | file:line | Verdict | Evidence | Action |
+|---|---|---|---|---|
+| **Android notification TAG `spixi.call` on call rows; the sweep enumerates active rows** | `Platforms/Android/SPushService.cs` | No exposure — notification presentation | `GetActiveNotifications` (API 23+) | The tag is a fixed string; the sweep reads only `Tag`/`Id` of our own rows. No content crosses; the log line on the pre-M fallback is fixed text |
+| **iOS identifier prefix `call-` + enumerated removal** | `Platforms/iOS/SPushService.cs` | No exposure | `GetDeliveredNotifications` | Same |
+| **Per-contact call-row cancel on chat open** | `SingleChatPage.onResume` | No exposure | — | The id is CRC32 of the address (the existing scheme); one warn line with the exception message, no address |
+
+**Batch D adds no verb, no push, no key, no fetch, no sink; two fixed-text log lines.**

@@ -131,7 +131,17 @@ namespace SPIXI
             // block and the sound-effects block are one wiring job.
             // ★ PA1 (#525): + paymentAuth — the "Confirm payments" toggle. The verb
             // persists immediately; setPaymentAuth below seeds the switch position.
-            Utils.sendUiCommand(this, "setCaps", "settingsApply,backupInline,downloadsInline,encpass,encpassInline,globalNotifications,paymentAuth");
+            // ★ W-g (Damir F5 2026-08-23, items 18-19; amends #525): NOT on Windows.
+            // SPayments.confirmAndAuth returns before the biometric gate on WinUI
+            // (Plugin.Fingerprint is skipped there — the LockPage:382 rule), so the
+            // toggle changes nothing on that platform. A no-op switch is a lie; the cap
+            // is withheld and the shell never renders the row. Android/iOS keep it.
+            string caps = "settingsApply,backupInline,downloadsInline,encpass,encpassInline,globalNotifications";
+            if (SPayments.paymentAuthSupported())
+            {
+                caps += ",paymentAuth";
+            }
+            Utils.sendUiCommand(this, "setCaps", caps);
 
             // ★ NOTIF-2: the current values, so the switches render in the right position
             // rather than at the component defaults. Three bools, one push each — the
@@ -139,7 +149,10 @@ namespace SPIXI
             Utils.sendUiCommand(this, "setNotifEnabled", SNotificationPrefs.notificationsEnabled.ToString());
             Utils.sendUiCommand(this, "setNotifSenderName", SNotificationPrefs.showSenderName.ToString());
             Utils.sendUiCommand(this, "setNotifSounds", SNotificationPrefs.inAppSounds.ToString());
-            Utils.sendUiCommand(this, "setPaymentAuth", SPayments.paymentAuthEnabled().ToString());   // PA1 (#525)
+            if (SPayments.paymentAuthSupported())
+            {
+                Utils.sendUiCommand(this, "setPaymentAuth", SPayments.paymentAuthEnabled().ToString());   // PA1 (#525) · W-g: no seed where there is no row
+            }
 
             Utils.sendUiCommand(this, "setNickname", IxianHandler.localStorage.nickname);
             selectedAppearance = ThemeManager.getActiveAppearance();
@@ -235,13 +248,11 @@ namespace SPIXI
                     Text = IxianHandler.getWalletStorage().getPrimaryAddress().ToString(),
                 });
             }
-            else if (current_url.Equals("ixian:delete", StringComparison.Ordinal))
-            {
-                var lockPage = new LockPage(true);
-                lockPage.authSucceeded += onDeleteWallet;
-                pushModalLoaded(lockPage);   // #229 load-then-present; presents on root nav
-            }
-            else if (current_url.Equals("ixian:deletea", StringComparison.Ordinal))
+            // ★ Batch C (#545) C2: `ixian:delete` (delete WALLET) is RETIRED — redundant next
+            // to the full wipe below (#532, Damir). An old shell that still emits it gets the
+            // same full wipe behind the same auth gate: there is no half-delete any more.
+            else if (current_url.Equals("ixian:deletea", StringComparison.Ordinal)
+                     || current_url.Equals("ixian:delete", StringComparison.Ordinal))
             {
                 var lockPage = new LockPage(true);
                 lockPage.authSucceeded += onDeleteAccount;
@@ -993,122 +1004,9 @@ namespace SPIXI
             }
         }
 
-        public void onDeleteWallet(object sender, EventArgs<bool> e)
-        {
-            bool succeeded = e.Value;
-            if (!succeeded)
-            {
-                return;
-            }
-            if (deleteInFlight)
-            {
-                return;
-            }
-            deleteInFlight = true;
-
-            // Leave the WebView navigation callback FIRST — see the W14 note above.
-            // ★ review MAJOR-1: TWO hops, not one. LockPage raises authSucceeded and only
-            // then closes itself, and its close posts its own visual teardown — so a
-            // single hop from here is enqueued AHEAD of that teardown and the user watches
-            // the whole wipe behind a fully opaque lock. Re-posting from inside the first
-            // hop puts this work behind the lock's hide.
-            MainThread.BeginInvokeOnMainThread(() =>
-            {
-                MainThread.BeginInvokeOnMainThread(() => { deleteWalletWork(); });
-            });
-        }
-
-        private void deleteWalletWork()
-        {
-            bool walletGone = false;
-            try
-            {
-                walletGone = IxianHandler.getWalletStorage().deleteWallet();
-            }
-            catch (Exception ex)
-            {
-                Logging.error("W14: deleteWallet threw: " + ex);
-            }
-
-            if (walletGone)
-            {
-                try
-                {
-                    /* ★ review r3 + r4: clear the wallet LIST first — FIRST, before any
-                     * other statement in this block. The wallet FILE is already gone by
-                     * this point, and every line below can throw (a locked or corrupt
-                     * RocksDB is the obvious one). If one does, the catch logs, the
-                     * finally still routes to welcome, and the user arrives with no
-                     * wallet file but a populated wallet list — where Create AND Restore
-                     * both refuse with "An account already exists on this device".
-                     * A welcome screen with no door. r3 moved this line up but left six
-                     * throwing statements in front of it, which did not close the hole. */
-                    IxianHandler.wallets.Clear();
-
-                    // Also delete the account
-                    wipeAccountData();
-
-                    // Stop network activity
-                    NetworkUtils.isolate();
-
-                    Preferences.Default.Remove("lockenabled");
-                    // ★ #346 (review of #341/#342): the key was spelled "waletpass" — one 'l'.
-                    // Every WRITE uses "walletpass" (here :336, EncryptionPassword :85,
-                    // LaunchPage :197/:139/:64 before N75 merged them) and every READ uses
-                    // "walletpass" (Node.cs :248/:252, BackupPage :144). So this
-                    // line removed a key that has never existed, and the wallet password — stored
-                    // in PLAINTEXT, see the two "TODO: encrypt the password" markers — survived
-                    // the one action whose whole meaning is "destroy the wallet". It stayed in
-                    // Android SharedPreferences / iOS NSUserDefaults, which unencrypted device
-                    // backups include, until the user happened to create or restore another
-                    // wallet on the same install.
-                    // The same typo in the create/restore paths (now both in LaunchPage)
-                    // is harmless — both Set("walletpass", …) on the next lines.
-                    Preferences.Default.Remove("walletpass");
-
-                    /* ★ N76 (#391): the onboardingComplete preference and its
-                     * OnboardingComplete carrier are gone with the onboarding tail — the
-                     * flag's only job was gating that modal. A delete-account now also
-                     * drops backupReminderTimestamp (wipeAccountData leaves preferences
-                     * alone otherwise), so the NEXT account on this install re-arms the
-                     * first-asset backup nudge instead of inheriting this one's period. */
-                    Preferences.Default.Remove("backupReminderTimestamp");
-                    Preferences.Default.Remove("walletCreatedHere");   // #456: the marker belongs to the wallet, not the device
-
-                    PendingTransactions.clear();
-                    Node.storage.deleteData();
-                    Node.activityStorage.deleteData();
-                    Node.tiv.clearCache();
-
-                    IxianHandler.shutdown();
-                }
-                catch (Exception ex)
-                {
-                    // The wallet file is already gone by this point, so there is no
-                    // usable "stay here" state to fall back to. Log it and still land
-                    // the user on welcome.
-                    Logging.error("W14: wallet teardown threw: " + ex);
-                }
-                finally
-                {
-                    // ★ review MINOR-5: NOT reset. LockPage can raise authSucceeded twice
-                    // (password + a late biometric completion), and clearing the flag here
-                    // let the second one re-run the wipe and push a SECOND LaunchPage. This
-                    // route navigates away, so the page has no further use for the latch.
-                    goToWelcome();
-                }
-            }
-            else
-            {
-                // The wallet is STILL THERE. Routing to welcome would be a lie, and it
-                // would strand a live wallet behind an onboarding screen — so this is
-                // the one branch that stays put. 🟡 Damir: say the word if you want
-                // welcome here too.
-                deleteInFlight = false;
-                displaySpixiAlert(SpixiLocalization._SL("settings-deletew-error-title"), SpixiLocalization._SL("settings-deletew-error-text"), SpixiLocalization._SL("global-dialog-ok"));
-            }
-
-        }
+        /* ★ Batch C (#545) C2: onDeleteWallet / deleteWalletWork are RETIRED with the
+         * delete-wallet option (#532 — redundant next to the full wipe). Their body lives
+         * on, corrected, in wipeEverything(): shutdown FIRST, then delete; balances cleared. */
 
         public void onDeleteAccount(object sender, EventArgs<bool> e)
         {
@@ -1131,7 +1029,7 @@ namespace SPIXI
                 {
                 try
                 {
-                    wipeAccountData();
+                    wipeEverything();
                 }
                 catch (Exception ex)
                 {
@@ -1155,8 +1053,86 @@ namespace SPIXI
             });
         }
 
-        /* The account wipe itself, with no navigation and no alert, so the wallet route
-         * can reuse it without inheriting either. */
+        /* ★ Batch C (#545) C1 — DELETE ACCOUNT = THE FULL WIPE → welcome. "All data",
+         * ENUMERATED (each line is one item on the F5 checklist):
+         *   1. the network + the node: IxianHandler.shutdown() (closes RocksDB, stops
+         *      localStorage, the stream processor, keepalive) + NetworkUtils.isolate()
+         *      ★ FIRST — the old wallet route deleted the storage directories UNDER an
+         *      OPEN RocksDB and shut down afterwards. That order is the F-3/N68 suspect
+         *      by reading: the next in-process Node.start() (LaunchPage → HomePage ctor)
+         *      met a half-torn storage and its fatal-alert branch never reached
+         *      connectToNetwork → "fatal exception, no network, empty lists; a restart
+         *      recovers". Shut down first, delete second.
+         *   2. block storage · activity storage · TIV cache · pending transactions
+         *   3. avatars · account file · downloads · pending messages · chat history ·
+         *      account folders · the friend list (wipeAccountData — the legacy body)
+         *   4. the WALLET file (deleteWallet) + the in-memory wallet list
+         *      + ★ IxianHandler.balances — NEVER cleared before: restoring the SAME
+         *      wallet then hit `balances.Add(addr)` on a key that was still there
+         *      (Node.loadWallet:279 — Dictionary.Add throws on a duplicate) = a fatal
+         *      exception on the restore path. F-3's other half, by reading.
+         *   5. every native Preference (Preferences.Default.Clear(): lockenabled ·
+         *      walletpass · backupReminderTimestamp · walletCreatedHere · paymentauth ·
+         *      the notification prefs · appearance · language · the dev/HUD flags — a
+         *      fresh-install state, which is what "delete account" means)
+         *   6. the WebView's `spixi.*` localStorage keys (pins · mutes · drafts · the
+         *      declined/canceled invite sets · pattern/text prefs · mention seen-state):
+         *      the `wipeLocalState` push to THIS shell — WebView storage is one store
+         *      per app on every platform, so one page can clear it for all
+         * Then goToWelcome(). No alert: landing on welcome IS the confirmation (#288). */
+        private void wipeEverything()
+        {
+            // 0. the WebView's own spixi.* keys — FIRST (loop r1 MINOR-1): the push is an
+            // async EvaluateJavaScriptAsync into THIS page's WebView; queued here it runs
+            // while the heavy filesystem work below is still going, long before goToWelcome
+            // parks + disposes the page. (Step 6 in the enumeration; order is for safety.)
+            try { Utils.sendUiCommand(this, "wipeLocalState"); } catch (Exception ex) { Logging.error("wipe: local state push threw: " + ex); }
+
+            // 1. stop everything that holds files open
+            try { NetworkUtils.isolate(); } catch (Exception ex) { Logging.error("wipe: isolate threw: " + ex); }
+            try { IxianHandler.shutdown(); } catch (Exception ex) { Logging.error("wipe: shutdown threw: " + ex); }
+
+            // 2. chain-side caches. Loop r1 MINOR-3: Node.stop() early-returns when the
+            // node is not running, so the RocksDB close in step 1 is CONDITIONAL — stop the
+            // two storages EXPLICITLY (idempotent) before their directories are deleted.
+            try { PendingTransactions.clear(); } catch (Exception ex) { Logging.error("wipe: pending tx threw: " + ex); }
+            try { Node.storage.stopStorage(); } catch (Exception ex) { Logging.error("wipe: block storage stop threw: " + ex); }
+            try { Node.activityStorage.stopStorage(); } catch (Exception ex) { Logging.error("wipe: activity storage stop threw: " + ex); }
+            try { Node.storage.deleteData(); } catch (Exception ex) { Logging.error("wipe: block storage threw: " + ex); }
+            try { Node.activityStorage.deleteData(); } catch (Exception ex) { Logging.error("wipe: activity storage threw: " + ex); }
+            try { Node.tiv.clearCache(); } catch (Exception ex) { Logging.error("wipe: tiv threw: " + ex); }
+
+            // 3. the account. Loop r1 MINOR-2: EACH call under its own try — a bare
+            // Directory.Delete throwing on one open file must not skip the friend list.
+            try { IxianHandler.localStorage.deleteAllAvatars(); } catch (Exception ex) { Logging.error("wipe: avatars threw: " + ex); }
+            try { IxianHandler.localStorage.deleteAccountFile(); } catch (Exception ex) { Logging.error("wipe: account file threw: " + ex); }
+            try { IxianHandler.localStorage.deleteAllDownloads(); } catch (Exception ex) { Logging.error("wipe: downloads threw: " + ex); }
+            try { CoreStreamProcessor.deletePendingMessages(); } catch (Exception ex) { Logging.error("wipe: pending messages threw: " + ex); }
+            try { FriendList.deleteEntireHistory(); } catch (Exception ex) { Logging.error("wipe: history threw: " + ex); }
+            try { FriendList.deleteAccounts(); } catch (Exception ex) { Logging.error("wipe: accounts threw: " + ex); }
+            try { FriendList.clear(); } catch (Exception ex) { Logging.error("wipe: friend list threw: " + ex); }
+
+            // 4. the wallet — file, list, balances
+            try
+            {
+                var ws = IxianHandler.getWalletStorage();
+                if (ws != null && !ws.deleteWallet())
+                {
+                    Logging.error("wipe: deleteWallet returned false");
+                }
+            }
+            catch (Exception ex) { Logging.error("wipe: deleteWallet threw: " + ex); }
+            try { IxianHandler.wallets.Clear(); } catch (Exception ex) { Logging.error("wipe: wallet list threw: " + ex); }
+            try { IxianHandler.balances.Clear(); } catch (Exception ex) { Logging.error("wipe: balances threw: " + ex); }
+
+            // 5. every native preference — a fresh-install state
+            try { Preferences.Default.Clear(); } catch (Exception ex) { Logging.error("wipe: preferences threw: " + ex); }
+
+            // (6. the WebView spixi.* wipe ran as step 0 — see above)
+        }
+
+        /* The account-data half of the wipe (the legacy delete-account body), kept as
+         * its own step so the enumeration above reads one item per line. */
         private void wipeAccountData()
         {
             IxianHandler.localStorage.deleteAllAvatars();

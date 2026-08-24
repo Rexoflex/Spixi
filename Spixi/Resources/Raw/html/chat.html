@@ -1039,6 +1039,15 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="delivered"] { color: var(--icon-bubble-delivered); }
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="read"] { color: var(--icon-bubble-read); }
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="failed"] { color: var(--icon-bubble-failed); }
+/* ★ A9 (Damir, Batch A 2026-08-24): the OUTGOING timestamp + status glyphs sit at 0.7
+   alpha — quieter than the message text — and ONLY the READ tick stays at 1.0 (it is the
+   one state worth the eye). Opacity goes on the CHILDREN (time, edited, the glyphs) —
+   a box-level opacity would cap the read tick at 0.7 too, since a child can never be
+   more opaque than its parent. The failed glyph keeps 1.0 as well (an error must not
+   be dimmed — the #48 rule). Received bubbles are untouched. */
+.c-bubble-row[data-direction="sent"] .c-bubble__meta > * { opacity: 0.7; }
+.c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="read"],
+.c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="failed"] { opacity: 1; }
 /* A2 (#302): paid marker. Inherits the meta ink on BOTH directions — those inks are
    already AA-tuned per direction two rules up (--text-bubble-*-meta), so the glyph
    needs no token of its own and reads correctly in light and dark. flex:none stops
@@ -1784,6 +1793,13 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   .c-bubble-row > .c-fbubble__cancel:hover { color: var(--text-action-hover); }
 }
 
+/* ★ B2 (#533 ①): the app card's terminal tombstones — declined (theirs) / canceled (mine)
+   read VOID: muted name + sub, the icon dimmed. Nothing else on the card changes. */
+.c-tcard[data-state="declined"] .c-tcard__app-icon,
+.c-tcard[data-state="canceled"] .c-tcard__app-icon { opacity: var(--opacity-disabled); }
+.c-tcard[data-state="declined"] .c-tcard__app-name,
+.c-tcard[data-state="canceled"] .c-tcard__app-name { color: var(--text-neutral-02); }
+
 </style>
 <style data-src="../styles/components/toast.css">
 /* c-toast — transient feedback, bottom-anchored above the bottom bar.
@@ -1908,7 +1924,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    needed. Focus is not affected: pointer-events does not change focusability, so
    the open-time focus move and the exit focus restore both still work. */
 html:root .c-sheet:not([data-open]),
-html:root .c-sheet:not([data-open]) * {
+html:root .c-sheet:not([data-open]) *,
+html:root .c-modal:not([data-open]),
+html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSING modal's action re-entered `fire` on a second tap — same hole, same rule */
   pointer-events: none;
 }
 
@@ -1959,6 +1977,12 @@ html:root .c-sheet:not([data-open]) * {
 
 .c-modal__actions {
   display: flex;
+  /* ★ Batch B/C loop r1 M-1 (2026-08-24): WRAP. A long localized confirm label
+     ("Supprimer le compte", "Отменить приглашение") overflowed the fixed pair —
+     nowrap labels + flex-basis 0 + min-width:auto has no out. Wrapping drops the
+     long action onto its own full-width row (the remove-contact sheet's answer);
+     short pairs render exactly as before. */
+  flex-wrap: wrap;
   gap: var(--spacing-8);
   justify-content: flex-end;
   /* rich `content` slots carry no trailing margin (only __body does) — without this the
@@ -1966,7 +1990,7 @@ html:root .c-sheet:not([data-open]) * {
      Collapses with __body's margin-block-end so plain modals keep their 24 gap. */
   margin-block-start: var(--spacing-24);
 }
-.c-modal__actions .c-button { flex: 1 1 0; } /* equal-width pair (spec ②) */
+.c-modal__actions .c-button { flex: 1 1 0; } /* equal-width pair (spec ②). ⚠ NO min-width:0 here — loop r2 R2-1: with flex-basis 0 a used min of 0 makes every item's hypothetical size 0, so the wrap above could NEVER fire; min-width:auto (the label's min-content) is what trips it. Measured in Chrome: with auto, the long confirm wraps to its own full row; with 0 it spilled 43px past its button */
 
 /* ═════════ DESKTOP presentation (:root[data-desktop] — Batch C, #256 M6) ═════════
    Bottom sheets read poorly on desktop → they PRESENT as centered dialogs; three
@@ -2443,26 +2467,110 @@ html:root .c-sheet:not([data-open]) * {
   line-height: var(--line-height-body-md);
   color: var(--text-neutral-02);
 }
+/* ★ A7 (Damir, Batch A 2026-08-24): the option rows are the GROUP-CREATION checkbox
+   grammar — a pressable row with the trailing 24px select circle (the contacts-shell
+   pickerRow recipe, --icon-neutral-03 ring, filled --surface-action-default on
+   aria-checked) — not the off-brand native <input type=checkbox>. */
 .c-delete-chat__opts { display: flex; flex-direction: column; }
 .c-delete-chat__opt {
   display: flex;
   align-items: center;
   gap: var(--spacing-12);
+  width: 100%;
   min-height: var(--size-target-min);   /* ≥44px touch target */
+  padding: var(--spacing-4) 0;
+  border: 0;
+  background: transparent;
+  text-align: start;
   color: var(--text-neutral-01);
   font-family: var(--font-secondary);
   font-size: var(--font-size-body-md);
   line-height: var(--line-height-body-md);
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
-.c-delete-chat__opt input {
-  width: 20px;
-  height: 20px;
+.c-delete-chat__opt:disabled { cursor: default; }
+/* loop r1: the fixed-on "Delete chat" row is a STATEMENT of what happens, not an inert
+   control — its label keeps full ink (dimming it read 2.57:1); the static circle says fixed */
+.c-delete-chat__opt-label { flex: 1; min-width: 0; }
+.c-delete-chat__check {
   flex: none;
-  accent-color: var(--surface-action-default);
-  cursor: pointer;
+  width: 24px;                      /* sanctioned: select-circle dim (contacts parity) */
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  border: var(--outline-width-2) solid var(--icon-neutral-03);
+  color: transparent;
+  transition: background-color var(--duration-200) var(--easing-standard),
+              border-color var(--duration-200) var(--easing-standard),
+              color var(--duration-200) var(--easing-standard);
 }
-.c-delete-chat__opt input:disabled { cursor: default; }
+@media (prefers-reduced-motion: reduce) { .c-delete-chat__check { transition: none; } }
+[aria-checked='true'] > .c-delete-chat__check {
+  background: var(--surface-action-default);
+  border-color: var(--surface-action-default);
+  color: var(--icon-neutral-on-action);
+}
+.c-delete-chat__opt:focus-visible,
+.c-remove-contact__row:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+}
+
+/* ★ A5 (Damir's shape, Batch A): the REMOVE-CONTACT bottom sheet — peer header, the
+   honest body, the shared-groups strip (multi-select "leave first" rows) and the two
+   actions. Rendered inside c-sheet (overlay.css owns the sheet chrome). */
+.c-remove-contact { display: flex; flex-direction: column; gap: var(--spacing-16); }
+.c-remove-contact__groups {
+  display: flex; flex-direction: column; gap: var(--spacing-4);
+  padding: var(--spacing-12);
+  border-radius: var(--radius-16);
+  background: var(--surface-neutral-02);
+}
+.c-remove-contact__title {
+  margin: 0 0 var(--spacing-4);
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
+.c-remove-contact__row {
+  display: flex; align-items: center; gap: var(--spacing-12);
+  width: 100%;
+  min-height: 56px;
+  padding: var(--spacing-4) var(--spacing-4);
+  border: 0; border-radius: var(--radius-12);
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) { .c-remove-contact__row:hover { background-color: var(--surface-interactive-hover); } }
+.c-remove-contact__rowname {
+  flex: 1; min-width: 0;
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.c-remove-contact__hint {
+  margin: var(--spacing-4) 0 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-remove-contact__error {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-error);
+}
+.c-remove-contact__actions { display: flex; flex-wrap: wrap; gap: var(--spacing-8); justify-content: flex-end; }
+.c-remove-contact__actions .c-button { flex: 1 1 0; min-width: 0; }   /* equal-width pair (#60) */
+.c-remove-contact__actions .c-remove-contact__cta { flex: 2 1 auto; }    /* loop r1: the long "Leave N & remove" label wraps to its own line, never overflows */
 
 /* —— #506② / iOS-62: the long-pressed message is PROMOTED above the scrim ————
    Damir on device: "you cannot see what you are acting on." #492 shipped the cheap
@@ -4002,7 +4110,193 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 }
 .c-member__actions > .c-button { flex: 1; }
 
+/* ★ A8 (Batch A 2026-08-24): skeleton rows while the roster / shared-groups pushes
+   land. Neutral wash, a slow shimmer (off under reduced motion), never interactive. */
+.c-chat-info__member--skeleton { cursor: default; pointer-events: none; }
+.c-chat-info__skeleton-avatar {
+  flex: none;
+  width: var(--size-avatar-40); height: var(--size-avatar-40);
+  border-radius: var(--radius-full);
+  background: var(--surface-neutral-02);
+}
+.c-chat-info__skeleton-line {
+  height: 14px;
+  border-radius: var(--radius-full);
+  background: var(--surface-neutral-02);
+}
+.c-chat-info__skeleton-avatar, .c-chat-info__skeleton-line {
+  animation: c-chat-info-shimmer 1.4s var(--easing-standard) infinite;
+}
+@keyframes c-chat-info-shimmer { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .c-chat-info__skeleton-avatar, .c-chat-info__skeleton-line { animation: none; } }
+/* ★ A4: the shared-groups strip (1:1) — the members-list grammar, group avatars */
+.c-chat-info__shared { display: flex; flex-direction: column; gap: var(--spacing-4); }
+.c-chat-info__shared-list { display: flex; flex-direction: column; }
+.c-chat-info__shared-row:disabled { cursor: default; }
+
 </style><!-- group/bot info takeover (header tap) -->
+<style data-src="../styles/components/txlist-item.css">
+/* c-txlist-item — wallet transaction row (docs/tx-row-spec.md, DECISIONS #55).
+   Figma rows are static; hover/pressed = #23 interactive tokens per #43. */
+
+.c-txlist-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  width: 100%;
+  padding: var(--spacing-16) var(--spacing-12);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: start;
+  font-family: var(--font-secondary);
+  -webkit-tap-highlight-color: transparent;
+  /* 100ms intentional: micro-interaction, matches chatlist row hover */
+  transition: background-color var(--duration-100) var(--easing-standard);
+  /* 5c-ii (2026-08-24): the press fill MOVED to the compositor ::before layer in
+     base.css — see chatlist-item.css for the note. State rules set colour only. */
+}
+/* W4a (#348): the selected row uses the CHAT-ROW treatment, exactly.
+   The wallet row was left on --surface-interactive-selected while the chats list
+   moved to the action-tonal surface (Damir 2026-07-07, chatlist-item.css:22), so
+   the two lists showed DIFFERENT selected colours in the same desktop window. The
+   shell rule that set it even CLAIMED to "mirror the chats-list treatment"
+   (home.html) — it had stopped doing so. The rule now lives here, beside this
+   row's own hover and pressed rules and in the same order as the chat row, so the
+   two lists cannot drift apart again. */
+.c-txlist-item[aria-current] {
+  background-color: var(--surface-action-tonal-default);
+  /* 5c-ii: the tonal-pressed fill rides base.css's ::before layer — no image here. */
+}
+@media (hover: hover) and (pointer: fine) {
+  /* ★ #353 (Damir): NO hover tint on a selected row — identical to the chat row,
+     see chatlist-item.css. :not([aria-current]) is load-bearing (source order).
+     ⚠ Keep this rule TRANSITION-FREE — see the chat row's B-4 note. */
+  .c-txlist-item:hover:not([aria-current]) { background-color: var(--surface-interactive-hover); }
+}
+/* 5c-i/ii: the :active fill mirrors are REMOVED — see chatlist-item.css. */
+
+/* #228 desktop row rhythm — same treatment as chat rows (#226/R3): 48px circle
+   + 2×8px padding ≈ 64px rows. Mobile keeps spacing-16. */
+:root[data-desktop] .c-txlist-item { padding-block: var(--spacing-8); }
+
+/* direction circle: 48, centered 24 arrow */
+.c-txlist-item__direction {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-avatar-48);
+  height: var(--size-avatar-48);
+  border-radius: var(--radius-full);
+  border: var(--outline-width-1) solid var(--outline-neutral-04);
+  color: var(--icon-neutral-01);
+}
+.c-txlist-item[data-type="received"] .c-txlist-item__direction {
+  border-color: var(--outline-success-inverse);
+  color: var(--text-success);
+}
+.c-txlist-item[data-type="failed"] .c-txlist-item__direction { color: var(--text-error); }
+
+.c-txlist-item__content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.c-txlist-item__name {
+  /* #277: row-title parity with chat rows (.c-chatlist-item__name) — label-lg
+     became the BUTTON role at the #227 type dial (16px desktop) while chat-row
+     names moved to body-lg (14px), and the always-semibold weight made
+     addresses read outsized (Damir F5). body-lg regular; the AMOUNT keeps
+     label-lg semibold as the row's money emphasis (dial if too loud). */
+  font-size: var(--font-size-body-lg);
+  line-height: var(--line-height-body-lg);
+  letter-spacing: var(--tracking-body-lg);
+  color: var(--text-neutral-01);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.c-txlist-item__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-width: 0;
+  /* #286: belt — a non-shrinking child must never paint into the amounts column */
+  overflow: hidden;
+}
+/* #286 (Damir F5, narrow desktop pane): the status badge's default min-width:auto
+   made it refuse to shrink below its label — it painted over the fiat amount.
+   Let it shrink; the label ellipsizes (icon + tint keep carrying the status,
+   and the full wording lives on the detail sheet). */
+.c-txlist-item__meta .c-badge { min-width: 0; }
+.c-txlist-item__meta .c-badge__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.c-txlist-item__time {
+  /* #231b: secondary list lines ride body-sm (chat-excerpt parity) — body-md
+     is the BUBBLE role since the #227 dial and outsized the 16px label-lg name */
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  letter-spacing: var(--tracking-body-sm);
+  color: var(--text-neutral-02);
+  /* #288 review: as a flex child its automatic minimum size is its full min-content
+     width, so it never shrinks — the #286 overflow:hidden belt on __meta then CLIPS it
+     mid-glyph and the text-overflow below can never fire. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* right column: amount over fiat, right-aligned. Amounts are bridge-formatted
+   (bounded in practice); max-width + ellipsis = belt-and-braces overflow guard */
+.c-txlist-item__amounts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex: none;
+  max-width: 55%;
+}
+.c-txlist-item__amount, .c-txlist-item__fiat {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.c-txlist-item__amount {
+  font-size: var(--font-size-label-lg);
+  line-height: var(--line-height-label-lg);
+  letter-spacing: var(--tracking-label-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+.c-txlist-item__fiat {
+  font-size: var(--font-size-body-sm);   /* #231b: secondary-line parity (see __time) */
+  line-height: var(--line-height-body-sm);
+  letter-spacing: var(--tracking-body-sm);
+  /* Figma sent-fiat used text-neutral-01, every other type -02 — normalized to -02 (spec ①) */
+  color: var(--text-neutral-02);
+}
+
+.c-txlist-item[data-type="received"] .c-txlist-item__amount { color: var(--text-success); }
+.c-txlist-item[data-type="pending"] .c-txlist-item__amount { color: var(--text-neutral-02); }
+.c-txlist-item[data-type="failed"] .c-txlist-item__amount,
+.c-txlist-item[data-type="failed"] .c-txlist-item__fiat {
+  /* Figma raw #6a717c = unbound token error (spec ②) — bound to disabled ink */
+  color: var(--text-neutral-disabled);
+  text-decoration: line-through;
+  font-weight: var(--font-weight-regular);
+}
+
+</style><!-- W-h gate (2026-08-24): createChatInfo renders c-txlist-item rows for a `txs` list — this shell passes none today, linked so the path is never unstyled when it does -->
 <style data-src="../styles/components/banner.css">
 /* c-banner — warning strip under the top bar. Passive status: no scrim/trap.
    Collapses via max-height (conservative baseline — no 0fr grid animation). */
@@ -4370,6 +4664,328 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   -webkit-user-select: none;
   -webkit-user-drag: none;
 }
+
+</style>
+<!-- ★ W-a (Damir F5 2026-08-23, root cause): the in-chat Pay compose (W5/#523) and
+     its review sheet (.c-sendreview) render UNSTYLED without this link — default
+     white input on both themes, name + address run-on, review rows concatenated.
+     Every other chat stylesheet was linked; this one was not, and no gate asked
+     "is every mounted component family's stylesheet linked?" — the W-h smoke gate
+     now does. The Max confirm is a c-modal → overlay.css above (there is no
+     modal.css; verified 2026-08-24). -->
+<style data-src="../styles/components/contact-row.css">
+/* c-contact-row — the ONE contact-row grammar for the money pickers (★ W-j,
+   Damir F5 2026-08-23). EVERY number below is the Contacts DIRECTORY row
+   (contacts-shell.css .c-contacts__row / __col / __name / __sub / __check):
+   64px min-height · spacing-8 padding · spacing-12 gap · avatar-48 · name
+   body-md semibold · sub body-sm · the 24px select circle on --icon-neutral-03.
+   A smoke pin reads BOTH files and fails on any drift — change one, change both.
+   Press feedback: base.css lists .c-contact-row with the other row families
+   (the ::before compositor sweep) and pressable.js has it in PRESSABLE_ROW. */
+.c-contact-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: 64px;                 /* sanctioned: 48 avatar + breathing room */
+  padding: var(--spacing-8);
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-12);
+  cursor: pointer;
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) { .c-contact-row:not(:disabled):hover { background-color: var(--surface-interactive-hover); } }
+.c-contact-row:disabled { cursor: default; }
+.c-contact-row:disabled > .c-avatar,
+.c-contact-row:disabled .c-contact-row__name { opacity: var(--opacity-disabled); }
+.c-contact-row__col {
+  flex: 1;
+  min-width: 0;                     /* nowrap children ellipsize (#140③ class) */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+.c-contact-row__name {
+  min-width: 0;
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-contact-row__sub {
+  min-width: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-contact-row__badge { flex: none; }
+
+/* the "Send to an address" glyph disc — sits in the avatar-48 slot (#136) */
+.c-contact-row__glyph {
+  width: var(--size-avatar-48); height: var(--size-avatar-48); flex: none;
+  border-radius: var(--radius-full);
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
+}
+
+/* multi-select check circle (trailing) — contacts-shell.css recipe, verbatim */
+.c-contact-row__check {
+  flex: none;
+  width: 24px;                      /* sanctioned: select-circle dim */
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  border: var(--outline-width-2) solid var(--icon-neutral-03);
+  color: transparent;
+  transition: background-color var(--duration-200) var(--easing-standard),
+              border-color var(--duration-200) var(--easing-standard),
+              color var(--duration-200) var(--easing-standard);
+}
+@media (prefers-reduced-motion: reduce) { .c-contact-row__check { transition: none; } }   /* contacts-shell parity */
+.c-contact-row[aria-checked='true'] .c-contact-row__check {
+  background: var(--surface-action-default);
+  border-color: var(--surface-action-default);
+  color: var(--icon-neutral-on-action);
+}
+.c-contact-row:focus-visible {          /* F19 grammar, contacts-shell parity */
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+}
+
+</style><!-- W-j: wallet-send's row atom (companion stylesheet) -->
+<style data-src="../styles/components/wallet-send.css">
+/* c-wallet-send — one-screen send + review sheet (spec §3, #26/#135). */
+
+/* Max-confirm warning strip — the #150⑥ delete-confirm recipe, adapted text
+   ("Payments cannot be undone."). Same wash/glyph grammar as
+   .c-settings-danger__confirm-warn; promote to a shared atom if a third
+   surface adopts it (the .c-disc precedent). */
+.c-wallet-send__max-warn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  margin: var(--spacing-12) 0 0;
+  padding: var(--spacing-8) var(--spacing-12);
+  border-radius: var(--radius-12);
+  background: var(--disc-error-bg);
+  color: var(--disc-error-ink);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+}
+.c-wallet-send__max-warn svg { flex: none; }
+
+.c-wallet-send {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-24);
+  padding: var(--spacing-16);
+}
+.c-wallet-send__section { display: flex; flex-direction: column; gap: var(--spacing-12); }
+.c-wallet-send__label {
+  margin: 0;
+  font-size: var(--font-size-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
+
+/* —— recipient picker —— */
+.c-wallet-send__picker { display: flex; flex-direction: column; gap: var(--spacing-12); }
+/* ★ W-j (Damir F5 2026-08-23): the row anatomy MOVED to contact-row.css — the rows
+   are the shared c-contact-row (directory grammar). `.c-wallet-send__contact` stays
+   on the element as an ALIAS for the pins; no layout of its own. The list is the
+   directory CARD (contacts-shell .c-contacts__list grammar) so the three screens
+   read as one. */
+.c-wallet-send__list {                                   /* loop r1 m6: address row + contacts share ONE card (same left edge) */
+  display: flex; flex-direction: column;
+  background: var(--surface-card);
+  border-radius: var(--radius-16);
+  padding: var(--spacing-4);
+  box-shadow: var(--elevation-1);
+}
+.c-wallet-send__list .c-wallet-send__addrfield { padding: var(--spacing-4) var(--spacing-8) var(--spacing-8); }
+.c-wallet-send__contacts { display: flex; flex-direction: column; }
+/* hidden live region (the receive screen's grammar): announces the pick */
+.c-wallet-send__live {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0; border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.c-wallet-send__picked:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+}
+/* #255: "Request pending" tag — kept for the old class; the shared row renders the
+   directory badge (.c-contact-row__badge) instead */
+.c-wallet-send__none {
+  margin: 0;
+  padding: var(--spacing-8) var(--spacing-12);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+/* "Send to an address" — the shared glyph row (contact-row.css .c-contact-row__glyph, #136) */
+.c-wallet-send__addrfield { display: flex; flex-wrap: wrap; gap: var(--spacing-8); }
+.c-wallet-send__addrinput {
+  flex: 1; min-width: 0;
+  box-sizing: border-box;
+  padding: var(--spacing-12) var(--spacing-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+}
+.c-wallet-send__addrinput:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;                                   /* matches the apps-add input treatment (#51 text-field focus) */
+  border-color: var(--outline-action-default);
+}
+.c-wallet-send__scan {
+  flex: none;
+  width: var(--size-target-min); height: var(--size-target-min);
+  display: inline-flex; align-items: center; justify-content: center;
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: transparent;
+  color: var(--icon-action-default);
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) { .c-wallet-send__scan:hover { background: var(--surface-interactive-hover); } }
+.c-wallet-send__scan:active { background: var(--surface-interactive-pressed); }   /* #28 pressed wash */
+.c-wallet-send__addrfield .c-button { flex-basis: 100%; }
+.c-wallet-send__addrfield .c-wallet-send__error { flex-basis: 100%; }   /* validation sits under ITS input (Damir bug, round 3) */
+
+/* selected recipient */
+.c-wallet-send__picked {
+  display: flex; align-items: center; gap: var(--spacing-12);
+  min-height: 64px;                                     /* ★ W-j: the directory row height */
+  padding: var(--spacing-8) var(--spacing-12);
+  border-radius: var(--radius-16);
+  background: var(--surface-card);
+  box-shadow: var(--elevation-1);
+}
+.c-wallet-send__pickedglyph {
+  width: var(--size-avatar-48); height: var(--size-avatar-48); flex: none;   /* ★ W-j: avatar-48 slot */
+  border-radius: var(--radius-full);
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
+}
+.c-wallet-send__pickedtext { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.c-wallet-send__pickedname {                            /* ★ W-b: name over the muted truncated address */
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.c-wallet-send__pickedaddr {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.c-wallet-send__clear {
+  flex: none;
+  width: 32px; height: 32px;                            /* visual 32; hit area below (#106) */
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--icon-neutral-02);
+  cursor: pointer;
+}
+.c-wallet-send__clear::after { content: ''; position: absolute; inset: -6px; }
+@media (hover: hover) and (pointer: fine) { .c-wallet-send__clear:hover { background: var(--surface-interactive-hover); } }
+.c-wallet-send__clear:active { background: var(--surface-interactive-pressed); }   /* #28 pressed wash */
+
+/* —— amount —— */
+.c-wallet-send__amountrow { display: flex; align-items: center; gap: var(--spacing-12); }
+.c-wallet-send__amount {
+  flex: 1; min-width: 0;
+  box-sizing: border-box;
+  padding: var(--spacing-12) var(--spacing-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+  color: var(--text-neutral-01);
+  font-family: var(--font-primary);
+  font-size: var(--font-size-heading-md);               /* money entry is the hero of this screen */
+  line-height: var(--line-height-heading-md);
+  font-weight: var(--font-weight-semibold);
+}
+.c-wallet-send__amount:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+  border-color: var(--outline-action-default);
+}
+.c-wallet-send__unit {
+  flex: none;
+  font-family: var(--font-primary);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-neutral-02);
+}
+.c-wallet-send__meta {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-wallet-send__error {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-error);
+}
+.c-wallet-send__actions { margin-block-start: var(--spacing-8); display: flex; flex-direction: column; }
+
+/* —— review sheet (#26) —— */
+.c-sendreview { display: flex; flex-direction: column; gap: var(--spacing-16); }
+.c-sendreview__who { display: flex; align-items: center; gap: var(--spacing-12); }
+.c-sendreview__whotext { flex: 1; min-width: 0; }
+.c-sendreview__name {
+  font-size: var(--font-size-label-lg);
+  line-height: var(--line-height-label-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+.c-sendreview__addr {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+  overflow-wrap: anywhere;                              /* full address at the decision moment (#99) */
+}
+.c-sendreview__rows { display: flex; flex-direction: column; }
+.c-sendreview__row {
+  display: flex; align-items: center; gap: var(--spacing-12);
+  padding-block: var(--spacing-12);
+  border-block-end: var(--outline-width-1) solid var(--outline-neutral-01);
+}
+.c-sendreview__row:last-child { border-block-end: 0; }
+.c-sendreview__rowlabel { flex: none; color: var(--text-neutral-02); font-size: var(--font-size-body-md); }
+.c-sendreview__rowvalue { flex: 1; min-width: 0; text-align: end; color: var(--text-neutral-01); font-size: var(--font-size-body-md); }
+.c-sendreview__actions { display: flex; gap: var(--spacing-8); justify-content: flex-end; }
+.c-sendreview__actions .c-button { flex: 1 1 0; }       /* equal-width pair (#60) */
+
+/* ★ W-b (2026-08-24): on DESKTOP the takeover fills the whole pane, so the compose
+   stretched to the pane width (an 800px amount field). Cap the content column and
+   centre it — the same reading width the settings pane uses. Mobile is untouched. */
+:root[data-desktop] .c-wallet-send { max-width: 560px; margin-inline: auto; width: 100%; box-sizing: border-box; }
 
 </style>
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
@@ -4806,6 +5422,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     enterChatSelect, openTipSheet, openMemberSheet, openAttachSheet,
     openRequestSheet,               // #528: attach → Request (the #139 amount sheet, live)
     createWalletSend,               // W5 (#523): attach → Pay (lockedRecipient compose)
+    openPaymentReview,              // ★ W-d: request-in Pay → the review sheet BEFORE the native confirm
     setSendQuote: applySendQuote,   // W6 — aliased: the bridge handler below shares the name
     createModal, openModal, showToast, createButton,
     createWarningBanner, setWarning, createContactRequest,
@@ -5977,6 +6594,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   function buildAppRow(rec) {
     const incoming = rec.direction === 'received';
     const declined = incoming && declinedApps.has(String(rec.id));
+    const canceled = !incoming && canceledApps.has(String(rec.id));   // ★ B2: my own invite, withdrawn
     // C7(b) privacy: a REMOTE (http) app icon auto-fetches from the publisher on render
     // → reveals the receiver's IP before any install consent (#82). Gate it behind the
     // media-autoload pref (privacy-first) so the same opt-out that suppresses remote chat
@@ -5988,7 +6606,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     return createAppBubble({
       name: rec.name || '',
       iconUrl: iconUrl,
-      state: declined ? 'declined' : rec.astate,
+      state: declined ? 'declined' : (canceled ? 'canceled' : rec.astate),
       direction: rec.direction,
       timestamp: rec.ts,
       gutter: mode.isMulti && rec.direction === 'received',
@@ -6004,7 +6622,31 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       onResume: () => bridge.send('ixian:joinApp:' + rec.appid),
       // local decline → persist + repaint as 'declined'; not shown once already declined
       onDecline: (incoming && !declined) ? () => declineApp(rec.id) : undefined,
+      /* ★ B2 (#533 ①, Damir's locked shape): Cancel on MY invite → confirm → the
+         RECIPIENT'S invite is removed through the existing msgDelete path (C#
+         `cancelInvite`: sendMsgDelete to the peer, NO local delete) and MY card flips to
+         a persistent "Canceled" (the #214 tombstone: per-peer localStorage set). The
+         both-ends "Canceled" label waits for RC1 (BE). Before this the Cancel button
+         had no handler at all (a dead button). */
+      onCancel: (!incoming && !canceled && rec.astate === 'invited') ? () => confirmCancelInvite(rec) : undefined,
     });
+  }
+
+  function confirmCancelInvite(rec) {
+    const s = window.SL || {};
+    openModal(createModal({
+      title: s.cancelInviteTitle || 'Cancel this invite?',
+      body: s.cancelInviteBody || 'The invite is removed from their chat. Your card stays here as canceled.',
+      role: 'alertdialog', host: overlayHost,
+      actions: [
+        { label: s.keepInvite || 'Keep it', type: 'text', autofocus: true },
+        { label: s.cancelInviteConfirm || 'Cancel invite', type: 'fill', intent: 'destructive', onClick: () => {
+          cancelApp(rec.id);                             // persist + repaint NOW; C# answers cancelInviteResult
+          bridge.send('ixian:contextAction:cancelInvite:' + rec.id);
+        } },
+      ],
+    }));
+    renderLog();                                         // release the card's oneShot latch (a "Keep it" must leave a live Cancel)
   }
 
   /* map the legacy addAppRequest flags → createAppBubble state.
@@ -6105,8 +6747,22 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
        * status pushes flip the card. A canceled confirm pushes payRequestResult
        * ('cancel') → re-render releases the oneShot latch. Old exe: Pay opens
        * the native review page (viewPayment), unchanged. */
+      /* ★ W-d (Damir F5 2026-08-23): "show the new review dialog/sheet when someone
+       * clicks Pay, rather than just the native dialog." With the payRequest cap,
+       * Pay opens the c-sendreview SHEET (recipient · amount · live-quoted fee ·
+       * total · Confirm & send) and ONLY its Confirm emits `ixian:payRequest:<id>`
+       * → the NATIVE confirm (+ auth) → sign. Details is DROPPED while pending: it
+       * routed to the legacy WalletContactRequestPage (ugly, and it exposed the
+       * legacy Decline #526 removed) — the sheet IS the detail now; after payment
+       * the tx detail shows as before. Old exe: Pay = the native review page. */
+      // loop r1 A-2: 1:1 ONLY — C# rejects a group/bot pay (SingleChatPage:507) and a
+      // requestFunds CAN land in a group/bot (StreamProcessor has no group gate), so
+      // the sheet must never quote a fee against a group address and arm Confirm.
+      const canSheet = bridge.cap('payRequest') && mode.type === 0
+        && /^\d+(\.\d+)?$/.test(String(rec.amount == null ? '' : rec.amount).trim())
+        && /[1-9]/.test(String(rec.amount));                 // loop r1 A-4: a zero amount has no sheet
       const payDirect = bridge.cap('payRequest')
-        ? () => bridge.send('ixian:payRequest:' + rec.id)
+        ? (canSheet ? () => openPayRequestReview(rec) : () => bridge.send('ixian:payRequest:' + rec.id))
         : view;
       return createPaymentBubble({
         role: 'request-in',
@@ -6116,7 +6772,9 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
         timestamp: rec.ts,
         gutter: mode.isMulti,
         onPay: payDirect,
-        onDetails: bridge.cap('payRequest') ? view : null,   // Details keeps the full native view
+        // W-d: no legacy details route while the SHEET carries the detail; when the
+        // sheet cannot open (loop r1 C-2) the native view stays so the card is never inert
+        onDetails: canSheet ? null : view,
         strings: window.SL || {},
       });
     }
@@ -6911,6 +7569,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   function clearSendWait() { if (chatSendWait) { clearTimeout(chatSendWait); chatSendWait = 0; } }
   function closeSendTakeover() {
     const t = document.querySelector('.chat-send-takeover');
+    if (chatSendView && chatSendView._closeReview) { try { chatSendView._closeReview(); } catch (e) {} }   // loop r1 M4: no orphan sheet
     if (t) t.remove();
     chatSendView = null;
     chatSendCtrl = null;
@@ -6952,13 +7611,14 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
         // loop MAJOR fix: a dropped push must not strand a locked sheet forever —
         // the tipWait grammar. The copy must NOT claim failure: the tx may be out.
         clearSendWait();
+        // Loop r2 R2-1 (Batch W): ABOVE C#'s 120 s confirm self-heal — see home.html
         chatSendWait = setTimeout(() => {
           chatSendWait = 0;
           const c = chatSendCtrl;
           if (!c) return;
           chatSendCtrl = null;
           c.fail((window.SL && window.SL.sendNoAnswer) || 'No response from the app. Check your wallet activity before you try again.');
-        }, 30000);
+        }, 125000);
         bridge.send('ixian:signSend:' + r.address + ':' + payload.amount);
       },
       onDone: () => closeSendTakeover(),
@@ -6969,7 +7629,9 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     syncChatOverlay();                                 // loop MAJOR fix: hardware back closes the COVER, not the chat
     // loop a11y fix (#205 grammar, light): focus moves INTO the cover and stays
     // out of the covered conversation; overlays (sheets/modals) stay reachable.
-    const firstFocus = over.querySelector('button, input');
+    // loop r1 C-4: the compose's FIRST FIELD (the amount, W-i) takes focus — not the
+    // topbar Back button that `button, input` found first; containment is unchanged.
+    const firstFocus = over.querySelector('.chat-send-takeover__body input') || over.querySelector('button, input');
     if (firstFocus) { try { firstFocus.focus(); } catch (e) {} }
     chatSendFocusin = (e) => {
       if (over.contains(e.target)) return;
@@ -6980,6 +7642,63 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     document.addEventListener('focusin', chatSendFocusin);
     // balance prefetch: amount 0 = "quote the balance + Max ceiling" (fee stays gated)
     bridge.send('ixian:feeQuery:' + identity.address + ':0');
+  }
+
+  /* ★ W-d: request-in Pay → the review sheet. ONE sheet at a time; the quote rides
+   * the SAME `setSendQuote` push the compose uses (routed below when no compose is
+   * open). Cancel/dismiss releases the card's Pay oneShot latch (renderLog). The
+   * C# side is unchanged: Confirm emits the existing `ixian:payRequest:<id>`, and
+   * `payRequestResult` resolves the sheet exactly as `signSendResult` resolves the
+   * compose (ok → success morph · cancel → silent re-enable · fail → inline). */
+  let chatPayReview = null;                            // the open sheet's controller
+  let chatPayCtrl = null;                              // its pending done/fail
+  let chatPayId = '';                                  // loop r1 B-7: the card the sheet belongs to
+  let chatPayWait = 0;
+  function clearPayWait() { if (chatPayWait) { clearTimeout(chatPayWait); chatPayWait = 0; } }
+  function closePayReview() {                          // loop r1 B-3: the screen-ready sweep + teardown path
+    const r = chatPayReview;
+    chatPayReview = null; chatPayCtrl = null; chatPayId = '';
+    clearPayWait();
+    if (r) { try { r.close(true); } catch (e) { /* already gone */ } }
+  }
+  function openPayRequestReview(rec) {
+    if (chatPayReview) return;                         // double-open guard
+    if (mode.type !== 0) return;                       // loop r1 A-2: 1:1 only (the card arm gates too — belt)
+    if (!identity.address || !rec || !rec.id) return;
+    const s = window.SL || {};
+    const amount = String(rec.amount).trim();
+    chatPayId = String(rec.id);
+    chatPayReview = openPaymentReview({
+      recipient: {
+        name: (identity.name && identity.name !== identity.address) ? identity.name : '',
+        address: identity.address,
+        avatar: identity.avatar || null,
+        contact: true,
+      },
+      amount, fee: null,                               // W6: quoted live — no invented fee
+      host: overlayHost, strings: s,
+      title: s.payRequestTitle || 'Pay this request',
+      onQuote: (addr, amt) => bridge.send('ixian:feeQuery:' + addr + ':' + amt),
+      onConfirm: (payload, ctrl) => {
+        chatPayCtrl = ctrl;
+        clearPayWait();
+        // the tipWait grammar: no answer → release, never claim failure. Loop r1 B-2:
+        // ABOVE C#'s 120 s confirm self-heal (SPayments.acquireConfirm) — the native
+        // dialog can legitimately sit open that long, and a re-armed Confirm under it
+        // would only collide with the live confirm.
+        chatPayWait = setTimeout(() => {
+          chatPayWait = 0;
+          const c = chatPayCtrl;
+          if (!c) return;
+          chatPayCtrl = null;
+          c.fail(s.sendNoAnswer || 'No response from the app. Check your wallet activity before you try again.');
+        }, 125000);
+        bridge.send('ixian:payRequest:' + rec.id);
+      },
+      onDone: () => { chatPayReview = null; chatPayCtrl = null; chatPayId = ''; clearPayWait(); },   // the status pushes flip the card
+      onCancel: () => { chatPayReview = null; chatPayCtrl = null; chatPayId = ''; clearPayWait(); renderLog(); },   // release the Pay latch
+    });
+    if (!chatPayReview) { chatPayId = ''; renderLog(); }
   }
 
   /* #528: in-chat Request — the #139 amount sheet (peer known, no balance guard).
@@ -8007,6 +8726,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       exitChatSelect();                    // per-peer reset: a selection (and its contextual
                                            // topbar) must never survive into another conversation
       closeSendTakeover();                 // round-2 MINOR: an open money cover must not strand into peer B
+      closePayReview();                    // loop r1 B-3 (Batch W): the request-in review sheet sweeps with the compose
       identity.address = address || '';
       identity.avatar = null;              // per-peer reset (desktop reparent); setAvatar (onLoad) re-sets it
       if (!identity.name) renderTopbar();
@@ -8014,6 +8734,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       loadLikes();                         // address known → restore my own-reaction state (per-peer)
       loadLoadedMedia();                   // restore which remote media the user loaded (per-peer)
       loadDeclinedApps();                  // restore which app invites the user declined (per-peer, C7)
+      loadCanceledApps();                  // ★ B2: …and which own invites they canceled
       pendingLocalDeletes.clear();         // Q12 per-peer reset: a never-echoed local delete (e.g. the bot
                                            // branch, SingleChatPage:1152 gates on !friend.bot) must not leak
                                            // its id into the next peer and mis-latch a remote delete there
@@ -8161,9 +8882,11 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     /* ——— W5/W6 money-compose plumbing (#523) ——— */
     // W6 answer to ixian:feeQuery — routed to the OPEN in-chat compose only.
     setSendQuote(addr, amount, fee, balance, max, error) {
-      if (!chatSendView) { dbg('setSendQuote (no compose)'); return; }
       // the echo pair rides along — the component drops a stale answer (loop MAJOR)
-      applySendQuote(chatSendView, { fee, balance, max, address: addr, amount, error });
+      if (chatSendView) { applySendQuote(chatSendView, { fee, balance, max, address: addr, amount, error }); return; }
+      // ★ W-d: no compose open → the request-in review sheet is the only other asker
+      if (chatPayReview) { chatPayReview.setQuote({ fee, balance, address: addr, amount, error }); return; }
+      dbg('setSendQuote (no compose)');
     },
     // W5 outcome: 'ok' → success morph · 'cancel' → silent re-enable · else fail(msg).
     signSendResult(status, message) {
@@ -8179,13 +8902,46 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       const m = String(message || '');
       c.fail(m === '' ? null : m);
     },
+    // ★ B2: the cancel-invite outcome. 'ok' needs nothing (the card is already the
+    // tombstone). 'fail' (not my invite / bot / unknown id) → undo the tombstone, say so.
+    cancelInviteResult(id, status) {
+      const lid = String(id || '');
+      if (String(status || '') === 'ok') {
+        // loop r2 R2-5 (the #376 loop B-2 rule): this verb HAS an ack, so the success
+        // toast waits for it — an optimistic green toast beside a red failure was the
+        // exact contradiction that rule exists for. The toast is also the announcement
+        // (r1 m-3): the modal's opener was re-rendered away, focus context is gone.
+        try { showToast({ text: (window.SL && window.SL.inviteCanceled) || 'Invite canceled', tone: 'success', host: overlayHost, strings: window.SL || {} }); } catch (e) { /* toast optional */ }
+        return;
+      }
+      if (canceledApps.delete(lid)) { saveCanceledApps(); renderLog(); }
+      try { showToast({ text: (window.SL && window.SL.cancelInviteFailed) || 'The invite could not be canceled.', tone: 'error', host: overlayHost, strings: window.SL || {} }); } catch (e) { /* toast optional */ }
+    },
     // payRequest outcome (request-in card). 'ok' needs nothing — the status pushes
     // flip the card. 'cancel'/'fail' re-render to release the Pay oneShot latch.
     payRequestResult(id, status, message) {
       const st = String(status || '');
+      const msg = String(message || '');
+      // ★ W-d: the review sheet is open → resolve IT (the signSendResult grammar).
+      // Loop r1 B-7: only for ITS card — a result for another id is not ours.
+      if (chatPayCtrl && chatPayId && String(id) === chatPayId) {
+        clearPayWait();
+        const c = chatPayCtrl;
+        chatPayCtrl = null;
+        if (st === 'ok') { c.done(); return; }
+        if (st === 'cancel') { c.fail(''); return; }
+        // loop r1 A-1: 'gone' = C# found the request unpayable (settled elsewhere,
+        // not found, group/bot, zero) — NOT a user cancel; say so, never silence
+        if (st === 'gone') { c.fail(msg || (window.SL && window.SL.payRequestGone) || 'This request can no longer be paid.'); return; }
+        c.fail(msg === '' ? null : msg);
+        return;
+      }
       if (st === 'ok') return;
       renderLog();
-      const msg = String(message || '');
+      if (st === 'gone') {
+        try { showToast({ text: msg || (window.SL && window.SL.payRequestGone) || 'This request can no longer be paid.', tone: 'error', host: overlayHost, strings: window.SL || {} }); } catch (e) { /* toast optional */ }
+        return;
+      }
       if (st === 'fail' && msg) {
         try { showToast({ text: msg, tone: 'error', host: overlayHost, strings: window.SL || {} }); } catch (e) { /* toast optional */ }
       }
@@ -8842,6 +9598,31 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    * "Declined" state. Remembered per peer so it survives a C# re-flush (loadMessages
    * re-pushes the invite as 'invite'/'missing') and re-opening the chat. Same
    * origin/pattern as myLikes — the user's own action metadata, SECURITY.md-OK. */
+  /* ★ B2: the CANCELED set — my own invites I withdrew — same origin/pattern as the
+     declined set (the user's own action metadata, SECURITY.md-OK). Loaded beside it. */
+  let canceledApps = new Set();
+  const CANCELED_APP_PREFIX = 'spixi.app.canceled.';
+  function canceledAppKey() { return identity.address ? CANCELED_APP_PREFIX + identity.address : ''; }
+  function loadCanceledApps() {
+    canceledApps = new Set();
+    const k = canceledAppKey();
+    if (!k) return;
+    try {
+      const arr = JSON.parse(localStorage.getItem(k) || '[]');
+      if (Array.isArray(arr)) arr.forEach((id) => canceledApps.add(String(id)));
+    } catch (_) {}
+  }
+  function saveCanceledApps() {
+    const k = canceledAppKey();
+    if (k) { try { localStorage.setItem(k, JSON.stringify([...canceledApps])); } catch (_) {} }
+  }
+  function cancelApp(id) {
+    id = String(id);
+    if (canceledApps.has(id)) return;
+    canceledApps.add(id);
+    saveCanceledApps();
+    renderLog();                                 // repaint the card as 'canceled'
+  }
   let declinedApps = new Set();
   const DECLINED_APP_PREFIX = 'spixi.app.declined.';
   function declinedAppKey() { return identity.address ? DECLINED_APP_PREFIX + identity.address : ''; }

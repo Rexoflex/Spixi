@@ -88,26 +88,110 @@
   line-height: var(--line-height-body-md);
   color: var(--text-neutral-02);
 }
+/* ★ A7 (Damir, Batch A 2026-08-24): the option rows are the GROUP-CREATION checkbox
+   grammar — a pressable row with the trailing 24px select circle (the contacts-shell
+   pickerRow recipe, --icon-neutral-03 ring, filled --surface-action-default on
+   aria-checked) — not the off-brand native <input type=checkbox>. */
 .c-delete-chat__opts { display: flex; flex-direction: column; }
 .c-delete-chat__opt {
   display: flex;
   align-items: center;
   gap: var(--spacing-12);
+  width: 100%;
   min-height: var(--size-target-min);   /* ≥44px touch target */
+  padding: var(--spacing-4) 0;
+  border: 0;
+  background: transparent;
+  text-align: start;
   color: var(--text-neutral-01);
   font-family: var(--font-secondary);
   font-size: var(--font-size-body-md);
   line-height: var(--line-height-body-md);
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
-.c-delete-chat__opt input {
-  width: 20px;
-  height: 20px;
+.c-delete-chat__opt:disabled { cursor: default; }
+/* loop r1: the fixed-on "Delete chat" row is a STATEMENT of what happens, not an inert
+   control — its label keeps full ink (dimming it read 2.57:1); the static circle says fixed */
+.c-delete-chat__opt-label { flex: 1; min-width: 0; }
+.c-delete-chat__check {
   flex: none;
-  accent-color: var(--surface-action-default);
-  cursor: pointer;
+  width: 24px;                      /* sanctioned: select-circle dim (contacts parity) */
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  border: var(--outline-width-2) solid var(--icon-neutral-03);
+  color: transparent;
+  transition: background-color var(--duration-200) var(--easing-standard),
+              border-color var(--duration-200) var(--easing-standard),
+              color var(--duration-200) var(--easing-standard);
 }
-.c-delete-chat__opt input:disabled { cursor: default; }
+@media (prefers-reduced-motion: reduce) { .c-delete-chat__check { transition: none; } }
+[aria-checked='true'] > .c-delete-chat__check {
+  background: var(--surface-action-default);
+  border-color: var(--surface-action-default);
+  color: var(--icon-neutral-on-action);
+}
+.c-delete-chat__opt:focus-visible,
+.c-remove-contact__row:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+}
+
+/* ★ A5 (Damir's shape, Batch A): the REMOVE-CONTACT bottom sheet — peer header, the
+   honest body, the shared-groups strip (multi-select "leave first" rows) and the two
+   actions. Rendered inside c-sheet (overlay.css owns the sheet chrome). */
+.c-remove-contact { display: flex; flex-direction: column; gap: var(--spacing-16); }
+.c-remove-contact__groups {
+  display: flex; flex-direction: column; gap: var(--spacing-4);
+  padding: var(--spacing-12);
+  border-radius: var(--radius-16);
+  background: var(--surface-neutral-02);
+}
+.c-remove-contact__title {
+  margin: 0 0 var(--spacing-4);
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
+.c-remove-contact__row {
+  display: flex; align-items: center; gap: var(--spacing-12);
+  width: 100%;
+  min-height: 56px;
+  padding: var(--spacing-4) var(--spacing-4);
+  border: 0; border-radius: var(--radius-12);
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) { .c-remove-contact__row:hover { background-color: var(--surface-interactive-hover); } }
+.c-remove-contact__rowname {
+  flex: 1; min-width: 0;
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.c-remove-contact__hint {
+  margin: var(--spacing-4) 0 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-remove-contact__error {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-error);
+}
+.c-remove-contact__actions { display: flex; flex-wrap: wrap; gap: var(--spacing-8); justify-content: flex-end; }
+.c-remove-contact__actions .c-button { flex: 1 1 0; min-width: 0; }   /* equal-width pair (#60) */
+.c-remove-contact__actions .c-remove-contact__cta { flex: 2 1 auto; }    /* loop r1: the long "Leave N & remove" label wraps to its own line, never overflows */
 
 /* —— #506② / iOS-62: the long-pressed message is PROMOTED above the scrim ————
    Damir on device: "you cannot see what you are acting on." #492 shipped the cheap

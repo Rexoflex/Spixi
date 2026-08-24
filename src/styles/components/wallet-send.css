@@ -34,35 +34,35 @@
 
 /* —— recipient picker —— */
 .c-wallet-send__picker { display: flex; flex-direction: column; gap: var(--spacing-12); }
+/* ★ W-j (Damir F5 2026-08-23): the row anatomy MOVED to contact-row.css — the rows
+   are the shared c-contact-row (directory grammar). `.c-wallet-send__contact` stays
+   on the element as an ALIAS for the pins; no layout of its own. The list is the
+   directory CARD (contacts-shell .c-contacts__list grammar) so the three screens
+   read as one. */
+.c-wallet-send__list {                                   /* loop r1 m6: address row + contacts share ONE card (same left edge) */
+  display: flex; flex-direction: column;
+  background: var(--surface-card);
+  border-radius: var(--radius-16);
+  padding: var(--spacing-4);
+  box-shadow: var(--elevation-1);
+}
+.c-wallet-send__list .c-wallet-send__addrfield { padding: var(--spacing-4) var(--spacing-8) var(--spacing-8); }
 .c-wallet-send__contacts { display: flex; flex-direction: column; }
-.c-wallet-send__contact {
-  display: flex; align-items: center; gap: var(--spacing-12);
-  min-height: var(--size-target-min);
-  padding: var(--spacing-8) var(--spacing-12);
-  border: 0; border-radius: var(--radius-12);
-  background: transparent;
-  text-align: start;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
+/* hidden live region (the receive screen's grammar): announces the pick */
+.c-wallet-send__live {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0; border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
-@media (hover: hover) and (pointer: fine) { .c-wallet-send__contact:hover { background: var(--surface-interactive-hover); } }
-.c-wallet-send__contact:active { background: var(--surface-interactive-pressed); }
-.c-wallet-send__contactname {
-  flex: 1; min-width: 0;   /* loop fix: without a shrinkable basis the nowrap name can NEVER ellipsize (receive parity) */
-  font-size: var(--font-size-body-lg);
-  color: var(--text-neutral-01);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.c-wallet-send__picked:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
 }
-/* #255: "Request pending" tag on a contact whose request is not accepted yet */
-.c-wallet-send__pendingtag {
-  flex: none;
-  padding: 2px var(--spacing-8);
-  border-radius: var(--radius-full);
-  font-size: var(--font-size-label-sm);
-  line-height: var(--line-height-label-sm);
-  color: var(--text-neutral-02);
-  background: var(--surface-neutral-02);
-}
+/* #255: "Request pending" tag — kept for the old class; the shared row renders the
+   directory badge (.c-contact-row__badge) instead */
 .c-wallet-send__none {
   margin: 0;
   padding: var(--spacing-8) var(--spacing-12);
@@ -70,14 +70,7 @@
   line-height: var(--line-height-body-sm);
   color: var(--text-neutral-02);
 }
-/* "Send to an address" — contact-aligned row; the avatar slot carries the qr glyph (#136) */
-.c-wallet-send__addrglyph {
-  width: var(--size-avatar-40); height: var(--size-avatar-40); flex: none;
-  border-radius: var(--radius-full);
-  display: inline-flex; align-items: center; justify-content: center;
-  border: var(--outline-width-1) solid var(--outline-neutral-02);
-  color: var(--icon-action-default);
-}
+/* "Send to an address" — the shared glyph row (contact-row.css .c-contact-row__glyph, #136) */
 .c-wallet-send__addrfield { display: flex; flex-wrap: wrap; gap: var(--spacing-8); }
 .c-wallet-send__addrinput {
   flex: 1; min-width: 0;
@@ -113,25 +106,30 @@
 /* selected recipient */
 .c-wallet-send__picked {
   display: flex; align-items: center; gap: var(--spacing-12);
+  min-height: 64px;                                     /* ★ W-j: the directory row height */
   padding: var(--spacing-8) var(--spacing-12);
-  border-radius: var(--radius-12);
-  background: var(--surface-neutral-02);
+  border-radius: var(--radius-16);
+  background: var(--surface-card);
+  box-shadow: var(--elevation-1);
 }
 .c-wallet-send__pickedglyph {
-  width: 40px; height: 40px; flex: none;                /* mirrors avatar-40 slot */
+  width: var(--size-avatar-48); height: var(--size-avatar-48); flex: none;   /* ★ W-j: avatar-48 slot */
   border-radius: var(--radius-full);
   display: inline-flex; align-items: center; justify-content: center;
-  border: var(--outline-width-1) solid var(--outline-neutral-02);
-  color: var(--icon-neutral-02);
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
 }
 .c-wallet-send__pickedtext { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.c-wallet-send__pickedname {
-  font-size: var(--font-size-body-lg);
+.c-wallet-send__pickedname {                            /* ★ W-b: name over the muted truncated address */
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
   font-weight: var(--font-weight-semibold);
   color: var(--text-neutral-01);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .c-wallet-send__pickedaddr {
   font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
   color: var(--text-neutral-02);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -216,3 +214,8 @@
 .c-sendreview__rowvalue { flex: 1; min-width: 0; text-align: end; color: var(--text-neutral-01); font-size: var(--font-size-body-md); }
 .c-sendreview__actions { display: flex; gap: var(--spacing-8); justify-content: flex-end; }
 .c-sendreview__actions .c-button { flex: 1 1 0; }       /* equal-width pair (#60) */
+
+/* ★ W-b (2026-08-24): on DESKTOP the takeover fills the whole pane, so the compose
+   stretched to the pane width (an 800px amount field). Cap the content column and
+   centre it — the same reading width the settings pane uses. Mobile is untouched. */
+:root[data-desktop] .c-wallet-send { max-width: 560px; margin-inline: auto; width: 100%; box-sizing: border-box; }

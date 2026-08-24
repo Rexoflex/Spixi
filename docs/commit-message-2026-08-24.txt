@@ -1,0 +1,11 @@
+overnight batches W+A-D #535-#552: wallet follow-ups, remove-contact data bug, requests, account lifecycle, missed call
+
+- W (#536-#542): in-chat pay compose styled (the missing css links, root cause), amount-first send, ONE shared money-row anatomy (contact-row.js, new), receive sheet scroll + premium, pay-request review before native confirm + honest "gone", hero scan -> compose with known-contact auto-pick, Windows drops the no-op confirm-payments row, keyboard dismiss
+- #535: message sounds -> minimal/swipe (sent) + minimal/drag-start (received), -16 dBFS
+- A (#539-#542): A6 remove-contact DATA BUG fixed (onPersist sent no verb; new SContacts.cs + address-scoped verbs + result pushes), shared-groups leave-first sheet, bot rosters unmasked (legacy parity), danger rows on top, groups-in-common strip, info skeleton, 0.7 meta ink, bridge outbox serialized (fixes bulk delete + multi-recipient sends)
+- B (#543-#544): revoke-request prompt (RequestSent guard - approved is a dead flag), app-invite cancel with persistent Canceled card + blanked-message ghost guard
+- C (#545-#548): ONE full account wipe (shutdown-first order, balances cleared, spixi.* swept, prefs cleared -> welcome; delete-wallet route retired), F-3 restore crash: three mechanisms closed, Account warm-park after first paint, Contacts-from-Account returns to Account, Android night splash
+- D (#549): missed-call row survives the every-tick sweep (CALL_TAG enumerated sweep on Android, call- prefix on iOS, OneSignal ClearAll dropped)
+- opus #46 loops: W 3 rounds, A 2, B+C+D 2 - 28 MAJOR-class found and fixed, verdicts in docs/
+- F5 walked same day, 28/30 (#552): findings triaged in docs/f5-findings-2026-08-24-overnight.md - restore race (EnsureNodeRunning), untagged missed-call poster, bot-removal crash (needs logcat), picker/sheet styling; BE rows appended (roster cap, poison messages)
+- baseline: bundle 291, shells 18, smoke 2996/3 known, cs-syntax 144+1, locales clean; Ixian-Core 097341a untouched

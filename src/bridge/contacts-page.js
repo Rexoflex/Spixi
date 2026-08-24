@@ -76,11 +76,14 @@ export function mountContacts({
   overlay.className = 'contacts-takeover';
 
   let closed = false;
-  const close = () => {
+  /* ★ C4 (#547): onClose carries the REASON — 'back' when the user pressed the
+     takeover's own Back (the return-to-Account hop keys on it), anything else when
+     the shell closed it programmatically (a tab tap, an app launch, a chat open). */
+  const close = (reason) => {
     if (closed) return;
     closed = true;
     overlay.remove();
-    if (onClose) onClose();
+    if (onClose) onClose(reason === 'back' ? 'back' : 'auto');
   };
 
   /* #265 ⑤ — step 2: group setup (name / photo / blind) over the picker. The
@@ -138,7 +141,7 @@ export function mountContacts({
     contacts: getRoster ? getRoster() : [],
     purpose,
     strings,
-    onBack: close,                         // close the takeover — never an ixian: nav verb
+    onBack: () => close('back'),           // close the takeover — never an ixian: nav verb (C4: the user's own Back)
     // Add contact → ContactNewPage. Leave the takeover OPEN underneath (see docblock).
     onAddContact: () => bridge.send('ixian:newcontact'),
     // Create group → IN-SHELL multi-select (the picker flips itself; the topbar

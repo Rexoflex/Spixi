@@ -400,6 +400,15 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="delivered"] { color: var(--icon-bubble-delivered); }
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="read"] { color: var(--icon-bubble-read); }
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="failed"] { color: var(--icon-bubble-failed); }
+/* ★ A9 (Damir, Batch A 2026-08-24): the OUTGOING timestamp + status glyphs sit at 0.7
+   alpha — quieter than the message text — and ONLY the READ tick stays at 1.0 (it is the
+   one state worth the eye). Opacity goes on the CHILDREN (time, edited, the glyphs) —
+   a box-level opacity would cap the read tick at 0.7 too, since a child can never be
+   more opaque than its parent. The failed glyph keeps 1.0 as well (an error must not
+   be dimmed — the #48 rule). Received bubbles are untouched. */
+.c-bubble-row[data-direction="sent"] .c-bubble__meta > * { opacity: 0.7; }
+.c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="read"],
+.c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="failed"] { opacity: 1; }
 /* A2 (#302): paid marker. Inherits the meta ink on BOTH directions — those inks are
    already AA-tuned per direction two rules up (--text-bubble-*-meta), so the glyph
    needs no token of its own and reads correctly in light and dark. flex:none stops

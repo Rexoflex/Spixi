@@ -7,7 +7,8 @@
  */
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { readFileSync as readFileSyncRaw, readdirSync, existsSync } from 'node:fs';
+import { readFileSync as readFileSyncRaw, readdirSync, existsSync, statSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 
 /* CRLF NORMALIZATION ON READ (#340; handoff-2026-08-16 "the CRLF smoke brittleness").
  * On a Windows checkout three pins failed with no code change behind them — #148③,
@@ -373,7 +374,8 @@ console.log('wallet.html');
   await sleep(50);
   const send = d.querySelector('.c-wallet-send');
   ok(!!send, 'Send quick action opens the send view');
-  ok(!!send.querySelector('.c-wallet-send__picker .c-wallet-send__contact .c-wallet-send__addrglyph'),
+  /* W-j (2026-08-24): the row is the shared c-contact-row; the glyph slot is its avatar-48 disc */
+  ok(!!send.querySelector('.c-wallet-send__picker .c-wallet-send__contact.c-contact-row .c-contact-row__glyph'),
     'address row first, contact-aligned (#136)');
   /* bad-address error placement (Damir bug, round 3): under ITS input */
   send.querySelector('.c-wallet-send__picker .c-wallet-send__contact').click();
@@ -454,7 +456,7 @@ console.log('wallet.html');
   const gated0 = rowsOf(ask0);
   ok(!ask0.hidden && gated0.length > 0, 'the contact list is visible before an amount is typed');
   ok(gated0.every((b) => b.getAttribute('role') === 'checkbox' && b.getAttribute('aria-checked') === 'false'
-    && !!b.querySelector('.c-wallet-receive__check')),
+    && !!b.querySelector('.c-contact-row__check')),   // W-j: the shared row's circle
     'W9: rows are the GROUP-CREATION grammar — role=checkbox + aria-checked + the select circle (contacts-shell pickerRow, not a bespoke one)');
   ok(gated0.every((b) => !b.disabled && b.dataset.needsAmount === undefined && b.dataset.acted === undefined),
     'W9: NO row is disabled and no [data-needs-amount]/[data-acted] survives — ticking a name is not a send, so nothing on a row needs gating');
@@ -987,7 +989,7 @@ console.log('chat.html — chat info (#141)');
     balance: 100000000, fee: 0.00001, onSend() {}, strings: {},
   });
   wsHost.append(ws);
-  const wsNames = [...ws.querySelectorAll('.c-wallet-send__contacts .c-wallet-send__contactname')].map((e) => e.textContent);
+  const wsNames = [...ws.querySelectorAll('.c-wallet-send__contacts .c-contact-row__name')].map((e) => e.textContent);   // W-j: shared row
   ok(wsNames.length === 12 && wsNames[0] === 'CO' && wsNames[11] === 'CZ'
     && !ws.querySelector('.c-wallet-send__contacts .c-wallet-send__none'),
     'send picker renders ALL 12 contacts A–Z — no cap, no keep-typing note (#142)');
@@ -1353,21 +1355,22 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   d.body.append(dhost);
   const danger = S.createSettingsDanger({
     onBack() {},
-    onDeleteHistory() {}, onDeleteDownloads() {}, onDeleteAccount() {},
-    onDeleteWallet: (ctrl) => { delWalletCtrl = ctrl; },
+    onDeleteHistory() {}, onDeleteDownloads() {},
+    onDeleteAccount: (ctrl) => { delWalletCtrl = ctrl; },
+    onDeleteWallet: () => {},                  // ★ #545 C2: accepted, renders NOTHING (the wallet route is retired)
   });
   dhost.append(danger);
   const quietRows = [...danger.querySelectorAll('.c-settings__row')];
   const cards = [...danger.querySelectorAll('.c-settings-danger__card')];
   ok(quietRows.length === 2 && quietRows[0].textContent.includes('history'),
     'free-up-space tier: history + downloads as QUIET rows (#147 tone split)');
-  ok(cards.length === 2 && cards[1].textContent.includes('wallet'),
-    'danger zone: account + wallet as heavy cards, wallet LAST (blast-radius order)');
-  cards[1].click();
+  ok(cards.length === 1 && /wallet, contacts, chats, files and settings/.test(cards[0].textContent) && !/Delete wallet/.test(danger.textContent),
+    '★ #545 C1/C2: ONE destructive door — "Delete account" is the FULL wipe (wallet included) and the separate "Delete wallet" card is GONE');
+  cards[0].click();
   const dmodal = [...d.querySelectorAll('.c-modal')].pop();
   ok(!!dmodal && dmodal.getAttribute('role') === 'alertdialog'
-    && dmodal.textContent.includes('cannot be recovered'),
-    'delete-wallet confirm is an alertdialog carrying the unrecoverability line');
+    && dmodal.textContent.includes('nobody can recover') && dmodal.textContent.includes('welcome screen'),
+    '★ #545 C1: the delete-account confirm is an alertdialog carrying the unrecoverability line AND says it lands on welcome');
   ok(!!dmodal.querySelector('.c-settings-danger__confirm-warn')
     && dmodal.textContent.includes('This action cannot be undone'),
     'every delete confirm wears the standing cannot-be-undone strip (#150⑥)');
@@ -6891,9 +6894,9 @@ console.log('#348 — W14 delete · W2 auto-save · W8 tip + blindness');
   const ch348  = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
 
   /* —— W14: the freeze —— */
-  ok(/MainThread\.BeginInvokeOnMainThread\(\(\) =>\s*\r?\n\s*\{\s*\r?\n\s*MainThread\.BeginInvokeOnMainThread\(\(\) => \{ deleteWalletWork\(\); \}\);/.test(sp348),
-    '★ W14 (#348): the delete work leaves the WebView navigation callback, and does it in TWO hops. LockPage raises authSucceeded BEFORE it closes itself, and its close posts its own teardown — so a single hop is enqueued AHEAD of that and the user watches the whole wipe behind an opaque lock');
-  ok(!/wipeAccountData\(\);[\s\S]{0,400}?onLoad\(\);/.test(sp348) && /private void wipeAccountData\(\)/.test(sp348),
+  ok(/MainThread\.BeginInvokeOnMainThread\(\(\) =>[\s\S]{0,120}?MainThread\.BeginInvokeOnMainThread\(\(\) =>[\s\S]{0,200}?wipeEverything\(\);/.test(sp348) && !/deleteWalletWork\(\)/.test(sp348),
+    '★ W14 (#348) → #545: the delete work (now wipeEverything, the ONE route) leaves the WebView navigation callback, and does it in TWO hops. LockPage raises authSucceeded BEFORE it closes itself, and its close posts its own teardown — so a single hop is enqueued AHEAD of that and the user watches the whole wipe behind an opaque lock');
+  ok(!/wipeEverything\(\);[\s\S]{0,400}?onLoad\(\);/.test(sp348) && /private void wipeAccountData\(\)/.test(sp348) && /private void wipeEverything\(\)/.test(sp348),
     '★ W14 (#348): onLoad() is GONE from the delete path. It re-read the nickname, own-avatar path and primary address that the lines above it had just deleted — an NRE there escaped through authSucceeded, so LockPage never closed and hardware back was swallowed. That was the permanent freeze');
   ok(/popToRootAsync\(\);[\s\S]{0,1400}?SpixiContentPage\.disposeParkedOverlay\(\);/.test(sp348) && !/disposeParkedOverlay\(\);[\s\S]{0,200}?popToRootAsync\(\);/.test(sp348),
     '★ W14 (#348): the parked overlay is disposed AFTER the pop, not before. The non-rail Account push carries parkOnClose, so popToRootAsync PARKS this page — and disposing first is a no-op, because nothing is parked yet. Left parked, the WIPED account stays warm and re-presentable');
@@ -6901,7 +6904,7 @@ console.log('#348 — W14 delete · W2 auto-save · W8 tip + blindness');
     '★ W14 (#348): the latch is NOT cleared on a route that navigates away. LockPage can raise authSucceeded twice (password, then a late biometric), and clearing it let the second one re-run the wipe and push a SECOND LaunchPage');
 
   ok((readFileSync(join(root, 'Spixi/Pages/Launch/LaunchPage.xaml.cs'), 'utf8').match(/IxianHandler\.getWalletList\(\)\.Count > 0/g) || []).length >= 2,
-    '★ W14 (#348), after N75 merged the pages: BOTH doors refuse while a wallet exists — restore as well as create. Delete-account now routes to welcome and KEEPS the wallet, so a live wallet can sit behind onboarding — and Restore was the one door that would have run straight over it');
+    '★ W14 (#348), after N75 merged the pages: BOTH doors refuse while a wallet exists — restore as well as create (#545 removes the wallet on delete-account, so this guard is now a belt, not the door)');
 
   /* —— W2: auto-save —— */
   ok(/onLock: \(next, ctrl\) => \{[^\n]*?ctrl\.done\(\); state\.dirtyLock = true; syncSave\(\); \}/.test(sh348)
@@ -7240,7 +7243,7 @@ console.log('#341 — Change password renders inside the Account pane');
   const spEnc = readFileSync(join(root, 'Spixi/Pages/Settings/SettingsPage.xaml.cs'), 'utf8');
   const shEnc = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
 
-  ok(/setCaps",\s*"[^"]*\bencpassInline\b/.test(spEnc),
+  ok(/string caps = "[^"]*\bencpassInline\b/.test(spEnc),   // W-g (2026-08-24): the literal moved into `caps` (paymentAuth is a gated append)
     '#341: SettingsPage declares encpassInline — an old exe never pushes it, so a new shell falls back to the pushed EncryptionPassword page instead of emitting a verb nobody dispatches');
   ok(/if \(paneMode && bridge\.cap\('encpassInline'\)\) \{ showEncpass\(\); return; \}[\s\S]{0,80}?bridge\.send\('ixian:encpass'\)/.test(shEnc),
     '#341: the inline route is gated on BOTH paneMode and the cap, and falls through to ixian:encpass — mobile keeps the pushed page, so the #340 closeSublevelOverlays sweep still has a page to sweep');
@@ -7377,9 +7380,8 @@ console.log('#341 — Change password renders inside the Account pane');
      markers in the tree), so it stayed in Android SharedPreferences / iOS
      NSUserDefaults — which unencrypted device backups include — after the one action
      whose whole meaning is "destroy the wallet". */
-  ok(/Preferences\.Default\.Remove\("walletpass"\)/.test(spEnc)
-    && !/Preferences\.Default\.Remove\("waletpass"\)/.test(spEnc),
-    '★ #346: onDeleteWallet removes "walletpass" — the key that is actually written. The typo made the delete a no-op and left the plaintext wallet password on disk');
+  ok(/Preferences\.Default\.Clear\(\);/.test(spEnc) && !/Preferences\.Default\.Remove\("waletpass"\)/.test(spEnc),
+    '★ #346 → #545: the wipe CLEARS every native preference ("walletpass" included — the plaintext wallet password must not survive the one action whose meaning is "destroy the wallet"); the "waletpass" typo is gone');
 
   // The behavioural half of this batch — release() must actually scrub — lives in
   // the settings-demo block above, where a jsdom window with the bundle is already
@@ -8339,7 +8341,7 @@ console.log('multi-user app launch — new picker end to end');
   const launch = home.slice(home.indexOf('onLaunch: (app) => {'), home.indexOf('onOpen: (app) =>'));
   ok(/openContacts\('app', app\.id\)/.test(launch) && !/startAppMulti/.test(launch),
     'apps tab: a multi-user launch opens the in-shell picker (purpose "app") — the ixian:startAppMulti verb that pushed WalletRecipientPage is gone from both launch paths');
-  ok(/function openContacts\(purpose, appId\)/.test(home) && /appId: appId \|\| ''/.test(home),
+  ok(/function openContacts\(purpose, appId, opts\)/.test(home) && /appId: appId \|\| ''/.test(home),   // C4 (#547) added the opts bag
     'home shell: openContacts threads the appId into mountContacts (the launch verb needs it)');
   const pat = home.slice(home.indexOf('pickAppTargets(appId) {'), home.indexOf('/* ——— chats (wired)'));
   ok(/openContacts\('app', String\(appId\)\)/.test(pat) && /if \(!appId\) return;/.test(pat),
@@ -8589,7 +8591,8 @@ console.log('BUG-1b / BUG-2 — built home shell, real bridge pushes');
     await sleep(120);
     [...d.querySelectorAll('.c-modal button')].find((b2) => /^delete$/i.test(b2.textContent.trim())).click();
     await sleep(120);
-    [...d.querySelectorAll('.c-modal button')].find((b2) => /keep contact/i.test(b2.textContent)).click();
+    // ★ A5 (2026-08-24): step 2 is the remove-contact SHEET now, not a second modal
+    [...d.querySelectorAll('.c-sheet button, .c-modal button')].find((b2) => /keep contact/i.test(b2.textContent)).click();
     await sleep(150);
     ok(names().length === 0, 'BUG-1b: deleting the chat removes the row (the delete still sticks)');
 
@@ -9164,7 +9167,9 @@ console.log('#360 — I-6 locale digit grouping (display skin over the #77 wire)
     '★ I-6 r2 (#360): all three amount inputs (send, receive, tip) route through amountInputToCanonical WITH the event — typing/deletion edits take the per-edit inverse, paste and synthetic dispatches (the QR seed path fires a plain Event) take the settled heuristic. The field holds the DISPLAY form, state holds the canonical, the #77 wire is untouched');
   ok(/amt\.value = groupAmountDisplay\(parts\[2\]\)/.test(ws360),
     '★ I-6 (#360): the QR-scan amount seeds the field in DISPLAY form — a raw canonical "1.500" (one-and-a-half with typed zeros) dropped into a ","-decimal locale would read as grouping: a 1000× error on a payment path');
-  ok(/groupAmountDisplay\(fromUnits\(aU\)\)/.test(ws360) && /groupAmountDisplay\(fromUnits\(feeAtOpen\)\)/.test(ws360) && /groupAmountDisplay\(fromUnits\(aU \+ feeAtOpen\)\)/.test(ws360),
+  /* W-d (2026-08-24): the review sheet is the exported openPaymentReview — its fee
+     variable is `feeU` (feeAtOpen is the compose's snapshot handed IN). Same rule. */
+  ok(/groupAmountDisplay\(fromUnits\(aU\)\)/.test(ws360) && /groupAmountDisplay\(fromUnits\(feeU\)\)/.test(ws360) && /groupAmountDisplay\(fromUnits\(aU \+ feeU\)\)/.test(ws360),
     'I-6 (#360): the review sheet groups Amount, Fee AND Total at full precision — separators are the only defence against a mistyped zero at the confirm moment (audit M3 exactness preserved: grouping adds separators, never drops digits)');
   const idx360 = readFileSync(join(root, 'Spixi/Resources/Raw/html/index.html'), 'utf8');
   ok(idx360.includes("groupAmountDisplay(zeroAmount(balance) ? '0.00' : balance)") && idx360.includes('formatIxiAmount(amount)'),
@@ -10738,7 +10743,7 @@ console.log('#441–#447 — reply-to · privacy shield · banked bugs · wallet
   const set443 = read4('Spixi/Resources/Raw/html/settings.html');
   ok(/localStorage\.setItem\('spixi\.landtab', 'contacts:' \+ Date\.now\(\)\)/.test(set443),
     '★ N42 (#443): Contacts is reachable from Account. There is no C# verb for "go home and open the directory" — the same gap S11 names — so it rides the #238 hand-off the nav taps already use');
-  ok(/if \(id === 'contacts'\) \{/.test(home443) && /openContacts\('directory'\);/.test(home443),
+  ok(/if \(id === 'contacts'\) \{/.test(home443) && /openContacts\('directory', '', \{ returnTo: 'account' \}\);/.test(home443),   // C4 (#547): …and Back returns to Account
     '★ N42 (#443): home consumes the hand-off, lands on Chats and opens the directory takeover');
   ok(/onAddressInfo:/.test(set443) && /addressInfoSafety/.test(set443),
     '★ #443 (Damir V1): the Account address says what it is FOR. ⚠ COPY IS A DRAFT pending his sign-off — and it deliberately does NOT claim the address hides anything: an Ixian address is public and its balance is visible in any explorer, so the honest promise is about WALLET ACCESS');
@@ -11090,7 +11095,7 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
     ok(/Preferences\.Default\.Set\("walletCreatedHere", "1"\);/.test(lp)
       && /Preferences\.Default\.Remove\("walletCreatedHere"\);/.test(lp),
       '★ #456: the CREATE site records that this wallet was generated here and the RESTORE site clears it. Nothing else in the app can tell the two apart — both start with empty block storage at CoreConfig.bakedBlockHeight, and LocalStorage.accountRestored is consumed inside Node.preStart, before HomePage exists');
-    ok(/Preferences\.Default\.Remove\("walletCreatedHere"\);/.test(sp),
+    ok(/Preferences\.Default\.Clear\(\);/.test(sp),   // #545: the full wipe clears EVERY preference — the marker included
       '#456: delete-account clears the marker too — it belongs to the wallet, not to the device');
     ok(/walletCreatedHere \? "1" : "0"/.test(hp),
       '#456: the marker rides setScanProgress as a fourth argument. Additive: an older shell ignores it, which is the right way for this to degrade');
@@ -11250,7 +11255,7 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   const setShell = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
   const screens = readFileSync(join(root, 'src/components/settings-screens.js'), 'utf8');
 
-  ok(/setCaps",\s*"settingsApply,backupInline,downloadsInline,encpass,encpassInline,globalNotifications/.test(setPage),   // PA1 (#525) appended ,paymentAuth — prefix pin, guarantee unchanged
+  ok(/string caps = "settingsApply,backupInline,downloadsInline,encpass,encpassInline,globalNotifications"/.test(setPage),   // PA1 (#525) appended ,paymentAuth — W-g (2026-08-24) made it a gated append; prefix pin, guarantee unchanged
     '★ NOTIF-2: SettingsPage pushes the globalNotifications capability. createNotificationsScreen has been BUILT since #147 and gated on it, and the production shell never set it — a screen that shipped dark for months');
   for (const verb of ['ixian:notifEnabled:', 'ixian:notifSenderName:', 'ixian:notifSounds:']) {
     ok(new RegExp('StartsWith\\("' + verb.replace(/:/g, ':') + '"').test(setPage),
@@ -13684,8 +13689,17 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     && /Preferences\.Default\.Set\(SPayments\.PAYMENT_AUTH_PREF, true\)/.test(spW5)
     && /Preferences\.Default\.Set\(SPayments\.PAYMENT_AUTH_PREF, false\)/.test(spW5),
     'PA1: the verb persists IMMEDIATELY on ON, and OFF persists only inside the post-auth handler (never the dirty/save path — the #288 clobber class)');
-  ok(/globalNotifications,paymentAuth"/.test(spW5) && /setPaymentAuth", SPayments\.paymentAuthEnabled\(\)\.ToString\(\)/.test(spW5),
-    'PA1: the cap + the seed push ship together');
+  /* ★ W-g (Damir F5 2026-08-23, items 18-19; amends #525): the cap AND the seed are
+     platform-gated — on WinUI SPayments.confirmAndAuth returns before the biometric
+     gate, so the toggle would be a no-op switch. Withheld cap → the row never renders. */
+  ok(/if \(SPayments\.paymentAuthSupported\(\)\)\s*\{\s*caps \+= ",paymentAuth";/.test(spW5)
+    && /if \(SPayments\.paymentAuthSupported\(\)\)\s*\{\s*Utils\.sendUiCommand\(this, "setPaymentAuth", SPayments\.paymentAuthEnabled\(\)\.ToString\(\)\);/.test(spW5),
+    'PA1 + W-g: the cap + the seed push ship together — and BOTH are withheld where SPayments.paymentAuthSupported() is false (ONE predicate, loop r1 C-1)');
+  {
+    const spg = readFileSync(join(root, 'Spixi/Utils/SPayments.cs'), 'utf8');
+    ok(/if \(Device\.RuntimePlatform == Device\.WinUI\)\s*\{\s*return true;/.test(spg) && /public static bool paymentAuthSupported\(\)\s*\{\s*return Device\.RuntimePlatform != Device\.WinUI;/.test(spg),
+      'W-g at source: SPayments.confirmAndAuth skips the fingerprint gate on WinUI — and paymentAuthSupported() says exactly that, so the row is hidden there');
+  }
   ok(/paymentAuth: bridge\.cap\('paymentAuth'\)/.test(settS) && /setPaymentAuth\(s\)/.test(settS),
     'PA1: the shell gates the row on the cap and takes the echo push');
   ok(/HandlePaymentAuthOffAuth/.test(spW5) && /authPage\.authSucceeded \+= HandlePaymentAuthOffAuth;/.test(spW5),
@@ -13760,6 +13774,962 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       '★★ round-2 MAJOR: static-fee Max actually FILLS (99.999) — enabled-but-inert regression pinned');
     stat.remove();
   }
+}
+
+/* ═══ ★★ BATCH W (2026-08-24 overnight) — the wallet F5 follow-up round ═══════════
+   docs/f5-findings-2026-08-23-wallet-pass.md · handoff-2026-08-24-overnight.md §1.
+   W-h is the STRUCTURAL gate that kills the W-a class; the rest are behavioural
+   pins executed on the LIVE components, plus source pins where the wiring is in a
+   shell or in C#. */
+{
+  console.log('\n— Batch W: wallet F5 follow-ups (W-a … W-k) —');
+  const shellsDir = join(root, 'src/shells');
+  const compsDir = join(root, 'src/components');
+  const cssDir = join(root, 'src/styles/components');
+
+  /* ★★ W-h — THE GATE: every component family a shell destructures AND MOUNTS has
+     its stylesheet linked in that shell — and so does every family that component
+     RENDERS INTO ITS OUTPUT (the companion). Loop r1 (G-1/G-2/G-3/G-4/G-5/B-5/B-6)
+     rebuilt the first cut, which had a hand-written 2-entry companion map that could
+     be deleted green and a self-test that never ran the gate:
+       · the DIRECT rule has NO name heuristic (r2 R2-5): EVERY destructured export
+         of a CSS-owning module requires that module's stylesheet. The DOM-producing
+         prefix (create-/open-/mount-/show-/attach-/render-) only decides which
+         IMPORTED symbols count as "renders another family" for the companion walk.
+       · companions are DERIVED from the import graph, per EXPORT: an export reaches
+         a companion if its own top-level function body (or a local top-level
+         function it calls, transitively) calls a DOM-producing symbol imported from
+         a CSS-owning module. No hand map.
+       · shells: every `} = window.Spixi` destructure block AND every
+         `window.Spixi.x(` member call; shells with neither are listed as SKIPPED.
+       · ALLOW: the documented exceptions, each with the reason at source.
+     The self-test writes a synthetic shell to a temp dir and runs THIS function. */
+  const shellCssGate = ({ shellsDir: sd, compsDir: cd, cssDir: xd, allow = {} }) => {
+    const compFiles = readdirSync(cd).filter((f) => f.endsWith('.js') && !f.endsWith('.iife.js'));
+    const exportOwner = {}, moduleSrc = {}, moduleExports = {};
+    for (const f of compFiles) {
+      const b = f.replace(/\.js$/, '');
+      const src = readFileSync(join(cd, f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+      moduleSrc[b] = src;
+      moduleExports[b] = [...src.matchAll(/^export (?:async )?function (\w+)/gm)].map((m) => m[1]);
+      for (const n of moduleExports[b]) exportOwner[n] = b;
+    }
+    const DOMISH = /^(create|open|mount|show|attach|render)/;
+    /* loop r1 B-5(b): modules whose DOM is styled by ANOTHER file — the owner map.
+       (qr.js is styled by its consumers by design — audit n1; pressable/desktop-anchors
+       add attributes, not boxes; apps-menu/chats-row-menu build sheets → overlay.css.) */
+    const CSS_OWNER = { modal: 'overlay', sheet: 'overlay', 'apps-menu': 'overlay', 'chats-row-menu': 'overlay' };
+    const cssOf = (b) => CSS_OWNER[b] || b;
+    const ownsCss = (b) => existsSync(join(xd, cssOf(b) + '.css'));
+    /* per-module: the DOM symbols imported from CSS-owning modules, and the slice of
+       every top-level function (exported or local) so reachability can be walked */
+    const slices = {};
+    const domImports = {};
+    for (const b of Object.keys(moduleSrc)) {
+      const src = moduleSrc[b];
+      domImports[b] = [];
+      for (const m of src.matchAll(/^import \{([^}]+)\} from '\.\/([\w-]+)\.js'/gm)) {
+        if (!ownsCss(m[2])) continue;
+        for (const raw of m[1].split(',')) {
+          const nm = raw.trim().split(/\s+as\s+/).pop();
+          if (nm && DOMISH.test(nm)) domImports[b].push({ name: nm, module: m[2] });
+        }
+      }
+      slices[b] = {};
+      const heads = [...src.matchAll(/^(?:export )?(?:async )?function (\w+)\s*\(/gm)];
+      heads.forEach((h, i) => {
+        const from = h.index;
+        const to = i + 1 < heads.length ? heads[i + 1].index : src.length;
+        slices[b][h[1]] = src.slice(from, to);
+      });
+    }
+    /* loop r2 R2-6: the closure crosses MODULES — an export reaches everything the
+       symbols it calls reach, recursively (seen-set keyed module:fn). */
+    const reaches = (b, fn, seen = new Set()) => {
+      const key = b + ':' + fn;
+      if (seen.has(key)) return new Set();
+      seen.add(key);
+      const body = slices[b] && slices[b][fn] || '';
+      const out = new Set();
+      for (const d of domImports[b] || []) {
+        if (!new RegExp('\\b' + d.name + '\\(').test(body)) continue;
+        out.add(d.module);
+        for (const x of reaches(d.module, d.name, seen)) out.add(x);
+      }
+      for (const local of Object.keys(slices[b] || {})) {
+        if (local === fn || !new RegExp('\\b' + local + '\\(').test(body)) continue;
+        for (const x of reaches(b, local, seen)) out.add(x);
+      }
+      return out;
+    };
+    const problems = [], skipped = [];
+    let checkedShells = 0, checkedFamilies = 0;
+    for (const sh of readdirSync(sd).filter((f) => f.endsWith('.html'))) {
+      const html = readFileSync(join(sd, sh), 'utf8');
+      const names = new Set();
+      for (const m of html.matchAll(/const \{([\s\S]*?)\}\s*=\s*window\.Spixi\b/g)) {
+        const body = m[1].replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+        for (const x of body.matchAll(/(\w+)\s*(?::\s*\w+)?\s*(?:,|$)/gm)) names.add(x[1]);
+      }
+      for (const m of html.matchAll(/window\.Spixi\.(\w+)\s*\(/g)) names.add(m[1]);
+      if (!names.size) { skipped.push(sh); continue; }
+      checkedShells += 1;
+      const need = new Map();   // css family → why
+      /* loop r2 R2-5: NO name heuristic on the direct rule — EVERY destructured export
+         of a CSS-owning module requires that module's stylesheet (a shell that calls
+         setNavBadge has the nav mounted). The prefix only decides which IMPORTED symbols
+         count as "renders another family" for the companion walk. */
+      for (const n of names) {
+        const b = exportOwner[n];
+        if (!b) continue;
+        if (ownsCss(b)) need.set(cssOf(b), (need.get(cssOf(b)) || []).concat(n));
+        for (const c of reaches(b, n)) need.set(cssOf(c), (need.get(cssOf(c)) || []).concat(n + '→' + b));
+      }
+      for (const [c, why] of need) {
+        checkedFamilies += 1;
+        if (html.includes('styles/components/' + c + '.css')) continue;
+        const ok = (allow[sh] || []).find((a) => a.css === c);
+        if (ok) continue;
+        problems.push(sh + ' → ' + c + '.css (' + [...new Set(why)].slice(0, 3).join(', ') + ')');
+      }
+    }
+    return { checkedShells, checkedFamilies, problems, skipped };
+  };
+  /* the documented exceptions — each one verified at source on 2026-08-24 */
+  const GATE_ALLOW = {
+    'chat.html': [
+      { css: 'chatlist-item', because: 'message-bubble.css:394 is SELF-CONTAINED for .c-status-icon (createStatusIcon) — no chatlist-item.css dependency, by design' },
+      { css: 'settings-screens', because: 'patternLevelVar / readPatternLevel are PURE pref readers (the N81 pre-paint pattern level) — the chat mounts no settings screen; the strict direct rule (r2 R2-5) has no name heuristic, so this is the documented exception' },
+    ],
+    'app_new.html': [
+      { css: 'apps-discover', because: 'app_new.html passes discover:false to createAppsAdd — the embedded Discover block is omitted (pinned below)' },
+      { css: 'apps-icon', because: 'reached only through the omitted Discover block (same gate)' },
+      { css: 'chip', because: 'reached only through the omitted Discover block (same gate)' },
+      { css: 'badge', because: 'reached only through the omitted Discover block (same gate)' },
+    ],
+  };
+  {
+    const g = shellCssGate({ shellsDir, compsDir, cssDir, allow: GATE_ALLOW });
+    ok(g.checkedShells >= 15 && g.checkedFamilies >= 100 && g.problems.length === 0,
+      '★★ W-h GATE: every DOM-producing family a shell destructures — and every family it RENDERS (derived from the import graph, per export) — has its stylesheet LINKED (' + g.checkedShells + ' shells, ' + g.checkedFamilies + ' families)'
+      + (g.problems.length ? ' — MISSING: ' + g.problems.join(' · ') : ''));
+    ok(g.skipped.length === 1 && g.skipped[0] === 'empty_detail.html',
+      'W-h GATE: exactly ONE shell has no bundle symbols (empty_detail.html — a static pane) and it is reported as skipped, not silently passed');
+    ok(/discover: false,/.test(readFileSync(join(shellsDir, 'app_new.html'), 'utf8')),
+      'W-h ALLOW premise: app_new.html still passes discover:false (the apps-discover exception rests on it)');
+    /* SELF-TEST — the gate itself, on a synthetic shell in a temp dir: it must report
+       BOTH the direct family and the derived companion, and fall silent once linked. */
+    const tmp = mkdtempSync(join(tmpdir(), 'spixi-gate-'));
+    writeFileSync(join(tmp, 'synthetic.html'), '<html><script>const { createWalletSend } = window.Spixi;</script></html>');
+    const bad = shellCssGate({ shellsDir: tmp, compsDir, cssDir, allow: {} });
+    writeFileSync(join(tmp, 'synthetic.html'), '<html><link href="../styles/components/wallet-send.css"><link href="../styles/components/contact-row.css"><link href="../styles/components/avatar.css"><link href="../styles/components/button.css"><link href="../styles/components/search-field.css"><link href="../styles/components/badge.css"><link href="../styles/components/overlay.css"><script>const { createWalletSend } = window.Spixi;</script></html>');
+    const good = shellCssGate({ shellsDir: tmp, compsDir, cssDir, allow: {} });
+    rmSync(tmp, { recursive: true, force: true });
+    ok(bad.problems.some((p) => /wallet-send\.css/.test(p)) && bad.problems.some((p) => /contact-row\.css \(createWalletSend→wallet-send/.test(p)) && good.problems.length === 0,
+      '★ W-h GATE SELF-TEST (runs the gate on a synthetic shell): a shell that destructures createWalletSend without links is reported for wallet-send.css AND its derived companion contact-row.css; with the links it is silent');
+  }
+
+  /* W-a — the root cause: chat.html links wallet-send.css (+ the contact-row companion),
+     and the BUILT shell carries the review-sheet rule (build-shells inlines each href). */
+  {
+    const chatSrc = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+    ok(/href="\.\.\/styles\/components\/wallet-send\.css"/.test(chatSrc) && /href="\.\.\/styles\/components\/contact-row\.css"/.test(chatSrc),
+      '★ W-a: chat.html links wallet-send.css AND contact-row.css (the in-chat Pay compose + review sheet were unstyled without them)');
+    const builtChat = readFileSync(join(root, 'Spixi/Resources/Raw/html/chat.html'), 'utf8');
+    ok(/\.c-sendreview__row\s*\{/.test(builtChat) && /\.c-wallet-send__amount\s*\{/.test(builtChat),
+      '★ W-a: …and the BUILT chat shell carries the .c-sendreview / .c-wallet-send rules (inlined, end to end)');
+    ok(!existsSync(join(cssDir, 'modal.css')) && /^\.c-modal \{/m.test(readFileSync(join(cssDir, 'overlay.css'), 'utf8')) && /overlay\.css/.test(chatSrc),
+      'W-a: there is no modal.css — .c-modal lives in overlay.css, which chat.html links (the Max confirm is styled)');
+  }
+
+  /* W-j — ONE row grammar: contact-row.css is held to the directory numbers.
+     Loop r1 G-7: CASCADE-AWARE — the effective value of each property is the LAST
+     declaration across EVERY rule whose subject is the selector, in every file (the
+     harness's rulesFor), so a later override in either file cannot hide a drift. */
+  {
+    const effective = (sel, prop) => {
+      let v = null;
+      for (const r of rulesFor(sel)) {
+        if (cssSubject(r.selector) !== sel) continue;         // exact subject: not `.c-x:disabled .c-x__name`
+        for (const d of cssDecls(r.body)) if (d.prop === prop) v = d.value;
+      }
+      return v;
+    };
+    const same = (selA, selB, props) => props.every((pr) => { const a = effective(selA, pr); return a !== null && a === effective(selB, pr); });
+    ok(same('.c-contacts__row', '.c-contact-row', ['min-height', 'padding', 'gap', 'border-radius'])
+      && same('.c-contacts__name', '.c-contact-row__name', ['font-size', 'font-weight', 'font-family'])
+      && same('.c-contacts__sub', '.c-contact-row__sub', ['font-size', 'line-height', 'color'])
+      && same('.c-contacts__check', '.c-contact-row__check', ['width', 'height', 'border']),
+      '★ W-j DRIFT FENCE (cascade-aware): contact-row.css matches contacts-shell.css on the row (min-height/padding/gap/radius), the name, the sub-line and the select circle — the EFFECTIVE value across every rule in every file, so a later override cannot hide a drift');
+    const pjs = readFileSync(join(compsDir, 'pressable.js'), 'utf8');
+    const bcss = readFileSync(join(root, 'src/styles/base.css'), 'utf8');
+    ok(/'\.c-contact-row',/.test(pjs) && (bcss.match(/html:root \.c-contact-row/g) || []).length >= 4,
+      'W-j: the shared row is a PRESS family — pressable.js lists it and base.css carries its ::before sweep, release transition and reduced-motion kill (Send rows had no press feedback before)');
+  }
+
+  /* W-i / W-j / W-k / W-b / W-f — behavioural, on the live component. */
+  {
+    const dom = await load('wallet.html');
+    const d = dom.window.document, W = dom.window;
+    const view = W.Spixi.createWalletSend({
+      contacts: [
+        { name: 'Ada Lovelace', address: 'ADA1234567890ABCDEFGHIJKLMNOP', online: true, avatar: null },
+        { address: 'BARE1234567890ABCDEFGHIJKLMNOP' },
+        { name: 'Pen Ding', address: 'PEND1234567890ABCDEFGHIJKLMNOP', pending: true },
+      ],
+      balance: '100', fee: '0.001', strings: {}, host: d.body, onQuickScan: () => {},
+    });
+    d.body.append(view);
+    const sections = [...view.children];
+    ok(sections[0].classList.contains('c-wallet-send__section--amount') && !!sections[0].querySelector('.c-wallet-send__amount')
+      && sections[1].classList.contains('c-wallet-send__section--recipient')
+      && sections[sections.length - 1].classList.contains('c-wallet-send__actions'),
+      '★ W-i: AMOUNT ON TOP — the amount section is the first child, the recipient section second, Review last');
+    const amt = view.querySelector('.c-wallet-send__amount');
+    ok(amt.getAttribute('enterkeyhint') === 'done', 'W-k: the send amount input carries enterkeyhint="done"');
+    amt.focus();
+    amt.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    ok(d.activeElement !== amt, '★ W-k BEHAVIOURAL: Enter on the amount BLURS it — the soft keyboard drops and the list is browsable');
+    const rows = [...view.querySelectorAll('.c-wallet-send__contacts .c-contact-row')];
+    ok(rows.length === 3 && rows.every((r) => r.classList.contains('c-wallet-send__contact')
+      && !!r.querySelector('.c-avatar[data-size="48"]') && !!r.querySelector('.c-contact-row__name') && !!r.querySelector('.c-contact-row__sub')),
+      '★ W-j BEHAVIOURAL: Send rows are the shared c-contact-row — avatar-48 + name + sub-line (the surface class stays as an alias)');
+    const ada = rows.find((r) => r.querySelector('.c-contact-row__name').textContent === 'Ada Lovelace');
+    ok(!!ada && ada.querySelector('.c-contact-row__sub').textContent === 'ADA123456…KLMNOP' && !!ada.querySelector('.c-avatar__dot'),
+      'W-j: a named row shows the #211 truncated address (9…6) under the nick and the online dot');
+    const bare = rows.find((r) => r.querySelector('.c-contact-row__name').textContent === 'BARE12345…KLMNOP');
+    ok(!!bare && bare.querySelector('.c-contact-row__sub').textContent === 'Address-only contact',
+      'W-j: a nameless row titles as the truncated address with the directory "Address-only contact" sub');
+    const pend = rows.find((r) => r.dataset.pending !== undefined);
+    ok(!!pend && !!pend.querySelector('.c-contact-row__badge') && !pend.disabled,
+      'W-j / #255: a pending contact carries the directory badge and stays pickable (money goes to the address)');
+    const addrRow = view.querySelector('.c-wallet-send__addrrow');
+    ok(!!addrRow && addrRow.classList.contains('c-contact-row') && !!addrRow.querySelector('.c-contact-row__glyph'),
+      'W-j: "Send to an address" is the same anatomy with the glyph disc in the avatar slot (#136)');
+    /* W-f: a scanned KNOWN address auto-picks the contact — nick + avatar, amount seeded */
+    const picked = W.Spixi.setSendRecipient(view, { name: 'Ada Lovelace', address: 'ADA1234567890ABCDEFGHIJKLMNOP', online: true }, 'ADA1234567890ABCDEFGHIJKLMNOP:send:2.5');
+    ok(picked === true && view.querySelector('.c-wallet-send__pickedname').textContent === 'Ada Lovelace'
+      && !!view.querySelector('.c-wallet-send__picked .c-avatar') && view.querySelector('.c-wallet-send__picker').hidden === true
+      && amt.value === '2.5' && view.querySelector('.c-wallet-send__addrfield').hidden === true,
+      '★ W-f BEHAVIOURAL: setSendRecipient picks the CONTACT (nick + avatar), collapses the picker, hides the address field and seeds the QR amount');
+    ok(view.querySelector('.c-wallet-send__pickedaddr').textContent === 'ADA123456…KLMNOP',
+      '★ W-b: the picked stack is NAME over the muted TRUNCATED address (the full address shows on the review sheet)');
+    ok(W.Spixi.setSendRecipient(d.createElement('div'), { address: 'X' }) === false, 'W-f: setSendRecipient on a non-compose returns false (the shell falls back to setSendAddress)');
+    /* a raw-address pick titles as the truncated address with an "Address" sub (W-b) */
+    view.querySelector('.c-wallet-send__clear').click();
+    W.Spixi.setSendAddress(view, 'RAW1234567890ABCDEFGHIJKLMNOPQ');
+    ok(view.querySelector('.c-wallet-send__addrrow').getAttribute('aria-expanded') === 'true', 'W-f/W-b: a scan MISS reveals the address field and keeps the row\'s aria-expanded honest');
+    [...view.querySelectorAll('.c-wallet-send__addrfield .c-button')].pop().click();
+    ok(view.querySelector('.c-wallet-send__pickedname').textContent === 'RAW123456…LMNOPQ' && view.querySelector('.c-wallet-send__pickedaddr').textContent === 'Address',
+      'W-b: a raw-address pick titles as the truncated address with the "Address" sub');
+    /* the bad-address error still lands under ITS field with the amount section above it (W-i moved the sections) */
+    view.querySelector('.c-wallet-send__clear').click();
+    view.querySelector('.c-wallet-send__addrrow').click();
+    const ai = view.querySelector('.c-wallet-send__addrinput'); ai.value = 'short';
+    [...view.querySelectorAll('.c-wallet-send__addrfield .c-button')].pop().click();
+    const fieldErr = view.querySelector('.c-wallet-send__addrfield .c-wallet-send__error');
+    const amtErr = view.querySelector('.c-wallet-send__section--amount .c-wallet-send__error');
+    ok(!fieldErr.hidden && fieldErr.textContent.length > 0 && amtErr.hidden,
+      '★ W-i regression fence: the bad-address error renders under the ADDRESS field, not in the amount section that now sits above it');
+    ok(view.querySelector('.c-wallet-send__list .c-wallet-send__addrrow') && view.querySelector('.c-wallet-send__list .c-wallet-send__contacts'),
+      'loop r1 m6: the address row and the contact rows share ONE card (same left edge)');
+    // M4: a double tap on Review opens ONE sheet; the compose teardown hook closes it
+    view.querySelector('.c-wallet-send__addrinput').value = 'VALID1234567890ABCDEFGHIJKL';
+    [...view.querySelectorAll('.c-wallet-send__addrfield .c-button')].pop().click();   // re-pick (static fee → Review arms)
+    const ctaM4 = view.querySelector('.c-wallet-send__actions .c-button');
+    ctaM4.click(); ctaM4.click();
+    await sleep(30);
+    ok(d.querySelectorAll('.c-sendreview').length === 1, '★ loop r1 M4: a double tap on Review opens ONE review sheet, not two');
+    // r2 R2-3 / r3 R3-1: Cancel, then Review again IMMEDIATELY (inside the ~400 ms exit)
+    // → a NEW sheet node exists beside the dying one (node identity, not a timing-bound
+    // data-open count — the r3 verifier proved the count form vacuous both ways)
+    const firstSheet = [...d.querySelectorAll('.c-sendreview')].pop();
+    firstSheet.querySelector('.c-sendreview__actions .c-button').click();
+    ctaM4.click();
+    await sleep(30);
+    const sheetsNow = [...d.querySelectorAll('.c-sendreview')];
+    ok(sheetsNow.length === 2 && sheetsNow[sheetsNow.length - 1] !== firstSheet,
+      '★ loop r2 R2-3 (r3 pin): Review is NOT a dead tap during the previous sheet\'s exit — a second, DIFFERENT sheet node opens beside the dying one');
+    await sleep(120);
+    ok(!firstSheet.closest('.c-sheet') || !firstSheet.closest('.c-sheet').hasAttribute('data-open'),
+      '★ loop r3 R3-1: a sheet dismissed inside its enter frames never RE-ACQUIRES data-open (overlay.js stack check) — a dying sheet cannot light up and hit-test again');
+    view._closeReview();
+    await sleep(450);
+    ok(d.querySelectorAll('.c-sendreview').length === 0, 'loop r1 M4: the compose teardown hook closes its sheet (no orphan on the host after the takeover goes)');
+    // r2 R2-4: an address-less contact is never a recipient (Send side of the F2 rule)
+    const noAddr = W.Spixi.createWalletSend({ contacts: [{ name: 'No Address' }], balance: 10, fee: 0.1, host: d.body, strings: {} });
+    d.body.append(noAddr);
+    const naRow = noAddr.querySelector('.c-wallet-send__contacts .c-contact-row');
+    naRow.click();
+    ok(naRow.disabled && noAddr.querySelector('.c-wallet-send__picked').hidden === true,
+      '★ loop r2 R2-4: an address-less contact row is DISABLED on Send and can never become the recipient (no feeQuery:undefined, no blank-address review)');
+    noAddr.remove();
+    view.remove();
+    // m3: a LOCKED compose (chat Pay) is never redirected by a scan
+    const locked = W.Spixi.createWalletSend({ lockedRecipient: { name: 'Peer', address: 'PEER1234567890ABCDEFGHIJKL' }, balance: 10, fee: 0.1, host: d.body, strings: {} });
+    d.body.append(locked);
+    const redirected = W.Spixi.setSendRecipient(locked, { name: 'Attacker', address: 'ATTACKER1234567890ABCDEFG' }, 'ATTACKER1234567890ABCDEFG:send:500');
+    W.Spixi.setSendAddress(locked, 'ATTACKER1234567890ABCDEFG');
+    ok(redirected === false && locked.querySelector('.c-wallet-send__pickedname').textContent === 'Peer' && locked.querySelector('.c-wallet-send__amount').value === '',
+      '★ loop r1 m3: setSendRecipient AND setSendAddress refuse a lockedRecipient compose — the #139 fixed peer is never redirected');
+    locked.remove();
+    // A-2 (a11y): on the quote flow the pick focuses the NAMED picked group when Review is still gated
+    const qf = W.Spixi.createWalletSend({ contacts: [{ name: 'Quote Flow', address: 'QF1234567890ABCDEFGHIJKL' }], balance: '100', fee: null, host: d.body, strings: {}, onQuote: () => {} });
+    d.body.append(qf);
+    const qfAmt = qf.querySelector('.c-wallet-send__amount'); qfAmt.value = '3'; qfAmt.dispatchEvent(new W.Event('input', { bubbles: true }));
+    qf.querySelector('.c-wallet-send__contacts .c-contact-row').click();
+    const qfPicked = qf.querySelector('.c-wallet-send__picked');
+    ok(d.activeElement === qfPicked && qfPicked.getAttribute('role') === 'group' && /Quote Flow/.test(qfPicked.getAttribute('aria-label') || '')
+      && /Quote Flow/.test(qf.querySelector('.c-wallet-send__live').textContent),
+      '★ loop r1 A-2/A-6: with an amount typed and Review still gated by the quote, the pick focuses the NAMED picked group and the live line announces it — focus never falls to <body>');
+    ok(qf.querySelector('.c-wallet-send__addrrow').getAttribute('aria-expanded') === 'false', 'loop r1 A-5: the address row\'s aria-expanded is false once the picker is hidden');
+    qf.remove();
+    // W-k: desktop is exempt (no soft keyboard) and an IME composition is never blurred
+    d.documentElement.setAttribute('data-desktop', '');
+    const dk = W.Spixi.createWalletSend({ contacts: [], balance: 1, fee: 0.1, host: d.body, strings: {} });
+    d.body.append(dk);
+    const dkAmt = dk.querySelector('.c-wallet-send__amount'); dkAmt.focus();
+    dkAmt.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    ok(d.activeElement === dkAmt, 'loop r1 A-4 (a11y): on DESKTOP Enter does NOT blur the amount — there is no soft keyboard to drop');
+    d.documentElement.removeAttribute('data-desktop');
+    dkAmt.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, isComposing: true }));
+    ok(d.activeElement === dkAmt, 'loop r1 n1: an Enter that commits an IME composition never blurs (the composer.js house rule)');
+    dk.remove();
+
+    /* receive rows + W-k on the receive amount */
+    const rec = W.Spixi.createWalletReceive({
+      address: '425HqzWpMkV3dTgJnS85CQen', strings: {}, host: d.body,
+      contacts: [{ name: 'Ada Lovelace', address: 'ADA1234567890ABCDEFGHIJKLMNOP', online: true }],
+      onSendRequest: () => true,
+    });
+    d.body.append(rec);
+    const rrow = rec.querySelector('.c-wallet-receive__contact');
+    ok(!!rrow && rrow.classList.contains('c-contact-row') && rrow.getAttribute('role') === 'checkbox'
+      && !!rrow.querySelector('.c-avatar[data-size="48"]') && !!rrow.querySelector('.c-contact-row__sub') && !!rrow.querySelector('.c-contact-row__check'),
+      '★ W-j BEHAVIOURAL: Receive rows are the shared c-contact-row in CHECKBOX form — avatar-48 + sub-line + the W9 select circle');
+    rrow.click();
+    ok(rrow.getAttribute('aria-checked') === 'true', 'W-j: the receive row still ticks in place (setContactRowChecked)');
+    const recB = W.Spixi.createWalletReceive({ address: '425HqzWpMkV3dTgJnS85CQen', strings: {}, host: d.body, onSendRequest: () => true,
+      contacts: [{ name: 'No Addr A' }, { name: 'No Addr B' }, { name: 'Pending P', address: 'PEND1234567890ABCDEFGHIJKL', pending: true }] });
+    d.body.append(recB);
+    const recBRows = [...recB.querySelectorAll('.c-wallet-receive__contact')];
+    ok(recBRows.length === 3 && recBRows.every((r) => r.disabled && r.dataset.blocked !== undefined && r.getAttribute('aria-checked') === 'false'),
+      '★ loop r1 m4/m10: the shared row carries the directory F2/C9 rule in SELECT mode — address-less and pending contacts are DISABLED (no Set-key collision, no request at a peer who has not accepted)');
+    ok(/until they accept/.test(recBRows[2].querySelector('.c-contact-row__sub').textContent), 'loop r1 m10: a blocked pending row says WHY on its sub-line (C9)');
+    recB.remove();
+    const ramt = rec.querySelector('.c-wallet-receive__amount');
+    ok(ramt.getAttribute('enterkeyhint') === 'done', 'W-k: the receive amount input carries enterkeyhint="done"');
+    ramt.focus();
+    ramt.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    ok(d.activeElement !== ramt, 'W-k BEHAVIOURAL: Enter on the receive amount blurs it too (both screens, one rule)');
+    /* W-c: the address sheet scrolls internally, caps the dialog, carries the explainer disc */
+    rec.querySelector('.c-wallet-receive__addrbtn').click();
+    await sleep(30);
+    const sheetEl = d.querySelector('.c-sheet--addr');
+    const addrC = d.querySelector('.c-addr-sheet');
+    ok(!!sheetEl && !!addrC && addrC.classList.contains('u-scroll') && !!addrC.querySelector('.c-addr-sheet__qrcard .c-qr')
+      && !!addrC.querySelector('.c-addr-sheet__explain .c-disc') && addrC.querySelectorAll('.c-addr-sheet__info').length === 2
+      && !!addrC.querySelector('.c-addr-sheet__info--safe svg'),
+      '★ W-c: the address sheet is its own scroll region (u-scroll), the QR card + chip + Share + the info-disc explainer are in it, the safety line carries the shield');
+    W.Spixi.dismissTopOverlay();
+    await sleep(450);
+    rec.remove();
+    const wrc = stripCssComments(readFileSync(join(cssDir, 'wallet-receive.css'), 'utf8'));
+    ok(/\.c-addr-sheet \{[^}]*max-height: min\(72dvh, 640px\)[^}]*overflow-y: auto/.test(wrc)
+      && /:root\[data-desktop\] \.c-sheet--addr \{ width: min\(440px, 92%\); \}/.test(wrc)
+      && /\.c-addr-sheet__qrcard \{[^}]*width: min\(280px, 52dvh, 86vw, 100%\)/.test(wrc),
+      '★ W-c CSS: internal scroll with a viewport cap, the desktop dialog capped at 440px, the QR card scales on BOTH axes via min()');
+  }
+
+  /* W-d — the review sheet BEFORE the native confirm, quoted live (behavioural). */
+  {
+    const dom = await load('wallet.html');
+    const d = dom.window.document, W = dom.window;
+    const quotes = [];
+    let confirmCtrl = null;
+    const rv = W.Spixi.openPaymentReview({
+      recipient: { name: 'Han Solo', address: 'HAN1234567890ABCDEFGHIJKLMNOP', contact: true },
+      amount: '13', fee: null, host: d.body, strings: {},
+      onQuote: (a, m) => quotes.push(a + ':' + m),
+      onConfirm: (payload, ctrl) => { confirmCtrl = ctrl; },
+    });
+    await sleep(30);
+    const sheet = d.querySelector('.c-sendreview');
+    const confirmBtn = [...sheet.querySelectorAll('.c-sendreview__actions .c-button')].pop();
+    const vals = () => [...sheet.querySelectorAll('.c-sendreview__rowvalue')].map((v) => v.textContent);
+    ok(!!sheet && quotes[0] === 'HAN1234567890ABCDEFGHIJKLMNOP:13' && confirmBtn.disabled && vals()[0] === '13 IXI' && /Calculating/.test(vals()[1]) && vals()[2] === '—',
+      '★★ W-d BEHAVIOURAL: fee:null → the sheet asks ONE quote for (addr, amount), shows the honest pending fee, and Confirm is GATED');
+    rv.setQuote({ fee: '0.005', balance: '100', address: 'SOMEONEELSE', amount: '13' });
+    ok(confirmBtn.disabled, '★ W-d: a quote echoed for ANOTHER recipient is dropped — Confirm stays gated (the W6 loop-MAJOR rule)');
+    rv.setQuote({ fee: '0.005', balance: '5', address: 'HAN1234567890ABCDEFGHIJKLMNOP', amount: '13' });
+    const err = sheet.querySelector('.c-wallet-send__error');
+    ok(confirmBtn.disabled && !err.hidden && /Not enough/.test(err.textContent) && vals()[2] === '13.005 IXI',
+      '★ W-d: a matching quote with an INSUFFICIENT balance fills fee + total but keeps Confirm shut with the inline error');
+    rv.setQuote({ fee: '0.005', balance: '100', address: 'HAN1234567890ABCDEFGHIJKLMNOP', amount: '13' });
+    ok(!confirmBtn.disabled && vals()[1] === '0.005 IXI' && vals()[2] === '13.005 IXI',
+      '★ W-d: a matching quote with a sufficient balance arms Confirm — exact amount, fee and total');
+    confirmBtn.click();
+    ok(!!confirmCtrl && confirmBtn.dataset.acted !== undefined, 'W-d: Confirm latches (#72④) and hands the ctrl to the shell — nothing is sent from here');
+    confirmCtrl.fail('');
+    ok(confirmBtn.dataset.acted === undefined && err.hidden, 'W-d: fail(\'\') = the native confirm was canceled → silent re-enable, retry possible');
+    confirmBtn.click();
+    confirmCtrl.done();
+    await sleep(30);
+    ok(/Sent/.test(confirmBtn.textContent), 'W-d: done() → the success morph');
+    await sleep(1400);
+    ok(!d.querySelector('.c-sendreview'), 'W-d: …and the sheet closes after the morph');
+    /* ——— loop r1 fixes, executed ——— */
+    {
+      const mk = (extra = {}) => W.Spixi.openPaymentReview({
+        recipient: { name: 'R', address: 'RADDR1234567890ABCDEFGHIJKL', contact: true }, amount: '10', fee: null, host: d.body, strings: {},
+        onQuote: () => {}, onConfirm: (p, c) => { held = c; }, onDone: () => { dones += 1; }, ...extra,
+      });
+      let held = null, dones = 0;
+      // M1: a late quote must not rewrite the money under an in-flight send
+      let rv1 = mk();
+      rv1.setQuote({ fee: '0.1', balance: '100' });
+      let sh = [...d.querySelectorAll('.c-sendreview')].pop();
+      let btn = [...sh.querySelectorAll('.c-sendreview__actions .c-button')].pop();
+      const val = (n) => [...sh.querySelectorAll('.c-sendreview__rowvalue')][n].textContent;
+      btn.click();
+      rv1.setQuote({ fee: '9', balance: '100' });
+      ok(val(1) === '0.1 IXI' && val(2) === '10.1 IXI' && btn.disabled === true && btn.dataset.acted !== undefined,
+        '★★ loop r1 M1: a quote landing AFTER Confirm changes NOTHING — fee/total stay the submitted numbers and the loading button stays latched');
+      // M5: done() is terminal and idempotent; fail() retires the attempt
+      held.done(); held.done();
+      await sleep(30);
+      ok(/Sent/.test(btn.textContent), 'loop r1 M5: done() morphs once');
+      await sleep(1000);
+      ok(dones === 1, '★ loop r1 M5: a double done() fires onDone ONCE');
+      dones = 0; held = null;
+      let rv2 = mk();
+      rv2.setQuote({ fee: '0.1', balance: '100' });
+      sh = [...d.querySelectorAll('.c-sendreview')].pop();
+      btn = [...sh.querySelectorAll('.c-sendreview__actions .c-button')].pop();
+      btn.click();
+      held.fail('Network down');
+      held.done();
+      await sleep(30);
+      ok(!/Sent/.test(btn.textContent) && !sh.querySelector('.c-wallet-send__error').hidden && dones === 0,
+        '★ loop r1 M5: fail() RETIRES the attempt — a late done() cannot turn a failure into "Sent"');
+      rv2.close(true);
+      // M2: the insufficient error RETRACTS on a clearing quote; an address error leaves "Calculating…"
+      let rv3 = mk();
+      rv3.setQuote({ fee: '0.1', balance: '5' });
+      sh = [...d.querySelectorAll('.c-sendreview')].pop();
+      btn = [...sh.querySelectorAll('.c-sendreview__actions .c-button')].pop();
+      const e3 = sh.querySelector('.c-wallet-send__error');
+      ok(!e3.hidden && btn.disabled, 'loop r1 M2 setup: insufficient → error + gate');
+      rv3.setQuote({ fee: '0.1', balance: '100' });
+      ok(e3.hidden && !btn.disabled, '★ loop r1 M2: a later quote that clears the shortfall RETRACTS the error and arms Confirm — never "not enough" beside an armed Confirm');
+      rv3.close(true);
+      let rv4 = mk();
+      rv4.setQuote({ error: 'address' });
+      sh = [...d.querySelectorAll('.c-sendreview')].pop();
+      ok(!/Calculating/.test([...sh.querySelectorAll('.c-sendreview__rowvalue')][1].textContent) && !sh.querySelector('.c-wallet-send__error').hidden,
+        'loop r1 M2: a C# address rejection leaves the fee row "—" with the inline error — never a frozen "Calculating…"');
+      rv4.close(true);
+      // M3: a throwing hand-off restores the dismiss paths
+      let rv5 = mk({ onConfirm: () => { throw new Error('bridge down'); } });
+      rv5.setQuote({ fee: '0.1', balance: '100' });
+      sh = [...d.querySelectorAll('.c-sendreview')].pop();
+      btn = [...sh.querySelectorAll('.c-sendreview__actions .c-button')].pop();
+      btn.click();
+      const cancel5 = sh.querySelectorAll('.c-sendreview__actions .c-button')[0];
+      ok(!cancel5.disabled && btn.dataset.acted === undefined && !sh.querySelector('.c-wallet-send__error').hidden && rv5.isSending() === false,
+        '★ loop r1 M3: a THROWING onConfirm is a failure — Cancel re-enabled, Confirm un-latched, error shown, the sheet is not bricked');
+      rv5.close();
+      await sleep(450);
+      ok(![...d.querySelectorAll('.c-sendreview')].includes(sh), 'loop r1 M3: …and close() works again');
+      // A-4: zero amount → no sheet; empty-fee echo → error; quote timeout → error
+      ok(W.Spixi.openPaymentReview({ recipient: { address: 'X' }, amount: '0', fee: null, host: d.body, strings: {} }) === null
+        && W.Spixi.openPaymentReview({ recipient: { address: 'X' }, amount: '—', fee: null, host: d.body, strings: {} }) === null,
+        '★ loop r1 A-4/m7: a zero or unparseable amount opens NO sheet (returns null) — the caller releases the card latch');
+      let rv6 = mk();
+      rv6.setQuote({ fee: '', balance: '100', address: 'RADDR1234567890ABCDEFGHIJKL', amount: '10' });
+      sh = [...d.querySelectorAll('.c-sendreview')].pop();
+      ok(!sh.querySelector('.c-wallet-send__error').hidden && /could not be estimated/.test(sh.querySelector('.c-wallet-send__error').textContent),
+        '★ loop r1 A-4: an echo-matched EMPTY fee (C#\'s "no estimate") shows the honest error instead of hanging on "Calculating…"');
+      rv6.close(true);
+      let rv7 = mk({ quoteTimeoutMs: 40 });
+      await sleep(120);
+      sh = [...d.querySelectorAll('.c-sendreview')].pop();
+      ok(!sh.querySelector('.c-wallet-send__error').hidden, '★ loop r1 A-4: a quote that never answers times out into the same honest error (Cancel is not the only exit)');
+      rv7.close(true);
+      // m2 / r2 R2-2: a non-numeric bridge echo never throws AND never becomes a number
+      let rv8 = mk();
+      let threw = false;
+      try { rv8.setQuote({ fee: 'abc' }); rv8.setQuote({ fee: '1e3' }); rv8.setQuote({ fee: '-1' }); rv8.setQuote({ fee: '0.1', amount: 'not-a-number' }); } catch (e) { threw = true; }
+      sh = [...d.querySelectorAll('.c-sendreview')].pop();
+      btn = [...sh.querySelectorAll('.c-sendreview__actions .c-button')].pop();
+      ok(!threw && btn.disabled && !/\d/.test([...sh.querySelectorAll('.c-sendreview__rowvalue')][1].textContent),
+        '★ loop r2 R2-2: a non-numeric bridge echo ("abc", "1e3", "-1") is dropped, never thrown and NEVER coerced into a fee — the fee row shows no number and Confirm stays gated (no invented fee, ever)');
+      rv8.close(true);
+    }
+    /* the chat shell wiring — source pins */
+    const chatSrc = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+    ok(/openPaymentReview,\s*\/\/ ★ W-d/.test(chatSrc) && /\? \(canSheet \? \(\) => openPayRequestReview\(rec\) : \(\) => bridge\.send\('ixian:payRequest:' \+ rec\.id\)\)/.test(chatSrc),
+      '★ W-d SHELL: the request-in Pay opens the review sheet when the cap + a numeric amount allow it (else the direct verb)');
+    ok(/onDetails: canSheet \? null : view,/.test(chatSrc),
+      '★ W-d SHELL: Details is DROPPED on a pending request-in when the SHEET opens — the legacy WalletContactRequestPage route (and its removed Decline) is no longer reachable from the card; when the sheet cannot open the native view stays (loop r1 C-2: never an inert card)');
+    ok(/const canSheet = bridge\.cap\('payRequest'\) && mode\.type === 0/.test(chatSrc) && /if \(mode\.type !== 0\) return;\s*\/\/ loop r1 A-2/.test(chatSrc),
+      '★ W-d SHELL (loop r1 A-2): the sheet is 1:1 ONLY — card arm AND opener; a requestFunds in a group/bot never quotes a fee against the group address');
+    ok(/&& \/\[1-9\]\/\.test\(String\(rec\.amount\)\)/.test(chatSrc), 'W-d SHELL (loop r1 A-4): a zero-amount request card takes the direct verb, never the sheet (which would hang on the empty-fee quote)');
+    ok(/bridge\.send\('ixian:payRequest:' \+ rec\.id\);\s*\},\s*onDone:/.test(chatSrc) && /if \(chatPayReview\) \{ chatPayReview\.setQuote\(/.test(chatSrc)
+      && /if \(chatPayCtrl && chatPayId && String\(id\) === chatPayId\) \{[\s\S]{0,400}?if \(st === 'ok'\) \{ c\.done\(\); return; \}[\s\S]{0,120}?if \(st === 'cancel'\) \{ c\.fail\(''\); return; \}[\s\S]{0,600}?if \(st === 'gone'\) \{ c\.fail\(msg \|\|/.test(chatSrc),
+      '★ W-d SHELL: Confirm emits the EXISTING ixian:payRequest verb; the setSendQuote push routes to the sheet when no compose is open; payRequestResult resolves it for ITS card id only (loop r1 B-7) — ok/cancel/gone/fail (the signSendResult grammar + the r1 A-1 "gone" = unpayable, never silent)');
+    ok(/closePayReview\(\);\s*\/\/ loop r1 B-3/.test(chatSrc) && (chatSrc.match(/\}, 125000\);/g) || []).length === 2 && !/\}, 30000\);/.test(chatSrc),
+      'W-d SHELL (loop r1 B-3/B-2 + r2 R2-1): the screen-ready sweep closes the sheet with the compose, and BOTH no-answer backstops (pay sheet + in-chat compose) sit ABOVE the C# 120 s confirm self-heal — no 30 s path left');
+    {
+      const homeS2 = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+      ok(/walletSendWait = setTimeout\(\(\) => \{[\s\S]{0,400}?\}, 125000\);/.test(homeS2) && !/\}, 30000\);/.test(homeS2),
+        '★ loop r2 R2-1: the wallet compose backstop is 125 s too — at 30 s a slow user still had the native dialog open and the real "ok" landed on nobody');
+      ok(/const close = \(\) => \{ closeAddressSheet\(\);/.test(homeS2), 'loop r2 n5: the Receive takeover closes its address sheet on the way out — no sheet outlives its screen');
+    }
+    const spay = readFileSync(join(root, 'Spixi/Utils/SPayments.cs'), 'utf8');
+    const scp = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8');
+    ok((spay.match(/"payRequestResult", msgIdHex, "gone", ""/g) || []).length === 3 && /"payRequestResult", msg_id, "gone", ""/.test(scp)
+      && (spay.match(/"payRequestResult", msgIdHex, "cancel", ""/g) || []).length === 1,
+      '★ loop r1 A-1 at source: C# answers "gone" for the five UNPAYABLE cases (not found/own/settled, zero, settled-mid-confirm, group/bot) and "cancel" ONLY for the user backing out of the native confirm');
+    ok(/onCancel: \(\) => \{[^}]*renderLog\(\); \}/.test(chatSrc), 'W-d SHELL: dismissing the sheet re-renders the log so the card\'s Pay oneShot latch is released');
+  }
+
+  /* W-e / W-f — the hero scan is payment intent, and a known address auto-picks. */
+  {
+    const homeSrc = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+    ok(/onScan: \(\) => bridge\.send\(bridge\.cap\('composeSend'\) \? 'ixian:sendScan' : 'ixian:quickscan'\)/.test(homeSrc),
+      '★ W-e: the wallet-hero scan emits ixian:sendScan under the composeSend cap (every payload returns to the compose — an addr:ixi QR composes, never add-contact)');
+    ok(/const scannedAddr = raw\.split\(':'\)\[0\]\.split\('_'\)\[0\];\s*const known = scannedAddr \? peopleRoster\(\)\.find\(\(c\) => c && c\.address && String\(c\.address\)\.split\('_'\)\[0\] === scannedAddr\) : null;\s*if \(known && setSendRecipient\(walletSendView, known, raw\)\) return;\s*setSendAddress\(walletSendView, raw\);/.test(homeSrc),
+      '★ W-f SHELL (loop r1 A-3, verified at ExtendedAddress.cs:199-208): the receive QR carries the EXTENDED `<base58>_<ext>` form while the roster holds the bare address — the lookup compares the payment address before "_" (exact, people only) → setSendRecipient on a hit, setSendAddress on a miss');
+    const hp = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
+    ok(/current_url\.Equals\("ixian:sendScan", StringComparison\.Ordinal\)/.test(hp) && /public async void quickScanForSend\(\)[\s\S]{0,1600}?Utils\.sendUiCommand\(this, "quickScanResult", payload\);/.test(hp),
+      'W-e at source: HomePage routes ixian:sendScan → quickScanForSend → quickScanResult(payload) with NO page navigation (the #523 path the hero now uses)');
+    ok(/ExtendedAddress\.Validate\(addr\)/.test(hp.slice(hp.indexOf('public async void quickScanForSend()'), hp.indexOf('public async void quickScanForSend()') + 1600)),
+      'W-e at source (loop r1 B-4): quickScanForSend VALIDATES the scanned address before it reaches the compose — a non-Ixian QR gets the invalid-address alert, never the money surface');
+
+  }
+
+  /* #535 — the message sounds re-picked (Damir 2026-08-23 23:59). */
+  {
+    const snd = join(root, 'Spixi/Resources/Raw/sounds');
+    const sizes = ['message_sent.mp3', 'message_received.mp3'].map((f) => existsSync(join(snd, f)) ? statSync(join(snd, f)).size : 0);
+    const doc = readFileSync(join(root, 'docs/sound-placeholders.md'), 'utf8');
+    ok(sizes.every((n) => n > 1000 && n < 12000) && /`minimal\/swipe` \(#535/.test(doc) && /`minimal\/drag-start` \(#535/.test(doc),
+      '#535: both message sounds ship (small, under 12 KB) and the provenance doc records the swipe/drag-start picks');
+  }
+}
+
+/* ═══ ★★ BATCH A (2026-08-24 overnight) — info + groups + the remove-contact data bug ═══
+   handoff-2026-08-24-overnight.md §1 Batch A · DECISIONS #539–#541. */
+{
+  console.log('\n— Batch A: info · groups · the remove-contact data bug (A1 … A9) —');
+  const homeA = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+  const hpA = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
+  const scA = readFileSync(join(root, 'Spixi/Utils/SContacts.cs'), 'utf8');
+  const cdA = readFileSync(join(root, 'Spixi/Pages/Contacts/ContactDetails.xaml.cs'), 'utf8');
+
+  /* ★★ A6 — THE DATA BUG, at source: the chats-list delete/deleteContact now DISPATCH */
+  ok(!/no HomePage dispatch yet — intent only/.test(homeA)
+    && /if \(action === 'delete'\) bridge\.send\('ixian:removehistory:' \+ chat\.address\);/.test(homeA)
+    && /else bridge\.send\('ixian:removecontact:' \+ chat\.address \+ ':' \+ \(\(detail && detail\.leaveGroups && detail\.leaveGroups\.length\) \? '1' : '0'\)\);/.test(homeA),
+    '★★ A6 SHELL: the chats-list delete emits ixian:removehistory:<addr>, and delete-contact emits ixian:removecontact:<addr>:<leave> — the "intent only" tombstone that left the contact on disk is GONE');
+  ok(/StartsWith\("ixian:removehistory:", StringComparison\.Ordinal\)/.test(hpA) && /StartsWith\("ixian:removecontact:", StringComparison\.Ordinal\)/.test(hpA) && /StartsWith\("ixian:sharedGroups:", StringComparison\.Ordinal\)/.test(hpA),
+    '★★ A6 C#: HomePage dispatches the three address-scoped verbs (StartsWith + Ordinal + colon)');
+  ok(hpA.indexOf('StartsWith("ixian:removecontact:"') < hpA.indexOf('current_url.Contains("ixian:qrresult:")'),
+    'A6 C# (#216/#393): the destructive verbs sit ABOVE the legacy Contains() branches — a crafted payload cannot hijack them');
+  ok(/FriendList\.removeFriend\(friend\)/.test(scA) && /friend\.deleteHistory\(\)/.test(scA) && /CoreStreamProcessor\.sendLeave\(group, null\);\s*FriendList\.removeFriend\(group\);/.test(scA)
+    && /group\.pendingDeletion = true;\s*group\.save\(\);\s*CoreStreamProcessor\.sendLeave\(group, null\);/.test(scA),
+    '★ A6 C#: SContacts runs the SAME bodies ContactDetails runs — removeFriend / deleteHistory / the #248 leave (group: sendLeave+removeFriend · bot: pendingDeletion+sendLeave)');
+  ok(/"removeContactResult", args\.ToArray\(\)/.test(hpA) && /"removeHistoryResult", addr, status/.test(hpA) && /"setSharedGroups", args\.ToArray\(\)/.test(hpA),
+    'A6 C#: every outcome is PUSHED (removeContactResult / removeHistoryResult / setSharedGroups) — the shell can un-tombstone a refusal');
+  {
+    const ovA = stripCssComments(readFileSync(join(root, 'src/styles/components/overlay.css'), 'utf8'));
+    ok(/\.c-modal__actions \{[^}]*flex-wrap: wrap;/.test(ovA) && !/\.c-modal__actions \.c-button \{[^}]*min-width: 0/.test(ovA),
+      '★ loop r2 R2-1: the modal action pair WRAPS (a long localized confirm drops to its own row) and no min-width:0 cancels it — with flex-basis 0 a used min of 0 makes the hypothetical size 0 and the wrap can never fire');
+  }
+  ok(/deletedChats\.delete\(addr\);\s*\n\s*const groups = \[\];/.test(homeA) && /removeHistoryResult\(address, status\) \{[\s\S]{0,700}?deletedChats\.delete\(addr\);/.test(homeA),
+    '★ A6 SHELL: a refused removal / history delete UN-tombstones the row (deletedChats.delete) — a vanished row with the data still on disk was the lie');
+  /* A4/A5 — the shared-groups enumeration is Core's own refusal predicate, kept */
+  ok(/f\.type == FriendType\.Group && f\.users != null && f\.users\.hasUser\(friend\.walletAddress\)/.test(scA),
+    '★ A4/A5 C#: sharedGroups() is Core\'s isFriendInGroup predicate with the result KEPT (name/address pairs) — the same groups removeFriend refuses on');
+  ok(/if \(leaveSharedGroups\)[\s\S]{0,900}?leaveGroup\(g\);[\s\S]{0,500}?if \(FriendList\.removeFriend\(friend\)\)/.test(scA),
+    '★ A5 C#: leave=1 leaves EVERY shared group FIRST, then removes — one verb, Core\'s order, no race between two location.href sends');
+  ok(/current_url\.Equals\("ixian:sharedGroups", StringComparison\.Ordinal\)/.test(cdA) && /StartsWith\("ixian:openChat:", StringComparison\.Ordinal\)/.test(cdA) && /if \(FriendList\.getFriend\(targetAddr\) != null\)/.test(cdA),
+    'A4 C#: ContactDetails answers ixian:sharedGroups and routes ixian:openChat:<addr> only to a KNOWN friend');
+
+  /* A5/A7 — the remove-contact SHEET + the checkbox grammar, executed */
+  {
+    const dom = await load('chats.html');
+    const d = dom.window.document, W = dom.window;
+    let acted = [], asked = [];
+    W.Spixi.openDeleteFlow({
+      chat: { name: 'Ada', address: 'ADA1234567890ABCDEFGHIJKL', type: 'contact' }, host: d.body, strings: {},
+      onAction: (a, detail) => acted.push([a, detail]),
+      onNeedGroups: (addr) => asked.push(addr),
+    });
+    await sleep(30);
+    const opts = [...d.querySelectorAll('.c-modal .c-delete-chat__opt')];
+    ok(opts.length === 2 && opts.every((o) => o.tagName === 'BUTTON' && o.getAttribute('role') === 'checkbox' && !!o.querySelector('.c-delete-chat__check'))
+      && !d.querySelector('.c-modal input[type="checkbox"]'),
+      '★ A7: the delete-chat options are the GROUP-CREATION checkbox grammar (role=checkbox rows + the select circle) — no native <input type=checkbox> left');
+    ok(opts[0].disabled && opts[0].getAttribute('aria-checked') === 'true' && opts[1].getAttribute('aria-checked') === 'false',
+      'A7: "Delete chat" is fixed-on + disabled; "media & files" starts unticked');
+    opts[1].click();
+    ok(opts[1].getAttribute('aria-checked') === 'true', 'A7: the option row ticks in place');
+    [...d.querySelectorAll('.c-modal .c-button')].find((b) => /^delete$/i.test(b.textContent.trim())).click();
+    await sleep(60);
+    const sheet = d.querySelector('.c-sheet .c-remove-contact');
+    ok(!!sheet && !d.querySelector('.c-modal .c-delete-chat__body'),
+      '★ A5: after step 1 the second step is a BOTTOM SHEET (c-remove-contact), no longer a modal');
+    ok(acted.length === 1 && acted[0][0] === 'delete' && acted[0][1].media === true && asked[0] === 'ADA1234567890ABCDEFGHIJKL',
+      'A5/A6: step 1 fired delete {media:true} and the sheet asked the shell for the shared groups');
+    const cta = sheet.querySelector('.c-remove-contact__cta');
+    ok(cta.disabled && /Checking/.test(sheet.querySelector('.c-remove-contact__hint').textContent),
+      '★ A5: while the groups are unknown Remove is DISABLED (no blind remove) and the hint says it is checking');
+    ok(W.Spixi.setRemoveSheetGroups('SOMEONEELSE', []) === false, 'A5: an answer for another peer is dropped');
+    W.Spixi.setRemoveSheetGroups('ADA1234567890ABCDEFGHIJKL', [{ name: 'Devs', address: 'GRP1' }, { name: 'Family', address: 'GRP2' }]);
+    const grows = [...sheet.querySelectorAll('.c-remove-contact__row')];
+    ok(grows.length === 2 && cta.disabled && /cannot be removed/.test(sheet.querySelector('.c-remove-contact__hint').textContent),
+      '★ A5: two shared groups render as select rows and Remove stays DISABLED — Core refuses a group member, the sheet says so');
+    grows[0].click();
+    ok(cta.disabled && /Leave 1 & remove/.test(cta.textContent), 'A5: one of two ticked → still blocked, the CTA counts the ticks');
+    grows[1].click();
+    ok(!cta.disabled && /Leave 2 & remove/.test(cta.textContent) && /You will leave/.test(sheet.querySelector('.c-remove-contact__hint').textContent),
+      '★ A5: every blocker ticked → Remove arms as "Leave 2 & remove"');
+    cta.click();
+    await sleep(30);
+    const confirm = [...d.querySelectorAll('.c-modal')].pop();
+    ok(!!confirm && /Leave 2 groups and remove Ada\?/.test(confirm.textContent) && acted.length === 1,
+      '★ A5: the additional confirm step names the count and the contact — nothing fired yet');
+    [...confirm.querySelectorAll('.c-button')].find((b) => /Leave & remove/.test(b.textContent)).click();
+    await sleep(30);
+    ok(acted.length === 2 && acted[1][0] === 'deleteContact' && acted[1][1].leaveGroups.join() === 'GRP1,GRP2' && acted[1][1].media === true,
+      '★★ A5/A6: the confirm fires deleteContact ONCE with the ticked groups (→ ixian:removecontact:<addr>:1)');
+    // loop r1 A-1 (components): a second tap on the confirm inside its exit window fires NOTHING
+    [...confirm.querySelectorAll('.c-button')].find((b) => /Leave & remove/.test(b.textContent)).click();
+    cta.click();
+    ok(acted.length === 2, '★ loop r1 A-1: a second tap on the closing confirm (or the sheet CTA) never fires the destructive verb twice');
+    ok(W.Spixi.setRemoveSheetGroups('ADA1234567890ABCDEFGHIJKL', []) === false && W.Spixi.setRemoveSheetResult('ADA1234567890ABCDEFGHIJKL', 'blocked', []) === false,
+      '★ loop r1 A-3: a late answer for a sheet in its EXIT window is refused (isOverlayOpen), so the shell\'s toast is not swallowed by a pointer-dead sheet');
+    const ovcss = stripCssComments(readFileSync(join(root, 'src/styles/components/overlay.css'), 'utf8'));
+    ok(/html:root \.c-modal:not\(\[data-open\]\),\s*html:root \.c-modal:not\(\[data-open\]\) \* \{\s*pointer-events: none;/.test(ovcss),
+      '★ loop r1 A-1: a CLOSING modal takes no taps (the sheet rule, extended) — the #46 MAJOR-3 hole closed for modals');
+    await sleep(450);
+    // loop r1 A-2: step 1 double-tap opens ONE sheet and fires delete ONCE
+    acted = [];
+    W.Spixi.openDeleteFlow({ chat: { name: 'Cy', address: 'CY1234567890ABCDEFGHIJKLMN', type: 'contact' }, host: d.body, strings: {}, onAction: (a) => acted.push(a), onNeedGroups: () => {} });
+    await sleep(30);
+    const del1 = [...d.querySelectorAll('.c-modal .c-button')].find((b) => /^delete$/i.test(b.textContent.trim()));
+    del1.click(); del1.click();
+    await sleep(60);
+    ok(acted.filter((a) => a === 'delete').length === 1 && d.querySelectorAll('.c-sheet .c-remove-contact').length === 1,
+      '★ loop r1 A-2: a double tap on step-1 Delete fires delete ONCE and opens ONE sheet');
+    W.Spixi.dismissTopOverlay(); await sleep(450);
+    /* a blocked answer re-opens the question in place */
+    W.Spixi.openDeleteFlow({ chat: { name: 'Bob', address: 'BOB1234567890ABCDEFGHIJKL', type: 'contact' }, host: d.body, strings: {}, onAction: () => {}, onNeedGroups: () => {} });
+    await sleep(30);
+    [...d.querySelectorAll('.c-modal .c-button')].find((b) => /^delete$/i.test(b.textContent.trim())).click();
+    await sleep(60);
+    W.Spixi.setRemoveSheetGroups('BOB1234567890ABCDEFGHIJKL', []);
+    const sheetB = d.querySelector('.c-sheet .c-remove-contact');
+    ok(!sheetB.querySelector('.c-remove-contact__cta').disabled && /can be removed/.test(sheetB.querySelector('.c-remove-contact__hint').textContent),
+      'A5: no shared groups → Remove arms and the hint says so');
+    ok(W.Spixi.setRemoveSheetResult('BOB1234567890ABCDEFGHIJKL', 'blocked', [{ name: 'Late', address: 'GRP9' }]) === true
+      && sheetB.querySelectorAll('.c-remove-contact__row').length === 1 && !sheetB.querySelector('.c-remove-contact__error').hidden,
+      'A5: setRemoveSheetResult(blocked) lists the late blocker + the inline error on an OPEN sheet (loop r2 R2-2: in production the verb fires as the sheet closes, so this path is the toast\'s belt, not the live answer)');
+    ok(/localStorage\.removeItem\(DRAFT_PREFIX \+ addr\)/.test(homeA) && !/removeItem\(DRAFT_PREFIX \+ chat\.address\)/.test(homeA),
+      'loop r2 R2-4: the unsent draft is purged on the SUCCESS answer only — a refused history delete keeps it');
+    ok(/strings\.sharedGroupsUnknown \|\|/.test(readFileSync(join(root, 'src/components/chats-row-menu.js'), 'utf8')) && /try \{ w\.location\.href = outbox\.shift\(\); \}\s*finally \{ setTimeout\(drain, 0\); \}/.test(readFileSync(join(root, 'src/bridge/native.js'), 'utf8')),
+      'loop r2 R2-1/R2-3: a throwing href costs ONE command (try/finally keeps draining), and the sheet\'s group ask has a 4 s belt');
+    /* a group row: the sheet reads "Leave group", no blockers */
+    W.Spixi.dismissTopOverlay(); await sleep(450);
+    W.Spixi.openRemoveContactSheet({ chat: { name: 'Devs', address: 'GRP1', type: 'group' }, host: d.body, strings: {}, onRemove: () => {} });
+    await sleep(30);
+    const sheetG = [...d.querySelectorAll('.c-sheet .c-remove-contact')].pop();
+    ok(!sheetG.querySelector('.c-remove-contact__groups') && /Leave group/.test(sheetG.querySelector('.c-remove-contact__cta').textContent) && !sheetG.querySelector('.c-remove-contact__cta').disabled,
+      'A5: a GROUP row reads "Leave group" with no blocker strip (the C# leave path)');
+    dom.window.close();
+  }
+
+  /* A1/A2/A3/A4/A8 — chat-info, executed */
+  {
+    const dom = await load('chat.html');
+    const d = dom.window.document, W = dom.window;
+    const host = d.createElement('div'); d.body.append(host);
+    const bot = W.Spixi.createChatInfo({
+      kind: 'bot', context: 'chat', name: 'Spixi Room', blind: true,
+      members: [{ name: 'Alice', address: 'ALICE1234567890ABCDEFGHIJ', avatar: 'data:image/png;base64,AAAA' }, { name: '', address: 'BARE1234567890ABCDEFGHIJKL' }],
+      capabilities: { notifications: true }, strings: {}, host: d.body, onBack() {}, onLeave() {}, onNotifications() {},
+    });
+    host.append(bot);
+    const brows = [...bot.querySelectorAll('.c-chat-info__member')];
+    ok(brows.length === 2 && brows.some((r) => r.querySelector('.c-chat-info__member-name').textContent === 'Alice')
+      && brows.some((r) => r.querySelector('.c-chat-info__member-name').textContent === 'BARE12…GHIJKL')
+      && !brows.some((r) => /Hidden member/.test(r.textContent)) && !!brows[0].querySelector('.c-avatar__img, .c-avatar'),
+      '★★ A1: a BOT room lists its members as legacy did — nickname, else the #211 truncated address, with the avatar; "Hidden member" is gone from bot rows');
+    const bdanger = [...bot.querySelectorAll('.c-chat-info__danger-row')];
+    ok(bdanger.some((r) => /Leave group/.test(r.textContent)), '★ A2: the bot info carries Leave (SingleChatPage ixian:leave handles bots: pendingDeletion + sendLeave)');
+    const bkids = [...bot.querySelector('.c-chat-info__body').children];
+    ok(bkids.indexOf(bot.querySelector('.c-chat-info__danger')) === bkids.indexOf(bot.querySelector('.c-chat-info__hero')) + 1,
+      '★ A3: on a group/bot the action rows sit DIRECTLY under the hero — on top, not under the members list');
+    const grp = W.Spixi.createChatInfo({ kind: 'group', context: 'chat', name: 'Blind', blind: true,
+      members: [{ name: '', address: '[Unknown]' }], strings: {}, host: d.body, onBack() {}, onLeave() {} });
+    host.append(grp);
+    ok(/Hidden member/.test(grp.querySelector('.c-chat-info__member-name').textContent), 'A1: a blind GROUP keeps the #348 masking (C# masks the address itself there)');
+    const empty = W.Spixi.createChatInfo({ kind: 'bot', context: 'chat', name: 'Big Room', members: [], loading: true, strings: {}, host: d.body, onBack() {} });
+    host.append(empty);
+    ok(empty.querySelectorAll('.c-chat-info__member--skeleton').length === 3 && empty.querySelector('.c-chat-info__member-list').getAttribute('aria-busy') === 'true',
+      '★ A8: while the roster is loading the members section shows three skeleton rows (aria-busy), not an empty list');
+    const settled = W.Spixi.createChatInfo({ kind: 'bot', context: 'chat', name: 'Big Room', members: [], loading: false, strings: {}, host: d.body, onBack() {} });
+    host.append(settled);
+    ok(/not listed for this room yet/.test(settled.querySelector('.c-chat-info__member-note').textContent),
+      'A1/A8: a settled EMPTY bot roster says the protocol truth (getUsers only for < 500 users — Ixian-Core, frozen), not "no members match"');
+    const contact = W.Spixi.createChatInfo({ kind: 'contact', context: 'contact', name: 'Marta', address: '4mkzaddr', sharedGroups: null, loading: true,
+      strings: {}, host: d.body, onBack() {}, onMessage() {}, onDeleteHistory() {}, onRemoveContact() {} });
+    host.append(contact);
+    ok(!!contact.querySelector('.c-chat-info__shared .c-chat-info__member--skeleton'), '★ A4/A8: the 1:1 shared-groups strip shows a skeleton line until C# answers');
+    const ckids = [...contact.querySelector('.c-chat-info__body').children];
+    ok(ckids.indexOf(contact.querySelector('.c-chat-info__danger')) === ckids.indexOf(contact.querySelector('.c-chat-info__money')) + 1,
+      '★ A3: on a contact the action rows sit right after the quick actions (Message · Pay · Request) — on top');
+    let opened = null;
+    const contact2 = W.Spixi.createChatInfo({ kind: 'contact', context: 'contact', name: 'Marta', address: '4mkzaddr', sharedGroups: [{ name: 'Devs', address: 'GRP1' }],
+      strings: {}, host: d.body, onBack() {}, onOpenGroup: (g) => { opened = g.address; }, onRemoveContact() {} });
+    host.append(contact2);
+    const srow = contact2.querySelector('.c-chat-info__shared-row');
+    srow.click();
+    ok(!!srow && srow.querySelector('.c-chat-info__member-name').textContent === 'Devs' && opened === 'GRP1',
+      '★ A4: the shared group renders as a row and opens that group chat (ixian:openChat:<addr>)');
+    dom.window.close();
+  }
+  {
+    const cdS = readFileSync(join(root, 'src/shells/contact_details.html'), 'utf8');
+    /* A8 lives on contact_details — the in-chat takeover has been dead code since #249 (ixian:details owns info);
+       the loop r1 caught a first cut that skeletoned the dead surface and pinned it by regex (the #512 lesson) */
+    ok(/loading: !state\.membersLanded && state\.members\.length === 0 && Date\.now\(\) - bootAt < 2500,/.test(cdS)
+      && /state\.membersLanded = true;/.test(cdS) && /<div class="contact-boot" role="status" aria-label="Loading" aria-busy="true">/.test(cdS)
+      && (cdS.match(/contact-boot__row/g) || []).length >= 3 && /\.contact-boot__disc, \.contact-boot__dot, \.contact-boot__line \{ animation: none; \}/.test(cdS),
+      '★ A8 SHELL (contact_details — the LIVE info surface): the boot cover is a skeleton panel (role=status, aria-busy, reduced-motion off) and the roster rows skeleton until the first commit or 2.5 s');
+    ok(/if \(state\.sharedGroups === null\) \{ state\.sharedGroups = undefined; scheduleCommit\(\); \}/.test(cdS),
+      'A4 SHELL (loop r1): a group ask that is never answered (old exe) hides the strip after 4 s instead of shimmering forever');
+    const chatDead = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+    ok(!/rosterLoading/.test(chatDead), 'A8 (loop r1): no skeleton code on the DEAD in-chat info takeover (chat.html openChatInfo has no caller)');
+    ok(/bridge\.send\('ixian:sharedGroups'\);/.test(cdS) && /setSharedGroups\(address, \.\.\.pairs\) \{/.test(cdS) && /onOpenGroup: \(g\) => \{ if \(g && g\.address\) bridge\.send\('ixian:openChat:' \+ g\.address\); \}/.test(cdS),
+      'A4 SHELL: contact_details asks ixian:sharedGroups at boot, takes setSharedGroups, and a row tap emits ixian:openChat:<addr>');
+    const mbcss = stripCssComments(readFileSync(join(root, 'src/styles/components/message-bubble.css'), 'utf8'));
+    /* loop r1 A-1/A-2 (cs-shells): the bridge's DEFAULT sink serializes sends — two in one turn no longer drop the first */
+    {
+      const dom = await load('chats.html');
+      const W = dom.window;
+      const seen = [];
+      const fakeWin = { location: {}, SPIXI_ENV: {} };
+      Object.defineProperty(fakeWin.location, 'href', { set(v) { seen.push(v); }, get() { return ''; } });
+      const b = W.Spixi.createNativeBridge({ win: fakeWin });
+      b.send('ixian:one'); b.send('ixian:two'); b.send('ixian:three');
+      ok(seen.length === 1 && seen[0] === 'ixian:one', '★★ loop r1 (cs-shells A-1): the FIRST command still goes out synchronously — the rest wait in the outbox');
+      await sleep(30);
+      ok(seen.join() === 'ixian:one,ixian:two,ixian:three', '★★ loop r1 (cs-shells A-1): three sends in ONE turn all arrive, in order, one macrotask apart — the MAUI WebView drops a same-turn double location.href (launch.html #N75), now every shell is covered');
+      dom.window.close();
+    }
+    const menuCss = stripCssComments(readFileSync(join(root, 'src/styles/components/message-menu.css'), 'utf8'));
+    const ciCss = stripCssComments(readFileSync(join(root, 'src/styles/components/chat-info.css'), 'utf8'));
+    ok(/@media \(prefers-reduced-motion: reduce\) \{ \.c-delete-chat__check \{ transition: none; \} \}/.test(menuCss)
+      && /@media \(prefers-reduced-motion: reduce\) \{ \.c-chat-info__skeleton-avatar, \.c-chat-info__skeleton-line \{ animation: none; \} \}/.test(ciCss),
+      'loop r1 (d): the new check-circle transition and the skeleton shimmer are OFF under reduced motion — pinned (the r1 mutation that nothing caught)');
+    ok(!/\.c-delete-chat__opt:disabled \.c-delete-chat__opt-label \{ opacity/.test(menuCss), 'loop r1: the fixed-on "Delete chat" statement keeps full ink (dimmed it read 2.57:1)');
+    ok(/Their chats are removed from this device\./.test(readFileSync(join(root, 'src/components/chats-row-menu.js'), 'utf8')),
+      '★ loop r1 A-4 (cs): leaving a ticked group removes that group\'s chat from the device (Core removeFriend → deleteMessages) — the copy says so');
+    ok(/if \(st === 'left'\)/.test(homeA) && /return leaveGroup\(friend\) \? "left" : "fail";/.test(scA) && /localStorage\.removeItem\(DRAFT_PREFIX \+ addr\)/.test(homeA),
+      'loop r1: a group/bot LEAVE answers "left" (no "Contact removed" lie for a bot that stays until acknowledged) and the unsent draft goes with the chat (on the success answer, r2)');
+    ok(/var chat_page = Utils\.getChatPage\(f\);\s*status = SContacts\.removeContact\(f, leave, out blockers\);\s*if \(\(status == "ok" \|\| status == "left"\) && chat_page != null\)\s*\{\s*try \{ chat_page\.popPageAsync\(\); \}/.test(hpA)
+      && !/removeDetailContent\(\);\s*\}\s*\}\s*\}\s*catch \(Exception\)\s*\{\s*\/\/ loop r1: NO ex\.Message/.test(hpA),
+      '★ loop r1 A-3 (cs): the removed contact\'s OPEN conversation is closed through the page\'s overlay-aware popPageAsync (detailContent is never assigned — removeDetailContent closed nothing)');
+    ok(!/Logging\.(error|warn)\([^;]*ex\.Message/.test(scA) && !/ixian:removecontact failed: " \+ ex\.Message/.test(hpA),
+      'loop r1: no handler logs ex.Message on a peer-supplied token (Core\'s Address ctor formats the base58 into it)');
+    ok(/\.c-bubble-row\[data-direction="sent"\] \.c-bubble__meta > \* \{ opacity: 0\.7; \}/.test(mbcss)
+      && /\.c-bubble-row\[data-direction="sent"\] \.c-bubble__meta \.c-status-icon\[data-tone="read"\],\s*\.c-bubble-row\[data-direction="sent"\] \.c-bubble__meta \.c-status-icon\[data-tone="failed"\] \{ opacity: 1; \}/.test(mbcss)
+      && !/\.c-bubble__meta \{[^}]*opacity/.test(mbcss),
+      '★ A9: outgoing timestamp + status glyphs at 0.7 alpha on the CHILDREN (a box opacity would cap the read tick), the READ tick (and failed) at 1.0; received bubbles untouched');
+  }
+}
+
+/* ═══ ★★ BATCH B (2026-08-24 overnight) — requests lifecycle (#533 ①) ═══════════════
+   DECISIONS #543–#544. B1 revoke prompt · B2 app-invite cancel (the locked shape). */
+{
+  console.log('\n— Batch B: requests lifecycle (B1 revoke prompt · B2 app-invite cancel) —');
+  const hpB = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
+  const scpB = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8');
+  const homeB = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+  const chatB = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+  /* B1 — at source: undorequest is removeFriend with NO notification to the peer */
+  ok(/StartsWith\("ixian:undorequest"\)[\s\S]{0,200}?FriendList\.removeFriend\(friend\);[\s\S]{0,300}?TODO: send a notification to the other party/.test(scpB),
+    'B1 at source: SingleChatPage ixian:undorequest = FriendList.removeFriend + a "TODO: notify the other party" — the peer is NOT told (the copy must say so)');
+  ok(/StartsWith\("ixian:undorequest:", StringComparison\.Ordinal\)/.test(hpB)
+    && /bool outgoingPending = f\.state == FriendState\.RequestSent;/.test(hpB) && !/outgoingPending = !f\.approved/.test(hpB)
+    && /"undoRequestResult", addr, status/.test(hpB),
+    '★ B1 C#: HomePage ixian:undorequest:<addr> is GUARDED on FriendState.RequestSent — the state the outgoing sites set and the row is built from; NOT `!approved`, which defaults TRUE for outgoing requests (#399) and would have made the revoke a dead feature — and answers undoRequestResult');
+  ok(/if \(action === 'revokeRequest' && chat && chat\.address\) \{\s*bridge\.send\('ixian:undorequest:' \+ chat\.address\);/.test(homeB) && /undoRequestResult\(address, status\) \{[\s\S]{0,700}?deletedChats\.delete\(addr\);/.test(homeB)
+    && /if \(pinnedChats\.delete\(chat\.address\)\) savePins\(\);\s*\/\/ loop r1 m-1/.test(homeB),
+    'B1 SHELL: revokeRequest emits the address-scoped verb and sheds the pin (loop r1 m-1); a refusal un-tombstones AND asks for the flush (m-2 — C# only flags the OK path)');
+  {
+    const dom = await load('chats.html');
+    const d = dom.window.document, W = dom.window;
+    let acted = [];
+    W.Spixi.openChatRowMenu({ chat: { name: 'Pat', address: 'PAT1234567890ABCDEFGHIJKL', request: true }, host: d.body, strings: {},
+      capabilities: { delete: true, pin: true, mute: true }, onAction: (a) => acted.push(a) });
+    await sleep(30);
+    const items = [...d.querySelectorAll('.c-msgmenu__item')];
+    ok(items.some((b) => /Revoke request/.test(b.textContent)) && !items.some((b) => /Delete chat/.test(b.textContent)),
+      '★ B1: an OUTGOING PENDING request row offers "Revoke request" instead of "Delete chat"');
+    items.find((b) => /Revoke request/.test(b.textContent)).click();
+    await sleep(60);
+    const modal = [...d.querySelectorAll('.c-modal')].pop();
+    ok(!!modal && /Revoke the contact request\?/.test(modal.textContent) && /not told/.test(modal.textContent) && acted.length === 0,
+      '★★ B1: the delete NEVER auto-revokes — a PROMPT opens, its copy says the peer is not told, nothing fired yet');
+    [...modal.querySelectorAll('.c-button')].find((b) => /^Revoke$/.test(b.textContent.trim()))?.click();   // ?. — a mutated run must stay reportable (r2 n-3)
+    ok(acted.join() === 'revokeRequest', 'B1: the prompt\'s Revoke fires revokeRequest ONCE');
+    dom.window.close();
+  }
+  /* B2 — the locked shape (#533 ①) */
+  ok(/case "cancelInvite":[\s\S]{0,1200}?inv_msg\.type == FriendMessageType\.appSession && inv_msg\.localSender && !friend\.bot[\s\S]{0,200}?StreamProcessor\.sendMsgDelete\(friend, msg_id, selectedChannel\);\s*Utils\.sendUiCommand\(this, "cancelInviteResult", Crypto\.hashToString\(msg_id\), "ok"\);/.test(scpB)
+    && !/case "cancelInvite":[\s\S]{0,1200}?friend\.deleteMessage\(msg_id/.test(scpB),
+    '★★ B2 C#: cancelInvite = sendMsgDelete to the PEER only (the recipient\'s invite is removed through the existing delete path), NO local delete (the sender keeps the bubble) — guarded to an OWN appSession message');
+  ok(/if \(string\.IsNullOrEmpty\(message\.message\)\)\s*\{\s*return;\s*\}/.test(scpB.slice(scpB.indexOf('if (message.type == FriendMessageType.appSession)'))),
+    '★★ B2 (loop r1 MAJOR-2): the BLANKED-INVITE GHOST GUARD — Friend.deleteMessage BLANKS a row (message = ""), it does not remove it; without this guard the recipient\'s reload pushed a nameless "Missing" invite with live Join/Decline (the #529 ghost class, same answer: a blanked row renders NOTHING)');
+  ok(/onCancel: \(!incoming && !canceled && rec\.astate === 'invited'\) \? \(\) => confirmCancelInvite\(rec\) : undefined,/.test(chatB)
+    && /bridge\.send\('ixian:contextAction:cancelInvite:' \+ rec\.id\);/.test(chatB) && /const CANCELED_APP_PREFIX = 'spixi\.app\.canceled\.';/.test(chatB)
+    && /cancelInviteResult\(id, status\) \{[\s\S]{0,900}?canceledApps\.delete\(lid\)/.test(chatB)
+    && /if \(String\(status \|\| ''\) === 'ok'\) \{[\s\S]{0,700}?inviteCanceled\) \|\| 'Invite canceled', tone: 'success'/.test(chatB),
+    '★ B2 SHELL: Cancel on MY invite → confirm → the canceled tombstone persists per peer (spixi.app.canceled.<addr>) + the verb; the success toast waits for the OK answer (r2 R2-5 — the verb HAS an ack, the #376 B-2 rule) and a "fail" answer undoes the tombstone');
+  {
+    const dom = await load('chat.html');
+    const d = dom.window.document, W = dom.window;
+    const host = d.createElement('div'); d.body.append(host);
+    let canceled = 0;
+    const own = W.Spixi.createAppBubble({ name: 'Chess', state: 'invited', direction: 'sent', strings: {}, onCancel: () => { canceled += 1; }, onLaunch: () => {} });
+    host.append(own);
+    const cancelBtn = [...own.querySelectorAll('.c-button')].find((b) => /Cancel/.test(b.textContent));
+    ok(!!cancelBtn, 'B2: my invite card carries Cancel');
+    cancelBtn.click(); cancelBtn.click();
+    ok(canceled === 1, 'B2: Cancel is one-shot');
+    const tomb = W.Spixi.createAppBubble({ name: 'Chess', state: 'canceled', direction: 'sent', strings: {} });
+    host.append(tomb);
+    ok(/You canceled this invite/.test(tomb.textContent) && !tomb.querySelector('.c-button') && tomb.querySelector('.c-tcard').dataset.state === 'canceled',
+      '★ B2: the "canceled" state is a TERMINAL tombstone — the sub says so, no buttons, void tone');
+    dom.window.close();
+  }
+}
+
+/* ═══ ★★ BATCH C (2026-08-24 overnight) — account lifecycle + theme splash ═══════════
+   DECISIONS #545–#548. C1 full wipe · C2 wallet route retired · C3 warm-boot · C4 Contacts
+   back-stack · C5 night splash. */
+{
+  console.log('\n— Batch C: account lifecycle (C1–C4) + the theme splash (C5) —');
+  const spC = readFileSync(join(root, 'Spixi/Pages/Settings/SettingsPage.xaml.cs'), 'utf8');
+  const scpC = readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8');
+  const hpC = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
+  const setC = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
+  const homeC = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+  /* C1 — the wipe is ENUMERATED and ORDERED: shutdown first, storage second, account, wallet (+ balances), prefs, WebView keys */
+  {
+    const w = spC.slice(spC.indexOf('private void wipeEverything()'), spC.indexOf('private void wipeAccountData()'));
+    const at = (needle) => w.indexOf(needle);
+    ok(at('IxianHandler.shutdown();') > 0 && at('Node.storage.deleteData();') > at('IxianHandler.shutdown();') && at('Node.activityStorage.deleteData();') > at('IxianHandler.shutdown();'),
+      '★★ C1 (#545) / F-3 by reading: the wipe SHUTS DOWN FIRST (closes RocksDB) and deletes the storage directories AFTER — the wallet route deleted them under an OPEN database and shut down last');
+    ok(at('FriendList.deleteAccounts();') > 0 && at('.deleteWallet()') > 0 && at('IxianHandler.wallets.Clear();') > 0 && at('IxianHandler.balances.Clear();') > at('IxianHandler.wallets.Clear();'),
+      '★★ C1 (#545) / F-3 by reading: the wallet file, the wallet list AND IxianHandler.balances are cleared — a restore of the SAME wallet hit balances.Add on a key still present (Node.loadWallet:279, Dictionary.Add throws) = the fatal exception');
+    ok(at('Preferences.Default.Clear();') > 0 && at('"wipeLocalState"') > 0 && at('"wipeLocalState"') < at('IxianHandler.shutdown();'),
+      '★ C1 (#545): every native Preference is cleared (a fresh-install state) and the WebView\'s spixi.* keys are wiped through the wipeLocalState push — queued FIRST, so the async eval runs while the filesystem work grinds (loop r1 MINOR-1)');
+    ok(at('Node.storage.stopStorage();') > 0 && at('Node.storage.stopStorage();') < at('Node.storage.deleteData();'),
+      'C1 (loop r1 MINOR-3): the storages are stopped EXPLICITLY (idempotent) before their directories are deleted — Node.stop() early-returns when the node is not running');
+    ok((w.match(/try \{ /g) || []).length >= 14,
+      'C1 (loop r1 MINOR-2): every destructive call sits under its OWN try — one open file cannot skip the friend list');
+    ok(/NetworkUtils\.resumeNetworkOperations\(\);/.test(readFileSync(join(root, 'Spixi/Meta/Node.cs'), 'utf8')),
+      '★★ C1 (loop r1 MAJOR-1): connectToNetwork HEALS the isolate() pause latch — isolate() pauses the three static managers and nothing ever resumed them, so an in-process create/restore after a wipe spun on `paused` forever (F-3\'s third mechanism)');
+    ok(!/onDeleteWallet\(object sender/.test(spC) && !/private void deleteWalletWork\(\)/.test(spC)
+      && /current_url\.Equals\("ixian:deletea", StringComparison\.Ordinal\)\s*\|\| current_url\.Equals\("ixian:delete", StringComparison\.Ordinal\)/.test(spC),
+      '★ C2 (#545): the delete-WALLET route is RETIRED (onDeleteWallet / deleteWalletWork gone); an old shell\'s ixian:delete maps to the SAME full wipe behind the same auth gate');
+    ok(/wipeLocalState\(\) \{[\s\S]{0,600}?k\.startsWith\('spixi\.'\)[\s\S]{0,300}?localStorage\.removeItem\(k\)/.test(setC) && !/localStorage\.clear\(\)/.test(setC),
+      'C1 SHELL: wipeLocalState enumerates and removes spixi.* keys only — never localStorage.clear()');
+  }
+  {
+    /* jsdom's localStorage throws on a file:// (opaque) origin, so the handler runs
+       against a Map-backed fake with the Storage shape it actually uses */
+    const store = new Map([['spixi.chat.pattern', '1'], ['spixi.draft.X', 'hi'], ['other.key', 'keep']]);
+    const fake = { get length() { return store.size; }, key: (i) => [...store.keys()][i] || null, getItem: (k) => store.get(k), removeItem: (k) => { store.delete(k); }, setItem: (k, v) => { store.set(k, v); } };
+    const shellHtml = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
+    const m = shellHtml.match(/wipeLocalState\(\) \{([\s\S]*?)\n    \},/);
+    let ran = false;
+    if (m) { try { new Function('dbg', 'localStorage', m[1])(() => {}, fake); ran = true; } catch (e) { ran = false; } }
+    ok(ran && !store.has('spixi.chat.pattern') && !store.has('spixi.draft.X') && store.has('other.key'),
+      '★ C1 BEHAVIOURAL: the wipe handler (executed from the shell source) removes every spixi.* key and leaves a foreign key alone');
+  }
+  /* C3 — warm-boot after first paint, on the #315 park infra */
+  ok(/public bool parkOnLoad = false;/.test(scpC) && /public bool warmParkedOverlay\(SpixiContentPage target, int timeoutMs = 6000\)/.test(scpC)
+    && /else if \(op\.overlayMode && parkOnLoadNow\(op\)\)[\s\S]{0,900}?if \(reason != "timeout" && op\.target\.pageLoaded && parkedOverlay == null && modalOverlayOp == null\)[\s\S]{0,120}?parkedOverlay = op;/.test(scpC),
+    '★★ C3 (#546, #533 ②): a load-then-PARK path on the existing staging machinery — loaded pages go straight into the #315 parked slot (never presented); a timeout-presented or wedged page is DISPOSED, not parked; a lock up or a slot already taken → nothing');
+  ok(/Utils\.sendUiCommand\(this, "clearChatsDone"\);\s*warmAccountAfterFirstPaint\(\);/.test(hpC) && /await Task\.Delay\(900\);/.test(hpC) && /if \(railPane\)\s*\{\s*return;\s*\}/.test(hpC.slice(hpC.indexOf('private void warmAccountAfterFirstPaint()'))),
+    '★ C3 (#546): HomePage warms the Account AFTER the first chats flush (clearChatsDone), a beat later, ONCE, narrow mode only — never at boot, never for the rail pane');
+  ok(/SPIXI\.SpixiContentPage\.disposeParkedOverlay\(\);/.test(readFileSync(join(root, 'Spixi/Meta/Node.cs'), 'utf8')),
+    'C3 (#546): Node.onLowMemory still disposes the parked page (#315 kept)');
+  ok(/SpixiContentPage\? parked = SpixiContentPage\.getParkedOverlay\(\);[\s\S]{0,300}?representParkedOverlay\(parkedSettings\)/.test(hpC),
+    'C3: the Account tap still takes representParkedOverlay first — a warm-parked page is exactly what that path presents');
+  /* C4 — the #294 mechanism, named, and the IA move on it */
+  {
+    const cp = readFileSync(join(root, 'src/bridge/contacts-page.js'), 'utf8');
+    ok(/const close = \(reason\) => \{[\s\S]{0,200}?if \(onClose\) onClose\(reason === 'back' \? 'back' : 'auto'\);/.test(cp) && /onBack: \(\) => close\('back'\),/.test(cp),
+      'C4 (#547): the contacts takeover reports WHY it closed — the user\'s own Back vs a programmatic close');
+    ok(/if \(reason === 'back' && returnTo === 'account'\) \{\s*setNavActive\(nav, 'account'\);\s*deferToPaint\(\(\) => bridge\.send\('ixian:settings'\)\);/.test(homeC)
+      && /openContacts\('directory', '', \{ returnTo: 'account' \}\);/.test(homeC) && /contactsView\.close\('back'\); return true; \}/.test(homeC),
+      '★★ C4 (#547, #533 ③): the directory opened from the Account hub returns to ACCOUNT on its own Back (and on hardware back), never to Chats — the N42 landtab hand-off (the #294 mechanism: exit Account → land on Chats → open the takeover) now carries the return');
+    ok(/onClick: \(\) => openContacts\('directory'\) \}/.test(homeC) && /addEventListener\('click', \(\) => openContacts\('start'\)\)/.test(homeC),
+      'C4: the old entry points (topbar Contacts, the FAB) keep working unchanged — no returnTo');
+    ok(/if \(onContacts\) prefs\.card\.append\(settingRow\(\{[\s\S]{0,200}?key: 'contacts',/.test(readFileSync(join(root, 'src/components/settings-shell.js'), 'utf8')),
+      'C4: Contacts is a first-class row in the Account hub (N42, kept)');
+  }
+  /* C5 — the night splash resources */
+  {
+    const vn = readFileSync(join(root, 'Spixi/Platforms/Android/Resources/values-night-v31/styles.xml'), 'utf8');
+    const vl = readFileSync(join(root, 'Spixi/Platforms/Android/Resources/values-v31/styles.xml'), 'utf8');
+    const ic = readFileSync(join(root, 'Spixi/Platforms/Android/Resources/drawable/spixi_splash_icon_night.xml'), 'utf8');
+    const ln = readFileSync(join(root, 'Spixi/Platforms/Android/Resources/layout-night/splash_screen.xml'), 'utf8');
+    ok(/<style name="MainTheme" parent="MainTheme\.Base">/.test(vn) && /windowSplashScreenBackground">#13171b</.test(vn) && /windowSplashScreenAnimatedIcon">@drawable\/spixi_splash_icon_night</.test(vn),
+      '★ C5 (#548, #534): values-night-v31 keeps the MainTheme.Base inheritance and paints the Android-12 splash near-black (#13171b = the shells\' dark instant bg) with the white logomark');
+    ok(/windowSplashScreenBackground">#144576</.test(vl) && !/windowSplashScreenAnimatedIcon/.test(vl.replace(/<!--[\s\S]*?-->/g, '')),
+      'C5: the LIGHT splash (values-v31) is untouched — brand blue, no icon');
+    ok(/android:width="108dp"/.test(ic) && /android:scaleX="1\.75"/.test(ic) && (ic.match(/android:fillColor="#FFFFFF"/g) || []).length === 3 && /fillType="evenOdd"/.test(ic) && !/<objectAnimator|animated-vector/.test(ic),
+      'C5: the night icon is a STATIC white logomark (3 paths, evenOdd swirl) at ~52% of the 108dp viewport — inside the safe circle, no animation (#336\'s lesson)');
+    ok(/startColor="#13171b"/.test(ln) && /@drawable\/splash/.test(ln), 'C5: pre-Android-12 devices get the same dark ground via layout-night (the white lockup bitmap reads on it)');
+    ok(/html\[data-theme="dark"\] \.app-boot \{ background: #13171b; \}/.test(homeC), 'C5 Windows: the themed .app-boot cover is all there is — verified, no work');
+  }
+}
+
+/* ═══ ★★ BATCH D (2026-08-24 overnight) — the missed-call notification (D1, #549) ═════ */
+{
+  console.log('\n— Batch D: the missed-call notification (D1) —');
+  const andD = readFileSync(join(root, 'Spixi/Platforms/Android/SPushService.cs'), 'utf8');
+  const iosD = readFileSync(join(root, 'Spixi/Platforms/iOS/SPushService.cs'), 'utf8');
+  const hpD = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
+  const voipD = readFileSync(join(root, 'Spixi/VoIP/VoIPManager.cs'), 'utf8');
+  const scpD = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8');
+  /* the mechanism, named: the re-post exists (3.14) and the UI tick swept it */
+  ok(/SPushService\.showLocalNotification\(\s*callNotifId,\s*"Spixi",\s*SpixiLocalization\._SL\("notification-missed-call"\)/.test(voipD),
+    'D1 at source: VoIPManager.endVoIPSession re-posts the call row as "Missed call" under the same id (3.14) — the row WAS posted');
+  ok(/SPushService\.clearNotifications\(FriendList\.getUnreadMessageCount\(\)\);\s*\n\s*updateDebugOverlay\(\);/.test(hpD),
+    'D1 at source: HomePage.updateScreen (the ~1 s UI tick) calls clearNotifications every tick — THE MECHANISM that swept the missed row');
+  ok(!/public static void clearNotifications\(int unreadCount\)\s*\{\s*if \(manager != null\)\s*\{\s*manager\.CancelAll\(\);/.test(andD)
+    && /if \(sbn == null \|\| sbn\.Tag == CALL_TAG\)\s*\{\s*continue;/.test(andD) && /manager\.GetActiveNotifications\(\)/.test(andD),
+    '★★ D1 (#549) Android: the sweep enumerates the ACTIVE rows and cancels only the untagged ones — a tagged call row (the missed call) stays on the shade');
+  ok(/manager\.Notify\(CALL_TAG, messageId, notification\);/.test(andD) && /manager\.Cancel\(CALL_TAG, messageId\);/.test(andD) && /public const string CALL_TAG = "spixi\.call";/.test(andD),
+    '★ D1 Android: call rows post under the CALL_TAG; cancelNotification reaches both the tagged and the untagged id (the id scheme — CRC32 of the address, NOTIF-4 — is unchanged, so the missed row still REPLACES the incoming one)');
+  ok(/string identifier = \(kind == "call" \? CALL_PREFIX : ""\) \+ messageId\.ToString\(\);/.test(iosD) && /if \(id\.Length > 0 && !id\.StartsWith\(CALL_PREFIX, StringComparison\.Ordinal\)\)/.test(iosD) && /RemoveDeliveredNotifications\(ids\.ToArray\(\)\)/.test(iosD)
+    && !/UNUserNotificationCenter\.Current\.RemoveAllDeliveredNotifications\(\);/.test(iosD.replace(/\/\/[^\n]*/g, ''))
+    && !/OneSignalNative\.Notifications\.ClearAll\(\);/.test(iosD.slice(iosD.indexOf('public static void clearNotifications'))),
+    '★ D1 iOS (loop r1 MAJOR-4): the sweep removes delivered rows EXCEPT the call rows; BOTH blanket clears are gone — RemoveAllDeliveredNotifications AND the SDK\'s ClearAll, which is app-wide and ran one line before the sparing sweep');
+  ok(/SPushService\.cancelNotification\(SPIXI\.Meta\.SNotificationPrefs\.notificationIdFor\(friend\.walletAddress, true\)\);/.test(scpD.slice(scpD.indexOf('loadApps();'), scpD.indexOf('base.onResume();')))
+    && !/cancelNotification\(SPIXI\.Meta\.SNotificationPrefs\.notificationIdFor/.test(scpD.slice(scpD.indexOf('base.onResume();'))),
+    '★ D1 (loop r1 MAJOR-3): the call-row cancel lives on the LOAD path (runs on every open) — App.OnResume dispatches onResume to the NavigationPage CurrentPage only, and an OVERLAY conversation (#225) never is it, so the onResume site was structurally dead');
+  ok(/Logging\.info\("clearNotifications: blanket sweep \(no active-notification API\)"\);/.test(andD),
+    'D1 Android: pre-M devices fall back to the blanket sweep and say so in the log (an F5 there is explicable)');
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

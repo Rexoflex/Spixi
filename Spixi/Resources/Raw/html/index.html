@@ -1379,7 +1379,9 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    needed. Focus is not affected: pointer-events does not change focusability, so
    the open-time focus move and the exit focus restore both still work. */
 html:root .c-sheet:not([data-open]),
-html:root .c-sheet:not([data-open]) * {
+html:root .c-sheet:not([data-open]) *,
+html:root .c-modal:not([data-open]),
+html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSING modal's action re-entered `fire` on a second tap — same hole, same rule */
   pointer-events: none;
 }
 
@@ -1430,6 +1432,12 @@ html:root .c-sheet:not([data-open]) * {
 
 .c-modal__actions {
   display: flex;
+  /* ★ Batch B/C loop r1 M-1 (2026-08-24): WRAP. A long localized confirm label
+     ("Supprimer le compte", "Отменить приглашение") overflowed the fixed pair —
+     nowrap labels + flex-basis 0 + min-width:auto has no out. Wrapping drops the
+     long action onto its own full-width row (the remove-contact sheet's answer);
+     short pairs render exactly as before. */
+  flex-wrap: wrap;
   gap: var(--spacing-8);
   justify-content: flex-end;
   /* rich `content` slots carry no trailing margin (only __body does) — without this the
@@ -1437,7 +1445,7 @@ html:root .c-sheet:not([data-open]) * {
      Collapses with __body's margin-block-end so plain modals keep their 24 gap. */
   margin-block-start: var(--spacing-24);
 }
-.c-modal__actions .c-button { flex: 1 1 0; } /* equal-width pair (spec ②) */
+.c-modal__actions .c-button { flex: 1 1 0; } /* equal-width pair (spec ②). ⚠ NO min-width:0 here — loop r2 R2-1: with flex-basis 0 a used min of 0 makes every item's hypothetical size 0, so the wrap above could NEVER fire; min-width:auto (the label's min-content) is what trips it. Measured in Chrome: with auto, the long confirm wraps to its own full row; with 0 it spilled 43px past its button */
 
 /* ═════════ DESKTOP presentation (:root[data-desktop] — Batch C, #256 M6) ═════════
    Bottom sheets read poorly on desktop → they PRESENT as centered dialogs; three
@@ -1682,26 +1690,110 @@ html:root .c-sheet:not([data-open]) * {
   line-height: var(--line-height-body-md);
   color: var(--text-neutral-02);
 }
+/* ★ A7 (Damir, Batch A 2026-08-24): the option rows are the GROUP-CREATION checkbox
+   grammar — a pressable row with the trailing 24px select circle (the contacts-shell
+   pickerRow recipe, --icon-neutral-03 ring, filled --surface-action-default on
+   aria-checked) — not the off-brand native <input type=checkbox>. */
 .c-delete-chat__opts { display: flex; flex-direction: column; }
 .c-delete-chat__opt {
   display: flex;
   align-items: center;
   gap: var(--spacing-12);
+  width: 100%;
   min-height: var(--size-target-min);   /* ≥44px touch target */
+  padding: var(--spacing-4) 0;
+  border: 0;
+  background: transparent;
+  text-align: start;
   color: var(--text-neutral-01);
   font-family: var(--font-secondary);
   font-size: var(--font-size-body-md);
   line-height: var(--line-height-body-md);
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
-.c-delete-chat__opt input {
-  width: 20px;
-  height: 20px;
+.c-delete-chat__opt:disabled { cursor: default; }
+/* loop r1: the fixed-on "Delete chat" row is a STATEMENT of what happens, not an inert
+   control — its label keeps full ink (dimming it read 2.57:1); the static circle says fixed */
+.c-delete-chat__opt-label { flex: 1; min-width: 0; }
+.c-delete-chat__check {
   flex: none;
-  accent-color: var(--surface-action-default);
-  cursor: pointer;
+  width: 24px;                      /* sanctioned: select-circle dim (contacts parity) */
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  border: var(--outline-width-2) solid var(--icon-neutral-03);
+  color: transparent;
+  transition: background-color var(--duration-200) var(--easing-standard),
+              border-color var(--duration-200) var(--easing-standard),
+              color var(--duration-200) var(--easing-standard);
 }
-.c-delete-chat__opt input:disabled { cursor: default; }
+@media (prefers-reduced-motion: reduce) { .c-delete-chat__check { transition: none; } }
+[aria-checked='true'] > .c-delete-chat__check {
+  background: var(--surface-action-default);
+  border-color: var(--surface-action-default);
+  color: var(--icon-neutral-on-action);
+}
+.c-delete-chat__opt:focus-visible,
+.c-remove-contact__row:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+}
+
+/* ★ A5 (Damir's shape, Batch A): the REMOVE-CONTACT bottom sheet — peer header, the
+   honest body, the shared-groups strip (multi-select "leave first" rows) and the two
+   actions. Rendered inside c-sheet (overlay.css owns the sheet chrome). */
+.c-remove-contact { display: flex; flex-direction: column; gap: var(--spacing-16); }
+.c-remove-contact__groups {
+  display: flex; flex-direction: column; gap: var(--spacing-4);
+  padding: var(--spacing-12);
+  border-radius: var(--radius-16);
+  background: var(--surface-neutral-02);
+}
+.c-remove-contact__title {
+  margin: 0 0 var(--spacing-4);
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
+.c-remove-contact__row {
+  display: flex; align-items: center; gap: var(--spacing-12);
+  width: 100%;
+  min-height: 56px;
+  padding: var(--spacing-4) var(--spacing-4);
+  border: 0; border-radius: var(--radius-12);
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) { .c-remove-contact__row:hover { background-color: var(--surface-interactive-hover); } }
+.c-remove-contact__rowname {
+  flex: 1; min-width: 0;
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.c-remove-contact__hint {
+  margin: var(--spacing-4) 0 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-remove-contact__error {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-error);
+}
+.c-remove-contact__actions { display: flex; flex-wrap: wrap; gap: var(--spacing-8); justify-content: flex-end; }
+.c-remove-contact__actions .c-button { flex: 1 1 0; min-width: 0; }   /* equal-width pair (#60) */
+.c-remove-contact__actions .c-remove-contact__cta { flex: 2 1 auto; }    /* loop r1: the long "Leave N & remove" label wraps to its own line, never overflows */
 
 /* —— #506② / iOS-62: the long-pressed message is PROMOTED above the scrim ————
    Damir on device: "you cannot see what you are acting on." #492 shipped the cheap
@@ -3371,6 +3463,97 @@ html:root .c-sheet:not([data-open]) * {
    transaction?" sheet both live in scan-progress.css, beside the ring they share. */
 
 </style>
+<style data-src="../styles/components/contact-row.css">
+/* c-contact-row — the ONE contact-row grammar for the money pickers (★ W-j,
+   Damir F5 2026-08-23). EVERY number below is the Contacts DIRECTORY row
+   (contacts-shell.css .c-contacts__row / __col / __name / __sub / __check):
+   64px min-height · spacing-8 padding · spacing-12 gap · avatar-48 · name
+   body-md semibold · sub body-sm · the 24px select circle on --icon-neutral-03.
+   A smoke pin reads BOTH files and fails on any drift — change one, change both.
+   Press feedback: base.css lists .c-contact-row with the other row families
+   (the ::before compositor sweep) and pressable.js has it in PRESSABLE_ROW. */
+.c-contact-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: 64px;                 /* sanctioned: 48 avatar + breathing room */
+  padding: var(--spacing-8);
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-12);
+  cursor: pointer;
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) { .c-contact-row:not(:disabled):hover { background-color: var(--surface-interactive-hover); } }
+.c-contact-row:disabled { cursor: default; }
+.c-contact-row:disabled > .c-avatar,
+.c-contact-row:disabled .c-contact-row__name { opacity: var(--opacity-disabled); }
+.c-contact-row__col {
+  flex: 1;
+  min-width: 0;                     /* nowrap children ellipsize (#140③ class) */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+.c-contact-row__name {
+  min-width: 0;
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-contact-row__sub {
+  min-width: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-contact-row__badge { flex: none; }
+
+/* the "Send to an address" glyph disc — sits in the avatar-48 slot (#136) */
+.c-contact-row__glyph {
+  width: var(--size-avatar-48); height: var(--size-avatar-48); flex: none;
+  border-radius: var(--radius-full);
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
+}
+
+/* multi-select check circle (trailing) — contacts-shell.css recipe, verbatim */
+.c-contact-row__check {
+  flex: none;
+  width: 24px;                      /* sanctioned: select-circle dim */
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  border: var(--outline-width-2) solid var(--icon-neutral-03);
+  color: transparent;
+  transition: background-color var(--duration-200) var(--easing-standard),
+              border-color var(--duration-200) var(--easing-standard),
+              color var(--duration-200) var(--easing-standard);
+}
+@media (prefers-reduced-motion: reduce) { .c-contact-row__check { transition: none; } }   /* contacts-shell parity */
+.c-contact-row[aria-checked='true'] .c-contact-row__check {
+  background: var(--surface-action-default);
+  border-color: var(--surface-action-default);
+  color: var(--icon-neutral-on-action);
+}
+.c-contact-row:focus-visible {          /* F19 grammar, contacts-shell parity */
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+}
+
+</style><!-- ★ W-j: the shared money-picker row (Send + Receive) -->
 <style data-src="../styles/components/wallet-receive.css">
 /* c-wallet-receive — Receive/Request progressive surface (spec §4, slice 3).
    QR card paints --surface-qr (near-white in BOTH themes — scan contrast);
@@ -3485,64 +3668,23 @@ html:root .c-sheet:not([data-open]) * {
 .c-wallet-receive__contacts {
   display: flex;
   flex-direction: column;
-  max-height: 264px;
+  max-height: 328px;              /* loop r1 m5: 5 × the 64px W-j row + the card padding — Damir's F5 "5 reachable" stands */
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
-.c-wallet-receive__contact {
-  display: flex; align-items: center; gap: var(--spacing-12);
-  min-height: var(--size-target-min);
-  padding: var(--spacing-8) var(--spacing-12);
-  border: 0; border-radius: var(--radius-12);
-  background: transparent;
-  text-align: start;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  /* 5c-ii (2026-08-24): the press fill MOVED to the compositor ::before layer in
-     base.css — see chatlist-item.css. State rules set background-COLOR only. */
-}
-/* W9: no row is ever disabled now — ticking a name is not a send, so the list is
-   fully live from the moment it renders. (:not(:disabled) kept as a belt: nothing
-   here should ever paint a hover wash on an inert row.) */
-@media (hover: hover) and (pointer: fine) { .c-wallet-receive__contact:hover:not(:disabled) { background-color: var(--surface-interactive-hover); } }
-/* 5c-i/ii: the :active fill mirror is REMOVED — see chatlist-item.css. */
-.c-wallet-receive__contact:disabled { cursor: default; opacity: 0.6; }
+/* ★ W-j (Damir F5 2026-08-23): the row anatomy MOVED to contact-row.css — the rows
+   are the shared c-contact-row now (directory grammar: avatar-48 + name + truncated
+   address + online dot + the W9 select circle). `.c-wallet-receive__contact` stays
+   on the element as an ALIAS for base.css (press sweep) / pressable.js / the pins;
+   it carries no layout of its own any more. */
+/* (disabled rows: contact-row.css dims the avatar + name at --opacity-disabled — one grammar) */
 .c-wallet-receive__hint {
   margin: 0;
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
   color: var(--text-neutral-02);
 }
-.c-wallet-receive__contactname {
-  flex: 1; min-width: 0;
-  font-size: var(--font-size-body-lg);
-  color: var(--text-neutral-01);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-/* W9 select circle — the SAME recipe as the group-creation picker
-   (.c-contacts__check): the empty circle is the "this row can be picked"
-   affordance, so its ring rides the muted ICON ladder (--icon-neutral-03,
-   4.30:1 light / 5.69:1 dark) and not an outline hairline token, which sits
-   near 1.1:1 on this surface, i.e. invisible (Damir F5, contacts-shell.css). */
-.c-wallet-receive__check {
-  flex: none;
-  width: 24px;                      /* sanctioned: select-circle dim (contacts parity) */
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-full);
-  border: var(--outline-width-2) solid var(--icon-neutral-03);
-  color: transparent;
-  transition: background-color var(--duration-200) var(--easing-standard),
-              border-color var(--duration-200) var(--easing-standard),
-              color var(--duration-200) var(--easing-standard);
-}
-.c-wallet-receive__contact[aria-checked='true'] .c-wallet-receive__check {
-  background: var(--surface-action-default);
-  border-color: var(--surface-action-default);
-  color: var(--icon-neutral-on-action);
-}
+/* (the W9 select circle lives in contact-row.css now — .c-contact-row__check) */
 /* W9 result line — the visible half of the send outcome (the live region does the
    announcing). Tone-switched: an all-clear run reads success, a partial failure
    reads error and the failed rows are still ticked above it. */
@@ -3571,16 +3713,84 @@ html:root .c-sheet:not([data-open]) * {
 .c-wallet-receive__head .c-wallet-receive__asklabel { margin: 0; }
 .c-wallet-receive__addrbtn { flex: none; }
 
-/* —— #527: the address sheet (QR + address + copy + Share + explainer) —— */
+/* —— #527 / ★ W-c: the address sheet (QR + address + copy + Share + explainer) ——
+   Damir F5 2026-08-23: the desktop dialog OVERFLOWED (visible scrollbar, the chip
+   and the explainer cut) and a short phone viewport had no scroll at all. The
+   sheet content is now its OWN scroll region with a viewport cap; the QR card
+   scales with min(); the desktop dialog is capped at 440px. Then the PREMIUM
+   pass — this is the one address surface (Account reuses it), polished once. */
 .c-addr-sheet {
   display: flex; flex-direction: column; gap: var(--spacing-16);
+  max-height: min(72dvh, 640px);            /* the sheet title + handle sit above; the rest scrolls */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-inline: var(--spacing-2);         /* room for the chip's focus ring inside the scroller */
+  margin-inline: calc(-1 * var(--spacing-2));
 }
+@supports not (height: 1dvh) { .c-addr-sheet { max-height: min(72vh, 640px); } }
+:root[data-desktop] .c-sheet--addr { width: min(440px, 92%); }
+/* loop r1 m8: the desktop dialog is `max-height: 76%` with 24px padding + the title —
+   the INNER cap must bind first or the outer dialog scrolls with its own bar (the
+   exact W-c symptom). 76vh − 24×2 padding − ~44 title/gap = the usable inner height. */
+:root[data-desktop] .c-addr-sheet { max-height: calc(76vh - 92px); }
+.c-addr-sheet__qrwrap { display: flex; justify-content: center; }
+.c-addr-sheet__qrcard {
+  /* scale with the viewport on BOTH axes: a short window shrinks the code before
+     it pushes the chip below the fold. --surface-qr stays near-white in both themes. */
+  width: min(280px, 52dvh, 86vw, 100%);
+  padding: var(--spacing-20);
+  border-radius: var(--radius-24);
+  box-shadow: var(--elevation-2);
+  outline: var(--outline-width-1) solid var(--outline-neutral-01);
+  outline-offset: -1px;
+}
+@supports not (height: 1dvh) { .c-addr-sheet__qrcard { width: min(280px, 52vh, 86vw, 100%); } }
+.c-addr-sheet__caption {
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+/* the address chip: the #99 member-sheet pattern, one step more deliberate —
+   a hairline, a larger radius and letter-spacing so the base58 reads as a token */
+.c-addr-sheet__addr {
+  padding-block: var(--spacing-12);
+  padding-inline: var(--spacing-16) var(--spacing-8);
+  border-radius: var(--radius-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-01);
+}
+.c-addr-sheet__addr .c-wallet-receive__addrvalue {
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  letter-spacing: 0.01em;
+}
+.c-addr-sheet__addr .c-wallet-receive__copy { width: 40px; height: 40px; }
+.c-addr-sheet__addr .c-wallet-receive__copy[data-state='ok'] { color: var(--icon-success); }
+.c-addr-sheet__addr .c-wallet-receive__copy[data-state='fail'] { color: var(--icon-error); }
+.c-addr-sheet__share { margin-block-start: calc(-1 * var(--spacing-4)); }
+/* the explainer block — an info disc leads two quiet lines; the safety line
+   carries the shield glyph inline */
+.c-addr-sheet__explain {
+  display: flex; align-items: flex-start; gap: var(--spacing-12);
+  padding: var(--spacing-12) var(--spacing-12) var(--spacing-12) var(--spacing-12);
+  border-radius: var(--radius-16);
+  background: var(--surface-neutral-02);
+}
+.c-addr-sheet__explaintext { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--spacing-8); }
 .c-addr-sheet__info {
   margin: 0;
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
   color: var(--text-neutral-02);
 }
+.c-addr-sheet__info--safe {
+  display: flex; align-items: flex-start; gap: var(--spacing-8);
+  color: var(--text-neutral-01);
+}
+.c-addr-sheet__info--safe svg { flex: none; margin-top: 1px; color: var(--icon-success); }
+
+/* ★ W-b (2026-08-24): desktop content column cap — see wallet-send.css */
+:root[data-desktop] .c-wallet-receive { max-width: 560px; margin-inline: auto; width: 100%; box-sizing: border-box; }
 
 </style><!-- Receive/Request takeover (zero-C#) -->
 <style data-src="../styles/components/wallet-send.css">
@@ -3620,35 +3830,35 @@ html:root .c-sheet:not([data-open]) * {
 
 /* —— recipient picker —— */
 .c-wallet-send__picker { display: flex; flex-direction: column; gap: var(--spacing-12); }
+/* ★ W-j (Damir F5 2026-08-23): the row anatomy MOVED to contact-row.css — the rows
+   are the shared c-contact-row (directory grammar). `.c-wallet-send__contact` stays
+   on the element as an ALIAS for the pins; no layout of its own. The list is the
+   directory CARD (contacts-shell .c-contacts__list grammar) so the three screens
+   read as one. */
+.c-wallet-send__list {                                   /* loop r1 m6: address row + contacts share ONE card (same left edge) */
+  display: flex; flex-direction: column;
+  background: var(--surface-card);
+  border-radius: var(--radius-16);
+  padding: var(--spacing-4);
+  box-shadow: var(--elevation-1);
+}
+.c-wallet-send__list .c-wallet-send__addrfield { padding: var(--spacing-4) var(--spacing-8) var(--spacing-8); }
 .c-wallet-send__contacts { display: flex; flex-direction: column; }
-.c-wallet-send__contact {
-  display: flex; align-items: center; gap: var(--spacing-12);
-  min-height: var(--size-target-min);
-  padding: var(--spacing-8) var(--spacing-12);
-  border: 0; border-radius: var(--radius-12);
-  background: transparent;
-  text-align: start;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
+/* hidden live region (the receive screen's grammar): announces the pick */
+.c-wallet-send__live {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0; border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
-@media (hover: hover) and (pointer: fine) { .c-wallet-send__contact:hover { background: var(--surface-interactive-hover); } }
-.c-wallet-send__contact:active { background: var(--surface-interactive-pressed); }
-.c-wallet-send__contactname {
-  flex: 1; min-width: 0;   /* loop fix: without a shrinkable basis the nowrap name can NEVER ellipsize (receive parity) */
-  font-size: var(--font-size-body-lg);
-  color: var(--text-neutral-01);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.c-wallet-send__picked:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
 }
-/* #255: "Request pending" tag on a contact whose request is not accepted yet */
-.c-wallet-send__pendingtag {
-  flex: none;
-  padding: 2px var(--spacing-8);
-  border-radius: var(--radius-full);
-  font-size: var(--font-size-label-sm);
-  line-height: var(--line-height-label-sm);
-  color: var(--text-neutral-02);
-  background: var(--surface-neutral-02);
-}
+/* #255: "Request pending" tag — kept for the old class; the shared row renders the
+   directory badge (.c-contact-row__badge) instead */
 .c-wallet-send__none {
   margin: 0;
   padding: var(--spacing-8) var(--spacing-12);
@@ -3656,14 +3866,7 @@ html:root .c-sheet:not([data-open]) * {
   line-height: var(--line-height-body-sm);
   color: var(--text-neutral-02);
 }
-/* "Send to an address" — contact-aligned row; the avatar slot carries the qr glyph (#136) */
-.c-wallet-send__addrglyph {
-  width: var(--size-avatar-40); height: var(--size-avatar-40); flex: none;
-  border-radius: var(--radius-full);
-  display: inline-flex; align-items: center; justify-content: center;
-  border: var(--outline-width-1) solid var(--outline-neutral-02);
-  color: var(--icon-action-default);
-}
+/* "Send to an address" — the shared glyph row (contact-row.css .c-contact-row__glyph, #136) */
 .c-wallet-send__addrfield { display: flex; flex-wrap: wrap; gap: var(--spacing-8); }
 .c-wallet-send__addrinput {
   flex: 1; min-width: 0;
@@ -3699,25 +3902,30 @@ html:root .c-sheet:not([data-open]) * {
 /* selected recipient */
 .c-wallet-send__picked {
   display: flex; align-items: center; gap: var(--spacing-12);
+  min-height: 64px;                                     /* ★ W-j: the directory row height */
   padding: var(--spacing-8) var(--spacing-12);
-  border-radius: var(--radius-12);
-  background: var(--surface-neutral-02);
+  border-radius: var(--radius-16);
+  background: var(--surface-card);
+  box-shadow: var(--elevation-1);
 }
 .c-wallet-send__pickedglyph {
-  width: 40px; height: 40px; flex: none;                /* mirrors avatar-40 slot */
+  width: var(--size-avatar-48); height: var(--size-avatar-48); flex: none;   /* ★ W-j: avatar-48 slot */
   border-radius: var(--radius-full);
   display: inline-flex; align-items: center; justify-content: center;
-  border: var(--outline-width-1) solid var(--outline-neutral-02);
-  color: var(--icon-neutral-02);
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
 }
 .c-wallet-send__pickedtext { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.c-wallet-send__pickedname {
-  font-size: var(--font-size-body-lg);
+.c-wallet-send__pickedname {                            /* ★ W-b: name over the muted truncated address */
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
   font-weight: var(--font-weight-semibold);
   color: var(--text-neutral-01);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .c-wallet-send__pickedaddr {
   font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
   color: var(--text-neutral-02);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -3802,6 +4010,11 @@ html:root .c-sheet:not([data-open]) * {
 .c-sendreview__rowvalue { flex: 1; min-width: 0; text-align: end; color: var(--text-neutral-01); font-size: var(--font-size-body-md); }
 .c-sendreview__actions { display: flex; gap: var(--spacing-8); justify-content: flex-end; }
 .c-sendreview__actions .c-button { flex: 1 1 0; }       /* equal-width pair (#60) */
+
+/* ★ W-b (2026-08-24): on DESKTOP the takeover fills the whole pane, so the compose
+   stretched to the pane width (an 800px amount field). Cap the content column and
+   centre it — the same reading width the settings pane uses. Mobile is untouched. */
+:root[data-desktop] .c-wallet-send { max-width: 560px; margin-inline: auto; width: 100%; box-sizing: border-box; }
 
 </style><!-- Send compose/review takeover (BE-gated composeSend) -->
 <!-- apps tab (tab3, ARCHITECTURE section 5 — home shell internal view) -->
@@ -4398,6 +4611,7 @@ html:root .c-sheet:not([data-open]) * {
   const {
     createTopbar, createBottomNav, setNavBadge, setNavActive,
     createChatsList, renderChatsList, setChatsFilter, setChatsQuery, chatsUnreadTotal,
+    setRemoveSheetGroups, setRemoveSheetResult,   // ★ Batch A (A4/A5/A6): the remove-contact sheet's C# answers
     truncateAddressMiddle,               // B4 (#231): excerpt canon — addresses never shown in full
     createChatsHeader, attachChatsCollapse, setChatsHeaderCounts, acceptContactRequest, completeHandshake,
     createWarningBanner, setWarning,     // M16: actionable warnings only (connectivity = title-state)
@@ -4417,10 +4631,12 @@ html:root .c-sheet:not([data-open]) * {
     resetSearchFields,                   // ★ BUG-3: visit-scoped search reset (search-field.js)
     setChipSelected,
     createWalletReceive,                 // Receive/Request takeover (zero-C#)
+    closeAddressSheet,                   // r2 n5: the takeover closes its address sheet on the way out
     isDesktopPresentation,               // N38: Share hides on desktop (dead ladder; Copy beside it)
     createWalletSend,                    // Send compose/review takeover (cap-gated; W5/W6 live it)
     setSendQuote: applySendQuote,        // W6 (#523) — aliased: the bridge handler below shares
     setSendAddress,                      //   the name (the setScanProgress precedent above)
+    setSendRecipient,                    // ★ W-f: a scanned KNOWN address auto-picks the contact
     // apps (tab3)
     createAppsList, renderAppsList, setAppsQuery, setAppsLayout, createAppsHeader,
     setAppsHeaderEmpty,                  // nothing installed → hide the dead search/layout row
@@ -4955,7 +5171,7 @@ html:root .c-sheet:not([data-open]) * {
     // sheets/menus sit ABOVE takeovers (z-40 > z-30) — close the top one first.
     if (typeof dismissTopOverlay === 'function' && dismissTopOverlay()) return true;
     if (walletTakeover && walletTakeoverClose) { walletTakeoverClose(); return true; }
-    if (contactsView) { contactsView.close(); return true; }   // onClose nulls the handle + syncs
+    if (contactsView) { contactsView.close('back'); return true; }   // onClose nulls the handle + syncs · C4: hardware back IS the user's Back
     return false;
   }
   /* W2 (Damir, Windows F5 2026-08-12) — RAIL TAP WHILE A TAKEOVER IS OPEN.
@@ -5050,13 +5266,30 @@ html:root .c-sheet:not([data-open]) * {
    * (topbar): Add contact only; tap = contact details. 'app' + appId (mini-app
    * launch target): opens straight in the select grammar group creation uses, but
    * SINGLE-select; ✓ emits ixian:startappwith:<appId>:|<addr>. One open at a time. */
-  function openContacts(purpose, appId) {
+  /* ★ C4 (#547, #533 ③): `returnTo: 'account'` — the directory opened FROM the
+     Account hub's Contacts row goes BACK to Account, not to Chats. THE #294
+     MECHANISM, found first: the N42 row rode the #238 landtab hand-off, which EXITS
+     Account (parking it, #315), lands on Chats and opens this takeover — so its Back
+     could only ever reveal Chats. The IA move builds on exactly that: the takeover
+     remembers where it came from, and its OWN Back (reason 'back') re-presents
+     Account through the normal `ixian:settings` verb — instant, because the exit
+     parked the page (and C3 keeps it warm from boot). A programmatic close (a tab
+     tap, an app launch, a chat open) never re-opens Account. The old entry points
+     (topbar Contacts, the FAB) pass no returnTo and behave as before. */
+  function openContacts(purpose, appId, opts) {
+    const returnTo = (opts && opts.returnTo) || '';
     if (contactsView) contactsView.close();       // onClose nulls the handle
     leaveSurfaceSearch();   // BUG-3: a takeover covers the tab — its query does not outlive the visit
     contactsView = mountContacts({
       host: document.body, bridge, strings, purpose, appId: appId || '',
       getRoster: () => directoryRoster(),               // iOS-26: groups included in BOTH purposes
-      onClose: () => { contactsView = null; syncHomeOverlay(); },   // AND-29
+      onClose: (reason) => {
+        contactsView = null; syncHomeOverlay();         // AND-29
+        if (reason === 'back' && returnTo === 'account') {
+          setNavActive(nav, 'account');
+          deferToPaint(() => bridge.send('ixian:settings'));   // the same deferral the Account tab uses
+        }
+      },
     });
     syncHomeOverlay();   // AND-29: tell C# a takeover is up (hardware back closes it, not the app)
   }
@@ -5149,7 +5382,7 @@ html:root .c-sheet:not([data-open]) * {
       setNavActive(nav, 'chats');
       showView('chats');
       bridge.send('ixian:tab:' + NAV_TO_TAB.chats);
-      openContacts('directory');
+      openContacts('directory', '', { returnTo: 'account' });   // ★ C4: Back returns to Account, never Chats
       return;
     }
     if (id === 'account' || !NAV_TO_TAB[id]) return;
@@ -5259,10 +5492,39 @@ html:root .c-sheet:not([data-open]) * {
     //   delete {media:false} → row only (→ ixian:removehistory soft)
     //   delete {media:true}  → + on-device media/files purge
     //   deleteContact        → also remove the contact (→ ixian:remove)
+    // ★ Batch A (#539) A4/A5: the remove-contact sheet asks for the shared groups;
+    // C# answers with `setSharedGroups(addr, name, addr, …)` (below).
+    onNeedGroups: (addr) => { if (addr) bridge.send('ixian:sharedGroups:' + addr); },
     onPersist: (action, chat, detail) => {
+      /* ★ B1 (Batch B): revoking an OUTGOING pending request from the list → the
+         address-scoped `ixian:undorequest:<addr>` (HomePage, #543). The row is gone
+         locally; C# answers `undoRequestResult` and a refusal un-tombstones it. */
+      if (action === 'revokeRequest' && chat && chat.address) {
+        bridge.send('ixian:undorequest:' + chat.address);
+        deletedChats.set(chat.address, { ts: Number(chat.timestamp) || 0, unread: Number(chat.unread) || 0 });
+        requestAddrs.delete(chat.address);
+        if (pinnedChats.delete(chat.address)) savePins();   // loop r1 m-1: a revoked row sheds its pin (the delete twin's rule)
+        leaveRequestsFilterIfEmpty();
+        return;
+      }
       if ((action === 'delete' || action === 'deleteContact') && chat && chat.address) {
-        // no HomePage dispatch yet — intent only. Capture the tail the user deleted
-        // (timestamp + unread) so a LATER message can prove itself new (BUG-1b).
+        /* ★ Batch A (#539) — A6, THE DATA BUG. This branch said "no HomePage dispatch
+           yet — intent only" and tombstoned the row; the contact and its history stayed
+           on disk, and the next contacts flush showed the contact still in Contacts.
+           HomePage now dispatches the address-scoped twins of ContactDetails' verbs:
+             delete        → ixian:removehistory:<addr>          (the chat: history file + in-memory list)
+             deleteContact → ixian:removecontact:<addr>:<leave>  (the contact; leave=1 → leave every
+                                                                  shared group FIRST — Core refuses a group member)
+           Both answer with a result push (removeHistoryResult / removeContactResult) so a
+           refusal UN-tombstones the row: a row that vanished while the data stayed is the
+           lie this fixes. `detail.media` (on-device media purge) still has no verb — noted
+           in the handoff as a BE row, not faked. */
+        if (action === 'delete') bridge.send('ixian:removehistory:' + chat.address);
+        else bridge.send('ixian:removecontact:' + chat.address + ':' + ((detail && detail.leaveGroups && detail.leaveGroups.length) ? '1' : '0'));
+        // (the unsent draft is purged on the SUCCESS answer — removeHistoryResult ok — loop r2 R2-4:
+        //  a refused delete un-tombstones the row and must not have destroyed the draft)
+        // Capture the tail the user deleted (timestamp + unread) so a LATER message can
+        // prove itself new (BUG-1b).
         deletedChats.set(chat.address, { ts: Number(chat.timestamp) || 0, unread: Number(chat.unread) || 0 });
         reactionExcerpts.delete(chat.address);   // CH8: drop sticky excerpt with the row (no stale re-apply on resurrect)
         dropExdelHint(chat.address);      // Q12: a deleted ROW sheds its deleted-tail hint too
@@ -5904,13 +6166,14 @@ html:root .c-sheet:not([data-open]) * {
    * quote lands. No invented fee, ever. */
 
   /* setAddress delivers `new ExtendedAddress(primary, OfflineTag, null).ToString()`
-   * (HomePage.xaml.cs:673). Empirically the legacy pages (address.html,
-   * wallet_request.html) use that string verbatim as the wallet id and append `:ixi`
-   * for the QR — i.e. ToString() is the bare base58 address; OfflineTag is a C#-side
-   * payment flag, not part of the string. Defensive extraction anyway: strip anything
-   * from the first ':' (mirrors the legacy QR parse, bridge-audit-A:200 — "if payload
-   * contains :ixi take the prefix as wallet"), so we never double-suffix the
-   * component's own `:ixi`. NEEDS BE CONFIRMATION (be-cutover W-series). */
+   * (HomePage.xaml.cs:1703). ★ ANSWERED AT SOURCE (Batch W loop, 2026-08-24; closes
+   * be-cutover W7): ExtendedAddress.ToString() (Ixian-Core ExtendedAddress.cs:199-208)
+   * is the bare base58 address ONLY for Primary+no tag; for OfflineTag it is
+   * `<base58>_<base58(ext)>` — so the pushed string, the legacy QR and the new sheet
+   * QR all carry the EXTENDED form. That is correct: the legacy address.html used it
+   * verbatim and every scanner (SPayments.handleSignSend → `new ExtendedAddress(str)`)
+   * parses it. The roster, by contrast, carries bare `friend.walletAddress` — the W-f
+   * lookup compares the part before '_'. No colon is ever in the string. */
   function cleanReceiveAddress(raw) {
     // Use the pushed address VERBATIM (legacy address.html/wallet_request.html do —
     // ExtendedAddress.ToString() is a bare base58 address, no colon). An earlier
@@ -6094,7 +6357,7 @@ html:root .c-sheet:not([data-open]) * {
     const over = document.createElement('div');
     over.className = 'wallet-takeover';
     walletTakeover = over;
-    const close = () => { over.remove(); walletTakeover = null; walletTakeoverClose = null; syncHomeOverlay(); };  // AND-29
+    const close = () => { closeAddressSheet(); over.remove(); walletTakeover = null; walletTakeoverClose = null; syncHomeOverlay(); };  // AND-29 · r2 n5: no sheet outlives its screen
     walletTakeoverClose = close;   // AND-29: hardware back closes this takeover
     syncHomeOverlay();   // AND-29 v2: notify C# the wallet takeover is up
     // walletStrings IS the live dict + the explorer override (slWith) — the old
@@ -6215,6 +6478,7 @@ html:root .c-sheet:not([data-open]) * {
     over.className = 'wallet-takeover';
     walletTakeover = over;
     const close = () => {
+      if (walletSendView && walletSendView._closeReview) { try { walletSendView._closeReview(); } catch (e) {} }   // loop r1 M4: no orphan sheet
       over.remove(); walletTakeover = null; walletTakeoverClose = null;
       walletSendView = null; walletSendCtrl = null;           // stale pushes must find nobody
       clearWalletSendWait();
@@ -6247,13 +6511,16 @@ html:root .c-sheet:not([data-open]) * {
         // loop MAJOR fix: a dropped push must not strand a locked sheet forever —
         // the tipWait grammar. The copy must NOT claim failure: the tx may be out.
         clearWalletSendWait();
+        // Loop r2 R2-1 (Batch W): ABOVE C#'s 120 s confirm self-heal (SPayments.acquireConfirm)
+        // — at 30 s a slow user still had the native dialog open; the shell declared
+        // failure, dropped the ctrl, and the real 'ok' had nobody to land on.
         walletSendWait = setTimeout(() => {
           walletSendWait = 0;
           const c = walletSendCtrl;
           if (!c) return;
           walletSendCtrl = null;
           c.fail((window.SL && window.SL.sendNoAnswer) || 'No response from the app. Check your wallet activity before you try again.');
-        }, 30000);
+        }, 125000);
         bridge.send('ixian:signSend:' + r.address + ':' + payload.amount);
       },
       onDone: () => close(),             // success morph finished → close the takeover
@@ -6271,7 +6538,15 @@ html:root .c-sheet:not([data-open]) * {
     strings: walletStrings,
     onSend: mountWalletSend,                               // BE-gated compose; falls back to ixian:sendixi in v1
     onReceive: mountWalletReceive,                         // redesigned Receive takeover (zero-C#); falls back to native if no address yet
-    onScan: () => bridge.send('ixian:quickscan'),
+    /* ★ W-e (Android F5 2026-08-23): the wallet-hero scan is PAYMENT INTENT — a
+       receive QR (`addr:ixi`) must COMPOSE, not land in add-contact. The generic
+       `ixian:quickscan` routes only `:send` payloads to the compose (C#
+       processQRResult; `addr:ixi`/bare fall through to ContactNewPage — legacy
+       behaviour). `ixian:sendScan` (C# quickScanForSend, #523) returns EVERY
+       decoded payload through quickScanResult, which opens the compose and parses
+       addr / addr:ixi / addr:send:amount. Old exe (no caps): the legacy route. The
+       contacts flow keeps its own scan entry unchanged. */
+    onScan: () => bridge.send(bridge.cap('composeSend') ? 'ixian:sendScan' : 'ixian:quickscan'),
     // hero toggles its own state, then reports it → persist server-side (home.js
     // toggleBalance). #263 global hide: the rows follow the eye IMMEDIATELY (the
     // C# verb only persists — it doesn't echo a setHideBalance back).
@@ -7306,6 +7581,62 @@ html:root .c-sheet:not([data-open]) * {
        an undefined one throws while the arguments are evaluated, before the dispatcher can
        catch it (#258). Additive: an older exe never sends it and every row reads unmuted,
        which is exactly today's behaviour. */
+    /* ★ Batch A (#539–#541): the remove-contact answers. Pairs are flat name/address
+       (each arg transport-escaped by C#; rendered via textContent). */
+    setSharedGroups(address, ...pairs) {
+      const groups = [];
+      for (let i = 0; i + 1 < pairs.length; i += 2) groups.push({ name: String(pairs[i] || ''), address: String(pairs[i + 1] || '') });
+      if (!setRemoveSheetGroups(String(address || ''), groups)) dbg('setSharedGroups (no live sheet)');
+    },
+    removeContactResult(address, status, ...pairs) {
+      const addr = String(address || '');
+      const st = String(status || '');
+      const s = window.SL || {};
+      if (st === 'ok') {
+        try { showToast({ text: s.contactRemoved || 'Contact removed', tone: 'success', host: document.body, strings: s }); } catch (e) {}
+        return;
+      }
+      if (st === 'left') {                                // loop r1: a group/bot LEAVE — a bot stays until the server acknowledges
+        try { showToast({ text: s.leftGroupToast || 'You left the group', tone: 'success', host: document.body, strings: s }); } catch (e) {}
+        return;
+      }
+      // a refusal: the contact is STILL there — the tombstone must not lie about it
+      deletedChats.delete(addr);
+      const groups = [];
+      for (let i = 0; i + 1 < pairs.length; i += 2) groups.push({ name: String(pairs[i] || ''), address: String(pairs[i + 1] || '') });
+      if (st === 'blocked' && setRemoveSheetResult(addr, 'blocked', groups, s)) return;
+      const names = groups.map((g) => g.name || g.address).filter(Boolean).join(', ');
+      const text = st === 'blocked'
+        ? (s.removeBlockedToast || 'Not removed: still a member of {groups}. Leave the group first.').split('{groups}').join(names)
+        : (s.removeContactFailed || 'The contact could not be removed.');
+      try { showToast({ text, tone: 'error', host: document.body, strings: s }); } catch (e) {}
+    },
+    undoRequestResult(address, status) {
+      const addr = String(address || '');
+      const s = window.SL || {};
+      if (String(status || '') === 'ok') {
+        try { showToast({ text: s.requestRevoked || 'Request revoked', tone: 'success', host: document.body, strings: s }); } catch (e) {}
+        return;
+      }
+      // refused → un-tombstone; C# now flags shouldRefreshContacts on EVERY outcome
+      // (loop r2 R2-3 — the r1 tab-verb emit was decorative AND ran the #240
+      // overlay-exit sweep, tearing down an open pane on desktop), so the row
+      // returns on the flush already scheduled by the handler's own updateScreen.
+      deletedChats.delete(addr);
+      try { showToast({ text: s.revokeRequestFailed || 'The request could not be revoked.', tone: 'error', host: document.body, strings: s }); } catch (e) {}
+    },
+    removeHistoryResult(address, status) {
+      const addr = String(address || '');
+      if (String(status || '') === 'ok') {
+        // the C# re-flush carries the truth (no row without messages); the unsent DRAFT is the
+        // user's own plaintext and goes with the chat (loop r1) — only once the delete is real (r2 R2-4)
+        try { localStorage.removeItem(DRAFT_PREFIX + addr); } catch (e) { /* storage may be unavailable */ }
+        return;
+      }
+      deletedChats.delete(addr);                          // refused → the row may come back on the flush; never a silent lie
+      const s = window.SL || {};
+      try { showToast({ text: s.removeHistoryFailed || 'The chat history could not be deleted.', tone: 'error', host: document.body, strings: s }); } catch (e) {}
+    },
     setChatMuted(address, on) {
       const addr = address || '';
       if (!addr) return;
@@ -7379,7 +7710,21 @@ html:root .c-sheet:not([data-open]) * {
       // is send intent, so the receive view yields instead of silently eating it.
       if (!walletSendView && walletTakeover && walletTakeoverClose) walletTakeoverClose();
       if (!walletSendView) mountWalletSend();
-      if (walletSendView) setSendAddress(walletSendView, String(data || ''));
+      if (!walletSendView) return;
+      const raw = String(data || '');
+      // ★ W-f (Damir F5 2026-08-23): a scanned address that IS a contact picks the
+      // CONTACT (nickname + avatar), not the raw-address glyph row. People only —
+      // the #255/peopleRoster money fence — and the exact address, never a prefix.
+      // Loop r1 A-3 (verified at source): the receive QR is the EXTENDED form —
+      // HomePage:1703 pushes `new ExtendedAddress(primary, OfflineTag, null).ToString()`,
+      // which ExtendedAddress.cs:199-208 renders as `<base58>_<ext>` for any non-Primary
+      // flag — while the roster holds `friend.walletAddress.ToString()` (bare). Compare
+      // the base58 PAYMENT address (before '_', a char outside base58); C# re-adds
+      // OfflineTag for a friend on sign (SPayments.handleSignSend). Exact match, people only.
+      const scannedAddr = raw.split(':')[0].split('_')[0];
+      const known = scannedAddr ? peopleRoster().find((c) => c && c.address && String(c.address).split('_')[0] === scannedAddr) : null;
+      if (known && setSendRecipient(walletSendView, known, raw)) return;
+      setSendAddress(walletSendView, raw);
     },
     setVersion() { dbg('setVersion'); },
     // clearContacts/addContact/noContacts feed the contacts DIRECTORY roster

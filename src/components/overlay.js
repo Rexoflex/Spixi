@@ -112,14 +112,27 @@ export function openOverlay(el, opts) {
   }
   stack.push({ el, scrim, opts, opener });
 
-  // enter transitions: two rAFs so initial styles paint first
+  // enter transitions: two rAFs so initial styles paint first.
+  // ★ Batch W loop r3 (R3-1): an overlay dismissed INSIDE those two frames must not
+  // re-acquire data-open from this deferred setter — a dying sheet that lights up
+  // again hit-tests (the #46 MAJOR-3 class) and reads as "open" to any slot logic.
   requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (!stack.some((s) => s.el === el)) return;
     scrim.dataset.open = '';
     el.dataset.open = '';
   }));
 
   const target = el.querySelector('[data-autofocus]') || focusables(el)[0] || el;
   target.focus({ preventScroll: true });
+}
+
+/** ★ Batch W loop r3: is this overlay PRESENTED — on the stack, i.e. opened and not
+ *  yet dismissed? The stack entry is removed SYNCHRONOUSLY at dismissal (below), while
+ *  the node lingers ~400 ms for the exit transition and data-open lands two frames
+ *  after open — so neither the DOM nor the attribute is a timing-safe "open" oracle.
+ *  Slot logic (one review sheet per compose) asks this instead. */
+export function isOverlayOpen(el) {
+  return !!el && stack.some((s) => s.el === el);
 }
 
 /** Dismiss a specific overlay (default: top of stack). Returns true if one closed. */

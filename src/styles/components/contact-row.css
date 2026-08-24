@@ -1,0 +1,88 @@
+/* c-contact-row — the ONE contact-row grammar for the money pickers (★ W-j,
+   Damir F5 2026-08-23). EVERY number below is the Contacts DIRECTORY row
+   (contacts-shell.css .c-contacts__row / __col / __name / __sub / __check):
+   64px min-height · spacing-8 padding · spacing-12 gap · avatar-48 · name
+   body-md semibold · sub body-sm · the 24px select circle on --icon-neutral-03.
+   A smoke pin reads BOTH files and fails on any drift — change one, change both.
+   Press feedback: base.css lists .c-contact-row with the other row families
+   (the ::before compositor sweep) and pressable.js has it in PRESSABLE_ROW. */
+.c-contact-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: 64px;                 /* sanctioned: 48 avatar + breathing room */
+  padding: var(--spacing-8);
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-12);
+  cursor: pointer;
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) { .c-contact-row:not(:disabled):hover { background-color: var(--surface-interactive-hover); } }
+.c-contact-row:disabled { cursor: default; }
+.c-contact-row:disabled > .c-avatar,
+.c-contact-row:disabled .c-contact-row__name { opacity: var(--opacity-disabled); }
+.c-contact-row__col {
+  flex: 1;
+  min-width: 0;                     /* nowrap children ellipsize (#140③ class) */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+.c-contact-row__name {
+  min-width: 0;
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-contact-row__sub {
+  min-width: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-contact-row__badge { flex: none; }
+
+/* the "Send to an address" glyph disc — sits in the avatar-48 slot (#136) */
+.c-contact-row__glyph {
+  width: var(--size-avatar-48); height: var(--size-avatar-48); flex: none;
+  border-radius: var(--radius-full);
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
+}
+
+/* multi-select check circle (trailing) — contacts-shell.css recipe, verbatim */
+.c-contact-row__check {
+  flex: none;
+  width: 24px;                      /* sanctioned: select-circle dim */
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  border: var(--outline-width-2) solid var(--icon-neutral-03);
+  color: transparent;
+  transition: background-color var(--duration-200) var(--easing-standard),
+              border-color var(--duration-200) var(--easing-standard),
+              color var(--duration-200) var(--easing-standard);
+}
+@media (prefers-reduced-motion: reduce) { .c-contact-row__check { transition: none; } }   /* contacts-shell parity */
+.c-contact-row[aria-checked='true'] .c-contact-row__check {
+  background: var(--surface-action-default);
+  border-color: var(--surface-action-default);
+  color: var(--icon-neutral-on-action);
+}
+.c-contact-row:focus-visible {          /* F19 grammar, contacts-shell parity */
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+}

@@ -80,6 +80,7 @@ const FILES = [
   // bundle is a concatenation, so a consumer must never precede its provider.
   'src/components/scan-progress.js',   // #440/#443: the blockchain-scan progress row
   'src/components/wallet-shell.js',
+  'src/components/contact-row.js',     // ★ W-j: the shared money-picker row — BEFORE wallet-send/-receive (its consumers)
   'src/components/wallet-send.js',
   'src/components/qr.js',
   'src/components/wallet-receive.js',

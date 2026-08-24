@@ -249,7 +249,7 @@ export function setPaymentStatus(row, patch = {}) {
 export function createAppBubble({
   name = '',
   iconUrl = null,
-  state = 'invite',        // invite (them→you) | invited (you→them) | missing | declined | in-session | ended
+  state = 'invite',        // invite (them→you) | invited (you→them) | missing | declined | canceled (B2) | in-session | ended
   direction = null,        // override — bridge knows localSender (audit)
   timestamp = null,
   gutter = false,          // group chats: align with gutter-indented text bubbles (C8)
@@ -262,6 +262,7 @@ export function createAppBubble({
     ? (strings.appSession || 'App session')
     : (strings.appInvite || 'App invite');
   const { row, el } = card(dir, title, timestamp, 'app', gutter);
+  if (state === 'declined' || state === 'canceled') el.dataset.state = state;   // terminal tombstones: void tone (css)
 
   const id = document.createElement('div');
   id.className = 'c-tcard__app';
@@ -292,6 +293,7 @@ export function createAppBubble({
     invited: strings.youInvited || 'You have sent an invite',
     missing: strings.invitedYou || 'Invited you to join',
     declined: strings.declinedInvite || 'You declined this invite',
+    canceled: strings.canceledInvite || 'You canceled this invite',   // ★ B2 (#533 ①): the sender's terminal tombstone
     'in-session': strings.inSession || 'In session',
     ended: strings.sessionEnded || 'Session ended',
   }[state] || ''; // audit r2: unknown state rendered "undefined"

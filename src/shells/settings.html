@@ -50,6 +50,7 @@
 <link rel="stylesheet" href="../styles/components/overlay.css"><!-- c-sheet (theme/language) + c-modal (danger confirm) -->
 <link rel="stylesheet" href="../styles/components/settings-shell.css">
 <link rel="stylesheet" href="../styles/components/settings-app.css"><!-- About / How-to takeovers (c-settings-about/-howto/-links) -->
+<link rel="stylesheet" href="../styles/components/search-field.css"><!-- ★ W-h gate find (loop r1 G-2): createSettingsDownloads mounts a c-search-field in the PANE route (downloadsInline) — it rendered as a bare UA input here -->
 <link rel="stylesheet" href="../styles/components/launch-shell.css"><!-- iOS-23 AUDIT MAJOR-2: About -> Terms/Privacy reuse launch-shell's doc sheet (.c-launch__terms-*, __sheet-close, __link) -->
 <link rel="stylesheet" href="../styles/components/settings-screens.css"><!-- Chat appearance takeover (6e.2) -->
 <link rel="stylesheet" href="../styles/components/settings-backup.css"><!-- Backup sublevel in the pane (#243) -->
@@ -1203,8 +1204,10 @@
         onBack: showHub,
         onDeleteHistory: (ctrl) => { bridge.send('ixian:deleteh'); ctrl.done(); },     // UNGATED C#-side (spec §8-2)
         onDeleteDownloads: (ctrl) => { bridge.send('ixian:deleted'); ctrl.done(); },
-        onDeleteAccount: (ctrl) => { bridge.send('ixian:deletea'); ctrl.done(); },     // C# LockPage auth gate
-        onDeleteWallet: (ctrl) => { bridge.send('ixian:delete'); ctrl.done(); },       // C# LockPage auth → shutdown → Launch
+        onDeleteAccount: (ctrl) => { bridge.send('ixian:deletea'); ctrl.done(); },     // C# LockPage auth gate → the FULL wipe (#545)
+        // ★ Batch C (#545) C2: onDeleteWallet is GONE — the delete-wallet row was redundant next
+        // to the full wipe (#532, Damir); its verb is retired C#-side (an old shell's emit maps to
+        // the full wipe). ONE destructive door.
         strings,
       });
       case 'about': return createSettingsAbout({
@@ -1578,6 +1581,23 @@
          and filed it as a BE gap; it was ours. */
       else { state.dirtyLock = false; syncSave(); }
       scheduleRebuild();
+    },
+
+    /* ★ Batch C (#545) C1 — step 6 of the full wipe: every `spixi.*` localStorage key
+       goes (pins · mutes · drafts · the declined/canceled invite sets · pattern/text
+       prefs · mention seen-state · the F5 checklist counters). WebView storage is ONE
+       store per app on every platform, so clearing it from this page clears it for all
+       shells. Keys are enumerated first (never a blanket clear — a shell may host
+       a third-party origin's keys on desktop dev builds), and the count is logged for
+       the F5 checklist. Never throws into the C# push. */
+    wipeLocalState() {
+      let n = 0;
+      try {
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('spixi.')) keys.push(k); }
+        for (const k of keys) { try { localStorage.removeItem(k); n += 1; } catch (e) { /* one key must not stop the sweep */ } }
+      } catch (e) { /* storage unavailable — nothing to wipe */ }
+      dbg('wipeLocalState: ' + n + ' spixi.* keys removed');
     },
 
     // PA1 (#525): the authoritative "Confirm payments" value — pushed at onLoad

@@ -529,6 +529,26 @@ namespace SPIXI
                 // compose (quickScanResult), never in the legacy WalletSendPage route.
                 quickScanForSend();
             }
+            // ★ Batch A (#539–#541): the chats-list DESTRUCTIVE verbs, address-scoped.
+            // StartsWith + Ordinal + a trailing colon, ABOVE the legacy Contains() branches
+            // (the #216/#393 rule — a crafted payload must not hijack a destructive verb).
+            // Bodies live in SContacts and are the SAME ones ContactDetails runs.
+            else if (current_url.StartsWith("ixian:removehistory:", StringComparison.Ordinal))
+            {
+                onRemoveHistoryFor(current_url.Substring("ixian:removehistory:".Length));
+            }
+            else if (current_url.StartsWith("ixian:removecontact:", StringComparison.Ordinal))
+            {
+                onRemoveContactFor(current_url.Substring("ixian:removecontact:".Length));
+            }
+            else if (current_url.StartsWith("ixian:sharedGroups:", StringComparison.Ordinal))
+            {
+                onSharedGroupsFor(current_url.Substring("ixian:sharedGroups:".Length));
+            }
+            else if (current_url.StartsWith("ixian:undorequest:", StringComparison.Ordinal))
+            {
+                onUndoRequestFor(current_url.Substring("ixian:undorequest:".Length));
+            }
             else if (current_url.Contains("ixian:qrresult:"))
             {
                 string[] split = current_url.Split(new string[] { "ixian:qrresult:" }, StringSplitOptions.None);
@@ -1391,7 +1411,23 @@ namespace SPIXI
             scanPage.scanSucceeded += (sender, e) =>
             {
                 popPageAsync();
-                Utils.sendUiCommand(this, "quickScanResult", e.Value);
+                // ★ Batch W loop r1 B-4: the hero scan now lands here too (W-e), so a
+                // non-Ixian QR must not be dumped into the money compose — the same
+                // ExtendedAddress.Validate gate processQRResult applies, then the
+                // legacy invalid-address alert. The payload's address is the part
+                // before the first ':' (addr · addr:ixi · addr:send:amount).
+                string payload = e.Value ?? "";
+                int sep = payload.IndexOf(':');
+                string addr = sep > 0 ? payload.Substring(0, sep) : payload;
+                bool valid = false;
+                try { valid = ExtendedAddress.Validate(addr); } catch (Exception) { valid = false; }
+                if (!valid)
+                {
+                    Logging.warn("Scanned payload is not an Ixian address");
+                    displaySpixiAlert(SpixiLocalization._SL("global-invalid-address-title"), SpixiLocalization._SL("global-invalid-address-text"), SpixiLocalization._SL("global-dialog-ok"));
+                    return;
+                }
+                Utils.sendUiCommand(this, "quickScanResult", payload);
             };
             await Navigation.PushAsync(scanPage, Config.defaultXamarinAnimations);
         }
@@ -1830,6 +1866,19 @@ namespace SPIXI
             // non-pane — pane geometry (margins + setPaneMetrics pushed once at
             // onLoad) does not survive a breakpoint crossing, so any mode mismatch
             // disposes the parked instance and rebuilds fresh (the pre-#315 path).
+            // ★ C3 (#546, loop r1): a tap while the warm Account page is still LOADING —
+            // flip the in-flight preload to present-on-load instead of silently dropping
+            // the tap (pushPageLoaded refuses a second target while one is staging).
+            // Loop r1 MINOR-5: NOT in rail-pane geometry — the warm page was built narrow,
+            // and a narrow page presented into the rail pane is the #315 mode-mismatch the
+            // parked path already guards. There the claim is skipped; the warm op parks or
+            // dies on its own and the pane path below builds fresh.
+            bool railPaneNow = rightContent.IsVisible && (DeviceInfo.Platform == DevicePlatform.WinUI
+                                                          || DeviceInfo.Platform == DevicePlatform.MacCatalyst);
+            if (!railPaneNow && SpixiContentPage.claimWarmingOverlay<SettingsPage>())
+            {
+                return;
+            }
             SpixiContentPage? parked = SpixiContentPage.getParkedOverlay();
             if (parked is SettingsPage parkedSettings)
             {
@@ -2368,7 +2417,50 @@ namespace SPIXI
                 mention_flags = null;
 
                 Utils.sendUiCommand(this, "clearChatsDone");
+                warmAccountAfterFirstPaint();
             }
+        }
+
+        /* ★ Batch C (#546) C3 — #533 ②: ACCOUNT WARM-BOOT AFTER FIRST PAINT. Once the
+         * chats list has flushed for the first time (clearChatsDone), pre-create the
+         * SettingsPage into the PARKED slot (#315) — hidden, loaded, its data pushed —
+         * so the first Account tap is the instant representParkedOverlay path. NEVER
+         * at boot: the delay is what keeps the boot cost at zero (the chats list wins
+         * the CPU; this runs once, a beat later). Narrow (non-rail) mode only — the rail
+         * pane builds a pane-geometry page that a park cannot re-present (#315 scope
+         * guard). Fail-closed in warmParkedOverlay (lock up, preload in flight, a parked
+         * page already there → nothing happens). Node.onLowMemory still disposes the
+         * parked page under real pressure (#315 kept). */
+        private bool accountWarmed = false;
+        private void warmAccountAfterFirstPaint()
+        {
+            if (accountWarmed)
+            {
+                return;
+            }
+            accountWarmed = true;
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                try
+                {
+                    await Task.Delay(900);   // let the first list paint and its images settle
+                    bool wide = rightContent.IsVisible;
+                    bool railPane = wide && (DeviceInfo.Platform == DevicePlatform.WinUI
+                                             || DeviceInfo.Platform == DevicePlatform.MacCatalyst);
+                    if (railPane)
+                    {
+                        return;
+                    }
+                    if (!warmParkedOverlay(new SettingsPage()))
+                    {
+                        Logging.info("account warm-boot skipped (guard)");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("account warm-boot failed: " + ex.Message);
+                }
+            });
         }
 
         public static IxiNumber calculateReceivedAmount(Transaction tx)
@@ -3928,6 +4020,163 @@ namespace SPIXI
             {
                 Logging.warn("Could not write the connected line: " + ex);
             }
+        }
+
+        /* ★ Batch A (#539) — A6, THE DATA BUG: the redesigned chats-row menu ("Delete
+         * chat" → "Delete contact too?") emitted NO verb — home.html tombstoned the row
+         * and the contact + its history stayed on disk. These three handlers are the
+         * per-address twins of ContactDetails' page-scoped ixian:remove /
+         * ixian:removehistory. Every outcome is PUSHED (`removeContactResult`,
+         * `removeHistoryResult`) so the shell can un-tombstone on a refusal — a row that
+         * vanished while the data stayed is exactly the lie this batch removes.
+         * The address is peer-supplied through the shell: parsed defensively, never
+         * thrown inside onNavigating (the A-4 rule). */
+        private void onRemoveHistoryFor(string address)
+        {
+            string status = "fail";
+            string addr = "";
+            try
+            {
+                addr = (address ?? "").Trim();
+                Friend? f = FriendList.getFriend(new Address(addr));
+                if (f != null && SContacts.removeHistory(f))
+                {
+                    status = "ok";
+                }
+            }
+            catch (Exception)
+            {
+                Logging.error("ixian:removehistory failed (malformed payload or address)");   // loop r1: no ex.Message (carries the token)
+            }
+            try { Utils.sendUiCommand(this, "removeHistoryResult", addr, status); } catch (Exception) { }
+            UIHelpers.shouldRefreshContacts = true;   // loop r2 R2-3: a REFUSAL must re-flush too (the shell un-tombstones)
+            updateScreen();
+        }
+
+        // payload: `<address>:1|0` — 1 = the user chose, on the remove-contact sheet, to
+        // LEAVE every shared group first (Core refuses to remove a group member).
+        private void onRemoveContactFor(string payload)
+        {
+            string status = "fail";
+            string addr = "";
+            List<string> blockers = new List<string>();
+            try
+            {
+                string p = (payload ?? "").Trim();
+                int sep = p.LastIndexOf(':');
+                bool leave = false;
+                if (sep > 0)
+                {
+                    leave = p.Substring(sep + 1).Trim() == "1";
+                    addr = p.Substring(0, sep);
+                }
+                else
+                {
+                    addr = p;
+                }
+                Friend? f = FriendList.getFriend(new Address(addr));
+                if (f != null)
+                {
+                    // loop r1 A-3: the removed contact's OPEN conversation must go — it is an
+                    // OVERLAY (#225; `detailContent` is never assigned, HomePage:126-131), so
+                    // the page's own overlay-aware popPageAsync closes it, exactly as the
+                    // legacy remove sites do (ContactDetails:241 popToRoot · SingleChatPage:391).
+                    // Resolved BEFORE the removal: getChatPage matches on the Friend reference.
+                    var chat_page = Utils.getChatPage(f);
+                    status = SContacts.removeContact(f, leave, out blockers);
+                    if ((status == "ok" || status == "left") && chat_page != null)
+                    {
+                        try { chat_page.popPageAsync(); } catch (Exception) { }
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // loop r1: NO ex.Message here — Core's Address ctor formats the base58 token
+                // into its exception text, and this handler's token is peer-supplied
+                Logging.error("ixian:removecontact failed (malformed payload or address)");
+            }
+            try
+            {
+                List<string> args = new List<string> { addr, status };
+                args.AddRange(blockers);   // name/address pairs on "blocked" — each arg transport-escaped
+                Utils.sendUiCommand(this, "removeContactResult", args.ToArray());
+            }
+            catch (Exception) { }
+            UIHelpers.shouldRefreshContacts = true;   // loop r2 R2-3: every outcome re-flushes (a refused remove restores the row)
+            updateScreen();
+        }
+
+        /* ★ Batch B (#543) B1 — REVOKE an OUTGOING pending contact request from the chats
+         * list: the address-scoped twin of SingleChatPage's `ixian:undorequest` (xaml:414:
+         * FriendList.removeFriend, no notification to the other party — "TODO" there since
+         * the legacy). Guarded to the outgoing-pending shape the "Request sent" row is built
+         * from (updateChat: the last message is MY requestAdd and they have not accepted):
+         * anything else answers "fail" and the shell un-tombstones the row. The peer is NOT
+         * told (the protocol has no withdraw verb — RC1, BE): the shell's copy says so. */
+        private void onUndoRequestFor(string address)
+        {
+            string status = "fail";
+            string addr = "";
+            try
+            {
+                addr = (address ?? "").Trim();
+                Friend? f = FriendList.getFriend(new Address(addr));
+                if (f != null && !f.bot && f.type != FriendType.Group)
+                {
+                    /* ★ loop r1 (the #399 lesson, caught again): `approved` DEFAULTS TRUE and
+                     * every OUTGOING request site never clears it (Friend.cs:233 `approve = true`;
+                     * ContactNewPage:256 / SpixiContentPage:3129 pass state only) — a `!approved`
+                     * guard is DEAD for the exact rows this verb serves. The real signal is the
+                     * STATE the outgoing sites set and the "Waiting for response" row is built
+                     * from (HomePage:2122 `state != Approved`): FriendState.RequestSent. */
+                    bool outgoingPending = f.state == FriendState.RequestSent;
+                    if (outgoingPending && FriendList.removeFriend(f))
+                    {
+                        UIHelpers.shouldRefreshContacts = true;
+                        status = "ok";
+                        var chat_page = Utils.getChatPage(f);
+                        if (chat_page != null)
+                        {
+                            try { chat_page.popPageAsync(); } catch (Exception) { }
+                        }
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                Logging.error("ixian:undorequest failed (malformed payload or address)");   // no ex.Message — carries the token
+            }
+            try { Utils.sendUiCommand(this, "undoRequestResult", addr, status); } catch (Exception) { }
+            UIHelpers.shouldRefreshContacts = true;   // loop r2 R2-3: the refused revoke's row must come back on THIS flush
+            updateScreen();
+        }
+
+        // A4/A5: read-only — the groups both of you are in, as name/address pairs.
+        private void onSharedGroupsFor(string address)
+        {
+            string addr = "";
+            List<string> pairs = new List<string>();
+            try
+            {
+                addr = (address ?? "").Trim();
+                Friend? f = FriendList.getFriend(new Address(addr));
+                if (f != null)
+                {
+                    pairs = SContacts.sharedGroups(f);
+                }
+            }
+            catch (Exception)
+            {
+                Logging.error("ixian:sharedGroups failed (malformed payload or address)");   // loop r1: no ex.Message (carries the token)
+            }
+            try
+            {
+                List<string> args = new List<string> { addr };
+                args.AddRange(pairs);
+                Utils.sendUiCommand(this, "setSharedGroups", args.ToArray());
+            }
+            catch (Exception) { }
         }
 
         private void onDeclineRequest(string address)

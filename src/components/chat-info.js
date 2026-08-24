@@ -153,6 +153,9 @@ export function createChatInfo({
   onContactRequest,              // member sheet passthrough
   onViewContact,                 // member sheet passthrough (relation 'contact' → contact page)
   onDeleteHistory, onRemoveContact, onLeave,   // (ctrl)
+  loading = false,               // ★ A8: the roster/pushes are still landing → skeleton rows (members) instead of an empty section
+  sharedGroups = undefined,      // ★ A4 (1:1): [{ name, address }] groups you are BOTH in; null = asked, not yet answered (skeleton); [] = none; undefined = the surface has no such data (no strip)
+  onOpenGroup,                   // ★ A4: tap a shared-group row → the shell opens that group chat
   onTx,
   onTxAll,                       // "View all" → full payment history (shell nav)
   strings = getStrings(),
@@ -633,7 +636,7 @@ export function createChatInfo({
      bar's people icon opens exactly this list; screenshots on file). FLAGGED
      component change (desktop-split-spec §6d), not a silent edit; the full bot
      roster feed + paging stays a §9 BE ask — shells feed what the bridge gives. */
-  if ((kind === 'group' || kind === 'bot') && members.length) {
+  if ((kind === 'group' || kind === 'bot') && (members.length || kind === 'bot' || loading)) {
     const sec = document.createElement('div');
     sec.className = 'c-chat-info__members';
     let count = memberCount || members.length;
@@ -660,8 +663,8 @@ export function createChatInfo({
       host: host || el.closest('.demo-phone') || undefined,   // audit m6: shell passes host
       // #249 loop C-1: owner/admin ride into the sheet so its identity block can
       // badge them consistently with the row list.
-      member: { name: m.name, address: m.address, avatar: blind ? null : m.avatar, owner: m.owner, admin: m.admin },
-      blind,
+      member: { name: m.name, address: m.address, avatar: (blind && kind === 'group') ? null : m.avatar, owner: m.owner, admin: m.admin },
+      blind: blind && kind === 'group',                 // ★ A1: the sheet follows the row — a bot member is shown as legacy showed it
       relation: m.relation || 'none',
       // audit M2 family: mark pending IMMEDIATELY — reopening the sheet must
       // not offer a second request while the first is on the wire.
@@ -715,6 +718,25 @@ export function createChatInfo({
 
     function renderMembers() {
       listEl.replaceChildren();
+      /* ★ A8 (Damir's override of #264-no-skeletons): while the roster pushes land
+         (ixian:loadContacts → addContact × N, one EvaluateJavaScriptAsync each) the
+         section shows three skeleton rows, not an empty list or a "no members" lie.
+         aria-busy tells AT the region is loading; the rows are aria-hidden. */
+      if (loading && !members.length) {
+        listEl.setAttribute('aria-busy', 'true');
+        for (let i = 0; i < 3; i++) {
+          const sk = document.createElement('div');
+          sk.className = 'c-chat-info__member c-chat-info__member--skeleton';
+          sk.setAttribute('aria-hidden', 'true');
+          const av = document.createElement('span'); av.className = 'c-chat-info__skeleton-avatar';
+          const ln = document.createElement('span'); ln.className = 'c-chat-info__skeleton-line';
+          ln.style.width = (58 + i * 14) + '%';
+          sk.append(av, ln);
+          listEl.append(sk);
+        }
+        return;
+      }
+      listEl.removeAttribute('aria-busy');
       const matches = (query
         ? members.filter((m) =>
             (m.name || '').toLowerCase().includes(query) ||
@@ -727,12 +749,23 @@ export function createChatInfo({
         row.className = 'c-chat-info__member';
         // blind group hides identity → suppress the real photo too (matches the
         // hidden address); non-blind rows show the per-sender avatar, gradient-safe.
-        row.append(createAvatar({ src: blind ? null : m.avatar, name: m.name, address: blind ? '' : m.address, size: 40 }));
+        /* ★ A1 (Damir, Batch A 2026-08-24 — "check the legacy"): a BOT room lists its
+           members the way the legacy channel list did (chat.js addContact: nick + avatar,
+           for every member C# pushes) — nickname when present, else the #211 truncated
+           address, WITH the photo. The #348 MAJOR-5 masking stays for blind GROUPS, where
+           C# itself masks the address ('[Unknown]') and the shell has nothing to show;
+           for a bot C# never masks (loadContacts masks `type == Group` only, xaml:658-665),
+           so hiding here only hid what every legacy user already saw. The roster itself is
+           what the protocol carries: getUsers is fetched at settingsGeneratedTime/userCount
+           change and ONLY for userCount < 500 (Ixian-Core CoreStreamProcessor.cs:2685-2703,
+           frozen) — a larger public room lists the members seen locally. BE row. */
+        const maskRow = blind && kind === 'group';
+        row.append(createAvatar({ src: maskRow ? null : m.avatar, name: m.name, address: maskRow ? '' : m.address, size: 40 }));
         const nm = document.createElement('span');
         nm.className = 'c-chat-info__member-name';
         // Loop B-5 (#370): the nameless non-blind fallback follows the #211 canon —
         // the member SHEET already truncates the same address one tap deeper.
-        nm.textContent = m.name || (blind ? (strings.hiddenMember || 'Hidden member') : truncateAddressMiddle(m.address));
+        nm.textContent = m.name || (maskRow ? (strings.hiddenMember || 'Hidden member') : truncateAddressMiddle(m.address));
         row.append(nm);
         if (m.owner) {
           // #248 (Damir): the group owner gets an "Owner" chip (owner identity via
@@ -752,11 +785,59 @@ export function createChatInfo({
       if (!matches.length) {
         const none = document.createElement('div');
         none.className = 'c-chat-info__member-note';
-        none.textContent = strings.noMembers || 'No members match.';
+        // ★ A1: an EMPTY bot roster is a protocol fact (getUsers only for < 500 users,
+        // Ixian-Core frozen) — say what is true, not "no match"
+        none.textContent = (!members.length && kind === 'bot')
+          ? (strings.membersNotSynced || 'Members are not listed for this room yet.')
+          : (strings.noMembers || 'No members match.');
         listEl.append(none);
       }
     }
     renderMembers();
+  }
+
+  /* ——— ★ A4 (Batch A 2026-08-24): groups you are BOTH in (1:1 only) ———
+     Data: the shell asks `ixian:sharedGroups` (ContactDetails) → `setSharedGroups`
+     (name/address pairs) — the SAME enumeration Core's removeFriend refuses on, so the
+     strip is also the honest preview of what the remove-contact sheet will ask.
+     null = not answered yet (skeleton line while `loading`), [] = none (one quiet line). */
+  if (kind === 'contact' && sharedGroups !== undefined) {
+    const sec = document.createElement('div');
+    sec.className = 'c-chat-info__shared';
+    sec.append(sectionLabel(strings.sharedGroupsTitle || 'Groups you are both in'));
+    const list = document.createElement('div');
+    list.className = 'c-chat-info__shared-list';
+    if (sharedGroups === null) {
+      list.setAttribute('aria-busy', 'true');
+      const sk = document.createElement('div');
+      sk.className = 'c-chat-info__member c-chat-info__member--skeleton';
+      sk.setAttribute('aria-hidden', 'true');
+      const av = document.createElement('span'); av.className = 'c-chat-info__skeleton-avatar';
+      const ln = document.createElement('span'); ln.className = 'c-chat-info__skeleton-line'; ln.style.width = '52%';
+      sk.append(av, ln);
+      list.append(sk);
+    } else if (!sharedGroups.length) {
+      const none = document.createElement('div');
+      none.className = 'c-chat-info__member-note';
+      none.textContent = strings.noSharedGroups || 'No shared groups.';
+      list.append(none);
+    } else {
+      for (const g of sharedGroups) {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'c-chat-info__member c-chat-info__shared-row';
+        row.append(createAvatar({ name: g.name || '', address: g.address || '', size: 40, group: true }));
+        const nm = document.createElement('span');
+        nm.className = 'c-chat-info__member-name';
+        nm.textContent = g.name || truncateAddressMiddle(g.address || '');
+        row.append(nm);
+        if (onOpenGroup) { row.append(icon('chevron-right', { size: 18 })); row.addEventListener('click', () => onOpenGroup(g)); }
+        else row.disabled = true;
+        list.append(row);
+      }
+    }
+    sec.append(list);
+    body.append(sec);
   }
 
   /* ——— payments with this contact (1:1 activity, txlist-item reuse) ———
@@ -855,7 +936,11 @@ export function createChatInfo({
       run: (ctrl) => onRemoveContact(ctrl),
     }));
   }
-  if (kind === 'group' && onLeave) {
+  /* ★ A2 (Batch A): Leave for GROUPS and BOTS — the #248 comment "bots have no
+     in-chat leave verb" was wrong at source: SingleChatPage's `ixian:leave` handles
+     a bot (pendingDeletion + sendLeave, xaml:383-387), exactly as ContactDetails does.
+     The shells already emit it; only this render gate withheld the row. */
+  if ((kind === 'group' || kind === 'bot') && onLeave) {
     dangerRow(strings.leaveGroup || 'Leave group', 'arrow-back-up', () => ({
       title: strings.leaveTitle || 'Leave this group?',
       bodyText: strings.leaveBody || 'You’ll stop receiving messages. Rejoining needs a new invite.',
@@ -863,7 +948,15 @@ export function createChatInfo({
       run: (ctrl) => onLeave(ctrl),
     }));
   }
-  if (danger.childElementCount) body.append(danger);
+  /* ★ A3 (Damir, Batch A 2026-08-24): ACTIONS ON TOP. The destructive rows
+     (Delete chat history · Remove contact / Leave group) sit right under the
+     identity block — after the quick-action row when the surface has one
+     (contact: Message · Pay · Request), else straight after the hero — not at the
+     bottom of a long members list where they were out of reach. */
+  if (danger.childElementCount) {
+    const moneyRow = body.querySelector('.c-chat-info__money');
+    (moneyRow || hero).insertAdjacentElement('afterend', danger);
+  }
 
   /* shared destructive-confirm machinery: alertdialog, Cancel autofocused
      (APG safe action, #136⑤ precedent), confirm latched + loading, dismissal

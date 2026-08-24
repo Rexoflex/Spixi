@@ -47,6 +47,7 @@
 <link rel="stylesheet" href="../styles/components/wallet-hero.css">
 <link rel="stylesheet" href="../styles/components/empty-state.css"><!-- shared zero state -->
 <link rel="stylesheet" href="../styles/components/wallet-shell.css">
+<link rel="stylesheet" href="../styles/components/contact-row.css"><!-- W-j: shared money-picker row -->
 <link rel="stylesheet" href="../styles/components/wallet-send.css">
 <link rel="stylesheet" href="../styles/components/wallet-receive.css">
 <link rel="stylesheet" href="../styles/components/apps-icon.css">
@@ -1385,7 +1386,7 @@
       onDeleteHistory: (ctrl) => mockCtrl(ctrl, 900),
       onDeleteDownloads: (ctrl) => mockCtrl(ctrl, 700),
       onDeleteAccount: (ctrl) => setTimeout(() => { ctrl.done(); toast('C# would auth via LockPage, then delete account data'); }, 1100),
-      onDeleteWallet: (ctrl) => setTimeout(() => { ctrl.done(); toast('C# would auth, delete the wallet, restart to Launch'); }, 1100),
+      // #545 C2: the delete-wallet card is retired — onDeleteWallet renders nothing (accepted for old callers)
     }),
     chatAppearance: () => createChatAppearance({
       patternOpacity: stgs.patternOpacity, textScale: stgs.textScale, strings,

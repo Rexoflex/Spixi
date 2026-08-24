@@ -299,6 +299,14 @@ namespace SPIXI.Meta
 
         static public void connectToNetwork()
         {
+            // ★ #545 loop r1 MAJOR-1: NetworkUtils.isolate() (the wipe route) PAUSES the
+            // three static managers and NOTHING in this app ever resumed them — an
+            // in-process create/restore after a wipe reached this method and then
+            // reconnectLoop spun on `paused` forever ("no network, empty lists, a restart
+            // recovers" — F-3's third mechanism). Every connect path heals the latch first;
+            // a no-op when nothing was paused.
+            NetworkUtils.resumeNetworkOperations();
+
             // Start the s2 client manager
             StreamClientManager.start();
 

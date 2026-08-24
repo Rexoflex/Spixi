@@ -255,6 +255,44 @@ namespace SPIXI
             {
                 onRemoveHistory();
             }
+            else if (current_url.StartsWith("ixian:openChat:", StringComparison.Ordinal))
+            {
+                // ★ A4: a shared-group row → that group's conversation. Close this
+                // details overlay first, then the host's onChat (wide/narrow aware) —
+                // the ixian:chat grammar, address-scoped. Peer-supplied token: parsed
+                // defensively (the A-4 rule), unknown address = no-op.
+                try
+                {
+                    string target = current_url.Substring("ixian:openChat:".Length).Trim();
+                    Address targetAddr = new Address(target);
+                    if (FriendList.getFriend(targetAddr) != null)
+                    {
+                        popPageAsync();
+                        HomePage.Instance()?.onChat(targetAddr, null);
+                    }
+                }
+                catch (Exception)
+                {
+                    Logging.warn("ixian:openChat: malformed address");   // no ex.Message — carries the token
+                }
+            }
+            else if (current_url.Equals("ixian:sharedGroups", StringComparison.Ordinal))
+            {
+                // ★ Batch A (#540) A4: the 1:1 info strip "groups you are both in" —
+                // read-only, name/address pairs (each arg transport-escaped; the shell
+                // renders via textContent). The same enumeration the remove-contact
+                // refusal names (N27), now also asked up front.
+                try
+                {
+                    List<string> args = new List<string> { friend.walletAddress.ToString() };
+                    args.AddRange(SContacts.sharedGroups(friend));
+                    Utils.sendUiCommand(this, "setSharedGroups", args.ToArray());
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("ixian:sharedGroups: " + ex.Message);
+                }
+            }
             else if (current_url.Equals("ixian:request", StringComparison.Ordinal))
             {
                 hostNav.PushAsync(new WalletReceivePage(friend), Config.defaultXamarinAnimations);   // #225: root nav

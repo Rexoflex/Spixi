@@ -4148,6 +4148,67 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   margin-inline: calc(-1 * var(--spacing-2));
 }
 @supports not (height: 1dvh) { .c-addr-sheet { max-height: min(72vh, 640px); } }
+/* ★ #575 (Damir): on MOBILE the sheet grows to NEAR-FULL height, "just below the
+   top bar". A max-height alone would not do it — the content got shorter when the
+   QR shrank, so the sheet has a HEIGHT and the explainer is pushed to the foot.
+   The subtraction is the chrome the sheet cannot use: the status-bar inset, the top
+   bar it must clear, the home-indicator inset, and ~88px of the sheet's own handle,
+   title and padding. `max(...)` is the floor — on a very short window the sheet
+   falls back to a normal capped sheet instead of computing a negative height. */
+/* ⚠ review MINOR-4: the height is a PREFERRED size, bounded by the HOST. `100dvh` is
+   the viewport, and `.c-sheet` is absolutely positioned inside whatever host it was
+   given — a phone frame in the demos, and a short landscape window on device. An
+   unbounded preferred height grew the sheet UPWARD past the host's top edge, where
+   `overflow: hidden` cut off the handle, the title and the new dismiss button: a
+   near-full sheet with no visible way out. The sheet is a flex column capped at 100%
+   of its containing block, and the content shrinks inside it. */
+:root:not([data-desktop]) .c-sheet--addr {
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  box-sizing: border-box;
+}
+/* ⚠ round-2 MINOR-4: createSheet wraps the content in `.c-sheet__content`, so THAT is
+   the flex item — the first cut put `flex`/`min-height` on the grandchild, where both
+   are inert, and the sheet still overflowed a short host. The wrapper shrinks; the
+   scroll region inside it keeps a preferred height and gives it up when it must. */
+:root:not([data-desktop]) .c-sheet--addr > .c-sheet__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+:root:not([data-desktop]) .c-addr-sheet {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: max(320px, calc(100dvh - var(--safe-top, 0px) - env(safe-area-inset-bottom, 0px) - var(--layout-bar-top, 56px) - 88px));
+  max-height: none;
+}
+@supports not (height: 1dvh) {
+  :root:not([data-desktop]) .c-addr-sheet {
+    height: max(320px, calc(100vh - var(--safe-top, 0px) - env(safe-area-inset-bottom, 0px) - var(--layout-bar-top, 56px) - 88px));
+  }
+}
+:root:not([data-desktop]) .c-addr-sheet__explain { margin-block-start: auto; }
+/* the explicit way out (#575). Mobile only: a desktop dialog is dismissed with Esc
+   or a click outside, and both stay available here too. It sits over the sheet's own
+   padding in the title row, so it never displaces content. */
+.c-addr-sheet__dismiss {
+  position: absolute;
+  top: var(--spacing-8);
+  inset-inline-end: var(--spacing-8);
+  width: 40px; height: 40px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--icon-neutral-02);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) { .c-addr-sheet__dismiss:hover { background: var(--surface-interactive-hover); color: var(--icon-neutral-01); } }
+:root[data-desktop] .c-addr-sheet__dismiss { display: none; }
+/* the title must not run under the button */
+:root:not([data-desktop]) .c-sheet--addr .c-sheet__title { padding-inline-end: 44px; }
 :root[data-desktop] .c-sheet--addr { width: min(440px, 92%); }
 /* loop r1 m8: the desktop dialog is `max-height: 76%` with 24px padding + the title —
    the INNER cap must bind first or the outer dialog scrolls with its own bar (the
@@ -4167,6 +4228,17 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     background: var(--outline-neutral-02);
   }
 }
+/* review MINOR-6: the sheet's own polite region — the same recipe the hub uses
+   (settings-shell.css .c-settings__live), so one grammar, not a second one. */
+.c-addr-sheet__live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  margin: 0;
+}
 .c-addr-sheet__qrwrap { display: flex; justify-content: center; }
 .c-addr-sheet__qrcard {
   /* scale with the viewport on BOTH axes: a short window shrinks the code before
@@ -4175,12 +4247,16 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
      proportions (.c-settings__qr has none — N86). The SVG's own ISO quiet zone is
      the white margin; the extra 20px ring doubled it. Radius joins the Account
      family (radius-16); the hairline outline goes with the padding. */
-  width: min(280px, 52dvh, 86vw, 100%);
+  /* ★ #575 (Damir): "QR still too big — shrink it." 280 → 216. The code stays
+     comfortably scannable at arm's length (a base58 address is a low-density QR and
+     the SVG keeps its own ISO quiet zone, N86), and the smaller card is what lets
+     the address chip and the explainer share the sheet without scrolling. */
+  width: min(216px, 40dvh, 62vw, 100%);
   padding: 0;
   border-radius: var(--radius-16);
   box-shadow: var(--elevation-1);
 }
-@supports not (height: 1dvh) { .c-addr-sheet__qrcard { width: min(280px, 52vh, 86vw, 100%); } }
+@supports not (height: 1dvh) { .c-addr-sheet__qrcard { width: min(216px, 40vh, 62vw, 100%); } }
 .c-addr-sheet__caption {
   font-size: var(--font-size-label-md);
   line-height: var(--line-height-label-md);
@@ -4203,29 +4279,37 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-addr-sheet__addr .c-wallet-receive__copy { width: 40px; height: 40px; }
 .c-addr-sheet__addr .c-wallet-receive__copy[data-state='ok'] { color: var(--icon-success); }
 .c-addr-sheet__addr .c-wallet-receive__copy[data-state='fail'] { color: var(--icon-error); }
-.c-addr-sheet__share { margin-block-start: calc(-1 * var(--spacing-4)); }
+/* ★ #575: Share is an icon button on the chip, beside Copy — the full-width
+   outline row it replaced "reads as a too-short bar". Same 40px square as Copy, so
+   the chip carries a pair of equal controls. */
+.c-addr-sheet__sharebtn { width: 40px; height: 40px; }
 /* the explainer block — ★ F5-5 ③ (#556): ONE glyph level. The filled disc read as
    an icon inside an icon (Damir screenshot); a bare tinted info-circle leads the
    two quiet lines. The safety line keeps its inline shield glyph. */
+/* ★ #575 (Damir): a TWO-COLUMN GRID, glyph gutter + copy column. Every line of
+   copy shares ONE left edge — that is his "align the safety text with the info
+   text's left edge, not under the icon". The old flex layout put the shield inside
+   the text column, which indented the safety line away from the paragraph above it.
+   `align-items: start` keeps each glyph on the first line of its own paragraph. */
 .c-addr-sheet__explain {
-  display: flex; align-items: flex-start; gap: var(--spacing-12);
-  padding: var(--spacing-12) var(--spacing-12) var(--spacing-12) var(--spacing-12);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  column-gap: var(--spacing-12);
+  row-gap: var(--spacing-8);
+  padding: var(--spacing-12);
   border-radius: var(--radius-16);
   background: var(--surface-neutral-02);
 }
-.c-addr-sheet__explainicon { flex: none; margin-top: 1px; color: var(--icon-info); display: inline-flex; }
-.c-addr-sheet__explaintext { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--spacing-8); }
+.c-addr-sheet__explainicon { margin-top: 1px; color: var(--icon-info); display: inline-flex; justify-self: center; }
+.c-addr-sheet__explainicon--safe { color: var(--icon-success); margin-top: 2px; }
 .c-addr-sheet__info {
   margin: 0;
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
   color: var(--text-neutral-02);
 }
-.c-addr-sheet__info--safe {
-  display: flex; align-items: flex-start; gap: var(--spacing-8);
-  color: var(--text-neutral-01);
-}
-.c-addr-sheet__info--safe svg { flex: none; margin-top: 1px; color: var(--icon-success); }
+.c-addr-sheet__info--safe { color: var(--text-neutral-01); }
 
 /* ★ W-b (2026-08-24): desktop content column cap — see wallet-send.css */
 :root[data-desktop] .c-wallet-receive { max-width: 560px; margin-inline: auto; width: 100%; box-sizing: border-box; }

@@ -1984,6 +1984,10 @@
   function buildCallRow(rec) {
     return createCallBubble({
       missed: rec.missed,
+      /* ★ #572 ④: the DECLINED card (phone-x medallion, no call-back nudge — the
+       * #87⑦ grammar) instead of the missed one. createCallBubble already lets
+       * `declined` win over `missed`, so both flags can be passed honestly. */
+      declined: !!rec.declinedLocal,
       direction: rec.direction || 'received',   // C4: outgoing calls finally sit right
       // pass the C#-localized label verbatim (duration stripped — shown
       // separately) so "No answer" (outgoing rang-out) isn't reconstructed as
@@ -3549,7 +3553,7 @@
   /* CREATE a call event row (legacy addCall). missed = the bridge `declined`
    * flag (rang out / no answer); label = the C#-localized wording verbatim;
    * duration is a preformatted "m:ss" or empty. */
-  function upsertCall(id, ts, missed, label, duration, outgoing) {
+  function upsertCall(id, ts, missed, label, duration, outgoing, declinedLocal) {
     id = String(id);
     const existing = model.get(id);
     const rec = existing || { id, kind: 'call' };
@@ -3561,6 +3565,8 @@
     // C4: card side from message.localSender; undefined (old exe) keeps the
     // pre-C4 received-side default.
     if (outgoing !== undefined) rec.direction = outgoing ? 'sent' : 'received';
+    // #572 ④: the user declined this call. Undefined (old exe) leaves the flag off.
+    if (declinedLocal !== undefined) rec.declinedLocal = !!declinedLocal;
     model.set(id, rec);
     orderInsert(id);
     hideTyping();
@@ -4167,8 +4173,13 @@
     // seconds, "" unless answered+ended). Old exe → all three undefined: side
     // defaults to received and the duration falls back to the "(m:ss)" embedded
     // in the localized label, exactly as before.
-    addCall(id, text, declined, time, outgoing, missed, durationSecs) {
+    addCall(id, text, declined, time, outgoing, missed, durationSecs, declinedLocally) {
       const isDeclined = asBool(declined);
+      /* ★ #572 ④: the 8th arg (ADDITIVE) says THIS device turned the call down.
+       * The 3rd arg `declined` is C#'s lossy "never connected" — true for a call
+       * that simply rang out too — so it cannot carry this on its own. Undefined on
+       * an older exe → false, and the card keeps its present missed rendering. */
+      const isDeclinedLocal = declinedLocally === undefined ? false : asBool(declinedLocally);
       const raw = String(text || '');
       // C4 raw seconds win; legacy "(m:ss)"-in-label is the fallback
       let dur = '';
@@ -4181,7 +4192,7 @@
       // is rendered separately by the card
       const label = raw.replace(/\s*\(\d+:\d{2}\)\s*$/, '').trim();
       upsertCall(id, toMs(time), isDeclined, label, dur,
-        outgoing === undefined ? undefined : asBool(outgoing));
+        outgoing === undefined ? undefined : asBool(outgoing), isDeclinedLocal);
     },
 
     // REACTIONS (chat.js addReactions:549) — ;-joined "key:count". Store on the

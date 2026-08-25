@@ -50,6 +50,8 @@ export function addReactions(row, {
   const prev = bubble.querySelector('.c-reactions');
   if (prev) prev.remove();
   delete row.dataset.reactions;
+  // ★ #570: and so is the floor + its observer — see reserveOverlapWidth.
+  clearOverlapFloor(bubble);
 
   if (reactions.length === 0 && !tip) return;
 
@@ -109,6 +111,99 @@ export function addReactions(row, {
 
   if (placement === 'overlap') row.dataset.reactions = 'overlap'; // row reserves overhang space
   bubble.append(el);
+  if (placement === 'overlap') reserveOverlapWidth(bubble, el);
+}
+
+/* ★★ #570 (Damir screenshots, Android AND Windows) — THE OVERLAP GRAMMAR ASSUMED
+ * A BUBBLE WIDER THAN ITS ORNAMENTS.
+ *
+ * #65 hangs the pill row off the bubble's bottom OUTER corner. That reads well while
+ * the bubble is the wider of the two. On a short bubble — "ok", one emoji — a heart
+ * plus a "Tipped" chip does not fit: the row is absolutely positioned INSIDE the
+ * bubble, so its shrink-to-fit width is capped by the bubble and `flex-wrap: wrap`
+ * folds it onto a second line. Two lines at `inset-block-end: -12px` reach up over
+ * the timestamp and the ticks. Nothing is wrong with the anchor; there is simply not
+ * enough bubble to hang from.
+ *
+ * ★ SO THE BUBBLE GETS A FLOOR — Damir's first candidate, and the only one of his two
+ * that is stable. The alternative (fall back to the `inside` placement) LOOKS tidier
+ * and oscillates forever: `inside` is in-flow, so it GROWS the bubble to hold the
+ * pills, which makes the "too narrow" test false, which flips it back to `overlap`,
+ * which shrinks the bubble again. Every bubble the fix is written for is a bubble it
+ * would jitter at 60 fps. A floor has no such feedback: widening the bubble does not
+ * change the pill row's own content width.
+ *
+ * ⚠ MEASURED THROUGH max-content, NOT through the live box. The row is absolutely
+ * positioned inside the bubble, so its RENDERED width is already clamped to the
+ * bubble — reading `scrollWidth` would measure the symptom and report that everything
+ * fits. `max-content` asks what the row WANTS, which is the number the floor needs.
+ * If a WebView ignores `max-content` the read degrades to the clamped width, the floor
+ * comes out too small, and the bubble is no worse than it is today.
+ * ⚠ Zero means UNMEASURABLE (a hidden tab, a detached row, jsdom) — never "narrow".
+ * ⚠ The floor never beats the bubble's own max-width. In CSS min-width wins over
+ * max-width, so an un-clamped floor could push one bubble past the #65 rail.
+ * ⚠ ONE observer per bubble, stored ON the bubble. addReactions is replace-on-repeat
+ * and the bridge re-emits the full list on every flush, so a fresh observer per call
+ * would pile up unbounded on a live row — and in `overlap` the bubble's size never
+ * changes, so a stale observer would never fire and never self-disconnect. */
+
+const OVERLAP_FLOOR_AIR = 16;   // the 8px corner inset + 8px of air on the other side
+
+function measureOverlapFloor(bubble, el) {
+  const prev = el.style.width;
+  let natural = 0;
+  try {
+    el.style.width = 'max-content';
+    natural = el.offsetWidth || 0;
+  } catch (e) {
+    natural = 0;
+  }
+  el.style.width = prev;
+  if (!natural) return 0;
+  let need = natural + OVERLAP_FLOOR_AIR;
+  /* ⚠ round-2 MINOR-1: the cap is the ROW's width, not the bubble's computed
+   * max-width. `.c-bubble` resolves to `min(82%, 360px)`, and the CSSOM returns that
+   * expression verbatim — parseFloat gives NaN, so the clamp never fired; on a
+   * variant with a bare percentage it would have parsed `82%` as 82px and clamped the
+   * floor to nothing. The row is the true bound and its width is a used value. */
+  const cap = (bubble.parentElement && bubble.parentElement.clientWidth) || 0;
+  if (cap > 0 && need > cap) need = cap;        // the #65 rail wins
+  return need;
+}
+
+function applyOverlapFloor(bubble, el) {
+  if (!el.isConnected || !bubble.isConnected) return;
+  const need = measureOverlapFloor(bubble, el);
+  if (!need) return;                                   // unmeasurable → leave the bubble alone
+  const current = parseFloat(bubble.style.minWidth) || 0;
+  if (Math.abs(current - need) < 1) return;            // converged — never write the same value twice
+  bubble.style.minWidth = need + 'px';
+}
+
+function reserveOverlapWidth(bubble, el) {
+  if (typeof window === 'undefined' || !window.requestAnimationFrame) return;
+  window.requestAnimationFrame(() => applyOverlapFloor(bubble, el));
+  if (typeof ResizeObserver === 'undefined') return;
+  try {
+    /* The bubble owns its observer. A second addReactions on the same live row must
+     * REPLACE it, exactly as the row itself is replaced — see the teardown beside
+     * `prev.remove()`. */
+    const ro = new ResizeObserver(() => applyOverlapFloor(bubble, el));
+    bubble.__reactionFloorObserver = ro;
+    ro.observe(bubble);
+  } catch (e) { /* no observer — the rAF pass still ran */ }
+}
+
+/** Drop the floor and the observer a previous call left on this bubble. Called from
+ *  addReactions before it rebuilds, so replace-on-repeat leaks nothing and a bubble
+ *  that loses its last reaction hugs its text again. */
+function clearOverlapFloor(bubble) {
+  const ro = bubble.__reactionFloorObserver;
+  if (ro) {
+    try { ro.disconnect(); } catch (e) {}
+    bubble.__reactionFloorObserver = null;
+  }
+  try { bubble.style.minWidth = ''; } catch (e) {}
 }
 
 /** Inspect sheet: every reaction type with count + who reacted (Damir

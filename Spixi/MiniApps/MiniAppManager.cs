@@ -346,6 +346,54 @@ namespace SPIXI.MiniApps
             }
         }
 
+        /* ★ #585 rider (Damir, 2026-08-26): "wiping the account leaves the mini app
+         * installed, and a create or restore inherits it." The wipe enumerates every other
+         * data class; this is the missing one.
+         * ⚠ ONE lock for the whole sweep, and a snapshot of the keys: `remove` mutates
+         * appList, so enumerating it live would throw. Each delete is wrapped on its own —
+         * one app whose directory is held open must not skip the rest, which is the same
+         * per-item rule wipeEverything already applies to every other step. */
+        public int removeAllApps()
+        {
+            int removed = 0;
+            lock (appList)
+            {
+                /* ★★ round-2 MAJOR-2: SWEEP THE DISK, not the dictionary. The first cut
+                 * enumerated `appList`, and the wipe's step 1 (`IxianHandler.shutdown()` →
+                 * `Node.stop()` → `MiniAppManager.stop()`) has ALREADY cleared it — so the
+                 * loop never ran, nothing was deleted, the method returned 0, and the next
+                 * `start()` re-enumerated the surviving directories and handed every app
+                 * back to the new account. The no-op even looked clean in the log.
+                 * The directory listing is the authoritative state, and it also collects
+                 * apps orphaned by an earlier crash. */
+                appList.Clear();
+                if (string.IsNullOrEmpty(appsPath) || !Directory.Exists(appsPath))
+                {
+                    return 0;
+                }
+                foreach (string path in Directory.EnumerateDirectories(appsPath))
+                {
+                    // The scratch directory belongs to the manager, not to an app.
+                    if (string.Equals(path, tmpPath, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+                    try
+                    {
+                        Directory.Delete(path, true);
+                        removed++;
+                    }
+                    catch (Exception e)
+                    {
+                        // One directory held open must not skip the rest — the per-item
+                        // rule wipeEverything applies to every other step.
+                        Logging.error("Could not remove mini app directory {0}: {1}", path, e);
+                    }
+                }
+            }
+            return removed;
+        }
+
         public MiniApp? getApp(string app_id)
         {
             lock(appList)

@@ -127,6 +127,10 @@ export function createChatItem({
   const el = document.createElement('button');
   el.type = 'button';
   el.className = 'c-chatlist-item';
+  /* ★ #587: the row carries its address. renderChatsList rebuilds every row on every
+     flush, so anything that captured a row element before an await — the long-press
+     timer is the case that bit us — needs a way to find the REPLACEMENT. */
+  if (address) el.dataset.address = String(address);
   if (unread > 0 || mention) el.dataset.unread = '';
   // N56 (#376 loop C-4): the wash hook rides the COMPONENT, so direct consumers
   // (desktop.html demo — the surface the wash dial is judged on) render it too;

@@ -1,4 +1,4 @@
-language-code = lt-lt
+﻿language-code = lt-lt
 language = Lietuvių
 
 ; Address Screen
@@ -126,6 +126,7 @@ chat-call-outgoing = Išeinantis skambutis
 chat-call-incoming = Įeinantis skambutis
 chat-call-no-answer = Neatsakyta
 chat-call-missed = Praleistas skambutis
+chat-call-declined = Skambutis atmestas
 chat-call-ended = Skambutis baigtas
 chat-online = Prisijungęs
 chat-offline = Atsijungęs
@@ -367,6 +368,7 @@ intro-restore-file-error-title = Could not read the backup file
 intro-restore-file-selecterror-text = The file could not be selected. Try again, or copy the backup file to this device first.
 intro-restore-file-readerror-text = The file could not be read. Check that the backup file is complete, then try again.
 intro-restore-file-writeerror-text = The file could not be prepared. Check the free space on this device, then try again.
+intro-restore-account-failed-text = Tai yra „Spixi“ paskyros atsarginė kopija, tačiau jos atkurti nepavyko. Patikrinkite laisvą vietą šiame įrenginyje ir bandykite dar kartą su pradiniu atsarginės kopijos failu.
 intro-restore-pass-title = Įveskite atsarginį slaptažodį
 intro-restore-pass-subtitle = Norėdami atkurti Spixi paskyrą, įveskite slaptažodį, kuriuo apsaugotas atsarginės kopijos failas.
 intro-restore-pass-placeholder = Įveskite slaptažodį

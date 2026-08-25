@@ -18,6 +18,10 @@
   line-height: var(--line-height-label-lg);
   font-weight: var(--font-weight-semibold);
   color: var(--text-neutral-01);
+  /* ★ #569 belt: the truncation above is the fix, this is the guarantee. A name is
+     peer-supplied text and can be one unbroken token of any length; without this the
+     flex item overflows and the whole sheet scrolls sideways (Damir's screenshot). */
+  overflow-wrap: anywhere;
 }
 .c-tipsheet__excerpt {
   margin: 0;

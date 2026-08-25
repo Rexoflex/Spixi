@@ -1,4 +1,4 @@
-using IXICore;
+﻿using IXICore;
 using IXICore.Meta;
 using IXICore.Streaming;
 using Microsoft.Maui.Storage;
@@ -241,6 +241,35 @@ namespace SPIXI.Meta
              * from silent to notifying. NOTIF-1's finding was that `friend.bot` is the wrong
              * gate for GROUPS, which never set it; it remains a correct test for "is this a
              * bot", which is all it is used for here. */
+            if (friend.bot)
+            {
+                return false;
+            }
+            return !isContactMuted(friend.walletAddress?.ToString());
+        }
+
+        /* ★★ #586 round-2 MINOR-5 — RINGING IS NOT NOTIFYING, so it gets its own predicate.
+         *
+         * `shouldNotify` returns false the moment the GLOBAL notifications master is off,
+         * and that master is a tray setting: a user who turned off message banners has not
+         * asked to stop receiving calls. Gating the ring on it made an incoming call
+         * completely invisible — no ring, no notification, no UI — surfacing 45 s later as
+         * a missed call.
+         *
+         * The evidence Damir supplied was a MUTED CONTACT, and that is what this answers:
+         * the per-contact mute and the bot's own sendNotification flag silence the ring;
+         * the global master does not. A muted contact still cannot ring, which is the
+         * defect that was reported. */
+        public static bool shouldRingForCall(Friend? friend)
+        {
+            if (friend == null)
+            {
+                return true;
+            }
+            if (friend.metaData != null && friend.metaData.botInfo != null)
+            {
+                return friend.metaData.botInfo.sendNotification;
+            }
             if (friend.bot)
             {
                 return false;

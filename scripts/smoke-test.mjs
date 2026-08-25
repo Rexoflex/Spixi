@@ -1077,11 +1077,25 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   const key = (t, k) => t.dispatchEvent(new W4.KeyboardEvent('keydown', { key: k, bubbles: true }));
 
   /* —— demo wiring: hub renders as the account root tab —— */
-  ok(!!d.querySelector('.c-settings__hero') && !!d.querySelector('.c-settings__address-row'),
-    'hub renders identity hero + own-address chip');
-  ok((d.querySelector('.c-settings__address-value') || {}).textContent === '425HqzWpMkV3dTgJnS85CQen',
-    'FULL own address in the chip (#99)');
+  ok(!!d.querySelector('.c-settings__hero'), 'hub renders the identity hero');
   ok(!!d.querySelector('.c-bottomnav'), 'bottomnav present (Account tab active)');
+
+  /* ★★ #575 (Damir, D13/F23) REBASES N86 ② AND Batch E (d) — rewritten in place, so
+     the ruling changing stays visible (the grammar of this very block).
+     The hub carried THREE address affordances: the full base58 chip with copy and
+     share, "What is this address?", and the "Show QR" row. His spec collapses them
+     into ONE row, and he confirmed the chip retires with them. What N86 ② protected —
+     the code never at rest on the hub, full scan size when opened, copy and Share
+     always reachable — is now the SHEET's job, and the pins below assert it there.
+     ⚠ These are negative pins on purpose. A `.c-settings__qr` box or an address chip
+     back in the hub is the #149③ two-surfaces drift returning. */
+  ok(!d.querySelector('.c-settings__address-row')
+     && !d.querySelector('.c-settings__qr-toggle')
+     && !d.querySelector('.c-settings__addrinfo')
+     && !d.querySelector('.c-settings__qr'),
+    '★ #575: the hub holds NO address chip, NO "Show QR" row, NO "What is this address?" action and NO QR box of its own');
+  ok(!d.querySelector('.c-settings')?.textContent.includes('425HqzWpMkV3dTgJnS85CQen'),
+    '★ #575: the address is never AT REST on the hub — nothing on the screen shows the base58 until the sheet opens');
 
   /* ★ N86 ② SUPERSEDES #147 ON THIS SURFACE — these two assertions used to demand the
      opposite and are rewritten in place rather than deleted, so the ruling changing is
@@ -1091,26 +1105,46 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
      ⚠ Behavioural, not a source match: the code must not exist before the tap and must
      encode the right value after it. The old pin read `.c-qr` unconditionally and would
      now THROW on null — which is how it announced the change. */
-  /* ★ Batch E (d) (#557) REBASED N86 ② — rewritten in place so the ruling changing is
-     visible (the N86 grammar of this very block). The row no longer discloses an
-     inline code: it opens `openAddressSheet` — the ONE address surface (#443/#453),
-     QR + address + copy + Share + explainer. A `.c-settings__qr` box back in the hub
-     is the #149③ two-surfaces drift returning. */
-  const qrToggle = d.querySelector('.c-settings__qr-toggle');
-  ok(!!qrToggle && !d.querySelector('.c-settings__qr') && qrToggle.getAttribute('aria-haspopup') === 'dialog',
-    '★ Batch E (d): the hub builds NO QR box of its own — the "Show QR" row announces a dialog and the code lives on the shared sheet');
-  ok(!!d.querySelector('.c-settings__address-value') && !!d.querySelector('.c-settings__copy'),
-    'N86 ② (held): the address chip and copy stay visible ALWAYS — only the code is behind the affordance');
-  qrToggle.dispatchEvent(new W4.MouseEvent('click', { bubbles: true }));
+  /* ★ #575: the ONE address row — beside Contacts, in the UNTITLED first section. */
+  const addrRow = d.querySelector('.c-settings__row[data-setting-key="address"]');
+  const contactsRow = d.querySelector('.c-settings__row[data-setting-key="contacts"]');
+  ok(!!addrRow && !!contactsRow && addrRow.closest('.c-settings__groupwrap') === contactsRow.closest('.c-settings__groupwrap'),
+    '★ #575: Contacts and the address row share ONE section');
+  ok(!!addrRow && !addrRow.closest('.c-settings__groupwrap').querySelector('.c-settings__label'),
+    '★ #575: and that section is UNTITLED — neither row is a setting');
+  ok(!!addrRow && !!addrRow.querySelector('.c-settings__row-sub')
+     && addrRow.querySelector('.c-settings__row-sub').textContent.trim().length > 0,
+    '★ #575: the row carries the subtitle that says what the address IS — the job the retired "What is this address?" action had');
+  addrRow.dispatchEvent(new W4.MouseEvent('click', { bubbles: true }));
   {
     const eSheet = d.querySelector('.c-sheet--addr');
     const eQr = d.querySelector('.c-addr-sheet .c-qr');
     ok(!!eSheet && !!eQr && eQr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi'
        && !!d.querySelector('.c-addr-sheet__explainicon'),
-      '★ Batch E (d): tapping the row opens the SHARED address sheet — legacy address:ixi encoding, the folded explainer riding along (one surface, no drift)');
+      '★ #575: the row opens the SHARED address sheet — legacy address:ixi encoding, the folded explainer riding along (one surface, no drift)');
+    /* N86 ②'s protection MOVED here with the chip: copy and Share are always
+       reachable on the sheet, and Share is now an icon beside Copy, not a bar. */
+    const sheetChip = d.querySelector('.c-addr-sheet__addr');
+    ok(!!sheetChip
+       && (sheetChip.querySelector('.c-wallet-receive__addrvalue') || {}).textContent === '425HqzWpMkV3dTgJnS85CQen'
+       && !!sheetChip.querySelector('.c-wallet-receive__copy')
+       && !!sheetChip.querySelector('.c-addr-sheet__sharebtn'),
+      '★ #575: the FULL address, Copy and Share all live on the chip — Share is an icon beside Copy, not a full-width bar');
+    ok(!d.querySelector('.c-addr-sheet__share'),
+      '★ #575: and the old full-width Share row is gone (it "reads as a too-short bar")');
+    /* the explainer is a 2-column grid now: every glyph in the gutter, both
+       paragraphs on ONE left edge (Damir: "not under the icon"). */
+    const explain = d.querySelector('.c-addr-sheet__explain');
+    ok(!!explain && explain.children.length === 4
+       && explain.children[0].classList.contains('c-addr-sheet__explainicon')
+       && explain.children[2].classList.contains('c-addr-sheet__explainicon--safe')
+       && !explain.querySelector('.c-addr-sheet__info--safe svg'),
+      '★ #575: the explainer is glyph-gutter + copy column — the shield left the text column, so the safety line aligns with the info text');
+    ok(!!d.querySelector('.c-addr-sheet__dismiss'),
+      '★ #575: the sheet has an explicit dismiss control — scrim-tap alone stopped being an exit when it grew to near-full height');
     W4.Spixi.dismissTopOverlay();
     await sleep(450);
-    ok(!d.querySelector('.c-sheet--addr'), 'Batch E (d): and it dismisses cleanly — the hub owns no leftover surface');
+    ok(!d.querySelector('.c-sheet--addr'), '#575: and it dismisses cleanly — the hub owns no leftover surface');
   }
 
   /* #147: tinted discs + card groups (#148: the disc is the shared .c-disc atom) */
@@ -1123,9 +1157,8 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   ok(d.querySelectorAll('.c-settings__group').length >= 4,
     'hub groups sit on card surfaces (#147)');
 
-  /* #148⑤: share beside copy on the address chip */
-  ok(!!d.querySelector('.c-settings__share'),
-    'address chip carries a share button (§9 share ask, wallet-receive precedent)');
+  /* #148⑤ REBASED by #575: the share ask is still served — on the sheet's chip, and
+     the pin for it lives in the address-sheet block above. The hub carries no chip. */
 
   /* #148⑥: language sheet — flags + a scrolling taller list (10 languages) */
   const langRow = [...d.querySelectorAll('.c-settings__row')]
@@ -5060,7 +5093,7 @@ console.log('missing-bits Batch B — B2 pattern default · B3 tx-details shell 
     ok(/private void goHome\(\)/.test(lp)
       && /await Navigation\.PushAsync\(HomePage\.Instance\(true\), Config\.defaultXamarinAnimations\);\s*\r?\n\s*removePage\(this\);/.test(goHomeBody.slice(0, 600))
       && !/\n\s*Navigation\.PushAsync\(HomePage\.Instance\(true\)/.test(goHomeBody.slice(0, 600))
-      && (lp.match(/goHome\(\);/g) || []).length === 3,
+      && (lp.match(/goHome\(\);/g) || []).length === 4,   // #565 round-2 MINOR-2 added the committed-restore leg
       '★ N75 review MINOR-3: restore and unlock AWAIT the push before dropping this page. Since the merge this page is the navigation ROOT, and RemovePage on a root that is still displayed is rejected — removePage swallows that and Disposes anyway, leaving a disposed page under Home');
     const lh = rd('src/shells/launch.html');
     ok(!/onBack: \(\) => \{ activeCtrl = null/.test(lh) && /let activeCtrl = null;/.test(lh),
@@ -9597,8 +9630,16 @@ console.log('R1 identity round — N1 avatar rework (#364) · N34 owner chip (#3
     'N26 ★: BOTH pages route ixian:sendContactRequest through the ONE guarded helper (self guard · heal · exists alert · requestAddSent marker)');
   ok(/catch \(Exception ex\)\s*\{\s*Logging\.warn\("sendContactRequest: invalid address payload/.test(base366),
     'N26: the address payload parse is try/catch-guarded (A-4 rule — the old SingleChatPage parse was bare)');
-  ok(/FriendMessageType\.requestAddSent/.test(base366),
-    'N26: the requestAddSent marker (#334 AND-17b) survived the move');
+  /* ★ #572 ① REBASES this, rewritten in place. The marker is still written on this
+     path — it just no longer calls addMessageWithType directly. It goes through
+     HomePage.writeRequestSentMarker, which restores the unread count the write raises
+     against the user (FriendMessage sets read=false for a LOCAL message too, and
+     Node.addMessageWithType gates the increment on `read` alone). A bare
+     addMessageWithType(requestAddSent) call back on either path is the defect
+     returning, so this pin now asserts the ABSENCE of one. */
+  ok(/HomePage\.writeRequestSentMarker\(/.test(base366)
+     && !/addMessageWithType\([^;]*FriendMessageType\.requestAddSent/.test(base366),
+    'N26 (#572 ① rebase): the requestAddSent marker survived the move AND goes through the unread-safe writer, never addMessageWithType directly');
   // N27: enumerate-and-name, with the legacy alert as the empty-enumeration fallback
   ok(/f\.type == FriendType\.Group && f\.users != null && f\.users\.hasUser\(friend\.walletAddress\)/.test(cd366)
     && /sendUiCommand\(this, "removeBlocked", blockers\.ToArray\(\)\)/.test(cd366),
@@ -13138,9 +13179,13 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
     ok(!/★ N86 ① \(Damir 2026-08-25\)/.test(setCssQ) && /Batch E \(d\)/.test(setCssQ)
        && /chat-info\.css/.test(setCssQ) && /wallet-receive\.css/.test(setCssQ),
       '★★ PIN-G HALF 2 (#149③, Batch E rebase): settings-shell.css carries NO second geometry docblock — only the supersession note naming where the geometry now lives. A re-grown hub copy is the two-surfaces drift returning in the place hardest to see');
-    ok(!/★ WHY A ROW AND NOT A SMALL ALWAYS-VISIBLE CODE/.test(setJs) && /openAddressSheet/.test(setJs)
-       && /full scan[\s*]+size/.test(setJs),
-      '★ PIN-G HALF 2 (Batch E rebase): the settings-shell.js hub note now justifies the SHEET reuse — full scan size on the shared surface — instead of the retired inline reveal');
+    /* ★ #575 REBASE, rewritten in place: the hub no longer has a QR affordance at all
+       — the address left the hero entirely and lives behind ONE row. The note that has
+       to be there is the one saying so, and naming where the address went. */
+    ok(!/★ WHY A ROW AND NOT A SMALL ALWAYS-VISIBLE CODE/.test(setJs)
+       && /openAddressSheet/.test(setJs)
+       && /#575/.test(setJs) && /THE ADDRESS LEAVES THE HERO/.test(setJs),
+      '★ PIN-G HALF 2 (#575 rebase): the settings-shell.js note records that the hero address, the "Show QR" row and the explainer action all retired into the ONE row that opens the shared sheet');
   }
 
   /* GEOMETRY GUARD — the two numbers the arithmetic above rests on, read CASCADE-WIDE so a
@@ -13160,23 +13205,32 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
      protected carries over — the code never rests on the hub, it is built only when
      asked, and it opens at full scan size (the sheet card, F5-5 ① pins). */
   const setNC = setJs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/[^\n]*$/gm, '');
-  ok(!/qrBox/.test(setNC) && /c-settings__qr-toggle/.test(setNC),
-    '★ Batch E (d): the hub keeps the "Show QR" row and builds NO inline qrBox — the code never rests on the hub (N86 ②\'s point, now structural)');
+  /* ★ #575 REBASE: "Show QR" is gone with the rest of the hero address block. What
+     N86 ② protected is unchanged and stronger — the hub builds no code, and now shows
+     no address either. Both pins are negative: a qrBox or a qr-toggle back here is the
+     two-surfaces drift returning. */
+  ok(!/qrBox/.test(setNC) && !/c-settings__qr-toggle/.test(setNC) && !/c-settings__address-row/.test(setNC),
+    '★ #575: the hub builds NO inline qrBox, NO "Show QR" row and NO address chip — nothing about the address rests on the hub');
   ok(/openAddressSheet\(\{/.test(setNC) && !/createQrSvg\(/.test(setNC),
-    '★ Batch E (d): the row opens the SHARED address sheet; the hub encodes no QR of its own (built on open, lazy by construction)');
+    '★ #575: the ONE row opens the SHARED address sheet; the hub encodes no QR of its own (built on open, lazy by construction)');
   ok(!/svg \{ width: 1[0-4]\dpx/.test(setCssQ),
     '★ N86 ② (held): no stylesheet shrinks a QR below scan size — a code that is visible but too small to scan looks functional and is not');
-  ok(/aria-haspopup/.test(setNC) && !/aria-expanded/.test(setNC),
-    'Batch E (d): the row announces a DIALOG (aria-haspopup); the aria-expanded disclosure left with the inline box');
+  ok(!/aria-expanded/.test(setNC),
+    '#575: no disclosure grammar left on the hub — the aria-expanded reveal went with the inline box, and the row that replaced it is a plain settingRow');
 
-  /* ⚠ the affordance must not be buried — #147 ruled scanning IS the add-me action */
+  /* ⚠ #575 REBASE of the "do not bury the affordance" pin. #147 ruled that scanning
+     IS the add-me action, so the code must stay ONE tap away. It still is — the tap
+     moved from a row under the chip to a row in the first section of the hub, which
+     is nearer the top of the screen than the retired one was. The property to hold is
+     therefore POSITION: the address row sits in the FIRST group, above Preferences. */
   {
-    const addrI = setNC.indexOf("row.className = 'c-settings__address-row'");
-    const toggleI = setNC.indexOf("c-settings__qr-toggle");
-    ok(addrI > 0 && toggleI > addrI,
-      '★ N86 ②: the reveal sits directly UNDER the address, keeping the position the code had. #147 ruled that scanning is the add-me action — a reveal that buries the affordance would re-break it');
-    ok(setNC.indexOf('c-settings__address-value') < toggleI,
-      'N86 ②: the address chip and its copy button stay visible ALWAYS — only the code is behind the reveal');
+    const meI = setNC.indexOf("const me = group()");
+    const prefsI = setNC.indexOf("const prefs = group(");
+    const addrI = setNC.indexOf("strings.spixiAddress");
+    ok(meI > 0 && prefsI > meI && addrI > meI && addrI < prefsI,
+      '★ #575: the address row is built in the FIRST, untitled group — above Preferences. Burying it deeper would re-break #147 (scanning is the add-me action, so the code stays one tap away)');
+    ok(setNC.indexOf("strings.contacts ||") < addrI && setNC.indexOf("strings.contacts ||") > meI,
+      '#575: Contacts sits in that same first group, immediately above the address row (his layout)');
   }
 
   /* ③ ★ Batch E (d) (#557) REBASED: the two rows now do DIFFERENT things by design —
@@ -14195,21 +14249,47 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     await sleep(30);
     const sheetEl = d.querySelector('.c-sheet--addr');
     const addrC = d.querySelector('.c-addr-sheet');
-    /* F5-5 ③ (#556) REBASED W-c: the explainer leads with a FLAT tinted glyph now —
-       a `.c-disc` here is the regression (icon-in-icon, Damir screenshot) */
+    /* F5-5 ③ (#556) REBASED W-c, and REBASED AGAIN by #575 — rewritten in place.
+       F5-5 ③'s ruling HOLDS: the explainer leads with a FLAT tinted glyph, and a
+       `.c-disc` here is still the icon-in-icon regression. What changed is where the
+       SHIELD lives: it left the safety paragraph for the glyph gutter, so both lines
+       of copy share one left edge (#575, "not under the icon"). A shield back inside
+       `.c-addr-sheet__info--safe` is that indent returning. */
     ok(!!sheetEl && !!addrC && addrC.classList.contains('u-scroll') && !!addrC.querySelector('.c-addr-sheet__qrcard .c-qr')
       && !!addrC.querySelector('.c-addr-sheet__explainicon svg') && !addrC.querySelector('.c-addr-sheet__explain .c-disc')
       && addrC.querySelectorAll('.c-addr-sheet__info').length === 2
-      && !!addrC.querySelector('.c-addr-sheet__info--safe svg'),
-      '★ W-c/F5-5③: the address sheet scrolls (u-scroll), QR card + chip + Share are in it, the explainer glyph is FLAT (no disc), the safety line carries the shield');
+      && !addrC.querySelector('.c-addr-sheet__info--safe svg')
+      && !!addrC.querySelector('.c-addr-sheet__explainicon--safe svg'),
+      '★ W-c/F5-5③ (#575 rebase): the sheet scrolls, the QR card is in it, the explainer glyph is FLAT — and the shield now sits in the GUTTER, so the safety line aligns with the info text');
+    /* ★ #575: the sheet has its own way out, and the retired full-width Share bar is
+       gone. ⚠ This fixture passes NO onShare, on purpose — N38 gates Share off where
+       the host cannot share, and wallet-receive.js then builds no button at all. So
+       the PRESENCE of the icon-on-chip is pinned in the settings-hub block, where a
+       handler IS passed; here the honest assertions are the two that hold either way. */
+    ok(!addrC.querySelector('.c-addr-sheet__share')
+      && !!sheetEl.querySelector('.c-addr-sheet__dismiss'),
+      '★ #575: the full-width Share bar is gone, and the sheet carries an explicit dismiss control (this fixture passes no onShare — N38)');
     W.Spixi.dismissTopOverlay();
     await sleep(450);
     rec.remove();
     const wrc = stripCssComments(readFileSync(join(cssDir, 'wallet-receive.css'), 'utf8'));
     ok(/\.c-addr-sheet \{[^}]*max-height: min\(72dvh, 640px\)[^}]*overflow-y: auto/.test(wrc)
       && /:root\[data-desktop\] \.c-sheet--addr \{ width: min\(440px, 92%\); \}/.test(wrc)
-      && /\.c-addr-sheet__qrcard \{[^}]*width: min\(280px, 52dvh, 86vw, 100%\)/.test(wrc),
-      '★ W-c CSS: internal scroll with a viewport cap, the desktop dialog capped at 440px, the QR card scales on BOTH axes via min()');
+      && /\.c-addr-sheet__qrcard \{[^}]*width: min\(216px, 40dvh, 62vw, 100%\)/.test(wrc),
+      '★ W-c CSS (#575 rebase): internal scroll with a viewport cap, the desktop dialog capped at 440px, and the QR card at its SHRUNK size, still scaling on BOTH axes via min()');
+    /* ★ #575: on MOBILE the sheet grows to near-full height and the explainer is
+       pushed to the foot. The `max(...)` floor is the part that matters — without it a
+       short window computes a NEGATIVE height and the sheet collapses. */
+    ok(/:root:not\(\[data-desktop\]\) \.c-addr-sheet \{[^}]*height: max\(320px, calc\(100dvh[^}]*max-height: none/.test(wrc)
+      && /:root:not\(\[data-desktop\]\) \.c-addr-sheet__explain \{ margin-block-start: auto; \}/.test(wrc)
+      && /:root\[data-desktop\] \.c-addr-sheet__dismiss \{ display: none; \}/.test(wrc),
+      '★ #575 CSS: the mobile sheet is near-full height with a floor, the explainer sits at the foot, and the dismiss control is mobile-only');
+    /* ★ round-2 MINOR-4: the flex chain has to reach the REAL flex item. createSheet
+       wraps the content in `.c-sheet__content`, so `flex`/`min-height` on the
+       grandchild alone are inert and a short host still overflowed. */
+    ok(/:root:not\(\[data-desktop\]\) \.c-sheet--addr \{[^}]*max-height: 100%/.test(wrc)
+      && /:root:not\(\[data-desktop\]\) \.c-sheet--addr > \.c-sheet__content \{[^}]*flex: 1 1 auto;[^}]*min-height: 0/.test(wrc),
+      '★★ #575 (round-2 MINOR-4): the sheet is capped at 100% of its HOST and the cap reaches the element that can actually shrink — an unbounded preferred height grew the sheet past the host and clipped the handle, the title and the dismiss button');
     /* ★ F5-5 ①/② (#556) CSS pins: the QR card is at Account proportions (padding 0 —
        the SVG quiet zone is the margin), the addr DIALOG clips so the inner region is
        the one scroller, and its thumb is persistent (slim + themed) while overflowing. */
@@ -14225,9 +14305,14 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     {
       const cardRules = rulesFor('.c-addr-sheet__qrcard');
       const widths = cardRules.flatMap((r) => cssDecls(r.body).filter((d) => d.prop === 'width'));
+      /* ★ #575 REBASE — and the LOAD-BEARING half is untouched. Damir shrank the card
+         from 280 to 216. The viewport terms moved with it, so the shape regex is
+         looser; the 185px MEASURED scan floor is the assertion that actually guards a
+         user-visible failure (a code that looks fine and will not scan), and 216 still
+         clears it. Shrink the card past 185 anywhere and this goes red. */
       ok(cardRules.length > 0 && widths.length > 0
-        && widths.every((d) => /^min\((\d+)px, 52d?vh, 86vw, 100%\)$/.test(d.value) && Number(d.value.match(/^min\((\d+)px/)[1]) >= 185),
-        '★★ F5-5/C-1 (CASCADE-WIDE): every .c-addr-sheet__qrcard width rule is the min() scale whose 280px ceiling stays ≥ the 185px scan floor — shrink it anywhere and this is red');
+        && widths.every((d) => /^min\((\d+)px, \d+d?vh, \d+vw, 100%\)$/.test(d.value) && Number(d.value.match(/^min\((\d+)px/)[1]) >= 185),
+        '★★ F5-5/C-1 (CASCADE-WIDE): every .c-addr-sheet__qrcard width rule is the min() scale whose px ceiling stays ≥ the 185px scan floor — shrink it anywhere and this is red');
       const svgShrink = cssRulesWhere((s) => /\.c-(addr-sheet(__qrcard)?|wallet-receive__qrcard)\s+(svg|\.c-qr)$/.test(s))
         .flatMap((r) => cssDecls(r.body).filter((d) => (d.prop === 'width' || d.prop === 'height') && d.value !== '100%' && d.value !== 'auto'));
       ok(svgShrink.length === 0,
@@ -14807,8 +14892,11 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       '★★ C4 (#547, #533 ③): the directory opened from the Account hub returns to ACCOUNT on its own Back (and on hardware back), never to Chats — the N42 landtab hand-off (the #294 mechanism: exit Account → land on Chats → open the takeover) now carries the return');
     ok(/onClick: \(\) => openContacts\('directory'\) \}/.test(homeC) && /addEventListener\('click', \(\) => openContacts\('start'\)\)/.test(homeC),
       'C4: the old entry points (topbar Contacts, the FAB) keep working unchanged — no returnTo');
-    ok(/if \(onContacts\) prefs\.card\.append\(settingRow\(\{[\s\S]{0,200}?key: 'contacts',/.test(readFileSync(join(root, 'src/components/settings-shell.js'), 'utf8')),
-      'C4: Contacts is a first-class row in the Account hub (N42, kept)');
+    /* ★ #575 REBASE, rewritten in place: N42's ruling HOLDS — Contacts is still a
+       first-class row on the hub. It moved OUT of "Preferences" into the untitled
+       first section it now shares with the address row (his layout). */
+    ok(/if \(onContacts\) me\.card\.append\(settingRow\(\{[\s\S]{0,300}?key: 'contacts',/.test(readFileSync(join(root, 'src/components/settings-shell.js'), 'utf8')),
+      'C4 (#575 rebase): Contacts is a first-class row in the Account hub (N42, kept) — now in the untitled first section, not under Preferences');
   }
   /* C5 — the night splash resources */
   {
@@ -14883,9 +14971,13 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   }
   ok(/anchorSheetToRow\(sheet, row, \{ host, align: tinted \}\)/.test(mmJsE),
     '★ Batch E (a): the message menu anchors to the pressed row, aligned with the BUBBLE (sent sits right, received left)');
-  ok((crmJsE.match(/anchorSheetToRow\(sheet, row, \{ host \}\)/g) || []).length === 2
+  /* ★ #587 REBASE, rewritten in place: both exits still anchor and all THREE gestures
+     still thread the row — they now carry the press-time rect with it, because a chats
+     flush can detach the row between the gesture and the open (see #587). The property
+     is unchanged; the shape grew one argument. */
+  ok((crmJsE.match(/anchorSheetToRow\(sheet, row, \{ host, address: chat && chat\.address \}\)/g) || []).length === 2
      && (crmJsE.match(/openChatRowMenu\(\{ row, \.\.\.opts \}\)/g) || []).length === 3,
-    '★ Batch E (a): the chats-row menu anchors on BOTH exits (handshaking + main) and all three gestures thread the row through');
+    '★ Batch E (a) (#587 rebase): both exits anchor (handshaking + main) and all three gestures thread the row through — the anchor now also carries the ADDRESS, so a row a flush replaced can be re-resolved');
   ok(/:root:not\(\[data-desktop\]\) \.c-sheet\[data-m-anchor\] \{[^}]*transform: none;[^}]*opacity: 0;/.test(ovCssE)
      && /:root:not\(\[data-desktop\]\) \.c-sheet\[data-m-anchor\]\[data-open\] \{ transform: none; opacity: 1; \}/.test(ovCssE)
      && /:root:not\(\[data-desktop\]\) \.c-sheet\[data-m-anchor\] \.c-sheet__handle \{ display: none; \}/.test(ovCssE),
@@ -15096,9 +15188,15 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       .every((k) => new RegExp('^' + k + ' = .{10,}', 'm').test(enLang) && new RegExp('^' + k + ' = .{10,}', 'm').test(slLang)),
     '★ #564: the four restore-alert keys exist with real values in the lang files (en-us + a locale spot-check) — they were missing from ALL 13');
   const lpF5 = readFileSync(join(root, 'Spixi/Pages/Launch/LaunchPage.xaml.cs'), 'utf8');
-  ok((lpF5.match(/_SL\("intro-restore-file-error-title"\) \?\? "/g) || []).length === 4
-     && !/_SL\("intro-restore-file-[a-z]+-text"\), SpixiLocalization/.test(lpF5),
-    '★ #564: every restore-alert site carries a ?? fallback (the #334 L1 honest-alert grammar) — an alert can never render EMPTY again');
+  /* ★ #565 residual REBASE, rewritten in place: a FIFTH restore alert landed (the
+     mid-restore failure), so a fixed count of 4 stopped describing the property. The
+     property was never the count — it is that EVERY _SL on this path carries a `??`
+     fallback, because a missing key renders an EMPTY dialog with only "Ok" (#564). */
+  {
+    const calls = lpF5.match(/_SL\("intro-restore-[a-z-]+"\)(\s*\?\?)?/g) || [];
+    ok(calls.length >= 5 && calls.every((c) => /\?\?$/.test(c)),
+      '★ #564: EVERY restore-alert _SL carries a ?? fallback (the #334 L1 honest-alert grammar) — an alert can never render EMPTY again, however many sites there are');
+  }
 }
 
 /* ★ #565 — the A2 walk (Damir): backup/restore hardenings */
@@ -15135,6 +15233,475 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     '★ #567 ④: SingleChatPage ixian:leave (the third path) uses the one grammar; pendingDeletion is never set');
   ok(/§1e-6/.test(sc567) && /getClient/.test(sc567),
     '★ #567: the mechanism comment cites BE §1e-6 (the core one-line fix that may restore the acknowledged grammar later) — the mitigation is not silent');
+}
+
+
+/* ═══════════ THE WALK-DAY FIX BATCH (#576+) — #568 · #572 · #573 · #569 · #570 ══════
+ * Source pins. Each one names the MECHANISM it guards, so a red line says what broke
+ * and not merely that a string moved. */
+{
+  const read = (pth) => readFileSync(join(root, pth), 'utf8');
+
+  /* —— #568: the Windows picker fallback ——
+   * Root cause: WinUI FileOpenPicker throws COMException 0x80004005 inside MAUI's
+   * PlatformPickAsync because an ELEVATED process cannot reach the picker broker
+   * (Damir confirmed an "Administrator:" PowerShell). comdlg32 has no broker. */
+  {
+    const fp = read('Spixi/Platforms/Windows/SFilePicker.cs');
+    ok((fp.match(/catch \(Exception ex\) when \(isPickerBrokerFailure\(ex\)\)/g) || []).length === 2
+       && /pickWithWin32Async\(MEDIA_FILTER\)/.test(fp) && /pickWithWin32Async\(ALL_FILTER\)/.test(fp),
+      '★ #568: BOTH Windows picker entry points fall back — PickFileAsync is the restore path, PickImageAsync is the same broker');
+    ok(/e is COMException \|\| e is UnauthorizedAccessException/.test(fp)
+       && /if \(e is OperationCanceledException\)\s*\{\s*return false;/.test(fp)
+       && /for \(Exception\? e = ex; e != null; e = e\.InnerException\)/.test(fp),
+      '★ #568 (review MINOR-1): the catch is not NARROWER than the failure — a broker refusal can arrive as COMException or UnauthorizedAccessException and MAUI may wrap either, so the predicate walks the inner chain. A CANCEL is excluded: re-opening a second dialog over a result would be its own bug');
+    ok(!/MEDIA_FILTER[\s\S]{0,400}?All files/.test(fp),
+      '★ #568 (review MINOR-2): the media filter does NOT widen to All files. The picker it stands in for offers media only, and the avatar consumers pass what comes back into new Bitmap(...)');
+    ok(/\[DllImport\("comdlg32\.dll", CharSet = CharSet\.Unicode\)\]\s*private static extern bool GetOpenFileNameW/.test(fp)
+       && /OFN_EXPLORER \| OFN_FILEMUSTEXIST \| OFN_PATHMUSTEXIST \| OFN_NOCHANGEDIR/.test(fp),
+      '★ #568: the fallback is the CLASSIC Win32 dialog with the explorer/must-exist flags — and OFN_NOCHANGEDIR, so the dialog cannot move the process working directory');
+    ok(/ofn\.lStructSize = Marshal\.SizeOf\(ofn\)/.test(fp)
+       && /Marshal\.AllocHGlobal\(PATH_BUFFER_CHARS \* sizeof\(char\)\)/.test(fp)
+       && /finally\s*\{\s*Marshal\.FreeHGlobal\(buffer\);/.test(fp),
+      '★ #568: the OPENFILENAMEW size comes from the struct itself and the path buffer is freed in a finally — a wrong size fails the call, a leak is per-open');
+    ok(/Marshal\.Copy\(new byte\[PATH_BUFFER_CHARS \* sizeof\(char\)\], 0, buffer, PATH_BUFFER_CHARS \* sizeof\(char\)\);/.test(fp),
+      '★ #568: the path buffer is ZEROED before the call — a dirty buffer reads back as a path the user never chose');
+    ok(/ex\.GetType\(\)\.Name\);/.test(fp) && !/cannot open: " \+ ex\.Message/.test(fp),
+      '★ #568 (review MINOR-3): the open failure logs the exception TYPE, never ex.Message — an IOException embeds the full local path and ixian.log is shareable from DevPage');
+    ok(/MainThread\.InvokeOnMainThreadAsync\(\(\) => showWin32OpenDialog\(filter\)\)/.test(fp),
+      '★ #568: the modal dialog runs on the UI thread — a common dialog pumps its own messages and owns the app window while open');
+    ok(/int error = CommDlgExtendedError\(\);\s*if \(error != 0\)/.test(fp) && /return null; \/\/ error == 0 is a normal cancel/.test(fp),
+      '★ #568: a CANCEL and a FAILURE are told apart by CommDlgExtendedError — a cancel must never log an error, and a failure must never look like a cancel');
+    ok(/WindowsIdentity\.GetCurrent\(\)/.test(fp) && /elevated=/.test(fp),
+      '★ #568: the fallback RECORDS the elevation state — the next log says which branch of the root cause fired, without asking Damir again');
+    ok(/WinRT\.Interop\.WindowNative\.GetWindowHandle\(xamlWindow\)/.test(fp)
+       && /return IntPtr\.Zero;/.test(fp),
+      '★ #568: the dialog is owned by the MAUI window (so it cannot go behind the app), and a missing window degrades to an unowned dialog rather than throwing');
+  }
+
+  /* —— #573: the headless incoming call ——
+   * Damir's B4 log: the process woke in the BACKGROUND, MainActivity.Instance was
+   * null, and every site on the ring path threw. The notification lane survived
+   * because it already used the application context. */
+  {
+    const pu = read('Spixi/Platforms/Android/SPlatformUtils.cs');
+    const pm = read('Spixi/Platforms/Android/SSpixiPermissions.cs');
+    ok(/public static Android\.Content\.Context appContext\(\)/.test(pu)
+       && /Microsoft\.Maui\.ApplicationModel\.Platform\.AppContext/.test(pu)
+       && /Android\.Content\.Context\? act = MainActivity\.Instance;/.test(pu)
+       && /throw new InvalidOperationException\("No Android context is available yet \(#573\)\."\);/.test(pu),
+      '★ #573: ONE context helper — the application context with the Activity as the fallback. ★ review MINOR-7: it THROWS a named exception rather than returning a null the annotation hides, so a hole cannot NRE three frames away');
+    ok(/SPlatformUtils\.appContext\(\)\.GetSystemService\(Context\.AudioService\)/.test(read('Spixi/Platforms/Android/SAudioRecorder.cs'))
+       && /MainActivity\? volActivityVoiceCall = MainActivity\.Instance;/.test(read('Spixi/Platforms/Android/SAudioPlayer.cs')),
+      '★ #573 (review MINOR-8): the sweep FINISHES on the same call lane — the recorder\'s AudioManager and the player\'s two VolumeControlStream writes were the same class of site the row was filed about');
+    ok(/NotificationManager\)appContext\(\)\.GetSystemService/.test(pu)
+       && /AudioManager\)appContext\(\)\.GetSystemService/.test(pu)
+       && /appContext\(\)\.Assets!\.OpenFd\(filePath\)/.test(pu)
+       && /fd = appContext\(\)\.Assets\?\.OpenFd\(filePath\)/.test(pu),
+      '★ #573: all FOUR reads on the ring path take the application context — the two system services, the ringtone asset, and the effect probe');
+    ok(/MainActivity\? ringActivity = MainActivity\.Instance;\s*if \(ringActivity != null\)/.test(pu)
+       && /MainActivity\? stopActivity = MainActivity\.Instance;\s*if \(stopActivity != null\)/.test(pu),
+      '★ #573: the two ACTIVITY-only members (VolumeControlStream) are null-guarded — and the stopRinging one sits in a finally the catch above does NOT cover');
+    ok(/PermissionChecker\.CheckSelfPermission\(SPlatformUtils\.appContext\(\), Manifest\.Permission\.RecordAudio\)/.test(pm)
+       && !/CheckSelfPermission\(MainActivity\.Instance/.test(pm),
+      '★ #573: both permission CHECKS take the application context — SSpixiPermissions.cs:20 was the Java NPE in the log, and the accept gate read the same way');
+    ok(/if \(activity == null\)\s*\{\s*Logging\.warn\("Audio recording permission is not granted, and there is no Activity/.test(pm),
+      '★ #573: the permission REQUEST still needs an Activity, and says so instead of throwing — only an Activity can show the OS dialog');
+  }
+
+  /* —— #572 ①: an outgoing request must not raise the user's own unread count —— */
+  {
+    const hp = read('Spixi/Pages/Home/HomePage.xaml.cs');
+    const base572 = read('Spixi/Utils/SpixiContentPage.cs');
+    const cnp = read('Spixi/Pages/Contacts/ContactNewPage.xaml.cs');
+    ok(/public static void writeRequestSentMarker\(Address address\)/.test(hp)
+       && /int unreadBefore = friend != null \? friend\.metaData\.unreadMessageCount : 0;/.test(hp)
+       && /friend\.metaData\.unreadMessageCount = unreadBefore;/.test(hp),
+      '★ #572 ①: ONE writer for the requestAddSent marker, and it RESTORES the count — clearing it to zero would mark a genuinely unread message from that contact as read');
+    ok(/HomePage\.writeRequestSentMarker\(address\);/.test(base572)
+       && /HomePage\.writeRequestSentMarker\(recipient_address\);/.test(cnp)
+       && !/addMessageWithType\([^;]*FriendMessageType\.requestAddSent/.test(base572)
+       && !/addMessageWithType\([^;]*FriendMessageType\.requestAddSent/.test(cnp),
+      '★ #572 ①: BOTH outgoing-request sites go through it — a bare addMessageWithType(requestAddSent) anywhere is the defect returning');
+    ok(/public static bool healOutgoingRequestUnread\(Friend friend\)/.test(hp)
+       && /friend\.state != FriendState\.RequestSent/.test(hp)
+       && /lm\.type != FriendMessageType\.requestAddSent/.test(hp)
+       && /!lm\.localSender/.test(hp),
+      '★ #572 ①: the heal is bounded by STATE **and** by our own marker being newest — that last clause is what excludes the mutual-request case, where the peer’s requestAdd is genuinely unread');
+    ok(/healOutgoingRequestUnread\(friend\);\s*int umc = friend\.getUnreadMessageCount\(\);/.test(hp),
+      '★ #572 ①: the heal runs BEFORE the count is read, so the same flush that hides the row stops feeding the indicator');
+    ok(!/!friend\.approved/.test(read('Spixi/Pages/Home/HomePage.xaml.cs').slice(
+        read('Spixi/Pages/Home/HomePage.xaml.cs').indexOf('healOutgoingRequestUnread'),
+        read('Spixi/Pages/Home/HomePage.xaml.cs').indexOf('healOutgoingRequestUnread') + 900)),
+      '★ #572 ①: the heal does NOT use `approved` — it defaults TRUE and no outgoing site clears it, so an approved guard is dead code for these exact rows (#395 F-1)');
+  }
+
+  /* —— #572 ③: the pressed chat row lifts above the deep scrim (the E-3 dial) —— */
+  {
+    const rm = read('src/components/chats-row-menu.js');
+    const mm = read('src/styles/components/message-menu.css');
+    const sw = read('src/styles/components/chats-swipe.css');
+    ok(/sheet\.dataset\.mAnchor === undefined/.test(rm),
+      '★ #572 ③: the lift runs ONLY when the anchored dropdown applied — a fail-soft bottom sheet and the desktop press wash are untouched');
+    ok(/row\.closest\('\.c-swipe'\)\) \|\| row/.test(rm),
+      '★★ #572 ③ (the #506② stacking check): the lift targets the .c-swipe WRAPPER. `.c-swipe[data-open] .c-swipe__content` carries will-change: transform, which IS a stacking context — lifting the item inside it would be capped and die SILENTLY under the scrim');
+    ok(/will-change: transform/.test(sw),
+      '★ #572 ③: …and that will-change still exists, so the reason above is a live hazard and not a historical note');
+    ok((rm.match(/undoLift = liftPressedRow\(sheet, row, chat && chat\.address\)/g) || []).length === 2
+       && (rm.match(/onDismiss: \(\) => undoLift\(\)/g) || []).length === 2,
+      '★ #572 ③: BOTH menu paths lift and BOTH clear through onDismiss');
+    /* ★★ round-2 MAJOR-1: onDismiss ALONE is not enough, and the first cut shipped
+       exactly that. `act()` closes the sheet and runs the action in the SAME tick, the
+       action re-renders the list, and onDismiss is deferred up to 400 ms — so the undo
+       fired on a discarded node while the replacement stayed lifted and
+       pointer-events:none. The release must be SYNCHRONOUS at the action and DOM-WIDE,
+       so it cannot miss a node it did not create. */
+    ok(/const act = \(action\) => \{[\s\S]{0,320}?releaseRowLift\(\);\s*closeSheet\(sheet\);/.test(rm)
+       && /document\.querySelectorAll\('\[data-menu-lift="row"\]'\)/.test(rm),
+      '★★ #572 ③ (round-2 MAJOR-1): the lift is released SYNCHRONOUSLY at the action and DOM-WIDE — a lift left on a re-rendered row is a chat the user can no longer tap');
+    /* ★★ round-2 MAJOR-2: the live lift is MODULE state, never a DOM query.
+       querySelector returns the first match in DOCUMENT ORDER, and a dismissing sheet
+       is still in the DOM ahead of a newly opened one — so a flush inside that 400 ms
+       window lifted the OLD row and left the new one under the scrim. */
+    ok(/let liveRowLift = null;/.test(rm)
+       && /return liveRowLift \? liveRowLift\.addr : '';/.test(rm)
+       && !/querySelector\('\.c-sheet\[data-m-anchor\]/.test(rm),
+      '★★ #572 ③ (round-2 MAJOR-2): liftedRowAddress reads ONE module-scoped truth — a DOM query would answer with the dying sheet during the 400 ms exit window');
+    ok(/if \(c\.address && c\.address === liftedRow\) node\.dataset\.menuLift = 'row';/.test(read('src/components/chats-shell.js')),
+      '★ #572 ③ (review MINOR-3): the lift is RE-APPLIED on re-render — renderChatsList rebuilds every row, and a message in ANY chat triggers it');
+    ok(/:root:not\(\[data-desktop\]\) \.c-swipe\[data-menu-lift="row"\] \{[^}]*background: var\(--surface-screen\)/.test(mm)
+       && /\[data-menu-lift\] \{[^}]*pointer-events: none;/.test(mm),
+      '★ #572 ③: the chat-row lift gets an OPAQUE ground (.c-chatlist-item is transparent, so above the scrim it would read as the dim itself) and keeps the shared pointer-events rule');
+    ok(/:root:not\(\[data-desktop\]\) \.c-chatlist-item\[data-menu-lift="row"\]:not\(\[data-pinned\]\):not\(\[aria-current\]\)/.test(mm),
+      '★ #572 ③ (review MINOR-7): the bare-row fallback (a handshaking row is never swipe-wrapped) is guarded — an unguarded (0,3,0) ground would out-specify --surface-pinned and the [aria-current] tonal and wipe the row\'s own state');
+    ok(!/\[data-menu-lift\] \{[^}]*background:/.test(mm),
+      '★ #572 ③: the ground is on the VALUE selector only — a message row must stay transparent so the canvas shows around the bubble');
+  }
+
+  /* —— #572 ④: a declined call is not a missed call —— */
+  {
+    const vm = read('Spixi/VoIP/VoIPManager.cs');
+    const scp = read('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+    const hp = read('Spixi/Pages/Home/HomePage.xaml.cs');
+    const ch = read('src/shells/chat.html');
+    ok(/public const string declinedLocallyMarker = "-1";/.test(vm),
+      '★ #572 ④: the marker is NUMERIC. An older binary parses the ended-call body as a duration with a bare Int32.Parse — a word there would throw inside the message render; "-1" degrades to a harmless (0:00)');
+    ok(/else if \(currentCallDeclinedLocally\)\s*\{[\s\S]{0,600}?fm\.message = declinedLocallyMarker;/.test(vm)
+       && (vm.match(/fm\.message = declinedLocallyMarker;/g) || []).length === 1,
+      '★ #572 ④: it is written ONLY on the local-decline latch — a call that simply rang out keeps its empty body and stays a genuine "Missed call"');
+    ok(/public static bool isDeclinedLocally\(FriendMessage\? msg\)/.test(vm),
+      '★ #572 ④: ONE reader, so the bubble and the chats row cannot disagree about the same call');
+    ok(/callMeta\.setLastMessage\(fm, 0\);\s*currentCallContact\.saveMetaData\(\);/.test(vm)
+       && /callMeta\.lastMessage\.id\.SequenceEqual\(fm\.id\)/.test(vm),
+      '★★ #572 ④ (review MAJOR-1): the chats row reads a DEEP COPY. Ixian-Core setLastMessage stores `new FriendMessage(msg.getBytes())`, so mutating the message reaches the log and NOT the row — without this refresh the bubble said "Call declined" and the row said "Missed call", and the stale copy is what persists');
+    ok(/bool declinedLocally = VoIPManager\.isDeclinedLocally\(message\);/.test(scp)
+       && /text = SpixiLocalization\._SL\("chat-call-declined"\) \?\? "Call declined";/.test(scp)
+       && /duration_secs, declinedLocally\.ToString\(\)\);/.test(scp),
+      '★ #572 ④: the bubble writer labels it "Call declined" and passes the flag as the 8th addCall arg — new args go LAST, so an older shell is unaffected');
+    ok(/bool declinedLocally = VoIPManager\.isDeclinedLocally\(lastmsg\);/.test(hp)
+       && /\? \(SpixiLocalization\._SL\("chat-call-declined"\) \?\? "Call declined"\)/.test(hp),
+      '★ #572 ④: the chats-list excerpt reads the SAME evidence — one call cannot say "Missed call" in the list and "Call declined" in the chat');
+    ok(/addCall\(id, text, declined, time, outgoing, missed, durationSecs, declinedLocally\)/.test(ch)
+       && /declinedLocally === undefined \? false : asBool\(declinedLocally\)/.test(ch)
+       && /declined: !!rec\.declinedLocal,/.test(ch),
+      '★ #572 ④: the shell prefers the 8th arg and treats UNDEFINED as false, so an old exe keeps its present rendering; the card gets the declined variant (phone-x, no call-back nudge — #87⑦)');
+    for (const code of ['en-us', 'de-de', 'ru-ru', 'ja-jp', 'sl-si']) {
+      const v = (read('Spixi/Resources/Raw/lang/' + code + '.txt').match(/^chat-call-declined = (.+)$/m) || [])[1] || '';
+      ok(v.trim().length > 0 && v.trim() !== 'chat-call-declined',
+        '★ #572 ④: chat-call-declined has a REAL value in ' + code + ' (a missing key renders the raw id — the #564 defect)');
+    }
+  }
+
+  /* —— #569: the tip sheet obeys the #211 truncation canon —— */
+  {
+    const ts = read('src/components/tip-sheet.js');
+    const tc = read('src/styles/components/tip-sheet.css');
+    ok(/function payeeDisplayName\(\{ name = '', address = '' \} = \{\} \)?/.test(ts.replace(/\s+/g, ' '))
+       || /function payeeDisplayName\(/.test(ts),
+      '★ #569: the sheet has its own payee-name resolver');
+    ok(/const payeeName = payeeDisplayName\(recipient\);/.test(ts)
+       && /title\.textContent = copy\.title\.split\('\{name\}'\)\.join\(payeeName\);/.test(ts)
+       && /createAvatar\(\{ name: isPseudoAddressNick\(payeeName\) \? '' : payeeName,/.test(ts),
+      '★★ #569: the HEADER goes through it. The guard belongs to the component, not to one caller — this is the payment confirm moment and #211 is a canon with no survivors');
+    ok(/if \(n && n !== a && !isPseudoAddressNick\(n\)\) return n;/.test(ts)
+       && /return a \? truncateAddressMiddle\(a\) : n;/.test(ts),
+      '★ #569: a nickname wins, C#’s address-ECHO does not (isPseudoAddressNick, plus an equality belt), and the fallback is the truncated address — never the raw base58, never an empty name');
+    ok(/\.c-tipsheet__title \{[^}]*overflow-wrap: anywhere/.test(stripCssComments(tc)),
+      '★ #569 belt: a peer-supplied name is one unbroken token of any length — without this the flex item overflows and the whole sheet scrolls sideways (Damir’s screenshot)');
+  }
+
+  /* —— #570: the overlap grammar assumed a bubble wider than its ornaments ——
+     ⚠ These pins were REWRITTEN after the #46 reviewer showed the first cut was
+     defending the defect: they asserted the literal expression `pills > (box - 8)`
+     and the exact observer-cleanup line, so the CORRECT fix turned them red. Two of
+     them now drive the real code with STUBBED geometry, which is what a jsdom pin can
+     honestly do here — layout is absent, so the component's own zero-guard would
+     otherwise bail before anything is exercised. */
+  {
+    const rx = read('src/components/reactions.js');
+    ok(/el\.style\.width = 'max-content';/.test(rx) && /el\.offsetWidth \|\| 0/.test(rx),
+      '★★ #570: the row is measured through max-content, NOT through its rendered box. It is absolutely positioned INSIDE the bubble, so its rendered width is already clamped to the bubble — reading that would measure the symptom and report that everything fits');
+    ok(/bubble\.__reactionFloorObserver/.test(rx) && /clearOverlapFloor\(bubble\);/.test(rx),
+      '★ #570: ONE observer per bubble, cleared at replace time — addReactions is re-invoked on the SAME live row on every bridge re-emit');
+    ok(/const cap = \(bubble\.parentElement && bubble\.parentElement\.clientWidth\) \|\| 0;/.test(rx)
+       && !/getComputedStyle\(bubble\)\.maxWidth/.test(rx),
+      '★ #570 (round-2 MINOR-1): the floor is capped by the ROW\'s USED width. The bubble\'s computed max-width is `min(82%, 360px)` — parseFloat gives NaN and the clamp never fired, and a bare-percentage variant would have parsed 82% as 82px and clamped the floor away');
+    ok(!/dataset\.placement = stack/.test(rx) && !/'inside' : 'overlap'/.test(rx),
+      '★★ #570: the placement is NEVER flipped by the fit. `inside` is in-flow, so it GROWS the bubble, which makes the too-narrow test false, which flips it back — every bubble the fix is for is one it would jitter at 60 fps');
+  }
+  /* —— #570 BEHAVIOURAL: drive the real code with STUBBED geometry —— */
+  {
+    const dom570 = await load('chat.html');
+    const d570 = dom570.window.document, W570 = dom570.window;
+    const S570 = W570.Spixi;
+    /* jsdom has no layout, so offsetWidth is 0 everywhere and the component's own
+       zero-guard bails. Script the two numbers the fix reads: the pill row's
+       max-content width and the bubble's max-width cap. */
+    let observedCount = 0;
+    let liveObservers = 0;
+    const roLive = [];
+    class FakeRO {
+      constructor(cb) { this.cb = cb; liveObservers++; roLive.push(this); }
+      observe() { observedCount++; }
+      disconnect() { liveObservers--; this.cb = null; }
+      static fireAll() { for (const r of roLive) { if (r.cb) r.cb(); } }
+    }
+    W570.ResizeObserver = FakeRO;
+    const raf = [];
+    W570.requestAnimationFrame = (fn) => { raf.push(fn); return raf.length; };
+    Object.defineProperty(W570.HTMLElement.prototype, 'offsetWidth', {
+      configurable: true,
+      get() { return this.classList && this.classList.contains('c-reactions') ? 134 : 0; },
+    });
+
+    const row570 = S570.createMessageBubble({ text: 'ok', direction: 'sent', strings: {} });
+    d570.body.append(row570);
+    const bub570 = row570.querySelector('.c-bubble');
+
+    S570.addReactions(row570, { reactions: [{ emoji: '❤️', count: 1, own: true }], tip: '5 IXI', strings: {} });
+    ok(raf.length === 1 && !bub570.style.minWidth,
+      '★ #570: nothing is written before layout — the measurement is deferred to a rAF');
+    raf.shift()();
+    const first570 = parseFloat(bub570.style.minWidth) || 0;
+    ok(first570 === 150,
+      '★★ #570 BEHAVIOURAL: a 134px pill row on a short bubble writes a 150px floor (134 + the 8px corner inset + 8px of air) — the bubble now has something to hang from');
+
+    /* ★★ CONVERGENCE, and this time it is DRIVEN. The round-2 reviewer showed the
+       first version proved nothing: addReactions clears the floor before it rebuilds,
+       so a manually seeded value was wiped, and the fake observer never fired — the
+       feedback path, the only place an oscillation can live, was never exercised.
+       Fire the observer repeatedly and assert the value does not move. */
+    FakeRO.fireAll();
+    FakeRO.fireAll();
+    FakeRO.fireAll();
+    ok((parseFloat(bub570.style.minWidth) || 0) === first570,
+      '★★ #570 BEHAVIOURAL: the floor CONVERGES under its OWN observer — three re-entries write the same number and stop. The retired placement flip could not: `inside` grew the bubble, which made the too-narrow test false, which flipped it back, at 60 fps');
+
+    /* THE LEAK — one observer per bubble, however many times the bridge re-emits. */
+    const ro570 = liveObservers;
+    S570.addReactions(row570, { reactions: [{ emoji: '❤️', count: 1, own: true }], tip: '5 IXI', strings: {} });
+    while (raf.length) raf.shift()();
+    ok(liveObservers === ro570 && observedCount >= 2,
+      '★★ #570 BEHAVIOURAL: a re-emit REPLACES the bubble\'s observer instead of stacking one. In overlap the bubble never changes size, so a stale observer would never fire and never self-disconnect — it would leak per reaction event, not per message');
+
+    /* Losing the last reaction must give the bubble its hug back. */
+    S570.addReactions(row570, { reactions: [], tip: '', strings: {} });
+    ok(!bub570.style.minWidth && liveObservers === 0,
+      '★ #570: clearing the reactions clears the floor AND disconnects the observer — a bubble that lost its last heart hugs its text again');
+    delete W570.HTMLElement.prototype.offsetWidth;
+  }
+
+  /* —— #574 ①: the phantom call overlay —— */
+  {
+    const sp = read('Spixi/Network/StreamProcessor.cs');
+    ok(/handleAppRequest\(message\.id, sender_address, message\.recipient, spixi_message\.data, message\.timestamp\)/.test(sp)
+       && /handleAppRequest\(byte\[\] messageId, Address sender_address, Address recipient_address, byte\[\] app_data_raw, long sentTimestamp = 0\)/.test(sp),
+      '★★ #574 ①: the SEND time now reaches the handler. Without it the #265 ring budget restarts from the moment the request is HANDLED, so a queued request drained on a cold boot rings as if it were fresh');
+    ok(/long age = sentTimestamp > 0 \? Clock\.getNetworkTimestamp\(\) - sentTimestamp : 0;/.test(sp)
+       && /if \(age > VoIPManager\.RING_TIMEOUT_SECONDS \+ VoIPManager\.STALE_CALL_MARGIN_SECONDS\)/.test(sp)
+       && /public const int STALE_CALL_MARGIN_SECONDS = 120;/.test(read('Spixi/VoIP/VoIPManager.cs')),
+      '★ #574 ① (review MAJOR-2): the gate is the CALLER\'s own ring budget PLUS a skew margin, both read from VoIPManager. Clock.networkTimeDifference is 0 until a time-synced client connects — which on a cold boot is exactly when this runs — so a receiver whose clock is fast would otherwise refuse a call that is ringing right now');
+    ok(/SPushService\.showLocalNotification\([\s\S]{0,600}?"call"\);/.test(sp)
+       && /notification-missed-call/.test(sp),
+      '★ #574 ① (review MINOR-6): a gated call is ANNOUNCED. The missed-call row it would otherwise rely on is posted by endVoIPSession, which by construction never ran — so a call that arrived entirely while the app was down would leave no notification at all');
+    ok(/if \(SPIXI\.Meta\.SNotificationPrefs\.shouldNotify\(friend\)\s*&& !VoIPManager\.isInitiated\(\)\)/.test(sp),
+      '★★ #574 ① (round-2 MAJOR-3 + MINOR-5): that push goes THROUGH THE GATE — showLocalNotification applies no policy, so posting straight would raise a row for a muted chat or with notifications globally off, and it would overwrite a LIVE call\'s row (same notification id)');
+    ok(/long burned = age > VoIPManager\.STALE_CALL_MARGIN_SECONDS/.test(sp)
+       && /onReceivedCall\(friend, app_data\.sessionId, app_data\.data, burned\)/.test(sp)
+       && /currentCallInitiated = Clock\.getTimestamp\(\) - \(agedSeconds > 0 \? agedSeconds : 0\);/.test(read('Spixi/VoIP/VoIPManager.cs')),
+      '★★ #574 ① (round-2 MAJOR-4): BELOW the gate the ring budget is still SHORTENED by the age already burned. A hard gate alone left every request under 165s ringing for a fresh 45s — including the 90-second-old one in the reported repro');
+    ok(/sentTimestamp > 0 \?/.test(sp),
+      '★★ #574 ① FAIL OPEN: a request with NO timestamp (an older peer) is never suppressed — a real call must not be dropped because a field was absent');
+    ok(/stale\.type = FriendMessageType\.voiceCallEnd;/.test(sp)
+       && /sentTimestamp, false, false\);/.test(sp),
+      '★ #574 ①: a stale request is RECORDED as the missed call it already is (voiceCall re-typed to voiceCallEnd with an empty body = the shape both surfaces read as "Missed call") — and with the notification and the alert OFF, so it cannot buzz for a call that is over');
+    const gateI = sp.indexOf('if (age > VoIPManager.RING_TIMEOUT_SECONDS + VoIPManager.STALE_CALL_MARGIN_SECONDS)');
+    const ringI = sp.indexOf('VoIPManager.onReceivedCall(friend, app_data.sessionId, app_data.data, burned)');
+    ok(gateI > 0 && ringI > gateI,
+      '★ #574 ①: the gate sits BEFORE onReceivedCall — a session must never be created for a call nobody is on, because accepting it is the one-sided call Damir got');
+  }
+
+  /* —— #565: the boot capture, and the restore-outcome split —— */
+  {
+    const hp = read('Spixi/Pages/Home/HomePage.xaml.cs');
+    const lp = read('Spixi/Pages/Launch/LaunchPage.xaml.cs');
+    ok(/\[RESTOREDIAG\] loadChats run \{0\}: friends=\{1\} accFiles=\{2\}/.test(hp)
+       && /\[RESTOREDIAG\] loadChats flushed: chats=\{0\} requests=\{1\} unread=\{2\}/.test(hp),
+      '★ #565 ②: the capture brackets loadChats at BOTH ends — the earlier two captures (#571 ②) stopped before the flush, which is why the delay stayed open');
+    ok(/bool diag = restoreDiagRuns < 8 \|\| friends\.Count == 0;/.test(hp),
+      '★ #565 ②: bounded to the boot window plus every EMPTY-roster run — a long session must not bury the evidence, and an empty roster is always the interesting case');
+    ok(/Directory\.Exists\(acc\) \? Directory\.GetFiles\(acc, "\*", SearchOption\.AllDirectories\)\.Length : -1/.test(hp)
+       && /return -2;/.test(hp),
+      '★ #565 ②: the Acc inventory distinguishes ABSENT (-1), UNREADABLE (-2) and EMPTY (0) — the three answers point at three different layers, and one number for all of them would decide nothing');
+    ok(!/\[RESTOREDIAG\][^"]*\{[0-9]\}[^"]*(address|nick|Address|Nick)/.test(hp),
+      '★ #565 ② gate: the capture prints counts only — no address, no nickname, no filename (ixian.log is DevPage-shareable)');
+    ok(/private enum RestoreOutcome/.test(lp)
+       && /NotAnAccountBackup,/.test(lp) && /Restored,/.test(lp) && /Failed,/.test(lp) && /FailedReported,/.test(lp),
+      '★ #565 residual: the restore reports WHICH of the outcomes happened, instead of one bool for all of them');
+    ok(/case RestoreOutcome\.NotAnAccountBackup:[\s\S]{0,400}?restoreWalletFile\(source_path, pass\);/.test(lp),
+      '★★ #565 residual: ONLY "not an account backup" falls through to the wallet path. Past the header, source_path holds the ZIP — so the fallback would verify a zip as a wallet and report a PASSWORD error for a disk fault');
+    ok(/bool headerMatched = false;/.test(lp) && /headerMatched = true;/.test(lp)
+       && /return headerMatched \? RestoreOutcome\.Failed : RestoreOutcome\.NotAnAccountBackup;/.test(lp),
+      '★ #565 residual: the catch tells the two failure kinds apart by the header, which is the exact line where the file stops being "maybe not ours"');
+    ok(/if \(decrypted\.Length < header\.Length\)/.test(lp),
+      '★ #565 residual: a file shorter than the header is NOT an account backup — reading past its end would throw into the catch and be reported as a failed account restore');
+    ok(!/File\.WriteAllBytes\(source_path, zipFileBytes\);/.test(lp)
+       && /string zipPath = source_path \+ "\.zip";/.test(lp)
+       && /ZipFile\.ExtractToDirectory\(zipPath, tmpDirectory\);/.test(lp),
+      '★★ #565 (review MAJOR-3): the staged envelope is NOT consumed. Writing the zip over wallet.ixi.tmp destroyed it before the inner wallet was verified, so ONE mistyped password made the CORRECT password fail forever — the retry decrypted a raw zip and fell through to the bare-wallet path');
+    ok(/bool restoreCommitted = false;/.test(lp) && /restoreCommitted = true;/.test(lp)
+       && /if \(restoreCommitted\)\s*\{[\s\S]{0,220}?return RestoreOutcome\.Restored;/.test(lp),
+      '★ #565 (round-2 MINOR-2): a throw from the CLEANUP after the wallet is installed reports Restored, not Failed — otherwise the alert said "could not be restored" for an account already on disk, with goHome never called');
+    ok(/string strayZip = source_path \+ "\.zip";[\s\S]{0,120}?File\.Delete\(strayZip\);/.test(lp),
+      '★ #565 (round-2 MINOR-3): a DECRYPTED account archive orphaned by a killed process is swept on the next attempt — nothing else on disk knows that name');
+    for (const code of ['en-us', 'de-de', 'ja-jp']) {
+      const v = (read('Spixi/Resources/Raw/lang/' + code + '.txt').match(/^intro-restore-account-failed-text = (.+)$/m) || [])[1] || '';
+      ok(v.trim().length > 0,
+        '★ #565 residual: the mid-restore alert has a REAL value in ' + code + ' (the #564 defect was exactly a missing key)');
+    }
+  }
+
+  /* —— #575: the address row is the ONE entry, and the sheet is the ONE surface —— */
+  {
+    const wr = read('src/components/wallet-receive.js');
+    ok(/className = 'c-wallet-receive__copy c-addr-sheet__sharebtn'/.test(wr)
+       && /addrRow\.append\(share\);/.test(wr)
+       && !/c-addr-sheet__share'/.test(wr),
+      '★ #575: Share is built as an icon control ON the chip; the full-width outline row is gone');
+    ok(/explain\.append\(disc, info, shieldWrap, safety\);/.test(wr),
+      '★ #575: the explainer is FOUR children in a two-column grid — glyph, copy, glyph, copy — so both paragraphs share one left edge');
+    ok(/dismiss\.addEventListener\('click', \(\) => \{ try \{ closeSheet\(sheet\); \} catch \(e\) \{\} \}\);/.test(wr),
+      '★ #575: the dismiss control leaves by the ONE route every other exit uses (dismissOverlay), so the live-sheet latch is cleared by onDismiss and not by a second code path');
+  }
+}
+
+
+/* ═══════════ THE WALK-DAY TRIAGE FIXES (#584–#587) ═════════════════════════════
+ * Damir's walk produced three root causes; the round-2 reviewer then found two MAJORs
+ * in the FIRST cut of these fixes, and flagged that several of my pins were asserting
+ * the buggy line rather than the property. Rewritten from the property. */
+{
+  const read = (pth) => readFileSync(join(root, pth), 'utf8');
+
+  /* —— #584: the contacts one-shot latch —— */
+  {
+    const nd = read('Spixi/Meta/Node.cs');
+    const pre = nd.slice(nd.indexOf('static public void preStart()'), nd.indexOf('static public bool start()'));
+    ok(/FriendList\.contactsLoaded = false;/.test(pre),
+      '★★ #584: preStart re-arms the contacts one-shot. `loadContacts` is guarded by a PROCESS-LIFETIME latch cleared only in FriendList.init, so a second account load in one process kept an empty list — `friends=0 accFiles=15` in Damir\'s capture');
+    /* ★★ round-2 MAJOR-1: the re-arm is CONDITIONAL on an EMPTY list, and that is the
+       whole safety argument. preStart also runs on RESUME (App.EnsureNodeRunning) where
+       `running` is false, and `loadContacts` begins with `friends.Clear()` and rebuilds
+       every Friend as a NEW object — orphaning the reference an open SingleChatPage
+       captured in its constructor. An empty list has no live Friend to orphan. */
+    ok(/if \(FriendList\.friends\.Count == 0\)\s*\{\s*(?:\/\/[^\n]*\n\s*)*FriendList\.contactsLoaded = false;/.test(pre),
+      '★★ #584 (round-2 MAJOR-1): the re-arm fires ONLY on an EMPTY list. Unconditional, it rebuilt every Friend on the ordinary background→resume path and orphaned the reference an open chat page holds — a message that never renders and a reply that is never persisted');
+    ok((nd.match(/FriendList\.contactsLoaded = false;/g) || []).length === 1,
+      '★ #584: ONE re-arm site in the whole app');
+    ok(/try\s*\{\s*FriendList\.loadContacts\(\);\s*\}\s*catch/.test(pre),
+      '★ #584 (round-2 NIT-2): loadContacts enumerates the Acc directory unguarded and one caller of preStart is a PAGE CONSTRUCTOR — a missing Acc must not throw out of it');
+  }
+
+  /* —— #585: the wiped account's pages, and the mini apps —— */
+  {
+    const sp = read('Spixi/Pages/Settings/SettingsPage.xaml.cs');
+    const lp = read('Spixi/Pages/Launch/LaunchPage.xaml.cs');
+    // ⚠ slice to the NEXT member, not by a byte count — this method's comments are long
+    // and a fixed window silently cut the removal loop out of the region being tested.
+    const gwStart = sp.indexOf('private void goToWelcome()');
+    const gw = sp.slice(gwStart, sp.indexOf('public void onDeleteAccount', gwStart));
+    ok(/hostNav\.RemovePage\(/.test(gw) && !/Todo: also remove the parent page/.test(sp),
+      '★★ #585: goToWelcome REMOVES the wiped account\'s pages. It popped to root — which is HomePage — and pushed LaunchPage on top, leaving it alive underneath; the TODO that said so is gone with the defect');
+    /* ⚠ round-2 MINOR-3: the WHOLE prefix, not index 0. When this page is an overlay,
+       popToRootAsync never touches the native stack, so a legacy page can sit above
+       HomePage and would be left directly beneath LaunchPage — the defect one level up. */
+    ok(/new List<Page>\(hostNav\.NavigationStack\)/.test(gw) && /foreach \(Page stale in stalePages\)/.test(gw),
+      '★★ #585 (round-2 MINOR-3): EVERY page beneath the new LaunchPage is removed, not only index 0 — an overlay-presented wipe can leave a legacy page above HomePage');
+    ok(/stale is SpixiContentPage staleContent/.test(gw) && /staleContent\.Dispose\(\)/.test(gw),
+      '★★ #585 (round-2 MINOR-2): each removed page is DISPOSED. Dispose is what detaches the WebView; removed-but-undisposed, the wiped account\'s home document stays live and warm — the same hazard the parked-overlay note invokes');
+    const pushI = gw.indexOf('hostNav.PushAsync(launch');
+    const remI = gw.indexOf('hostNav.RemovePage(');
+    ok(pushI > 0 && remI > pushI,
+      '★ #585: the removals run AFTER the push — MAUI rejects removing the page that is still displayed');
+    /* ⚠ round-2 MINOR-1: "no wallet" alone TRAPPED the user. On a fresh install and on the
+       retry view LaunchPage IS the root, and back there is how you leave the app. */
+    ok(/Navigation\.NavigationStack\.Count > 1 && IxianHandler\.wallets\.Count == 0/.test(lp),
+      '★★ #585 belt (round-2 MINOR-1): back is swallowed only when a page sits BEHIND this one. Gating on "no wallet" alone made the first screen of a fresh install inescapable');
+    ok(/Node\.MiniAppManager\.removeAllApps\(\);/.test(sp),
+      '★ #585 rider: the wipe takes the MINI APPS. Node.stop only STOPS the manager; nothing deleted the installed apps, so a create or restore inherited them');
+    /* ★★ round-2 MAJOR-2: the sweep must read the DISK. wipeEverything's step 1 already
+       ran MiniAppManager.stop(), which CLEARS appList — so a dictionary walk deleted
+       nothing, returned 0, and looked clean in the log while every app survived. */
+    const mam = read('Spixi/MiniApps/MiniAppManager.cs');
+    const ral = mam.slice(mam.indexOf('public int removeAllApps()'), mam.indexOf('public MiniApp? getApp'));
+    ok(/Directory\.EnumerateDirectories\(appsPath\)/.test(ral) && !/appList\.Keys/.test(ral),
+      '★★ #585 rider (round-2 MAJOR-2): removeAllApps sweeps the DIRECTORY, not appList — the wipe stops the manager first, which empties the dictionary, so the first cut deleted nothing and the next start handed every app back');
+    ok(/string\.Equals\(path, tmpPath, StringComparison\.Ordinal\)/.test(ral),
+      '★ #585 rider: the manager\'s own scratch directory is not treated as an app');
+    ok(/catch \(Exception e\)\s*\{[\s\S]{0,400}?Could not remove mini app directory/.test(ral),
+      '★ #585 rider: each delete is wrapped on its own — one directory held open must not skip the rest');
+  }
+
+  /* —— #586: the ring gate —— */
+  {
+    const vm = read('Spixi/VoIP/VoIPManager.cs');
+    const np = read('Spixi/Meta/SNotificationPrefs.cs');
+    ok(/if \(!SPIXI\.Meta\.SNotificationPrefs\.shouldRingForCall\(friend\)\)/.test(vm),
+      '★★ #586 item 33: the MUTE reaches the RING. The push gate worked and the phone rang anyway, with nothing on screen to explain it — only SPushService consulted the prefs');
+    /* ⚠ round-2 MINOR-5: ringing is not notifying. `shouldNotify` returns false on the
+       GLOBAL master, which is a tray setting — gating the ring on it made an incoming
+       call completely invisible for a user who only turned off message banners. */
+    ok(/public static bool shouldRingForCall\(Friend\? friend\)/.test(np)
+       && !/notificationsEnabled/.test(np.slice(np.indexOf('shouldRingForCall'), np.indexOf('shouldRingForCall') + 900)),
+      '★★ #586 (round-2 MINOR-5): the ring has its OWN predicate and does NOT inherit the global notifications master — a user who silenced banners has not asked to stop receiving calls');
+    ok(/app\.isAppLockActive/.test(vm),
+      '★★ #586: no ring while OUR lock is up. #272 made the lock and the call surface mutually exclusive, so a call behind the lock rang the full 45 s with no UI and no way to stop it (Damir re-dialled that clause himself)');
+    ok(/catch \(Exception rex\)[\s\S]{0,220}?ringAllowed = true;/.test(vm),
+      '★★ #586: a gate that THROWS must not silence a real call — the catch fails OPEN');
+    const gateI = vm.indexOf('bool ringAllowed = true;');
+    const timeoutI = vm.indexOf('startRingTimeout();   // #265: the incoming overlay auto-clears');
+    ok(gateI > 0 && timeoutI > gateI,
+      '★★ #586: only the SOUND is gated. The session is still created and the #265 timeout still runs, so a suppressed ring still becomes a missed call and is still answerable from the notification');
+  }
+
+  /* —— #587: the first long press after a restore —— */
+  {
+    const da = read('src/components/desktop-anchors.js');
+    const ci = read('src/components/chatlist-item.js');
+    ok(/if \(address\) el\.dataset\.address = String\(address\);/.test(ci),
+      '★ #587: chat rows carry their address, so a replacement row can be FOUND after a flush rebuilt the list');
+    /* ★★ round-2 MINOR-4: re-resolve the LIVE row; do NOT reuse the pressed row's
+       rectangle. The same flush that detaches the row also RE-SORTS the list, so a stale
+       viewport rect can anchor the menu over a different conversation while it acts on
+       this one. The bottom sheet made no positional claim; a wrong one is worse. */
+    ok(/if \(!row\.isConnected && address\)/.test(da)
+       && /document\.querySelector\('\.c-chatlist-item\[data-address="' \+ CSS\.escape\(String\(address\)\) \+ '"\]'\)/.test(da),
+      '★★ #587 (round-2 MINOR-4): a DETACHED row is RE-RESOLVED by address, never replaced by its old rectangle — the flush that detaches also re-sorts, so a stale rect points the menu at the wrong conversation');
+    ok(!/rowRect/.test(da) && !/rowRect/.test(read('src/components/chats-row-menu.js')),
+      '★ #587: the press-time-rect fallback is GONE from both files — one mechanism, not two');
+    ok(/if \(!fr\.width \|\| !rr\.height\) return sheet;/.test(da),
+      '★★ #587: when no live row can be found the bottom sheet STAYS. An unfindable row must fail soft, exactly as an unmeasurable one always did');
+  }
 }
 
 

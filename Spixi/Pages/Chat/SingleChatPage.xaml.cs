@@ -2382,12 +2382,23 @@ namespace SPIXI
                     text = SpixiLocalization._SL("chat-call-incoming");
                 }
                 bool declined = false;
-                if(message.message == "")
+                /* ★ #572 ④ (Damir's walk, B6): a call the USER declined rendered as
+                 * "Missed call". The R-2 fix (#554) stopped the missed-call NOTIFICATION
+                 * correctly; this label is the other half, and it is read from history,
+                 * so it needs the durable marker rather than a live flag. */
+                bool declinedLocally = VoIPManager.isDeclinedLocally(message);
+                if(message.message == "" || declinedLocally)
                 {
                     if(message.type == FriendMessageType.voiceCallEnd || !VoIPManager.hasSession(message.id))
                     {
                         declined = true;
-                        if (message.localSender)
+                        if (declinedLocally)
+                        {
+                            // The user saw the call and answered it with a decline. Same
+                            // wording on both sides: this device turned the call down.
+                            text = SpixiLocalization._SL("chat-call-declined") ?? "Call declined";
+                        }
+                        else if (message.localSender)
                         {
                             text = SpixiLocalization._SL("chat-call-no-answer");
                         }
@@ -2410,8 +2421,12 @@ namespace SPIXI
                 {
                     duration_secs = message.message;
                 }
-                // C4: trailing outgoing/missed/duration. New args go LAST — never reorder.
-                Utils.sendUiCommand(this, "addCall", Crypto.hashToString(message.id), text, declined.ToString(), message.timestamp.ToString(), message.localSender.ToString(), (declined && !message.localSender).ToString(), duration_secs);
+                /* C4: trailing outgoing/missed/duration. New args go LAST — never reorder.
+                 * #572 ④ adds an 8th: declinedLocally. `missed` stays as it was, because
+                 * an OLDER shell reading only 7 args must keep its present behaviour;
+                 * the new shell prefers the 8th and renders the declined card
+                 * (phone-x, no call-back nudge — the #87⑦ grammar). */
+                Utils.sendUiCommand(this, "addCall", Crypto.hashToString(message.id), text, declined.ToString(), message.timestamp.ToString(), message.localSender.ToString(), (declined && !message.localSender).ToString(), duration_secs, declinedLocally.ToString());
             }
 
             updateMessageReadStatus(message, channel);

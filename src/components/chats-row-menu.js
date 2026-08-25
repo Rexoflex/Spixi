@@ -1,3 +1,80 @@
+/* ★★ #572 ③ (the E-3 dial, CALLED BY EVIDENCE) — THE PRESSED CHAT ROW LIFTS.
+ *
+ * Damir's walk, F19 on Android: with the mobile anchored dropdown open, the row he
+ * long-pressed is not visibly above the deep scrim. The #506② promoted-row treatment
+ * exists, but the chats list never got it: `[data-dt-ctx-source]` is the DESKTOP
+ * highlight and lives under `:root[data-desktop]`, and the message menu's lift is
+ * wired in message-menu.js only.
+ *
+ * ★ THE #506② STACKING CHECK, RUN FIRST, ON THIS CHAIN — because the failure is
+ * SILENT: nothing logs and the row simply stays under the scrim.
+ *   body (flex, overflow:hidden)          → no stacking context
+ *   .view                                  → no stacking context
+ *   .u-scroll#chat-scroll (overflow:auto)  → CLIPS to the scroller, no context
+ *   the list element                       → no stacking context
+ *   .c-swipe (position:relative, z auto,
+ *             overflow:hidden)             → CLIPS to the row box, no context
+ *   .c-swipe__content (position:relative)  → transform is CLEARED to '' at rest
+ *                                            (chats-swipe.js:88), so no context…
+ *   ⚠ …EXCEPT under `.c-swipe[data-open]`, which adds `will-change: transform`
+ *     (chats-swipe.css:47). That IS a stacking context, and it would cap the lift.
+ *
+ * ★ So the lift goes on `.c-swipe`, the OUTERMOST per-row node, not on the item.
+ * Both hazards then sit INSIDE the lifted element and can no longer contain it:
+ * the drawer's transform and its will-change are descendants. It also puts the row
+ * outside `.c-swipe`'s own `overflow:hidden`, so the lifted row's ground is not
+ * clipped. `row` itself is the fallback when the swipe wrapper is parked.
+ *
+ * ⚠ The lift runs ONLY when the anchored dropdown actually applied
+ * (`sheet.dataset.mAnchor`). anchorSheetToRow keeps the bottom sheet when the row is
+ * unmeasurable, and on desktop it no-ops — desktop keeps the #268 press wash.
+ *
+ * ⚠ The value is 'row', not ''. `[data-menu-lift]` (message-menu.css) matches both
+ * and gives position/z-index/pointer-events to each; only the chat row also needs an
+ * opaque ground, because `.c-chatlist-item` is transparent and a message row must
+ * stay transparent so the canvas shows around the bubble. */
+let liveRowLift = null;   // { addr } — the row an OPEN anchored row menu points at
+
+/* ★★ round-2 MAJOR-1 + MAJOR-2. Two defects, one cause: the first cut kept the lift
+ * state in the DOM and undid it through a captured node.
+ *   · MAJOR-1: `act()` closes the sheet and runs the action SYNCHRONOUSLY, and the
+ *     action re-renders the list. `onDismiss` is deferred by up to 400 ms, so its undo
+ *     fired on a node the re-render had already thrown away — and the REPLACEMENT node,
+ *     lifted by renderChatsList, had no undo at all. A lifted row is
+ *     pointer-events:none, so tapping "Mark as read" left that chat dead to taps.
+ *   · MAJOR-2: `document.querySelector` returns the FIRST match in document order, and
+ *     a dismissing sheet is still in the DOM ahead of a newly opened one. A flush
+ *     during that window lifted the OLD row and left the new one under the scrim.
+ * So the live lift is MODULE state (one truth, no document order), the release is
+ * DOM-WIDE (it cannot miss a node it did not create), and it runs SYNCHRONOUSLY at the
+ * action as well as through onDismiss. */
+function releaseRowLift() {
+  liveRowLift = null;
+  if (typeof document === 'undefined') return;
+  try {
+    const lifted = document.querySelectorAll('[data-menu-lift="row"]');
+    for (const n of lifted) { try { delete n.dataset.menuLift; } catch (e) {} }
+  } catch (e) {}
+}
+
+function liftPressedRow(sheet, row, address) {
+  if (!sheet || !sheet.dataset || sheet.dataset.mAnchor === undefined || !row) return () => {};
+  const lift = (row.closest && row.closest('.c-swipe')) || row;
+  if (!lift || !lift.dataset) return () => {};
+  releaseRowLift();                       // a previous menu's lift never outlives this one
+  lift.dataset.menuLift = 'row';
+  liveRowLift = { addr: address ? String(address) : '' };
+  return releaseRowLift;
+}
+
+/** ★ review MINOR-3: the address of the row an ANCHORED row menu currently points at,
+ *  or ''. renderChatsList asks on every row it builds, so a flush that lands while the
+ *  menu is open re-applies the lift to the replacement node instead of dropping it.
+ *  Empty on desktop and for a fail-soft bottom sheet — neither sets [data-m-anchor]. */
+export function liftedRowAddress() {
+  return liveRowLift ? liveRowLift.addr : '';
+}
+
 /**
  * Chat-row context menu (step 4; spec §6). Long-press / right-click a chat row →
  * c-sheet with Pin/Mute/Mark read/Chat info/Delete. Reuses the c-msgmenu sheet
@@ -39,7 +116,13 @@ export function openChatRowMenu({ chat = {}, row = null, host, onAction, onNeedG
   const list = document.createElement('div');
   list.className = 'c-msgmenu__list';
 
-  const act = (action) => { closeSheet(sheet); if (onAction) onAction(action); };
+  const act = (action) => {
+    // ★ round-2 MAJOR-1: release BEFORE the action. onAction re-renders the list in
+    // this same tick, and onDismiss does not run for up to 400 ms.
+    releaseRowLift();
+    closeSheet(sheet);
+    if (onAction) onAction(action);
+  };
   const item = (glyph, label, onClick, destructive = false) => {
     const b = document.createElement('button');
     b.type = 'button';
@@ -54,6 +137,7 @@ export function openChatRowMenu({ chat = {}, row = null, host, onAction, onNeedG
   // pin/mute/mark-read/info/open while the key exchange is still in flight.
   if (handshaking) {
     item('x', strings.cancelHandshake || 'Cancel handshake', () => {
+      releaseRowLift();   // round-2 MAJOR-1: the modal replaces the menu; the lift must not survive it
       closeSheet(sheet);
       openModal(createModal({
         title: strings.cancelHandshakeTitle || 'Cancel handshake?',
@@ -66,9 +150,11 @@ export function openChatRowMenu({ chat = {}, row = null, host, onAction, onNeedG
       }));
     }, true);
     content.append(list);
-    const sheet = createSheet({ content, host, strings });
+    let undoLift = () => {};
+    const sheet = createSheet({ content, host, strings, onDismiss: () => undoLift() });
     openSheet(sheet);
-    anchorSheetToRow(sheet, row, { host });   // ★ Batch E (a) (#557): mobile dropdown, above the row
+    anchorSheetToRow(sheet, row, { host, address: chat && chat.address });   // ★ Batch E (a) (#557): mobile dropdown, above the row
+    undoLift = liftPressedRow(sheet, row, chat && chat.address);    // ★ #572 ③: and the row it points at lifts above the scrim
     return sheet;
   }
 
@@ -103,23 +189,31 @@ export function openChatRowMenu({ chat = {}, row = null, host, onAction, onNeedG
        The Friend record stays so a later accept completes; the flow's words say
        exactly what happens. */
     item('eye-off', strings.hideRequest || 'Hide request', () => {
+      releaseRowLift();
       closeSheet(sheet);
       openRevokeRequestFlow({ chat, host, onAction, strings });
     });
   } else if (capabilities.delete) {
     item('trash', strings.deleteChat || 'Delete chat', () => {
+      releaseRowLift();
       closeSheet(sheet);
       openDeleteFlow({ chat, host, onAction, onNeedGroups, strings });
     }, true);
   }
 
   content.append(list);
-  const sheet = createSheet({ content, host, strings });
+  /* ⚠ onDismiss, not the action handlers: overlay.js raises it on EVERY route out —
+   * an action, the scrim, Esc and the Android back button. A lift cleared only in
+   * act() would strand a permanently lifted row, and a lifted row is
+   * pointer-events:none — a chat the user can no longer tap. */
+  let undoLift = () => {};
+  const sheet = createSheet({ content, host, strings, onDismiss: () => undoLift() });
   openSheet(sheet);
   /* ★ Batch E (a) (#557, Damir 2026-08-22): the chats-row menu anchors to the
    * long-pressed row on mobile — same grammar as the message menu, one helper.
    * A caller with no row element keeps the bottom sheet (fail-soft). */
-  anchorSheetToRow(sheet, row, { host });
+  anchorSheetToRow(sheet, row, { host, address: chat && chat.address });
+  undoLift = liftPressedRow(sheet, row, chat && chat.address);    // ★ #572 ③ (E-3): the pressed row above the scrim
   return sheet;
 }
 

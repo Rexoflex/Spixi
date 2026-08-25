@@ -1,4 +1,4 @@
-language-code = cn-cn
+﻿language-code = cn-cn
 language = 中文
 
 ; Address Screen
@@ -126,6 +126,7 @@ chat-call-outgoing = 拨出电话
 chat-call-incoming = 来电
 chat-call-no-answer = 无应答
 chat-call-missed = 未接来电
+chat-call-declined = 已拒接
 chat-call-ended = 通话结束
 chat-online = 在线
 chat-offline = 离线
@@ -367,6 +368,7 @@ intro-restore-file-error-title = Could not read the backup file
 intro-restore-file-selecterror-text = The file could not be selected. Try again, or copy the backup file to this device first.
 intro-restore-file-readerror-text = The file could not be read. Check that the backup file is complete, then try again.
 intro-restore-file-writeerror-text = The file could not be prepared. Check the free space on this device, then try again.
+intro-restore-account-failed-text = 这是 Spixi 账户备份，但无法恢复。请检查本设备的可用空间，然后使用原始备份文件重试。
 intro-restore-pass-title = 输入备份密码
 intro-restore-pass-subtitle = 要恢复您的 Spixi 账户，请输入用于保护您的备份文件的密码。
 intro-restore-pass-placeholder = 输入密码

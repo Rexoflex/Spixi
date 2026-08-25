@@ -363,6 +363,25 @@ namespace SPIXI
                 return true;
             }
 
+            /* ★★ #585, THE BELT. The defect is that the wiped account's HomePage used to be
+             * left underneath this page (SettingsPage.goToWelcome now removes it), and back
+             * at `welcome` fell through to base, popped this page and revealed it —
+             * connecting forever on an account that no longer exists.
+             * Independently of that fix: while NO WALLET IS LOADED there is nothing behind
+             * this page worth showing, on any path that reaches here. Swallow back, exactly
+             * as the create/restore views do. A wallet-less app that pops its launch screen
+             * has nowhere honest to land. */
+            /* ⚠ round-2 MINOR-1: "no wallet" ALONE traps the user. On a fresh install and
+             * on the retry view this page IS the navigation root (App.xaml.cs), and back
+             * there is how you leave the app — swallowing it made the first screen of the
+             * app inescapable. The property the belt actually wants is "there is something
+             * behind me", and after a wipe the stack is exactly [HomePage, LaunchPage]. */
+            if (Navigation.NavigationStack.Count > 1 && IxianHandler.wallets.Count == 0)
+            {
+                Logging.info("LaunchPage back: swallowed, a page sits behind us and no wallet is loaded (#585)");
+                return true;
+            }
+
             return base.OnBackButtonPressed();
         }
 
@@ -600,43 +619,136 @@ namespace SPIXI
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
                 return false;
             }
-            if (restoreAccountFile(source_path, pass))
+            /* ★★ #565 residual (Damir): "not an account backup" and "an account backup
+             * that failed mid-restore" were the SAME return value, and both fell through
+             * to the bare-wallet path. That fall-through is right for the first and wrong
+             * for the second, because by then the header has already matched and
+             * `source_path` has been OVERWRITTEN with the raw zip bytes — so
+             * restoreWalletFile verifies a zip as a wallet, fails, and reports a PASSWORD
+             * ERROR for what was actually a disk or extraction failure. The user retypes
+             * a correct password for as long as they can bear it.
+             * Three outcomes now, and only one of them falls through. */
+            switch (restoreAccountFile(source_path, pass))
             {
-                return true;
+                case RestoreOutcome.Restored:
+                    return true;
+
+                case RestoreOutcome.FailedReported:
+                    // Already told, already released — nothing to add.
+                    return false;
+
+                case RestoreOutcome.Failed:
+                    /* The file WAS an account backup, proved by its header. Say what went
+                     * wrong (#334 L1: never a silent wedge, never a wrong reason) and stop.
+                     * The bare-wallet path must NOT run: an account backup is not a wallet
+                     * file, so it would fail verification and report "wrong password" for a
+                     * disk or extraction fault. (Since review MAJOR-3 the envelope is no
+                     * longer destroyed, so a retype with the same file is now possible —
+                     * this branch stops the WRONG REASON, not a lost file.) */
+#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+                    displaySpixiAlert(SpixiLocalization._SL("intro-restore-file-error-title") ?? "Could not read the backup file", SpixiLocalization._SL("intro-restore-account-failed-text") ?? "This is a Spixi account backup, but it could not be restored. Check the free space on this device, then try again with the original backup file.", SpixiLocalization._SL("global-dialog-ok") ?? "Ok");
+#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+                    Utils.sendUiCommand(this, "removeLoadingOverlay");
+                    return false;
+
+                case RestoreOutcome.NotAnAccountBackup:
+                default:
+                    // A bare wallet file (or the wrong password, which cannot be told
+                    // apart before the header). The wallet path owns both, unchanged.
+                    restoreWalletFile(source_path, pass);
+                    return true;
             }
-            restoreWalletFile(source_path, pass);
-            return true;
         }
 
-        private bool restoreAccountFile(string source_path, string pass)
+        /* #565 residual: the three ways a restore can end. `NotAnAccountBackup` is the
+         * only one that may fall through to the bare-wallet path. */
+        private enum RestoreOutcome
+        {
+            NotAnAccountBackup,
+            Restored,
+            Failed,
+            /* An account backup whose inner wallet did not verify. The method has ALREADY
+             * shown the password error and released the shell, so the caller must not
+             * speak over it with a second, wrong reason. */
+            FailedReported,
+        }
+
+        private RestoreOutcome restoreAccountFile(string source_path, string pass)
         {
             // TODO add file header
             string tmpDirectory = Path.Combine(Config.spixiUserFolder, "tmp_zip");
+            // #565 residual: declared OUTSIDE the try so the catch can tell the two
+            // failure kinds apart (see the note at the header check).
+            bool headerMatched = false;
+            /* round-2 MINOR-2: set once the wallet and the Acc tree are actually in place.
+             * A throw in the CLEANUP after that point must not report a failed restore for
+             * an account that is already installed. */
+            bool restoreCommitted = false;
             try
             {
                 if(Directory.Exists(tmpDirectory))
                 {
                     Directory.Delete(tmpDirectory, true);
                 }
+                /* round-2 MINOR-3: a process killed between writing the scratch archive and
+                 * its finally leaves the DECRYPTED account zip on disk, and nothing later
+                 * knows the name. Sweep it here, where the name is known. */
+                try
+                {
+                    string strayZip = source_path + ".zip";
+                    if (File.Exists(strayZip)) { File.Delete(strayZip); }
+                }
+                catch (Exception) { }
                 Directory.CreateDirectory(tmpDirectory);
                 byte[] decrypted = CryptoManager.lib.decryptWithPassword(File.ReadAllBytes(source_path), pass, true);
                 if (decrypted == null)
                 {
+                    // Wrong password, or not our envelope. Indistinguishable here, and both
+                    // belong to the wallet path — which asks for the password honestly.
                     Directory.Delete(tmpDirectory, true);
-                    return false;
+                    return RestoreOutcome.NotAnAccountBackup;
                 }
                 byte[] header = UTF8Encoding.UTF8.GetBytes("SPIXIACCB1");
+                /* #565 residual: a file SHORTER than the header is not an account backup
+                 * either — and reading past its end would throw into the catch, where it
+                 * would be reported as a failed account restore instead. */
+                if (decrypted.Length < header.Length)
+                {
+                    Directory.Delete(tmpDirectory, true);
+                    return RestoreOutcome.NotAnAccountBackup;
+                }
                 for(int i = 0; i < header.Length; i++)
                 {
                     if(decrypted[i] != header[i])
                     {
                         Directory.Delete(tmpDirectory, true);
-                        return false;
+                        return RestoreOutcome.NotAnAccountBackup;
                     }
                 }
+                /* ★ Past this line the file IS an account backup. Every exit from here is a
+                 * FAILED ACCOUNT RESTORE, never "not ours": falling through to the
+                 * bare-wallet path would verify an account backup as a wallet and report a
+                 * password error for a disk or extraction fault. */
+                headerMatched = true;
                 byte[] zipFileBytes = decrypted.Skip(header.Length).ToArray();
-                File.WriteAllBytes(source_path, zipFileBytes);
-                ZipFile.ExtractToDirectory(source_path, tmpDirectory);
+                /* ★★ review MAJOR-3 (#565 residual): DO NOT CONSUME THE STAGED FILE.
+                 * This used to write the zip bytes OVER `source_path` (wallet.ixi.tmp).
+                 * The inner wallet is verified AFTER that, so one mistyped password
+                 * destroyed the envelope: the retry then decrypted a raw zip, fell through
+                 * to the bare-wallet path, and reported "wrong password" for the CORRECT
+                 * password — forever, with nothing on screen saying to pick the file again.
+                 * The zip goes to its own scratch file, and the staged envelope survives
+                 * every failure so a retype can succeed. */
+                string zipPath = source_path + ".zip";
+                File.WriteAllBytes(zipPath, zipFileBytes);
+                try
+                {
+                    ZipFile.ExtractToDirectory(zipPath, tmpDirectory);
+                }
+                finally
+                {
+                    try { if (File.Exists(zipPath)) { File.Delete(zipPath); } } catch (Exception) { }
+                }
                 /* ★ #565 (Damir, A2 walk): heal WINDOWS-MADE backups on Unix platforms.
                  * BackupPage used to write zip entries with the PLATFORM separator, so a
                  * backup made on the PC carries names like "Acc\xxx\file" — and
@@ -661,7 +773,11 @@ namespace SPIXI
                     Utils.sendUiCommand(this, "showPasswordError");
                     // Remove overlay
                     Utils.sendUiCommand(this, "removeLoadingOverlay");
-                    return false;
+                    /* #565 residual: NOT NotAnAccountBackup. The header matched, so this IS
+                     * an account backup and source_path already holds the zip — the wallet
+                     * fallback would verify a zip as a wallet and report the same password
+                     * error a second time, from the wrong layer. */
+                    return RestoreOutcome.FailedReported;
                 }
                 /* ★ #565: exists-guards. Directory.Delete THROWS on a missing folder, and
                  * the delete-account wipe (or a fresh install) can leave no Acc — the throw
@@ -695,17 +811,31 @@ namespace SPIXI
                 File.Move(Path.Combine(tmpDirectory, "wallet.ixi"), Path.Combine(Config.spixiUserFolder, "wallet.ixi"));
 
                 Node.loadWallet();
+                restoreCommitted = true;          // round-2 MINOR-2: past this line the account IS restored
                 Directory.Delete(tmpDirectory, true);
                 File.Delete(source_path);
                 IxianHandler.localStorage.accountRestored = true;
                 goHome();
-                return true;
+                return RestoreOutcome.Restored;
             }catch(Exception e)
             {
                 Logging.warn("Exception occured while trying to restore account file: " + e);
-                Directory.Delete(tmpDirectory, true);
+                // #565 residual: the cleanup must not become the reported failure.
+                try { if (Directory.Exists(tmpDirectory)) { Directory.Delete(tmpDirectory, true); } } catch (Exception) { }
+                /* ★ round-2 MINOR-2: the wallet move, loadWallet, the tmp delete and the
+                 * staged-file delete run in that order, so a throw from either DELETE would
+                 * have reported "could not be restored" for an account already on disk —
+                 * with goHome never called and the user stuck on the restore screen. */
+                if (restoreCommitted)
+                {
+                    IxianHandler.localStorage.accountRestored = true;
+                    goHome();
+                    return RestoreOutcome.Restored;
+                }
+                /* The header decides which failure this is. Before it matched, the file was
+                 * simply not ours; after it matched, an account restore genuinely failed. */
+                return headerMatched ? RestoreOutcome.Failed : RestoreOutcome.NotAnAccountBackup;
             }
-            return false;
         }
 
         private bool restoreWalletFile(string source_path, string pass)

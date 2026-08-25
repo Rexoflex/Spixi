@@ -1,4 +1,4 @@
-language-code = ru-ru
+﻿language-code = ru-ru
 language = Русский
 
 ; Address Screen
@@ -126,6 +126,7 @@ chat-call-outgoing = Исходящий вызов
 chat-call-incoming = Входящий вызов
 chat-call-no-answer = Нет ответа
 chat-call-missed = Пропущеyный вызов
+chat-call-declined = Вызов отклонён
 chat-call-ended = Завершен
 chat-online = В сети
 chat-offline = Не в сети
@@ -380,6 +381,7 @@ intro-restore-file-error-title = Could not read the backup file
 intro-restore-file-selecterror-text = The file could not be selected. Try again, or copy the backup file to this device first.
 intro-restore-file-readerror-text = The file could not be read. Check that the backup file is complete, then try again.
 intro-restore-file-writeerror-text = The file could not be prepared. Check the free space on this device, then try again.
+intro-restore-account-failed-text = Это резервная копия учётной записи Spixi, но восстановить её не удалось. Проверьте свободное место на устройстве и повторите попытку с исходным файлом резервной копии.
 intro-restore-pass-title = Введите пароль от резервной копии
 intro-restore-pass-subtitle = Чтобы восстановить аккаунт Spixi, введите пароль, которым был защищён файл резервной копии.
 intro-restore-pass-placeholder = Введите пароль

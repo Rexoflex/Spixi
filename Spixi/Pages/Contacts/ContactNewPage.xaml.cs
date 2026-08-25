@@ -261,7 +261,7 @@ namespace SPIXI
 
                     StreamProcessor.sendContactRequest(friend);
 
-                    Node.addMessageWithType(null, FriendMessageType.requestAddSent, recipient_address, 0, "", true);
+                    HomePage.writeRequestSentMarker(recipient_address);   // #572 ①: the marker must not count as unread
 
                     UIHelpers.shouldRefreshContacts = true;
                 }

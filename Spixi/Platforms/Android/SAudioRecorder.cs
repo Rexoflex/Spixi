@@ -78,7 +78,8 @@ namespace Spixi
             }
             running = true;
 
-            AudioManager am = (AudioManager)MainActivity.Instance.GetSystemService(Context.AudioService);
+            // #573 (review MINOR-8): GetSystemService takes any Context — the Activity is not required.
+            AudioManager am = (AudioManager)SPlatformUtils.appContext().GetSystemService(Context.AudioService);
             if (Build.VERSION.SdkInt < BuildVersionCodes.O)
             {
                 focusListener = new AudioFocusListener();
@@ -276,7 +277,8 @@ namespace Spixi
             }
 
 
-            AudioManager am = (AudioManager)MainActivity.Instance.GetSystemService(Context.AudioService);
+            // #573 (review MINOR-8): GetSystemService takes any Context — the Activity is not required.
+            AudioManager am = (AudioManager)SPlatformUtils.appContext().GetSystemService(Context.AudioService);
             if (Build.VERSION.SdkInt < BuildVersionCodes.O)
             {
                 if (focusListener != null)

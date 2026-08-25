@@ -253,6 +253,43 @@
   pointer-events: none;
 }
 
+/* ★ #572 ③ (the E-3 dial) — THE CHAT ROW variant of the same lift.
+   `data-menu-lift="row"` is set by chats-row-menu.js on the `.c-swipe` wrapper
+   (its comment carries the stacking check for that chain). The rule above already
+   gives it the layer; a chat row needs TWO things a message row must not have:
+
+   ⚠ AN OPAQUE GROUND. `.c-chatlist-item` is `background: transparent`
+   (chatlist-item.css:11). Above a 0.7 scrim a transparent row reads as the dim
+   itself — the exact "I cannot see what I am acting on" this fixes. A message row
+   stays transparent on purpose: only the BUBBLE should show, never a plate around
+   it. That is why the selector matches the value and not the bare attribute.
+
+   ⚠ ITS OWN RADIUS. The row is full-bleed inside the list; standing alone above the
+   scrim it must read as one card, the same radius the desktop press wash uses. */
+:root:not([data-desktop]) .c-swipe[data-menu-lift="row"] {
+  background: var(--surface-screen);
+  border-radius: var(--radius-12);
+}
+/* ⚠ review MINOR-7: the lift falls back to the ROW itself when the swipe wrapper is
+   parked — a handshaking row is never wrapped (chats-shell.js), and neither is a row
+   with pin and mute both off. On that element the ground would out-specify the row's
+   own state fills, which is what the note above forbids: `--surface-pinned` (0,2,0)
+   and the `[aria-current]` tonal would both lose to a (0,3,0) shorthand. Guarded, so
+   a stateful row keeps its own paint and simply lifts without a new ground. */
+:root:not([data-desktop]) .c-chatlist-item[data-menu-lift="row"]:not([data-pinned]):not([aria-current]) {
+  background: var(--surface-screen);
+  border-radius: var(--radius-12);
+}
+/* ⚠ NO press wash here, and that is a decision. Desktop needs
+   `[data-dt-ctx-source]` because desktop has NO scrim — the wash is the only thing
+   that says which row. On mobile the deep scrim already isolates the lifted row, and
+   a tonal fill on top of it would read as SELECTED, which is the reading Batch E (c)
+   removed on desktop for the same reason.
+   ⚠ The ground goes on the WRAPPER, never on `.c-chatlist-item`. The row keeps its
+   own state fills — `--surface-pinned`, the press sweep, `[aria-current]` — and
+   those are alpha layers that need something opaque behind them. Painting the item
+   instead would either lose the state or lose the ground. */
+
 /* The ring, unchanged from #492 — it was never the wrong ring, only the wrong
    layer. Above the scrim it reads at its measured 5.98:1.
    ⚠ NO border-radius here. `inherit` would take the PARENT's radius and square off

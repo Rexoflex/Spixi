@@ -3189,7 +3189,7 @@ namespace SPIXI
 
                     StreamProcessor.sendContactRequest(new_friend);
                     // #334 AND-17(b): stamp the outgoing request (M5 row + Requests chip).
-                    Node.addMessageWithType(null, FriendMessageType.requestAddSent, address, 0, "", true);
+                    HomePage.writeRequestSentMarker(address);   // #572 ①: the marker must not count as unread
                     if (new_friend.approved)
                     {
                         CoreProtocolMessage.resubscribeEvents();

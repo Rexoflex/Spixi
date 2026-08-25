@@ -335,3 +335,33 @@ FE-fixable; the shell already renders the honest fallback for each.
    row 3 (post-leave streaming): the `sendBye` on the line after the crash NEVER
    runs, so the server never learns the client left. One line fixes both:
    `return streamClientManager.getClient(clientAddress, fullyConnected);`.
+
+---
+
+## MAJOR #10 — `MiniAppManager` builds a delete path from a DOWNLOADED app id (2026-08-26, #585)
+
+`MiniAppManager.remove(app_id)` deletes `Path.Combine(appsPath, app.id)`. `app.id` is read
+from a downloaded `appinfo.spixi`, and **`Path.Combine` returns its second argument
+verbatim when that argument is rooted** — so a crafted id deletes an arbitrary directory
+the process can write to.
+
+**Pre-existing**, not introduced by the redesign: the same shape has been in `remove()`
+since the mini-app manager was written. It is escalated now because the account wipe
+became a second, UNATTENDED caller of that family (#585). The wipe path itself was built
+to enumerate real subdirectories of `appsPath`, so it cannot be steered — `remove()` still
+can, from the apps list ⋮ menu (A1).
+
+**Fix (~4 lines, both sites):** resolve and confine before deleting.
+
+```csharp
+string full = Path.GetFullPath(Path.Combine(appsPath, app.id));
+if (!full.StartsWith(Path.GetFullPath(appsPath) + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+{
+    Logging.error("Refusing to delete an app path outside the apps directory.");
+    return false;
+}
+```
+
+Same class as the `..`-traversal on downloads that #266 closed in
+`TransferManager.resolveDownloadPath`.
+

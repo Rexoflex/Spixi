@@ -84,7 +84,7 @@ is NOT in this session.** It is gated on an App Group that does not exist at App
 | **Remove the details cover** (B1.1, B1.2) | Retire it. Do not replace it in this batch |
 | **Restore "Show sender name" on mobile** (A6.1, A6.2) | Desktop stays without it. ⚠ The preference still lives in `SNotificationPrefs` — only the UI was deleted. ★ **And DELETE the one-shot migration** — Damir confirms the switch was internal-only and never reached a real user |
 | **The safety block** (A1.8) | Give it colour — inverse the background, or the info as text |
-| **The address sheet spacing** (A1.2, A1.7, B1.5) | The info block sits too close to the title, then a large gap, then the QR at the foot. ★ A1.7 was CONFIRMED on device: it reads as a hole. ⚠ Damir owes a screenshot — do the spacing, hold the layout |
+| **The address sheet** (A1.2, A1.7, B1.5) | ★ **SPECCED — see verdict §14. No screenshot needed.** The hole is `wallet-receive.css:239`, `margin-block-start:auto` on `.c-addr-sheet__qrwrap`, added deliberately by #589. ⚠ **Deleting it only MOVES the hole** — the slack exists because the sheet is forced to near-full height (#575) while the content shrank (#556, #575). ★ **DECIDED by Damir: the sheet HUGS its content, and the QR gets deliberate space of its own** — an EXPLICIT token value above and below it, never `auto`. ★ Space that is chosen reads as design; space that is left over reads as a mistake. §14 has the four concrete steps. §14d (space under the title) is independent and ships either way |
 
 ### P5 — small and cheap
 
@@ -120,9 +120,11 @@ is NOT in this session.** It is gated on an App Group that does not exist at App
 
 ★ **Four of the five were ANSWERED on 2026-08-27. See §13 of the verdict.** What is left:
 
-1. The **address-sheet screenshot** (D4). ★ The German tip-sheet screenshots ARRIVED — see
-   verdict §12, which turns A4.2 and A4.3 into a repro.
-2. `#565 ②`'s `[RESTOREDIAG]` lines (row 34 produces them).
+1. `#565 ②`'s `[RESTOREDIAG]` lines (row 34 produces them). ★ **This is the only item
+   still owed.**
+
+★ The **German tip-sheet screenshots ARRIVED** — verdict §12. The **address sheet is
+SPECCED from Damir's description** — verdict §14, no screenshot needed.
 
 ★★ **RESOLVED — do not chase these, and DELETE them from the standing lists:**
 

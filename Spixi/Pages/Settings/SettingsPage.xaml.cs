@@ -14,6 +14,7 @@ using SPIXI.Lang;
 using SPIXI.Meta;
 using System;
 using System.IO;
+using System.Linq;                 // ★ #593: NavigationStack is IReadOnlyList<Page>, whose Contains is Enumerable's — and this project sets <ImplicitUsings>disable</ImplicitUsings>, so it must be imported by hand (47 other files already do)
 using System.Net;                 // iOS-21: WebUtility.HtmlDecode for ixian:openLink
 using System.Threading.Tasks;
 using System.Web;

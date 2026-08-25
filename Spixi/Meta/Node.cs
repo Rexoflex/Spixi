@@ -139,6 +139,31 @@ namespace SPIXI.Meta
             Logging.info("Node init done");
         }
 
+        /* ★★ #584 — THE CONTACTS ARE READ ONCE PER PROCESS, AND THAT IS THE #565 BUG.
+         *
+         * Damir's capture named it: `[RESTOREDIAG] loadChats run 2: friends=0 accFiles=15`
+         * — the restored Acc tree is on disk with 15 files and the in-memory list is empty.
+         *
+         * `FriendList.loadContacts()` is guarded by `FriendList.contactsLoaded`
+         * (Ixian-Core FriendList.cs), a PROCESS-LIFETIME latch cleared only in
+         * `FriendList.init()`, which runs once at node construction. This method is its
+         * only caller. So a SECOND account load in the same process — wipe → restore,
+         * restore → back to welcome → restore, restore → lock-cancel → restore — reaches
+         * `loadContacts()`, is turned away by the latch, and `friends` keeps whatever it
+         * held. After a wipe that is EMPTY, and it stays empty until the app restarts.
+         * That is exactly Damir's rule of thumb from the other side: "wipe, RESTART, then
+         * restore, and the contacts are populated."
+         *
+         * ★ The field is PUBLIC STATIC, so this is a Spixi-side fix. Ixian-Core stays
+         * frozen (097341a) and no §1e row is needed.
+         *
+         * ⚠ WHY IT IS SAFE TO CLEAR HERE, and only here. `loadContacts()` begins with
+         * `friends.Clear()`, so re-running it REPLACES the list. This method runs before
+         * the node starts, under `startLock`, on the launch/restore path — the one moment
+         * where no page is rendering from `friends` and no stream thread is reading it.
+         * Clearing the latch anywhere later would tear the list out from under a live
+         * chat list. The reset therefore sits INSIDE the `running` guard's shadow: if the
+         * node is already running we return without touching anything. */
         static public void preStart()
         {
             lock (startLock)
@@ -151,7 +176,39 @@ namespace SPIXI.Meta
                 // Start local storage
                 IxianHandler.localStorage.start();
 
-                FriendList.loadContacts();
+                /* ★★ #584, round-2 MAJOR-1 — RE-ARM ONLY WHEN THE LIST IS EMPTY.
+                 * The first cut re-armed unconditionally, and that was a REGRESSION on a
+                 * far more common path than wipe→restore: `App.EnsureNodeRunning` calls
+                 * preStart on RESUME (App.xaml.cs), after a backgrounded process shut the
+                 * node down. `running` is false there, so the guard above does not fire —
+                 * and `loadContacts()` begins with `friends.Clear()` and rebuilds every
+                 * Friend as a NEW object. The app routes by REFERENCE identity
+                 * (`Utils.getChatPage` compares `page.friend == friend`; SingleChatPage
+                 * captures its Friend once in the ctor), so an open conversation would be
+                 * orphaned: an arriving message resolves the new object, finds no page and
+                 * never renders, and a reply written on the orphan is persisted from the
+                 * NEW object's message list — i.e. dropped.
+                 * An EMPTY list is the whole #565 state (`friends=0 accFiles=15`) and it is
+                 * the only state where a re-read can orphan nothing: there is no live Friend
+                 * for a page to be holding. On resume the list is populated, so this is a
+                 * no-op and the resume path behaves exactly as it did before #584. */
+                if (FriendList.friends.Count == 0)
+                {
+                    FriendList.contactsLoaded = false;
+                }
+                /* ⚠ round-2 NIT-2: loadContacts enumerates the Acc directory unguarded, and
+                 * one caller of preStart is HomePage's constructor. A missing Acc — reachable
+                 * when a restore throws between the delete and the move — must not throw out
+                 * of a page constructor. */
+                try
+                {
+                    FriendList.loadContacts();
+                }
+                catch (Exception e)
+                {
+                    Logging.error("preStart: loadContacts threw (#584): " + e);
+                }
+                Logging.info("[RESTOREDIAG] preStart: contacts read, friends={0}", FriendList.friends.Count);
             }
         }
 

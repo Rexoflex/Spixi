@@ -25,12 +25,24 @@
  * legacy `ixian:sendrequest` family (request = a chat message). §9 asks in spec §4.
  */
 import { getStrings } from './strings-runtime.js';
-import { createAvatar } from './avatar.js';
+import { createAvatar, truncateAddressMiddle, isPseudoAddressNick } from './avatar.js';   // ★ #569: the #211 truncation canon, enforced HERE
 import { createButton, setLoading, setSuccess } from './button.js';
 import { createChip, setChipSelected } from './chip.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 import { setOverlayOpts } from './overlay.js';
 import { sanitizeAmount, toUnits, canonicalAmount, ungroupAmountInput, amountInputToCanonical, groupAmountDisplay, amountCaretAfterFormat } from './money.js';   // #143 shared money module · ★ I-6 (#360) display grouping
+
+/** ★ #569 — the payee name as it may be SHOWN: a real nickname, else the address
+ *  in the #211 truncated form. Never the raw base58, and never an empty name when
+ *  an address exists ("Request from " with nothing after it was the other half). */
+function payeeDisplayName({ name = '', address = '' } = {}) {
+  const n = String(name == null ? '' : name).trim();
+  const a = String(address == null ? '' : address).trim();
+  // isPseudoAddressNick catches C#'s address-echo in every shape it arrives in;
+  // the equality test is the belt for an echo the predicate has not seen.
+  if (n && n !== a && !isPseudoAddressNick(n)) return n;
+  return a ? truncateAddressMiddle(a) : n;
+}
 
 function amountSheetCopy(kind, strings) {
   return kind === 'request' ? {
@@ -67,12 +79,27 @@ function openAmountSheet({
   // is the one place the user checks WHO is about to be paid, so a gradient where every
   // other surface shows a face is the worst place to drop it. The caller now supplies
   // `avatar`; `|| null` keeps the gradient for a contact with no stored photo.
-  head.append(createAvatar({ name: recipient.name, address: recipient.address, src: recipient.avatar || null, size: 40 }));
+  /* ⚠ review NIT: the AVATAR is a #211 survivor too. initials() takes any leading
+   * letter, so C#'s address echo produced a one-letter disc instead of the person
+   * glyph. The resolver decides the name once, for both the disc and the title. */
+  const payeeName = payeeDisplayName(recipient);
+  head.append(createAvatar({ name: isPseudoAddressNick(payeeName) ? '' : payeeName, address: recipient.address, src: recipient.avatar || null, size: 40 }));
   const htext = document.createElement('div');
   htext.className = 'c-tipsheet__headtext';
+  /* ★ #569 (Damir screenshot, desktop): the header rendered the RAW 65-character
+   * base58 when the sender has no nickname, and the unbroken string forced the
+   * sheet's horizontal scrollbar.
+   *
+   * Mechanism: C#'s resolveNick ECHOES the address into the nickname for a nameless
+   * contact, so `identity.name` IS the address. chat.html guards that echo on the
+   * group rung (#370 B-6) but the 1:1 rung passes `identity.name` straight through.
+   *
+   * ⚠ The guard belongs HERE, not at that one caller. This sheet is the payment
+   * confirm moment, every entry point reaches this line, and #211 is a canon with no
+   * survivors — a caller added later must not be able to reintroduce the leak. */
   const title = document.createElement('h2');
   title.className = 'c-tipsheet__title';
-  title.textContent = copy.title.split('{name}').join(recipient.name || '');
+  title.textContent = copy.title.split('{name}').join(payeeName);
   htext.append(title);
   if (message.excerpt) {
     const ex = document.createElement('p');

@@ -1,4 +1,4 @@
-language-code = de-de
+﻿language-code = de-de
 language = German
 
 ; Address Screen
@@ -126,6 +126,7 @@ chat-call-outgoing = Ausgehender Anruf
 chat-call-incoming = Eingehender Anruf
 chat-call-no-answer = Keine Antwort
 chat-call-missed = Verpasster Anruf
+chat-call-declined = Anruf abgelehnt
 chat-call-ended = Anruf beendet
 chat-online = Online
 chat-offline = Offline
@@ -380,6 +381,7 @@ intro-restore-file-error-title = Could not read the backup file
 intro-restore-file-selecterror-text = The file could not be selected. Try again, or copy the backup file to this device first.
 intro-restore-file-readerror-text = The file could not be read. Check that the backup file is complete, then try again.
 intro-restore-file-writeerror-text = The file could not be prepared. Check the free space on this device, then try again.
+intro-restore-account-failed-text = Dies ist eine Spixi-Kontosicherung, aber sie konnte nicht wiederhergestellt werden. Prüfen Sie den freien Speicher auf diesem Gerät und versuchen Sie es erneut mit der Original-Sicherungsdatei.
 intro-restore-pass-title = Backup-Passwort eingeben
 intro-restore-pass-subtitle = Gib das Passwort ein, mit dem deine Backup-Datei geschützt ist, um dein Spixi-Konto wiederherzustellen.
 intro-restore-pass-placeholder = Passwort eingeben

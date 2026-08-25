@@ -1,4 +1,4 @@
-language-code = ja-jp
+﻿language-code = ja-jp
 language = 日本語
 
 ; Address Screen
@@ -126,6 +126,7 @@ chat-call-outgoing = 発信中
 chat-call-incoming = 着信
 chat-call-no-answer = 応答なし
 chat-call-missed = 不在着信
+chat-call-declined = 着信拒否
 chat-call-ended = 通話終了
 chat-online = オンライン
 chat-offline = オフライン
@@ -367,6 +368,7 @@ intro-restore-file-error-title = Could not read the backup file
 intro-restore-file-selecterror-text = The file could not be selected. Try again, or copy the backup file to this device first.
 intro-restore-file-readerror-text = The file could not be read. Check that the backup file is complete, then try again.
 intro-restore-file-writeerror-text = The file could not be prepared. Check the free space on this device, then try again.
+intro-restore-account-failed-text = これは Spixi アカウントのバックアップですが、復元できませんでした。この端末の空き容量を確認し、元のバックアップファイルでもう一度お試しください。
 intro-restore-pass-title = バックアップパスワードを入力
 intro-restore-pass-subtitle = Spixi アカウントを復元するには、バックアップファイルを保護したパスワードを入力してください。
 intro-restore-pass-placeholder = パスワードを入力

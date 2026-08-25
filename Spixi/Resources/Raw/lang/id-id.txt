@@ -1,4 +1,4 @@
-language-code = id-id
+﻿language-code = id-id
 language = Bahasa Indonesia
 
 ; Address Screen
@@ -126,6 +126,7 @@ chat-call-outgoing = Panggilan keluar
 chat-call-incoming = Panggilan masuk
 chat-call-no-answer = Tidak ada jawaban
 chat-call-missed = Panggilan tidak terjawab
+chat-call-declined = Panggilan ditolak
 chat-call-ended = Berakhir
 chat-online = Online
 chat-offline = Offline
@@ -367,6 +368,7 @@ intro-restore-file-error-title = Could not read the backup file
 intro-restore-file-selecterror-text = The file could not be selected. Try again, or copy the backup file to this device first.
 intro-restore-file-readerror-text = The file could not be read. Check that the backup file is complete, then try again.
 intro-restore-file-writeerror-text = The file could not be prepared. Check the free space on this device, then try again.
+intro-restore-account-failed-text = Ini adalah cadangan akun Spixi, tetapi tidak dapat dipulihkan. Periksa ruang kosong di perangkat ini, lalu coba lagi dengan berkas cadangan asli.
 intro-restore-pass-title = Masukkan Kata Sandi Cadangan
 intro-restore-pass-subtitle = Untuk memulihkan akun Spixi Anda, masukkan kata sandi yang digunakan untuk melindungi file cadangan Anda.
 intro-restore-pass-placeholder = Masukkan kata sandi

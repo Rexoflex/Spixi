@@ -398,6 +398,10 @@
     paymentAuth: true,                          // #150⑤ demo: starts ON (Moderate-tier default)
     backup: state.backup,
     version: 'Spixi 2.1.4 (demo)',              // §9 ask: no bridge push for this yet
+    // ★ #575: the demo shows the SHIPPED grammar — Contacts and the address row in
+    // one untitled section. The shell has routed Contacts since #443; the demo never
+    // passed the handler, so the demo hub was missing a row production always has.
+    onContacts: () => {},
     capabilities: CAPS,
     host: phone,
     strings,

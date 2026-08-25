@@ -4,6 +4,7 @@ using IXICore.Network;
 using IXICore.Streaming;
 using Microsoft.Maui.ApplicationModel;    // iOS-21: Browser.Default (SingleChatPage:21 precedent)
 using Microsoft.Maui.ApplicationModel.DataTransfer;   // #455 G5: Share.RequestAsync (HomePage:10 precedent)
+using System.Collections.Generic;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Xaml;
 using Microsoft.Maui.Storage;
@@ -984,6 +985,17 @@ namespace SPIXI
         {
             try
             {
+                /* ★★ #585: capture the ROOT before popping. `hostNav` is the root nav and
+                 * the root is HOMEPAGE — the account's own home screen. Popping to it and
+                 * pushing LaunchPage on top leaves it ALIVE underneath, which is the bug
+                 * (and the TODO that used to sit at the bottom of this method). */
+                /* ⚠ round-2 MINOR-3: capture the WHOLE stack, not index 0. When this page is
+                 * presented as an overlay, popToRootAsync takes the overlay branch and never
+                 * touches the native stack — so a legacy native page (wallet, scan, a mini
+                 * app) can still sit above HomePage, and removing only index 0 would leave
+                 * that page of the wiped account directly beneath LaunchPage: the same
+                 * defect one level up. */
+                var stalePages = new List<Page>(hostNav.NavigationStack);
                 popToRootAsync();
                 // ★ review r2 MAJOR-2: AFTER the pop, not before. The non-rail Account push
                 // carries parkOnClose (#315), so popToRootAsync PARKS this page instead of
@@ -995,8 +1007,49 @@ namespace SPIXI
                 // It also strands `deleteInFlight = true` on that instance, which then
                 // silently swallowed the NEXT delete the user authenticated for.
                 SpixiContentPage.disposeParkedOverlay();
-                hostNav.PushAsync(new LaunchPage(), Config.defaultXamarinAnimations);   // #225: root nav
-                // Todo: also remove the parent page without causing memory leaks
+                var launch = new LaunchPage();
+                hostNav.PushAsync(launch, Config.defaultXamarinAnimations);   // #225: root nav
+                /* ★★ #585 — THE WIPED ACCOUNT'S HOME PAGE IS REMOVED, not left underneath.
+                 * Damir: delete account → welcome → Create → hardware back twice → the app
+                 * OPENS, connecting forever, on an account that no longer exists. Mechanism:
+                 * LaunchPage.OnBackButtonPressed consumes back only for create/restore; at
+                 * `welcome` it falls through to base, which POPS LaunchPage and reveals this
+                 * page. His log times it — `LaunchPage back: view=welcome` then HomePage's
+                 * own `[RESTOREDIAG] loadChats` 10 ms later.
+                 * ⚠ RemovePage AFTER the push, never before: removing the only other page
+                 * while it is still the displayed root is rejected by MAUI, and the removal
+                 * would be silently swallowed (the #391 N75 lesson, same navigation stack).
+                 * ⚠ Wrapped on its own: a failure here must not lose the welcome screen the
+                 * user is already looking at. */
+                int dropped = 0;
+                foreach (Page stale in stalePages)
+                {
+                    /* ⚠ round-2 MINOR-2: REMOVE AND DISPOSE. Every other removal site in this
+                     * codebase disposes a SpixiContentPage, and Dispose is what detaches the
+                     * WebView (Source = null, DisconnectHandler). Removed but undisposed, the
+                     * wiped account's home document stays live and warm — old nickname, old
+                     * avatar, old rows — which is the exact hazard the parked-overlay note a
+                     * few lines above invokes.
+                     * ⚠ Each page under its own try: one failure must not strand the rest. */
+                    try
+                    {
+                        if (stale == null || stale == launch || !hostNav.NavigationStack.Contains(stale))
+                        {
+                            continue;
+                        }
+                        hostNav.RemovePage(stale);
+                        dropped++;
+                        if (stale is SpixiContentPage staleContent)
+                        {
+                            try { staleContent.Dispose(); } catch (Exception dex) { Logging.warn("W14: stale page dispose threw (#585): " + dex.Message); }
+                        }
+                    }
+                    catch (Exception rex)
+                    {
+                        Logging.error("W14: could not remove a wiped-account page (#585): " + rex);
+                    }
+                }
+                Logging.info("W14: removed {0} wiped-account page(s) from the stack (#585).", dropped);
             }
             catch (Exception ex)
             {
@@ -1107,6 +1160,12 @@ namespace SPIXI
             try { IxianHandler.localStorage.deleteAllAvatars(); } catch (Exception ex) { Logging.error("wipe: avatars threw: " + ex); }
             try { IxianHandler.localStorage.deleteAccountFile(); } catch (Exception ex) { Logging.error("wipe: account file threw: " + ex); }
             try { IxianHandler.localStorage.deleteAllDownloads(); } catch (Exception ex) { Logging.error("wipe: downloads threw: " + ex); }
+            /* ★ #585 rider (Damir): "wiping the account leaves the mini app installed, and
+             * a create or restore inherits it." Step 1 stops the manager (Node.stop calls
+             * MiniAppManager.stop) but nothing ever DELETED the installed apps, so they
+             * were not part of "all data". They are now, and the removal sits here with the
+             * rest of the account data — after the stop, before the wallet. */
+            try { Node.MiniAppManager.removeAllApps(); } catch (Exception ex) { Logging.error("wipe: mini apps threw: " + ex); }
             try { CoreStreamProcessor.deletePendingMessages(); } catch (Exception ex) { Logging.error("wipe: pending messages threw: " + ex); }
             try { FriendList.deleteEntireHistory(); } catch (Exception ex) { Logging.error("wipe: history threw: " + ex); }
             try { FriendList.deleteAccounts(); } catch (Exception ex) { Logging.error("wipe: accounts threw: " + ex); }

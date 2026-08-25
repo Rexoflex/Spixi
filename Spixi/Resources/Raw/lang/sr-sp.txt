@@ -1,4 +1,4 @@
-language-code = sr-sp
+﻿language-code = sr-sp
 language = Srpski
 
 ; Address Screen
@@ -126,6 +126,7 @@ chat-call-outgoing = Odlazni poziv
 chat-call-incoming = Dolazni poziv
 chat-call-no-answer = Nema odgovora
 chat-call-missed = Propušten poziv
+chat-call-declined = Poziv odbijen
 chat-call-ended = Poziv završen
 chat-online = Na mreži
 chat-offline = Van mreže
@@ -380,6 +381,7 @@ intro-restore-file-error-title = Could not read the backup file
 intro-restore-file-selecterror-text = The file could not be selected. Try again, or copy the backup file to this device first.
 intro-restore-file-readerror-text = The file could not be read. Check that the backup file is complete, then try again.
 intro-restore-file-writeerror-text = The file could not be prepared. Check the free space on this device, then try again.
+intro-restore-account-failed-text = Ovo je rezervna kopija Spixi naloga, ali je nije bilo moguće vratiti. Proverite slobodan prostor na ovom uređaju i pokušajte ponovo sa originalnom datotekom rezervne kopije.
 intro-restore-pass-title = Unesite rezervnu lozinku
 intro-restore-pass-subtitle = Da biste vratili svoj Spixi nalog, unesite lozinku kojom je rezervna kopija zaštićena.
 intro-restore-pass-placeholder = Unesite lozinku

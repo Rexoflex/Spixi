@@ -308,7 +308,8 @@ namespace SPIXI
                     case SpixiMessageCode.appRequest:
                         {
                             // app request received
-                            handleAppRequest(message.id, sender_address, message.recipient, spixi_message.data);
+                            // #574 ①: the SEND time rides along — see handleAppRequest.
+                            handleAppRequest(message.id, sender_address, message.recipient, spixi_message.data, message.timestamp);
                         }
                         break;
 
@@ -623,7 +624,31 @@ namespace SPIXI
             return sendAppRequest(friend, app_id, session_id, data, app_info);
         }
 
-        private static void handleAppRequest(byte[] messageId, Address sender_address, Address recipient_address, byte[] app_data_raw)
+        /* ★★ #574 ① — THE PHANTOM CALL OVERLAY.
+         *
+         * Damir: tap a MISSED-call notification after a cold boot, and the chat opens
+         * with a LIVE call overlay. He "answered" a call the caller had abandoned, and
+         * his side ran a one-sided 10-second call.
+         *
+         * ★ THE MECHANISM, read out of the source:
+         *   · This handler took the message ID and never its TIMESTAMP.
+         *   · `VoIPManager.onReceivedCall` then arms the #265 ring budget from
+         *     `Clock.getTimestamp()` — the moment the request is HANDLED, not the
+         *     moment it was SENT. So the 45 seconds start again for a request that has
+         *     been sitting in the offline queue.
+         *   · A cold boot drains that queue. The stale appRequest is handled exactly
+         *     like a fresh one: a live session is created and the call surface is
+         *     presented for a call that ended minutes ago. Accepting it opens a session
+         *     nobody is on.
+         *   · `friend.hasMessage(0, sessionId)` is NOT an age gate. It only suppresses a
+         *     duplicate of a request whose voiceCall record is already stored — and that
+         *     record is exactly what a process killed during the ring can be missing.
+         *
+         * ⚠ FAIL OPEN. `timestamp` is 0 when a peer does not set it, and a real call
+         * must never be suppressed because a field was absent. Only a request that
+         * CARRIES a send time and is provably older than the caller's own ring budget
+         * is treated as already over. */
+        private static void handleAppRequest(byte[] messageId, Address sender_address, Address recipient_address, byte[] app_data_raw, long sentTimestamp = 0)
         {
             MiniAppManager am = Node.MiniAppManager;
 
@@ -685,7 +710,96 @@ namespace SPIXI
                     {
                         if (!friend.hasMessage(0, app_data.sessionId))
                         {
-                            if (VoIPManager.onReceivedCall(friend, app_data.sessionId, app_data.data))
+                            long age = sentTimestamp > 0 ? Clock.getNetworkTimestamp() - sentTimestamp : 0;
+                            /* ★ review MAJOR-2: the gate carries a MARGIN. The two clocks
+                             * being compared are not guaranteed to agree — the sender stamps
+                             * network time and `Clock.networkTimeDifference` is 0 until a
+                             * time-synced client connects, which on a cold boot is exactly
+                             * when this runs. A receiver whose clock is fast would otherwise
+                             * refuse a call that is ringing right now. */
+                            if (age > VoIPManager.RING_TIMEOUT_SECONDS + VoIPManager.STALE_CALL_MARGIN_SECONDS)
+                            {
+                                /* #574 ①: the caller stopped ringing before this arrived.
+                                 * Do NOT ring and do NOT create a session — record it as
+                                 * the missed call it already is, so the chat and the list
+                                 * tell the truth and nothing offers to answer it.
+                                 * The pair (voiceCall then voiceCallEnd with an EMPTY body)
+                                 * is the shape both surfaces already read as "Missed call".
+                                 * No reject is sent: the caller's own timeout has fired, and
+                                 * a reject after that would only race their next call. */
+                                Logging.info("#574: a voip request arrived {0}s after it was sent (gate {1}s) — recording a missed call instead of ringing.", age, VoIPManager.RING_TIMEOUT_SECONDS + VoIPManager.STALE_CALL_MARGIN_SECONDS);
+                                // ⚠ fire_local_notification AND alert are both FALSE: the
+                                // caller's own missed-call push already told the user, and a
+                                // second "Incoming call" buzz for a call that is over is the
+                                // phantom wearing a different coat.
+                                var stale = Node.addMessageWithType(app_data.sessionId, FriendMessageType.voiceCall, sender_address, 0, "", false, null, sentTimestamp, false, false);
+                                if (stale != null)
+                                {
+                                    stale.type = FriendMessageType.voiceCallEnd;
+                                    /* review MAJOR-1's lesson, applied here too: the chats
+                                     * row reads a DEEP COPY of the last message
+                                     * (Ixian-Core Friend.cs setLastMessage), so the re-type
+                                     * has to be pushed into metaData or the row shows
+                                     * "Voice call" for a call that was missed. */
+                                    var staleMeta = friend.metaData;
+                                    if (staleMeta.lastMessage != null && stale.id != null
+                                        && staleMeta.lastMessage.id != null && staleMeta.lastMessage.id.SequenceEqual(stale.id))
+                                    {
+                                        staleMeta.setLastMessage(stale, 0);
+                                        friend.saveMetaData();
+                                    }
+                                    IxianHandler.localStorage.requestWriteMessages(friend.walletAddress, 0);
+                                }
+                                /* ★ review MINOR-6: TELL THE USER. The missed-call row this
+                                 * would normally rely on is posted by endVoIPSession — which
+                                 * by construction never ran, because nothing rang. A call
+                                 * that arrived entirely while the app was down would leave
+                                 * no notification at all, and a wrongly-gated live call
+                                 * would vanish in silence. Post it directly instead, with
+                                 * the missed-call copy and no alert. */
+                                try
+                                {
+                                    /* ★ round-2 MAJOR-3: THROUGH THE GATE. showLocalNotification is the
+                                     * raw poster and applies no policy — every other notify site asks
+                                     * SNotificationPrefs.shouldNotify first, which folds in the global
+                                     * master switch and the per-contact mute. Posting straight would put
+                                     * a row up for a chat the user muted, on the one path where the
+                                     * gated push above was deliberately suppressed.
+                                     * ★ round-2 MINOR-5: and never over a LIVE call. This id is the one
+                                     * the ringing "Incoming call" row uses, so a stale request draining
+                                     * beside a real call from the same contact would replace it. */
+                                    if (SPIXI.Meta.SNotificationPrefs.shouldNotify(friend)
+                                        && !VoIPManager.isInitiated())
+                                    {
+                                        SPushService.showLocalNotification(
+                                            SPIXI.Meta.SNotificationPrefs.notificationIdFor(friend.walletAddress, true),
+                                            "Spixi",
+                                            SpixiLocalization._SL("notification-missed-call") ?? "Missed call",
+                                            friend.walletAddress.ToString(),
+                                            false,      // silent: nothing rang, so nothing needs correcting
+                                            FriendList.getUnreadMessageCount(),
+                                            "call");
+                                    }
+                                }
+                                catch (Exception nex)
+                                {
+                                    Logging.warn("#574: could not post the missed-call row: " + nex.Message);
+                                }
+                                UIHelpers.refreshAppRequests = true;
+                                return;
+                            }
+                            /* ★★ round-2 MAJOR-4: BELOW the gate the budget is still SHORTENED.
+                             * A hard gate at 165 s left every age under it ringing for a fresh
+                             * 45 s — including the 90-second-old request in the reported repro.
+                             * `burned` is the age we can attribute to real delay rather than to
+                             * clock skew, so onReceivedCall backdates the budget by it: with a
+                             * skewed clock burned is 0 and the behaviour is exactly as before,
+                             * and a genuinely late request rings only for what the caller has
+                             * left and then falls into the missed-call shape by itself. */
+                            long burned = age > VoIPManager.STALE_CALL_MARGIN_SECONDS
+                                ? age - VoIPManager.STALE_CALL_MARGIN_SECONDS
+                                : 0;
+                            if (VoIPManager.onReceivedCall(friend, app_data.sessionId, app_data.data, burned))
                             {
                                 Node.addMessageWithType(app_data.sessionId, FriendMessageType.voiceCall, sender_address, 0, "");
                             }

@@ -36,7 +36,7 @@
 import { getStrings } from './strings-runtime.js';
 import { createChatItem } from './chatlist-item.js';
 import { createContactRequest } from './contact-request.js';
-import { attachChatRowMenu } from './chats-row-menu.js';
+import { attachChatRowMenu, liftedRowAddress } from './chats-row-menu.js';   // ★ review MINOR-3: a flush must not drop the pressed-row lift
 import { wrapChatRowSwipe, closeChatRowSwipe } from './chats-swipe.js';
 import { createEmptyState } from './empty-state.js';
 
@@ -236,6 +236,7 @@ export function renderChatsList(listEl, state, opts = {}) {
       onDecline: opts.onRequestDecline ? () => opts.onRequestDecline(r) : undefined,
     }));
   };
+  const liftedRow = liftedRowAddress();   // review MINOR-3: read ONCE per render
   const renderChat = (c) => {
     // handshaking chats (#109) are not yet openable — tapping routes to
     // onHandshakeBlocked, and they carry no pin/mute affordances until secured.
@@ -287,6 +288,10 @@ export function renderChatsList(listEl, state, opts = {}) {
       chat: c, capabilities: caps, strings,
       onAction: (action, detail) => applyChatRowAction(listEl, state, c, action, opts, detail),
     });
+    /* ★ review MINOR-3 (#572 ③): a flush replaces every row, and a message arriving in
+       ANY chat is enough. Without this the row under an open anchored menu drops back
+       beneath the deep scrim mid-interaction — the exact symptom the lift fixes. */
+    if (c.address && c.address === liftedRow) node.dataset.menuLift = 'row';
     listEl.append(node);
   };
 

@@ -1257,6 +1257,10 @@ function createChatItem({
   const el = document.createElement('button');
   el.type = 'button';
   el.className = 'c-chatlist-item';
+  /* ★ #587: the row carries its address. renderChatsList rebuilds every row on every
+     flush, so anything that captured a row element before an await — the long-press
+     timer is the case that bit us — needs a way to find the REPLACEMENT. */
+  if (address) el.dataset.address = String(address);
   if (unread > 0 || mention) el.dataset.unread = '';
   // N56 (#376 loop C-4): the wash hook rides the COMPONENT, so direct consumers
   // (desktop.html demo — the surface the wash dial is judged on) render it too;
@@ -2808,10 +2812,32 @@ function attachContextMenuAnchors({ host = document.body, rows = '.c-bubble-row,
 const M_MENU_W = 300;   // the desktop dropdown width (CTX_MENU_W) — one menu metric, two presentations
 const M_GAP = 8;
 
-function anchorSheetToRow(sheet, row, { host = document.body, align = null, width = M_MENU_W, gap = M_GAP } = {}) {
+function anchorSheetToRow(sheet, row, { host = document.body, align = null, width = M_MENU_W, gap = M_GAP, address = '' } = {}) {
   if (isDesktopPresentation() || !sheet || !row) return sheet;
   const fr = host.getBoundingClientRect();
-  const rr = row.getBoundingClientRect();
+  /* ★★ #587 (Damir): "I restored and the FIRST long press opened the bottom sheet, every
+   * next one opens the dropdown."
+   *
+   * His log explains it with no FE line in it at all: right after a restore the chats list
+   * flushes repeatedly — `[RESTOREDIAG] loadChats run 4/5/6` at 11:46:34, :36, :38, one
+   * every two seconds while the block scan advances. `renderChatsList` REBUILDS every row
+   * on each flush, so the element captured at pointerdown is DETACHED by the time the
+   * 500 ms long-press timer fires. A detached element measures all zeros and the fail-soft
+   * below correctly keeps the bottom sheet.
+   *
+   * ⚠ The fix is to find the LIVE row, not to reuse the old row's rectangle. A rect
+   * captured at press time is a VIEWPORT rect, and the same flush that detached the row
+   * also RE-SORTS the list — so the stale rect can anchor the menu over a different
+   * conversation while the menu acts on this one. The bottom sheet made no positional
+   * claim; a wrong one is worse than none. If no replacement is found we keep the sheet. */
+  let target = row;
+  if (!row.isConnected && address) {
+    try {
+      const live = document.querySelector('.c-chatlist-item[data-address="' + CSS.escape(String(address)) + '"]');
+      if (live) target = live;
+    } catch (e) { /* no CSS.escape, or a malformed address — keep the fail-soft */ }
+  }
+  const rr = target.getBoundingClientRect();
   if (!fr.width || !rr.height) return sheet;   // unmeasurable → keep the bottom sheet (fail-soft)
   sheet.dataset.mAnchor = '';
   const w = Math.min(width, fr.width - 2 * M_GAP);
@@ -4836,6 +4862,8 @@ function addReactions(row, {
   const prev = bubble.querySelector('.c-reactions');
   if (prev) prev.remove();
   delete row.dataset.reactions;
+  // ★ #570: and so is the floor + its observer — see reserveOverlapWidth.
+  clearOverlapFloor(bubble);
 
   if (reactions.length === 0 && !tip) return;
 
@@ -4895,6 +4923,99 @@ function addReactions(row, {
 
   if (placement === 'overlap') row.dataset.reactions = 'overlap'; // row reserves overhang space
   bubble.append(el);
+  if (placement === 'overlap') reserveOverlapWidth(bubble, el);
+}
+
+/* ★★ #570 (Damir screenshots, Android AND Windows) — THE OVERLAP GRAMMAR ASSUMED
+ * A BUBBLE WIDER THAN ITS ORNAMENTS.
+ *
+ * #65 hangs the pill row off the bubble's bottom OUTER corner. That reads well while
+ * the bubble is the wider of the two. On a short bubble — "ok", one emoji — a heart
+ * plus a "Tipped" chip does not fit: the row is absolutely positioned INSIDE the
+ * bubble, so its shrink-to-fit width is capped by the bubble and `flex-wrap: wrap`
+ * folds it onto a second line. Two lines at `inset-block-end: -12px` reach up over
+ * the timestamp and the ticks. Nothing is wrong with the anchor; there is simply not
+ * enough bubble to hang from.
+ *
+ * ★ SO THE BUBBLE GETS A FLOOR — Damir's first candidate, and the only one of his two
+ * that is stable. The alternative (fall back to the `inside` placement) LOOKS tidier
+ * and oscillates forever: `inside` is in-flow, so it GROWS the bubble to hold the
+ * pills, which makes the "too narrow" test false, which flips it back to `overlap`,
+ * which shrinks the bubble again. Every bubble the fix is written for is a bubble it
+ * would jitter at 60 fps. A floor has no such feedback: widening the bubble does not
+ * change the pill row's own content width.
+ *
+ * ⚠ MEASURED THROUGH max-content, NOT through the live box. The row is absolutely
+ * positioned inside the bubble, so its RENDERED width is already clamped to the
+ * bubble — reading `scrollWidth` would measure the symptom and report that everything
+ * fits. `max-content` asks what the row WANTS, which is the number the floor needs.
+ * If a WebView ignores `max-content` the read degrades to the clamped width, the floor
+ * comes out too small, and the bubble is no worse than it is today.
+ * ⚠ Zero means UNMEASURABLE (a hidden tab, a detached row, jsdom) — never "narrow".
+ * ⚠ The floor never beats the bubble's own max-width. In CSS min-width wins over
+ * max-width, so an un-clamped floor could push one bubble past the #65 rail.
+ * ⚠ ONE observer per bubble, stored ON the bubble. addReactions is replace-on-repeat
+ * and the bridge re-emits the full list on every flush, so a fresh observer per call
+ * would pile up unbounded on a live row — and in `overlap` the bubble's size never
+ * changes, so a stale observer would never fire and never self-disconnect. */
+
+const OVERLAP_FLOOR_AIR = 16;   // the 8px corner inset + 8px of air on the other side
+
+function measureOverlapFloor(bubble, el) {
+  const prev = el.style.width;
+  let natural = 0;
+  try {
+    el.style.width = 'max-content';
+    natural = el.offsetWidth || 0;
+  } catch (e) {
+    natural = 0;
+  }
+  el.style.width = prev;
+  if (!natural) return 0;
+  let need = natural + OVERLAP_FLOOR_AIR;
+  /* ⚠ round-2 MINOR-1: the cap is the ROW's width, not the bubble's computed
+   * max-width. `.c-bubble` resolves to `min(82%, 360px)`, and the CSSOM returns that
+   * expression verbatim — parseFloat gives NaN, so the clamp never fired; on a
+   * variant with a bare percentage it would have parsed `82%` as 82px and clamped the
+   * floor to nothing. The row is the true bound and its width is a used value. */
+  const cap = (bubble.parentElement && bubble.parentElement.clientWidth) || 0;
+  if (cap > 0 && need > cap) need = cap;        // the #65 rail wins
+  return need;
+}
+
+function applyOverlapFloor(bubble, el) {
+  if (!el.isConnected || !bubble.isConnected) return;
+  const need = measureOverlapFloor(bubble, el);
+  if (!need) return;                                   // unmeasurable → leave the bubble alone
+  const current = parseFloat(bubble.style.minWidth) || 0;
+  if (Math.abs(current - need) < 1) return;            // converged — never write the same value twice
+  bubble.style.minWidth = need + 'px';
+}
+
+function reserveOverlapWidth(bubble, el) {
+  if (typeof window === 'undefined' || !window.requestAnimationFrame) return;
+  window.requestAnimationFrame(() => applyOverlapFloor(bubble, el));
+  if (typeof ResizeObserver === 'undefined') return;
+  try {
+    /* The bubble owns its observer. A second addReactions on the same live row must
+     * REPLACE it, exactly as the row itself is replaced — see the teardown beside
+     * `prev.remove()`. */
+    const ro = new ResizeObserver(() => applyOverlapFloor(bubble, el));
+    bubble.__reactionFloorObserver = ro;
+    ro.observe(bubble);
+  } catch (e) { /* no observer — the rAF pass still ran */ }
+}
+
+/** Drop the floor and the observer a previous call left on this bubble. Called from
+ *  addReactions before it rebuilds, so replace-on-repeat leaks nothing and a bubble
+ *  that loses its last reaction hugs its text again. */
+function clearOverlapFloor(bubble) {
+  const ro = bubble.__reactionFloorObserver;
+  if (ro) {
+    try { ro.disconnect(); } catch (e) {}
+    bubble.__reactionFloorObserver = null;
+  }
+  try { bubble.style.minWidth = ''; } catch (e) {}
 }
 
 /** Inspect sheet: every reaction type with count + who reacted (Damir
@@ -6586,6 +6707,83 @@ function setRequestAccepting(row, strings = getStrings()) {
 }
 
 /* ---- src/components/chats-row-menu.js ---- */
+/* ★★ #572 ③ (the E-3 dial, CALLED BY EVIDENCE) — THE PRESSED CHAT ROW LIFTS.
+ *
+ * Damir's walk, F19 on Android: with the mobile anchored dropdown open, the row he
+ * long-pressed is not visibly above the deep scrim. The #506② promoted-row treatment
+ * exists, but the chats list never got it: `[data-dt-ctx-source]` is the DESKTOP
+ * highlight and lives under `:root[data-desktop]`, and the message menu's lift is
+ * wired in message-menu.js only.
+ *
+ * ★ THE #506② STACKING CHECK, RUN FIRST, ON THIS CHAIN — because the failure is
+ * SILENT: nothing logs and the row simply stays under the scrim.
+ *   body (flex, overflow:hidden)          → no stacking context
+ *   .view                                  → no stacking context
+ *   .u-scroll#chat-scroll (overflow:auto)  → CLIPS to the scroller, no context
+ *   the list element                       → no stacking context
+ *   .c-swipe (position:relative, z auto,
+ *             overflow:hidden)             → CLIPS to the row box, no context
+ *   .c-swipe__content (position:relative)  → transform is CLEARED to '' at rest
+ *                                            (chats-swipe.js:88), so no context…
+ *   ⚠ …EXCEPT under `.c-swipe[data-open]`, which adds `will-change: transform`
+ *     (chats-swipe.css:47). That IS a stacking context, and it would cap the lift.
+ *
+ * ★ So the lift goes on `.c-swipe`, the OUTERMOST per-row node, not on the item.
+ * Both hazards then sit INSIDE the lifted element and can no longer contain it:
+ * the drawer's transform and its will-change are descendants. It also puts the row
+ * outside `.c-swipe`'s own `overflow:hidden`, so the lifted row's ground is not
+ * clipped. `row` itself is the fallback when the swipe wrapper is parked.
+ *
+ * ⚠ The lift runs ONLY when the anchored dropdown actually applied
+ * (`sheet.dataset.mAnchor`). anchorSheetToRow keeps the bottom sheet when the row is
+ * unmeasurable, and on desktop it no-ops — desktop keeps the #268 press wash.
+ *
+ * ⚠ The value is 'row', not ''. `[data-menu-lift]` (message-menu.css) matches both
+ * and gives position/z-index/pointer-events to each; only the chat row also needs an
+ * opaque ground, because `.c-chatlist-item` is transparent and a message row must
+ * stay transparent so the canvas shows around the bubble. */
+let liveRowLift = null;   // { addr } — the row an OPEN anchored row menu points at
+
+/* ★★ round-2 MAJOR-1 + MAJOR-2. Two defects, one cause: the first cut kept the lift
+ * state in the DOM and undid it through a captured node.
+ *   · MAJOR-1: `act()` closes the sheet and runs the action SYNCHRONOUSLY, and the
+ *     action re-renders the list. `onDismiss` is deferred by up to 400 ms, so its undo
+ *     fired on a node the re-render had already thrown away — and the REPLACEMENT node,
+ *     lifted by renderChatsList, had no undo at all. A lifted row is
+ *     pointer-events:none, so tapping "Mark as read" left that chat dead to taps.
+ *   · MAJOR-2: `document.querySelector` returns the FIRST match in document order, and
+ *     a dismissing sheet is still in the DOM ahead of a newly opened one. A flush
+ *     during that window lifted the OLD row and left the new one under the scrim.
+ * So the live lift is MODULE state (one truth, no document order), the release is
+ * DOM-WIDE (it cannot miss a node it did not create), and it runs SYNCHRONOUSLY at the
+ * action as well as through onDismiss. */
+function releaseRowLift() {
+  liveRowLift = null;
+  if (typeof document === 'undefined') return;
+  try {
+    const lifted = document.querySelectorAll('[data-menu-lift="row"]');
+    for (const n of lifted) { try { delete n.dataset.menuLift; } catch (e) {} }
+  } catch (e) {}
+}
+
+function liftPressedRow(sheet, row, address) {
+  if (!sheet || !sheet.dataset || sheet.dataset.mAnchor === undefined || !row) return () => {};
+  const lift = (row.closest && row.closest('.c-swipe')) || row;
+  if (!lift || !lift.dataset) return () => {};
+  releaseRowLift();                       // a previous menu's lift never outlives this one
+  lift.dataset.menuLift = 'row';
+  liveRowLift = { addr: address ? String(address) : '' };
+  return releaseRowLift;
+}
+
+/** ★ review MINOR-3: the address of the row an ANCHORED row menu currently points at,
+ *  or ''. renderChatsList asks on every row it builds, so a flush that lands while the
+ *  menu is open re-applies the lift to the replacement node instead of dropping it.
+ *  Empty on desktop and for a fail-soft bottom sheet — neither sets [data-m-anchor]. */
+function liftedRowAddress() {
+  return liveRowLift ? liveRowLift.addr : '';
+}
+
 /**
  * Chat-row context menu (step 4; spec §6). Long-press / right-click a chat row →
  * c-sheet with Pin/Mute/Mark read/Chat info/Delete. Reuses the c-msgmenu sheet
@@ -6627,7 +6825,13 @@ function openChatRowMenu({ chat = {}, row = null, host, onAction, onNeedGroups, 
   const list = document.createElement('div');
   list.className = 'c-msgmenu__list';
 
-  const act = (action) => { closeSheet(sheet); if (onAction) onAction(action); };
+  const act = (action) => {
+    // ★ round-2 MAJOR-1: release BEFORE the action. onAction re-renders the list in
+    // this same tick, and onDismiss does not run for up to 400 ms.
+    releaseRowLift();
+    closeSheet(sheet);
+    if (onAction) onAction(action);
+  };
   const item = (glyph, label, onClick, destructive = false) => {
     const b = document.createElement('button');
     b.type = 'button';
@@ -6642,6 +6846,7 @@ function openChatRowMenu({ chat = {}, row = null, host, onAction, onNeedGroups, 
   // pin/mute/mark-read/info/open while the key exchange is still in flight.
   if (handshaking) {
     item('x', strings.cancelHandshake || 'Cancel handshake', () => {
+      releaseRowLift();   // round-2 MAJOR-1: the modal replaces the menu; the lift must not survive it
       closeSheet(sheet);
       openModal(createModal({
         title: strings.cancelHandshakeTitle || 'Cancel handshake?',
@@ -6654,9 +6859,11 @@ function openChatRowMenu({ chat = {}, row = null, host, onAction, onNeedGroups, 
       }));
     }, true);
     content.append(list);
-    const sheet = createSheet({ content, host, strings });
+    let undoLift = () => {};
+    const sheet = createSheet({ content, host, strings, onDismiss: () => undoLift() });
     openSheet(sheet);
-    anchorSheetToRow(sheet, row, { host });   // ★ Batch E (a) (#557): mobile dropdown, above the row
+    anchorSheetToRow(sheet, row, { host, address: chat && chat.address });   // ★ Batch E (a) (#557): mobile dropdown, above the row
+    undoLift = liftPressedRow(sheet, row, chat && chat.address);    // ★ #572 ③: and the row it points at lifts above the scrim
     return sheet;
   }
 
@@ -6691,23 +6898,31 @@ function openChatRowMenu({ chat = {}, row = null, host, onAction, onNeedGroups, 
        The Friend record stays so a later accept completes; the flow's words say
        exactly what happens. */
     item('eye-off', strings.hideRequest || 'Hide request', () => {
+      releaseRowLift();
       closeSheet(sheet);
       openRevokeRequestFlow({ chat, host, onAction, strings });
     });
   } else if (capabilities.delete) {
     item('trash', strings.deleteChat || 'Delete chat', () => {
+      releaseRowLift();
       closeSheet(sheet);
       openDeleteFlow({ chat, host, onAction, onNeedGroups, strings });
     }, true);
   }
 
   content.append(list);
-  const sheet = createSheet({ content, host, strings });
+  /* ⚠ onDismiss, not the action handlers: overlay.js raises it on EVERY route out —
+   * an action, the scrim, Esc and the Android back button. A lift cleared only in
+   * act() would strand a permanently lifted row, and a lifted row is
+   * pointer-events:none — a chat the user can no longer tap. */
+  let undoLift = () => {};
+  const sheet = createSheet({ content, host, strings, onDismiss: () => undoLift() });
   openSheet(sheet);
   /* ★ Batch E (a) (#557, Damir 2026-08-22): the chats-row menu anchors to the
    * long-pressed row on mobile — same grammar as the message menu, one helper.
    * A caller with no row element keeps the bottom sheet (fail-soft). */
-  anchorSheetToRow(sheet, row, { host });
+  anchorSheetToRow(sheet, row, { host, address: chat && chat.address });
+  undoLift = liftPressedRow(sheet, row, chat && chat.address);    // ★ #572 ③ (E-3): the pressed row above the scrim
   return sheet;
 }
 
@@ -7486,6 +7701,7 @@ function renderChatsList(listEl, state, opts = {}) {
       onDecline: opts.onRequestDecline ? () => opts.onRequestDecline(r) : undefined,
     }));
   };
+  const liftedRow = liftedRowAddress();   // review MINOR-3: read ONCE per render
   const renderChat = (c) => {
     // handshaking chats (#109) are not yet openable — tapping routes to
     // onHandshakeBlocked, and they carry no pin/mute affordances until secured.
@@ -7537,6 +7753,10 @@ function renderChatsList(listEl, state, opts = {}) {
       chat: c, capabilities: caps, strings,
       onAction: (action, detail) => applyChatRowAction(listEl, state, c, action, opts, detail),
     });
+    /* ★ review MINOR-3 (#572 ③): a flush replaces every row, and a message arriving in
+       ANY chat is enough. Without this the row under an open anchored menu drops back
+       beneath the deep scrim mid-interaction — the exact symptom the lift fixes. */
+    if (c.address && c.address === liftedRow) node.dataset.menuLift = 'row';
     listEl.append(node);
   };
 
@@ -14706,6 +14926,17 @@ function openAddressSheet({ address = '', strings = getStrings(), host, onShare 
   content.append(caption);
 
   /* full address + honest copy morph (#99 chip pattern; audit m1/m6 rules kept) */
+  /* ⚠ review MINOR-6: the retired hub chip announced copy success and failure through
+   * the Account hub's polite live region. Swapping an already-focused button's
+   * aria-label is not a reliable announcement on TalkBack/NVDA/VoiceOver — and the
+   * failure copy tells the user to "select the address text instead", which they can
+   * only act on if they heard it. The sheet carries its own region. */
+  const live = document.createElement('p');
+  live.className = 'c-addr-sheet__live';
+  live.setAttribute('role', 'status');
+  live.setAttribute('aria-live', 'polite');
+  content.append(live);
+
   const addrRow = document.createElement('div');
   addrRow.className = 'c-wallet-receive__addr c-addr-sheet__addr';
   const addrValue = document.createElement('span');
@@ -14722,6 +14953,7 @@ function openAddressSheet({ address = '', strings = getStrings(), host, onShare 
     copy.textContent = '';
     copy.append(icon(glyph, { size: 18 }));
     copy.setAttribute('aria-label', label);
+    live.textContent = label;                            // review MINOR-6: announce it
     copy.dataset.state = glyph === 'check' ? 'ok' : 'fail';
     if (copyTimer) clearTimeout(copyTimer);                // overlapping clicks: latest wins (audit m6)
     copyTimer = setTimeout(() => {
@@ -14744,48 +14976,77 @@ function openAddressSheet({ address = '', strings = getStrings(), host, onShare 
       copyMorph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead');
     }
   });
+  /* ★ #575 (Damir, D13/F23): SHARE IS AN ICON BESIDE COPY. It used to be a
+   * full-width outline row under the chip, which "reads as a too-short bar" — a
+   * button the width of the sheet for a secondary action. Copy and Share are the
+   * same kind of act on the same value, so they sit together on the chip.
+   * ⚠ Its own <button>, not createButton: the chip's controls are 40px icon
+   * squares (wallet-receive.css), and a 44px c-button would break that row. */
   addrRow.append(addrValue, copy);
+  if (onShare) {
+    const share = document.createElement('button');
+    share.type = 'button';
+    share.className = 'c-wallet-receive__copy c-addr-sheet__sharebtn';
+    share.setAttribute('aria-label', strings.shareAddress || 'Share address');
+    share.append(icon('share-3', { size: 18 }));
+    share.addEventListener('click', () => onShare({ address, amount: null, value: qrValue }));
+    addrRow.append(share);
+  }
   content.append(addrRow);
 
-  if (onShare) {
-    const share = createButton({
-      label: strings.shareAddress || 'Share address', type: 'outline', size: 44, width: 'full',
-      icon: icon('share-3', { size: 18 }),
-      onClick: () => onShare({ address, amount: null, value: qrValue }),
-    });
-    share.classList.add('c-addr-sheet__share');
-    content.append(share);
-  }
 
   /* the folded-in explainer (ONE surface — no second address-info sheet).
      EXACT existing keys — extract-strings conflict-gates on drifted fallbacks.
      ★ F5-5 ③ (#556, Damir screenshot): the filled disc is GONE — "icon within
      icon looks weird". ONE glyph level: a bare tinted info-circle leads the block. */
+  /* ★ #575 (Damir): "the explainer block aligns the safety text with the INFO
+   * TEXT's left edge, not under the icon." The block was [icon][text column], and
+   * the safety line carried its shield INSIDE that column — so its text started
+   * ~24px right of the info paragraph above it.
+   * It is a TWO-COLUMN GRID now: every glyph in the gutter, every line of copy on
+   * one left edge. Both glyphs survive (the #556 ③ "one glyph level" objection was
+   * about a glyph inside a filled disc, not about having two rows). */
   const explain = document.createElement('div');
   explain.className = 'c-addr-sheet__explain';
   const disc = document.createElement('span');
   disc.className = 'c-addr-sheet__explainicon';
   disc.setAttribute('aria-hidden', 'true');
   disc.append(icon('info-circle', { size: 20 }));
-  const explainText = document.createElement('div');
-  explainText.className = 'c-addr-sheet__explaintext';
   const info = document.createElement('p');
   info.className = 'c-addr-sheet__info';
   info.textContent = strings.addressInfoBody
     || 'This is your address on the Ixian network. Share it, or let someone scan the code, and they can add you as a contact or send you IXI.';
+  const shieldWrap = document.createElement('span');
+  shieldWrap.className = 'c-addr-sheet__explainicon c-addr-sheet__explainicon--safe';
+  shieldWrap.setAttribute('aria-hidden', 'true');
+  shieldWrap.append(icon('shield-lock', { size: 16 }));
   const safety = document.createElement('p');
   safety.className = 'c-addr-sheet__info c-addr-sheet__info--safe';
-  const shield = icon('shield-lock', { size: 16 });
-  shield.setAttribute('aria-hidden', 'true');
-  safety.append(shield, document.createTextNode(strings.addressInfoSafety
-    || 'Sharing it is safe: it never gives anyone access to your wallet.'));
-  explainText.append(info, safety);
-  explain.append(disc, explainText);
+  safety.textContent = strings.addressInfoSafety
+    || 'Sharing it is safe: it never gives anyone access to your wallet.';
+  explain.append(disc, info, shieldWrap, safety);
   content.append(explain);
 
   const sheet = createSheet({ content, host, strings, title: strings.addressInfoTitle || 'Your Ixian address',
     onDismiss: () => { addrSheetLive = null; } });
   sheet.classList.add('c-sheet--addr');                   // W-c: desktop dialog width cap lives on the sheet
+  /* ★ #575 (Damir): an explicit way OUT. The sheet is near-full height on mobile
+   * now, so the scrim is a thin strip at the top — "scrim-tap only" stopped being a
+   * usable exit the moment the sheet grew. Esc and light dismiss are unchanged;
+   * this is an additional control, never the only one.
+   * ⚠ dismissOverlay through closeSheet, so the sheet leaves by the ONE route every
+   * other exit uses — the latch is cleared by onDismiss above, not here. */
+  const dismiss = document.createElement('button');
+  dismiss.type = 'button';
+  dismiss.className = 'c-addr-sheet__dismiss';
+  dismiss.setAttribute('aria-label', strings.close || 'Close');
+  dismiss.append(icon('x', { size: 20 }));
+  dismiss.addEventListener('click', () => { try { closeSheet(sheet); } catch (e) {} });
+  /* ⚠ review MINOR-5: FIRST in the DOM, not appended. The focus trap walks
+   * querySelectorAll order, so an appended button is the LAST stop — after the scroll
+   * region, the address and both explainer paragraphs — while every sighted user sees
+   * it top-right and every keyboard user expects it there. */
+  sheet.insertBefore(dismiss, sheet.firstChild);
   addrSheetLive = sheet;
   openSheet(sheet);
   return sheet;
@@ -14853,6 +15114,18 @@ function setRequestAmount(el, amount) {
 
 
 
+/** ★ #569 — the payee name as it may be SHOWN: a real nickname, else the address
+ *  in the #211 truncated form. Never the raw base58, and never an empty name when
+ *  an address exists ("Request from " with nothing after it was the other half). */
+function payeeDisplayName({ name = '', address = '' } = {}) {
+  const n = String(name == null ? '' : name).trim();
+  const a = String(address == null ? '' : address).trim();
+  // isPseudoAddressNick catches C#'s address-echo in every shape it arrives in;
+  // the equality test is the belt for an echo the predicate has not seen.
+  if (n && n !== a && !isPseudoAddressNick(n)) return n;
+  return a ? truncateAddressMiddle(a) : n;
+}
+
 function amountSheetCopy(kind, strings) {
   return kind === 'request' ? {
     title: strings.requestName || 'Request from {name}',
@@ -14888,12 +15161,27 @@ function openAmountSheet({
   // is the one place the user checks WHO is about to be paid, so a gradient where every
   // other surface shows a face is the worst place to drop it. The caller now supplies
   // `avatar`; `|| null` keeps the gradient for a contact with no stored photo.
-  head.append(createAvatar({ name: recipient.name, address: recipient.address, src: recipient.avatar || null, size: 40 }));
+  /* ⚠ review NIT: the AVATAR is a #211 survivor too. initials() takes any leading
+   * letter, so C#'s address echo produced a one-letter disc instead of the person
+   * glyph. The resolver decides the name once, for both the disc and the title. */
+  const payeeName = payeeDisplayName(recipient);
+  head.append(createAvatar({ name: isPseudoAddressNick(payeeName) ? '' : payeeName, address: recipient.address, src: recipient.avatar || null, size: 40 }));
   const htext = document.createElement('div');
   htext.className = 'c-tipsheet__headtext';
+  /* ★ #569 (Damir screenshot, desktop): the header rendered the RAW 65-character
+   * base58 when the sender has no nickname, and the unbroken string forced the
+   * sheet's horizontal scrollbar.
+   *
+   * Mechanism: C#'s resolveNick ECHOES the address into the nickname for a nameless
+   * contact, so `identity.name` IS the address. chat.html guards that echo on the
+   * group rung (#370 B-6) but the 1:1 rung passes `identity.name` straight through.
+   *
+   * ⚠ The guard belongs HERE, not at that one caller. This sheet is the payment
+   * confirm moment, every entry point reaches this line, and #211 is a canon with no
+   * survivors — a caller added later must not be able to reintroduce the leak. */
   const title = document.createElement('h2');
   title.className = 'c-tipsheet__title';
-  title.textContent = copy.title.split('{name}').join(recipient.name || '');
+  title.textContent = copy.title.split('{name}').join(payeeName);
   htext.append(title);
   if (message.excerpt) {
     const ex = document.createElement('p');
@@ -19073,92 +19361,21 @@ function createSettingsHub({
     }
   }
 
-  if (address) {
-    /* full address chip + honest copy morph (#137 m1) */
-    const row = document.createElement('div');
-    row.className = 'c-settings__address-row';
-    const value = document.createElement('span');
-    value.className = 'c-settings__address-value u-tabular';
-    value.textContent = address;
-    const copy = document.createElement('button');
-    copy.type = 'button';
-    copy.className = 'c-settings__copy';
-    copy.append(icon('copy', { size: 18 }));
-    copy.setAttribute('aria-label', strings.copyAddress || 'Copy address');
-    let morphTimer = null;
-    const morph = (glyph, announce) => {
-      copy.replaceChildren(icon(glyph, { size: 18 }));
-      live.textContent = announce;
-      clearTimeout(morphTimer);
-      morphTimer = setTimeout(() => copy.replaceChildren(icon('copy', { size: 18 })), 1600);
-    };
-    copy.addEventListener('click', () => {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(address).then(
-          () => morph('check', strings.copied || 'Copied'),
-          () => morph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead'),
-        );
-      } else {
-        morph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead');
-      }
-    });
-    row.append(value, copy);
-    if (onShare) {                             // #148⑤ — share beside copy (system sheet via shell)
-      const share = document.createElement('button');
-      share.type = 'button';
-      share.className = 'c-settings__copy c-settings__share';
-      share.append(icon('share-3', { size: 18 }));
-      share.setAttribute('aria-label', strings.shareAddress || 'Share address');
-      share.addEventListener('click', () => onShare({ address }));
-      row.append(share);
-    }
-    hero.append(row);
-
-    /* ★ #443 (Damir V1, Account clarity): the address sat on the screen with a QR above
-       it and nothing saying what either is FOR.
-       ⚠ #453: this was an ⓘ INSIDE the address row, which put three 32px icon buttons in
-       a chip that is already holding a 65-character address — cramped, and it made the
-       share button harder to hit. It is its own text action under the row now: says what
-       it does, needs no legend, and leaves the chip alone. */
-    if (onAddressInfo) {
-      const info = createButton({
-        label: strings.whatIsThisAddress || 'What is this address?',
-        type: 'text', size: 32,
-        onClick: () => onAddressInfo({ address }),
-      });
-      info.classList.add('c-settings__addrinfo');
-      hero.append(info);
-    }
-
-    /* ★ N86 ② superseded by ★ Batch E (d) (#557, Damir 2026-08-22 / #551): the row
-     * no longer reveals an INLINE code — it opens `openAddressSheet`, the ONE
-     * address surface (wallet-receive.js, #527): full-size QR + full address +
-     * copy + Share + the "What is this address?" explainer, folded (#443/#453).
-     * N86's rulings carry over INTO that surface: the code stays behind an
-     * explicit affordance (never resting glare on the hub), it opens at full scan
-     * size (the sheet card is min(280px…) ≥ the measured 185px floor), and the
-     * address chip with copy/share stays visible always. The hub keeps NO second
-     * QR construction to drift against the sheet — #149③'s defect class, retired
-     * structurally. Same reuse the wallet Receive screen ships (#527); the
-     * Account screen was named there as the fold-in and this is that fold.
-     * ⚠ Placed LAST in the hero, directly under the address — #147's affordance
-     * position kept. Lazy by construction: the sheet builds on open. */
-    const qrRow = document.createElement('button');
-    qrRow.type = 'button';
-    qrRow.className = 'c-settings__qr-toggle';
-    qrRow.setAttribute('aria-haspopup', 'dialog');
-    qrRow.append(icon('qrcode', { size: 20 }), document.createTextNode(strings.showQr || 'Show QR'));
-    const qrChev = icon('chevron-right', { size: 18 });
-    qrChev.classList.add('c-settings__qr-chevron');
-    qrRow.append(qrChev);
-    qrRow.addEventListener('click', () => {
-      openAddressSheet({
-        address, strings, host,
-        onShare: onShare ? (p) => onShare({ address: p.address }) : undefined,
-      });
-    });
-    hero.append(qrRow);
-  }
+  /* ★★ #575 (Damir, D13/F23) — THE ADDRESS LEAVES THE HERO.
+   *
+   * The hub carried THREE address affordances: the full base58 chip with copy and
+   * share (#137/#148⑤), a "What is this address?" text action (#443/#453), and a
+   * "Show QR" row (Batch E (d), #557). His spec collapses all of them into ONE row
+   * in the section below, and he confirmed the chip retires with them.
+   *
+   * Nothing is lost. `openAddressSheet` — the ONE address surface (#527) — carries
+   * the code, the full address, copy, Share and the explainer, and #575 puts copy
+   * and Share side by side on its chip. The hub keeps the identity (avatar and
+   * nickname) and nothing else, so the address is never at rest on the screen.
+   *
+   * ⚠ `onShare` and `onAddressInfo` are NOT retired from the options. onShare is
+   * forwarded into the sheet below; onAddressInfo now has no consumer here, and the
+   * shells keep passing it — see the row for why that is deliberate. */
   body.append(hero);
 
   /* ——— row builders (disc + label · value · chevron; #142 grammar) ——— */
@@ -19285,19 +19502,45 @@ function createSettingsHub({
     return section;
   };
 
-  /* ——— preferences ——— */
-  const prefs = group(strings.preferences || 'Preferences');
+  /* ——— ★ #575: the UNTITLED section — the two things that are about PEOPLE and
+     ABOUT ME. It sits first, above "Preferences", and carries no label because
+     neither row is a setting: one opens a list, one opens the address surface. ——— */
+  const me = group();
 
   /* ★ N42 (#443, Damir): a way to REACH the contact list from Account. It was only
      ever reachable from the chats topbar, which is not where someone looks for "my
      people". Opt-in: a host that cannot route there passes no handler and no row
-     appears. */
-  if (onContacts) prefs.card.append(settingRow({
+     appears. ★ #575 moved it out of "Preferences" into this section. */
+  if (onContacts) me.card.append(settingRow({
     glyph: 'users', hue: 'info',
     label: strings.contacts || 'Contacts', key: 'contacts',
     sub: strings.contactsSub || 'See and manage everyone you have added',
     onClick: () => onContacts(),
   }).section);
+
+  /* ★ #575: THE ONE ADDRESS ENTRY. It replaces the hero chip, the "Show QR" row and
+     the "What is this address?" action — three affordances for one value.
+     ⚠ The subtitle is the whole point of the row: it says what the address IS, which
+     is the job #443 gave the retired text action. `onAddressInfo` is therefore not
+     called any more, and it is left in the options on purpose — the shells still pass
+     it, and a signature change would be a silent breakage for a host that has not
+     been rebuilt. It is a no-op here, not a lie. */
+  if (address) me.card.append(settingRow({
+    glyph: 'qrcode', hue: 'accent',
+    label: strings.spixiAddress || 'Spixi address', key: 'address',
+    sub: strings.spixiAddressSub || 'This is your address. Tap to view.',
+    onClick: () => {
+      openAddressSheet({
+        address, strings, host: hostFor(),
+        onShare: onShare ? (p) => onShare({ address: p.address }) : undefined,
+      });
+    },
+  }).section);
+
+  if (me.card.childElementCount) body.append(me.wrap);
+
+  /* ——— preferences ——— */
+  const prefs = group(strings.preferences || 'Preferences');
 
   if (onTheme) {
     const themeLabelFor = (v) => {
@@ -23535,5 +23778,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, ignorePushedTheme: ignorePushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, ignorePushedTheme: ignorePushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

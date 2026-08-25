@@ -106,10 +106,32 @@ export function attachContextMenuAnchors({ host = document.body, rows = '.c-bubb
 const M_MENU_W = 300;   // the desktop dropdown width (CTX_MENU_W) — one menu metric, two presentations
 const M_GAP = 8;
 
-export function anchorSheetToRow(sheet, row, { host = document.body, align = null, width = M_MENU_W, gap = M_GAP } = {}) {
+export function anchorSheetToRow(sheet, row, { host = document.body, align = null, width = M_MENU_W, gap = M_GAP, address = '' } = {}) {
   if (isDesktopPresentation() || !sheet || !row) return sheet;
   const fr = host.getBoundingClientRect();
-  const rr = row.getBoundingClientRect();
+  /* ★★ #587 (Damir): "I restored and the FIRST long press opened the bottom sheet, every
+   * next one opens the dropdown."
+   *
+   * His log explains it with no FE line in it at all: right after a restore the chats list
+   * flushes repeatedly — `[RESTOREDIAG] loadChats run 4/5/6` at 11:46:34, :36, :38, one
+   * every two seconds while the block scan advances. `renderChatsList` REBUILDS every row
+   * on each flush, so the element captured at pointerdown is DETACHED by the time the
+   * 500 ms long-press timer fires. A detached element measures all zeros and the fail-soft
+   * below correctly keeps the bottom sheet.
+   *
+   * ⚠ The fix is to find the LIVE row, not to reuse the old row's rectangle. A rect
+   * captured at press time is a VIEWPORT rect, and the same flush that detached the row
+   * also RE-SORTS the list — so the stale rect can anchor the menu over a different
+   * conversation while the menu acts on this one. The bottom sheet made no positional
+   * claim; a wrong one is worse than none. If no replacement is found we keep the sheet. */
+  let target = row;
+  if (!row.isConnected && address) {
+    try {
+      const live = document.querySelector('.c-chatlist-item[data-address="' + CSS.escape(String(address)) + '"]');
+      if (live) target = live;
+    } catch (e) { /* no CSS.escape, or a malformed address — keep the fail-soft */ }
+  }
+  const rr = target.getBoundingClientRect();
   if (!fr.width || !rr.height) return sheet;   // unmeasurable → keep the bottom sheet (fail-soft)
   sheet.dataset.mAnchor = '';
   const w = Math.min(width, fr.width - 2 * M_GAP);

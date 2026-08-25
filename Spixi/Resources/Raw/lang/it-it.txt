@@ -1,4 +1,4 @@
-language-code = it-it
+﻿language-code = it-it
 language = Italiano
 
 ; Schermata Indirizzo
@@ -126,6 +126,7 @@ chat-call-outgoing = Chiamata in Uscita
 chat-call-incoming = Chiamata in Entrata
 chat-call-no-answer = Nessuna Risposta
 chat-call-missed = Chiamata Persa
+chat-call-declined = Chiamata Rifiutata
 chat-call-ended = Chiamata Terminata
 chat-online = Online
 chat-offline = Offline
@@ -367,6 +368,7 @@ intro-restore-file-error-title = Could not read the backup file
 intro-restore-file-selecterror-text = The file could not be selected. Try again, or copy the backup file to this device first.
 intro-restore-file-readerror-text = The file could not be read. Check that the backup file is complete, then try again.
 intro-restore-file-writeerror-text = The file could not be prepared. Check the free space on this device, then try again.
+intro-restore-account-failed-text = Questo è un backup dell’account Spixi, ma non è stato possibile ripristinarlo. Controlla lo spazio libero su questo dispositivo e riprova con il file di backup originale.
 intro-restore-pass-title = Inserisci la password del backup
 intro-restore-pass-subtitle = Per ripristinare il tuo account Spixi, inserisci la password usata per proteggere il file di backup.
 intro-restore-pass-placeholder = Inserisci la password

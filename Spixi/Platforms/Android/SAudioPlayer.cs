@@ -82,7 +82,12 @@ namespace Spixi
 
             audioPlayer = new AudioTrack(aa, af, bufferSize, AudioTrackMode.Stream, 0);
 
-            MainActivity.Instance.VolumeControlStream = Android.Media.Stream.VoiceCall;
+            // #573 (review MINOR-8): activity-only member — a headless process has none.
+            MainActivity? volActivityVoiceCall = MainActivity.Instance;
+            if (volActivityVoiceCall != null)
+            {
+                volActivityVoiceCall.VolumeControlStream = Android.Media.Stream.VoiceCall;
+            }
 
             audioPlayer.Play();
         }
@@ -169,7 +174,12 @@ namespace Spixi
 
             totalFramesWritten = 0;
 
-            MainActivity.Instance.VolumeControlStream = Android.Media.Stream.NotificationDefault;
+            // #573 (review MINOR-8): activity-only member — a headless process has none.
+            MainActivity? volActivityNotificationDefault = MainActivity.Instance;
+            if (volActivityNotificationDefault != null)
+            {
+                volActivityNotificationDefault.VolumeControlStream = Android.Media.Stream.NotificationDefault;
+            }
 
             if (audioPlayer != null)
             {

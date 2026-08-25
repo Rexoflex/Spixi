@@ -536,92 +536,21 @@ export function createSettingsHub({
     }
   }
 
-  if (address) {
-    /* full address chip + honest copy morph (#137 m1) */
-    const row = document.createElement('div');
-    row.className = 'c-settings__address-row';
-    const value = document.createElement('span');
-    value.className = 'c-settings__address-value u-tabular';
-    value.textContent = address;
-    const copy = document.createElement('button');
-    copy.type = 'button';
-    copy.className = 'c-settings__copy';
-    copy.append(icon('copy', { size: 18 }));
-    copy.setAttribute('aria-label', strings.copyAddress || 'Copy address');
-    let morphTimer = null;
-    const morph = (glyph, announce) => {
-      copy.replaceChildren(icon(glyph, { size: 18 }));
-      live.textContent = announce;
-      clearTimeout(morphTimer);
-      morphTimer = setTimeout(() => copy.replaceChildren(icon('copy', { size: 18 })), 1600);
-    };
-    copy.addEventListener('click', () => {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(address).then(
-          () => morph('check', strings.copied || 'Copied'),
-          () => morph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead'),
-        );
-      } else {
-        morph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead');
-      }
-    });
-    row.append(value, copy);
-    if (onShare) {                             // #148⑤ — share beside copy (system sheet via shell)
-      const share = document.createElement('button');
-      share.type = 'button';
-      share.className = 'c-settings__copy c-settings__share';
-      share.append(icon('share-3', { size: 18 }));
-      share.setAttribute('aria-label', strings.shareAddress || 'Share address');
-      share.addEventListener('click', () => onShare({ address }));
-      row.append(share);
-    }
-    hero.append(row);
-
-    /* ★ #443 (Damir V1, Account clarity): the address sat on the screen with a QR above
-       it and nothing saying what either is FOR.
-       ⚠ #453: this was an ⓘ INSIDE the address row, which put three 32px icon buttons in
-       a chip that is already holding a 65-character address — cramped, and it made the
-       share button harder to hit. It is its own text action under the row now: says what
-       it does, needs no legend, and leaves the chip alone. */
-    if (onAddressInfo) {
-      const info = createButton({
-        label: strings.whatIsThisAddress || 'What is this address?',
-        type: 'text', size: 32,
-        onClick: () => onAddressInfo({ address }),
-      });
-      info.classList.add('c-settings__addrinfo');
-      hero.append(info);
-    }
-
-    /* ★ N86 ② superseded by ★ Batch E (d) (#557, Damir 2026-08-22 / #551): the row
-     * no longer reveals an INLINE code — it opens `openAddressSheet`, the ONE
-     * address surface (wallet-receive.js, #527): full-size QR + full address +
-     * copy + Share + the "What is this address?" explainer, folded (#443/#453).
-     * N86's rulings carry over INTO that surface: the code stays behind an
-     * explicit affordance (never resting glare on the hub), it opens at full scan
-     * size (the sheet card is min(280px…) ≥ the measured 185px floor), and the
-     * address chip with copy/share stays visible always. The hub keeps NO second
-     * QR construction to drift against the sheet — #149③'s defect class, retired
-     * structurally. Same reuse the wallet Receive screen ships (#527); the
-     * Account screen was named there as the fold-in and this is that fold.
-     * ⚠ Placed LAST in the hero, directly under the address — #147's affordance
-     * position kept. Lazy by construction: the sheet builds on open. */
-    const qrRow = document.createElement('button');
-    qrRow.type = 'button';
-    qrRow.className = 'c-settings__qr-toggle';
-    qrRow.setAttribute('aria-haspopup', 'dialog');
-    qrRow.append(icon('qrcode', { size: 20 }), document.createTextNode(strings.showQr || 'Show QR'));
-    const qrChev = icon('chevron-right', { size: 18 });
-    qrChev.classList.add('c-settings__qr-chevron');
-    qrRow.append(qrChev);
-    qrRow.addEventListener('click', () => {
-      openAddressSheet({
-        address, strings, host,
-        onShare: onShare ? (p) => onShare({ address: p.address }) : undefined,
-      });
-    });
-    hero.append(qrRow);
-  }
+  /* ★★ #575 (Damir, D13/F23) — THE ADDRESS LEAVES THE HERO.
+   *
+   * The hub carried THREE address affordances: the full base58 chip with copy and
+   * share (#137/#148⑤), a "What is this address?" text action (#443/#453), and a
+   * "Show QR" row (Batch E (d), #557). His spec collapses all of them into ONE row
+   * in the section below, and he confirmed the chip retires with them.
+   *
+   * Nothing is lost. `openAddressSheet` — the ONE address surface (#527) — carries
+   * the code, the full address, copy, Share and the explainer, and #575 puts copy
+   * and Share side by side on its chip. The hub keeps the identity (avatar and
+   * nickname) and nothing else, so the address is never at rest on the screen.
+   *
+   * ⚠ `onShare` and `onAddressInfo` are NOT retired from the options. onShare is
+   * forwarded into the sheet below; onAddressInfo now has no consumer here, and the
+   * shells keep passing it — see the row for why that is deliberate. */
   body.append(hero);
 
   /* ——— row builders (disc + label · value · chevron; #142 grammar) ——— */
@@ -748,19 +677,45 @@ export function createSettingsHub({
     return section;
   };
 
-  /* ——— preferences ——— */
-  const prefs = group(strings.preferences || 'Preferences');
+  /* ——— ★ #575: the UNTITLED section — the two things that are about PEOPLE and
+     ABOUT ME. It sits first, above "Preferences", and carries no label because
+     neither row is a setting: one opens a list, one opens the address surface. ——— */
+  const me = group();
 
   /* ★ N42 (#443, Damir): a way to REACH the contact list from Account. It was only
      ever reachable from the chats topbar, which is not where someone looks for "my
      people". Opt-in: a host that cannot route there passes no handler and no row
-     appears. */
-  if (onContacts) prefs.card.append(settingRow({
+     appears. ★ #575 moved it out of "Preferences" into this section. */
+  if (onContacts) me.card.append(settingRow({
     glyph: 'users', hue: 'info',
     label: strings.contacts || 'Contacts', key: 'contacts',
     sub: strings.contactsSub || 'See and manage everyone you have added',
     onClick: () => onContacts(),
   }).section);
+
+  /* ★ #575: THE ONE ADDRESS ENTRY. It replaces the hero chip, the "Show QR" row and
+     the "What is this address?" action — three affordances for one value.
+     ⚠ The subtitle is the whole point of the row: it says what the address IS, which
+     is the job #443 gave the retired text action. `onAddressInfo` is therefore not
+     called any more, and it is left in the options on purpose — the shells still pass
+     it, and a signature change would be a silent breakage for a host that has not
+     been rebuilt. It is a no-op here, not a lie. */
+  if (address) me.card.append(settingRow({
+    glyph: 'qrcode', hue: 'accent',
+    label: strings.spixiAddress || 'Spixi address', key: 'address',
+    sub: strings.spixiAddressSub || 'This is your address. Tap to view.',
+    onClick: () => {
+      openAddressSheet({
+        address, strings, host: hostFor(),
+        onShare: onShare ? (p) => onShare({ address: p.address }) : undefined,
+      });
+    },
+  }).section);
+
+  if (me.card.childElementCount) body.append(me.wrap);
+
+  /* ——— preferences ——— */
+  const prefs = group(strings.preferences || 'Preferences');
 
   if (onTheme) {
     const themeLabelFor = (v) => {

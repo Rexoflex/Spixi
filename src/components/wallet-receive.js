@@ -444,6 +444,17 @@ export function openAddressSheet({ address = '', strings = getStrings(), host, o
   content.append(caption);
 
   /* full address + honest copy morph (#99 chip pattern; audit m1/m6 rules kept) */
+  /* ⚠ review MINOR-6: the retired hub chip announced copy success and failure through
+   * the Account hub's polite live region. Swapping an already-focused button's
+   * aria-label is not a reliable announcement on TalkBack/NVDA/VoiceOver — and the
+   * failure copy tells the user to "select the address text instead", which they can
+   * only act on if they heard it. The sheet carries its own region. */
+  const live = document.createElement('p');
+  live.className = 'c-addr-sheet__live';
+  live.setAttribute('role', 'status');
+  live.setAttribute('aria-live', 'polite');
+  content.append(live);
+
   const addrRow = document.createElement('div');
   addrRow.className = 'c-wallet-receive__addr c-addr-sheet__addr';
   const addrValue = document.createElement('span');
@@ -460,6 +471,7 @@ export function openAddressSheet({ address = '', strings = getStrings(), host, o
     copy.textContent = '';
     copy.append(icon(glyph, { size: 18 }));
     copy.setAttribute('aria-label', label);
+    live.textContent = label;                            // review MINOR-6: announce it
     copy.dataset.state = glyph === 'check' ? 'ok' : 'fail';
     if (copyTimer) clearTimeout(copyTimer);                // overlapping clicks: latest wins (audit m6)
     copyTimer = setTimeout(() => {
@@ -482,48 +494,77 @@ export function openAddressSheet({ address = '', strings = getStrings(), host, o
       copyMorph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead');
     }
   });
+  /* ★ #575 (Damir, D13/F23): SHARE IS AN ICON BESIDE COPY. It used to be a
+   * full-width outline row under the chip, which "reads as a too-short bar" — a
+   * button the width of the sheet for a secondary action. Copy and Share are the
+   * same kind of act on the same value, so they sit together on the chip.
+   * ⚠ Its own <button>, not createButton: the chip's controls are 40px icon
+   * squares (wallet-receive.css), and a 44px c-button would break that row. */
   addrRow.append(addrValue, copy);
+  if (onShare) {
+    const share = document.createElement('button');
+    share.type = 'button';
+    share.className = 'c-wallet-receive__copy c-addr-sheet__sharebtn';
+    share.setAttribute('aria-label', strings.shareAddress || 'Share address');
+    share.append(icon('share-3', { size: 18 }));
+    share.addEventListener('click', () => onShare({ address, amount: null, value: qrValue }));
+    addrRow.append(share);
+  }
   content.append(addrRow);
 
-  if (onShare) {
-    const share = createButton({
-      label: strings.shareAddress || 'Share address', type: 'outline', size: 44, width: 'full',
-      icon: icon('share-3', { size: 18 }),
-      onClick: () => onShare({ address, amount: null, value: qrValue }),
-    });
-    share.classList.add('c-addr-sheet__share');
-    content.append(share);
-  }
 
   /* the folded-in explainer (ONE surface — no second address-info sheet).
      EXACT existing keys — extract-strings conflict-gates on drifted fallbacks.
      ★ F5-5 ③ (#556, Damir screenshot): the filled disc is GONE — "icon within
      icon looks weird". ONE glyph level: a bare tinted info-circle leads the block. */
+  /* ★ #575 (Damir): "the explainer block aligns the safety text with the INFO
+   * TEXT's left edge, not under the icon." The block was [icon][text column], and
+   * the safety line carried its shield INSIDE that column — so its text started
+   * ~24px right of the info paragraph above it.
+   * It is a TWO-COLUMN GRID now: every glyph in the gutter, every line of copy on
+   * one left edge. Both glyphs survive (the #556 ③ "one glyph level" objection was
+   * about a glyph inside a filled disc, not about having two rows). */
   const explain = document.createElement('div');
   explain.className = 'c-addr-sheet__explain';
   const disc = document.createElement('span');
   disc.className = 'c-addr-sheet__explainicon';
   disc.setAttribute('aria-hidden', 'true');
   disc.append(icon('info-circle', { size: 20 }));
-  const explainText = document.createElement('div');
-  explainText.className = 'c-addr-sheet__explaintext';
   const info = document.createElement('p');
   info.className = 'c-addr-sheet__info';
   info.textContent = strings.addressInfoBody
     || 'This is your address on the Ixian network. Share it, or let someone scan the code, and they can add you as a contact or send you IXI.';
+  const shieldWrap = document.createElement('span');
+  shieldWrap.className = 'c-addr-sheet__explainicon c-addr-sheet__explainicon--safe';
+  shieldWrap.setAttribute('aria-hidden', 'true');
+  shieldWrap.append(icon('shield-lock', { size: 16 }));
   const safety = document.createElement('p');
   safety.className = 'c-addr-sheet__info c-addr-sheet__info--safe';
-  const shield = icon('shield-lock', { size: 16 });
-  shield.setAttribute('aria-hidden', 'true');
-  safety.append(shield, document.createTextNode(strings.addressInfoSafety
-    || 'Sharing it is safe: it never gives anyone access to your wallet.'));
-  explainText.append(info, safety);
-  explain.append(disc, explainText);
+  safety.textContent = strings.addressInfoSafety
+    || 'Sharing it is safe: it never gives anyone access to your wallet.';
+  explain.append(disc, info, shieldWrap, safety);
   content.append(explain);
 
   const sheet = createSheet({ content, host, strings, title: strings.addressInfoTitle || 'Your Ixian address',
     onDismiss: () => { addrSheetLive = null; } });
   sheet.classList.add('c-sheet--addr');                   // W-c: desktop dialog width cap lives on the sheet
+  /* ★ #575 (Damir): an explicit way OUT. The sheet is near-full height on mobile
+   * now, so the scrim is a thin strip at the top — "scrim-tap only" stopped being a
+   * usable exit the moment the sheet grew. Esc and light dismiss are unchanged;
+   * this is an additional control, never the only one.
+   * ⚠ dismissOverlay through closeSheet, so the sheet leaves by the ONE route every
+   * other exit uses — the latch is cleared by onDismiss above, not here. */
+  const dismiss = document.createElement('button');
+  dismiss.type = 'button';
+  dismiss.className = 'c-addr-sheet__dismiss';
+  dismiss.setAttribute('aria-label', strings.close || 'Close');
+  dismiss.append(icon('x', { size: 20 }));
+  dismiss.addEventListener('click', () => { try { closeSheet(sheet); } catch (e) {} });
+  /* ⚠ review MINOR-5: FIRST in the DOM, not appended. The focus trap walks
+   * querySelectorAll order, so an appended button is the LAST stop — after the scroll
+   * region, the address and both explainer paragraphs — while every sighted user sees
+   * it top-right and every keyboard user expects it there. */
+  sheet.insertBefore(dismiss, sheet.firstChild);
   addrSheetLive = sheet;
   openSheet(sheet);
   return sheet;

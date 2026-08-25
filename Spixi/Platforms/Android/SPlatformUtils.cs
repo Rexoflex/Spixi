@@ -44,6 +44,48 @@ namespace Spixi
             return SPIXI.Meta.Config.spixiUserFolder + "/html";
         }
 
+        /* ★★ #573 — THE PROCESS CAN RUN WITH NO ACTIVITY, AND THE CALL LANE DID NOT KNOW.
+         *
+         * Damir's B4 ixian.log: the process started HEADLESS at 18:59:59 (a background
+         * wake — `MainActivity created` appears only at 19:01:08). A call arrived at
+         * 19:00:06. `MainActivity.Instance` was NULL, so every site below threw, the
+         * phone NEVER RANG, and the ring timed out at 45 s. The notification lane came
+         * through, because it already used the application context (SPushService).
+         *
+         * `Platform.AppContext` IS `Android.App.Application.Context` — the process-wide
+         * context that lives from Application.OnCreate to process death. Permission
+         * checks, GetSystemService and Assets all accept it. Only the ACTIVITY-owned
+         * members (VolumeControlStream, RequestPermissions, Window, FindViewById) still
+         * need MainActivity, and each of those sites now guards for null.
+         *
+         * One truth for the context, so a later site cannot drift back to the Activity. */
+        public static Android.Content.Context appContext()
+        {
+            Android.Content.Context? ctx = null;
+            try
+            {
+                ctx = Microsoft.Maui.ApplicationModel.Platform.AppContext;
+            }
+            catch (Exception)
+            {
+                // The application object is not ready. The Activity is the only fallback.
+            }
+            /* ⚠ review MINOR-7: `MainActivity.Instance` is ANNOTATED non-nullable but is
+             * null before OnCreate, so the compiler cannot see the hole. Throw a named
+             * exception rather than hand every caller a null Context that NREs three
+             * frames away — every caller here is already inside a try/catch that logs. */
+            if (ctx == null)
+            {
+                Android.Content.Context? act = MainActivity.Instance;
+                if (act == null)
+                {
+                    throw new InvalidOperationException("No Android context is available yet (#573).");
+                }
+                return act;
+            }
+            return ctx;
+        }
+
         public static void startRinging()
         {
             lock (ringtoneLock)
@@ -57,7 +99,7 @@ namespace Spixi
                 {
                     bool ring = true;
 
-                    NotificationManager nm = (NotificationManager)MainActivity.Instance.GetSystemService(Context.NotificationService)!;
+                    NotificationManager nm = (NotificationManager)appContext().GetSystemService(Context.NotificationService)!;
                     InterruptionFilter int_filter = nm.CurrentInterruptionFilter;
                     if (int_filter != InterruptionFilter.Priority && int_filter != InterruptionFilter.All)
                     {
@@ -65,13 +107,19 @@ namespace Spixi
                     }
 
 
-                    AudioManager am = (AudioManager)MainActivity.Instance.GetSystemService(Context.AudioService)!;
+                    AudioManager am = (AudioManager)appContext().GetSystemService(Context.AudioService)!;
                     if (am.RingerMode != RingerMode.Normal)
                     {
                         ring = false;
                     }
 
-                    MainActivity.Instance.VolumeControlStream = Android.Media.Stream.Ring;
+                    // #573: activity-only member. A headless wake has no Activity, and the
+                    // volume-key routing is a comfort, not a precondition for the ringtone.
+                    MainActivity? ringActivity = MainActivity.Instance;
+                    if (ringActivity != null)
+                    {
+                        ringActivity.VolumeControlStream = Android.Media.Stream.Ring;
+                    }
 
                     if (ring)
                     {
@@ -112,7 +160,13 @@ namespace Spixi
                 finally
                 {
                     ringtone = null;
-                    MainActivity.Instance.VolumeControlStream = Android.Media.Stream.NotificationDefault;
+                    // #573: the finally is NOT covered by the catch above — a null Activity
+                    // here threw out of stopRinging and left the caller's teardown unfinished.
+                    MainActivity? stopActivity = MainActivity.Instance;
+                    if (stopActivity != null)
+                    {
+                        stopActivity.VolumeControlStream = Android.Media.Stream.NotificationDefault;
+                    }
                 }
             }
         }
@@ -257,7 +311,9 @@ namespace Spixi
             try
             {
                 // Probe before building anything: absent asset = silent no-op.
-                fd = MainActivity.Instance?.Assets?.OpenFd(filePath);
+                // #573 rider: this read used the Activity, so a headless call marked the
+                // asset MISSING for the rest of the process — a permanent silent effect.
+                fd = appContext().Assets?.OpenFd(filePath);
                 if (fd == null)
                 {
                     markMissing(filePath);
@@ -426,7 +482,9 @@ namespace Spixi
             MediaPlayer player = new MediaPlayer();
             try
             {
-                var assetDescriptor = MainActivity.Instance.Assets!.OpenFd(filePath);
+                // #573: the third site on the ring path. A null Activity threw here, the
+                // catch logged, and startRinging then called Start() on an unprepared player.
+                var assetDescriptor = appContext().Assets!.OpenFd(filePath);
                 player.SetDataSource(assetDescriptor.FileDescriptor, assetDescriptor.StartOffset, assetDescriptor.Length);
                 assetDescriptor.Close();
                 player.Prepare();

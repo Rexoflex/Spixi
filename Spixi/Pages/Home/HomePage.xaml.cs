@@ -2198,10 +2198,15 @@ namespace SPIXI
                     // "Missed call" (incoming) / "No answer" (outgoing). A duration
                     // means it connected → the plain call label.
                     excerpt = SpixiLocalization._SL("index-excerpt-voice-call");
-                    if (lastmsg.message == ""
+                    // #572 ④: the row keys on the SAME evidence the bubble does, so a
+                    // declined call cannot say "Missed call" in one place and not the other.
+                    bool declinedLocally = VoIPManager.isDeclinedLocally(lastmsg);
+                    if ((lastmsg.message == "" || declinedLocally)
                         && (lastmsg.type == FriendMessageType.voiceCallEnd || !VoIPManager.hasSession(lastmsg.id)))
                     {
-                        excerpt = lastmsg.localSender
+                        excerpt = declinedLocally
+                            ? (SpixiLocalization._SL("chat-call-declined") ?? "Call declined")
+                            : lastmsg.localSender
                             ? SpixiLocalization._SL("chat-call-no-answer")
                             : SpixiLocalization._SL("chat-call-missed");
                         // review NIT: "You: No answer" reads wrong — the label already
@@ -2316,6 +2321,30 @@ namespace SPIXI
             }
         }
 
+        /* ★★ #565 ② — THE OWED CAPTURE: contacts appear only on the 3rd restart after a
+         * restore, and BOTH earlier captures (#571 ②) ended before the chat list flushed.
+         * This is the window that decides it, and it prints the three numbers that split
+         * the three candidate layers apart:
+         *   · Acc files on disk = 0  → the RESTORE did not land the tree (ours, #565)
+         *   · Acc files > 0 but friends = 0 → LocalStorage.readAccountFile did not read
+         *     it back on this boot (core — a BE row, not ours to patch)
+         *   · friends > 0 but rows = 0 → the FLUSH dropped them (ours, this method)
+         * Gate note: counts and one boolean. No address, no nickname, no filename. */
+        static int restoreDiagRuns = 0;
+
+        private static int accFileCount()
+        {
+            try
+            {
+                string acc = Path.Combine(Config.spixiUserFolder, "Acc");
+                return Directory.Exists(acc) ? Directory.GetFiles(acc, "*", SearchOption.AllDirectories).Length : -1;
+            }
+            catch (Exception)
+            {
+                return -2;   // unreadable — distinct from "absent" (-1) and from "empty" (0)
+            }
+        }
+
         private void loadChats()
         {
             List<Friend> friends;
@@ -2324,12 +2353,25 @@ namespace SPIXI
                 friends = new List<Friend>(FriendList.friends);
             }
 
+            /* The first runs after process start are the boot window; an EMPTY roster is
+             * always worth a line, however late it happens. Everything else is silent, so
+             * a long session does not bury the evidence. */
+            bool diag = restoreDiagRuns < 8 || friends.Count == 0;
+            if (diag)
+            {
+                restoreDiagRuns++;
+                Logging.info("[RESTOREDIAG] loadChats run {0}: friends={1} accFiles={2}", restoreDiagRuns, friends.Count, accFileCount());
+            }
+
             lock (refreshLock)
             {
                 // Check if there are any changes from last time first
                 int unread = 0;
                 foreach (Friend friend in friends)
                 {
+                    // #572 ①: heal the stale count BEFORE it is read, so the same flush
+                    // that hides the row also stops feeding the indicator.
+                    healOutgoingRequestUnread(friend);
                     int umc = friend.getUnreadMessageCount();
                     if (umc > 0)
                     {
@@ -2394,6 +2436,8 @@ namespace SPIXI
 
                 // Sort the helper messages
                 List<FriendMessageHelper> sorted_msgs = helper_msgs.OrderByDescending(x => x.timestamp).ToList();
+                int chatRowsPushed = sorted_msgs.Count;
+                int requestRowsPushed = request_msgs.Count;
 
                 // Add the messages visually
                 foreach (FriendMessageHelper helper_msg in sorted_msgs)
@@ -2416,6 +2460,10 @@ namespace SPIXI
                 chat_kinds = null;
                 mention_flags = null;
 
+                if (diag)
+                {
+                    Logging.info("[RESTOREDIAG] loadChats flushed: chats={0} requests={1} unread={2}", chatRowsPushed, requestRowsPushed, unread);
+                }
                 Utils.sendUiCommand(this, "clearChatsDone");
                 warmAccountAfterFirstPaint();
             }
@@ -3986,6 +4034,88 @@ namespace SPIXI
          * degrading to a plain bubble.
          * The id `new byte[] { 1 }` is the same fixed id the inbound sites use, so a
          * line can never appear twice in one chat (FriendList dedupes on it). */
+        /* ★★ #572 ① — AN OUTGOING REQUEST MUST NOT RAISE THE USER'S OWN UNREAD COUNT.
+         *
+         * Damir's walk: he HIDES an outgoing request (#562) and a red dot still rides
+         * the back arrow inside every other chat "until the peer accepts". The hide is
+         * an FE tombstone in localStorage; the dot is not. It comes from
+         * `FriendList.getUnreadMessageCount()`, which SingleChatPage pushes as
+         * `setUnreadIndicator` (:2809). No FE skip can reach that number.
+         *
+         * ★ THE MECHANISM, read out of the source, not guessed:
+         *   · `FriendMessage`'s constructor sets `read = false` for EVERY message,
+         *     `local_sender` included (Ixian-Core `FriendMessage.cs`).
+         *   · `Node.addMessageWithType` gates the unread increment on `read` ALONE
+         *     (`Node.cs:925`) — it never looks at `localSender`.
+         *   · So the `requestAddSent` marker the user's OWN "send request" writes
+         *     counts as one unread message against the user.
+         * That also explains why the home badge looked clean: home.html recomputes the
+         * nav badge from its own rows and overwrites the push. The chat shell does not.
+         *
+         * This is the same defect `writeConnectedLine` fixes below, and the same fix:
+         * snapshot the count and put it back. Clearing it to ZERO would silently mark a
+         * genuinely unread message from that contact as read. */
+        public static void writeRequestSentMarker(Address address)
+        {
+            try
+            {
+                Friend? friend = FriendList.getFriend(address);
+                int unreadBefore = friend != null ? friend.metaData.unreadMessageCount : 0;
+                Node.addMessageWithType(null, FriendMessageType.requestAddSent, address, 0, "", true);
+                if (friend != null && friend.metaData.unreadMessageCount != unreadBefore)
+                {
+                    friend.metaData.unreadMessageCount = unreadBefore;
+                    friend.saveMetaData();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("Could not write the request-sent marker: " + ex);
+            }
+        }
+
+        /* ★ #572 ① — THE HEAL for requests that are ALREADY pending. Accounts made
+         * before the fix above carry the stale +1, and the user cannot open the chat to
+         * clear it when the row is hidden.
+         *
+         * The predicate is deliberately narrow, and each clause earns its place:
+         *   · `state == FriendState.RequestSent` — the state the outgoing sites set.
+         *     ⚠ NOT `!approved`: `approved` DEFAULTS TRUE and no outgoing site clears
+         *     it, so an `approved` guard is dead for these exact rows (#395 F-1).
+         *   · the LAST message is our own `requestAddSent` — this is what excludes the
+         *     mutual-request case. If the peer also sent a request, THEIR requestAdd is
+         *     the last message and it is genuinely unread, so the heal does not fire.
+         *   · a peer who has not accepted cannot send messages, so with our marker
+         *     newest there is nothing else the count can legitimately hold.
+         * Idempotent, so it can run on every flush. Returns true when it changed data. */
+        /* ⚠ review MINOR-4, on the two helpers' policies: writeRequestSentMarker PRESERVES
+         * whatever count was there, because at write time we cannot know what it holds;
+         * this one CLEARS it, because its predicate proves the marker is the only thing
+         * that could have raised it. They are the same policy read at two moments, not
+         * two policies. Today both reduce to zero anyway — FriendList.addFriend returns
+         * null for an address already present, so every marker site fires only for a
+         * brand-new Friend. */
+        public static bool healOutgoingRequestUnread(Friend friend)
+        {
+            if (friend == null
+                || friend.state != FriendState.RequestSent
+                || friend.metaData.unreadMessageCount <= 0)
+            {
+                return false;
+            }
+            var lm = friend.metaData.lastMessage;
+            if (lm == null
+                || lm.type != FriendMessageType.requestAddSent
+                || !lm.localSender)
+            {
+                return false;
+            }
+            friend.metaData.unreadMessageCount = 0;
+            friend.saveMetaData();
+            Logging.info("#572: cleared the unread count an outgoing contact request had raised against the user.");
+            return true;
+        }
+
         public static void writeConnectedLine(Friend friend)
         {
             try

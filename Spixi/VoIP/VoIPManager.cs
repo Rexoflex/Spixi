@@ -32,6 +32,38 @@ namespace SPIXI.VoIP
 
         static bool currentCallInitiator = false;
         static bool currentCallDeclinedLocally = false;   // F5-1 r3 (R-2): THIS device rejected the call (user decline, or the codec auto-reject where no row/message ever existed) — cancel the row, never "Missed call"
+
+        /* ★★ #572 ④ — A CALL THE USER DECLINED IS NOT A MISSED CALL, AND THE BUBBLE
+         * MUST SAY SO AFTER A RESTART TOO.
+         *
+         * #554's R-2 fixed the NOTIFICATION with the latch above. The chat bubble and
+         * the chats-list row were still wrong, because both read the stored message:
+         * an ended call with an EMPTY message body means "never connected", and for an
+         * incoming call that reads as "Missed call" (SingleChatPage:2387-2396,
+         * HomePage:2200-2206). A live latch cannot help them — history is re-read on
+         * every chat open, long after the latch reset.
+         *
+         * So the decline is written INTO the message body, which is what persists.
+         *
+         * ⚠ WHY "-1" AND NOT A WORD. The body of an ENDED call is parsed as the call
+         * duration by a BARE `Int32.Parse` (SingleChatPage, inside insertMessage — there
+         * is no try/catch on that path, in this build or an older one). The marker never
+         * reaches it, because the declined branch short-circuits first. But the value
+         * still has to be safe if it ever did, and a DOWNGRADE to an older binary has no
+         * short circuit at all: a word there throws inside the message render, while "-1"
+         * parses, fails the `seconds > 0` test and degrades to a harmless "(0:00)".
+         * A wrong label is a bug; a throw is a broken chat screen.
+         * ⚠ No real duration can collide: `callDuration` is a non-negative difference of
+         * timestamps, and it is only written when the call was ACCEPTED. */
+        public const string declinedLocallyMarker = "-1";
+
+        /// <summary>True when THIS device declined the call this message records.</summary>
+        public static bool isDeclinedLocally(FriendMessage? msg)
+        {
+            return msg != null
+                && msg.type == FriendMessageType.voiceCallEnd
+                && msg.message == declinedLocallyMarker;
+        }
         public static long currentCallInitiated { get; private set; } = 0;
 
         public static bool isInitiated()
@@ -77,7 +109,9 @@ namespace SPIXI.VoIP
             startRingTimeout();   // #265: an unanswered call must not ring forever
         }
 
-        public static bool onReceivedCall(Friend friend, byte[] session_id, byte[] data)
+        /// <param name="agedSeconds">#574 ① (round-2 MAJOR-4): how much of the caller's ring
+        /// budget this request already spent in transit. 0 for every live call.</param>
+        public static bool onReceivedCall(Friend friend, byte[] session_id, byte[] data, long agedSeconds = 0)
         {
             if (currentCallSessionId != null)
             {
@@ -94,7 +128,8 @@ namespace SPIXI.VoIP
             currentCallAccepted = false;
             currentCallCodec = null;
             currentCallInitiator = false;
-            currentCallInitiated = Clock.getTimestamp();
+            // #574 ①: backdate the budget by what the request already burned in transit.
+            currentCallInitiated = Clock.getTimestamp() - (agedSeconds > 0 ? agedSeconds : 0);
 
             string codecs_str = Encoding.UTF8.GetString(data);
 
@@ -126,8 +161,47 @@ namespace SPIXI.VoIP
                     SSpixiPermissions.requestAudioRecordingPermissions();
                 });
             }
-            Logging.info("SND call-tone: ringing");   // sound belt (#518)
-            SPlatformUtils.startRinging();
+            /* ★★ #586 item 33 — THE MUTE HAS TO REACH THE RING, not only the tray.
+             * Damir's walk: a muted contact raised no notification (the push gate works)
+             * and the phone rang anyway, with nothing on screen to explain it. Only
+             * SPushService consulted SNotificationPrefs; this call did not.
+             *
+             * ★★ AND NOT WHILE OUR OWN LOCK IS UP (Damir, this round — he re-dialled the
+             * #272 rule himself: "fix it up so it doesn't ring"). #272 made the lock and
+             * the call surface mutually exclusive with the lock winning, so a call that
+             * arrives behind the lock rang for the full 45 s budget with NO UI and no way
+             * to stop it. The notification lane still fires and IS actionable, so the
+             * user is told; they are simply not rung at by a screen they cannot answer.
+             * ⚠ This SUPERSEDES #272's "rings audibly but shows no UI" clause, on his say.
+             *
+             * ⚠ The session is still created either way. Only the SOUND is gated — the
+             * call must remain answerable from the notification, and the #265 timeout
+             * must still run so an unanswered call still becomes a missed call. */
+            bool ringAllowed = true;
+            try
+            {
+                if (!SPIXI.Meta.SNotificationPrefs.shouldRingForCall(friend))
+                {
+                    ringAllowed = false;
+                    Logging.info("SND call-tone: SUPPRESSED, the contact is muted");
+                }
+                else if (Microsoft.Maui.Controls.Application.Current is App app && app.isAppLockActive)
+                {
+                    ringAllowed = false;
+                    Logging.info("SND call-tone: SUPPRESSED, the app lock is up and no call UI can be shown (#272)");
+                }
+            }
+            catch (Exception rex)
+            {
+                // A gate that throws must not silence a real call.
+                Logging.warn("SND call-tone: the ring gate threw, ringing anyway: " + rex.Message);
+                ringAllowed = true;
+            }
+            if (ringAllowed)
+            {
+                Logging.info("SND call-tone: ringing");   // sound belt (#518)
+                SPlatformUtils.startRinging();
+            }
             startRingTimeout();   // #265: the incoming overlay auto-clears on the SAME budget
             return true;
         }
@@ -297,6 +371,30 @@ namespace SPIXI.VoIP
                         if (callAccepted)
                         {
                             fm.message = callDuration.ToString();
+                        }
+                        else if (currentCallDeclinedLocally)
+                        {
+                            // #572 ④: the ONE writer of the durable decline marker. The
+                            // latch is true only when this device rejected the call, so
+                            // a call that simply rang out keeps its empty body and stays
+                            // a genuine "Missed call".
+                            fm.message = declinedLocallyMarker;
+                        }
+                        /* ★★ #572 ④, review MAJOR-1: THE CHATS ROW READS A DEEP COPY.
+                         * `metaData.setLastMessage` stores `new FriendMessage(msg.getBytes())`
+                         * (Ixian-Core Friend.cs:126-129), so mutating `fm` here reaches the
+                         * message list and NOT the row. Without this refresh the bubble said
+                         * "Call declined" and the chats row said "Missed call" — the exact
+                         * two-surface disagreement this row exists to remove — and the stale
+                         * copy is what gets persisted, so a restart kept the wrong label
+                         * forever. The same refresh carries an ANSWERED call's duration and
+                         * its voiceCallEnd type across, which never reached the row either. */
+                        var callMeta = currentCallContact.metaData;
+                        if (callMeta.lastMessage != null && fm.id != null
+                            && callMeta.lastMessage.id != null && callMeta.lastMessage.id.SequenceEqual(fm.id))
+                        {
+                            callMeta.setLastMessage(fm, 0);
+                            currentCallContact.saveMetaData();
                         }
                         IxianHandler.localStorage.requestWriteMessages(currentCallContact.walletAddress, 0);
                         UIHelpers.insertMessage(currentCallContact, 0, fm);
@@ -561,6 +659,15 @@ namespace SPIXI.VoIP
          * The thread self-exits the moment the call connects (currentCallStartedTime),
          * is answered, or the session ends. */
         public const int RING_TIMEOUT_SECONDS = 45;
+
+        /* ★ #574 ①, review MAJOR-2: the margin the staleness gate adds on top of the ring
+         * budget. The receiver compares its own clock against the SENDER's stamp, and
+         * `Clock.networkTimeDifference` is 0 until a time-synced client connects — which on
+         * a cold boot is exactly when the gate runs. A receiver whose clock is fast would
+         * otherwise refuse a call that is ringing right now. 120 s covers ordinary device
+         * skew and relay latency; past that the gate still fires, and the gated call is
+         * announced as missed rather than dropped in silence. */
+        public const int STALE_CALL_MARGIN_SECONDS = 120;
         static Thread? ringTimeoutThread = null;
 
         private static void startRingTimeout()

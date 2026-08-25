@@ -1,0 +1,106 @@
+# Staging list — WALK-DAY BATCH + TRIAGE (#576-#588), 2026-08-26
+#
+# 'git add -u' covers every MODIFIED file. SIX docs are NEW and need an explicit
+# add — 'add -u' will not pick them up:
+#
+#   git --no-optional-locks add -u
+#   git --no-optional-locks add docs/commit-2026-08-26.txt \
+#       docs/commit-message-2026-08-26.txt \
+#       docs/f5-checklist-2026-08-26-walkday.md \
+#       docs/f5-findings-2026-08-26-walkday.md \
+#       docs/handoff-2026-08-26-walkday.md \
+#       docs/opus-review-verdict-walkday-576.md
+#
+# NEVER 'git add -A' — _deliveries/ is gitignored but _scratch/ is not.
+# Stage in chunks of ~20 and VERIFY the staged count (the bridge kills a long
+# add, and $? after a pipe reports success anyway).
+#
+# git --no-optional-locks status --porcelain   # expect exactly the 87 below
+#
+  DECISIONS.md
+  Spixi/Meta/Node.cs
+  Spixi/Meta/SNotificationPrefs.cs
+  Spixi/MiniApps/MiniAppManager.cs
+  Spixi/Network/StreamProcessor.cs
+  Spixi/Pages/Chat/SingleChatPage.xaml.cs
+  Spixi/Pages/Contacts/ContactNewPage.xaml.cs
+  Spixi/Pages/Home/HomePage.xaml.cs
+  Spixi/Pages/Launch/LaunchPage.xaml.cs
+  Spixi/Pages/Settings/SettingsPage.xaml.cs
+  Spixi/Platforms/Android/SAudioPlayer.cs
+  Spixi/Platforms/Android/SAudioRecorder.cs
+  Spixi/Platforms/Android/SPlatformUtils.cs
+  Spixi/Platforms/Android/SSpixiPermissions.cs
+  Spixi/Platforms/Windows/SFilePicker.cs
+  Spixi/Resources/Raw/html/chat.html
+  Spixi/Resources/Raw/html/index.html
+  Spixi/Resources/Raw/html/settings.html
+  Spixi/Resources/Raw/html/spixi.bundle.js
+  Spixi/Resources/Raw/html/spixi.strings.js
+  Spixi/Resources/Raw/lang/cn-cn.txt
+  Spixi/Resources/Raw/lang/de-de.txt
+  Spixi/Resources/Raw/lang/en-us.txt
+  Spixi/Resources/Raw/lang/es-co.txt
+  Spixi/Resources/Raw/lang/fr-fr.txt
+  Spixi/Resources/Raw/lang/id-id.txt
+  Spixi/Resources/Raw/lang/it-it.txt
+  Spixi/Resources/Raw/lang/ja-jp.txt
+  Spixi/Resources/Raw/lang/lt-lt.txt
+  Spixi/Resources/Raw/lang/pt-br.txt
+  Spixi/Resources/Raw/lang/ru-ru.txt
+  Spixi/Resources/Raw/lang/sl-si.txt
+  Spixi/Resources/Raw/lang/sr-sp.txt
+  Spixi/Utils/SpixiContentPage.cs
+  Spixi/VoIP/VoIPManager.cs
+  docs/commit-2026-08-26.txt
+  docs/commit-message-2026-08-26.txt
+  docs/f5-checklist-2026-08-26-walkday.md
+  docs/f5-findings-2026-08-26-walkday.md
+  docs/handoff-2026-08-26-walkday.md
+  docs/i18n-strings.md
+  docs/next-session-prompt.md
+  docs/opus-review-verdict-walkday-576.md
+  docs/security-handover-gate.md
+  docs/security-review-for-be-engineer.md
+  scripts/smoke-test.mjs
+  src/components/chatlist-item.js
+  src/components/chats-row-menu.js
+  src/components/chats-shell.js
+  src/components/desktop-anchors.js
+  src/components/reactions.js
+  src/components/settings-shell.js
+  src/components/tip-sheet.js
+  src/components/wallet-receive.js
+  src/demo/settings.html
+  src/demo/spixi.iife.js
+  src/demo/strings.iife.js
+  src/shells/chat.html
+  src/strings/cn-cn.js
+  src/strings/cn-cn.json
+  src/strings/de-de.js
+  src/strings/de-de.json
+  src/strings/en-us.js
+  src/strings/en-us.json
+  src/strings/es-co.js
+  src/strings/es-co.json
+  src/strings/fr-fr.js
+  src/strings/fr-fr.json
+  src/strings/id-id.js
+  src/strings/id-id.json
+  src/strings/it-it.js
+  src/strings/it-it.json
+  src/strings/ja-jp.js
+  src/strings/ja-jp.json
+  src/strings/lt-lt.js
+  src/strings/lt-lt.json
+  src/strings/pt-br.js
+  src/strings/pt-br.json
+  src/strings/ru-ru.js
+  src/strings/ru-ru.json
+  src/strings/sl-si.js
+  src/strings/sl-si.json
+  src/strings/sr-sp.js
+  src/strings/sr-sp.json
+  src/styles/components/message-menu.css
+  src/styles/components/tip-sheet.css
+  src/styles/components/wallet-receive.css

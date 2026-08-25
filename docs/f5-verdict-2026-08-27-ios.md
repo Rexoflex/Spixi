@@ -290,3 +290,93 @@ a bug fix, and it argues against #131. Do not build it inside a fix batch.
 ★ Damir confirms the switch was **never in a build a real user ran** — internal only.
 So the one-shot migration mutates preference state for nobody. **Delete the migration**
 along with restoring the mobile row (D3).
+
+---
+
+## 14. ★ D4 CLOSED — the address sheet. Specced from Damir's description, no screenshot needed.
+
+His words, consistent across three rows (A1.2, A1.7, B1.5):
+
+> *"the info block is too close to the title, then there's a large gap, then at the bottom
+> the QR code and the actual address"* · *"reads as a hole"*
+
+### 14a · ★ The gap is one CSS line, and it is deliberate
+
+`src/styles/components/wallet-receive.css:239`
+
+```css
+:root:not([data-desktop]) .c-addr-sheet__qrwrap { margin-block-start: auto; }
+```
+
+#589 added it on purpose. Its own comment says:
+
+> *"the slack moves to the ONE seam where a gap reads as deliberate: between the sentence
+> that explains the surface and the surface itself."*
+
+★ **On the device it does not read as deliberate. It reads as a hole.** Damir confirmed it
+unprompted on row A1.7, having been asked only to eyeball it.
+
+### 14b · ★★ But deleting that line only MOVES the hole. Find the real cause.
+
+The slack exists because the sheet is FORCED to near-full height
+(`wallet-receive.css`, `:root:not([data-desktop]) .c-addr-sheet`):
+
+```css
+height: max(320px, calc(100dvh - var(--safe-top) - env(safe-area-inset-bottom) - var(--layout-bar-top, 56px) - 88px));
+```
+
+That came from **#575 — Damir's own ask**: *"on MOBILE the sheet grows to NEAR-FULL height,
+just below the top bar."* It was right at the time. ⚠ **Since then the CONTENT got
+shorter**: #556 dropped the QR card padding, and #575 shrank the code 280 → 216. A forced
+near-full height over shrunken content **manufactures ~110px of slack that has nowhere good
+to go.** #589 chose a seam for it. The seam is the symptom.
+
+### 14c · ★ THE DECISION FOR DAMIR — pick one, then it is a small change
+
+| | Option | Consequence |
+|---|---|---|
+| **A** | ★ **Let the sheet hug its content.** Retire the forced height; keep a min-height floor | No slack, so no hole and no seam to choose. ⚠ The sheet is no longer "just below the top bar" — it reverses part of #575 |
+| **B** | Keep near-full height, move the slack to the FOOT | Restores the pre-#589 behaviour. ⚠ #589 moved it away from the foot deliberately; it will be a gap under the safety line instead |
+| **C** | Keep near-full height, grow the QR back to fill it | Undoes #556 and #575's "QR still too big — shrink it" |
+
+### ★★ DAMIR'S ANSWER (2026-08-27): **A, with breathing room.**
+
+> *"hug but add some slack around QR"*
+
+So the sheet **sizes to its content**, and the QR block gets **deliberate vertical space of
+its own**.
+
+★★ **The distinction that makes this work, and it is the whole lesson of §14:**
+
+| | |
+|---|---|
+| ❌ What #589 built | `margin-block-start: auto` — a **REMAINDER**. Its size is whatever is left over, so it changes with the screen, the locale and the content. On a tall phone it became ~110px and read as a hole |
+| ✅ What to build | An **EXPLICIT token value** above and below the QR — say one step larger than the sheet's `--spacing-16` rhythm. Constant on every device, every locale, every content length |
+
+★ Space that is CHOSEN reads as design. Space that is LEFT OVER reads as a mistake — even
+when it is the same number of pixels. #589 picked the right seam and the wrong mechanism.
+
+**The change, concretely:**
+
+1. Retire `height: max(320px, calc(100dvh - …))` on `:root:not([data-desktop]) .c-addr-sheet`
+   — keep a `min-height` floor so a nearly-empty sheet is not tiny.
+2. Delete `:root:not([data-desktop]) .c-addr-sheet__qrwrap { margin-block-start: auto; }`
+   (`wallet-receive.css:239`).
+3. Give `.c-addr-sheet__qrwrap` explicit block padding, above and below.
+4. §14d — add block-start space under the title — still applies, independently.
+
+⚠ Keep the safety line's adjacency to the address block. That was #589's real point and it
+survives all of this.
+
+### 14d · "Too close to the title" — separate, and simple
+
+`.c-addr-sheet` sets `padding-inline` only. There is **no block-start spacing**, so the
+first explain row butts up against the sheet's title. Add block-start space at the top of
+the scroller — it is independent of 14c and can ship either way.
+
+### 14e · A1.8, the safety block — Damir's steer
+
+Two adjacent blocks both paint `--surface-neutral-02` and read as one broken card.
+★ *"Give it some colour — inverse the background, or the info as text."*
+Exact treatment is the batch's call; the requirement is that the two blocks stop reading
+as one.

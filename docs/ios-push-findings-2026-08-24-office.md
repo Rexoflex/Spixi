@@ -3,7 +3,7 @@
 **LANGUAGE RULE: ASD-STE100 Simplified Technical English.** See `CLAUDE.md`.
 
 ★ This doc CORRECTS `docs/f5-verdict-2026-08-21-ios.md` §3 and the iOS sections of
-`docs/handoff-2026-08-24.md`. Two of the five "layers" recorded there are WRONG.
+`docs/archive/handoff-2026-08-24.md`. Two of the five "layers" recorded there are WRONG.
 Read this before any more push work on either platform.
 
 Device: iPhone 15 (`iPhone15,4`), UDID `00008120-001C02E00E39A01E`,

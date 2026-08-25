@@ -185,3 +185,108 @@ LOCK SCREEN, did the phone make a sound? Re-walk C7 with that question only.
 from the last round says one neutral step is **1.10:1** on a black list. So removing the
 ring makes a real ELEVATION treatment mandatory in dark, not optional. Ring-removal alone
 would leave the row flatter than before.
+
+---
+
+## 12. ★ SCREENSHOT EVIDENCE — the German tip sheet (row A4.3, A4.2)
+
+Two screenshots, iPhone 15, de-de, 22:07. They confirm four separate defects and give the
+numpad row a repro that does not need words.
+
+### 12a · The sheet does not rise for the numpad — CONFIRMED (§5a)
+
+With the numpad up, **only the title row of the sheet is still visible.** The amount chips,
+the custom-amount field and the primary button are all behind the keyboard. The user can
+not see what they are typing into, or reach the button that commits it.
+
+### 12b · The numpad has no way out — CONFIRMED (§5b)
+
+The keypad is 1-9, `,`, `0`, backspace. ★ **There is no Done, no Return, no dismiss key**,
+and the sheet behind it is not reachable. Nothing on screen closes it.
+
+### 12c · ★ The custom-amount chip is CLIPPED — new, and it is not only "overflow"
+
+The chip row reads `1 IXI` · `5 IXI` · `10 IXI` · `Benutzerdefiniert`, and the fourth chip
+**runs off the right edge of the screen and is cut**. The row does not scroll and does not
+wrap. In de-de the word for "custom" is 18 characters, so the fixed four-up row can not
+hold it. ⚠ This is a LAYOUT defect, not a translation-length one — a shorter word would
+only hide it. The row needs to wrap, scroll, or drop to a 2×2.
+
+### 12d · The title runs the name and the verb together — this is what A4.2 really is
+
+The title reads:
+
+```
+Testan…oo🏔️🔥  Trinkgeld geben
+```
+
+Two problems in one line:
+
+1. ★ The nickname is **middle-truncated like an address** — `Testan…oo` — although the row
+   has space. ⚠ **The Request sheet does this correctly. Copy it.**
+2. ★ The verb sits **inline after the name, in the same size and weight**, with no
+   hierarchy. That is why Damir read it as "it repeats *tip user* to the right of the
+   nickname" — nothing marks where the name ends and the action begins. In de-de the name
+   comes first, so the sheet opens with a truncated name and the action word buried after
+   it. English hides the problem because the verb leads.
+
+★ The fix is not a string change. The title needs the name and the action as **two
+elements** with their own treatment, and only the name ellipsized.
+
+### 12e · What the screenshots also show working
+
+| | |
+|---|---|
+| B5.3 | The tip badge **"Trinkgeld gegeben" is green**. Confirmed |
+| B5.5 | A heart reaction and the tip badge sit on one line and **fit** on this bubble |
+| Formatting | The payment card renders **`1,02 IXI`** correctly in de-de — so the comma is right on OUTPUT. §5c is an INPUT-caret defect only |
+
+---
+
+## 13. ★★ THREE CORRECTIONS — Damir, 2026-08-27. Two of these retire standing rows.
+
+### 13a · C7 is a PASS. My checklist row was wrong.
+
+★ **The notification DID make a sound on the lock screen.** C7 = **pass**.
+
+### 13b · ★★ "The four sound assets" DO NOT EXIST AS A GAP. Retire the row.
+
+Damir challenged the claim. He is right, and the disk proves it:
+
+| | |
+|---|---|
+| The code asks for | `sounds/{busy_tone, dialing_tone, error_tone, default_ringtone, message_sent, message_received}.mp3` — **six**, and no others |
+| On disk | `Spixi/Resources/Raw/sounds/` — ★ **all six present** |
+| In the built bundle | `Spixi.app/sounds/` — ★ **all six shipped** |
+| The notification tone | `SPushService.cs:345` → `UNNotificationSound.Default`. ★ **The OS owns it. It was never ours** |
+
+★★ **"The sound assets — four files, still outstanding. The app is silent until they land"
+has been carried in the handoffs since 2026-08-24 and is FALSE.** Nothing is missing.
+Damir shipped send and receive; the call tones were already there.
+
+⚠ **Delete that row from every handoff and checklist.** It has appeared in three documents
+and made "the app is silent" read as a known state when it is not.
+
+⚠ Also stale: the comment at `SPlatformUtils.cs:167` — *"the miss is the expected state
+today"*. It is not. ★ And note `missingEffects` is **memoised and never cleared** — if an
+asset is ever missing once in a process it stays marked missing for that whole process.
+Harmless while the files are present, but it is a latch of the same family as #489.
+
+### 13c · ★ 35b is NOT a defect. No popup was ever agreed.
+
+**DECISIONS #131 (2026-07-05)** locked the backup nudge:
+
+> *"**nudge = status-driven quiet-but-standing** (row badge states: never/date/dirty-since;
+> **no popups**)"*
+
+★ So the backup nudge is a **standing row status**, not a prompt. "It did not fire when I
+added a contact" describes a popup that was deliberately never built.
+
+⚠ If Damir wants a prompt on adding a first contact, that is a **NEW design decision**, not
+a bug fix, and it argues against #131. Do not build it inside a fix batch.
+
+### 13d · The "Show sender name" migration — DELETE it.
+
+★ Damir confirms the switch was **never in a build a real user ran** — internal only.
+So the one-shot migration mutates preference state for nobody. **Delete the migration**
+along with restoring the mobile row (D3).

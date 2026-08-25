@@ -21,8 +21,12 @@ Some of the worst rows in this pass **fail only on iOS and can not be verified h
 | A7.1 — the mini-app rectangle | ★ **YES — this one is Android-only** |
 | Everything else | Yes |
 
-⚠ **Write the iOS-only fixes, and mark them UNVERIFIED in the handoff.** Do not claim a
-pass you can not produce. Damir walks them on the Mac.
+★★ **THIS SESSION FIXES EVERYTHING IN THE LIST, iOS ROWS INCLUDED.** The table above is
+NOT a scope cut. It says only which fixes you can PROVE here.
+
+⚠ So: write every fix. For the iOS-only rows, mark them **UNVERIFIED** in the handoff and
+say what you could not exercise. Do not write "pass" for a thing you never saw run.
+★ Damir walks them on the Mac the next evening and closes them there.
 
 ## 1. Decisions already taken. Do not re-open them.
 
@@ -78,7 +82,7 @@ is NOT in this session.** It is gated on an App Group that does not exist at App
 | | |
 |---|---|
 | **Remove the details cover** (B1.1, B1.2) | Retire it. Do not replace it in this batch |
-| **Restore "Show sender name" on mobile** (A6.1, A6.2) | Desktop stays without it. ⚠ The preference still lives in `SNotificationPrefs` — only the UI was deleted. Also settle the one-shot migration: if that switch never shipped in a build a real user ran, delete the migration too |
+| **Restore "Show sender name" on mobile** (A6.1, A6.2) | Desktop stays without it. ⚠ The preference still lives in `SNotificationPrefs` — only the UI was deleted. ★ **And DELETE the one-shot migration** — Damir confirms the switch was internal-only and never reached a real user |
 | **The safety block** (A1.8) | Give it colour — inverse the background, or the info as text |
 | **The address sheet spacing** (A1.2, A1.7, B1.5) | The info block sits too close to the title, then a large gap, then the QR at the foot. ★ A1.7 was CONFIRMED on device: it reads as a hole. ⚠ Damir owes a screenshot — do the spacing, hold the layout |
 
@@ -114,16 +118,20 @@ is NOT in this session.** It is gated on an App Group that does not exist at App
 
 ## 4. 🟡 Owed by Damir — chase these
 
-1. ★ **C7:** when the notification arrived **on the lock screen**, did the phone make a
-   sound? The checklist row was imprecise; `SPushService.cs:345` sets
-   `UNNotificationSound.Default`, so it should. One line settles it.
-2. ★ **35b:** was "a new contact is added" ever the AGREED trigger for the backup prompt?
-   If not, it is not a defect.
-3. The **address-sheet screenshot** (D4) and the **German screenshot** (A4.3).
-4. **#589's open question:** was "Show sender name" ever in a build a real user ran? It
-   decides whether the one-shot migration is deleted.
-5. Still outstanding from earlier rounds: the four **sound assets**, and `#565 ②`'s
-   `[RESTOREDIAG]` lines (row 34 produces them).
+★ **Four of the five were ANSWERED on 2026-08-27. See §13 of the verdict.** What is left:
+
+1. The **address-sheet screenshot** (D4). ★ The German tip-sheet screenshots ARRIVED — see
+   verdict §12, which turns A4.2 and A4.3 into a repro.
+2. `#565 ②`'s `[RESTOREDIAG]` lines (row 34 produces them).
+
+★★ **RESOLVED — do not chase these, and DELETE them from the standing lists:**
+
+| | |
+|---|---|
+| **C7** | ★ **PASS.** The notification sounded. The checklist row was wrong |
+| **The four sound assets** | ★★ **THE ROW IS FALSE. Retire it.** All six files the code asks for are on disk AND in the bundle. The notification tone is `UNNotificationSound.Default` — the OS owns it. ⚠ Delete this row from every handoff; it has been carried since 2026-08-24 |
+| **35b, the backup prompt** | ★ **NOT a defect.** DECISIONS #131 locked the nudge as "status-driven quiet-but-standing … **no popups**". A prompt was deliberately never built. A prompt on adding a contact would be a NEW design decision |
+| **The migration** | ★ **DELETE it.** The switch was internal-only and never reached a real user |
 
 ## 5. ★ What this pass proved about the process
 

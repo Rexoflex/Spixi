@@ -543,7 +543,18 @@
      info-600 on light = 6.3:1. */
   --text-link: var(--info-600);
   --text-link-hover: var(--info-700);
-  --text-success: var(--success-600);
+  /* ★★ #591 (round-2 review, MEASURED — LIGHT ONLY; the dark value at the bottom of this
+     file is untouched): this was `--success-600`, and against `--surface-success-inverse`
+     (--success-100 #c9dacb) it measures 4.28:1. `.c-badge` is label-xs, 12px bold — normal
+     text — so the bar is 4.5:1 and it MISSED. `--success-700` #075022 measures 6.59:1.
+     Darker ink on a light ground can only INCREASE contrast, and every consumer of this
+     token is ink on a light-ish surface (tonal badge, tx amounts, sheet amounts, card
+     amounts), so the change is monotone-safe app-wide. Dark mode already reads 7.51:1 via
+     --success-400 on --success-900 and is left exactly as it was.
+     Found because #591 moved the TIP pill onto this pair; the failure was pre-existing on
+     the other three surfaces. ⚠ Damir: this is a token dial — say the word and it reverts
+     to 600 with the tip alone scoped instead. */
+  --text-success: var(--success-700);
   --text-success-inverse: var(--success-300);
   --text-warning: var(--warning-700);
   --text-warning-inverse: var(--warning-300);

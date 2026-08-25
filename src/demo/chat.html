@@ -19,6 +19,7 @@
 <link rel="stylesheet" href="../styles/components/toast.css">
 <link rel="stylesheet" href="../styles/components/overlay.css">
 <link rel="stylesheet" href="../styles/components/reactions.css">
+<link rel="stylesheet" href="../styles/components/wallet-receive.css"><!-- ★ #591: the details address row opens openAddressSheet -->
 <link rel="stylesheet" href="../styles/components/typing-indicator.css">
 <link rel="stylesheet" href="../styles/components/scroll-latest.css">
 <link rel="stylesheet" href="../styles/components/message-menu.css">
@@ -788,6 +789,12 @@
     selfDestruct: 0,                                     // #142: disappearing messages — §9-flagged, demo-fed
     capabilities: { media: true, selfDestruct: true },   // §9-flagged sections; demo-fed
     onNickname: (nick, ctrl) => setTimeout(ctrl.done, 700),   // ixian:userdefinednick — mock
+    /* ★ #591: the demos ARE the review surface (CLAUDE.md), so they must show the row
+       doing what production does — open the shared address sheet. Without a handler the
+       row degrades to a plain non-interactive line, which would read here as a
+       capability regression the app does not actually have. */
+    onCall: () => toastD('Call — the native call surface (#270)'),
+    onAddressSheet: ({ address }) => openAddressSheet({ address, strings: window.SL || {}, host: phoneDirect, subject: 'peer' }),
     onPay: () => { close(); openSendTakeover(phoneDirect, boxD, peerByPhone.get(phoneDirect)); },
     onRequest: () => { close(); handleAttach('request', phoneDirect, boxD); },
     onSelfDestruct: (secs, ctrl) => setTimeout(ctrl.done, 700),   // §9 command — mock

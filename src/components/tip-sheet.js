@@ -99,7 +99,36 @@ function openAmountSheet({
    * survivors — a caller added later must not be able to reintroduce the leak. */
   const title = document.createElement('h2');
   title.className = 'c-tipsheet__title';
-  title.textContent = copy.title.split('{name}').join(payeeName);
+  /* ★★ #589 (round-2 review) — DAMIR'S RULE IS ABOUT THE NAME, AND MY FIRST CUT APPLIED
+   * IT TO THE WHOLE SENTENCE. The title is a template, and the name is NOT always last:
+   *   de-de  "{name} Trinkgeld geben"      ru-ru  "Чаевые {name}"
+   *   sl-si  "Napitnina za {name}"         fr-fr  "Donner un pourboire à {name}"
+   * With `nowrap` + ellipsis on the sentence, German ate the VERB — a money confirm
+   * sheet reading "SuperLongNickname…" with no indication of what the action is.
+   *
+   * The name gets its own inline span and the ellipsis rides THAT; the sentence around
+   * it wraps freely. So a long nick truncates at its end, the action always survives,
+   * and the anti-sideways-scroll guarantee holds because the span cannot exceed its
+   * line box. Built by splitting on the placeholder so every locale's word order is
+   * honoured wherever it puts {name}. */
+  {
+    const parts = copy.title.split('{name}');
+    title.append(document.createTextNode(parts[0] || ''));
+    const nameEl = document.createElement('span');
+    nameEl.className = 'c-tipsheet__payee';
+    nameEl.textContent = payeeName;
+    /* the recovery path for a truncated name — this is the payment confirm moment, and
+       two contacts differing only past the cut would otherwise render identically.
+       ⚠ Desktop-only by nature (a title tooltip does not exist on touch); the wrapping
+       sentence is what keeps the phone case readable. Screen readers are unaffected
+       either way — the full name is in textContent. */
+    nameEl.title = payeeName;
+    title.append(nameEl);
+    for (let i = 1; i < parts.length; i++) {
+      title.append(document.createTextNode(parts[i] || ''));
+      if (i < parts.length - 1) { const n2 = nameEl.cloneNode(true); title.append(n2); }
+    }
+  }
   htext.append(title);
   if (message.excerpt) {
     const ex = document.createElement('p');

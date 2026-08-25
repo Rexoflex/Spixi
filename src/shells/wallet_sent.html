@@ -134,6 +134,7 @@
     createTopbar, openTxSheet, closeSheet,
     createNativeBridge, installExecuteUiCommand,
     truncateAddressMiddle,               // #276: address-shaped counterparty names render truncated
+    isAddressShaped,                     // ★ #589: the ONE address-shape test (was a local 20-char regex)
     createButton,                        // #285: the per-view reveal button
     formatTxTimestamp,                   // iOS-55 (#325): epoch → localized display (docLocale)
     groupAmountDisplay,                  // ★ I-6 (#360): locale-aware amount display (money.js),
@@ -270,7 +271,9 @@
     // base58 (Damir F5). Address-shaped names render MIDDLE-TRUNCATED; the full
     // address stays on the copyable address row below (the sanctioned field).
     // Same token shape as home.html's looksLikeAddress (base58, 20–128, ≥1 digit).
-    const nameIsAddr = !unknown && /^[1-9A-HJ-NP-Za-km-z]{20,128}$/.test(e.name) && /\d/.test(e.name);
+    // ★ #589: the local test fired at 20 characters, so a long nickname was
+    // middle-truncated. One canon now (avatar.js looksLikeAddress, floor 40).
+    const nameIsAddr = !unknown && isAddressShaped(e.name);
     // #285: mask = global hide minus the per-view reveal. Money + who mask
     // (amount/fiat/fee/name/address/avatar); status/date/txid stay visible —
     // home.html applyWalletVisibility parity ("pattern-of-life is visible

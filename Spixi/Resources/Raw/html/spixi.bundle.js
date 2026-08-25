@@ -516,12 +516,69 @@ function truncateAddressMiddle(s, head = 6, tail = 6) {
    unnamed contact — the #276/#279 echo class). Rendered verbatim either one IS
    the address a blind room hides (#369 amendment). Shells test roster names
    with this at INGEST — on '[Unknown]'-masked rows ONLY — and blank the DISPLAY
-   name (the raw value stays usable as a key). Base58 alphabet, 30+ chars, with
-   an optional leading x: a real nick of that shape is implausible, and the
+   name (the raw value stays usable as a key). Base58 alphabet, at or above the
+   shared ADDRESS_MIN_CHARS floor (#589 raised it from 30 — see the block below),
+   with an optional leading x: a real nick of that shape is implausible, and the
    failure mode in a blind room is a placeholder instead of a strange name —
    the safe direction. */
+/* ★★ #589 (Damir F5 2026-08-26): "a long nickname is middle-truncated".
+ *
+ * The rule he states is the canon: a NICK ellipsizes at the END, on overflow only.
+ * Only an ADDRESS is ever truncated in the middle. So every shape test that can
+ * route a nick into `truncateAddressMiddle` has to be tight enough that a human
+ * name cannot reach it — and four of them were not:
+ *
+ *   isPseudoAddressNick          30+ chars   (this file, #370)
+ *   home.html   looksLikeAddress 20+ chars   (excerpt canon + wallet counterparty)
+ *   wallet_sent nameIsAddr       20+ chars
+ *   chat.html   looksAddr        24+ chars, and not even base58-restricted
+ *
+ * A 20-to-30 character nickname is ordinary. An IXIAN ADDRESS of that length does
+ * not exist: `Address.ToString()` base58-encodes `addressWithChecksum` (Ixian-Core
+ * `Address/Address.cs:362-365`) — the address plus a 3-byte checksum — and the
+ * address itself is 33 or 45 bytes (`Address.cs:34`, `addressVersionLengths`).
+ *
+ * ⚠ MEASURED, not estimated (the audit re-derived this over 20 000 synthetic
+ * addresses per version, because my first numbers were wrong in both directions):
+ * v0 encodes to 49 characters 96% of the time and 48 the rest — its leading version
+ * byte is zero, and Base58Check spends only one character on a leading zero byte
+ * (`Utils/Base58CheckEncoding.cs:50-53`) — and v1/v2 encode to EXACTLY 65, always.
+ * So the shortest real address is 48, not the 49 I first wrote, and the long form is
+ * 65, not 66.
+ *
+ * ONE floor, with margin on both sides: 40. Eight characters of headroom below the
+ * shortest address, and far above any plausible nickname. Raising a floor can only
+ * match FEWER strings, so the #370 blind-room guard cannot weaken — every address it
+ * has to catch is 48+, and nothing exists in the 30-to-40 window it used to cover.
+ *
+ * ⚠ NOT applied to the add-contact input gate (contacts-shell 20–128). That gate
+ * ACCEPTS a pasted value; being permissive there is the correct direction, and a
+ * wrong answer is a validation message, not a mangled name. */
+const ADDRESS_MIN_CHARS = 40;
+
+/* The shared #211 shape test: is this string an Ixian address rather than a name?
+   Base58 alphabet, at or above the floor, and it must contain a DIGIT — a long
+   all-letter token is a word, and every real address carries digits. Callers that
+   also accept an 'x'-prefixed pseudo-key use isPseudoAddressNick below.
+   ⚠ It shares only the FLOOR with isPseudoAddressNick below — not the rule. This one
+   adds a 128 upper bound and requires a digit; that one accepts a leading 'x' and does
+   neither. They are two predicates with one constant, not one predicate.
+   ⚠ NAMED `isAddressShaped`, not `looksLikeAddress`: contacts-shell.js already owns
+   a `looksLikeAddress`, and it is a DIFFERENT job — an INPUT-acceptance gate that is
+   deliberately charset-blind so it cannot reject a valid address it has not seen.
+   One word, one meaning; the bundle's collision gate caught the clash. */
+function isAddressShaped(s) {
+  const v = String(s == null ? '' : s);
+  return v.length >= ADDRESS_MIN_CHARS && v.length <= 128
+    && /^[1-9A-HJ-NP-Za-km-z]+$/.test(v) && /\d/.test(v);
+}
+
+/* ⚠ Hoisted, not rebuilt per call: this runs once per roster row on every re-render,
+   and a module-scope literal also gets its pattern validated at parse time. */
+const PSEUDO_ADDRESS_RE = new RegExp('^x?[1-9A-HJ-NP-Za-km-z]{' + ADDRESS_MIN_CHARS + ',}$');
+
 function isPseudoAddressNick(name) {
-  return /^x?[1-9A-HJ-NP-Za-km-z]{30,}$/.test(String(name == null ? '' : name));
+  return PSEUDO_ADDRESS_RE.test(String(name == null ? '' : name));
 }
 
 function initials(name) {
@@ -755,6 +812,35 @@ const caf = (typeof cancelAnimationFrame === 'function')
   : (id) => clearTimeout(id);
 
 const pressAttached = new WeakSet();
+
+/* ★★ #589 (Damir F5 2026-08-26): "a mini app that opens the contacts picker leaves
+ * a pressed-row rectangle over the new screen."
+ *
+ * The gap is named by this module's OWN comment at the `onHide` listener below —
+ * "a page hidden mid-press (app backgrounded, OVERLAY OPENED) must not come back
+ * with a row still lit". `visibilitychange` and `pagehide` cover the first case.
+ * They do not fire for the second: an in-document TAKEOVER covers the list, it does
+ * not hide the document. The pressed row stays CONNECTED, so nothing in the
+ * afterlife's kill paths fires either — its timers are wall-clock (fill + fade), and
+ * they keep running under the screen that replaced it.
+ *
+ * `clearPressFeedback()` is the missing edge: the screen being opened calls it, and
+ * every live instance drops its armed press and every afterlife at once.
+ *
+ * ⚠ It is called by the SCREEN, not by each caller that opens one. A per-call-site
+ * hook is a line somebody forgets; `mountContacts` calling it once covers every host
+ * that opens the picker, including hosts written later.
+ *
+ * ⚠ HONEST SCOPE: this closes a real window that is verifiable in this file. Whether
+ * that window is what put the rectangle on Damir's screen is an F5 question — if the
+ * rectangle survives this, the cause is elsewhere and a screenshot is owed (#294). */
+const pressInstances = new Set();
+
+function clearPressFeedback() {
+  for (const inst of Array.from(pressInstances)) {
+    try { inst(); } catch (e) { /* one dead instance must not block the rest */ }
+  }
+}
 
 function attachPressFeedback({
   root = document, rows = PRESSABLE_ROW, controls = PRESSABLE_CONTROL,
@@ -1107,10 +1193,13 @@ function attachPressFeedback({
   const onHide = () => { abortGesture(); killAllAfterlives(); };
   window.addEventListener('pagehide', onHide);
   document.addEventListener('visibilitychange', onHide);
+  // #589: the same teardown, reachable from a screen that opens IN the document
+  pressInstances.add(onHide);
 
   return function detach() {
     abortGesture();
     killAllAfterlives();
+    pressInstances.delete(onHide);
     pressAttached.delete(host);
     host.removeEventListener('touchstart', onDown, opts);
     host.removeEventListener('touchmove', onMove, opts);
@@ -2722,8 +2811,10 @@ function closeModal(el) { dismissOverlay(el); }
  *   Right-click (contextmenu) on an element matching `rows` records the
  *   pointer; the NEXT `.c-sheet` mounting into `host` that contains a
  *   `.c-msgmenu` (message menu AND chats-row menu both use it) within 600ms is
- *   tagged [data-dt-anchor="menu"], positioned at the pointer / source-row
- *   bottom edge, and the source row highlights ([data-dt-ctx-source]) until
+ *   tagged [data-dt-anchor="menu"], positioned at the pointer horizontally and
+ *   ABOVE the source row when it fits (#589 — else below, else clamped; the
+ *   same rule the mobile path has carried since #557 4.1, so a menu never
+ *   covers what it acts on), and the source row highlights ([data-dt-ctx-source]) until
  *   the sheet leaves the DOM. A menu opened any OTHER way (long-press,
  *   keyboard) has no recent contextmenu → presents as the centered dialog,
  *   deliberately (the demo's 600ms rule).
@@ -2792,8 +2883,42 @@ function attachContextMenuAnchors({ host = document.body, rows = '.c-bubble-row,
         const rr = ctx.row.getBoundingClientRect();
         n.style.width = CTX_MENU_W + 'px';
         n.style.left = Math.round(Math.max(8, Math.min(ctx.x - fr.left, (fr.width || 1e4) - CTX_MENU_W - 8))) + 'px';
-        // adjacent to the SOURCE — dropping from the row's bottom edge (06d ②)
-        n.style.top = Math.round(Math.max(8, Math.min((rr.bottom || ctx.y) - fr.top + 4, (fr.height || 1e4) - 420))) + 'px';
+        /* ★★ #589 (Damir F5 2026-08-26): "the desktop right-click menu often covers
+         * the selected row". It did — this always dropped from the row's BOTTOM edge
+         * and never flipped, so on any row in the lower half of the window the menu
+         * opened over the rows below and, once clamped, over the source row itself.
+         * The clamp was the tell: `fr.height - 420` is a GUESSED menu height, and a
+         * menu taller or shorter than 420 was placed wrong in opposite directions.
+         *
+         * The MOBILE path (anchorSheetToRow, below) has preferred ABOVE since #557
+         * 4.1 precisely so a menu can never cover what it acts on. Same rule here,
+         * measured rather than guessed. The horizontal anchor is unchanged — the
+         * pointer, which is the desktop convention.
+         *
+         * ⚠ Measure AFTER the width lands: the width is what decides how the labels
+         * wrap, and the wrap is what decides the height. Measuring first would size
+         * the flip against a box this function is about to change. */
+        const CTX_GAP = 4;
+        const mh = n.offsetHeight || 0;
+        const rowTop = rr.height ? rr.top : ctx.y;
+        const rowBottom = rr.height ? rr.bottom : ctx.y;
+        const minTop = 8;
+        const maxBottom = (fr.height || 1e4) - 8;
+        const aboveTop = rowTop - fr.top - CTX_GAP - mh;
+        let ctxTop;
+        if (mh && aboveTop >= minTop) {
+          ctxTop = aboveTop;                                  // preferred: ABOVE the source row
+        } else {
+          ctxTop = rowBottom - fr.top + CTX_GAP;              // below
+          /* ⚠ An unmeasurable menu takes the below-placement with NO upper clamp — which
+             is NOT what the old line did (it clamped unconditionally at a guessed
+             `fr.height - 420`). It is unreachable in a browser: at this point the sheet
+             is appended, sized, and only `opacity: 0`, never `display: none`, so
+             offsetHeight is a real box. jsdom reports 0 for everything, and there every
+             branch collapses to `minTop` anyway. Stated so it is not read as a promise. */
+          if (mh && ctxTop + mh > maxBottom) ctxTop = Math.max(minTop, maxBottom - mh);
+        }
+        n.style.top = Math.round(Math.max(minTop, ctxTop)) + 'px';
         ctx.row.dataset.dtCtxSource = '';
         open = { sheet: n, row: ctx.row };
         ctx = null;
@@ -4913,9 +5038,13 @@ function addReactions(row, {
   }
 
   if (tip) {
-    // tip = amount pill in the reaction row (#65); c-badge keeps the vocabulary
+    /* tip = amount pill in the reaction row (#65); c-badge keeps the vocabulary.
+       ★ #591 (Damir 2026-08-26): SUCCESS, not warning. Same badge, same tonal
+       weight, same glyph — only the role changes. A tip is money that ARRIVED;
+       warning is the role this app reserves for "look at this, something may be
+       off", and it was reading as a caution on a completed transfer. */
     const badge = createBadge({
-      type: 'warning', weight: 'tonal', label: tip, icon: 'heart-handshake',
+      type: 'success', weight: 'tonal', label: tip, icon: 'heart-handshake',
     });
     badge.classList.add('c-reactions__tip');
     el.append(badge);
@@ -5050,7 +5179,8 @@ function openReactionsSheet({ host, reactions = [], tip = '', strings = getStrin
     const rowEl = document.createElement('div');
     rowEl.className = 'c-reactmenu__row';
     rowEl.setAttribute('role', 'listitem');
-    rowEl.append(createBadge({ type: 'warning', weight: 'tonal', label: tip, icon: 'heart-handshake' }));
+    // #591: the inspect sheet carries the SAME role as the pill it explains
+    rowEl.append(createBadge({ type: 'success', weight: 'tonal', label: tip, icon: 'heart-handshake' }));
     content.append(rowEl);
   }
   const sheet = createSheet({ title: strings.reactions || 'Reactions', content, host, strings });
@@ -10137,7 +10267,11 @@ function setScanProgress(el, { current, target, origin, strings = getStrings() }
  *   opts.onTx(tx) — B3: host-routed row tap (production emits ixian:txdetails:
  *   <txid> → WalletSentPage detail page/pane); rows without a txid, and every
  *   caller that doesn't pass onTx (demos), keep the in-page bottom sheet.
- *   opts.onReceive() — the zero-state CTA: opens the SAME Receive surface the
+ *   opts.onReceive() — the zero-state CTA. ⚠ #589: the production shell now points
+ *     this at the ADDRESS SHEET, not at the Receive takeover — the button says "Show
+ *     my address" and the takeover is a different promise (an amount field, a contact
+ *     strip). The hero's own Receive action still opens the takeover. The old note:
+ *     it used to open the SAME Receive surface the
  *   hero's Receive action opens (no new bridge verb). Omit it → no CTA.
  * setWalletFilter(listEl, state, filter, opts) — free fn (#44)
  * createWalletFilters(state, { listEl, host, strings, onExplorer }) → row
@@ -14891,7 +15025,18 @@ function createWalletReceive({
  *  no amount, so the old hide-while-amount rule is structural now. */
 let addrSheetLive = null;                                  // loop fix: a double tap must not stack two sheets
 
-function openAddressSheet({ address = '', strings = getStrings(), host, onShare } = {}) {
+/* ★ #591 (Damir 2026-08-26): the CONTACT surface opens this same sheet for someone
+ * ELSE's address — "the address can show as sheet, same rules as elsewhere".
+ * `subject: 'peer'` is the whole difference, and it is not cosmetic: every line of copy
+ * here says "YOUR address", and the safety line — "sharing it is safe, it never gives
+ * anyone access to your wallet" — is a claim about the READER's wallet. Pointed at a
+ * contact it would be reassurance about the wrong person's money on a surface next to a
+ * Pay button. So the peer variant re-words the explainer and DROPS the safety line
+ * rather than re-wording it into something true but pointless.
+ * `title` lets the caller name whose address it is; everything else is identical, which
+ * is the point — one address surface, one set of rules (#527). */
+function openAddressSheet({ address = '', strings = getStrings(), host, onShare, subject = 'self', title = '' } = {}) {
+  const peer = subject === 'peer';
   // audit m2 holds for the EXPORT too: no address, no confidently scannable garbage QR
   if (!String(address).trim()) return null;
   // loop r1 m9: a sheet torn down WITHOUT dismissOverlay (its screen closed under
@@ -14909,20 +15054,67 @@ function openAddressSheet({ address = '', strings = getStrings(), host, onShare 
   // loop r1 A-8: a capped scroll region must be keyboard-reachable — focusable, named
   content.tabIndex = 0;
   content.setAttribute('role', 'group');
-  content.setAttribute('aria-label', strings.addressInfoTitle || 'Your Ixian address');
+  const sheetTitle = title
+    || (peer ? (strings.peerAddressTitle || 'Ixian address')
+             : (strings.addressInfoTitle || 'Your Ixian address'));
+  content.setAttribute('aria-label', sheetTitle);
   const qrValue = address + ':ixi';                        // legacy receive format (wallet_request parity)
+
+  /* ★★ #589 (Damir F5 2026-08-26) — HIS ORDER, not a re-interview:
+   *   the info block ABOVE the QR · the address row · the safety line BELOW it.
+   * The explainer used to be ONE two-column grid at the foot, so the sentence that
+   * says what the thing on screen IS arrived after the thing itself, and the safety
+   * reassurance sat two blocks away from the address it reassures about. Split into
+   * two blocks that each sit beside what they explain. Both keep the #575
+   * glyph-gutter grammar — one left edge for every line of copy — so the split
+   * costs nothing that round bought. */
+  /* ⚠ `variant` stamps THREE modifier classes, and only two of them carry paint
+     (`__explainicon--safe` = the success tint, `__info--safe` = the stronger ink).
+     `__explain--safe` is deliberately paint-free: it is the semantic hook that says
+     WHICH block this is, and the order pin reads it. Naming all three from one
+     `variant` is what keeps them from drifting apart. */
+  const explainRow = ({ glyph, size, text, variant = '' }) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'c-addr-sheet__explain' + (variant ? ' c-addr-sheet__explain--' + variant : '');
+    const g = document.createElement('span');
+    g.className = 'c-addr-sheet__explainicon' + (variant ? ' c-addr-sheet__explainicon--' + variant : '');
+    g.setAttribute('aria-hidden', 'true');
+    g.append(icon(glyph, { size }));
+    const line = document.createElement('p');
+    line.className = 'c-addr-sheet__info' + (variant ? ' c-addr-sheet__info--' + variant : '');
+    line.textContent = text;
+    wrap.append(g, line);
+    return wrap;
+  };
+
+  content.append(explainRow({
+    glyph: 'info-circle', size: 20,
+    text: peer
+      ? (strings.peerAddressBody
+        || 'This is their address on the Ixian network. Scan the code or copy the address to send IXI.')
+      : (strings.addressInfoBody
+        || 'This is your address on the Ixian network. Share it, or let someone scan the code, and they can add you as a contact or send you IXI.'),
+  }));
 
   const qrWrap = document.createElement('div');
   qrWrap.className = 'c-addr-sheet__qrwrap';
   const card = document.createElement('div');
   card.className = 'c-wallet-receive__qrcard c-addr-sheet__qrcard';   // N86 sizing rules ride along
-  card.append(createQrSvg(qrValue, { label: strings.qrReceiveLabel || 'QR code: your Ixian address' }));
+  /* ⚠ the LAST "your" in this sheet, and the audit found it: the QR's accessible label
+     is not behind the peer branch by default, so a screen-reader user opening a
+     CONTACT's address heard "QR code: your Ixian address" over someone else's wallet,
+     on a surface reached from a screen with a Pay button. */
+  card.append(createQrSvg(qrValue, {
+    label: peer
+      ? (strings.peerQrLabel || 'QR code: this contact’s Ixian address')
+      : (strings.qrReceiveLabel || 'QR code: your Ixian address'),
+  }));
   qrWrap.append(card);
   content.append(qrWrap);
 
   const caption = document.createElement('p');
   caption.className = 'c-wallet-receive__caption c-addr-sheet__caption';
-  caption.textContent = strings.receiveCaption || 'Scan to send IXI to this address';
+  caption.textContent = strings.receiveCaption || 'Scan to send IXI to this address';   // true for both subjects
   content.append(caption);
 
   /* full address + honest copy morph (#99 chip pattern; audit m1/m6 rules kept) */
@@ -14945,7 +15137,9 @@ function openAddressSheet({ address = '', strings = getStrings(), host, onShare 
   const copy = document.createElement('button');
   copy.type = 'button';
   copy.className = 'c-wallet-receive__copy';
-  const copyIdle = (strings.copy || 'Copy') + ', ' + (strings.yourAddress || 'Your address');
+  const copyIdle = peer
+    ? (strings.copyAddress || 'Copy address')
+    : (strings.copy || 'Copy') + ', ' + (strings.yourAddress || 'Your address');
   copy.setAttribute('aria-label', copyIdle);
   copy.append(icon('copy', { size: 18 }));
   let copyTimer = null;
@@ -14983,7 +15177,11 @@ function openAddressSheet({ address = '', strings = getStrings(), host, onShare 
    * ⚠ Its own <button>, not createButton: the chip's controls are 40px icon
    * squares (wallet-receive.css), and a 44px c-button would break that row. */
   addrRow.append(addrValue, copy);
-  if (onShare) {
+  /* ⚠ `!peer` is a COMPONENT-LEVEL fence, not a caller's discipline (round-2 review).
+     `ixian:share` shares the USER'S OWN primary address (HomePage:908-913), so a Share
+     control on someone else's address would send the wrong one. The shell already
+     declines to pass a handler; this makes a future caller unable to reintroduce it. */
+  if (onShare && !peer) {
     const share = document.createElement('button');
     share.type = 'button';
     share.className = 'c-wallet-receive__copy c-addr-sheet__sharebtn';
@@ -14994,40 +15192,20 @@ function openAddressSheet({ address = '', strings = getStrings(), host, onShare 
   }
   content.append(addrRow);
 
+  /* the safety line, DIRECTLY under the address block it is about (#589). Same
+     glyph-gutter grammar as the info block above the QR; the shield keeps its
+     success tint, which is the one place the pair differ. EXACT existing keys —
+     extract-strings conflict-gates on drifted fallbacks. */
+  // ⚠ the safety line is SELF-ONLY. It reassures the reader about the reader's own
+  // wallet; beside a contact's address it would be a true sentence about the wrong
+  // person, on a surface that sits next to a Pay button.
+  if (!peer) content.append(explainRow({
+    glyph: 'shield-lock', size: 16, variant: 'safe',
+    text: strings.addressInfoSafety
+      || 'Sharing it is safe: it never gives anyone access to your wallet.',
+  }));
 
-  /* the folded-in explainer (ONE surface — no second address-info sheet).
-     EXACT existing keys — extract-strings conflict-gates on drifted fallbacks.
-     ★ F5-5 ③ (#556, Damir screenshot): the filled disc is GONE — "icon within
-     icon looks weird". ONE glyph level: a bare tinted info-circle leads the block. */
-  /* ★ #575 (Damir): "the explainer block aligns the safety text with the INFO
-   * TEXT's left edge, not under the icon." The block was [icon][text column], and
-   * the safety line carried its shield INSIDE that column — so its text started
-   * ~24px right of the info paragraph above it.
-   * It is a TWO-COLUMN GRID now: every glyph in the gutter, every line of copy on
-   * one left edge. Both glyphs survive (the #556 ③ "one glyph level" objection was
-   * about a glyph inside a filled disc, not about having two rows). */
-  const explain = document.createElement('div');
-  explain.className = 'c-addr-sheet__explain';
-  const disc = document.createElement('span');
-  disc.className = 'c-addr-sheet__explainicon';
-  disc.setAttribute('aria-hidden', 'true');
-  disc.append(icon('info-circle', { size: 20 }));
-  const info = document.createElement('p');
-  info.className = 'c-addr-sheet__info';
-  info.textContent = strings.addressInfoBody
-    || 'This is your address on the Ixian network. Share it, or let someone scan the code, and they can add you as a contact or send you IXI.';
-  const shieldWrap = document.createElement('span');
-  shieldWrap.className = 'c-addr-sheet__explainicon c-addr-sheet__explainicon--safe';
-  shieldWrap.setAttribute('aria-hidden', 'true');
-  shieldWrap.append(icon('shield-lock', { size: 16 }));
-  const safety = document.createElement('p');
-  safety.className = 'c-addr-sheet__info c-addr-sheet__info--safe';
-  safety.textContent = strings.addressInfoSafety
-    || 'Sharing it is safe: it never gives anyone access to your wallet.';
-  explain.append(disc, info, shieldWrap, safety);
-  content.append(explain);
-
-  const sheet = createSheet({ content, host, strings, title: strings.addressInfoTitle || 'Your Ixian address',
+  const sheet = createSheet({ content, host, strings, title: sheetTitle,
     onDismiss: () => { addrSheetLive = null; } });
   sheet.classList.add('c-sheet--addr');                   // W-c: desktop dialog width cap lives on the sheet
   /* ★ #575 (Damir): an explicit way OUT. The sheet is near-full height on mobile
@@ -15181,7 +15359,36 @@ function openAmountSheet({
    * survivors — a caller added later must not be able to reintroduce the leak. */
   const title = document.createElement('h2');
   title.className = 'c-tipsheet__title';
-  title.textContent = copy.title.split('{name}').join(payeeName);
+  /* ★★ #589 (round-2 review) — DAMIR'S RULE IS ABOUT THE NAME, AND MY FIRST CUT APPLIED
+   * IT TO THE WHOLE SENTENCE. The title is a template, and the name is NOT always last:
+   *   de-de  "{name} Trinkgeld geben"      ru-ru  "Чаевые {name}"
+   *   sl-si  "Napitnina za {name}"         fr-fr  "Donner un pourboire à {name}"
+   * With `nowrap` + ellipsis on the sentence, German ate the VERB — a money confirm
+   * sheet reading "SuperLongNickname…" with no indication of what the action is.
+   *
+   * The name gets its own inline span and the ellipsis rides THAT; the sentence around
+   * it wraps freely. So a long nick truncates at its end, the action always survives,
+   * and the anti-sideways-scroll guarantee holds because the span cannot exceed its
+   * line box. Built by splitting on the placeholder so every locale's word order is
+   * honoured wherever it puts {name}. */
+  {
+    const parts = copy.title.split('{name}');
+    title.append(document.createTextNode(parts[0] || ''));
+    const nameEl = document.createElement('span');
+    nameEl.className = 'c-tipsheet__payee';
+    nameEl.textContent = payeeName;
+    /* the recovery path for a truncated name — this is the payment confirm moment, and
+       two contacts differing only past the cut would otherwise render identically.
+       ⚠ Desktop-only by nature (a title tooltip does not exist on touch); the wrapping
+       sentence is what keeps the phone case readable. Screen readers are unaffected
+       either way — the full name is in textContent. */
+    nameEl.title = payeeName;
+    title.append(nameEl);
+    for (let i = 1; i < parts.length; i++) {
+      title.append(document.createTextNode(parts[i] || ''));
+      if (i < parts.length - 1) { const n2 = nameEl.cloneNode(true); title.append(n2); }
+    }
+  }
   htext.append(title);
   if (message.excerpt) {
     const ex = document.createElement('p');
@@ -15821,7 +16028,6 @@ function attachSplitPaste(composerEl, { onSendEach, strings = getStrings() } = {
 
 
 
-
 const SEARCH_FROM = 8;         // search = a filter from 8 members (#142 — no caps)
 const TX_PREVIEW = 5;          // expanded payments show the 5 most recent
 const SELF_DESTRUCT_OPTIONS = [        // seconds; 0 = off (§9 — no bridge command yet)
@@ -15903,7 +16109,9 @@ function createChatInfo({
   onBack,
   onNickname,                    // (nick, ctrl)
   onMessage,                     // contact context: open the 1:1 chat (shell nav)
+  onCall,                        // ★ #591 (Damir): start a voice call — 1:1 only
   onPay, onRequest,              // shell: #139 takeover / request sheet
+  onAddressSheet,                // ★ #591: the address row opens the ONE address surface
   onNotifications,               // (next, ctrl) — optimistic, revert on fail
   onSelfDestruct,                // (seconds, ctrl) — committed per option pick
   onMediaOpen, onMediaAll,
@@ -15947,6 +16155,35 @@ function createChatInfo({
   /* ——— hero ——— */
   const hero = document.createElement('div');
   hero.className = 'c-chat-info__hero';
+  /* ★★ #591 (Damir's second mockup): A COVER behind the identity, "like we have for
+   * mini apps".
+   *
+   * ⚠ A cover needs a SOURCE, and this is the whole design decision. A mini app has one
+   * because its publisher ships it; a contact has exactly one image — their photo. So the
+   * cover is derived, never fetched: a blurred, scaled crop of the SAME photo when there
+   * is one, and the contact's identity gradient — the same deterministic per-address hue
+   * their fallback avatar already wears — when there is not.
+   * That buys the look with no new data, no second source of truth for one identity, and
+   * no temptation toward a remote banner, which would re-open the #82 IP-leak posture on
+   * a surface that also carries a Pay button.
+   *
+   * `aria-hidden`: it is decoration with no information the name below does not carry. */
+  const cover = document.createElement('div');
+  cover.className = 'c-chat-info__cover c-idhue';
+  cover.dataset.hue = String(identityIndex(avatarSeed || address || name));
+  cover.setAttribute('aria-hidden', 'true');
+  if (avatar) {
+    const cimg = document.createElement('img');
+    cimg.className = 'c-chat-info__cover-img';
+    cimg.alt = '';
+    cimg.decoding = 'async';
+    /* the gradient stays underneath, so a photo that fails to load degrades to the
+       identity colour rather than to a broken tile — the c-avatar onerror grammar. */
+    cimg.addEventListener('error', () => cimg.remove(), { once: true });
+    cimg.src = avatar;
+    cover.append(cimg);
+  }
+  hero.append(cover);
   /* A4 (#302): presence on the hero. 1:1 only — C# structurally cannot push it for
      a group or bot (ContactDetails.updateScreen returns at :405-410, before the
      presence block, whenever isGroup is set). Guarding on `kind` here as well means
@@ -16132,7 +16369,7 @@ function createChatInfo({
      there and the whole row stays absent, exactly as yesterday's pass decided. */
   const roomKind = kind === 'group' || kind === 'bot';
   const roomMessageOnly = roomKind && !!onMessage;
-  if ((!roomKind || roomMessageOnly) && (onMessage || onPay || onRequest)) {
+  if ((!roomKind || roomMessageOnly) && (onMessage || onCall || onPay || onRequest)) {
     const money = document.createElement('div');
     money.className = 'c-chat-info__money';
     if ((context === 'contact' || roomMessageOnly) && onMessage) {
@@ -16142,6 +16379,14 @@ function createChatInfo({
       msg.classList.add('c-chat-info__message');
       money.append(msg);
     }
+    /* ★ #591 (Damir's mockup): CALL sits between Message and the money pair — it is the
+       other way to reach a person, so it belongs beside Message rather than beside Pay.
+       1:1 ONLY: there is no group-call verb, and a dead button on a details screen is
+       the class of defect this project keeps writing rows about. Opt-in like every other
+       action here, so a host that cannot route a call simply shows three. */
+    if (onCall && !roomKind) money.append(infoQuickAction({
+      glyph: 'phone', label: strings.callAction || 'Call', onClick: () => onCall(),
+    }));
     if (onPay && !roomMessageOnly) money.append(infoQuickAction({
       glyph: 'arrow-up-right', label: strings.pay || 'Pay', onClick: () => onPay(),
     }));
@@ -16164,65 +16409,36 @@ function createChatInfo({
      not just blind ones. Suppress the whole card for groups; 1:1 and bot surfaces keep
      it. (`blind` stays in the condition for bots/1:1 that opt into identity hiding.) */
   if (address && kind !== 'group' && !blind) {
-    const card = document.createElement('div');
-    card.className = 'c-chat-info__address';
-    card.append(sectionLabel(strings.address || 'Address'));
-    const row = document.createElement('div');
-    row.className = 'c-chat-info__address-row';
-    const value = document.createElement('span');
-    value.className = 'c-chat-info__address-value u-tabular';
-    value.textContent = address;                      // FULL — the address is the truth (#99)
-    const copy = document.createElement('button');    // plain 32px icon button — member-sheet parity (Damir: 44px text button sat misaligned)
-    copy.type = 'button';
-    copy.className = 'c-chat-info__copy';
-    copy.append(icon('copy', { size: 18 }));
-    copy.setAttribute('aria-label', strings.copyAddress || 'Copy address');
-    let morphTimer = null;
-    const morph = (glyph, announce) => {              // HONEST morph (#137 m1)
-      copy.replaceChildren(icon(glyph, { size: 18 }));
-      live.textContent = announce;
-      clearTimeout(morphTimer);
-      morphTimer = setTimeout(() => copy.replaceChildren(icon('copy', { size: 18 })), 1600);
-    };
-    copy.addEventListener('click', () => {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(address).then(
-          () => morph('check', strings.copied || 'Copied'),
-          () => morph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead'),
-        );
-      } else {
-        morph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead');
-      }
-    });
-    row.append(value, copy);
-    card.append(row);
-
-    /* Show QR reveal — same pair as the receive card (`address:ixi`, --on-qr ink) */
-    const qrRow = document.createElement('button');
-    qrRow.type = 'button';
-    qrRow.className = 'c-chat-info__qr-toggle';
-    qrRow.setAttribute('aria-expanded', 'false');
-    qrRow.append(icon('qrcode', { size: 20 }), document.createTextNode(strings.showQr || 'Show QR'));
-    const chev = icon('chevron-down', { size: 18 });
-    chev.classList.add('c-chat-info__qr-chevron');
-    qrRow.append(chev);
-    const qrBox = document.createElement('div');
-    qrBox.className = 'c-chat-info__qr';
-    qrBox.hidden = true;
-    qrBox.id = overlayId('c-chat-info-qr');   // house id mint (audit n9)
-    qrRow.setAttribute('aria-controls', qrBox.id);
-    let qrBuilt = false;
-    qrRow.addEventListener('click', () => {
-      const open = qrBox.hidden;
-      if (open && !qrBuilt) {                          // lazy: most visits never open it
-        qrBox.append(createQrSvg(address + ':ixi', { label: strings.qrLabel || 'Wallet address QR code' }));
-        qrBuilt = true;
-      }
-      qrBox.hidden = !open;
-      qrRow.setAttribute('aria-expanded', String(open));
-    });
-    card.append(qrRow, qrBox);
-    body.append(card);
+    /* ★★ #591 (Damir 2026-08-26): "the address can show as sheet, same rules as
+     * elsewhere." This was a whole inline CARD — a full base58 line, its own copy
+     * button, and a lazy Show-QR disclosure — three affordances for one value, on a
+     * screen whose every other entry is a row. It is now ONE row that opens the ONE
+     * address surface (`openAddressSheet`, #527), which is exactly the move #575 made
+     * on the Account hub. The sheet carries the code, the full address, copy and the
+     * explainer, so nothing is lost and the grammar stops disagreeing with itself.
+     *
+     * ⚠ The SHEET is the shell's to open, not this component's: it needs a host and,
+     * on a peer address, the peer copy variant. A host that passes no handler gets a
+     * plain non-interactive row with the truncated address — honest, never dead. */
+    const addrRow = document.createElement(onAddressSheet ? 'button' : 'div');
+    if (onAddressSheet) addrRow.type = 'button';
+    addrRow.className = 'c-chat-info__row c-chat-info__addr-row';
+    const addrLab = document.createElement('span');
+    addrLab.className = 'c-chat-info__row-label c-chat-info__addr-label';
+    const addrTop = document.createElement('span');
+    addrTop.className = 'c-chat-info__addr-top';
+    addrTop.append(infoDisc('qrcode', 'accent'), document.createTextNode(strings.spixiAddress || 'Spixi address'));
+    const addrVal = document.createElement('span');
+    addrVal.className = 'c-chat-info__addr-value u-tabular';
+    // #211 canon: the row shows the TRUNCATED form; the full value lives in the sheet
+    addrVal.textContent = truncateAddressMiddle(address, 9, 6);
+    addrLab.append(addrTop, addrVal);
+    addrRow.append(addrLab);
+    if (onAddressSheet) {
+      addrRow.append(icon('chevron-right', { size: 18 }));
+      addrRow.addEventListener('click', () => onAddressSheet({ address }));
+    }
+    body.append(addrRow);
   }
 
   /* ——— notifications (bridge: groups/bots today; 1:1 gated — §9) ——— */
@@ -18022,6 +18238,7 @@ function setGroupAvatar(el, src) {
 // into the bundle → "Unexpected identifier 'as'"). Both fail the syntax gate.
 
 
+
 // local handle so the returned controller can expose its own `setGroupAvatar`
 // method without shadowing the component fn it delegates to.
 const paintGroupAvatar = setGroupAvatar;
@@ -18029,6 +18246,14 @@ const paintGroupAvatar = setGroupAvatar;
 function mountContacts({
   host = document.body, bridge, strings, purpose = 'start', appId = '', getRoster, onClose,
 } = {}) {
+  /* ★ #589 (Damir F5 2026-08-26): "a mini app that opens the contacts picker leaves
+     a pressed-row rectangle over the new screen." A takeover COVERS the list, it does
+     not hide the document — so neither `pagehide` nor `visibilitychange` fires, the
+     pressed row stays connected, and its fill/fade timers keep running underneath
+     this screen. Clearing here, in the screen being opened, covers every host that
+     opens the picker — including a host written later. See pressable.js. */
+  clearPressFeedback();
+
   const overlay = document.createElement('div');
   overlay.className = 'contacts-takeover';
 
@@ -19507,18 +19732,10 @@ function createSettingsHub({
      neither row is a setting: one opens a list, one opens the address surface. ——— */
   const me = group();
 
-  /* ★ N42 (#443, Damir): a way to REACH the contact list from Account. It was only
-     ever reachable from the chats topbar, which is not where someone looks for "my
-     people". Opt-in: a host that cannot route there passes no handler and no row
-     appears. ★ #575 moved it out of "Preferences" into this section. */
-  if (onContacts) me.card.append(settingRow({
-    glyph: 'users', hue: 'info',
-    label: strings.contacts || 'Contacts', key: 'contacts',
-    sub: strings.contactsSub || 'See and manage everyone you have added',
-    onClick: () => onContacts(),
-  }).section);
-
-  /* ★ #575: THE ONE ADDRESS ENTRY. It replaces the hero chip, the "Show QR" row and
+  /* ★ #589 (Damir F5 2026-08-26): THE ADDRESS ROW SITS ABOVE CONTACTS. His call —
+     the section is "about me, then my people", and the address is the one value a
+     visitor comes here to fetch. Order only; both rows are unchanged.
+   * ★ #575: THE ONE ADDRESS ENTRY. It replaces the hero chip, the "Show QR" row and
      the "What is this address?" action — three affordances for one value.
      ⚠ The subtitle is the whole point of the row: it says what the address IS, which
      is the job #443 gave the retired text action. `onAddressInfo` is therefore not
@@ -19535,6 +19752,17 @@ function createSettingsHub({
         onShare: onShare ? (p) => onShare({ address: p.address }) : undefined,
       });
     },
+  }).section);
+
+  /* ★ N42 (#443, Damir): a way to REACH the contact list from Account. It was only
+     ever reachable from the chats topbar, which is not where someone looks for "my
+     people". Opt-in: a host that cannot route there passes no handler and no row
+     appears. ★ #575 moved it out of "Preferences" into this section. */
+  if (onContacts) me.card.append(settingRow({
+    glyph: 'users', hue: 'info',
+    label: strings.contacts || 'Contacts', key: 'contacts',
+    sub: strings.contactsSub || 'See and manage everyone you have added',
+    onClick: () => onContacts(),
   }).section);
 
   if (me.card.childElementCount) body.append(me.wrap);
@@ -20752,7 +20980,7 @@ function createPrivacy({
  */
 function createNotificationsScreen({
   enabled = true,
-  previews = true,
+  previews = false,              // #589: matches the SHIPPED C# default (KEY_SENDER_NAME=false); the row is gone, so this is only what a restored row would start from
   sounds = true,
   capabilities = {},             // { globalNotifications }
   onBack,
@@ -20767,21 +20995,27 @@ function createNotificationsScreen({
       label: strings.notifAll || 'Allow notifications',
       checked: enabled, live, failText, onToggle: onEnabled,
     }));
-    /* ★ NOTIF-2 (2026-08-21) — the copy is CORRECTED to describe what this switch can
-       actually do, which is the whole reason it is safe to ship.
-       The old label/sub promised control over "sender and text". There is no text to
-       control: AND-15 (#334) deliberately builds a per-TYPE line ("New Message",
-       "Payment received", …) that carries no sender name and no message content at all.
-       Wired as written, this would have been a switch that changes nothing — the dead
-       control class this project keeps shipping. It is wired to the one thing the
-       notification can carry, the sender's name (Damir's own dial, noted in the AND-15
-       comment), and now says so. Message text is never included, on any setting. */
-    if (onPreviews) body.append(switchRow({
-      glyph: 'eye', hue: 'info',
-      label: strings.notifSender || 'Show sender name',
-      sub: strings.notifSenderSub || 'Message text is never shown in notifications',
-      checked: previews, live, failText, onToggle: onPreviews,
-    }));
+    /* ★★ #589 (Damir F5 2026-08-26): "show sender name is redundant" — THE ROW IS GONE.
+     *
+     * Only the ROW. The `previews` option, the `onPreviews` callback, the
+     * `ixian:notifSenderName` verb and the `notif_sender_name` preference are all
+     * left exactly as they are, and the preference keeps its shipped default
+     * (FALSE — SNotificationPrefs.cs KEY_SENDER_NAME). So NO notification changes:
+     * what the user gets today is what the user gets after this.
+     *
+     * ⚠ Removing a control is not the same as changing what it controlled, and this
+     * one is still read on the message-receive path (Node.cs:1044). Damir asked for
+     * the row to go, not for the name to start appearing — if he wants the name
+     * always ON, that is a one-line default flip in C#, and it is his call to make
+     * deliberately rather than my side effect. Flagged in the F5 checklist.
+     *
+     * The prior NOTIF-2 note is kept below because it records WHY the switch had to
+     * be re-labelled, which is the same reasoning that makes it removable.
+     *
+     * NOTIF-2 (2026-08-21): the old label promised control over "sender and text".
+     * There is no text to control — AND-15 (#334) builds a per-TYPE line ("New
+     * Message", "Payment received", …) with no sender name and no message content —
+     * so it was re-wired to the one thing the notification can carry. */
     if (onSounds) body.append(switchRow({
       glyph: 'alert-small', hue: 'accent',
       label: strings.notifSounds || 'In-app sounds',
@@ -23778,5 +24012,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, ignorePushedTheme: ignorePushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, ignorePushedTheme: ignorePushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

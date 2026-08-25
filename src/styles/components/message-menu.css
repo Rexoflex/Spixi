@@ -253,6 +253,49 @@
   pointer-events: none;
 }
 
+/* ★★ #589 (Damir F5 2026-08-26) — THE LIFTED ROW IS NOT PROMINENT IN DARK MODE.
+   And the audit found the reason is older and larger than the report.
+
+   THE GROUND HAS ALWAYS BEEN DEAD CODE. #572 put `background: --surface-screen` on
+   `.c-swipe`, but `.c-swipe__content` (chats-swipe.css) is a positioned child that
+   FILLS the wrapper and already paints that same `--surface-screen`, opaquely. A
+   positioned child paints above its parent's background, so the wrapper's ground was
+   never visible — and painting the list's own colour is exactly the "same colour as
+   the list" Damir is looking at. Every ordinary mobile row is wrapped (home.html
+   passes pin + mute), so this is the normal case, not an edge.
+
+   ⚠ MY FIRST FIX LANDED AT THE SAME DEAD ALTITUDE — a `z-index: -1` wash on
+   `.c-swipe`, still under that opaque child. It would have changed nothing visible,
+   which is worse than the bug it answered, because the pin would have gone green.
+
+   FIXED BY MOVING THE PAINT TO THE ELEMENT THAT SHOWS, and by making it ONE OPAQUE
+   TOKEN rather than a translucent wash. `--surface-neutral-02` is the neutral raised
+   fill, one perceptual level off `--surface-screen` in BOTH themes
+   (neutral-50 / neutral-800). Damir asked for "the neutral press fill"; the literal
+   press token is an ALPHA (`--surface-press-row-hover`) and it cannot be used here —
+   above a 0.7 scrim a translucent row reads as the dim itself, which is the whole
+   reason the ground exists. This is the same neutral, one level, opaque.
+
+   ⚠ It also removes a defect the wash version would have introduced: the row's own
+   press layer (`base.css .c-chatlist-item::before`, 0.05) is still filling when the
+   long press opens the menu, so a second 0.10 wash composited to ~0.15 for the first
+   several hundred milliseconds — a lift whose colour depends on how fast the menu
+   opened. One opaque paint has no such coupling.
+
+   ⚠ NOT a tonal fill, and that part of the old note stands: tonal reads as SELECTED,
+   the reading Batch E (c) removed on desktop for the same reason.
+
+   ★★ AND THE GROUND ALONE IS NOT ENOUGH IN DARK — the round-2 review measured it and
+   it is the point Damir actually raised. A scrim is BLACK: over the light list it
+   drops the surroundings to ~#575859 and one neutral step then reads at 6.2:1, but
+   over the dark list it can barely darken what is already near-black, so the same
+   step measures 1.10:1. For calibration, `--surface-pinned` composites to 1.15 in
+   dark and N56 shipped that as "a very light wash". A third one-token attempt would
+   land in the same place.
+   So the lifted row also takes the RING — the same 5.98:1 recipe `[data-menu-target]`
+   already uses on a lifted message (#492), which is scrim-independent because it does
+   not rely on the ground underneath. One recipe, two surfaces. */
+
 /* ★ #572 ③ (the E-3 dial) — THE CHAT ROW variant of the same lift.
    `data-menu-lift="row"` is set by chats-row-menu.js on the `.c-swipe` wrapper
    (its comment carries the stacking check for that chain). The rule above already
@@ -266,8 +309,17 @@
 
    ⚠ ITS OWN RADIUS. The row is full-bleed inside the list; standing alone above the
    scrim it must read as one card, the same radius the desktop press wash uses. */
+/* The WRAPPER keeps a ground of its own, and the review is why: `openChatRowMenu`
+   closes an open swipe drawer BEFORE it lifts, and `.c-swipe__content` springs back
+   over a 200ms transform. During that motion the region between the two action panels
+   is the WRAPPER — so dropping its paint showed a translucent band of scrim through a
+   row that is supposed to be lifted above it. It costs one declaration to keep. */
 :root:not([data-desktop]) .c-swipe[data-menu-lift="row"] {
-  background: var(--surface-screen);
+  background-color: var(--surface-neutral-02);
+  border-radius: var(--radius-12);
+}
+:root:not([data-desktop]) .c-swipe[data-menu-lift="row"] .c-swipe__content {
+  background: var(--surface-neutral-02);
   border-radius: var(--radius-12);
 }
 /* ⚠ review MINOR-7: the lift falls back to the ROW itself when the swipe wrapper is
@@ -276,19 +328,36 @@
    own state fills, which is what the note above forbids: `--surface-pinned` (0,2,0)
    and the `[aria-current]` tonal would both lose to a (0,3,0) shorthand. Guarded, so
    a stateful row keeps its own paint and simply lifts without a new ground. */
+/* the UNWRAPPED fallback (a handshaking row; pin and mute both off) — the row is
+   the lift target itself and is transparent, so it takes the same paint directly. */
 :root:not([data-desktop]) .c-chatlist-item[data-menu-lift="row"]:not([data-pinned]):not([aria-current]) {
-  background: var(--surface-screen);
+  background-color: var(--surface-neutral-02);
   border-radius: var(--radius-12);
 }
-/* ⚠ NO press wash here, and that is a decision. Desktop needs
-   `[data-dt-ctx-source]` because desktop has NO scrim — the wash is the only thing
-   that says which row. On mobile the deep scrim already isolates the lifted row, and
-   a tonal fill on top of it would read as SELECTED, which is the reading Batch E (c)
-   removed on desktop for the same reason.
+/* ⚠ THERE IS NO PRESS WASH HERE, and an earlier draft of this batch said there was.
+   The lift is an opaque ground plus a ring (above). The note below is what that
+   replaced, kept because half of it still holds. What was wrong: the scrim alone does
+   NOT isolate the row when the row's ground is the same colour as the list beneath it,
+   and in dark it barely isolates it at all. What is still true, and is why the ground
+   is the NEUTRAL step and not a tonal one: a TONAL fill reads as SELECTED, the reading
+   Batch E (c) removed on desktop for the same reason. Desktop keeps
+   `[data-dt-ctx-source]` and its own value; it has no scrim.
    ⚠ The ground goes on the WRAPPER, never on `.c-chatlist-item`. The row keeps its
    own state fills — `--surface-pinned`, the press sweep, `[aria-current]` — and
    those are alpha layers that need something opaque behind them. Painting the item
    instead would either lose the state or lose the ground. */
+
+/* ★★ #589: THE LIFTED CHAT ROW TAKES THE RING TOO. `chats-row-menu.js` sets the lift
+   but never `[data-menu-target]`, so a lifted row had no ring, no border and no
+   elevation — in dark, the entire affordance was a 1.10:1 fill. The recipe is the
+   message target's, byte for byte, so there is one ring in this app and not two.
+   ⚠ Radius is set explicitly, not inherited: the lift targets carry radius-12 and the
+   iOS-62 negative forbids `border-radius: inherit` in this file (on the message tint it
+   would take the bubble parent's radius and square off every bubble). */
+:root:not([data-desktop]) .c-swipe[data-menu-lift="row"],
+:root:not([data-desktop]) .c-chatlist-item[data-menu-lift="row"] {
+  box-shadow: 0 0 0 2px var(--brand-400), 0 0 0 5px rgba(118, 157, 255, 0.28);
+}
 
 /* The ring, unchanged from #492 — it was never the wrong ring, only the wrong
    layer. Above the scrim it reads at its measured 5.98:1.

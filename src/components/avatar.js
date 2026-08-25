@@ -57,12 +57,69 @@ export function truncateAddressMiddle(s, head = 6, tail = 6) {
    unnamed contact — the #276/#279 echo class). Rendered verbatim either one IS
    the address a blind room hides (#369 amendment). Shells test roster names
    with this at INGEST — on '[Unknown]'-masked rows ONLY — and blank the DISPLAY
-   name (the raw value stays usable as a key). Base58 alphabet, 30+ chars, with
-   an optional leading x: a real nick of that shape is implausible, and the
+   name (the raw value stays usable as a key). Base58 alphabet, at or above the
+   shared ADDRESS_MIN_CHARS floor (#589 raised it from 30 — see the block below),
+   with an optional leading x: a real nick of that shape is implausible, and the
    failure mode in a blind room is a placeholder instead of a strange name —
    the safe direction. */
+/* ★★ #589 (Damir F5 2026-08-26): "a long nickname is middle-truncated".
+ *
+ * The rule he states is the canon: a NICK ellipsizes at the END, on overflow only.
+ * Only an ADDRESS is ever truncated in the middle. So every shape test that can
+ * route a nick into `truncateAddressMiddle` has to be tight enough that a human
+ * name cannot reach it — and four of them were not:
+ *
+ *   isPseudoAddressNick          30+ chars   (this file, #370)
+ *   home.html   looksLikeAddress 20+ chars   (excerpt canon + wallet counterparty)
+ *   wallet_sent nameIsAddr       20+ chars
+ *   chat.html   looksAddr        24+ chars, and not even base58-restricted
+ *
+ * A 20-to-30 character nickname is ordinary. An IXIAN ADDRESS of that length does
+ * not exist: `Address.ToString()` base58-encodes `addressWithChecksum` (Ixian-Core
+ * `Address/Address.cs:362-365`) — the address plus a 3-byte checksum — and the
+ * address itself is 33 or 45 bytes (`Address.cs:34`, `addressVersionLengths`).
+ *
+ * ⚠ MEASURED, not estimated (the audit re-derived this over 20 000 synthetic
+ * addresses per version, because my first numbers were wrong in both directions):
+ * v0 encodes to 49 characters 96% of the time and 48 the rest — its leading version
+ * byte is zero, and Base58Check spends only one character on a leading zero byte
+ * (`Utils/Base58CheckEncoding.cs:50-53`) — and v1/v2 encode to EXACTLY 65, always.
+ * So the shortest real address is 48, not the 49 I first wrote, and the long form is
+ * 65, not 66.
+ *
+ * ONE floor, with margin on both sides: 40. Eight characters of headroom below the
+ * shortest address, and far above any plausible nickname. Raising a floor can only
+ * match FEWER strings, so the #370 blind-room guard cannot weaken — every address it
+ * has to catch is 48+, and nothing exists in the 30-to-40 window it used to cover.
+ *
+ * ⚠ NOT applied to the add-contact input gate (contacts-shell 20–128). That gate
+ * ACCEPTS a pasted value; being permissive there is the correct direction, and a
+ * wrong answer is a validation message, not a mangled name. */
+export const ADDRESS_MIN_CHARS = 40;
+
+/* The shared #211 shape test: is this string an Ixian address rather than a name?
+   Base58 alphabet, at or above the floor, and it must contain a DIGIT — a long
+   all-letter token is a word, and every real address carries digits. Callers that
+   also accept an 'x'-prefixed pseudo-key use isPseudoAddressNick below.
+   ⚠ It shares only the FLOOR with isPseudoAddressNick below — not the rule. This one
+   adds a 128 upper bound and requires a digit; that one accepts a leading 'x' and does
+   neither. They are two predicates with one constant, not one predicate.
+   ⚠ NAMED `isAddressShaped`, not `looksLikeAddress`: contacts-shell.js already owns
+   a `looksLikeAddress`, and it is a DIFFERENT job — an INPUT-acceptance gate that is
+   deliberately charset-blind so it cannot reject a valid address it has not seen.
+   One word, one meaning; the bundle's collision gate caught the clash. */
+export function isAddressShaped(s) {
+  const v = String(s == null ? '' : s);
+  return v.length >= ADDRESS_MIN_CHARS && v.length <= 128
+    && /^[1-9A-HJ-NP-Za-km-z]+$/.test(v) && /\d/.test(v);
+}
+
+/* ⚠ Hoisted, not rebuilt per call: this runs once per roster row on every re-render,
+   and a module-scope literal also gets its pattern validated at parse time. */
+const PSEUDO_ADDRESS_RE = new RegExp('^x?[1-9A-HJ-NP-Za-km-z]{' + ADDRESS_MIN_CHARS + ',}$');
+
 export function isPseudoAddressNick(name) {
-  return /^x?[1-9A-HJ-NP-Za-km-z]{30,}$/.test(String(name == null ? '' : name));
+  return PSEUDO_ADDRESS_RE.test(String(name == null ? '' : name));
 }
 
 function initials(name) {

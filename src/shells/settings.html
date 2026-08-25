@@ -207,6 +207,50 @@
    * `?pane=1` = browser-preview forcing (the app never passes query strings). */
   let paneMode = new URLSearchParams(location.search).get('pane') === '1';
   if (paneMode) document.body.dataset.pane = '';
+  /* ★★ #589 (Damir F5 2026-08-26): "changing language — the rail jumps to Chats but
+   * Account is still open."
+   *
+   * MECHANISM: the pick makes C# call `HomePage.reloadShell()`, which regenerates the
+   * home document but deliberately LEAVES this pane pinned (#285/#288). The fresh
+   * home.html boots with its rail on Chats because nothing tells it Account is open.
+   *
+   * ⚠ THE FIRST FIX USED THE #238 `spixi.landtab` HAND-OFF AND THE AUDIT KILLED IT.
+   * That key is a single slot, CONSUMED ON READ — and the OLD home document is still
+   * alive underneath while this pane writes. Its `storage` listener fires first, eats
+   * the key, sets a highlight on a document that is about to be destroyed, and the
+   * regenerated one finds nothing. On WinUI, the only platform with this pane, that
+   * storage event is reliable, so the fix lost that race every time.
+   *
+   * THIS IS A DURABLE FLAG, NOT A HAND-OFF. It is never consumed by a reader, so no
+   * document can eat it from another; it is written while the pane is up and removed
+   * on every exit this shell already has. home.html reads it without clearing it, and
+   * clears it only on `onSettingsClosed` — the authoritative "the pane is gone" push.
+   * A flag that outlives both of those needs this document to die without `pagehide`
+   * AND C# to never report the close, and in that state C# still believes the pane is
+   * open, so showing Account is the honest answer anyway.
+   *
+   * SECURITY (#254 storage-partition rule): a boolean and a timestamp. No address, no
+   * nickname, no user data — the same shape the view stash was ruled safe at. */
+  const PANE_OPEN_KEY = 'spixi.pane.account';
+  /* ⚠ STATED RESIDUAL (round-2 review, not fixed): a process kill or a window close can
+   * destroy this WebView without `pagehide`, stranding the flag. The next cold launch
+   * then paints the rail on Account for one frame before the user touches anything, and
+   * it self-heals on the first tab tap or the first close push. It is not time-bounded,
+   * because a pane can legitimately stay open for hours and any expiry short enough to
+   * catch a crash would also kill a live pane. A heartbeat write was considered and
+   * rejected as a worse trade for a cosmetic, self-healing, crash-only symptom. */
+  function markPaneOpen(on) {
+    try {
+      // '1', not a timestamp: nothing reads a timestamp here, and a value that LOOKS
+      // like an expiry when none is implemented is worse than a plain flag. The
+      // residual it would have bounded is stated at the read side in home.html.
+      if (on) localStorage.setItem(PANE_OPEN_KEY, '1');
+      else localStorage.removeItem(PANE_OPEN_KEY);
+    } catch (e) { /* private mode — the rail just keeps its old behaviour */ }
+  }
+  if (paneMode) markPaneOpen(true);
+  // every route out of this shell clears it, including a kill the app does not see
+  window.addEventListener('pagehide', () => markPaneOpen(false));
   /* #242 (Damir F5 issue 3): X1 turned the post-picker loadAvatar push into a
    * DATA URI, so the old /avatar-tmp/ path sniff never marked a fresh pick dirty
    * → changing ONLY the photo never showed Save. Track the pick explicitly: set
@@ -510,6 +554,11 @@
       exiting = false;
       exitSent = false;
       rebuildQueued = false;
+      /* ★ #589 (round-2 review): this heal is the "the pane is alive after all" signal,
+         so it must RE-ARM the pane flag. `exitSettings` cleared it on the way out; if the
+         pop never happened, the pane is still covering the list column while home's rail
+         has already fallen back to a tab. That mismatch would last the whole session. */
+      markPaneOpen(true);
       syncSave();          // no renderLayout: the next real interaction repaints
     }, EXIT_HEAL_MS);
   }
@@ -517,6 +566,8 @@
     if (exitSent) return;          // the verb gate — never healed
     exitSent = true;
     exiting = true;
+    markPaneOpen(false);           // #589: the rail must not keep claiming Account
+
     armExitHeal();
     // #341 SECURITY: scrub the password sublevel HERE too. `exiting` makes
     // renderLayout bail, so the usual release path never runs on this route — and
@@ -1678,6 +1729,7 @@
       const on = (v === '1' || v === 'true' || v === true);
       if (on === paneMode) return;
       paneMode = on;
+      markPaneOpen(on);                     // #589: the rail's one source of truth
       if (on) document.body.dataset.pane = '';
       else delete document.body.dataset.pane;
       renderLayout();

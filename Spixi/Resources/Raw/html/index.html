@@ -752,20 +752,27 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    the 12 gradients below are hand-tuned per anchor and serve BOTH themes
    (the c-disc #170 grammar — vivid fill + white ink, mode-agnostic).
    Every pair is computed ≥ 4.5:1 under white ink at BOTH stops (#364 table).
-   Recipe: stop1 = hsl(h, 62%, L1) · stop2 = hsl(h+25, 58%, L1−10). */
+   Recipe: stop1 = hsl(h, 62%, L1) · stop2 = hsl(h+25, 58%, L1−10).
 
-.c-avatar[data-hue="0"]  { --av-c1: hsl(0, 62%, 52%);   --av-c2: hsl(25, 58%, 42%);  }
-.c-avatar[data-hue="1"]  { --av-c1: hsl(22, 62%, 43%);  --av-c2: hsl(47, 58%, 33%);  }
-.c-avatar[data-hue="2"]  { --av-c1: hsl(40, 62%, 35%);  --av-c2: hsl(65, 58%, 25%);  }
-.c-avatar[data-hue="3"]  { --av-c1: hsl(95, 62%, 31%);  --av-c2: hsl(120, 58%, 21%); }
-.c-avatar[data-hue="4"]  { --av-c1: hsl(135, 62%, 32%); --av-c2: hsl(160, 58%, 22%); }
-.c-avatar[data-hue="5"]  { --av-c1: hsl(165, 62%, 31%); --av-c2: hsl(190, 58%, 21%); }
-.c-avatar[data-hue="6"]  { --av-c1: hsl(190, 62%, 35%); --av-c2: hsl(215, 58%, 25%); }
-.c-avatar[data-hue="7"]  { --av-c1: hsl(215, 62%, 50%); --av-c2: hsl(240, 58%, 40%); }
-.c-avatar[data-hue="8"]  { --av-c1: hsl(245, 62%, 58%); --av-c2: hsl(270, 58%, 48%); }
-.c-avatar[data-hue="9"]  { --av-c1: hsl(275, 62%, 55%); --av-c2: hsl(300, 58%, 45%); }
-.c-avatar[data-hue="10"] { --av-c1: hsl(305, 62%, 47%); --av-c2: hsl(330, 58%, 37%); }
-.c-avatar[data-hue="11"] { --av-c1: hsl(335, 62%, 51%); --av-c2: hsl(0, 58%, 41%);   }
+   ★ #591: the same 12 anchors are now reusable OFF an avatar, via `.c-idhue`. The
+   contact-details cover is a person's identity colour behind their photo, and it must
+   be the SAME colour their gradient avatar would have been — two sources for one
+   identity is how they drift apart. Each selector gains one alternative; the values are
+   untouched, and `.c-disc[data-hue]` cannot collide because its hues are NAMES
+   ('accent', 'info', …) and these are indices. */
+
+.c-avatar[data-hue="0"], .c-idhue[data-hue="0"]  { --av-c1: hsl(0, 62%, 52%);   --av-c2: hsl(25, 58%, 42%);  }
+.c-avatar[data-hue="1"], .c-idhue[data-hue="1"]  { --av-c1: hsl(22, 62%, 43%);  --av-c2: hsl(47, 58%, 33%);  }
+.c-avatar[data-hue="2"], .c-idhue[data-hue="2"]  { --av-c1: hsl(40, 62%, 35%);  --av-c2: hsl(65, 58%, 25%);  }
+.c-avatar[data-hue="3"], .c-idhue[data-hue="3"]  { --av-c1: hsl(95, 62%, 31%);  --av-c2: hsl(120, 58%, 21%); }
+.c-avatar[data-hue="4"], .c-idhue[data-hue="4"]  { --av-c1: hsl(135, 62%, 32%); --av-c2: hsl(160, 58%, 22%); }
+.c-avatar[data-hue="5"], .c-idhue[data-hue="5"]  { --av-c1: hsl(165, 62%, 31%); --av-c2: hsl(190, 58%, 21%); }
+.c-avatar[data-hue="6"], .c-idhue[data-hue="6"]  { --av-c1: hsl(190, 62%, 35%); --av-c2: hsl(215, 58%, 25%); }
+.c-avatar[data-hue="7"], .c-idhue[data-hue="7"]  { --av-c1: hsl(215, 62%, 50%); --av-c2: hsl(240, 58%, 40%); }
+.c-avatar[data-hue="8"], .c-idhue[data-hue="8"]  { --av-c1: hsl(245, 62%, 58%); --av-c2: hsl(270, 58%, 48%); }
+.c-avatar[data-hue="9"], .c-idhue[data-hue="9"]  { --av-c1: hsl(275, 62%, 55%); --av-c2: hsl(300, 58%, 45%); }
+.c-avatar[data-hue="10"], .c-idhue[data-hue="10"] { --av-c1: hsl(305, 62%, 47%); --av-c2: hsl(330, 58%, 37%); }
+.c-avatar[data-hue="11"], .c-idhue[data-hue="11"] { --av-c1: hsl(335, 62%, 51%); --av-c2: hsl(0, 58%, 41%);   }
 
 .c-avatar {
   position: relative;
@@ -1900,6 +1907,49 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   pointer-events: none;
 }
 
+/* ★★ #589 (Damir F5 2026-08-26) — THE LIFTED ROW IS NOT PROMINENT IN DARK MODE.
+   And the audit found the reason is older and larger than the report.
+
+   THE GROUND HAS ALWAYS BEEN DEAD CODE. #572 put `background: --surface-screen` on
+   `.c-swipe`, but `.c-swipe__content` (chats-swipe.css) is a positioned child that
+   FILLS the wrapper and already paints that same `--surface-screen`, opaquely. A
+   positioned child paints above its parent's background, so the wrapper's ground was
+   never visible — and painting the list's own colour is exactly the "same colour as
+   the list" Damir is looking at. Every ordinary mobile row is wrapped (home.html
+   passes pin + mute), so this is the normal case, not an edge.
+
+   ⚠ MY FIRST FIX LANDED AT THE SAME DEAD ALTITUDE — a `z-index: -1` wash on
+   `.c-swipe`, still under that opaque child. It would have changed nothing visible,
+   which is worse than the bug it answered, because the pin would have gone green.
+
+   FIXED BY MOVING THE PAINT TO THE ELEMENT THAT SHOWS, and by making it ONE OPAQUE
+   TOKEN rather than a translucent wash. `--surface-neutral-02` is the neutral raised
+   fill, one perceptual level off `--surface-screen` in BOTH themes
+   (neutral-50 / neutral-800). Damir asked for "the neutral press fill"; the literal
+   press token is an ALPHA (`--surface-press-row-hover`) and it cannot be used here —
+   above a 0.7 scrim a translucent row reads as the dim itself, which is the whole
+   reason the ground exists. This is the same neutral, one level, opaque.
+
+   ⚠ It also removes a defect the wash version would have introduced: the row's own
+   press layer (`base.css .c-chatlist-item::before`, 0.05) is still filling when the
+   long press opens the menu, so a second 0.10 wash composited to ~0.15 for the first
+   several hundred milliseconds — a lift whose colour depends on how fast the menu
+   opened. One opaque paint has no such coupling.
+
+   ⚠ NOT a tonal fill, and that part of the old note stands: tonal reads as SELECTED,
+   the reading Batch E (c) removed on desktop for the same reason.
+
+   ★★ AND THE GROUND ALONE IS NOT ENOUGH IN DARK — the round-2 review measured it and
+   it is the point Damir actually raised. A scrim is BLACK: over the light list it
+   drops the surroundings to ~#575859 and one neutral step then reads at 6.2:1, but
+   over the dark list it can barely darken what is already near-black, so the same
+   step measures 1.10:1. For calibration, `--surface-pinned` composites to 1.15 in
+   dark and N56 shipped that as "a very light wash". A third one-token attempt would
+   land in the same place.
+   So the lifted row also takes the RING — the same 5.98:1 recipe `[data-menu-target]`
+   already uses on a lifted message (#492), which is scrim-independent because it does
+   not rely on the ground underneath. One recipe, two surfaces. */
+
 /* ★ #572 ③ (the E-3 dial) — THE CHAT ROW variant of the same lift.
    `data-menu-lift="row"` is set by chats-row-menu.js on the `.c-swipe` wrapper
    (its comment carries the stacking check for that chain). The rule above already
@@ -1913,8 +1963,17 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 
    ⚠ ITS OWN RADIUS. The row is full-bleed inside the list; standing alone above the
    scrim it must read as one card, the same radius the desktop press wash uses. */
+/* The WRAPPER keeps a ground of its own, and the review is why: `openChatRowMenu`
+   closes an open swipe drawer BEFORE it lifts, and `.c-swipe__content` springs back
+   over a 200ms transform. During that motion the region between the two action panels
+   is the WRAPPER — so dropping its paint showed a translucent band of scrim through a
+   row that is supposed to be lifted above it. It costs one declaration to keep. */
 :root:not([data-desktop]) .c-swipe[data-menu-lift="row"] {
-  background: var(--surface-screen);
+  background-color: var(--surface-neutral-02);
+  border-radius: var(--radius-12);
+}
+:root:not([data-desktop]) .c-swipe[data-menu-lift="row"] .c-swipe__content {
+  background: var(--surface-neutral-02);
   border-radius: var(--radius-12);
 }
 /* ⚠ review MINOR-7: the lift falls back to the ROW itself when the swipe wrapper is
@@ -1923,19 +1982,36 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    own state fills, which is what the note above forbids: `--surface-pinned` (0,2,0)
    and the `[aria-current]` tonal would both lose to a (0,3,0) shorthand. Guarded, so
    a stateful row keeps its own paint and simply lifts without a new ground. */
+/* the UNWRAPPED fallback (a handshaking row; pin and mute both off) — the row is
+   the lift target itself and is transparent, so it takes the same paint directly. */
 :root:not([data-desktop]) .c-chatlist-item[data-menu-lift="row"]:not([data-pinned]):not([aria-current]) {
-  background: var(--surface-screen);
+  background-color: var(--surface-neutral-02);
   border-radius: var(--radius-12);
 }
-/* ⚠ NO press wash here, and that is a decision. Desktop needs
-   `[data-dt-ctx-source]` because desktop has NO scrim — the wash is the only thing
-   that says which row. On mobile the deep scrim already isolates the lifted row, and
-   a tonal fill on top of it would read as SELECTED, which is the reading Batch E (c)
-   removed on desktop for the same reason.
+/* ⚠ THERE IS NO PRESS WASH HERE, and an earlier draft of this batch said there was.
+   The lift is an opaque ground plus a ring (above). The note below is what that
+   replaced, kept because half of it still holds. What was wrong: the scrim alone does
+   NOT isolate the row when the row's ground is the same colour as the list beneath it,
+   and in dark it barely isolates it at all. What is still true, and is why the ground
+   is the NEUTRAL step and not a tonal one: a TONAL fill reads as SELECTED, the reading
+   Batch E (c) removed on desktop for the same reason. Desktop keeps
+   `[data-dt-ctx-source]` and its own value; it has no scrim.
    ⚠ The ground goes on the WRAPPER, never on `.c-chatlist-item`. The row keeps its
    own state fills — `--surface-pinned`, the press sweep, `[aria-current]` — and
    those are alpha layers that need something opaque behind them. Painting the item
    instead would either lose the state or lose the ground. */
+
+/* ★★ #589: THE LIFTED CHAT ROW TAKES THE RING TOO. `chats-row-menu.js` sets the lift
+   but never `[data-menu-target]`, so a lifted row had no ring, no border and no
+   elevation — in dark, the entire affordance was a 1.10:1 fill. The recipe is the
+   message target's, byte for byte, so there is one ring in this app and not two.
+   ⚠ Radius is set explicitly, not inherited: the lift targets carry radius-12 and the
+   iOS-62 negative forbids `border-radius: inherit` in this file (on the message tint it
+   would take the bubble parent's radius and square off every bubble). */
+:root:not([data-desktop]) .c-swipe[data-menu-lift="row"],
+:root:not([data-desktop]) .c-chatlist-item[data-menu-lift="row"] {
+  box-shadow: 0 0 0 2px var(--brand-400), 0 0 0 5px rgba(118, 157, 255, 0.28);
+}
 
 /* The ring, unchanged from #492 — it was never the wrong ring, only the wrong
    layer. Above the scrim it reads at its measured 5.98:1.
@@ -3867,7 +3943,15 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     height: max(320px, calc(100vh - var(--safe-top, 0px) - env(safe-area-inset-bottom, 0px) - var(--layout-bar-top, 56px) - 88px));
   }
 }
-:root:not([data-desktop]) .c-addr-sheet__explain { margin-block-start: auto; }
+/* ★ #589: the slack of the near-full mobile sheet used to collect UNDER the
+   explainer, because the explainer was the last block. It is not any more — the
+   safety line now sits directly under the address block, and that adjacency is the
+   whole point of Damir's order. So the slack moves to the ONE seam where a gap
+   reads as deliberate: between the sentence that explains the surface and the
+   surface itself. Everything below the QR keeps its token gaps and its adjacency.
+   ⚠ An auto margin resolves to 0 when there is no free space, so a short window
+   still scrolls from the true top — no unreachable content. */
+:root:not([data-desktop]) .c-addr-sheet__qrwrap { margin-block-start: auto; }
 /* the explicit way out (#575). Mobile only: a desktop dialog is dismissed with Esc
    or a click outside, and both stay available here too. It sits over the sheet's own
    padding in the title row, so it never displaces content. */
@@ -3884,27 +3968,70 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   -webkit-tap-highlight-color: transparent;
 }
 @media (hover: hover) { .c-addr-sheet__dismiss:hover { background: var(--surface-interactive-hover); color: var(--icon-neutral-01); } }
-:root[data-desktop] .c-addr-sheet__dismiss { display: none; }
-/* the title must not run under the button */
-:root:not([data-desktop]) .c-sheet--addr .c-sheet__title { padding-inline-end: 44px; }
+/* ★ #589 (Damir F5 2026-08-26): DESKTOP GETS THE DISMISS ICON TOO. Esc and a
+   click outside were the only ways out of the dialog, and neither is visible. The
+   button was hidden on desktop because #575 built it for the near-full mobile
+   sheet, where the scrim had shrunk to a strip — but "there is another way out"
+   was never a reason to hide the only VISIBLE one. */
+/* the title must not run under the button — both presentations now */
+.c-sheet--addr .c-sheet__title { padding-inline-end: 44px; }
+/* ★ #589: one rhythm. The sheet's own blocks are a --spacing-16 stack, and the
+   title sat 12 above them, so the gap that separates the heading from everything
+   read tighter than the gaps INSIDE it. Token, and the largest of the two. */
+.c-sheet--addr .c-sheet__title { margin-bottom: var(--spacing-16); }
 :root[data-desktop] .c-sheet--addr { width: min(440px, 92%); }
-/* loop r1 m8: the desktop dialog is `max-height: 76%` with 24px padding + the title —
-   the INNER cap must bind first or the outer dialog scrolls with its own bar (the
-   exact W-c symptom). 76vh − 24×2 padding − ~44 title/gap = the usable inner height. */
-:root[data-desktop] .c-addr-sheet { max-height: calc(76vh - 92px); }
+/* ★★ #589 — WHY THE PERSISTENT THUMB BELOW "DID NOT REACH THIS STATE".
+   ⚠ MY FIRST ANSWER WAS WRONG AND THE AUDIT DISPROVED IT. I claimed `max-height: 76%`
+   is a percentage of a HOST that could be shorter than the viewport. It cannot be:
+   every production caller passes `document.body`, `.c-sheet` is absolutely positioned,
+   and neither `html` nor `body` is positioned or transformed — so the containing block
+   IS the initial containing block, and `76%` and `76vh` measure the same box. The
+   Account pane is its own WebView, so its viewport is the pane; the two cannot disagree
+   there either.
+
+   THE REAL DEFECT IS THE CONSTANT. `92px` was the desktop chrome the scroll region
+   cannot use: 24 + 24 dialog padding plus one line of title and its margin. It assumed
+   a ONE-LINE title. The title's usable width is now 440 − 48 − 44 (this batch adds the
+   dismiss clearance below), so a long locale wraps it to two lines, real chrome passes
+   92, the OUTER dialog needs to scroll — and `overflow-y: hidden` further down clips it
+   silently, with no bar anywhere. My own `margin-bottom: --spacing-16` on the title
+   would have made the stale constant worse.
+
+   Rebuilt without the arithmetic: the dialog is a flex column and the scroll region is
+   the flex item that gives up height first, so it binds against whatever the chrome
+   actually measures, in any locale. */
+:root[data-desktop] .c-sheet--addr {
+  display: flex;
+  flex-direction: column;
+}
+:root[data-desktop] .c-sheet--addr > .c-sheet__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+:root[data-desktop] .c-addr-sheet { flex: 1 1 auto; min-height: 0; max-height: none; }
 /* ★ F5-5 ② (#556, Damir F5 2026-08-24): the desktop dialog showed NO scrollbar on
    overflow. Two causes: the OUTER dialog (.c-sheet, overflow-y:auto in overlay.css)
    could scroll instead of this element, and the u-scroll thumb is hover-only.
    The addr dialog now clips (the inner .c-addr-sheet is the one scroller), and its
    thumb is PERSISTENT while it overflows — slim + themed, the contact-list look. */
 :root[data-desktop] .c-sheet--addr { overflow-y: hidden; }
-@media (hover: hover) and (pointer: fine) {
-  :root[data-desktop] .c-addr-sheet.u-scroll {
-    scrollbar-color: var(--outline-neutral-02) transparent;
-  }
-  :root[data-desktop] .c-addr-sheet.u-scroll::-webkit-scrollbar-thumb {
-    background: var(--outline-neutral-02);
-  }
+/* ★ #589: the thumb PAINT leaves the pointer gate — the width does NOT, and the audit
+   caught me shipping it outside.
+   ⚠ Authoring any `::-webkit-scrollbar` rule opts a Chromium scroller OUT of overlay
+   scrollbars and into classic, LAYOUT-CONSUMING ones. `.u-scroll` declares its width
+   inside `@media (hover: hover) and (pointer: fine)` together with
+   `scrollbar-gutter: stable`, which is what stops that width from reflowing content.
+   Exporting the width alone gave a touch-screen Windows laptop — `data-desktop`,
+   coarse pointer — a 6px bar with no reserved gutter, appearing and disappearing as
+   overflow toggled and shoving the QR and the chip sideways.
+   Only the two PAINT declarations are ungated, which is all the override needed. */
+:root[data-desktop] .c-addr-sheet.u-scroll {
+  scrollbar-color: var(--outline-neutral-02) transparent;
+}
+:root[data-desktop] .c-addr-sheet.u-scroll::-webkit-scrollbar-thumb {
+  background: var(--outline-neutral-02);
 }
 /* review MINOR-6: the sheet's own polite region — the same recipe the hub uses
    (settings-shell.css .c-settings__live), so one grammar, not a second one. */
@@ -3917,6 +4044,52 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   white-space: nowrap;
   margin: 0;
 }
+/* ★★ #591: THE GEOMETRY DOCBLOCK MOVED HERE, and it moved because its subject did.
+   It was written in chat-info.css when that file drew the last inline QR card; the
+   contact-details card is retired and this sheet is now the ONE card in the app that
+   renders a code. A measured-geometry comment beside a card that no longer exists is
+   the drift PIN-G was built to catch. Verbatim, so the numbers stay the measured ones. */
+
+/* ★ N86 ① (Damir 2026-08-25): "the QR should have a smaller white padding around it,
+   this way on dark mode it's quite overpowering."
+
+   Measured before touching it, because HALF of that white is a standard, not a choice.
+   createQrSvg bakes `quiet = 4` — the ISO/IEC 18004 minimum quiet zone. Below four
+   modules scanners start failing, and this is a WALLET ADDRESS, where a misread is the
+   worst class of defect in the app. At 185px that quiet zone measures 16.44px to 20.00px
+   per side (the table below), and it is untouchable.
+
+   The 12px card padding on top of it was doing a job the quiet zone already does. Gone:
+   the white square drops from ≈209px to 185px, a 22% cut in white area, with no effect
+   on scanning at all.
+
+   ⚠ THE RADIUS SURVIVES THE PADDING, and the corner arithmetic is why. With 12px of
+   padding the 16px curve lived entirely in the padding and could not reach the code.
+   With none, it eats the quiet zone's own corner.
+
+   ★ #46 loop: the numbers below are MEASURED, not estimated. An earlier version of this
+   comment carried three wrong ones. The method: run the SHIPPED encoder
+   (createQrSvg → setQrValue, ecc 'M', quiet = 4) over the real payload
+   (`address + ':ixi'`) and read the viewBox back. Re-measure the same way if the payload
+   or the encoder changes. Over payloads of 34 to 76 characters the viewBox takes exactly
+   three values. The BOX is the code plus the 4-module quiet zone on each side, so the box
+   is always 8 cells wider than the code:
+     34–42 chars → 29-module code, 37-cell box, 5.00px per cell, 20.00px quiet zone
+     43–62 chars → 33-module code, 41-cell box, 4.51px per cell, 18.05px quiet zone
+     63–76 chars → 37-module code, 45-cell box, 4.11px per cell, 16.44px quiet zone
+   A real Ixian address lands in the middle row.
+
+   ⚠ A 16px radius removes at most R(√2−1) = 6.63px of DIAGONAL depth at a square corner.
+   It does NOT remove 16 − 16/√2 = 4.69px. That second value is the sagitta of the arc. It
+   is a different measurement, and it understates the loss by 41%.
+
+   THE SAFETY RESULT, which is unchanged. The quiet zone is 16.44px in the worst measured
+   case. The radius is 16px. The curve therefore stays inside the quiet zone at all four
+   corners and reaches no module. Along every edge, where ISO/IEC 18004 measures, the clip
+   removes nothing. The curve first touches the code corner when the quiet zone falls
+   below 16 − 16/√2 = 4.69px, which needs a box of about 157 cells. This payload cannot
+   make one.
+   ⚠ Raise this radius above 16px and re-do both comparisons. */
 .c-addr-sheet__qrwrap { display: flex; justify-content: center; }
 .c-addr-sheet__qrcard {
   /* scale with the viewport on BOTH axes: a short window shrinks the code before
@@ -3971,10 +4144,15 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    `align-items: start` keeps each glyph on the first line of its own paragraph. */
 .c-addr-sheet__explain {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  /* ⚠ #589: a FIXED gutter, not `auto`. With `auto` the track is sized by that block's
+     own glyph — 20px for the info-circle, 16px for the shield — so the two blocks'
+     copy started 32px and 28px from their card edge. A 4px step between two otherwise
+     identical cards is exactly the one-left-edge alignment #575 was written to buy.
+     A fixed track is also what makes `justify-self: center` on the glyph mean anything;
+     against an `auto` track it was a no-op. */
+  grid-template-columns: 20px minmax(0, 1fr);
   align-items: start;
   column-gap: var(--spacing-12);
-  row-gap: var(--spacing-8);
   padding: var(--spacing-12);
   border-radius: var(--radius-16);
   background: var(--surface-neutral-02);
@@ -4830,6 +5008,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     createChatsList, renderChatsList, setChatsFilter, setChatsQuery, chatsUnreadTotal,
     setRemoveSheetGroups, setRemoveSheetResult,   // ★ Batch A (A4/A5/A6): the remove-contact sheet's C# answers
     truncateAddressMiddle,               // B4 (#231): excerpt canon — addresses never shown in full
+    isAddressShaped,                     // ★ #589: the ONE address-shape test (was a local 20-char regex)
     createChatsHeader, attachChatsCollapse, setChatsHeaderCounts, acceptContactRequest, completeHandshake,
     createWarningBanner, setWarning,     // M16: actionable warnings only (connectivity = title-state)
     startTimestampTicker, refreshTimestamps,
@@ -4848,6 +5027,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     resetSearchFields,                   // ★ BUG-3: visit-scoped search reset (search-field.js)
     setChipSelected,
     createWalletReceive,                 // Receive/Request takeover (zero-C#)
+    openAddressSheet,                    // ★ #589: the wallet zero-state CTA opens the SHEET, not the Receive takeover
     closeAddressSheet,                   // r2 n5: the takeover closes its address sheet on the way out
     isDesktopPresentation,               // N38: Share hides on desktop (dead ladder; Copy beside it)
     createWalletSend,                    // Send compose/review takeover (cap-gated; W5/W6 live it)
@@ -5556,6 +5736,16 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
         return;
       }
       activeNav = id;
+      /* ⚠ #589 (round-2 review): DO NOT clear the pane flag here. An earlier draft did,
+         to avoid a one-frame snap-back, and it created the exact bug this row exists to
+         remove. `reloadShell` sets `suppressNextTabOverlayExit` for ~5.5 s, and inside
+         that window a `tab1` tap is answered by C# WITHOUT exiting the pane — so the
+         user taps Chats right after a language pick, the pane STAYS pinned, and a
+         locally-cleared flag left the rail claiming Chats over an open Account.
+         The flag is cleared by the authoritative close push instead. If the pane really
+         did close, `onSettingsClosed` clears it and re-asserts the real tab; the worst
+         case is one frame of Account highlight, bounded by that push. A frame of
+         wrongness beats a persistent lie. */
       showView(id);                                        // swap the client-side view first…
       // iOS-34: …and let that swap PAINT before the bridge hop. bridge.send is
       // `location.href = 'ixian:…'` (native.js:48), which on iOS runs WKWebView's
@@ -5579,6 +5769,32 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    * visibility/focus fallback for platforms where it doesn't cross WebViews.
    * Stale keys (>15s) are discarded — a stranded write must never switch tabs
    * minutes later. S11 (a real verb) remains the clean BE end-state. */
+  /* ★★ #589 (Damir F5 2026-08-26) — THE RAIL MUST NOT SAY CHATS WHILE ACCOUNT IS OPEN.
+   *
+   * The Account pane (#245) is a peer WebView pinned over the list column. It SURVIVES
+   * a language re-bake — C# regenerates this document and deliberately leaves the pane
+   * pinned (#285/#288) — so the fresh boot lights Chats while the user is looking at
+   * Account. settings.html keeps a durable flag while its pane is up; this reads it
+   * WITHOUT clearing it, so no reader can eat it from another document (the #238
+   * hand-off is consumed-on-read, which is exactly why it could not be used here — the
+   * OUTGOING home document ate the key before the regenerated one existed).
+   *
+   * The clear is authoritative and lives on the close push, not on a timer. */
+  const PANE_OPEN_KEY = 'spixi.pane.account';
+  function accountPaneOpen() {
+    try { return !!localStorage.getItem(PANE_OPEN_KEY); } catch (e) { return false; }
+  }
+  function clearAccountPaneFlag() {
+    try { localStorage.removeItem(PANE_OPEN_KEY); } catch (e) {}
+  }
+  /* Re-assert the Account highlight after anything that lights a tab. `activeNav` and
+     the visible view are left alone on purpose: they are what the pane falls back to
+     when it closes, and C#'s own `selectTab` is right about them. Only the HIGHLIGHT
+     is a lie while a pane covers the list. */
+  function syncAccountRail() {
+    if (accountPaneOpen()) setNavActive(nav, 'account');
+  }
+
   function consumeLandTab() {
     let raw = null;
     try {
@@ -6200,17 +6416,19 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    * (Telegram-class "domain only" excerpt). The lone-GIF-URL check runs FIRST
    * so tenor/giphy links keep the GIF chip. Token pass is whitespace-split →
    * embedded addresses/URLs inside a sentence are canonicalized too. */
-  const BASE58_TOKEN_RE = /^[1-9A-HJ-NP-Za-km-z]{20,128}$/;
-  function looksLikeAddress(t) { return BASE58_TOKEN_RE.test(t) && /\d/.test(t); }
+  /* ★ #589: the local BASE58_TOKEN_RE fired at 20 characters. It fed BOTH the
+     excerpt canon and the wallet counterparty name, so a 20-character nickname
+     came out middle-truncated. The shared canon lives in avatar.js and needs 40+
+     (the shortest real address is ~49) — see the derivation there. */
   function domainOf(t) {
     try { const h = new URL(t).hostname.replace(/^www\./, ''); return h || t; } catch (_) { return t; }
   }
   function canonExcerptText(s) {
-    if (!s || (!/https?:\/\//i.test(s) && !/[1-9A-HJ-NP-Za-km-z]{20}/.test(s))) return s; // fast path
+    if (!s || (!/https?:\/\//i.test(s) && !/[1-9A-HJ-NP-Za-km-z]{40}/.test(s))) return s; // fast path — #589: same floor as the token test below
     let changed = false;
     const out = s.split(/(\s+)/).map((tok) => {
       if (!tok || /^\s+$/.test(tok)) return tok;
-      if (looksLikeAddress(tok)) { changed = true; return truncateAddressMiddle(tok); }
+      if (isAddressShaped(tok)) { changed = true; return truncateAddressMiddle(tok); }
       if (/^https?:\/\/\S+$/i.test(tok)) { changed = true; return domainOf(tok); }
       return tok;
     });
@@ -6527,8 +6745,12 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
        degrade on an exe that does not send setScanProgress: the sheet keeps its old
        generic body and adds no false claim. */
     scan: () => scanState,
-    // zero-state CTA — the SAME Receive takeover the hero's Receive opens (hoisted fn)
-    onReceive: () => mountWalletReceive(),
+    /* ★ #589 (Damir F5 2026-08-26): the zero-state CTA reads "Show my address", so
+       it OPENS THE ADDRESS. It used to open the whole Receive takeover — a screen
+       with a request-an-amount field and a contact strip — which is a different
+       promise from the one the button makes. The hero's Receive button still opens
+       the takeover; only this CTA changed. */
+    onReceive: () => openWalletAddressSheet(),
     // B3 (#256): tx tap → the FULL-PARITY detail page (redesigned wallet_sent.html).
     // HomePage:473 `ixian:txdetails:<txid>` routes wide → WalletSentPage in the
     // rightContent pane (+ a selectTx echo this shell already renders) / narrow →
@@ -6698,6 +6920,22 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     }));
     over.append(body);
     document.body.append(over);
+  }
+
+  /* ★ #589 — the wallet zero-state's "Show my address": the ONE address surface
+   * (#527 openAddressSheet), the same one the Account row opens. Share is gated
+   * exactly as the takeover gates it (N38 — desktop has no working share ladder),
+   * and a missing address degrades to the native page, which is the takeover's
+   * own degrade: a CTA that does nothing would be worse than the old screen. */
+  function openWalletAddressSheet() {
+    const addr = cleanReceiveAddress(walletOwnAddress);
+    if (!addr) { bridge.send('ixian:receiveixi'); return; }
+    openAddressSheet({
+      address: addr, strings: walletStrings, host: document.body,
+      onShare: isDesktopPresentation()
+        ? undefined
+        : ({ address, value }) => shareReceivePayload(address || String(value || '').split(':')[0]),
+    });
   }
 
   /* ————————————————————————————————————————————————————————————————————————
@@ -7416,7 +7654,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     // consumeLandTab sets activeNav itself when a fresh key is present; the
     // setNavActive after it is then a consistent no-op, and the real fallback
     // when there was no tab hand-off.
-    onSettingsClosed() { consumeLandTab(); setNavActive(nav, activeNav); },
+    onSettingsClosed() { clearAccountPaneFlag(); consumeLandTab(); setNavActive(nav, activeNav); },
 
     // Multi-user mini-app launch STARTED ON ANOTHER SURFACE (AppDetailsPage): that
     // page has no contacts roster of its own, so C# hands the target pick back to
@@ -7708,6 +7946,15 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
       closeHomeTakeovers();   // W2: the incoming push has the same hole as onChange
       setNavActive(nav, navId);
       showView(navId);
+      /* ★★ #589: C# echoes selectTab(currentTab) on EVERY load, and after a language
+         re-bake that echo lands with the Account pane still pinned — so it re-lit
+         Chats over the top of any boot-time correction. The highlight is corrected
+         HERE, after the push has had its say.
+         ⚠ NOT "the last writer in the document" — `consumeLandTab` and `pickAppTargets`
+         also write the highlight and do not re-sync. Both are correct not to: each runs
+         only when the user has just chosen a different destination, which means Account
+         is on its way out. This is the last writer ON THIS PATH. */
+      syncAccountRail();
     },
 
     /* ——— wallet (wired, tab2) —————————————————————————————————————————————— */
@@ -7807,7 +8054,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
       // VISIBLE: global hide (#263) masks address too (see applyWalletVisibility),
       // so address-search is deliberately dead when hidden, same dial as name.
       const cp = counterparty || '';
-      const cpIsAddr = looksLikeAddress(cp);
+      const cpIsAddr = isAddressShaped(cp);
       const cpDisplay = cpIsAddr ? truncateAddressMiddle(cp) : cp;
       walletState.txs.push({
         txid: txid || '',
@@ -8151,6 +8398,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
        window LOAD — which waits for fonts and illustrations. If this mark is already
        ~1s on a cold start, the empty state is not late, the DATA is. */
     probeMark('rdy');
+    /* ★ #589 belt: C# echoes selectTab on every load and that is the authoritative
+       correction, but it is a PUSH — an exe that does not send it would leave the rail
+       claiming Chats under an open pane. This is a local read with no bridge hop, so
+       it cannot collide with the two sends around it. */
+    syncAccountRail();
     requestAnimationFrame(() => bridge.ready());
   }
   if (document.readyState === 'complete') signalReady();

@@ -39,6 +39,7 @@
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 <link rel="stylesheet" href="../styles/components/search-field.css"><!-- #251: group-surface member filter (≥8 members) -->
 <link rel="stylesheet" href="../styles/components/member-sheet.css"><!-- #251: member identity sheet (roster row tap) -->
+<link rel="stylesheet" href="../styles/components/wallet-receive.css"><!-- ★ #591: openAddressSheet (.c-addr-sheet / __qrcard) — the W-h gate caught this missing, which is the toast.css lesson: the sheet would have opened UNSTYLED -->
 <link rel="stylesheet" href="../styles/components/media-viewer.css"><!-- #334: avatar tap → full-size viewer (chat-info hero) -->
 <link rel="stylesheet" href="../styles/components/toast.css"><!-- N55: request-sent toast -->
 <style>
@@ -87,6 +88,14 @@
              leading edge (the col-1 case reuses the home shell's right-edge hairline,
              so no double line; the 640 cap is inert at pane width). */
   body[data-pane] .c-chat-info__body { max-width: 640px; margin-inline: auto; width: 100%; }
+  /* ★ #591 (round-2 review): the hero COVER bleeds to the body's padding edge, and in a
+     detail column wider than the 640 cap that edge is 640px of centred band with hard
+     left and right edges floating in the column. In pane mode the cover spans the PANE,
+     not the capped content column. `100vw` is wrong here for the same reason it was wrong
+     inside the hero: this document IS the pane, so its own viewport is the right unit. */
+  body[data-pane] .c-chat-info__cover {
+    inset-inline: calc(50% - 50vw);
+  }
   body[data-pane="2"] { border-inline-start: 1px solid var(--outline-neutral-03); }
 </style>
 </head>
@@ -126,6 +135,7 @@
    * Contract (verified ContactDetails.xaml.cs):
    *   C#→JS: setPaneMode('1'|'2') [#247 desktop pane, pre-present]
    *          · setContext('chat'|'contact') [#248 entry-dependent title/actions]
+   *          · showCallButton() [★ #591: reveal the Call action — codecs + Approved]
    *          · setGroupInfo(count, blind, admin, notifications, owner) +
    *            clearMembers/addMember(addr, nick, avatar, role) [#248 group surface]
    *          · setAddress(addr) · setNickname(nick) [every sec] · setAvatar(path)
@@ -165,7 +175,9 @@
     attachPressFeedback,
     createModal, openModal, truncateAddressMiddle,   // N27 (#367): remove-blocked modal
     isPseudoAddressNick, dismissTopOverlay,          // D-19b (#370) blind pseudo-key display guard · N50 back-dismiss wiring
+    isAddressShaped,                                 // ★ #591: an address-shaped "nickname" must not become the sheet's title
     showToast,                                       // N55: optimistic request-sent feedback,
+    openAddressSheet,                                // ★ #591: the ONE address surface, peer variant
     applyPushedTheme,
   } = window.Spixi;
   const strings = window.SL || {};
@@ -206,6 +218,7 @@
     avatarPath: null,    // setAvatar — rendered in the c-chat-info hero; onerror → gradient fallback
     txs: [],             // committed tx rows (txlist-item opts)
     txsBuf: null,        // accumulator between clearRecentActivity and the settle
+    callable: false,     // ★ #591: revealed by showCallButton — C# gates on codecs + FriendState.Approved, exactly as the chat header does. Default FALSE so a contact who cannot be reached never shows the action.
     sharedGroups: null,  // ★ A4: [{ name, address }] once setSharedGroups answers; null = not yet; undefined = no answer (strip hidden)
     membersLanded: false,   // ★ A8: the first roster commit landed
     // #248: entry-dependent context — 'chat' (header/row-menu → "Chat info"/"Group
@@ -421,10 +434,47 @@
       // C# re-pushes friend.nickname on the next tick, so the display self-heals.
       onNickname: (nick, ctrl) => { bridge.send('ixian:userdefinednick:' + nick); ctrl.done(); },
 
+      /* ★★ #591 (Damir's mockup): CALL joins the action row. `ixian:call` was handled
+         ONLY by SingleChatPage — this page had no such verb, so the button would have
+         been dead the day it shipped (#215). The handler is four lines on the C# side
+         and it delegates to the same VoIPManager entry the chat header uses; nothing
+         about the call surface itself changes. 1:1 only, both here and in the
+         component: there is no group-call verb to route. */
+      /* ⚠ C# refuses the verb while a call is already live (VoIPManager.isInitiated), and
+         the tap is then silent. That is accepted, and NOT because silence is good: this
+         shell has no call state to test — #270 moved the call surface into its own
+         WebView (CallPage) and nothing pushes "a call is up" here. A toast keyed on a
+         flag this document does not have would have been invented data.
+         What makes the silence tolerable is that the in-call STRIP is already on screen
+         above this page saying exactly that. If Damir wants explicit feedback it needs a
+         push, not a guess. */
+      onCall: state.callable ? () => bridge.send('ixian:call') : undefined,
+
       // money — these open the NATIVE C# wallet pages (the "C# signs" path, SECURITY.md):
       //   Pay → WalletSendPage · Request → WalletReceivePage. No in-page compose.
       onPay: () => bridge.send('ixian:send'),
       onRequest: () => bridge.send('ixian:request'),
+
+      /* ★ #591: the address row opens the ONE address surface (#527) in its PEER
+         variant — their address, so the copy says "their", and the self-only safety
+         line ("it never gives anyone access to your wallet") is dropped rather than
+         re-worded into a true sentence about the wrong person's money.
+         ⚠ NO onShare: `ixian:share` shares the USER'S OWN primary address (HomePage
+         :635-641), so wiring it here would offer "Share" on a contact's address and
+         send the reader's instead. Copy is the honest affordance until a peer-share
+         verb exists. */
+      onAddressSheet: ({ address }) => openAddressSheet({
+        address, strings, host: document.body, subject: 'peer',
+        /* state.name IS the display name (it already incorporates any user-defined nick
+           — see the state declaration); there is no separate nickname field here.
+           ⚠ AND IT CAN BE THE ADDRESS. `Friend.nickname` falls back to the address for an
+           unnamed contact (the #276/#279 echo class), so an unguarded title would render
+           a full base58 as the sheet's heading and aria-label — directly above the row
+           this batch just truncated to 9…6. Same guard the roster ingests use. */
+        title: (state.name && !isAddressShaped(state.name) && !isPseudoAddressNick(state.name))
+          ? state.name
+          : (strings.peerAddressTitle || 'Ixian address'),
+      }),
 
       // payment activity row tap → native tx detail (WalletSentPage).
       onTx: (tx) => { if (tx && tx.txid) bridge.send('ixian:txdetails:' + tx.txid); },
@@ -475,6 +525,9 @@
       // showIndicator never calls scheduleCommit, so this never drives a rebuild
       // by itself, it only makes one that happens anyway come out right.
       online: state.online,
+      // ★ #591: the Call reveal MUST be in the signature or scheduleCommit is decorative
+      // — the exact defect the NOTIF-2 note above records, one push later.
+      callable: state.callable,
       isGroup: state.isGroup,
       group: state.group,
       members: state.members.map((m) => [m.address, m.name, m.avatar])
@@ -538,6 +591,11 @@
     setPaneMode(col) { document.body.dataset.pane = (col === '2') ? '2' : '1'; },
     // #248: entry-dependent surface — pushed before setAddress in onLoad.
     setContext(c) { state.context = (c === 'chat') ? 'chat' : 'contact'; scheduleCommit(); },
+    /* ★★ #591: the SAME verb the chat header uses (SingleChatPage:891). C# sends it only
+       when the peer can actually be called — codecs present, 1:1, FriendState.Approved —
+       so the action appears rather than being offered and refused. Idempotent: an exe
+       that pushes it repeatedly costs one no-op commit. */
+    showCallButton() { if (!state.callable) { state.callable = true; scheduleCommit(); } },
     // #248 GROUP surface: meta (count/blind/admin/notifications/owner) + roster.
     // Roster arrives as a clearMembers → addMember×N burst → buffered like the tx
     // list so a partial roster never commits.

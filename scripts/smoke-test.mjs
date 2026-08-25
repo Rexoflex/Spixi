@@ -812,16 +812,119 @@ console.log('chat.html — chat info (#141)');
     onDeleteHistory: (ctrl) => { delCtrl = ctrl; },
   });
   host.append(info);
-  ok(!!info.querySelector('.c-chat-info__hero') && !!info.querySelector('.c-chat-info__address')
+  /* ★ #591 REBASE (Damir's details redesign): the address CARD — a full base58 line, its
+     own copy button and a Show-QR disclosure — became ONE row that opens the shared
+     address sheet, the same move #575 made on the Account hub. The property is unchanged
+     and is what this pins: the four blocks are all present. */
+  ok(!!info.querySelector('.c-chat-info__hero') && !!info.querySelector('.c-chat-info__addr-row')
     && !!info.querySelector('.c-chat-info__money') && !!info.querySelector('.c-chat-info__txs'),
     'contact info renders hero + address + money + payments');
+  /* ★★ #591: the address is TRUNCATED on the row and the full value is not in the DOM
+     here at all — it lives in the sheet, which is the #211 canon with no survivors. */
+  {
+    /* ⚠ A REAL ADDRESS LENGTH. The first cut fed an 8-character fixture into a 9…6
+       truncator, so `truncateAddressMiddle` returned it unchanged and the pin asserted
+       "an 8-character address is not truncated" — it would have stayed green if the row
+       shipped the FULL base58, which is the one thing it exists to forbid. */
+    const REAL = '1BvNvvJTfDNhx8pDJfTZFjSVLnwFsWtWCH4bDZLRoMFtxSJR';   // 48 — the shortest real one
+    const infoT = S.createChatInfo({ kind: 'contact', name: 'Han Solo', address: REAL, onBack() {}, onPay() {} });
+    const av = infoT.querySelector('.c-chat-info__addr-value');
+    ok(!!av && av.textContent === REAL.slice(0, 9) + '…' + REAL.slice(-6)
+       && !infoT.querySelector('.c-chat-info__addr-row').textContent.includes(REAL),
+      '★★ #591: the address row renders the 9…6 canon and the RAW base58 appears nowhere on the row — the full value lives in the sheet (#211, no survivors)');
+    ok(!info.querySelector('.c-chat-info__qr-toggle') && !info.querySelector('.c-chat-info__copy'),
+      '★ #591: the inline Show-QR disclosure and the card copy button are GONE — three affordances for one value became one row, and the sheet carries all three');
+  }
+  /* ★★ #591 (Damir's mockup): the COVER. It must be DERIVED, never fetched — a mini app
+     ships a cover, a contact does not, and inventing a remote source would re-open the
+     #82 IP-leak posture on a surface that also carries a Pay button. */
+  {
+    const cov = info.querySelector('.c-chat-info__cover');
+    ok(!!cov && cov.classList.contains('c-idhue') && cov.dataset.hue !== undefined
+       && cov.getAttribute('aria-hidden') === 'true' && !cov.querySelector('img'),
+      '★★ #591: the cover carries the contact\'s OWN identity hue and no image when there is no photo — one source for a person\'s colour, and no fetch');
+  }
   ok(!info.querySelector('.c-chat-info__switch') && !info.querySelector('.c-chat-info__media'),
     'notifications + media stay hidden without their capabilities (1:1 bridge honesty)');
 
-  const qrT = info.querySelector('.c-chat-info__qr-toggle');
-  qrT.click();
-  ok(qrT.getAttribute('aria-expanded') === 'true' && !!info.querySelector('.c-chat-info__qr svg path'),
-    'Show QR reveals a real QR svg (lazy-built, address:ixi)');
+  /* ★★ #591 — THE CALL ACTION, and the audit's MAJOR is what these pin.
+     The shell has NO notion of relation state, so an unconditional button would ring on
+     a contact who cannot receive it: `initiateCall` runs the whole path — permission
+     prompt, a call bubble written into history, CallPage presented, dial tone, power
+     locks, 45 s of ringing — and the peer gets nothing. That is the ⑪ delivery lie the
+     composer lock (#275) exists to prevent, one tap away on the same contact. */
+  {
+    /* ⚠ COUNTED, not read — and the reason I first recorded for this was WRONG, which
+       matters because it was written as precedent. I claimed the harness boots a
+       non-English dictionary; it boots en-us (`chat.html` resolves `?lang || 'en-us'`),
+       and a sibling pin asserts the English 'Request from Han Solo' in this same suite.
+       Counting is still the better pin — a text match on one label cannot tell "the
+       action is absent" from "the label changed" — but do not rewrite a working pin on
+       the authority of that false diagnosis. */
+    const qaCount = (el) => el.querySelectorAll('.c-chat-info__money .c-chat-info__qa').length;
+    const noCall = S.createChatInfo({ kind: 'contact', name: 'Han', address: '4fj2addr', onBack() {}, onPay() {}, onRequest() {} });
+    const withCall = S.createChatInfo({ kind: 'contact', name: 'Han', address: '4fj2addr', onBack() {}, onCall() {}, onPay() {}, onRequest() {} });
+    ok(qaCount(noCall) === 2 && qaCount(withCall) === 3,
+      '★★ #591: the Call action appears ONLY when a host wires onCall — the C# side reveals it (showCallButton) just for a 1:1 contact in FriendState.Approved with codecs present, so an unwired host must show one fewer control');
+    const groupCall = S.createChatInfo({ kind: 'group', name: 'Room', onBack() {}, onCall() {}, onMessage() {} });
+    ok(qaCount(groupCall) === 1,
+      '★★ #591: a GROUP shows Message ALONE even when a host wires onCall — there is no group-call verb, and `isGroup` on the C# side covers bots too');
+  }
+  {
+    const cds = readFileSync(join(root, 'src/shells/contact_details.html'), 'utf8');
+    const cd = readFileSync(join(root, 'Spixi/Pages/Contacts/ContactDetails.xaml.cs'), 'utf8');
+    ok(/showCallButton\(\) \{ if \(!state\.callable\)/.test(cds)
+       && /callable: state\.callable,/.test(cds)
+       && /onCall: state\.callable \?/.test(cds),
+      '★★ #591: the shell WAITS for the reveal, and `callable` is in stateSig — the NOTIF-2 note in this file records what happens when a pushed flag is left out of the signature: scheduleCommit becomes decorative');
+    ok(/Utils\.sendUiCommand\(this, "showCallButton", ""\);/.test(cd)
+       && /friend\.state == FriendState\.Approved/.test(cd)
+       && (cd.match(/friend\.state == FriendState\.Approved/g) || []).length >= 2,
+      '★★ #591 (audit MAJOR): C# gates the reveal AND re-gates the verb on FriendState.Approved — the same rule the chat header uses, and the belt matters because a contact can leave Approved between the push and the tap');
+    ok(/ixian:call/.test(cd),
+      '★ #591: the verb EXISTS on this page — it was handled only by SingleChatPage, so the button would have been dead the day it shipped (#215)');
+  }
+  /* ★★ #591 — THE PEER ADDRESS SHEET. Every line of this sheet was written for the
+     reader's OWN address. Pointed at a contact, the wrong pronoun is not a typo: the
+     safety line is a claim about whose wallet is safe, next to a Pay button. This pin
+     reads the RENDERED text rather than the source, which is what would have caught the
+     QR label the audit found still saying "your". */
+  {
+    const ph = d.createElement('div');
+    d.body.append(ph);
+    S.openAddressSheet({ address: '4rNvvJTfDNhx8pDJfTZFjSVLnwFsWtWCH4bDZLRoMFtxSJRf', host: ph, subject: 'peer', title: 'Han Solo', onShare() {} });
+    const sheetEl = ph.querySelector('.c-sheet--addr');
+    const spoken = [sheetEl.textContent,
+      ...[...sheetEl.querySelectorAll('[aria-label]')].map((n) => n.getAttribute('aria-label'))].join(' ');
+    ok(!!sheetEl && !/\byour\b/i.test(spoken),
+      '★★ #591: NOTHING the peer sheet renders or announces says "your" — not the copy, not the title, not an aria-label. The QR label was the one that got through a source-only reading');
+    ok(!sheetEl.querySelector('.c-addr-sheet__explain--safe'),
+      '★★ #591: the safety line is SELF-ONLY — "it never gives anyone access to your wallet" is a claim about the reader\'s wallet, and beside a contact\'s address it reassures about the wrong person');
+    /* ⚠ THE HANDLER IS PASSED ON PURPOSE. The first cut passed none, so the absence it
+       asserted was guaranteed by the fixture rather than by the code — it could not fail
+       in either subject. The fence lives in the component now, and this proves it. */
+    ok(!sheetEl.querySelector('.c-addr-sheet__sharebtn'),
+      '★★ #591: no Share on a peer address EVEN WHEN A HOST WIRES ONE — ixian:share sends the USER\'S OWN primary address (HomePage:908-913), so the control would share the wrong one');
+    S.dismissTopOverlay();
+    await sleep(450);
+    ph.remove();
+  }
+  /* ★ #591 (Damir): the tip pill draws from SUCCESS, not warning. A tip is money that
+     ARRIVED; warning is the role this app reserves for "something may be off". */
+  {
+    const rj = readFileSync(join(root, 'src/components/reactions.js'), 'utf8');
+    ok(!/type: 'warning'/.test(rj) && (rj.match(/type: 'success'[\s\S]{0,60}heart-handshake/g) || []).length === 2,
+      '★ #591: BOTH tip sites — the pill and the inspect sheet — carry the success role, so the two cannot disagree about what a tip is');
+  }
+
+  /* ★ #591: the inline Show-QR reveal is RETIRED with the address card. The QR did not
+     disappear — it moved into the shared address sheet (#527), which is pinned as a real
+     QR in the wallet-receive block. Two QR builders for one value was the drift risk. */
+  {
+    const addrBtn = info.querySelector('.c-chat-info__addr-row');
+    ok(addrBtn && addrBtn.tagName === 'DIV',
+      '★ #591: with NO onAddressSheet handler the row is a plain DIV, not a dead button — a host that cannot open the sheet still shows the address honestly');
+  }
 
   /* #142: payments = collapsed accordion (no tx wall on entry) */
   const txT = info.querySelector('.c-chat-info__txs-toggle');
@@ -1132,14 +1235,33 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
       '★ #575: the FULL address, Copy and Share all live on the chip — Share is an icon beside Copy, not a full-width bar');
     ok(!d.querySelector('.c-addr-sheet__share'),
       '★ #575: and the old full-width Share row is gone (it "reads as a too-short bar")');
-    /* the explainer is a 2-column grid now: every glyph in the gutter, both
-       paragraphs on ONE left edge (Damir: "not under the icon"). */
-    const explain = d.querySelector('.c-addr-sheet__explain');
-    ok(!!explain && explain.children.length === 4
-       && explain.children[0].classList.contains('c-addr-sheet__explainicon')
-       && explain.children[2].classList.contains('c-addr-sheet__explainicon--safe')
-       && !explain.querySelector('.c-addr-sheet__info--safe svg'),
-      '★ #575: the explainer is glyph-gutter + copy column — the shield left the text column, so the safety line aligns with the info text');
+    /* ★ #589 REBASE. #575's property was "every glyph in the gutter, both paragraphs
+       on ONE left edge", pinned by counting FOUR children of one grid — which asserted
+       the SHAPE, and the shape is what Damir's re-layout changes. There are two blocks
+       now: the info sits ABOVE the QR and the safety line sits BELOW the address, each
+       beside the thing it explains. The PROPERTY survives intact and is what is pinned:
+       each block is glyph-then-copy, and no glyph is inside a copy column. */
+    const explains = Array.from(d.querySelectorAll('.c-addr-sheet__explain'));
+    ok(explains.length === 2
+       && explains.every((e) => e.children.length === 2
+            && e.children[0].classList.contains('c-addr-sheet__explainicon')
+            && e.children[1].classList.contains('c-addr-sheet__info'))
+       && !d.querySelector('.c-addr-sheet__info svg'),
+      '★ #589 (was #575): each explainer block is glyph-gutter + copy, and no glyph sits inside a copy column — the safety line still aligns with the info text');
+    /* ★ #589 — HIS ORDER, which is the whole point of the re-layout: info, then the
+       QR, then the address block, then the safety line. Pinned by DOCUMENT POSITION
+       (compareDocumentPosition), not by index, so adding a row between them is free
+       and REORDERING them is not. */
+    {
+      const sheetRoot = d.querySelector('.c-addr-sheet');
+      const seq = ['.c-addr-sheet__explain:not(.c-addr-sheet__explain--safe)',
+        '.c-addr-sheet__qrwrap', '.c-addr-sheet__addr', '.c-addr-sheet__explain--safe']
+        .map((sel) => sheetRoot && sheetRoot.querySelector(sel));
+      const inOrder = seq.every(Boolean) && seq.every((n, i) => i === 0
+        || (seq[i - 1].compareDocumentPosition(n) & 4) === 4);   // 4 = DOCUMENT_POSITION_FOLLOWING
+      ok(inOrder,
+        '★ #589 (Damir): the info block is ABOVE the QR and the safety line is BELOW the address block — each sits beside what it explains');
+    }
     ok(!!d.querySelector('.c-addr-sheet__dismiss'),
       '★ #575: the sheet has an explicit dismiss control — scrim-tap alone stopped being an exit when it grew to near-full height');
     W4.Spixi.dismissTopOverlay();
@@ -1593,8 +1715,13 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
     onBack() {}, onEnabled() {}, onPreviews() {}, onSounds() {},
   });
   nhost.append(notifs);
-  ok(notifs.querySelectorAll('.c-settings__switch').length === 3,
-    'notifications: master + previews + sounds switches (§9-gated, caps ON)');
+  /* ★ #589 (Damir F5 2026-08-26): the "Show sender name" ROW is removed — he called
+     it redundant. Two switches now: the master and in-app sounds. The pin asserts the
+     REMOVAL as well as the count, so re-adding the row fails here and not by surprise
+     on a screenshot. The preference and its verb are untouched (see the component). */
+  ok(notifs.querySelectorAll('.c-settings__switch').length === 2
+     && !/Show sender name/.test(notifs.textContent || ''),
+    '★ #589: notifications carries master + in-app sounds only — the "Show sender name" row is gone (Damir: redundant)');
   nhost.remove();
 
   /* security level (#147 tiers) — 4 cards, latched commit */
@@ -1901,9 +2028,12 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
      the four standing pre-existers ever since — a stale EXPECTATION reported as a
      failure. Now it guards the thing the row was actually about: the two surfaces
      agreeing about the same code. */
-  ok(/\.c-chat-info__qr \{[^}]*align-self: center/.test(infoCss2)
-    && /\.c-chat-info__qr svg \{ width: 185px/.test(infoCss2),
-    'chat-info QR hugs the code at 185px — account-hub parity (N86 ③, retires #149③)');
+  /* ★ #591 REBASE: chat-info has NO QR card of its own any more — the address row opens
+     the shared sheet, exactly as the Account hub already did. The property this row was
+     always really about is "the two surfaces agree about the same code", and the
+     strongest form of that is now that only ONE surface draws it. */
+  ok(!/\.c-chat-info__qr\b/.test(infoCss2),
+    '★ #591: chat-info declares NO QR card — one code, one surface (the address sheet). Two surfaces drawing the same code is the #149③ drift this retires for good');
 
   /* —— #150 guards (Damir regression screenshots) —— */
   ok(/\.c-chat-info__body > \* \{ flex: none/.test(infoCss2),
@@ -2046,15 +2176,63 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
      in ONE module now (money.js); the chat/tip path must NOT reach cross-feature
      back into wallet-send/wallet-receive for them. */
   const infoCss = readFileSync(join(root, 'src/styles/components/chat-info.css'), 'utf8');
+  /* ★★ #591 (Damir's second mockup + round-2 m9): the cover must BLEED. The first cut
+     wrote `width: 100vw; max-width: 100%`, which cancel — the hero IS the containing
+     block — leaving a hard-cornered band inset from every edge, i.e. the floating panel
+     the cover exists to replace. It cancels the body's own padding instead, on BOTH
+     axes: `top: 0` left a 16px strip of screen above it with a hard horizontal edge. */
+  /* ⚠ comment-STRIPPED: the rationale block right above this rule quotes `100vw` as the
+     thing it replaced, so a raw read makes the negative clause match its own explanation. */
+  const infoCssBare = stripCssComments(infoCss);
+  ok(/\.c-chat-info__cover \{[^}]*inset-inline: calc\(-1 \* var\(--spacing-16\)\)/.test(infoCssBare)
+     && /\.c-chat-info__cover \{[^}]*top: calc\(-1 \* var\(--spacing-16\)\)/.test(infoCssBare)
+     && !/\.c-chat-info__cover \{[^}]*100vw/.test(infoCssBare),
+    '★★ #591: the cover bleeds to the body padding edge on both axes — viewport units were the wrong tool and cancelled themselves');
+  /* ★★ #591 (round-2 m1, MEASURED): the tip pill went green at Damir's ask, and the
+     success TONAL pair misses AA in light at 12px bold — 4.28:1. The ink moved one ramp
+     step (--success-700, 6.59:1) at the TOKEN, so the same failure is closed on the three
+     other surfaces already using this pair. Dark is untouched (7.51:1 via --success-400). */
+  {
+    const tok = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8');
+    const light = tok.slice(0, tok.indexOf('--text-success: var(--success-400)'));
+    ok(/--text-success: var\(--success-700\);/.test(light)
+       && /--text-success: var\(--success-400\);/.test(tok),
+      '★★ #591: --text-success is --success-700 in LIGHT (6.59:1 on the tonal surface — 600 measured 4.28 and .c-badge is 12px bold, i.e. normal text) and still --success-400 in dark');
+  }
   ok(/\.c-chat-info__name \{[^}]*min-width: 0/.test(infoCss),
     'chat-info hero name has min-width:0 — long names/RTL ellipsize, no overflow (#143 ①, #140③ class)');
   // Damir 2026-08-12 supersedes the #144 two-row button block: the action row is
   // now the wallet-banner quick-action grammar — one centered row of small
   // circle+label actions that stays one row for 1/2/3 actions.
+  /* ★ #591: the row carries FOUR actions now (Message · Call · Pay · Request) and the
+     items gained `min-width: 0` — without it a flex item's min-content is the whole word,
+     so at 320px the row OVERFLOWS instead of letting its labels wrap. The property is
+     unchanged: still ONE centered row that never wraps into two. */
   ok(/\.c-chat-info__money \{[^}]*justify-content: center/.test(infoCss)
-    && /\.c-chat-info__money > \.c-chat-info__qa \{ flex: 1; max-width:/.test(infoCss)
+    && /\.c-chat-info__money > \.c-chat-info__qa \{ flex: 1; min-width: 0; max-width:/.test(infoCss)
     && !/flex-wrap: wrap/.test(infoCss.split('.c-chat-info__money {')[1].split('}')[0]),
     'contact action row: ONE centered quick-action row (wallet-banner grammar, supersedes the #144 two-row block)');
+  /* ★★ #591 (round-2 MAJOR): the LABEL wraps rather than ellipsizing, and this pin exists
+     because the first fix was a NO-OP — it declared a second `.c-chat-info__qa-label`
+     block EARLIER in the file than the one already setting `white-space: nowrap`, so the
+     later rule won and nothing changed. There must be exactly ONE such rule, and it must
+     permit wrapping. */
+  /* ★★ #591 (round-2 MAJOR): the address row's press wash must OUT-SPECIFY the card rule.
+     `.c-chat-info__body > :not(…):not(…):not(…)` is (0,4,0) — `:not()` carries its
+     argument's specificity — and it paints `--surface-card` on this element. A bare
+     `.c-chat-info__addr-row:active` is (0,2,0) and LOSES, which is how the first fix
+     shipped a press wash that never painted while `-webkit-tap-highlight-color:
+     transparent` suppressed the native one. */
+  ok(/\.c-chat-info__body > \.c-chat-info__addr-row:active \{[^}]*background:/.test(infoCss)
+     && /\.c-chat-info__body > \.c-chat-info__addr-row:hover \{[^}]*background:/.test(infoCss)
+     && !/^\.c-chat-info__addr-row:(hover|active)/m.test(infoCss),
+    '★★ #591: the addr-row press wash is scoped through `__body >` so it beats the (0,4,0) card rule — an unscoped :active is a wash that never paints');
+  {
+    const qaRules = infoCss.match(/\.c-chat-info__qa-label \{[^}]*\}/g) || [];
+    ok(qaRules.length === 1 && /white-space: normal/.test(qaRules[0]) && /overflow-wrap: anywhere/.test(qaRules[0])
+       && !/white-space: nowrap/.test(qaRules[0]),
+      '★★ #591: ONE .c-chat-info__qa-label rule, and it WRAPS — a truncated verb on an action button ("Сообщ…") is unreadable, and a second earlier block would silently lose to it');
+  }
   const tip = readFileSync(join(root, 'src/components/tip-sheet.js'), 'utf8');
   const recv = readFileSync(join(root, 'src/components/wallet-receive.js'), 'utf8');
   const tb = readFileSync(join(root, 'src/components/typed-bubbles.js'), 'utf8');
@@ -2082,9 +2260,13 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   ok(/\.c-chat-info__sd-status \{[^}]*color: var\(--icon-success\)/.test(infoCss)
     && /\.c-chat-info__sd-option\[data-loading\] \.c-chat-info__sd-check \{ display: none/.test(infoCss),
     'sd check uses --icon-success (both themes) + loading swaps the check for a spinner in the slot (#145 ③)');
-  ok(/\.c-chat-info__address-row \{[^}]*background: var\(--surface-input\)/.test(infoCss)
-    && /\.c-chat-info__copy \{[^}]*width: 32px/.test(infoCss),
-    'address value sits on a --surface-input chip with a 32px copy button — member-sheet parity (#145 ④)');
+  /* ★ #591 REBASE (#145 ④): the address chip and its copy button are retired with the
+     card. Copy did not disappear — it moved to the sheet, where its honest morph already
+     lives. What must hold now is that no dead rule survives them: dead CSS ships inlined
+     into every built shell, and a pin asserting the STYLING of markup another pin asserts
+     ABSENT is the pair that punishes the correct cleanup. */
+  ok(!/\.c-chat-info__address\b/.test(infoCss) && !/\.c-chat-info__copy\b/.test(infoCss),
+    '★ #591: the retired address card leaves NO dead rules behind (#145 ④ retired — its copy button now lives on the shared sheet)');
   ok(/scrollbar-gutter: stable/.test(baseCss),
     'u-scroll reserves the scrollbar gutter — QR/payments expand no longer reflows content (#145 ⑤)');
 }
@@ -2371,11 +2553,68 @@ console.log('chatlist-item / chats-shell — M5 request grammar');
   // refreshes a stale restored picker once setLanguage lands.
   const setSrc = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
   ok(/const VIEW_RESUME_KEY = 'spixi\.settings\.view';/.test(setSrc)
-    && /stashViewForReload\(\); bridge\.send\('ixian:language:' \+ code\)/.test(setSrc)
+    && /stashViewForReload\(\);[\s\S]{0,240}?bridge\.send\('ixian:language:' \+ code\)/.test(setSrc)
     && /currentView = takeResumeView\(\) \|\| 'hub';/.test(setSrc)
     && /o\.v === 'language'/.test(setSrc)
     && /detailWrap\.dataset\.langBuilt !== state\.language/.test(setSrc),
     '#274b: language pick survives the C# settings reload (view stash + restored-picker refresh)');
+  /* ★★ #589 (Damir F5 2026-08-26): "changing language — the rail jumps to Chats but
+     Account is still open." The pane SURVIVES the re-bake (#285/#288 keep it pinned);
+     the regenerated home document had no way to know.
+
+     ⚠ THE FIRST FIX USED THE #238 `spixi.landtab` HAND-OFF AND THE AUDIT KILLED IT:
+     that key is a single slot CONSUMED ON READ, and the OUTGOING home document's own
+     storage listener ate it before the regenerated one existed. These pins assert the
+     DURABLE-FLAG design that replaced it, and they assert the hand-off is NOT used —
+     because re-reaching for it is the mistake that would come back. */
+  {
+    const homeLT = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+    ok(/const PANE_OPEN_KEY = 'spixi\.pane\.account';/.test(setSrc)
+       && /if \(paneMode\) markPaneOpen\(true\);/.test(setSrc)
+       && /markPaneOpen\(on\);/.test(setSrc)
+       && /markPaneOpen\(false\);/.test(setSrc)
+       && /pagehide['"], \(\) => markPaneOpen\(false\)\)/.test(setSrc),
+      '★★ #589: the pane keeps a DURABLE flag while it is up, set on both entry paths and cleared on every exit including a kill the app does not see');
+    ok(!/landtab[\s\S]{0,60}account/i.test(setSrc)
+       && /if \(id === 'account' \|\| !NAV_TO_TAB\[id\]\) return;/.test(homeLT),
+      '★★ #589 (audit MAJOR-1): the consumed-on-read hand-off is NOT used for this — the outgoing home document eats it before the regenerated one boots, so a write there can never arrive');
+    /* ⚠ REWRITTEN (round-2 review): the first cut looked for a `removeItem` in an
+       80-character window BEFORE the identifier. The removeItem would land AFTER it, and
+       `clearAccountPaneFlag` does not contain the substring `accountPaneOpen` — so I made
+       the reader consume the key and the pin stayed GREEN, on the one defect that made
+       the previous design unbuildable. Read the FUNCTION BODY instead. */
+    const paneReaderBody = (homeLT.match(/function accountPaneOpen\(\) \{([\s\S]*?)\n  \}/) || [])[1] || '';
+    ok(/getItem\(PANE_OPEN_KEY\)/.test(paneReaderBody)
+       && !/removeItem|setItem/.test(paneReaderBody),
+      '★ #589: home READS the flag and its reader writes NOTHING — a consumed read is what made the first design unbuildable, and this pin now fails if the reader ever grows one');
+    /* ★★ audit MAJOR-2: C# echoes selectTab(currentTab) on EVERY load, and that echo
+       lands AFTER any boot-time correction — it re-lit Chats over the top. The fix has
+       to be the LAST writer, so it lives inside the handler. */
+    /* ⚠ REWRITTEN (round-2 review): the first cut matched `setNavActive … showView …
+       syncAccountRail` in sequence, which proves PROXIMITY, not order. Appending a
+       second `setNavActive` AFTER `syncAccountRail()` — the precise MAJOR-2 regression —
+       left it green. Read the handler body and assert that NOTHING writes the highlight
+       after the re-assert. */
+    {
+      const selBody = (homeLT.match(/\n    selectTab\(tab\) \{([\s\S]*?)\n    \},/) || [])[1] || '';
+      const syncAt = selBody.indexOf('syncAccountRail();');
+      ok(syncAt > 0 && selBody.indexOf('setNavActive') > 0
+         && !/setNavActive/.test(selBody.slice(syncAt)),
+        '★★ #589 (audit MAJOR-2): inside selectTab, syncAccountRail is the LAST thing that writes the highlight — C# echoes selectTab on every load, and after a language re-bake that echo re-lit Chats over the top of any earlier correction');
+    }
+    ok(/onSettingsClosed\(\) \{ clearAccountPaneFlag\(\);/.test(homeLT),
+      '★ #589: the flag is cleared on the AUTHORITATIVE close push, not on a timer — a stale flag needs both the settings document to die without pagehide AND C# to never report the close');
+    /* ★★ #589 (round-2 review) INVERTED. An earlier draft cleared the flag locally on a
+       tab tap, to avoid a one-frame snap-back. `reloadShell` suppresses the overlay exit
+       for ~5.5 s, so inside that window a tab tap does NOT close the pane — and a local
+       clear left the rail claiming Chats over an open Account, which is the bug the row
+       exists to remove. The clear belongs to the authoritative close push only. */
+    {
+      const onChangeBody = (homeLT.match(/\n    onChange: \(id\) => \{([\s\S]*?)\n    \},/) || [])[1] || '';
+      ok(onChangeBody.length > 0 && !/clearAccountPaneFlag/.test(onChangeBody),
+        '★★ #589: a rail tab tap does NOT clear the pane flag — C# can answer a tab verb WITHOUT closing the pane (the reloadShell suppression window), and a local clear made the rail lie about an Account that was still on screen');
+    }
+  }
 
   /* ⑩ (#266) + Q1 review (#267 loop) — the SHIPPED c-contact-request grammar:
    * · Decline is SINGLE-CLICK (the confirm modal is gone — declines are reversible);
@@ -5119,7 +5358,7 @@ console.log('#275 composer lock (legacy states) · #276 address-truncation sweep
   ok(/friend\.state != FriendState\.Approved && friend\.state != FriendState\.RequestReceived/.test(scp),
     '#275: onLoad locks the composer for ANY non-approved 1:1 (legacy states included)');
   const home276 = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
-  ok(/const cpIsAddr = looksLikeAddress\(cp\);/.test(home276)
+  ok(/const cpIsAddr = isAddressShaped\(cp\);/.test(home276)
     && /const cpDisplay = cpIsAddr \? truncateAddressMiddle\(cp\) : cp;/.test(home276)
     && /address: walletHidden \? '' : \(cpIsAddr \? cp : ''\)/.test(home276)
     && /tx\.address = walletHidden \? '' : \(tx\._raw\.address \|\| ''\)/.test(home276),
@@ -5211,6 +5450,48 @@ console.log('missing-bits Batch C — desktop overlay grammar + form panes (M6/M
     'M6: desktop-anchors no-ops without data-desktop (mobile untouched)');
   ok(/CTX_FRESH_MS = 600/.test(anchors) && /\.c-msgmenu/.test(anchors),
     'M6: only a just-right-clicked .c-msgmenu sheet anchors (long-press keeps the dialog)');
+  /* ★★ #589 (Damir F5 2026-08-26): "the desktop right-click menu often covers the
+     selected row." It dropped from the row's BOTTOM edge and never flipped, and its
+     only bound was `fr.height - 420` — a GUESSED menu height, which places a menu
+     taller or shorter than 420 wrong in opposite directions. The MOBILE path has
+     preferred ABOVE since #557 4.1 for exactly this reason. Pinned as the property:
+     the placement is MEASURED, it prefers above, and the guess is gone. */
+  ok(/const mh = n\.offsetHeight \|\| 0;/.test(anchors)
+     && /const aboveTop = rowTop - fr\.top - CTX_GAP - mh;/.test(anchors)
+     && /if \(mh && aboveTop >= minTop\) \{/.test(anchors)
+     && !/fr\.height \|\| 1e4\) - 420/.test(anchors),
+    '★★ #589: the desktop context menu is MEASURED and prefers ABOVE the source row — a menu that flips above the row can never cover the row it acts on, and the 420px guess is gone');
+  /* ⚠ BOTH indices asserted positive first — the same `-1 < positive` trap this batch
+     documents for the contacts pin, which I then repeated here in the mirror direction:
+     deleting the width assignment made indexOf return -1 and the pin went green. */
+  {
+    const wAt = anchors.indexOf("n.style.width = CTX_MENU_W + 'px';");
+    const hAt = anchors.indexOf('const mh = n.offsetHeight');
+    ok(wAt > 0 && hAt > 0 && wAt < hAt,
+      '★ #589: the height is measured AFTER the width lands — the width decides how the labels wrap, and the wrap decides the height, so measuring first would size the flip against a box this function is about to change');
+  }
+  /* ★ #589 — the mini-app contacts picker left a pressed-row rectangle on the new
+     screen. This module's OWN comment named the class ("a page hidden mid-press — app
+     backgrounded, OVERLAY OPENED"), but pagehide/visibilitychange do not fire for an
+     in-document TAKEOVER: the row stays connected and its wall-clock fill/fade timers
+     keep running under the screen that replaced it. */
+  {
+    const pressJs = readFileSync(join(root, 'src/components/pressable.js'), 'utf8');
+    const contactsPage = readFileSync(join(root, 'src/bridge/contacts-page.js'), 'utf8');
+    ok(/export function clearPressFeedback\(\)/.test(pressJs)
+       && /pressInstances\.add\(onHide\);/.test(pressJs)
+       && /pressInstances\.delete\(onHide\);/.test(pressJs),
+      '★ #589: pressable exposes the SAME teardown pagehide uses, reachable from a screen that opens IN the document — and a detached instance deregisters, so clearing never calls a dead closure');
+    /* ⚠ THE CALL'S EXISTENCE IS ASSERTED FIRST, and that is not decoration. The first
+       cut pinned only the ORDER — `indexOf(call) < indexOf(anchor)` — and deleting the
+       call made indexOf return -1, which is less than any real index, so the pin went
+       GREEN on the defect. Mutation found it; reading it twice did not. */
+    const callAt = contactsPage.indexOf('clearPressFeedback();');
+    ok(/import \{ clearPressFeedback \}/.test(contactsPage)
+       && callAt > 0
+       && callAt < contactsPage.indexOf("overlay.className = 'contacts-takeover'"),
+      '★★ #589: the PICKER clears it, before it builds itself — the screen being opened owns the moment, so every host that opens it is covered, including one written later');
+  }
   // Q2 review (#268 loop): the no-scrim change rests on ONE unasserted invariant in a
   // DIFFERENT file — desktop-anchors tags the sheet's scrim by previousElementSibling,
   // which is only the scrim because overlay.js appends `scrim, el` in that order. If
@@ -5714,7 +5995,10 @@ console.log('#314 — polish batch (selectability · mention pill · toast/CTA �
     '#314 backup: a visibility+park-guarded 2s stamp poll closes the iOS refresh gap (no cross-WebView storage event, no focus/visibility on overlay pop) — change-guarded so it never rebuilds mid-edit');
 
   /* landtab — consumed on the deterministic C# close push */
-  ok(/onSettingsClosed\(\) \{ consumeLandTab\(\); setNavActive\(nav, activeNav\); \}/.test(homeSh),
+  /* ★ #589 rebase: the line gained `clearAccountPaneFlag()` in front. The ORDER is the
+     property — the flag clear and the hand-off consume both run BEFORE the highlight
+     re-sync, or the re-sync would assert a tab against state nobody had updated yet. */
+  ok(/onSettingsClosed\(\) \{ clearAccountPaneFlag\(\); consumeLandTab\(\); setNavActive\(nav, activeNav\); \}/.test(homeSh),
     '#314 landtab (iOS-46 leg): onSettingsClosed consumes the tab hand-off BEFORE the highlight re-sync — the storage/focus listeners never fire on iOS overlay close');
 
   /* R6 — full-detail tx sheet via roster join, hide fail-safe FIRST */
@@ -6406,12 +6690,14 @@ console.log('contact details — premium pass');
   ok(remove.querySelector('.c-disc').dataset.hue === 'error',
     'premium ②: the destructive disc stays red (the reservation, #148)');
 
-  // ③ hierarchy: identity → what you can do → the details. The address card used
-  //    to sit between the hero and the actions and pushed them off the fold.
+  // ③ hierarchy: identity → what you can do → the details. The address used to sit
+  //    between the hero and the actions and pushed them off the fold.
+  //    ★ #591: the card became a ROW (it opens the shared sheet now) — the ORDER is the
+  //    property and it is unchanged.
   const kids = [...ci.querySelector('.c-chat-info__body').children];
   ok(kids.indexOf(ci.querySelector('.c-chat-info__money'))
-      < kids.indexOf(ci.querySelector('.c-chat-info__address')),
-    'premium ③: actions come BEFORE the address card');
+      < kids.indexOf(ci.querySelector('.c-chat-info__addr-row')),
+    'premium ③: actions come BEFORE the address row');
   ok(ci.querySelector('.c-chat-info__hero .c-avatar').dataset.size === '80',
     'premium ③: portrait-scale hero avatar (centered identity block)');
 
@@ -8047,8 +8333,16 @@ console.log('empty states — chats · wallet · contacts (illustration + copy +
   ok(/onAction: opts\.onReceive/.test(walletSrc), 'wallet CTA → opts.onReceive (the hero’s Receive takeover, no new verb)');
   ok(/onAction: onAddContact/.test(contactsSrc), 'contacts CTA → onAddContact (the same action the picker’s own row offers)');
   const homeSrc = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
-  ok(/onNewChat: \(\) => openContacts\('start'\)/.test(homeSrc) && /onReceive: \(\) => mountWalletReceive\(\)/.test(homeSrc),
+  /* ★ #589 (Damir F5 2026-08-26): the wallet CTA says "Show my address", so it OPENS
+     THE ADDRESS — the ONE sheet (#527), not the whole Receive takeover with its
+     request-amount field and contact strip. The hero's Receive button is unchanged.
+     The property pinned is still "the PRODUCTION shell wires both, so neither ships
+     as a dead button", plus the degrade the takeover already had. */
+  ok(/onNewChat: \(\) => openContacts\('start'\)/.test(homeSrc) && /onReceive: \(\) => openWalletAddressSheet\(\)/.test(homeSrc),
     'the PRODUCTION shell passes both zero-state callbacks (a demo-only wiring would ship a dead button)');
+  ok(/function openWalletAddressSheet\(\) \{[\s\S]{0,200}?if \(!addr\) \{ bridge\.send\('ixian:receiveixi'\); return; \}[\s\S]{0,220}?openAddressSheet\(\{/.test(homeSrc)
+     && /onReceive: mountWalletReceive,/.test(homeSrc),
+    '★★ #589: the zero-state CTA opens the address SHEET and still degrades to the native page when no address has been pushed — and the HERO Receive keeps the takeover, which is a different promise');
 
   /* wallet compact — the de-de clipping guard */
   /* ⚠ Slice to the FUNCTION, not to a byte budget. This was `indexOf + 1400`, and a
@@ -9865,9 +10159,53 @@ console.log('#370/#371 — D-19b reverse-resolve · N48 amOwner · N49/N50 · R2
   /* —— D-19b: the pseudo-nick display guard —— */
   const njs = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/[^\n]*/gm, '');   // loop C-5: JS pins track CODE shape, not comments
   const av370 = njs(read('src/components/avatar.js'));
+  /* ★ #589 REBASE: this pinned the regex LITERAL, including the `{30,}` floor that
+     Damir's report made wrong — a nick that long is ordinary and was being rendered as
+     an address. The floor moved to a shared constant, so the pin now asserts the two
+     PROPERTIES that must hold and proves them by RUNNING the predicate, which a literal
+     never did: the leading `x` is optional (or the raw echo leaks), and a real address
+     is still caught at every version length. */
   ok(/export function isPseudoAddressNick\(name\)/.test(av370)
-    && av370.includes('^x?[1-9A-HJ-NP-Za-km-z]{30,}$'),
-    'D-19b (#370, widened in loop B-1): isPseudoAddressNick lives in avatar.js (the #211 identity canon home) and matches BOTH address-bearing encodings — the legacy "x"+base58 pseudo-key AND the raw base58 echo (resolveNick / local_fr.nickname fall back to the address itself). The x is OPTIONAL in the shape or the echo leaks');
+    && /ADDRESS_MIN_CHARS/.test(av370)
+    && av370.includes("'^x?[1-9A-HJ-NP-Za-km-z]{'"),
+    'D-19b (#370, widened in loop B-1): isPseudoAddressNick lives in avatar.js (the #211 identity canon home) and matches BOTH address-bearing encodings — the legacy "x"+base58 pseudo-key AND the raw base58 echo. The x is OPTIONAL in the shape or the echo leaks');
+  {
+    const AV = await import('file://' + join(root, 'src/components/avatar.js'));
+    /* ⚠ REAL LENGTHS. The first cut used 44 and 60 — neither is a length an Ixian
+       address can have, so the assertion "a real address is still caught" was not
+       backed by its own fixtures, and the whole block still passed with the floor set
+       to 45, 50 or 60, i.e. exactly where the blind-room guard WOULD leak. Measured
+       lengths: v0 encodes to 48 or 49, v1/v2 to exactly 65. 48 is the one that binds. */
+    const v0 = '1BvNvvJTfDNhx8pDJfTZFjSVLnwFsWtWCH4bDZLRoMFtxSJR';   // 48 — the SHORTEST real address
+    const v1 = '4rNvvJTfDNhx8pDJfTZFjSVLnwFsWtWCH4bDZLRoMFtxSJRfnKZqfg5Q8V5YqWzLm';   // 65 — v1/v2 encode to EXACTLY this
+    ok(v0.length === 48 && v1.length === 65,
+      '★ #589 (guarding the guard): the address fixtures are REAL encoded lengths — 48 is the shortest an Ixian address can be, so the floor is actually constrained from above');
+    ok(AV.isPseudoAddressNick(v0) && AV.isPseudoAddressNick(v1) && AV.isPseudoAddressNick('x' + v1)
+       && AV.isAddressShaped(v0) && AV.isAddressShaped(v1),
+      '★★ #589: the SHORTEST real address (48) is caught by BOTH predicates, with or without the legacy x prefix — this is the assertion that stops the floor being raised into the blind-room guard');
+    /* ⚠ THESE TWO STRINGS ARE CHOSEN, NOT TYPED. Both are base58-LEGAL (no 0, O, I or
+       lowercase L) and both carry digits, so the only thing that can reject them is
+       the LENGTH FLOOR. The first cut used 'SuperLongNickname2026Edition', which the
+       charset rejects on the zero in 2026 — it passed at every floor, including the
+       broken ones, and proved nothing. Mutation is what showed that; reading did not.
+       21 and 30 characters are exactly the lengths the old 20 / 24 / 30 floors ate. */
+    const NICK_21 = 'SuperNiceNickname2fMe';                 // 21 — over the old 20 floor
+    const NICK_30 = 'SuperNiceNickname2fromMeAgain5';        // 30 — over all three old floors
+    ok(NICK_21.length === 21 && NICK_30.length === 30
+       && /^[1-9A-HJ-NP-Za-km-z]+$/.test(NICK_21) && /^[1-9A-HJ-NP-Za-km-z]+$/.test(NICK_30)
+       && /\d/.test(NICK_21) && /\d/.test(NICK_30),
+      '★ #589 (guarding the guard): the nickname fixtures are base58-legal and digit-bearing, so LENGTH is the only thing that can reject them');
+    ok(!AV.isAddressShaped(NICK_21) && !AV.isAddressShaped(NICK_30)
+       && !AV.isPseudoAddressNick(NICK_30)
+       && !AV.isAddressShaped('DamirRekic2026'),
+      '★★ #589 (Damir): a long NICKNAME is not an address. The old floors were 20 (home/wallet), 24 (the accept chip) and 30 (this predicate) — every one of them is a length a person can type as a name, and a false positive rendered the name MIDDLE-TRUNCATED');
+    ok(AV.ADDRESS_MIN_CHARS === 40 && AV.ADDRESS_MIN_CHARS < v0.length,
+      '★ #589: the floor is 40 and it sits BELOW the shortest real address (48) — derived, not picked. Address.ToString() base58-encodes address+3 checksum bytes (Address.cs:34/:364); measured, v0 lands on 48-49 and v1/v2 on exactly 65');
+    ok(/const PSEUDO_ADDRESS_RE = new RegExp\(/.test(av370),
+      '★ #589: the pseudo-nick pattern is built ONCE at module scope — it runs per roster row on every re-render, and a module-scope literal is validated at parse time');
+    ok(!AV.isAddressShaped('AbcdefghijAbcdefghijAbcdefghijAbcdefghijAbc'),
+      '★ #589: and a long all-LETTER token is still a word, not an address — every real address carries digits');
+  }
   const chat370src = read('src/shells/chat.html');
   const chat370 = read('Spixi/Resources/Raw/html/chat.html');
   ok(chat370src.includes("(addr === '[Unknown]' && isPseudoAddressNick(nick)) ? '' : (nick || '')")
@@ -11355,9 +11693,39 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   ok(/if \(p\) resolveNotif\(key, p\.want === v\);/.test(setShell),
     '★ NOTIF-2: the switch is resolved against the value C# actually STORED, not against what the user asked for — a write that did not take rolls the control back instead of lying');
 
-  /* ★ The previews row was a DEAD CONTROL as written. */
-  ok(/label: strings\.notifSender \|\| 'Show sender name'/.test(screens),
-    '★ NOTIF-2: the "Show message previews" row is re-labelled to what it can actually do. AND-15 (#334) builds a per-TYPE line with NO sender name and NO message text, so a previews toggle wired as written would have changed nothing — a dead control');
+  /* ★ #589 REBASE. NOTIF-2's pin asserted the row's LABEL, so removing the row turned
+     it red. What has to hold now is that removing a CONTROL did not change what it
+     controlled: the option and the callback stay in the component's signature (a host
+     still passes them, and a signature change would break a host that was not rebuilt),
+     the C# verb still exists, and the preference keeps its shipped default. */
+  ok(!/label: strings\.notifSender/.test(screens)
+     && /onEnabled, onPreviews, onSounds,/.test(screens),
+    '★ #589 (was NOTIF-2): the sender-name ROW is gone while the `onPreviews` API is kept — removing a control must not change what it controlled, and no host breaks');
+  {
+    const notifCs = readFileSync(join(root, 'Spixi/Meta/SNotificationPrefs.cs'), 'utf8');
+    ok(/KEY_SENDER_NAME = "notif_sender_name"/.test(notifCs)
+       && /getBool\(KEY_SENDER_NAME, false\)/.test(notifCs)
+       && /ixian:notifSenderName:/.test(readFileSync(join(root, 'Spixi/Pages/Settings/SettingsPage.xaml.cs'), 'utf8')),
+      '★ #589: the preference, its DEFAULT (false) and the verb all survive the row removal — the shell still handles the push, so no bare global can throw (#421 class)');
+    /* ★★ #589 (audit B MINOR-1 → round-2 NIT-2): removing the ROW would have left anyone
+       who had turned the switch ON stuck with the counterparty's name on their lock
+       screen and NO control to turn it off. The migration returns it to the shipped
+       default once. It was completely unpinned — deleting the call left every gate
+       green — and the ORDER inside it is the part that matters. */
+    const appCs = readFileSync(join(root, 'Spixi/App.xaml.cs'), 'utf8');
+    ok(/SNotificationPrefs\.migrateSenderNameOptOut\(\);/.test(appCs)
+       && /protected override void OnStart\(\)[\s\S]{0,400}?migrateSenderNameOptOut/.test(appCs),
+      '★★ #589: the sender-name opt-out migration is REACHED, from OnStart — a stuck-ON privacy preference with no control anywhere in the app is worse than either state the user could have chosen');
+    {
+      const mig = (notifCs.match(/public static void migrateSenderNameOptOut\(\)([\s\S]*?)\n        \}\n/) || [])[1] || '';
+      const workAt = mig.indexOf('setBool(KEY_SENDER_NAME, false)');
+      const markAt = mig.indexOf('Set(KEY_SENDER_NAME_MIGRATED, true)');
+      ok(workAt > 0 && markAt > 0 && workAt < markAt,
+        '★★ #589: the migration does the WORK before it marks itself done — setBool swallows its own exception, so marking first would leave the preference stuck ON with nothing left to retry it');
+      ok(/catch \(Exception/.test(mig),
+        '★ #589: and it cannot throw out of OnStart — a preference read must never be able to stop a start (this file\'s own rule)');
+    }
+  }
   {
     const scNC = screens.replace(/\/\*[\s\S]*?\*\//g, '');
     ok(!/Off = sender and text hidden on the lock screen/.test(scNC),
@@ -13116,17 +13484,21 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
      (wallet-receive.css owns the card — padding 0 pinned by the F5-5 ① block). A
      `.c-settings__qr` rule ANYWHERE is the #149③ two-surfaces drift returning. */
   const hubQr = rulesFor('.c-settings__qr');
-  const infoQr = rulesFor('.c-chat-info__qr');
+  const infoQr = rulesFor('.c-chat-info__qr');   // ★ #591: expected EMPTY now — see below
   const noneDeclares = (rules, prop) => rules.every((r) => cssDecls(r.body).every((d) => d.prop !== prop && !d.prop.startsWith(prop + '-')));
   const allDeclare = (rules, prop, value) =>
     rules.some((r) => cssDecls(r.body).some((d) => d.prop === prop && d.value === value))
     && rules.every((r) => cssDecls(r.body).every((d) => d.prop !== prop || d.value === value));
   ok(hubQr.length === 0,
     '★ Batch E (d) (CASCADE-WIDE): NO stylesheet declares a .c-settings__qr card — the hub QR box is retired; the code lives on the shared address sheet only');
-  ok(infoQr.length > 0 && noneDeclares(infoQr, 'padding'),
-    '★ N86 ① (CASCADE-WIDE): chat-info keeps its inline card with NO padding in ANY rule — the quiet zone is the white margin');
-  ok(allDeclare(infoQr, 'border-radius', 'var(--radius-16)'),
-    '★ N86 ① (CASCADE-WIDE): the chat-info radius is var(--radius-16) and NO rule anywhere overrides it. With the padding gone the curve eats the quiet zone\'s own corner. A 16px radius removes at most R(√2−1) = 6.63px of DIAGONAL depth, and the measured quiet zone is 16.44px in the worst case — so the curve stays inside the quiet zone and reaches no module. Raise the radius and that stops being true');
+  /* ★ #591 REBASE: chat-info no longer HAS an inline card — the address row opens the
+     shared sheet, so the hub and the details surface finally do the same thing. N86 ①'s
+     property (the quiet zone is the white margin, nothing pads or curves into it) now
+     lives entirely on the sheet's own card, which the F5-5 ① block pins. The strongest
+     statement here is that neither inline card exists. */
+  ok(infoQr.length === 0,
+    '★ #591 (N86 ① rebased, CASCADE-WIDE): NO stylesheet declares a .c-chat-info__qr card either — BOTH address surfaces open the shared sheet, so exactly one card in this app draws a QR');
+  // (the radius half of N86 ① retired with the card it described — see the pin above)
 
   /* ══ ★★ PIN-G — #46 loop §5: THE QR NUMBERS ARE MEASURED, NOT RECALLED ══════════════
      HALF 1 IS LIVE. It runs the SHIPPED encoder in jsdom and reads the viewBox back. It
@@ -13169,13 +13541,20 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
        supersession note pointing there. The old byte-identical pin guarded two
        copies against drift; with one copy left, the guard is that NO second copy
        (and no stale wrong number) creeps back into settings-shell.css. */
-    const infoDoc = grabDoc(infoCssQ, '/* ★ N86 ① (Damir 2026-08-25)');
-    ok(infoDoc.length > 400 && /4\.51px per cell/.test(infoDoc) && /18\.05px quiet zone/.test(infoDoc)
-       && /16\.44px quiet zone/.test(infoDoc) && /R\(√2−1\) = 6\.63px/.test(infoDoc),
-      '★ PIN-G HALF 2 (#46 loop §5): chat-info.css carries the MEASURED numbers — 4.51px per cell, 18.05px and 16.44px of quiet zone, and R(√2−1) = 6.63px of diagonal depth');
-    ok(infoDoc.length > 400 && !/185\/45/.test(infoDoc) && !/≈3\.8px/.test(infoDoc)
-       && !/≈4\.7px of DIAGONAL/.test(infoDoc) && !/≈45-module grid/.test(infoDoc),
+    /* ★ #591 REBASE. The N86 ① geometry docblock lived in chat-info.css because that file
+       drew the last inline QR card. It no longer draws one — the address row opens the
+       shared sheet — so the measured numbers move to the file that DOES draw the code,
+       and the pin follows them there. Keeping the docblock beside a retired card is how
+       a comment outlives the thing it describes. */
+    const rcvDoc = grabDoc(readFileSync(join(root, 'src/styles/components/wallet-receive.css'), 'utf8'), '/* ★ N86 ① (Damir 2026-08-25)');
+    ok(rcvDoc.length > 400 && /4\.51px per cell/.test(rcvDoc) && /18\.05px quiet zone/.test(rcvDoc)
+       && /16\.44px quiet zone/.test(rcvDoc) && /R\(√2−1\) = 6\.63px/.test(rcvDoc),
+      '★ PIN-G HALF 2 (#591 rebase): the MEASURED numbers live in wallet-receive.css, the ONE file that still draws a QR card — 4.51px per cell, 18.05px and 16.44px of quiet zone, R(√2−1) = 6.63px of diagonal depth');
+    ok(rcvDoc.length > 400 && !/185\/45/.test(rcvDoc) && !/≈3\.8px/.test(rcvDoc)
+       && !/≈4\.7px of DIAGONAL/.test(rcvDoc) && !/≈45-module grid/.test(rcvDoc),
       '★ PIN-G HALF 2 (#46 loop §5): and it carries NONE of the three retired wrong numbers');
+    ok(!/★ N86 ① \(Damir 2026-08-25\)/.test(infoCssQ),
+      '★ #591: chat-info.css carries NO geometry docblock — it draws no QR card, and a comment that outlives its subject is the drift PIN-G exists to catch');
     ok(!/★ N86 ① \(Damir 2026-08-25\)/.test(setCssQ) && /Batch E \(d\)/.test(setCssQ)
        && /chat-info\.css/.test(setCssQ) && /wallet-receive\.css/.test(setCssQ),
       '★★ PIN-G HALF 2 (#149③, Batch E rebase): settings-shell.css carries NO second geometry docblock — only the supersession note naming where the geometry now lives. A re-grown hub copy is the two-surfaces drift returning in the place hardest to see');
@@ -13193,11 +13572,12 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   {
     /* ★ Batch E (d) (#557) REBASED: ONE inline surface left (chat-info). The hub svg
        rule left with its card; a `.c-settings__qr svg` rule anywhere is regression. */
+    /* ★ #591 REBASE: there is no inline QR surface left AT ALL. Both address entries open
+       the shared sheet, so the guard is that neither file re-grows a code of its own —
+       which is the two-surfaces drift (#149③) closed for good rather than held at one. */
     const svgRules = cssRulesWhere((s) => /(^|\s)\.c-(settings|chat-info)__qr svg$/.test(s));
-    const sizes = svgRules.flatMap((r) => cssDecls(r.body).filter((d) => d.prop === 'width' || d.prop === 'height'));
-    ok(svgRules.length === 1 && /chat-info/.test(svgRules[0].selector)
-       && sizes.length === 2 && sizes.every((d) => d.value === '185px'),
-      '★★ PIN-G GEOMETRY (CASCADE-WIDE, Batch E rebase): chat-info is the ONE inline surface and its code renders at 185px with no overriding rule anywhere; the hub declares no QR svg rule at all — its code rides the shared sheet card');
+    ok(svgRules.length === 0,
+      '★★ PIN-G GEOMETRY (CASCADE-WIDE, #591 rebase): NEITHER the hub nor chat-info declares a QR svg rule — exactly one card in this app draws a code, on the shared address sheet, so the two surfaces can no longer disagree about its size');
   }
 
   /* ② the affordance — ★ Batch E (d) (#557) REBASED N86 ②, rewritten in place.
@@ -13229,8 +13609,11 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
     const addrI = setNC.indexOf("strings.spixiAddress");
     ok(meI > 0 && prefsI > meI && addrI > meI && addrI < prefsI,
       '★ #575: the address row is built in the FIRST, untitled group — above Preferences. Burying it deeper would re-break #147 (scanning is the add-me action, so the code stays one tap away)');
-    ok(setNC.indexOf("strings.contacts ||") < addrI && setNC.indexOf("strings.contacts ||") > meI,
-      '#575: Contacts sits in that same first group, immediately above the address row (his layout)');
+    /* ★ #589 REBASE: Damir moved the address row ABOVE Contacts. Both rows are still
+       in that first group — that is the part #575 fixed and this still asserts — and
+       the ORDER is now his: address first, then Contacts. */
+    ok(setNC.indexOf("strings.contacts ||") > addrI && setNC.indexOf("strings.contacts ||") < prefsI,
+      '★ #589 (was #575): Contacts sits in that same first group, immediately BELOW the address row (his layout)');
   }
 
   /* ③ ★ Batch E (d) (#557) REBASED: the two rows now do DIFFERENT things by design —
@@ -13238,9 +13621,13 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
      opens a dialog (static chevron-right, no rotation rule). Same-construction
      was the guard while both revealed inline; a rotation rule back on the hub
      chevron would claim a disclosure that no longer happens. */
-  ok(/\.c-chat-info__qr-toggle\[aria-expanded='true'\] > \.c-chat-info__qr-chevron/.test(infoCssQ)
+  /* ★ #591 REBASE: the two rows now do the SAME thing — both open the shared address
+     sheet — so neither may claim an inline disclosure. chat-info's rotating chevron went
+     with its card; the hub's was already static. A rotation rule on EITHER would promise
+     a reveal that no longer happens. */
+  ok(!/\.c-chat-info__qr-toggle\[aria-expanded/.test(infoCssQ)
      && !/\.c-settings__qr-toggle\[aria-expanded/.test(setCssQ),
-    'Batch E (d): chat-info keeps its rotating disclosure chevron (CHILD combinator, the #137 M4 lesson); the hub chevron is static — it opens a dialog');
+    '★ #591 (Batch E (d) rebased): NEITHER address row carries a rotating disclosure chevron — both open the dialog, and a rotation would claim a reveal that does not happen');
 }
 
 {
@@ -14280,10 +14667,25 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     /* ★ #575: on MOBILE the sheet grows to near-full height and the explainer is
        pushed to the foot. The `max(...)` floor is the part that matters — without it a
        short window computes a NEGATIVE height and the sheet collapses. */
+    /* ★ #589 REBASE, and this pin was defending TWO things the fix had to change.
+       The floor stays — it is the part that matters, and without it a short window
+       computes a negative height. The other two legs are gone on purpose: the slack
+       moved to the QR (the explainer is no longer last, so an auto margin there would
+       push the INFO block down), and the dismiss control is no longer mobile-only. */
     ok(/:root:not\(\[data-desktop\]\) \.c-addr-sheet \{[^}]*height: max\(320px, calc\(100dvh[^}]*max-height: none/.test(wrc)
-      && /:root:not\(\[data-desktop\]\) \.c-addr-sheet__explain \{ margin-block-start: auto; \}/.test(wrc)
-      && /:root\[data-desktop\] \.c-addr-sheet__dismiss \{ display: none; \}/.test(wrc),
-      '★ #575 CSS: the mobile sheet is near-full height with a floor, the explainer sits at the foot, and the dismiss control is mobile-only');
+      && /:root:not\(\[data-desktop\]\) \.c-addr-sheet__qrwrap \{ margin-block-start: auto; \}/.test(wrc),
+      '★ #589 (was #575) CSS: the mobile sheet keeps its near-full height WITH the floor, and the slack now collects above the QR — the one seam where a gap reads as deliberate');
+    ok(!/:root\[data-desktop\] \.c-addr-sheet__dismiss \{ display: none; \}/.test(wrc)
+      && /\.c-sheet--addr \.c-sheet__title \{ padding-inline-end: 44px; \}/.test(wrc),
+      '★★ #589 (Damir): the dismiss control is NOT hidden on desktop any more — Esc and click-outside were the only ways out of the dialog and neither is visible — and the title clears it in BOTH presentations');
+    ok(/:root\[data-desktop\] \.c-sheet--addr \{[^}]*display: flex/.test(wrc)
+      && /:root\[data-desktop\] \.c-sheet--addr > \.c-sheet__content \{[^}]*flex: 1 1 auto;[^}]*min-height: 0/.test(wrc)
+      && /:root\[data-desktop\] \.c-addr-sheet \{ flex: 1 1 auto; min-height: 0; max-height: none; \}/.test(wrc)
+      && !/:root\[data-desktop\] \.c-addr-sheet \{ max-height: calc\(76vh/.test(wrc),
+      '★★ #589: the desktop scroll region binds against the DIALOG, not against `76vh`. The old cap was arithmetic against `max-height: 76%` of the HOST — in the Account pane the host is shorter, so the inner never overflowed, grew no scrollbar, and the foot was silently clipped by `overflow-y: hidden`');
+    ok(/:root\[data-desktop\] \.c-addr-sheet\.u-scroll \{[^}]*scrollbar-color: var\(--outline-neutral-02\) transparent/.test(wrc)
+      && !/@media \(hover: hover\) and \(pointer: fine\) \{\s*\n\s*:root\[data-desktop\] \.c-addr-sheet\.u-scroll/.test(wrc),
+      '★ #589: the persistent thumb left the pointer gate. An OVERRIDE does not need the media query the rule it overrides needs — a desktop window reporting coarse hover took the transparent thumb and no replacement');
     /* ★ round-2 MINOR-4: the flex chain has to reach the REAL flex item. createSheet
        wraps the content in `.c-sheet__content`, so `flex`/`min-height` on the
        grandchild alone are inert and a short host still overflowed. */
@@ -15369,9 +15771,39 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       '★★ #572 ③ (round-2 MAJOR-2): liftedRowAddress reads ONE module-scoped truth — a DOM query would answer with the dying sheet during the 400 ms exit window');
     ok(/if \(c\.address && c\.address === liftedRow\) node\.dataset\.menuLift = 'row';/.test(read('src/components/chats-shell.js')),
       '★ #572 ③ (review MINOR-3): the lift is RE-APPLIED on re-render — renderChatsList rebuilds every row, and a message in ANY chat triggers it');
-    ok(/:root:not\(\[data-desktop\]\) \.c-swipe\[data-menu-lift="row"\] \{[^}]*background: var\(--surface-screen\)/.test(mm)
-       && /\[data-menu-lift\] \{[^}]*pointer-events: none;/.test(mm),
-      '★ #572 ③: the chat-row lift gets an OPAQUE ground (.c-chatlist-item is transparent, so above the scrim it would read as the dim itself) and keeps the shared pointer-events rule');
+    ok(/\[data-menu-lift\] \{[^}]*pointer-events: none;/.test(mm),
+      '★ #572 ③: the chat-row lift keeps the shared pointer-events rule (the row is a picture; the menu is what is interactive)');
+    /* ★★ #589 (audit MAJOR-3) — THE GROUND WAS NEVER VISIBLE, and this is why Damir
+       saw "the same colour as the list". #572 painted `.c-swipe`, but `.c-swipe__content`
+       is a POSITIONED child that fills the wrapper and paints an OPAQUE `--surface-screen`
+       of its own — so the wrapper's ground was covered on every wrapped row, which on
+       mobile is every ordinary row. The pin now asserts the SUBJECT, because the subject
+       is the defect: the paint must land on the element that actually shows. */
+    const swipeCss = read('src/styles/components/chats-swipe.css');
+    ok(/\.c-swipe__content \{[^}]*position: relative;[^}]*background: var\(--surface-screen\)/.test(stripCssComments(swipeCss)),
+      '★★ #589: …and that opaque covering child still EXISTS. It is NOT redundant and must not be "cleaned up": .c-swipe__content slides over the pin/mute action panels, so its opaque ground is load-bearing at rest — which is exactly why it covered the wrapper ground and made #572 dead code');
+    ok(/:root:not\(\[data-desktop\]\) \.c-swipe\[data-menu-lift="row"\] \.c-swipe__content \{[^}]*background: var\(--surface-neutral-02\)/.test(mm)
+       && /:root:not\(\[data-desktop\]\) \.c-chatlist-item\[data-menu-lift="row"\]:not\(\[data-pinned\]\):not\(\[aria-current\]\) \{[^}]*background-color: var\(--surface-neutral-02\)/.test(mm)
+       && !/data-menu-lift[^{]*\{[^}]*background-image/.test(mm)
+       && !/data-menu-lift[^{]*::after/.test(mm),
+      '★★ #589 (Damir): the lifted row reads ONE neutral level up from the list, painted on the child that covers — one OPAQUE token, not a translucent wash (above a 0.7 scrim a translucent row reads as the dim itself) and not a background-image (the 5c-ii compositor guarantee)');
+    /* ★★ #589 (round-2 review) — THE GROUND ALONE DOES NOT FIX THE REPORTED BUG. A scrim
+       is black: over the light list one neutral step reads at 6.2:1, over the dark list
+       at 1.10:1, because a black scrim cannot darken an already-black list. Damir's words
+       were "not prominent in DARK mode". The ring is scrim-independent and is the same
+       5.98:1 recipe the lifted MESSAGE already uses (#492) — one ring in this app, not
+       two. This pin is the one that fails if a future edit drops back to fill-only. */
+    ok(/\.c-swipe\[data-menu-lift="row"\],[\s\S]{0,140}?\.c-chatlist-item\[data-menu-lift="row"\] \{[^}]*box-shadow: 0 0 0 2px var\(--brand-400\), 0 0 0 5px rgba\(118, 157, 255, 0\.28\)/.test(mm),
+      '★★ #589 (round-2 MAJOR-1): the lifted chat row also takes the RING, on BOTH lift targets — chats-row-menu never sets [data-menu-target], so a lifted row had no ring, no border and no elevation, and in dark the whole affordance was a 1.10:1 fill');
+    ok(/:root:not\(\[data-desktop\]\) \.c-swipe\[data-menu-lift="row"\] \{[^}]*background-color: var\(--surface-neutral-02\)/.test(mm),
+      '★★ #589 (round-2 MINOR-1): the WRAPPER keeps a ground too — openChatRowMenu closes an open swipe drawer BEFORE it lifts, and during that 200ms spring-back the wrapper is what shows between the action panels; dropping its paint put a translucent band of scrim through a lifted row');
+    /* ★★ #589 (Damir F5 2026-08-26): the ground alone is EXACTLY --surface-screen, so
+       in dark the lifted row was painted the same colour as the list beneath it and
+       only the dim told them apart ("dark blue, not prominent"). The neutral press
+       wash rides ON TOP of the opaque ground — a literal swap would have made the row
+       translucent and let the 0.7 scrim through, which is the defect the ground fixes.
+       Pinned as the PROPERTY: opaque ground present, wash layered over it, and the
+       wash is the NEUTRAL token — a tonal one would read as SELECTED (#268). */
     ok(/:root:not\(\[data-desktop\]\) \.c-chatlist-item\[data-menu-lift="row"\]:not\(\[data-pinned\]\):not\(\[aria-current\]\)/.test(mm),
       '★ #572 ③ (review MINOR-7): the bare-row fallback (a handshaking row is never swipe-wrapped) is guarded — an unguarded (0,3,0) ground would out-specify --surface-pinned and the [aria-current] tonal and wipe the row\'s own state');
     ok(!/\[data-menu-lift\] \{[^}]*background:/.test(mm),
@@ -15419,15 +15851,33 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ok(/function payeeDisplayName\(\{ name = '', address = '' \} = \{\} \)?/.test(ts.replace(/\s+/g, ' '))
        || /function payeeDisplayName\(/.test(ts),
       '★ #569: the sheet has its own payee-name resolver');
+    /* ★ #589 rebase: the title is no longer one `textContent` assignment — the payee name
+       is its own span so it can ellipsize while the sentence wraps (round-2 MINOR-6). The
+       PROPERTY is unchanged and is what this pins: whatever the header renders as the
+       name, it comes from the resolver, and so does the avatar's initial. */
     ok(/const payeeName = payeeDisplayName\(recipient\);/.test(ts)
-       && /title\.textContent = copy\.title\.split\('\{name\}'\)\.join\(payeeName\);/.test(ts)
+       && /nameEl\.textContent = payeeName;/.test(ts)
+       && !/title\.textContent = /.test(ts)
        && /createAvatar\(\{ name: isPseudoAddressNick\(payeeName\) \? '' : payeeName,/.test(ts),
       '★★ #569: the HEADER goes through it. The guard belongs to the component, not to one caller — this is the payment confirm moment and #211 is a canon with no survivors');
     ok(/if \(n && n !== a && !isPseudoAddressNick\(n\)\) return n;/.test(ts)
        && /return a \? truncateAddressMiddle\(a\) : n;/.test(ts),
       '★ #569: a nickname wins, C#’s address-ECHO does not (isPseudoAddressNick, plus an equality belt), and the fallback is the truncated address — never the raw base58, never an empty name');
-    ok(/\.c-tipsheet__title \{[^}]*overflow-wrap: anywhere/.test(stripCssComments(tc)),
-      '★ #569 belt: a peer-supplied name is one unbroken token of any length — without this the flex item overflows and the whole sheet scrolls sideways (Damir’s screenshot)');
+    /* ★ #589 REBASE. #569's belt was `overflow-wrap: anywhere`, and it held the right
+       PROPERTY — a peer-supplied unbroken token must never scroll the sheet sideways —
+       by the wrong means: it broke the NAME mid-word onto a second line. Damir's rule
+       is "a nick ellipsizes at the END, on overflow only". `overflow: hidden` keeps the
+       guarantee unconditionally; the ellipsis is what he asked for. */
+    /* ★★ #589 (round-2 MINOR-6): the ellipsis rides the NAME, not the sentence. The
+       title is a template and the name is not always last — de-de is "{name} Trinkgeld
+       geben" — so ellipsizing the whole line ate the VERB on a money confirm sheet. */
+    ok(/\.c-tipsheet__payee \{[^}]*white-space: nowrap;[^}]*overflow: hidden;[^}]*text-overflow: ellipsis/.test(stripCssComments(tc))
+       && /\.c-tipsheet__payee \{[^}]*max-width: 100%/.test(stripCssComments(tc))
+       && /\.c-tipsheet__title \{[^}]*overflow-wrap: anywhere/.test(stripCssComments(tc))
+       && !/\.c-tipsheet__title \{[^}]*white-space: nowrap/.test(stripCssComments(tc)),
+      '★★ #589 (was #569): the NAME ellipsizes at its end inside a title that still WRAPS — every locale keeps its verb, and max-width:100% keeps the #569 anti-sideways-scroll guarantee');
+    ok(/nameEl\.className = 'c-tipsheet__payee';/.test(ts) && /copy\.title\.split\('\{name\}'\)/.test(ts),
+      '★ #589: the span is built by splitting on the placeholder, so it lands wherever a locale puts {name} — first, last or in the middle');
   }
 
   /* —— #570: the overlap grammar assumed a bubble wider than its ornaments ——
@@ -15588,8 +16038,13 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        && /addrRow\.append\(share\);/.test(wr)
        && !/c-addr-sheet__share'/.test(wr),
       '★ #575: Share is built as an icon control ON the chip; the full-width outline row is gone');
-    ok(/explain\.append\(disc, info, shieldWrap, safety\);/.test(wr),
-      '★ #575: the explainer is FOUR children in a two-column grid — glyph, copy, glyph, copy — so both paragraphs share one left edge');
+    /* ★ #589 REBASE: one grid of four became two blocks of two, each beside what it
+       explains. The property is that ONE builder makes both, so the glyph-gutter
+       grammar cannot drift apart between them. */
+    ok(/const explainRow = \(\{ glyph, size, text, variant = '' \}\) => \{/.test(wr)
+       && (wr.match(/content\.append\(explainRow\(\{/g) || []).length === 2
+       && /wrap\.append\(g, line\);/.test(wr),
+      '★ #589 (was #575): both explainer blocks come from ONE builder — glyph in the gutter, copy beside it — so the info block above the QR and the safety line below the address cannot drift apart');
     ok(/dismiss\.addEventListener\('click', \(\) => \{ try \{ closeSheet\(sheet\); \} catch \(e\) \{\} \}\);/.test(wr),
       '★ #575: the dismiss control leaves by the ONE route every other exit uses (dismissOverlay), so the live-sheet latch is cleared by onDismiss and not by a second code path');
   }

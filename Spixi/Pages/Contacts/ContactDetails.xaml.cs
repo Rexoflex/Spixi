@@ -2,11 +2,13 @@
 using IXICore.Meta;
 using IXICore.SpixiBot;
 using IXICore.Streaming;
+using Spixi;                             // ★ #591: SSpixiCodecInfo (per-platform, namespace Spixi)
 using Microsoft.Maui.ApplicationModel;   // F5-2 r2 (loop A-4): the posted drained-marker breadcrumb
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Xaml;
 using SPIXI.Lang;
 using SPIXI.Meta;
+using SPIXI.VoIP;                        // ★ #591: the Call action delegates to VoIPManager
 using System;
 using System.Collections.Generic;
 using System.Web;
@@ -76,6 +78,23 @@ namespace SPIXI
             // #248: entry-dependent context (chat header/row-menu = 'chat' → "Chat
             // info"/"Group info", no Message action; contacts directory = 'contact').
             Utils.sendUiCommand(this, "setContext", chatContext ? "chat" : "contact");
+
+            /* ★★ #591 (audit MAJOR): the Call action is REVEALED, never assumed.
+             * The shell has no notion of relation state, so an unconditional button
+             * would ring on a contact who cannot receive it — send a request, open Chat
+             * info, tap Call, and `initiateCall` runs the whole path: the permission
+             * prompt, a call bubble written into history, CallPage presented, a dial
+             * tone, power locks, 45 seconds of ringing, and the peer gets nothing. That
+             * is the ⑪ delivery-lie class the composer lock (#275) exists to prevent,
+             * one tap away on the same contact.
+             * Same gate and the SAME VERB as the chat header (SingleChatPage:889) —
+             * one rule for "can this person be called", not two that can drift. */
+            if (!isGroup
+                && SSpixiCodecInfo.getSupportedAudioCodecs().Count > 0
+                && friend.state == FriendState.Approved)
+            {
+                Utils.sendUiCommand(this, "showCallButton", "");
+            }
 
             if (isGroup)
             {
@@ -301,6 +320,33 @@ namespace SPIXI
             else if (current_url.Equals("ixian:send", StringComparison.Ordinal))
             {
                 hostNav.PushAsync(new WalletSendPage(new ExtendedAddress(friend.walletAddress, AddressPaymentFlag.OfflineTag, null)), Config.defaultXamarinAnimations);   // #225: root nav
+            }
+            else if (current_url.Equals("ixian:call", StringComparison.Ordinal))
+            {
+                /* ★ #591 (Damir's details mockup): the action row gained CALL, and this
+                 * page had no such verb — SingleChatPage was the only handler, so the
+                 * button would have been dead the day it shipped (#215).
+                 *
+                 * Delegates to the SAME VoIPManager entry the chat header uses, so the
+                 * call surface, its ring, its timeout and its lock interaction are all
+                 * unchanged (#270/#272). 1:1 ONLY, and the guard is here as well as in
+                 * the shell: a group has no call target, and `friend` on a group page
+                 * would hand VoIPManager a room address.
+                 *
+                 * ⚠ NO hangup branch, deliberately. The chat header is a TOGGLE because
+                 * it lives inside the conversation the call belongs to; this row says
+                 * "Call" and nothing else, so making it silently hang up an unrelated
+                 * live call would be a destructive action behind a non-destructive
+                 * label. An in-progress call is ended from the call surface itself. */
+                /* ⚠ The state clause is the belt for the reveal above: a contact can be
+                 * removed or fall out of Approved between the push and the tap. Without
+                 * it this is the ⑪ delivery lie (audit MAJOR). Bots and groups are
+                 * covered by `isGroup` (:46 = Group || bot). */
+                if (friend != null && !isGroup && friend.state == FriendState.Approved
+                    && !VoIPManager.isInitiated())
+                {
+                    VoIPManager.initiateCall(friend);
+                }
             }
             else if (current_url.Equals("ixian:chat", StringComparison.Ordinal))
             {

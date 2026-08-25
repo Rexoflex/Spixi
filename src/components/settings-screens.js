@@ -554,7 +554,7 @@ export function createPrivacy({
  */
 export function createNotificationsScreen({
   enabled = true,
-  previews = true,
+  previews = false,              // #589: matches the SHIPPED C# default (KEY_SENDER_NAME=false); the row is gone, so this is only what a restored row would start from
   sounds = true,
   capabilities = {},             // { globalNotifications }
   onBack,
@@ -569,21 +569,27 @@ export function createNotificationsScreen({
       label: strings.notifAll || 'Allow notifications',
       checked: enabled, live, failText, onToggle: onEnabled,
     }));
-    /* ★ NOTIF-2 (2026-08-21) — the copy is CORRECTED to describe what this switch can
-       actually do, which is the whole reason it is safe to ship.
-       The old label/sub promised control over "sender and text". There is no text to
-       control: AND-15 (#334) deliberately builds a per-TYPE line ("New Message",
-       "Payment received", …) that carries no sender name and no message content at all.
-       Wired as written, this would have been a switch that changes nothing — the dead
-       control class this project keeps shipping. It is wired to the one thing the
-       notification can carry, the sender's name (Damir's own dial, noted in the AND-15
-       comment), and now says so. Message text is never included, on any setting. */
-    if (onPreviews) body.append(switchRow({
-      glyph: 'eye', hue: 'info',
-      label: strings.notifSender || 'Show sender name',
-      sub: strings.notifSenderSub || 'Message text is never shown in notifications',
-      checked: previews, live, failText, onToggle: onPreviews,
-    }));
+    /* ★★ #589 (Damir F5 2026-08-26): "show sender name is redundant" — THE ROW IS GONE.
+     *
+     * Only the ROW. The `previews` option, the `onPreviews` callback, the
+     * `ixian:notifSenderName` verb and the `notif_sender_name` preference are all
+     * left exactly as they are, and the preference keeps its shipped default
+     * (FALSE — SNotificationPrefs.cs KEY_SENDER_NAME). So NO notification changes:
+     * what the user gets today is what the user gets after this.
+     *
+     * ⚠ Removing a control is not the same as changing what it controlled, and this
+     * one is still read on the message-receive path (Node.cs:1044). Damir asked for
+     * the row to go, not for the name to start appearing — if he wants the name
+     * always ON, that is a one-line default flip in C#, and it is his call to make
+     * deliberately rather than my side effect. Flagged in the F5 checklist.
+     *
+     * The prior NOTIF-2 note is kept below because it records WHY the switch had to
+     * be re-labelled, which is the same reasoning that makes it removable.
+     *
+     * NOTIF-2 (2026-08-21): the old label promised control over "sender and text".
+     * There is no text to control — AND-15 (#334) builds a per-TYPE line ("New
+     * Message", "Payment received", …) with no sender name and no message content —
+     * so it was re-wired to the one thing the notification can carry. */
     if (onSounds) body.append(switchRow({
       glyph: 'alert-small', hue: 'accent',
       label: strings.notifSounds || 'In-app sounds',

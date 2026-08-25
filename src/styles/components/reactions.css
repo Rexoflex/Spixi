@@ -111,6 +111,12 @@
 
 /* tip pill (c-badge) alignment inside the row */
 .c-reactions__tip { align-self: center; }
+/* ★ #591 (Damir): the tip pill draws from SUCCESS instead of warning — a tip is money
+   that ARRIVED, and warning is the role this app reserves for "something may be off".
+   ⚠ The swap alone lost AA in light (7.04 → 4.28 at 12px bold). The ink is NOT patched
+   here: `--text-success` itself moved one step in LIGHT ONLY — see tokens.css. Scoping a
+   colour fix to one pill would have left the same failure on the three other surfaces
+   that already use this pair. */
 
 /* —— inspect sheet content (openReactionsSheet) —— */
 .c-reactmenu { display: flex; flex-direction: column; }

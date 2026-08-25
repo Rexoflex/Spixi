@@ -374,6 +374,7 @@
     createChatsList, renderChatsList, setChatsFilter, setChatsQuery, chatsUnreadTotal,
     setRemoveSheetGroups, setRemoveSheetResult,   // ★ Batch A (A4/A5/A6): the remove-contact sheet's C# answers
     truncateAddressMiddle,               // B4 (#231): excerpt canon — addresses never shown in full
+    isAddressShaped,                     // ★ #589: the ONE address-shape test (was a local 20-char regex)
     createChatsHeader, attachChatsCollapse, setChatsHeaderCounts, acceptContactRequest, completeHandshake,
     createWarningBanner, setWarning,     // M16: actionable warnings only (connectivity = title-state)
     startTimestampTicker, refreshTimestamps,
@@ -392,6 +393,7 @@
     resetSearchFields,                   // ★ BUG-3: visit-scoped search reset (search-field.js)
     setChipSelected,
     createWalletReceive,                 // Receive/Request takeover (zero-C#)
+    openAddressSheet,                    // ★ #589: the wallet zero-state CTA opens the SHEET, not the Receive takeover
     closeAddressSheet,                   // r2 n5: the takeover closes its address sheet on the way out
     isDesktopPresentation,               // N38: Share hides on desktop (dead ladder; Copy beside it)
     createWalletSend,                    // Send compose/review takeover (cap-gated; W5/W6 live it)
@@ -1100,6 +1102,16 @@
         return;
       }
       activeNav = id;
+      /* ⚠ #589 (round-2 review): DO NOT clear the pane flag here. An earlier draft did,
+         to avoid a one-frame snap-back, and it created the exact bug this row exists to
+         remove. `reloadShell` sets `suppressNextTabOverlayExit` for ~5.5 s, and inside
+         that window a `tab1` tap is answered by C# WITHOUT exiting the pane — so the
+         user taps Chats right after a language pick, the pane STAYS pinned, and a
+         locally-cleared flag left the rail claiming Chats over an open Account.
+         The flag is cleared by the authoritative close push instead. If the pane really
+         did close, `onSettingsClosed` clears it and re-asserts the real tab; the worst
+         case is one frame of Account highlight, bounded by that push. A frame of
+         wrongness beats a persistent lie. */
       showView(id);                                        // swap the client-side view first…
       // iOS-34: …and let that swap PAINT before the bridge hop. bridge.send is
       // `location.href = 'ixian:…'` (native.js:48), which on iOS runs WKWebView's
@@ -1123,6 +1135,32 @@
    * visibility/focus fallback for platforms where it doesn't cross WebViews.
    * Stale keys (>15s) are discarded — a stranded write must never switch tabs
    * minutes later. S11 (a real verb) remains the clean BE end-state. */
+  /* ★★ #589 (Damir F5 2026-08-26) — THE RAIL MUST NOT SAY CHATS WHILE ACCOUNT IS OPEN.
+   *
+   * The Account pane (#245) is a peer WebView pinned over the list column. It SURVIVES
+   * a language re-bake — C# regenerates this document and deliberately leaves the pane
+   * pinned (#285/#288) — so the fresh boot lights Chats while the user is looking at
+   * Account. settings.html keeps a durable flag while its pane is up; this reads it
+   * WITHOUT clearing it, so no reader can eat it from another document (the #238
+   * hand-off is consumed-on-read, which is exactly why it could not be used here — the
+   * OUTGOING home document ate the key before the regenerated one existed).
+   *
+   * The clear is authoritative and lives on the close push, not on a timer. */
+  const PANE_OPEN_KEY = 'spixi.pane.account';
+  function accountPaneOpen() {
+    try { return !!localStorage.getItem(PANE_OPEN_KEY); } catch (e) { return false; }
+  }
+  function clearAccountPaneFlag() {
+    try { localStorage.removeItem(PANE_OPEN_KEY); } catch (e) {}
+  }
+  /* Re-assert the Account highlight after anything that lights a tab. `activeNav` and
+     the visible view are left alone on purpose: they are what the pane falls back to
+     when it closes, and C#'s own `selectTab` is right about them. Only the HIGHLIGHT
+     is a lie while a pane covers the list. */
+  function syncAccountRail() {
+    if (accountPaneOpen()) setNavActive(nav, 'account');
+  }
+
   function consumeLandTab() {
     let raw = null;
     try {
@@ -1744,17 +1782,19 @@
    * (Telegram-class "domain only" excerpt). The lone-GIF-URL check runs FIRST
    * so tenor/giphy links keep the GIF chip. Token pass is whitespace-split →
    * embedded addresses/URLs inside a sentence are canonicalized too. */
-  const BASE58_TOKEN_RE = /^[1-9A-HJ-NP-Za-km-z]{20,128}$/;
-  function looksLikeAddress(t) { return BASE58_TOKEN_RE.test(t) && /\d/.test(t); }
+  /* ★ #589: the local BASE58_TOKEN_RE fired at 20 characters. It fed BOTH the
+     excerpt canon and the wallet counterparty name, so a 20-character nickname
+     came out middle-truncated. The shared canon lives in avatar.js and needs 40+
+     (the shortest real address is ~49) — see the derivation there. */
   function domainOf(t) {
     try { const h = new URL(t).hostname.replace(/^www\./, ''); return h || t; } catch (_) { return t; }
   }
   function canonExcerptText(s) {
-    if (!s || (!/https?:\/\//i.test(s) && !/[1-9A-HJ-NP-Za-km-z]{20}/.test(s))) return s; // fast path
+    if (!s || (!/https?:\/\//i.test(s) && !/[1-9A-HJ-NP-Za-km-z]{40}/.test(s))) return s; // fast path — #589: same floor as the token test below
     let changed = false;
     const out = s.split(/(\s+)/).map((tok) => {
       if (!tok || /^\s+$/.test(tok)) return tok;
-      if (looksLikeAddress(tok)) { changed = true; return truncateAddressMiddle(tok); }
+      if (isAddressShaped(tok)) { changed = true; return truncateAddressMiddle(tok); }
       if (/^https?:\/\/\S+$/i.test(tok)) { changed = true; return domainOf(tok); }
       return tok;
     });
@@ -2071,8 +2111,12 @@
        degrade on an exe that does not send setScanProgress: the sheet keeps its old
        generic body and adds no false claim. */
     scan: () => scanState,
-    // zero-state CTA — the SAME Receive takeover the hero's Receive opens (hoisted fn)
-    onReceive: () => mountWalletReceive(),
+    /* ★ #589 (Damir F5 2026-08-26): the zero-state CTA reads "Show my address", so
+       it OPENS THE ADDRESS. It used to open the whole Receive takeover — a screen
+       with a request-an-amount field and a contact strip — which is a different
+       promise from the one the button makes. The hero's Receive button still opens
+       the takeover; only this CTA changed. */
+    onReceive: () => openWalletAddressSheet(),
     // B3 (#256): tx tap → the FULL-PARITY detail page (redesigned wallet_sent.html).
     // HomePage:473 `ixian:txdetails:<txid>` routes wide → WalletSentPage in the
     // rightContent pane (+ a selectTx echo this shell already renders) / narrow →
@@ -2242,6 +2286,22 @@
     }));
     over.append(body);
     document.body.append(over);
+  }
+
+  /* ★ #589 — the wallet zero-state's "Show my address": the ONE address surface
+   * (#527 openAddressSheet), the same one the Account row opens. Share is gated
+   * exactly as the takeover gates it (N38 — desktop has no working share ladder),
+   * and a missing address degrades to the native page, which is the takeover's
+   * own degrade: a CTA that does nothing would be worse than the old screen. */
+  function openWalletAddressSheet() {
+    const addr = cleanReceiveAddress(walletOwnAddress);
+    if (!addr) { bridge.send('ixian:receiveixi'); return; }
+    openAddressSheet({
+      address: addr, strings: walletStrings, host: document.body,
+      onShare: isDesktopPresentation()
+        ? undefined
+        : ({ address, value }) => shareReceivePayload(address || String(value || '').split(':')[0]),
+    });
   }
 
   /* ————————————————————————————————————————————————————————————————————————
@@ -2960,7 +3020,7 @@
     // consumeLandTab sets activeNav itself when a fresh key is present; the
     // setNavActive after it is then a consistent no-op, and the real fallback
     // when there was no tab hand-off.
-    onSettingsClosed() { consumeLandTab(); setNavActive(nav, activeNav); },
+    onSettingsClosed() { clearAccountPaneFlag(); consumeLandTab(); setNavActive(nav, activeNav); },
 
     // Multi-user mini-app launch STARTED ON ANOTHER SURFACE (AppDetailsPage): that
     // page has no contacts roster of its own, so C# hands the target pick back to
@@ -3252,6 +3312,15 @@
       closeHomeTakeovers();   // W2: the incoming push has the same hole as onChange
       setNavActive(nav, navId);
       showView(navId);
+      /* ★★ #589: C# echoes selectTab(currentTab) on EVERY load, and after a language
+         re-bake that echo lands with the Account pane still pinned — so it re-lit
+         Chats over the top of any boot-time correction. The highlight is corrected
+         HERE, after the push has had its say.
+         ⚠ NOT "the last writer in the document" — `consumeLandTab` and `pickAppTargets`
+         also write the highlight and do not re-sync. Both are correct not to: each runs
+         only when the user has just chosen a different destination, which means Account
+         is on its way out. This is the last writer ON THIS PATH. */
+      syncAccountRail();
     },
 
     /* ——— wallet (wired, tab2) —————————————————————————————————————————————— */
@@ -3351,7 +3420,7 @@
       // VISIBLE: global hide (#263) masks address too (see applyWalletVisibility),
       // so address-search is deliberately dead when hidden, same dial as name.
       const cp = counterparty || '';
-      const cpIsAddr = looksLikeAddress(cp);
+      const cpIsAddr = isAddressShaped(cp);
       const cpDisplay = cpIsAddr ? truncateAddressMiddle(cp) : cp;
       walletState.txs.push({
         txid: txid || '',
@@ -3695,6 +3764,11 @@
        window LOAD — which waits for fonts and illustrations. If this mark is already
        ~1s on a cold start, the empty state is not late, the DATA is. */
     probeMark('rdy');
+    /* ★ #589 belt: C# echoes selectTab on every load and that is the authoritative
+       correction, but it is a PUSH — an exe that does not send it would leave the rail
+       claiming Chats under an open pane. This is a local read with no bridge hop, so
+       it cannot collide with the two sends around it. */
+    syncAccountRail();
     requestAnimationFrame(() => bridge.ready());
   }
   if (document.readyState === 'complete') signalReady();

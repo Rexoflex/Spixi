@@ -564,6 +564,7 @@
     truncateAddressMiddle,          // #211 canon: chat surfaces show addresses truncated, never in full
     attachContextMenuAnchors, anchorSheetAbove,   // Batch C (M6): desktop sheet grammar (no-op on mobile)
     isPseudoAddressNick,            // D-19b (#370): blind roster "x"+address pseudo-keys never display
+    isAddressShaped,                // ★ #589: the ONE address-shape test — a NICK is never middle-truncated
     attachChatFlow, syncChatFlow, detachChatFlow, // W5: "Live flow" animated pattern style (desktop-only)
     createNativeBridge, installExecuteUiCommand,
     /* ★ N81 (#422) — MISSED IN THE FIRST CUT, caught by the #46 audit executing the
@@ -1835,8 +1836,11 @@
     const matched = acceptedEventMatch(rec.text);
     const parts = matched ? matched.parts : ACCEPTED_PARTS;
     const subject = matched ? matched.subject : '';
-    const looksAddr = /^[a-zA-Z0-9]{24,}$/.test(subject);
-    const display = looksAddr ? truncateAddressMiddle(subject) : subject;
+    /* ★ #589: this test was `/^[a-zA-Z0-9]{24,}$/` — 24 characters, and not even
+       base58-restricted, so it accepted 0/O/I/l. A 24-character nickname without
+       spaces is ordinary, and it was rendered middle-truncated as if it were an
+       address. The shared canon needs 40+ base58 characters with a digit. */
+    const display = isAddressShaped(subject) ? truncateAddressMiddle(subject) : subject;
     const row = document.createElement('div');
     row.className = 'chat-event';
     const chip = document.createElement('div');

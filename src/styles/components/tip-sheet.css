@@ -18,10 +18,22 @@
   line-height: var(--line-height-label-lg);
   font-weight: var(--font-weight-semibold);
   color: var(--text-neutral-01);
-  /* ★ #569 belt: the truncation above is the fix, this is the guarantee. A name is
-     peer-supplied text and can be one unbroken token of any length; without this the
-     flex item overflows and the whole sheet scrolls sideways (Damir's screenshot). */
+  /* ★ #589 (Damir F5 2026-08-26): "a nick ellipsizes at the END, on overflow only."
+     The SENTENCE still wraps — the round-2 review showed that ellipsizing it whole ate
+     the verb in every locale that puts {name} first. Only the NAME truncates, below. */
   overflow-wrap: anywhere;
+}
+/* the payee NAME inside the title: one line, ellipsized at its end. `inline-block` is
+   what gives it a box to overflow; `max-width: 100%` keeps it inside the title's line
+   box, which is what preserves the #569 anti-sideways-scroll guarantee. `vertical-align`
+   keeps the baseline aligned with the words around it. */
+.c-tipsheet__payee {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: bottom;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .c-tipsheet__excerpt {
   margin: 0;

@@ -682,18 +682,10 @@ export function createSettingsHub({
      neither row is a setting: one opens a list, one opens the address surface. ——— */
   const me = group();
 
-  /* ★ N42 (#443, Damir): a way to REACH the contact list from Account. It was only
-     ever reachable from the chats topbar, which is not where someone looks for "my
-     people". Opt-in: a host that cannot route there passes no handler and no row
-     appears. ★ #575 moved it out of "Preferences" into this section. */
-  if (onContacts) me.card.append(settingRow({
-    glyph: 'users', hue: 'info',
-    label: strings.contacts || 'Contacts', key: 'contacts',
-    sub: strings.contactsSub || 'See and manage everyone you have added',
-    onClick: () => onContacts(),
-  }).section);
-
-  /* ★ #575: THE ONE ADDRESS ENTRY. It replaces the hero chip, the "Show QR" row and
+  /* ★ #589 (Damir F5 2026-08-26): THE ADDRESS ROW SITS ABOVE CONTACTS. His call —
+     the section is "about me, then my people", and the address is the one value a
+     visitor comes here to fetch. Order only; both rows are unchanged.
+   * ★ #575: THE ONE ADDRESS ENTRY. It replaces the hero chip, the "Show QR" row and
      the "What is this address?" action — three affordances for one value.
      ⚠ The subtitle is the whole point of the row: it says what the address IS, which
      is the job #443 gave the retired text action. `onAddressInfo` is therefore not
@@ -710,6 +702,17 @@ export function createSettingsHub({
         onShare: onShare ? (p) => onShare({ address: p.address }) : undefined,
       });
     },
+  }).section);
+
+  /* ★ N42 (#443, Damir): a way to REACH the contact list from Account. It was only
+     ever reachable from the chats topbar, which is not where someone looks for "my
+     people". Opt-in: a host that cannot route there passes no handler and no row
+     appears. ★ #575 moved it out of "Preferences" into this section. */
+  if (onContacts) me.card.append(settingRow({
+    glyph: 'users', hue: 'info',
+    label: strings.contacts || 'Contacts', key: 'contacts',
+    sub: strings.contactsSub || 'See and manage everyone you have added',
+    onClick: () => onContacts(),
   }).section);
 
   if (me.card.childElementCount) body.append(me.wrap);

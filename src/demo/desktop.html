@@ -1127,7 +1127,13 @@
     const build = CONVOS_INFO[currentChat];
     if (!build) { toast('Chat info not wired for this chat'); return; }
     infoPanel.textContent = '';
-    infoPanel.append(createChatInfo({ host: frame, onBack: closeChatInfo, strings, ...build() }));
+    /* ★ #591: the address row opens the shared sheet here too — the desktop demo is the
+       art-direction surface, so a row with no affordance would read as a regression. */
+    infoPanel.append(createChatInfo({
+      host: frame, onBack: closeChatInfo, strings,
+      onAddressSheet: ({ address }) => openAddressSheet({ address, strings, host: frame, subject: 'peer' }),
+      ...build(),
+    }));
     infoPanel.hidden = false;
     infoFor = currentChat;
     syncInfoExpanded();

@@ -30,6 +30,7 @@
 <link rel="stylesheet" href="../styles/components/scan-shell.css"><!-- add-contact scan entry (Phase 1 #3) -->
 <link rel="stylesheet" href="../styles/components/backup-nudge.css"><!-- periodic backup prompt (legacy parity) -->
 <link rel="stylesheet" href="../styles/components/rating-nudge.css"><!-- rate-app prompt (showRatingPrompt mirror) -->
+<link rel="stylesheet" href="../styles/components/wallet-receive.css"><!-- ★ #591: the details address row opens openAddressSheet -->
 <style>
   body { padding: var(--spacing-24); }
   .demo-toolbar { display: flex; gap: var(--spacing-12); align-items: center; max-width: 900px; margin: 0 auto var(--spacing-32); }
@@ -491,6 +492,9 @@
         host: phone,
         onBack: closeProfile,
         onMessage: () => { closeProfile(); closePicker(); openConversation({ ...c, pending: false }); },
+        /* ★ #591: the demos are the review surface — the row must open the sheet here too. */
+        onCall: () => showToast({ text: 'Call — the native call surface (#270)', tone: 'info', host: phone }),
+        onAddressSheet: ({ address }) => openAddressSheet({ address, strings: window.SL || {}, host: phone, subject: 'peer' }),
         onPay: () => showToast({ text: 'Pay — wallet flow lives in chat.html', tone: 'info', host: phone }),
         onRequest: () => showToast({ text: 'Request — wallet flow lives in chat.html', tone: 'info', host: phone }),
         onTx: () => showToast({ text: 'Would open the wallet tx sheet', tone: 'info', host: phone }),

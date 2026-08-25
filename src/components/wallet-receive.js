@@ -409,7 +409,18 @@ export function createWalletReceive({
  *  no amount, so the old hide-while-amount rule is structural now. */
 let addrSheetLive = null;                                  // loop fix: a double tap must not stack two sheets
 
-export function openAddressSheet({ address = '', strings = getStrings(), host, onShare } = {}) {
+/* ★ #591 (Damir 2026-08-26): the CONTACT surface opens this same sheet for someone
+ * ELSE's address — "the address can show as sheet, same rules as elsewhere".
+ * `subject: 'peer'` is the whole difference, and it is not cosmetic: every line of copy
+ * here says "YOUR address", and the safety line — "sharing it is safe, it never gives
+ * anyone access to your wallet" — is a claim about the READER's wallet. Pointed at a
+ * contact it would be reassurance about the wrong person's money on a surface next to a
+ * Pay button. So the peer variant re-words the explainer and DROPS the safety line
+ * rather than re-wording it into something true but pointless.
+ * `title` lets the caller name whose address it is; everything else is identical, which
+ * is the point — one address surface, one set of rules (#527). */
+export function openAddressSheet({ address = '', strings = getStrings(), host, onShare, subject = 'self', title = '' } = {}) {
+  const peer = subject === 'peer';
   // audit m2 holds for the EXPORT too: no address, no confidently scannable garbage QR
   if (!String(address).trim()) return null;
   // loop r1 m9: a sheet torn down WITHOUT dismissOverlay (its screen closed under
@@ -427,20 +438,67 @@ export function openAddressSheet({ address = '', strings = getStrings(), host, o
   // loop r1 A-8: a capped scroll region must be keyboard-reachable — focusable, named
   content.tabIndex = 0;
   content.setAttribute('role', 'group');
-  content.setAttribute('aria-label', strings.addressInfoTitle || 'Your Ixian address');
+  const sheetTitle = title
+    || (peer ? (strings.peerAddressTitle || 'Ixian address')
+             : (strings.addressInfoTitle || 'Your Ixian address'));
+  content.setAttribute('aria-label', sheetTitle);
   const qrValue = address + ':ixi';                        // legacy receive format (wallet_request parity)
+
+  /* ★★ #589 (Damir F5 2026-08-26) — HIS ORDER, not a re-interview:
+   *   the info block ABOVE the QR · the address row · the safety line BELOW it.
+   * The explainer used to be ONE two-column grid at the foot, so the sentence that
+   * says what the thing on screen IS arrived after the thing itself, and the safety
+   * reassurance sat two blocks away from the address it reassures about. Split into
+   * two blocks that each sit beside what they explain. Both keep the #575
+   * glyph-gutter grammar — one left edge for every line of copy — so the split
+   * costs nothing that round bought. */
+  /* ⚠ `variant` stamps THREE modifier classes, and only two of them carry paint
+     (`__explainicon--safe` = the success tint, `__info--safe` = the stronger ink).
+     `__explain--safe` is deliberately paint-free: it is the semantic hook that says
+     WHICH block this is, and the order pin reads it. Naming all three from one
+     `variant` is what keeps them from drifting apart. */
+  const explainRow = ({ glyph, size, text, variant = '' }) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'c-addr-sheet__explain' + (variant ? ' c-addr-sheet__explain--' + variant : '');
+    const g = document.createElement('span');
+    g.className = 'c-addr-sheet__explainicon' + (variant ? ' c-addr-sheet__explainicon--' + variant : '');
+    g.setAttribute('aria-hidden', 'true');
+    g.append(icon(glyph, { size }));
+    const line = document.createElement('p');
+    line.className = 'c-addr-sheet__info' + (variant ? ' c-addr-sheet__info--' + variant : '');
+    line.textContent = text;
+    wrap.append(g, line);
+    return wrap;
+  };
+
+  content.append(explainRow({
+    glyph: 'info-circle', size: 20,
+    text: peer
+      ? (strings.peerAddressBody
+        || 'This is their address on the Ixian network. Scan the code or copy the address to send IXI.')
+      : (strings.addressInfoBody
+        || 'This is your address on the Ixian network. Share it, or let someone scan the code, and they can add you as a contact or send you IXI.'),
+  }));
 
   const qrWrap = document.createElement('div');
   qrWrap.className = 'c-addr-sheet__qrwrap';
   const card = document.createElement('div');
   card.className = 'c-wallet-receive__qrcard c-addr-sheet__qrcard';   // N86 sizing rules ride along
-  card.append(createQrSvg(qrValue, { label: strings.qrReceiveLabel || 'QR code: your Ixian address' }));
+  /* ⚠ the LAST "your" in this sheet, and the audit found it: the QR's accessible label
+     is not behind the peer branch by default, so a screen-reader user opening a
+     CONTACT's address heard "QR code: your Ixian address" over someone else's wallet,
+     on a surface reached from a screen with a Pay button. */
+  card.append(createQrSvg(qrValue, {
+    label: peer
+      ? (strings.peerQrLabel || 'QR code: this contact’s Ixian address')
+      : (strings.qrReceiveLabel || 'QR code: your Ixian address'),
+  }));
   qrWrap.append(card);
   content.append(qrWrap);
 
   const caption = document.createElement('p');
   caption.className = 'c-wallet-receive__caption c-addr-sheet__caption';
-  caption.textContent = strings.receiveCaption || 'Scan to send IXI to this address';
+  caption.textContent = strings.receiveCaption || 'Scan to send IXI to this address';   // true for both subjects
   content.append(caption);
 
   /* full address + honest copy morph (#99 chip pattern; audit m1/m6 rules kept) */
@@ -463,7 +521,9 @@ export function openAddressSheet({ address = '', strings = getStrings(), host, o
   const copy = document.createElement('button');
   copy.type = 'button';
   copy.className = 'c-wallet-receive__copy';
-  const copyIdle = (strings.copy || 'Copy') + ', ' + (strings.yourAddress || 'Your address');
+  const copyIdle = peer
+    ? (strings.copyAddress || 'Copy address')
+    : (strings.copy || 'Copy') + ', ' + (strings.yourAddress || 'Your address');
   copy.setAttribute('aria-label', copyIdle);
   copy.append(icon('copy', { size: 18 }));
   let copyTimer = null;
@@ -501,7 +561,11 @@ export function openAddressSheet({ address = '', strings = getStrings(), host, o
    * ⚠ Its own <button>, not createButton: the chip's controls are 40px icon
    * squares (wallet-receive.css), and a 44px c-button would break that row. */
   addrRow.append(addrValue, copy);
-  if (onShare) {
+  /* ⚠ `!peer` is a COMPONENT-LEVEL fence, not a caller's discipline (round-2 review).
+     `ixian:share` shares the USER'S OWN primary address (HomePage:908-913), so a Share
+     control on someone else's address would send the wrong one. The shell already
+     declines to pass a handler; this makes a future caller unable to reintroduce it. */
+  if (onShare && !peer) {
     const share = document.createElement('button');
     share.type = 'button';
     share.className = 'c-wallet-receive__copy c-addr-sheet__sharebtn';
@@ -512,40 +576,20 @@ export function openAddressSheet({ address = '', strings = getStrings(), host, o
   }
   content.append(addrRow);
 
+  /* the safety line, DIRECTLY under the address block it is about (#589). Same
+     glyph-gutter grammar as the info block above the QR; the shield keeps its
+     success tint, which is the one place the pair differ. EXACT existing keys —
+     extract-strings conflict-gates on drifted fallbacks. */
+  // ⚠ the safety line is SELF-ONLY. It reassures the reader about the reader's own
+  // wallet; beside a contact's address it would be a true sentence about the wrong
+  // person, on a surface that sits next to a Pay button.
+  if (!peer) content.append(explainRow({
+    glyph: 'shield-lock', size: 16, variant: 'safe',
+    text: strings.addressInfoSafety
+      || 'Sharing it is safe: it never gives anyone access to your wallet.',
+  }));
 
-  /* the folded-in explainer (ONE surface — no second address-info sheet).
-     EXACT existing keys — extract-strings conflict-gates on drifted fallbacks.
-     ★ F5-5 ③ (#556, Damir screenshot): the filled disc is GONE — "icon within
-     icon looks weird". ONE glyph level: a bare tinted info-circle leads the block. */
-  /* ★ #575 (Damir): "the explainer block aligns the safety text with the INFO
-   * TEXT's left edge, not under the icon." The block was [icon][text column], and
-   * the safety line carried its shield INSIDE that column — so its text started
-   * ~24px right of the info paragraph above it.
-   * It is a TWO-COLUMN GRID now: every glyph in the gutter, every line of copy on
-   * one left edge. Both glyphs survive (the #556 ③ "one glyph level" objection was
-   * about a glyph inside a filled disc, not about having two rows). */
-  const explain = document.createElement('div');
-  explain.className = 'c-addr-sheet__explain';
-  const disc = document.createElement('span');
-  disc.className = 'c-addr-sheet__explainicon';
-  disc.setAttribute('aria-hidden', 'true');
-  disc.append(icon('info-circle', { size: 20 }));
-  const info = document.createElement('p');
-  info.className = 'c-addr-sheet__info';
-  info.textContent = strings.addressInfoBody
-    || 'This is your address on the Ixian network. Share it, or let someone scan the code, and they can add you as a contact or send you IXI.';
-  const shieldWrap = document.createElement('span');
-  shieldWrap.className = 'c-addr-sheet__explainicon c-addr-sheet__explainicon--safe';
-  shieldWrap.setAttribute('aria-hidden', 'true');
-  shieldWrap.append(icon('shield-lock', { size: 16 }));
-  const safety = document.createElement('p');
-  safety.className = 'c-addr-sheet__info c-addr-sheet__info--safe';
-  safety.textContent = strings.addressInfoSafety
-    || 'Sharing it is safe: it never gives anyone access to your wallet.';
-  explain.append(disc, info, shieldWrap, safety);
-  content.append(explain);
-
-  const sheet = createSheet({ content, host, strings, title: strings.addressInfoTitle || 'Your Ixian address',
+  const sheet = createSheet({ content, host, strings, title: sheetTitle,
     onDismiss: () => { addrSheetLive = null; } });
   sheet.classList.add('c-sheet--addr');                   // W-c: desktop dialog width cap lives on the sheet
   /* ★ #575 (Damir): an explicit way OUT. The sheet is near-full height on mobile

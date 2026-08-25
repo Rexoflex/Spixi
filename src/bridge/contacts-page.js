@@ -64,6 +64,7 @@
 // names (a multi-line import leaves its tail behind; an `x as y` alias survives
 // into the bundle → "Unexpected identifier 'as'"). Both fail the syntax gate.
 import { createContactsPicker, setPickerContacts, createGroupSetup, setGroupAvatar, setPickerMode } from '../components/contacts-shell.js';
+import { clearPressFeedback } from '../components/pressable.js';   // ★ #589: a press must not outlive the screen that owned it
 
 // local handle so the returned controller can expose its own `setGroupAvatar`
 // method without shadowing the component fn it delegates to.
@@ -72,6 +73,14 @@ const paintGroupAvatar = setGroupAvatar;
 export function mountContacts({
   host = document.body, bridge, strings, purpose = 'start', appId = '', getRoster, onClose,
 } = {}) {
+  /* ★ #589 (Damir F5 2026-08-26): "a mini app that opens the contacts picker leaves
+     a pressed-row rectangle over the new screen." A takeover COVERS the list, it does
+     not hide the document — so neither `pagehide` nor `visibilitychange` fires, the
+     pressed row stays connected, and its fill/fade timers keep running underneath
+     this screen. Clearing here, in the screen being opened, covers every host that
+     opens the picker — including a host written later. See pressable.js. */
+  clearPressFeedback();
+
   const overlay = document.createElement('div');
   overlay.className = 'contacts-takeover';
 

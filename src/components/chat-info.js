@@ -51,13 +51,12 @@
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { discGrad } from './disc.js';
-import { createAvatar, truncateAddressMiddle } from './avatar.js';
+import { createAvatar, truncateAddressMiddle, identityIndex } from './avatar.js';   // ★ #591: identityIndex feeds the cover's hue — ONE source for a person's colour
 import { createButton, setLoading } from './button.js';
 import { createTopbar } from './topbar.js';
 import { createBadge } from './badge.js';
 import { createSearchField } from './search-field.js';
 import { createTxItem } from './txlist-item.js';
-import { createQrSvg } from './qr.js';
 import { createModal, openModal } from './modal.js';
 import { overlayId, setOverlayOpts, dismissOverlay } from './overlay.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
@@ -145,7 +144,9 @@ export function createChatInfo({
   onBack,
   onNickname,                    // (nick, ctrl)
   onMessage,                     // contact context: open the 1:1 chat (shell nav)
+  onCall,                        // ★ #591 (Damir): start a voice call — 1:1 only
   onPay, onRequest,              // shell: #139 takeover / request sheet
+  onAddressSheet,                // ★ #591: the address row opens the ONE address surface
   onNotifications,               // (next, ctrl) — optimistic, revert on fail
   onSelfDestruct,                // (seconds, ctrl) — committed per option pick
   onMediaOpen, onMediaAll,
@@ -189,6 +190,35 @@ export function createChatInfo({
   /* ——— hero ——— */
   const hero = document.createElement('div');
   hero.className = 'c-chat-info__hero';
+  /* ★★ #591 (Damir's second mockup): A COVER behind the identity, "like we have for
+   * mini apps".
+   *
+   * ⚠ A cover needs a SOURCE, and this is the whole design decision. A mini app has one
+   * because its publisher ships it; a contact has exactly one image — their photo. So the
+   * cover is derived, never fetched: a blurred, scaled crop of the SAME photo when there
+   * is one, and the contact's identity gradient — the same deterministic per-address hue
+   * their fallback avatar already wears — when there is not.
+   * That buys the look with no new data, no second source of truth for one identity, and
+   * no temptation toward a remote banner, which would re-open the #82 IP-leak posture on
+   * a surface that also carries a Pay button.
+   *
+   * `aria-hidden`: it is decoration with no information the name below does not carry. */
+  const cover = document.createElement('div');
+  cover.className = 'c-chat-info__cover c-idhue';
+  cover.dataset.hue = String(identityIndex(avatarSeed || address || name));
+  cover.setAttribute('aria-hidden', 'true');
+  if (avatar) {
+    const cimg = document.createElement('img');
+    cimg.className = 'c-chat-info__cover-img';
+    cimg.alt = '';
+    cimg.decoding = 'async';
+    /* the gradient stays underneath, so a photo that fails to load degrades to the
+       identity colour rather than to a broken tile — the c-avatar onerror grammar. */
+    cimg.addEventListener('error', () => cimg.remove(), { once: true });
+    cimg.src = avatar;
+    cover.append(cimg);
+  }
+  hero.append(cover);
   /* A4 (#302): presence on the hero. 1:1 only — C# structurally cannot push it for
      a group or bot (ContactDetails.updateScreen returns at :405-410, before the
      presence block, whenever isGroup is set). Guarding on `kind` here as well means
@@ -374,7 +404,7 @@ export function createChatInfo({
      there and the whole row stays absent, exactly as yesterday's pass decided. */
   const roomKind = kind === 'group' || kind === 'bot';
   const roomMessageOnly = roomKind && !!onMessage;
-  if ((!roomKind || roomMessageOnly) && (onMessage || onPay || onRequest)) {
+  if ((!roomKind || roomMessageOnly) && (onMessage || onCall || onPay || onRequest)) {
     const money = document.createElement('div');
     money.className = 'c-chat-info__money';
     if ((context === 'contact' || roomMessageOnly) && onMessage) {
@@ -384,6 +414,14 @@ export function createChatInfo({
       msg.classList.add('c-chat-info__message');
       money.append(msg);
     }
+    /* ★ #591 (Damir's mockup): CALL sits between Message and the money pair — it is the
+       other way to reach a person, so it belongs beside Message rather than beside Pay.
+       1:1 ONLY: there is no group-call verb, and a dead button on a details screen is
+       the class of defect this project keeps writing rows about. Opt-in like every other
+       action here, so a host that cannot route a call simply shows three. */
+    if (onCall && !roomKind) money.append(infoQuickAction({
+      glyph: 'phone', label: strings.callAction || 'Call', onClick: () => onCall(),
+    }));
     if (onPay && !roomMessageOnly) money.append(infoQuickAction({
       glyph: 'arrow-up-right', label: strings.pay || 'Pay', onClick: () => onPay(),
     }));
@@ -406,65 +444,36 @@ export function createChatInfo({
      not just blind ones. Suppress the whole card for groups; 1:1 and bot surfaces keep
      it. (`blind` stays in the condition for bots/1:1 that opt into identity hiding.) */
   if (address && kind !== 'group' && !blind) {
-    const card = document.createElement('div');
-    card.className = 'c-chat-info__address';
-    card.append(sectionLabel(strings.address || 'Address'));
-    const row = document.createElement('div');
-    row.className = 'c-chat-info__address-row';
-    const value = document.createElement('span');
-    value.className = 'c-chat-info__address-value u-tabular';
-    value.textContent = address;                      // FULL — the address is the truth (#99)
-    const copy = document.createElement('button');    // plain 32px icon button — member-sheet parity (Damir: 44px text button sat misaligned)
-    copy.type = 'button';
-    copy.className = 'c-chat-info__copy';
-    copy.append(icon('copy', { size: 18 }));
-    copy.setAttribute('aria-label', strings.copyAddress || 'Copy address');
-    let morphTimer = null;
-    const morph = (glyph, announce) => {              // HONEST morph (#137 m1)
-      copy.replaceChildren(icon(glyph, { size: 18 }));
-      live.textContent = announce;
-      clearTimeout(morphTimer);
-      morphTimer = setTimeout(() => copy.replaceChildren(icon('copy', { size: 18 })), 1600);
-    };
-    copy.addEventListener('click', () => {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(address).then(
-          () => morph('check', strings.copied || 'Copied'),
-          () => morph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead'),
-        );
-      } else {
-        morph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead');
-      }
-    });
-    row.append(value, copy);
-    card.append(row);
-
-    /* Show QR reveal — same pair as the receive card (`address:ixi`, --on-qr ink) */
-    const qrRow = document.createElement('button');
-    qrRow.type = 'button';
-    qrRow.className = 'c-chat-info__qr-toggle';
-    qrRow.setAttribute('aria-expanded', 'false');
-    qrRow.append(icon('qrcode', { size: 20 }), document.createTextNode(strings.showQr || 'Show QR'));
-    const chev = icon('chevron-down', { size: 18 });
-    chev.classList.add('c-chat-info__qr-chevron');
-    qrRow.append(chev);
-    const qrBox = document.createElement('div');
-    qrBox.className = 'c-chat-info__qr';
-    qrBox.hidden = true;
-    qrBox.id = overlayId('c-chat-info-qr');   // house id mint (audit n9)
-    qrRow.setAttribute('aria-controls', qrBox.id);
-    let qrBuilt = false;
-    qrRow.addEventListener('click', () => {
-      const open = qrBox.hidden;
-      if (open && !qrBuilt) {                          // lazy: most visits never open it
-        qrBox.append(createQrSvg(address + ':ixi', { label: strings.qrLabel || 'Wallet address QR code' }));
-        qrBuilt = true;
-      }
-      qrBox.hidden = !open;
-      qrRow.setAttribute('aria-expanded', String(open));
-    });
-    card.append(qrRow, qrBox);
-    body.append(card);
+    /* ★★ #591 (Damir 2026-08-26): "the address can show as sheet, same rules as
+     * elsewhere." This was a whole inline CARD — a full base58 line, its own copy
+     * button, and a lazy Show-QR disclosure — three affordances for one value, on a
+     * screen whose every other entry is a row. It is now ONE row that opens the ONE
+     * address surface (`openAddressSheet`, #527), which is exactly the move #575 made
+     * on the Account hub. The sheet carries the code, the full address, copy and the
+     * explainer, so nothing is lost and the grammar stops disagreeing with itself.
+     *
+     * ⚠ The SHEET is the shell's to open, not this component's: it needs a host and,
+     * on a peer address, the peer copy variant. A host that passes no handler gets a
+     * plain non-interactive row with the truncated address — honest, never dead. */
+    const addrRow = document.createElement(onAddressSheet ? 'button' : 'div');
+    if (onAddressSheet) addrRow.type = 'button';
+    addrRow.className = 'c-chat-info__row c-chat-info__addr-row';
+    const addrLab = document.createElement('span');
+    addrLab.className = 'c-chat-info__row-label c-chat-info__addr-label';
+    const addrTop = document.createElement('span');
+    addrTop.className = 'c-chat-info__addr-top';
+    addrTop.append(infoDisc('qrcode', 'accent'), document.createTextNode(strings.spixiAddress || 'Spixi address'));
+    const addrVal = document.createElement('span');
+    addrVal.className = 'c-chat-info__addr-value u-tabular';
+    // #211 canon: the row shows the TRUNCATED form; the full value lives in the sheet
+    addrVal.textContent = truncateAddressMiddle(address, 9, 6);
+    addrLab.append(addrTop, addrVal);
+    addrRow.append(addrLab);
+    if (onAddressSheet) {
+      addrRow.append(icon('chevron-right', { size: 18 }));
+      addrRow.addEventListener('click', () => onAddressSheet({ address }));
+    }
+    body.append(addrRow);
   }
 
   /* ——— notifications (bridge: groups/bots today; 1:1 gated — §9) ——— */

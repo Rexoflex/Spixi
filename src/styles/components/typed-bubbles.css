@@ -5,7 +5,12 @@
 .c-tcard {
   /* #337 (W4 ride-along): card rail = --layout-card-max, NOT the text-bubble
      token — the 680px desktop bubble raise must not stretch fixed-width cards */
-  width: min(var(--bubble-max-pct), var(--layout-card-max));
+  /* ★ #591 (Damir 2026-08-26): "all calls and payments bubbles should wrap and not
+     be fixed length." This was a fixed WIDTH, so a two-word payment card was drawn at
+     the full card rail with a lake of empty space beside its text. It hugs its content
+     now and the rail becomes the CAP, which is what the call card has done since #265. */
+  width: fit-content;
+  max-width: min(var(--bubble-max-pct), var(--layout-card-max));
   padding: var(--spacing-12);
   border-radius: var(--radius-16);
   background: var(--surface-bubble-received);
@@ -35,11 +40,14 @@
 }
 /* #265 (Damir ⑪): call cards HUG their content — a two-line event read
    oversized at full bubble width. */
-.c-tcard[data-kind="call"] {
-  width: fit-content;
-  min-width: 220px;
-  max-width: min(var(--bubble-max-pct), var(--layout-card-max)); /* #337: card rail */
-}
+/* ★ #591: the 220px FLOOR is gone with the same reasoning — a floor is a fixed length
+   for every card shorter than it, which is the half of #265 Damir is now correcting.
+   The medallion, the title and the meta already give a call card a natural width. */
+.c-tcard[data-kind="call"] { min-width: 0; }
+/* …and the text WRAPS rather than being clipped. A file or app NAME keeps its ellipsis
+   (a filename wrapped over four lines is worse), but a call or payment line is a
+   sentence and a sentence should wrap. */
+.c-tcard__title, .c-tcard__call-meta, .c-tcard__note { overflow-wrap: anywhere; }
 
 .c-tcard__head {
   display: flex;

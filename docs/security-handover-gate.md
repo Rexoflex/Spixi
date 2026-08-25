@@ -620,3 +620,95 @@ mini apps surviving a wipe) and one disclosure surface (the deleted account's li
 WebView document). New log lines: 8, all fixed text plus counts. One BE row is owed
 for the pre-existing `app.id` path-traversal at `MiniAppManager.remove`.**
 
+
+---
+
+## #589 / #590 — the queued FE work + its #46 loop (2026-08-26)
+
+Written AS BUILT, per the CLAUDE.md rule.
+
+**One new `spixi.*` storage key: `spixi.pane.account`.** Value is the literal `'1'`.
+It carries no address, no nickname, no message text and no timestamp — the same shape
+`spixi.settings.view` was ruled acceptable at (#254). It says one thing: the Account
+pane is currently on screen. Written by `settings.html`, read by `home.html`, both on
+the shared `file://` partition that MAJOR #4 describes, and a mini app reading it learns
+only that the user has a settings pane open. **Not an introduced exposure.**
+
+⚠ The key it REPLACED would have been worse and is worth recording: the first cut used
+the existing `spixi.landtab` hand-off, which is consumed on read — that is a shared
+single slot two documents race for, and racing on a slot is how state ends up applied to
+the wrong surface. The durable flag has no reader that mutates it.
+
+**No new verb.** No `ixian:` command was added, changed or removed. The bridge stays
+frozen.
+
+**One new C# entry point: `SNotificationPrefs.migrateSenderNameOptOut()`**, called from
+`App.OnStart`. It writes ONE preference back to its shipped default and reads nothing
+else. It is privacy-INCREASING by construction: the preference it clears is the one that
+puts a counterparty's nickname into a lock-screen notification. It touches no wallet, no
+key material and no message content, and it cannot throw out of `OnStart`.
+
+**One new log line**, fixed text, no interpolation of user data:
+`"SNotificationPrefs: sender-name preference returned to the default (#589 — its control was removed)"`.
+
+**One control REMOVED from the UI** ("Show sender name"). Its verb and preference remain,
+so nothing downstream changes shape. ⚠ 🟡 **Damir owes one answer**: was that switch ever
+in a build a real user ran? If not, the migration is a permanent one-shot mutation of
+preference state for nobody, and deleting it is the cleaner end state.
+
+**No new HTML sink and no new network fetch.** The address sheet re-layout, the lift, the
+menu placement and the predicates are all `textContent`, class names and CSS.
+
+**A predicate that guards a blind group room was RAISED, not lowered.** `isPseudoAddressNick`
+went from a 30-character floor to 40. Raising a floor can only match fewer strings, so the
+question is whether anything it must catch lives in the 30-to-40 window. Measured against
+Ixian-Core `097341a`: v0 addresses encode to 48 or 49 characters and v1/v2 to exactly 65,
+and both pseudo-key forms C# builds are the address plus at most one `x`. **Nothing exists
+in that window.** Pinned with a 48-character fixture — the shortest real length — so the
+floor cannot later be raised into the guard without a red test.
+
+---
+
+## #591 / #592 — the contact/chat details redesign (2026-08-26)
+
+⚠ **THE #589 SECTION ABOVE SAYS "No new verb." THAT IS TRUE OF #589 AND NOT OF THIS
+BATCH** — read them together, and read this line first.
+
+**ONE NEW VERB: `ixian:call` on `ContactDetails`.** The verb itself is not new to the app
+(`SingleChatPage` has handled it since the call surface landed, #270); what is new is that
+the CONTACT DETAILS document can now reach it. That is new reach for that WebView, so it
+is written here rather than assumed.
+
+What it can do: `VoIPManager.initiateCall(friend)` for the ONE friend this page was
+constructed with. It cannot name a target — there is no address argument, and `friend` is
+the page's own field, set in the constructor. So a compromised details document can start
+a call with the contact whose details are open and with nobody else.
+
+**It is gated twice, and the audit is why.** The first cut shipped it unconditionally, and
+that was a MAJOR: `initiateCall` runs the full path — permission prompt, a call bubble
+written into history, CallPage presented, a dial tone, power locks, 45 seconds of ringing
+— on a contact who is not `Approved`, i.e. one who receives nothing. Same class as the
+⑪ delivery lie the composer lock exists to prevent. Now:
+- the ACTION is revealed only by a `showCallButton` push, sent when
+  `!isGroup && codecs > 0 && friend.state == FriendState.Approved`;
+- the VERB re-checks the same predicate, because a contact can leave `Approved` between
+  the push and the tap.
+
+Both are the gate `SingleChatPage:889` already uses. One rule, two call sites, no drift.
+
+**No new `spixi.*` storage key. No new WebView setting. No new HTML sink. No new network
+fetch** — and the cover is the point worth stating: it is a decorative band, and it is
+DERIVED, never fetched. A blurred crop of the photo the page already renders, over the
+identity gradient the fallback avatar already computes. A remote banner would have been
+the obvious way to build it and would have re-opened the #82 IP-leak posture on a surface
+that also carries a Pay button.
+
+**One PRIVACY-relevant copy change.** `openAddressSheet` gained `subject: 'peer'`. The
+self-only safety line ("sharing it is safe: it never gives anyone access to your wallet")
+is a claim about the READER's wallet, so it is dropped in peer mode rather than re-worded
+— a true sentence about the wrong person's money, beside a Pay button, is worse than no
+sentence. The Share control is fenced at the COMPONENT for the same reason: `ixian:share`
+shares the user's OWN primary address (`HomePage:908-913`), so a Share button on a
+contact's address would send the wrong one. A caller cannot re-introduce it.
+
+**One log line: none.** **One new C# `using` (`SPIXI.VoIP`, `Spixi`) — no new dependency.**

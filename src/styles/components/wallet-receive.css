@@ -228,7 +228,15 @@
     height: max(320px, calc(100vh - var(--safe-top, 0px) - env(safe-area-inset-bottom, 0px) - var(--layout-bar-top, 56px) - 88px));
   }
 }
-:root:not([data-desktop]) .c-addr-sheet__explain { margin-block-start: auto; }
+/* ★ #589: the slack of the near-full mobile sheet used to collect UNDER the
+   explainer, because the explainer was the last block. It is not any more — the
+   safety line now sits directly under the address block, and that adjacency is the
+   whole point of Damir's order. So the slack moves to the ONE seam where a gap
+   reads as deliberate: between the sentence that explains the surface and the
+   surface itself. Everything below the QR keeps its token gaps and its adjacency.
+   ⚠ An auto margin resolves to 0 when there is no free space, so a short window
+   still scrolls from the true top — no unreachable content. */
+:root:not([data-desktop]) .c-addr-sheet__qrwrap { margin-block-start: auto; }
 /* the explicit way out (#575). Mobile only: a desktop dialog is dismissed with Esc
    or a click outside, and both stay available here too. It sits over the sheet's own
    padding in the title row, so it never displaces content. */
@@ -245,27 +253,70 @@
   -webkit-tap-highlight-color: transparent;
 }
 @media (hover: hover) { .c-addr-sheet__dismiss:hover { background: var(--surface-interactive-hover); color: var(--icon-neutral-01); } }
-:root[data-desktop] .c-addr-sheet__dismiss { display: none; }
-/* the title must not run under the button */
-:root:not([data-desktop]) .c-sheet--addr .c-sheet__title { padding-inline-end: 44px; }
+/* ★ #589 (Damir F5 2026-08-26): DESKTOP GETS THE DISMISS ICON TOO. Esc and a
+   click outside were the only ways out of the dialog, and neither is visible. The
+   button was hidden on desktop because #575 built it for the near-full mobile
+   sheet, where the scrim had shrunk to a strip — but "there is another way out"
+   was never a reason to hide the only VISIBLE one. */
+/* the title must not run under the button — both presentations now */
+.c-sheet--addr .c-sheet__title { padding-inline-end: 44px; }
+/* ★ #589: one rhythm. The sheet's own blocks are a --spacing-16 stack, and the
+   title sat 12 above them, so the gap that separates the heading from everything
+   read tighter than the gaps INSIDE it. Token, and the largest of the two. */
+.c-sheet--addr .c-sheet__title { margin-bottom: var(--spacing-16); }
 :root[data-desktop] .c-sheet--addr { width: min(440px, 92%); }
-/* loop r1 m8: the desktop dialog is `max-height: 76%` with 24px padding + the title —
-   the INNER cap must bind first or the outer dialog scrolls with its own bar (the
-   exact W-c symptom). 76vh − 24×2 padding − ~44 title/gap = the usable inner height. */
-:root[data-desktop] .c-addr-sheet { max-height: calc(76vh - 92px); }
+/* ★★ #589 — WHY THE PERSISTENT THUMB BELOW "DID NOT REACH THIS STATE".
+   ⚠ MY FIRST ANSWER WAS WRONG AND THE AUDIT DISPROVED IT. I claimed `max-height: 76%`
+   is a percentage of a HOST that could be shorter than the viewport. It cannot be:
+   every production caller passes `document.body`, `.c-sheet` is absolutely positioned,
+   and neither `html` nor `body` is positioned or transformed — so the containing block
+   IS the initial containing block, and `76%` and `76vh` measure the same box. The
+   Account pane is its own WebView, so its viewport is the pane; the two cannot disagree
+   there either.
+
+   THE REAL DEFECT IS THE CONSTANT. `92px` was the desktop chrome the scroll region
+   cannot use: 24 + 24 dialog padding plus one line of title and its margin. It assumed
+   a ONE-LINE title. The title's usable width is now 440 − 48 − 44 (this batch adds the
+   dismiss clearance below), so a long locale wraps it to two lines, real chrome passes
+   92, the OUTER dialog needs to scroll — and `overflow-y: hidden` further down clips it
+   silently, with no bar anywhere. My own `margin-bottom: --spacing-16` on the title
+   would have made the stale constant worse.
+
+   Rebuilt without the arithmetic: the dialog is a flex column and the scroll region is
+   the flex item that gives up height first, so it binds against whatever the chrome
+   actually measures, in any locale. */
+:root[data-desktop] .c-sheet--addr {
+  display: flex;
+  flex-direction: column;
+}
+:root[data-desktop] .c-sheet--addr > .c-sheet__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+:root[data-desktop] .c-addr-sheet { flex: 1 1 auto; min-height: 0; max-height: none; }
 /* ★ F5-5 ② (#556, Damir F5 2026-08-24): the desktop dialog showed NO scrollbar on
    overflow. Two causes: the OUTER dialog (.c-sheet, overflow-y:auto in overlay.css)
    could scroll instead of this element, and the u-scroll thumb is hover-only.
    The addr dialog now clips (the inner .c-addr-sheet is the one scroller), and its
    thumb is PERSISTENT while it overflows — slim + themed, the contact-list look. */
 :root[data-desktop] .c-sheet--addr { overflow-y: hidden; }
-@media (hover: hover) and (pointer: fine) {
-  :root[data-desktop] .c-addr-sheet.u-scroll {
-    scrollbar-color: var(--outline-neutral-02) transparent;
-  }
-  :root[data-desktop] .c-addr-sheet.u-scroll::-webkit-scrollbar-thumb {
-    background: var(--outline-neutral-02);
-  }
+/* ★ #589: the thumb PAINT leaves the pointer gate — the width does NOT, and the audit
+   caught me shipping it outside.
+   ⚠ Authoring any `::-webkit-scrollbar` rule opts a Chromium scroller OUT of overlay
+   scrollbars and into classic, LAYOUT-CONSUMING ones. `.u-scroll` declares its width
+   inside `@media (hover: hover) and (pointer: fine)` together with
+   `scrollbar-gutter: stable`, which is what stops that width from reflowing content.
+   Exporting the width alone gave a touch-screen Windows laptop — `data-desktop`,
+   coarse pointer — a 6px bar with no reserved gutter, appearing and disappearing as
+   overflow toggled and shoving the QR and the chip sideways.
+   Only the two PAINT declarations are ungated, which is all the override needed. */
+:root[data-desktop] .c-addr-sheet.u-scroll {
+  scrollbar-color: var(--outline-neutral-02) transparent;
+}
+:root[data-desktop] .c-addr-sheet.u-scroll::-webkit-scrollbar-thumb {
+  background: var(--outline-neutral-02);
 }
 /* review MINOR-6: the sheet's own polite region — the same recipe the hub uses
    (settings-shell.css .c-settings__live), so one grammar, not a second one. */
@@ -278,6 +329,52 @@
   white-space: nowrap;
   margin: 0;
 }
+/* ★★ #591: THE GEOMETRY DOCBLOCK MOVED HERE, and it moved because its subject did.
+   It was written in chat-info.css when that file drew the last inline QR card; the
+   contact-details card is retired and this sheet is now the ONE card in the app that
+   renders a code. A measured-geometry comment beside a card that no longer exists is
+   the drift PIN-G was built to catch. Verbatim, so the numbers stay the measured ones. */
+
+/* ★ N86 ① (Damir 2026-08-25): "the QR should have a smaller white padding around it,
+   this way on dark mode it's quite overpowering."
+
+   Measured before touching it, because HALF of that white is a standard, not a choice.
+   createQrSvg bakes `quiet = 4` — the ISO/IEC 18004 minimum quiet zone. Below four
+   modules scanners start failing, and this is a WALLET ADDRESS, where a misread is the
+   worst class of defect in the app. At 185px that quiet zone measures 16.44px to 20.00px
+   per side (the table below), and it is untouchable.
+
+   The 12px card padding on top of it was doing a job the quiet zone already does. Gone:
+   the white square drops from ≈209px to 185px, a 22% cut in white area, with no effect
+   on scanning at all.
+
+   ⚠ THE RADIUS SURVIVES THE PADDING, and the corner arithmetic is why. With 12px of
+   padding the 16px curve lived entirely in the padding and could not reach the code.
+   With none, it eats the quiet zone's own corner.
+
+   ★ #46 loop: the numbers below are MEASURED, not estimated. An earlier version of this
+   comment carried three wrong ones. The method: run the SHIPPED encoder
+   (createQrSvg → setQrValue, ecc 'M', quiet = 4) over the real payload
+   (`address + ':ixi'`) and read the viewBox back. Re-measure the same way if the payload
+   or the encoder changes. Over payloads of 34 to 76 characters the viewBox takes exactly
+   three values. The BOX is the code plus the 4-module quiet zone on each side, so the box
+   is always 8 cells wider than the code:
+     34–42 chars → 29-module code, 37-cell box, 5.00px per cell, 20.00px quiet zone
+     43–62 chars → 33-module code, 41-cell box, 4.51px per cell, 18.05px quiet zone
+     63–76 chars → 37-module code, 45-cell box, 4.11px per cell, 16.44px quiet zone
+   A real Ixian address lands in the middle row.
+
+   ⚠ A 16px radius removes at most R(√2−1) = 6.63px of DIAGONAL depth at a square corner.
+   It does NOT remove 16 − 16/√2 = 4.69px. That second value is the sagitta of the arc. It
+   is a different measurement, and it understates the loss by 41%.
+
+   THE SAFETY RESULT, which is unchanged. The quiet zone is 16.44px in the worst measured
+   case. The radius is 16px. The curve therefore stays inside the quiet zone at all four
+   corners and reaches no module. Along every edge, where ISO/IEC 18004 measures, the clip
+   removes nothing. The curve first touches the code corner when the quiet zone falls
+   below 16 − 16/√2 = 4.69px, which needs a box of about 157 cells. This payload cannot
+   make one.
+   ⚠ Raise this radius above 16px and re-do both comparisons. */
 .c-addr-sheet__qrwrap { display: flex; justify-content: center; }
 .c-addr-sheet__qrcard {
   /* scale with the viewport on BOTH axes: a short window shrinks the code before
@@ -332,10 +429,15 @@
    `align-items: start` keeps each glyph on the first line of its own paragraph. */
 .c-addr-sheet__explain {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  /* ⚠ #589: a FIXED gutter, not `auto`. With `auto` the track is sized by that block's
+     own glyph — 20px for the info-circle, 16px for the shield — so the two blocks'
+     copy started 32px and 28px from their card edge. A 4px step between two otherwise
+     identical cards is exactly the one-left-edge alignment #575 was written to buy.
+     A fixed track is also what makes `justify-self: center` on the glyph mean anything;
+     against an `auto` track it was a no-op. */
+  grid-template-columns: 20px minmax(0, 1fr);
   align-items: start;
   column-gap: var(--spacing-12);
-  row-gap: var(--spacing-8);
   padding: var(--spacing-12);
   border-radius: var(--radius-16);
   background: var(--surface-neutral-02);

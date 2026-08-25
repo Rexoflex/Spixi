@@ -496,20 +496,27 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    the 12 gradients below are hand-tuned per anchor and serve BOTH themes
    (the c-disc #170 grammar — vivid fill + white ink, mode-agnostic).
    Every pair is computed ≥ 4.5:1 under white ink at BOTH stops (#364 table).
-   Recipe: stop1 = hsl(h, 62%, L1) · stop2 = hsl(h+25, 58%, L1−10). */
+   Recipe: stop1 = hsl(h, 62%, L1) · stop2 = hsl(h+25, 58%, L1−10).
 
-.c-avatar[data-hue="0"]  { --av-c1: hsl(0, 62%, 52%);   --av-c2: hsl(25, 58%, 42%);  }
-.c-avatar[data-hue="1"]  { --av-c1: hsl(22, 62%, 43%);  --av-c2: hsl(47, 58%, 33%);  }
-.c-avatar[data-hue="2"]  { --av-c1: hsl(40, 62%, 35%);  --av-c2: hsl(65, 58%, 25%);  }
-.c-avatar[data-hue="3"]  { --av-c1: hsl(95, 62%, 31%);  --av-c2: hsl(120, 58%, 21%); }
-.c-avatar[data-hue="4"]  { --av-c1: hsl(135, 62%, 32%); --av-c2: hsl(160, 58%, 22%); }
-.c-avatar[data-hue="5"]  { --av-c1: hsl(165, 62%, 31%); --av-c2: hsl(190, 58%, 21%); }
-.c-avatar[data-hue="6"]  { --av-c1: hsl(190, 62%, 35%); --av-c2: hsl(215, 58%, 25%); }
-.c-avatar[data-hue="7"]  { --av-c1: hsl(215, 62%, 50%); --av-c2: hsl(240, 58%, 40%); }
-.c-avatar[data-hue="8"]  { --av-c1: hsl(245, 62%, 58%); --av-c2: hsl(270, 58%, 48%); }
-.c-avatar[data-hue="9"]  { --av-c1: hsl(275, 62%, 55%); --av-c2: hsl(300, 58%, 45%); }
-.c-avatar[data-hue="10"] { --av-c1: hsl(305, 62%, 47%); --av-c2: hsl(330, 58%, 37%); }
-.c-avatar[data-hue="11"] { --av-c1: hsl(335, 62%, 51%); --av-c2: hsl(0, 58%, 41%);   }
+   ★ #591: the same 12 anchors are now reusable OFF an avatar, via `.c-idhue`. The
+   contact-details cover is a person's identity colour behind their photo, and it must
+   be the SAME colour their gradient avatar would have been — two sources for one
+   identity is how they drift apart. Each selector gains one alternative; the values are
+   untouched, and `.c-disc[data-hue]` cannot collide because its hues are NAMES
+   ('accent', 'info', …) and these are indices. */
+
+.c-avatar[data-hue="0"], .c-idhue[data-hue="0"]  { --av-c1: hsl(0, 62%, 52%);   --av-c2: hsl(25, 58%, 42%);  }
+.c-avatar[data-hue="1"], .c-idhue[data-hue="1"]  { --av-c1: hsl(22, 62%, 43%);  --av-c2: hsl(47, 58%, 33%);  }
+.c-avatar[data-hue="2"], .c-idhue[data-hue="2"]  { --av-c1: hsl(40, 62%, 35%);  --av-c2: hsl(65, 58%, 25%);  }
+.c-avatar[data-hue="3"], .c-idhue[data-hue="3"]  { --av-c1: hsl(95, 62%, 31%);  --av-c2: hsl(120, 58%, 21%); }
+.c-avatar[data-hue="4"], .c-idhue[data-hue="4"]  { --av-c1: hsl(135, 62%, 32%); --av-c2: hsl(160, 58%, 22%); }
+.c-avatar[data-hue="5"], .c-idhue[data-hue="5"]  { --av-c1: hsl(165, 62%, 31%); --av-c2: hsl(190, 58%, 21%); }
+.c-avatar[data-hue="6"], .c-idhue[data-hue="6"]  { --av-c1: hsl(190, 62%, 35%); --av-c2: hsl(215, 58%, 25%); }
+.c-avatar[data-hue="7"], .c-idhue[data-hue="7"]  { --av-c1: hsl(215, 62%, 50%); --av-c2: hsl(240, 58%, 40%); }
+.c-avatar[data-hue="8"], .c-idhue[data-hue="8"]  { --av-c1: hsl(245, 62%, 58%); --av-c2: hsl(270, 58%, 48%); }
+.c-avatar[data-hue="9"], .c-idhue[data-hue="9"]  { --av-c1: hsl(275, 62%, 55%); --av-c2: hsl(300, 58%, 45%); }
+.c-avatar[data-hue="10"], .c-idhue[data-hue="10"] { --av-c1: hsl(305, 62%, 47%); --av-c2: hsl(330, 58%, 37%); }
+.c-avatar[data-hue="11"], .c-idhue[data-hue="11"] { --av-c1: hsl(335, 62%, 51%); --av-c2: hsl(0, 58%, 41%);   }
 
 .c-avatar {
   position: relative;
@@ -1096,7 +1103,52 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   gap: var(--spacing-12);
   padding-block: var(--spacing-8) var(--spacing-4);
   text-align: center;
+  /* ★ #591: the cover is absolutely positioned behind this block */
+  position: relative;
+  isolation: isolate;
 }
+/* ★★ #591 (Damir's second mockup) — THE COVER.
+   A soft band behind the identity: the contact's own photo, blurred and scaled, over
+   their identity gradient (`.c-idhue`, the same 12 anchors their fallback avatar uses).
+   ⚠ `z-index: -1` inside the hero's own isolation puts it above the page ground and
+   below every child, so the avatar, the name and the pencil all sit on top of it with
+   no stacking games and no risk of covering content — the same recipe the press layer
+   uses (base.css). Bleeds edge to edge by cancelling the body's inline padding. */
+.c-chat-info__cover {
+  position: absolute;
+  z-index: -1;
+  /* ⚠ AND IT BLEEDS UPWARD TOO. `top: 0` is the HERO's top, and the body's own 16px
+     padding-block-start sits above it — so the band began 16px below the chrome with a
+     hard horizontal edge, which is the same floating-panel complaint the inline fix was
+     written for, rotated 90°. The mask only fades the bottom. */
+  top: calc(-1 * var(--spacing-16));
+  /* ⚠ THE FIRST CUT DID NOT BLEED, and its own comment said it did. `100vw` with
+     `max-width: 100%` clamps straight back to the hero — the hero IS the containing
+     block, so the pair cancelled and left a hard-cornered band inset 16px from both
+     edges: a floating rectangle, not a backdrop. Viewport units were the wrong tool;
+     cancelling the body's own inline padding is the right one, and it stays correct
+     inside a 360px desktop pane, where `100vw` would have been the whole window. */
+  inset-inline: calc(-1 * var(--spacing-16));
+  height: 148px;                       /* 132 + the 16 it now reaches upward */
+  overflow: hidden;
+  pointer-events: none;
+  background: linear-gradient(140deg, var(--av-c1, var(--surface-neutral-02)), var(--av-c2, var(--surface-neutral-02)));
+  /* fades into the page rather than ending on a hard edge — the band is a backdrop,
+     not a panel. mask-image is progressive: without it the cover is simply a solid band. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 40%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 40%, transparent 100%);
+}
+/* the photo, blurred well past recognisability — this is colour, not a second portrait.
+   `scale` hides the blur's soft edges, which would otherwise show as a light rim. */
+.c-chat-info__cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.35);
+  filter: blur(22px) saturate(1.15);
+  opacity: 0.85;
+}
+
 /* avatar.css tokenizes 24/40/48 (+ the old 64 hero); the 80 hero sizes inline
    via avatar.js, so its initials + presence dot are pinned here (0.38× scale,
    the avatar.css rule of thumb). */
@@ -1183,128 +1235,17 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   color: var(--text-error);
 }
 
-/* —— address —— the value sits on its OWN chip surface (member-sheet parity,
-   Damir: it should stand out from the section; the copy button was misaligned
-   as a 44px text button) —— */
-.c-chat-info__address {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-8);
-}
-.c-chat-info__address-row {          /* the chip: distinct surface, copy sits inside */
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-8);
-  max-width: 100%;
-  min-width: 0;
-  padding-block: var(--spacing-8);
-  padding-inline: var(--spacing-12) var(--spacing-8);
-  border-radius: var(--radius-12);
-  background: var(--surface-input);
-}
-.c-chat-info__address-value {
-  flex: 1;
-  min-width: 0;
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-height-body-sm);
-  color: var(--text-neutral-01);
-  word-break: break-all;            /* FULL address, wraps — truth stays whole (#99) */
-  text-align: start;
-}
-.c-chat-info__copy {                 /* 32px icon button — member-sheet parity */
-  flex: none;
-  position: relative;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: var(--radius-full);
-  background: transparent;
-  color: var(--icon-action-default);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: background-color var(--duration-100) var(--easing-standard);
-}
-.c-chat-info__copy::after { content: ''; position: absolute; inset: -6px; }   /* hit area */
-@media (hover: hover) and (pointer: fine) {
-  .c-chat-info__copy:hover { background: var(--surface-interactive-hover); }
-}
-.c-chat-info__copy:active { background: var(--surface-interactive-pressed); }
-
-.c-chat-info__qr-toggle {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-8);
-  min-height: 44px;
-  padding: 0 var(--spacing-4);
-  border: 0;
-  background: transparent;
-  color: var(--text-action-default);
-  font-size: var(--font-size-label-md);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-  border-radius: var(--radius-8);
-  -webkit-tap-highlight-color: transparent;
-}
-.c-chat-info__qr-chevron {
-  margin-inline-start: auto;
-  transition: transform var(--duration-200) var(--easing-standard);
-}
-.c-chat-info__qr-toggle[aria-expanded='true'] > .c-chat-info__qr-chevron {
-  transform: rotate(180deg);        /* child combinator — the #137 M4 lesson */
-}
-/* ★ N86 ① (Damir 2026-08-25): "the QR should have a smaller white padding around it,
-   this way on dark mode it's quite overpowering."
-
-   Measured before touching it, because HALF of that white is a standard, not a choice.
-   createQrSvg bakes `quiet = 4` — the ISO/IEC 18004 minimum quiet zone. Below four
-   modules scanners start failing, and this is a WALLET ADDRESS, where a misread is the
-   worst class of defect in the app. At 185px that quiet zone measures 16.44px to 20.00px
-   per side (the table below), and it is untouchable.
-
-   The 12px card padding on top of it was doing a job the quiet zone already does. Gone:
-   the white square drops from ≈209px to 185px, a 22% cut in white area, with no effect
-   on scanning at all.
-
-   ⚠ THE RADIUS SURVIVES THE PADDING, and the corner arithmetic is why. With 12px of
-   padding the 16px curve lived entirely in the padding and could not reach the code.
-   With none, it eats the quiet zone's own corner.
-
-   ★ #46 loop: the numbers below are MEASURED, not estimated. An earlier version of this
-   comment carried three wrong ones. The method: run the SHIPPED encoder
-   (createQrSvg → setQrValue, ecc 'M', quiet = 4) over the real payload
-   (`address + ':ixi'`) and read the viewBox back. Re-measure the same way if the payload
-   or the encoder changes. Over payloads of 34 to 76 characters the viewBox takes exactly
-   three values. The BOX is the code plus the 4-module quiet zone on each side, so the box
-   is always 8 cells wider than the code:
-     34–42 chars → 29-module code, 37-cell box, 5.00px per cell, 20.00px quiet zone
-     43–62 chars → 33-module code, 41-cell box, 4.51px per cell, 18.05px quiet zone
-     63–76 chars → 37-module code, 45-cell box, 4.11px per cell, 16.44px quiet zone
-   A real Ixian address lands in the middle row.
-
-   ⚠ A 16px radius removes at most R(√2−1) = 6.63px of DIAGONAL depth at a square corner.
-   It does NOT remove 16 − 16/√2 = 4.69px. That second value is the sagitta of the arc. It
-   is a different measurement, and it understates the loss by 41%.
-
-   THE SAFETY RESULT, which is unchanged. The quiet zone is 16.44px in the worst measured
-   case. The radius is 16px. The curve therefore stays inside the quiet zone at all four
-   corners and reaches no module. Along every edge, where ISO/IEC 18004 measures, the clip
-   removes nothing. The curve first touches the code corner when the quiet zone falls
-   below 16 − 16/√2 = 4.69px, which needs a box of about 157 cells. This payload cannot
-   make one.
-   ⚠ Raise this radius above 16px and re-do both comparisons. */
-.c-chat-info__qr {
-  display: flex;
-  justify-content: center;
-  align-self: center;               /* #149③: hug the code — the white card spanned the
-                                       full section width; account-hub parity */
-  border-radius: var(--radius-16);
-  background: var(--surface-qr);    /* fixed pair — never theme-flips (#137) */
-  box-shadow: var(--elevation-1);
-}
-.c-chat-info__qr svg { width: 185px; height: 185px; }   /* sanctioned: scan-comfort QR dim (account-hub parity, #149③) — +25% (Damir F5 2026-07-29: 148 scanned poorly on a phone held at arm's length) */
+/* —— address —— ★ #591 (Damir 2026-08-26): THE CARD IS RETIRED.
+   It was ~123 lines carrying a full base58 line on its own chip surface, a copy button
+   with its own hit-area padding, and a lazy Show-QR disclosure with a rotating chevron
+   and a fixed 185px code — three affordances for one value, on a screen whose every
+   other entry is a row. All of it moved into the shared address sheet (#527), which is
+   the same collapse #575 made on the Account hub. The row that replaced it is below.
+   ⚠ The rules are DELETED, not left dangling: dead CSS ships inlined into every built
+   shell that links this file, and five smoke assertions were still pinning its styling
+   while a new assertion pinned the markup absent — a suite asserting both that the
+   markup is gone and that its CSS is right would have gone red for the correct cleanup.
+   The sheet's own rules (wallet-receive.css) carry the QR, the chip and the copy morph. */
 
 /* —— action row —— WALLET-BANNER grammar (Damir 2026-08-12): the three chunky
    44px buttons (a full-width fill + two outlines, wrapping onto two rows) are
@@ -1315,7 +1256,22 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   justify-content: center;
   gap: var(--spacing-8);
 }
-.c-chat-info__money > .c-chat-info__qa { flex: 1; max-width: 96px; }
+/* ★ #591: FOUR actions now (Message · Call · Pay · Request). The 96px cap was sized
+   for three; 84 keeps four equal targets with the row still centred, and a shorter row
+   (a bot, or a host that wires fewer) still hugs because items only grow to their cap.
+   ⚠ THE CAP IS NOT THE BINDING CONSTRAINT — `flex: 1` is. At 360px four items leave
+   ~68px of label, and the audit measured ru-ru "Сообщение" at 70px and "Позвонить" at
+   70px: both would have ellipsized. The label WRAPS to two lines instead of being cut,
+   because a truncated verb on an action button is unreadable while a wrapped one is
+   merely tall. ⚠ The project's i18n-overflow audit has no control class for
+   `.c-chat-info__qa`, so it reported NO BREAKERS while carrying this — see the script.
+   ⚠ THE WRAP LIVES ON THE EXISTING `.c-chat-info__qa-label` RULE BELOW, not here. The
+   first cut declared a second `.c-chat-info__qa-label` block at THIS point — earlier in
+   the file than the one that already set `white-space: nowrap` — so at equal specificity
+   the later rule won and the fix did nothing. That is the exact mistake documented four
+   rules down in this same file, in this same batch. `overflow-wrap` is also inert under
+   `nowrap`, so the whole block was decoration. */
+.c-chat-info__money > .c-chat-info__qa { flex: 1; min-width: 0; max-width: 84px; }
 /* identity + actions read as ONE header block: pull the row up out of the
    body's 16px section rhythm (the full gap made the actions look orphaned) */
 .c-chat-info__hero + .c-chat-info__money { margin-block-start: calc(-1 * var(--spacing-8)); }
@@ -1352,9 +1308,13 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 .c-chat-info__qa-label {
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* ★ #591: WRAPS (see the four-up note above). A truncated verb on an action button is
+     unreadable — "Сообщ…" — while a wrapped one is merely two lines tall. `overflow-wrap`
+     only does anything once wrapping is permitted, which is why it must live HERE and not
+     in a second block that a later `nowrap` would beat. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
 }
 @media (hover: hover) and (pointer: fine) {
   .c-chat-info__qa:hover .c-chat-info__qa-circle { background: var(--surface-action-tonal-hover); }
@@ -1371,6 +1331,58 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
                                        (#149② — the notifications card read squeezed;
                                        settings-row parity) */
 }
+/* ★ #591: the ADDRESS ROW — the card became one row that opens the address sheet.
+   Two lines in the label column: the disc + title on top, the truncated address below
+   it, aligned with the title's TEXT rather than under the disc (the #575 one-left-edge
+   rule, same as the Account hub's sub-lines). */
+.c-chat-info__addr-row {
+  width: 100%;
+  border: 0;
+  text-align: start;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+  border-radius: var(--radius-16);   /* the press wash must follow the card's corner */
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+/* ⚠ #43 hover coverage + the LOCAL pattern: every other tappable row on this screen
+   (`__setting`, `__sd-option`, `__member`) carries hover AND active. The first cut
+   carried neither while suppressing the native tap highlight, so a tap on the one new
+   control did nothing visible until the sheet finished building. */
+/* ⚠ SCOPED THROUGH `__body >`, and that is not stylistic. The card rule at the top of
+   this file is `.c-chat-info__body > :not(…):not(…):not(…)` — `:not()` carries its
+   argument's specificity, so it is (0,4,0), and it sets `background: --surface-card` on
+   this element. A bare `.c-chat-info__addr-row:active` is (0,2,0) and LOSES: the first
+   cut's press wash never painted, so the row still did nothing visible on tap — the very
+   defect it was written for. This is M1's mistake in its other form, in the same file.
+   ⚠ The addr-row is the only interactive DIRECT CHILD of the body; `__setting`,
+   `__sd-option` and `__member` all sit nested inside cards, which is why the "local
+   pattern" they follow works for them and did not work here. */
+@media (hover: hover) and (pointer: fine) {
+  .c-chat-info__body > .c-chat-info__addr-row:hover { background: var(--surface-interactive-hover); }
+}
+.c-chat-info__body > .c-chat-info__addr-row:active { background: var(--surface-interactive-pressed); }
+.c-chat-info__body > div.c-chat-info__addr-row,
+.c-chat-info__body > div.c-chat-info__addr-row:active { cursor: default; background: var(--surface-card); }
+/* ⚠ COMPOUND, not a bare class. `.c-chat-info__row-label` is declared LATER with
+   `align-items: center; gap: --spacing-8`, and at equal specificity later wins — so the
+   first cut's column layout silently kept the row grammar's centring and gap, which is
+   precisely the one-left-edge rule the comment claimed to be applying. */
+.c-chat-info__row-label.c-chat-info__addr-label {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+}
+.c-chat-info__addr-top { display: inline-flex; align-items: center; gap: var(--spacing-12); }
+.c-chat-info__addr-value {
+  /* 32px disc + the 12px gap: the address starts where the title's text starts */
+  padding-inline-start: calc(32px + var(--spacing-12));
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+
 /* setting row (#142: disappearing messages) — a tappable row: label · value · chevron */
 .c-chat-info__setting {
   width: 100%;
@@ -1495,7 +1507,8 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   transform: translateX(20px);
 }
 @media (prefers-reduced-motion: reduce) {
-  .c-chat-info__switch, .c-chat-info__switch-knob, .c-chat-info__qr-chevron,
+  /* #591: __qr-chevron left with the retired address card */
+  .c-chat-info__switch, .c-chat-info__switch-knob,
   .c-chat-info__txs-chevron { transition: none; }
 }
 
@@ -1685,18 +1698,34 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-member__actions > .c-button { flex: 1; }
 
 /* ★ A8 (Batch A 2026-08-24): skeleton rows while the roster / shared-groups pushes
-   land. Neutral wash, a slow shimmer (off under reduced motion), never interactive. */
+   land. Neutral wash, a slow shimmer (off under reduced motion), never interactive.
+
+   ★ #591 (Damir 2026-08-26): "it needs to have the EXACT same placement as the elements
+   here, and it needs to be more visible, a notch or 2."
+
+   TWO STEPS UP, not one: `--surface-neutral-02` is the same fill the cards on this
+   screen already paint, so a skeleton drawn in it was a shape the eye read as content
+   rather than as absence. `--surface-neutral-04` is two rungs of the ramp and reads as
+   a placeholder in both themes.
+
+   ⚠ PLACEMENT is the other half, and it is the half that matters more: a skeleton whose
+   boxes MOVE when the data lands is worse than no skeleton at all. The row itself is
+   already the real `.c-chat-info__member` (same min-height, padding, gap), so the two
+   things that could still shift are the line's HEIGHT and its BASELINE. The line is now
+   the real name's line-height, centred in the same box the text occupies, so the swap
+   is a colour change and nothing reflows. */
 .c-chat-info__member--skeleton { cursor: default; pointer-events: none; }
 .c-chat-info__skeleton-avatar {
   flex: none;
   width: var(--size-avatar-40); height: var(--size-avatar-40);
   border-radius: var(--radius-full);
-  background: var(--surface-neutral-02);
+  background: var(--surface-neutral-04);
 }
 .c-chat-info__skeleton-line {
-  height: 14px;
+  /* the real row's name is body-md; matching its LINE BOX is what stops the jump */
+  height: var(--line-height-body-md);
   border-radius: var(--radius-full);
-  background: var(--surface-neutral-02);
+  background: var(--surface-neutral-04);
 }
 .c-chat-info__skeleton-avatar, .c-chat-info__skeleton-line {
   animation: c-chat-info-shimmer 1.4s var(--easing-standard) infinite;
@@ -1952,6 +1981,465 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 }
 
 </style><!-- #251: member identity sheet (roster row tap) -->
+<style data-src="../styles/components/wallet-receive.css">
+/* c-wallet-receive — Receive/Request progressive surface (spec §4, slice 3).
+   QR card paints --surface-qr (near-white in BOTH themes — scan contrast);
+   modules ink = --on-qr. Everything else follows the send-screen grammar. */
+
+.c-wallet-receive {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+  padding: var(--spacing-16);
+}
+
+/* —— QR card —— */
+.c-wallet-receive__qrcard {
+  align-self: center;
+  width: min(325px, 86vw, 100%);   /* loop NIT: inside the desktop dialog 86vw can beat the sheet's content box */   /* +25% (Damir F5 2026-07-29) — the receive QR is the one people hold up to be scanned */
+  padding: var(--spacing-16);
+  box-sizing: border-box;
+  border-radius: var(--radius-24);
+  background: var(--surface-qr);
+  box-shadow: var(--elevation-1);
+}
+.c-wallet-receive__qrcard .c-qr { display: block; width: 100%; height: auto; }   /* scoped — qr.js owns no stylesheet (audit n1) */
+.c-wallet-receive__caption {
+  margin: 0;
+  text-align: center;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+/* hidden live region (audit m3/M3): transitions + request-sent announcements */
+.c-wallet-receive__live {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0; border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* —— address chip (member-sheet pattern, #99 — mirrors c-txsheet__addr) —— */
+.c-wallet-receive__addr {
+  display: flex; align-items: center; gap: var(--spacing-8);
+  padding-block: var(--spacing-8);
+  padding-inline: var(--spacing-12) var(--spacing-8);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+}
+.c-wallet-receive__addrvalue {
+  flex: 1; min-width: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-01);
+  overflow-wrap: anywhere;                         /* the FULL address is the verification truth (#99) */
+}
+.c-wallet-receive__copy {
+  flex: none;
+  width: 32px; height: 32px;                       /* visual 32; hit area below (#106) */
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--icon-action-default);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-wallet-receive__copy::after { content: ''; position: absolute; inset: -6px; }
+@media (hover: hover) and (pointer: fine) { .c-wallet-receive__copy:hover { background: var(--surface-interactive-hover); } }
+.c-wallet-receive__copy:active { background: var(--surface-interactive-pressed); }   /* #28 pressed wash */
+
+/* —— amount (mirrors the send entry: money is the hero) —— */
+.c-wallet-receive__amountrow { display: flex; align-items: center; gap: var(--spacing-12); }
+.c-wallet-receive__amount {
+  flex: 1; min-width: 0;
+  box-sizing: border-box;
+  padding: var(--spacing-12) var(--spacing-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+  color: var(--text-neutral-01);
+  font-family: var(--font-primary);
+  font-size: var(--font-size-heading-md);
+  line-height: var(--line-height-heading-md);
+  font-weight: var(--font-weight-semibold);
+}
+.c-wallet-receive__amount:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+  border-color: var(--outline-action-default);
+}
+.c-wallet-receive__unit {
+  flex: none;
+  font-family: var(--font-primary);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-neutral-02);
+}
+
+/* —— send-request-to-contact strip —— */
+.c-wallet-receive__ask { display: flex; flex-direction: column; gap: var(--spacing-12); }
+.c-wallet-receive__asklabel {
+  margin: 0;
+  font-size: var(--font-size-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
+/* Damir F5 2026-07-29 (round 2): the strip stopped at 5 contacts, so reaching anyone
+   further down MEANT typing — fixed by making it SCROLL (cap raised in
+   wallet-receive.js). The card treatment tried in round 1 is REVERTED: this strip
+   already sits inside the request box, so a second surface stacked its padding on top
+   of that one and read cramped. ★ #560 (Damir, screenshots 2026-08-25) REVERSES
+   both halves of that ruling: the capped 5-row INNER scroller was the "weird" he
+   flagged (scroll-inside-scroll on touch, the CTA detached from the pick), and
+   the list now wears the DIRECTORY CARD — byte-parity with .c-contacts__list
+   (#149③ anti-drift). Full-length list, the PAGE scrolls, the CTA below goes
+   STICKY so it stays reachable. The keyboard case is served by order (amount is
+   on top and W-k drops the keyboard on Enter), not by a cap. */
+.c-wallet-receive__contacts {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-card);
+  border-radius: var(--radius-16);
+  padding: var(--spacing-4);
+  box-shadow: var(--elevation-1);
+}
+/* ★ W-j (Damir F5 2026-08-23): the row anatomy MOVED to contact-row.css — the rows
+   are the shared c-contact-row now (directory grammar: avatar-48 + name + truncated
+   address + online dot + the W9 select circle). `.c-wallet-receive__contact` stays
+   on the element as an ALIAS for base.css (press sweep) / pressable.js / the pins;
+   it carries no layout of its own any more. */
+/* (disabled rows: contact-row.css dims the avatar + name at --opacity-disabled — one grammar) */
+.c-wallet-receive__hint {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+/* (the W9 select circle lives in contact-row.css now — .c-contact-row__check) */
+/* W9 result line — the visible half of the send outcome (the live region does the
+   announcing). Tone-switched: an all-clear run reads success, a partial failure
+   reads error and the failed rows are still ticked above it. */
+.c-wallet-receive__result {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-success);
+}
+.c-wallet-receive__result[data-tone='error'] { color: var(--text-error); }
+/* W9 CTA — the one thing on this surface that can send. Full width, primary.
+   ★ #560: STICKY — the list is full-length now (the page scrolls), so the send
+   action pins itself to the bottom of the scroller, rows sliding beneath it,
+   reachable at any scroll depth and clear of the home indicator. elevation-2
+   separates it from the rows passing under. */
+.c-wallet-receive__cta {
+  margin-block-start: var(--spacing-4);
+  position: sticky;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--spacing-8));
+  z-index: 1;
+  box-shadow: var(--elevation-2);
+}
+.c-wallet-receive__none {
+  margin: 0;
+  padding: var(--spacing-8) var(--spacing-12);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+
+/* —— #527: header row (request heading + the small "Show my address" button) —— */
+.c-wallet-receive__head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--spacing-12);
+}
+.c-wallet-receive__head .c-wallet-receive__asklabel { margin: 0; }
+.c-wallet-receive__addrbtn { flex: none; }
+
+/* —— #527 / ★ W-c: the address sheet (QR + address + copy + Share + explainer) ——
+   Damir F5 2026-08-23: the desktop dialog OVERFLOWED (visible scrollbar, the chip
+   and the explainer cut) and a short phone viewport had no scroll at all. The
+   sheet content is now its OWN scroll region with a viewport cap; the QR card
+   scales with min(); the desktop dialog is capped at 440px. Then the PREMIUM
+   pass — this is the one address surface (Account reuses it), polished once. */
+.c-addr-sheet {
+  display: flex; flex-direction: column; gap: var(--spacing-16);
+  max-height: min(72dvh, 640px);            /* the sheet title + handle sit above; the rest scrolls */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-inline: var(--spacing-2);         /* room for the chip's focus ring inside the scroller */
+  margin-inline: calc(-1 * var(--spacing-2));
+}
+@supports not (height: 1dvh) { .c-addr-sheet { max-height: min(72vh, 640px); } }
+/* ★ #575 (Damir): on MOBILE the sheet grows to NEAR-FULL height, "just below the
+   top bar". A max-height alone would not do it — the content got shorter when the
+   QR shrank, so the sheet has a HEIGHT and the explainer is pushed to the foot.
+   The subtraction is the chrome the sheet cannot use: the status-bar inset, the top
+   bar it must clear, the home-indicator inset, and ~88px of the sheet's own handle,
+   title and padding. `max(...)` is the floor — on a very short window the sheet
+   falls back to a normal capped sheet instead of computing a negative height. */
+/* ⚠ review MINOR-4: the height is a PREFERRED size, bounded by the HOST. `100dvh` is
+   the viewport, and `.c-sheet` is absolutely positioned inside whatever host it was
+   given — a phone frame in the demos, and a short landscape window on device. An
+   unbounded preferred height grew the sheet UPWARD past the host's top edge, where
+   `overflow: hidden` cut off the handle, the title and the new dismiss button: a
+   near-full sheet with no visible way out. The sheet is a flex column capped at 100%
+   of its containing block, and the content shrinks inside it. */
+:root:not([data-desktop]) .c-sheet--addr {
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  box-sizing: border-box;
+}
+/* ⚠ round-2 MINOR-4: createSheet wraps the content in `.c-sheet__content`, so THAT is
+   the flex item — the first cut put `flex`/`min-height` on the grandchild, where both
+   are inert, and the sheet still overflowed a short host. The wrapper shrinks; the
+   scroll region inside it keeps a preferred height and gives it up when it must. */
+:root:not([data-desktop]) .c-sheet--addr > .c-sheet__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+:root:not([data-desktop]) .c-addr-sheet {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: max(320px, calc(100dvh - var(--safe-top, 0px) - env(safe-area-inset-bottom, 0px) - var(--layout-bar-top, 56px) - 88px));
+  max-height: none;
+}
+@supports not (height: 1dvh) {
+  :root:not([data-desktop]) .c-addr-sheet {
+    height: max(320px, calc(100vh - var(--safe-top, 0px) - env(safe-area-inset-bottom, 0px) - var(--layout-bar-top, 56px) - 88px));
+  }
+}
+/* ★ #589: the slack of the near-full mobile sheet used to collect UNDER the
+   explainer, because the explainer was the last block. It is not any more — the
+   safety line now sits directly under the address block, and that adjacency is the
+   whole point of Damir's order. So the slack moves to the ONE seam where a gap
+   reads as deliberate: between the sentence that explains the surface and the
+   surface itself. Everything below the QR keeps its token gaps and its adjacency.
+   ⚠ An auto margin resolves to 0 when there is no free space, so a short window
+   still scrolls from the true top — no unreachable content. */
+:root:not([data-desktop]) .c-addr-sheet__qrwrap { margin-block-start: auto; }
+/* the explicit way out (#575). Mobile only: a desktop dialog is dismissed with Esc
+   or a click outside, and both stay available here too. It sits over the sheet's own
+   padding in the title row, so it never displaces content. */
+.c-addr-sheet__dismiss {
+  position: absolute;
+  top: var(--spacing-8);
+  inset-inline-end: var(--spacing-8);
+  width: 40px; height: 40px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--icon-neutral-02);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) { .c-addr-sheet__dismiss:hover { background: var(--surface-interactive-hover); color: var(--icon-neutral-01); } }
+/* ★ #589 (Damir F5 2026-08-26): DESKTOP GETS THE DISMISS ICON TOO. Esc and a
+   click outside were the only ways out of the dialog, and neither is visible. The
+   button was hidden on desktop because #575 built it for the near-full mobile
+   sheet, where the scrim had shrunk to a strip — but "there is another way out"
+   was never a reason to hide the only VISIBLE one. */
+/* the title must not run under the button — both presentations now */
+.c-sheet--addr .c-sheet__title { padding-inline-end: 44px; }
+/* ★ #589: one rhythm. The sheet's own blocks are a --spacing-16 stack, and the
+   title sat 12 above them, so the gap that separates the heading from everything
+   read tighter than the gaps INSIDE it. Token, and the largest of the two. */
+.c-sheet--addr .c-sheet__title { margin-bottom: var(--spacing-16); }
+:root[data-desktop] .c-sheet--addr { width: min(440px, 92%); }
+/* ★★ #589 — WHY THE PERSISTENT THUMB BELOW "DID NOT REACH THIS STATE".
+   ⚠ MY FIRST ANSWER WAS WRONG AND THE AUDIT DISPROVED IT. I claimed `max-height: 76%`
+   is a percentage of a HOST that could be shorter than the viewport. It cannot be:
+   every production caller passes `document.body`, `.c-sheet` is absolutely positioned,
+   and neither `html` nor `body` is positioned or transformed — so the containing block
+   IS the initial containing block, and `76%` and `76vh` measure the same box. The
+   Account pane is its own WebView, so its viewport is the pane; the two cannot disagree
+   there either.
+
+   THE REAL DEFECT IS THE CONSTANT. `92px` was the desktop chrome the scroll region
+   cannot use: 24 + 24 dialog padding plus one line of title and its margin. It assumed
+   a ONE-LINE title. The title's usable width is now 440 − 48 − 44 (this batch adds the
+   dismiss clearance below), so a long locale wraps it to two lines, real chrome passes
+   92, the OUTER dialog needs to scroll — and `overflow-y: hidden` further down clips it
+   silently, with no bar anywhere. My own `margin-bottom: --spacing-16` on the title
+   would have made the stale constant worse.
+
+   Rebuilt without the arithmetic: the dialog is a flex column and the scroll region is
+   the flex item that gives up height first, so it binds against whatever the chrome
+   actually measures, in any locale. */
+:root[data-desktop] .c-sheet--addr {
+  display: flex;
+  flex-direction: column;
+}
+:root[data-desktop] .c-sheet--addr > .c-sheet__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+:root[data-desktop] .c-addr-sheet { flex: 1 1 auto; min-height: 0; max-height: none; }
+/* ★ F5-5 ② (#556, Damir F5 2026-08-24): the desktop dialog showed NO scrollbar on
+   overflow. Two causes: the OUTER dialog (.c-sheet, overflow-y:auto in overlay.css)
+   could scroll instead of this element, and the u-scroll thumb is hover-only.
+   The addr dialog now clips (the inner .c-addr-sheet is the one scroller), and its
+   thumb is PERSISTENT while it overflows — slim + themed, the contact-list look. */
+:root[data-desktop] .c-sheet--addr { overflow-y: hidden; }
+/* ★ #589: the thumb PAINT leaves the pointer gate — the width does NOT, and the audit
+   caught me shipping it outside.
+   ⚠ Authoring any `::-webkit-scrollbar` rule opts a Chromium scroller OUT of overlay
+   scrollbars and into classic, LAYOUT-CONSUMING ones. `.u-scroll` declares its width
+   inside `@media (hover: hover) and (pointer: fine)` together with
+   `scrollbar-gutter: stable`, which is what stops that width from reflowing content.
+   Exporting the width alone gave a touch-screen Windows laptop — `data-desktop`,
+   coarse pointer — a 6px bar with no reserved gutter, appearing and disappearing as
+   overflow toggled and shoving the QR and the chip sideways.
+   Only the two PAINT declarations are ungated, which is all the override needed. */
+:root[data-desktop] .c-addr-sheet.u-scroll {
+  scrollbar-color: var(--outline-neutral-02) transparent;
+}
+:root[data-desktop] .c-addr-sheet.u-scroll::-webkit-scrollbar-thumb {
+  background: var(--outline-neutral-02);
+}
+/* review MINOR-6: the sheet's own polite region — the same recipe the hub uses
+   (settings-shell.css .c-settings__live), so one grammar, not a second one. */
+.c-addr-sheet__live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  margin: 0;
+}
+/* ★★ #591: THE GEOMETRY DOCBLOCK MOVED HERE, and it moved because its subject did.
+   It was written in chat-info.css when that file drew the last inline QR card; the
+   contact-details card is retired and this sheet is now the ONE card in the app that
+   renders a code. A measured-geometry comment beside a card that no longer exists is
+   the drift PIN-G was built to catch. Verbatim, so the numbers stay the measured ones. */
+
+/* ★ N86 ① (Damir 2026-08-25): "the QR should have a smaller white padding around it,
+   this way on dark mode it's quite overpowering."
+
+   Measured before touching it, because HALF of that white is a standard, not a choice.
+   createQrSvg bakes `quiet = 4` — the ISO/IEC 18004 minimum quiet zone. Below four
+   modules scanners start failing, and this is a WALLET ADDRESS, where a misread is the
+   worst class of defect in the app. At 185px that quiet zone measures 16.44px to 20.00px
+   per side (the table below), and it is untouchable.
+
+   The 12px card padding on top of it was doing a job the quiet zone already does. Gone:
+   the white square drops from ≈209px to 185px, a 22% cut in white area, with no effect
+   on scanning at all.
+
+   ⚠ THE RADIUS SURVIVES THE PADDING, and the corner arithmetic is why. With 12px of
+   padding the 16px curve lived entirely in the padding and could not reach the code.
+   With none, it eats the quiet zone's own corner.
+
+   ★ #46 loop: the numbers below are MEASURED, not estimated. An earlier version of this
+   comment carried three wrong ones. The method: run the SHIPPED encoder
+   (createQrSvg → setQrValue, ecc 'M', quiet = 4) over the real payload
+   (`address + ':ixi'`) and read the viewBox back. Re-measure the same way if the payload
+   or the encoder changes. Over payloads of 34 to 76 characters the viewBox takes exactly
+   three values. The BOX is the code plus the 4-module quiet zone on each side, so the box
+   is always 8 cells wider than the code:
+     34–42 chars → 29-module code, 37-cell box, 5.00px per cell, 20.00px quiet zone
+     43–62 chars → 33-module code, 41-cell box, 4.51px per cell, 18.05px quiet zone
+     63–76 chars → 37-module code, 45-cell box, 4.11px per cell, 16.44px quiet zone
+   A real Ixian address lands in the middle row.
+
+   ⚠ A 16px radius removes at most R(√2−1) = 6.63px of DIAGONAL depth at a square corner.
+   It does NOT remove 16 − 16/√2 = 4.69px. That second value is the sagitta of the arc. It
+   is a different measurement, and it understates the loss by 41%.
+
+   THE SAFETY RESULT, which is unchanged. The quiet zone is 16.44px in the worst measured
+   case. The radius is 16px. The curve therefore stays inside the quiet zone at all four
+   corners and reaches no module. Along every edge, where ISO/IEC 18004 measures, the clip
+   removes nothing. The curve first touches the code corner when the quiet zone falls
+   below 16 − 16/√2 = 4.69px, which needs a box of about 157 cells. This payload cannot
+   make one.
+   ⚠ Raise this radius above 16px and re-do both comparisons. */
+.c-addr-sheet__qrwrap { display: flex; justify-content: center; }
+.c-addr-sheet__qrcard {
+  /* scale with the viewport on BOTH axes: a short window shrinks the code before
+     it pushes the chip below the fold. --surface-qr stays near-white in both themes.
+     ★ F5-5 ① (#556, Damir F5 2026-08-24): card padding DROPPED to the Account
+     proportions (.c-settings__qr has none — N86). The SVG's own ISO quiet zone is
+     the white margin; the extra 20px ring doubled it. Radius joins the Account
+     family (radius-16); the hairline outline goes with the padding. */
+  /* ★ #575 (Damir): "QR still too big — shrink it." 280 → 216. The code stays
+     comfortably scannable at arm's length (a base58 address is a low-density QR and
+     the SVG keeps its own ISO quiet zone, N86), and the smaller card is what lets
+     the address chip and the explainer share the sheet without scrolling. */
+  width: min(216px, 40dvh, 62vw, 100%);
+  padding: 0;
+  border-radius: var(--radius-16);
+  box-shadow: var(--elevation-1);
+}
+@supports not (height: 1dvh) { .c-addr-sheet__qrcard { width: min(216px, 40vh, 62vw, 100%); } }
+.c-addr-sheet__caption {
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+/* the address chip: the #99 member-sheet pattern, one step more deliberate —
+   a hairline, a larger radius and letter-spacing so the base58 reads as a token */
+.c-addr-sheet__addr {
+  padding-block: var(--spacing-12);
+  padding-inline: var(--spacing-16) var(--spacing-8);
+  border-radius: var(--radius-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-01);
+}
+.c-addr-sheet__addr .c-wallet-receive__addrvalue {
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  letter-spacing: 0.01em;
+}
+.c-addr-sheet__addr .c-wallet-receive__copy { width: 40px; height: 40px; }
+.c-addr-sheet__addr .c-wallet-receive__copy[data-state='ok'] { color: var(--icon-success); }
+.c-addr-sheet__addr .c-wallet-receive__copy[data-state='fail'] { color: var(--icon-error); }
+/* ★ #575: Share is an icon button on the chip, beside Copy — the full-width
+   outline row it replaced "reads as a too-short bar". Same 40px square as Copy, so
+   the chip carries a pair of equal controls. */
+.c-addr-sheet__sharebtn { width: 40px; height: 40px; }
+/* the explainer block — ★ F5-5 ③ (#556): ONE glyph level. The filled disc read as
+   an icon inside an icon (Damir screenshot); a bare tinted info-circle leads the
+   two quiet lines. The safety line keeps its inline shield glyph. */
+/* ★ #575 (Damir): a TWO-COLUMN GRID, glyph gutter + copy column. Every line of
+   copy shares ONE left edge — that is his "align the safety text with the info
+   text's left edge, not under the icon". The old flex layout put the shield inside
+   the text column, which indented the safety line away from the paragraph above it.
+   `align-items: start` keeps each glyph on the first line of its own paragraph. */
+.c-addr-sheet__explain {
+  display: grid;
+  /* ⚠ #589: a FIXED gutter, not `auto`. With `auto` the track is sized by that block's
+     own glyph — 20px for the info-circle, 16px for the shield — so the two blocks'
+     copy started 32px and 28px from their card edge. A 4px step between two otherwise
+     identical cards is exactly the one-left-edge alignment #575 was written to buy.
+     A fixed track is also what makes `justify-self: center` on the glyph mean anything;
+     against an `auto` track it was a no-op. */
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  column-gap: var(--spacing-12);
+  padding: var(--spacing-12);
+  border-radius: var(--radius-16);
+  background: var(--surface-neutral-02);
+}
+.c-addr-sheet__explainicon { margin-top: 1px; color: var(--icon-info); display: inline-flex; justify-self: center; }
+.c-addr-sheet__explainicon--safe { color: var(--icon-success); margin-top: 2px; }
+.c-addr-sheet__info {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-addr-sheet__info--safe { color: var(--text-neutral-01); }
+
+/* ★ W-b (2026-08-24): desktop content column cap — see wallet-send.css */
+:root[data-desktop] .c-wallet-receive { max-width: 560px; margin-inline: auto; width: 100%; box-sizing: border-box; }
+
+</style><!-- ★ #591: openAddressSheet (.c-addr-sheet / __qrcard) — the W-h gate caught this missing, which is the toast.css lesson: the sheet would have opened UNSTYLED -->
 <style data-src="../styles/components/media-viewer.css">
 /* c-mviewer — full-screen media viewer (#86). Sits on the overlay stack at
    the modal layer; its own scrim-dark surface stacks over the overlay scrim
@@ -2155,6 +2643,14 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
              leading edge (the col-1 case reuses the home shell's right-edge hairline,
              so no double line; the 640 cap is inert at pane width). */
   body[data-pane] .c-chat-info__body { max-width: 640px; margin-inline: auto; width: 100%; }
+  /* ★ #591 (round-2 review): the hero COVER bleeds to the body's padding edge, and in a
+     detail column wider than the 640 cap that edge is 640px of centred band with hard
+     left and right edges floating in the column. In pane mode the cover spans the PANE,
+     not the capped content column. `100vw` is wrong here for the same reason it was wrong
+     inside the hero: this document IS the pane, so its own viewport is the right unit. */
+  body[data-pane] .c-chat-info__cover {
+    inset-inline: calc(50% - 50vw);
+  }
   body[data-pane="2"] { border-inline-start: 1px solid var(--outline-neutral-03); }
 </style>
 <style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important;background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
@@ -2195,6 +2691,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    * Contract (verified ContactDetails.xaml.cs):
    *   C#→JS: setPaneMode('1'|'2') [#247 desktop pane, pre-present]
    *          · setContext('chat'|'contact') [#248 entry-dependent title/actions]
+   *          · showCallButton() [★ #591: reveal the Call action — codecs + Approved]
    *          · setGroupInfo(count, blind, admin, notifications, owner) +
    *            clearMembers/addMember(addr, nick, avatar, role) [#248 group surface]
    *          · setAddress(addr) · setNickname(nick) [every sec] · setAvatar(path)
@@ -2234,7 +2731,9 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     attachPressFeedback,
     createModal, openModal, truncateAddressMiddle,   // N27 (#367): remove-blocked modal
     isPseudoAddressNick, dismissTopOverlay,          // D-19b (#370) blind pseudo-key display guard · N50 back-dismiss wiring
+    isAddressShaped,                                 // ★ #591: an address-shaped "nickname" must not become the sheet's title
     showToast,                                       // N55: optimistic request-sent feedback,
+    openAddressSheet,                                // ★ #591: the ONE address surface, peer variant
     applyPushedTheme,
   } = window.Spixi;
   const strings = window.SL || {};
@@ -2275,6 +2774,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     avatarPath: null,    // setAvatar — rendered in the c-chat-info hero; onerror → gradient fallback
     txs: [],             // committed tx rows (txlist-item opts)
     txsBuf: null,        // accumulator between clearRecentActivity and the settle
+    callable: false,     // ★ #591: revealed by showCallButton — C# gates on codecs + FriendState.Approved, exactly as the chat header does. Default FALSE so a contact who cannot be reached never shows the action.
     sharedGroups: null,  // ★ A4: [{ name, address }] once setSharedGroups answers; null = not yet; undefined = no answer (strip hidden)
     membersLanded: false,   // ★ A8: the first roster commit landed
     // #248: entry-dependent context — 'chat' (header/row-menu → "Chat info"/"Group
@@ -2490,10 +2990,47 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       // C# re-pushes friend.nickname on the next tick, so the display self-heals.
       onNickname: (nick, ctrl) => { bridge.send('ixian:userdefinednick:' + nick); ctrl.done(); },
 
+      /* ★★ #591 (Damir's mockup): CALL joins the action row. `ixian:call` was handled
+         ONLY by SingleChatPage — this page had no such verb, so the button would have
+         been dead the day it shipped (#215). The handler is four lines on the C# side
+         and it delegates to the same VoIPManager entry the chat header uses; nothing
+         about the call surface itself changes. 1:1 only, both here and in the
+         component: there is no group-call verb to route. */
+      /* ⚠ C# refuses the verb while a call is already live (VoIPManager.isInitiated), and
+         the tap is then silent. That is accepted, and NOT because silence is good: this
+         shell has no call state to test — #270 moved the call surface into its own
+         WebView (CallPage) and nothing pushes "a call is up" here. A toast keyed on a
+         flag this document does not have would have been invented data.
+         What makes the silence tolerable is that the in-call STRIP is already on screen
+         above this page saying exactly that. If Damir wants explicit feedback it needs a
+         push, not a guess. */
+      onCall: state.callable ? () => bridge.send('ixian:call') : undefined,
+
       // money — these open the NATIVE C# wallet pages (the "C# signs" path, SECURITY.md):
       //   Pay → WalletSendPage · Request → WalletReceivePage. No in-page compose.
       onPay: () => bridge.send('ixian:send'),
       onRequest: () => bridge.send('ixian:request'),
+
+      /* ★ #591: the address row opens the ONE address surface (#527) in its PEER
+         variant — their address, so the copy says "their", and the self-only safety
+         line ("it never gives anyone access to your wallet") is dropped rather than
+         re-worded into a true sentence about the wrong person's money.
+         ⚠ NO onShare: `ixian:share` shares the USER'S OWN primary address (HomePage
+         :635-641), so wiring it here would offer "Share" on a contact's address and
+         send the reader's instead. Copy is the honest affordance until a peer-share
+         verb exists. */
+      onAddressSheet: ({ address }) => openAddressSheet({
+        address, strings, host: document.body, subject: 'peer',
+        /* state.name IS the display name (it already incorporates any user-defined nick
+           — see the state declaration); there is no separate nickname field here.
+           ⚠ AND IT CAN BE THE ADDRESS. `Friend.nickname` falls back to the address for an
+           unnamed contact (the #276/#279 echo class), so an unguarded title would render
+           a full base58 as the sheet's heading and aria-label — directly above the row
+           this batch just truncated to 9…6. Same guard the roster ingests use. */
+        title: (state.name && !isAddressShaped(state.name) && !isPseudoAddressNick(state.name))
+          ? state.name
+          : (strings.peerAddressTitle || 'Ixian address'),
+      }),
 
       // payment activity row tap → native tx detail (WalletSentPage).
       onTx: (tx) => { if (tx && tx.txid) bridge.send('ixian:txdetails:' + tx.txid); },
@@ -2544,6 +3081,9 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       // showIndicator never calls scheduleCommit, so this never drives a rebuild
       // by itself, it only makes one that happens anyway come out right.
       online: state.online,
+      // ★ #591: the Call reveal MUST be in the signature or scheduleCommit is decorative
+      // — the exact defect the NOTIF-2 note above records, one push later.
+      callable: state.callable,
       isGroup: state.isGroup,
       group: state.group,
       members: state.members.map((m) => [m.address, m.name, m.avatar])
@@ -2607,6 +3147,11 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     setPaneMode(col) { document.body.dataset.pane = (col === '2') ? '2' : '1'; },
     // #248: entry-dependent surface — pushed before setAddress in onLoad.
     setContext(c) { state.context = (c === 'chat') ? 'chat' : 'contact'; scheduleCommit(); },
+    /* ★★ #591: the SAME verb the chat header uses (SingleChatPage:891). C# sends it only
+       when the peer can actually be called — codecs present, 1:1, FriendState.Approved —
+       so the action appears rather than being offered and refused. Idempotent: an exe
+       that pushes it repeatedly costs one no-op commit. */
+    showCallButton() { if (!state.callable) { state.callable = true; scheduleCommit(); } },
     // #248 GROUP surface: meta (count/blind/admin/notifications/owner) + roster.
     // Roster arrives as a clearMembers → addMember×N burst → buffered like the tx
     // list so a partial roster never commits.

@@ -159,6 +159,35 @@ const caf = (typeof cancelAnimationFrame === 'function')
 
 const pressAttached = new WeakSet();
 
+/* ★★ #589 (Damir F5 2026-08-26): "a mini app that opens the contacts picker leaves
+ * a pressed-row rectangle over the new screen."
+ *
+ * The gap is named by this module's OWN comment at the `onHide` listener below —
+ * "a page hidden mid-press (app backgrounded, OVERLAY OPENED) must not come back
+ * with a row still lit". `visibilitychange` and `pagehide` cover the first case.
+ * They do not fire for the second: an in-document TAKEOVER covers the list, it does
+ * not hide the document. The pressed row stays CONNECTED, so nothing in the
+ * afterlife's kill paths fires either — its timers are wall-clock (fill + fade), and
+ * they keep running under the screen that replaced it.
+ *
+ * `clearPressFeedback()` is the missing edge: the screen being opened calls it, and
+ * every live instance drops its armed press and every afterlife at once.
+ *
+ * ⚠ It is called by the SCREEN, not by each caller that opens one. A per-call-site
+ * hook is a line somebody forgets; `mountContacts` calling it once covers every host
+ * that opens the picker, including hosts written later.
+ *
+ * ⚠ HONEST SCOPE: this closes a real window that is verifiable in this file. Whether
+ * that window is what put the rectangle on Damir's screen is an F5 question — if the
+ * rectangle survives this, the cause is elsewhere and a screenshot is owed (#294). */
+const pressInstances = new Set();
+
+export function clearPressFeedback() {
+  for (const inst of Array.from(pressInstances)) {
+    try { inst(); } catch (e) { /* one dead instance must not block the rest */ }
+  }
+}
+
 export function attachPressFeedback({
   root = document, rows = PRESSABLE_ROW, controls = PRESSABLE_CONTROL,
 } = {}) {
@@ -510,10 +539,13 @@ export function attachPressFeedback({
   const onHide = () => { abortGesture(); killAllAfterlives(); };
   window.addEventListener('pagehide', onHide);
   document.addEventListener('visibilitychange', onHide);
+  // #589: the same teardown, reachable from a screen that opens IN the document
+  pressInstances.add(onHide);
 
   return function detach() {
     abortGesture();
     killAllAfterlives();
+    pressInstances.delete(onHide);
     pressAttached.delete(host);
     host.removeEventListener('touchstart', onDown, opts);
     host.removeEventListener('touchmove', onMove, opts);

@@ -16,8 +16,10 @@
  *   Right-click (contextmenu) on an element matching `rows` records the
  *   pointer; the NEXT `.c-sheet` mounting into `host` that contains a
  *   `.c-msgmenu` (message menu AND chats-row menu both use it) within 600ms is
- *   tagged [data-dt-anchor="menu"], positioned at the pointer / source-row
- *   bottom edge, and the source row highlights ([data-dt-ctx-source]) until
+ *   tagged [data-dt-anchor="menu"], positioned at the pointer horizontally and
+ *   ABOVE the source row when it fits (#589 — else below, else clamped; the
+ *   same rule the mobile path has carried since #557 4.1, so a menu never
+ *   covers what it acts on), and the source row highlights ([data-dt-ctx-source]) until
  *   the sheet leaves the DOM. A menu opened any OTHER way (long-press,
  *   keyboard) has no recent contextmenu → presents as the centered dialog,
  *   deliberately (the demo's 600ms rule).
@@ -86,8 +88,42 @@ export function attachContextMenuAnchors({ host = document.body, rows = '.c-bubb
         const rr = ctx.row.getBoundingClientRect();
         n.style.width = CTX_MENU_W + 'px';
         n.style.left = Math.round(Math.max(8, Math.min(ctx.x - fr.left, (fr.width || 1e4) - CTX_MENU_W - 8))) + 'px';
-        // adjacent to the SOURCE — dropping from the row's bottom edge (06d ②)
-        n.style.top = Math.round(Math.max(8, Math.min((rr.bottom || ctx.y) - fr.top + 4, (fr.height || 1e4) - 420))) + 'px';
+        /* ★★ #589 (Damir F5 2026-08-26): "the desktop right-click menu often covers
+         * the selected row". It did — this always dropped from the row's BOTTOM edge
+         * and never flipped, so on any row in the lower half of the window the menu
+         * opened over the rows below and, once clamped, over the source row itself.
+         * The clamp was the tell: `fr.height - 420` is a GUESSED menu height, and a
+         * menu taller or shorter than 420 was placed wrong in opposite directions.
+         *
+         * The MOBILE path (anchorSheetToRow, below) has preferred ABOVE since #557
+         * 4.1 precisely so a menu can never cover what it acts on. Same rule here,
+         * measured rather than guessed. The horizontal anchor is unchanged — the
+         * pointer, which is the desktop convention.
+         *
+         * ⚠ Measure AFTER the width lands: the width is what decides how the labels
+         * wrap, and the wrap is what decides the height. Measuring first would size
+         * the flip against a box this function is about to change. */
+        const CTX_GAP = 4;
+        const mh = n.offsetHeight || 0;
+        const rowTop = rr.height ? rr.top : ctx.y;
+        const rowBottom = rr.height ? rr.bottom : ctx.y;
+        const minTop = 8;
+        const maxBottom = (fr.height || 1e4) - 8;
+        const aboveTop = rowTop - fr.top - CTX_GAP - mh;
+        let ctxTop;
+        if (mh && aboveTop >= minTop) {
+          ctxTop = aboveTop;                                  // preferred: ABOVE the source row
+        } else {
+          ctxTop = rowBottom - fr.top + CTX_GAP;              // below
+          /* ⚠ An unmeasurable menu takes the below-placement with NO upper clamp — which
+             is NOT what the old line did (it clamped unconditionally at a guessed
+             `fr.height - 420`). It is unreachable in a browser: at this point the sheet
+             is appended, sized, and only `opacity: 0`, never `display: none`, so
+             offsetHeight is a real box. jsdom reports 0 for everything, and there every
+             branch collapses to `minTop` anyway. Stated so it is not read as a promise. */
+          if (mh && ctxTop + mh > maxBottom) ctxTop = Math.max(minTop, maxBottom - mh);
+        }
+        n.style.top = Math.round(Math.max(minTop, ctxTop)) + 'px';
         ctx.row.dataset.dtCtxSource = '';
         open = { sheet: n, row: ctx.row };
         ctx = null;

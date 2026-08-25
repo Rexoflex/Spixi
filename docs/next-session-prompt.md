@@ -1,112 +1,98 @@
 NEXT SESSION — entry prompt.
-READ docs/handoff-2026-08-26-walkday.md FIRST — PART TWO is the most recent work.
-Then docs/f5-findings-2026-08-26-walkday.md — that is THE PLATE, one mechanism per
-row, already root-caused, with the six that are DONE marked ✅. Do NOT re-derive it.
-docs/opus-review-verdict-walkday-576.md holds the earlier review rounds.
-STATE: #576-#583 shipped and walked (33 pass · 1 fail · 2 n/a of 36); #584-#588 are
-the triage fixes built on that walk. All of it is COMMITTED at the tip you cloned.
-★ DAMIR IS F5-TESTING #584-#588 IN PARALLEL WHILE YOU WORK. Do not wait for him.
-His results arrive mid-session; triage them then (see ② below).
-THE JOB:
-① START HERE — THE QUEUED FE WORK. All frontend, all in files that do NOT touch
-   #584-#588's C#, so a correction from his F5 cannot collide with it.
-   Every row is triaged with a mechanism in the findings doc — read it, don't
-   re-derive it.
-   (a) ★ Damir's ADDRESS-SHEET RE-LAYOUT (#582 notes) — HIS layout, do not
-       re-interview: the address row goes ABOVE Contacts · the info block sits
-       ABOVE the QR · the safety line BELOW the address block · every gap from
-       spacing tokens, including title→content · desktop gets the mobile dismiss
-       icon AND a scrollbar visible without hovering exactly over it.
-   (b) The two DESKTOP ROUTING bugs, same root: opening Contacts, and changing
-       language, both re-drive home.html to tab1 while the Account pane is open,
-       and Contacts overtakes the LEFT pane while the right pane becomes a
-       conversation. He wants the directory in the DETAIL column with the hub
-       kept on the left. The spixi.landtab handshake (#238) is the existing lever.
-   (c) Dark-mode LIFTED ROW wants the NEUTRAL press fill, not --surface-screen.
-   (d) DESKTOP right-click menu needs the flip-above the mobile path already has
-       (#557 4.1) — it currently covers the row it acts on.
-   (e) A long NICKNAME is being MIDDLE-truncated: isPseudoAddressNick is
-       misclassifying it. A nick ellipsizes at the END, on overflow only.
-   (f) Small: the mini-app contacts picker leaves a pressed-row rectangle over the
-       new screen · Account→Notifications "show sender name" is redundant · empty
-       wallet activity "Show my address" must open the SHEET, not wallet Receive.
-② WHEN HIS F5 RESULTS ARRIVE — triage each fail with a mechanism NAMED (#294).
-   Two of the six changed behaviour on paths he never reported, so those are the
-   ones to read first if they fail:
-   · #584 — background→resume with a chat open. A message must still render in
-     that open conversation and a reply must still persist. The first cut of this
-     fix rebuilt every Friend and orphaned the page's reference.
-   · #585 — hardware back on a FRESH INSTALL welcome screen must still EXIT the
-     app. The first back-belt trapped it.
-   The rest are the reported-bug set (wipe→restore contacts · create-back-twice ·
-   mini apps gone after a wipe · muted contact silent · long-press right after a
-   restore): a failure there is a fix, not a rethink.
-③ NOT BUILT ON PURPOSE — read the findings doc before touching any of these:
-   · The LOCKED-PHONE RING. Half is done (no ring while our app lock is up). The
-     other half — hardware keys cannot silence our MediaPlayer — needs the
-     NOTIFICATION to own the sound, i.e. a call-category notification with its own
-     ringtone. SPEC IT FIRST. It is not a patch.
-   · UN-LIKE: the affordance is missing AND #215 says the core persists only
-     `like` for user reactions. Verify on device BEFORE building.
-   · #574 ② (no caller nickname on the missed-call notification) · #562 ④
-     recipient-side honest accept (verify the carrier first) · the THIRD
-     outgoing-request site SingleChatPage:1666 · the sub-120s staleness residual
-     on #574. F5-2 and §1e-5/§1e-6 stay frozen-core. Privacy toggles are v1.1.
-④ A BE ROW is owed and already written: MiniAppManager builds a delete path from a
-   DOWNLOADED app id, and Path.Combine returns a rooted second argument verbatim
-   (security-review-for-be-engineer.md MAJOR #10). Pre-existing; the wipe made it
-   a second unattended caller. ~4 lines at two sites. Do not build it silently —
-   it is his and the BE engineer's call.
-LANGUAGE RULE: ASD-STE100 Simplified Technical English — chat replies and code
-comments.
+
+READ docs/handoff-2026-08-26-queue-and-details.md FIRST. Then the two F5 checklists it
+names, and the two verdicts beside them. Do NOT re-derive any of it.
+
+STATE: #589-#592 are COMMITTED (`597234a7`, 84 files) and, if Damir pressed Push,
+on origin/redesign/frontend. #576-#588 are the batch below them.
+⚠ Check DECISIONS.md ends at #592. Missing → he has not pushed → STOP and say so.
+
+★ THE FIRST THING: ASK FOR HIS F5 RESULTS, TWICE OVER.
+He was testing #584-#588 in parallel during the last session and never sent them, and
+then #589-#592 landed on top. So there are TWO untriaged walks. Triage each fail with a
+mechanism NAMED (#294) before touching anything. The two most likely to surprise:
+  · #584 — background→resume with a chat open: a message must still render in that open
+    conversation and a reply must still persist.
+  · #585 — hardware back on a FRESH INSTALL welcome screen must still EXIT the app.
+And from the new batch, the two dials that are eyeballs, not pass/fail:
+  · the lifted chat row now carries a RING as well as a fill — lifted, or selected?
+  · `--text-success` moved one ramp step darker in LIGHT ONLY (the green tip missed AA at
+    12px bold). It also moves received tx amounts, tx-sheet amounts and payment-card
+    amounts. Both revert in one line.
+
+THE QUEUED WORK, in order:
+
+1. DESKTOP ACCOUNT → CONTACTS. The one item from his walk-day list that is NOT built, and
+   the analysis is done: it is NOT frontend-fixable. The detail column is a native
+   WebView, so no HTML element in home.html can paint into it. It needs one small
+   HomePage verb — drop the detail content so the takeover shows there, restore it on
+   close — plus a close-audit at tab/chat/tx like every other pinned pane. Build it as its
+   own batch; do not fold it into anything.
+2. HIS ANSWER ON "Show sender name" (handoff §Owed 2). If that switch was never in a
+   shipped build, delete the one-shot migration in SNotificationPrefs.cs and its pins.
+3. The mini-app press rectangle needs a SCREENSHOT before any further code (#294). What
+   shipped is hygiene and is documented as such.
+
+NOT BUILT ON PURPOSE — read the findings doc before touching any of these: the
+locked-phone ring (the NOTIFICATION has to own the sound; spec it, do not patch it) ·
+un-like (#215 — the core persists only `like`; verify on device first) · #574 ② · #562 ④ ·
+the third outgoing-request site (SingleChatPage:1666) · privacy toggles are v1.1.
+
+A BE ROW IS OWED AND WRITTEN: MiniAppManager builds a delete path from a downloaded app
+id, and Path.Combine returns a rooted second argument verbatim
+(security-review-for-be-engineer.md MAJOR #10). Pre-existing. Damir's and the engineer's
+call, not a silent fix.
+
+LANGUAGE RULE: ASD-STE100 Simplified Technical English — chat replies and code comments.
+
 SETUP
 git clone --branch redesign/frontend https://github.com/Rexoflex/Spixi.git
-git clone https://github.com/ixian-platform/Ixian-Core.git   # SIBLING, REQUIRED
+git clone https://github.com/ixian-platform/Ixian-Core.git   # SIBLING, then: git checkout 097341a
 cd Spixi && npm install --no-save jsdom tree-sitter tree-sitter-c-sharp
-⚠ Check DECISIONS.md ends at #588. Missing → Damir has not PUSHED yet → STOP and
-say so; do not work against an older tip.
-Verify before you touch anything. If any number differs, say so and STOP.
-bundle 293 · shells 18 · smoke BASELINE OK 3161 / the 3 KNOWN (#136 · M5 · B3)
-· cs-syntax 144+1 · locales CLEAN 772 · Ixian-Core 097341a.
+
+VERIFY BEFORE TOUCHING ANYTHING. If any number differs, say so and STOP.
+bundle 296 · shells 18 · smoke BASELINE OK 3208 / the 3 KNOWN (#136 · M5 · B3)
+· cs-syntax 144+1 · locales CLEAN 771 · Ixian-Core 097341a.
+
 THE WORK
-Verify-first everywhere (#294/#215). DECISIONS rows (#589+) at decision time.
-Handover-gate rows AS BUILT for every new verb/key/log line. The #46 loop is
-OPUS-run, builder never reviews own work, verdict to disk with the batch in the
+Verify-first everywhere (#294/#215). DECISIONS rows (#593+) at decision time. A
+handover-gate row AS BUILT for every new verb, spixi.* key or log line. The #46 loop is
+OPUS-run, the builder never reviews his own work, verdict to disk with the batch in the
 filename.
-★ CARRY THESE — they cost four review rounds across this batch:
-· A store that hands you a COPY will not tell you (metaData.setLastMessage
-  deep-copies, so a fix on the message never reached the row).
-· Never re-measure from a state your own write changed.
-· A deferred undo is NOT an undo; a synchronous re-render can replace the node
-  first.
-· querySelector answers in DOCUMENT ORDER, not recency.
-· ★ A GUARD THAT ALREADY RAN MAKES YOUR CLEANUP A NO-OP — the mini-app sweep
-  walked a dictionary the wipe had already emptied, returned 0, and logged clean.
-· ★ THE PATH YOU FIXED IS RARELY THE ONLY PATH — preStart also runs on RESUME,
-  and the unconditional fix was worse than the bug it closed.
-· ★ A pin written FROM THE CODE defends the code. Write pins from the PROPERTY
-  and prove them by MUTATION. Across this batch, mutation was repeatedly the only
-  thing that showed a pin was worthless.
+
+★ CARRY THESE — they cost four review rounds and seven bad pins across the last batch:
+· A `:not()` CARRIES ITS ARGUMENT'S SPECIFICITY. `.a > :not(.b):not(.c):not(.d)` is
+  (0,4,0) and beats a class plus a pseudo-class.
+· AT EQUAL SPECIFICITY, LATER WINS — so a new rule declared ABOVE the one it means to
+  override is a no-op. This happened TWICE in one file, four rules apart, in the same
+  batch that had just gained the comment explaining it.
+· `indexOf` RETURNS -1, AND -1 IS LESS THAN EVERY INDEX. An order pin must assert both
+  operands are found first. This also appeared twice, in mirror directions.
+· A PIN'S FIXTURE CAN GUARANTEE ITS OWN RESULT — a short address fed to a truncator, an
+  absence guaranteed by a handler nobody passed. Feed it the real shape.
+· A DURABLE FLAG AND A CONSUMED HAND-OFF ARE DIFFERENT TOOLS. Anything that must survive
+  a document reload cannot ride a slot some other document reads first.
+· REMOVING A CONTROL IS NOT THE SAME AS CHANGING WHAT IT CONTROLLED — unless it wrote a
+  persisted preference, which is then stuck with no UI to reach it.
+· WRITE PINS FROM THE PROPERTY AND PROVE THEM BY MUTATION. Reading them twice does not
+  work; across the last batch, mutation was the only thing that found seven bad ones.
+
 DO-NOTs
-1. No Ixian-Core changes (097341a frozen); core needs = BE row.
-2. No re-interviewing settled dials. Settled THIS batch: the address leaves the
-   Account hero · #570 is a min-width FLOOR, not a placement flip · #580's marker
-   is "-1" for downgrade safety · the ring is suppressed while our lock is up
-   (Damir re-dialled #272 himself) · #588 re-resolves the live row, it does NOT
-   reuse the pressed row's rectangle.
-3. No half-landed batches. 4. No new NuGet (#495). 5. No invented data.
-6. Bundle BEFORE shells, always. 7. v1.1 items stay OUT.
-8. Do NOT rebuild the address sheet — reuse openAddressSheet.
-9. Windows runs via TWO commands (build, then the exe) — -t:Run hits
-   MSB3073/9009. Build in a NORMAL PowerShell; elevate only the RUN, and only for
-   the #576 picker items. Wipe obj/bin after a C# change (#387).
-10. The F5-2 hook's verbatim exception log has a retirement condition (gate row)
-   — retire/logSafe-wrap it WITH the F5-2 real fix, not before.
+1. No Ixian-Core changes (097341a frozen); core needs = a BE row.
+2. No re-interviewing settled dials. Settled last batch: the address row sits above
+   Contacts · the peer address sheet drops the self-only safety line · the tip is green ·
+   call and payment cards hug and wrap · the details cover is DERIVED, never fetched.
+3. No half-landed batches. 4. No new NuGet (#495). 5. No invented data — if the shell has
+   no signal for something, say so rather than keying UI on a flag that does not exist.
+6. Bundle BEFORE shells, always; and run extract-strings BEFORE the bundle whenever a
+   string key changed, or the shipped bundle asks for a key the shipped dictionary lacks.
+7. v1.1 items stay OUT. 8. Do NOT rebuild the address sheet — reuse openAddressSheet, and
+   pass `subject: 'peer'` for anyone else's address.
+
 DELIVERY
-Everything UNCOMMITTED via a _deliveries/ tarball + the bridge when the desktop
-is online; tar --overwrite; VERIFY THE EXTRACT LANDED (hash the extracted files
-against the cloud tree). Write: the F5 checklist for the new batch (fresh
-artifact, per-item notes) · the handoff · the fresh next-session prompt · the
-prepared commit message. git --no-optional-locks always · never git add -A
-(_scratch/ is untracked and must stay out) · git push does not work from the
-bridge. If the bridge is offline, hold the tarball and say so.
+The container CANNOT push (the git proxy refuses to credential Rexoflex/Spixi). Commit on
+Damir's machine through the bridge and let him press Push, or hand him a tarball. Verify
+every extract by hashing the landed files against the cloud tree. `tar --overwrite` ·
+`git --no-optional-locks` always · stage in chunks of ~20 and verify the staged count ·
+never `git add -A`. Write: the F5 checklist, the handoff, the next-session prompt, and the
+commit message.

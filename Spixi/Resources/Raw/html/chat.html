@@ -548,20 +548,27 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    the 12 gradients below are hand-tuned per anchor and serve BOTH themes
    (the c-disc #170 grammar — vivid fill + white ink, mode-agnostic).
    Every pair is computed ≥ 4.5:1 under white ink at BOTH stops (#364 table).
-   Recipe: stop1 = hsl(h, 62%, L1) · stop2 = hsl(h+25, 58%, L1−10). */
+   Recipe: stop1 = hsl(h, 62%, L1) · stop2 = hsl(h+25, 58%, L1−10).
 
-.c-avatar[data-hue="0"]  { --av-c1: hsl(0, 62%, 52%);   --av-c2: hsl(25, 58%, 42%);  }
-.c-avatar[data-hue="1"]  { --av-c1: hsl(22, 62%, 43%);  --av-c2: hsl(47, 58%, 33%);  }
-.c-avatar[data-hue="2"]  { --av-c1: hsl(40, 62%, 35%);  --av-c2: hsl(65, 58%, 25%);  }
-.c-avatar[data-hue="3"]  { --av-c1: hsl(95, 62%, 31%);  --av-c2: hsl(120, 58%, 21%); }
-.c-avatar[data-hue="4"]  { --av-c1: hsl(135, 62%, 32%); --av-c2: hsl(160, 58%, 22%); }
-.c-avatar[data-hue="5"]  { --av-c1: hsl(165, 62%, 31%); --av-c2: hsl(190, 58%, 21%); }
-.c-avatar[data-hue="6"]  { --av-c1: hsl(190, 62%, 35%); --av-c2: hsl(215, 58%, 25%); }
-.c-avatar[data-hue="7"]  { --av-c1: hsl(215, 62%, 50%); --av-c2: hsl(240, 58%, 40%); }
-.c-avatar[data-hue="8"]  { --av-c1: hsl(245, 62%, 58%); --av-c2: hsl(270, 58%, 48%); }
-.c-avatar[data-hue="9"]  { --av-c1: hsl(275, 62%, 55%); --av-c2: hsl(300, 58%, 45%); }
-.c-avatar[data-hue="10"] { --av-c1: hsl(305, 62%, 47%); --av-c2: hsl(330, 58%, 37%); }
-.c-avatar[data-hue="11"] { --av-c1: hsl(335, 62%, 51%); --av-c2: hsl(0, 58%, 41%);   }
+   ★ #591: the same 12 anchors are now reusable OFF an avatar, via `.c-idhue`. The
+   contact-details cover is a person's identity colour behind their photo, and it must
+   be the SAME colour their gradient avatar would have been — two sources for one
+   identity is how they drift apart. Each selector gains one alternative; the values are
+   untouched, and `.c-disc[data-hue]` cannot collide because its hues are NAMES
+   ('accent', 'info', …) and these are indices. */
+
+.c-avatar[data-hue="0"], .c-idhue[data-hue="0"]  { --av-c1: hsl(0, 62%, 52%);   --av-c2: hsl(25, 58%, 42%);  }
+.c-avatar[data-hue="1"], .c-idhue[data-hue="1"]  { --av-c1: hsl(22, 62%, 43%);  --av-c2: hsl(47, 58%, 33%);  }
+.c-avatar[data-hue="2"], .c-idhue[data-hue="2"]  { --av-c1: hsl(40, 62%, 35%);  --av-c2: hsl(65, 58%, 25%);  }
+.c-avatar[data-hue="3"], .c-idhue[data-hue="3"]  { --av-c1: hsl(95, 62%, 31%);  --av-c2: hsl(120, 58%, 21%); }
+.c-avatar[data-hue="4"], .c-idhue[data-hue="4"]  { --av-c1: hsl(135, 62%, 32%); --av-c2: hsl(160, 58%, 22%); }
+.c-avatar[data-hue="5"], .c-idhue[data-hue="5"]  { --av-c1: hsl(165, 62%, 31%); --av-c2: hsl(190, 58%, 21%); }
+.c-avatar[data-hue="6"], .c-idhue[data-hue="6"]  { --av-c1: hsl(190, 62%, 35%); --av-c2: hsl(215, 58%, 25%); }
+.c-avatar[data-hue="7"], .c-idhue[data-hue="7"]  { --av-c1: hsl(215, 62%, 50%); --av-c2: hsl(240, 58%, 40%); }
+.c-avatar[data-hue="8"], .c-idhue[data-hue="8"]  { --av-c1: hsl(245, 62%, 58%); --av-c2: hsl(270, 58%, 48%); }
+.c-avatar[data-hue="9"], .c-idhue[data-hue="9"]  { --av-c1: hsl(275, 62%, 55%); --av-c2: hsl(300, 58%, 45%); }
+.c-avatar[data-hue="10"], .c-idhue[data-hue="10"] { --av-c1: hsl(305, 62%, 47%); --av-c2: hsl(330, 58%, 37%); }
+.c-avatar[data-hue="11"], .c-idhue[data-hue="11"] { --av-c1: hsl(335, 62%, 51%); --av-c2: hsl(0, 58%, 41%);   }
 
 .c-avatar {
   position: relative;
@@ -1447,7 +1454,12 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-tcard {
   /* #337 (W4 ride-along): card rail = --layout-card-max, NOT the text-bubble
      token — the 680px desktop bubble raise must not stretch fixed-width cards */
-  width: min(var(--bubble-max-pct), var(--layout-card-max));
+  /* ★ #591 (Damir 2026-08-26): "all calls and payments bubbles should wrap and not
+     be fixed length." This was a fixed WIDTH, so a two-word payment card was drawn at
+     the full card rail with a lake of empty space beside its text. It hugs its content
+     now and the rail becomes the CAP, which is what the call card has done since #265. */
+  width: fit-content;
+  max-width: min(var(--bubble-max-pct), var(--layout-card-max));
   padding: var(--spacing-12);
   border-radius: var(--radius-16);
   background: var(--surface-bubble-received);
@@ -1477,11 +1489,14 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 }
 /* #265 (Damir ⑪): call cards HUG their content — a two-line event read
    oversized at full bubble width. */
-.c-tcard[data-kind="call"] {
-  width: fit-content;
-  min-width: 220px;
-  max-width: min(var(--bubble-max-pct), var(--layout-card-max)); /* #337: card rail */
-}
+/* ★ #591: the 220px FLOOR is gone with the same reasoning — a floor is a fixed length
+   for every card shorter than it, which is the half of #265 Damir is now correcting.
+   The medallion, the title and the meta already give a call card a natural width. */
+.c-tcard[data-kind="call"] { min-width: 0; }
+/* …and the text WRAPS rather than being clipped. A file or app NAME keeps its ellipsis
+   (a filename wrapped over four lines is worse), but a call or payment line is a
+   sentence and a sentence should wrap. */
+.c-tcard__title, .c-tcard__call-meta, .c-tcard__note { overflow-wrap: anywhere; }
 
 .c-tcard__head {
   display: flex;
@@ -2218,6 +2233,12 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 
 /* tip pill (c-badge) alignment inside the row */
 .c-reactions__tip { align-self: center; }
+/* ★ #591 (Damir): the tip pill draws from SUCCESS instead of warning — a tip is money
+   that ARRIVED, and warning is the role this app reserves for "something may be off".
+   ⚠ The swap alone lost AA in light (7.04 → 4.28 at 12px bold). The ink is NOT patched
+   here: `--text-success` itself moved one step in LIGHT ONLY — see tokens.css. Scoping a
+   colour fix to one pill would have left the same failure on the three other surfaces
+   that already use this pair. */
 
 /* —— inspect sheet content (openReactionsSheet) —— */
 .c-reactmenu { display: flex; flex-direction: column; }
@@ -2677,6 +2698,49 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   pointer-events: none;
 }
 
+/* ★★ #589 (Damir F5 2026-08-26) — THE LIFTED ROW IS NOT PROMINENT IN DARK MODE.
+   And the audit found the reason is older and larger than the report.
+
+   THE GROUND HAS ALWAYS BEEN DEAD CODE. #572 put `background: --surface-screen` on
+   `.c-swipe`, but `.c-swipe__content` (chats-swipe.css) is a positioned child that
+   FILLS the wrapper and already paints that same `--surface-screen`, opaquely. A
+   positioned child paints above its parent's background, so the wrapper's ground was
+   never visible — and painting the list's own colour is exactly the "same colour as
+   the list" Damir is looking at. Every ordinary mobile row is wrapped (home.html
+   passes pin + mute), so this is the normal case, not an edge.
+
+   ⚠ MY FIRST FIX LANDED AT THE SAME DEAD ALTITUDE — a `z-index: -1` wash on
+   `.c-swipe`, still under that opaque child. It would have changed nothing visible,
+   which is worse than the bug it answered, because the pin would have gone green.
+
+   FIXED BY MOVING THE PAINT TO THE ELEMENT THAT SHOWS, and by making it ONE OPAQUE
+   TOKEN rather than a translucent wash. `--surface-neutral-02` is the neutral raised
+   fill, one perceptual level off `--surface-screen` in BOTH themes
+   (neutral-50 / neutral-800). Damir asked for "the neutral press fill"; the literal
+   press token is an ALPHA (`--surface-press-row-hover`) and it cannot be used here —
+   above a 0.7 scrim a translucent row reads as the dim itself, which is the whole
+   reason the ground exists. This is the same neutral, one level, opaque.
+
+   ⚠ It also removes a defect the wash version would have introduced: the row's own
+   press layer (`base.css .c-chatlist-item::before`, 0.05) is still filling when the
+   long press opens the menu, so a second 0.10 wash composited to ~0.15 for the first
+   several hundred milliseconds — a lift whose colour depends on how fast the menu
+   opened. One opaque paint has no such coupling.
+
+   ⚠ NOT a tonal fill, and that part of the old note stands: tonal reads as SELECTED,
+   the reading Batch E (c) removed on desktop for the same reason.
+
+   ★★ AND THE GROUND ALONE IS NOT ENOUGH IN DARK — the round-2 review measured it and
+   it is the point Damir actually raised. A scrim is BLACK: over the light list it
+   drops the surroundings to ~#575859 and one neutral step then reads at 6.2:1, but
+   over the dark list it can barely darken what is already near-black, so the same
+   step measures 1.10:1. For calibration, `--surface-pinned` composites to 1.15 in
+   dark and N56 shipped that as "a very light wash". A third one-token attempt would
+   land in the same place.
+   So the lifted row also takes the RING — the same 5.98:1 recipe `[data-menu-target]`
+   already uses on a lifted message (#492), which is scrim-independent because it does
+   not rely on the ground underneath. One recipe, two surfaces. */
+
 /* ★ #572 ③ (the E-3 dial) — THE CHAT ROW variant of the same lift.
    `data-menu-lift="row"` is set by chats-row-menu.js on the `.c-swipe` wrapper
    (its comment carries the stacking check for that chain). The rule above already
@@ -2690,8 +2754,17 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 
    ⚠ ITS OWN RADIUS. The row is full-bleed inside the list; standing alone above the
    scrim it must read as one card, the same radius the desktop press wash uses. */
+/* The WRAPPER keeps a ground of its own, and the review is why: `openChatRowMenu`
+   closes an open swipe drawer BEFORE it lifts, and `.c-swipe__content` springs back
+   over a 200ms transform. During that motion the region between the two action panels
+   is the WRAPPER — so dropping its paint showed a translucent band of scrim through a
+   row that is supposed to be lifted above it. It costs one declaration to keep. */
 :root:not([data-desktop]) .c-swipe[data-menu-lift="row"] {
-  background: var(--surface-screen);
+  background-color: var(--surface-neutral-02);
+  border-radius: var(--radius-12);
+}
+:root:not([data-desktop]) .c-swipe[data-menu-lift="row"] .c-swipe__content {
+  background: var(--surface-neutral-02);
   border-radius: var(--radius-12);
 }
 /* ⚠ review MINOR-7: the lift falls back to the ROW itself when the swipe wrapper is
@@ -2700,19 +2773,36 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    own state fills, which is what the note above forbids: `--surface-pinned` (0,2,0)
    and the `[aria-current]` tonal would both lose to a (0,3,0) shorthand. Guarded, so
    a stateful row keeps its own paint and simply lifts without a new ground. */
+/* the UNWRAPPED fallback (a handshaking row; pin and mute both off) — the row is
+   the lift target itself and is transparent, so it takes the same paint directly. */
 :root:not([data-desktop]) .c-chatlist-item[data-menu-lift="row"]:not([data-pinned]):not([aria-current]) {
-  background: var(--surface-screen);
+  background-color: var(--surface-neutral-02);
   border-radius: var(--radius-12);
 }
-/* ⚠ NO press wash here, and that is a decision. Desktop needs
-   `[data-dt-ctx-source]` because desktop has NO scrim — the wash is the only thing
-   that says which row. On mobile the deep scrim already isolates the lifted row, and
-   a tonal fill on top of it would read as SELECTED, which is the reading Batch E (c)
-   removed on desktop for the same reason.
+/* ⚠ THERE IS NO PRESS WASH HERE, and an earlier draft of this batch said there was.
+   The lift is an opaque ground plus a ring (above). The note below is what that
+   replaced, kept because half of it still holds. What was wrong: the scrim alone does
+   NOT isolate the row when the row's ground is the same colour as the list beneath it,
+   and in dark it barely isolates it at all. What is still true, and is why the ground
+   is the NEUTRAL step and not a tonal one: a TONAL fill reads as SELECTED, the reading
+   Batch E (c) removed on desktop for the same reason. Desktop keeps
+   `[data-dt-ctx-source]` and its own value; it has no scrim.
    ⚠ The ground goes on the WRAPPER, never on `.c-chatlist-item`. The row keeps its
    own state fills — `--surface-pinned`, the press sweep, `[aria-current]` — and
    those are alpha layers that need something opaque behind them. Painting the item
    instead would either lose the state or lose the ground. */
+
+/* ★★ #589: THE LIFTED CHAT ROW TAKES THE RING TOO. `chats-row-menu.js` sets the lift
+   but never `[data-menu-target]`, so a lifted row had no ring, no border and no
+   elevation — in dark, the entire affordance was a 1.10:1 fill. The recipe is the
+   message target's, byte for byte, so there is one ring in this app and not two.
+   ⚠ Radius is set explicitly, not inherited: the lift targets carry radius-12 and the
+   iOS-62 negative forbids `border-radius: inherit` in this file (on the message tint it
+   would take the bubble parent's radius and square off every bubble). */
+:root:not([data-desktop]) .c-swipe[data-menu-lift="row"],
+:root:not([data-desktop]) .c-chatlist-item[data-menu-lift="row"] {
+  box-shadow: 0 0 0 2px var(--brand-400), 0 0 0 5px rgba(118, 157, 255, 0.28);
+}
 
 /* The ring, unchanged from #492 — it was never the wrong ring, only the wrong
    layer. Above the scrim it reads at its measured 5.98:1.
@@ -3096,10 +3186,22 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   line-height: var(--line-height-label-lg);
   font-weight: var(--font-weight-semibold);
   color: var(--text-neutral-01);
-  /* ★ #569 belt: the truncation above is the fix, this is the guarantee. A name is
-     peer-supplied text and can be one unbroken token of any length; without this the
-     flex item overflows and the whole sheet scrolls sideways (Damir's screenshot). */
+  /* ★ #589 (Damir F5 2026-08-26): "a nick ellipsizes at the END, on overflow only."
+     The SENTENCE still wraps — the round-2 review showed that ellipsizing it whole ate
+     the verb in every locale that puts {name} first. Only the NAME truncates, below. */
   overflow-wrap: anywhere;
+}
+/* the payee NAME inside the title: one line, ellipsized at its end. `inline-block` is
+   what gives it a box to overflow; `max-width: 100%` keeps it inside the title's line
+   box, which is what preserves the #569 anti-sideways-scroll guarantee. `vertical-align`
+   keeps the baseline aligned with the words around it. */
+.c-tipsheet__payee {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: bottom;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .c-tipsheet__excerpt {
   margin: 0;
@@ -3608,7 +3710,52 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   gap: var(--spacing-12);
   padding-block: var(--spacing-8) var(--spacing-4);
   text-align: center;
+  /* ★ #591: the cover is absolutely positioned behind this block */
+  position: relative;
+  isolation: isolate;
 }
+/* ★★ #591 (Damir's second mockup) — THE COVER.
+   A soft band behind the identity: the contact's own photo, blurred and scaled, over
+   their identity gradient (`.c-idhue`, the same 12 anchors their fallback avatar uses).
+   ⚠ `z-index: -1` inside the hero's own isolation puts it above the page ground and
+   below every child, so the avatar, the name and the pencil all sit on top of it with
+   no stacking games and no risk of covering content — the same recipe the press layer
+   uses (base.css). Bleeds edge to edge by cancelling the body's inline padding. */
+.c-chat-info__cover {
+  position: absolute;
+  z-index: -1;
+  /* ⚠ AND IT BLEEDS UPWARD TOO. `top: 0` is the HERO's top, and the body's own 16px
+     padding-block-start sits above it — so the band began 16px below the chrome with a
+     hard horizontal edge, which is the same floating-panel complaint the inline fix was
+     written for, rotated 90°. The mask only fades the bottom. */
+  top: calc(-1 * var(--spacing-16));
+  /* ⚠ THE FIRST CUT DID NOT BLEED, and its own comment said it did. `100vw` with
+     `max-width: 100%` clamps straight back to the hero — the hero IS the containing
+     block, so the pair cancelled and left a hard-cornered band inset 16px from both
+     edges: a floating rectangle, not a backdrop. Viewport units were the wrong tool;
+     cancelling the body's own inline padding is the right one, and it stays correct
+     inside a 360px desktop pane, where `100vw` would have been the whole window. */
+  inset-inline: calc(-1 * var(--spacing-16));
+  height: 148px;                       /* 132 + the 16 it now reaches upward */
+  overflow: hidden;
+  pointer-events: none;
+  background: linear-gradient(140deg, var(--av-c1, var(--surface-neutral-02)), var(--av-c2, var(--surface-neutral-02)));
+  /* fades into the page rather than ending on a hard edge — the band is a backdrop,
+     not a panel. mask-image is progressive: without it the cover is simply a solid band. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 40%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 40%, transparent 100%);
+}
+/* the photo, blurred well past recognisability — this is colour, not a second portrait.
+   `scale` hides the blur's soft edges, which would otherwise show as a light rim. */
+.c-chat-info__cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.35);
+  filter: blur(22px) saturate(1.15);
+  opacity: 0.85;
+}
+
 /* avatar.css tokenizes 24/40/48 (+ the old 64 hero); the 80 hero sizes inline
    via avatar.js, so its initials + presence dot are pinned here (0.38× scale,
    the avatar.css rule of thumb). */
@@ -3695,128 +3842,17 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   color: var(--text-error);
 }
 
-/* —— address —— the value sits on its OWN chip surface (member-sheet parity,
-   Damir: it should stand out from the section; the copy button was misaligned
-   as a 44px text button) —— */
-.c-chat-info__address {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-8);
-}
-.c-chat-info__address-row {          /* the chip: distinct surface, copy sits inside */
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-8);
-  max-width: 100%;
-  min-width: 0;
-  padding-block: var(--spacing-8);
-  padding-inline: var(--spacing-12) var(--spacing-8);
-  border-radius: var(--radius-12);
-  background: var(--surface-input);
-}
-.c-chat-info__address-value {
-  flex: 1;
-  min-width: 0;
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-height-body-sm);
-  color: var(--text-neutral-01);
-  word-break: break-all;            /* FULL address, wraps — truth stays whole (#99) */
-  text-align: start;
-}
-.c-chat-info__copy {                 /* 32px icon button — member-sheet parity */
-  flex: none;
-  position: relative;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: var(--radius-full);
-  background: transparent;
-  color: var(--icon-action-default);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: background-color var(--duration-100) var(--easing-standard);
-}
-.c-chat-info__copy::after { content: ''; position: absolute; inset: -6px; }   /* hit area */
-@media (hover: hover) and (pointer: fine) {
-  .c-chat-info__copy:hover { background: var(--surface-interactive-hover); }
-}
-.c-chat-info__copy:active { background: var(--surface-interactive-pressed); }
-
-.c-chat-info__qr-toggle {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-8);
-  min-height: 44px;
-  padding: 0 var(--spacing-4);
-  border: 0;
-  background: transparent;
-  color: var(--text-action-default);
-  font-size: var(--font-size-label-md);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-  border-radius: var(--radius-8);
-  -webkit-tap-highlight-color: transparent;
-}
-.c-chat-info__qr-chevron {
-  margin-inline-start: auto;
-  transition: transform var(--duration-200) var(--easing-standard);
-}
-.c-chat-info__qr-toggle[aria-expanded='true'] > .c-chat-info__qr-chevron {
-  transform: rotate(180deg);        /* child combinator — the #137 M4 lesson */
-}
-/* ★ N86 ① (Damir 2026-08-25): "the QR should have a smaller white padding around it,
-   this way on dark mode it's quite overpowering."
-
-   Measured before touching it, because HALF of that white is a standard, not a choice.
-   createQrSvg bakes `quiet = 4` — the ISO/IEC 18004 minimum quiet zone. Below four
-   modules scanners start failing, and this is a WALLET ADDRESS, where a misread is the
-   worst class of defect in the app. At 185px that quiet zone measures 16.44px to 20.00px
-   per side (the table below), and it is untouchable.
-
-   The 12px card padding on top of it was doing a job the quiet zone already does. Gone:
-   the white square drops from ≈209px to 185px, a 22% cut in white area, with no effect
-   on scanning at all.
-
-   ⚠ THE RADIUS SURVIVES THE PADDING, and the corner arithmetic is why. With 12px of
-   padding the 16px curve lived entirely in the padding and could not reach the code.
-   With none, it eats the quiet zone's own corner.
-
-   ★ #46 loop: the numbers below are MEASURED, not estimated. An earlier version of this
-   comment carried three wrong ones. The method: run the SHIPPED encoder
-   (createQrSvg → setQrValue, ecc 'M', quiet = 4) over the real payload
-   (`address + ':ixi'`) and read the viewBox back. Re-measure the same way if the payload
-   or the encoder changes. Over payloads of 34 to 76 characters the viewBox takes exactly
-   three values. The BOX is the code plus the 4-module quiet zone on each side, so the box
-   is always 8 cells wider than the code:
-     34–42 chars → 29-module code, 37-cell box, 5.00px per cell, 20.00px quiet zone
-     43–62 chars → 33-module code, 41-cell box, 4.51px per cell, 18.05px quiet zone
-     63–76 chars → 37-module code, 45-cell box, 4.11px per cell, 16.44px quiet zone
-   A real Ixian address lands in the middle row.
-
-   ⚠ A 16px radius removes at most R(√2−1) = 6.63px of DIAGONAL depth at a square corner.
-   It does NOT remove 16 − 16/√2 = 4.69px. That second value is the sagitta of the arc. It
-   is a different measurement, and it understates the loss by 41%.
-
-   THE SAFETY RESULT, which is unchanged. The quiet zone is 16.44px in the worst measured
-   case. The radius is 16px. The curve therefore stays inside the quiet zone at all four
-   corners and reaches no module. Along every edge, where ISO/IEC 18004 measures, the clip
-   removes nothing. The curve first touches the code corner when the quiet zone falls
-   below 16 − 16/√2 = 4.69px, which needs a box of about 157 cells. This payload cannot
-   make one.
-   ⚠ Raise this radius above 16px and re-do both comparisons. */
-.c-chat-info__qr {
-  display: flex;
-  justify-content: center;
-  align-self: center;               /* #149③: hug the code — the white card spanned the
-                                       full section width; account-hub parity */
-  border-radius: var(--radius-16);
-  background: var(--surface-qr);    /* fixed pair — never theme-flips (#137) */
-  box-shadow: var(--elevation-1);
-}
-.c-chat-info__qr svg { width: 185px; height: 185px; }   /* sanctioned: scan-comfort QR dim (account-hub parity, #149③) — +25% (Damir F5 2026-07-29: 148 scanned poorly on a phone held at arm's length) */
+/* —— address —— ★ #591 (Damir 2026-08-26): THE CARD IS RETIRED.
+   It was ~123 lines carrying a full base58 line on its own chip surface, a copy button
+   with its own hit-area padding, and a lazy Show-QR disclosure with a rotating chevron
+   and a fixed 185px code — three affordances for one value, on a screen whose every
+   other entry is a row. All of it moved into the shared address sheet (#527), which is
+   the same collapse #575 made on the Account hub. The row that replaced it is below.
+   ⚠ The rules are DELETED, not left dangling: dead CSS ships inlined into every built
+   shell that links this file, and five smoke assertions were still pinning its styling
+   while a new assertion pinned the markup absent — a suite asserting both that the
+   markup is gone and that its CSS is right would have gone red for the correct cleanup.
+   The sheet's own rules (wallet-receive.css) carry the QR, the chip and the copy morph. */
 
 /* —— action row —— WALLET-BANNER grammar (Damir 2026-08-12): the three chunky
    44px buttons (a full-width fill + two outlines, wrapping onto two rows) are
@@ -3827,7 +3863,22 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   justify-content: center;
   gap: var(--spacing-8);
 }
-.c-chat-info__money > .c-chat-info__qa { flex: 1; max-width: 96px; }
+/* ★ #591: FOUR actions now (Message · Call · Pay · Request). The 96px cap was sized
+   for three; 84 keeps four equal targets with the row still centred, and a shorter row
+   (a bot, or a host that wires fewer) still hugs because items only grow to their cap.
+   ⚠ THE CAP IS NOT THE BINDING CONSTRAINT — `flex: 1` is. At 360px four items leave
+   ~68px of label, and the audit measured ru-ru "Сообщение" at 70px and "Позвонить" at
+   70px: both would have ellipsized. The label WRAPS to two lines instead of being cut,
+   because a truncated verb on an action button is unreadable while a wrapped one is
+   merely tall. ⚠ The project's i18n-overflow audit has no control class for
+   `.c-chat-info__qa`, so it reported NO BREAKERS while carrying this — see the script.
+   ⚠ THE WRAP LIVES ON THE EXISTING `.c-chat-info__qa-label` RULE BELOW, not here. The
+   first cut declared a second `.c-chat-info__qa-label` block at THIS point — earlier in
+   the file than the one that already set `white-space: nowrap` — so at equal specificity
+   the later rule won and the fix did nothing. That is the exact mistake documented four
+   rules down in this same file, in this same batch. `overflow-wrap` is also inert under
+   `nowrap`, so the whole block was decoration. */
+.c-chat-info__money > .c-chat-info__qa { flex: 1; min-width: 0; max-width: 84px; }
 /* identity + actions read as ONE header block: pull the row up out of the
    body's 16px section rhythm (the full gap made the actions look orphaned) */
 .c-chat-info__hero + .c-chat-info__money { margin-block-start: calc(-1 * var(--spacing-8)); }
@@ -3864,9 +3915,13 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 }
 .c-chat-info__qa-label {
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* ★ #591: WRAPS (see the four-up note above). A truncated verb on an action button is
+     unreadable — "Сообщ…" — while a wrapped one is merely two lines tall. `overflow-wrap`
+     only does anything once wrapping is permitted, which is why it must live HERE and not
+     in a second block that a later `nowrap` would beat. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
 }
 @media (hover: hover) and (pointer: fine) {
   .c-chat-info__qa:hover .c-chat-info__qa-circle { background: var(--surface-action-tonal-hover); }
@@ -3883,6 +3938,58 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
                                        (#149② — the notifications card read squeezed;
                                        settings-row parity) */
 }
+/* ★ #591: the ADDRESS ROW — the card became one row that opens the address sheet.
+   Two lines in the label column: the disc + title on top, the truncated address below
+   it, aligned with the title's TEXT rather than under the disc (the #575 one-left-edge
+   rule, same as the Account hub's sub-lines). */
+.c-chat-info__addr-row {
+  width: 100%;
+  border: 0;
+  text-align: start;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+  border-radius: var(--radius-16);   /* the press wash must follow the card's corner */
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+/* ⚠ #43 hover coverage + the LOCAL pattern: every other tappable row on this screen
+   (`__setting`, `__sd-option`, `__member`) carries hover AND active. The first cut
+   carried neither while suppressing the native tap highlight, so a tap on the one new
+   control did nothing visible until the sheet finished building. */
+/* ⚠ SCOPED THROUGH `__body >`, and that is not stylistic. The card rule at the top of
+   this file is `.c-chat-info__body > :not(…):not(…):not(…)` — `:not()` carries its
+   argument's specificity, so it is (0,4,0), and it sets `background: --surface-card` on
+   this element. A bare `.c-chat-info__addr-row:active` is (0,2,0) and LOSES: the first
+   cut's press wash never painted, so the row still did nothing visible on tap — the very
+   defect it was written for. This is M1's mistake in its other form, in the same file.
+   ⚠ The addr-row is the only interactive DIRECT CHILD of the body; `__setting`,
+   `__sd-option` and `__member` all sit nested inside cards, which is why the "local
+   pattern" they follow works for them and did not work here. */
+@media (hover: hover) and (pointer: fine) {
+  .c-chat-info__body > .c-chat-info__addr-row:hover { background: var(--surface-interactive-hover); }
+}
+.c-chat-info__body > .c-chat-info__addr-row:active { background: var(--surface-interactive-pressed); }
+.c-chat-info__body > div.c-chat-info__addr-row,
+.c-chat-info__body > div.c-chat-info__addr-row:active { cursor: default; background: var(--surface-card); }
+/* ⚠ COMPOUND, not a bare class. `.c-chat-info__row-label` is declared LATER with
+   `align-items: center; gap: --spacing-8`, and at equal specificity later wins — so the
+   first cut's column layout silently kept the row grammar's centring and gap, which is
+   precisely the one-left-edge rule the comment claimed to be applying. */
+.c-chat-info__row-label.c-chat-info__addr-label {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+}
+.c-chat-info__addr-top { display: inline-flex; align-items: center; gap: var(--spacing-12); }
+.c-chat-info__addr-value {
+  /* 32px disc + the 12px gap: the address starts where the title's text starts */
+  padding-inline-start: calc(32px + var(--spacing-12));
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+
 /* setting row (#142: disappearing messages) — a tappable row: label · value · chevron */
 .c-chat-info__setting {
   width: 100%;
@@ -4007,7 +4114,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   transform: translateX(20px);
 }
 @media (prefers-reduced-motion: reduce) {
-  .c-chat-info__switch, .c-chat-info__switch-knob, .c-chat-info__qr-chevron,
+  /* #591: __qr-chevron left with the retired address card */
+  .c-chat-info__switch, .c-chat-info__switch-knob,
   .c-chat-info__txs-chevron { transition: none; }
 }
 
@@ -4197,18 +4305,34 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 .c-member__actions > .c-button { flex: 1; }
 
 /* ★ A8 (Batch A 2026-08-24): skeleton rows while the roster / shared-groups pushes
-   land. Neutral wash, a slow shimmer (off under reduced motion), never interactive. */
+   land. Neutral wash, a slow shimmer (off under reduced motion), never interactive.
+
+   ★ #591 (Damir 2026-08-26): "it needs to have the EXACT same placement as the elements
+   here, and it needs to be more visible, a notch or 2."
+
+   TWO STEPS UP, not one: `--surface-neutral-02` is the same fill the cards on this
+   screen already paint, so a skeleton drawn in it was a shape the eye read as content
+   rather than as absence. `--surface-neutral-04` is two rungs of the ramp and reads as
+   a placeholder in both themes.
+
+   ⚠ PLACEMENT is the other half, and it is the half that matters more: a skeleton whose
+   boxes MOVE when the data lands is worse than no skeleton at all. The row itself is
+   already the real `.c-chat-info__member` (same min-height, padding, gap), so the two
+   things that could still shift are the line's HEIGHT and its BASELINE. The line is now
+   the real name's line-height, centred in the same box the text occupies, so the swap
+   is a colour change and nothing reflows. */
 .c-chat-info__member--skeleton { cursor: default; pointer-events: none; }
 .c-chat-info__skeleton-avatar {
   flex: none;
   width: var(--size-avatar-40); height: var(--size-avatar-40);
   border-radius: var(--radius-full);
-  background: var(--surface-neutral-02);
+  background: var(--surface-neutral-04);
 }
 .c-chat-info__skeleton-line {
-  height: 14px;
+  /* the real row's name is body-md; matching its LINE BOX is what stops the jump */
+  height: var(--line-height-body-md);
   border-radius: var(--radius-full);
-  background: var(--surface-neutral-02);
+  background: var(--surface-neutral-04);
 }
 .c-chat-info__skeleton-avatar, .c-chat-info__skeleton-line {
   animation: c-chat-info-shimmer 1.4s var(--easing-standard) infinite;
@@ -5525,6 +5649,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     truncateAddressMiddle,          // #211 canon: chat surfaces show addresses truncated, never in full
     attachContextMenuAnchors, anchorSheetAbove,   // Batch C (M6): desktop sheet grammar (no-op on mobile)
     isPseudoAddressNick,            // D-19b (#370): blind roster "x"+address pseudo-keys never display
+    isAddressShaped,                // ★ #589: the ONE address-shape test — a NICK is never middle-truncated
     attachChatFlow, syncChatFlow, detachChatFlow, // W5: "Live flow" animated pattern style (desktop-only)
     createNativeBridge, installExecuteUiCommand,
     /* ★ N81 (#422) — MISSED IN THE FIRST CUT, caught by the #46 audit executing the
@@ -6796,8 +6921,11 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     const matched = acceptedEventMatch(rec.text);
     const parts = matched ? matched.parts : ACCEPTED_PARTS;
     const subject = matched ? matched.subject : '';
-    const looksAddr = /^[a-zA-Z0-9]{24,}$/.test(subject);
-    const display = looksAddr ? truncateAddressMiddle(subject) : subject;
+    /* ★ #589: this test was `/^[a-zA-Z0-9]{24,}$/` — 24 characters, and not even
+       base58-restricted, so it accepted 0/O/I/l. A 24-character nickname without
+       spaces is ordinary, and it was rendered middle-truncated as if it were an
+       address. The shared canon needs 40+ base58 characters with a digit. */
+    const display = isAddressShaped(subject) ? truncateAddressMiddle(subject) : subject;
     const row = document.createElement('div');
     row.className = 'chat-event';
     const chip = document.createElement('div');

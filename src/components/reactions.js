@@ -101,9 +101,13 @@ export function addReactions(row, {
   }
 
   if (tip) {
-    // tip = amount pill in the reaction row (#65); c-badge keeps the vocabulary
+    /* tip = amount pill in the reaction row (#65); c-badge keeps the vocabulary.
+       ★ #591 (Damir 2026-08-26): SUCCESS, not warning. Same badge, same tonal
+       weight, same glyph — only the role changes. A tip is money that ARRIVED;
+       warning is the role this app reserves for "look at this, something may be
+       off", and it was reading as a caution on a completed transfer. */
     const badge = createBadge({
-      type: 'warning', weight: 'tonal', label: tip, icon: 'heart-handshake',
+      type: 'success', weight: 'tonal', label: tip, icon: 'heart-handshake',
     });
     badge.classList.add('c-reactions__tip');
     el.append(badge);
@@ -238,7 +242,8 @@ export function openReactionsSheet({ host, reactions = [], tip = '', strings = g
     const rowEl = document.createElement('div');
     rowEl.className = 'c-reactmenu__row';
     rowEl.setAttribute('role', 'listitem');
-    rowEl.append(createBadge({ type: 'warning', weight: 'tonal', label: tip, icon: 'heart-handshake' }));
+    // #591: the inspect sheet carries the SAME role as the pill it explains
+    rowEl.append(createBadge({ type: 'success', weight: 'tonal', label: tip, icon: 'heart-handshake' }));
     content.append(rowEl);
   }
   const sheet = createSheet({ title: strings.reactions || 'Reactions', content, host, strings });

@@ -23,7 +23,11 @@
  *   opts.onTx(tx) — B3: host-routed row tap (production emits ixian:txdetails:
  *   <txid> → WalletSentPage detail page/pane); rows without a txid, and every
  *   caller that doesn't pass onTx (demos), keep the in-page bottom sheet.
- *   opts.onReceive() — the zero-state CTA: opens the SAME Receive surface the
+ *   opts.onReceive() — the zero-state CTA. ⚠ #589: the production shell now points
+ *     this at the ADDRESS SHEET, not at the Receive takeover — the button says "Show
+ *     my address" and the takeover is a different promise (an amount field, a contact
+ *     strip). The hero's own Receive action still opens the takeover. The old note:
+ *     it used to open the SAME Receive surface the
  *   hero's Receive action opens (no new bridge verb). Omit it → no CTA.
  * setWalletFilter(listEl, state, filter, opts) — free fn (#44)
  * createWalletFilters(state, { listEl, host, strings, onExplorer }) → row

@@ -36,7 +36,7 @@
 import { getStrings } from './strings-runtime.js';
 import { createChatItem } from './chatlist-item.js';
 import { createContactRequest } from './contact-request.js';
-import { attachChatRowMenu, liftedRowAddress, repaintRowGhost } from './chats-row-menu.js';   // ★ review MINOR-3: a flush must not drop the pressed-row lift
+import { attachChatRowMenu, liftedRowAddress, repaintRowGhost, clearChatRowMenuTimers } from './chats-row-menu.js';   // ★ review MINOR-3: a flush must not drop the pressed-row lift
 import { wrapChatRowSwipe, closeChatRowSwipe } from './chats-swipe.js';
 import { createEmptyState } from './empty-state.js';
 
@@ -225,6 +225,11 @@ export function renderChatsList(listEl, state, opts = {}) {
   const strings = opts.strings || getStrings();
   const caps = opts.capabilities || {};
   closeChatRowSwipe();                                   // close any open swipe drawer before detaching rows (#1: single-open + GC)
+  /* ★★ #46 loop (2026-08-29, Damir on Android): and cancel every ARMED long press before
+     the rows go. The release is delivered to the node under the finger, so a row replaced
+     mid-press never gets its own `pointerup` — its 500 ms timer survives the flush and
+     opens a menu into a shell the user has already left. See chats-row-menu.js. */
+  clearChatRowMenuTimers();
   listEl.textContent = '';                               // clear (detaches old rows + listeners for GC)
   const avCache = avatarCacheFor(listEl);                // N58
   const avatarSeen = new Set();                          // N58: dup-address guard (a node must never be moved twice per render)
@@ -293,13 +298,20 @@ export function renderChatsList(listEl, state, opts = {}) {
        beneath the deep scrim mid-interaction — the exact symptom the lift fixes. */
     if (c.address && c.address === liftedRow) {
       node.dataset.menuLift = 'row';
-      /* ★ #606 r2 (adversarial review): the GHOST follows the re-render too. It is a
-         snapshot pinned to a viewport rectangle, and the flush that replaced this row
-         also re-sorted the list — left alone it strands an opaque copy of this chat over
-         whatever row now occupies the old slot. */
-      try { repaintRowGhost(node); } catch (e) { /* ghost is an enhancement */ }
     }
     listEl.append(node);
+    /* ★ #606 r2 (adversarial review): the GHOST follows the re-render too. It is a
+       snapshot pinned to a viewport rectangle, and the flush that replaced this row
+       also re-sorted the list — left alone it strands an opaque copy of this chat over
+       whatever row now occupies the old slot.
+       ★★ #46 loop (2026-08-29): AND IT RUNS AFTER THE APPEND. The repaint removes the old
+       ghost unconditionally and then re-paints from `getBoundingClientRect()`, which is
+       all zeros on a DETACHED node — so `paintRowGhost`'s own measurement guard declined
+       and the ghost was deleted and never rebuilt. Every flush killed it. The hazard is
+       named in paintRowGhost's own comment and this call site reproduced it. */
+    if (c.address && c.address === liftedRow) {
+      try { repaintRowGhost(node); } catch (e) { /* ghost is an enhancement */ }
+    }
   };
 
   // pinned chats on top, then requests + unpinned chats interleaved by recency

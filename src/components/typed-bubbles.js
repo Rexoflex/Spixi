@@ -366,8 +366,14 @@ export function createCallBubble({
   // declined rows previously carried NO marker at all (only data-missed).
   row.dataset.callOutcome = declined ? 'declined' : missed ? 'missed' : 'ok';
   const head = el.querySelector('.c-tcard__title');
+  /* ★★ #46 loop (2026-08-29): this pair was the INVERSE of the chats row, so ONE
+   * declined call showed one glyph in the list and a different one in the conversation.
+   * Damir settled the direction on the device and the CHATS ROW is the reference:
+   * the crossed phone belongs to the call that was TURNED DOWN, and the phone with the
+   * small x belongs to the call NOBODY ANSWERED. #621 swapped the row and never swapped
+   * this. A pin now reads both surfaces and requires them to agree. */
   head.insertAdjacentElement('afterbegin',
-    icon(declined ? 'phone-x' : missed ? 'phone-off' : 'phone', { size: 18 }));
+    icon(declined ? 'phone-off' : missed ? 'phone-x' : 'phone', { size: 18 }));
 
   if (declined) {
     // deliberate rejection: state the fact, no nudge (#87⑦)

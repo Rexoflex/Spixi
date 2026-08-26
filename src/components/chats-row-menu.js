@@ -628,6 +628,42 @@ export function openRevokeRequestFlow({ chat = {}, host, onAction, strings = get
   }));
 }
 
+/* ★★ #46 loop (2026-08-29), Damir on Android: "sometimes when I get back to the chats
+ * list from a conversation it lands with a row lifted, the background dimmed and the
+ * dropdown shown. It did it with the bottom sheet too."
+ *
+ * AN ARMED LONG PRESS MUST NOT OUTLIVE ITS ROW OR ITS SCREEN. The 500 ms timer below is
+ * WALL-CLOCK and is cancelled only by `pointerup` / `pointercancel` ON THE SAME NODE.
+ * `renderChatsList` replaces EVERY row on every flush — a message in any chat is enough,
+ * and opening a chat clears its unread, which is itself a flush. If a flush lands between
+ * the press and the release, the release is delivered to the NEW node, whose own timer is
+ * null, and the old closure's timer survives and fires into a shell the user has already
+ * left. `liftPressedRow` then helpfully re-finds the live row by address (:138), so the
+ * menu is a fully-formed one — which is exactly what he described.
+ *
+ * ★ The #589 rule: the SCREEN cancels, not each call site. `renderChatsList` clears every
+ * armed press before it detaches the rows, and a hidden document clears them too.
+ * ⚠ A flush therefore EATS a long press in progress. That is the intended trade: a press
+ * the user can simply repeat, against a menu that opens by itself over the chats list. */
+const armedRowPresses = new Set();
+
+/** Cancel every armed long press. Called by `renderChatsList` before it detaches the
+ *  rows, and by the hide edges below. Safe to call when nothing is armed. */
+export function clearChatRowMenuTimers() {
+  for (const cancel of Array.from(armedRowPresses)) {
+    try { cancel(); } catch (e) { /* one dead row must not block the rest */ }
+  }
+}
+
+if (typeof document !== 'undefined') {
+  /* the #589 pair. A native page pushed over this shell does not always deliver
+     `pointercancel`, and it must never leave a press armed behind it. */
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) clearChatRowMenuTimers();
+  });
+  if (typeof window !== 'undefined') window.addEventListener('pagehide', clearChatRowMenuTimers);
+}
+
 /** Long-press (touch) + right-click (desktop) wiring for one chat row. */
 export function attachChatRowMenu(row, opts = {}) {
   let timer = null;
@@ -635,7 +671,10 @@ export function attachChatRowMenu(row, opts = {}) {
   let startY = 0;
   let fired = false;
 
-  const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+  const cancel = () => {
+    if (timer) { clearTimeout(timer); timer = null; }
+    armedRowPresses.delete(cancel);
+  };
 
   row.addEventListener('pointerdown', (e) => {
     fired = false;                              // any new gesture resets suppression (audit r4)
@@ -647,9 +686,15 @@ export function attachChatRowMenu(row, opts = {}) {
     cancel();
     timer = setTimeout(() => {
       timer = null;
+      armedRowPresses.delete(cancel);
+      /* ★ the belt for the same defect: a row detached by a flush, or a shell the user
+         has already left, never opens a menu. `isConnected` is FALSE for a replaced row,
+         and openChatRowMenu would otherwise re-anchor to the live twin by address. */
+      if (document.hidden || !row.isConnected) return;
       fired = true;
       openChatRowMenu({ row, ...opts });
     }, CHATMENU_LONG_PRESS_MS);
+    armedRowPresses.add(cancel);
   });
   row.addEventListener('pointermove', (e) => {
     if (timer && (Math.abs(e.clientX - startX) > CHATMENU_MOVE_CANCEL_PX ||

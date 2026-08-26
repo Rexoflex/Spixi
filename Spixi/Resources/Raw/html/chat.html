@@ -7579,14 +7579,23 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       relation,
       // 'self' must never grow a request button (member-sheet only draws it when
       // relation is neither contact nor pending — so gate self/latched here).
-      /* ★★ #613 round 2 (adversarial review, HIGH-2): NOT IN A BOT ROOM, and not where
-         addresses are hidden. `onContextAction: "sendContactRequest"` refuses for
-         `friend.bot` outright — it is a Logging.error and a return, with no answer to
-         the shell — so offering it produced a "Contact request sent" SUCCESS toast and a
-         pending latch for something that was never sent.
-         ⚠ That was true for every bot room, not only a flagged one; a blind room was
-         merely protected by accident, because the member sheet was unreachable there. */
-      onRequest: (rec.senderAddress && relation === 'none' && !mode.isBot && !mode.hidesAddresses)
+      /* ★★ #623 (Damir, device 2026-08-28) — #613 ROUND 2 GOT THIS WRONG AND I BROKE A
+         WORKING FEATURE. There are TWO sendContactRequest routes and I gated on the
+         guard belonging to the other one.
+           · `onContextAction("sendContactRequest", msgId)` — the MESSAGE-menu route.
+             It refuses for `friend.bot` outright (SingleChatPage), and legacy refuses it
+             identically, so the message menu has never offered it in a bot room.
+           · `ixian:sendContactRequest:<address>` — the DIRECT, address-keyed verb, which
+             is what THIS sheet sends. It runs `sendContactRequestGuarded`, whose guards
+             are: a bad address, your own address, a pending deletion, an existing
+             contact. ★ There is no bot guard, and legacy's is unguarded too
+             (0e85a4b8 onNavigating:260) — which is exactly why tapping a member in the
+             Spixi bot group works in legacy today.
+         So the toast was NOT lying: the request genuinely sent. Gating it removed a
+         feature that had been working, on the surface a public channel exists for.
+         ⚠ The blind guard STAYS. A blind room hands the sheet `[Unknown]`, so there is
+         no address to request against — that half of #613 r2 was right. */
+      onRequest: (rec.senderAddress && relation === 'none' && !mode.blind)
         ? () => {
             requestedMembers.add(rec.senderAddress);
             bridge.send('ixian:sendContactRequest:' + rec.senderAddress);
@@ -7700,9 +7709,10 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       // chat-info's optimistic 'pending' lives on a mapped copy and dies on the
       // next refreshChatInfo rebuild without it.
       onContactRequest: (m) => {
-        /* ★★ #613 round 2 (HIGH-2): same gate as the bubble's member sheet — C# refuses
-           for every bot, so a request from here was a toast with nothing behind it. */
-        if (mode.isBot || mode.hidesAddresses) return;
+        /* ★★ #623: the bot gate is REMOVED here too — this sends the same direct,
+           address-keyed verb, which has never been bot-guarded in either tree. The
+           `[Unknown]` test below is the blind-room guard and is the part that matters. */
+        if (mode.blind) return;
         if (m && m.address && m.address !== '[Unknown]') {
           requestedMembers.add(m.address);
           bridge.send('ixian:sendContactRequest:' + m.address);

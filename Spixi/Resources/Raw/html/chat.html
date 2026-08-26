@@ -2659,9 +2659,15 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   line-height: var(--line-height-body-sm);
   color: var(--text-error);
 }
+/* REMOVE-CONTACT SPEC 2 (Damir, 2026-08-28): "Keep contact" and "Leave 1 & remove"
+   read as different KINDS of thing rather than as two choices. They are the HOUSE
+   two-button footer now, byte-identical to .c-modal__actions: equal width, wrap, and
+   NO min-width:0 — with flex-basis 0 a used min of 0 makes every item's hypothetical
+   size 0, so the wrap could never fire and the long label spilled past its button
+   instead of dropping to its own full-width row. The 2:1 override that made the CTA
+   double-width is gone with it; that WAS the size difference. */
 .c-remove-contact__actions { display: flex; flex-wrap: wrap; gap: var(--spacing-8); justify-content: flex-end; }
-.c-remove-contact__actions .c-button { flex: 1 1 0; min-width: 0; }   /* equal-width pair (#60) */
-.c-remove-contact__actions .c-remove-contact__cta { flex: 2 1 auto; }    /* loop r1: the long "Leave N & remove" label wraps to its own line, never overflows */
+.c-remove-contact__actions .c-button { flex: 1 1 0; }
 
 /* —— #506② / iOS-62: the long-pressed message is PROMOTED above the scrim ————
    Damir on device: "you cannot see what you are acting on." #492 shipped the cheap
@@ -4334,6 +4340,13 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    a half-reset button inside a card is how one row ends up a pixel off from its
    neighbours. */
 .c-chat-info__row--action {
+  /* ★★ V-14 (#46 loop 2026-08-29): TEN interactive rules in this file carry this kill
+   * and #618's new row did not — so on Android it painted its own :active wash AND a
+   * square platform rectangle over a --radius-16 card. That is the exact artefact #622
+   * removed from the explore banner, in the same batch, reintroduced here. There is no
+   * global reset to fall back on: base.css and tokens.css contain zero occurrences, and
+   * the Account-hub row this one says it copies does carry it. */
+  -webkit-tap-highlight-color: transparent;
   width: 100%;
   padding: var(--spacing-12);
   border: 0;
@@ -7054,9 +7067,34 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       const canSheet = bridge.cap('payRequest') && mode.type === 0
         && /^\d+(\.\d+)?$/.test(String(rec.amount == null ? '' : rec.amount).trim())
         && /[1-9]/.test(String(rec.amount));                 // loop r1 A-4: a zero amount has no sheet
-      const payDirect = bridge.cap('payRequest')
-        ? (canSheet ? () => openPayRequestReview(rec) : () => bridge.send('ixian:payRequest:' + rec.id))
-        : view;
+      /* ★★ THE NATIVE PAYMENT PAGE IS REMOVED (Damir decision 4, 2026-08-29). Every
+       * `canSheet === false` branch used to fall back to it — a page that no longer
+       * exists — so all four now collapse into ONE honest rule: AN INCOMING REQUEST IS
+       * ACTIONABLE ONLY WHEN IT CAN ACTUALLY BE PAID.
+       * The four cases and why none of them was ever payable here:
+       *   · no `payRequest` cap  — an exe older than this build; this one always has it
+       *   · a group or bot room  — C# refuses the pay outright (SingleChatPage:507)
+       *   · a non-numeric amount — nothing to quote a fee against
+       *   · a zero amount        — the quote never answers
+       * So the card renders as a plain record of the request instead of offering a Pay
+       * that C# would refuse and a Details link into a deleted page. Nothing is lost:
+       * the request is still visible, with its amount and its time.
+       *
+       * ★★ DECLINE lives on the CARD (decision 3), and only here — the same gate as
+       * Pay, because declining is a message to the same peer about the same request.
+       * It renders ONLY when wired (#264's no-dead-buttons canon), so the unpayable
+       * card above carries no Decline either. */
+      if (!canSheet) {
+        return createPaymentBubble({
+          role: 'request-in',
+          status: 'pending',
+          title: rec.title || '',
+          amount: displayPaymentAmount(rec),
+          timestamp: rec.ts,
+          gutter: mode.isMulti,
+          strings: window.SL || {},
+        });
+      }
       return createPaymentBubble({
         role: 'request-in',
         status: 'actionable',
@@ -7064,10 +7102,10 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
         amount: displayPaymentAmount(rec),
         timestamp: rec.ts,
         gutter: mode.isMulti,
-        onPay: payDirect,
-        // W-d: no legacy details route while the SHEET carries the detail; when the
-        // sheet cannot open (loop r1 C-2) the native view stays so the card is never inert
-        onDetails: canSheet ? null : view,
+        onPay: () => openPayRequestReview(rec),
+        onDecline: () => bridge.send('ixian:declineRequest:' + rec.id),
+        // W-d: the SHEET carries the detail; there is no other detail surface left.
+        onDetails: null,
         strings: window.SL || {},
       });
     }
@@ -7557,7 +7595,19 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     if (!rec.senderAddress && !rec.senderNick) return;
     const s = window.SL || {};
     const actions = [];
-    if (mode.admin && rec.senderAddress) {
+    /* ★★ KICK AND BAN ARE BOT-ROOM ONLY (Damir, 2026-08-29, option A) — AND THIS IS
+     * THE SURFACE HE ACTUALLY USES. The first cut of that change gated the CHAT-INFO
+     * member sheet (chat-info.js) and left THIS one, the in-chat sender tap, wide open:
+     * a private group still offered "Remove from group" and "Ban from group", which is
+     * what his device walk found at §6.2.
+     * ⚠ That is V-8's pattern exactly — "#616 fixed the twin surface, which #249 records
+     * as unreachable, and left the live one" — repeated by me on the same day I pinned
+     * the lesson. TWO surfaces offer these actions; a gate on one is not the rule.
+     * Why the actions go: Ixian-Core's `kickUser` and `banUser` handlers are EMPTY cases,
+     * so a private group's kick is delivered and honoured by nobody. A bot room works
+     * because its action is addressed to the bot SERVER. `mode.isBot` is `type === 3`,
+     * the same discriminator chat-info's `kind === 'bot'` resolves to. */
+    if (mode.admin && mode.isBot && rec.senderAddress) {
       actions.push({ label: s.removeFromGroup || 'Remove from group', destructive: true,
         onClick: () => bridge.send('ixian:kick:' + rec.senderAddress) });
       actions.push({ label: s.banFromGroup || 'Ban from group', destructive: true,
@@ -9164,6 +9214,29 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       const amt = tipAmt;
       tipCtrl = null; tipFor = ''; tipAmt = '';
       if (!c) return;
+      /* ★★ V-2 (#46 loop 2026-08-29): TWO new statuses, and both exist because the tip
+         now waits on a NATIVE CONFIRM DIALOG.
+
+         'pending' — C# has the tip and the dialog is up. The 12 s backstop was written
+         for an exe that never answers; a human reading a dialog is not that, and left
+         as it was it would have told the user their tip "may not have been sent" while
+         the dialog was still on screen, and then sent it. So the backstop is RE-ARMED at
+         120 s, which is the same window SPayments uses to declare a confirm latch stale
+         — past it, C# has given up on that confirm too. The controller is NOT resolved.
+
+         'cancel' — the user tapped Cancel. '' reaches the sheet's silent re-enable, the
+         same rule the payment review already uses: a tip somebody declined is not a tip
+         that failed, and an error line there is a lie about their own decision. */
+      if (status === 'pending') {
+        tipCtrl = c; tipFor = msgId || tipFor; tipAmt = amt;   // put the pending tip back
+        tipWait = setTimeout(() => {
+          if (!tipCtrl) return;
+          const p = tipCtrl; tipCtrl = null; tipFor = ''; tipAmt = '';
+          p.fail(sl.tipNoAnswer || 'No answer from the app. The tip may not have been sent.');
+        }, 120000);
+        return;
+      }
+      if (status === 'cancel') { c.fail(''); return; }
       if (status === '1' || status === 1 || status === true) {
         c.done();
         /* ★ audit: RESTATE THE AMOUNT. Removing the native alert also removed the only

@@ -59,7 +59,7 @@ import { setOverlayOpts, isOverlayOpen, overlayId } from './overlay.js';   // ov
 import { icon } from './icons.js';
 import { createContactRow, createGlyphRow } from './contact-row.js';   // ★ W-j shared row
 import { attachAmountKeyboardDismiss } from './amount-keyboard.js';   // ★ #609: moved to a shared module — three consumers now (#143 ②)
-import { sanitizeAmount, toUnits, amountInputToCanonical, groupAmountDisplay, amountCaretAfterFormat } from './money.js';   // #143 shared money module · ★ I-6 (#360) display grouping
+import { sanitizeAmount, toUnits, canonicalAmount, amountInputToCanonical, attachAmountPreEdit, groupAmountDisplay, amountCaretAfterFormat } from './money.js';   // #143 shared money module · ★ I-6 (#360) display grouping
 
 /* fromUnits is wallet-send-only (Max display); its inverse toUnits + the
    sanitize/canonical helpers now live in money.js (#143 dedupe). */
@@ -93,11 +93,18 @@ export function createWalletSend({
   let quotedKey = '';                                      // the (addr:amount) pair feeU actually ANSWERS
   let maxSendU = null;                                     // C#'s solved max-sendable (amount-0 quote)
   let addrErr = false;                                     // C# rejected the picked address (quote error)
-  const currentKey = () => (state.recipient ? state.recipient.address + ':' + (state.amount || '') : '');
+  /* ★★ V-4: `state.amount` is the FIELD's value and it stays un-canonical, so the
+     user can still see a mid-typed `12.` or `.5`. Every boundary that leaves this
+     component takes the CANONICAL form instead. `valid()` accepted `.5` while
+     `openPaymentReview`'s own gate rejected it, so Continue was enabled and did
+     nothing, forever. The quote KEY is canonical too: C# echoes back what we sent,
+     and a key built from `.5` could never match an echo of `0.5`. */
+  const canonAmount = () => canonicalAmount(state.amount || '');
+  const currentKey = () => (state.recipient ? state.recipient.address + ':' + canonAmount() : '');
   function requestQuote() {
     // W6: ask the shell for a real fee when both halves exist; dedupe on (addr, amount).
     if (!onQuote || !state.recipient) return;
-    const a = state.amount || '';
+    const a = canonAmount();
     if (!a || amountU() <= 0n) return;
     const key = state.recipient.address + ':' + a;
     if (key === lastQuoteKey) return;
@@ -107,10 +114,10 @@ export function createWalletSend({
       // loop NIT fix: re-check the AMOUNT too — a cleared field must not emit
       // an empty-amount query (and latch its key)
       if (!state.recipient || !state.amount || amountU() <= 0n) return;
-      const k = state.recipient.address + ':' + state.amount;
+      const k = currentKey();
       if (k === lastQuoteKey) return;
       lastQuoteKey = k;
-      onQuote(state.recipient.address, state.amount);
+      onQuote(state.recipient.address, canonAmount());
     }, 350);
   }
 
@@ -131,6 +138,9 @@ export function createWalletSend({
   amtInput.placeholder = '0';
   amtInput.setAttribute('aria-label', strings.amount || 'Amount');
   attachAmountKeyboardDismiss(amtInput);                   // ★ W-k
+  /* ★★ V-1: the pre-edit snapshot. A select-all-and-paste is the one edit
+     whose separators are NOT ours, and only the REPLACED RANGE says so. */
+  const readPreEdit = attachAmountPreEdit(amtInput);
   amtInput.addEventListener('input', (e) => {
     // ★ I-6 (#360): the field DISPLAYS the locale's grouping as you type; the
     // canonical '.'-decimal ungrouped value lives in state.amount and is the
@@ -141,7 +151,7 @@ export function createWalletSend({
     // intent) — pattern-guessing on a mid-edit string mangled magnitudes.
     const disp = amtInput.value;
     const caret = amtInput.selectionStart;
-    const v = sanitizeAmount(amountInputToCanonical(disp, caret, e, undefined, !!state.amount));   // r2 MAJOR-1: pre-edit emptiness routes
+    const v = sanitizeAmount(amountInputToCanonical(disp, caret, e, undefined, !!state.amount, readPreEdit()));   // ★★ V-1: the REPLACED RANGE routes (r2 MAJOR-1 still holds for a partial edit)
     state.amount = v;
     const shown = groupAmountDisplay(v);
     if (shown !== disp) {
@@ -527,7 +537,7 @@ export function createWalletSend({
     const r = state.recipient;
     const feeAtOpen = feeU;                              // loop fix: the sheet and the payload use ONE fee
     state.review = openPaymentReview({
-      recipient: r, amount: state.amount, fee: fromUnits(feeAtOpen), host, strings,
+      recipient: r, amount: canonAmount(), fee: fromUnits(feeAtOpen), host, strings,   // ★★ V-4: the review's own gate is canonical-only
       onConfirm: (payload, ctrl) => {
         // the per-VIEW token: one send in flight per compose (audit C1)
         state.sending = true;

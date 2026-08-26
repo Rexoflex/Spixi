@@ -236,9 +236,6 @@
 		<MauiXaml Update="Pages\Settings\SettingsPage.xaml">
 			<Generator>MSBuild:Compile</Generator>
 		</MauiXaml>
-		<MauiXaml Update="Pages\Wallet\WalletContactRequestPage.xaml">
-			<Generator>MSBuild:Compile</Generator>
-		</MauiXaml>
 		<MauiXaml Update="Pages\Wallet\WalletReceivePage.xaml">
 			<Generator>MSBuild:Compile</Generator>
 		</MauiXaml>

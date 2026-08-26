@@ -1641,6 +1641,13 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    a half-reset button inside a card is how one row ends up a pixel off from its
    neighbours. */
 .c-chat-info__row--action {
+  /* ★★ V-14 (#46 loop 2026-08-29): TEN interactive rules in this file carry this kill
+   * and #618's new row did not — so on Android it painted its own :active wash AND a
+   * square platform rectangle over a --radius-16 card. That is the exact artefact #622
+   * removed from the explore banner, in the same batch, reintroduced here. There is no
+   * global reset to fall back on: base.css and tokens.css contain zero occurrences, and
+   * the Account-hub row this one says it copies does carry it. */
+  -webkit-tap-highlight-color: transparent;
   width: 100%;
   padding: var(--spacing-12);
   border: 0;
@@ -2622,6 +2629,429 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 }
 
 </style><!-- N55: request-sent toast -->
+<style data-src="../styles/components/message-menu.css">
+/* c-msgmenu — message context menu content (batch 3, §5b sheet-based).
+   Rendered inside c-sheet (overlay.css owns the sheet/scrim); this file owns
+   only the menu content: quick-react row + action list. */
+
+.c-msgmenu { display: flex; flex-direction: column; gap: var(--spacing-8); }
+
+.c-msgmenu__reacts {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+  padding: var(--spacing-4) var(--spacing-8) var(--spacing-8);
+  border-bottom: var(--outline-width-1) solid var(--outline-neutral-01);
+}
+.c-msgmenu__react {
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  font-size: 22px; /* sanctioned: emoji glyph size, no type token this role */
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard),
+              transform var(--duration-100) var(--easing-decelerate);
+}
+@media (hover: hover) and (pointer: fine) {
+  .c-msgmenu__react:hover { background: var(--surface-interactive-hover); transform: scale(1.12); }
+}
+.c-msgmenu__react:active { background: var(--surface-interactive-pressed); }
+
+.c-msgmenu__list { display: flex; flex-direction: column; }
+.c-msgmenu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: var(--size-target-min); /* §5b: rows ≥ 44px */
+  padding: 0 var(--spacing-8);
+  border: 0;
+  border-radius: var(--radius-12);
+  background: transparent;
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+.c-msgmenu__item svg { color: var(--icon-neutral-02); flex: none; }
+@media (hover: hover) and (pointer: fine) {
+  .c-msgmenu__item:hover { background: var(--surface-interactive-hover); }
+}
+.c-msgmenu__item:active { background: var(--surface-interactive-pressed); }
+
+/* destructive group last, error ink (§5b) */
+.c-msgmenu__item[data-destructive] { color: var(--text-error); }
+.c-msgmenu__item[data-destructive] svg { color: var(--icon-error); }
+
+/* —— delete-chat modal content (row-menu openDeleteFlow, redesigned after F5):
+   peer avatar + name header (no mistake WHO) + the delete-option checkboxes.
+   Rendered inside c-modal (overlay.css owns the dialog chrome). —— */
+.c-delete-chat { display: flex; flex-direction: column; gap: var(--spacing-16); }
+.c-delete-chat__peer {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+}
+.c-delete-chat__name {
+  min-width: 0;
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-label-lg);
+  line-height: var(--line-height-label-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.c-delete-chat__body {
+  margin: 0;
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  color: var(--text-neutral-02);
+}
+/* ★ A7 (Damir, Batch A 2026-08-24): the option rows are the GROUP-CREATION checkbox
+   grammar — a pressable row with the trailing 24px select circle (the contacts-shell
+   pickerRow recipe, --icon-neutral-03 ring, filled --surface-action-default on
+   aria-checked) — not the off-brand native <input type=checkbox>. */
+.c-delete-chat__opts { display: flex; flex-direction: column; }
+.c-delete-chat__opt {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  width: 100%;
+  min-height: var(--size-target-min);   /* ≥44px touch target */
+  padding: var(--spacing-4) 0;
+  border: 0;
+  background: transparent;
+  text-align: start;
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-delete-chat__opt:disabled { cursor: default; }
+/* loop r1: the fixed-on "Delete chat" row is a STATEMENT of what happens, not an inert
+   control — its label keeps full ink (dimming it read 2.57:1); the static circle says fixed */
+.c-delete-chat__opt-label { flex: 1; min-width: 0; }
+.c-delete-chat__check {
+  flex: none;
+  width: 24px;                      /* sanctioned: select-circle dim (contacts parity) */
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  border: var(--outline-width-2) solid var(--icon-neutral-03);
+  color: transparent;
+  transition: background-color var(--duration-200) var(--easing-standard),
+              border-color var(--duration-200) var(--easing-standard),
+              color var(--duration-200) var(--easing-standard);
+}
+@media (prefers-reduced-motion: reduce) { .c-delete-chat__check { transition: none; } }
+[aria-checked='true'] > .c-delete-chat__check {
+  background: var(--surface-action-default);
+  border-color: var(--surface-action-default);
+  color: var(--icon-neutral-on-action);
+}
+.c-delete-chat__opt:focus-visible,
+.c-remove-contact__row:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+}
+
+/* ★ A5 (Damir's shape, Batch A): the REMOVE-CONTACT bottom sheet — peer header, the
+   honest body, the shared-groups strip (multi-select "leave first" rows) and the two
+   actions. Rendered inside c-sheet (overlay.css owns the sheet chrome). */
+.c-remove-contact { display: flex; flex-direction: column; gap: var(--spacing-16); }
+.c-remove-contact__groups {
+  display: flex; flex-direction: column; gap: var(--spacing-4);
+  padding: var(--spacing-12);
+  border-radius: var(--radius-16);
+  background: var(--surface-neutral-02);
+}
+.c-remove-contact__title {
+  margin: 0 0 var(--spacing-4);
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
+.c-remove-contact__row {
+  display: flex; align-items: center; gap: var(--spacing-12);
+  width: 100%;
+  min-height: 56px;
+  padding: var(--spacing-4) var(--spacing-4);
+  border: 0; border-radius: var(--radius-12);
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) { .c-remove-contact__row:hover { background-color: var(--surface-interactive-hover); } }
+.c-remove-contact__rowname {
+  flex: 1; min-width: 0;
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.c-remove-contact__hint {
+  margin: var(--spacing-4) 0 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-remove-contact__error {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-error);
+}
+/* REMOVE-CONTACT SPEC 2 (Damir, 2026-08-28): "Keep contact" and "Leave 1 & remove"
+   read as different KINDS of thing rather than as two choices. They are the HOUSE
+   two-button footer now, byte-identical to .c-modal__actions: equal width, wrap, and
+   NO min-width:0 — with flex-basis 0 a used min of 0 makes every item's hypothetical
+   size 0, so the wrap could never fire and the long label spilled past its button
+   instead of dropping to its own full-width row. The 2:1 override that made the CTA
+   double-width is gone with it; that WAS the size difference. */
+.c-remove-contact__actions { display: flex; flex-wrap: wrap; gap: var(--spacing-8); justify-content: flex-end; }
+.c-remove-contact__actions .c-button { flex: 1 1 0; }
+
+/* —— #506② / iOS-62: the long-pressed message is PROMOTED above the scrim ————
+   Damir on device: "you cannot see what you are acting on." #492 shipped the cheap
+   half — a ring on a bubble left UNDER the scrim — and the device killed it:
+   measured 2.01:1 against the bubble beneath --surface-scrim (rgba(17,18,19,.6))
+   versus 5.98:1 above it. No colour survives a 60% wash, so this is not a tint that
+   needs tuning; the node has to come out from under the scrim. That is the §5b
+   anchored presentation, and it is what iMessage does.
+
+   ⚠ The ROW lifts, not the bubble. Reactions overlap the bubble corner by design
+   (#65) and the avatar and sender label belong to the same message — lifting the
+   bubble alone would leave its own reactions stranded behind the scrim, which is a
+   worse version of the bug being fixed.
+
+   ⚠ PRECONDITION — A RULE FOR EVERY STYLESHEET, NOT AN OBSERVATION ABOUT THIS ONE.
+   No ancestor between the lifted row and the host may create a stacking context.
+   The row lifts to z-42 to clear the z-40 scrim. A stacking context on an ancestor
+   caps the lift inside that ancestor, and the row drops back under the scrim.
+   The failure is SILENT: nothing logs, and the ring still paints.
+   The ancestors today are `.c-chat-canvas` (position:relative, z-index auto,
+   overflow:hidden) and the scroller from `.c-chat-canvas > *` (position:relative
+   only). Overflow alone creates no stacking context. Both still CLIP the lifted row
+   to their own box, which is correct: the message stays inside the log.
+   ⚠ Do NOT add any of these to `.c-chat-canvas`, to the scroller (`.messages`,
+   `.u-scroll`), or to any ancestor of them. Each one creates a stacking context on
+   its own: `z-index` other than auto, `transform`, `translate`, `rotate`, `scale`,
+   `perspective`, `filter`, `-webkit-filter`, `backdrop-filter`, `clip-path`,
+   `mask-image` (or the `mask` shorthand), `opacity` below 1, `mix-blend-mode`,
+   `isolation: isolate`, `contain: paint|layout|strict|content`,
+   `content-visibility: auto|hidden`, `view-transition-name`, `position: sticky` and
+   `position: fixed`.
+   `translate`, `rotate` and `scale` are the easy ones to miss. They are the
+   individual transform properties. They read like plain geometry, and they cost the
+   same stacking context a `transform` shorthand does.
+   ⚠ This rule has been broken once. `chat-flow.css` had
+   `.c-chat-canvas[data-flow] { z-index: 0; }` for the Live flow canvas, which
+   killed the lift for that one pattern style (#46 loop MAJOR-2). The flow canvas
+   now paints by TREE ORDER at z-index auto and needs no context. Add a new one and
+   you repeat the defect.
+   ⚠ THE ONE THAT LOOKS SAFE AND IS NOT. `message-bubble.css:29` puts
+   `opacity: var(--chat-pattern-opacity)` on `.c-chat-canvas::before`, and
+   `chat-pattern.css:56` puts `mask-image` on the same pseudo-element. A pseudo-
+   element carries its own box, so both of those are correct where they stand: the
+   HOST keeps z-index auto and the lift still clears the scrim.
+   Move either declaration up onto `.c-chat-canvas` — an editor "tidying the layer",
+   or making the whole canvas dim — and the host becomes a stacking context. The
+   long-press lift then dies silently on EVERY pattern style, not one. If the tile
+   needs to fade, fade the pseudo-element, never the host.
+
+   ⚠ pointer-events: none is NOT decoration. With the row above the scrim, a tap on
+   the highlighted message would hit the MESSAGE instead of the scrim, and light
+   dismiss — every other overlay's way out — would stop working on the one element
+   the user is looking at. Dead to hit-testing, the tap falls through to the scrim
+   exactly as it did before the lift. The lifted message is a picture, like
+   iMessage's snapshot; the menu is what is interactive. */
+[data-menu-lift] {
+  position: relative;
+  z-index: var(--z-42);
+  pointer-events: none;
+}
+
+/* ★★ #589 (Damir F5 2026-08-26) — THE LIFTED ROW IS NOT PROMINENT IN DARK MODE.
+   And the audit found the reason is older and larger than the report.
+
+   THE GROUND HAS ALWAYS BEEN DEAD CODE. #572 put `background: --surface-screen` on
+   `.c-swipe`, but `.c-swipe__content` (chats-swipe.css) is a positioned child that
+   FILLS the wrapper and already paints that same `--surface-screen`, opaquely. A
+   positioned child paints above its parent's background, so the wrapper's ground was
+   never visible — and painting the list's own colour is exactly the "same colour as
+   the list" Damir is looking at. Every ordinary mobile row is wrapped (home.html
+   passes pin + mute), so this is the normal case, not an edge.
+
+   ⚠ MY FIRST FIX LANDED AT THE SAME DEAD ALTITUDE — a `z-index: -1` wash on
+   `.c-swipe`, still under that opaque child. It would have changed nothing visible,
+   which is worse than the bug it answered, because the pin would have gone green.
+
+   FIXED BY MOVING THE PAINT TO THE ELEMENT THAT SHOWS, and by making it ONE OPAQUE
+   TOKEN rather than a translucent wash. `--surface-neutral-02` is the neutral raised
+   fill, one perceptual level off `--surface-screen` in BOTH themes
+   (neutral-50 / neutral-800). Damir asked for "the neutral press fill"; the literal
+   press token is an ALPHA (`--surface-press-row-hover`) and it cannot be used here —
+   above a 0.7 scrim a translucent row reads as the dim itself, which is the whole
+   reason the ground exists. This is the same neutral, one level, opaque.
+
+   ⚠ It also removes a defect the wash version would have introduced: the row's own
+   press layer (`base.css .c-chatlist-item::before`, 0.05) is still filling when the
+   long press opens the menu, so a second 0.10 wash composited to ~0.15 for the first
+   several hundred milliseconds — a lift whose colour depends on how fast the menu
+   opened. One opaque paint has no such coupling.
+
+   ⚠ NOT a tonal fill, and that part of the old note stands: tonal reads as SELECTED,
+   the reading Batch E (c) removed on desktop for the same reason.
+
+   ★★ AND THE GROUND ALONE IS NOT ENOUGH IN DARK — the round-2 review measured it and
+   it is the point Damir actually raised. A scrim is BLACK: over the light list it
+   drops the surroundings to ~#575859 and one neutral step then reads at 6.2:1, but
+   over the dark list it can barely darken what is already near-black, so the same
+   step measures 1.10:1. For calibration, `--surface-pinned` composites to 1.15 in
+   dark and N56 shipped that as "a very light wash". A third one-token attempt would
+   land in the same place.
+   So the lifted row also takes the RING — the same 5.98:1 recipe `[data-menu-target]`
+   already uses on a lifted message (#492), which is scrim-independent because it does
+   not rely on the ground underneath. One recipe, two surfaces. */
+
+/* ★ #572 ③ (the E-3 dial) — THE CHAT ROW variant of the same lift.
+   `data-menu-lift="row"` is set by chats-row-menu.js on the `.c-swipe` wrapper
+   (its comment carries the stacking check for that chain). The rule above already
+   gives it the layer; a chat row needs TWO things a message row must not have:
+
+   ⚠ AN OPAQUE GROUND. `.c-chatlist-item` is `background: transparent`
+   (chatlist-item.css:11). Above a 0.7 scrim a transparent row reads as the dim
+   itself — the exact "I cannot see what I am acting on" this fixes. A message row
+   stays transparent on purpose: only the BUBBLE should show, never a plate around
+   it. That is why the selector matches the value and not the bare attribute.
+
+   ⚠ ITS OWN RADIUS. The row is full-bleed inside the list; standing alone above the
+   scrim it must read as one card, the same radius the desktop press wash uses. */
+/* The WRAPPER keeps a ground of its own, and the review is why: `openChatRowMenu`
+   closes an open swipe drawer BEFORE it lifts, and `.c-swipe__content` springs back
+   over a 200ms transform. During that motion the region between the two action panels
+   is the WRAPPER — so dropping its paint showed a translucent band of scrim through a
+   row that is supposed to be lifted above it. It costs one declaration to keep. */
+:root:not([data-desktop]) .c-swipe[data-menu-lift="row"] {
+  background-color: var(--surface-lift-row);
+  border-radius: var(--radius-12);
+}
+:root:not([data-desktop]) .c-swipe[data-menu-lift="row"] .c-swipe__content {
+  background: var(--surface-lift-row);
+  border-radius: var(--radius-12);
+}
+/* ⚠ review MINOR-7: the lift falls back to the ROW itself when the swipe wrapper is
+   parked — a handshaking row is never wrapped (chats-shell.js), and neither is a row
+   with pin and mute both off. On that element the ground would out-specify the row's
+   own state fills, which is what the note above forbids: `--surface-pinned` (0,2,0)
+   and the `[aria-current]` tonal would both lose to a (0,3,0) shorthand. Guarded, so
+   a stateful row keeps its own paint and simply lifts without a new ground. */
+/* the UNWRAPPED fallback (a handshaking row; pin and mute both off) — the row is
+   the lift target itself and is transparent, so it takes the same paint directly. */
+:root:not([data-desktop]) .c-chatlist-item[data-menu-lift="row"]:not([data-pinned]):not([aria-current]) {
+  background-color: var(--surface-lift-row);
+  border-radius: var(--radius-12);
+}
+/* ⚠ THERE IS NO PRESS WASH HERE, and an earlier draft of this batch said there was.
+   The lift is an opaque ground plus a ring (above). The note below is what that
+   replaced, kept because half of it still holds. What was wrong: the scrim alone does
+   NOT isolate the row when the row's ground is the same colour as the list beneath it,
+   and in dark it barely isolates it at all. What is still true, and is why the ground
+   is the NEUTRAL step and not a tonal one: a TONAL fill reads as SELECTED, the reading
+   Batch E (c) removed on desktop for the same reason. Desktop keeps
+   `[data-dt-ctx-source]` and its own value; it has no scrim.
+   ⚠ The ground goes on the WRAPPER, never on `.c-chatlist-item`. The row keeps its
+   own state fills — `--surface-pinned`, the press sweep, `[aria-current]` — and
+   those are alpha layers that need something opaque behind them. Painting the item
+   instead would either lose the state or lose the ground. */
+
+/* ★★ #605 (Damir, 2026-08-27 — D2): THE RING ON THE CHAT ROW IS REMOVED.
+   His words: "it's not looking good, and it gets cut off on the sides. It's not
+   appropriate for a chat app and this action." The clipping identifies this ring and
+   not the message one: `.c-swipe` is full-bleed in the list and the scroller's
+   computed `overflow-x` cut the 5px spread at both screen edges. A message bubble
+   sits inside `.c-bubble-row`'s 16px inline padding and cannot be clipped, so the
+   message ring is UNTOUCHED here — flagged for Damir rather than assumed.
+
+   ⚠ THE RING WAS THE ONLY THING WORKING IN DARK, so it does not leave alone.
+   What replaces it is elevation and a genuinely lighter ground, and — the part that
+   actually matters — the row now really does escape the scrim on every platform
+   (chats-row-menu.js, the ghost). Measured on the tokens, in dark:
+     row against the UNDIMMED list          ΔL* 4.0   (the 1.10:1 the last round measured)
+     row against the DIMMED field, escaped  ΔL* 9.0
+     …and with the ground one step lighter  ΔL* 10.7
+   WCAG ratios are near 1 for all three because both colours are near-black and the
+   +0.05 flare term dominates — which is why the ratio was the wrong instrument for
+   this surface, and why the fix is the LAYER plus the step, not a colour. */
+:root:not([data-desktop]) .c-swipe[data-menu-lift="row"],
+:root:not([data-desktop]) .c-chatlist-item[data-menu-lift="row"] {
+  box-shadow: var(--elevation-3);
+}
+
+/* The ring, unchanged from #492 — it was never the wrong ring, only the wrong
+   layer. Above the scrim it reads at its measured 5.98:1.
+   ⚠ NO border-radius here. `inherit` would take the PARENT's radius and square off
+   every bubble the moment it is pressed; the box-shadow already follows whatever
+   radius the bubble itself carries. box-shadow rather than `border` because a
+   border would change the box and reflow the bubble under the user's finger. */
+[data-menu-target] {
+  box-shadow: 0 0 0 2px var(--brand-400), 0 0 0 5px rgba(118, 157, 255, 0.28);
+  transition: box-shadow 120ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-menu-target] { transition: none; }
+}
+
+/* ★★ #606 (rows A2.1 / A2.2 / 12 / 15 — the FOURTH round, and the first with an iOS
+   device): THE LIFT IS NOW A GHOST, and it does not depend on winning a z-index race.
+   The three earlier rounds all raised `z-index` on the row and all were measured on
+   Android. On iOS the row does not lift at all, and on one row it sits BEHIND the dim.
+   The scrim is a child of `document.body`; the row is a descendant of a composited,
+   async-scrolled overflow container (`#chat-scroll`, and WKWebView's own scroll view
+   is disabled, so every `.u-scroll` is a real iOS scroller). Whether WebKit will hoist
+   a descendant out of that layer to clear a sibling of its scroller is exactly the
+   thing three rounds assumed and none proved.
+   So stop asking. `liftPressedRow` now also paints a positioned COPY of the row as a
+   SIBLING of the scrim — the same technique a native context menu uses, where the
+   pressed view is snapshotted. A sibling cannot lose a stacking contest to its
+   sibling, on any engine.
+   ★ It is purely ADDITIVE: the `data-menu-lift` hoist stays exactly as it is, the
+   ghost is opaque and covers the original pixel for pixel, and if the row cannot be
+   measured no ghost is made and the behaviour is today's. Nothing regresses on
+   Android; iOS gains the lift it never had.
+   ⚠ Geometry is set INLINE by the JS, deliberately: a `position: fixed` written here
+   would be a second declared value on a `[data-menu-lift]` rule, and the cascade pin
+   that keeps this whole family honest asserts one value per property across every
+   rule that matches. */
+[data-menu-ghost] {
+  margin: 0;
+  /* the ghost is a picture of a row, never a target — the scrim below it takes the
+     light-dismiss tap, exactly as it does for the hoisted original. */
+  pointer-events: none;
+}
+
+</style><!-- ★★ spec §4: openRemoveContactSheet lives here (.c-remove-contact / .c-delete-chat) — without it the sheet opens UNSTYLED, the W-h lesson -->
+
 <style>
   /* Production shell: fill the WebView. contact_details.html is loaded by the C#
      ContactDetails page (PUSHED, not a home tab) — the c-chat-info panel provides
@@ -2642,6 +3072,19 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   .contact-boot__dot { flex: none; width: var(--size-avatar-40); height: var(--size-avatar-40); border-radius: var(--radius-full); background: var(--surface-neutral-02); }
   .contact-boot__line { height: 14px; border-radius: var(--radius-full); background: var(--surface-neutral-02); }
   .contact-boot__disc, .contact-boot__dot, .contact-boot__line { animation: contact-boot-shimmer 1.4s var(--easing-standard) infinite; }
+  /* ★★ Item 6 (Damir, decision 9): CROSSFADE the skeleton into the content — the
+     skeleton fades OUT as the real panel fades IN, in the same box, not a per-row
+     swap and not a hold-then-snap. Both children share one grid cell for the length
+     of the fade; the root goes back to its flex column the moment it ends. */
+  #contact-root.is-crossfading { display: grid; }
+  #contact-root.is-crossfading > * { grid-area: 1 / 1; min-width: 0; min-height: 0; }
+  #contact-root.is-crossfading > .contact-boot { pointer-events: none; }
+  .cd-fade { opacity: 1; transition: opacity 180ms var(--easing-standard); }
+  .cd-fade--in { opacity: 0; }
+  .contact-boot.is-leaving { opacity: 0; transition: opacity 180ms var(--easing-standard); }
+  @media (prefers-reduced-motion: reduce) {
+    .cd-fade, .contact-boot.is-leaving { transition: none; }
+  }
   @keyframes contact-boot-shimmer { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
   @media (prefers-reduced-motion: reduce) { .contact-boot__disc, .contact-boot__dot, .contact-boot__line { animation: none; } }
   /* N27 (#367): the blocking-group list inside the remove-blocked modal.
@@ -2746,7 +3189,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     createChatInfo, setChatInfoPresence, formatIxiAmount,
     createNativeBridge, installExecuteUiCommand,
     attachPressFeedback,
-    createModal, openModal, truncateAddressMiddle,   // N27 (#367): remove-blocked modal
+    openRemoveContactSheet, setRemoveSheetGroups, setRemoveSheetResult,   // ★★ spec §4: the SAME sheet the chats row opens
     isPseudoAddressNick, dismissTopOverlay,          // D-19b (#370) blind pseudo-key display guard · N50 back-dismiss wiring
     isAddressShaped,                                 // ★ #591: an address-shaped "nickname" must not become the sheet's title
     showToast,                                       // N55: optimistic request-sent feedback,
@@ -2842,39 +3285,30 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    * its mapped copy). One page = one contact, so the set never needs a reset. */
   const requestedMembers = new Set();
 
-  /* N27 (#367): remove refused because the contact is in a group — C# names the
-   * blocking group(s) (removeBlocked push, name/address PAIRS) and this modal
-   * shows them + the path out. All text lands via textContent (group names are
-   * peer-controlled). The in-shell modal replaces the old native alert, which
-   * could not name anything. */
-  function openRemoveBlockedModal(groups) {
-    const list = document.createElement('ul');
-    list.className = 'cd-remove-blocked';
-    for (const g of groups) {
-      const li = document.createElement('li');
-      li.textContent = g.name || (g.address ? truncateAddressMiddle(g.address) : '');
-      list.append(li);
-    }
-    const path = document.createElement('p');
-    path.className = 'c-modal__body';
-    path.textContent = strings.removeBlockedPath
-      || 'Remove the contact from these groups, or leave the groups. Then remove the contact again.';
-    const wrap = document.createElement('div');
-    wrap.append(list, path);
-    openModal(createModal({
-      title: strings.removeBlockedTitle || 'Cannot remove contact',
-      body: strings.removeBlockedIntro || 'This contact is a member of these groups:',
-      content: wrap,
-      role: 'alertdialog',
-      host: document.body,
-      // informational, single-action, no data at risk → scrim tap may dismiss
-      // (loop M1/r2 NIT-5: a convenience exit — OK always dismisses too. N50
-      // (#370) added the cdoverlay/cdBack wiring: OS back dismisses this modal
-      // FIRST, then pops the page).
-      lightDismiss: true,
-      actions: [{ label: strings.ok || 'OK', type: 'fill', autofocus: true }],
-      strings,
-    }));
+  /* ★★ REMOVE-CONTACT SPEC §4 (Damir, screenshots 2026-08-28): THE DEAD END IS GONE.
+   * This page used to answer a refusal with "Cannot remove contact — this contact is a
+   * member of these groups: • seengroup" and a single OK. It named the obstacle and
+   * offered no way past it, while the chats row already had the actionable answer.
+   * Both hosts open ONE component now — openRemoveContactSheet — which lists the
+   * shared groups, offers to leave them, and only then removes. The C# refusal push
+   * is retired with it, and so are its three strings.
+   * ⚠ Deliberately NOT naming the retired modal function here: the pin that forbids it
+   * reads raw file text, and a rationale block that quotes what it removed is how a
+   * negative goes green over its own explanation — this suite's oldest lesson. */
+  function openRemoveContact() {
+    openRemoveContactSheet({
+      chat: { name: state.name, address: state.address, avatar: state.avatarPath, type: 'contact' },
+      host: document.body, strings,
+      // This page already asks at boot and the answer may be here; hand it over at once
+      // AND re-ask, so a sheet opened before the first answer landed still fills in.
+      onNeedGroups: () => {
+        if (state.sharedGroups) setRemoveSheetGroups(state.address, state.sharedGroups);
+        bridge.send('ixian:sharedGroups');
+      },
+      onRemove: ({ leaveGroups }) => {
+        bridge.send('ixian:removecontact:' + ((leaveGroups && leaveGroups.length) ? '1' : '0'));
+      },
+    });
   }
 
   /* —— panel build (change-gated, see UPDATE CHURN above) ——————————————————— */
@@ -3057,18 +3491,56 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       //   removehistory → deletes local history + alert · remove → removes the
       //   contact (bots: pendingDeletion + sendLeave) then popToRoot.
       onDeleteHistory: (ctrl) => { bridge.send('ixian:removehistory'); ctrl.done(); },
-      onRemoveContact: (ctrl) => { bridge.send('ixian:remove'); ctrl.done(); },
+      // ★★ §4: the SHEET is the confirmation — no generic confirm in front of it.
+      removeContactOwnsConfirm: true,
+      onRemoveContact: () => openRemoveContact(),
     });
+  }
+
+  /* ★★ Item 6 — the FIRST paint of real content crossfades over the boot skeleton.
+     Until this batch nobody had ever seen that skeleton: presentPreload held EVERY
+     load-then-present navigation for a flat 120 ms so the shell could finish, and this
+     shell coalesces its own pushes on a 120 ms timer, so the panel was always finished
+     before the page became visible. The hold is 0 for this page now, which makes the
+     skeleton real — and a snap from skeleton to panel is what the crossfade replaces.
+     Reduced motion and a missing transitionend both fall back to the plain swap. */
+  let paintedReported = false;
+  function crossfadeIn(next) {
+    const boot = root.querySelector('.contact-boot');
+    let reduced = false;
+    try { reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) {}
+    if (!boot || reduced) { root.replaceChildren(next); return; }
+    root.classList.add('is-crossfading');
+    next.classList.add('cd-fade', 'cd-fade--in');
+    root.append(next);
+    let settled = false;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      try { boot.remove(); } catch (e) {}
+      root.classList.remove('is-crossfading');
+      next.classList.remove('cd-fade');
+    };
+    next.addEventListener('transitionend', settle, { once: true });
+    setTimeout(settle, 400);            // belt: a transition that never fires must not strand the skeleton
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      boot.classList.add('is-leaving');
+      next.classList.remove('cd-fade--in');
+    }));
   }
 
   function rebuildPanel() {
     // preserve the body scroll position across a rebuild (tx-list churn).
     const prevBody = root.querySelector('.c-chat-info__body');
     const top = prevBody ? prevBody.scrollTop : 0;
-    root.replaceChildren(buildPanel());
+    const next = buildPanel();
+    if (!built) crossfadeIn(next); else root.replaceChildren(next);
     const nb = root.querySelector('.c-chat-info__body');
     if (nb) nb.scrollTop = top;
     built = true;
+    /* ★★ [CDPERF] PROBE — temporary, remove with the C# half. The first real content
+       frame, reported once, so the timeline has an end. */
+    if (!paintedReported) { paintedReported = true; try { bridge.send('ixian:cdpainted'); } catch (e) {} }
   }
 
   // Signature of the state that actually AFFECTS the rendered panel (name,
@@ -3214,18 +3686,9 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       });
       scheduleCommit();
     },
-    // N27 (#367): remove refused → C# enumerates the blocking groups and pushes
-    // them as name/address PAIRS (variadic; each arg b64-escaped by transport).
-    // Odd tails are ignored; an empty push falls back to nothing (C# keeps the
-    // legacy alert for the empty-enumeration edge).
-    removeBlocked() {
-      const args = Array.prototype.slice.call(arguments);
-      const groups = [];
-      for (let i = 0; i + 1 < args.length; i += 2) {
-        groups.push({ name: String(args[i] || ''), address: String(args[i + 1] || '') });
-      }
-      if (groups.length) openRemoveBlockedModal(groups);
-    },
+    /* ★★ §4: the `removeBlocked` handler is RETIRED — C# no longer pushes it. A refusal
+       arrives as removeContactResult('blocked', …) and re-opens the SHEET, which can
+       actually get the user past the blocker. */
     setAddress(address) { state.address = address || ''; scheduleCommit(); },
     setNickname(nick) { state.name = nick || ''; scheduleCommit(); },
     // ★ A4 (Batch A): the shared-groups answer — flat name/address pairs (C# escapes each arg)
@@ -3233,7 +3696,30 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       const groups = [];
       for (let i = 0; i + 1 < pairs.length; i += 2) groups.push({ name: String(pairs[i] || ''), address: String(pairs[i + 1] || '') });
       state.sharedGroups = groups;
+      // ★★ §4: one answer, two consumers — the info strip AND a live remove sheet.
+      setRemoveSheetGroups(String(address || state.address || ''), groups);
       scheduleCommit();
+    },
+    /* ★★ §4: the verb's outcome, in the same vocabulary HomePage uses (ok / left /
+       blocked / fail). 'blocked' re-opens the question INSIDE the sheet with the
+       blocking groups named and tickable — which is the whole difference from the
+       modal this replaces. C# pops the page on ok/left, so those need no toast. */
+    removeContactResult(address, status, ...pairs) {
+      const addr = String(address || '');
+      const st = String(status || '');
+      if (st === 'ok' || st === 'left') return;
+      const groups = [];
+      for (let i = 0; i + 1 < pairs.length; i += 2) groups.push({ name: String(pairs[i] || ''), address: String(pairs[i + 1] || '') });
+      if (st === 'blocked') {
+        state.sharedGroups = groups;
+        scheduleCommit();
+        if (setRemoveSheetResult(addr, 'blocked', groups, strings)) return;
+      }
+      const names = groups.map((g) => g.name || g.address).filter(Boolean).join(', ');
+      const text = st === 'blocked'
+        ? (strings.removeBlockedToast || 'Not removed: still a member of {groups}. Leave the group first.').split('{groups}').join(names)
+        : (strings.removeFailedToast || 'The contact could not be removed. Please try again.');
+      try { showToast({ text, tone: 'error', host: document.body, strings }); } catch (e) {}
     },
     // Real contact photo → the c-chat-info hero (resolves today on WinUI; every
     // platform once BE cutover X1 lands the data: URI). Commit so the hero updates
@@ -3311,8 +3797,15 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   /* —— page ready — fire ixian:onload on the window LOAD event (#177 load-timing
    *    invariant): firing during parse races C#'s first push. ————————————————— */
   function signalReady() {
-    bridge.ready();
-    bridge.send('ixian:sharedGroups');   // ★ A4: ask once at boot; the strip shows a skeleton line until the answer
+    /* ★★ Item 6: this shell is PRESENTED on ixian:onload with no 120 ms hold, so the
+       signal must not go out before the boot skeleton has actually been painted —
+       otherwise the slide-in carries a blank themed rectangle, which is the #619 / V-6
+       mistake in a new place. Two frames guarantee a paint; the cost is ~32 ms of data,
+       and the data lands after the present by design now. */
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      bridge.ready();
+      bridge.send('ixian:sharedGroups');   // ★ A4: ask once at boot; the strip shows a skeleton line until the answer
+    }));
   }
   if (document.readyState === 'complete') signalReady();
   else window.addEventListener('load', signalReady, { once: true });

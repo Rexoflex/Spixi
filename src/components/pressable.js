@@ -108,6 +108,16 @@ export const PRESSABLE_CONTROL = [
   '.c-chip',
   '.c-bottomnav__item',
   '.fab',
+  /* ★★ V-16 (#46 loop 2026-08-29): #622 removed Android's platform tap highlight from
+   * the explore banner and handed ownership to this file IN THE COMMENT ONLY. The class
+   * was in neither press family and apps-header.css declares no :hover, no :active and
+   * no transition for it — so from that batch until now, tapping the banner did NOTHING
+   * at all until the browser opened, and a mouse got nothing either.
+   * It is a CONTROL, not a row: one action, one destination, like every other button
+   * here. 🟡 Dial for Damir — a full-width 84px card taking the 3% control scale is the
+   * house grammar but it is more movement than a chip; the row sweep is the alternative
+   * and it would need a ::before layer this component does not have yet. */
+  '.c-apps-explore',
 ].join(',');
 
 const PRESS_MOVE_CANCEL_PX = 10;      // finger travel that turns a press into a scroll
@@ -556,7 +566,22 @@ export function attachPressFeedback({
    * The discriminator is one line — log `el.className`, `e.type` and `e.pointerType`
    * where the arm happens, and see whether a SECOND arm follows the click. */
   const onHide = () => {
-    if (pointerDown) { cancelGesture(); } else { abortGesture(); }
+    /* ★★ V-15 (#46 loop 2026-08-29): #604's GUARD CANNOT BE REACHED BY THE GESTURE IT
+     * WAS WRITTEN FOR. The reported ghost follows a COMMITTED tap, so `endGesture` has
+     * already set `pointerDown = false` and the `else` branch ran — byte-identical to
+     * before #604. Reproduced against the shipped bundle with the real late-synthesised
+     * Android `pointerdown`: the ghost still painted, and reverting #604 to a bare
+     * `abortGesture()` gave identical output.
+     * So the latch is set REGARDLESS of whether a finger was down, bounded by the same
+     * safety expiry `cancelGesture` uses. It is safe because `onDown` clears the latch
+     * on a real single-touch `touchstart` — a genuine new tap always paints — while the
+     * late synthesised stream carries no `touches` and stays blocked.
+     * `pointerDown` is still cleared, which is what the old `else` branch did. */
+    pointerDown = false;
+    cancelled = true;
+    clearTimeout(cancelExpiry);
+    cancelExpiry = setTimeout(() => { cancelled = false; }, PRESS_SAFETY_MS);
+    clear();
     killAllAfterlives();
   };
   window.addEventListener('pagehide', onHide);

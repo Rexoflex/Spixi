@@ -31,7 +31,7 @@ import { createButton, setLoading, setSuccess } from './button.js';
 import { createChip, setChipSelected } from './chip.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 import { setOverlayOpts } from './overlay.js';
-import { sanitizeAmount, toUnits, canonicalAmount, ungroupAmountInput, amountInputToCanonical, groupAmountDisplay, amountCaretAfterFormat } from './money.js';   // #143 shared money module · ★ I-6 (#360) display grouping
+import { sanitizeAmount, toUnits, canonicalAmount, ungroupAmountInput, amountInputToCanonical, attachAmountPreEdit, groupAmountDisplay, amountCaretAfterFormat } from './money.js';   // #143 shared money module · ★ I-6 (#360) display grouping
 
 /** ★ #569 — the payee name as it may be SHOWN: a real nickname, else the address
  *  in the #211 truncated form. Never the raw base58, and never an empty name when
@@ -200,6 +200,9 @@ function openAmountSheet({
   customInput.inputMode = 'decimal';
   customInput.placeholder = '0';
   customInput.setAttribute('aria-label', strings.tipAmount || 'Amount');
+  /* ★★ V-1: the pre-edit snapshot. A select-all-and-paste is the one edit
+     whose separators are NOT ours, and only the REPLACED RANGE says so. */
+  const readPreEdit = attachAmountPreEdit(customInput);
   customInput.addEventListener('input', (e) => {
     if (state.sending) return;
     // ★ I-6 (#360): locale-grouped display in the field; canonical in state —
@@ -208,7 +211,7 @@ function openAmountSheet({
     // inverse for typing/deletion; settled heuristic only for paste/synthetic.
     const disp = customInput.value;
     const caret = customInput.selectionStart;
-    const v = sanitizeAmount(amountInputToCanonical(disp, caret, e, undefined, !!state.amount));   // r2 MAJOR-1: pre-edit emptiness routes
+    const v = sanitizeAmount(amountInputToCanonical(disp, caret, e, undefined, !!state.amount, readPreEdit()));   // ★★ V-1: the REPLACED RANGE routes (r2 MAJOR-1 still holds for a partial edit)
     const shown = groupAmountDisplay(v);
     if (shown !== disp) {
       customInput.value = shown;
@@ -257,7 +260,10 @@ function openAmountSheet({
   guard.hidden = true;
   content.append(guard);
   const sendErr = document.createElement('p');
-  sendErr.className = 'c-tipsheet__error';
+  /* ★ V-2: a MODIFIER, so the send error is addressable. The balance guard above
+     carries the same class and the same role, and a test or a later author reaching
+     for "the error on the tip sheet" would have found whichever came first. */
+  sendErr.className = 'c-tipsheet__error c-tipsheet__error--send';
   sendErr.setAttribute('role', 'alert');
   sendErr.hidden = true;
   content.append(sendErr);
@@ -296,6 +302,16 @@ function openAmountSheet({
         delete confirm.dataset.acted;                      // retry stays possible
         setFrozen(false);
         setOverlayOpts(sheet, { lightDismiss: true, escDismiss: true });
+        /* ★★ V-2: an EMPTY message is a SILENT re-enable, exactly as openPaymentReview
+           already treats it. The tip now waits on a native confirm, and a user who taps
+           Cancel there has not had a failure — telling them the tip "could not be sent"
+           would be a lie about their own decision. Only '' is silent: undefined and null
+           still carry the generic copy, so a dropped answer still says something. */
+        if (msg === '') {
+          sendErr.hidden = true;
+          sendErr.textContent = '';
+          return;
+        }
         sendErr.hidden = false;                            // unhide BEFORE text → alert announces
         sendErr.textContent = msg || copy.fail;
       };

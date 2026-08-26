@@ -842,10 +842,22 @@ console.log('chat.html — chat info (#141)');
      also carries a Pay button (#82). The cover is gone; the rule it protected is not,
      so the pin now asserts the ABSENCE — of the element and of any image in the hero. */
   {
+    /* ★★ V-18 (#46 loop 2026-08-29) — WEAK: `info` carries NO avatar, so
+     * `heroImgs.length === 0` proved the FIXTURE and said nothing about the property.
+     * The property has two halves and they need different fixtures: the cover is gone
+     * (any fixture), and the hero never fetches anything REMOTE — which can only be
+     * tested on a fixture that actually has an image, because X1 pushes contact photos
+     * as data: URIs and the hero renders them. */
     const cov = info.querySelector('.c-chat-info__cover');
-    const heroImgs = Array.from(info.querySelectorAll('.c-chat-info__hero img'));
-    ok(!cov && heroImgs.length === 0,
-      '★★ #596: the contact-details COVER is gone (Damir: it had no lower edge, and with no photo it was a full-bleed wash of the avatar\'s own colour) — and the hero still fetches nothing');
+    ok(!cov && Array.from(info.querySelectorAll('.c-chat-info__hero img')).length === 0,
+      '★★ #596: the contact-details COVER is gone (Damir: it had no lower edge, and with no photo it was a full-bleed wash of the avatar\'s own colour), and a hero with no photo renders no image element at all');
+    const PNG596 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==';
+    const infoP = S.createChatInfo({ kind: 'contact', name: 'Han Solo', address: '4fj2addr', avatar: PNG596, onBack() {}, onPay() {} });
+    const heroImgsP = Array.from(infoP.querySelectorAll('.c-chat-info__hero img'));
+    ok(heroImgsP.length > 0 && heroImgsP.every((im) => (im.getAttribute('src') || '').startsWith('data:'))
+       && !infoP.querySelector('.c-chat-info__cover')
+       && !/https?:/.test(infoP.innerHTML),
+      '★★ #596 (V-18, rewritten): with a real photo the hero DOES render it — and every source on this surface is a data: URI, never http(s). That is the rule the cover existed to protect: a screen that also carries a Pay button must not fetch anything from the network (#82)');
   }
   ok(!info.querySelector('.c-chat-info__switch') && !info.querySelector('.c-chat-info__media'),
     'notifications + media stay hidden without their capabilities (1:1 bridge honesty)');
@@ -1122,13 +1134,20 @@ console.log('chat.html — chat info (#141)');
     'send picker renders ALL 12 contacts A–Z — no cap, no keep-typing note (#142)');
   wsHost.remove();
 
-  /* —— group surface: full list + search filter (#142) + kick flow (audit M2) —— */
+  /* —— room surface: full list + search filter (#142) + kick flow (audit M2) ——
+   * ★★ REBASED 2026-08-29 (Damir, option A): this fixture was `kind: 'group'`, and
+   * kick/ban are BOT-ROOM ONLY now — Ixian-Core's `kickUser` handler is an empty case,
+   * so a private group's kick went nowhere. The kick FLOW still matters and still has
+   * exactly one home, so the fixture moves to the room where it works. Everything else
+   * this block asserts (the roster, the A–Z sort, the search threshold, the money row,
+   * the notifications toggle, the row-removal + both counts) is identical for the two
+   * kinds — `roomKind` covers both — so nothing is weakened by the move. */
   let kickCtrl = null;
   const ghost = d.createElement('div');
   d.body.append(ghost);
   const mems = ['Alex', 'Han', 'Lando', 'Chewie', 'Leia', 'Luke'].map((n, i) => ({ name: n, address: 'a' + i }));
   const ginfo = S.createChatInfo({
-    kind: 'group', name: 'Crew', address: 'crewaddr', members: mems, memberCount: 6,
+    kind: 'bot', name: 'Crew', address: 'crewaddr', members: mems, memberCount: 6,
     notifications: true, capabilities: { notifications: true, admin: true },
     onBack() {},
     onNotifications: (next, ctrl) => ctrl.done(),
@@ -1136,7 +1155,7 @@ console.log('chat.html — chat info (#141)');
     onLeave() {},
   });
   ghost.append(ginfo);
-  ok(!ginfo.querySelector('.c-chat-info__money'), 'groups hide the money row (§9 room-request ask)');
+  ok(!ginfo.querySelector('.c-chat-info__money'), 'rooms hide the money row (§9 room-request ask) — `roomKind` covers group AND bot');
   const rowNames = [...ginfo.querySelectorAll('.c-chat-info__member-name')].map((e) => e.textContent);
   ok(rowNames.length === 6 && !ginfo.querySelector('.c-search-field'),
     '6 members: ALL 6 rows, no search below 8 — the list is scannable (#142)');
@@ -7486,8 +7505,11 @@ console.log('#348b — F5 follow-up fixes');
       '★ D-16 (#351): the floor reads the LIVE duration tokens and the MONOTONIC clock — a wall-clock step backwards between press and release would hold the tint for the size of the step (audit A-2)');
     ok(/if \(fadeMs <= 0\) \{ killAfterlife\(elm\); return; \}/.test(pjs),
       '★ D-16 (#351): reduced motion skips the fade states entirely — holding a flat tint over two rAFs with 0ms transitions serves nobody');
+    /* ⚠ comment-STRIPPED: the V-15 rationale sits between onHide's brace and this call,
+       and a fixed character window over raw text measures the COMMENT, not the code. */
+    const pjsNC = pjs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
     ok(/killAfterlife\(t\);/.test(pjs)
-      && /const onHide = \(\) => \{[\s\S]{0,200}?killAllAfterlives\(\);/.test(pjs),
+      && /const onHide = \(\) => \{[\s\S]{0,200}?killAllAfterlives\(\);/.test(pjsNC),
       '★ D-16 (#351): a re-press interrupts its target’s afterlife, and hiding the page kills them ALL — no fade timer may strand a lit row across an overlay or a backgrounding');
     /* ★★ #604 (row A7.1): the teardown must not disarm the guards that reject Android's
        LATE synthesised pointer stream. `killAllAfterlives()` empties the window the ghost
@@ -7497,8 +7519,19 @@ console.log('#348b — F5 follow-up fixes');
        now latches instead. ⚠ The `pointerDown` test is the whole property: with no finger
        down there is nothing to re-arm, and `pagehide`/`visibilitychange` must keep
        behaving exactly as they did. */
-    ok(/const onHide = \(\) => \{\s*\r?\n?\s*if \(pointerDown\) \{ cancelGesture\(\); \} else \{ abortGesture\(\); \}/.test(pjs),
-      '★★ #604: a teardown that lands MID-GESTURE latches `cancelled` (cancelGesture) instead of clearing it — otherwise the teardown eats the two guards that exist to reject Android\'s late pointer stream, and re-arms the press it just cleared');
+    /* ★★ V-15 REWROTE THIS PIN, because it was pinning the defect. #604 guarded the
+       latch on `pointerDown`, and the reported ghost follows a COMMITTED tap — so
+       endGesture had already cleared that flag, the `else` branch ran, and the change
+       was byte-identical to before the fix. The old pin asserted that exact line, which
+       means it would have gone green forever over an unreachable guard.
+       The property is now: the teardown latches UNCONDITIONALLY, bounded by the same
+       safety expiry, and `onDown` releases it on a real single-touch touchstart. The
+       BEHAVIOUR is pinned on the built bundle in the V-15 block. */
+    ok(/const onHide = \(\) => \{[\s\S]{0,120}?pointerDown = false;\s*\n\s*cancelled = true;[\s\S]{0,200}?cancelExpiry = setTimeout\(\(\) => \{ cancelled = false; \}, PRESS_SAFETY_MS\);/.test(pjsNC)
+       && !/if \(pointerDown\) \{ cancelGesture\(\); \} else \{ abortGesture\(\); \}/.test(pjsNC),
+      '★★ #604 / V-15: a teardown latches `cancelled` REGARDLESS of whether a finger was down. The old form guarded on pointerDown, which the committed tap had already cleared — so the guard could not be reached by the gesture it was written for, and the ghost still painted over a just-opened mini-app');
+    ok(/if \(e\.touches && e\.touches\.length === 1\) \{\s*\n\s*cancelled = false;/.test(pjsNC),
+      '★★ V-15 THE RELEASE, and it is what makes an unconditional latch safe: a real single-touch touchstart clears it. Android\'s late synthesised stream is a PointerEvent and carries no `touches`, so it stays blocked while a genuine new tap always paints');
     ok(/a\.t3 = setTimeout\(\(\) => killAfterlife\(elm\), Math\.max\(remaining, 0\) \+ fadeMs \+ 1500\);/.test(pjs)
       && /clearTimeout\(a\.t1\); clearTimeout\(a\.t2\); clearTimeout\(a\.t3\);/.test(pjs),
       '★ D-16 r2 (audit A-5): every afterlife carries an UNCONDITIONAL timer backstop and killAfterlife clears it — a rAF stall on a covered-but-not-hidden WebView must not strand a flat-tinted row until vsync resumes');
@@ -7613,11 +7646,16 @@ console.log('#348b — F5 follow-up fixes');
     const tipEnd = scpB.indexOf('case "sendContactRequest":', tipStart);
     const body = scpB.slice(tipStart, tipEnd).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
     const returns = [...body.matchAll(/\breturn;/g)];
-    const answered = returns.every((m) => /sendTipResult\(/.test(body.slice(Math.max(0, m.index - 400), m.index)));
+    /* ★★ V-2 widened the spelling: the confirm path answers through sendTipResultFor,
+       which carries an EXPLICIT status and an EXPLICIT id. Both forms count — the
+       invariant is that no exit is silent, not which helper spells it. */
+    const answered = returns.every((m) => /sendTipResult(For)?\(/.test(body.slice(Math.max(0, m.index - 400), m.index)));
     ok(tipStart >= 0 && tipEnd > tipStart && returns.length >= 5 && answered,
-      '★ D-10 (#348b): EVERY early return in the tip case calls sendTipResult first. Adding a silent return here strands the sheet frozen with dismissal disabled — this pin is the only thing standing between a future edit and that state');
-    ok(/sendTipResult\(true, ""\)/.test(body),
-      '★ D-10 (#348b): the SUCCESS path answers too — the sheet morphs and closes, and the native confirmation alert is gone rather than duplicated');
+      '★ D-10 (#348b): EVERY early return in the tip case answers the sheet first. Adding a silent return here strands the sheet frozen with dismissal disabled — this pin is the only thing standing between a future edit and that state');
+    ok(/sendTipResultFor\("1", "", tipIdForAnswer\)/.test(body),
+      '★ D-10 (#348b) + ★★ V-2: the SUCCESS path answers too, and it answers under the id the tip was STARTED with — tipMsgIdHex is a field that every contextAction overwrites, and the native confirm now holds the path open long enough for another one to land');
+    ok(/sendTipResultFor\("cancel", "", tipIdForAnswer\)/.test(body),
+      '★★ V-2: and so does a REFUSAL. The sheet freezes its own dismissal while money is in flight, so a user who taps Cancel on the native dialog must be let out — silently, because a tip they declined is not a tip that failed');
   }
 
   /* —— D-11: name the person, not the group —— */
@@ -7635,15 +7673,33 @@ console.log('#348b — F5 follow-up fixes');
     const ce = scpNC.indexOf('catch (Exception tipEx)', ts);
     if (ce < ts) return false;
     const fenced = scpNC.slice(ts, ce);
-    return /Node\.prepareTransactionFrom/.test(fenced)
-        && /friend\.addReaction/.test(fenced)
-        && /IxianHandler\.addTransaction/.test(fenced)
-        && /sendTipResult\(true, ""\)/.test(fenced);
+    return /Node\.prepareTransactionFrom/.test(fenced) && /new IxiNumber\(data\)/.test(fenced);
   })()
     && /catch \(Exception tipEx\)[\s\S]{0,300}?sendTipResult\(false,/.test(scpNC)
     && /catch \(Exception idEx\)[\s\S]{0,300}?sendTipResult\(false,/.test(scpNC),
-    '★ D-10 (#348b, audit): the tip case is WRAPPED. The early returns each answered, but a throw did not — and the sheet disables light-dismiss and Esc while money is in flight, so an escaping exception stranded the user in a frozen sheet. It also stops a process crash: onNavigating dispatches this bare, so an unhandled exception out of a MAUI Navigating handler kills the app on Android and iOS');
-  ok(/setTipResult", ok \? "1" : "0", body \?\? "", tipMsgIdHex/.test(scpB)
+    '★ D-10 (#348b, audit): the SYNCHRONOUS half of the tip case is WRAPPED — the amount parse and prepareTransactionFrom. The early returns each answered, but a throw did not, and the sheet disables light-dismiss and Esc while money is in flight. It also stops a process crash: onNavigating dispatches this bare, so an unhandled exception out of a MAUI Navigating handler kills the app on Android and iOS');
+  /* ★★ V-2 SPLIT THE FENCE, and this is the half a textual pin would have missed.
+     The broadcast now runs inside `commitTip`, an async lambda that RESUMES after the
+     native confirm — so although its body still sits textually inside the outer try, it
+     executes long after that try has returned, and `catch (Exception tipEx)` can no
+     longer see a throw from it. The lambda carries its OWN try/catch, and that catch
+     must answer the frozen sheet, or a throw between addReaction and addTransaction
+     leaves the user with no way out. */
+  ok((() => {
+    const ls = scpNC.indexOf('Func<Task> commitTip = async () =>');
+    if (ls < 0) return false;
+    const le = scpNC.indexOf('catch (Exception commitEx)', ls);
+    if (le < ls) return false;
+    const inner = scpNC.slice(ls, le);
+    return /SPayments\.confirmTip/.test(inner)
+        && /friend\.addReaction/.test(inner)
+        && /IxianHandler\.addTransaction/.test(inner)
+        && /sendTipResultFor\("1", "", tipIdForAnswer\)/.test(inner)
+        && /catch \(Exception commitEx\)[\s\S]{0,400}?sendTipResultFor\("0",/.test(scpNC);
+  })(),
+    '★★ V-2: the AWAITED half is fenced by its own try/catch, and that catch answers. The outer catch was left behind by the await — a pin that only read the outer fence would have gone green over an unprotected broadcast');
+  ok(/sendTipResultFor\(ok \? "1" : "0", body, tipMsgIdHex\);/.test(scpB)
+    && /setTipResult", status \?\? "0", body \?\? "", msgIdHex \?\? ""/.test(scpB)
     && /tipMsgIdHex = msg_id_hex;/.test(scpB)          // ← r2: without this the id is always ""
     && /tipFor = rec\.id;/.test(chB)                    // ← r2: without this tipFor is always ''
     && /if \(msgId && tipFor && msgId !== tipFor\) return;/.test(chB),
@@ -9072,10 +9128,14 @@ console.log('BUG-1b / BUG-2 — built home shell, real bridge pushes');
     delItem.click();
     await sleep(120);
     [...d.querySelectorAll('.c-modal button')].find((b2) => /^delete$/i.test(b2.textContent.trim())).click();
-    await sleep(120);
-    // ★ A5 (2026-08-24): step 2 is the remove-contact SHEET now, not a second modal
-    [...d.querySelectorAll('.c-sheet button, .c-modal button')].find((b2) => /keep contact/i.test(b2.textContent)).click();
     await sleep(150);
+    /* ★ A5 (2026-08-24) made step 2 the remove-contact SHEET, and this test used to
+       dismiss it with "Keep contact". ★★ REMOVE-CONTACT SPEC §1 (2026-08-29) makes the
+       escalation CONDITIONAL on a checkbox that defaults OFF, so there is no second
+       surface to dismiss on the plain delete path — which is the point: deleting a chat
+       stopped asking about the contact. Assert that instead of clicking a ghost. */
+    ok(!d.querySelector('.c-remove-contact'),
+      '★★ SPEC §1 (regression fence, on the BUILT shell): deleting a chat with "Remove contact" unticked opens NOTHING after the modal');
     ok(names().length === 0, 'BUG-1b: deleting the chat removes the row (the delete still sticks)');
 
     flush([row(OLD_TS, 'hi', 0)]);
@@ -9320,7 +9380,7 @@ console.log('BUG-2 — apps push cost (static)');
     '★ #340 (A-MAJOR-1/2): the fast path is gated on the RECEIVER, not on the shape of the value. The whitelist alone assumed every receiver runs native.js — two do not');
   const scpRaw = readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8');
   ok(/public bool supportsRawDataUriArgs[\s\S]{0,900}?return loadedHtmlFileName != null && !hasLegacyPageChrome\(loadedHtmlFileName\);/.test(scpRaw),
-    '★ #340 (A-MAJOR-1): the gate FAILS CLOSED — the 8 legacy Raw/html pages still decode with js/spixi.js\'s unguarded atob, so a peer nickname of "data:;base64,x" would pass the whitelist, throw on the \':\', and drop the whole push (wallet_contact_request.setData is that page\'s only writer → a blank payment-confirm screen)');
+    '★ #340 (A-MAJOR-1): the gate FAILS CLOSED — the 7 remaining legacy Raw/html pages still decode with js/spixi.js\'s unguarded atob, so a peer nickname of "data:;base64,x" would pass the whitelist, throw on the \':\', and drop the whole push. (The worked example was wallet_contact_request.setData blanking the payment-confirm screen; that page is REMOVED by decision 4, and the gate matters just as much for the seven left.)');
   /* #340 r2 (reviewer catch): this pin used to grep SpixiContentPage.cs for the COMMENT
    * saying MiniAppPage never calls loadPage — mutation-dead, it could not fail for any
    * code change. The invariant lives in MiniAppPage.xaml.cs, so assert it THERE. It is
@@ -9645,8 +9705,10 @@ console.log('#360 — I-6 locale digit grouping (display skin over the #77 wire)
   const ws360 = readFileSync(join(root, 'src/components/wallet-send.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/[^\n]*$/gm, '');
   const wr360 = readFileSync(join(root, 'src/components/wallet-receive.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/[^\n]*$/gm, '');
   const ts360 = readFileSync(join(root, 'src/components/tip-sheet.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/[^\n]*$/gm, '');
-  ok([ws360, wr360, ts360].every((f) => /addEventListener\('input', \(e\) => \{/.test(f) && /sanitizeAmount\(amountInputToCanonical\(disp, caret, e, undefined, !!state\.amount\)\)/.test(f)),
-    '★ I-6 r2 (#360): all three amount inputs (send, receive, tip) route through amountInputToCanonical WITH the event — typing/deletion edits take the per-edit inverse, paste and synthetic dispatches (the QR seed path fires a plain Event) take the settled heuristic. The field holds the DISPLAY form, state holds the canonical, the #77 wire is untouched');
+  ok([ws360, wr360, ts360].every((f) => /addEventListener\('input', \(e\) => \{/.test(f) && /sanitizeAmount\(amountInputToCanonical\(disp, caret, e, undefined, !!state\.amount, readPreEdit\(\)\)\)/.test(f)),
+    '★ I-6 r2 (#360) + ★★ V-1: all three amount inputs (send, receive, tip) route through amountInputToCanonical WITH the event AND with the pre-edit snapshot. The snapshot carries the REPLACED RANGE, which is the only fact that separates a select-all paste (foreign separators) from a partial edit (ours). ⚠ This is a SHAPE pin over src/ — the BEHAVIOUR it stands for is pinned on the built bundle in the V-1 block, per V-3');
+  ok([ws360, wr360, ts360].every((f) => /const readPreEdit = attachAmountPreEdit\(/.test(f)),
+    '★★ V-1: and every one of them ATTACHES a reader. A call site that passes readPreEdit() without attaching one would not compile; a call site that attaches one and forgets to pass it would silently keep the defect, so both halves are pinned');
   ok(/amt\.value = groupAmountDisplay\(parts\[2\]\)/.test(ws360),
     '★ I-6 (#360): the QR-scan amount seeds the field in DISPLAY form — a raw canonical "1.500" (one-and-a-half with typed zeros) dropped into a ","-decimal locale would read as grouping: a 1000× error on a payment path');
   /* W-d (2026-08-24): the review sheet is the exported openPaymentReview — its fee
@@ -9670,11 +9732,14 @@ console.log('#360 — I-6 locale digit grouping (display skin over the #77 wire)
   ok(/Utils\.amountToLocalizedDisplayString\(friend\.metaData\.botInfo\.cost\)/.test(readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8')),
     'I-6 r2 (#360, loop r1 MINOR-8): the bot cost bar — the one other C#-composed amount — goes through the same formatter; a 0.005 IXI room rendered "0.00500000 IXI" directly above the alerts #360 fixed');
   const scp360 = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8');
-  const wcrp360 = readFileSync(join(root, 'Spixi/Pages/Wallet/WalletContactRequestPage.xaml.cs'), 'utf8');
+  const spay360 = readFileSync(join(root, 'Spixi/Utils/SPayments.cs'), 'utf8');
   const rawBalanceFmt = /String\.Format\(SpixiLocalization\._SL\("wallet-error-balance-text"\), (?!Utils\.amountToLocalizedDisplayString)/;
-  ok(!rawBalanceFmt.test(scp360) && !rawBalanceFmt.test(wcrp360)
+  /* ★★ REBASED by decision 4: WalletContactRequestPage was one of the two files this
+   * pin read, and it is DELETED. Its money sentences moved into SPayments, which is
+   * where the remaining sites live — so the rule is unchanged and the pin follows it. */
+  ok(!rawBalanceFmt.test(scp360) && !rawBalanceFmt.test(spay360)
     && (scp360.match(/Utils\.amountToLocalizedDisplayString\(/g) || []).length >= 6
-    && (wcrp360.match(/Utils\.amountToLocalizedDisplayString\(/g) || []).length >= 2,
+    && (spay360.match(/Utils\.amountToLocalizedDisplayString\(/g) || []).length >= 4,
     '★ I-6 (#360): every wallet-error-balance-text composition passes BOTH amounts through the C# mirror — no site ships a raw IxiNumber.ToString() into the sentence (Damir\'s repro: "333333333.03000000")');
 }
 
@@ -10047,16 +10112,15 @@ console.log('R1 identity round — N1 avatar rework (#364) · N34 owner chip (#3
   ok(/HomePage\.writeRequestSentMarker\(/.test(base366)
      && !/addMessageWithType\([^;]*FriendMessageType\.requestAddSent/.test(base366),
     'N26 (#572 ① rebase): the requestAddSent marker survived the move AND goes through the unread-safe writer, never addMessageWithType directly');
-  // N27: enumerate-and-name, with the legacy alert as the empty-enumeration fallback
-  ok(/f\.type == FriendType\.Group && f\.users != null && f\.users\.hasUser\(friend\.walletAddress\)/.test(cd366)
-    && /sendUiCommand\(this, "removeBlocked", blockers\.ToArray\(\)\)/.test(cd366),
-    'N27 ★: a refused remove enumerates the blocking groups (Core discards the list; C# re-runs the predicate and KEEPS it)');
-  // loop n4 REBASED: the reference is snapshotted once (sortFriends reassigns
-  // the field lock-free) — lock and iterate must use the same object.
-  ok(/var friendsRef = FriendList\.friends;/.test(cd366) && /lock \(friendsRef\)/.test(cd366),
-    'N27: the enumeration snapshots + locks ONE friends reference (Core lock parity, TOCTOU closed)');
-  ok(/contact-details-cannotremovecontact-title/.test(cd366),
-    'N27: the legacy alert survives as the empty-enumeration fallback (a refusal must always say something)');
+  /* ★★ N27 IS RETIRED BY THE REMOVE-CONTACT SPEC §4 (2026-08-29), not weakened.
+   * N27's whole subject — the second removeFriend implementation on this page and the
+   * modal that NAMED the blocking groups and offered a single OK — is deleted. Damir:
+   * that modal was a dead end; the chats row already had the actionable answer, and now
+   * both hosts open the SAME sheet. The enumeration N27 pinned still exists, in the one
+   * place it belongs: SContacts.sharedGroups, pinned in the A4/A5 block below and in the
+   * §4 block. What is asserted here is that the old pair cannot come back. */
+  ok(!/sendUiCommand\(this, "removeBlocked"/.test(cd366) && !/private bool onRemove\(\)/.test(cd366),
+    '★★ SPEC §4 (was N27): the page-local remove implementation and its removeBlocked push are GONE — one implementation of "remove this contact", shared with HomePage, and a refusal that can be acted on instead of acknowledged');
 
   /* —— N26/D-5 + N27: shell source pins ————————————————————————————— */
   const chat366 = read('src/shells/chat.html');
@@ -10078,8 +10142,17 @@ console.log('R1 identity round — N1 avatar rework (#364) · N34 owner chip (#3
        ADDRESS (bad / self / pending-deletion / already a contact), never about the room. */
     const scpG = readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8');
     const gAt = scpG.indexOf('public void sendContactRequestGuarded(string str_address)');
-    ok(gAt > 0 && !/friend\.bot/.test(scpG.slice(gAt, gAt + 2600)),
-      '★★ #623: the DIRECT verb\'s helper carries no bot guard — so the shell must not invent one. If a bot guard is ever wanted it belongs HERE, where both callers would see it, not in one shell');
+    /* ★★ V-13 (#46 loop 2026-08-29) — THIS PIN WAS VACUOUS, and it was the pin holding
+     * the batch's most contested change. `friend.bot` occurs ZERO times in this file, and
+     * the helper's locals are `existing` and `new_friend`, so a real bot guard could not
+     * even be SPELLED that way. The assertion reduced to "the method still exists".
+     * Mutation-proved: a genuine `if (existing != null && existing.bot) return;` inserted
+     * into the helper PASSED the old form and FAILS this one. */
+    const gSlice = scpG.slice(gAt, gAt + 2600).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    ok(gAt > 0 && gSlice.length > 400 && /str_address/.test(gSlice),
+      '★ V-13 harness self-check: the slice really is the helper. A missing anchor would make the negative below pass over an empty string');
+    ok(!/\.bot\b/.test(gSlice),
+      '★★ #623 (V-13, rewritten): the DIRECT verb\'s helper carries no bot guard IN ANY SPELLING — so the shell must not invent one. If a bot guard is ever wanted it belongs HERE, where both callers would see it, not in one shell');
   }
   ok(/owner: isOwnerAddr\(rec\.senderAddress\)/.test(chat366),
     'N34: the member sheet carries the owner flag (matches the bubble chip)');
@@ -10109,22 +10182,23 @@ console.log('R1 identity round — N1 avatar rework (#364) · N34 owner chip (#3
     'N26: chat-info gates the request closure on relation none (self/unknown stay inert)');
   // loop n3: anchor the slice — a renamed helper must FAIL this pin, not
   // degrade it to a one-character vacuous match.
-  const rbIdx = cdet366.indexOf('function openRemoveBlockedModal');
-  ok(rbIdx >= 0 && /removeBlocked\(\) \{/.test(cdet366) && !/innerHTML/.test(cdet366.slice(rbIdx, rbIdx + 1800)),
-    'N27: the shell handler + modal exist and build via textContent only (group names are peer-controlled)');
-  ok(/max-height: 40vh;/.test(cdet366) && /lightDismiss: true/.test(cdet366),
-    'N27 ★ (loop M1): the blocking-group list scrolls (never pushes OK past the clip) and the scrim dismisses (no Esc, no hardware-back wiring on this shell)');
-  ok(/\.c-modal \{ max-height: calc\(100% - 32px\); overflow-y: auto; \}/.test(cdet366),
-    'N27 (loop r2 MINOR-1): the MODAL itself caps + scrolls — fixed chrome alone must not push OK off a short landscape viewport');
+  ok(!/function openRemoveBlockedModal/.test(cdet366) && !/removeBlocked\(\) \{/.test(cdet366)
+     && /openRemoveContactSheet\(\{/.test(cdet366),
+    '★★ SPEC §4 (was N27, shell half): the dead-end modal and its handler are gone from this shell and the SHARED sheet is what opens. Group names still never touch innerHTML — the sheet builds every row with textContent, pinned where that code lives');
   ok(/requestedMembers\.has\(m\.address\)/.test(cdet366) && /requestedMembers\.add\(m\.address\)/.test(cdet366),
     'N26 (loop m1): the contact_details request latch survives change-gated panel rebuilds');
   /* —— N27 strings in all 8 built dictionaries ————————————————————— */
   const locales366 = ['en-us', 'de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp',
     'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp'];   // N4 (#379)
+  /* ★★ SPEC §4: the three removeBlocked keys are RETIRED with their modal, and the two
+   * the new flow needs must exist everywhere instead. A string the extractor no longer
+   * sees would leave a dictionary carrying dead weight; a string it sees but a locale
+   * lacks would render English inside a translated sheet. */
   ok(locales366.every((l) => {
     const t = read('src/strings/' + l + '.js');
-    return /removeBlockedTitle/.test(t) && /removeBlockedIntro/.test(t) && /removeBlockedPath/.test(t);
-  }), 'N27: the three remove-blocked keys exist in all 13 built dictionaries');
+    return !/removeBlockedTitle/.test(t) && !/removeBlockedIntro/.test(t) && !/removeBlockedPath/.test(t)
+      && /removeContactOpt/.test(t) && /removeFailedToast/.test(t);
+  }), '★★ SPEC §4: the dead-end modal\'s three keys are gone from all 13 built dictionaries, and the two the new flow adds are present in every one');
 }
 
 {
@@ -10925,7 +10999,7 @@ console.log('#383 — N12 restore-nudge + N40 connectivity/update');
       '★ N71(a) (Damir F5): the sweep has NO exclusion, and the picker calls it with no argument. An unused exclusion hook on a sweep is an invitation to re-add this exact bug, so the parameter is gone rather than defaulted');
     ok(/if \(!page\.rethemesByPush\)[\s\S]{0,1400}?page\.reload\(\);/.test(uh)
       && /public bool rethemesByPush/.test(read('Spixi/Utils/SpixiContentPage.cs')),
-      '★ N71 (#421, #46 audit MAJOR): the sweep is HYBRID — push where the document has a setTheme, RELOAD where the theme is baked. The 8 legacy pages carry the theme in a <link href="css/*SL{SpixiThemeMode}"> and have no setTheme global at all, so a push both threw a bare-global ReferenceError into them AND left them in yesterday\'s theme, on the MONEY path. reload() is exactly what they got before this batch — the security gate says introduce nothing');
+      '★ N71 (#421, #46 audit MAJOR): the sweep is HYBRID — push where the document has a setTheme, RELOAD where the theme is baked. The 7 legacy pages carry the theme in a <link href="css/*SL{SpixiThemeMode}"> and have no setTheme global at all, so a push both threw a bare-global ReferenceError into them AND left them in yesterday\'s theme, on the MONEY path. reload() is exactly what they got before this batch — the security gate says introduce nothing');
     ok(/add\(SpixiContentPage\.getStagingPage\(\)\);/.test(uh) && /add\(CallPage\.getLiveSurface\(\)\);/.test(uh)
       && uh.indexOf('getStagingPage') > uh.indexOf('if (includeModal)'),
       '★ N71 (#421, #46 audit): the STAGING slot and the in-place CALL surface are swept, PUSH-ONLY. Both are live WebViews in none of the standard collections; neither may be RELOADED — a reload mid-stage destroys the ixian:onload the present waits for, and reloading during a live call is what kept the modal stack out of the reload sweep');
@@ -14211,7 +14285,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     && pBody.indexOf('confirmAndAuth(') < pBody.indexOf('sendTransactionFrom('),
     '★★ W5: payRequest runs the NATIVE confirm BEFORE Node.sendTransactionFrom too');
   ok(/if \(transaction == null\)/.test(sBody) && /if \(transaction == null\)/.test(pBody),
-    'W5: BOTH send paths null-guard the broadcast (the WalletContactRequestPage:148 NRE class)');
+    'W5: BOTH send paths null-guard the broadcast — the NRE class WalletContactRequestPage shipped for years (it dereferenced a null transaction AND a null requestMsg, which is the white error page on a canceled request). That page is REMOVED by decision 4; these two are what carry the money now');
   ok(/displaySpixiAlert\(title, body,/.test(spay) && !/page\.DisplayAlert\(/.test(spay)
     && /amountToLocalizedDisplayString\(amount\)/.test(spay),
     'W5: the confirm is ROOT-ROUTED displaySpixiAlert (overlay pages are not in the nav tree — a bare DisplayAlert is LOST) and its body is C#\'s OWN parse');
@@ -14310,10 +14384,20 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     '#529: Cancel rides the EXISTING delete path (msgDelete both ends) — no invented verb');
   ok(/isRequestTitle\(title \|\| ''\) && !String\(amount == null \? '' : amount\)\.trim\(\) && !txid/.test(chatS),
     '#529: a blanked (canceled) request re-push renders NOTHING (the ghost guard)');
-  ok(/bridge\.cap\('payRequest'\)[\s\S]{0,80}ixian:payRequest:/.test(chatS),
-    'W5: in-card Pay is cap-gated; old exe keeps the native review page');
-  ok(!/onDecline:/.test(chatS.slice(chatS.indexOf('function buildPaymentRow'), chatS.indexOf('function paymentStatusFrom'))),
-    '#526: NO Decline on the request-in card (Damir, v1)');
+  /* ★★ REBASED BY DECISION 4: there is no native review page to keep. The cap gate
+     still decides whether the card is actionable at all, but the false branch renders
+     a plain record now instead of routing to a page that has been deleted. */
+  ok(/const canSheet = bridge\.cap\('payRequest'\)/.test(chatS)
+     && /if \(!canSheet\) \{[\s\S]{0,400}?status: 'pending',/.test(chatS)
+     && !/ixian:payRequest:' \+ rec\.id\)\)/.test(chatS),
+    '★★ W5 + DECISION 4: in-card Pay is still cap-gated, and a card that cannot open the sheet is INFORMATIONAL. The direct-verb and native-page fallbacks are gone — every one of them led somewhere C# refuses or somewhere that no longer exists');
+  /* ★★ #526 IS SUPERSEDED BY DECISION 3 (Damir, 2026-08-29): "Decline lives on the
+     CARD only, and the outcome shows on both sides." #526 removed Decline because the
+     only implementation was on the legacy page and the card had no verb; the verb
+     exists now, so the reason is gone and the pin asserts the opposite. */
+  ok(/onDecline: \(\) => bridge\.send\('ixian:declineRequest:' \+ rec\.id\),/.test(chatS)
+     && (chatS.match(/ixian:declineRequest:/g) || []).length === 1,
+    '★★ DECISION 3 (supersedes #526): Decline IS on the request-in card, and it is the ONLY decline surface in the app — one verb, one call site, and the legacy page that used to carry the other one is deleted');
 
   /* settings: PA1 wiring */
   ok(/StartsWith\("ixian:paymentAuth:", StringComparison\.Ordinal\)/.test(spW5)
@@ -14987,10 +15071,11 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     }
     /* the chat shell wiring — source pins */
     const chatSrc = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
-    ok(/openPaymentReview,\s*\/\/ ★ W-d/.test(chatSrc) && /\? \(canSheet \? \(\) => openPayRequestReview\(rec\) : \(\) => bridge\.send\('ixian:payRequest:' \+ rec\.id\)\)/.test(chatSrc),
-      '★ W-d SHELL: the request-in Pay opens the review sheet when the cap + a numeric amount allow it (else the direct verb)');
-    ok(/onDetails: canSheet \? null : view,/.test(chatSrc),
-      '★ W-d SHELL: Details is DROPPED on a pending request-in when the SHEET opens — the legacy WalletContactRequestPage route (and its removed Decline) is no longer reachable from the card; when the sheet cannot open the native view stays (loop r1 C-2: never an inert card)');
+    ok(/openPaymentReview,\s*\/\/ ★ W-d/.test(chatSrc) && /onPay: \(\) => openPayRequestReview\(rec\),/.test(chatSrc),
+      '★ W-d SHELL: the request-in Pay opens the review sheet — and by decision 4 that is the ONLY thing it can do, because the native page it used to fall back to is deleted');
+    ok(/if \(!canSheet\) \{[\s\S]{0,400}?status: 'pending',/.test(chatSrc) && /onDetails: null,/.test(chatSrc)
+       && !/onDetails: canSheet \? null : view,/.test(chatSrc),
+      '★★ DECISION 4 SHELL: every `canSheet === false` branch used to fall back to the native page, and all four collapse into ONE rule now — an incoming request is ACTIONABLE only when it can actually be paid. A group/bot request, a non-numeric amount and a zero amount each render a plain record instead of a Pay that C# refuses and a Details link into a page that no longer exists');
     ok(/const canSheet = bridge\.cap\('payRequest'\) && mode\.type === 0/.test(chatSrc) && /if \(mode\.type !== 0\) return;\s*\/\/ loop r1 A-2/.test(chatSrc),
       '★ W-d SHELL (loop r1 A-2): the sheet is 1:1 ONLY — card arm AND opener; a requestFunds in a group/bot never quotes a fee against the group address');
     ok(/&& \/\[1-9\]\/\.test\(String\(rec\.amount\)\)/.test(chatSrc), 'W-d SHELL (loop r1 A-4): a zero-amount request card takes the direct verb, never the sheet (which would hang on the empty-fee quote)');
@@ -15007,9 +15092,12 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     }
     const spay = readFileSync(join(root, 'Spixi/Utils/SPayments.cs'), 'utf8');
     const scp = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8');
-    ok((spay.match(/"payRequestResult", msgIdHex, "gone", ""/g) || []).length === 3 && /"payRequestResult", msg_id, "gone", ""/.test(scp)
+    /* ★ DECISION 3 added a FOURTH "gone" — declineRequest's own unpayable guard, which
+       is deliberately the same vocabulary as its Pay twin: a request that cannot be paid
+       cannot be declined either, and both say so rather than falling silent. */
+    ok((spay.match(/"payRequestResult", msgIdHex, "gone", ""/g) || []).length === 4 && /"payRequestResult", msg_id, "gone", ""/.test(scp)
       && (spay.match(/"payRequestResult", msgIdHex, "cancel", ""/g) || []).length === 1,
-      '★ loop r1 A-1 at source: C# answers "gone" for the five UNPAYABLE cases (not found/own/settled, zero, settled-mid-confirm, group/bot) and "cancel" ONLY for the user backing out of the native confirm');
+      '★ loop r1 A-1 at source: C# answers "gone" for every UNPAYABLE case (not found/own/settled, zero, settled-mid-confirm, group/bot, and now an unanswerable decline) and "cancel" ONLY for the user backing out of the native confirm');
     ok(/onCancel: \(\) => \{[^}]*renderLog\(\); \}/.test(chatSrc), 'W-d SHELL: dismissing the sheet re-renders the log so the card\'s Pay oneShot latch is released');
   }
 
@@ -15088,13 +15176,16 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     });
     await sleep(30);
     const opts = [...d.querySelectorAll('.c-modal .c-delete-chat__opt')];
-    ok(opts.length === 2 && opts.every((o) => o.tagName === 'BUTTON' && o.getAttribute('role') === 'checkbox' && !!o.querySelector('.c-delete-chat__check'))
+    /* ★★ REMOVE-CONTACT SPEC §1 (2026-08-29): THREE options now — the third, "Remove
+       contact", is what escalates to the sheet this block goes on to drive. */
+    ok(opts.length === 3 && opts.every((o) => o.tagName === 'BUTTON' && o.getAttribute('role') === 'checkbox' && !!o.querySelector('.c-delete-chat__check'))
       && !d.querySelector('.c-modal input[type="checkbox"]'),
       '★ A7: the delete-chat options are the GROUP-CREATION checkbox grammar (role=checkbox rows + the select circle) — no native <input type=checkbox> left');
     ok(opts[0].disabled && opts[0].getAttribute('aria-checked') === 'true' && opts[1].getAttribute('aria-checked') === 'false',
       'A7: "Delete chat" is fixed-on + disabled; "media & files" starts unticked');
     opts[1].click();
     ok(opts[1].getAttribute('aria-checked') === 'true', 'A7: the option row ticks in place');
+    opts[2].click();                                   // ★ §1: this is what opens the sheet now
     [...d.querySelectorAll('.c-modal .c-button')].find((b) => /^delete$/i.test(b.textContent.trim())).click();
     await sleep(60);
     const sheet = d.querySelector('.c-sheet .c-remove-contact');
@@ -15117,9 +15208,17 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       '★ A5: every blocker ticked → Remove arms as "Leave 2 & remove"');
     cta.click();
     await sleep(30);
+    /* ★★ SPEC §3: the SHEET CLOSES FIRST. The confirm is opened from the close
+       completion, so at 30 ms there is nothing yet and the sheet is on its way out. */
+    /* ⚠ count OPEN modals: `data-open` is dropped at dismissal but the NODE lingers
+       ~400 ms for its exit transition, so a plain .c-modal count still sees step 1. */
+    ok(d.querySelectorAll('.c-modal[data-open]').length === 0,
+      '★★ SPEC §3: the confirm does not appear over the still-open sheet — two destructive surfaces at once, each with its own red button, was the screenshot');
+    await sleep(500);
     const confirm = [...d.querySelectorAll('.c-modal')].pop();
-    ok(!!confirm && /Leave 2 groups and remove Ada\?/.test(confirm.textContent) && acted.length === 1,
-      '★ A5: the additional confirm step names the count and the contact — nothing fired yet');
+    ok(!!confirm && /Leave 2 groups and remove Ada\?/.test(confirm.textContent) && acted.length === 1
+       && !d.querySelector('.c-remove-contact'),
+      '★ A5 + §3: the additional confirm step names the count and the contact, the sheet is gone, and nothing has fired yet');
     [...confirm.querySelectorAll('.c-button')].find((b) => /Leave & remove/.test(b.textContent)).click();
     await sleep(30);
     ok(acted.length === 2 && acted[1][0] === 'deleteContact' && acted[1][1].leaveGroups.join() === 'GRP1,GRP2' && acted[1][1].media === true,
@@ -15138,6 +15237,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     acted = [];
     W.Spixi.openDeleteFlow({ chat: { name: 'Cy', address: 'CY1234567890ABCDEFGHIJKLMN', type: 'contact' }, host: d.body, strings: {}, onAction: (a) => acted.push(a), onNeedGroups: () => {} });
     await sleep(30);
+    [...d.querySelectorAll('.c-modal .c-delete-chat__opt')][2].click();   // ★ §1: tick Remove contact
     const del1 = [...d.querySelectorAll('.c-modal .c-button')].find((b) => /^delete$/i.test(b.textContent.trim()));
     del1.click(); del1.click();
     await sleep(60);
@@ -15147,6 +15247,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     /* a blocked answer re-opens the question in place */
     W.Spixi.openDeleteFlow({ chat: { name: 'Bob', address: 'BOB1234567890ABCDEFGHIJKL', type: 'contact' }, host: d.body, strings: {}, onAction: () => {}, onNeedGroups: () => {} });
     await sleep(30);
+    [...d.querySelectorAll('.c-modal .c-delete-chat__opt')][2].click();   // ★ §1: tick Remove contact
     [...d.querySelectorAll('.c-modal .c-button')].find((b) => /^delete$/i.test(b.textContent.trim())).click();
     await sleep(60);
     W.Spixi.setRemoveSheetGroups('BOB1234567890ABCDEFGHIJKL', []);
@@ -15767,8 +15868,9 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   const leaveShape = /sendLeave\((?:friend|group), null\);\s*(?:\/\/[^\n]*\n\s*)*FriendList\.removeFriend\((?:friend|group)\);\s*(?:\/\/[^\n]*\n\s*)*UIHelpers\.shouldRefreshContacts = true;/;
   ok(leaveShape.test(sc567) && !/pendingDeletion = true/.test(sc567),
     '★ #567 ①: SContacts.leaveGroup = sendLeave → immediate removeFriend for group AND bot; pendingDeletion is never set');
-  ok((cd567.match(new RegExp(leaveShape.source, 'g')) || []).length >= 2 && !/pendingDeletion = true/.test(cd567),
-    '★ #567 ②③: ContactDetails ixian:leave AND onRemove() bot branch both use the one grammar; pendingDeletion is never set');
+  ok((cd567.match(new RegExp(leaveShape.source, 'g')) || []).length >= 1 && !/pendingDeletion = true/.test(cd567)
+     && /SContacts\.removeContact\(friend, leaveShared, out removeBlockers\)/.test(cd567),
+    '★ #567 ②③ (rebased by SPEC §4): ContactDetails ixian:leave still uses the one grammar, and the second copy it carried for the BOT remove branch is gone — that path routes through SContacts.removeContact → leaveGroup now, the same sendLeave → immediate removeFriend, in ONE place. pendingDeletion is never set');
   ok(/StreamProcessor\.sendLeave\(friend, null\);\s*(?:\/\/[^\n]*\n\s*)*FriendList\.removeFriend\(friend\);/.test(scp567) && !/pendingDeletion = true/.test(scp567),
     '★ #567 ④: SingleChatPage ixian:leave (the third path) uses the one grammar; pendingDeletion is never set');
   ok(/§1e-6/.test(sc567) && /getClient/.test(sc567),
@@ -15961,10 +16063,16 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        comment-stripping lesson this suite has learned twice. rulesFor() walks every
        stylesheet with comments removed and tests the SUBJECT. */
     {
-      const liftRules = rulesFor('[data-menu-lift="row"]');
+      /* ★★ V-18 (#46 loop 2026-08-29) — WEAK: `rulesFor` matches the attribute token
+       * EXACTLY, so it only ever saw `[data-menu-lift="row"]`. A ring written on the
+       * BARE `[data-menu-lift]` rule — the natural place to put one — was invisible and
+       * the negative stayed green. Read BOTH spellings. */
+      const liftRules = rulesFor('[data-menu-lift="row"]').concat(rulesFor('[data-menu-lift]'));
       const ringy = liftRules.filter((r) => /--brand-400|118, 157, 255/.test(r.body));
+      ok(rulesFor('[data-menu-lift]').length > 0 && rulesFor('[data-menu-lift="row"]').length > 0,
+        '★ V-18 harness self-check: BOTH attribute spellings resolve to real rules — a query that matched nothing would make the negative below vacuous, which is exactly how it shipped');
       ok(liftRules.length > 0 && ringy.length === 0,
-        '★★ #605 (was #589 round-2 MAJOR-1): the RING is gone from the chat row on every platform — Damir: it clipped at the screen edges and read as selection, not as lift');
+        '★★ #605 (was #589 round-2 MAJOR-1): the RING is gone from the chat row on every platform, in EITHER attribute spelling — Damir: it clipped at the screen edges and read as selection, not as lift');
     }
     ok(/\.c-swipe\[data-menu-lift="row"\],[\s\S]{0,140}?\.c-chatlist-item\[data-menu-lift="row"\] \{[^}]*box-shadow: var\(--elevation-3\)/.test(mm),
       '★★ #605: …and ELEVATION took its place on both lift targets — removing the ring without replacing it would have left the row flatter than it was before the batch');
@@ -16386,20 +16494,867 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       '★★ #607, at the unit: a caret that sat AFTER a trailing separator lands AFTER the re-formatted one. It has the same digit count as one sitting BEFORE it, which is why the digit-count rule alone could only ever put it in the wrong place');
   }
 
-  /* —— #620: ENTER MUST NEVER SPEND. A money defect, found on the device. ———— */
+  /* —— #620: ENTER MUST NEVER SPEND. A money defect, found on the device. ————
+   * ★★ V-3 (#46 loop 2026-08-29): the first cut of this block read `src/`. `rdf` reads
+   * from the repo root, so it proved the SOURCE right and said nothing about what ships.
+   * The refuter put the money-spending Enter handler back INTO THE BUNDLE ONLY and the
+   * suite printed BASELINE OK with all three pins green, on a build that spent 7 IXI on
+   * the keyboard's Done key. Both halves are rewritten: the negatives now read the BUILT
+   * bundle, and they are PAIRED with behaviour, because a negative alone goes green on a
+   * build where the whole feature is gone. */
   {
-    const ts620 = rdf('src/components/tip-sheet.js');
-    const ts620NC = ts620.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-    ok(!/confirm\.click\(\)/.test(ts620NC),
-      '★★ #620 (Damir, device): NOTHING in the tip sheet commits on a keystroke. An `Enter -> confirm.click()` lived on the amount field, and #609 then set `enterkeyhint="done"` on it — so the one key a user presses to put the keyboard away became the key that sent the money');
-    ok(/attachAmountKeyboardDismiss\(customInput\);/.test(ts620NC),
+    const bundle620 = rdf('src/demo/spixi.iife.js');
+    /* the tip-sheet slice of the bundle: from the sheet's own factory to the next
+       module's, so a stray `confirm.click()` elsewhere cannot mask or fake this. */
+    const tipAt = bundle620.indexOf('function openAmountSheet(');
+    const tipEnd = bundle620.indexOf('function openTipSheet(');
+    const tipSlice = bundle620.slice(tipAt, tipEnd > tipAt ? tipEnd : tipAt + 30000)
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    ok(tipAt > 0 && tipEnd > tipAt && tipSlice.length > 2000,
+      '★★ V-3: the #620 guard reads the BUILT bundle, and the slice it reads is real — an empty or unfound slice would satisfy every negative below for nothing');
+    ok(!/confirm\.click\(\)/.test(tipSlice),
+      '★★ #620 (Damir, device): NOTHING in the SHIPPED amount sheet commits on a keystroke. An `Enter -> confirm.click()` lived on the amount field, and #609 then set `enterkeyhint="done"` on it — so the one key a user presses to put the keyboard away became the key that sent the money');
+    ok(/attachAmountKeyboardDismiss\(customInput\)/.test(tipSlice),
       '★ #620: Enter still DISMISSES — nothing is lost from the keyboard\'s point of view, the keystroke just stops spending');
-    /* ⚠ the guard is a NEGATIVE on the whole file, not a check of one handler, because
-       the failure mode is two listeners racing on one event: a guarded confirm is still
-       a confirm on the dismiss key. The Request sheet shares this input, so it is covered
-       by the same absence. */
-    ok(!/keydown[\s\S]{0,160}?Enter[\s\S]{0,160}?confirm/.test(ts620NC),
+    ok(!/keydown[\s\S]{0,160}?Enter[\s\S]{0,160}?confirm/.test(tipSlice),
       '★★ #620: and no keydown path reaches the confirm at all — a confirm key and a dismiss key cannot share one keystroke on a field that spends, however it is guarded');
+    /* V-3, the second half: the negative was scoped to ONE file. wallet-send and
+       wallet-receive carry the same kind of field and the same commit button, and
+       nothing forbade the next author from adding there the handler just deleted here. */
+    const wsAt = bundle620.indexOf('function createWalletSend(');
+    const wrAt = bundle620.indexOf('function createWalletReceive(');
+    const opAt = bundle620.indexOf('function openPaymentReview(');
+    const wsSlice = bundle620.slice(wsAt, opAt > wsAt ? opAt : wsAt + 40000).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    const wrSlice = bundle620.slice(wrAt, wrAt + 40000).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    ok(wsAt > 0 && wrAt > 0 && opAt > wsAt && wsSlice.length > 2000 && wrSlice.length > 2000,
+      '★ V-3: the Send and Receive slices are real too');
+    ok(!/key === 'Enter'[\s\S]{0,200}?(cont|cta|confirm)\.click\(\)/.test(wsSlice)
+       && !/key === 'Enter'[\s\S]{0,200}?(cont|cta|confirm)\.click\(\)/.test(wrSlice),
+      '★★ V-3: NEITHER wallet surface commits on Enter either. The #620 negative watched one file; the rule is "a field that spends has no commit key", and it belongs on every amount field in the app');
+  }
+
+  /* ═══ ★★ V-1 / V-3 / V-4 — THE MONEY PATH, BEHAVIOURAL, ON THE BUILT BUNDLE ═══
+   * #46 loop 2026-08-29. Three findings, one block, because they share one property:
+   * THE VALUE THAT REACHES THE BRIDGE IS THE VALUE THE FIELD SHOWS.
+   *
+   * V-1: a paste into a non-empty amount field sent the wrong amount, on all four money
+   *      surfaces and in every shipped locale. de-de, field `5`, select all, paste
+   *      `12.75` put 127 500 000 000 units on the wire. The router keyed on "the field
+   *      was not empty", which is not the same fact as "these separators are ours".
+   * V-3: the pin that should have caught the previous money defect read src/. Every
+   *      assertion below drives the REAL components out of the BUILT bundle and reads
+   *      the value delivered to onSend / onTip / onSendRequest / onQuote.
+   * V-4: a typed `.5` enabled Continue and then did nothing — valid() accepted it and
+   *      the review sheet's own gate rejected it.
+   *
+   * ⚠ Every gesture here is dispatched in the order a browser fires it: the selection
+   * covers the range, `beforeinput` reports the inputType, THEN the value changes, then
+   * `input` reports the same inputType. A pin that only dispatches `input` cannot see
+   * this defect at all — the pre-edit range is the whole evidence. */
+  {
+    const domM = await load('wallet.html');
+    const dM = domM.window.document, WM = domM.window;
+
+    const typeInto = (input, ch) => {
+      input.focus();
+      const c = input.selectionStart == null ? input.value.length : input.selectionStart;
+      const e2 = input.selectionEnd == null ? c : input.selectionEnd;
+      input.dispatchEvent(new WM.InputEvent('beforeinput', { inputType: 'insertText', data: ch, bubbles: true, cancelable: true }));
+      input.value = input.value.slice(0, c) + ch + input.value.slice(e2);
+      input.setSelectionRange(c + ch.length, c + ch.length);
+      input.dispatchEvent(new WM.InputEvent('input', { inputType: 'insertText', data: ch, bubbles: true }));
+    };
+    const selectAllPaste = (input, text) => {
+      input.focus();
+      input.setSelectionRange(0, input.value.length);
+      input.dispatchEvent(new WM.InputEvent('beforeinput', { inputType: 'insertFromPaste', data: null, bubbles: true, cancelable: true }));
+      input.value = text;
+      input.setSelectionRange(text.length, text.length);
+      input.dispatchEvent(new WM.InputEvent('input', { inputType: 'insertFromPaste', data: null, bubbles: true }));
+    };
+    const caretPaste = (input, text) => {
+      input.focus();
+      const at = input.value.length;
+      input.setSelectionRange(at, at);
+      input.dispatchEvent(new WM.InputEvent('beforeinput', { inputType: 'insertFromPaste', data: null, bubbles: true, cancelable: true }));
+      input.value = input.value.slice(0, at) + text;
+      input.setSelectionRange(input.value.length, input.value.length);
+      input.dispatchEvent(new WM.InputEvent('input', { inputType: 'insertFromPaste', data: null, bubbles: true }));
+    };
+
+    /* ——— Wallet Send: type, gesture, Review, Confirm — read the payload ——— */
+    const sendWire = async (locale, seed, gesture, text) => {
+      dM.documentElement.lang = locale;
+      let wire = null, quoted = [];
+      const view = WM.Spixi.createWalletSend({
+        contacts: [{ name: 'Ada', address: 'ADA1234567890ABCDEFGHIJKLMNOP' }],
+        balance: '100000', fee: '0.001', strings: {}, host: dM.body,
+        onSend: (pl, ctrl) => { wire = pl.amount; ctrl.done(); },
+      });
+      dM.body.append(view);
+      view.querySelector('.c-wallet-send__contacts .c-contact-row').click();
+      const amt = view.querySelector('.c-wallet-send__amount');
+      for (const ch of seed) typeInto(amt, ch);
+      if (gesture === 'selectall') selectAllPaste(amt, text);
+      else if (gesture === 'caret') caretPaste(amt, text);
+      await sleep(20);
+      const cta = view.querySelector('.c-wallet-send__actions .c-button');
+      const armed = !cta.disabled;
+      cta.click();
+      await sleep(40);
+      const sheet = [...dM.querySelectorAll('.c-sendreview')].pop();
+      const shown = sheet ? (sheet.querySelector('.c-sendreview__amount') || {}).textContent : null;
+      const confirmBtn = sheet && [...sheet.querySelectorAll('.c-sendreview__actions .c-button')].pop();
+      if (confirmBtn) confirmBtn.click();
+      await sleep(30);
+      const field = amt.value;
+      if (view._closeReview) view._closeReview();
+      view.remove();
+      await sleep(20);
+      return { wire, field, armed, sheet: !!sheet, shown, quoted };
+    };
+
+    const sDe = await sendWire('de-DE', '5', 'selectall', '12.75');
+    ok(sDe.wire === '12.75' && sDe.field === '12,75',
+      '★★ V-1 BEHAVIOURAL (Wallet Send, de-DE): field `5`, select all, paste `12.75` → the FIELD reads 12,75 and the WIRE carries 12.75. It carried 1275 — one hundred and twenty-seven billion units, a hundredfold overpayment with the correct number on screen');
+    const sEn = await sendWire('en-US', '5', 'selectall', '12,75');
+    ok(sEn.wire === '12.75' && sEn.field === '12.75',
+      '★★ V-1 (Wallet Send, en-US): the mirror gesture — a comma-decimal paste into a dot-decimal field is 12.75 both on screen and on the wire. It was 1275');
+    const sFr = await sendWire('fr-FR', '5', 'selectall', '1,234.56');
+    ok(sFr.wire === '1234.56',
+      '★★ V-1(b) (Wallet Send, fr-FR): a string in the OTHER convention is read in the other convention, not mangled into neither. `1,234.56` was becoming 1.23456 — a thousandfold UNDERPAYMENT, and this half fires on a paste into an EMPTY field too');
+    const sCaret = await sendWire('en-US', '1234', 'caret', '5');
+    ok(sCaret.wire === '12345',
+      '★★ r2 MAJOR-1 REGRESSION FENCE: a paste AT THE CARET into a non-empty field still takes the per-edit strip — `1,234` plus a pasted `5` is 12345, not 1.2345. This is the regression the obvious V-1 fix reintroduces, so it is pinned beside it');
+    const sCaretDe = await sendWire('de-DE', '1234', 'caret', '5');
+    ok(sCaretDe.wire === '12345',
+      '★ r2 MAJOR-1 fence, de-DE: the same partial paste, the other separator family');
+
+    /* ——— V-4: a typed `.5` must reach the review, not enable a dead button ——— */
+    const half = await sendWire('en-US', '.5', 'none', '');
+    ok(half.armed === true && half.sheet === true && half.wire === '0.5',
+      '★★ V-4: a typed `.5` opens the review and sends 0.5. Continue was ENABLED and did NOTHING, forever — valid() accepted `.5` and openPaymentReview\'s own gate rejected it. The field still shows what was typed; only the boundaries are canonical');
+    const trail = await sendWire('en-US', '12.', 'none', '');
+    ok(trail.armed === true && trail.sheet === true && trail.wire === '12',
+      '★ V-4: and a mid-typed `12.` is 12 at the boundary — the other string valid() accepted and the review refused');
+    /* the quote key is canonical too: C# echoes back what we sent, so a key built from
+       `.5` could never match an echo of `0.5` and the fee would never arrive. */
+    {
+      dM.documentElement.lang = 'en-US';
+      let asked = null;
+      const qv = WM.Spixi.createWalletSend({
+        contacts: [{ name: 'Ada', address: 'ADA1234567890ABCDEFGHIJKLMNOP' }],
+        balance: '100', fee: null, strings: {}, host: dM.body, onQuote: (a, amount) => { asked = amount; },
+      });
+      dM.body.append(qv);
+      qv.querySelector('.c-wallet-send__contacts .c-contact-row').click();
+      const qa = qv.querySelector('.c-wallet-send__amount');
+      for (const ch of '.5') typeInto(qa, ch);
+      await sleep(420);
+      WM.Spixi.setSendQuote(qv, { fee: '0.001', address: 'ADA1234567890ABCDEFGHIJKLMNOP', amount: asked });
+      const cta = qv.querySelector('.c-wallet-send__actions .c-button');
+      ok(asked === '0.5' && !cta.disabled,
+        '★★ V-4: the QUOTE asks for `0.5`, and the fee that answers it arms Review. C# echoes the amount it was given, so a key built from the raw `.5` could never match the echo and the compose would sit on "Calculating network fee…" for ever');
+      qv.remove();
+    }
+
+    /* ——— Chat Tip: the surface where V-1 was SILENT (V-2 — no native confirm) ——— */
+    const tipWire = async (locale, seed, text) => {
+      dM.documentElement.lang = locale;
+      let wire = null;
+      WM.Spixi.openTipSheet({
+        message: { id: 'mV1' }, recipient: { name: 'Han', address: '4kdJ2fN8w1qLxCvB7tRz9fQz' },
+        balance: 1000000, host: dM.body, onTip: (pl, ctrl) => { wire = pl.amount; ctrl.done(); },
+      });
+      await sleep(40);
+      const tip = [...dM.querySelectorAll('.c-tipsheet')].pop();
+      [...tip.querySelectorAll('.c-chip')].pop().click();          // Custom
+      const inp = tip.querySelector('.c-tipsheet__custom');
+      for (const ch of seed) typeInto(inp, ch);
+      if (text) selectAllPaste(inp, text);
+      await sleep(20);
+      const confirmBtn = tip.querySelector(':scope > button.c-button');
+      confirmBtn.click();
+      await sleep(30);
+      const field = inp.value;
+      WM.Spixi.dismissTopOverlay();
+      await sleep(80);
+      return { wire, field };
+    };
+    const tDe = await tipWire('de-DE', '5', '0.05');
+    ok(tDe.wire === '0.05' && tDe.field === '0,05',
+      '★★ V-1 BEHAVIOURAL (Chat Tip, de-DE): field `5`, select all, paste `0.05` → the wire carries 0.05. It carried 5 — a hundredfold overpayment. ⚠ V-2: this surface has NO native confirm, so the button label was the user\'s last look at the number');
+
+    /* ——— Wallet Receive: the request amount ——— */
+    const recvWire = async (locale, seed, text) => {
+      dM.documentElement.lang = locale;
+      let wire = null;
+      const rec = WM.Spixi.createWalletReceive({
+        address: '425HqzWpMkV3dTgJnS85CQen', strings: {}, host: dM.body,
+        contacts: [{ name: 'Ada', address: 'ADA1234567890ABCDEFGHIJKLMNOP' }],
+        onSendRequest: ({ amount }) => { wire = amount; return true; },
+      });
+      dM.body.append(rec);
+      rec.querySelector('.c-wallet-receive__contact').click();
+      const amt = rec.querySelector('.c-wallet-receive__amount');
+      for (const ch of seed) typeInto(amt, ch);
+      if (text) selectAllPaste(amt, text);
+      await sleep(20);
+      rec.querySelector('.c-wallet-receive__cta').click();
+      await sleep(30);
+      rec.remove();
+      return wire;
+    };
+    ok(await recvWire('en-US', '5', '12,75') === '12.75' && await recvWire('de-DE', '5', '12.75') === '12.75',
+      '★★ V-1 BEHAVIOURAL (Wallet Receive, both separator families): the request that leaves this screen asks for 12.75. It asked for 1275');
+
+    /* ——— V-3 paired POSITIVE: Enter still cannot spend, and the BUTTON still can ——— */
+    {
+      dM.documentElement.lang = 'en-US';
+      let tipped = 0;
+      WM.Spixi.openTipSheet({
+        message: { id: 'mEnter' }, recipient: { name: 'Han', address: '4kdJ2fN8w1qLxCvB7tRz9fQz' },
+        balance: 1000, host: dM.body, onTip: (pl, ctrl) => { tipped++; ctrl.done(); },
+      });
+      await sleep(40);
+      const tip = [...dM.querySelectorAll('.c-tipsheet')].pop();
+      [...tip.querySelectorAll('.c-chip')].pop().click();
+      const inp = tip.querySelector('.c-tipsheet__custom');
+      for (const ch of '7') typeInto(inp, ch);
+      inp.focus();
+      inp.dispatchEvent(new WM.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      await sleep(30);
+      ok(tipped === 0 && dM.activeElement !== inp,
+        '★★ #620 / V-3 BEHAVIOURAL: Enter on the tip amount spends NOTHING and still drops the keyboard. This is the pin the src/-reading negative could not be: the refuter\'s poisoned bundle spent 7 IXI here and the suite said BASELINE OK');
+      const confirmBtn = tip.querySelector(':scope > button.c-button');
+      confirmBtn.click();
+      await sleep(30);
+      ok(tipped === 1,
+        '★★ V-3 PAIRED POSITIVE: the Confirm BUTTON still commits. Two negatives alone go green on a build where the tip sheet cannot send at all');
+      WM.Spixi.dismissTopOverlay();
+      await sleep(80);
+    }
+
+    /* ——— V-1(b) at the unit, on the bundle: both directions, and the pairs that must NOT move ——— */
+    {
+      const SM = WM.Spixi;
+      const read = (str, loc) => SM.canonicalAmount(SM.sanitizeAmount(SM.ungroupAmountInput(str, loc)));
+      const commaLocales = ['de-DE', 'fr-FR', 'ru-RU', 'sl-SI', 'pt-BR', 'es-ES', 'sr-RS'];
+      ok(commaLocales.every((L) => read('1,234.56', L) === '1234.56') && read('1.234,56', 'en-US') === '1234.56',
+        '★★ V-1(b) at the unit: a foreign-convention amount is read in the convention it is written in, in BOTH directions. Neither `1,234.56` in a comma-decimal locale nor `1.234,56` in en-US was readable at all — the second separator lost its meaning and both became 1.23456');
+      ok(commaLocales.every((L) => read('12,5', L) === '12.5' && read('1,500', L) === '1.500' && read('1.500', L) === '1500')
+         && read('12,5', 'en-US') === '12.5' && read('1,500', 'en-US') === '1500' && read('1.500', 'en-US') === '1.500',
+        '★★ V-1(b) THE FENCE, and it is the whole safety of that change: an amount that IS readable locally never changes meaning. `1,500` still reads one-and-a-half in de and fifteen hundred in en, and `12,5` still keeps its #135-M2 decimal reading everywhere. The foreign branch needs TWO separators in an arrangement no local reading accepts');
+      ok(read('1234.56', 'de-DE') === '1234.56' && read('1234.56', 'en-US') === '1234.56',
+        '★ V-1(b): and the app\'s own canonical wire form still passes through untouched in every locale — it is what a QR payload and a deep link carry');
+    }
+
+    /* ——— the snapshot itself: it must go STALE, or a later synthetic dispatch eats it ——— */
+    {
+      const SM = WM.Spixi;
+      const inp = dM.createElement('input');
+      inp.type = 'text';
+      dM.body.append(inp);
+      const readPre = SM.attachAmountPreEdit(inp);
+      ok(typeof readPre === 'function' && readPre() === null,
+        '★ V-1: attachAmountPreEdit returns a READER, and it reads null before any edit — a null snapshot routes exactly as this module routed before the fix, so an absent signal degrades to the old behaviour rather than to a wrong branch');
+      inp.value = '1,234';
+      inp.setSelectionRange(0, 5);
+      inp.dispatchEvent(new WM.InputEvent('beforeinput', { inputType: 'insertFromPaste', bubbles: true, cancelable: true }));
+      const first = readPre();
+      ok(first && first.value === '1,234' && first.start === 0 && first.end === 5 && readPre() === null,
+        '★★ V-1: the snapshot is delivered ONCE and then goes stale. A QR seed and a test both dispatch a plain `input` with no pre-edit event, and a snapshot left fresh from an earlier keystroke would be consumed by the wrong edit');
+      inp.value = '9';
+      inp.setSelectionRange(0, 1);
+      inp.dispatchEvent(new WM.Event('paste', { bubbles: true }));
+      const belt = readPre();
+      ok(belt && belt.value === '9' && belt.end === 1,
+        '★★ V-1 THE BELT: `paste`, `keydown`, `cut` and `drop` snapshot as well as `beforeinput`. They all land before the `input` that reports the edit, so a runtime that does not fire beforeinput on an <input> still routes correctly instead of falling back to the defect itself');
+      inp.remove();
+    }
+
+    /* ——— and the ROUTER, at the unit: the fact it keys on is the REPLACED RANGE ——— */
+    {
+      const SM = WM.Spixi;
+      const whole = { value: '5', start: 0, end: 1 };
+      const partial = { value: '1,234', start: 5, end: 5 };
+      ok(SM.sanitizeAmount(SM.amountInputToCanonical('12.75', 5, { inputType: 'insertFromPaste', data: null }, 'de-DE', true, whole)) === '12.75',
+        '★★ V-1 at the unit: with the whole previous value replaced, the settled heuristic runs — the separators belong to the pasted string, not to us');
+      ok(SM.sanitizeAmount(SM.amountInputToCanonical('1,2345', 6, { inputType: 'insertFromPaste', data: null }, 'en-US', true, partial)) === '12345',
+        '★★ V-1 at the unit: with only part of it replaced, the per-edit strip runs — the separators around the caret are ours, and this is the r2 MAJOR-1 rule the fix must not undo');
+      ok(SM.sanitizeAmount(SM.amountInputToCanonical('1,2345', 6, { inputType: 'insertFromPaste', data: null }, 'en-US', true, null)) === '12345',
+        '★ V-1 at the unit: with NO snapshot the router falls back to the pre-fix routing — the fallback is today\'s shipped behaviour, never a new branch');
+    }
+
+    /* ═══ ★★ V-2 — A TIP IS A PAYMENT AND IT NOW HAS A NATIVE WALL ═══════════════
+     * The tip took a WebView-composed amount into `new IxiNumber(data)` →
+     * `prepareTransactionFrom` → `addTransaction` with no `displaySpixiAlert` and no
+     * `confirmAndAuth` anywhere on the path. That is a CLAUDE.md ground-rule breach on
+     * its own, AND it is why V-1 was silent here: the button label was the user's last
+     * look at the number. Damir's ruling, 2026-08-29: the native dialog IS the tip's
+     * review step, presets and custom alike, and it shows the fee.
+     * ⚠ cs-syntax-check PARSES, it does not COMPILE (#593) — this needs a real build. */
+    {
+      const scpTip = rdf('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+      const tipA = scpTip.indexOf('case "tip":');
+      const tipB = scpTip.indexOf('catch (Exception tipEx)');
+      /* ⚠ STRIP THE COMMENTS. The rationale block written beside this fix names
+         `friend.addReaction` in prose, and an un-stripped slice matched its own
+         explanation — the exact carried lesson, caught by counting the needle. */
+      const tipSlice = scpTip.slice(tipA, tipB > tipA ? tipB : tipA + 25000)
+        .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+      const iConfirm = tipSlice.indexOf('SPayments.confirmTip');
+      const iGate = tipSlice.indexOf('if (!confirmed)');
+      const iReact = tipSlice.indexOf('friend.addReaction');
+      const iBroadcast = tipSlice.indexOf('IxianHandler.addTransaction');
+      ok(tipA > 0 && tipB > tipA && tipSlice.length > 5000
+         && (tipSlice.match(/SPayments\.confirmTip/g) || []).length === 1
+         && (tipSlice.match(/friend\.addReaction/g) || []).length === 1
+         && (tipSlice.match(/IxianHandler\.addTransaction/g) || []).length === 1,
+        '★★ V-2: the tip slice is real and each needle below occurs EXACTLY ONCE in it — indexOf returns the first match, so an order pin over a repeated needle proves nothing');
+      ok(iConfirm > 0 && iGate > iConfirm && iReact > iGate && iBroadcast > iReact,
+        '★★ V-2 THE ORDER, and the order is the whole fix: the native confirm is AWAITED first, a refusal returns before anything else, and only then does the local tip pill get written and the transaction broadcast. Confirming after friend.addReaction would leave a tip pill over a payment the user had just declined');
+      ok(/sendTipResultFor\("cancel", "", tipIdForAnswer\);\s*\n\s*return;/.test(tipSlice),
+        '★★ V-2: a CANCEL returns without broadcasting, and it answers the sheet — the sheet disables its own dismissal while money is in flight, so an unanswered refusal would freeze it');
+      ok(/sendTipResultFor\("pending", "", tipIdForAnswer\);/.test(tipSlice)
+         && tipSlice.indexOf('sendTipResultFor("pending"') < iConfirm,
+        '★★ V-2: and C# says "I have it" BEFORE the wait. The shell arms a 12 s backstop for an exe that never answers; a human reading a dialog is not that, and without this the sheet would have said the tip may not have been sent while the dialog was still on screen');
+      ok(/string tipIdForAnswer = tipMsgIdHex;/.test(tipSlice),
+        '★★ V-2: the message id is CAPTURED before the wait. tipMsgIdHex is a field that every contextAction overwrites, so a copy or a reaction on another message while the dialog is open would have sent the answer back under the wrong id — and the shell drops an answer whose id does not match');
+      const spay = rdf('Spixi/Utils/SPayments.cs').replace(/\/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+      const cAt = spay.indexOf('public static async Task<bool> confirmTip(');
+      const cBody = spay.slice(cAt, cAt + 500);
+      ok(cAt > 0 && /acquireConfirm\(\)/.test(cBody) && /confirmAndAuth\(page, recipientDisplay\(addr\), amount, fee\)/.test(cBody) && /releaseConfirm\(\)/.test(cBody),
+        '★★ V-2: confirmTip is the SAME wall as Send and Pay — the shared in-flight latch, the same dialog, the same PA1 auth step, and the recipient ladder that shows a nickname only for a real contact and ALWAYS the full address under it');
+      ok(/bool ok = await confirmAndAuth/.test(spay) && (spay.match(/private static async Task<bool> confirmAndAuth/g) || []).length === 1,
+        '★ V-2: and there is still exactly ONE confirmAndAuth — the tip did not get its own softer copy of the wall');
+
+      /* the SHELL half: two new statuses, and the silent one is silent */
+      const chTip = rdf('src/shells/chat.html');
+      ok(/if \(status === 'cancel'\) \{ c\.fail\(''\); return; \}/.test(chTip),
+        '★★ V-2: the shell maps cancel to the sheet\'s SILENT re-enable. A tip somebody declined is not a tip that failed, and an error line there is a lie about their own decision');
+      ok(/if \(status === 'pending'\) \{[\s\S]{0,420}?120000\);/.test(chTip),
+        '★ V-2: and pending RE-ARMS the backstop at 120 s rather than resolving the controller — 120 s is the same window SPayments uses to declare a confirm latch stale, so past it C# has given up too');
+
+      /* ——— behavioural, on the BUILT bundle: silent vs spoken failure ——— */
+      const tipFailCase = async (msg) => {
+        dM.documentElement.lang = 'en-US';
+        let ctrl = null;
+        WM.Spixi.openTipSheet({
+          message: { id: 'mFail' + String(msg), }, recipient: { name: 'Han', address: '4kdJ2fN8w1qLxCvB7tRz9fQz' },
+          balance: 1000, host: dM.body, onTip: (pl, c) => { ctrl = c; },
+        });
+        await sleep(40);
+        const tip = [...dM.querySelectorAll('.c-tipsheet')].pop();
+        [...tip.querySelectorAll('.c-chip')].pop().click();
+        const inp = tip.querySelector('.c-tipsheet__custom');
+        inp.focus();
+        inp.dispatchEvent(new WM.InputEvent('beforeinput', { inputType: 'insertText', data: '3', bubbles: true, cancelable: true }));
+        inp.value = '3';
+        inp.setSelectionRange(1, 1);
+        inp.dispatchEvent(new WM.InputEvent('input', { inputType: 'insertText', data: '3', bubbles: true }));
+        const confirmBtn = tip.querySelector(':scope > button.c-button');
+        confirmBtn.click();
+        await sleep(20);
+        ctrl.fail(msg);
+        await sleep(20);
+        const err = tip.querySelector('.c-tipsheet__error--send');
+        const state = { hidden: err ? err.hidden : null, text: err ? err.textContent : null, disabled: confirmBtn.disabled };
+        WM.Spixi.dismissTopOverlay();
+        await sleep(80);
+        return state;
+      };
+      const silent = await tipFailCase('');
+      ok(silent.hidden === true && silent.text === '' && silent.disabled === false,
+        '★★ V-2 BEHAVIOURAL: fail(\'\') leaves NO error on the tip sheet and hands the controls back — this is the path a native Cancel takes, and it is the one the sheet did not have');
+      const spoken = await tipFailCase('Not enough IXI.');
+      ok(spoken.hidden === false && spoken.text === 'Not enough IXI.',
+        '★★ V-2 PAIRED POSITIVE: a real failure still SPEAKS. The silent branch is keyed on the empty string alone, so undefined and null keep the generic copy and a dropped answer still says something');
+    }
+  }
+
+  /* ═══ ★★ ITEM 6 — CHAT INFO PRESENTS FIRST, WITH ITS SKELETON ═══════════════════
+   * Damir: "ideally it slides from the right instantly with skeletons until we have
+   * data, and a nice transition to the content."
+   *
+   * The queue said the page was "assembled off-stage and only slid in when it is
+   * finished". The mechanism turned out to be a FLAT `await Task.Delay(120)` in
+   * presentPreload — held for EVERY load-then-present navigation — and this shell
+   * coalesces its own pushes on a 120 ms timer, so the panel always finished before the
+   * page became visible. The boot skeleton has existed since A8 and has never been seen.
+   * Three changes, and the pins below hold all three apart:
+   *   · the hold is PER-OP and chat info asks for 0 (every other screen keeps 120);
+   *   · the overlay present SLIDES from the trailing edge instead of flipping opacity;
+   *   · the first real content frame CROSSFADES over the skeleton (decision 9).
+   * ⚠ cs-syntax-check PARSES, it does not COMPILE (#593) — the C# needs a real build. */
+  {
+    const scp6 = rdf('Spixi/Utils/SpixiContentPage.cs');
+    const hp6 = rdf('Spixi/Pages/Home/HomePage.xaml.cs');
+    const cd6 = rdf('Spixi/Pages/Contacts/ContactDetails.xaml.cs');
+    const cdShell6 = rdf('Spixi/Resources/Raw/html/contact_details.html');
+
+    ok(/int revealDelayMs = 120, bool slideIn = false/.test(scp6)
+       && /public int revealDelayMs = 120;/.test(scp6),
+      '★★ ITEM 6 THE PAIRED POSITIVE, and it is the one that matters: the DEFAULT is still 120 ms, in the parameter and on the op. One report about one screen must not silently re-time every load-then-present navigation in the app');
+    ok(/if \(op\.revealDelayMs > 0\)\s*\n\s*\{\s*\n\s*await Task\.Delay\(op\.revealDelayMs\);/.test(scp6)
+       && !/await Task\.Delay\(120\);/.test(scp6),
+      '★★ ITEM 6: presentPreload honours the PER-OP delay and the flat 120 is gone. A page that asks for 0 is presented the moment its document loads, which is the only way its boot skeleton can ever be on screen');
+    ok((hp6.match(/revealDelayMs: 0, slideIn: true/g) || []).length === 3
+       && /revealDelayMs: 0, slideIn: true/.test(cd6) === false
+       && /revealDelayMs: 0, slideIn: true/.test(rdf('Spixi/Pages/Chat/SingleChatPage.xaml.cs')),
+      '★★ ITEM 6: ALL FOUR chat-info routes ask for it — the three in HomePage (col-2 beside a conversation, the detail slot, the narrow takeover) and the chat header in SingleChatPage. Pinning one would have left the other three on the old timing and the fix would look intermittent');
+
+    /* ★ the slide must NOT be awaited before the overlay is registered. */
+    const presentAt6 = scp6.indexOf('private static void presentPreload');
+    const presentBody6 = scp6.slice(presentAt6, scp6.indexOf('private static async Task slideStageIn'));
+    ok(presentAt6 > 0 && presentBody6.length > 2000
+       && /_ = slideStageIn\(op\.stage\);/.test(presentBody6)
+       && !/await op\.stage\.TranslateTo/.test(presentBody6)
+       && presentBody6.indexOf('_ = slideStageIn(op.stage);') < presentBody6.indexOf('overlayStack.Add(op);'),
+      '★★ ITEM 6: the slide is FIRE-AND-FORGET and it starts before the overlay joins the stack. Awaiting a 220 ms animation there would leave the overlay invisible to back handling, the same-tag sweep and closeTopOverlay for the whole time it was on screen');
+    ok(/finally\s*\n\s*\{\s*\n\s*try \{ stage\.TranslationX = 0; \} catch \(Exception\) \{ \}/.test(scp6),
+      '★★ ITEM 6: the translation is ALWAYS reset, in a finally. An interrupted or failed animation must not leave a stage parked off the edge — the parked overlay reuses its stage, so a stuck translation would come back on a later present');
+    ok(/op\.slideIn = slideIn && overlayMode;/.test(scp6),
+      '★ ITEM 6: only the IN-PLACE present can slide. The push fallback re-parents the page, which is the #225 repaint this whole machinery exists to avoid — animating it would add a transform to a frame that is already blank');
+
+    /* ★ the shell must not signal ready before the skeleton has actually PAINTED. */
+    ok(/requestAnimationFrame\(\(\) => requestAnimationFrame\(\(\) => \{\s*\n\s*bridge\.ready\(\);/.test(cdShell6),
+      '★★ ITEM 6: the shell signals ready only after TWO frames. With the 120 ms hold gone the present rides this signal directly, so signalling before a paint would slide in a blank themed rectangle — which is #619 / V-6 repeated in a new place');
+    ok(/if \(!built\) crossfadeIn\(next\); else root\.replaceChildren\(next\);/.test(cdShell6),
+      '★★ ITEM 6: the crossfade is the FIRST build only. Every later rebuild (a tx push, a late avatar, a roster commit) is a plain swap — fading on every update would make the panel breathe once a second');
+    ok(/setTimeout\(settle, 400\);/.test(cdShell6) && /next\.addEventListener\('transitionend', settle, \{ once: true \}\);/.test(cdShell6),
+      '★ ITEM 6: transitionend has a BELT. A transition that never fires — reduced motion arriving mid-fade, a display change, a browser that skips it — would otherwise strand the skeleton on top of the content for ever');
+
+    /* ——— the crossfade, EXECUTED against the SHIPPED shell text ——————————————
+     * A source pin cannot see an ordering mistake here, and the whole thing is
+     * ordering: append, two frames, then flip. This evaluates the function AS SHIPPED
+     * in a real DOM and drives it. */
+    {
+      const fnStart6 = cdShell6.indexOf('function crossfadeIn(next) {');
+      const fnEnd6 = cdShell6.indexOf('function rebuildPanel() {');
+      const fnSrc6 = fnStart6 >= 0 && fnEnd6 > fnStart6 ? cdShell6.slice(fnStart6, fnEnd6) : '';
+      ok(fnSrc6.length > 300 && /root\.classList\.add\('is-crossfading'\)/.test(fnSrc6),
+        '★ ITEM 6 harness self-check: the slice really is the shipped crossfade. An empty slice would make every assertion below pass for nothing — the #618/:846 fixture mistake');
+      const dom6 = new JSDOM('<!doctype html><html><body><div id="contact-root"><div class="contact-boot"></div></div></body></html>', {
+        runScripts: 'dangerously', pretendToBeVisual: true, url: 'file:///cd/',
+        beforeParse(w) {
+          w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+        },
+      });
+      const W6 = dom6.window, D6 = W6.document;
+      W6.eval('var root = document.getElementById("contact-root");\n' + fnSrc6);
+      const panel6 = D6.createElement('div');
+      panel6.className = 'c-chat-info';
+      W6.eval('window.__cf = crossfadeIn;');
+      W6.__cf(panel6);
+      const boot6 = D6.querySelector('.contact-boot');
+      ok(!!boot6 && D6.getElementById('contact-root').contains(panel6)
+         && D6.getElementById('contact-root').classList.contains('is-crossfading')
+         && panel6.classList.contains('cd-fade--in'),
+        '★★ ITEM 6 EXECUTED: on the first content frame BOTH children are in the root at once, sharing one grid cell, with the new panel still transparent. This is what makes it a crossfade rather than a swap — the skeleton is never removed before the content is there to replace it');
+      await sleep(60);
+      ok(boot6.classList.contains('is-leaving') && !panel6.classList.contains('cd-fade--in'),
+        '★★ ITEM 6 EXECUTED: two frames later the skeleton starts fading out AS the panel fades in. Flipping in the same frame as the append gives no transition at all — the browser has no previous computed value to animate from');
+      await sleep(450);
+      ok(!D6.querySelector('.contact-boot')
+         && !D6.getElementById('contact-root').classList.contains('is-crossfading')
+         && !panel6.classList.contains('cd-fade'),
+        '★★ ITEM 6 EXECUTED: the belt settles it — the skeleton is gone, the root is back to its normal flex column and the panel carries no leftover transition class. jsdom fires no transitionend, so this is the belt alone doing the work, which is exactly the case that would have stranded the skeleton');
+    }
+
+    /* the [CDPERF] probe — TEMPORARY, and pinned so it cannot be forgotten in place */
+    ok(/\[CDPERF\] " \+ \(isGroup \? "group" : "contact"\) \+ " constructed/.test(cd6)
+       && /\[CDPERF\] document loaded/.test(cd6) && /\[CDPERF\] presented/.test(cd6)
+       && /\[CDPERF\] content painted/.test(cd6) && /bridge\.send\('ixian:cdpainted'\)/.test(cdShell6),
+      '★ ITEM 6 PROBE (temporary): the timeline is COMPLETE — constructed, document loaded, presented, content painted. The 120 ms hold was only part of the wait; generatePage re-localizes and rewrites a 168 KB shell to disk on every open, and nobody has measured which half costs what. Four points or the log answers nothing');
+  }
+
+  /* ═══ ★★ V-5 / V-8 / V-10 — the C# findings from the #46 loop ═══════════════════
+   * ⚠ cs-syntax-check PARSES, it does not COMPILE (#593). All three want a real build. */
+  {
+    const scpV = rdf('Spixi/Utils/SpixiContentPage.cs');
+    const cdV = rdf('Spixi/Pages/Contacts/ContactDetails.xaml.cs');
+    const scpChatV = rdf('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+
+    /* —— V-5: a 5-second task that outlives its page —— */
+    ok(/private volatile bool disposed = false;/.test(scpV)
+       && /public void Dispose\(\)\s*\n\s*\{\s*\n\s*disposed = true;/.test(scpV),
+      '★★ V-5: Dispose sets the flag, and sets it FIRST — before the NavigationStack test that can throw, and before the WebView teardown. A flag set at the end of a method that can bail early is not a flag');
+    {
+      const popAt = scpV.indexOf('public void popPageAsync()');
+      const popBody = popAt > 0 ? scpV.slice(popAt, popAt + 2600).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '') : '';
+      const stagingAt = popBody.indexOf('cancelPreload(op);');
+      const guardAt = popBody.indexOf('if (disposed)');
+      const popAsyncAt = popBody.indexOf('Navigation.PopAsync(');
+      ok(popAt > 0 && popBody.length > 600 && stagingAt > 0 && guardAt > stagingAt && popAsyncAt > guardAt
+         && (popBody.match(/if \(disposed\)/g) || []).length === 2,
+        '★★ V-5: the disposed guard sits in popPageAsync\'s THIRD branch — after the overlay and staging branches, before the PopAsync — and it is checked TWICE, because the second check is on the main-thread continuation and a Dispose can land between them. #619 freed the UI thread, which is what made that branch reachable at all: it pops whatever IS on top, which is someone else\'s screen (the #272 / #328 class)');
+    }
+
+    /* —— V-8: a bot-room member still wearing an "Owner" chip —— */
+    ok(/bool blindGroup = friend\.type != FriendType\.Group \|\| blind;/.test(cdV)
+       && /if \(!blindGroup\)\s*\n\s*\{\s*\n\s*try \{ owner = friend\.users\.getOwner\(\)/.test(cdV),
+      '★★ V-8: the owner push on the LIVE surface is gated on being a GROUP, not merely on "not blind". In a bot room getOwner() degrades to the first roster entry we happened to learn, reshuffled by the 500-cap eviction — so an arbitrary participant of a public channel was branded its owner. #616 fixed the twin that #249 records as unreachable and left this one, and #613 then WIDENED it: a FLAGGED bot room used to suppress the owner and afterwards pushed one');
+    ok(/bool blindGroup = friend\.type != FriendType\.Group \|\| Utils\.hidesParticipants\(friend\);/.test(scpChatV),
+      '★ V-8 THE PAIR: the twin surface still carries the same predicate. These two are the ONE rule "does this room have a knowable owner", and the whole finding is that they drifted — a pin on one alone is how they drift again');
+    {
+      const gAtV = cdV.indexOf('bool blindGroup = friend.type != FriendType.Group || blind;');
+      const amOwnerAtV = cdV.indexOf('if (friend.type == FriendType.Group)', gAtV > 0 ? gAtV : 0);
+      ok(gAtV > 0 && amOwnerAtV > gAtV,
+        '★ V-8: and N48\'s amOwner — which was ALREADY gated correctly, three lines below, with the reason written out — is still there and still group-only. It is the evidence the author of the owner push had the right rule in hand and applied it to only one of the two');
+    }
+
+    /* —— V-10: a plain Queue written from two threads —— */
+    ok(/private ConcurrentQueue<string> messageQueue = new ConcurrentQueue<string>\(\);/.test(scpV)
+       && /while \(messageQueue\.TryDequeue\(out string message\)\)/.test(scpV)
+       && !/messageQueue\.Dequeue\(\)/.test(scpV),
+      '★ V-10: the WebView message queue is concurrent, and the drain is TryDequeue — a Count-then-Dequeue pair is a race of its own. Written from the loader thread (loadMessages runs on a Task.Run), drained on the main thread. PRE-EXISTING, not introduced by #619, and one word to close with no behaviour delta');
+  }
+
+  /* ═══ ★★ KICK AND BAN — BOT ROOMS ONLY (Damir, 2026-08-29, option A) ═══════════
+   * "on spixi community group bot, the admin can kick and ban and delete messages,
+   * which is what should remain. For private groups … i tried as owner of private group
+   * to kick a user, but nothing happened."
+   * The trace: `case SpixiBotActionCode.kickUser: return true;` — an EMPTY case in
+   * Ixian-Core. A bot room works because its action goes to the bot SERVER. A private
+   * group has no server, so the message asks every member's app to drop somebody and
+   * nothing honours it. TWO Core changes would be needed (implement it, and define who
+   * may send it), and Core is frozen — so the control is withdrawn where it lies. */
+  {
+    const domK = await load('chat.html');
+    const dK = domK.window.document, WK = domK.window;
+    const MEMBERS = [
+      { name: 'Ada', address: 'ADA1234567890ABCDEFGHIJKL' },
+      { name: 'Owner', address: 'OWN1234567890ABCDEFGHIJKL', owner: true },
+    ];
+    const build = (kind) => {
+      const el = WK.Spixi.createChatInfo({
+        kind, context: 'chat', name: 'Room', address: 'ROOM1234567890ABCDEFGHIJ',
+        members: MEMBERS, memberCount: 2,
+        capabilities: { admin: true },
+        onMemberAction: () => {}, onBack() {},
+      });
+      dK.body.append(el);
+      return el;
+    };
+    const rowFor = (el) => [...el.querySelectorAll('.c-chat-info__member')]
+      .find((r) => /Ada/.test(r.textContent));
+    const openSheet = (el) => {
+      const r = rowFor(el);
+      r.click();
+      return dK.querySelector('.c-member') || dK.body;
+    };
+    const bot = build('bot');
+    await sleep(30);
+    const botSheet = openSheet(bot);
+    const botLabels = [...botSheet.querySelectorAll('button')].map((b) => b.textContent).join('|');
+    ok(/Kick/.test(botLabels) && /Ban/.test(botLabels),
+      '★★ OPTION A, THE HALF DAMIR ASKED ME TO KEEP: a BOT room still offers Kick and Ban to an admin. Its action is addressed to the bot server, which enforces membership itself — that is the one place this works, and it stays exactly as it is');
+    WK.Spixi.dismissTopOverlay();
+    await sleep(450);
+    bot.remove();
+
+    const grp = build('group');
+    await sleep(30);
+    const grpSheet = openSheet(grp);
+    const grpLabels = [...grpSheet.querySelectorAll('button')].map((b) => b.textContent).join('|');
+    ok(!/Kick/.test(grpLabels) && !/Ban/.test(grpLabels),
+      '★★ OPTION A: a PRIVATE GROUP offers NEITHER, even to its owner with admin true. The verb was well-formed and went nowhere — Ixian-Core\'s handler is an empty case — and an affordance that emits a verb nobody honours tells the owner someone was removed when they were not (the ⑪ delivery-lie rule)');
+    WK.Spixi.dismissTopOverlay();
+    await sleep(450);
+    grp.remove();
+
+    ok(/capabilities\.admin && kind === 'bot' && onMemberAction/.test(rdf('src/components/chat-info.js')),
+      '★★ OPTION A: the gate reads `kind`, and that is NOT the obvious choice — a bot room\'s Friend is FriendType.NORMAL with `bot` true (Node.cs:979), so C# sends "bot" for it and "group" only for a real FriendType.Group. Reading `blind` or `type` instead is how #613 broke this family once already');
+    /* ★★ THERE ARE TWO MEMBER SHEETS, AND THE FIRST CUT GATED ONLY ONE. Damir's device
+     * walk found a private group still offering "Remove from group" / "Ban from group"
+     * from the IN-CHAT sender tap — chat.html's own `openMember`, which is the surface he
+     * actually uses. That is V-8's pattern repeated on the day its lesson was pinned:
+     * "#616 fixed the twin surface … and left the live one." Both gates are asserted
+     * TOGETHER from now on, because the whole finding is that they drift apart. */
+    {
+      const chatK = rdf('src/shells/chat.html');
+      ok(/if \(mode\.admin && mode\.isBot && rec\.senderAddress\) \{/.test(chatK)
+         && !/if \(mode\.admin && rec\.senderAddress\) \{/.test(chatK)
+         && (chatK.match(/ixian:kick:/g) || []).length === 1
+         && (chatK.match(/ixian:ban:/g) || []).length === 1,
+        '★★ OPTION A, THE SECOND SURFACE: the IN-CHAT member sheet is gated on `mode.isBot` too, and there is exactly ONE emit site for each verb in this shell. This is the sheet a user reaches by tapping a sender — the one Damir\'s walk caught still offering both actions in a private group');
+      ok(/mode\.isBot = \(t === 3\);/.test(chatK),
+        '★ OPTION A: and `mode.isBot` is `type === 3`, which is what C# sends "bot" for — the same room the chat-info gate resolves to. Two surfaces, one rule, one discriminator');
+    }
+  }
+
+  /* ═══ ★★ DECISION 3 + 4 — DECLINE ON THE CARD, AND THE NATIVE PAGE IS REMOVED ═══
+   * Damir, 2026-08-29: "Decline lives on the CARD only, and the outcome shows on both
+   * sides" · "The native payment page is REMOVED, properly. Nothing of legacy must exist
+   * in the new app. It shouldn't be in the code."
+   * ⚠ cs-syntax-check PARSES, it does not COMPILE (#593) — this needs a real build, and
+   * a deleted page is exactly the change a compile catches and a parse cannot. */
+  {
+    const spayD = rdf('Spixi/Utils/SPayments.cs');
+    const scpD = rdf('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+    const hpD = rdf('Spixi/Pages/Home/HomePage.xaml.cs');
+    const scpBaseD = rdf('Spixi/Utils/SpixiContentPage.cs');
+
+    /* —— the page is GONE, everywhere —— */
+    ok(!existsSync(join(root, 'Spixi/Pages/Wallet/WalletContactRequestPage.xaml.cs'))
+       && !existsSync(join(root, 'Spixi/Pages/Wallet/WalletContactRequestPage.xaml'))
+       && !existsSync(join(root, 'Spixi/Resources/Raw/html/wallet_contact_request.html')),
+      '★★ DECISION 4: WalletContactRequestPage and its HTML are DELETED — not orphaned, not unreferenced-but-present. "It shouldn\'t be in the code"');
+    ok(!/WalletContactRequestPage\(/.test(scpD) && !/WalletContactRequestPage\(/.test(hpD)
+       && !/public void onConfirmPaymentRequest/.test(hpD) && !/public void onConfirmPaymentRequest/.test(scpD),
+      '★★ DECISION 4: both push sites and the two onConfirmPaymentRequest methods that existed only to reach them are gone with it');
+    ok(!/"wallet_contact_request\.html"/.test(scpBaseD),
+      '★ DECISION 4: and its two entries in the page-chrome and raw-arg tables — a dead case label in a money-path switch is how a deleted page comes back');
+    ok(!/WalletContactRequestPage/.test(rdf('Spixi/Spixi.csproj')),
+      '★★ DECISION 4: and the .csproj entry. It was `MauiXaml Update=`, which MSBuild tolerates on a file that no longer exists — so this one would NOT have failed the build, it would just have sat there naming a deleted page for ever. Had it been an Include the build would have broken, which is the version of this mistake that is easy to notice');
+    /* ★ THE REASON THIS IS A FIX AND NOT ONLY A TIDY-UP: that page SIGNED AND BROADCAST
+       with no native confirm, the same ground-rule breach as V-2, and it dereferenced a
+       null requestMsg (the white error page on a canceled request) and a null
+       transaction. Its replacement has all three guards. */
+    ok(/bool ok = await confirmAndAuth\(page, who, amount, fee\);/.test(spayD),
+      '★★ DECISION 4: what replaces it runs the NATIVE confirm before it signs. The deleted page did not — it took the amount it was constructed with straight into sendTransactionFrom, which is the V-2 breach a second time, on a bigger number');
+
+    /* —— DECLINE, extracted and wired —— */
+    {
+      const dAt = spayD.indexOf('public static void declineRequest(');
+      const dBody = dAt > 0 ? spayD.slice(dAt, spayD.indexOf('/// <summary>', dAt + 10)) : '';
+      ok(dAt > 0 && dBody.length > 600,
+        '★ DECISION 3 harness self-check: the decline body is a real slice');
+      ok(/requestMsg == null[\s\S]{0,200}?requestMsg\.message\.StartsWith\(":"\)/.test(dBody)
+         && /"payRequestResult", msgIdHex, "gone", ""/.test(dBody),
+        '★★ DECISION 3: the guards the deleted page LACKED — a null message, a request that is ours, and one already answered. It answers "gone" rather than silence, so the card\'s one-shot latch releases instead of leaving a dead button');
+      ok(/SpixiMessageCode\.requestFundsResponse, Encoding\.UTF8\.GetBytes\(msg_id\)\)/.test(dBody)
+         && !/sendTransactionFrom/.test(dBody) && !/addTransaction/.test(dBody),
+        '★★ DECISION 3: a decline SENDS A MESSAGE and spends NOTHING — a requestFundsResponse carrying the request id and NO txid is what says "no". Nothing on this path can reach the money');
+      ok(/requestMsg\.message = "::" \+ requestMsg\.message;/.test(dBody)
+         && /chat-payment-status-declined/.test(dBody),
+        '★ DECISION 3: the local copy takes the settled `::` marker and the card flips through the ordinary status push — "the outcome shows on both sides"');
+      const rAt = scpD.indexOf('private void onDeclineRequest(string msg_id)');
+      const rBody = rAt > 0 ? scpD.slice(rAt, rAt + 900) : '';
+      ok(rAt > 0 && /friend\.bot \|\| friend\.type == FriendType\.Group/.test(rBody)
+         && /SPayments\.declineRequest\(this, friend, msg, msg_id\);/.test(rBody)
+         && /ixian:declineRequest:/.test(scpD),
+        '★★ DECISION 3: the verb is routed and it carries the SAME group/bot refusal as its Pay twin — a request that landed in a group cannot be declined there either, and it says "gone" rather than pretending');
+      const chatD = rdf('src/shells/chat.html');
+      ok(/onDecline: \(\) => bridge\.send\('ixian:declineRequest:' \+ rec\.id\),/.test(chatD),
+        '★★ DECISION 3: the CARD wires it. #264\'s no-dead-buttons canon means the component renders Decline only when a host does — so the unpayable card above carries none, and this one does');
+    }
+
+    /* —— item 15: the unguarded lookup that produced the white error page —— */
+    {
+      const vAt = scpD.indexOf('public void onViewPayment(string msg_id)');
+      const vBody = vAt > 0 ? scpD.slice(vAt, vAt + 1600) : '';
+      ok(vAt > 0 && /FriendMessage\? msg = null;/.test(vBody)
+         && /if \(msg == null\)\s*\n\s*\{[\s\S]{0,160}?return;/.test(vBody)
+         && vBody.indexOf('if (msg == null)') < vBody.indexOf('msg.type == FriendMessageType.sentFunds'),
+        '★★ QUEUE ITEM 15: onViewPayment\'s Find was UNGUARDED and every line below dereferenced it. A message id that is not in this channel — a canceled request whose card is still on screen, a stale push — returned null. The guard comes BEFORE the first read, and stringToHash can throw on a malformed id too');
+    }
+  }
+
+  /* ═══ ★★ V-14 / V-15 / V-16 — press feedback: one missing kill, one unreachable
+   * guard, and one surface handed to a file that never took it ═══════════════════ */
+  {
+    /* —— V-14: the one control on that screen with Android's platform highlight —— */
+    {
+      const rules = rulesFor('.c-chat-info__row--action');
+      const base = rules.filter((r) => /width: 100%/.test(r.body));
+      ok(rules.length > 0 && base.length === 1 && /-webkit-tap-highlight-color: transparent/.test(base[0].body),
+        '★★ V-14: #618\'s new row carries the tap-highlight kill. TEN interactive rules in that file have it and this one did not, so on Android it painted its own :active wash AND a square platform rectangle over a --radius-16 card — the exact artefact #622 removed from the explore banner, in the same batch');
+      /* ★★ REWRITTEN by Damir's device walk (rows 7.3/7.4, 2026-08-29). This used to
+       * assert that NO global reset existed — true at the time, and the reason V-14 and
+       * V-16 were both possible. The device then found a THIRD instance: the mini-app
+       * tile `.c-app-item__open` had no kill and Android's square wash survived the
+       * navigation onto the next screen. Three misses in one batch is the signal that
+       * the per-component list is the wrong shape, so the kill moved to the body — the
+       * move #322 already made in the same block for user-select, for the same reason. */
+      const b14 = stripCssComments(rdf('src/styles/base.css'));
+      ok(/:root:not\(\[data-desktop\]\) body \{[^}]*-webkit-tap-highlight-color: transparent/.test(b14),
+        '★★ V-14 / 7.3: the platform tap highlight is killed ONCE, on the body, for touch surfaces only. -webkit-tap-highlight-color INHERITS, so one declaration reaches every descendant — which is the whole point: a new control can no longer forget it');
+      ok(!/:root\[data-desktop\][^{]*\{[^}]*-webkit-tap-highlight-color/.test(b14),
+        '★ V-14 / 7.3: and DESKTOP is untouched — it has no tap highlight to suppress, and the :root guard is what keeps this a touch-only rule rather than a blanket one');
+    }
+
+    /* —— V-16: the explore banner had NO press feedback at all —— */
+    {
+      const pj = rdf('src/components/pressable.js');
+      ok(/'\.c-apps-explore',/.test(pj),
+        '★★ V-16: #622 removed the platform highlight from the explore banner and handed ownership to pressable.js IN THE COMMENT ONLY — the class was in neither press family, and apps-header.css declares no :hover, no :active and no transition for it. From that batch until now, tapping the banner did nothing at all until the browser opened');
+      const ah = stripCssComments(rdf('src/styles/components/apps-header.css'));
+      ok(/-webkit-tap-highlight-color: transparent/.test(ah),
+        '★ V-16 PAIRED: the platform kill #622 added STAYS. Adding the banner to a press family while restoring the square rectangle would trade one defect for the other');
+    }
+
+    /* —— V-15, EXECUTED on the built bundle: the reported gesture, end to end —— */
+    {
+      const domP = new JSDOM('<!doctype html><html><body></body></html>', {
+        runScripts: 'dangerously', pretendToBeVisual: true, url: 'file:///press/',
+        beforeParse(w) { w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} }); },
+      });
+      const WP = domP.window, DP = WP.document;
+      WP.eval(rdf('src/components/icons.iife.js'));
+      WP.eval(rdf('src/demo/spixi.iife.js'));
+      const SP = WP.Spixi;
+      const hostP = DP.createElement('div');
+      const tile = DP.createElement('button');
+      tile.className = 'c-app-item';
+      tile.getBoundingClientRect = () => ({ width: 100, height: 100, top: 0, left: 0, right: 100, bottom: 100 });
+      hostP.append(tile); DP.body.append(hostP);
+      SP.attachPressFeedback(hostP);
+      const touchP = (type, x, y) => {
+        const e = new WP.Event(type, { bubbles: true });
+        e.touches = type === 'touchend' ? [] : [{ clientX: x, clientY: y }];
+        e.changedTouches = [{ clientX: x, clientY: y }];
+        tile.dispatchEvent(e);
+      };
+      const pointerP = (type, x, y) => {
+        const e = new WP.Event(type, { bubbles: true });
+        e.clientX = x; e.clientY = y; e.button = 0; e.pointerType = 'touch';
+        tile.dispatchEvent(e);
+      };
+      /* the REPORTED gesture: a COMMITTED tap, then the screen tears down as the
+         mini-app opens over it, then Android's LATE synthesised pointer stream. */
+      touchP('touchstart', 10, 10);
+      await sleep(20);
+      touchP('touchend', 10, 10);
+      await sleep(20);
+      WP.dispatchEvent(new WP.Event('pagehide'));
+      await sleep(10);
+      pointerP('pointerdown', 10, 10);
+      await sleep(120);
+      ok(!('pressed' in tile.dataset),
+        '★★ V-15 EXECUTED: the late synthesised pointerdown after a COMMITTED tap no longer re-arms a press. #604 guarded on `pointerDown`, which endGesture had already cleared — so the else branch ran and it was byte-identical to before the fix. The ghost lit a tile with no finger on the glass for ~570 ms, which is why it was never screenshot-able');
+      touchP('touchstart', 10, 10);
+      await sleep(120);
+      ok('pressed' in tile.dataset,
+        '★★ V-15 PAIRED POSITIVE: a GENUINE new touch still paints. The latch is released by a real single-touch touchstart, which is the whole reason it can be set unconditionally — a negative alone goes green on a build where nothing presses at all');
+    }
+  }
+
+  /* ═══ ★★ REMOVE CONTACT — ONE FLOW, FOUR CHANGES ════════════════════════════════
+   * docs/remove-contact-spec-2026-08-28.md, from Damir's screenshots. Built 4 → 3 → 1 → 2,
+   * the order the spec asks for: §4 first because it forces the sheet to work from two
+   * hosts, which is what makes §1 clean rather than a special case.
+   * ⚠ cs-syntax-check PARSES, it does not COMPILE (#593) — the C# half needs a build. */
+  {
+    const cdShellR = rdf('src/shells/contact_details.html');
+    const cdCsR = rdf('Spixi/Pages/Contacts/ContactDetails.xaml.cs');
+    const rowMenuR = rdf('src/components/chats-row-menu.js');
+
+    /* —— §4: BOTH HOSTS OPEN THE SAME COMPONENT, and the dead end is gone —— */
+    ok(/openRemoveContactSheet, setRemoveSheetGroups, setRemoveSheetResult,/.test(cdShellR)
+       && /openRemoveContactSheet\(\{/.test(cdShellR)
+       && /removeContactOwnsConfirm: true,/.test(cdShellR),
+      '★★ SPEC §4: contact details opens the SAME sheet the chats row opens, and it owns the confirmation — the component\'s generic confirm is not stacked in front of a surface that already asks the question');
+    ok(!/openRemoveBlockedModal/.test(cdShellR) && !/removeBlockedTitle/.test(cdShellR)
+       && !/removeBlocked\(\)/.test(cdShellR) && !/"removeBlocked"/.test(cdCsR)
+       && !/private bool onRemove\(\)/.test(cdCsR),
+      '★★ SPEC §4: the DEAD END is retired on both sides — the modal, its handler, its C# push and the second removeFriend implementation that fed it. It named the obstacle ("this contact is a member of these groups") and offered no way past it, which is the whole complaint');
+    ok(/SContacts\.removeContact\(friend, leaveShared, out removeBlockers\)/.test(cdCsR)
+       && /Utils\.sendUiCommand\(this, "removeContactResult", args\.ToArray\(\)\)/.test(cdCsR)
+       && /SContacts\.removeContact\(f, leave, out blockers\)/.test(rdf('Spixi/Pages/Home/HomePage.xaml.cs')),
+      '★★ SPEC §4: ONE implementation of "remove this contact" — both pages call SContacts.removeContact and both answer with removeContactResult. The old page had its own copy, which is how the two surfaces drifted into offering different outcomes for the same act');
+    ok(!/ixian:remove"/.test(cdCsR) && /ixian:removecontact:/.test(cdCsR) && /ixian:removecontact:/.test(cdShellR),
+      '★ SPEC §4: the old address-less `ixian:remove` verb is gone from both halves — a verb with no leave flag cannot express the thing the sheet exists to offer');
+    ok(/message-menu\.css/.test(cdShellR),
+      '★ SPEC §4 (the W-h lesson): the shell LINKS the sheet\'s stylesheet. openRemoveContactSheet paints .c-remove-contact / .c-delete-chat, and without the link the sheet would have opened correct and UNSTYLED');
+
+    /* —— §2: the two choices read as two choices —— */
+    {
+      const actRules = rulesFor('.c-remove-contact__actions');
+      const btnRules = cssRulesWhere((sel) => /\.c-remove-contact__actions .*\.c-button/.test(sel));
+      ok(actRules.length > 0 && btnRules.length > 0,
+        '★ SPEC §2 harness self-check: both the footer and its buttons resolve to real rules');
+      ok(btnRules.every((r) => /flex: 1 1 0/.test(r.body) && !/min-width: 0/.test(r.body))
+         && !btnRules.some((r) => /flex: 2 1 auto/.test(r.body))
+         && cssRulesWhere((sel) => /c-remove-contact__cta/.test(sel)).every((r) => !/flex:/.test(r.body)),
+        '★★ SPEC §2: equal width, side by side — the house .c-modal__actions grammar exactly. The 2:1 override that made the CTA double-width is gone, and so is min-width:0: with flex-basis 0 a used min of 0 makes every hypothetical size 0, so the wrap could never fire and a long localized label spilled past its button instead of dropping to its own row');
+    }
+
+    /* —— §1 + §3, BEHAVIOURAL, against the built bundle —————————————————————— */
+    {
+      const domR = await load('chats.html');
+      const dR = domR.window.document, WR = domR.window;
+      const CHAT_R = { name: 'Han Solo', address: 'HAN1234567890ABCDEFGHIJKL', type: 'contact' };
+
+      /* §1 — the third checkbox, and it defaults OFF */
+      {
+        const acts = [];
+        WR.Spixi.openDeleteFlow({ chat: CHAT_R, host: dR.body, strings: {},
+          onAction: (a, d) => acts.push([a, d]), onNeedGroups: () => {} });
+        await sleep(40);
+        const modal = [...dR.querySelectorAll('.c-modal')].pop();
+        const boxes = [...modal.querySelectorAll('.c-delete-chat__opt')];
+        ok(boxes.length === 3
+           && boxes[0].getAttribute('aria-checked') === 'true' && boxes[0].disabled === true
+           && boxes[1].getAttribute('aria-checked') === 'false'
+           && boxes[2].getAttribute('aria-checked') === 'false',
+          '★★ SPEC §1: THREE checkboxes now — delete chat (fixed on, it IS the action), media & files, and Remove contact. Remove contact defaults OFF and it is the only one that could be irreversible; a pre-ticked destructive box is how people remove contacts they meant to keep');
+        /* leaving it unticked must NOT escalate */
+        [...modal.querySelectorAll('.c-modal__actions .c-button')].pop().click();
+        await sleep(60);
+        ok(acts.length === 1 && acts[0][0] === 'delete' && !dR.querySelector('.c-remove-contact'),
+          '★★ SPEC §1: with the box unticked the chat is deleted and NOTHING else opens. The flow used to escalate to the remove sheet unconditionally, so "delete this chat" always asked about the contact as well');
+        WR.Spixi.dismissTopOverlay();
+        await sleep(450);
+      }
+
+      /* §1 — ticked, it escalates; §3 — and the sheet closes BEFORE the confirm */
+      {
+        const acts = [];
+        let asked = 0;
+        WR.Spixi.openDeleteFlow({ chat: CHAT_R, host: dR.body, strings: {},
+          onAction: (a, d) => acts.push([a, d]), onNeedGroups: () => { asked++; } });
+        await sleep(40);
+        const modal = [...dR.querySelectorAll('.c-modal')].pop();
+        const boxes = [...modal.querySelectorAll('.c-delete-chat__opt')];
+        boxes[2].click();                                   // tick Remove contact
+        [...modal.querySelectorAll('.c-modal__actions .c-button')].pop().click();
+        await sleep(60);
+        const sheet = dR.querySelector('.c-remove-contact');
+        ok(!!sheet && asked === 1,
+          '★★ SPEC §1: ticked, it escalates to the SAME remove sheet and asks for the shared groups — one sheet answers the whole question instead of two screens reached two ways');
+
+        /* feed a shared group so the CTA arms the §3 escalation */
+        WR.Spixi.setRemoveSheetGroups(CHAT_R.address, [{ name: 'Seen Group', address: 'GRP1234567890ABCDEFGHIJKL' }]);
+        await sleep(20);
+        const grow = sheet.querySelector('.c-remove-contact__row');
+        grow.click();                                       // tick the blocking group
+        await sleep(20);
+        const cta = sheet.querySelector('.c-remove-contact__cta');
+        ok(!!grow && !!cta && cta.disabled === false,
+          '★ SPEC §3 setup: a ticked blocker arms the CTA (Core refuses a contact who is in one of your groups, so the tick is the way past it)');
+        cta.click();
+        await sleep(30);
+        /* ⚠ OPEN modals: a dismissed one keeps its node for the ~400 ms exit. */
+        ok(dR.querySelectorAll('.c-modal[data-open]').length === 0 && !!dR.querySelector('.c-remove-contact'),
+          '★★ SPEC §3: the confirm is NOT on screen while the sheet is still there. It used to open ON TOP of the open sheet — you could read the sheet\'s title and its buttons behind the dialog, two destructive surfaces at once, each with its own red button');
+        await sleep(500);                                   // the sheet's exit + its deferred dismissal
+        const confirm = [...dR.querySelectorAll('.c-modal')].pop();
+        ok(!dR.querySelector('.c-remove-contact') && !!confirm,
+          '★★ SPEC §3: and it opens from the CLOSE COMPLETION — the sheet is gone first. Firing both together lets the sheet\'s dismissal race the dialog\'s and a light-dismiss tap can land on the wrong surface, which is the hazard the sheet machinery already documents');
+        [...confirm.querySelectorAll('.c-modal__actions .c-button')].pop().click();
+        await sleep(60);
+        const last = acts[acts.length - 1];
+        ok(last && last[0] === 'deleteContact' && Array.isArray(last[1].leaveGroups) && last[1].leaveGroups.length === 1,
+          '★★ SPEC §1/§3 END TO END: confirming leaves the ticked group AND removes the contact, in one gesture, carrying the group the user actually ticked');
+        WR.Spixi.dismissTopOverlay();
+        await sleep(450);
+      }
+
+      /* a GROUP has no contact to remove — the row must not be offered */
+      {
+        const acts = [];
+        WR.Spixi.openDeleteFlow({ chat: { name: 'Crew', address: 'GRP9', type: 'group' }, host: dR.body,
+          strings: {}, onAction: (a, d) => acts.push([a, d]) });
+        await sleep(40);
+        const modal = [...dR.querySelectorAll('.c-modal')].pop();
+        ok([...modal.querySelectorAll('.c-delete-chat__opt')].length === 2,
+          '★ SPEC §1: a GROUP or a bot gets TWO boxes. There is no contact to remove there — leaving is the whole action — and offering a third would ask a question the verb cannot answer');
+        WR.Spixi.dismissTopOverlay();
+        await sleep(450);
+      }
+    }
   }
 
   /* —— #619: opening a bot room no longer freezes the app —————————————————— */
@@ -16419,10 +17374,17 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       '★★ #619: the message loader AWAITS it, and does so BEFORE loadMessages. `selectedChannel` is assigned from botInfo.defaultChannel inside that block, so cutting the wait instead of moving it would load channel 0 on a cold room — an empty chat, which is worse than a slow one');
     /* the failure path is a DECISION (audit M1 picked that alert target deliberately);
        moving the wait must not quietly change what happens when a bot never answers. */
-    ok(/if \(sleep_cnt >= 50\)/.test(scp619)
-       && /popPageAsync\(\);/.test(scp619)
-       && /return false;/.test(scp619),
-      '★ #619: the 5 s ceiling and its pop + alert survive the move unchanged — a bot that never answers still fails the same way, it just no longer freezes the app to do it, and the deferred loader bails exactly where the old synchronous return did');
+    /* ★★ V-18 (#46 loop 2026-08-29) — THIS PIN WAS WEAK, and the mutation is not subtle:
+     * deleting popPageAsync() AND the whole alert block from the timeout branch kept it
+     * GREEN, because `popPageAsync();` occurs FOUR times in this file and the alert was
+     * never asserted at all. Anchor INSIDE the branch, and name the alert. */
+    const ceilAt = scp619.indexOf('if (sleep_cnt >= 50)');
+    const ceilBody = ceilAt > 0 ? scp619.slice(ceilAt, ceilAt + 1400) : '';
+    ok(ceilAt > 0 && /return false;/.test(ceilBody)
+       && (ceilBody.match(/popPageAsync\(\);/g) || []).length === 1
+       && /chat-bot-not-ready-title/.test(ceilBody) && /chat-bot-not-ready-body/.test(ceilBody)
+       && /Application\.Current\?\.MainPage\?\.DisplayAlert/.test(ceilBody),
+      '★ #619 (V-18, rewritten): the 5 s ceiling pops AND says why, INSIDE the timeout branch — and the alert is shown on the page the user is actually looking at, because under load-then-move this page may never have been presented and an alert on an unattached page is silently lost');
     /* ⚠ comment-STRIPPED: the rationale block above the lambda QUOTES `Thread.Sleep(100)`
        as the thing it moved, so a raw-text negative matches its own explanation. */
     const scp619NC = scp619.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
@@ -16482,9 +17444,23 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     /* the money path is deliberately NOT swept in. A blind group pays a DERIVED address;
        whether a flagged bot room's roster addresses are real or derived is not answerable
        from this tree, and #215 is explicit about where that stops. */
-    ok(/Logging\.error\("Send IXI is not supported in this chat\."\)/.test(scp613)
-       && /if \(friend\.metaData\.botInfo\.hideParticipantAddresses\)/.test(scp613),
-      '★ #613: the TIP refusal still reads the RAW flag — identity display is restored, spending is not. A blind group pays a derived address and nothing in this tree says which a flagged bot room hands out (#215)');
+    /* ★★ V-18 — WEAK: both needles were whole-file and each occurs 3×, so sweeping the
+     * money guard onto Utils.hidesParticipants — the ONE sweep this pin's own comment
+     * forbids — left it green. Anchor on the refusal SITE. */
+    /* ⚠ AND COUNT THE NEEDLE. `Logging.error("Send IXI is not supported in this chat.")`
+       occurs THREE times in this file — onSendIxi, the TIP case, and one more — and the
+       first cut of this rewrite anchored on the first, which is a different feature. The
+       tip's refusal is the one that answers the SHEET. */
+    const refuseAt = (() => {
+      const tipCaseAt = scp613.indexOf('case "tip":');
+      return tipCaseAt > 0 ? scp613.indexOf('Logging.error("Send IXI is not supported in this chat.");', tipCaseAt) : -1;
+    })();
+    const refuseWindow = refuseAt > 0 ? scp613.slice(Math.max(0, refuseAt - 400), refuseAt) : '';
+    ok(refuseAt > 0
+       && /if \(friend\.metaData\.botInfo\.hideParticipantAddresses\)/.test(refuseWindow)
+       && !/Utils\.hidesParticipants/.test(refuseWindow)
+       && /sendTipResult\(false,/.test(scp613.slice(refuseAt, refuseAt + 300)),
+      '★ #613 (V-18, rewritten): the TIP refusal reads the RAW flag AT ITS OWN SITE, and the legacy-qualified predicate is not what guards it. Identity display is restored, spending is not — a blind group pays a derived address, and nothing in this tree says which a flagged bot room hands out (#215)');
   }
 
   /* —— #611: a muted contact stops getting missed-call banners (row 33) ————————— */
@@ -16503,9 +17479,17 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     const hp612 = rdf('Spixi/Pages/Home/HomePage.xaml.cs');
     const guardAt = hp612.indexOf('bool blocked = SpixiContentPage.hasModalOverlay() || SpixiContentPage.isLockStaging();');
     const knownAt = hp612.indexOf('known = !blocked && FriendList.getFriend(new Address(startingScreen)) != null;');
-    const consumeAt = hp612.indexOf('startingScreenWaits = 0;', knownAt > 0 ? knownAt : 0);
-    const callAt = hp612.indexOf('onChat(new Address(startingScreen), null);');
-    ok(guardAt > 0 && knownAt > guardAt && consumeAt > knownAt && callAt > consumeAt,
+    /* ★★ V-18 — WEAK: `startingScreenWaits = 0;` occurs FIVE times, and searching from
+     * knownAt resolved into the `!usable` branch, so restoring the original bug (consume
+     * BEFORE the deliverable test) left this green. Anchor on the `else if (known)`
+     * branch itself and read the order INSIDE it. */
+    const knownBranchAt = hp612.indexOf('else if (known)');
+    const knownBranch = knownBranchAt > 0 ? hp612.slice(knownBranchAt, knownBranchAt + 700) : '';
+    const consumeAt = knownBranch.indexOf('App.startingScreen = "";');
+    const callAt = knownBranch.indexOf('onChat(new Address(startingScreen), null);');
+    ok(guardAt > 0 && knownAt > guardAt && knownBranchAt > knownAt
+       && consumeAt >= 0 && callAt > consumeAt
+       && hp612.indexOf('known = !blocked && FriendList.getFriend') < knownBranchAt,
       '★★ #612 (device row C8): the deep link is CONSUMED AFTER it is known deliverable, not before. Clearing first meant every silent failure — the friend not loaded yet on a cold start, a resume lock up, another page staging — ate the link and left the user on the chats list');
     ok(/private const int STARTING_SCREEN_MAX_WAITS = 10;/.test(hp612)
        && /else if \(!blocked && \+\+startingScreenWaits >= STARTING_SCREEN_MAX_WAITS\)/.test(hp612),
@@ -16513,8 +17497,20 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ok(/private string startingScreenPending = "";/.test(hp612)
        && /if \(startingScreenPending != startingScreen\)/.test(hp612),
       '★★ #612 r2: the budget is KEYED TO THE ADDRESS — a second tap overwrites App.startingScreen, and an un-keyed counter handed the new link the old one\'s spent ticks');
-    ok(/\/\/ and fall through: the rest of this tick still runs while we wait/.test(hp612),
-      '★★ #612 r2: an unresolved tick no longer SWALLOWS the whole update pass — returning every tick skipped connectivity, the update banner, the backup reminder and the periodic loaders for the entire wait, during a cold start');
+    /* ★★ V-18 — WEAK: this asserted a COMMENT. A `return;` added under that very line
+     * restored the swallow with the pin green. Assert the CODE: the only branch of the
+     * deep-link block that may return is the one that actually opened the chat. */
+    {
+      const blockAt = hp612.indexOf('if (!usable)');
+      const blockEnd = hp612.indexOf('// and fall through: the rest of this tick still runs while we wait', blockAt);
+      const dlBlock = blockAt > 0 && blockEnd > blockAt
+        ? hp612.slice(blockAt, blockEnd).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '') : '';
+      const returns = (dlBlock.match(/\breturn;/g) || []).length;
+      const callIn = dlBlock.indexOf('onChat(new Address(startingScreen), null);');
+      ok(dlBlock.length > 300 && returns === 1 && callIn >= 0
+         && dlBlock.indexOf('return;') > callIn,
+        '★★ #612 r2 (V-18, rewritten): exactly ONE branch of the deep-link block returns, and it is the one that already opened the chat. Every other outcome falls through, so an unresolved tick no longer swallows connectivity, the update banner, the backup reminder and the periodic loaders for the whole wait — during a cold start, which is when the link arrives');
+    }
     ok(/Logging\.error\("Start screen address is not usable[\s\S]{0,260}?App\.startingScreen = "";/.test(hp612),
       '★ #612: an unparseable address is dropped immediately rather than retried ten times — it cannot become valid');
   }
@@ -16660,8 +17656,15 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     /* ⚠ comment-STRIPPED. The rationale block inside this very call NAMES the function
        it removed — a raw-text negative matches its own explanation, which is the trap
        this suite has now been caught by three times. */
-    const tipCall = chat603.slice(tipAt, tipAt + 3600)
+    /* ★★ V-18 — WEAK: the window was 3600 chars and the function is longer than that,
+     * so `truncateAddressMiddle` reinserted in the unchecked TAIL stayed green. Slice to
+     * the function's real end (the next top-level `function ` at the same indent), and
+     * self-check that the slice is not silently truncated. */
+    const tipEndAt = chat603.indexOf('\n  function ', tipAt + 10);
+    const tipCall = (tipEndAt > tipAt ? chat603.slice(tipAt, tipEndAt) : chat603.slice(tipAt, tipAt + 3600))
       .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    ok(tipAt > 0 && tipEndAt > tipAt && tipEndAt - tipAt > 3600,
+      '★ V-18 harness self-check (#603): the slice reaches the END of openTipForMessage, not an arbitrary 3600 characters into it — the tail is where a re-inserted truncation would sit');
     ok(tipAt > 0 && !/truncateAddressMiddle/.test(tipCall),
       '★★ #603 (device row A4.2): the tip CALLER no longer middle-truncates. It handed the sheet an already-elided address as a `name`, and a 13-character string with an ellipsis in it survives every nickname test the component applies — so the sheet printed it verbatim. That is the "it truncates a nickname like an address" report; the sheet never truncated anything');
     ok(/groupNicks\.get\(String\(rec\.senderAddress\)\)/.test(tipCall)

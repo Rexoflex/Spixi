@@ -216,3 +216,46 @@
   — a prefixed-selector swizzle against the .NET registrar is what aborted last time.
   Android has had the equivalent since #329 (`PendingIntent` → `MainActivity.handleNotificationIntent`).
   🟡 Its own batch.
+
+## From the 2026-08-29 batch (#624–#637) — Ixian-Core rows
+
+These are the only things in that batch that could not be fixed in the app, and both of
+them are **Ixian-Core**, which is frozen at `097341a`.
+
+**CORE-1 · `kickUser` and `banUser` are EMPTY CASES.**
+`CoreStreamProcessor.cs:2726-2732`:
+
+```csharp
+case SpixiBotActionCode.kickUser:
+    return true;
+    break;
+case SpixiBotActionCode.banUser:
+    return true;
+    break;
+```
+
+Damir, on device: as **owner** of a private group, kicking a member did nothing. The app
+sends a well-formed, signed action and every receiving client runs the code above.
+A **bot room** works because its action is addressed to the bot **server**, which enforces
+membership itself. A private group has no server, so the same message asks every member's
+app to drop somebody — and nothing honours it.
+
+Two changes are needed, not one:
+1. **Implement the handler** for a `FriendType.Group` room (drop the user from `friend.users`,
+   persist, and re-render).
+2. **Define who may send it.** `GroupChat.CreateGroup` gives the creator `admin: true` and
+   `JoinGroup` gives everyone else `admin: false`, and nothing verifies that flag against an
+   incoming action. A kick that other clients honoured without checking would be forgeable
+   by any member of the room. This half is the security half and it is the one to design
+   first.
+
+⚠ Until both land, the app hides Kick and Ban in private groups (#637, Damir's option A).
+Bot rooms keep them — capability and visibility both. Do not "restore" the rows in the
+frontend without the Core half; the reason they went is that they lied.
+
+**CORE-2 · a receiver-side "Canceled" for a payment request** (predicted by `#529`, still open).
+Cancel rides `msgDelete`, so the counterpart's CARD goes but the chats-list excerpt does
+not, and there is no verb that says "this request is withdrawn". A protocol verb is the
+honest fix. ⚠ Related and now CLOSED in the app: the white error page a canceled request
+produced on Pay is gone with `WalletContactRequestPage` (#635), and the unguarded lookup
+in `onViewPayment` is guarded, so a stale card can no longer crash — it just does nothing.

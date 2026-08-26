@@ -42,6 +42,8 @@
 <link rel="stylesheet" href="../styles/components/wallet-receive.css"><!-- ★ #591: openAddressSheet (.c-addr-sheet / __qrcard) — the W-h gate caught this missing, which is the toast.css lesson: the sheet would have opened UNSTYLED -->
 <link rel="stylesheet" href="../styles/components/media-viewer.css"><!-- #334: avatar tap → full-size viewer (chat-info hero) -->
 <link rel="stylesheet" href="../styles/components/toast.css"><!-- N55: request-sent toast -->
+<link rel="stylesheet" href="../styles/components/message-menu.css"><!-- ★★ spec §4: openRemoveContactSheet lives here (.c-remove-contact / .c-delete-chat) — without it the sheet opens UNSTYLED, the W-h lesson -->
+
 <style>
   /* Production shell: fill the WebView. contact_details.html is loaded by the C#
      ContactDetails page (PUSHED, not a home tab) — the c-chat-info panel provides
@@ -62,6 +64,19 @@
   .contact-boot__dot { flex: none; width: var(--size-avatar-40); height: var(--size-avatar-40); border-radius: var(--radius-full); background: var(--surface-neutral-02); }
   .contact-boot__line { height: 14px; border-radius: var(--radius-full); background: var(--surface-neutral-02); }
   .contact-boot__disc, .contact-boot__dot, .contact-boot__line { animation: contact-boot-shimmer 1.4s var(--easing-standard) infinite; }
+  /* ★★ Item 6 (Damir, decision 9): CROSSFADE the skeleton into the content — the
+     skeleton fades OUT as the real panel fades IN, in the same box, not a per-row
+     swap and not a hold-then-snap. Both children share one grid cell for the length
+     of the fade; the root goes back to its flex column the moment it ends. */
+  #contact-root.is-crossfading { display: grid; }
+  #contact-root.is-crossfading > * { grid-area: 1 / 1; min-width: 0; min-height: 0; }
+  #contact-root.is-crossfading > .contact-boot { pointer-events: none; }
+  .cd-fade { opacity: 1; transition: opacity 180ms var(--easing-standard); }
+  .cd-fade--in { opacity: 0; }
+  .contact-boot.is-leaving { opacity: 0; transition: opacity 180ms var(--easing-standard); }
+  @media (prefers-reduced-motion: reduce) {
+    .cd-fade, .contact-boot.is-leaving { transition: none; }
+  }
   @keyframes contact-boot-shimmer { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
   @media (prefers-reduced-motion: reduce) { .contact-boot__disc, .contact-boot__dot, .contact-boot__line { animation: none; } }
   /* N27 (#367): the blocking-group list inside the remove-blocked modal.
@@ -165,7 +180,7 @@
     createChatInfo, setChatInfoPresence, formatIxiAmount,
     createNativeBridge, installExecuteUiCommand,
     attachPressFeedback,
-    createModal, openModal, truncateAddressMiddle,   // N27 (#367): remove-blocked modal
+    openRemoveContactSheet, setRemoveSheetGroups, setRemoveSheetResult,   // ★★ spec §4: the SAME sheet the chats row opens
     isPseudoAddressNick, dismissTopOverlay,          // D-19b (#370) blind pseudo-key display guard · N50 back-dismiss wiring
     isAddressShaped,                                 // ★ #591: an address-shaped "nickname" must not become the sheet's title
     showToast,                                       // N55: optimistic request-sent feedback,
@@ -261,39 +276,30 @@
    * its mapped copy). One page = one contact, so the set never needs a reset. */
   const requestedMembers = new Set();
 
-  /* N27 (#367): remove refused because the contact is in a group — C# names the
-   * blocking group(s) (removeBlocked push, name/address PAIRS) and this modal
-   * shows them + the path out. All text lands via textContent (group names are
-   * peer-controlled). The in-shell modal replaces the old native alert, which
-   * could not name anything. */
-  function openRemoveBlockedModal(groups) {
-    const list = document.createElement('ul');
-    list.className = 'cd-remove-blocked';
-    for (const g of groups) {
-      const li = document.createElement('li');
-      li.textContent = g.name || (g.address ? truncateAddressMiddle(g.address) : '');
-      list.append(li);
-    }
-    const path = document.createElement('p');
-    path.className = 'c-modal__body';
-    path.textContent = strings.removeBlockedPath
-      || 'Remove the contact from these groups, or leave the groups. Then remove the contact again.';
-    const wrap = document.createElement('div');
-    wrap.append(list, path);
-    openModal(createModal({
-      title: strings.removeBlockedTitle || 'Cannot remove contact',
-      body: strings.removeBlockedIntro || 'This contact is a member of these groups:',
-      content: wrap,
-      role: 'alertdialog',
-      host: document.body,
-      // informational, single-action, no data at risk → scrim tap may dismiss
-      // (loop M1/r2 NIT-5: a convenience exit — OK always dismisses too. N50
-      // (#370) added the cdoverlay/cdBack wiring: OS back dismisses this modal
-      // FIRST, then pops the page).
-      lightDismiss: true,
-      actions: [{ label: strings.ok || 'OK', type: 'fill', autofocus: true }],
-      strings,
-    }));
+  /* ★★ REMOVE-CONTACT SPEC §4 (Damir, screenshots 2026-08-28): THE DEAD END IS GONE.
+   * This page used to answer a refusal with "Cannot remove contact — this contact is a
+   * member of these groups: • seengroup" and a single OK. It named the obstacle and
+   * offered no way past it, while the chats row already had the actionable answer.
+   * Both hosts open ONE component now — openRemoveContactSheet — which lists the
+   * shared groups, offers to leave them, and only then removes. The C# refusal push
+   * is retired with it, and so are its three strings.
+   * ⚠ Deliberately NOT naming the retired modal function here: the pin that forbids it
+   * reads raw file text, and a rationale block that quotes what it removed is how a
+   * negative goes green over its own explanation — this suite's oldest lesson. */
+  function openRemoveContact() {
+    openRemoveContactSheet({
+      chat: { name: state.name, address: state.address, avatar: state.avatarPath, type: 'contact' },
+      host: document.body, strings,
+      // This page already asks at boot and the answer may be here; hand it over at once
+      // AND re-ask, so a sheet opened before the first answer landed still fills in.
+      onNeedGroups: () => {
+        if (state.sharedGroups) setRemoveSheetGroups(state.address, state.sharedGroups);
+        bridge.send('ixian:sharedGroups');
+      },
+      onRemove: ({ leaveGroups }) => {
+        bridge.send('ixian:removecontact:' + ((leaveGroups && leaveGroups.length) ? '1' : '0'));
+      },
+    });
   }
 
   /* —— panel build (change-gated, see UPDATE CHURN above) ——————————————————— */
@@ -476,18 +482,56 @@
       //   removehistory → deletes local history + alert · remove → removes the
       //   contact (bots: pendingDeletion + sendLeave) then popToRoot.
       onDeleteHistory: (ctrl) => { bridge.send('ixian:removehistory'); ctrl.done(); },
-      onRemoveContact: (ctrl) => { bridge.send('ixian:remove'); ctrl.done(); },
+      // ★★ §4: the SHEET is the confirmation — no generic confirm in front of it.
+      removeContactOwnsConfirm: true,
+      onRemoveContact: () => openRemoveContact(),
     });
+  }
+
+  /* ★★ Item 6 — the FIRST paint of real content crossfades over the boot skeleton.
+     Until this batch nobody had ever seen that skeleton: presentPreload held EVERY
+     load-then-present navigation for a flat 120 ms so the shell could finish, and this
+     shell coalesces its own pushes on a 120 ms timer, so the panel was always finished
+     before the page became visible. The hold is 0 for this page now, which makes the
+     skeleton real — and a snap from skeleton to panel is what the crossfade replaces.
+     Reduced motion and a missing transitionend both fall back to the plain swap. */
+  let paintedReported = false;
+  function crossfadeIn(next) {
+    const boot = root.querySelector('.contact-boot');
+    let reduced = false;
+    try { reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) {}
+    if (!boot || reduced) { root.replaceChildren(next); return; }
+    root.classList.add('is-crossfading');
+    next.classList.add('cd-fade', 'cd-fade--in');
+    root.append(next);
+    let settled = false;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      try { boot.remove(); } catch (e) {}
+      root.classList.remove('is-crossfading');
+      next.classList.remove('cd-fade');
+    };
+    next.addEventListener('transitionend', settle, { once: true });
+    setTimeout(settle, 400);            // belt: a transition that never fires must not strand the skeleton
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      boot.classList.add('is-leaving');
+      next.classList.remove('cd-fade--in');
+    }));
   }
 
   function rebuildPanel() {
     // preserve the body scroll position across a rebuild (tx-list churn).
     const prevBody = root.querySelector('.c-chat-info__body');
     const top = prevBody ? prevBody.scrollTop : 0;
-    root.replaceChildren(buildPanel());
+    const next = buildPanel();
+    if (!built) crossfadeIn(next); else root.replaceChildren(next);
     const nb = root.querySelector('.c-chat-info__body');
     if (nb) nb.scrollTop = top;
     built = true;
+    /* ★★ [CDPERF] PROBE — temporary, remove with the C# half. The first real content
+       frame, reported once, so the timeline has an end. */
+    if (!paintedReported) { paintedReported = true; try { bridge.send('ixian:cdpainted'); } catch (e) {} }
   }
 
   // Signature of the state that actually AFFECTS the rendered panel (name,
@@ -633,18 +677,9 @@
       });
       scheduleCommit();
     },
-    // N27 (#367): remove refused → C# enumerates the blocking groups and pushes
-    // them as name/address PAIRS (variadic; each arg b64-escaped by transport).
-    // Odd tails are ignored; an empty push falls back to nothing (C# keeps the
-    // legacy alert for the empty-enumeration edge).
-    removeBlocked() {
-      const args = Array.prototype.slice.call(arguments);
-      const groups = [];
-      for (let i = 0; i + 1 < args.length; i += 2) {
-        groups.push({ name: String(args[i] || ''), address: String(args[i + 1] || '') });
-      }
-      if (groups.length) openRemoveBlockedModal(groups);
-    },
+    /* ★★ §4: the `removeBlocked` handler is RETIRED — C# no longer pushes it. A refusal
+       arrives as removeContactResult('blocked', …) and re-opens the SHEET, which can
+       actually get the user past the blocker. */
     setAddress(address) { state.address = address || ''; scheduleCommit(); },
     setNickname(nick) { state.name = nick || ''; scheduleCommit(); },
     // ★ A4 (Batch A): the shared-groups answer — flat name/address pairs (C# escapes each arg)
@@ -652,7 +687,30 @@
       const groups = [];
       for (let i = 0; i + 1 < pairs.length; i += 2) groups.push({ name: String(pairs[i] || ''), address: String(pairs[i + 1] || '') });
       state.sharedGroups = groups;
+      // ★★ §4: one answer, two consumers — the info strip AND a live remove sheet.
+      setRemoveSheetGroups(String(address || state.address || ''), groups);
       scheduleCommit();
+    },
+    /* ★★ §4: the verb's outcome, in the same vocabulary HomePage uses (ok / left /
+       blocked / fail). 'blocked' re-opens the question INSIDE the sheet with the
+       blocking groups named and tickable — which is the whole difference from the
+       modal this replaces. C# pops the page on ok/left, so those need no toast. */
+    removeContactResult(address, status, ...pairs) {
+      const addr = String(address || '');
+      const st = String(status || '');
+      if (st === 'ok' || st === 'left') return;
+      const groups = [];
+      for (let i = 0; i + 1 < pairs.length; i += 2) groups.push({ name: String(pairs[i] || ''), address: String(pairs[i + 1] || '') });
+      if (st === 'blocked') {
+        state.sharedGroups = groups;
+        scheduleCommit();
+        if (setRemoveSheetResult(addr, 'blocked', groups, strings)) return;
+      }
+      const names = groups.map((g) => g.name || g.address).filter(Boolean).join(', ');
+      const text = st === 'blocked'
+        ? (strings.removeBlockedToast || 'Not removed: still a member of {groups}. Leave the group first.').split('{groups}').join(names)
+        : (strings.removeFailedToast || 'The contact could not be removed. Please try again.');
+      try { showToast({ text, tone: 'error', host: document.body, strings }); } catch (e) {}
     },
     // Real contact photo → the c-chat-info hero (resolves today on WinUI; every
     // platform once BE cutover X1 lands the data: URI). Commit so the hero updates
@@ -730,8 +788,15 @@
   /* —— page ready — fire ixian:onload on the window LOAD event (#177 load-timing
    *    invariant): firing during parse races C#'s first push. ————————————————— */
   function signalReady() {
-    bridge.ready();
-    bridge.send('ixian:sharedGroups');   // ★ A4: ask once at boot; the strip shows a skeleton line until the answer
+    /* ★★ Item 6: this shell is PRESENTED on ixian:onload with no 120 ms hold, so the
+       signal must not go out before the boot skeleton has actually been painted —
+       otherwise the slide-in carries a blank themed rectangle, which is the #619 / V-6
+       mistake in a new place. Two frames guarantee a paint; the cost is ~32 ms of data,
+       and the data lands after the present by design now. */
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      bridge.ready();
+      bridge.send('ixian:sharedGroups');   // ★ A4: ask once at boot; the strip shows a skeleton line until the answer
+    }));
   }
   if (document.readyState === 'complete') signalReady();
   else window.addEventListener('load', signalReady, { once: true });

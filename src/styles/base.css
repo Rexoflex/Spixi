@@ -224,6 +224,24 @@ img, svg { display: block; max-width: 100%; }
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
+  /* ★★ THE PLATFORM TAP HIGHLIGHT, KILLED ONCE (Damir, device 2026-08-29, F5 rows
+     7.3/7.4): "it lights up native sharp rectangle blue tint which residues still over
+     the contacts, so not handled."
+     The mini-app tile — `.c-app-item__open` — had no kill, so Android painted its own
+     square wash over it and the wash SURVIVED the navigation, sitting over the next
+     screen. `.c-app-item__menu` and `.c-app-item__info` beside it did have one; the
+     actual tap target did not.
+     ★ This is the THIRD instance in one batch: V-14 (#618's chat-info row), V-16 (the
+     explore banner), and now this. Three whack-a-mole misses is the signal that the
+     per-component list is the wrong shape — and #322 made exactly this move, in this
+     block, for user-select, with exactly this reasoning: on a TOUCH surface nothing
+     outside a real input wants the platform's own affordance, because pressable.js
+     paints every press this app has.
+     ⚠ `-webkit-tap-highlight-color` is an INHERITED property, so one declaration here
+     reaches every descendant. Desktop is untouched (the :root guard) and has no tap
+     highlight to begin with. The per-component declarations stay — harmless, and they
+     document which surfaces prompted each pass, exactly as #322's list does. */
+  -webkit-tap-highlight-color: transparent;
 }
 :root:not([data-desktop]) input,
 :root:not([data-desktop]) textarea,

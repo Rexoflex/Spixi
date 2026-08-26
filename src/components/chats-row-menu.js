@@ -483,9 +483,25 @@ export function openRemoveContactSheet({ chat = {}, host, strings = getStrings()
   function confirmRemove() {
     if (remove.disabled || fired) return;
     const leaveGroups = [...selected];
+    // closeSheet is a no-op once the sheet has already gone (the §3 escalation path)
     const fire = () => { if (fired) return; fired = true; if (onRemove) onRemove({ leaveGroups }); closeSheet(sheet); };
     if (!leaveGroups.length) { fire(); return; }
-    // the additional confirm step — leaving groups is its own destructive act
+    /* ★★ REMOVE-CONTACT SPEC §3 (Damir, screenshots 2026-08-28): ONE DECISION ON
+     * SCREEN AT A TIME. The confirm used to open ON TOP of the still-open sheet —
+     * you could read the sheet's title and its buttons behind the dialog, two
+     * destructive surfaces at once, each with its own red button.
+     * The sheet CLOSES first and the dialog opens from the CLOSE COMPLETION.
+     * ⚠ Not "alongside": closeSheet is animated and onDismiss is deferred to the
+     * removal, so firing both together lets the sheet's dismissal race the dialog's
+     * and a light-dismiss tap can land on the wrong surface — the hazard the sheet
+     * machinery already documents.
+     * `_escalating` tells the dismiss handler this is NOT a "keep": the user chose
+     * to go on, so onKeep must not fire behind the dialog they are looking at. */
+    sheet._escalating = () => openLeaveConfirm(leaveGroups, fire);
+    closeSheet(sheet);
+  }
+
+  function openLeaveConfirm(leaveGroups, fire) {
     openModal(createModal({
       title: (strings.leaveGroupsConfirmTitle || 'Leave {n} groups and remove {name}?')
         .split('{n}').join(String(leaveGroups.length)).split('{name}').join(chat.name || chat.address || ''),
@@ -494,7 +510,11 @@ export function openRemoveContactSheet({ chat = {}, host, strings = getStrings()
       body: strings.leaveGroupsConfirmBody || 'You leave the ticked groups first. Their chats are removed from this device. Then the contact is removed.',
       role: 'alertdialog', host,
       actions: [
-        { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
+        // ⚠ Cancel here means "I changed my mind", and the sheet is already gone —
+        // so it must answer the HOST the same way a plain dismissal does, or the
+        // chats row that opened this flow is left believing a removal is coming.
+        { label: strings.cancel || 'Cancel', type: 'text', autofocus: true,
+          onClick: () => { if (onKeep) onKeep(); } },
         { label: strings.leaveAndRemoveConfirm || 'Leave & remove', type: 'fill', intent: 'destructive', onClick: fire },
       ],
     }));
@@ -502,7 +522,14 @@ export function openRemoveContactSheet({ chat = {}, host, strings = getStrings()
 
   sheet = createSheet({ content, host, strings,
     title: isGroup ? (strings.leaveGroupTitle || 'Leave group?') : (strings.removeSheetTitle || 'Remove contact?'),
-    onDismiss: () => { if (liveRemoveSheet === sheet) liveRemoveSheet = null; if (!sheet._removed && onKeep) onKeep(); } });
+    onDismiss: () => {
+      if (liveRemoveSheet === sheet) liveRemoveSheet = null;
+      /* ★ §3: this dismissal fires at REMOVAL — after the exit transition — which is
+         exactly "the sheet closes, THEN the dialog appears". An escalation is not a
+         keep, so onKeep is withheld and the confirm answers for it. */
+      if (sheet._escalating) { const go = sheet._escalating; sheet._escalating = null; go(); return; }
+      if (!sheet._removed && onKeep) onKeep();
+    } });
   sheet._removed = false;
   sheet._address = chat.address || '';
   liveRemoveSheet = sheet;
@@ -577,6 +604,17 @@ export function openDeleteFlow({ chat = {}, host, onAction, onNeedGroups, string
   const cbChat = deleteCheckbox(strings.deleteChatOpt || 'Delete chat', { checked: true, disabled: true });
   const cbMedia = deleteCheckbox(strings.deleteMediaOpt || 'Delete media & files');
   optsWrap.append(cbChat.row, cbMedia.row);
+  /* ★★ REMOVE-CONTACT SPEC §1 (Damir, 2026-08-28): removing the contact is a THIRD
+   * CHECKBOX here, not a second sheet reached another way. One sheet answers the whole
+   * question, and the escalation to the group picker becomes conditional on the tick
+   * rather than on a separate entry point.
+   * ⚠ It defaults OFF, deliberately, and it is the only one that does: it is the
+   * irreversible half, and a pre-ticked destructive box is how people remove contacts
+   * they meant to keep. A GROUP or a bot has no contact to remove — leaving is the
+   * whole action there — so the row is not offered. */
+  const isGroupChat = chat.type === 'group' || chat.type === 'bot' || chat.isGroup === true;
+  const cbContact = isGroupChat ? null : deleteCheckbox(strings.removeContactOpt || 'Remove contact');
+  if (cbContact) optsWrap.append(cbContact.row);
   content.append(optsWrap);
 
   openModal(createModal({
@@ -590,6 +628,9 @@ export function openDeleteFlow({ chat = {}, host, onAction, onNeedGroups, string
           step1Fired = true;
           const media = cbMedia.input.checked;
           if (onAction) onAction('delete', { media });          // removes the row (+ media intent)
+          // ★ §1: only a ticked "Remove contact" escalates. Without it the chat is
+          // deleted and the contact stays, which is what the two other boxes describe.
+          if (!cbContact || !cbContact.input.checked) return;
           openRemoveContactSheet({
             chat, host, strings, onNeedGroups,
             onRemove: ({ leaveGroups }) => { if (onAction) onAction('deleteContact', { media, leaveGroups }); },

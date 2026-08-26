@@ -154,6 +154,13 @@ export function createChatInfo({
   onContactRequest,              // member sheet passthrough
   onViewContact,                 // member sheet passthrough (relation 'contact' → contact page)
   onDeleteHistory, onRemoveContact, onLeave,   // (ctrl)
+  /* ★★ REMOVE-CONTACT SPEC §4: the host owns the confirmation surface for Remove.
+   * Contact details opens the SHARED remove sheet — which is a decision surface in
+   * its own right, with the shared groups and a way past them — so stacking this
+   * component's generic confirm in front of it would put two destructive surfaces on
+   * screen for one decision, which is the §3 complaint in a new place. Default false:
+   * every other host keeps the confirm it has always had. */
+  removeContactOwnsConfirm = false,
   loading = false,               // ★ A8: the roster/pushes are still landing → skeleton rows (members) instead of an empty section
   sharedGroups = undefined,      // ★ A4 (1:1): [{ name, address }] groups you are BOTH in; null = asked, not yet answered (skeleton); [] = none; undefined = the surface has no such data (no strip)
   onOpenGroup,                   // ★ A4: tap a shared-group row → the shell opens that group chat
@@ -661,7 +668,25 @@ export function createChatInfo({
       onViewContact,
       // capabilities.admin → destructive actions, each behind an alertdialog
       // confirm (ixian:kick:ADDR / ixian:ban:ADDR are irreversible for the peer)
-      actions: capabilities.admin && onMemberAction && !m.admin && !m.owner ? [   // #248: never kick/ban the owner
+      /* ★★ KICK AND BAN ARE BOT-ROOM ONLY (Damir, 2026-08-29, option A).
+       * He reported that kicking a member of a PRIVATE GROUP as its owner did nothing,
+       * and the trace says why: the action is sent correctly and every receiving client
+       * runs `case SpixiBotActionCode.kickUser: return true;` — an EMPTY case in
+       * Ixian-Core. A bot room works because its action is addressed to the bot SERVER,
+       * which enforces membership itself; a private group has no server, so the same
+       * message asks every member's app to drop somebody and nothing honours it. Making
+       * it work needs TWO Core changes — implement the handler, and define who may send
+       * it, because nothing today verifies the admin flag against the message — and Core
+       * is frozen. Logged for BE.
+       * So the row is withdrawn where it cannot work, which is the ⑪ delivery-lie rule:
+       * an affordance that emits a verb nobody honours tells the owner someone was
+       * removed when they were not. Bot rooms are untouched — capability and visibility
+       * both, exactly as Damir asked.
+       * ⚠ `kind` is the right discriminator and it is NOT obvious: a bot room's Friend is
+       * FriendType.NORMAL with `bot` true (Node.cs:979), so C# sends "bot" for it and
+       * "group" only for a real FriendType.Group. Reading `blind` or `type` instead is
+       * how #613 broke this family once already. */
+      actions: capabilities.admin && kind === 'bot' && onMemberAction && !m.admin && !m.owner ? [   // #248: never kick/ban the owner
         {
           label: strings.kick || 'Kick', glyph: 'circle-x', destructive: true,
           onClick: () => confirmAction({
@@ -915,7 +940,15 @@ export function createChatInfo({
     b.append(lab, icon('chevron-right', { size: 18 }));
     // built at CLICK time (audit m7): the remove-contact title must carry the
     // nickname as it is NOW, not as it was when the panel mounted
-    b.addEventListener('click', () => confirmAction(buildOpts()));
+    b.addEventListener('click', () => {
+      const o = buildOpts();
+      /* ★★ §4: a descriptor may OWN its confirmation. The remove flow opens the shared
+       * remove sheet, and that sheet IS the question — a generic confirm in front of it
+       * asks the same thing twice and hides the answer behind it. `run` is called with
+       * no controller because nothing here is waiting on it: the sheet has its own. */
+      if (o && o.own) { o.run(); return; }
+      confirmAction(o);
+    });
     danger.append(b);
   };
   // delete-history: chat AND contact-details pages both offer it (Damir 2026-07-08,
@@ -930,6 +963,7 @@ export function createChatInfo({
   }
   if (kind !== 'group' && onRemoveContact) {
     dangerRow(strings.removeContact || 'Remove contact', 'circle-x', () => ({
+      own: removeContactOwnsConfirm,          // ★ §4
       title: strings.removeContactTitle || 'Remove ' + (nickname || name || 'contact') + '?',
       bodyText: strings.removeContactBody || 'Removes the contact and your chat. Adding them again needs a new contact request.',
       confirmLabel: strings.removeConfirm || 'Remove',

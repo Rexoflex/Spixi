@@ -1,5 +1,108 @@
 # Testing the redesign on Android — the simple version
 
+---
+
+## ★★ STEP ZERO — GET `adb` WORKING. THIS COMES BEFORE ANY ANDROID BUILD.
+
+⚠ **Written down 2026-08-29 because it costs time every single time.** Damir: *"this
+happens a lot until you find a proper command that loads daemon — please log it, this
+comes before any attempt at android build."*
+
+On this machine the Android SDK is installed by the **Visual Studio MAUI workload**, and
+it does **not** go where Android Studio puts it. `adb` is **not** on PATH out of the box.
+
+| | |
+|---|---|
+| ✅ **Actual path here** | `C:\Program Files (x86)\Android\android-sdk\platform-tools\adb.exe` |
+| ❌ Do NOT guess | `%LOCALAPPDATA%\Android\Sdk\…` — that is **Android Studio's** location and it does not exist on this machine |
+
+### The one-time fix — do this once and the problem is gone for good
+
+```powershell
+$sdk = "C:\Program Files (x86)\Android\android-sdk"
+[Environment]::SetEnvironmentVariable("ANDROID_HOME", $sdk, "User")
+$u = [Environment]::GetEnvironmentVariable("Path", "User"); [Environment]::SetEnvironmentVariable("Path", "$u;$sdk\platform-tools", "User")
+```
+
+★★ **THOSE THREE LINES DO NOT AFFECT THE SHELL YOU ARE STANDING IN.**
+`SetEnvironmentVariable(…, "User")` writes the registry; a running process keeps the
+environment it started with. Immediately after running them, a bare `adb` in the SAME
+window still fails — which reads exactly like the fix not working, and it caught us on
+2026-08-29 with the phone already attached and answering.
+
+Two ways out, pick either. **This window, right now — one line, nothing after it:**
+
+```powershell
+$env:Path += ";$sdk\platform-tools"
+```
+
+…or open a **new** terminal. From then on it is permanent, and the Android build also
+gets a proper `ANDROID_HOME` — itself a likely cause of a build that dies in ~1 second.
+
+★★ **ONE COMMAND PER BLOCK, AND NEVER A TRAILING COMMENT.** On 2026-08-29 three separate
+attempts failed because pasted lines JOINED — `adb devices$env:Path += "…"` and
+`& $adb devices$env:ANDROID_HOME` are both in the transcript. Every one of those was the
+instruction's formatting, not the reader. A multi-line block invites a multi-line paste,
+and a `# comment` on a command line invites the next line to ride along with it.
+
+### Until then, or on a machine that has not been set up
+
+```powershell
+$adb = "C:\Program Files (x86)\Android\android-sdk\platform-tools\adb.exe"
+& $adb kill-server
+& $adb devices
+```
+
+`kill-server` is the part that matters: `adb devices` alone starts the daemon but will
+happily trust a stale device list. Killing it forces a re-enumeration of USB.
+
+### If the SDK is somewhere else again
+
+```powershell
+Get-ChildItem -Path "C:\Program Files (x86)\Android","C:\Program Files\Android","$env:LOCALAPPDATA\Android","$env:ProgramData\Microsoft" -Filter adb.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 5 -ExpandProperty FullName
+```
+
+★ **For whoever writes the next set of instructions: give the REAL path, never a
+`<placeholder>`, and one command per line.** A placeholder gets pasted literally and a
+two-command line gets joined — both happened on 2026-08-29 and both cost a round trip.
+
+### What SUCCESS looks like
+
+```
+* daemon not running; starting now at tcp:5037
+* daemon started successfully
+List of devices attached
+R5CRB1MWPPZ     device
+```
+
+A serial with the state `device` is the goal. Anything else, read the table below.
+
+### Reading the device list
+
+| Output | What it means |
+|---|---|
+| empty | cable or port. Charge-only cables are the usual culprit; try a USB-2 port, not a hub |
+| `unauthorized` | the RSA prompt is waiting on the phone. Unlock it, tap **Allow**, tick "always allow". No prompt? Developer options → **Revoke USB debugging authorisations**, replug |
+| `offline` | `& $adb reconnect offline`, or toggle USB debugging off and on |
+| appears then vanishes | USB mode fell back to charge-only. Notification shade → USB notification → **File transfer / MTP** |
+
+⚠ If Android Studio, Visual Studio's device list or scrcpy is running, it holds the
+daemon. `kill-server` takes it down under them and they may restart it with different
+settings — close them first.
+
+### Then, and only then, build
+
+```powershell
+& $adb devices                    # exactly one device, state "device"
+dotnet build Spixi\Spixi.csproj -f net10.0-android -c Debug
+dotnet build Spixi\Spixi.csproj -f net10.0-android -c Debug -t:Run
+```
+
+With more than one device attached, add `-p:AdbTarget=-s<serial>` (no space after `-s`).
+
+---
+
+
 Plain-English, click-by-click. First time through, the slow part is just installing tools (mostly downloads). After that a test run is a couple of minutes.
 
 There are two levels. **Level 1** takes ~2 minutes and lets you *see* the screens on a phone-shaped view right now. **Level 2** is the real deal — the screens running inside the actual app on an Android phone. Do Level 1 first; it's instant gratification and confirms the files are good before you invest in Level 2.

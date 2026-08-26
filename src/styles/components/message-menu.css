@@ -189,9 +189,15 @@
   line-height: var(--line-height-body-sm);
   color: var(--text-error);
 }
+/* REMOVE-CONTACT SPEC 2 (Damir, 2026-08-28): "Keep contact" and "Leave 1 & remove"
+   read as different KINDS of thing rather than as two choices. They are the HOUSE
+   two-button footer now, byte-identical to .c-modal__actions: equal width, wrap, and
+   NO min-width:0 — with flex-basis 0 a used min of 0 makes every item's hypothetical
+   size 0, so the wrap could never fire and the long label spilled past its button
+   instead of dropping to its own full-width row. The 2:1 override that made the CTA
+   double-width is gone with it; that WAS the size difference. */
 .c-remove-contact__actions { display: flex; flex-wrap: wrap; gap: var(--spacing-8); justify-content: flex-end; }
-.c-remove-contact__actions .c-button { flex: 1 1 0; min-width: 0; }   /* equal-width pair (#60) */
-.c-remove-contact__actions .c-remove-contact__cta { flex: 2 1 auto; }    /* loop r1: the long "Leave N & remove" label wraps to its own line, never overflows */
+.c-remove-contact__actions .c-button { flex: 1 1 0; }
 
 /* —— #506② / iOS-62: the long-pressed message is PROMOTED above the scrim ————
    Damir on device: "you cannot see what you are acting on." #492 shipped the cheap

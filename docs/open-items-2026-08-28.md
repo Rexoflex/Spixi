@@ -50,26 +50,49 @@ here rather than iterating on the guard theory again. ⚠ And get the measuremen
 `e.pointerType`, tells you whether a SECOND arm follows the click or whether the first
 never clears.
 
-## P3b — the bot-room member sheet offers nothing (Damir, 2026-08-28)
+## P3b — TIP in a bot room (Damir, 2026-08-28). The add-contact half is FIXED (#623).
 
-**11. Tapping a sender in the Spixi bot group — avatar, nickname or from chat info —
-shows only the address. No Tip, no Add to contacts.**
+**11. Tapping a sender in the Spixi bot group offers no Tip.**
 
-★ Half of this is MINE and it was deliberate. #613 round 2 gated the member sheet's
-`onRequest` on `!mode.isBot`, because `onContextAction: "sendContactRequest"` refuses for
-`friend.bot` outright — a `Logging.error` and a return, with no answer to the shell — so
-the button was producing a "Contact request sent" SUCCESS toast for something never sent.
-Hiding a lying button was right. Hiding the ABILITY is not the end state Damir wants, and
-he is right: adding someone you met in a public channel is the point of a public channel.
-**The real fix is in C#** — let `sendContactRequest` work in a bot room — and only then
-un-gate the shell. Do them in that order or the toast comes back.
+★ The **add-contact** half of this report is fixed — see DECISIONS #623. It was mine: I
+gated the member sheet on the wrong handler's guard and removed a feature that worked.
 
-⚠ The Tip half is a DIFFERENT thing and is NOT a regression. `member-sheet.js:157` renders
-Pay / Request only when `relation === 'contact'` (a deliberate round-10 dial), and Tip
-lives on the message ⋮ menu rather than in the sheet at all. So "Tip from the member
-sheet" is a **new affordance**, not a repair — and it lands on the money path, so it needs
-the `hidesAddresses` gate #613 r2 established. **Ask Damir whether he wants Tip in the
-sheet for non-contacts before building it.**
+**Tip is a separate question and it needs Damir's call, because the evidence disagrees
+with his memory and the disagreement is inside LEGACY itself.**
+
+Legacy's tip lives only on the MESSAGE context menu (`0e85a4b8:chat.js:1456`,
+`contextAction('tip', msgId)`), and legacy's handler opens with:
+
+```csharp
+case "tip":
+    if (friend.bot || (friend.type == Group && hideParticipantAddresses)) {
+        Logging.error("Send IXI is not supported in this chat."); return;   // :942
+    }
+    ...
+    if (friend.bot || (friend.type == Group && !hideParticipantAddresses)) {
+        sender_address = new ExtendedAddress(msg.senderAddress, ...);       // :951 — UNREACHABLE
+    }
+```
+
+★★ **The `friend.bot` branch at :951 can never run, because the guard at :942 already
+returned for a bot.** Dead code — and it is also the author's stated intent: *for a bot,
+pay the message's sender*. So the most likely reading is that legacy's blind-group guard
+swallowed bots by accident and tip has never worked in a bot room, in either tree.
+
+**Two things to do, in order:**
+1. **Ask Damir to re-check on his legacy build** — long-press a MESSAGE in the Spixi bot
+   group and see whether Tip appears and completes. He has been right every time tonight
+   and the code is not always the whole story; one device check settles it.
+2. If it never worked, this is a **new capability on the money path**, not a repair.
+   The fix is small and legacy wrote the intent for us — qualify the guard on group-ness
+   the way `Utils.hidesParticipants` does (#613) and the dead branch comes alive — but
+   #215 says the money path waits for an on-device answer, and the derived-vs-real address
+   question for a flagged room is still open. **Do not build it without his word.**
+
+⚠ Separately: the member sheet renders Pay / Request only when `relation === 'contact'`
+(`member-sheet.js:157`, a deliberate round-10 dial). Even with the C# side fixed, Tip in
+the SHEET is a different affordance from Tip on the message menu. Confirm which one he
+means.
 
 ## P4 — desktop (all three are the same surface)
 

@@ -4,8 +4,8 @@ NEXT SESSION — entry prompt. After the 2026-08-27 iOS pass, its fixes, and Dam
 ★★ READ FIRST, IN THIS ORDER:
   1. docs/open-items-2026-08-28.md          <- the QUEUE. Eleven items, prioritised, with leads
   2. docs/remove-contact-spec-2026-08-28.md <- a full spec Damir wrote from screenshots
-  3. docs/opus-review-brief-596-622.md      <- the OWED #46 loop
-Everything the batch itself did is in DECISIONS #596-#622. The consumed walk sheet and
+  3. docs/opus-review-brief-596-622.md      <- the OWED #46 loop (covers #596-#623)
+Everything the batch itself did is in DECISIONS #596-#623. The consumed walk sheet and
 handoff are in docs/archive/.
 
 ★★ FIRST, AND IT IS NOT OPTIONAL — THE TREE IS NOT COMMITTED.
@@ -18,7 +18,7 @@ Ask him whether he amended it before doing anything else, and verify:
 If it still shows 3 files, fix that BEFORE any new work.
 
 VERIFY THE BASELINE BEFORE TOUCHING ANYTHING. If a number differs, say so and STOP:
-  bundle 297 · shells 18 · smoke BASELINE OK 3287 / the 3 known (#136 · M5 · B3)
+  bundle 297 · shells 18 · smoke BASELINE OK 3288 / the 3 known (#136 · M5 · B3)
   · locales CLEAN 773 · cs-syntax 144+1 · Ixian-Core 097341a
 ⚠ C# changed in this batch → wipe Spixi/obj and Spixi/bin (#387). Bundle BEFORE shells.
 
@@ -50,9 +50,9 @@ DO-NOTs
 7. Wallet-SEND redesign still stays LAST. Input defects were in scope; the flow is not.
 8. Do not build tip-in-a-flagged-bot-room: it is the money path and the derived vs real
    address question is unanswered on device (#215).
-9. ⚠ Do not un-gate the member sheet's "add contact" in a bot room until C# accepts the
-   verb — see queue item 11. Un-gating first brings back a success toast for something
-   that was never sent.
+9. ⚠ Do not build TIP in a bot room without Damir's word — queue item 11. It is the
+   money path, and legacy's own tip handler contains DEAD CODE that suggests it never
+   worked there. (The add-contact half of that report is already fixed: #623.)
 
 ★ CARRY THESE — every one cost real time in the last two sessions:
 · A NEGATIVE PIN OVER RAW FILE TEXT MATCHES ITS OWN RATIONALE COMMENT. Hit four times
@@ -74,6 +74,13 @@ DO-NOTs
 · ★ WCAG CONTRAST IS A TEXT INSTRUMENT. On two near-black surfaces the +0.05 flare term
   swamps the ratio; a large-area lightness step (ΔL*) is the honest measure.
 · ★ A GLYPH NAME IS NOT A GLYPH (#621). Only the device shows the shape.
+· ★★ TWO VERBS CAN SHARE ONE NAME (#623). A guard found in one handler is not evidence
+  about a different handler called the same thing — check which verb the BUTTON sends.
+  An adversarial audit raised that gate as a HIGH finding and it was wrong, and acting on
+  it without checking cost a working feature for a day.
+· ★★ DAMIR HAS BEEN RIGHT EVERY TIME HE PUSHED BACK THIS ROUND — on the bot group, on
+  the core bump, on the freeze, and on this. When his memory of the app disagrees with a
+  reading of the code, re-read the code.
 
 LANGUAGE RULE: ASD-STE100 Simplified Technical English — chat replies and code comments.
 

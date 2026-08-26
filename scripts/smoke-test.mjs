@@ -10024,8 +10024,17 @@ console.log('R1 identity round — N1 avatar rework (#364) · N34 owner chip (#3
     'D-5: the roster handler stopped discarding trailing args');
   ok(/requestedMembers\.add\(rec\.senderAddress\);/.test(chat366) && /requestedMembers\.clear\(\);/.test(chat366),
     'N26: the in-flight request latch exists AND resets per-peer (onChatScreenReady)');
-  ok(/onRequest: \(rec\.senderAddress && relation === 'none' && !mode\.isBot && !mode\.hidesAddresses\)/.test(chat366),
-    'N26 ★ + #613 r2: the request button only exists for a true stranger — AND never in a bot room or where addresses are hidden, because C# refuses `sendContactRequest` for every bot outright and the shell was showing a SUCCESS toast for something never sent');
+  ok(/onRequest: \(rec\.senderAddress && relation === 'none' && !mode\.blind\)/.test(chat366),
+    '★★ N26 + #623 (Damir, device): the request button exists for a true stranger and NOT in a blind room — but it DOES exist in a bot room. #613 r2 gated it on the guard belonging to the MESSAGE-menu route; this sheet sends the DIRECT address-keyed verb, which has no bot guard in either tree, which is why tapping a member in the Spixi bot group works in legacy');
+  {
+    /* ⚠ the two routes must not be confused again — that mistake cost a working feature.
+       The direct verb's guards live in sendContactRequestGuarded and are about the
+       ADDRESS (bad / self / pending-deletion / already a contact), never about the room. */
+    const scpG = readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8');
+    const gAt = scpG.indexOf('public void sendContactRequestGuarded(string str_address)');
+    ok(gAt > 0 && !/friend\.bot/.test(scpG.slice(gAt, gAt + 2600)),
+      '★★ #623: the DIRECT verb\'s helper carries no bot guard — so the shell must not invent one. If a bot guard is ever wanted it belongs HERE, where both callers would see it, not in one shell');
+  }
   ok(/owner: isOwnerAddr\(rec\.senderAddress\)/.test(chat366),
     'N34: the member sheet carries the owner flag (matches the bubble chip)');
   ok(/roleBadge: \(!isSent && mode\.isMulti && !mode\.blind && isOwnerAddr\(rec\.senderAddress\)\)/.test(chat366),
@@ -10039,7 +10048,10 @@ console.log('R1 identity round — N1 avatar rework (#364) · N34 owner chip (#3
     && /requestedMembers\.has\(m\.address\) && \(m\.relation \|\| 'none'\) === 'none'\) m\.relation = 'pending'/.test(chat366),
     'D-5 ★ (loop r2 MAJOR-1a): collectGroupMembers carries relation through steps 2+3 and applies the latch');
   const chatOnReq = chat366.indexOf('onContactRequest: (m) => {');
-  ok(chatOnReq >= 0 && /requestedMembers\.add\(m\.address\);/.test(chat366.slice(chatOnReq, chatOnReq + 400)),
+  /* ⚠ the window is a proximity heuristic, not the property — #623's rationale block sits
+     between the handler and the latch. Keep it generous enough that a comment cannot fail
+     the pin; the `.add(` clause is what actually holds. */
+  ok(chatOnReq >= 0 && /requestedMembers\.add\(m\.address\);/.test(chat366.slice(chatOnReq, chatOnReq + 1200)),
     'N26 (loop r2 MAJOR-1b): the chat takeover onContactRequest feeds the latch like its two siblings');
   const cdet366 = read('src/shells/contact_details.html');
   ok(/addMember\(address, nick, avatar, role, relation\)/.test(cdet366)

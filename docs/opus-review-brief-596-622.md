@@ -21,7 +21,11 @@ introduced), **#621** (call glyphs) and **#622** (a tap-highlight suppression).
 * **A (money and keyboard)** also takes **#620**. It DELETED a handler rather than
   guarding it. Check nothing else in the tip or request path commits on a keystroke, and
   that the Request sheet — which shares that input — is genuinely covered by the absence.
-* **C (shells, cascade, pins)** also takes **#618**, **#621**, **#622**.
+* **C (shells, cascade, pins)** also takes **#618**, **#621**, **#622** and **#623**.
+  ★ #623 REVERSED a change this brief's own predecessor had endorsed as HIGH-2. Read both
+  and decide which is right — the claim is that the member sheet sends the DIRECT
+  address-keyed verb (unguarded, in both trees) rather than the message-menu one. If that
+  is wrong, a success toast for an unsent request is back.
 
 ## Protocol
 

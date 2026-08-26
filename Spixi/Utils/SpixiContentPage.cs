@@ -16,6 +16,7 @@ using System.IO;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Maui;
@@ -41,7 +42,12 @@ namespace SPIXI
     {
         public bool CancelsTouchesInView = true;
         public bool pageLoaded = false;
-        private Queue<string> messageQueue = new Queue<string>();
+        /* ★ V-10 (#46 loop 2026-08-29): written from the loader thread (loadMessages runs
+         * on a Task.Run and pushes through sendMessage) and drained on the main thread,
+         * with no lock. PRE-EXISTING — #619 added no new thread pair — but a plain Queue
+         * has no defined behaviour under that pattern, and the fix is one word with no
+         * behaviour delta. */
+        private ConcurrentQueue<string> messageQueue = new ConcurrentQueue<string>();
         protected WebView? _webView = null;
         public WebView WebView
         {
@@ -76,7 +82,7 @@ namespace SPIXI
 
         /* ★ N71 (#421): does this page re-theme from a `setTheme` PUSH, or only from a
          * regenerate? The redesigned shells swap one data-theme attribute and every
-         * token follows. The 8 remaining legacy pages have no setTheme global at all —
+         * token follows. The 7 remaining legacy pages have no setTheme global at all —
          * they carry the theme in a `<link href="css/*SL{SpixiThemeMode}">` BAKED at
          * generatePage time, so the only thing that re-themes them is reload().
          *
@@ -187,7 +193,6 @@ namespace SPIXI
                 case "wallet_recipient.html":
                 case "wallet_request.html":
                 case "wallet_send_2.html":
-                case "wallet_contact_request.html":
                 case "address.html":
                     return ThemeManager.getBackgroundColorString();
                 // wallet_sent.html left this list at #259 (B3 redesigned shell,
@@ -379,9 +384,11 @@ namespace SPIXI
             if (_webView == null)
                 return;
 
-            while (messageQueue.Count > 0)
+            // ★ V-10: TryDequeue, not Count-then-Dequeue. A concurrent queue makes the
+            // check-then-take pair a race of its own — the loader thread can drain a
+            // slot between the two on any queue implementation that allows it.
+            while (messageQueue.TryDequeue(out string message))
             {
-                var message = messageQueue.Dequeue();
                 evaluateJavascript(message);
             }
         }
@@ -411,7 +418,6 @@ namespace SPIXI
                 case "address.html":
                 case "apps.html":
                 case "settings_lock.html":
-                case "wallet_contact_request.html":
                 case "wallet_recipient.html":
                 case "wallet_request.html":
                 case "wallet_send.html":
@@ -525,7 +531,7 @@ namespace SPIXI
                  * on every page-chrome pass — page load, re-present, and OnAppearing — which
                  * heals a stale inset on the next visit to any screen.
                  * Gated to REDESIGNED shells: they define window.setInsetTop in their head
-                 * script; the 8 legacy pages and mini-app WebViews do not, and they keep
+                 * script; the 7 legacy pages and mini-app WebViews do not, and they keep
                  * native padding anyway (the branch above).
                  * ⚠ RESIDUAL, logged not hidden: a rotation while a page is on screen is
                  * not covered — see docs/android-findings.md. */
@@ -619,6 +625,23 @@ namespace SPIXI
              * so the next Account tap is representParkedOverlay's instant path from the
              * FIRST open on. Presentation-lifecycle only, like parkOnClose. */
             public bool parkOnLoad = false;
+            /* ★★ V-19: what navigation this op IS, for the supersede dedupe. A second tap
+             * on the SAME row must let the load finish rather than restart it; a tap on a
+             * DIFFERENT row must win. null never matches null. */
+            public string? navKey = null;
+            /* ★★ Item 6 (Damir 2026-08-29) — PRESENT-FIRST.
+             * `presentPreload` holds EVERY load-then-present navigation for a flat 120 ms
+             * so the shell can paint the data its onload handler just pushed. That hold is
+             * why nobody has ever seen the chat-info boot skeleton: the shell coalesces its
+             * own pushes on a 120 ms timer too, so the panel finishes at ~120 ms and the
+             * present fires at ~120 ms, and the page appears already filled.
+             * A page that WANTS its skeleton seen asks for 0. Every other screen keeps the
+             * 120 ms it has today — one report does not re-time the whole app. */
+            public int revealDelayMs = 120;
+            /* ★★ Item 6: slide in from the trailing edge instead of appearing. The overlay
+             * present is an opacity flip today; Damir asked for the slide, and it is also
+             * the thing most likely to mask the skeleton-to-content change on its own. */
+            public bool slideIn = false;
             // W7: the inset this stage was staged with (#245 rail strip for the Account
             // peer pane; zero for every other op). Remembered so a page opened FROM this
             // overlay can inherit the SAME geometry and cover its opener exactly —
@@ -1842,6 +1865,12 @@ namespace SPIXI
             }
         }
 
+        /// <summary>
+        /// Called on the main thread the moment a staged page becomes visible. Empty by
+        /// default; pages override it to time their own present (the [CDPERF] probe).
+        /// </summary>
+        protected internal virtual void onPreloadPresented() { }
+
         protected void signalPreloadReady()
         {
             PreloadOp? op;
@@ -1927,8 +1956,37 @@ namespace SPIXI
             return false;
         }
 
-        public void pushPageLoaded(SpixiContentPage target, int timeoutMs = 4000, string? tag = null, int column = -1, SpixiContentPage? replaces = null, Thickness stageMargin = default, bool parkOnClose = false, bool parkOnLoad = false)
+        /// <summary>
+        /// ★★ V-19 / V-7 (#46 loop 2026-08-29) — A USER NAVIGATION WINS.
+        ///
+        /// This method used to DROP the target whenever anything was already staging,
+        /// silently: the shell had already sent its verb, got no answer, no error and no
+        /// result push, so it could not even fall back. ONE silent drop explained three
+        /// separate reports — the lost deep link (row C8), "click through the chats list
+        /// too fast and it does not register", and "sometimes the first click does not
+        /// open the chat". The last one is the worst, because the FIRST click after a
+        /// cold start lands inside the Account warm-park's 6000 ms budget.
+        ///
+        /// Damir's ruling, 2026-08-29: a user click ALWAYS wins a staging page. So:
+        ///   · a BACKGROUND warm park (parkOnLoad) never competes — it yields, always;
+        ///   · the SAME navigation arriving twice is deduped, not restarted, so hammering
+        ///     one row cannot keep cancelling its own load and make it slower;
+        ///   · anything else CANCELS what is staging and takes the slot.
+        /// The only remaining silent drop is a lock shown in place, which is deliberate
+        /// (#230) and where the user cannot act anyway.
+        ///
+        /// `navKey` identifies the navigation for the dedupe. Two nulls never match — a
+        /// caller that does not name its navigation gets the supersede path, never a
+        /// wrong dedupe.
+        /// `supersedeRetries` covers the one-dispatcher-turn window in which the slot is
+        /// RESERVED (`preloadPending`) but no op exists yet to cancel: there is nothing to
+        /// supersede, so the call re-enters on the next turn instead of being discarded.
+        /// The staging turn always clears `preloadPending`, so the window cannot outlive
+        /// a turn and the retries cannot loop.
+        /// </summary>
+        public void pushPageLoaded(SpixiContentPage target, int timeoutMs = 4000, string? tag = null, int column = -1, SpixiContentPage? replaces = null, Thickness stageMargin = default, bool parkOnClose = false, bool parkOnLoad = false, string? navKey = null, int revealDelayMs = 120, bool slideIn = false, int supersedeRetries = 2)
         {
+            PreloadOp? superseded = null;
             lock (preloadLock)
             {
                 // #230 SECURITY (Opus review): never stage/present an overlay while a
@@ -1948,13 +2006,57 @@ namespace SPIXI
                 }
                 if (preloadPending || activePreload != null)
                 {
-                    // A page is already staging (double-tap / competing nav) — drop this
-                    // one. The call sites construct the target inline, so dispose it to
-                    // release its WebView events/queue rather than leaving an orphan (m4).
-                    try { target.Dispose(); } catch { }
-                    return;
+                    if (parkOnLoad)
+                    {
+                        // The background warm park always yields. It exists to make a
+                        // LATER tap fast; competing with a live one would be the whole
+                        // defect in reverse.
+                        warmPending = false; warmClaimRequested = false;
+                        try { target.Dispose(); } catch { }
+                        return;
+                    }
+                    if (activePreload != null)
+                    {
+                        if (navKey != null && activePreload.navKey == navKey)
+                        {
+                            // The SAME navigation is already staging. Answer it by letting
+                            // it finish — cancelling and re-staging would restart the load
+                            // and make an impatient second tap SLOWER than one tap.
+                            try { target.Dispose(); } catch { }
+                            return;
+                        }
+                        // A different, user-initiated navigation. Take the slot.
+                        // ⚠ If the staged page has ALREADY claimed its present, tryFinish
+                        // inside cancelPreload returns false and it presents anyway; the
+                        // new page then stages and, sharing the tag, replaces it. A brief
+                        // wrong screen beats a navigation that never happened.
+                        superseded = activePreload;
+                        activePreload = null;
+                        warmPending = false; warmClaimRequested = false;
+                    }
+                    else
+                    {
+                        // The reservation window: the slot is taken but no op exists yet,
+                        // so there is nothing to cancel. Re-enter on the next dispatcher
+                        // turn, by which time the staging block has run.
+                        if (supersedeRetries > 0)
+                        {
+                            MainThread.BeginInvokeOnMainThread(() =>
+                                pushPageLoaded(target, timeoutMs, tag, column, replaces, stageMargin, parkOnClose, parkOnLoad, navKey, revealDelayMs, slideIn, supersedeRetries - 1));
+                            return;
+                        }
+                        Logging.warn("pushPageLoaded: the staging slot never freed; dropping " + target.GetType().Name);
+                        try { target.Dispose(); } catch { }
+                        return;
+                    }
                 }
                 preloadPending = true;
+            }
+            if (superseded != null)
+            {
+                // Queued BEFORE the staging block below, so the outgoing stage is gone
+                // from the host grid before the new one is added.
+                cancelPreload(superseded);
             }
 
             MainThread.BeginInvokeOnMainThread(() =>
@@ -2020,6 +2122,9 @@ namespace SPIXI
                 // a push-fallback page leaves the host grid at present time.
                 op.parkOnClose = parkOnClose && overlayMode;
                 op.parkOnLoad = parkOnLoad && overlayMode;   // C3 (#546): a non-overlay fallback cannot park — it presents
+                op.navKey = navKey;                         // ★★ V-19: the supersede dedupe key
+                op.revealDelayMs = revealDelayMs < 0 ? 0 : revealDelayMs;   // ★★ item 6
+                op.slideIn = slideIn && overlayMode;                        // ★★ item 6: only the in-place present can slide
                 // loop r2 R2-4: the warm flags clear on EVERY staging outcome — a stuck
                 // warmPending made a later claim return true with no present coming
                 lock (preloadLock)
@@ -2266,7 +2371,13 @@ namespace SPIXI
                 {
                     // Let the shell paint the data its onload handler just pushed before
                     // the page becomes visible (queued EvaluateJavaScriptAsync work).
-                    await Task.Delay(120);
+                    // ★★ Item 6: per-op now. A page that paints a SKELETON at boot asks
+                    // for 0 and shows it; holding it would present a finished panel and
+                    // the skeleton would never be seen (which is exactly what happened).
+                    if (op.revealDelayMs > 0)
+                    {
+                        await Task.Delay(op.revealDelayMs);
+                    }
 
                     if (op.abandoned)
                     {
@@ -2386,7 +2497,34 @@ namespace SPIXI
                         // showing it is a property flip, nothing re-attaches, nothing can
                         // repaint blank. Content stays hosted in the stage until close.
                         op.stage.InputTransparent = false;
-                        op.stage.Opacity = 1;
+                        /* ★★ Item 6 (Damir): SLIDE IN from the trailing edge. Presentation
+                         * only — the view is already attached and painted, so this animates
+                         * a transform on a stage that is finished, never a re-attach.
+                         * Fail-soft: an unmeasured stage falls back to the host width, and
+                         * a host with no width falls back to the opacity flip. The
+                         * translation is always reset, so a stage that is reused (the
+                         * parked overlay) can never come back displaced. */
+                        double slideFrom = 0;
+                        if (op.slideIn)
+                        {
+                            slideFrom = op.stage.Width > 0 ? op.stage.Width
+                                : (op.host.Width > 0 ? op.host.Width : 0);
+                        }
+                        if (slideFrom > 0)
+                        {
+                            op.stage.TranslationX = slideFrom;
+                            op.stage.Opacity = 1;
+                            // NOT awaited: everything below registers the overlay in the
+                            // stack and lays the host out, and back handling, the same-tag
+                            // sweep and closeTopOverlay all read that stack. Waiting 220 ms
+                            // for an animation before registering would leave the overlay
+                            // invisible to every one of them while it was on screen.
+                            _ = slideStageIn(op.stage);
+                        }
+                        else
+                        {
+                            op.stage.Opacity = 1;
+                        }
                         lock (preloadLock)
                         {
                             overlayStack.Add(op);
@@ -2396,6 +2534,14 @@ namespace SPIXI
                         // same frame the overlay becomes visible (chat-info pane pin +
                         // column expand). Runs BEFORE the same-tag close below, so a
                         // replaced pane's onOverlayClosed sees the new one already open.
+                        try
+                        {
+                            op.target.onPreloadPresented();
+                        }
+                        catch (Exception ex)
+                        {
+                            Logging.warn("onPreloadPresented failed: " + ex);
+                        }
                         try
                         {
                             op.host.onOverlayPresented(op.target);
@@ -2535,6 +2681,27 @@ namespace SPIXI
                     }
                 }
             });
+        }
+
+        /// <summary>
+        /// ★★ Item 6: the slide itself. Always resets the translation, so a stage that is
+        /// reused (the parked overlay) can never come back displaced — a failed or
+        /// interrupted animation must not leave a screen half off the edge.
+        /// </summary>
+        private static async Task slideStageIn(View stage)
+        {
+            try
+            {
+                await stage.TranslateTo(0, 0, 220, Easing.CubicOut);
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("Overlay slide-in failed: " + ex);
+            }
+            finally
+            {
+                try { stage.TranslationX = 0; } catch (Exception) { }
+            }
         }
 
         private static void cancelPreload(PreloadOp op)
@@ -2962,8 +3129,21 @@ namespace SPIXI
         }
 #endif
 
+        /* ★★ V-5 (#46 loop 2026-08-29): #619 freed the UI thread while a bot room waits,
+         * which made popPageAsync's THIRD branch reachable for the first time — a plain
+         * Navigation.PopAsync on a page that was never pushed and has already been
+         * Disposed. Before #619 the ceiling blocked the thread, so the user could not
+         * act and the page was always staging or presented. This codebase has already
+         * ruled the same fall-through a MAJOR once: the #328 comment in closeOverlay
+         * describes it as the #272 pop-the-top class — it pops whatever IS on top,
+         * which is someone else's screen.
+         * Dispose set no flag anyone consulted. Now it does, and the check closes the
+         * #328 residual for every caller rather than only this one. */
+        private volatile bool disposed = false;
+
         public void Dispose()
         {
+            disposed = true;
             try
             {
                 if (!Navigation.NavigationStack.Contains(this))
@@ -3028,8 +3208,25 @@ namespace SPIXI
                 return;
             }
 
+            // ★★ V-5: neither an open overlay nor a staging preload. A page that is
+            // already DISPOSED was never pushed either, so PopAsync here would take the
+            // screen the user is actually looking at. Repro: open a cold bot room, wait
+            // for the blank present at ~4s, press back before 5s.
+            if (disposed)
+            {
+                Logging.warn("popPageAsync on a disposed page — ignored (V-5 / #328)");
+                return;
+            }
+
             MainThread.BeginInvokeOnMainThread(async () =>
             {
+                // Re-check on the main thread: a Dispose can land between the branch
+                // above and this continuation.
+                if (disposed)
+                {
+                    Logging.warn("popPageAsync: page disposed while the pop was queued — ignored (V-5)");
+                    return;
+                }
                 Page page = await Navigation.PopAsync(Config.defaultXamarinAnimations);
                 if (page != null
                     && page is SpixiContentPage)

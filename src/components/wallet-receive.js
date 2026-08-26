@@ -61,7 +61,7 @@ import { createButton } from './button.js';
 import { createSearchField } from './search-field.js';
 import { createQrSvg } from './qr.js';                     // #303: setQrValue import dropped — the QR never re-encodes
 import { createSheet, openSheet, closeSheet } from './sheet.js';   // #527: the address moved into a bottom sheet · r2: closeAddressSheet
-import { sanitizeAmount, canonicalAmount, amountInputToCanonical, groupAmountDisplay, amountCaretAfterFormat } from './money.js';   // #143 shared money module · ★ I-6 (#360) display grouping
+import { sanitizeAmount, canonicalAmount, amountInputToCanonical, attachAmountPreEdit, groupAmountDisplay, amountCaretAfterFormat } from './money.js';   // #143 shared money module · ★ I-6 (#360) display grouping
 import { icon } from './icons.js';
 import { createContactRow, setContactRowChecked } from './contact-row.js';   // ★ W-j: the shared directory row
 import { attachAmountKeyboardDismiss } from './amount-keyboard.js';             // ★ W-k: Enter/Next/Go drops the keyboard
@@ -375,6 +375,9 @@ export function createWalletReceive({
     syncCta();
   }
 
+  /* ★★ V-1: the pre-edit snapshot. A select-all-and-paste is the one edit
+     whose separators are NOT ours, and only the REPLACED RANGE says so. */
+  const readPreEdit = attachAmountPreEdit(amtInput);
   amtInput.addEventListener('input', (e) => {
     // ★ I-6 (#360): locale-grouped display in the field; canonical value in
     // state (#77 wire untouched). Caret follows the digit count. Loop r1
@@ -382,7 +385,7 @@ export function createWalletReceive({
     // only for paste/synthetic dispatches.
     const disp = amtInput.value;
     const caret = amtInput.selectionStart;
-    const v = sanitizeAmount(amountInputToCanonical(disp, caret, e, undefined, !!state.amount));   // r2 MAJOR-1: pre-edit emptiness routes
+    const v = sanitizeAmount(amountInputToCanonical(disp, caret, e, undefined, !!state.amount, readPreEdit()));   // ★★ V-1: the REPLACED RANGE routes (r2 MAJOR-1 still holds for a partial edit)
     const shown = groupAmountDisplay(v);
     if (shown !== disp) {
       amtInput.value = shown;

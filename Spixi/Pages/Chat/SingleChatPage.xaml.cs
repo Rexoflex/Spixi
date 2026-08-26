@@ -174,6 +174,10 @@ namespace SPIXI
             {
                 onPayRequest(current_url.Substring("ixian:payRequest:".Length));
             }
+            else if (current_url.StartsWith("ixian:declineRequest:", StringComparison.Ordinal))
+            {
+                onDeclineRequest(current_url.Substring("ixian:declineRequest:".Length));
+            }
             else if (current_url.StartsWith("ixian:sendrequest:", StringComparison.Ordinal))
             {
                 onSendRequestFromChat(current_url.Substring("ixian:sendrequest:".Length));
@@ -461,7 +465,8 @@ namespace SPIXI
             }
 
             // #248: chat-header entry → context 'chat' ("Chat info"/"Group info").
-            pushPageLoaded(new ContactDetails(friend, true, null, true));   // load-then-move (N3)
+            pushPageLoaded(new ContactDetails(friend, true, null, true), 4000, null, -1, null, default, false, false,
+                navKey: "chatinfo:" + friend.walletAddress, revealDelayMs: 0, slideIn: true);   // ★★ item 6
         }
 
         private void onSendIxi()
@@ -501,6 +506,28 @@ namespace SPIXI
         // ★ W5 (#523): pay an incoming payment request IN PLACE. This page resolves
         // the message; SPayments owns the guards, the NATIVE confirm (+ auth), the
         // sign and every result push. 1:1 only — same fence as onSendIxi.
+        /* ★★ DECLINE ON THE CARD (Damir decision 3, 2026-08-29). The twin of onPayRequest
+         * and deliberately the same shape: the same lookup, the same guards, the same
+         * answer channel. It SENDS A MESSAGE and spends nothing. */
+        private void onDeclineRequest(string msg_id)
+        {
+            if (friend.bot || friend.type == FriendType.Group)
+            {
+                Utils.sendUiCommand(this, "payRequestResult", msg_id, "gone", "");
+                return;
+            }
+            FriendMessage? msg = null;
+            try
+            {
+                msg = friend.getMessages(selectedChannel).Find(x => x.id != null && x.id.SequenceEqual(Crypto.stringToHash(msg_id)));
+            }
+            catch (Exception ex)
+            {
+                Logging.error("onDeclineRequest lookup failed: " + ex.Message);
+            }
+            SPayments.declineRequest(this, friend, msg, msg_id);
+        }
+
         private void onPayRequest(string msg_id)
         {
             if (friend.bot || friend.type == FriendType.Group)
@@ -1256,7 +1283,21 @@ namespace SPIXI
         {
             // ★ audit: the id goes back with the answer. Without it a late result could
             // resolve a tip sheet the user had since opened on a DIFFERENT message.
-            Utils.sendUiCommand(this, "setTipResult", ok ? "1" : "0", body ?? "", tipMsgIdHex ?? "");
+            sendTipResultFor(ok ? "1" : "0", body, tipMsgIdHex);
+        }
+
+        /// <summary>
+        /// ★★ V-2: the same channel with an EXPLICIT id and an explicit status.
+        /// The native confirm is awaited, and `tipMsgIdHex` is a field that EVERY
+        /// contextAction overwrites — a copy or a reaction on another message while the
+        /// dialog is open would send the answer back under the wrong id. The confirm
+        /// path captures the id at the start and hands it back here.
+        /// "cancel" is the third status: the sheet re-enables SILENTLY, because a tip
+        /// the user declined is not a tip that failed.
+        /// </summary>
+        private void sendTipResultFor(string status, string body, string msgIdHex)
+        {
+            Utils.sendUiCommand(this, "setTipResult", status ?? "0", body ?? "", msgIdHex ?? "");
         }
 
         public void onAcceptFriendRequest()
@@ -1279,7 +1320,25 @@ namespace SPIXI
 
         public void onViewPayment(string msg_id)
         {
-            FriendMessage msg = friend.getMessages(selectedChannel).Find(x => x.id != null && x.id.SequenceEqual(Crypto.stringToHash(msg_id)));
+            /* ★ QUEUE ITEM 15: this Find was UNGUARDED. A message id that is not in this
+             * channel — a canceled request whose card is still on screen, a stale push —
+             * returned null and every line below dereferenced it. The same class as the
+             * white error page WalletContactRequestPage showed on Pay after a cancel,
+             * which is gone with that page. stringToHash can throw on a malformed id too. */
+            FriendMessage? msg = null;
+            try
+            {
+                msg = friend.getMessages(selectedChannel).Find(x => x.id != null && x.id.SequenceEqual(Crypto.stringToHash(msg_id)));
+            }
+            catch (Exception ex)
+            {
+                Logging.error("onViewPayment lookup failed: " + ex.Message);
+            }
+            if (msg == null)
+            {
+                Logging.warn("onViewPayment: no such message in this channel");
+                return;
+            }
 
             if(msg.type == FriendMessageType.sentFunds || msg.message.StartsWith(":"))
             {
@@ -1307,25 +1366,16 @@ namespace SPIXI
                 return;
             }
 
-            if(msg.type == FriendMessageType.requestFunds && !msg.localSender)
+            /* ★★ Damir decision 4: the requestFunds branch USED to push the native
+             * payment page. That page is gone, and there is nothing legitimate to route
+             * here any more — an incoming request is Pay (the review sheet + the native
+             * confirm) or Decline, both on the card. A shell that still asks is either
+             * older than this build or asking about a card it should not have offered a
+             * Details link on; either way, doing nothing is the honest answer. */
+            if (msg.type == FriendMessageType.requestFunds && !msg.localSender)
             {
-                onConfirmPaymentRequest(msg, msg.message);
+                Logging.warn("viewPayment on an unpaid request — the card carries Pay and Decline now");
             }
-        }
-
-        public void onConfirmPaymentRequest(FriendMessage msg, string amount)
-        {
-            // TODO: extract the date from the corresponding message
-            DateTime dt = DateTime.Now;
-            string date_text = String.Format("{0:t}", dt);
-
-            if (homePage != null)
-            {
-                homePage.onConfirmPaymentRequest(msg, friend, amount, date_text);
-                return;
-            }
-
-            hostNav.PushAsync(new WalletContactRequestPage(msg, friend, amount, date_text), Config.defaultXamarinAnimations);   // #225: root nav
         }
 
         public void onApp(string app_id)
@@ -1666,36 +1716,88 @@ namespace SPIXI
                         /* ★ D-11 RESOLVED BY DELETION (audit 2026-08-15).
                          * Damir's complaint was that the tip ALERT asked "Tip <group name>?"
                          * instead of naming the member. A nick ladder was written here to
-                         * fix it — and the audit proved the whole thing was DEAD CODE: both
-                         * branches below now answer through sendTipResult, which carries no
-                         * title, so `modal_title` was assigned and never read. C# emits no
-                         * warning for that, so nothing would have caught it.
-                         * The complaint is fixed by D-10 instead: that alert is GONE. The
-                         * name the user sees is the tip sheet's own header, which the shell
-                         * already resolves correctly (chat.html openTipForMessage — roster
-                         * name, then the truncated address, never the group).
-                         * Deleting beats keeping a ladder that computes a string nobody
-                         * reads. */
-                        if (friend.addReaction(IxianHandler.getWalletStorage().getPrimaryAddress(), new ReactionMessage(msg_id, "tip:" + tx.id), selectedChannel))
+                         * fix it — and the audit proved the whole thing was DEAD CODE. The
+                         * name the user reads is now SPayments.recipientDisplay, which is
+                         * the SAME ladder Send and Pay use: the nickname when the target is
+                         * a contact, and always the full address under it. It never says
+                         * the group's name, because it never looks at the group.
+                         *
+                         * ★★ V-2 (#46 loop 2026-08-29) — THE NATIVE CONFIRM.
+                         * Everything below spends money from a WebView-composed amount, and
+                         * until now it did so with no native wall at all. CLAUDE.md forbids
+                         * exactly that, and V-1 proved the cost: a paste could put a hundred
+                         * times the intended amount on the wire with the right number still
+                         * on screen, and this was the one surface where nothing asked again.
+                         * Damir's ruling, 2026-08-29: the native dialog IS the tip's review
+                         * step — presets and custom alike, one grammar, and it shows the fee
+                         * because the prepared transaction already carries it.
+                         *
+                         * ⚠ ORDER. The confirm runs BEFORE friend.addReaction. The reaction
+                         * writes the local tip pill, so confirming after it would leave a
+                         * pill over a payment the user had just refused. The old order was
+                         * safe only because nothing could refuse.
+                         *
+                         * ⚠ onNavigating is synchronous, so the wait cannot happen inline.
+                         * The tail runs in a local async lambda over values captured HERE —
+                         * tipMsgIdHex is a field and every contextAction overwrites it, so
+                         * the answer carries the id this tip was started with. Every exit
+                         * still answers exactly once, including a throw. */
+                        var relaysForTip = relayNodeAddresses;
+                        var txForTip = tx;
+                        var senderForTip = sender_address;
+                        var msgIdForTip = msg_id;
+                        int channelForTip = selectedChannel;
+                        string tipIdForAnswer = tipMsgIdHex;
+                        string tipPayee = sender_address.PaymentAddress.ToString();
+                        Func<Task> commitTip = async () =>
                         {
-                            updateReactions(msg_id, selectedChannel);
-                            StreamProcessor.sendReaction(friend, msg_id, "tip:" + tx.id, selectedChannel);
-                            IxianHandler.addTransaction(tx, relayNodeAddresses, new() { sender_address }, null, true);
-                            // D-10: the SHEET is the confirmation now — it morphs and closes,
-                            // and the tip pill lands over the message via addReactions. The
-                            // native alert on top of that was a second, redundant channel.
-                            sendTipResult(true, "");
-                        }
-                        else
-                        {
-                            // 🟡 D-12: this is the "you already tipped this message" case in
-                            // practice (Damir proved the one-tip rule by testing, and it holds
-                            // in legacy too) — but Friend.addReaction is Ixian-Core and can
-                            // refuse for reasons we cannot enumerate, so the copy stays
-                            // generic until the BE engineer confirms. It is at least INLINE
-                            // and on the sheet now, instead of a native dialog.
-                            sendTipResult(false, SpixiLocalization._SL("chat-modal-tip-error-body"));
-                        }
+                            try
+                            {
+                                // The sheet arms a 12 s backstop for an exe that never
+                                // answers. A human reading a dialog is not that case, so
+                                // say "I have it" before the wait — the shell re-arms at
+                                // 120 s instead of accusing a live confirm of being lost.
+                                sendTipResultFor("pending", "", tipIdForAnswer);
+                                bool confirmed = await SPayments.confirmTip(this, tipPayee, txForTip.amount, txForTip.fee);
+                                if (!confirmed)
+                                {
+                                    // A cancel is not a failure. "cancel" re-enables the sheet
+                                    // silently — an error line here would tell the user that
+                                    // something went wrong with a tip they chose not to send.
+                                    sendTipResultFor("cancel", "", tipIdForAnswer);
+                                    return;
+                                }
+                                if (friend.addReaction(IxianHandler.getWalletStorage().getPrimaryAddress(), new ReactionMessage(msgIdForTip, "tip:" + txForTip.id), channelForTip))
+                                {
+                                    updateReactions(msgIdForTip, channelForTip);
+                                    StreamProcessor.sendReaction(friend, msgIdForTip, "tip:" + txForTip.id, channelForTip);
+                                    IxianHandler.addTransaction(txForTip, relaysForTip, new() { senderForTip }, null, true);
+                                    // D-10: the SHEET reports the result — it morphs and closes,
+                                    // and the tip pill lands over the message via addReactions.
+                                    sendTipResultFor("1", "", tipIdForAnswer);
+                                }
+                                else
+                                {
+                                    // 🟡 D-12: this is the "you already tipped this message" case in
+                                    // practice (Damir proved the one-tip rule by testing, and it holds
+                                    // in legacy too) — but Friend.addReaction is Ixian-Core and can
+                                    // refuse for reasons we cannot enumerate, so the copy stays
+                                    // generic until the BE engineer confirms. It is at least INLINE
+                                    // and on the sheet now, instead of a native dialog.
+                                    sendTipResultFor("0", SpixiLocalization._SL("chat-modal-tip-error-body"), tipIdForAnswer);
+                                }
+                            }
+                            catch (Exception commitEx)
+                            {
+                                // The sheet is WAITING and its dismissal is disabled while money
+                                // is in flight. An unanswered exit strands it until the 12 s
+                                // backstop. The known residual of the D-10 note still applies:
+                                // a throw AFTER addReaction leaves a pill over a "failed" answer.
+                                Logging.error("Tip commit failed: " + commitEx);
+                                try { sendTipResultFor("0", SpixiLocalization._SL("chat-modal-tip-error-body"), tipIdForAnswer); } catch (Exception) { }
+                            }
+                        };
+                        _ = commitTip();
                     }
                     }
                     catch (Exception tipEx)

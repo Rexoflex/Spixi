@@ -577,6 +577,13 @@
    a half-reset button inside a card is how one row ends up a pixel off from its
    neighbours. */
 .c-chat-info__row--action {
+  /* ★★ V-14 (#46 loop 2026-08-29): TEN interactive rules in this file carry this kill
+   * and #618's new row did not — so on Android it painted its own :active wash AND a
+   * square platform rectangle over a --radius-16 card. That is the exact artefact #622
+   * removed from the explore banner, in the same batch, reintroduced here. There is no
+   * global reset to fall back on: base.css and tokens.css contain zero occurrences, and
+   * the Account-hub row this one says it copies does carry it. */
+  -webkit-tap-highlight-color: transparent;
   width: 100%;
   padding: var(--spacing-12);
   border: 0;

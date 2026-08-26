@@ -1305,17 +1305,23 @@ namespace SPIXI
                     double paneW = Math.Min(infoPaneWidth, avail);
                     infoPaneCol2Pending = true;
                     pushPageLoaded(new ContactDetails(friend, customChatBtn, "2", chatContext), 4000, "chatinfo", -1,
-                        null, new Thickness(Math.Max(0, Width - paneW), 0, 0, 0));
+                        null, new Thickness(Math.Max(0, Width - paneW), 0, 0, 0),
+                        navKey: "chatinfo:" + friend.walletAddress,
+                        revealDelayMs: 0, slideIn: true);   // ★★ V-19 · item 6: show the boot skeleton, slide it in
                 }
                 else if (wide)
                 {
                     // No conversation open, or no room beside it → the detail slot
                     // (stacks OVER an open conversation, covering only its region).
-                    pushPageLoaded(new ContactDetails(friend, customChatBtn, "1", chatContext), 4000, "chatinfo", 1);
+                    pushPageLoaded(new ContactDetails(friend, customChatBtn, "1", chatContext), 4000, "chatinfo", 1,
+                        navKey: "chatinfo:" + friend.walletAddress,
+                        revealDelayMs: 0, slideIn: true);   // ★★ V-19 · item 6: show the boot skeleton, slide it in
                 }
                 else
                 {
-                    pushPageLoaded(new ContactDetails(friend, customChatBtn, null, chatContext), 4000, "chatinfo");
+                    pushPageLoaded(new ContactDetails(friend, customChatBtn, null, chatContext), 4000, "chatinfo",
+                        navKey: "chatinfo:" + friend.walletAddress,
+                        revealDelayMs: 0, slideIn: true);   // ★★ V-19 · item 6: show the boot skeleton, slide it in
                 }
             });
         }
@@ -1386,10 +1392,15 @@ namespace SPIXI
             }
         }
 
-        public void onConfirmPaymentRequest(FriendMessage msg, Friend friend, string amount, string date_text)
-        {
-            Navigation.PushAsync(new WalletContactRequestPage(msg, friend, amount, date_text), Config.defaultXamarinAnimations);
-        }
+        /* ★★ THE NATIVE PAYMENT PAGE IS REMOVED (Damir decision 4, 2026-08-29:
+         * "Nothing of legacy must exist in the new app. It shouldn't be in the code.
+         * If we are missing anything we will build newly.")
+         * `onConfirmPaymentRequest` existed only to push WalletContactRequestPage. Its
+         * job is done in place now: Pay opens the review sheet and SPayments.handlePayRequest
+         * signs behind the native confirm, and Decline is a button on the card.
+         * ⚠ Removing that page also removed a real hazard: its own onSend SIGNED AND
+         * BROADCAST with no native confirm and dereferenced a null requestMsg and a null
+         * transaction — the white error page on a canceled request. */
 
         public async void quickScan()
         {
@@ -1940,7 +1951,8 @@ namespace SPIXI
                 // whose ixian:dismiss pops the overlay (popPageAsync is overlay-aware)
                 // and reveals whatever sat beneath (conversation / empty detail).
                 // Live status holds: OnUpdateUI ticks the TOP overlay every second.
-                pushPageLoaded(new WalletSentPage(activity.transaction), 4000, "txdetail", 1);
+                pushPageLoaded(new WalletSentPage(activity.transaction), 4000, "txdetail", 1,
+                    navKey: "txdetail:" + activity.transaction);   // ★★ V-19
                 Utils.sendUiCommand(this, "selectTx", activity.transaction.getTxIdString());
                 return;
             }
@@ -1990,7 +2002,8 @@ namespace SPIXI
                 // the previous one only after it is visible → seamless switching,
                 // nothing detaches, nothing can flicker.
                 bool wide = rightContent.IsVisible;
-                pushPageLoaded(new SingleChatPage(friend, wide ? this : null), 4000, "chat", wide ? 1 : -1);
+                pushPageLoaded(new SingleChatPage(friend, wide ? this : null), 4000, "chat", wide ? 1 : -1,
+                    navKey: "chat:" + friend.walletAddress);   // ★★ V-19: a second tap on the SAME row lets the load finish; a tap on another row wins
                 // N49 (#370): the selectChat highlight rides onOverlayPresented now —
                 // the push here was the A-1 fire-and-forget class (#362 logged it): a
                 // staged page can be dropped before present, leaving a highlight on a

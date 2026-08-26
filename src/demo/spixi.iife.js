@@ -229,7 +229,27 @@ function ungroupAmountInput(display, locale) {
   const seps = localeSeps(locale);
   // \s covers the NBSP/NNBSP/thin-space groupers (fr); ' is the CH grouper.
   let s = String(display == null ? '' : display).replace(/[\s']/g, '');
-  if (seps.decimal === '.') {
+  const dotLocale = seps.decimal === '.';
+  /* ★★ V-1(b) — THE OTHER HALF, and it fires on a paste into an EMPTY field too.
+   * A string in the OTHER convention was read in NEITHER: `1,234.56` in de/fr/ru/sl/
+   * pt/es/sr became 1.23456, and `1.234,56` in en became 1.23456. Both are 1000x UNDER
+   * the intended 1234.56. That is not the #135-M2 comma-is-decimal rule; it is the
+   * second separator losing all meaning in sanitizeAmount.
+   * The rule below is deliberately NARROW: it applies ONLY when the string cannot be
+   * read in the LOCAL convention at all, and can be read in the other one. A locally
+   * valid string never changes meaning, so the ambiguous pairs stay exactly as they
+   * were — `1,500` still reads 1.5 in de and 1500 in en, and `12,5` still reads 12.5
+   * everywhere. Reaching the foreign branch needs TWO separators in the foreign
+   * arrangement, which no local reading accepts. */
+  const localOk = dotLocale ? /^[+-]?(\d{1,3}(,\d{3})+|\d*)(\.\d*)?$/.test(s)
+                            : /^[+-]?(\d{1,3}(\.\d{3})+|\d*)(,\d*)?$/.test(s);
+  const foreignOk = dotLocale ? /^[+-]?\d{1,3}(\.\d{3})+(,\d*)?$/.test(s)
+                              : /^[+-]?\d{1,3}(,\d{3})+(\.\d*)?$/.test(s);
+  if (!localOk && foreignOk) {
+    return dotLocale ? s.replace(/\./g, '').replace(/,/g, '.')
+                     : s.replace(/,/g, '');
+  }
+  if (dotLocale) {
     if (/^[+-]?\d{1,3}(,\d{3})+(\.\d*)?$/.test(s)) s = s.replace(/,/g, '');
   } else {
     if (/^[+-]?\d{1,3}(\.\d{3})+(,\d*)?$/.test(s)) s = s.replace(/\./g, '');
@@ -262,20 +282,79 @@ function amountEditToCanonical(display, caret, data, locale) {
   return s;
 }
 
-/** Route an amount-input read to the right inverse. ★ r2 MAJOR-1: the router
- *  keys on PRE-EDIT EMPTINESS, not on inputType — a paste/drop INTO a
- *  non-empty field edits a string whose separators are OURS (the mid-edit
- *  class), so it must take the per-edit strip; inputType routing sent it to
- *  the settled heuristic and re-opened the r1 CRITICAL on the paste path
- *  ("1,234" + pasted "5" → 1.2345). The settled heuristic now runs ONLY when
- *  the field held no amount before the edit (first fill: QR/deeplink seeds,
- *  synthetic dispatches, paste into empty — where outside conventions like
- *  en "12,5" must keep their #135-M2 decimal reading). `hadAmount` is the
- *  caller's pre-edit state.amount truthiness — the canonical mirror of the
- *  field, no extra tracking. InsertText still carries ev.data so a just-typed
- *  separator stays decimal intent. */
-function amountInputToCanonical(display, caret, ev, locale, hadAmount) {
-  if (hadAmount) {
+/** Pre-edit snapshot of an amount field: the value and the SELECTED RANGE as
+ *  they were BEFORE the edit that the `input` event reports.
+ *
+ *  ★★ V-1 (#46 loop 2026-08-29 — A SILENT WRONG-AMOUNT DEFECT, on every money
+ *  surface and in every shipped locale): the router below has to know whether
+ *  the separators in the field are OURS. Neither `inputType` nor "the field was
+ *  not empty" answers that question. A select-all-and-paste leaves a field that
+ *  is non-empty before the edit and holds a FOREIGN string after it — de-de
+ *  field `5`, select all, paste `12.75` put 127 500 000 000 units on the wire.
+ *  The REPLACED RANGE answers it exactly, and only a pre-edit listener can see
+ *  that range.
+ *
+ *  `beforeinput` is the canonical signal. It covers paste, drop, dictation and
+ *  IME. The other four events are the BELT: they all land before the `input`
+ *  that reports the edit, so a runtime that does not fire `beforeinput` on an
+ *  <input> still gets a correct snapshot instead of falling back to the defect.
+ *
+ *  Returns a READER. The reader gives the snapshot ONCE and then goes stale, so
+ *  a later synthetic `input` dispatch (a QR seed, a test) can never consume a
+ *  snapshot that belongs to a different edit. A stale read returns null, and
+ *  null routes exactly as this module routed before this change. */
+function attachAmountPreEdit(input) {
+  const pre = { value: '', start: 0, end: 0, fresh: false };
+  const snap = () => {
+    try {
+      pre.value = String(input.value == null ? '' : input.value);
+      pre.start = input.selectionStart;
+      pre.end = input.selectionEnd;
+      pre.fresh = true;
+    } catch (e) { pre.fresh = false; }   // detached or unsupported selection API
+  };
+  for (const t of ['beforeinput', 'keydown', 'paste', 'cut', 'drop']) {
+    try { input.addEventListener(t, snap); } catch (e) { /* no listener support */ }
+  }
+  return () => {
+    if (!pre.fresh) return null;
+    pre.fresh = false;
+    return { value: pre.value, start: pre.start, end: pre.end };
+  };
+}
+
+/** TRUE when the edit replaced the WHOLE previous value — the only case in
+ *  which the string now in the field can be a foreign convention. An empty
+ *  previous value is the same case (nothing of ours survives). */
+function replacedWholeValue(pre) {
+  if (!pre) return false;
+  const v = String(pre.value == null ? '' : pre.value);
+  if (!v) return true;
+  const s = pre.start, e = pre.end;
+  if (s == null || e == null) return false;
+  return Math.min(s, e) === 0 && Math.max(s, e) === v.length;
+}
+
+/** Route an amount-input read to the right inverse.
+ *
+ *  ★ r2 MAJOR-1: the router must NOT key on inputType. A paste INTO a
+ *  non-empty field, at the caret, edits a string whose separators are OURS
+ *  (the mid-edit class), so it takes the per-edit strip; inputType routing
+ *  sent it to the settled heuristic and re-opened the r1 CRITICAL
+ *  ("1,234" + pasted "5" → 1.2345). That rule stands.
+ *
+ *  ★★ V-1: "the field was not empty" is not the same fact. It made the router
+ *  strip a PASTED string's own separators as if we had written them. The
+ *  settled heuristic now runs when the edit REPLACED THE WHOLE PREVIOUS VALUE
+ *  — a select-all paste, a first fill, an empty field — and the per-edit strip
+ *  runs for every partial edit. `pre` is the reader's snapshot from
+ *  attachAmountPreEdit; `hadAmount` stays the fallback for a synthetic
+ *  dispatch that has no snapshot (QR/deeplink seeds, tests), where the field
+ *  always holds a DISPLAY form and both paths agree.
+ *  InsertText still carries ev.data so a just-typed separator stays decimal
+ *  intent. */
+function amountInputToCanonical(display, caret, ev, locale, hadAmount, pre) {
+  if (hadAmount && !replacedWholeValue(pre)) {
     const data = ev && ev.inputType === 'insertText' ? ev.data : null;
     return amountEditToCanonical(display, caret, data, locale);
   }
@@ -883,6 +962,16 @@ const PRESSABLE_CONTROL = [
   '.c-chip',
   '.c-bottomnav__item',
   '.fab',
+  /* ★★ V-16 (#46 loop 2026-08-29): #622 removed Android's platform tap highlight from
+   * the explore banner and handed ownership to this file IN THE COMMENT ONLY. The class
+   * was in neither press family and apps-header.css declares no :hover, no :active and
+   * no transition for it — so from that batch until now, tapping the banner did NOTHING
+   * at all until the browser opened, and a mouse got nothing either.
+   * It is a CONTROL, not a row: one action, one destination, like every other button
+   * here. 🟡 Dial for Damir — a full-width 84px card taking the 3% control scale is the
+   * house grammar but it is more movement than a chip; the row sweep is the alternative
+   * and it would need a ::before layer this component does not have yet. */
+  '.c-apps-explore',
 ].join(',');
 
 const PRESS_MOVE_CANCEL_PX = 10;      // finger travel that turns a press into a scroll
@@ -1331,7 +1420,22 @@ function attachPressFeedback({
    * The discriminator is one line — log `el.className`, `e.type` and `e.pointerType`
    * where the arm happens, and see whether a SECOND arm follows the click. */
   const onHide = () => {
-    if (pointerDown) { cancelGesture(); } else { abortGesture(); }
+    /* ★★ V-15 (#46 loop 2026-08-29): #604's GUARD CANNOT BE REACHED BY THE GESTURE IT
+     * WAS WRITTEN FOR. The reported ghost follows a COMMITTED tap, so `endGesture` has
+     * already set `pointerDown = false` and the `else` branch ran — byte-identical to
+     * before #604. Reproduced against the shipped bundle with the real late-synthesised
+     * Android `pointerdown`: the ghost still painted, and reverting #604 to a bare
+     * `abortGesture()` gave identical output.
+     * So the latch is set REGARDLESS of whether a finger was down, bounded by the same
+     * safety expiry `cancelGesture` uses. It is safe because `onDown` clears the latch
+     * on a real single-touch `touchstart` — a genuine new tap always paints — while the
+     * late synthesised stream carries no `touches` and stays blocked.
+     * `pointerDown` is still cleared, which is what the old `else` branch did. */
+    pointerDown = false;
+    cancelled = true;
+    clearTimeout(cancelExpiry);
+    cancelExpiry = setTimeout(() => { cancelled = false; }, PRESS_SAFETY_MS);
+    clear();
     killAllAfterlives();
   };
   window.addEventListener('pagehide', onHide);
@@ -7489,9 +7593,25 @@ function openRemoveContactSheet({ chat = {}, host, strings = getStrings(), onNee
   function confirmRemove() {
     if (remove.disabled || fired) return;
     const leaveGroups = [...selected];
+    // closeSheet is a no-op once the sheet has already gone (the §3 escalation path)
     const fire = () => { if (fired) return; fired = true; if (onRemove) onRemove({ leaveGroups }); closeSheet(sheet); };
     if (!leaveGroups.length) { fire(); return; }
-    // the additional confirm step — leaving groups is its own destructive act
+    /* ★★ REMOVE-CONTACT SPEC §3 (Damir, screenshots 2026-08-28): ONE DECISION ON
+     * SCREEN AT A TIME. The confirm used to open ON TOP of the still-open sheet —
+     * you could read the sheet's title and its buttons behind the dialog, two
+     * destructive surfaces at once, each with its own red button.
+     * The sheet CLOSES first and the dialog opens from the CLOSE COMPLETION.
+     * ⚠ Not "alongside": closeSheet is animated and onDismiss is deferred to the
+     * removal, so firing both together lets the sheet's dismissal race the dialog's
+     * and a light-dismiss tap can land on the wrong surface — the hazard the sheet
+     * machinery already documents.
+     * `_escalating` tells the dismiss handler this is NOT a "keep": the user chose
+     * to go on, so onKeep must not fire behind the dialog they are looking at. */
+    sheet._escalating = () => openLeaveConfirm(leaveGroups, fire);
+    closeSheet(sheet);
+  }
+
+  function openLeaveConfirm(leaveGroups, fire) {
     openModal(createModal({
       title: (strings.leaveGroupsConfirmTitle || 'Leave {n} groups and remove {name}?')
         .split('{n}').join(String(leaveGroups.length)).split('{name}').join(chat.name || chat.address || ''),
@@ -7500,7 +7620,11 @@ function openRemoveContactSheet({ chat = {}, host, strings = getStrings(), onNee
       body: strings.leaveGroupsConfirmBody || 'You leave the ticked groups first. Their chats are removed from this device. Then the contact is removed.',
       role: 'alertdialog', host,
       actions: [
-        { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
+        // ⚠ Cancel here means "I changed my mind", and the sheet is already gone —
+        // so it must answer the HOST the same way a plain dismissal does, or the
+        // chats row that opened this flow is left believing a removal is coming.
+        { label: strings.cancel || 'Cancel', type: 'text', autofocus: true,
+          onClick: () => { if (onKeep) onKeep(); } },
         { label: strings.leaveAndRemoveConfirm || 'Leave & remove', type: 'fill', intent: 'destructive', onClick: fire },
       ],
     }));
@@ -7508,7 +7632,14 @@ function openRemoveContactSheet({ chat = {}, host, strings = getStrings(), onNee
 
   sheet = createSheet({ content, host, strings,
     title: isGroup ? (strings.leaveGroupTitle || 'Leave group?') : (strings.removeSheetTitle || 'Remove contact?'),
-    onDismiss: () => { if (liveRemoveSheet === sheet) liveRemoveSheet = null; if (!sheet._removed && onKeep) onKeep(); } });
+    onDismiss: () => {
+      if (liveRemoveSheet === sheet) liveRemoveSheet = null;
+      /* ★ §3: this dismissal fires at REMOVAL — after the exit transition — which is
+         exactly "the sheet closes, THEN the dialog appears". An escalation is not a
+         keep, so onKeep is withheld and the confirm answers for it. */
+      if (sheet._escalating) { const go = sheet._escalating; sheet._escalating = null; go(); return; }
+      if (!sheet._removed && onKeep) onKeep();
+    } });
   sheet._removed = false;
   sheet._address = chat.address || '';
   liveRemoveSheet = sheet;
@@ -7583,6 +7714,17 @@ function openDeleteFlow({ chat = {}, host, onAction, onNeedGroups, strings = get
   const cbChat = deleteCheckbox(strings.deleteChatOpt || 'Delete chat', { checked: true, disabled: true });
   const cbMedia = deleteCheckbox(strings.deleteMediaOpt || 'Delete media & files');
   optsWrap.append(cbChat.row, cbMedia.row);
+  /* ★★ REMOVE-CONTACT SPEC §1 (Damir, 2026-08-28): removing the contact is a THIRD
+   * CHECKBOX here, not a second sheet reached another way. One sheet answers the whole
+   * question, and the escalation to the group picker becomes conditional on the tick
+   * rather than on a separate entry point.
+   * ⚠ It defaults OFF, deliberately, and it is the only one that does: it is the
+   * irreversible half, and a pre-ticked destructive box is how people remove contacts
+   * they meant to keep. A GROUP or a bot has no contact to remove — leaving is the
+   * whole action there — so the row is not offered. */
+  const isGroupChat = chat.type === 'group' || chat.type === 'bot' || chat.isGroup === true;
+  const cbContact = isGroupChat ? null : deleteCheckbox(strings.removeContactOpt || 'Remove contact');
+  if (cbContact) optsWrap.append(cbContact.row);
   content.append(optsWrap);
 
   openModal(createModal({
@@ -7596,6 +7738,9 @@ function openDeleteFlow({ chat = {}, host, onAction, onNeedGroups, strings = get
           step1Fired = true;
           const media = cbMedia.input.checked;
           if (onAction) onAction('delete', { media });          // removes the row (+ media intent)
+          // ★ §1: only a ticked "Remove contact" escalates. Without it the chat is
+          // deleted and the contact stays, which is what the two other boxes describe.
+          if (!cbContact || !cbContact.input.checked) return;
           openRemoveContactSheet({
             chat, host, strings, onNeedGroups,
             onRemove: ({ leaveGroups }) => { if (onAction) onAction('deleteContact', { media, leaveGroups }); },
@@ -11837,11 +11982,18 @@ function createWalletSend({
   let quotedKey = '';                                      // the (addr:amount) pair feeU actually ANSWERS
   let maxSendU = null;                                     // C#'s solved max-sendable (amount-0 quote)
   let addrErr = false;                                     // C# rejected the picked address (quote error)
-  const currentKey = () => (state.recipient ? state.recipient.address + ':' + (state.amount || '') : '');
+  /* ★★ V-4: `state.amount` is the FIELD's value and it stays un-canonical, so the
+     user can still see a mid-typed `12.` or `.5`. Every boundary that leaves this
+     component takes the CANONICAL form instead. `valid()` accepted `.5` while
+     `openPaymentReview`'s own gate rejected it, so Continue was enabled and did
+     nothing, forever. The quote KEY is canonical too: C# echoes back what we sent,
+     and a key built from `.5` could never match an echo of `0.5`. */
+  const canonAmount = () => canonicalAmount(state.amount || '');
+  const currentKey = () => (state.recipient ? state.recipient.address + ':' + canonAmount() : '');
   function requestQuote() {
     // W6: ask the shell for a real fee when both halves exist; dedupe on (addr, amount).
     if (!onQuote || !state.recipient) return;
-    const a = state.amount || '';
+    const a = canonAmount();
     if (!a || amountU() <= 0n) return;
     const key = state.recipient.address + ':' + a;
     if (key === lastQuoteKey) return;
@@ -11851,10 +12003,10 @@ function createWalletSend({
       // loop NIT fix: re-check the AMOUNT too — a cleared field must not emit
       // an empty-amount query (and latch its key)
       if (!state.recipient || !state.amount || amountU() <= 0n) return;
-      const k = state.recipient.address + ':' + state.amount;
+      const k = currentKey();
       if (k === lastQuoteKey) return;
       lastQuoteKey = k;
-      onQuote(state.recipient.address, state.amount);
+      onQuote(state.recipient.address, canonAmount());
     }, 350);
   }
 
@@ -11875,6 +12027,9 @@ function createWalletSend({
   amtInput.placeholder = '0';
   amtInput.setAttribute('aria-label', strings.amount || 'Amount');
   attachAmountKeyboardDismiss(amtInput);                   // ★ W-k
+  /* ★★ V-1: the pre-edit snapshot. A select-all-and-paste is the one edit
+     whose separators are NOT ours, and only the REPLACED RANGE says so. */
+  const readPreEdit = attachAmountPreEdit(amtInput);
   amtInput.addEventListener('input', (e) => {
     // ★ I-6 (#360): the field DISPLAYS the locale's grouping as you type; the
     // canonical '.'-decimal ungrouped value lives in state.amount and is the
@@ -11885,7 +12040,7 @@ function createWalletSend({
     // intent) — pattern-guessing on a mid-edit string mangled magnitudes.
     const disp = amtInput.value;
     const caret = amtInput.selectionStart;
-    const v = sanitizeAmount(amountInputToCanonical(disp, caret, e, undefined, !!state.amount));   // r2 MAJOR-1: pre-edit emptiness routes
+    const v = sanitizeAmount(amountInputToCanonical(disp, caret, e, undefined, !!state.amount, readPreEdit()));   // ★★ V-1: the REPLACED RANGE routes (r2 MAJOR-1 still holds for a partial edit)
     state.amount = v;
     const shown = groupAmountDisplay(v);
     if (shown !== disp) {
@@ -12271,7 +12426,7 @@ function createWalletSend({
     const r = state.recipient;
     const feeAtOpen = feeU;                              // loop fix: the sheet and the payload use ONE fee
     state.review = openPaymentReview({
-      recipient: r, amount: state.amount, fee: fromUnits(feeAtOpen), host, strings,
+      recipient: r, amount: canonAmount(), fee: fromUnits(feeAtOpen), host, strings,   // ★★ V-4: the review's own gate is canonical-only
       onConfirm: (payload, ctrl) => {
         // the per-VIEW token: one send in flight per compose (audit C1)
         state.sending = true;
@@ -15308,6 +15463,9 @@ function createWalletReceive({
     syncCta();
   }
 
+  /* ★★ V-1: the pre-edit snapshot. A select-all-and-paste is the one edit
+     whose separators are NOT ours, and only the REPLACED RANGE says so. */
+  const readPreEdit = attachAmountPreEdit(amtInput);
   amtInput.addEventListener('input', (e) => {
     // ★ I-6 (#360): locale-grouped display in the field; canonical value in
     // state (#77 wire untouched). Caret follows the digit count. Loop r1
@@ -15315,7 +15473,7 @@ function createWalletReceive({
     // only for paste/synthetic dispatches.
     const disp = amtInput.value;
     const caret = amtInput.selectionStart;
-    const v = sanitizeAmount(amountInputToCanonical(disp, caret, e, undefined, !!state.amount));   // r2 MAJOR-1: pre-edit emptiness routes
+    const v = sanitizeAmount(amountInputToCanonical(disp, caret, e, undefined, !!state.amount, readPreEdit()));   // ★★ V-1: the REPLACED RANGE routes (r2 MAJOR-1 still holds for a partial edit)
     const shown = groupAmountDisplay(v);
     if (shown !== disp) {
       amtInput.value = shown;
@@ -15777,6 +15935,9 @@ function openAmountSheet({
   customInput.inputMode = 'decimal';
   customInput.placeholder = '0';
   customInput.setAttribute('aria-label', strings.tipAmount || 'Amount');
+  /* ★★ V-1: the pre-edit snapshot. A select-all-and-paste is the one edit
+     whose separators are NOT ours, and only the REPLACED RANGE says so. */
+  const readPreEdit = attachAmountPreEdit(customInput);
   customInput.addEventListener('input', (e) => {
     if (state.sending) return;
     // ★ I-6 (#360): locale-grouped display in the field; canonical in state —
@@ -15785,7 +15946,7 @@ function openAmountSheet({
     // inverse for typing/deletion; settled heuristic only for paste/synthetic.
     const disp = customInput.value;
     const caret = customInput.selectionStart;
-    const v = sanitizeAmount(amountInputToCanonical(disp, caret, e, undefined, !!state.amount));   // r2 MAJOR-1: pre-edit emptiness routes
+    const v = sanitizeAmount(amountInputToCanonical(disp, caret, e, undefined, !!state.amount, readPreEdit()));   // ★★ V-1: the REPLACED RANGE routes (r2 MAJOR-1 still holds for a partial edit)
     const shown = groupAmountDisplay(v);
     if (shown !== disp) {
       customInput.value = shown;
@@ -15834,7 +15995,10 @@ function openAmountSheet({
   guard.hidden = true;
   content.append(guard);
   const sendErr = document.createElement('p');
-  sendErr.className = 'c-tipsheet__error';
+  /* ★ V-2: a MODIFIER, so the send error is addressable. The balance guard above
+     carries the same class and the same role, and a test or a later author reaching
+     for "the error on the tip sheet" would have found whichever came first. */
+  sendErr.className = 'c-tipsheet__error c-tipsheet__error--send';
   sendErr.setAttribute('role', 'alert');
   sendErr.hidden = true;
   content.append(sendErr);
@@ -15873,6 +16037,16 @@ function openAmountSheet({
         delete confirm.dataset.acted;                      // retry stays possible
         setFrozen(false);
         setOverlayOpts(sheet, { lightDismiss: true, escDismiss: true });
+        /* ★★ V-2: an EMPTY message is a SILENT re-enable, exactly as openPaymentReview
+           already treats it. The tip now waits on a native confirm, and a user who taps
+           Cancel there has not had a failure — telling them the tip "could not be sent"
+           would be a lie about their own decision. Only '' is silent: undefined and null
+           still carry the generic copy, so a dropped answer still says something. */
+        if (msg === '') {
+          sendErr.hidden = true;
+          sendErr.textContent = '';
+          return;
+        }
         sendErr.hidden = false;                            // unhide BEFORE text → alert announces
         sendErr.textContent = msg || copy.fail;
       };
@@ -16471,6 +16645,13 @@ function createChatInfo({
   onContactRequest,              // member sheet passthrough
   onViewContact,                 // member sheet passthrough (relation 'contact' → contact page)
   onDeleteHistory, onRemoveContact, onLeave,   // (ctrl)
+  /* ★★ REMOVE-CONTACT SPEC §4: the host owns the confirmation surface for Remove.
+   * Contact details opens the SHARED remove sheet — which is a decision surface in
+   * its own right, with the shared groups and a way past them — so stacking this
+   * component's generic confirm in front of it would put two destructive surfaces on
+   * screen for one decision, which is the §3 complaint in a new place. Default false:
+   * every other host keeps the confirm it has always had. */
+  removeContactOwnsConfirm = false,
   loading = false,               // ★ A8: the roster/pushes are still landing → skeleton rows (members) instead of an empty section
   sharedGroups = undefined,      // ★ A4 (1:1): [{ name, address }] groups you are BOTH in; null = asked, not yet answered (skeleton); [] = none; undefined = the surface has no such data (no strip)
   onOpenGroup,                   // ★ A4: tap a shared-group row → the shell opens that group chat
@@ -16978,7 +17159,25 @@ function createChatInfo({
       onViewContact,
       // capabilities.admin → destructive actions, each behind an alertdialog
       // confirm (ixian:kick:ADDR / ixian:ban:ADDR are irreversible for the peer)
-      actions: capabilities.admin && onMemberAction && !m.admin && !m.owner ? [   // #248: never kick/ban the owner
+      /* ★★ KICK AND BAN ARE BOT-ROOM ONLY (Damir, 2026-08-29, option A).
+       * He reported that kicking a member of a PRIVATE GROUP as its owner did nothing,
+       * and the trace says why: the action is sent correctly and every receiving client
+       * runs `case SpixiBotActionCode.kickUser: return true;` — an EMPTY case in
+       * Ixian-Core. A bot room works because its action is addressed to the bot SERVER,
+       * which enforces membership itself; a private group has no server, so the same
+       * message asks every member's app to drop somebody and nothing honours it. Making
+       * it work needs TWO Core changes — implement the handler, and define who may send
+       * it, because nothing today verifies the admin flag against the message — and Core
+       * is frozen. Logged for BE.
+       * So the row is withdrawn where it cannot work, which is the ⑪ delivery-lie rule:
+       * an affordance that emits a verb nobody honours tells the owner someone was
+       * removed when they were not. Bot rooms are untouched — capability and visibility
+       * both, exactly as Damir asked.
+       * ⚠ `kind` is the right discriminator and it is NOT obvious: a bot room's Friend is
+       * FriendType.NORMAL with `bot` true (Node.cs:979), so C# sends "bot" for it and
+       * "group" only for a real FriendType.Group. Reading `blind` or `type` instead is
+       * how #613 broke this family once already. */
+      actions: capabilities.admin && kind === 'bot' && onMemberAction && !m.admin && !m.owner ? [   // #248: never kick/ban the owner
         {
           label: strings.kick || 'Kick', glyph: 'circle-x', destructive: true,
           onClick: () => confirmAction({
@@ -17232,7 +17431,15 @@ function createChatInfo({
     b.append(lab, icon('chevron-right', { size: 18 }));
     // built at CLICK time (audit m7): the remove-contact title must carry the
     // nickname as it is NOW, not as it was when the panel mounted
-    b.addEventListener('click', () => confirmAction(buildOpts()));
+    b.addEventListener('click', () => {
+      const o = buildOpts();
+      /* ★★ §4: a descriptor may OWN its confirmation. The remove flow opens the shared
+       * remove sheet, and that sheet IS the question — a generic confirm in front of it
+       * asks the same thing twice and hides the answer behind it. `run` is called with
+       * no controller because nothing here is waiting on it: the sheet has its own. */
+      if (o && o.own) { o.run(); return; }
+      confirmAction(o);
+    });
     danger.append(b);
   };
   // delete-history: chat AND contact-details pages both offer it (Damir 2026-07-08,
@@ -17247,6 +17454,7 @@ function createChatInfo({
   }
   if (kind !== 'group' && onRemoveContact) {
     dangerRow(strings.removeContact || 'Remove contact', 'circle-x', () => ({
+      own: removeContactOwnsConfirm,          // ★ §4
       title: strings.removeContactTitle || 'Remove ' + (nickname || name || 'contact') + '?',
       bodyText: strings.removeContactBody || 'Removes the contact and your chat. Adding them again needs a new contact request.',
       confirmLabel: strings.removeConfirm || 'Remove',
@@ -24358,5 +24566,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, ignorePushedTheme: ignorePushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, ignorePushedTheme: ignorePushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

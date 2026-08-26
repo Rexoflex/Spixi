@@ -362,6 +362,91 @@ namespace SPIXI
         }
 
         /// <summary>
+        /// ★★ DECLINE, on the CARD (Damir's decision 3, 2026-08-29: "Decline lives on the
+        /// card only, and the outcome shows on both sides").
+        ///
+        /// This body is `WalletContactRequestPage.onDecline`, extracted verbatim plus the
+        /// null and state guards that page lacked, so the native page can go. It SENDS A
+        /// MESSAGE and spends nothing: a `requestFundsResponse` carrying the request's id
+        /// and NO txid is what tells the asker "no". The local copy is prefixed `::`,
+        /// which is the settled marker every reader already understands, and the card
+        /// flips through the ordinary `updateRequestFundsStatus` push.
+        ///
+        /// Idempotent by construction: a request already answered (message starts with
+        /// ':') is left alone, so a double tap cannot send a second response or overwrite
+        /// a txid that is already recorded.
+        /// </summary>
+        public static void declineRequest(SingleChatPage page, Friend friend, FriendMessage? requestMsg, string msgIdHex)
+        {
+            try
+            {
+                if (friend == null || requestMsg == null
+                    || requestMsg.type != FriendMessageType.requestFunds
+                    || requestMsg.localSender
+                    || requestMsg.message.StartsWith(":"))
+                {
+                    // already paid, already declined, ours, or gone — the card re-renders
+                    // from the push and its latch releases
+                    Utils.sendUiCommand(page, "payRequestResult", msgIdHex, "gone", "");
+                    return;
+                }
+
+                string msg_id = Crypto.hashToString(requestMsg.id);
+                SpixiMessage spixi_message = new SpixiMessage(SpixiMessageCode.requestFundsResponse, Encoding.UTF8.GetBytes(msg_id));
+
+                requestMsg.message = "::" + requestMsg.message;
+
+                StreamMessage message = new StreamMessage(friend.protocolVersion);
+                message.type = StreamMessageCode.info;
+                message.recipient = friend.walletAddress;
+                message.sender = IxianHandler.getWalletStorage().getPrimaryAddress();
+                message.data = spixi_message.getBytes();
+
+                CoreStreamProcessor.sendMessage(friend, message);
+
+                IxianHandler.localStorage.requestWriteMessages(friend.walletAddress, 0);
+
+                page.updateRequestFundsStatus(requestMsg.id, null, SpixiLocalization._SL("chat-payment-status-declined"));
+                Utils.sendUiCommand(page, "payRequestResult", msgIdHex, "ok", "");
+            }
+            catch (Exception ex)
+            {
+                Logging.error("SPayments.declineRequest failed: " + ex.Message);
+                try { Utils.sendUiCommand(page, "payRequestResult", msgIdHex, "fail", ""); } catch (Exception) { }
+            }
+        }
+
+        /// <summary>
+        /// ★★ V-2 (#46 loop, 2026-08-29) — THE TIP'S NATIVE WALL.
+        /// A tip is a payment: the WebView composes the amount and C# signs and
+        /// broadcasts it. It had NO native confirm at all — no dialog and no auth step —
+        /// which is a CLAUDE.md ground-rule breach on its own, and it is why the paste
+        /// defect (V-1) was silent on this surface: the button label was the user's last
+        /// look at the number.
+        /// D-10 removed the old tip alert deliberately, because that alert was a REPORT
+        /// of a payment already made. This is the opposite: a wall BEFORE the broadcast.
+        /// Same dialog, same numbers, same PA1 auth step and the same in-flight latch as
+        /// Send and Pay. Damir, 2026-08-29: the native dialog IS the tip's review step.
+        /// Returns false when the user cancels, when another confirm holds the latch, or
+        /// when the dialog cannot be shown — the caller broadcasts nothing on false.
+        /// </summary>
+        public static async Task<bool> confirmTip(SpixiContentPage page, string addr, IxiNumber amount, IxiNumber fee)
+        {
+            if (!acquireConfirm())
+            {
+                return false;
+            }
+            try
+            {
+                return await confirmAndAuth(page, recipientDisplay(addr), amount, fee);
+            }
+            finally
+            {
+                releaseConfirm();
+            }
+        }
+
+        /// <summary>
         /// The NATIVE confirm + the PA1 auth step. The dialog shows the recipient, the
         /// amount and the fee from C#'s OWN parse — never WebView-composed text beyond
         /// the values this class validated. Existing lang keys only.

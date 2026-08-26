@@ -247,11 +247,12 @@ namespace SPIXI
         // #340 audit (A-MAJOR-1/2) — THE WHITELIST IS NOT ENOUGH ON ITS OWN. The passthrough
         // is only correct where the RECEIVER was taught it, and "round-trip identical" above
         // silently assumed every receiver runs src/bridge/native.js. Two do not:
-        //   · the 8 remaining legacy Raw/html pages (hasLegacyPageChrome) still decode with
+        //   · the 7 remaining legacy Raw/html pages (hasLegacyPageChrome) still decode with
         //     js/spixi.js `base64ToBytes` → an unguarded atob. A peer-chosen nickname of
         //     "data:;base64,x" passes the whitelist, is emitted verbatim, and atob THROWS on
-        //     the ':' — dropping the whole push. wallet_contact_request's setData is that
-        //     page's only writer, so a hostile requester blanks the payment-confirm screen.
+        //     the ':' — dropping the whole push. (The example that prompted this was
+        //     wallet_contact_request's setData; that page is REMOVED, decision 4, but the
+        //     seven remaining legacy pages decode exactly the same way.)
         //   · MiniAppPage points its WebView at the app's own entry point; its SDK decoder
         //     ships inside third-party app packages and can never be re-generated. The
         //     documented contract there is base64-per-argument, frozen.

@@ -46,7 +46,29 @@ namespace SPIXI
             // owner as a desktop pane) — the in-chat takeover overtook the conversation.
             isGroup = friend.type == FriendType.Group || friend.bot;
 
+            /* ★★ [CDPERF] PROBE (item 6, 2026-08-29) — TEMPORARY, remove when the number
+             * is read. Damir reports chat info is slow to appear. `presentPreload`'s
+             * 120 ms hold is 0 for this page now, but that hold was only PART of the
+             * wait: page construction (generatePage re-localizes and rewrites a 168 KB
+             * shell to disk on every open) and the WebView boot are the rest, and
+             * nobody has ever measured which is which. One log line per open, so the
+             * next device run answers it instead of the next guess. */
+            perfOpenedAt = DateTime.Now;
             loadPage(webView, "contact_details.html");
+            Logging.info("[CDPERF] " + (isGroup ? "group" : "contact") + " constructed +" + perfSince() + "ms (ctor + generatePage)");
+        }
+
+        // ★★ [CDPERF] PROBE — temporary, see the ctor.
+        private DateTime perfOpenedAt = DateTime.Now;
+        private int perfSince()
+        {
+            return (int)(DateTime.Now - perfOpenedAt).TotalMilliseconds;
+        }
+
+        // ★★ [CDPERF] PROBE — temporary. The moment the stage becomes visible.
+        protected internal override void onPreloadPresented()
+        {
+            Logging.info("[CDPERF] presented +" + perfSince() + "ms");
         }
 
         // #247: HomePage's toggle/close routing compares by address, never by instance.
@@ -67,6 +89,7 @@ namespace SPIXI
             // MutationObserver mirror only reports CHANGES — reset here or a stale
             // true swallows hardware back (the #337 homeShellOverlayOpen lesson).
             shellOverlayOpen = false;
+            Logging.info("[CDPERF] document loaded +" + perfSince() + "ms");   // ★★ probe, temporary
 
             // #247: pane layout FIRST — coalesces ahead of the present, so the shell
             // never paints a takeover layout that reflows into the pane grammar.
@@ -109,9 +132,21 @@ namespace SPIXI
                 bool blind = Utils.hidesParticipants(friend);
                 bool amAdmin = friend.metaData.botInfo != null && friend.metaData.botInfo.admin;
                 bool notifications = friend.metaData.botInfo == null || friend.metaData.botInfo.sendNotification;
-                // Owner address: identity-revealing → NEVER sent for a blind group.
+                /* Owner address: identity-revealing → NEVER sent for a blind group.
+                 *
+                 * ★★ V-8 (#46 loop 2026-08-29): this gated on `!blind` ALONE, and three
+                 * lines below `amOwner` is correctly gated on FriendType.Group with the
+                 * reason written out — in a BOT room getOwner() degrades to "the first
+                 * roster entry we happened to learn", reshuffled by the 500-cap eviction,
+                 * so an arbitrary participant of a public channel was branded its owner.
+                 * #616 fixed exactly this in SingleChatPage:721 — the surface #249 records
+                 * as unreachable — and left the live one. #613 then WIDENED it: before
+                 * #613 the read here was the raw flag, so a FLAGGED bot room suppressed
+                 * the owner and afterwards pushed one.
+                 * Same predicate as SingleChatPage:726, verbatim. */
+                bool blindGroup = friend.type != FriendType.Group || blind;
                 string owner = "";
-                if (!blind)
+                if (!blindGroup)
                 {
                     try { owner = friend.users.getOwner()?.ToString() ?? ""; } catch { }
                 }
@@ -247,6 +282,12 @@ namespace SPIXI
             {
                 onLoad();
             }
+            else if (current_url.Equals("ixian:cdpainted", StringComparison.Ordinal))
+            {
+                // ★★ [CDPERF] PROBE — temporary. The shell says its first real content
+                // frame is up. Remove this branch with the rest of the probe.
+                Logging.info("[CDPERF] content painted +" + perfSince() + "ms");
+            }
             else if (current_url.StartsWith("ixian:cdoverlay:", StringComparison.Ordinal))
             {
                 // N50 (#370): the shell mirrors its overlay-stack state (sheets, the
@@ -258,14 +299,45 @@ namespace SPIXI
             {
                 popPageAsync();
             }
-            else if (current_url.Equals("ixian:remove", StringComparison.Ordinal))
+            else if (current_url.StartsWith("ixian:removecontact:", StringComparison.Ordinal))
             {
-                if (onRemove())
+                /* ★★ REMOVE-CONTACT SPEC §4 (Damir, screenshots 2026-08-28): ONE FLOW.
+                 * This page used to answer a refusal with a dead end — "Cannot remove
+                 * contact — this contact is a member of these groups: • seengroup" and a
+                 * single OK. It named the obstacle and offered no way past it, while the
+                 * chats row already had the actionable answer: tick the groups, leave
+                 * them, remove the contact, in one gesture.
+                 * The shell opens the SAME sheet now, so this page speaks the SAME verb
+                 * and the SAME helper as HomePage.onRemoveContactFor — one implementation
+                 * of "remove this contact", not two that can drift. The payload is the
+                 * leave flag alone: this page IS one contact.
+                 * `ixian:remove` and the removeBlocked push are RETIRED with it. */
+                string leaveArg = current_url.Substring("ixian:removecontact:".Length).Trim();
+                bool leaveShared = leaveArg == "1";
+                List<string> removeBlockers = new List<string>();
+                string removeStatus = "fail";
+                try
                 {
+                    removeStatus = SContacts.removeContact(friend, leaveShared, out removeBlockers);
+                }
+                catch (Exception ex)
+                {
+                    Logging.error("ixian:removecontact failed: " + ex.Message);
+                }
+                try
+                {
+                    List<string> args = new List<string> { friend.walletAddress.ToString(), removeStatus };
+                    args.AddRange(removeBlockers);   // name/address pairs on "blocked" — each arg transport-escaped
+                    Utils.sendUiCommand(this, "removeContactResult", args.ToArray());
+                }
+                catch (Exception) { }
+                if (removeStatus == "ok" || removeStatus == "left")
+                {
+                    UIHelpers.shouldRefreshContacts = true;
                     popToRootAsync();
                     var homePage = HomePage.Instance();
                     homePage?.removeDetailContent();
-                    // iOS-28: onRemove() sets UIHelpers.shouldRefreshContacts, but that is
+                    // iOS-28: the refresh flag is only consumed by the 2s tick, but that is
                     // only consumed by the 2s updateUILoop tick (Node.cs:388 →
                     // HomePage.updateScreen:2128) — so the deleted contact's chat row stayed
                     // on screen for up to two seconds after the user popped back, reading as
@@ -517,70 +589,12 @@ namespace SPIXI
 
         }
 
-        private bool onRemove()
-        {
-            if (friend.bot && friend.metaData.botInfo != null)
-            {
-                // ★ #567: immediate removal (the group grammar) — the pendingDeletion
-                // wait fed the BE §1e-6 core crash. See SContacts.leaveGroup.
-                CoreStreamProcessor.sendLeave(friend, null);
-                FriendList.removeFriend(friend);
-                UIHelpers.shouldRefreshContacts = true;
-                displaySpixiAlert(SpixiLocalization._SL("contact-details-removedcontact-title"), SpixiLocalization._SL("contact-details-removedcontact-text"), SpixiLocalization._SL("global-dialog-ok"));
-                return true;
-            }
-            else
-            {
-                if (FriendList.removeFriend(friend) == true)
-                {
-                    UIHelpers.shouldRefreshContacts = true;
-                    displaySpixiAlert(SpixiLocalization._SL("contact-details-removedcontact-title"), SpixiLocalization._SL("contact-details-removedcontact-text"), SpixiLocalization._SL("global-dialog-ok"));
-                    return true;
-                }
-                else
-                {
-                    // N27 (#367): removeFriend refuses when the contact is in a group
-                    // (Core isFriendInGroup — computed and DISCARDED there). Re-run the
-                    // same predicate with the result KEPT and NAME the blocking groups
-                    // in the shell (removeBlocked push, name/address pairs — each arg
-                    // transport-escaped; the shell renders via textContent). The legacy
-                    // alert stays as the fallback for the empty-enumeration edge (a
-                    // refusal this enumeration cannot explain must still say something).
-                    List<string> blockers = new List<string>();
-                    try
-                    {
-                        // Loop n4: snapshot the reference ONCE — sortFriends() reassigns
-                        // the field without a lock, so lock+iterate must use one object.
-                        var friendsRef = FriendList.friends;
-                        lock (friendsRef)   // Core locks this same object in isFriendInGroup
-                        {
-                            foreach (Friend f in friendsRef)
-                            {
-                                if (f.type == FriendType.Group && f.users != null && f.users.hasUser(friend.walletAddress))
-                                {
-                                    blockers.Add(f.nickname ?? "");
-                                    blockers.Add(f.walletAddress.ToString());
-                                }
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Logging.warn("removeBlocked enumeration: " + ex.Message);
-                        blockers.Clear();
-                    }
-                    if (blockers.Count > 0)
-                    {
-                        Utils.sendUiCommand(this, "removeBlocked", blockers.ToArray());
-                    }
-                    else
-                    {
-                        displaySpixiAlert(SpixiLocalization._SL("contact-details-cannotremovecontact-title"), SpixiLocalization._SL("contact-details-cannotremovecontact-text"), SpixiLocalization._SL("global-dialog-ok"));
-                    }
-                }
-            }
-            return false;
-        }
+        /* ★★ REMOVE-CONTACT SPEC §4: `onRemove()` and its `removeBlocked` push are GONE.
+         * That method was the dead end — it re-ran Core's isFriendInGroup predicate only
+         * to NAME the blocking groups in a modal with a single OK, and it was a second,
+         * drifting implementation of "remove this contact" beside SContacts.removeContact.
+         * The verb above uses the shared helper, which also knows how to LEAVE the
+         * blocking groups first, which is the whole point of the sheet. */
 
         private void onRemoveHistory()
         {

@@ -19,6 +19,12 @@ Bundle BEFORE shells. `cs-syntax-check` PARSES, it does not COMPILE (#593).
 ⚠ The smoke suite takes ~10 minutes and the bridge shell has a 45-second limit — run it in
 the container, or in a terminal Damir owns.
 
+★★ THERE IS A THREE-SESSION PLAN at the top of the worklist. THIS IS SESSION A: L1, L2,
+L8 — and nothing else unless all three land early. B is L6/L7/L5/L11/L10, C is the gesture
+batch (L3/L4/L9 + the flicker rows), D is reserve for whatever Damir's review turns up.
+⚠ EVERY SESSION ENDS WITH HIM WALKING IT ON DEVICE. The walk is the gate, not the suite —
+this batch was green at 3402 and his walk still found three real defects, two of them mine.
+
 ★★ START WITH L1 — THE LEGACY SEND AND RECEIVE SCREENS. Damir: *"Nothing legacy was
 supposed to exist in this app anymore, we need to clean it out."* The inventory is already
 done: contact_details is the ONLY live route, and chat.html has the proven replacement.
@@ -52,6 +58,10 @@ DO-NOTs
 · ★★ CHECK THE MECHANISM, NOT THE QUEUE'S SUMMARY OF IT. Three findings in one batch had
   the wrong stated premise: item 6's ("waits for data" — a flat 120 ms hold), V-15's, and
   the kick/ban discriminator, which would have been backwards.
+· ★★ READ PAST THE EARLY `return`. Twice on 08-29 a rule was written from ONE branch of a
+  method and was wrong because the FALL-THROUGH did the opposite: the bot-room delivery
+  tick (Damir corrected it) and the language-change fatal. A gated branch is evidence
+  about that branch, never about the method.
 · ★★ THE FIRST STACK IN A LOG IS NOT THE FIRST EVENT. The 08-29 fatal was chased through
   `receiveData` for a while; the cause was a dialog title one letter different from its two
   siblings, ABOVE the window the grep showed.

@@ -671,6 +671,31 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   transform: translateY(0);
   transition-timing-function: var(--easing-decelerate);
 }
+
+/* ★★ #608 (device row 5a, iPhone 15) — THE SHEET RISES FOR THE KEYBOARD.
+   A bottom sheet is `bottom: 0` of its host, and on iOS the host does NOT shrink under
+   the soft keyboard: the whole sheet sat behind it. On the tip sheet only the title row
+   stayed visible — the amount chips, the custom-amount field the sheet had just FOCUSED
+   itself, and the button that commits the payment were all underneath, on a surface with
+   no scroll and no cap, so nothing could reach them. That is also why the keyboard read
+   as having "no way out": the scrim you would tap to dismiss it was under the keyboard
+   too.
+   Three declarations, and every one of them is INERT at `--kb-inset: 0` — no keyboard,
+   no change, anywhere in the app:
+     · the sheet sits on top of the keyboard instead of behind it;
+     · the home-indicator pad is given back while the keyboard covers that strip anyway
+       (the same max() the chat composer uses), so the sheet does not float twice;
+     · it is capped and scrollable, so a sheet taller than the space that is left can
+       still be read to the end rather than being clipped at both ends.
+   ⚠ Mobile only. A desktop dialog is centred, has no soft keyboard, and is scoped
+   separately further down this file. */
+:root:not([data-desktop]) .c-sheet {
+  bottom: var(--kb-inset, 0px);
+  padding-bottom: calc(var(--spacing-16) + max(0px, env(safe-area-inset-bottom, 0px) - var(--kb-inset, 0px)));
+  max-height: calc(100% - var(--kb-inset, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 /* —— #46 loop MAJOR-3: A CLOSING SHEET MUST NOT TAKE TAPS ————————————————————
    The sheet is z-44 and every scrim is z-40, so a sheet paints above a scrim that
    opens LATER. dismissOverlay does not remove the sheet at once: it drops

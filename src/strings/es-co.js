@@ -435,6 +435,8 @@ export const esco = {
   notDeliveredNoRetry: "No entregado",
   notifAll: "Permitir notificaciones",
   notifFailed: "No se pudieron actualizar las notificaciones.",
+  notifSender: "Mostrar nombre del remitente",
+  notifSenderSub: "El texto del mensaje nunca se muestra en las notificaciones",
   notifSounds: "Sonidos dentro de la app",
   notifications: "Notificaciones",
   ok: "OK",

@@ -168,6 +168,10 @@
 .c-excerpt[data-type="request-done"] svg { color: var(--icon-action-default); }
 .c-excerpt[data-type="call-missed"] { color: var(--text-error); }
 .c-excerpt[data-type="call-missed"] svg { color: var(--icon-error); }
+/* ★ #602 (row 16): DECLINED reads in the ordinary excerpt ink, not the missed-call red.
+   A missed call is something that happened to you; a declined call is something you
+   chose. Red would report your own decision back to you as a problem. */
+.c-excerpt[data-type="call-declined"] svg { color: var(--icon-neutral-02); }
 .c-excerpt__draft { color: var(--text-error); font-weight: var(--font-weight-semibold); }
 
 /* #109 staged handshake — row is un-openable until secured; the typing-style

@@ -184,9 +184,39 @@ export function amountInputToCanonical(display, caret, ev, locale, hadAmount) {
 
 /** Caret restore for a re-formatted amount input: the caret sits after the same
  *  COUNT OF DIGITS it sat after in the old display — separators shift freely
- *  around it, digits never do. */
+ *  around it, digits never do.
+ *
+ *  ★★ #607 (device row 5c, iPhone 15 — A SILENT WRONG-AMOUNT DEFECT):
+ *  "digits never move" is true and it was not sufficient. A caret sitting AFTER a
+ *  trailing separator has exactly the same digit count as one sitting BEFORE it, so
+ *  the rule above could only ever put it before — and the next digit then landed on
+ *  the INTEGER side.
+ *      type  1 , 4   →  field "14."   →  canonical 14      (the user meant 1.4)
+ *  Ten times the amount, on the money path, with nothing on screen to say so.
+ *
+ *  It fires whenever the character the keypad emits is not the character `Intl`
+ *  derives from `<html lang>` — the re-format that repaints the separator is the same
+ *  step that loses the caret. Direction does not matter: en-us + typed ',' gives
+ *  "14.", de-de + typed '.' gives "14,". Both were reachable.
+ *
+ *  The fix carries the SEPARATOR RUN across as well as the digit count. A run is only
+ *  ever non-zero when the character just typed (or just left behind) is a separator,
+ *  and it advances the caret past at most that many separators in the new string — so
+ *  a deletion that happens to leave the caret behind a GROUP separator cannot jump it
+ *  over one, because the new display has no separator at that position to jump.
+ *  ⚠ Written from the property, not from a fixture: the test drives real keystroke
+ *  sequences through the handler shape and asserts the PARSED VALUE. */
 export function amountCaretAfterFormat(oldDisplay, oldCaret, newDisplay) {
   const o = String(oldDisplay || ''), n = String(newDisplay || '');
+  const isSep = (ch) => ch === '.' || ch === ',';
+  let sepRun = 0;
+  for (let i = (oldCaret | 0) - 1; i >= 0 && i < o.length && isSep(o[i]); i--) sepRun++;
+  /* advance past at most `sepRun` separators that the re-format put at this seam */
+  const pastSeps = (p) => {
+    let k = 0;
+    while (k < sepRun && p < n.length && isSep(n[p])) { p++; k++; }
+    return p;
+  };
   let digitsBefore = 0;
   for (let i = 0; i < Math.min(oldCaret | 0, o.length); i++) if (/\d/.test(o[i])) digitsBefore++;
   if (!digitsBefore) {
@@ -202,7 +232,7 @@ export function amountCaretAfterFormat(oldDisplay, oldCaret, newDisplay) {
   }
   let seen = 0;
   for (let i = 0; i < n.length; i++) {
-    if (/\d/.test(n[i])) { seen++; if (seen === digitsBefore) return i + 1; }
+    if (/\d/.test(n[i])) { seen++; if (seen === digitsBefore) return pastSeps(i + 1); }
   }
   return n.length;
 }

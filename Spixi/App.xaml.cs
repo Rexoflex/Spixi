@@ -1303,10 +1303,6 @@ public partial class App : Application
     {
         base.OnStart();
         isInForeground = true;
-        // ★ #589: the "Show sender name" control was removed from Account, so the
-        // preference it wrote is returned to its shipped default once. Idempotent,
-        // guarded internally, and it cannot throw out of here.
-        SNotificationPrefs.migrateSenderNameOptOut();
         Node.resume();
     }
 

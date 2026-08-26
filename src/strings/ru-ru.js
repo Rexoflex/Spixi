@@ -435,6 +435,8 @@ export const ruru = {
   notDeliveredNoRetry: "Не доставлено",
   notifAll: "Разрешить уведомления",
   notifFailed: "Не удалось обновить уведомления.",
+  notifSender: "Показывать имя отправителя",
+  notifSenderSub: "Текст сообщения никогда не показывается в уведомлениях",
   notifSounds: "Звуки в приложении",
   notifications: "Уведомления",
   ok: "OK",

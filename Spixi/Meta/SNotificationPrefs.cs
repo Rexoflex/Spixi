@@ -108,49 +108,10 @@ namespace SPIXI.Meta
             set { setBool(KEY_SENDER_NAME, value); }
         }
 
-        // ★★ #589 (audit): the "Show sender name" ROW was removed from Account at
-        // Damir's request, and the batch claimed "removing a control does not change
-        // what it controlled". That claim held only for the default. Anyone who had
-        // already turned the switch ON — it has shipped since NOTIF-2, 2026-08-21 —
-        // would keep the counterparty's name on their lock screen forever, with no
-        // control anywhere in the app to turn it off. A stuck-ON privacy setting with
-        // no off switch is worse than either state the user could choose.
-        //
-        // So the removal carries a ONE-SHOT migration back to the shipped default.
-        // It runs once per install, is idempotent, and does nothing at all for the
-        // overwhelming majority who never touched the switch.
-        //
-        // ⚠ Reverting the row means REMOVING this migration key too, or the restored
-        // switch would be reset once more on the next launch.
-        private const string KEY_SENDER_NAME_MIGRATED = "notif_sender_name_migrated_589";
-
-        /// <summary>
-        /// #589: return the sender-name preference to its shipped default, once, because
-        /// the UI that could change it no longer exists. Safe to call on every start.
-        /// </summary>
-        public static void migrateSenderNameOptOut()
-        {
-            try
-            {
-                if (Preferences.Default.Get(KEY_SENDER_NAME_MIGRATED, false)) { return; }
-                // ⚠ THE WORK FIRST, THE ONE-SHOT KEY AFTER (round-2 review). setBool
-                // swallows its own exception and cannot report failure, so marking the
-                // migration done before doing it would leave the preference stuck ON
-                // with nothing left to retry it — the exact state this exists to end.
-                if (getBool(KEY_SENDER_NAME, false))
-                {
-                    setBool(KEY_SENDER_NAME, false);
-                    if (getBool(KEY_SENDER_NAME, false)) { return; }   // the write did not take — retry next launch
-                    Logging.info("SNotificationPrefs: sender-name preference returned to the default (#589 — its control was removed)");
-                }
-                Preferences.Default.Set(KEY_SENDER_NAME_MIGRATED, true);
-            }
-            catch (Exception e)
-            {
-                // a preference read must never be able to stop a start (the file's own rule)
-                Logging.error("SNotificationPrefs.migrateSenderNameOptOut failed: " + e);
-            }
-        }
+        // ★ #597 (Damir, 2026-08-27): the one-shot #589 migration is DELETED with the row
+        // it served. The switch was internal-only and never reached a build a real user
+        // ran, so it mutated preference state for nobody — and left in place it would
+        // have reset the restored mobile row on the next launch, once, silently.
 
         public static bool inAppSounds
         {

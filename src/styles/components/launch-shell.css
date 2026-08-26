@@ -272,6 +272,10 @@
   flex-direction: column;
   gap: var(--spacing-16);
   padding: var(--spacing-16) var(--spacing-24);
+  /* ★ #615: with the footer lifted, the body is what shrinks — so it must be able to
+     scroll to the field the keyboard still covers rather than clip it. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .c-launch__footer {
   flex: none;
@@ -281,6 +285,19 @@
   padding: var(--spacing-16) var(--spacing-24) var(--spacing-24);
   /* commit CTA clears the iOS home indicator (edge-to-edge; env = 0 elsewhere) */
   padding-bottom: calc(var(--spacing-24) + env(safe-area-inset-bottom, 0px));
+  /* ★★ #615 (verdict §2 — SEVERITY 1): THE CTA RISES ABOVE THE KEYBOARD.
+     Create and Restore put their commit button in this footer, OUTSIDE the scroller,
+     and `html, body { height: 100%; overflow: hidden }` plus a WKWebView that does not
+     shrink for the keyboard meant the button sat underneath it and could not be
+     scrolled to. On the first screen a new user ever sees.
+     Same lever as the chat composer: the keyboard's overlap is published as
+     `--kb-inset` and the footer's own margin lifts it inside the fixed-height column;
+     `.c-launch__body` (flex 1, min-height 0) gives up the room and scrolls. The
+     document never resizes — the resize lever was falsified on device (#294).
+     The home-indicator pad is handed back while the keyboard covers that strip, so the
+     button does not float twice, and every term is inert at `--kb-inset: 0`. */
+  margin-bottom: var(--kb-inset, 0px);
+  padding-bottom: calc(var(--spacing-24) + max(0px, env(safe-area-inset-bottom, 0px) - var(--kb-inset, 0px)));
 }
 /* consent line sits directly above the commit button (create/restore) */
 .c-launch__footer .c-launch__fineprint { padding-top: 0; }

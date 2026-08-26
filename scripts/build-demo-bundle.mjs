@@ -21,6 +21,7 @@ const FILES = [
   'src/components/strings-runtime.js', // Phase 3 #3: getStrings/setStrings — window.SL default source, before every consumer
   'src/components/theme-runtime.js', // ★ N71 (#421): applyPushedTheme/ignorePushedTheme — the one live setTheme body, no deps
   'src/components/money.js',        // #143: shared money helpers — before every consumer
+  'src/components/amount-keyboard.js', // ★ #609: the amount field's keyboard dismissal — shared by wallet send/receive + the tip sheet
   'src/components/disc.js',         // #170: per-glyph disc gradient index (pure fn)
   'src/components/timestamp.js',
   'src/components/avatar.js',

@@ -835,14 +835,17 @@ console.log('chat.html — chat info (#141)');
     ok(!info.querySelector('.c-chat-info__qr-toggle') && !info.querySelector('.c-chat-info__copy'),
       '★ #591: the inline Show-QR disclosure and the card copy button are GONE — three affordances for one value became one row, and the sheet carries all three');
   }
-  /* ★★ #591 (Damir's mockup): the COVER. It must be DERIVED, never fetched — a mini app
-     ships a cover, a contact does not, and inventing a remote source would re-open the
-     #82 IP-leak posture on a surface that also carries a Pay button. */
+  /* ★★ #596 (Damir, 2026-08-27 — D1): THE COVER IS RETIRED, and the pin is rewritten
+     rather than deleted, because what it was really guarding survives the removal: a
+     contact's hero must never fetch anything. #591's cover derived its colour from the
+     identity hue precisely so nobody would reach for a remote banner on a surface that
+     also carries a Pay button (#82). The cover is gone; the rule it protected is not,
+     so the pin now asserts the ABSENCE — of the element and of any image in the hero. */
   {
     const cov = info.querySelector('.c-chat-info__cover');
-    ok(!!cov && cov.classList.contains('c-idhue') && cov.dataset.hue !== undefined
-       && cov.getAttribute('aria-hidden') === 'true' && !cov.querySelector('img'),
-      '★★ #591: the cover carries the contact\'s OWN identity hue and no image when there is no photo — one source for a person\'s colour, and no fetch');
+    const heroImgs = Array.from(info.querySelectorAll('.c-chat-info__hero img'));
+    ok(!cov && heroImgs.length === 0,
+      '★★ #596: the contact-details COVER is gone (Damir: it had no lower edge, and with no photo it was a full-bleed wash of the avatar\'s own colour) — and the hero still fetches nothing');
   }
   ok(!info.querySelector('.c-chat-info__switch') && !info.querySelector('.c-chat-info__media'),
     'notifications + media stay hidden without their capabilities (1:1 bridge honesty)');
@@ -954,7 +957,7 @@ console.log('chat.html — chat info (#141)');
     'nickname lands; the WIRE name stays visible underneath (e2e catch)');
 
   /* destructive confirm: locked mid-flight (#135-C1 via the #138 live-opts fix) */
-  info.querySelector('.c-chat-info__danger-row').click();
+  info.querySelector('.c-chat-info__row--action').click();
   const modal = d.querySelector('.c-modal');
   ok(!!modal && modal.getAttribute('role') === 'alertdialog', 'delete-history confirm is an alertdialog');
   const btns = modal.querySelectorAll('.c-modal__actions .c-button');
@@ -997,11 +1000,32 @@ console.log('chat.html — chat info (#141)');
     && moneyBtns.every((b) => !!b.querySelector('.c-chat-info__qa-circle')
       && !!b.querySelector('.c-chat-info__qa-label')),
     'contact page: Message LEADS a 3-up wallet-banner quick-action row (circle + label)');
-  const dRows = [...cinfo.querySelectorAll('.c-chat-info__danger-row')];
+  const dRows = [...cinfo.querySelectorAll('.c-chat-info__row--action')];
   ok(dRows.length === 2
     && dRows.some((r) => /Delete/i.test(r.textContent))
     && dRows.some((r) => /Remove/i.test(r.textContent)),
     'contact-details keeps BOTH delete-history + remove-contact (revises #142)');
+  /* ★★ #618 (Damir, device 2026-08-28): ONE ROW GRAMMAR. He reported the two
+     destructive rows as "completely different style to the other rows … it has to be
+     same as our account", and he was describing a real inconsistency: they were a
+     bespoke transparent-ground shape with no chevron, sitting among cards that all
+     carry a disc, a label and a chevron. The pin asserts SAMENESS, structurally —
+     the destructive rows and the ordinary rows must share the base class, the disc
+     and the trailing control — because "looks the same" is not something a source
+     grep can check and this is exactly the kind of drift that returns. */
+  ok(dRows.length === 2
+    && dRows.every((r) => r.classList.contains('c-chat-info__row')
+      && !!r.querySelector('.c-chat-info__row-label > .c-disc')
+      && !!r.querySelector(':scope > svg')),
+    '★★ #618: the destructive rows ARE ordinary rows — same base class, disc inside the label, trailing chevron. Same grammar as the address and notification rows, and as the Account hub');
+  {
+    /* the two-tier meaning of #148 is not thrown away, it MOVED — from the row's own
+       paint (which is what made it foreign) into the DISC hue, where it costs nothing
+       and still reads. Losing the tier entirely would be a silent regression. */
+    const hues = dRows.map((r) => (r.querySelector('.c-disc') || {}).dataset?.hue);
+    ok(hues.includes('neutral') && hues.includes('error'),
+      '★ #618 keeps #148: the reversible action takes the NEUTRAL disc and the irreversible one the ERROR disc, so red still means something — it just stops shouting from a row that looks like nothing else on the page');
+  }
   ok(!cinfo.querySelector('.c-chat-info__setting'),
     'disappearing messages is chat-side — hidden on the contact page');
   cinfo.querySelector('.c-chat-info__txs-toggle').click();
@@ -1715,13 +1739,24 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
     onBack() {}, onEnabled() {}, onPreviews() {}, onSounds() {},
   });
   nhost.append(notifs);
-  /* ★ #589 (Damir F5 2026-08-26): the "Show sender name" ROW is removed — he called
-     it redundant. Two switches now: the master and in-app sounds. The pin asserts the
-     REMOVAL as well as the count, so re-adding the row fails here and not by surprise
-     on a screenshot. The preference and its verb are untouched (see the component). */
-  ok(notifs.querySelectorAll('.c-settings__switch').length === 2
-     && !/Show sender name/.test(notifs.textContent || ''),
-    '★ #589: notifications carries master + in-app sounds only — the "Show sender name" row is gone (Damir: redundant)');
+  /* ★★ #597 (Damir, 2026-08-27 — D3): the "Show sender name" row is BACK ON MOBILE and
+     stays gone on DESKTOP. #589 read a finding that says "Desktop" in its own text and
+     removed the row everywhere; on a phone the notification IS the surface.
+     ⚠ TWO fixtures, deliberately. A single one can pass with the gate wired BACKWARDS —
+     it only ever proves one branch — and a backwards gate is precisely the shape of the
+     defect this pin exists to catch. */
+  ok(notifs.querySelectorAll('.c-settings__switch').length === 3
+     && /Show sender name/.test(notifs.textContent || ''),
+    '★★ #597: MOBILE notifications carries all three switches — master, show-sender-name, in-app sounds');
+  const dnotifs = S.createNotificationsScreen({
+    isDesktop: true,
+    capabilities: { globalNotifications: true },
+    onBack() {}, onEnabled() {}, onPreviews() {}, onSounds() {},
+  });
+  nhost.append(dnotifs);
+  ok(dnotifs.querySelectorAll('.c-settings__switch').length === 2
+     && !/Show sender name/.test(dnotifs.textContent || ''),
+    '★★ #597: DESKTOP keeps the row removed — the window is usually open there, which is the redundancy Damir named');
   nhost.remove();
 
   /* security level (#147 tiers) — 4 cards, latched commit */
@@ -2184,10 +2219,11 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   /* ⚠ comment-STRIPPED: the rationale block right above this rule quotes `100vw` as the
      thing it replaced, so a raw read makes the negative clause match its own explanation. */
   const infoCssBare = stripCssComments(infoCss);
-  ok(/\.c-chat-info__cover \{[^}]*inset-inline: calc\(-1 \* var\(--spacing-16\)\)/.test(infoCssBare)
-     && /\.c-chat-info__cover \{[^}]*top: calc\(-1 \* var\(--spacing-16\)\)/.test(infoCssBare)
-     && !/\.c-chat-info__cover \{[^}]*100vw/.test(infoCssBare),
-    '★★ #591: the cover bleeds to the body padding edge on both axes — viewport units were the wrong tool and cancelled themselves');
+  /* ★ #596: retired with the element. Dead CSS for a removed surface is how a
+     "removed" feature comes back by accident — a later batch re-adds the class name,
+     the old rules are still there, and it paints. Nothing may style a cover. */
+  ok(!/\.c-chat-info__cover/.test(infoCssBare) && !/c-idhue/.test(infoCssBare),
+    '★★ #596: no cover RULES survive the removal either — including the .c-idhue hook, whose only consumer this was');
   /* ★★ #591 (round-2 m1, MEASURED): the tip pill went green at Damir's ask, and the
      success TONAL pair misses AA in light at 12px bold — 4.28:1. The ink moved one ramp
      step (--success-700, 6.59:1) at the TOKEN, so the same failure is closed on the three
@@ -2966,16 +3002,16 @@ console.log('chats.html — contacts flow (Phase 1 #2)');
     .find((r) => r.querySelector('.c-contacts__name').textContent === 'Sarah Jo').click();
   const prof = d.querySelector('.demo-panel .c-chat-info');
   ok(!!prof, 'directory tap opens contact DETAILS (chat-info contact context), not the chat');
-  // F18: match the exact danger-row label (scoped to .c-chat-info__danger-row), not
+  // F18: match the exact destructive-row label (scoped to .c-chat-info__row--action), not
   // a loose .includes('Remove contact') that a hypothetical "Remove contact request"
   // row would also satisfy.
   ok(!!prof.querySelector('.c-chat-info__nick-edit') && !!prof.querySelector('.c-chat-info__txs-list')
-    && [...prof.querySelectorAll('.c-chat-info__danger-row')].some((b) => b.textContent.trim() === 'Remove contact'),
+    && [...prof.querySelectorAll('.c-chat-info__row--action')].some((b) => b.textContent.trim() === 'Remove contact'),
     'directory profile carries the SAME controls as chat-info contact page (nickname edit · payments · remove) — Damir parity ask');
   // F13: the parity check above only confirms what's PRESENT — also assert what
   // must be ABSENT: chat-side rows (delete history, disappearing messages) never
   // render on a directory-opened (context:'contact') profile (#142③).
-  ok(![...prof.querySelectorAll('button, .c-chat-info__danger-row')].some((b) => b.textContent.includes('Delete chat history'))
+  ok(![...prof.querySelectorAll('button, .c-chat-info__row--action')].some((b) => b.textContent.includes('Delete chat history'))
     && !prof.querySelector('.c-chat-info__setting'),
     'F13: directory profile drops "Delete chat history" and the disappearing-messages row (chat-side only)');
   d.querySelector('.demo-panel .c-chat-info .c-topbar .c-button').click();   // back → directory
@@ -5289,8 +5325,9 @@ console.log('missing-bits Batch B — B2 pattern default · B3 tx-details shell 
         && !/bridge\.send\('ixian:back'\)/.test(lhF2),
         '★ F-2: the three per-hook reports are GONE from the shell — two sources of truth for one field is how the retry lockout and the form Back controls went unreported in the first place');
     }
-    ok(/logVerbName\(verb\);/.test(lp) && /Logging\.info\("LaunchPage back: view=" \+ currentView\);/.test(lp),
-      '★ F-2 (#215, Damir: do NOT guess): both halves are instrumented — which verbs arrive, and what the field says when back is pressed. One F5 separates "the report never lands" from "the handler never runs"');
+    ok(/logVerbName\(verb\);/.test(lp) && /Logging\.info\("LaunchPage back: view=" \+ currentView/.test(lp)
+      && /overlay=" \+ shellOverlayOpen/.test(lp),
+      '★ F-2 (#215, Damir: do NOT guess): both halves are instrumented — which verbs arrive, and what the field says when back is pressed. #614 adds the overlay state to the SAME line, because "back did nothing" now has two possible causes and one line has to separate them');
     {
       /* ★ SECURITY (handover gate): three verbs on this page carry a WALLET PASSWORD, and
        * ixian.log is a file the user SHARES from Account → Developer. The logger must cut
@@ -5751,8 +5788,25 @@ console.log('r2 (#303) — keyboard native+hardened · amount-QR drop');
   ok(!/document\.body\.style\.height/.test(chat), 'iOS-29 r2: body is still never resized (the #294 dead lever stays dead)');
 
   /* keyboard — C# half */
-  ok(/loadedHtmlFileName != "chat\.html" \|\| kbChangeObserver != null/.test(scp),
-    'iOS-29 r2 ★: the C# observer attaches ONLY to chat.html pages — MiniAppPage never sets loadedHtmlFileName, so third-party content is structurally excluded');
+  /* ★★ #608: the observer serves an ALLOW-LIST now (chat + the wallet host + launch),
+     because a screen that never hears about the keyboard cannot get out from under it.
+     ⚠ The SECURITY property this pin was written for is what matters and it is asserted
+     directly, not implied by the old single-name test: MiniAppPage never sets
+     loadedHtmlFileName, so third-party content matches no entry and is structurally
+     excluded — and the list must stay a literal set, never a prefix or a wildcard.
+     The `.html` suffix on every entry is what keeps an empty/unset name from matching. */
+  {
+    const mList = scp.match(/KEYBOARD_INSET_SHELLS = \{([^}]*)\}/);
+    const entries = mList ? mList[1].split(',').map((x) => x.trim()).filter(Boolean) : [];
+    ok(entries.length > 0 && entries.every((e) => /^"[a-z_]+\.html"$/.test(e))
+       && !/loadedHtmlFileName\.(StartsWith|Contains|EndsWith)/.test(scp)
+       && /Array\.IndexOf\(KEYBOARD_INSET_SHELLS, loadedHtmlFileName\) < 0/.test(scp),
+      'iOS-29 r2 ★ / #608: the C# observer attaches only to NAMED shells, by exact match — MiniAppPage never sets loadedHtmlFileName, so third-party content is structurally excluded, and no prefix test can ever let it in');
+    ok(entries.includes('"chat.html"') && entries.includes('"index.html"') && entries.includes('"intro.html"'),
+      '★★ #608: the wallet host (index.html) and the launch flow (intro.html) are ON the list — wallet Send and account-create both put a commit button under the iOS keyboard with no way to reach it, because neither ever received a keyboard signal');
+    ok(/if \(loadedHtmlFileName == "chat\.html"\)\s*\r?\n?\s*\{[\s\S]{0,240}?pinKeyboardScroll\(\);/.test(scp),
+      '★ #608: the iOS-53 scroll PIN stays chat-only — it exists for the message log\'s reveal pan, and a page that has never had a contentOffset clamp must not silently gain one');
+  }
   ok(/ObserveWillChangeFrame/.test(scp) && /ObserveWillHide/.test(scp),
     'iOS-29 r2: both notifications observed — WillChangeFrame carries the settled END frame (the determinism the vv event lacks), WillHide zeroes the inset');
   ok(/window\.__setKbInset && window\.__setKbInset\(/.test(scp),
@@ -6109,8 +6163,11 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   const settingsShellJs = readFileSync(join(root, 'src/components/settings-shell.js'), 'utf8');
   ok(/variant: onBack \? 'view' : 'root', title: strings\.account \|\| 'Account', onBack,/.test(settingsShellJs),
     '#320: a back-less hub (= the peer TAB) renders the ROOT topbar variant — bold action ink + root padding, exact parity with the Chats/Apps/Wallet bars (Damir: title mis-aligned + wrong face)');
+  /* ⚠ #601 widened the window: onRepresented gained the peer-tab scroll reset and its
+     rationale. The window is a proximity heuristic, not the property — keep it generous
+     enough that a comment cannot fail the pin, and let the ORDER clauses do the work. */
   ok(/exitSettings\(\);[\s\S]{0,700}?setNavActive\(nav, 'account'\);/.test(settingsSh)
-    && /onRepresented\(\) \{[\s\S]{0,2200}?setNavActive\(nav, 'account'\);/.test(settingsSh),
+    && /onRepresented\(\) \{[\s\S]{0,4200}?setNavActive\(nav, 'account'\);/.test(settingsSh),
     '#320: the peer nav highlight snaps back to Account after an exit tap AND on re-present — bottomnav auto-selects the tapped item before onChange, so the page PARKED with the wrong tab lit (Damir: Denarnica highlighted on the Account screen)');
 
   /* —— #321: R5 dev-mode parity (send-log + live HUD) —— */
@@ -6679,7 +6736,7 @@ console.log('contact details — premium pass');
 
   // ② quiet destructive tier — delete-history reads secondary; red stays reserved
   //    for the irreversible action (settings-shell quiet/danger precedent).
-  const rows = [...ci.querySelectorAll('.c-chat-info__danger-row')];
+  const rows = [...ci.querySelectorAll('.c-chat-info__row--action')];
   const hist = rows.find((r) => /Delete/i.test(r.textContent));
   const remove = rows.find((r) => /Remove/i.test(r.textContent));
   ok(hist.dataset.tone === 'quiet' && remove.dataset.tone === 'error',
@@ -7384,8 +7441,18 @@ console.log('#348b — F5 follow-up fixes');
     ok(/if \(fadeMs <= 0\) \{ killAfterlife\(elm\); return; \}/.test(pjs),
       '★ D-16 (#351): reduced motion skips the fade states entirely — holding a flat tint over two rAFs with 0ms transitions serves nobody');
     ok(/killAfterlife\(t\);/.test(pjs)
-      && /const onHide = \(\) => \{ abortGesture\(\); killAllAfterlives\(\); \};/.test(pjs),
+      && /const onHide = \(\) => \{[\s\S]{0,200}?killAllAfterlives\(\);/.test(pjs),
       '★ D-16 (#351): a re-press interrupts its target’s afterlife, and hiding the page kills them ALL — no fade timer may strand a lit row across an overlay or a backgrounding');
+    /* ★★ #604 (row A7.1): the teardown must not disarm the guards that reject Android's
+       LATE synthesised pointer stream. `killAllAfterlives()` empties the window the ghost
+       guard reads and `abortGesture()` resets `cancelled` — together they let a
+       post-tap `pointerdown` re-arm a fresh press with no finger on the glass, which is
+       the rectangle painted over a just-opened mini-app picker. Mid-gesture, the teardown
+       now latches instead. ⚠ The `pointerDown` test is the whole property: with no finger
+       down there is nothing to re-arm, and `pagehide`/`visibilitychange` must keep
+       behaving exactly as they did. */
+    ok(/const onHide = \(\) => \{\s*\r?\n?\s*if \(pointerDown\) \{ cancelGesture\(\); \} else \{ abortGesture\(\); \}/.test(pjs),
+      '★★ #604: a teardown that lands MID-GESTURE latches `cancelled` (cancelGesture) instead of clearing it — otherwise the teardown eats the two guards that exist to reject Android\'s late pointer stream, and re-arms the press it just cleared');
     ok(/a\.t3 = setTimeout\(\(\) => killAfterlife\(elm\), Math\.max\(remaining, 0\) \+ fadeMs \+ 1500\);/.test(pjs)
       && /clearTimeout\(a\.t1\); clearTimeout\(a\.t2\); clearTimeout\(a\.t3\);/.test(pjs),
       '★ D-16 r2 (audit A-5): every afterlife carries an UNCONDITIONAL timer backstop and killAfterlife clears it — a rAF stall on a covered-but-not-hidden WebView must not strand a flat-tinted row until vsync resumes');
@@ -9957,8 +10024,8 @@ console.log('R1 identity round — N1 avatar rework (#364) · N34 owner chip (#3
     'D-5: the roster handler stopped discarding trailing args');
   ok(/requestedMembers\.add\(rec\.senderAddress\);/.test(chat366) && /requestedMembers\.clear\(\);/.test(chat366),
     'N26: the in-flight request latch exists AND resets per-peer (onChatScreenReady)');
-  ok(/onRequest: \(rec\.senderAddress && relation === 'none'\)/.test(chat366),
-    'N26 ★: the request button only exists for a true stranger — contact/pending/self/latched all stay inert');
+  ok(/onRequest: \(rec\.senderAddress && relation === 'none' && !mode\.isBot && !mode\.hidesAddresses\)/.test(chat366),
+    'N26 ★ + #613 r2: the request button only exists for a true stranger — AND never in a bot room or where addresses are hidden, because C# refuses `sendContactRequest` for every bot outright and the shell was showing a SUCCESS toast for something never sent');
   ok(/owner: isOwnerAddr\(rec\.senderAddress\)/.test(chat366),
     'N34: the member sheet carries the owner flag (matches the bubble chip)');
   ok(/roleBadge: \(!isSent && mode\.isMulti && !mode\.blind && isOwnerAddr\(rec\.senderAddress\)\)/.test(chat366),
@@ -10139,8 +10206,8 @@ console.log('#370/#371 — D-19b reverse-resolve · N48 amOwner · N49/N50 · R2
   /* —— D-19b: the C# reverse-resolve —— */
   const scp370 = nc(read('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
   ok(/private Address\? reverseResolveSenderByNick\(string nick\)/.test(scp370)
-    && /if \(friend\.metaData == null \|\| friend\.metaData\.botInfo == null\s*\|\| friend\.metaData\.botInfo\.hideParticipantAddresses\)\s*\{\s*return null;/.test(scp370),
-    '★ D-19b (#370): the reverse-resolve FAILS CLOSED on blindness — a blind room, or a room whose botInfo has not loaded, never hands out an address (the #369 amendment: reverse-resolve is NON-blind-only)');
+    && /if \(friend\.metaData == null \|\| friend\.metaData\.botInfo == null\s*\|\| Utils\.hidesParticipants\(friend\)\)\s*\{\s*return null;/.test(scp370),
+    '★ D-19b (#370) + #613: the reverse-resolve still FAILS CLOSED on blindness — but "blind" now means what legacy means, a blind GROUP. A public bot room failing closed here is what left its senders unnamed and unactionable');
   ok(/if \(match != null\)\s*\{\s*return null;\s*\}\s*match = contact\.Key;/.test(scp370),
     '★ D-19b (#370) MONEY SAFETY: a SECOND roster member with the same nick makes the match ambiguous → null. Without this a shared nick becomes a copyable address and a tip recipient for the WRONG person');
   ok(/lock \(users\.contacts\)/.test(scp370),
@@ -11698,33 +11765,30 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
      controlled: the option and the callback stay in the component's signature (a host
      still passes them, and a signature change would break a host that was not rebuilt),
      the C# verb still exists, and the preference keeps its shipped default. */
-  ok(!/label: strings\.notifSender/.test(screens)
+  ok(/label: strings\.notifSender/.test(screens)
+     && /if \(onPreviews && !isDesktop\) body\.append\(switchRow\(\{/.test(screens)
      && /onEnabled, onPreviews, onSounds,/.test(screens),
-    '★ #589 (was NOTIF-2): the sender-name ROW is gone while the `onPreviews` API is kept — removing a control must not change what it controlled, and no host breaks');
+    '★★ #597 (was #589, was NOTIF-2): the sender-name ROW is back and MOBILE-GATED at the source, while the `onPreviews` API is unchanged — no host had to be rebuilt in either direction');
   {
     const notifCs = readFileSync(join(root, 'Spixi/Meta/SNotificationPrefs.cs'), 'utf8');
     ok(/KEY_SENDER_NAME = "notif_sender_name"/.test(notifCs)
        && /getBool\(KEY_SENDER_NAME, false\)/.test(notifCs)
        && /ixian:notifSenderName:/.test(readFileSync(join(root, 'Spixi/Pages/Settings/SettingsPage.xaml.cs'), 'utf8')),
       '★ #589: the preference, its DEFAULT (false) and the verb all survive the row removal — the shell still handles the push, so no bare global can throw (#421 class)');
-    /* ★★ #589 (audit B MINOR-1 → round-2 NIT-2): removing the ROW would have left anyone
-       who had turned the switch ON stuck with the counterparty's name on their lock
-       screen and NO control to turn it off. The migration returns it to the shipped
-       default once. It was completely unpinned — deleting the call left every gate
-       green — and the ORDER inside it is the part that matters. */
+    /* ★★ #597 (Damir, 2026-08-27): THE MIGRATION IS DELETED, and the three pins that
+       guarded its correctness are replaced by ONE that guards its absence.
+       It existed because a removed control would have stranded anyone who had turned
+       the switch ON. Damir confirms the switch was internal-only and never reached a
+       build a real user ran — so it mutated preference state for nobody. Left in place
+       beside the restored mobile row it would have been actively harmful: a one-shot
+       that silently resets the row once, on the next launch, for whoever turns it on.
+       ⚠ The pin is a NEGATIVE on purpose. This is the shape that comes back by
+       accident — a later batch re-adds a "tidy up the old preference" migration and
+       nothing notices until a user reports a setting that will not stay on. */
     const appCs = readFileSync(join(root, 'Spixi/App.xaml.cs'), 'utf8');
-    ok(/SNotificationPrefs\.migrateSenderNameOptOut\(\);/.test(appCs)
-       && /protected override void OnStart\(\)[\s\S]{0,400}?migrateSenderNameOptOut/.test(appCs),
-      '★★ #589: the sender-name opt-out migration is REACHED, from OnStart — a stuck-ON privacy preference with no control anywhere in the app is worse than either state the user could have chosen');
-    {
-      const mig = (notifCs.match(/public static void migrateSenderNameOptOut\(\)([\s\S]*?)\n        \}\n/) || [])[1] || '';
-      const workAt = mig.indexOf('setBool(KEY_SENDER_NAME, false)');
-      const markAt = mig.indexOf('Set(KEY_SENDER_NAME_MIGRATED, true)');
-      ok(workAt > 0 && markAt > 0 && workAt < markAt,
-        '★★ #589: the migration does the WORK before it marks itself done — setBool swallows its own exception, so marking first would leave the preference stuck ON with nothing left to retry it');
-      ok(/catch \(Exception/.test(mig),
-        '★ #589: and it cannot throw out of OnStart — a preference read must never be able to stop a start (this file\'s own rule)');
-    }
+    ok(!/migrateSenderNameOptOut/.test(appCs) && !/migrateSenderNameOptOut/.test(notifCs)
+       && !/notif_sender_name_migrated/.test(notifCs),
+      '★★ #597: the #589 one-shot migration is GONE — method, key and call site. With the row restored, a surviving migration would reset the user\'s choice once, silently, on the next launch');
   }
   {
     const scNC = screens.replace(/\/\*[\s\S]*?\*\//g, '');
@@ -14672,9 +14736,25 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        computes a negative height. The other two legs are gone on purpose: the slack
        moved to the QR (the explainer is no longer last, so an auto margin there would
        push the INFO block down), and the dismiss control is no longer mobile-only. */
-    ok(/:root:not\(\[data-desktop\]\) \.c-addr-sheet \{[^}]*height: max\(320px, calc\(100dvh[^}]*max-height: none/.test(wrc)
-      && /:root:not\(\[data-desktop\]\) \.c-addr-sheet__qrwrap \{ margin-block-start: auto; \}/.test(wrc),
-      '★ #589 (was #575) CSS: the mobile sheet keeps its near-full height WITH the floor, and the slack now collects above the QR — the one seam where a gap reads as deliberate');
+    /* ★★ #598 REBASE (Damir on device, 2026-08-27 — D4). #575's forced near-full height
+       was right when the content was taller; #556 and #575 then shrank the QR, and a
+       forced height over shrunken content MANUFACTURES ~110px of slack. #589 chose the
+       best seam for it and it still read as a hole, because the mechanism was an auto
+       margin — a REMAINDER, whose size changes with the screen, the locale and the
+       content. Space that is chosen reads as design; space that is left over reads as a
+       mistake, at identical pixel counts.
+       So: the sheet hugs, and the QR gets its own explicit block padding.
+       ⚠ The negative on `margin-block-start: auto` is the load-bearing clause — that
+       exact line is what came back twice, and the rule now says never here again. */
+    ok(!/height: max\(320px, calc\(100dvh/.test(wrc)
+      && !/height: max\(320px, calc\(100vh/.test(wrc)
+      && !/\.c-addr-sheet__qrwrap \{[^}]*margin-block-start: auto/.test(wrc)
+      && /:root:not\(\[data-desktop\]\) \.c-addr-sheet__qrwrap \{[^}]*padding-block: var\(--spacing-24\)/.test(wrc)
+      && /:root:not\(\[data-desktop\]\) \.c-addr-sheet \{ padding-block-start: var\(--spacing-8\); \}/.test(wrc),
+      '★★ #598 (was #589, was #575) CSS: the mobile sheet HUGS its content, the QR carries EXPLICIT block padding instead of an auto-margin remainder, and the title finally has space under it (§14d)');
+    ok(/:root:not\(\[data-desktop\]\) \.c-addr-sheet \{[\s\S]{0,400}?min-height: 0;/.test(wrc)
+      && /:root:not\(\[data-desktop\]\) \.c-addr-sheet \{[\s\S]{0,400}?max-height: none;/.test(wrc),
+      '★ #598: and it can still SHRINK — `min-height: 0` is what lets a hugging flex item give up height and scroll on a short window, so hugging never makes content unreachable');
     ok(!/:root\[data-desktop\] \.c-addr-sheet__dismiss \{ display: none; \}/.test(wrc)
       && /\.c-sheet--addr \.c-sheet__title \{ padding-inline-end: 44px; \}/.test(wrc),
       '★★ #589 (Damir): the dismiss control is NOT hidden on desktop any more — Esc and click-outside were the only ways out of the dialog and neither is visible — and the title clears it in BOTH presentations');
@@ -14689,7 +14769,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     /* ★ round-2 MINOR-4: the flex chain has to reach the REAL flex item. createSheet
        wraps the content in `.c-sheet__content`, so `flex`/`min-height` on the
        grandchild alone are inert and a short host still overflowed. */
-    ok(/:root:not\(\[data-desktop\]\) \.c-sheet--addr \{[^}]*max-height: 100%/.test(wrc)
+    ok(/:root:not\(\[data-desktop\]\) \.c-sheet--addr \{[^}]*max-height: calc\(100% - var\(--kb-inset, 0px\)\)/.test(wrc)
       && /:root:not\(\[data-desktop\]\) \.c-sheet--addr > \.c-sheet__content \{[^}]*flex: 1 1 auto;[^}]*min-height: 0/.test(wrc),
       '★★ #575 (round-2 MINOR-4): the sheet is capped at 100% of its HOST and the cap reaches the element that can actually shrink — an unbounded preferred height grew the sheet past the host and clipped the handle, the title and the dismiss button');
     /* ★ F5-5 ①/② (#556) CSS pins: the QR card is at Account proportions (padding 0 —
@@ -15048,7 +15128,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       && brows.some((r) => r.querySelector('.c-chat-info__member-name').textContent === 'BARE12…GHIJKL')
       && !brows.some((r) => /Hidden member/.test(r.textContent)) && !!brows[0].querySelector('.c-avatar__img, .c-avatar'),
       '★★ A1: a BOT room lists its members as legacy did — nickname, else the #211 truncated address, with the avatar; "Hidden member" is gone from bot rows');
-    const bdanger = [...bot.querySelectorAll('.c-chat-info__danger-row')];
+    const bdanger = [...bot.querySelectorAll('.c-chat-info__row--action')];
     ok(bdanger.some((r) => /Leave group/.test(r.textContent)), '★ A2: the bot info carries Leave (SingleChatPage ixian:leave handles bots: sendLeave + immediate removeFriend, #567)');
     const bkids = [...bot.querySelector('.c-chat-info__body').children];
     ok(bkids.indexOf(bot.querySelector('.c-chat-info__danger')) === bkids.indexOf(bot.querySelector('.c-chat-info__hero')) + 1,
@@ -15745,7 +15825,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     const sw = read('src/styles/components/chats-swipe.css');
     ok(/sheet\.dataset\.mAnchor === undefined/.test(rm),
       '★ #572 ③: the lift runs ONLY when the anchored dropdown applied — a fail-soft bottom sheet and the desktop press wash are untouched');
-    ok(/row\.closest\('\.c-swipe'\)\) \|\| row/.test(rm),
+    ok(/src\.closest\('\.c-swipe'\)\) \|\| src/.test(rm),
       '★★ #572 ③ (the #506② stacking check): the lift targets the .c-swipe WRAPPER. `.c-swipe[data-open] .c-swipe__content` carries will-change: transform, which IS a stacking context — lifting the item inside it would be capped and die SILENTLY under the scrim');
     ok(/will-change: transform/.test(sw),
       '★ #572 ③: …and that will-change still exists, so the reason above is a live hazard and not a historical note');
@@ -15769,7 +15849,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        && /return liveRowLift \? liveRowLift\.addr : '';/.test(rm)
        && !/querySelector\('\.c-sheet\[data-m-anchor\]/.test(rm),
       '★★ #572 ③ (round-2 MAJOR-2): liftedRowAddress reads ONE module-scoped truth — a DOM query would answer with the dying sheet during the 400 ms exit window');
-    ok(/if \(c\.address && c\.address === liftedRow\) node\.dataset\.menuLift = 'row';/.test(read('src/components/chats-shell.js')),
+    ok(/if \(c\.address && c\.address === liftedRow\) \{\s*\r?\n?\s*node\.dataset\.menuLift = 'row';/.test(read('src/components/chats-shell.js')),
       '★ #572 ③ (review MINOR-3): the lift is RE-APPLIED on re-render — renderChatsList rebuilds every row, and a message in ANY chat triggers it');
     ok(/\[data-menu-lift\] \{[^}]*pointer-events: none;/.test(mm),
       '★ #572 ③: the chat-row lift keeps the shared pointer-events rule (the row is a picture; the menu is what is interactive)');
@@ -15782,20 +15862,57 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     const swipeCss = read('src/styles/components/chats-swipe.css');
     ok(/\.c-swipe__content \{[^}]*position: relative;[^}]*background: var\(--surface-screen\)/.test(stripCssComments(swipeCss)),
       '★★ #589: …and that opaque covering child still EXISTS. It is NOT redundant and must not be "cleaned up": .c-swipe__content slides over the pin/mute action panels, so its opaque ground is load-bearing at rest — which is exactly why it covered the wrapper ground and made #572 dead code');
-    ok(/:root:not\(\[data-desktop\]\) \.c-swipe\[data-menu-lift="row"\] \.c-swipe__content \{[^}]*background: var\(--surface-neutral-02\)/.test(mm)
-       && /:root:not\(\[data-desktop\]\) \.c-chatlist-item\[data-menu-lift="row"\]:not\(\[data-pinned\]\):not\(\[aria-current\]\) \{[^}]*background-color: var\(--surface-neutral-02\)/.test(mm)
+    ok(/:root:not\(\[data-desktop\]\) \.c-swipe\[data-menu-lift="row"\] \.c-swipe__content \{[^}]*background: var\(--surface-lift-row\)/.test(mm)
+       && /:root:not\(\[data-desktop\]\) \.c-chatlist-item\[data-menu-lift="row"\]:not\(\[data-pinned\]\):not\(\[aria-current\]\) \{[^}]*background-color: var\(--surface-lift-row\)/.test(mm)
        && !/data-menu-lift[^{]*\{[^}]*background-image/.test(mm)
        && !/data-menu-lift[^{]*::after/.test(mm),
-      '★★ #589 (Damir): the lifted row reads ONE neutral level up from the list, painted on the child that covers — one OPAQUE token, not a translucent wash (above a 0.7 scrim a translucent row reads as the dim itself) and not a background-image (the 5c-ii compositor guarantee)');
+      '★★ #605 (was #589): the lifted row reads up from the list through ONE token, painted on the child that covers — opaque, not a translucent wash (above a 0.7 scrim a translucent row reads as the dim itself) and not a background-image (the 5c-ii compositor guarantee)');
+    /* ★★ #605: the token is what carries the DARK step now that the ring is gone, so
+       the two themes must actually differ. A single value for both is the shape of the
+       regression — it is how "one neutral step" ended up at ΔL* 4.0 on a black list. */
+    {
+      /* ⚠ anchor on the dark RULE, not on the first mention of the selector — tokens.css
+         names `[data-theme="dark"]` in its own header comment, and a lazy match from
+         there finds the LIGHT declaration and compares it with itself. Exactly the
+         self-satisfying-fixture shape the last batch lost pins to. */
+      const tk = stripCssComments(read('src/styles/tokens.css'));
+      const darkAt = tk.indexOf('[data-theme="dark"] {');
+      const lightLift = (tk.slice(0, darkAt).match(/--surface-lift-row: ([^;]+);/) || [])[1];
+      const darkLift = (tk.slice(darkAt).match(/--surface-lift-row: ([^;]+);/) || [])[1];
+      ok(darkAt > 0 && !!lightLift && !!darkLift && lightLift !== darkLift,
+        '★★ #605: --surface-lift-row is defined in BOTH themes and they DIFFER — dark takes one further step up the ramp, because with the ring removed the ground is the whole of the lift there');
+    }
     /* ★★ #589 (round-2 review) — THE GROUND ALONE DOES NOT FIX THE REPORTED BUG. A scrim
        is black: over the light list one neutral step reads at 6.2:1, over the dark list
        at 1.10:1, because a black scrim cannot darken an already-black list. Damir's words
        were "not prominent in DARK mode". The ring is scrim-independent and is the same
        5.98:1 recipe the lifted MESSAGE already uses (#492) — one ring in this app, not
        two. This pin is the one that fails if a future edit drops back to fill-only. */
-    ok(/\.c-swipe\[data-menu-lift="row"\],[\s\S]{0,140}?\.c-chatlist-item\[data-menu-lift="row"\] \{[^}]*box-shadow: 0 0 0 2px var\(--brand-400\), 0 0 0 5px rgba\(118, 157, 255, 0\.28\)/.test(mm),
-      '★★ #589 (round-2 MAJOR-1): the lifted chat row also takes the RING, on BOTH lift targets — chats-row-menu never sets [data-menu-target], so a lifted row had no ring, no border and no elevation, and in dark the whole affordance was a 1.10:1 fill');
-    ok(/:root:not\(\[data-desktop\]\) \.c-swipe\[data-menu-lift="row"\] \{[^}]*background-color: var\(--surface-neutral-02\)/.test(mm),
+    /* ★★ #605 REBASE (Damir, 2026-08-27 — D2): "please remove the ring on both android
+       and iOS, it's not looking good, and it gets cut off on the sides. It's not
+       appropriate for a chat app and this action."
+       The clipping identifies WHICH ring: `.c-swipe` is full-bleed in the list and the
+       scroller's computed overflow-x cut the 5px spread at both screen edges. The
+       MESSAGE ring sits inside `.c-bubble-row`'s 16px inline padding and cannot clip —
+       it is deliberately untouched, and flagged for Damir rather than assumed.
+       ⚠ The ring was the only thing working in DARK, so this pin asserts what replaced
+       it: elevation on the lift targets, plus the two-theme token above, plus the
+       ghost that finally makes the row escape the scrim on iOS at all. */
+    /* ⚠ read the CASCADE, not the file text. Every rationale block in this file NAMES
+       `data-menu-lift`, so a raw-text negative matches its own explanation — the
+       comment-stripping lesson this suite has learned twice. rulesFor() walks every
+       stylesheet with comments removed and tests the SUBJECT. */
+    {
+      const liftRules = rulesFor('[data-menu-lift="row"]');
+      const ringy = liftRules.filter((r) => /--brand-400|118, 157, 255/.test(r.body));
+      ok(liftRules.length > 0 && ringy.length === 0,
+        '★★ #605 (was #589 round-2 MAJOR-1): the RING is gone from the chat row on every platform — Damir: it clipped at the screen edges and read as selection, not as lift');
+    }
+    ok(/\.c-swipe\[data-menu-lift="row"\],[\s\S]{0,140}?\.c-chatlist-item\[data-menu-lift="row"\] \{[^}]*box-shadow: var\(--elevation-3\)/.test(mm),
+      '★★ #605: …and ELEVATION took its place on both lift targets — removing the ring without replacing it would have left the row flatter than it was before the batch');
+    ok(/\[data-menu-target\] \{[^}]*box-shadow: 0 0 0 2px var\(--brand-400\)/.test(mm),
+      '★ #605: the MESSAGE ring survives — it cannot clip (the bubble row pads 16px inline) and Damir\'s wording was about the row. Flagged, not assumed');
+    ok(/:root:not\(\[data-desktop\]\) \.c-swipe\[data-menu-lift="row"\] \{[^}]*background-color: var\(--surface-lift-row\)/.test(mm),
       '★★ #589 (round-2 MINOR-1): the WRAPPER keeps a ground too — openChatRowMenu closes an open swipe drawer BEFORE it lifts, and during that 200ms spring-back the wrapper is what shows between the action panels; dropping its paint put a translucent band of scrim through a lifted row');
     /* ★★ #589 (Damir F5 2026-08-26): the ground alone is EXACTLY --surface-screen, so
        in dark the lifted row was painted the same colour as the list beneath it and
@@ -16159,6 +16276,350 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   }
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+ * #596–#615 — the 2026-08-27 iOS device pass.
+ * Damir walked 65 rows on an iPhone 15: 48 pass, 14 fail, 2 n/a. The fourteen were
+ * five defects. Everything below pins one of them, and every pin here was written
+ * from the PROPERTY and proven by MUTATION — reading a pin twice does not work, and
+ * across the last batch mutation was the only thing that found seven bad ones.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+{
+  const rdf = (pth) => readFileSync(join(root, pth), 'utf8');
+  /* the money helpers come from the BUILT bundle, the same file the shells inline —
+     testing src/ would prove the source right and say nothing about what shipped. */
+  const domMoney = await load('components.html');
+  const S = domMoney.window.Spixi;
+
+  /* —— #607: the caret defect. A SILENT WRONG AMOUNT, on the money path. ————————
+   * Row 5c: typing 1 , 4 on wallet-send produced `14.` — ten times the amount, with
+   * nothing on screen to say so. This is the pin the coverage hole let through: the
+   * existing round-trip pin drives twelve locales and NEVER types a separator into a
+   * non-empty field, which is the only way to reach it.
+   * ⚠ Asserted on the PARSED VALUE after a real keystroke SEQUENCE, driven through the
+   * handler's own shape — not on a fixture chosen to match the implementation. */
+  {
+    const typeAmount = (seq, locale) => {
+      let field = '', caret = 0, amount = '';
+      for (const ch of seq) {
+        if (ch === '\b') { if (caret > 0) { field = field.slice(0, caret - 1) + field.slice(caret); caret--; } }
+        else { field = field.slice(0, caret) + ch + field.slice(caret); caret++; }
+        const ev = ch === '\b' ? { inputType: 'deleteContentBackward', data: null }
+                               : { inputType: 'insertText', data: ch };
+        const disp = field, c = caret;
+        amount = S.sanitizeAmount(S.amountInputToCanonical(disp, c, ev, locale, !!amount));
+        const shown = S.groupAmountDisplay(amount, locale);
+        if (shown !== disp) { field = shown; caret = S.amountCaretAfterFormat(disp, c, shown); }
+      }
+      return S.canonicalAmount(amount);
+    };
+    /* both directions of the mismatch, because the defect does not care which: it fires
+       whenever the character the keypad EMITS differs from the one Intl derives from
+       <html lang>. en-us + ',' gave "14."; de-de + '.' gave "14,". */
+    ok(typeAmount('1,4', 'en-US') === '1.4' && typeAmount('1.4', 'en-US') === '1.4',
+      '★★ #607 (device row 5c): typing 1 , 4 in an en-US field parses as ONE POINT FOUR. It parsed as 14 — the caret could not be placed after a trailing separator, so the next digit landed on the integer side. A silent 10x on the money path');
+    ok(typeAmount('1,4', 'de-DE') === '1.4' && typeAmount('1.4', 'de-DE') === '1.4',
+      '★★ #607: and in de-DE, typed either way — the separator an OS keypad emits is not a property of the app locale, so both characters must mean "decimal" in both directions');
+    ok(typeAmount('1234,5', 'en-US') === '1234.5' && typeAmount('1234.5', 'de-DE') === '1234.5',
+      '★ #607: grouping still applies around it — the caret rule must not jump a GROUP separator, only the decimal seam it was actually sitting behind');
+    ok(typeAmount('1,45\b', 'de-DE') === '1.4' && typeAmount('1,4\b\b', 'en-US') === '1',
+      '★ #607: deletion is unaffected — a backspace that leaves the caret behind a group separator must not be read as decimal intent (data === null cannot create it)');
+    ok(S.amountCaretAfterFormat('1,', 2, '1.') === 2,
+      '★★ #607, at the unit: a caret that sat AFTER a trailing separator lands AFTER the re-formatted one. It has the same digit count as one sitting BEFORE it, which is why the digit-count rule alone could only ever put it in the wrong place');
+  }
+
+  /* —— #620: ENTER MUST NEVER SPEND. A money defect, found on the device. ———— */
+  {
+    const ts620 = rdf('src/components/tip-sheet.js');
+    const ts620NC = ts620.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    ok(!/confirm\.click\(\)/.test(ts620NC),
+      '★★ #620 (Damir, device): NOTHING in the tip sheet commits on a keystroke. An `Enter -> confirm.click()` lived on the amount field, and #609 then set `enterkeyhint="done"` on it — so the one key a user presses to put the keyboard away became the key that sent the money');
+    ok(/attachAmountKeyboardDismiss\(customInput\);/.test(ts620NC),
+      '★ #620: Enter still DISMISSES — nothing is lost from the keyboard\'s point of view, the keystroke just stops spending');
+    /* ⚠ the guard is a NEGATIVE on the whole file, not a check of one handler, because
+       the failure mode is two listeners racing on one event: a guarded confirm is still
+       a confirm on the dismiss key. The Request sheet shares this input, so it is covered
+       by the same absence. */
+    ok(!/keydown[\s\S]{0,160}?Enter[\s\S]{0,160}?confirm/.test(ts620NC),
+      '★★ #620: and no keydown path reaches the confirm at all — a confirm key and a dismiss key cannot share one keystroke on a field that spends, however it is guarded');
+  }
+
+  /* —— #619: opening a bot room no longer freezes the app —————————————————— */
+  {
+    const scp619 = rdf('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+    const onLoadAt = scp619.indexOf('Task<bool> botReady = Task.FromResult(true);');
+    const lamAt = scp619.indexOf('botReady = Task.Run(() =>');
+    const sleepAt = scp619.indexOf('Thread.Sleep(100);');
+    ok(onLoadAt > 0 && lamAt > onLoadAt && sleepAt > lamAt,
+      '★★ #619 (Damir, device): the bot-room wait runs on a BACKGROUND thread. `onLoad` is reached from onNavigating — the UI thread — so 50 × Thread.Sleep(100) froze the whole app for up to five seconds on a cold room, and everything the user touched queued behind it (which is why the info screen "took 4 seconds": it was waiting its turn, not loading slowly)');
+    /* ⚠ `indexOf` returns the FIRST match and `loadMessages();` is called from more than
+       one place in this file, so a bare index comparison compares against the wrong call.
+       Search forward FROM the await instead. (The entry prompt's own carry-forward note.) */
+    const awaitAt = scp619.indexOf('if (!await botReady)');
+    ok(/if \(!await botReady\)\s*\{\s*return;\s*\}/.test(scp619.replace(/[ \t]+/g, ' ').replace(/\r?\n/g, ''))
+       && awaitAt > 0 && scp619.indexOf('loadMessages();', awaitAt) > awaitAt,
+      '★★ #619: the message loader AWAITS it, and does so BEFORE loadMessages. `selectedChannel` is assigned from botInfo.defaultChannel inside that block, so cutting the wait instead of moving it would load channel 0 on a cold room — an empty chat, which is worse than a slow one');
+    /* the failure path is a DECISION (audit M1 picked that alert target deliberately);
+       moving the wait must not quietly change what happens when a bot never answers. */
+    ok(/if \(sleep_cnt >= 50\)/.test(scp619)
+       && /popPageAsync\(\);/.test(scp619)
+       && /return false;/.test(scp619),
+      '★ #619: the 5 s ceiling and its pop + alert survive the move unchanged — a bot that never answers still fails the same way, it just no longer freezes the app to do it, and the deferred loader bails exactly where the old synchronous return did');
+    /* ⚠ comment-STRIPPED: the rationale block above the lambda QUOTES `Thread.Sleep(100)`
+       as the thing it moved, so a raw-text negative matches its own explanation. */
+    const scp619NC = scp619.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    ok(!/Thread\.Sleep/.test(scp619NC.slice(0, scp619NC.indexOf('botReady = Task.Run(() =>'))),
+      '★★ #619: no blocking sleep survives ANYWHERE earlier in this file — the whole point is that the UI thread is never parked, so a second sleep added above the lambda would silently restore the freeze');
+  }
+
+  /* —— #617: a bot room's message keeps its SENDER. Damir's device report. ————
+   * The Spixi bot group rendered every message with no name, no address and no real
+   * avatar. Core's `5643e5b` nulls `senderAddress` when `friend.type == FriendType.Normal`,
+   * and a bot room's Friend IS Normal (`setBotMode` sets `bot = true` and never touches
+   * `type`) — so ONE nulled field killed the roster lookup, the truncated-address
+   * fallback, the nick backfill, the live nick upgrade and the avatar, all at once.
+   * We never lost the address: `StreamProcessor` hands it in. We put it back. */
+  {
+    const nodeCs617 = rdf('Spixi/Meta/Node.cs');
+    ok(/friend_message\.senderAddress = sender_address;/.test(nodeCs617),
+      '★★ #617 (Damir, device): a bot room\'s message gets its sender address back — the field core discards is the key for the nick, the address fallback, the live upgrade AND the avatar filename');
+    ok(/if \(friend != null\s*\r?\n?\s*&& friend\.bot\s*\r?\n?\s*&& sender_address != null\s*\r?\n?\s*&& friend_message\.senderAddress == null\)/.test(nodeCs617),
+      '★★ #617: narrow by construction — it restores ONLY what the caller already handed in, ONLY for a bot room, ONLY when core returned nothing. A real Group (whose address core keeps) and a 1:1 chat (which passes no sender_address) cannot be reached by it');
+    ok(/requestWriteMessages\(wallet_address, channel\);/.test(nodeCs617.slice(nodeCs617.indexOf('friend_message.senderAddress = sender_address;'))),
+      '★★ #617: and the restore is PERSISTED. The insert only REQUESTED a write; without re-requesting after the mutation the address would live in memory and vanish on restart, which is the shape that reads as "fixed, then broken again tomorrow"');
+    /* the shell end needs no change — pinned here so a later batch cannot quietly
+       remove the ladder this fix exists to feed. */
+    const chat617 = rdf('src/shells/chat.html');
+    ok(/senderHasNick\(rec\) \? rec\.senderNick/.test(chat617)
+       && /\(rec\.senderAddress \|\| null\)/.test(chat617)
+       && /address: rec\.senderAddress \|\| '',/.test(chat617),
+      '★ #617: the shell ladder Damir specified is intact and is what the restore feeds — a real nickname wins, else the truncated address, and the SAME field seeds the identity-coloured avatar (a uniform disc hue is the tell that no address arrived)');
+  }
+
+  /* —— #613: the Spixi bot group's "hidden members". A REGRESSION WE INTRODUCED. —— */
+  {
+    const utilsCs = rdf('Spixi/Utils/Utils.cs');
+    const scp613 = rdf('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+    const cd613 = rdf('Spixi/Pages/Contacts/ContactDetails.xaml.cs');
+    const chat613 = rdf('src/shells/chat.html');
+    ok(/public static bool hidesParticipants\(Friend\? friend\)/.test(utilsCs)
+       && /if \(friend\.type != FriendType\.Group\) \{ return false; \}/.test(utilsCs),
+      '★★ #613: ONE truth for "does this room hide its participants", and it is the LEGACY rule — masking is qualified on FriendType.Group, exactly as the fork point does at every site it masks');
+    ok(/bool blind = Utils\.hidesParticipants\(friend\);/.test(cd613),
+      '★★ #613: ContactDetails asks the shared predicate. It claimed to mirror SingleChatPage.loadContacts and did not — and #249 routes ALL group and bot info here, so a public bot channel rendered every roster row as [Unknown]');
+    /* ★★ #613 ROUND 2 (adversarial review, HIGH-1): the 7th argument stays the RAW flag
+       and the shell derives TWO things from it under two names. The first cut sent the
+       legacy-qualified answer — which fixed identity display and silently re-created the
+       dead Tip button that argument exists to prevent, because C#'s money gate still reads
+       the raw flag. Identity and spending are different questions about one flag. */
+    ok(/"setChatMode",[^;]*friend\.metaData\.botInfo\.hideParticipantAddresses\.ToString\(\)\)/.test(scp613),
+      '★★ #613 r2: the shell is told the RAW flag — it is a CAPABILITY signal, and C#\'s own refusal reads the same value');
+    ok(/mode\.hidesAddresses = asBool\(blindString\);/.test(chat613)
+       && /mode\.blind = \(t === 2\) \|\| \(t === 1 && mode\.hidesAddresses\)/.test(chat613),
+      '★★ #613 r2: the shell names both meanings — `hidesAddresses` is "can these people be PAID or ADDED", `blind` is "must they be MASKED", and only the second is a GROUP property');
+    ok(/tip: \(!isSent && !mode\.hidesAddresses/.test(chat613),
+      '★★ #613 r2 (HIGH-1): the money gate reads `hidesAddresses`, so the OFFER and C#\'s REFUSAL agree by construction. Gating tip on identity-blindness offered a tip in a flagged bot room and then refused it at the amount sheet');
+    ok(/bool blindGroup = friend\.type != FriendType\.Group \|\| Utils\.hidesParticipants\(friend\);/.test(scp613),
+      '★ #613 r2 (MEDIUM-3): the OWNER push is gated on being a GROUP, not merely on "not blind" — in a bot room getOwner() degrades to "the first roster entry we happened to learn", which is why N48 restricted amOwner the same way');
+    /* the money path is deliberately NOT swept in. A blind group pays a DERIVED address;
+       whether a flagged bot room's roster addresses are real or derived is not answerable
+       from this tree, and #215 is explicit about where that stops. */
+    ok(/Logging\.error\("Send IXI is not supported in this chat\."\)/.test(scp613)
+       && /if \(friend\.metaData\.botInfo\.hideParticipantAddresses\)/.test(scp613),
+      '★ #613: the TIP refusal still reads the RAW flag — identity display is restored, spending is not. A blind group pays a derived address and nothing in this tree says which a flagged bot room hands out (#215)');
+  }
+
+  /* —— #611: a muted contact stops getting missed-call banners (row 33) ————————— */
+  {
+    const vm611 = rdf('Spixi/VoIP/VoIPManager.cs');
+    ok(/else if \(!SNotificationPrefs\.shouldNotify\(endedWith\)\)/.test(vm611),
+      '★★ #611 (device row 33): the MISSED-CALL producer asks the mute. There were three producers of that banner and only two asked — this is the one that fires for a genuinely missed live call, and showLocalNotification is a raw poster that applies no policy of its own');
+    ok(/shouldNotify\(endedWith\)\)[\s\S]{0,1800}?cancelNotification\(callNotifId\);/.test(vm611),
+      '★ #611: a suppressed banner CANCELS the ringing row rather than leaving it — the ring posted one, and a muted contact must not be left looking at it');
+    ok(/public static bool shouldRingForCall/.test(rdf('Spixi/Meta/SNotificationPrefs.cs')),
+      '★ #611: shouldRingForCall still exists and is NOT what this uses — a banner inherits the global notifications master; a live call deliberately does not (#586, and that direction still holds)');
+  }
+
+  /* —— #612: a notification tap lands in the chat it came from (row C8) ————————— */
+  {
+    const hp612 = rdf('Spixi/Pages/Home/HomePage.xaml.cs');
+    const guardAt = hp612.indexOf('bool blocked = SpixiContentPage.hasModalOverlay() || SpixiContentPage.isLockStaging();');
+    const knownAt = hp612.indexOf('known = !blocked && FriendList.getFriend(new Address(startingScreen)) != null;');
+    const consumeAt = hp612.indexOf('startingScreenWaits = 0;', knownAt > 0 ? knownAt : 0);
+    const callAt = hp612.indexOf('onChat(new Address(startingScreen), null);');
+    ok(guardAt > 0 && knownAt > guardAt && consumeAt > knownAt && callAt > consumeAt,
+      '★★ #612 (device row C8): the deep link is CONSUMED AFTER it is known deliverable, not before. Clearing first meant every silent failure — the friend not loaded yet on a cold start, a resume lock up, another page staging — ate the link and left the user on the chats list');
+    ok(/private const int STARTING_SCREEN_MAX_WAITS = 10;/.test(hp612)
+       && /else if \(!blocked && \+\+startingScreenWaits >= STARTING_SCREEN_MAX_WAITS\)/.test(hp612),
+      '★★ #612: the wait is BOUNDED, and ROUND 2 — it counts only UNBLOCKED ticks. The loop ticks every 2s, so the first cut spent ~20s of its budget during the LOCK and dropped the link before the lock closed: the very symptom it fixes');
+    ok(/private string startingScreenPending = "";/.test(hp612)
+       && /if \(startingScreenPending != startingScreen\)/.test(hp612),
+      '★★ #612 r2: the budget is KEYED TO THE ADDRESS — a second tap overwrites App.startingScreen, and an un-keyed counter handed the new link the old one\'s spent ticks');
+    ok(/\/\/ and fall through: the rest of this tick still runs while we wait/.test(hp612),
+      '★★ #612 r2: an unresolved tick no longer SWALLOWS the whole update pass — returning every tick skipped connectivity, the update banner, the backup reminder and the periodic loaders for the entire wait, during a cold start');
+    ok(/Logging\.error\("Start screen address is not usable[\s\S]{0,260}?App\.startingScreen = "";/.test(hp612),
+      '★ #612: an unparseable address is dropped immediately rather than retried ten times — it cannot become valid');
+  }
+
+  /* —— #606: the lifted row escapes the scrim WITHOUT winning a z-index race ———— */
+  {
+    const rm606 = rdf('src/components/chats-row-menu.js');
+    /* ⚠ a definition is not a call. The first draft of this pin proved the function
+       EXISTED and would have gone green on a build where nothing invoked it — the same
+       shape as #589's dead ground, which shipped unseen for a whole batch. */
+    ok(/paintRowGhost\(sheet\.parentNode, lift\);/.test(rm606)
+       && /liveRowLift = \{ addr: [\s\S]{0,90}?token \};\s*\r?\n?\s*paintRowGhost/.test(rm606),
+      '★★ #606: the ghost is actually PAINTED from liftPressedRow, right after the lift is recorded — the definition alone would go green on a build where nothing ever called it');
+    ok(/function paintRowGhost\(host, lift\)/.test(rm606)
+       && /host\.appendChild\(ghost\)/.test(rm606),
+      '★★ #606 (rows A2.1 / A2.2 / 12 / 15): the lift paints a COPY as a SIBLING of the scrim. Three earlier rounds raised z-index on a row inside a composited iOS scroller and every one was measured on Android — siblings cannot lose a stacking contest to each other on any engine');
+    ok(/if \(!r \|\| !\(r\.width > 0\) \|\| !\(r\.height > 0\)\) return;/.test(rm606),
+      '★★ #606: an unmeasurable row makes NO ghost and the behaviour is today\'s — the fix is additive by construction, which is what makes it safe to ship without an iOS device to prove it on');
+    ok(/export function repaintRowGhost\(node\)/.test(rm606)
+       && /repaintRowGhost\(node\);/.test(rdf('src/components/chats-shell.js')),
+      '★★ #606 r2 (adversarial review): the ghost FOLLOWS a re-render. It is a snapshot pinned to a viewport rectangle, and the flush that replaces every row also RE-SORTS the list — left alone it strands an opaque copy of one chat over whatever row moved into its old slot, with a frozen clock');
+    ok(/if \(!row\.isConnected && address\) \{[\s\S]{0,300}?const live = document\.querySelector\('\.c-chatlist-item\[data-address=/.test(rm606),
+      '★★ #606 r2: the lift resolves the LIVE row, exactly as anchorSheetToRow does. A flush between the press and the 500ms timer detaches the pressed node, a detached node measures zero, and the ghost guard would then decline to paint — silently, on the accounts that flush most');
+    ok(/return \(\) => \{ if \(liveRowLift && liveRowLift\.token === token\) releaseRowLift\(\); \};/.test(rm606),
+      '★★ #606 r2: the undo is IDENTITY-CHECKED. releaseRowLift is DOM-wide and onDismiss fires up to 400ms after close, so a dying menu could strip a newly opened one\'s ghost and lift — the class module state exists to prevent');
+    ok(/const ghosts = document\.querySelectorAll\('\[data-menu-ghost\]'\);[\s\S]{0,240}?g\.remove\(\)/.test(rm606),
+      '★★ #606: ghosts are REMOVED on release, not un-marked — clearing the attribute would strand an opaque copy of a chat row on top of the app with nothing left to find it by');
+    ok(/if \(ghost\.id\) ghost\.removeAttribute\('id'\)/.test(rm606)
+       && /const ided = ghost\.querySelectorAll\('\[id\]'\)/.test(rm606),
+      '★ #606: the copy carries no ids — a duplicate id would break every getElementById in the shell for as long as the menu is open');
+    ok(/st\.position = 'fixed';/.test(rm606)
+       && !/position: fixed/.test(stripCssComments(rdf('src/styles/components/message-menu.css'))),
+      '★ #606: geometry is INLINE, deliberately. A `position: fixed` in the stylesheet would put a second declared value on a rule matching [data-menu-lift], and the cascade pin that keeps this family honest asserts one value per property across every matching rule');
+  }
+
+  /* —— #608 / #615: the keyboard stops covering what it covers ————————————————— */
+  {
+    const homeSh608 = rdf('src/shells/home.html');
+    const launchSh608 = rdf('src/shells/launch.html');
+    const ovl608 = stripCssComments(rdf('src/styles/components/overlay.css'));
+    const lsCss608 = stripCssComments(rdf('src/styles/components/launch-shell.css'));
+    for (const pair of [['home', homeSh608], ['launch', launchSh608]]) {
+      ok(/window\.__setKbInset = function \(h\)/.test(pair[1])
+         && /setProperty\('--kb-inset', px \+ 'px'\)/.test(pair[1])
+         && /delta > 60/.test(pair[1]),
+        '★★ #608: the ' + pair[0] + ' shell publishes --kb-inset — native lever first, visualViewport as the belt, 60px separating a keyboard from chrome jitter. It was published in chat.html ALONE, which is why wallet Send and account-create never heard about the keyboard at all');
+      ok(!/body\.style\.height/.test(pair[1]),
+        '★ #608 (' + pair[0] + '): the document is still never RESIZED. That lever was tried three times and falsified on device; #294 allows a re-attempt only with a CHANGED lever, and this is the changed one');
+    }
+    ok(/:root:not\(\[data-desktop\]\) \.c-sheet \{[^}]*bottom: var\(--kb-inset, 0px\)/.test(ovl608)
+       && /:root:not\(\[data-desktop\]\) \.c-sheet \{[^}]*max-height: calc\(100% - var\(--kb-inset, 0px\)\)/.test(ovl608),
+      '★★ #608 (device row 5a): a bottom sheet RISES for the keyboard and is capped so it can scroll. With the pad up only the tip sheet\'s title row was visible — the amount field it had just focused itself, and the button that commits the payment, were both underneath it');
+    ok(/max\(0px, env\(safe-area-inset-bottom, 0px\) - var\(--kb-inset, 0px\)\)/.test(ovl608),
+      '★ #608: the home-indicator pad is handed back while the keyboard covers that strip anyway — otherwise the sheet floats twice');
+    ok(/\.wallet-takeover__body \{[^}]*padding-bottom: calc\(var\(--spacing-16\) \+ var\(--kb-inset, 0px\)\)/.test(stripCssComments(homeSh608)),
+      '★★ #608 (device row 5b): the wallet takeover reserves the keyboard height as scroll padding — a `position: fixed; inset: 0` takeover keeps full height under an iOS keyboard, so Review and the recipient list were simply unreachable');
+    ok(/\.c-launch__footer \{[^}]*margin-bottom: var\(--kb-inset, 0px\)/.test(lsCss608)
+       && /\.c-launch__body \{[^}]*overflow-y: auto/.test(lsCss608),
+      '★★ #615 (verdict §2, SEVERITY 1): the launch CTA lifts above the keyboard and the body scrolls under it — Create and Restore put their commit button OUTSIDE the scroller, on the first screen a new user ever sees');
+    ok(/const a = document\.activeElement;[\s\S]{0,700}?a\.blur\(\)/.test(launchSh608)
+       && /t\.closest\('input, textarea, select, button, a, label, \[role="button"\], \[contenteditable\]'\)\) return;/.test(launchSh608),
+      '★★ #615: and a tap on the page DISMISSES it — never on an interactive target, or the keyboard would collapse and slide the button out from under the finger before the click landed');
+  }
+
+  /* —— #609: one shared way out of the numeric keyboard ——————————————————————— */
+  {
+    const ak = rdf('src/components/amount-keyboard.js');
+    ok(/export function attachAmountKeyboardDismiss\(input\)/.test(ak),
+      '★ #609 (#143 ②): the amount field\'s keyboard behaviour lives in a SHARED module — it was in wallet-send.js and reached wallet-receive by a cross-feature import; the tip sheet made it three consumers');
+    ok(/document\.addEventListener\('pointerdown', down, true\);/.test(ak)
+       && /document\.removeEventListener\('pointerdown', down, true\);/.test(ak),
+      '★★ #609 (device row 5b): a tap outside blurs the field — the iOS decimal pad has NO return key and the app swizzles the accessory bar away process-wide, so `enterkeyhint` was dead here and the field had no dismiss affordance at all. Bound on focus, dropped on blur');
+    ok(/if \(typeof t\.closest === 'function' && t\.closest\(interactive\)\) return;/.test(ak),
+      '★★ #609: never on an interactive target. Blurring over a button collapses the keyboard, moves the layout it was holding up, and the button leaves the finger before `click` — one defect traded for a worse one');
+    ok(/const SLOP_PX = 8;/.test(ak)
+       && /const up = \(\) => \{\s*\r?\n?\s*if \(!armed\) return;/.test(ak)
+       && /if \(Math\.abs\(\(e\.clientX \|\| 0\) - x0\) > SLOP_PX/.test(ak),
+      '★★ #609 ROUND 2 (adversarial review): the press only ARMS and the blur happens on the LIFT, with a movement slop that disarms. `pointerdown` cannot tell a tap from the first event of a scroll — and #608 reserves the keyboard height precisely so the covered content can be SCROLLED to, so the drag that scrolled it dropped the keyboard and collapsed that reserve mid-gesture, under the finger');
+    ok(/if \(!input\.isConnected\) \{ off\(\); clearInterval\(sweep\); \}/.test(ak),
+      '★ #609 r2: a belt for the one path with no blur — the field REMOVED while focused. Chromium fires blur on removal and self-cleans; WebKit was not testable here, and a leaked capture listener retains the detached subtree for the life of the document');
+    ok(/attachAmountKeyboardDismiss\(customInput\);/.test(rdf('src/components/tip-sheet.js')),
+      '★ #609: the TIP amount field has it too — that sheet focuses the input itself, so it summons the keyboard that then covers it');
+  }
+
+  /* —— #610: the German tip sheet (device screenshots 12c / 12d) ————————————————— */
+  {
+    const ts610 = stripCssComments(rdf('src/styles/components/tip-sheet.css'));
+    ok(/\.c-tipsheet__chips \.c-chip \{[^}]*flex: 1 1 auto/.test(ts610)
+       && /\.c-tipsheet__chips \.c-chip \{[^}]*max-width: 100%/.test(ts610)
+       && /\.c-tipsheet__chips \.c-chip \.c-chip__label \{[^}]*text-overflow: ellipsis/.test(ts610)
+       && /\.c-tipsheet__chips \.c-chip \.c-chip__label \{[^}]*min-width: 0/.test(ts610),
+      '★★ #610 (screenshot 12c): the amount chips can WRAP. `flex: 1 1 0` made every chip\'s hypothetical size zero, so four always "fit" one line and the flex-wrap above could never fire — in de-de the fourth chip ran off the screen and was cut. A layout defect, not a translation-length one');
+    ok(/\.c-tipsheet__payee \{[^}]*font-weight: var\(--font-weight-bold\)/.test(ts610)
+       && /\.c-tipsheet__titleverb \{[^}]*color: var\(--text-neutral-02\)/.test(ts610),
+      '★★ #610 (screenshot 12d): the payee NAME and the action VERB are no longer typographically identical. The name was a bare span inheriting the title, so "Testan…oo Trinkgeld geben" read as a repeated label with nothing marking where the name ended');
+  }
+
+  /* —— #603: the tip sheet stops being handed a pre-truncated name ——————————————— */
+  {
+    const chat603 = rdf('src/shells/chat.html');
+    const tipAt = chat603.indexOf('function openTipForMessage(rec)');
+    /* ⚠ comment-STRIPPED. The rationale block inside this very call NAMES the function
+       it removed — a raw-text negative matches its own explanation, which is the trap
+       this suite has now been caught by three times. */
+    const tipCall = chat603.slice(tipAt, tipAt + 3600)
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    ok(tipAt > 0 && !/truncateAddressMiddle/.test(tipCall),
+      '★★ #603 (device row A4.2): the tip CALLER no longer middle-truncates. It handed the sheet an already-elided address as a `name`, and a 13-character string with an ellipsis in it survives every nickname test the component applies — so the sheet printed it verbatim. That is the "it truncates a nickname like an address" report; the sheet never truncated anything');
+    ok(/groupNicks\.get\(String\(rec\.senderAddress\)\)/.test(tipCall)
+       && /isPseudoAddressNick\(n\)/.test(tipCall),
+      '★ #603: and the live nick map is consulted, shape-guarded like the roster rung — a member whose nickname arrived through updateGroupChatNicks rather than loadContacts was falling straight past to a bare address');
+  }
+
+  /* —— #600 / #601 / #602: the small ones ————————————————————————————————————— */
+  {
+    const cs600 = stripCssComments(rdf('src/styles/components/contacts-shell.css'));
+    ok(/\.c-contacts__kinds \{[^}]*padding-block: 0 var\(--spacing-12\)/.test(cs600),
+      '★★ #600 (device row B4.1): the Contacts filter chips are no longer draggable vertically. `overflow-x: auto` makes the OTHER axis compute to `auto` too, and .c-chip::after — the 44px tap-area extender — hangs 7-8px past a 30px chip, so the row genuinely had somewhere to scroll. Bottom padding deeper than the overhang is the chats-header\'s own answer');
+    ok(!/\.c-contacts__kinds \{[^}]*overflow-y: hidden/.test(cs600),
+      '★ #600: NOT overflow-y:hidden — that clips hit-testing as well as paint, and would silently take back the 44px target the pseudo exists to provide');
+    const set601 = rdf('src/shells/settings.html');
+    ok(/onRepresented\(\) \{[\s\S]{0,3400}?if \(currentView === 'hub'\) \{\s*\r?\n?\s*hubScrollTop = 0;/.test(set601),
+      '★★ #601 (device row A1.1): returning from a PEER TAB starts at the top. onRepresented IS the peer-tab return and showHub is the subscreen return — already distinguishable, no new state. #337 deliberately leaves an already-mounted hub in place, which is exactly why the live scroll survived here');
+    const cli602 = rdf('src/components/chatlist-item.js');
+    const home602 = rdf('src/shells/home.html');
+    ok(/'call-declined': 'phone-off'/.test(cli602) && /'call-missed': 'phone-x'/.test(cli602),
+      '★ #602 + #621 (Damir on the device): a declined call has its OWN excerpt glyph, and the pair is the way round he read them on a phone — the crossed phone says "unreachable" and belongs to the unanswered call, the phone-with-x says "refused" and belongs to the declined one');
+    ok(/canonEntry\('sl-ex-call-declined', 'Call declined', 'call-declined'\)/.test(home602)
+       && /<span id="sl-ex-call-declined">\*SL\{chat-call-declined\}<\/span>/.test(home602),
+      '★★ #602: registered through the *SL{} CARRIER, so it works in every locale. The phrase was simply missing from the reverse-map — it fell through to plain text, and plain text has no glyph. A missing map row, not a missing icon');
+    ok(/"phone-x"/.test(rdf('src/components/icons.js')),
+      '★ #602: and the glyph is in the registry — createExcerpt degrades silently when it is not, which is how this would have shipped looking fixed');
+  }
+
+  /* —— #614: back on the launch flow unwinds ONE level ———————————————————————— */
+  {
+    const lp614 = rdf('Spixi/Pages/Launch/LaunchPage.xaml.cs');
+    const lsh614 = rdf('src/shells/launch.html');
+    const backAt = lp614.indexOf('protected override bool OnBackButtonPressed()');
+    const backBody = lp614.slice(backAt, backAt + 1600);
+    ok(backAt > 0
+       && /if \(shellOverlayOpen\)[\s\S]{0,260}?"launchBack"\);[\s\S]{0,60}?return true;/.test(backBody)
+       && backBody.indexOf('shellOverlayOpen') < backBody.indexOf('currentView == "create"'),
+      '★★ #614: an open sheet is closed BEFORE the view changes. Launch was the one shell with no back route into itself, so hardware back with the Terms sheet up switched the view underneath it, and on welcome it left the app');
+    ok(/handlers\.launchBack = function \(\)/.test(lsh614) && /dismissTopOverlay\(\)/.test(lsh614),
+      '★ #614: the shell DEFINES the handler — C# emits it as a bare global, and an undefined one throws before the dispatcher can catch it (#258)');
+    ok(/shellOverlayOpen = false;\s*\r?\n?\s*trackView\(v\);/.test(lp614),
+      '★ #614: a C#-driven view change clears the flag with it — the shell rebuilds the view, so a surviving `true` would swallow the next back press for nothing');
+  }
+
+  /* —— #596 / #599: the decided design changes ——————————————————————————————— */
+  {
+    const wrc599 = stripCssComments(rdf('src/styles/components/wallet-receive.css'));
+    ok(/\.c-addr-sheet__explain--safe \{[^}]*background: var\(--surface-success-inverse\)/.test(wrc599),
+      '★★ #599 (Damir — D5): the safety block has its own colour. It and the address chip both painted --surface-neutral-02 and read as one broken card — and it is the only one of the three that is a WARNING about someone else\'s money');
+    ok(!/\.c-addr-sheet__explain--safe \{[^}]*\bborder:/.test(wrc599)
+       && /\.c-addr-sheet__explain--safe \{[^}]*box-shadow: inset/.test(wrc599),
+      '★ #599: an INSET shadow, not a border — a 1px border shrinks the content box and shifts this block\'s copy 1px against the info block above it, and one shared left edge for every line of copy is what #575/#589 bought (row A1.3)');
+    const ci596 = rdf('src/components/chat-info.js');
+    ok(!/c-chat-info__cover/.test(ci596) && !/identityIndex/.test(ci596),
+      '★★ #596 (Damir — D1): the contact-details cover is gone from the component, and so is the import that existed only to give it a hue');
+  }
+}
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.

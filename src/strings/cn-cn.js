@@ -435,6 +435,8 @@ export const cncn = {
   notDeliveredNoRetry: "未送达",
   notifAll: "允许通知",
   notifFailed: "无法更新通知设置。",
+  notifSender: "显示发送者名称",
+  notifSenderSub: "通知中从不显示消息内容",
   notifSounds: "应用内提示音",
   notifications: "通知",
   ok: "确定",

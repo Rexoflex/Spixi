@@ -435,6 +435,8 @@ export const itit = {
   notDeliveredNoRetry: "Non consegnato",
   notifAll: "Consenti notifiche",
   notifFailed: "Impossibile aggiornare le notifiche.",
+  notifSender: "Mostra il nome del mittente",
+  notifSenderSub: "Il testo del messaggio non viene mai mostrato nelle notifiche",
   notifSounds: "Suoni in-app",
   notifications: "Notifiche",
   ok: "OK",

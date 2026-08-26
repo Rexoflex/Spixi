@@ -102,7 +102,11 @@ namespace SPIXI
                 // the group surface too, so group info gets the same desktop pane /
                 // takeover behavior as 1:1. Meta + full roster (masking mirrors
                 // SingleChatPage.loadContacts for blind groups).
-                bool blind = friend.metaData.botInfo != null && friend.metaData.botInfo.hideParticipantAddresses;
+                // ★★ #613: this line claimed to mirror SingleChatPage.loadContacts and did
+                // not — that one qualifies on FriendType.Group, exactly as legacy does, and
+                // this one did not. THIS is the live surface (#249 routes all group and bot
+                // info here), so a public bot channel's whole roster rendered as [Unknown].
+                bool blind = Utils.hidesParticipants(friend);
                 bool amAdmin = friend.metaData.botInfo != null && friend.metaData.botInfo.admin;
                 bool notifications = friend.metaData.botInfo == null || friend.metaData.botInfo.sendNotification;
                 // Owner address: identity-revealing → NEVER sent for a blind group.

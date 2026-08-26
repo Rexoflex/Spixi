@@ -25,6 +25,7 @@
  * legacy `ixian:sendrequest` family (request = a chat message). §9 asks in spec §4.
  */
 import { getStrings } from './strings-runtime.js';
+import { attachAmountKeyboardDismiss } from './amount-keyboard.js';   // ★ #609: the amount field's only way out on iOS
 import { createAvatar, truncateAddressMiddle, isPseudoAddressNick } from './avatar.js';   // ★ #569: the #211 truncation canon, enforced HERE
 import { createButton, setLoading, setSuccess } from './button.js';
 import { createChip, setChipSelected } from './chip.js';
@@ -113,7 +114,18 @@ function openAmountSheet({
    * honoured wherever it puts {name}. */
   {
     const parts = copy.title.split('{name}');
-    title.append(document.createTextNode(parts[0] || ''));
+    /* ★★ #610 round 2: the ACTION gets an element of its own, not a bare text node.
+     * A weight step alone is a subtle difference on San Francisco, and the complaint was
+     * that "Testan…oo  Trinkgeld geben" read as ONE string with the verb repeated after
+     * the name. Name and action are two things; they now look like two things — the name
+     * in the title's own ink and weight, the action a step back in both. */
+    const verb = (txt) => {
+      const v = document.createElement('span');
+      v.className = 'c-tipsheet__titleverb';
+      v.textContent = txt;
+      return v;
+    };
+    title.append(verb(parts[0] || ''));
     const nameEl = document.createElement('span');
     nameEl.className = 'c-tipsheet__payee';
     nameEl.textContent = payeeName;
@@ -125,7 +137,7 @@ function openAmountSheet({
     nameEl.title = payeeName;
     title.append(nameEl);
     for (let i = 1; i < parts.length; i++) {
-      title.append(document.createTextNode(parts[i] || ''));
+      title.append(verb(parts[i] || ''));
       if (i < parts.length - 1) { const n2 = nameEl.cloneNode(true); title.append(n2); }
     }
   }
@@ -206,9 +218,32 @@ function openAmountSheet({
     state.amount = v;
     sync();
   });
-  customInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !confirm.disabled) confirm.click();   // no form — Enter still confirms
-  });
+  /* ★★ #620 (Damir, device 2026-08-28) — ENTER MUST NEVER SPEND. A MONEY DEFECT, MINE.
+   *
+   * His report: "when I want to tip and select custom, then enter the amount and tap
+   * DONE on the keyboard to hide the keyboard, IT AUTO CONFIRMS THE TIP."
+   *
+   * There was an `Enter -> confirm.click()` here, and #609 then attached the shared
+   * keyboard dismissal to the same field — which sets `enterkeyhint="done"`. So the one
+   * key a user presses to put the keyboard away became the key that sends the money,
+   * and #609 is what labelled it "Done" and invited the press.
+   *
+   * ⚠ THE COMMENT #609 SHIPPED WITH SAID: "the iOS decimal pad has no return key … so
+   * Enter above can never fire here on a phone." That reasoned about iOS and called it
+   * "a phone". ANDROID's decimal keypad has an action key, and it fires Enter. The
+   * sentence was not wrong about iOS; it was wrong about the word it generalised to,
+   * and it sat directly above the line it was excusing.
+   *
+   * So the handler is GONE rather than guarded. A confirm key and a dismiss key cannot
+   * share one keystroke on a field that spends: any guard is a race between two
+   * listeners on one event, and the failure mode is a payment the user did not make.
+   * Committing a tip now takes a deliberate press of the Confirm button, which is the
+   * only affordance that says what it does. `attachAmountKeyboardDismiss` still gives
+   * Enter its dismissal, so nothing is lost from the keyboard's point of view.
+   *
+   * ⚠ This also covers the REQUEST sheet, which shares this input through
+   * `openAmountSheet` — same keystroke, same silent commit. */
+  attachAmountKeyboardDismiss(customInput);
   const unit = document.createElement('span');
   unit.className = 'c-tipsheet__unit';
   unit.textContent = 'IXI';

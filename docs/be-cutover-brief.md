@@ -179,3 +179,40 @@
 - **[RC1] Request/invite CANCEL family — the protocol has NO withdraw verb (read at source, Ixian-Core `SpixiMessage.cs:20-79`, frozen `097341a`).** One answer for three asks (payment-request cancel · app-invite cancel · contact-request revoke): no `requestFundsCancel`, no revoke code, nothing. What shipped v1 (#529): the SENDER's "Cancel request" on a pending payment-request card = confirm → the EXISTING `msgDelete` path — the bubble is removed on BOTH ends (receiver honors + persists the blanking, `Friend.cs:961/:976`); a blanked re-push renders nothing (FE ghost guard). What needs core/BE: a real **cancel/withdraw stream message** so the receiver can show a "Canceled" STATE instead of a removal — wanted for app invites ("say canceled on both ends", Damir) and as the clean contact-request revoke (today `ixian:undorequest` removes the friend locally and never notifies the peer — the `// TODO` at `SingleChatPage.xaml.cs:405` is the protocol's own admission). One new SpixiMessageCode + handlers; design it once for all three kinds.
 - **[W10] Legacy money pages retire at the §5 repoint** — WalletSendPage / WalletSend2Page / WalletRecipientPage / WalletContactRequestPage (+ their html). The redesigned shells no longer route to them (`composeSend`/`payRequest` caps); they remain reachable only on an old exe. Retiring them also closes the PA1 residual (they carry no auth gate) and the WalletContactRequestPage:148 NRE (inherited).
 - **[W11] `requestFundsResponse` is dropped when the chat page is closed** (`StreamProcessor.cs:231-268` — the whole state mutation sits inside `if (chat_page != null)`). INHERITED, but the new in-card Pay makes it more visible: the requester's card only flips if their conversation is open when the response arrives. Fix = mutate the message + persist even with no page, push only when live.
+
+---
+
+## From the 2026-08-27 iOS device pass (#596–#615) — two rows that cannot be fixed in the app
+
+- **[N-BADGE, was device row C2] The launcher badge resets to 1 on every push while the
+  app is KILLED, instead of accumulating.** ★ Not an app defect and not fixable in the
+  app. APNs `aps.badge` is an **absolute number** — there is no increment primitive in
+  the protocol. OneSignal's "Increase" badge type is implemented **client-side inside the
+  NotificationServiceExtension**, which reads a running count from a shared **App Group**;
+  our extension is not in the build (`Spixi/Spixi.csproj` — the `Spixi-PushService`
+  project reference is commented out) and `Entitlements.plist` carries only
+  `aps-environment`, deliberately. While the app is killed no code of ours and no code of
+  OneSignal's runs, so the only value that can reach the icon is whatever absolute number
+  the server put in the payload — the observed constant `1`. The app's own badge writes
+  are absolute and honest (`SPushService.clearNotifications(FriendList.getUnreadMessageCount())`,
+  every 2 s while foregrounded), which is why backgrounding and returning corrects it.
+  **Two ways out, both outside the app:** the NSE + App Group (already specced in
+  `docs/ios-nse-spec.md`, gated on Apple), or the push server sending a correct absolute
+  `aps.badge` — which needs per-recipient unread state it does not have today, since it is
+  a blind relay of an encrypted blob (`OfflinePushMessages.cs:63-64`). ⚠ Worth one `curl`
+  against the OneSignal REST notification-detail endpoint before anyone acts: "Badge +1"
+  in the dashboard is the dashboard's description, not the wire.
+
+- **[N-LOCALTAP, the other half of device row C8] On iOS, a tap on a LOCAL notification has
+  no owner.** `SPushService` writes `fa` into `content.UserInfo` (`iOS/SPushService.cs:348-352`)
+  and **nothing in the repo reads `UserInfo`** — the reader was a custom
+  `UNUserNotificationCenterDelegate` and it was deleted in the iOS-27 crash fix, which the
+  file's own header records. OneSignal's `Clicked` event fires only for OneSignal
+  notifications, so a row we posted ourselves through `UNNotificationRequest` never reaches
+  `handleNotificationOpened`. Until 2026-08-25 **every** iOS notification was local, which
+  is why C8 has always reproduced there. #612 fixed the half that is now reachable (the
+  remote tap: the deep link is no longer consumed before it is delivered). The local half
+  needs a delegate owner and must be built with the #280/#281 crash history in front of it
+  — a prefixed-selector swizzle against the .NET registrar is what aborted last time.
+  Android has had the equivalent since #329 (`PendingIntent` → `MainActivity.handleNotificationIntent`).
+  🟡 Its own batch.

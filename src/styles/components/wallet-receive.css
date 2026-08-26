@@ -186,6 +186,10 @@
   padding-inline: var(--spacing-2);         /* room for the chip's focus ring inside the scroller */
   margin-inline: calc(-1 * var(--spacing-2));
 }
+/* ★ #598 (§14d, independent of the hug): `.c-addr-sheet` sets padding-inline only, so
+   the first explain row butted straight up against the sheet title. Mobile only — the
+   desktop dialog already reads correctly and must stay byte-identical. */
+:root:not([data-desktop]) .c-addr-sheet { padding-block-start: var(--spacing-8); }
 @supports not (height: 1dvh) { .c-addr-sheet { max-height: min(72vh, 640px); } }
 /* ★ #575 (Damir): on MOBILE the sheet grows to NEAR-FULL height, "just below the
    top bar". A max-height alone would not do it — the content got shorter when the
@@ -204,7 +208,18 @@
 :root:not([data-desktop]) .c-sheet--addr {
   display: flex;
   flex-direction: column;
-  max-height: 100%;
+  /* ★★ #608 round 2 (adversarial review, MAJOR-1): SUBTRACT THE KEYBOARD HERE TOO.
+     This file is linked AFTER overlay.css and this selector has the same (0,3,0)
+     specificity as the new `.c-sheet` rule, so a bare `100%` won the cap while
+     `bottom: var(--kb-inset)` still applied — the sheet was LIFTED by the keyboard's
+     height and never SHORTENED, which put its handle, its title, its only Close button
+     and the top of the QR above the top of the screen, with nothing scrollable and no
+     scrim strip left to tap. Worse than the defect #608 was fixing.
+     ⚠ Reachable, and not a corner case: Wallet → Receive → type an amount → "Show my
+     address". That tap is on a BUTTON, which #609 deliberately exempts from
+     tap-to-dismiss, so the keyboard is positively still up when this sheet mounts.
+     Inert at `--kb-inset: 0`, like every other term this batch added. */
+  max-height: calc(100% - var(--kb-inset, 0px));
   box-sizing: border-box;
 }
 /* ⚠ round-2 MINOR-4: createSheet wraps the content in `.c-sheet__content`, so THAT is
@@ -217,26 +232,32 @@
   display: flex;
   flex-direction: column;
 }
+/* ★★ #598 (Damir, 2026-08-27 — D4): THE SHEET HUGS ITS CONTENT.
+   #575 forced a near-full height so the sheet sat "just below the top bar". That was
+   right when it was written. Since then the CONTENT got shorter — #556 dropped the QR
+   card's padding and #575 shrank the code 280 -> 216 — so the forced height was
+   manufacturing ~110px of slack with nowhere good to put it, and on the device that
+   slack read as a HOLE, not as air.
+   ⚠ The floor survives as a MIN-height: a sheet with a short explainer still has
+   presence. `flex: 1 1 auto` in an auto-height column now resolves to content height,
+   and `min-height: 0` keeps it able to shrink and scroll on a short window. */
 :root:not([data-desktop]) .c-addr-sheet {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-height: 0;
-  height: max(320px, calc(100dvh - var(--safe-top, 0px) - env(safe-area-inset-bottom, 0px) - var(--layout-bar-top, 56px) - 88px));
   max-height: none;
 }
-@supports not (height: 1dvh) {
-  :root:not([data-desktop]) .c-addr-sheet {
-    height: max(320px, calc(100vh - var(--safe-top, 0px) - env(safe-area-inset-bottom, 0px) - var(--layout-bar-top, 56px) - 88px));
-  }
+/* ★★ #598: SPACE THAT IS CHOSEN, NOT SPACE THAT IS LEFT OVER.
+   #589 placed the slack here with `margin-block-start: auto`. The seam was the right
+   one; the mechanism was not. An auto margin is a REMAINDER — its size is whatever the
+   layout has spare, so it changed with the screen, the locale and the content, and on a
+   tall phone it grew to ~110px. At identical pixel counts, chosen space reads as design
+   and left-over space reads as a mistake.
+   So the QR block now carries its own block padding: one step above the sheet's
+   `--spacing-16` rhythm, constant on every device, in every locale, at any length.
+   ⚠ Never `margin-block-start: auto` here again. */
+:root:not([data-desktop]) .c-addr-sheet__qrwrap {
+  padding-block: var(--spacing-24);
 }
-/* ★ #589: the slack of the near-full mobile sheet used to collect UNDER the
-   explainer, because the explainer was the last block. It is not any more — the
-   safety line now sits directly under the address block, and that adjacency is the
-   whole point of Damir's order. So the slack moves to the ONE seam where a gap
-   reads as deliberate: between the sentence that explains the surface and the
-   surface itself. Everything below the QR keeps its token gaps and its adjacency.
-   ⚠ An auto margin resolves to 0 when there is no free space, so a short window
-   still scrolls from the true top — no unreachable content. */
-:root:not([data-desktop]) .c-addr-sheet__qrwrap { margin-block-start: auto; }
 /* the explicit way out (#575). Mobile only: a desktop dialog is dismissed with Esc
    or a click outside, and both stay available here too. It sits over the sheet's own
    padding in the title row, so it never displaces content. */
@@ -442,8 +463,27 @@
   border-radius: var(--radius-16);
   background: var(--surface-neutral-02);
 }
+/* ★★ #599 (Damir, 2026-08-27 — D5): THE SAFETY BLOCK GETS COLOUR.
+   Both explain blocks and the address chip painted `--surface-neutral-02`, so three
+   cards in a row read as one broken card, and the safety line — the only one that is a
+   WARNING about someone else's money — read as part of the chip above it.
+   `--explain--safe` was already the paint-free semantic hook (wallet-receive.js), so the
+   colour lands there and cannot leak into the info block above the QR, or into the peer
+   sheet, which renders no safety block at all.
+   Measured on the tokens: copy 12.6:1 light / 15.5:1 dark on this surface; the glyph
+   uses `--text-success` rather than `--icon-success` because the latter is 4.28:1 in
+   light — over the 3:1 graphic bar, but under the text bar it sits beside. The hairline
+   is what separates the block from the sheet in DARK, where every tinted surface is
+   ~1.14:1 in lightness and reads as hue alone. */
+.c-addr-sheet__explain--safe {
+  background: var(--surface-success-inverse);
+  /* ⚠ an inset SHADOW, not a border. A 1px border would shrink the content box and
+     shift this block's copy 1px against the info block above it — and one shared
+     left edge for every line of copy is exactly what #575/#589 bought (row A1.3). */
+  box-shadow: inset 0 0 0 var(--outline-width-1) var(--outline-success-inverse);
+}
 .c-addr-sheet__explainicon { margin-top: 1px; color: var(--icon-info); display: inline-flex; justify-self: center; }
-.c-addr-sheet__explainicon--safe { color: var(--icon-success); margin-top: 2px; }
+.c-addr-sheet__explainicon--safe { color: var(--text-success); margin-top: 2px; }
 .c-addr-sheet__info {
   margin: 0;
   font-size: var(--font-size-body-sm);

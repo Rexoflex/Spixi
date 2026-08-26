@@ -2124,7 +2124,10 @@
            ★ review MINOR-7: `blindKnown` degrades against an exe that predates the 7th
            setChatMode argument. Such a build still blocks tip for EVERY bot, so offering
            it there would be a dead button — the same failure this batch is removing. */
-        tip: (!isSent && !mode.blind && (!mode.isMulti || !!rec.senderAddress)
+        /* ★★ #613 round 2: the money gate is `hidesAddresses`, NOT `blind`. It is the
+           value C#'s own refusal reads, so the offer and the refusal now agree by
+           construction — which is the whole point of the 7th argument. */
+        tip: (!isSent && !mode.hidesAddresses && (!mode.isMulti || !!rec.senderAddress)
               && (!mode.isBot || mode.blindKnown)),
         report: mode.isBot,                               // C# report is bots-only (xaml:1026)
         // multi-select: offered on every menu-able row. Selection carries Copy
@@ -2420,7 +2423,14 @@
       relation,
       // 'self' must never grow a request button (member-sheet only draws it when
       // relation is neither contact nor pending — so gate self/latched here).
-      onRequest: (rec.senderAddress && relation === 'none')
+      /* ★★ #613 round 2 (adversarial review, HIGH-2): NOT IN A BOT ROOM, and not where
+         addresses are hidden. `onContextAction: "sendContactRequest"` refuses for
+         `friend.bot` outright — it is a Logging.error and a return, with no answer to
+         the shell — so offering it produced a "Contact request sent" SUCCESS toast and a
+         pending latch for something that was never sent.
+         ⚠ That was true for every bot room, not only a flagged one; a blind room was
+         merely protected by accident, because the member sheet was unreachable there. */
+      onRequest: (rec.senderAddress && relation === 'none' && !mode.isBot && !mode.hidesAddresses)
         ? () => {
             requestedMembers.add(rec.senderAddress);
             bridge.send('ixian:sendContactRequest:' + rec.senderAddress);
@@ -2534,6 +2544,9 @@
       // chat-info's optimistic 'pending' lives on a mapped copy and dies on the
       // next refreshChatInfo rebuild without it.
       onContactRequest: (m) => {
+        /* ★★ #613 round 2 (HIGH-2): same gate as the bubble's member sheet — C# refuses
+           for every bot, so a request from here was a toast with nothing behind it. */
+        if (mode.isBot || mode.hidesAddresses) return;
         if (m && m.address && m.address !== '[Unknown]') {
           requestedMembers.add(m.address);
           bridge.send('ixian:sendContactRequest:' + m.address);
@@ -2603,8 +2616,25 @@
           || (mode.isMulti
                 ? ((n) => (n && !isPseudoAddressNick(n)) ? n : '')(((groupRoster.get(rec.senderAddress) || {}).name || ''))
                 : identity.name)
-          || (rec.senderAddress ? truncateAddressMiddle(rec.senderAddress) : '')
-          || (mode.isMulti ? '' : (identity.address ? truncateAddressMiddle(identity.address) : ''))
+          // ★★ #603 (row A4.2, Damir 2026-08-27): THE TWO TRUNCATING RUNGS ARE GONE.
+          // They handed the sheet an ALREADY middle-elided address as a `name`, and a
+          // 13-character string with an ellipsis in it looks exactly like a nickname:
+          // it survives `payeeDisplayName`'s `n !== a` and `isPseudoAddressNick` tests
+          // and is printed verbatim. That is the "the tip sheet truncates a nickname
+          // like an address" report — the sheet never truncated anything, the caller
+          // did, before the sheet could apply its own canon.
+          // The sheet already receives `address` on the line below and falls back to
+          // `truncateAddressMiddle(address)` itself, AFTER exhausting the nick tests —
+          // which is exactly what the Request sheet relies on, and why that one is
+          // correct. Ending the ladder at '' makes the two identical by construction.
+          // Rung added: `groupNicks`, the live nick map `updateGroupChatNicks` feeds.
+          // A member whose nickname arrived that way rather than through
+          // ixian:loadContacts was falling past the roster rung to a bare address.
+          // ⚠ the SAME shape guard the roster rung carries (#370 B-6 / #373 F-3):
+          // C#'s resolveNick echoes the address into the nick for a nameless member,
+          // so an unguarded rung would put the full base58 back on the payee line.
+          || ((n) => (n && !isPseudoAddressNick(n)) ? n : '')(
+               (rec.senderAddress && groupNicks.get(String(rec.senderAddress))) || '')
           || '',
         address: rec.senderAddress || identity.address || '',
         // #342 (Damir F5 item (d)): the photo was in scope here all along and was
@@ -3607,7 +3637,33 @@
          Type 2 is a blind GROUP, but a bot is type 3 whether or not it hides
          participant addresses — so `type !== 2` was never a complete blind test.
          Anything that needs a real sender identity must gate on mode.blind. */
-      mode.blind = (t === 2) || asBool(blindString);
+      /* ★★ #613 (Damir, 2026-08-27): BLINDNESS IS A GROUP PROPERTY, and a bot room is
+         not a group. #348 made this line read the raw `hideParticipantAddresses` for any
+         type, so a PUBLIC bot channel inherited a private group's mask: "Hidden member"
+         on every post, no member sheet, no owner chip, and kick / ban / add-contact all
+         structurally dead because the address had been replaced with [Unknown].
+         Legacy could not do that — every mask it applies is qualified on
+         `FriendType.Group` — and legacy is the reference Damir named.
+         C# now sends the qualified answer (Utils.hidesParticipants), and this line says
+         the same thing independently so that neither end alone can bring it back. A
+         blind GROUP is chat_type 2 by construction (SingleChatPage: the flag is what
+         chooses 2 over 1), so `t === 2` is the whole of it; the second arm is belt for
+         an exe that numbers types differently. */
+      /* ★★ #613 round 2 (adversarial review, HIGH-1). ONE wire value, TWO questions,
+         and conflating them is what the first cut got wrong.
+
+         `hidesAddresses` is the RAW flag: it answers "can this room's participants be
+         PAID or ADDED?", and the answer is C#'s — a blind group pays a DERIVED address,
+         and nothing in the tree says whether a flagged bot room's roster addresses are
+         real or derived. Anything that spends money or creates a contact must gate on
+         THIS, or the shell offers a button C# will refuse (#215).
+
+         `blind` is the IDENTITY question: "must this room's participants be MASKED?"
+         That is a GROUP privacy mode — legacy qualifies every mask it applies on
+         FriendType.Group, so a bot room is never masked, and a public channel showing
+         "Hidden member" was the regression this batch exists to fix. */
+      mode.hidesAddresses = asBool(blindString);
+      mode.blind = (t === 2) || (t === 1 && mode.hidesAddresses);
       // ★ review MINOR-7: did this exe actually TELL us? A 6-arg push leaves blindString
       // undefined, and "undefined" is not "not blind" for a bot — it is "unknown".
       mode.blindKnown = (t !== 3) || (blindString !== undefined);

@@ -2843,6 +2843,17 @@ namespace SPIXI
             Utils.sendUiCommand(this, "updateDebugInfo", info);
         }
 
+        /* ★ #612: how many UNBLOCKED ticks a pending notification deep link may wait for
+         * the friend to load. `updateUILoop` ticks every two seconds (Node.cs), so ten is
+         * ~20 s of real waiting — a CEILING, not a target; the common case resolves on the
+         * first tick. ⚠ Ticks spent BLOCKED (a lock up, a page staging) are not counted at
+         * all: waiting is correct there and has no bound worth imposing, which is what
+         * Android's equivalent does. The budget is keyed to the address it is counting for,
+         * so a second tap does not inherit the first tap's spent ticks. */
+        private const int STARTING_SCREEN_MAX_WAITS = 10;
+        private int startingScreenWaits = 0;
+        private string startingScreenPending = "";
+
         // Executed every second
         public override void updateScreen()
         {
@@ -2852,17 +2863,87 @@ namespace SPIXI
 
                 if (App.startingScreen != "")
                 {
+                    /* ★★ #612 (device row C8): A NOTIFICATION TAP LANDED ON THE CHATS LIST
+                     * INSTEAD OF THE CHAT IT CAME FROM.
+                     *
+                     * The push carries `fa`, the sender's address, and the tap handler does
+                     * read it — it writes it here. The defect is what happened next: the
+                     * global was CLEARED first and the navigation attempted second, so every
+                     * way the attempt could fail silently consumed the deep link.
+                     *   · `onChat` returns without doing anything when the friend is not yet
+                     *     in FriendList — a race a cold start is guaranteed to run;
+                     *   · `pushPageLoaded` deliberately DROPS the target while a modal
+                     *     overlay (the resume lock) is up, or while another page is staging.
+                     *     Its own comment names this vector and says the link is lost.
+                     * Android has never had the bug: `MainActivity.tryNavigateToChat` refuses
+                     * to drive the navigation while those two predicates hold, and retries.
+                     * The rule moves here, where both platforms pass: DO NOT CONSUME WHAT
+                     * YOU HAVE NOT DELIVERED.
+                     *
+                     * ⚠ ROUND 2 (adversarial review). Three corrections, all of them the
+                     * difference between a fix and a new defect:
+                     *   1. THE COUNTER DOES NOT RUN WHILE BLOCKED. `updateUILoop` ticks every
+                     *      TWO seconds (Node.cs), not one, so the first cut's ceiling was ~20s
+                     *      — and it burned that budget during the LOCK, which is the one state
+                     *      where waiting is unambiguously right. Enter a password slowly and
+                     *      the link was dropped before the lock closed: the very symptom this
+                     *      is fixing. Android counts only unblocked attempts; so does this.
+                     *   2. IT NO LONGER SWALLOWS THE TICK. `return`ing on every unresolved
+                     *      tick skipped connectivity, the update banner, the backup reminder
+                     *      and the periodic loaders for the whole wait — during a cold start,
+                     *      which is exactly when the user is watching.
+                     *   3. THE BUDGET IS KEYED TO THE ADDRESS. A second tap overwrites
+                     *      `App.startingScreen`, and an un-keyed counter handed the new link
+                     *      the old link's spent budget. */
                     string startingScreen = App.startingScreen;
-                    App.startingScreen = "";
+                    if (startingScreenPending != startingScreen)
+                    {
+                        startingScreenPending = startingScreen;
+                        startingScreenWaits = 0;
+                    }
+                    bool blocked = SpixiContentPage.hasModalOverlay() || SpixiContentPage.isLockStaging();
+                    bool known = false;
+                    bool usable = true;
                     try
                     {
-                        onChat(new Address(startingScreen), null);
+                        known = !blocked && FriendList.getFriend(new Address(startingScreen)) != null;
                     }
                     catch (Exception e)
                     {
-                        Logging.error("Error in selecting start screen: " + e);
+                        // an unparseable address can never resolve — drop it rather than retry
+                        Logging.error("Start screen address is not usable, dropping the deep link: " + e);
+                        usable = false;
                     }
-                    return;
+                    if (!usable)
+                    {
+                        App.startingScreen = "";
+                        startingScreenPending = "";
+                        startingScreenWaits = 0;
+                    }
+                    else if (known)
+                    {
+                        App.startingScreen = "";
+                        startingScreenPending = "";
+                        startingScreenWaits = 0;
+                        try
+                        {
+                            onChat(new Address(startingScreen), null);
+                        }
+                        catch (Exception e)
+                        {
+                            Logging.error("Error in selecting start screen: " + e);
+                        }
+                        return;
+                    }
+                    else if (!blocked && ++startingScreenWaits >= STARTING_SCREEN_MAX_WAITS)
+                    {
+                        Logging.warn("Start screen gave up after " + startingScreenWaits
+                            + " unblocked ticks — the deep link is dropped");
+                        App.startingScreen = "";
+                        startingScreenPending = "";
+                        startingScreenWaits = 0;
+                    }
+                    // and fall through: the rest of this tick still runs while we wait
                 }
 
                 /* ★ N40 (#383, Damir 2026-08-18): connectivity and "update available" were the

@@ -435,6 +435,8 @@ export const dede = {
   notDeliveredNoRetry: "Nicht zugestellt",
   notifAll: "Benachrichtigungen erlauben",
   notifFailed: "Benachrichtigungen konnten nicht aktualisiert werden.",
+  notifSender: "Absendernamen anzeigen",
+  notifSenderSub: "Nachrichtentext wird nie in Benachrichtigungen angezeigt",
   notifSounds: "In-App-Töne",
   notifications: "Benachrichtigungen",
   ok: "OK",

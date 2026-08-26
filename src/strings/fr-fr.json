@@ -434,6 +434,8 @@
   "notDeliveredNoRetry": "Non remis",
   "notifAll": "Autoriser les notifications",
   "notifFailed": "Impossible de mettre à jour les notifications.",
+  "notifSender": "Afficher le nom de l’expéditeur",
+  "notifSenderSub": "Le texte du message n’apparaît jamais dans les notifications",
   "notifSounds": "Sons dans l'app",
   "notifications": "Notifications",
   "ok": "OK",

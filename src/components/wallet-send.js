@@ -58,6 +58,7 @@ import { createModal, openModal } from './modal.js';
 import { setOverlayOpts, isOverlayOpen, overlayId } from './overlay.js';   // overlayId: the house id mint (F5-6 hint)
 import { icon } from './icons.js';
 import { createContactRow, createGlyphRow } from './contact-row.js';   // ★ W-j shared row
+import { attachAmountKeyboardDismiss } from './amount-keyboard.js';   // ★ #609: moved to a shared module — three consumers now (#143 ②)
 import { sanitizeAmount, toUnits, amountInputToCanonical, groupAmountDisplay, amountCaretAfterFormat } from './money.js';   // #143 shared money module · ★ I-6 (#360) display grouping
 
 /* fromUnits is wallet-send-only (Max display); its inverse toUnits + the
@@ -70,25 +71,6 @@ function fromUnits(u) {
   return (neg ? '-' : '') + i + (d ? '.' + d : '');
 }
 
-/* ★ W-k: Enter / Next / Go on an amount field drops the soft keyboard. A form-less
-   input has no submit to fire, so the key is otherwise a no-op that leaves the
-   keyboard covering the list. `enterkeyhint="done"` labels the key; the handler
-   blurs. Shared with wallet-receive (same rule, both screens).
-   Loop r1: the IME guard (the composer.js house rule — Enter committing a
-   composition must not blur mid-commit), and DESKTOP is exempt: there is no soft
-   keyboard to drop, and ejecting a keyboard user to <body> on the commit key is
-   a regression, not a feature. Touch = no data-desktop on <html> (the #228 flag). */
-export function attachAmountKeyboardDismiss(input) {
-  if (!input) return input;
-  input.setAttribute('enterkeyhint', 'done');
-  input.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
-    if (document.documentElement.hasAttribute('data-desktop')) return;
-    e.preventDefault();
-    try { input.blur(); } catch (err) { /* jsdom / unfocused */ }
-  });
-  return input;
-}
 
 let walletSendSeq = 0;                                     // aria-controls ids (receive-audit n2)
 

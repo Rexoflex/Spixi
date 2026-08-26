@@ -1857,6 +1857,25 @@
       avatarPickPending = false;
       refreshBackupStampIfChanged();   // a backup may have happened while parked
       renderLayout();
+      /* ★★ #601 (row A1.1, Damir 2026-08-27): RETURNING FROM A PEER TAB STARTS AT THE TOP.
+       * Restoring the scroll anchor is right when you come back from an Account
+       * SUBSCREEN — you were reading a row and you left to change one thing. It is wrong
+       * when you left to Chats/Wallet/Apps and came back: that is a fresh visit to the
+       * screen, and it should open where the screen opens.
+       * The two are already distinguishable with no new state: a subscreen return runs
+       * `showHub()`, a peer-tab return runs THIS handler and nothing else. `renderLayout`
+       * deliberately leaves an already-mounted hub in place (#337/iOS-66, so a language
+       * change cannot snap the page to a stale offset), which is precisely why the live
+       * scrollTop survives here — so the reset is explicit, and only here.
+       * ⚠ Only when the user parked ON the hub. Parking on a sublevel restores that
+       * sublevel intact, which is the subscreen contract, not this one. */
+      if (currentView === 'hub') {
+        hubScrollTop = 0;
+        try {
+          const hb = hubEl && hubEl.querySelector('.c-settings__body');
+          if (hb) hb.scrollTop = 0;
+        } catch (e) { /* pre-boot */ }
+      }
       syncSave();
       // #320: the peer nav may have parked with the EXIT tap's tab highlighted
       // (bottomnav auto-selects before onChange) — this page is the Account tab.

@@ -88,15 +88,7 @@
              leading edge (the col-1 case reuses the home shell's right-edge hairline,
              so no double line; the 640 cap is inert at pane width). */
   body[data-pane] .c-chat-info__body { max-width: 640px; margin-inline: auto; width: 100%; }
-  /* ★ #591 (round-2 review): the hero COVER bleeds to the body's padding edge, and in a
-     detail column wider than the 640 cap that edge is 640px of centred band with hard
-     left and right edges floating in the column. In pane mode the cover spans the PANE,
-     not the capped content column. `100vw` is wrong here for the same reason it was wrong
-     inside the hero: this document IS the pane, so its own viewport is the right unit. */
-  body[data-pane] .c-chat-info__cover {
-    inset-inline: calc(50% - 50vw);
-  }
-  body[data-pane="2"] { border-inline-start: 1px solid var(--outline-neutral-03); }
+    body[data-pane="2"] { border-inline-start: 1px solid var(--outline-neutral-03); }
 </style>
 </head>
 <body>

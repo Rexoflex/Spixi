@@ -186,6 +186,17 @@
   .wallet-takeover__body {
     flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
     padding: var(--spacing-16);
+    /* ★★ #608 (device row 5b): THE KEYBOARD USED TO SIT ON TOP OF THIS SCREEN.
+       WKWebView does not shrink the layout viewport for the soft keyboard, so a
+       `position: fixed; inset: 0` takeover keeps its full height and everything below
+       the keyboard line — the Review button, the recipient list — was unreachable:
+       "it's difficult to choose the recipient". The keyboard's overlap is published as
+       `--kb-inset` (below) and reserved HERE as scroll padding, so the content the
+       keyboard covers can simply be scrolled to. No element moves and the document
+       never changes size — the #301/#303 lever, which is the one that was proven to
+       work; the resize lever was falsified on device (#294). Zero when there is no
+       keyboard, so nothing changes anywhere else. */
+    padding-bottom: calc(var(--spacing-16) + var(--kb-inset, 0px));
   }
   /* ★ #560 (Damir, screenshots 2026-08-25): the money screens sat at 32px from
      each edge — this body pads 16 AND the component pads 16. The Contacts panel
@@ -283,6 +294,7 @@
     <span id="sl-ex-call">*SL{index-excerpt-voice-call}</span>
     <span id="sl-ex-call-noanswer">*SL{chat-call-no-answer}</span>
     <span id="sl-ex-call-missed">*SL{chat-call-missed}</span>
+    <span id="sl-ex-call-declined">*SL{chat-call-declined}</span>
     <span id="sl-ex-pay-req-sent">*SL{index-excerpt-payment-request-sent}</span>
     <span id="sl-ex-pay-req-recv">*SL{index-excerpt-payment-request-received}</span>
     <span id="sl-ex-pay-sent">*SL{index-excerpt-payment-sent}</span>
@@ -492,6 +504,65 @@
      exactly this line. */
   attachPressFeedback();
   installExecuteUiCommand();                     // defines window.executeUiCommand for C#
+
+  /* ★★ #608 (device rows 5a / 5b, iPhone 15) — THE KEYBOARD INSET REACHES THE WALLET.
+   *
+   * The lever itself is #301/#303's and it is unchanged: WKWebView does not resize the
+   * layout viewport for the soft keyboard, so nothing here changes the document's size
+   * — the keyboard's overlap is simply PUBLISHED as `--kb-inset` and whatever needs the
+   * room reserves it. The resize lever was tried three times and falsified on device;
+   * #294's standing order is that it may only be re-attempted with a changed lever, and
+   * this is that lever, already proven in the chat shell.
+   *
+   * What was missing was reach. `--kb-inset` was published in chat.html ONLY, and the
+   * native observer that feeds it was hard-scoped to `chat.html` in C#. Wallet Send
+   * lives in THIS document, so it never received a keyboard signal at all, and a
+   * `position: fixed; inset: 0` takeover under a keyboard hides its own Review button.
+   *
+   * Deliberately lean: no scroll-stick, no pan-tracking, none of chat.html's log
+   * machinery — there is no log here. Publish, and let CSS reserve.
+   * ⚠ No-op by construction wherever the platform already shrinks the viewport
+   * (Android adjustResize, WebView2): the delta is then ~0 and stays under the
+   * threshold. Desktop returns immediately. */
+  (function walletKeyboardInset() {
+    if (document.documentElement.hasAttribute('data-desktop')) return;
+    const vv = window.visualViewport;
+    let nativeKb = false;                  // once C# pushes frames, they win (one writer)
+    let last = -1;
+    function setInset(px) {
+      if (px === last) return;
+      last = px;
+      document.documentElement.style.setProperty('--kb-inset', px + 'px');
+    }
+    function apply() {
+      if (!vv || nativeKb) return;
+      const delta = window.innerHeight - vv.height;   // 60px separates a keyboard from chrome jitter
+      setInset(delta > 60 ? Math.round(delta) : 0);
+    }
+    /* the first vv resize fires BEFORE the keyboard geometry settles, and on iOS no
+       further event arrives until a keystroke moves the caret — the #303 finding, where
+       the composer lifted only after 7-8 characters. So every trigger re-checks. */
+    let timers = [];
+    function kick() {
+      apply();
+      for (const t of timers) clearTimeout(t);
+      timers = [80, 240, 480, 900, 1400].map((ms) => setTimeout(apply, ms));
+    }
+    if (vv) { vv.addEventListener('resize', kick); vv.addEventListener('scroll', kick); }
+    document.addEventListener('focusin', (e) => {
+      const t = e && e.target;
+      if (t && typeof t.matches === 'function' && t.matches('input, textarea')) kick();
+    });
+    document.addEventListener('focusout', () => { if (!nativeKb) kick(); });
+    /* the NATIVE lever (primary on iOS): C# observes UIKeyboardWillChangeFrame and
+       pushes the settled overlap in points — the same unit as a CSS pixel. */
+    window.__setKbInset = function (h) {
+      if (document.documentElement.hasAttribute('data-desktop')) return;
+      const px = Math.max(0, Math.round(Number(h) || 0));
+      nativeKb = true;
+      setInset(px > 60 ? px : 0);
+    };
+  })();
 
   // Batch C (M6): on desktop, a RIGHT-CLICKED chat-row menu presents as an
   // anchored dropdown at the pointer with the source row highlighted (demo
@@ -1698,6 +1769,10 @@
   canonEntry('sl-ex-call', 'Voice Call', 'call');                               // index-excerpt-voice-call (answered/connected)
   canonEntry('sl-ex-call-noanswer', 'No answer', 'call-missed');                // chat-call-no-answer (#265, outgoing unanswered)
   canonEntry('sl-ex-call-missed', 'Missed call', 'call-missed');                // chat-call-missed (#265, incoming missed)
+  /* ★ #602 (row 16): the declined phrase was never registered, so `excerptFromRaw`
+     fell through to plain text — and plain text has no entry in EXCERPT_GLYPHS.
+     That is the whole defect: a missing map row, not a missing glyph. */
+  canonEntry('sl-ex-call-declined', 'Call declined', 'call-declined');          // chat-call-declined (HomePage:2205)
   canonEntry('sl-ex-pay-req-sent', 'Payment Request Sent', 'payment');          // index-excerpt-payment-request-sent
   canonEntry('sl-ex-pay-req-recv', 'Payment Request Received', 'payment');      // index-excerpt-payment-request-received
   canonEntry('sl-ex-pay-sent', 'Payment Sent', 'payment');                      // index-excerpt-payment-sent

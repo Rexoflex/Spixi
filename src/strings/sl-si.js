@@ -435,6 +435,8 @@ export const slsi = {
   notDeliveredNoRetry: "Ni dostavljeno",
   notifAll: "Dovoli obvestila",
   notifFailed: "Obvestil ni bilo mogoče posodobiti.",
+  notifSender: "Prikaži ime pošiljatelja",
+  notifSenderSub: "Besedilo sporočila ni nikoli prikazano v obvestilih",
   notifSounds: "Zvoki v aplikaciji",
   notifications: "Obvestila",
   ok: "V redu",

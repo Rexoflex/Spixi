@@ -651,6 +651,31 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   transform: translateY(0);
   transition-timing-function: var(--easing-decelerate);
 }
+
+/* ★★ #608 (device row 5a, iPhone 15) — THE SHEET RISES FOR THE KEYBOARD.
+   A bottom sheet is `bottom: 0` of its host, and on iOS the host does NOT shrink under
+   the soft keyboard: the whole sheet sat behind it. On the tip sheet only the title row
+   stayed visible — the amount chips, the custom-amount field the sheet had just FOCUSED
+   itself, and the button that commits the payment were all underneath, on a surface with
+   no scroll and no cap, so nothing could reach them. That is also why the keyboard read
+   as having "no way out": the scrim you would tap to dismiss it was under the keyboard
+   too.
+   Three declarations, and every one of them is INERT at `--kb-inset: 0` — no keyboard,
+   no change, anywhere in the app:
+     · the sheet sits on top of the keyboard instead of behind it;
+     · the home-indicator pad is given back while the keyboard covers that strip anyway
+       (the same max() the chat composer uses), so the sheet does not float twice;
+     · it is capped and scrollable, so a sheet taller than the space that is left can
+       still be read to the end rather than being clipped at both ends.
+   ⚠ Mobile only. A desktop dialog is centred, has no soft keyboard, and is scoped
+   separately further down this file. */
+:root:not([data-desktop]) .c-sheet {
+  bottom: var(--kb-inset, 0px);
+  padding-bottom: calc(var(--spacing-16) + max(0px, env(safe-area-inset-bottom, 0px) - var(--kb-inset, 0px)));
+  max-height: calc(100% - var(--kb-inset, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 /* —— #46 loop MAJOR-3: A CLOSING SHEET MUST NOT TAKE TAPS ————————————————————
    The sheet is z-44 and every scrim is z-40, so a sheet paints above a scrim that
    opens LATER. dismissOverlay does not remove the sheet at once: it drops
@@ -2293,6 +2318,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   flex-direction: column;
   gap: var(--spacing-16);
   padding: var(--spacing-16) var(--spacing-24);
+  /* ★ #615: with the footer lifted, the body is what shrinks — so it must be able to
+     scroll to the field the keyboard still covers rather than clip it. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .c-launch__footer {
   flex: none;
@@ -2302,6 +2331,19 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   padding: var(--spacing-16) var(--spacing-24) var(--spacing-24);
   /* commit CTA clears the iOS home indicator (edge-to-edge; env = 0 elsewhere) */
   padding-bottom: calc(var(--spacing-24) + env(safe-area-inset-bottom, 0px));
+  /* ★★ #615 (verdict §2 — SEVERITY 1): THE CTA RISES ABOVE THE KEYBOARD.
+     Create and Restore put their commit button in this footer, OUTSIDE the scroller,
+     and `html, body { height: 100%; overflow: hidden }` plus a WKWebView that does not
+     shrink for the keyboard meant the button sat underneath it and could not be
+     scrolled to. On the first screen a new user ever sees.
+     Same lever as the chat composer: the keyboard's overlap is published as
+     `--kb-inset` and the footer's own margin lifts it inside the fixed-height column;
+     `.c-launch__body` (flex 1, min-height 0) gives up the room and scrolls. The
+     document never resizes — the resize lever was falsified on device (#294).
+     The home-indicator pad is handed back while the keyboard covers that strip, so the
+     button does not float twice, and every term is inert at `--kb-inset: 0`. */
+  margin-bottom: var(--kb-inset, 0px);
+  padding-bottom: calc(var(--spacing-24) + max(0px, env(safe-area-inset-bottom, 0px) - var(--kb-inset, 0px)));
 }
 /* consent line sits directly above the commit button (create/restore) */
 .c-launch__footer .c-launch__fineprint { padding-top: 0; }
@@ -2555,6 +2597,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     createLaunchShell, setLaunchVersion, setLaunchAvatar, setLaunchFile, setLaunchView,
     createNativeBridge, installExecuteUiCommand,
     ignorePushedTheme,
+    dismissTopOverlay,          // ★ #614: back closes an open sheet before it changes view
     } = window.Spixi;
   const strings = window.SL || {};
 
@@ -2706,7 +2749,110 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 
   const el = createLaunchShell(opts);
   root.append(el);
+  /* ★★ #614 (Damir, 2026-08-27): BACK ON THE LAUNCH FLOW NOW UNWINDS ONE LEVEL.
+   *
+   * Every other shell in the app tells C# when it has something open and takes back
+   * INTO itself first — home (`ixian:homeoverlay` / `homeBack`), chat, contact details.
+   * Launch was the one that did not, and it opens two overlays of its own: the Terms /
+   * Privacy document sheet and the language picker. So hardware back with the Terms
+   * sheet open switched the view UNDERNEATH the still-open sheet, and back with the
+   * language picker open on welcome fell straight through and left the app.
+   *
+   * Same shape as home, deliberately: an absolute state push, deferred and coalesced,
+   * because `bridge.send` is a bare `location.href` assignment with no queue and two in
+   * one task coalesce last-wins (the #185 lesson — a state push must never share a
+   * navigation slot with a verb).
+   *
+   * ⚠ This is the ANDROID hardware-back route. iOS has no back button and, since N75
+   * merged the flow into one page, no navigation stack to swipe either — the topbar
+   * arrow on create/restore/retry is the whole affordance there, and it is present on
+   * mobile. The general swipe-back model is specced separately; this is the one gap
+   * that made an EXISTING control behave wrongly. */
+  let launchOverlaySyncT = 0;
+  function syncLaunchOverlay() {
+    if (launchOverlaySyncT) return;
+    launchOverlaySyncT = setTimeout(() => {
+      launchOverlaySyncT = 0;
+      const open = document.body.dataset.overlayOpen !== undefined;
+      try { bridge.send('ixian:launchoverlay:' + (open ? '1' : '0')); } catch (e) {}
+    }, 0);
+  }
+  try {
+    new MutationObserver(syncLaunchOverlay)
+      .observe(document.body, { attributes: true, attributeFilter: ['data-overlay-open'] });
+  } catch (e) { /* no MutationObserver: back simply keeps today's behaviour */ }
+  /* C# calls this instead of switching the view when it believes a sheet is up. It
+     re-syncs unconditionally, so a stale `true` heals on the next press rather than
+     latching back off. */
+  handlers.launchBack = function () {
+    try { dismissTopOverlay(); } catch (e) {}
+    syncLaunchOverlay();
+  };
+
   bridge.exposeAll(handlers);
+
+  /* ★★ #615 (verdict §2 — SEVERITY 1): THE KEYBOARD ON THE FIRST SCREEN A USER SEES.
+   *
+   * Two defects, one cause. It covered the flow, and it could not be dismissed:
+   * WKWebView does not shrink the layout viewport for the soft keyboard, `html, body`
+   * here are `height: 100%; overflow: hidden`, the commit CTA lives in a footer OUTSIDE
+   * the scroller — so the button sat under the keyboard with no way to reach it — and
+   * the app removes the keyboard accessory bar globally, so there was no Done key
+   * either. On Android the window resizes and the layout half is already correct; the
+   * dismissal half is the system back button. This is an iOS problem with an
+   * Android-safe fix, because every term is inert when the inset is zero.
+   *
+   * Publish (below) + reserve (launch-shell.css) + a way out (the tap handler). */
+  (function launchKeyboardInset() {
+    if (document.documentElement.hasAttribute('data-desktop')) return;
+    const vv = window.visualViewport;
+    let nativeKb = false;
+    let last = -1;
+    function setInset(px) {
+      if (px === last) return;
+      last = px;
+      document.documentElement.style.setProperty('--kb-inset', px + 'px');
+    }
+    function apply() {
+      if (!vv || nativeKb) return;
+      const delta = window.innerHeight - vv.height;
+      setInset(delta > 60 ? Math.round(delta) : 0);   // 60px separates a keyboard from chrome jitter
+    }
+    let timers = [];
+    function kick() {
+      apply();
+      for (const t of timers) clearTimeout(t);
+      /* the first vv resize fires before the keyboard settles and on iOS nothing follows
+         until a keystroke moves the caret — #303's "it lifted after 7-8 characters". */
+      timers = [80, 240, 480, 900, 1400].map((ms) => setTimeout(apply, ms));
+    }
+    if (vv) { vv.addEventListener('resize', kick); vv.addEventListener('scroll', kick); }
+    document.addEventListener('focusin', (e) => {
+      const t = e && e.target;
+      if (t && typeof t.matches === 'function' && t.matches('input, textarea')) kick();
+    });
+    document.addEventListener('focusout', () => { if (!nativeKb) kick(); });
+    window.__setKbInset = function (h) {
+      if (document.documentElement.hasAttribute('data-desktop')) return;
+      const px = Math.max(0, Math.round(Number(h) || 0));
+      nativeKb = true;
+      setInset(px > 60 ? px : 0);
+    };
+    /* THE WAY OUT. A tap on the page itself dismisses the keyboard — the platform
+       convention, and here the only affordance that can exist.
+       ⚠ Never on an interactive target: blurring on `pointerdown` over the commit
+       button would collapse the keyboard, move the layout it was holding up, and slide
+       the button out from under the finger before `click` was delivered. */
+    document.addEventListener('pointerdown', (e) => {
+      const a = document.activeElement;
+      if (!a || !(a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) return;
+      const t = e && e.target;
+      if (!t || t === a) return;
+      if (typeof t.closest === 'function'
+        && t.closest('input, textarea, select, button, a, label, [role="button"], [contenteditable]')) return;
+      try { a.blur(); } catch (err) {}
+    }, true);
+  })();
 
   /* —— page ready — fire the page's ready verb on window LOAD (#177 load-timing
    *    invariant): firing during parse races C#'s first push. ONE verb for the

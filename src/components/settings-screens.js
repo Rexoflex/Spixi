@@ -554,8 +554,9 @@ export function createPrivacy({
  */
 export function createNotificationsScreen({
   enabled = true,
-  previews = false,              // #589: matches the SHIPPED C# default (KEY_SENDER_NAME=false); the row is gone, so this is only what a restored row would start from
+  previews = false,              // matches the SHIPPED C# default (KEY_SENDER_NAME = false)
   sounds = true,
+  isDesktop = typeof document === 'object' && document.documentElement.hasAttribute('data-desktop'),
   capabilities = {},             // { globalNotifications }
   onBack,
   onEnabled, onPreviews, onSounds,   // (next, ctrl) — §9
@@ -569,27 +570,29 @@ export function createNotificationsScreen({
       label: strings.notifAll || 'Allow notifications',
       checked: enabled, live, failText, onToggle: onEnabled,
     }));
-    /* ★★ #589 (Damir F5 2026-08-26): "show sender name is redundant" — THE ROW IS GONE.
+    /* ★★ #597 (Damir, 2026-08-27 — D3): THE ROW IS BACK, ON MOBILE ONLY.
      *
-     * Only the ROW. The `previews` option, the `onPreviews` callback, the
-     * `ixian:notifSenderName` verb and the `notif_sender_name` preference are all
-     * left exactly as they are, and the preference keeps its shipped default
-     * (FALSE — SNotificationPrefs.cs KEY_SENDER_NAME). So NO notification changes:
-     * what the user gets today is what the user gets after this.
+     * #589 removed it everywhere. The finding it implemented said "DESKTOP Account →
+     * Notifications" in its own text (f5-findings-2026-08-26-walkday.md:160), so the
+     * fix was one platform wider than the ask. On a phone the notification IS the
+     * surface — a banner with no sender is a banner you cannot triage — and on the
+     * desktop, where the window is usually open, it is the redundancy Damir named.
      *
-     * ⚠ Removing a control is not the same as changing what it controlled, and this
-     * one is still read on the message-receive path (Node.cs:1044). Damir asked for
-     * the row to go, not for the name to start appearing — if he wants the name
-     * always ON, that is a one-line default flip in C#, and it is his call to make
-     * deliberately rather than my side effect. Flagged in the F5 checklist.
+     * ⚠ `isDesktop` is read from the document, not from the window width, because
+     * `data-desktop` is a UA stamp set before first paint and is constant across a
+     * resize (settings.html:11). A pane is not a phone.
      *
-     * The prior NOTIF-2 note is kept below because it records WHY the switch had to
-     * be re-labelled, which is the same reasoning that makes it removable.
-     *
-     * NOTIF-2 (2026-08-21): the old label promised control over "sender and text".
-     * There is no text to control — AND-15 (#334) builds a per-TYPE line ("New
-     * Message", "Payment received", …) with no sender name and no message content —
-     * so it was re-wired to the one thing the notification can carry. */
+     * NOTIF-2 (2026-08-21) still applies to the LABEL: the old wording promised
+     * control over "sender and text". There is no text to control — AND-15 (#334)
+     * builds a per-TYPE line ("New Message", "Payment received", …) with no sender
+     * name and no message body — so the row governs the one thing a notification can
+     * carry, and the sub-label says so. */
+    if (onPreviews && !isDesktop) body.append(switchRow({
+      glyph: 'eye', hue: 'info',
+      label: strings.notifSender || 'Show sender name',
+      sub: strings.notifSenderSub || 'Message text is never shown in notifications',
+      checked: previews, live, failText, onToggle: onPreviews,
+    }));
     if (onSounds) body.append(switchRow({
       glyph: 'alert-small', hue: 'accent',
       label: strings.notifSounds || 'In-app sounds',

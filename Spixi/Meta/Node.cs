@@ -963,6 +963,71 @@ namespace SPIXI.Meta
 
                 Friend friend = FriendList.getFriend(wallet_address);
 
+                /* ★★ #617 — GIVE A BOT ROOM'S MESSAGE ITS SENDER BACK.
+                 *
+                 * The Spixi bot group renders every message with NO name and NO avatar
+                 * — not a nickname, not an address, not a placeholder. Damir's report,
+                 * and his memory of it was exact: "it worked for the first few weeks,
+                 * then one session broke it."
+                 *
+                 * The session was ours — `4ca77a1c`, 2026-08-14, "the Ixian-Core bump to
+                 * 0.9.8k". That bump pulled in core's `5643e5b` (2026-08-03), which added
+                 * this to `FriendList.addMessage`:
+                 *
+                 *     if (friend.type == FriendType.Normal) { set_sender_address = null; }
+                 *
+                 * ⚠ A BOT ROOM'S FRIEND IS `FriendType.Normal`. `setBotMode()` sets
+                 * `bot = true` and calls `setGroupMode()`, and neither ever touches
+                 * `type` — so the null fires on every message a bot channel carries.
+                 * (Legacy is unaffected because spixi-0.9.22 is dated 2026-06-16, seven
+                 * weeks before that line existed. It is not evidence that today's core is
+                 * fine; it is evidence that June's core was.)
+                 *
+                 * ONE nulled field, and it is the key for FOUR separate lookups, so they
+                 * all die together: the render-time roster lookup in `resolveNick`, the
+                 * truncated-address fallback, `FriendList.setNickname`'s backfill (which
+                 * bails with "Sender address is null" — that line is in the device log),
+                 * and the `updateGroupChatNicks` live upgrade. The avatar goes with them:
+                 * it is stored on disk under the address as its filename, so a nameless
+                 * row also cannot find a face. ★ That is why every disc in the report is
+                 * the SAME colour — the identity hue is derived from the address, and a
+                 * uniform hue means no seed ever reached it.
+                 *
+                 * ★ WE DO NOT NEED A CORE CHANGE, because we never lost the address —
+                 * we handed it in. `StreamProcessor` reads `group_sender_address` off
+                 * the wire and passes it here as `sender_address`; core keeps it long
+                 * enough to resolve `senderNick` from the roster, then discards it. So
+                 * put it back on the message we were just handed. Everything downstream
+                 * is already correct and waiting: the shell's sender ladder (nick, else
+                 * truncated address), the `groupNicks` map, `resolveNick`, the avatar
+                 * seed and the member sheet all key on exactly this field.
+                 *
+                 * ⚠ Deliberately narrow. It restores ONLY what the caller already gave
+                 * us, ONLY when core returned nothing, so a room where core keeps the
+                 * address (a real Group) is untouched, and a 1:1 chat — which passes no
+                 * `sender_address` at all — cannot be reached by this at all.
+                 * ⚠ Messages already on disk with a null address cannot be recovered:
+                 * that field is gone from the file. In practice the room re-syncs from
+                 * the bot server, which is what heals a device that has this build. */
+                if (friend != null
+                    && friend.bot
+                    && sender_address != null
+                    && friend_message.senderAddress == null)
+                {
+                    friend_message.senderAddress = sender_address;
+                    // the insert above only REQUESTED a write, so the queued serialize
+                    // still sees the live object — this re-request is the belt that makes
+                    // the restore survive a restart rather than living only in memory.
+                    try
+                    {
+                        IxianHandler.localStorage.requestWriteMessages(wallet_address, channel);
+                    }
+                    catch (Exception e)
+                    {
+                        Logging.warn("Could not re-request a message write after restoring the bot sender address: " + e);
+                    }
+                }
+
                 if (!friend.online)
                 {
                     StreamProcessor.fetchFriendsPresence(friend, true);

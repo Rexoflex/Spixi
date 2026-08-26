@@ -667,6 +667,31 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   transform: translateY(0);
   transition-timing-function: var(--easing-decelerate);
 }
+
+/* ★★ #608 (device row 5a, iPhone 15) — THE SHEET RISES FOR THE KEYBOARD.
+   A bottom sheet is `bottom: 0` of its host, and on iOS the host does NOT shrink under
+   the soft keyboard: the whole sheet sat behind it. On the tip sheet only the title row
+   stayed visible — the amount chips, the custom-amount field the sheet had just FOCUSED
+   itself, and the button that commits the payment were all underneath, on a surface with
+   no scroll and no cap, so nothing could reach them. That is also why the keyboard read
+   as having "no way out": the scrim you would tap to dismiss it was under the keyboard
+   too.
+   Three declarations, and every one of them is INERT at `--kb-inset: 0` — no keyboard,
+   no change, anywhere in the app:
+     · the sheet sits on top of the keyboard instead of behind it;
+     · the home-indicator pad is given back while the keyboard covers that strip anyway
+       (the same max() the chat composer uses), so the sheet does not float twice;
+     · it is capped and scrollable, so a sheet taller than the space that is left can
+       still be read to the end rather than being clipped at both ends.
+   ⚠ Mobile only. A desktop dialog is centred, has no soft keyboard, and is scoped
+   separately further down this file. */
+:root:not([data-desktop]) .c-sheet {
+  bottom: var(--kb-inset, 0px);
+  padding-bottom: calc(var(--spacing-16) + max(0px, env(safe-area-inset-bottom, 0px) - var(--kb-inset, 0px)));
+  max-height: calc(100% - var(--kb-inset, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 /* —— #46 loop MAJOR-3: A CLOSING SHEET MUST NOT TAKE TAPS ————————————————————
    The sheet is z-44 and every scrim is z-40, so a sheet paints above a scrim that
    opens LATER. dismissOverlay does not remove the sheet at once: it drops
@@ -1103,50 +1128,6 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   gap: var(--spacing-12);
   padding-block: var(--spacing-8) var(--spacing-4);
   text-align: center;
-  /* ★ #591: the cover is absolutely positioned behind this block */
-  position: relative;
-  isolation: isolate;
-}
-/* ★★ #591 (Damir's second mockup) — THE COVER.
-   A soft band behind the identity: the contact's own photo, blurred and scaled, over
-   their identity gradient (`.c-idhue`, the same 12 anchors their fallback avatar uses).
-   ⚠ `z-index: -1` inside the hero's own isolation puts it above the page ground and
-   below every child, so the avatar, the name and the pencil all sit on top of it with
-   no stacking games and no risk of covering content — the same recipe the press layer
-   uses (base.css). Bleeds edge to edge by cancelling the body's inline padding. */
-.c-chat-info__cover {
-  position: absolute;
-  z-index: -1;
-  /* ⚠ AND IT BLEEDS UPWARD TOO. `top: 0` is the HERO's top, and the body's own 16px
-     padding-block-start sits above it — so the band began 16px below the chrome with a
-     hard horizontal edge, which is the same floating-panel complaint the inline fix was
-     written for, rotated 90°. The mask only fades the bottom. */
-  top: calc(-1 * var(--spacing-16));
-  /* ⚠ THE FIRST CUT DID NOT BLEED, and its own comment said it did. `100vw` with
-     `max-width: 100%` clamps straight back to the hero — the hero IS the containing
-     block, so the pair cancelled and left a hard-cornered band inset 16px from both
-     edges: a floating rectangle, not a backdrop. Viewport units were the wrong tool;
-     cancelling the body's own inline padding is the right one, and it stays correct
-     inside a 360px desktop pane, where `100vw` would have been the whole window. */
-  inset-inline: calc(-1 * var(--spacing-16));
-  height: 148px;                       /* 132 + the 16 it now reaches upward */
-  overflow: hidden;
-  pointer-events: none;
-  background: linear-gradient(140deg, var(--av-c1, var(--surface-neutral-02)), var(--av-c2, var(--surface-neutral-02)));
-  /* fades into the page rather than ending on a hard edge — the band is a backdrop,
-     not a panel. mask-image is progressive: without it the cover is simply a solid band. */
-  -webkit-mask-image: linear-gradient(to bottom, #000 40%, transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 40%, transparent 100%);
-}
-/* the photo, blurred well past recognisability — this is colour, not a second portrait.
-   `scale` hides the blur's soft edges, which would otherwise show as a light rim. */
-.c-chat-info__cover-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transform: scale(1.35);
-  filter: blur(22px) saturate(1.15);
-  opacity: 0.85;
 }
 
 /* avatar.css tokenizes 24/40/48 (+ the old 64 hero); the 80 hero sizes inline
@@ -1642,42 +1623,46 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 
 /* —— destructive zone (#142: separated, bordered rows — flush rows invited
    mistaps between "Delete chat history" and "Remove contact") —— */
+/* ★★ #618 (Damir, device 2026-08-28): the destructive rows join the ONE grammar.
+   The container keeps the body's own card rhythm so these two read as two more
+   cards in the stack, not as a foreign block wedged into it. */
 .c-chat-info__danger {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-8);
+  gap: var(--spacing-16);
 }
-.c-chat-info__danger-row {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-12);
-  min-height: 48px;
-  padding: 0 var(--spacing-12);
-  border: var(--outline-width-1) solid var(--outline-neutral-01);
-  border-radius: var(--radius-12);
-  background: transparent;
-  color: var(--text-error);
+/* ★★ #618 — AN ORDINARY ROW, ON AN ORDINARY CARD.
+   It was `background: transparent` with its own border, no chevron and red label
+   ink: a shape that appeared nowhere else on the screen, which is exactly what
+   Damir saw. It now takes the same card the address and notification rows take
+   (the `.c-chat-info__body >` rule above skips `__danger`, so the card is painted
+   here instead) and the same disc + label + chevron as the Account hub.
+   ⚠ It is a <button>, so every inherited button default has to be spelled out —
+   a half-reset button inside a card is how one row ends up a pixel off from its
+   neighbours. */
+.c-chat-info__row--action {
+  width: 100%;
+  padding: var(--spacing-12);
+  border: 0;
+  border-radius: var(--radius-16);
+  background: var(--surface-card);
+  box-shadow: var(--elevation-1);
+  color: var(--text-neutral-01);
+  font-family: inherit;
   font-size: var(--font-size-body-md);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
+  font-weight: var(--font-weight-regular);
   text-align: start;
-  -webkit-tap-highlight-color: transparent;
-  transition: background-color var(--duration-100) var(--easing-standard);
+  cursor: pointer;
 }
 @media (hover: hover) and (pointer: fine) {
-  .c-chat-info__danger-row:hover { background: var(--surface-interactive-hover); }
+  .c-chat-info__row--action:hover { background: var(--surface-interactive-hover); }
 }
-.c-chat-info__danger-row:active { background: var(--surface-interactive-pressed); }
-.c-chat-info__danger-row svg { color: currentColor; }
-/* QUIET tier (Damir 2026-08-12: "delete chat history doesn't need to be so
-   loud"): neutral ink + the grey neutral disc, regular weight. It is still a
-   bordered row in the destructive zone behind the same locked confirm — it just
-   stops competing with the irreversible action next to it. Red now MEANS
-   something (settings-shell precedent: quiet "free up space" vs danger zone). */
-.c-chat-info__danger-row[data-tone='quiet'] {
-  color: var(--text-neutral-01);
-  font-weight: var(--font-weight-regular);
-}
+.c-chat-info__row--action:active { background: var(--surface-interactive-pressed); }
+/* the chevron reads as chrome, like every other row's; the DISC keeps its own ink,
+   which is where the #148 two-tier meaning moved to — neutral for the reversible
+   action, error for the irreversible one. */
+.c-chat-info__row--action > svg { color: var(--icon-neutral-02); flex: none; }
+.c-chat-info__row--action .c-disc svg { color: currentColor; }
 
 .c-chat-info__confirm-error {
   margin: var(--spacing-8) 0 0;
@@ -2170,6 +2155,10 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   padding-inline: var(--spacing-2);         /* room for the chip's focus ring inside the scroller */
   margin-inline: calc(-1 * var(--spacing-2));
 }
+/* ★ #598 (§14d, independent of the hug): `.c-addr-sheet` sets padding-inline only, so
+   the first explain row butted straight up against the sheet title. Mobile only — the
+   desktop dialog already reads correctly and must stay byte-identical. */
+:root:not([data-desktop]) .c-addr-sheet { padding-block-start: var(--spacing-8); }
 @supports not (height: 1dvh) { .c-addr-sheet { max-height: min(72vh, 640px); } }
 /* ★ #575 (Damir): on MOBILE the sheet grows to NEAR-FULL height, "just below the
    top bar". A max-height alone would not do it — the content got shorter when the
@@ -2188,7 +2177,18 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 :root:not([data-desktop]) .c-sheet--addr {
   display: flex;
   flex-direction: column;
-  max-height: 100%;
+  /* ★★ #608 round 2 (adversarial review, MAJOR-1): SUBTRACT THE KEYBOARD HERE TOO.
+     This file is linked AFTER overlay.css and this selector has the same (0,3,0)
+     specificity as the new `.c-sheet` rule, so a bare `100%` won the cap while
+     `bottom: var(--kb-inset)` still applied — the sheet was LIFTED by the keyboard's
+     height and never SHORTENED, which put its handle, its title, its only Close button
+     and the top of the QR above the top of the screen, with nothing scrollable and no
+     scrim strip left to tap. Worse than the defect #608 was fixing.
+     ⚠ Reachable, and not a corner case: Wallet → Receive → type an amount → "Show my
+     address". That tap is on a BUTTON, which #609 deliberately exempts from
+     tap-to-dismiss, so the keyboard is positively still up when this sheet mounts.
+     Inert at `--kb-inset: 0`, like every other term this batch added. */
+  max-height: calc(100% - var(--kb-inset, 0px));
   box-sizing: border-box;
 }
 /* ⚠ round-2 MINOR-4: createSheet wraps the content in `.c-sheet__content`, so THAT is
@@ -2201,26 +2201,32 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   display: flex;
   flex-direction: column;
 }
+/* ★★ #598 (Damir, 2026-08-27 — D4): THE SHEET HUGS ITS CONTENT.
+   #575 forced a near-full height so the sheet sat "just below the top bar". That was
+   right when it was written. Since then the CONTENT got shorter — #556 dropped the QR
+   card's padding and #575 shrank the code 280 -> 216 — so the forced height was
+   manufacturing ~110px of slack with nowhere good to put it, and on the device that
+   slack read as a HOLE, not as air.
+   ⚠ The floor survives as a MIN-height: a sheet with a short explainer still has
+   presence. `flex: 1 1 auto` in an auto-height column now resolves to content height,
+   and `min-height: 0` keeps it able to shrink and scroll on a short window. */
 :root:not([data-desktop]) .c-addr-sheet {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-height: 0;
-  height: max(320px, calc(100dvh - var(--safe-top, 0px) - env(safe-area-inset-bottom, 0px) - var(--layout-bar-top, 56px) - 88px));
   max-height: none;
 }
-@supports not (height: 1dvh) {
-  :root:not([data-desktop]) .c-addr-sheet {
-    height: max(320px, calc(100vh - var(--safe-top, 0px) - env(safe-area-inset-bottom, 0px) - var(--layout-bar-top, 56px) - 88px));
-  }
+/* ★★ #598: SPACE THAT IS CHOSEN, NOT SPACE THAT IS LEFT OVER.
+   #589 placed the slack here with `margin-block-start: auto`. The seam was the right
+   one; the mechanism was not. An auto margin is a REMAINDER — its size is whatever the
+   layout has spare, so it changed with the screen, the locale and the content, and on a
+   tall phone it grew to ~110px. At identical pixel counts, chosen space reads as design
+   and left-over space reads as a mistake.
+   So the QR block now carries its own block padding: one step above the sheet's
+   `--spacing-16` rhythm, constant on every device, in every locale, at any length.
+   ⚠ Never `margin-block-start: auto` here again. */
+:root:not([data-desktop]) .c-addr-sheet__qrwrap {
+  padding-block: var(--spacing-24);
 }
-/* ★ #589: the slack of the near-full mobile sheet used to collect UNDER the
-   explainer, because the explainer was the last block. It is not any more — the
-   safety line now sits directly under the address block, and that adjacency is the
-   whole point of Damir's order. So the slack moves to the ONE seam where a gap
-   reads as deliberate: between the sentence that explains the surface and the
-   surface itself. Everything below the QR keeps its token gaps and its adjacency.
-   ⚠ An auto margin resolves to 0 when there is no free space, so a short window
-   still scrolls from the true top — no unreachable content. */
-:root:not([data-desktop]) .c-addr-sheet__qrwrap { margin-block-start: auto; }
 /* the explicit way out (#575). Mobile only: a desktop dialog is dismissed with Esc
    or a click outside, and both stay available here too. It sits over the sheet's own
    padding in the title row, so it never displaces content. */
@@ -2426,8 +2432,27 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   border-radius: var(--radius-16);
   background: var(--surface-neutral-02);
 }
+/* ★★ #599 (Damir, 2026-08-27 — D5): THE SAFETY BLOCK GETS COLOUR.
+   Both explain blocks and the address chip painted `--surface-neutral-02`, so three
+   cards in a row read as one broken card, and the safety line — the only one that is a
+   WARNING about someone else's money — read as part of the chip above it.
+   `--explain--safe` was already the paint-free semantic hook (wallet-receive.js), so the
+   colour lands there and cannot leak into the info block above the QR, or into the peer
+   sheet, which renders no safety block at all.
+   Measured on the tokens: copy 12.6:1 light / 15.5:1 dark on this surface; the glyph
+   uses `--text-success` rather than `--icon-success` because the latter is 4.28:1 in
+   light — over the 3:1 graphic bar, but under the text bar it sits beside. The hairline
+   is what separates the block from the sheet in DARK, where every tinted surface is
+   ~1.14:1 in lightness and reads as hue alone. */
+.c-addr-sheet__explain--safe {
+  background: var(--surface-success-inverse);
+  /* ⚠ an inset SHADOW, not a border. A 1px border would shrink the content box and
+     shift this block's copy 1px against the info block above it — and one shared
+     left edge for every line of copy is exactly what #575/#589 bought (row A1.3). */
+  box-shadow: inset 0 0 0 var(--outline-width-1) var(--outline-success-inverse);
+}
 .c-addr-sheet__explainicon { margin-top: 1px; color: var(--icon-info); display: inline-flex; justify-self: center; }
-.c-addr-sheet__explainicon--safe { color: var(--icon-success); margin-top: 2px; }
+.c-addr-sheet__explainicon--safe { color: var(--text-success); margin-top: 2px; }
 .c-addr-sheet__info {
   margin: 0;
   font-size: var(--font-size-body-sm);
@@ -2643,15 +2668,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
              leading edge (the col-1 case reuses the home shell's right-edge hairline,
              so no double line; the 640 cap is inert at pane width). */
   body[data-pane] .c-chat-info__body { max-width: 640px; margin-inline: auto; width: 100%; }
-  /* ★ #591 (round-2 review): the hero COVER bleeds to the body's padding edge, and in a
-     detail column wider than the 640 cap that edge is 640px of centred band with hard
-     left and right edges floating in the column. In pane mode the cover spans the PANE,
-     not the capped content column. `100vw` is wrong here for the same reason it was wrong
-     inside the hero: this document IS the pane, so its own viewport is the right unit. */
-  body[data-pane] .c-chat-info__cover {
-    inset-inline: calc(50% - 50vw);
-  }
-  body[data-pane="2"] { border-inline-start: 1px solid var(--outline-neutral-03); }
+    body[data-pane="2"] { border-inline-start: 1px solid var(--outline-neutral-03); }
 </style>
 <style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important;background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
 </head>

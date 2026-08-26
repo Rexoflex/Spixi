@@ -2515,6 +2515,52 @@ console.log('chatlist-item / chats-shell — M5 request grammar');
 {
   const dom = await load('chats.html');
   const W = dom.window;
+
+  /* ★★ #46 loop (2026-08-29) — THE STRAY ROW MENU (Damir, Android): "sometimes when I get
+   * back to the chats list from a conversation it lands with a row lifted, the background
+   * dimmed and the dropdown shown." BEHAVIOURAL, because the defect is a wall-clock timer
+   * that outlives its node — no static read can see it. Own fixture rows, so the demo's
+   * own list is untouched for the assertions that follow. */
+  {
+    const dRM = W.document;
+    const peRM = () => new W.MouseEvent('pointerdown', { bubbles: true, clientX: 40, clientY: 40, button: 0 });
+    const armRow = () => {
+      const r = dRM.createElement('button');
+      r.type = 'button';
+      r.className = 'c-chatlist-item';
+      dRM.body.append(r);
+      W.Spixi.attachChatRowMenu(r, { chat: { name: 'Row', address: 'RM1' }, host: dRM.body });
+      r.dispatchEvent(peRM());
+      return r;
+    };
+
+    // (a) the row is replaced under the finger — the release lands on the NEW node
+    const rA = armRow();
+    rA.remove();
+    await sleep(700);
+    ok(!dRM.querySelector('.c-msgmenu'),
+      '★★ Damir (Android): a row DETACHED mid-press opens no menu when its 500ms timer fires. A flush replaces every row, so the release never reaches the pressed node and the old timer survived into a shell the user had already left');
+
+    // (b) the screen cancels, the #589 rule
+    const rB = armRow();
+    W.Spixi.clearChatRowMenuTimers();
+    await sleep(700);
+    ok(!dRM.querySelector('.c-msgmenu'),
+      '★★ the SCREEN cancels, not each call site (#589): clearChatRowMenuTimers disarms every live press at once, which is what renderChatsList calls before it detaches the rows');
+    rB.remove();
+
+    // (c) ⚠ and a real long press STILL opens the menu — a guard that kills the feature
+    //     is not a fix, and this is the half a negative pin can never prove
+    const rC = armRow();
+    await sleep(700);
+    ok(!!dRM.querySelector('.c-msgmenu'),
+      '★★ and the long press still WORKS — an attached row on a visible shell opens its menu exactly as before. The two pins above are negatives, and a negative alone goes green on a build where the feature is simply gone');
+    W.Spixi.dismissTopOverlay();
+    await sleep(500);
+    rC.remove();
+    ok(!dRM.querySelector('.c-msgmenu'), 'fixture cleanup: the menu closed again');
+  }
+
   const ex = W.Spixi.createExcerpt({ type: 'request', text: 'Request sent' });
   ok(ex.dataset.type === 'request'
     && ex.querySelector('.c-excerpt__text').textContent === 'Request sent'
@@ -16502,6 +16548,47 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ok(/st\.position = 'fixed';/.test(rm606)
        && !/position: fixed/.test(stripCssComments(rdf('src/styles/components/message-menu.css'))),
       '★ #606: geometry is INLINE, deliberately. A `position: fixed` in the stylesheet would put a second declared value on a rule matching [data-menu-lift], and the cascade pin that keeps this family honest asserts one value per property across every matching rule');
+    /* ★★ #46 loop (2026-08-29) — THE REPAINT MUST RUN ON AN ATTACHED NODE. The call sat
+     * ABOVE `listEl.append(node)`, and the list had been emptied one line earlier, so the
+     * node had no layout box: repaintRowGhost removed the ghost unconditionally and then
+     * declined to paint a new one. Every flush killed the ghost for the life of the menu,
+     * which is strictly worse than never repainting at all. Read the BUILT bundle — the
+     * order is what ships, and a source-only read is the #620 mistake. */
+    const bundleOrder606 = rdf('src/demo/spixi.iife.js');
+    ok(!/repaintRowGhost\(node\);[\s\S]{0,200}?listEl\.append\(node\);/.test(bundleOrder606),
+      '★★ #606 r3: the ghost repaint does NOT run before the row is appended — a detached node measures all zeros and the paint guard declines, so the unconditional remove above it deleted the ghost and nothing rebuilt it');
+    ok(/listEl\.append\(node\);[\s\S]{0,1400}?repaintRowGhost\(node\);/.test(bundleOrder606),
+      '★★ #606 r3: and it DOES run after — the node has a box by then, which is the whole precondition paintRowGhost checks for');
+  }
+
+  /* —— #46 loop (2026-08-29): the mask predicate fails CLOSED ————————————————————— */
+  {
+    const ut629 = rdf('Spixi/Utils/Utils.cs');
+    const at629 = ut629.indexOf('public static bool hidesParticipants(Friend? friend)');
+    const body629 = ut629.slice(at629, ut629.indexOf('\n        }', at629));
+    ok(at629 > 0
+       && /if \(friend\.metaData == null \|\| friend\.metaData\.botInfo == null\) \{ return true; \}/.test(body629),
+      '★★ #46 loop: UNKNOWN means MASK. The first cut returned false when the room info had not arrived, so a group rendered its roster UNMASKED where legacy threw — the failure direction of a privacy control, reversed by accident, in the one change of the batch that REMOVES a mask');
+    ok(/if \(friend\.type != FriendType\.Group\) \{ return false; \}/.test(body629)
+       && body629.indexOf('friend.type != FriendType.Group') < body629.indexOf('friend.metaData == null'),
+      '★★ and it is scoped to a GROUP, tested FIRST — a bot room and a 1:1 are unchanged, which is the whole point of #613. Masking on unknown for a bot would put back the exact regression Damir reported');
+    ok(/return friend\.metaData\.botInfo\.hideParticipantAddresses;/.test(body629)
+       && !/&&\s*\r?\n?\s*friend\.metaData\.botInfo != null/.test(body629),
+      '★ the known case still reads the flag and nothing else — the null handling is a guard above it, not a term folded into the answer, so the two questions cannot be confused again');
+  }
+
+  /* —— #46 loop (2026-08-29): an armed long press must not outlive its row ——————— */
+  {
+    const rm629 = rdf('src/components/chats-row-menu.js');
+    const cs629 = rdf('src/components/chats-shell.js');
+    ok(/export function clearChatRowMenuTimers\(\)/.test(rm629)
+       && /clearChatRowMenuTimers\(\);\s*\r?\n\s*listEl\.textContent = '';/.test(cs629),
+      '★★ Damir (Android): the chats list cancels every ARMED long press BEFORE it detaches the rows. A flush mid-press delivers the release to the NEW node, so the old closure\'s 500ms timer survived and opened a menu into a shell the user had already left');
+    ok(/if \(document\.hidden \|\| !row\.isConnected\) return;/.test(rm629),
+      '★★ Damir (Android): and the belt — a detached row or a hidden shell never opens a menu. Without it liftPressedRow re-finds the live twin by address, so the stray menu arrives fully formed, which is exactly what he saw');
+    ok(/document\.addEventListener\('visibilitychange'/.test(rm629)
+       && /addEventListener\('pagehide', clearChatRowMenuTimers\)/.test(rm629),
+      '★ the #589 pair: a native page pushed over this shell does not always deliver pointercancel, and it must never leave a press armed behind it');
   }
 
   /* —— #608 / #615: the keyboard stops covering what it covers ————————————————— */
@@ -16595,12 +16682,22 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     const cli602 = rdf('src/components/chatlist-item.js');
     const home602 = rdf('src/shells/home.html');
     ok(/'call-declined': 'phone-off'/.test(cli602) && /'call-missed': 'phone-x'/.test(cli602),
-      '★ #602 + #621 (Damir on the device): a declined call has its OWN excerpt glyph, and the pair is the way round he read them on a phone — the crossed phone says "unreachable" and belongs to the unanswered call, the phone-with-x says "refused" and belongs to the declined one');
+      '★ #602 + #621 (Damir on the device, re-confirmed 2026-08-29): a declined call has its OWN excerpt glyph, and this is the pair he reads on the phone — the phone with the small x belongs to the call NOBODY ANSWERED, the crossed phone belongs to the one that was TURNED DOWN');
     ok(/canonEntry\('sl-ex-call-declined', 'Call declined', 'call-declined'\)/.test(home602)
        && /<span id="sl-ex-call-declined">\*SL\{chat-call-declined\}<\/span>/.test(home602),
       '★★ #602: registered through the *SL{} CARRIER, so it works in every locale. The phrase was simply missing from the reverse-map — it fell through to plain text, and plain text has no glyph. A missing map row, not a missing icon');
     ok(/"phone-x"/.test(rdf('src/components/icons.js')),
       '★ #602: and the glyph is in the registry — createExcerpt degrades silently when it is not, which is how this would have shipped looking fixed');
+    /* ★★ #46 loop (2026-08-29) — ONE EVENT, TWO SURFACES, ONE GLYPH. The chats row and
+     * the call CARD shipped the INVERSE pair of each other, so the same declined call
+     * showed one glyph in the list and another in the conversation. Damir settled the
+     * direction on the device: the chats row is the reference. Read the BUILT bundle for
+     * the card — the bundle is what ships, and #620's pin read src/ and stayed green on a
+     * build that spent money on the Enter key. */
+    ok(/icon\(declined \? 'phone-off' : missed \? 'phone-x' : 'phone'/.test(rdf('src/demo/spixi.iife.js')),
+      '★★ #602/#621 r2: the call CARD uses the SAME pair as the chats row — declined = the crossed phone, unanswered = the phone with the small x. The card kept the pre-swap pair after #621 swapped the row, and no pin compared the two');
+    ok(/"phone-off"/.test(rdf('src/components/icons.js')),
+      '★ #602 r2: BOTH glyphs are in the registry. The first cut checked only phone-x, and createExcerpt degrades SILENTLY on a missing key — so deleting phone-off would have lost the declined glyph with the pin green');
   }
 
   /* —— #614: back on the launch flow unwinds ONE level ———————————————————————— */

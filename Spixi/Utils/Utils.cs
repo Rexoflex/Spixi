@@ -38,14 +38,32 @@ namespace SPIXI
         /// raw flag, deliberately: a blind group pays a DERIVED address, and whether a
         /// flagged bot room's roster addresses are real or derived is not answerable from
         /// this tree. Identity display is restored; spending waits for an answer (#215).
+        ///
+        /// ★★ #46 loop (2026-08-29) — THIS PREDICATE NOW FAILS CLOSED, AND IT DID NOT.
+        /// The first cut returned FALSE when `metaData` or `botInfo` was missing, so a
+        /// group whose room info had not arrived rendered its roster UNMASKED. Legacy
+        /// dereferenced the same chain and THREW, so nothing rendered at all — the failure
+        /// direction of a privacy control was reversed by accident, in the one change of
+        /// the batch that removes a mask.
+        ///
+        /// ⚠ It was not fixed blind. #215 says the money path waits for a device answer,
+        /// and the same caution applied here: masking on UNKNOWN would show `[Unknown]`
+        /// rows in a normal private group if that window were real and common — which is
+        /// the regression #613 had just fixed. Damir checked it on Android, 2026-08-29,
+        /// cold start into a private group as the first action: *"private group is quite
+        /// smooth, member list shows correct straight away."* The window is not observable
+        /// in practice, so masking on unknown costs nothing and closes the direction.
+        ///
+        /// UNKNOWN now means MASK, for a GROUP only. That is stricter than legacy rather
+        /// than looser, so it cannot introduce an exposure. A bot or a 1:1 is unchanged.
         /// </summary>
         public static bool hidesParticipants(Friend? friend)
         {
             if (friend == null) { return false; }
             if (friend.type != FriendType.Group) { return false; }
-            return friend.metaData != null
-                && friend.metaData.botInfo != null
-                && friend.metaData.botInfo.hideParticipantAddresses;
+            // fail CLOSED: a group whose room info has not arrived is treated as blind
+            if (friend.metaData == null || friend.metaData.botInfo == null) { return true; }
+            return friend.metaData.botInfo.hideParticipantAddresses;
         }
 
         public static DateTime unixTimeStampToDateTime(double unixTimeStamp)

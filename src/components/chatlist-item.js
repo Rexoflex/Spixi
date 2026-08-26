@@ -70,9 +70,15 @@ const EXCERPT_GLYPHS = {
   /* ★ #602 (row 16): a call you TURNED DOWN is not a call you missed — it gets its own
      glyph, and both are already in the registry.
      ★★ #621 (Damir on the device, 2026-08-28): THE TWO ARE SWAPPED from #602's first
-     cut. He read the actual shapes on a phone, which I could not: the crossed phone
-     says "unreachable" and belongs to the call nobody answered; the phone with the
-     small x says "refused" and belongs to the one that was turned down.
+     cut. He read the actual shapes on a phone, which I could not.
+     ★★ CORRECTED by the #46 loop (2026-08-29). The MAP below is right — Damir confirmed
+     the excerpt again on the device — and the sentence that used to sit here was wrong:
+     it described the PRE-swap cut. The rule is: the phone with the small x (`phone-x`)
+     belongs to the call NOBODY ANSWERED, and the crossed phone (`phone-off`) belongs to
+     the one that was TURNED DOWN.
+     ⚠ THE CALL CARD MUST AGREE. `createCallBubble` shipped the pre-swap pair until the
+     loop found it, so one declined call showed two different glyphs on two surfaces.
+     One event, one glyph. A pin reads both maps now.
      ⚠ `call-missed` is the shared kind for BOTH "Missed call" (incoming, unanswered)
      and "No answer" (outgoing, unanswered) — the canon maps both to it — so this moves
      the missed-call glyph too. That is consistent (neither was answered) but it was not

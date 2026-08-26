@@ -16,6 +16,34 @@ bundle 299 · shells 18 · smoke BASELINE OK 3402 / the 3 known (#136 · M5 · B
 
 ---
 
+# THE PLAN — three sessions, plus a fourth for polish
+
+Agreed with Damir 2026-08-29. **Every session ends with him walking it on device; the walk
+is the gate, not the suite.** A row is not done because the pins are green.
+
+| | rows | why they go together |
+|---|---|---|
+| **A** | **L1 · L2 · L8** | The two he named, plus the slide-out. L1 and L2 both live in the chat / contact-details surfaces, and L8 is the mirror of work already in the tree. All three are traced to the line, so the session is build-and-verify, not investigate. |
+| **B** | **L6 · L7 · L5 · L11 · L10** | The Account and Chats defects plus the two logged ones. Smaller and more separable than A, so a slip here costs one row rather than the session. Ends by REMOVING the `[CDPERF]` probe once L10 is re-measured. |
+| **C** | **L3 · L4 · L9** + the two flicker rows | The gesture batch. L3 and L4 are one subject — back semantics — and doing them apart would mean deciding the same rule twice. L9 and the flicker rows are the polish that fits alongside. |
+| **D** | whatever his review yields | Damir: *"I am sure my review will yield a 4th one to polish some things."* Reserve, deliberately unplanned. |
+
+## What could go wrong, and what it costs
+
+* **L3 is the only genuinely large row on this list.** Swipe-back across every screen, sheet
+  and dialog touches the whole overlay stack. If it slips it takes session C with it — so it
+  is deliberately LAST, where a slip costs the least.
+* **L7 may end in removal rather than a build.** *"worst case, we can remove the option."*
+  That is Damir's ruling to make when the session reaches it, and it changes the size of B
+  by a lot. Ask before building the C# verb.
+* **L6 carries three symptoms** (rail, right pane, mobile flicker) that may or may not share
+  a cause. ⚠ #294: measure the flicker before assuming it is the same defect as the rail.
+* **L12 is not in any session** — it needs an admin account on the test set, which is
+  Damir's to arrange, and it can be walked at any time.
+* **The nine iOS rows** need the office Mac and are outside this plan.
+
+---
+
 # P0 — the two Damir called out by name
 
 ## L1 · ★★ THE LEGACY SEND AND RECEIVE SCREENS (#640)
@@ -88,11 +116,76 @@ exactly.
 
 ★★ **Why Core does not need to change:** the per-member reactions are already on the
 message, and `SingleChatPage:2704` (C11) already re-pushes the status on every receipt. So
-our own C# can derive the group answer before pushing:
-· **delivered** when the `received` reaction set is non-empty — "delivered to some";
-· **read** — Damir's ruling: **strike it in groups.** A tick that can never arrive is worse
-  than no tick.
-⚠ Do not widen Core's threshold. It is frozen, and the derivation is ours to make.
+our own C# can derive the group answer before pushing. ⚠ Do not widen Core's threshold —
+it is frozen, and the derivation is ours to make.
+
+### THE SPEC — Damir ruled it, 2026-08-29
+
+A group's outgoing bubble walks **clock → single check → double check, and STOPS**.
+
+| state | when | private group | bot room |
+|---|---|---|---|
+| sending | still on OUR device | clock | clock |
+| sent | the moment it leaves | single check | single check |
+| **delivered** | private group: ≥1 member confirmed · bot room: the BOT confirmed | **double check** | **double check — ALREADY WORKS** |
+| ~~read~~ | never in the bubble | — | — |
+| long-press detail | who has it | "3 of 4 delivered · 2 read" | delivered only — no per-member receipts exist |
+
+### ★★ CORRECTION — THE BOT ROOM NEEDS NO CHANGE (Damir, 2026-08-29)
+
+> *"on legacy the bot group stops at double check, it never shows a green double check.
+> That's the rule, since you send it to a known address, a bot."*
+
+**He is right, and an earlier version of this row said the opposite.** That version claimed
+delivery was "not knowable" in a bot room because `handleMsgReceived`'s reaction branch is
+gated on `friend.type == FriendType.Group`. That branch is real, but it is not the only
+path — and reading it without reading the FALL-THROUGH is what produced the wrong rule.
+
+The end of the same method, reached when `group_sender_address` is **null**:
+
+```csharp
+friend.setMessageReceived(channel, msg_id);   // sets sent = true AND confirmed = true
+return true;
+```
+
+A bot room's message is addressed to **one known address — the bot**. Its `msgReceived`
+comes back from the bot itself, so `group_sender_address` is null, the group branch never
+runs, and this tail does. → **double check.** The bot never reports reads → **never a green
+double check.** Exactly the legacy rule, in shared Core code.
+
+★ **So the stall is PRIVATE-GROUP-ONLY**, and it is exactly the branch split:
+
+| | private group | bot room |
+|---|---|---|
+| the receipt comes from | **each member** → `group_sender_address` set → reaction only, early `return` | **the bot** → null → `setMessageReceived` |
+| result | ✗ stalls at the all-members threshold in `Friend.addReaction` | ✓ already correct |
+
+**What is left to build in L2:**
+· the private-group derivation — delivered at ≥1 `received:` reaction;
+· `setMessageSent` at the hand-off, so the single check exists at all (below);
+· the read detail in the long-press menu;
+· **nothing for bot rooms.**
+
+* **★ THE CLOCK MEANS "STILL ON THIS DEVICE", AND NOTHING ELSE.** Damir, 2026-08-29:
+  *"we should have clock only while the message is on our device, as soon as it's sent,
+  its one check."* So the clock is not a fallback state any more — it is a positive claim
+  about where the message is. The moment it is relayed, the single check appears.
+  ⚠ **This settles the open question below rather than leaving it to investigation:** he
+  sees a CLOCK, not a single check, which means `sent` is false in a group too. Whatever
+  the cause, the ruling is that it must land on relay. Find out why it does not — it may
+  be that `pendingMessageProcessor` behaves differently for a group send — and fix that as
+  part of this row.
+
+* **★ THE READ STATUS MOVES TO THE LONG-PRESS MENU** (he agreed, 2026-08-29). The bubble
+  loses the read tick; the DETAIL goes where someone looks when they want more about one
+  message. The menu already exists, already leads with the message, and costs no room in
+  the bubble. The app can already answer it: `reactions["received"]` and `reactions["seen"]`
+  each carry the member addresses, against `friend.users.count()`.
+  🟡 The exact wording and shape inside the menu is still a dial — counts ("3 of 4
+  delivered · 2 read") or a member list. Counts are the smaller build and read fine in a
+  large room; a list is better in a room of four. Ask him before building it.
+  ⚠ Do NOT put any of this under the bubble — that is the busiest surface in the app and a
+  per-message caption there reads as noise.
 
 ---
 

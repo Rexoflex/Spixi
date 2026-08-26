@@ -1018,6 +1018,10 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-excerpt[data-type="request-done"] svg { color: var(--icon-action-default); }
 .c-excerpt[data-type="call-missed"] { color: var(--text-error); }
 .c-excerpt[data-type="call-missed"] svg { color: var(--icon-error); }
+/* ★ #602 (row 16): DECLINED reads in the ordinary excerpt ink, not the missed-call red.
+   A missed call is something that happened to you; a declined call is something you
+   chose. Red would report your own decision back to you as a problem. */
+.c-excerpt[data-type="call-declined"] svg { color: var(--icon-neutral-02); }
 .c-excerpt__draft { color: var(--text-error); font-weight: var(--font-weight-semibold); }
 
 /* #109 staged handshake — row is un-openable until secured; the typing-style
@@ -1358,6 +1362,31 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-sheet[data-open] {
   transform: translateY(0);
   transition-timing-function: var(--easing-decelerate);
+}
+
+/* ★★ #608 (device row 5a, iPhone 15) — THE SHEET RISES FOR THE KEYBOARD.
+   A bottom sheet is `bottom: 0` of its host, and on iOS the host does NOT shrink under
+   the soft keyboard: the whole sheet sat behind it. On the tip sheet only the title row
+   stayed visible — the amount chips, the custom-amount field the sheet had just FOCUSED
+   itself, and the button that commits the payment were all underneath, on a surface with
+   no scroll and no cap, so nothing could reach them. That is also why the keyboard read
+   as having "no way out": the scrim you would tap to dismiss it was under the keyboard
+   too.
+   Three declarations, and every one of them is INERT at `--kb-inset: 0` — no keyboard,
+   no change, anywhere in the app:
+     · the sheet sits on top of the keyboard instead of behind it;
+     · the home-indicator pad is given back while the keyboard covers that strip anyway
+       (the same max() the chat composer uses), so the sheet does not float twice;
+     · it is capped and scrollable, so a sheet taller than the space that is left can
+       still be read to the end rather than being clipped at both ends.
+   ⚠ Mobile only. A desktop dialog is centred, has no soft keyboard, and is scoped
+   separately further down this file. */
+:root:not([data-desktop]) .c-sheet {
+  bottom: var(--kb-inset, 0px);
+  padding-bottom: calc(var(--spacing-16) + max(0px, env(safe-area-inset-bottom, 0px) - var(--kb-inset, 0px)));
+  max-height: calc(100% - var(--kb-inset, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 /* —— #46 loop MAJOR-3: A CLOSING SHEET MUST NOT TAKE TAPS ————————————————————
    The sheet is z-44 and every scrim is z-40, so a sheet paints above a scrim that
@@ -1969,11 +1998,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    is the WRAPPER — so dropping its paint showed a translucent band of scrim through a
    row that is supposed to be lifted above it. It costs one declaration to keep. */
 :root:not([data-desktop]) .c-swipe[data-menu-lift="row"] {
-  background-color: var(--surface-neutral-02);
+  background-color: var(--surface-lift-row);
   border-radius: var(--radius-12);
 }
 :root:not([data-desktop]) .c-swipe[data-menu-lift="row"] .c-swipe__content {
-  background: var(--surface-neutral-02);
+  background: var(--surface-lift-row);
   border-radius: var(--radius-12);
 }
 /* ⚠ review MINOR-7: the lift falls back to the ROW itself when the swipe wrapper is
@@ -1985,7 +2014,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 /* the UNWRAPPED fallback (a handshaking row; pin and mute both off) — the row is
    the lift target itself and is transparent, so it takes the same paint directly. */
 :root:not([data-desktop]) .c-chatlist-item[data-menu-lift="row"]:not([data-pinned]):not([aria-current]) {
-  background-color: var(--surface-neutral-02);
+  background-color: var(--surface-lift-row);
   border-radius: var(--radius-12);
 }
 /* ⚠ THERE IS NO PRESS WASH HERE, and an earlier draft of this batch said there was.
@@ -2001,16 +2030,27 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    those are alpha layers that need something opaque behind them. Painting the item
    instead would either lose the state or lose the ground. */
 
-/* ★★ #589: THE LIFTED CHAT ROW TAKES THE RING TOO. `chats-row-menu.js` sets the lift
-   but never `[data-menu-target]`, so a lifted row had no ring, no border and no
-   elevation — in dark, the entire affordance was a 1.10:1 fill. The recipe is the
-   message target's, byte for byte, so there is one ring in this app and not two.
-   ⚠ Radius is set explicitly, not inherited: the lift targets carry radius-12 and the
-   iOS-62 negative forbids `border-radius: inherit` in this file (on the message tint it
-   would take the bubble parent's radius and square off every bubble). */
+/* ★★ #605 (Damir, 2026-08-27 — D2): THE RING ON THE CHAT ROW IS REMOVED.
+   His words: "it's not looking good, and it gets cut off on the sides. It's not
+   appropriate for a chat app and this action." The clipping identifies this ring and
+   not the message one: `.c-swipe` is full-bleed in the list and the scroller's
+   computed `overflow-x` cut the 5px spread at both screen edges. A message bubble
+   sits inside `.c-bubble-row`'s 16px inline padding and cannot be clipped, so the
+   message ring is UNTOUCHED here — flagged for Damir rather than assumed.
+
+   ⚠ THE RING WAS THE ONLY THING WORKING IN DARK, so it does not leave alone.
+   What replaces it is elevation and a genuinely lighter ground, and — the part that
+   actually matters — the row now really does escape the scrim on every platform
+   (chats-row-menu.js, the ghost). Measured on the tokens, in dark:
+     row against the UNDIMMED list          ΔL* 4.0   (the 1.10:1 the last round measured)
+     row against the DIMMED field, escaped  ΔL* 9.0
+     …and with the ground one step lighter  ΔL* 10.7
+   WCAG ratios are near 1 for all three because both colours are near-black and the
+   +0.05 flare term dominates — which is why the ratio was the wrong instrument for
+   this surface, and why the fix is the LAYER plus the step, not a colour. */
 :root:not([data-desktop]) .c-swipe[data-menu-lift="row"],
 :root:not([data-desktop]) .c-chatlist-item[data-menu-lift="row"] {
-  box-shadow: 0 0 0 2px var(--brand-400), 0 0 0 5px rgba(118, 157, 255, 0.28);
+  box-shadow: var(--elevation-3);
 }
 
 /* The ring, unchanged from #492 — it was never the wrong ring, only the wrong
@@ -2025,6 +2065,34 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 @media (prefers-reduced-motion: reduce) {
   [data-menu-target] { transition: none; }
+}
+
+/* ★★ #606 (rows A2.1 / A2.2 / 12 / 15 — the FOURTH round, and the first with an iOS
+   device): THE LIFT IS NOW A GHOST, and it does not depend on winning a z-index race.
+   The three earlier rounds all raised `z-index` on the row and all were measured on
+   Android. On iOS the row does not lift at all, and on one row it sits BEHIND the dim.
+   The scrim is a child of `document.body`; the row is a descendant of a composited,
+   async-scrolled overflow container (`#chat-scroll`, and WKWebView's own scroll view
+   is disabled, so every `.u-scroll` is a real iOS scroller). Whether WebKit will hoist
+   a descendant out of that layer to clear a sibling of its scroller is exactly the
+   thing three rounds assumed and none proved.
+   So stop asking. `liftPressedRow` now also paints a positioned COPY of the row as a
+   SIBLING of the scrim — the same technique a native context menu uses, where the
+   pressed view is snapshotted. A sibling cannot lose a stacking contest to its
+   sibling, on any engine.
+   ★ It is purely ADDITIVE: the `data-menu-lift` hoist stays exactly as it is, the
+   ghost is opaque and covers the original pixel for pixel, and if the row cannot be
+   measured no ghost is made and the behaviour is today's. Nothing regresses on
+   Android; iOS gains the lift it never had.
+   ⚠ Geometry is set INLINE by the JS, deliberately: a `position: fixed` written here
+   would be a second declared value on a `[data-menu-lift]` rule, and the cascade pin
+   that keeps this whole family honest asserts one value per property across every
+   rule that matches. */
+[data-menu-ghost] {
+  margin: 0;
+  /* the ghost is a picture of a row, never a target — the scrim below it takes the
+     light-dismiss tap, exactly as it does for the hoisted original. */
+  pointer-events: none;
 }
 
 </style>
@@ -2617,7 +2685,21 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-contacts__kinds {
   display: flex;
   gap: var(--spacing-8);
+  /* ★★ #600 (row B4.1, Damir 2026-08-27): THE CHIP ROW WAS DRAGGABLE VERTICALLY and
+     ended up cut off at the top or the bottom.
+     Mechanism, and it is a spec rule rather than a bug in this file: when one axis of
+     `overflow` is not `visible`, the other's `visible` COMPUTES TO `auto`. So
+     `overflow-x: auto` alone makes this a scroll container on BOTH axes. It only
+     matters because something overflows the block axis — `.c-chip::after`, the 44px
+     extended tap area (chip.css), which hangs 7-8px below a 28-30px chip.
+     The fix is the chats-header's, which never had this defect for exactly this
+     reason: bottom padding deeper than the overhang, so the pseudo lands INSIDE the
+     padding box and `scrollHeight === clientHeight`.
+     ⚠ Not `overflow-y: hidden` — that clips hit-testing too, and would silently take
+     back the 44px target the pseudo exists to provide. */
+  padding-block: 0 var(--spacing-12);
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
@@ -3901,6 +3983,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   padding-inline: var(--spacing-2);         /* room for the chip's focus ring inside the scroller */
   margin-inline: calc(-1 * var(--spacing-2));
 }
+/* ★ #598 (§14d, independent of the hug): `.c-addr-sheet` sets padding-inline only, so
+   the first explain row butted straight up against the sheet title. Mobile only — the
+   desktop dialog already reads correctly and must stay byte-identical. */
+:root:not([data-desktop]) .c-addr-sheet { padding-block-start: var(--spacing-8); }
 @supports not (height: 1dvh) { .c-addr-sheet { max-height: min(72vh, 640px); } }
 /* ★ #575 (Damir): on MOBILE the sheet grows to NEAR-FULL height, "just below the
    top bar". A max-height alone would not do it — the content got shorter when the
@@ -3919,7 +4005,18 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 :root:not([data-desktop]) .c-sheet--addr {
   display: flex;
   flex-direction: column;
-  max-height: 100%;
+  /* ★★ #608 round 2 (adversarial review, MAJOR-1): SUBTRACT THE KEYBOARD HERE TOO.
+     This file is linked AFTER overlay.css and this selector has the same (0,3,0)
+     specificity as the new `.c-sheet` rule, so a bare `100%` won the cap while
+     `bottom: var(--kb-inset)` still applied — the sheet was LIFTED by the keyboard's
+     height and never SHORTENED, which put its handle, its title, its only Close button
+     and the top of the QR above the top of the screen, with nothing scrollable and no
+     scrim strip left to tap. Worse than the defect #608 was fixing.
+     ⚠ Reachable, and not a corner case: Wallet → Receive → type an amount → "Show my
+     address". That tap is on a BUTTON, which #609 deliberately exempts from
+     tap-to-dismiss, so the keyboard is positively still up when this sheet mounts.
+     Inert at `--kb-inset: 0`, like every other term this batch added. */
+  max-height: calc(100% - var(--kb-inset, 0px));
   box-sizing: border-box;
 }
 /* ⚠ round-2 MINOR-4: createSheet wraps the content in `.c-sheet__content`, so THAT is
@@ -3932,26 +4029,32 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   display: flex;
   flex-direction: column;
 }
+/* ★★ #598 (Damir, 2026-08-27 — D4): THE SHEET HUGS ITS CONTENT.
+   #575 forced a near-full height so the sheet sat "just below the top bar". That was
+   right when it was written. Since then the CONTENT got shorter — #556 dropped the QR
+   card's padding and #575 shrank the code 280 -> 216 — so the forced height was
+   manufacturing ~110px of slack with nowhere good to put it, and on the device that
+   slack read as a HOLE, not as air.
+   ⚠ The floor survives as a MIN-height: a sheet with a short explainer still has
+   presence. `flex: 1 1 auto` in an auto-height column now resolves to content height,
+   and `min-height: 0` keeps it able to shrink and scroll on a short window. */
 :root:not([data-desktop]) .c-addr-sheet {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-height: 0;
-  height: max(320px, calc(100dvh - var(--safe-top, 0px) - env(safe-area-inset-bottom, 0px) - var(--layout-bar-top, 56px) - 88px));
   max-height: none;
 }
-@supports not (height: 1dvh) {
-  :root:not([data-desktop]) .c-addr-sheet {
-    height: max(320px, calc(100vh - var(--safe-top, 0px) - env(safe-area-inset-bottom, 0px) - var(--layout-bar-top, 56px) - 88px));
-  }
+/* ★★ #598: SPACE THAT IS CHOSEN, NOT SPACE THAT IS LEFT OVER.
+   #589 placed the slack here with `margin-block-start: auto`. The seam was the right
+   one; the mechanism was not. An auto margin is a REMAINDER — its size is whatever the
+   layout has spare, so it changed with the screen, the locale and the content, and on a
+   tall phone it grew to ~110px. At identical pixel counts, chosen space reads as design
+   and left-over space reads as a mistake.
+   So the QR block now carries its own block padding: one step above the sheet's
+   `--spacing-16` rhythm, constant on every device, in every locale, at any length.
+   ⚠ Never `margin-block-start: auto` here again. */
+:root:not([data-desktop]) .c-addr-sheet__qrwrap {
+  padding-block: var(--spacing-24);
 }
-/* ★ #589: the slack of the near-full mobile sheet used to collect UNDER the
-   explainer, because the explainer was the last block. It is not any more — the
-   safety line now sits directly under the address block, and that adjacency is the
-   whole point of Damir's order. So the slack moves to the ONE seam where a gap
-   reads as deliberate: between the sentence that explains the surface and the
-   surface itself. Everything below the QR keeps its token gaps and its adjacency.
-   ⚠ An auto margin resolves to 0 when there is no free space, so a short window
-   still scrolls from the true top — no unreachable content. */
-:root:not([data-desktop]) .c-addr-sheet__qrwrap { margin-block-start: auto; }
 /* the explicit way out (#575). Mobile only: a desktop dialog is dismissed with Esc
    or a click outside, and both stay available here too. It sits over the sheet's own
    padding in the title row, so it never displaces content. */
@@ -4157,8 +4260,27 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   border-radius: var(--radius-16);
   background: var(--surface-neutral-02);
 }
+/* ★★ #599 (Damir, 2026-08-27 — D5): THE SAFETY BLOCK GETS COLOUR.
+   Both explain blocks and the address chip painted `--surface-neutral-02`, so three
+   cards in a row read as one broken card, and the safety line — the only one that is a
+   WARNING about someone else's money — read as part of the chip above it.
+   `--explain--safe` was already the paint-free semantic hook (wallet-receive.js), so the
+   colour lands there and cannot leak into the info block above the QR, or into the peer
+   sheet, which renders no safety block at all.
+   Measured on the tokens: copy 12.6:1 light / 15.5:1 dark on this surface; the glyph
+   uses `--text-success` rather than `--icon-success` because the latter is 4.28:1 in
+   light — over the 3:1 graphic bar, but under the text bar it sits beside. The hairline
+   is what separates the block from the sheet in DARK, where every tinted surface is
+   ~1.14:1 in lightness and reads as hue alone. */
+.c-addr-sheet__explain--safe {
+  background: var(--surface-success-inverse);
+  /* ⚠ an inset SHADOW, not a border. A 1px border would shrink the content box and
+     shift this block's copy 1px against the info block above it — and one shared
+     left edge for every line of copy is exactly what #575/#589 bought (row A1.3). */
+  box-shadow: inset 0 0 0 var(--outline-width-1) var(--outline-success-inverse);
+}
 .c-addr-sheet__explainicon { margin-top: 1px; color: var(--icon-info); display: inline-flex; justify-self: center; }
-.c-addr-sheet__explainicon--safe { color: var(--icon-success); margin-top: 2px; }
+.c-addr-sheet__explainicon--safe { color: var(--text-success); margin-top: 2px; }
 .c-addr-sheet__info {
   margin: 0;
   font-size: var(--font-size-body-sm);
@@ -4683,6 +4805,15 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      near-black ink in dark. Same rich light-mode banner everywhere. */
   background: linear-gradient(90deg, rgba(102, 102, 102, 0.00) 0%, rgba(2, 6, 25, 0.45) 100%), var(--primary-600);
   color: var(--neutral-10);
+  /* ★ #622 (Damir, device 2026-08-28): "the pressed state of the explore banner seems to
+     be system based, it's a pure rectangle dark blue. We need to remove it."
+     He read it exactly right — that was Android's own tap highlight, a SQUARE wash the
+     platform paints over the whole element and which ignores the 16px radius, which is
+     what makes it read as foreign. It is a <button>, so it gets one by default.
+     The house answer is already in five other files (wallet-shell, reactions,
+     chats-swipe, topbar): suppress the platform's and let pressable.js own the feedback,
+     so every pressable surface in the app presses the same way. */
+  -webkit-tap-highlight-color: transparent;
 }
 .c-apps-explore__text {
   position: relative; z-index: 1;
@@ -4819,6 +4950,17 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   .wallet-takeover__body {
     flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
     padding: var(--spacing-16);
+    /* ★★ #608 (device row 5b): THE KEYBOARD USED TO SIT ON TOP OF THIS SCREEN.
+       WKWebView does not shrink the layout viewport for the soft keyboard, so a
+       `position: fixed; inset: 0` takeover keeps its full height and everything below
+       the keyboard line — the Review button, the recipient list — was unreachable:
+       "it's difficult to choose the recipient". The keyboard's overlap is published as
+       `--kb-inset` (below) and reserved HERE as scroll padding, so the content the
+       keyboard covers can simply be scrolled to. No element moves and the document
+       never changes size — the #301/#303 lever, which is the one that was proven to
+       work; the resize lever was falsified on device (#294). Zero when there is no
+       keyboard, so nothing changes anywhere else. */
+    padding-bottom: calc(var(--spacing-16) + var(--kb-inset, 0px));
   }
   /* ★ #560 (Damir, screenshots 2026-08-25): the money screens sat at 32px from
      each edge — this body pads 16 AND the component pads 16. The Contacts panel
@@ -4917,6 +5059,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     <span id="sl-ex-call">*SL{index-excerpt-voice-call}</span>
     <span id="sl-ex-call-noanswer">*SL{chat-call-no-answer}</span>
     <span id="sl-ex-call-missed">*SL{chat-call-missed}</span>
+    <span id="sl-ex-call-declined">*SL{chat-call-declined}</span>
     <span id="sl-ex-pay-req-sent">*SL{index-excerpt-payment-request-sent}</span>
     <span id="sl-ex-pay-req-recv">*SL{index-excerpt-payment-request-received}</span>
     <span id="sl-ex-pay-sent">*SL{index-excerpt-payment-sent}</span>
@@ -5126,6 +5269,65 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      exactly this line. */
   attachPressFeedback();
   installExecuteUiCommand();                     // defines window.executeUiCommand for C#
+
+  /* ★★ #608 (device rows 5a / 5b, iPhone 15) — THE KEYBOARD INSET REACHES THE WALLET.
+   *
+   * The lever itself is #301/#303's and it is unchanged: WKWebView does not resize the
+   * layout viewport for the soft keyboard, so nothing here changes the document's size
+   * — the keyboard's overlap is simply PUBLISHED as `--kb-inset` and whatever needs the
+   * room reserves it. The resize lever was tried three times and falsified on device;
+   * #294's standing order is that it may only be re-attempted with a changed lever, and
+   * this is that lever, already proven in the chat shell.
+   *
+   * What was missing was reach. `--kb-inset` was published in chat.html ONLY, and the
+   * native observer that feeds it was hard-scoped to `chat.html` in C#. Wallet Send
+   * lives in THIS document, so it never received a keyboard signal at all, and a
+   * `position: fixed; inset: 0` takeover under a keyboard hides its own Review button.
+   *
+   * Deliberately lean: no scroll-stick, no pan-tracking, none of chat.html's log
+   * machinery — there is no log here. Publish, and let CSS reserve.
+   * ⚠ No-op by construction wherever the platform already shrinks the viewport
+   * (Android adjustResize, WebView2): the delta is then ~0 and stays under the
+   * threshold. Desktop returns immediately. */
+  (function walletKeyboardInset() {
+    if (document.documentElement.hasAttribute('data-desktop')) return;
+    const vv = window.visualViewport;
+    let nativeKb = false;                  // once C# pushes frames, they win (one writer)
+    let last = -1;
+    function setInset(px) {
+      if (px === last) return;
+      last = px;
+      document.documentElement.style.setProperty('--kb-inset', px + 'px');
+    }
+    function apply() {
+      if (!vv || nativeKb) return;
+      const delta = window.innerHeight - vv.height;   // 60px separates a keyboard from chrome jitter
+      setInset(delta > 60 ? Math.round(delta) : 0);
+    }
+    /* the first vv resize fires BEFORE the keyboard geometry settles, and on iOS no
+       further event arrives until a keystroke moves the caret — the #303 finding, where
+       the composer lifted only after 7-8 characters. So every trigger re-checks. */
+    let timers = [];
+    function kick() {
+      apply();
+      for (const t of timers) clearTimeout(t);
+      timers = [80, 240, 480, 900, 1400].map((ms) => setTimeout(apply, ms));
+    }
+    if (vv) { vv.addEventListener('resize', kick); vv.addEventListener('scroll', kick); }
+    document.addEventListener('focusin', (e) => {
+      const t = e && e.target;
+      if (t && typeof t.matches === 'function' && t.matches('input, textarea')) kick();
+    });
+    document.addEventListener('focusout', () => { if (!nativeKb) kick(); });
+    /* the NATIVE lever (primary on iOS): C# observes UIKeyboardWillChangeFrame and
+       pushes the settled overlap in points — the same unit as a CSS pixel. */
+    window.__setKbInset = function (h) {
+      if (document.documentElement.hasAttribute('data-desktop')) return;
+      const px = Math.max(0, Math.round(Number(h) || 0));
+      nativeKb = true;
+      setInset(px > 60 ? px : 0);
+    };
+  })();
 
   // Batch C (M6): on desktop, a RIGHT-CLICKED chat-row menu presents as an
   // anchored dropdown at the pointer with the source row highlighted (demo
@@ -6332,6 +6534,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   canonEntry('sl-ex-call', 'Voice Call', 'call');                               // index-excerpt-voice-call (answered/connected)
   canonEntry('sl-ex-call-noanswer', 'No answer', 'call-missed');                // chat-call-no-answer (#265, outgoing unanswered)
   canonEntry('sl-ex-call-missed', 'Missed call', 'call-missed');                // chat-call-missed (#265, incoming missed)
+  /* ★ #602 (row 16): the declined phrase was never registered, so `excerptFromRaw`
+     fell through to plain text — and plain text has no entry in EXCERPT_GLYPHS.
+     That is the whole defect: a missing map row, not a missing glyph. */
+  canonEntry('sl-ex-call-declined', 'Call declined', 'call-declined');          // chat-call-declined (HomePage:2205)
   canonEntry('sl-ex-pay-req-sent', 'Payment Request Sent', 'payment');          // index-excerpt-payment-request-sent
   canonEntry('sl-ex-pay-req-recv', 'Payment Request Received', 'payment');      // index-excerpt-payment-request-received
   canonEntry('sl-ex-pay-sent', 'Payment Sent', 'payment');                      // index-excerpt-payment-sent

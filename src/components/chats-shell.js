@@ -36,7 +36,7 @@
 import { getStrings } from './strings-runtime.js';
 import { createChatItem } from './chatlist-item.js';
 import { createContactRequest } from './contact-request.js';
-import { attachChatRowMenu, liftedRowAddress } from './chats-row-menu.js';   // ★ review MINOR-3: a flush must not drop the pressed-row lift
+import { attachChatRowMenu, liftedRowAddress, repaintRowGhost } from './chats-row-menu.js';   // ★ review MINOR-3: a flush must not drop the pressed-row lift
 import { wrapChatRowSwipe, closeChatRowSwipe } from './chats-swipe.js';
 import { createEmptyState } from './empty-state.js';
 
@@ -291,7 +291,14 @@ export function renderChatsList(listEl, state, opts = {}) {
     /* ★ review MINOR-3 (#572 ③): a flush replaces every row, and a message arriving in
        ANY chat is enough. Without this the row under an open anchored menu drops back
        beneath the deep scrim mid-interaction — the exact symptom the lift fixes. */
-    if (c.address && c.address === liftedRow) node.dataset.menuLift = 'row';
+    if (c.address && c.address === liftedRow) {
+      node.dataset.menuLift = 'row';
+      /* ★ #606 r2 (adversarial review): the GHOST follows the re-render too. It is a
+         snapshot pinned to a viewport rectangle, and the flush that replaced this row
+         also re-sorted the list — left alone it strands an opaque copy of this chat over
+         whatever row now occupies the old slot. */
+      try { repaintRowGhost(node); } catch (e) { /* ghost is an enhancement */ }
+    }
     listEl.append(node);
   };
 

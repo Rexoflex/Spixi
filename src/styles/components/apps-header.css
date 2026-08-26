@@ -70,6 +70,15 @@
      near-black ink in dark. Same rich light-mode banner everywhere. */
   background: linear-gradient(90deg, rgba(102, 102, 102, 0.00) 0%, rgba(2, 6, 25, 0.45) 100%), var(--primary-600);
   color: var(--neutral-10);
+  /* ★ #622 (Damir, device 2026-08-28): "the pressed state of the explore banner seems to
+     be system based, it's a pure rectangle dark blue. We need to remove it."
+     He read it exactly right — that was Android's own tap highlight, a SQUARE wash the
+     platform paints over the whole element and which ignores the 16px radius, which is
+     what makes it read as foreign. It is a <button>, so it gets one by default.
+     The house answer is already in five other files (wallet-shell, reactions,
+     chats-swipe, topbar): suppress the platform's and let pressable.js own the feedback,
+     so every pressable surface in the app presses the same way. */
+  -webkit-tap-highlight-color: transparent;
 }
 .c-apps-explore__text {
   position: relative; z-index: 1;

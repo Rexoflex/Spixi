@@ -712,3 +712,83 @@ shares the user's OWN primary address (`HomePage:908-913`), so a Share button on
 contact's address would send the wrong one. A caller cannot re-introduce it.
 
 **One log line: none.** **One new C# `using` (`SPIXI.VoIP`, `Spixi`) — no new dependency.**
+
+---
+
+# #596–#615 — the 2026-08-27 iOS device pass, AS BUILT
+
+The gate asks one question per finding: **does this exposure exist at the baseline
+(`0e85a4b8`)?** No → we introduced it → we fix it before handover. Yes → legacy → it goes
+to the engineer untouched. Applied while building, so the sweep finds nothing.
+
+## ★★ #613 — the bot-room mask. The one row on this batch that needed the question asked properly.
+
+**What changed:** `hideParticipantAddresses` no longer masks a BOT room's participants.
+`Utils.hidesParticipants(friend)` returns true only for `FriendType.Group`, and every
+identity-display site now asks it: `SingleChatPage` (the roster relation, the owner push,
+the `setChatMode` arg, the nick→address reverse-resolve, the message relation),
+`ContactDetails.showFriend`, and — independently — `chat.html`'s `mode.blind`.
+
+**Does the exposure exist at the baseline? YES — and more of it.** Legacy qualifies
+**every** mask it applies on `friend.type == FriendType.Group`
+(`0e85a4b8:Spixi/Pages/Chat/SingleChatPage.xaml.cs:465-466`), so at the fork point a bot
+room's participant addresses were always visible, and a nameless member's row fell back to
+the **full** address (`:1174`). Our redesign hid them, then; this batch returns to parity,
+and the redesign's own #211 canon means the address is now shown middle-truncated rather
+than in full.
+
+★ **So this REMOVES a divergence we introduced. It is not an introduced exposure**, and by
+the gate's own rule the baseline behaviour goes to the engineer as it stands.
+
+⚠ **What is deliberately NOT restored: the money path.** `SingleChatPage`'s tip refusal
+still reads the raw `hideParticipantAddresses`. A blind group pays a **derived** address
+(`GroupChat.DeriveGroupAddress`), and nothing in this tree establishes whether a
+flagged bot room's roster addresses are real or derived. Identity display is restored;
+spending waits for an on-device answer (#215). ⚠ A bot server that genuinely wants private
+participants is a NEW capability and needs its own decision — #348 inherited it silently
+from a flag on the wire, and that is the thing this row un-does.
+
+## New verb: `ixian:launchoverlay:<0|1>` (#614)
+
+One boolean, shell → C#, absolute (never a toggle), no payload beyond `0`/`1`. It is
+dispatched on the **anchored** prefix like every payload verb, and the value is not parsed
+— `EndsWith(":1")`. It carries no address, no nickname and no password, and it is
+consumed only to decide whether hardware back routes into the shell. It joins the four
+that already exist (`homeoverlay`, `chatoverlay`, `cdoverlay`) and is the same shape.
+⚠ `LaunchPage` is the page whose verbs carry a **wallet password**; the existing
+`logVerbName` rule — cut at the verb name, never log the payload — is untouched and still
+pinned, and this verb adds nothing that could be logged.
+
+## New C# reach: the keyboard-inset allow-list (#608)
+
+`attachKeyboardInsetObserver` was scoped `loadedHtmlFileName != "chat.html"`; it is now a
+literal allow-list `{ "chat.html", "index.html", "intro.html" }` matched with
+`Array.IndexOf` — **exact string equality, never a prefix or a contains test.**
+
+★ The security property the old single-name check *implied* is now asserted directly, and
+the pin forbids the shapes that would break it: `MiniAppPage` never sets
+`loadedHtmlFileName`, so third-party content matches no entry and is structurally
+excluded, and a `StartsWith`/`Contains` test would be the way that stops being true. The
+observer pushes one integer (a keyboard height in points) into a guard-called global; it
+reads nothing from the page. The iOS-53 `contentOffset` clamp stays chat-only.
+
+## Everything else on this batch
+
+**No new `spixi.*` storage key.** **No new network fetch** — and #596 removes one of the
+few surfaces that could have grown into one: the contact-details cover is deleted, so the
+"a cover needs a source" argument that kept a remote banner out is now moot by absence.
+**No new HTML sink.** **No new WebView setting.** **No new log line** except one
+diagnostic that carries no user data: `LaunchPage back: view=… overlay=…` (an enum-like
+view name clamped to four literals, and a boolean).
+
+⚠ **One privacy-relevant control returns, deliberately** (#597): "Show sender name" is
+restored in Account → Notifications on **mobile only**, and its shipped default is
+**FALSE** — unchanged. The one-shot migration that forced it back to false is deleted,
+which is the *removal* of a silent preference write, not the addition of one. The
+preference is read at exactly one place (`Node.cs`, when a notification is composed) and
+that site is untouched.
+
+⚠ **`#604` and `#606` are UNVERIFIED on hardware.** Neither changes a trust boundary —
+one is a press-feedback latch, the other paints a decorative copy of a chat row into the
+same document — but they are flagged here because "built and unverified" is a state the
+gate should be able to see.

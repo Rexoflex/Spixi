@@ -435,6 +435,8 @@ export const srsp = {
   notDeliveredNoRetry: "Nije isporučeno",
   notifAll: "Dozvoli obaveštenja",
   notifFailed: "Ažuriranje obaveštenja nije uspelo.",
+  notifSender: "Prikaži ime pošiljaoca",
+  notifSenderSub: "Tekst poruke se nikada ne prikazuje u obaveštenjima",
   notifSounds: "Zvukovi u aplikaciji",
   notifications: "Obaveštenja",
   ok: "U redu",

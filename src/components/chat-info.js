@@ -51,7 +51,7 @@
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { discGrad } from './disc.js';
-import { createAvatar, truncateAddressMiddle, identityIndex } from './avatar.js';   // ★ #591: identityIndex feeds the cover's hue — ONE source for a person's colour
+import { createAvatar, truncateAddressMiddle } from './avatar.js';
 import { createButton, setLoading } from './button.js';
 import { createTopbar } from './topbar.js';
 import { createBadge } from './badge.js';
@@ -190,35 +190,10 @@ export function createChatInfo({
   /* ——— hero ——— */
   const hero = document.createElement('div');
   hero.className = 'c-chat-info__hero';
-  /* ★★ #591 (Damir's second mockup): A COVER behind the identity, "like we have for
-   * mini apps".
-   *
-   * ⚠ A cover needs a SOURCE, and this is the whole design decision. A mini app has one
-   * because its publisher ships it; a contact has exactly one image — their photo. So the
-   * cover is derived, never fetched: a blurred, scaled crop of the SAME photo when there
-   * is one, and the contact's identity gradient — the same deterministic per-address hue
-   * their fallback avatar already wears — when there is not.
-   * That buys the look with no new data, no second source of truth for one identity, and
-   * no temptation toward a remote banner, which would re-open the #82 IP-leak posture on
-   * a surface that also carries a Pay button.
-   *
-   * `aria-hidden`: it is decoration with no information the name below does not carry. */
-  const cover = document.createElement('div');
-  cover.className = 'c-chat-info__cover c-idhue';
-  cover.dataset.hue = String(identityIndex(avatarSeed || address || name));
-  cover.setAttribute('aria-hidden', 'true');
-  if (avatar) {
-    const cimg = document.createElement('img');
-    cimg.className = 'c-chat-info__cover-img';
-    cimg.alt = '';
-    cimg.decoding = 'async';
-    /* the gradient stays underneath, so a photo that fails to load degrades to the
-       identity colour rather than to a broken tile — the c-avatar onerror grammar. */
-    cimg.addEventListener('error', () => cimg.remove(), { once: true });
-    cimg.src = avatar;
-    cover.append(cimg);
-  }
-  hero.append(cover);
+  /* ★ #596: THE COVER IS RETIRED (Damir, 2026-08-27 — D1). The blurred identity band
+   * behind the avatar is gone for v1: it had no lower edge, and for a contact with no
+   * photo it became a full-bleed wash of that avatar's own single colour. A replacement
+   * is a later design job, so nothing takes its place here. */
   /* A4 (#302): presence on the hero. 1:1 only — C# structurally cannot push it for
      a group or bot (ContactDetails.updateScreen returns at :405-410, before the
      presence block, whenever isGroup is set). Guarding on `kind` here as well means
@@ -904,24 +879,40 @@ export function createChatInfo({
   /* ——— destructive zone — every action behind a LOCKED confirm (#135-C1) ——— */
   const danger = document.createElement('div');
   danger.className = 'c-chat-info__danger';
-  /* TWO TIERS — the settings-family grammar (createSettingsDanger: a quiet
-     "free up space" tier + a red "danger zone" tier). Damir 2026-08-12: delete
-     chat history "doesn't need to be so loud" — it clears local messages and is
-     recoverable-ish (the contact keeps their copy), so it reads as a neutral row
-     with a grey disc. Red stays RESERVED for the irreversible relationship
-     actions (remove contact / leave group), which is what makes it mean
-     something. Both rows keep the bordered card + the locked confirm. */
+  /* ★★ #618 (Damir, device 2026-08-28): ONE ROW GRAMMAR ON THIS SCREEN.
+   *
+   * His words: "delete history and remove contact have completely different style to
+   * the other rows … it has to be same as our account." He was describing a real
+   * inconsistency, not a preference: these two were `c-chat-info__danger-row`, a
+   * bespoke shape with a transparent ground, its own border, no chevron and its own
+   * colour rules — while everything below them (address, notifications) is
+   * `c-chat-info__row`: a disc, a label, and a chevron or a toggle, on a card.
+   * Two grammars on one screen, and the eye reads the odd ones as unfinished.
+   *
+   * So they become ordinary rows, exactly like the Account hub's
+   * (`createSettingsDanger`: disc + label + chevron on a group card).
+   *
+   * ⚠ THIS REVERSES #148 (Damir, 2026-08-12 — "delete chat history doesn't need to be
+   * so loud"), and it does not throw that reasoning away, it MOVES it. The two-tier
+   * idea was right; carrying it in the row's own paint is what made the rows foreign.
+   * The tier now lives where it always belonged — in the DISC hue (neutral for the
+   * reversible one, error for the irreversible one) and in the locked confirm dialog
+   * that both still open. Red keeps meaning something; it just stops shouting from a
+   * row that looks like nothing else on the page. */
   const dangerRow = (label, glyph, buildOpts, { tone = 'error' } = {}) => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'c-chat-info__danger-row';
+    b.className = 'c-chat-info__row c-chat-info__row--action';
     b.dataset.tone = tone;
-    // #148: error disc = destructive reservation. The quiet tier drops the
-    // per-glyph gradient so the neutral hue actually survives (base.css).
-    b.append(
+    const lab = document.createElement('span');
+    lab.className = 'c-chat-info__row-label';
+    // #148 lives on here: the quiet tier drops the per-glyph gradient so the neutral
+    // hue actually survives (base.css), and the error tier keeps the destructive disc.
+    lab.append(
       tone === 'quiet' ? infoDisc(glyph, 'neutral', { grad: false }) : infoDisc(glyph, 'error'),
       document.createTextNode(label),
     );
+    b.append(lab, icon('chevron-right', { size: 18 }));
     // built at CLICK time (audit m7): the remove-contact title must carry the
     // nickname as it is NOW, not as it was when the panel mounted
     b.addEventListener('click', () => confirmAction(buildOpts()));

@@ -671,7 +671,11 @@ namespace SPIXI
                 // mask — the mask fires for blind GROUPS only, and a blind BOT's
                 // roster rows would otherwise carry an is-in-your-contacts hint
                 // (the #348 MAJOR-5 masking gap, must not widen under the gate).
-                bool relBlind = friend.metaData.botInfo != null && friend.metaData.botInfo.hideParticipantAddresses;
+                // ★ #613: the predicate is now the LEGACY one — a mask is a GROUP mask. The
+                // older note here said to use the BROAD flag and that is no longer what this
+                // line does; a bot room's roster is not masked, so its relation hint is not a
+                // leak. Corrected rather than left contradicting the code beneath it.
+                bool relBlind = Utils.hidesParticipants(friend);
                 string relation = relBlind ? "" : contactRelationFor(contactAddress);
                 Utils.sendUiCommand(this, "addContact",  address, nick, avatar, role.ToString(), relation);
             }
@@ -712,7 +716,13 @@ namespace SPIXI
             // address would de-anonymize an identity the mode hides.
             if (friend.bot || friend.type == FriendType.Group)
             {
-                bool blindGroup = friend.metaData.botInfo != null && friend.metaData.botInfo.hideParticipantAddresses;
+                // ★ #613 round 2 (review MEDIUM-3): the owner push is gated on being a
+                // GROUP, not merely on "not blind". N48 already restricted `amOwner` to
+                // FriendType.Group for the reason ContactDetails records: in a bot room
+                // getOwner() degrades to "the first roster entry we happened to learn",
+                // and the 500-cap eviction reshuffles it. Un-gating blindness alone would
+                // have branded an arbitrary participant of a public channel as its owner.
+                bool blindGroup = friend.type != FriendType.Group || Utils.hidesParticipants(friend);
                 if (!blindGroup)
                 {
                     try
@@ -751,8 +761,43 @@ namespace SPIXI
                 }
             }
 
+            /* ★ #619: resolved for a 1:1 chat, awaited by the message loader for a group
+             * or bot room. Declared here so both branches below share one contract. */
+            Task<bool> botReady = Task.FromResult(true);
+
             if (chat_type > 0)
             {
+                /* ★★ #619 (Damir, device 2026-08-28): THE CHAT OPENS NOW, NOT IN FIVE SECONDS.
+                 *
+                 * His two reports are one defect: "the 5 second delay when joining a group
+                 * bot is useless, it still needs to load all the messages — better it shows
+                 * up immediately", and "the group bot info takes 4 seconds to appear and
+                 * feels broken. We added the skeletons for this purpose."
+                 *
+                 * `onLoad` is reached from `onNavigating`, a WebView.Navigating handler —
+                 * the UI THREAD. So this loop's `Thread.Sleep(100)` × 50 froze the whole
+                 * app for up to five seconds while a cold bot room answered, and everything
+                 * the user touched in that window — including the info button — queued
+                 * behind it. That is why the info screen "takes 4 seconds": it was never
+                 * slow, it was waiting its turn.
+                 *
+                 * ⚠ The wait itself cannot simply be deleted. Everything below it reads
+                 * `botInfo`, and `selectedChannel` — which `loadMessages()` uses to pick
+                 * the channel to read — is assigned from `botInfo.defaultChannel` here. Cut
+                 * the wait and a cold room loads channel 0 instead of its default: an empty
+                 * chat, which is worse than a slow one.
+                 *
+                 * So the wait MOVES rather than goes. It runs on a background thread, and
+                 * the message load below awaits it, which preserves the one ordering that
+                 * matters while the UI thread is free the whole time. The page presents at
+                 * once, the shell shows the skeletons it already has, and the mode, the
+                 * channel and the messages arrive as they resolve.
+                 *
+                 * ⚠ The 5 s ceiling and its pop + alert are KEPT exactly as they were
+                 * (audit M1 chose that alert target deliberately). A bot that never answers
+                 * still fails the same way — it just no longer freezes the app to do it. */
+                botReady = Task.Run(() =>
+                {
                 int sleep_cnt = 0;
                 while (friend.metaData.botInfo == null || !friend.channels.hasChannel(friend.metaData.botInfo.defaultChannel))
                 {
@@ -774,7 +819,7 @@ namespace SPIXI
                                 Logging.warn("Exception showing bot-not-ready alert: " + ex);
                             }
                         });
-                        return;
+                        return false;   // #619: the deferred work aborts; the loader below bails too
                     }
                     Thread.Sleep(100);
                     sleep_cnt++;
@@ -794,6 +839,14 @@ namespace SPIXI
                 // GROUP only. Without this the shell would offer a tip on a blind bot
                 // and C# would refuse it — a dead button.
                 Utils.sendUiCommand(this, "setChatMode", chat_type.ToString(), friend.metaData.botInfo.cost.ToString(), cost_text, friend.metaData.botInfo.admin.ToString(), friend.metaData.botInfo.serverDescription, send_notification.ToString(), friend.metaData.botInfo.hideParticipantAddresses.ToString());
+                // ★★ #613 round 2 (adversarial review, HIGH-1): arg 7 stays the RAW
+                // flag, and the shell derives TWO things from it under two names.
+                // The first cut sent the legacy-qualified answer, which fixed identity
+                // display and silently re-created the dead Tip button the argument was
+                // added to prevent: "not blind" made the shell OFFER a tip in a flagged
+                // bot room, while the money gate below still reads the raw flag and
+                // refuses it. A user would have reached the amount sheet and been told
+                // no. Identity and spending are different questions about one flag.
                 setChannelSelectorUnread();
 
                 selectedChannel = 0; // TODO: remove this after groupchat UI improvements
@@ -814,6 +867,8 @@ namespace SPIXI
                 {
                     selectedChannel = 0;
                 }
+                return true;
+                });
             } else
             {
                 Utils.sendUiCommand(this, "setChatMode", "0", "0.00000000", "", "False");
@@ -882,10 +937,22 @@ namespace SPIXI
             // (ctor), so during the brief load the user sees that themed color, then
             // the finished chat fades in in one go — no empty/spinner flash.
 
-            Task.Run(() =>
+            Task.Run(async () =>
             {
                 try
                 {
+                    /* ★ #619: the ONE ordering that matters. `loadMessages()` reads
+                     * `selectedChannel`, which the deferred bot block assigns from
+                     * `botInfo.defaultChannel` — so wait for it here, on a background
+                     * thread, instead of on the UI thread where it used to wait.
+                     * A 1:1 chat resolves instantly (`Task.FromResult(true)`), and a bot
+                     * that timed out returns false, so this bails exactly where the old
+                     * synchronous `return` did. */
+                    if (!await botReady)
+                    {
+                        return;
+                    }
+
                     if (SSpixiCodecInfo.getSupportedAudioCodecs().Count > 0 && friend.state == FriendState.Approved)
                     {
                         Utils.sendUiCommand(this, "showCallButton", "");
@@ -1940,8 +2007,10 @@ namespace SPIXI
             {
                 return null;
             }
+            // ★ #613: a bot room's nick->address reverse resolve must not fail closed —
+            // that is what left a public channel's senders unnamed and unactionable.
             if (friend.metaData == null || friend.metaData.botInfo == null
-                || friend.metaData.botInfo.hideParticipantAddresses)
+                || Utils.hidesParticipants(friend))
             {
                 return null;
             }
@@ -2099,7 +2168,7 @@ namespace SPIXI
             // Loop n2: only the STANDARD text push consumes it — gate the FriendList
             // scan on the type so payment/file/app/call rows don't pay for it.
             string relation = "";
-            bool relationBlind = friend.metaData.botInfo != null && friend.metaData.botInfo.hideParticipantAddresses;
+            bool relationBlind = Utils.hidesParticipants(friend);   // ★ #613: groups only, as legacy
             if (message.type == FriendMessageType.standard && !message.localSender && !relationBlind && (friend.bot || friend.type == FriendType.Group))
             {
                 // D-19b (#370): reads resolvedSender — a reverse-resolved row gets the

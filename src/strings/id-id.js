@@ -435,6 +435,8 @@ export const idid = {
   notDeliveredNoRetry: "Tidak terkirim",
   notifAll: "Izinkan notifikasi",
   notifFailed: "Tidak dapat memperbarui notifikasi.",
+  notifSender: "Tampilkan nama pengirim",
+  notifSenderSub: "Teks pesan tidak pernah ditampilkan di notifikasi",
   notifSounds: "Suara dalam aplikasi",
   notifications: "Notifikasi",
   ok: "Oke",

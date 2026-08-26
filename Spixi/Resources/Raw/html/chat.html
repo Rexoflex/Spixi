@@ -1912,6 +1912,31 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   transform: translateY(0);
   transition-timing-function: var(--easing-decelerate);
 }
+
+/* ★★ #608 (device row 5a, iPhone 15) — THE SHEET RISES FOR THE KEYBOARD.
+   A bottom sheet is `bottom: 0` of its host, and on iOS the host does NOT shrink under
+   the soft keyboard: the whole sheet sat behind it. On the tip sheet only the title row
+   stayed visible — the amount chips, the custom-amount field the sheet had just FOCUSED
+   itself, and the button that commits the payment were all underneath, on a surface with
+   no scroll and no cap, so nothing could reach them. That is also why the keyboard read
+   as having "no way out": the scrim you would tap to dismiss it was under the keyboard
+   too.
+   Three declarations, and every one of them is INERT at `--kb-inset: 0` — no keyboard,
+   no change, anywhere in the app:
+     · the sheet sits on top of the keyboard instead of behind it;
+     · the home-indicator pad is given back while the keyboard covers that strip anyway
+       (the same max() the chat composer uses), so the sheet does not float twice;
+     · it is capped and scrollable, so a sheet taller than the space that is left can
+       still be read to the end rather than being clipped at both ends.
+   ⚠ Mobile only. A desktop dialog is centred, has no soft keyboard, and is scoped
+   separately further down this file. */
+:root:not([data-desktop]) .c-sheet {
+  bottom: var(--kb-inset, 0px);
+  padding-bottom: calc(var(--spacing-16) + max(0px, env(safe-area-inset-bottom, 0px) - var(--kb-inset, 0px)));
+  max-height: calc(100% - var(--kb-inset, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 /* —— #46 loop MAJOR-3: A CLOSING SHEET MUST NOT TAKE TAPS ————————————————————
    The sheet is z-44 and every scrim is z-40, so a sheet paints above a scrim that
    opens LATER. dismissOverlay does not remove the sheet at once: it drops
@@ -2760,11 +2785,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    is the WRAPPER — so dropping its paint showed a translucent band of scrim through a
    row that is supposed to be lifted above it. It costs one declaration to keep. */
 :root:not([data-desktop]) .c-swipe[data-menu-lift="row"] {
-  background-color: var(--surface-neutral-02);
+  background-color: var(--surface-lift-row);
   border-radius: var(--radius-12);
 }
 :root:not([data-desktop]) .c-swipe[data-menu-lift="row"] .c-swipe__content {
-  background: var(--surface-neutral-02);
+  background: var(--surface-lift-row);
   border-radius: var(--radius-12);
 }
 /* ⚠ review MINOR-7: the lift falls back to the ROW itself when the swipe wrapper is
@@ -2776,7 +2801,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 /* the UNWRAPPED fallback (a handshaking row; pin and mute both off) — the row is
    the lift target itself and is transparent, so it takes the same paint directly. */
 :root:not([data-desktop]) .c-chatlist-item[data-menu-lift="row"]:not([data-pinned]):not([aria-current]) {
-  background-color: var(--surface-neutral-02);
+  background-color: var(--surface-lift-row);
   border-radius: var(--radius-12);
 }
 /* ⚠ THERE IS NO PRESS WASH HERE, and an earlier draft of this batch said there was.
@@ -2792,16 +2817,27 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    those are alpha layers that need something opaque behind them. Painting the item
    instead would either lose the state or lose the ground. */
 
-/* ★★ #589: THE LIFTED CHAT ROW TAKES THE RING TOO. `chats-row-menu.js` sets the lift
-   but never `[data-menu-target]`, so a lifted row had no ring, no border and no
-   elevation — in dark, the entire affordance was a 1.10:1 fill. The recipe is the
-   message target's, byte for byte, so there is one ring in this app and not two.
-   ⚠ Radius is set explicitly, not inherited: the lift targets carry radius-12 and the
-   iOS-62 negative forbids `border-radius: inherit` in this file (on the message tint it
-   would take the bubble parent's radius and square off every bubble). */
+/* ★★ #605 (Damir, 2026-08-27 — D2): THE RING ON THE CHAT ROW IS REMOVED.
+   His words: "it's not looking good, and it gets cut off on the sides. It's not
+   appropriate for a chat app and this action." The clipping identifies this ring and
+   not the message one: `.c-swipe` is full-bleed in the list and the scroller's
+   computed `overflow-x` cut the 5px spread at both screen edges. A message bubble
+   sits inside `.c-bubble-row`'s 16px inline padding and cannot be clipped, so the
+   message ring is UNTOUCHED here — flagged for Damir rather than assumed.
+
+   ⚠ THE RING WAS THE ONLY THING WORKING IN DARK, so it does not leave alone.
+   What replaces it is elevation and a genuinely lighter ground, and — the part that
+   actually matters — the row now really does escape the scrim on every platform
+   (chats-row-menu.js, the ghost). Measured on the tokens, in dark:
+     row against the UNDIMMED list          ΔL* 4.0   (the 1.10:1 the last round measured)
+     row against the DIMMED field, escaped  ΔL* 9.0
+     …and with the ground one step lighter  ΔL* 10.7
+   WCAG ratios are near 1 for all three because both colours are near-black and the
+   +0.05 flare term dominates — which is why the ratio was the wrong instrument for
+   this surface, and why the fix is the LAYER plus the step, not a colour. */
 :root:not([data-desktop]) .c-swipe[data-menu-lift="row"],
 :root:not([data-desktop]) .c-chatlist-item[data-menu-lift="row"] {
-  box-shadow: 0 0 0 2px var(--brand-400), 0 0 0 5px rgba(118, 157, 255, 0.28);
+  box-shadow: var(--elevation-3);
 }
 
 /* The ring, unchanged from #492 — it was never the wrong ring, only the wrong
@@ -2816,6 +2852,34 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 @media (prefers-reduced-motion: reduce) {
   [data-menu-target] { transition: none; }
+}
+
+/* ★★ #606 (rows A2.1 / A2.2 / 12 / 15 — the FOURTH round, and the first with an iOS
+   device): THE LIFT IS NOW A GHOST, and it does not depend on winning a z-index race.
+   The three earlier rounds all raised `z-index` on the row and all were measured on
+   Android. On iOS the row does not lift at all, and on one row it sits BEHIND the dim.
+   The scrim is a child of `document.body`; the row is a descendant of a composited,
+   async-scrolled overflow container (`#chat-scroll`, and WKWebView's own scroll view
+   is disabled, so every `.u-scroll` is a real iOS scroller). Whether WebKit will hoist
+   a descendant out of that layer to clear a sibling of its scroller is exactly the
+   thing three rounds assumed and none proved.
+   So stop asking. `liftPressedRow` now also paints a positioned COPY of the row as a
+   SIBLING of the scrim — the same technique a native context menu uses, where the
+   pressed view is snapshotted. A sibling cannot lose a stacking contest to its
+   sibling, on any engine.
+   ★ It is purely ADDITIVE: the `data-menu-lift` hoist stays exactly as it is, the
+   ghost is opaque and covers the original pixel for pixel, and if the row cannot be
+   measured no ghost is made and the behaviour is today's. Nothing regresses on
+   Android; iOS gains the lift it never had.
+   ⚠ Geometry is set INLINE by the JS, deliberately: a `position: fixed` written here
+   would be a second declared value on a `[data-menu-lift]` rule, and the cascade pin
+   that keeps this whole family honest asserts one value per property across every
+   rule that matches. */
+[data-menu-ghost] {
+  margin: 0;
+  /* the ghost is a picture of a row, never a target — the scrim below it takes the
+     light-dismiss tap, exactly as it does for the hoisted original. */
+  pointer-events: none;
 }
 
 </style>
@@ -3195,6 +3259,13 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    what gives it a box to overflow; `max-width: 100%` keeps it inside the title's line
    box, which is what preserves the #569 anti-sideways-scroll guarantee. `vertical-align`
    keeps the baseline aligned with the words around it. */
+/* ★★ #610 round 2: the ACTION, beside the name. One step back in weight AND in ink —
+   the pair is what makes the line parse as "who" then "what", and colour is the half
+   that survives a font whose 600 and 700 are close. */
+.c-tipsheet__titleverb {
+  font-weight: var(--font-weight-regular);
+  color: var(--text-neutral-02);
+}
 .c-tipsheet__payee {
   display: inline-block;
   max-width: 100%;
@@ -3202,6 +3273,15 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* ★★ #610 (device evidence 12d): THE NAME AND THE VERB READ AS ONE STRING.
+     The de-de title renders "Testan…oo  Trinkgeld geben" — Damir read that as the
+     sheet repeating "tip user" beside the nickname, and he was right to: the name was
+     a bare span with no font properties of its own, so it inherited the title's size
+     and weight exactly, and nothing marked where the name ended and the action began.
+     English hid it because the verb leads there; de-de puts {name} first, so the sheet
+     opened with a name and buried the action after it.
+     One step of weight is enough to give the line a subject and a predicate. */
+  font-weight: var(--font-weight-bold);
 }
 .c-tipsheet__excerpt {
   margin: 0;
@@ -3216,12 +3296,43 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    choices deserve button-scale hits, not tag-scale (Damir round 1); the #50
    tonal selected wash + outline vocabulary still carries the brand */
 .c-tipsheet__chips .c-chip {
-  flex: 1 1 0;
+  /* ★★ #610 (device evidence 12c, de-de, iPhone 15): THE FOURTH CHIP WAS CUT OFF.
+     `flex: 1 1 0` makes every chip's hypothetical size ZERO, so four chips always "fit"
+     one line whatever their labels say — the `flex-wrap: wrap` above could never fire —
+     and `.c-chip` is `white-space: nowrap` with no `overflow`, so the label simply
+     painted outside its own box and off the screen edge. Three escapes, all closed.
+     In de-de "Benutzerdefiniert" is 17 characters against ~60px of room.
+     ⚠ It is a LAYOUT defect, not a translation-length one. A shorter German word would
+     only have hidden it, and the next locale would have found it again.
+     ⚠ ROUND 2 — WHAT THIS ACTUALLY DOES, measured, because the first version of this
+     comment claimed "English is unchanged" and that was FALSE. `flex-basis: auto` sizes
+     each chip to its CONTENT, so in English the row goes from four equal 84.3px chips to
+     74/74/86/103, and in de-de the long chip wraps to a second row and, alone on that
+     line with flex-grow, fills the full width. Both are inside the verdict's sanctioned
+     set ("the row needs to wrap, scroll, or drop to a 2×2") and neither can clip — but
+     it IS a deviation from the equal-width intent stated 14 lines above, and it is
+     Damir's call to keep or reverse, with the numbers in front of him. Reversing is one
+     declaration; the label ellipsis below then carries the German case instead. */
+  flex: 1 1 auto;
   min-width: 0;
+  max-width: 100%;
   min-height: var(--size-target-min);
   padding: var(--spacing-8) var(--spacing-12);
   font-size: var(--font-size-body-lg);
   border-radius: var(--radius-12);
+}
+/* ★★ #610 round 2 (adversarial review): THE ELLIPSIS WAS INERT, and measurably so.
+   `overflow`/`text-overflow` were on `.c-chip`, which is `inline-flex` — blockified to
+   `flex` as a flex item — and `text-overflow` applies to a block container. The label is
+   its own `<span class="c-chip__label">` child (chip.js), and that child kept
+   `overflow: visible; text-overflow: clip` with `min-width: auto`, so it could not
+   shrink either. Measured with a 48-character label the chip clipped at BOTH ends
+   (`justify-content: center`) with no "…", losing the START of the word — worse than an
+   end truncation on an option label. The declarations belong here. */
+.c-tipsheet__chips .c-chip .c-chip__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .c-tipsheet__chips .c-chip::after { content: none; }   /* real-size target — no hit-area extender needed */
 
@@ -3710,50 +3821,6 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   gap: var(--spacing-12);
   padding-block: var(--spacing-8) var(--spacing-4);
   text-align: center;
-  /* ★ #591: the cover is absolutely positioned behind this block */
-  position: relative;
-  isolation: isolate;
-}
-/* ★★ #591 (Damir's second mockup) — THE COVER.
-   A soft band behind the identity: the contact's own photo, blurred and scaled, over
-   their identity gradient (`.c-idhue`, the same 12 anchors their fallback avatar uses).
-   ⚠ `z-index: -1` inside the hero's own isolation puts it above the page ground and
-   below every child, so the avatar, the name and the pencil all sit on top of it with
-   no stacking games and no risk of covering content — the same recipe the press layer
-   uses (base.css). Bleeds edge to edge by cancelling the body's inline padding. */
-.c-chat-info__cover {
-  position: absolute;
-  z-index: -1;
-  /* ⚠ AND IT BLEEDS UPWARD TOO. `top: 0` is the HERO's top, and the body's own 16px
-     padding-block-start sits above it — so the band began 16px below the chrome with a
-     hard horizontal edge, which is the same floating-panel complaint the inline fix was
-     written for, rotated 90°. The mask only fades the bottom. */
-  top: calc(-1 * var(--spacing-16));
-  /* ⚠ THE FIRST CUT DID NOT BLEED, and its own comment said it did. `100vw` with
-     `max-width: 100%` clamps straight back to the hero — the hero IS the containing
-     block, so the pair cancelled and left a hard-cornered band inset 16px from both
-     edges: a floating rectangle, not a backdrop. Viewport units were the wrong tool;
-     cancelling the body's own inline padding is the right one, and it stays correct
-     inside a 360px desktop pane, where `100vw` would have been the whole window. */
-  inset-inline: calc(-1 * var(--spacing-16));
-  height: 148px;                       /* 132 + the 16 it now reaches upward */
-  overflow: hidden;
-  pointer-events: none;
-  background: linear-gradient(140deg, var(--av-c1, var(--surface-neutral-02)), var(--av-c2, var(--surface-neutral-02)));
-  /* fades into the page rather than ending on a hard edge — the band is a backdrop,
-     not a panel. mask-image is progressive: without it the cover is simply a solid band. */
-  -webkit-mask-image: linear-gradient(to bottom, #000 40%, transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 40%, transparent 100%);
-}
-/* the photo, blurred well past recognisability — this is colour, not a second portrait.
-   `scale` hides the blur's soft edges, which would otherwise show as a light rim. */
-.c-chat-info__cover-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transform: scale(1.35);
-  filter: blur(22px) saturate(1.15);
-  opacity: 0.85;
 }
 
 /* avatar.css tokenizes 24/40/48 (+ the old 64 hero); the 80 hero sizes inline
@@ -4249,42 +4316,46 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 
 /* —— destructive zone (#142: separated, bordered rows — flush rows invited
    mistaps between "Delete chat history" and "Remove contact") —— */
+/* ★★ #618 (Damir, device 2026-08-28): the destructive rows join the ONE grammar.
+   The container keeps the body's own card rhythm so these two read as two more
+   cards in the stack, not as a foreign block wedged into it. */
 .c-chat-info__danger {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-8);
+  gap: var(--spacing-16);
 }
-.c-chat-info__danger-row {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-12);
-  min-height: 48px;
-  padding: 0 var(--spacing-12);
-  border: var(--outline-width-1) solid var(--outline-neutral-01);
-  border-radius: var(--radius-12);
-  background: transparent;
-  color: var(--text-error);
+/* ★★ #618 — AN ORDINARY ROW, ON AN ORDINARY CARD.
+   It was `background: transparent` with its own border, no chevron and red label
+   ink: a shape that appeared nowhere else on the screen, which is exactly what
+   Damir saw. It now takes the same card the address and notification rows take
+   (the `.c-chat-info__body >` rule above skips `__danger`, so the card is painted
+   here instead) and the same disc + label + chevron as the Account hub.
+   ⚠ It is a <button>, so every inherited button default has to be spelled out —
+   a half-reset button inside a card is how one row ends up a pixel off from its
+   neighbours. */
+.c-chat-info__row--action {
+  width: 100%;
+  padding: var(--spacing-12);
+  border: 0;
+  border-radius: var(--radius-16);
+  background: var(--surface-card);
+  box-shadow: var(--elevation-1);
+  color: var(--text-neutral-01);
+  font-family: inherit;
   font-size: var(--font-size-body-md);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
+  font-weight: var(--font-weight-regular);
   text-align: start;
-  -webkit-tap-highlight-color: transparent;
-  transition: background-color var(--duration-100) var(--easing-standard);
+  cursor: pointer;
 }
 @media (hover: hover) and (pointer: fine) {
-  .c-chat-info__danger-row:hover { background: var(--surface-interactive-hover); }
+  .c-chat-info__row--action:hover { background: var(--surface-interactive-hover); }
 }
-.c-chat-info__danger-row:active { background: var(--surface-interactive-pressed); }
-.c-chat-info__danger-row svg { color: currentColor; }
-/* QUIET tier (Damir 2026-08-12: "delete chat history doesn't need to be so
-   loud"): neutral ink + the grey neutral disc, regular weight. It is still a
-   bordered row in the destructive zone behind the same locked confirm — it just
-   stops competing with the irreversible action next to it. Red now MEANS
-   something (settings-shell precedent: quiet "free up space" vs danger zone). */
-.c-chat-info__danger-row[data-tone='quiet'] {
-  color: var(--text-neutral-01);
-  font-weight: var(--font-weight-regular);
-}
+.c-chat-info__row--action:active { background: var(--surface-interactive-pressed); }
+/* the chevron reads as chrome, like every other row's; the DISC keeps its own ink,
+   which is where the #148 two-tier meaning moved to — neutral for the reversible
+   action, error for the irreversible one. */
+.c-chat-info__row--action > svg { color: var(--icon-neutral-02); flex: none; }
+.c-chat-info__row--action .c-disc svg { color: currentColor; }
 
 .c-chat-info__confirm-error {
   margin: var(--spacing-8) 0 0;
@@ -7209,7 +7280,10 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
            ★ review MINOR-7: `blindKnown` degrades against an exe that predates the 7th
            setChatMode argument. Such a build still blocks tip for EVERY bot, so offering
            it there would be a dead button — the same failure this batch is removing. */
-        tip: (!isSent && !mode.blind && (!mode.isMulti || !!rec.senderAddress)
+        /* ★★ #613 round 2: the money gate is `hidesAddresses`, NOT `blind`. It is the
+           value C#'s own refusal reads, so the offer and the refusal now agree by
+           construction — which is the whole point of the 7th argument. */
+        tip: (!isSent && !mode.hidesAddresses && (!mode.isMulti || !!rec.senderAddress)
               && (!mode.isBot || mode.blindKnown)),
         report: mode.isBot,                               // C# report is bots-only (xaml:1026)
         // multi-select: offered on every menu-able row. Selection carries Copy
@@ -7505,7 +7579,14 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       relation,
       // 'self' must never grow a request button (member-sheet only draws it when
       // relation is neither contact nor pending — so gate self/latched here).
-      onRequest: (rec.senderAddress && relation === 'none')
+      /* ★★ #613 round 2 (adversarial review, HIGH-2): NOT IN A BOT ROOM, and not where
+         addresses are hidden. `onContextAction: "sendContactRequest"` refuses for
+         `friend.bot` outright — it is a Logging.error and a return, with no answer to
+         the shell — so offering it produced a "Contact request sent" SUCCESS toast and a
+         pending latch for something that was never sent.
+         ⚠ That was true for every bot room, not only a flagged one; a blind room was
+         merely protected by accident, because the member sheet was unreachable there. */
+      onRequest: (rec.senderAddress && relation === 'none' && !mode.isBot && !mode.hidesAddresses)
         ? () => {
             requestedMembers.add(rec.senderAddress);
             bridge.send('ixian:sendContactRequest:' + rec.senderAddress);
@@ -7619,6 +7700,9 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       // chat-info's optimistic 'pending' lives on a mapped copy and dies on the
       // next refreshChatInfo rebuild without it.
       onContactRequest: (m) => {
+        /* ★★ #613 round 2 (HIGH-2): same gate as the bubble's member sheet — C# refuses
+           for every bot, so a request from here was a toast with nothing behind it. */
+        if (mode.isBot || mode.hidesAddresses) return;
         if (m && m.address && m.address !== '[Unknown]') {
           requestedMembers.add(m.address);
           bridge.send('ixian:sendContactRequest:' + m.address);
@@ -7688,8 +7772,25 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
           || (mode.isMulti
                 ? ((n) => (n && !isPseudoAddressNick(n)) ? n : '')(((groupRoster.get(rec.senderAddress) || {}).name || ''))
                 : identity.name)
-          || (rec.senderAddress ? truncateAddressMiddle(rec.senderAddress) : '')
-          || (mode.isMulti ? '' : (identity.address ? truncateAddressMiddle(identity.address) : ''))
+          // ★★ #603 (row A4.2, Damir 2026-08-27): THE TWO TRUNCATING RUNGS ARE GONE.
+          // They handed the sheet an ALREADY middle-elided address as a `name`, and a
+          // 13-character string with an ellipsis in it looks exactly like a nickname:
+          // it survives `payeeDisplayName`'s `n !== a` and `isPseudoAddressNick` tests
+          // and is printed verbatim. That is the "the tip sheet truncates a nickname
+          // like an address" report — the sheet never truncated anything, the caller
+          // did, before the sheet could apply its own canon.
+          // The sheet already receives `address` on the line below and falls back to
+          // `truncateAddressMiddle(address)` itself, AFTER exhausting the nick tests —
+          // which is exactly what the Request sheet relies on, and why that one is
+          // correct. Ending the ladder at '' makes the two identical by construction.
+          // Rung added: `groupNicks`, the live nick map `updateGroupChatNicks` feeds.
+          // A member whose nickname arrived that way rather than through
+          // ixian:loadContacts was falling past the roster rung to a bare address.
+          // ⚠ the SAME shape guard the roster rung carries (#370 B-6 / #373 F-3):
+          // C#'s resolveNick echoes the address into the nick for a nameless member,
+          // so an unguarded rung would put the full base58 back on the payee line.
+          || ((n) => (n && !isPseudoAddressNick(n)) ? n : '')(
+               (rec.senderAddress && groupNicks.get(String(rec.senderAddress))) || '')
           || '',
         address: rec.senderAddress || identity.address || '',
         // #342 (Damir F5 item (d)): the photo was in scope here all along and was
@@ -8692,7 +8793,33 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
          Type 2 is a blind GROUP, but a bot is type 3 whether or not it hides
          participant addresses — so `type !== 2` was never a complete blind test.
          Anything that needs a real sender identity must gate on mode.blind. */
-      mode.blind = (t === 2) || asBool(blindString);
+      /* ★★ #613 (Damir, 2026-08-27): BLINDNESS IS A GROUP PROPERTY, and a bot room is
+         not a group. #348 made this line read the raw `hideParticipantAddresses` for any
+         type, so a PUBLIC bot channel inherited a private group's mask: "Hidden member"
+         on every post, no member sheet, no owner chip, and kick / ban / add-contact all
+         structurally dead because the address had been replaced with [Unknown].
+         Legacy could not do that — every mask it applies is qualified on
+         `FriendType.Group` — and legacy is the reference Damir named.
+         C# now sends the qualified answer (Utils.hidesParticipants), and this line says
+         the same thing independently so that neither end alone can bring it back. A
+         blind GROUP is chat_type 2 by construction (SingleChatPage: the flag is what
+         chooses 2 over 1), so `t === 2` is the whole of it; the second arm is belt for
+         an exe that numbers types differently. */
+      /* ★★ #613 round 2 (adversarial review, HIGH-1). ONE wire value, TWO questions,
+         and conflating them is what the first cut got wrong.
+
+         `hidesAddresses` is the RAW flag: it answers "can this room's participants be
+         PAID or ADDED?", and the answer is C#'s — a blind group pays a DERIVED address,
+         and nothing in the tree says whether a flagged bot room's roster addresses are
+         real or derived. Anything that spends money or creates a contact must gate on
+         THIS, or the shell offers a button C# will refuse (#215).
+
+         `blind` is the IDENTITY question: "must this room's participants be MASKED?"
+         That is a GROUP privacy mode — legacy qualifies every mask it applies on
+         FriendType.Group, so a bot room is never masked, and a public channel showing
+         "Hidden member" was the regression this batch exists to fix. */
+      mode.hidesAddresses = asBool(blindString);
+      mode.blind = (t === 2) || (t === 1 && mode.hidesAddresses);
       // ★ review MINOR-7: did this exe actually TELL us? A 6-arg push leaves blindString
       // undefined, and "undefined" is not "not blind" for a bot — it is "unknown".
       mode.blindKnown = (t !== 3) || (blindString !== undefined);

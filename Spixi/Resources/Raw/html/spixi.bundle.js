@@ -284,9 +284,39 @@ function amountInputToCanonical(display, caret, ev, locale, hadAmount) {
 
 /** Caret restore for a re-formatted amount input: the caret sits after the same
  *  COUNT OF DIGITS it sat after in the old display — separators shift freely
- *  around it, digits never do. */
+ *  around it, digits never do.
+ *
+ *  ★★ #607 (device row 5c, iPhone 15 — A SILENT WRONG-AMOUNT DEFECT):
+ *  "digits never move" is true and it was not sufficient. A caret sitting AFTER a
+ *  trailing separator has exactly the same digit count as one sitting BEFORE it, so
+ *  the rule above could only ever put it before — and the next digit then landed on
+ *  the INTEGER side.
+ *      type  1 , 4   →  field "14."   →  canonical 14      (the user meant 1.4)
+ *  Ten times the amount, on the money path, with nothing on screen to say so.
+ *
+ *  It fires whenever the character the keypad emits is not the character `Intl`
+ *  derives from `<html lang>` — the re-format that repaints the separator is the same
+ *  step that loses the caret. Direction does not matter: en-us + typed ',' gives
+ *  "14.", de-de + typed '.' gives "14,". Both were reachable.
+ *
+ *  The fix carries the SEPARATOR RUN across as well as the digit count. A run is only
+ *  ever non-zero when the character just typed (or just left behind) is a separator,
+ *  and it advances the caret past at most that many separators in the new string — so
+ *  a deletion that happens to leave the caret behind a GROUP separator cannot jump it
+ *  over one, because the new display has no separator at that position to jump.
+ *  ⚠ Written from the property, not from a fixture: the test drives real keystroke
+ *  sequences through the handler shape and asserts the PARSED VALUE. */
 function amountCaretAfterFormat(oldDisplay, oldCaret, newDisplay) {
   const o = String(oldDisplay || ''), n = String(newDisplay || '');
+  const isSep = (ch) => ch === '.' || ch === ',';
+  let sepRun = 0;
+  for (let i = (oldCaret | 0) - 1; i >= 0 && i < o.length && isSep(o[i]); i--) sepRun++;
+  /* advance past at most `sepRun` separators that the re-format put at this seam */
+  const pastSeps = (p) => {
+    let k = 0;
+    while (k < sepRun && p < n.length && isSep(n[p])) { p++; k++; }
+    return p;
+  };
   let digitsBefore = 0;
   for (let i = 0; i < Math.min(oldCaret | 0, o.length); i++) if (/\d/.test(o[i])) digitsBefore++;
   if (!digitsBefore) {
@@ -302,7 +332,7 @@ function amountCaretAfterFormat(oldDisplay, oldCaret, newDisplay) {
   }
   let seen = 0;
   for (let i = 0; i < n.length; i++) {
-    if (/\d/.test(n[i])) { seen++; if (seen === digitsBefore) return i + 1; }
+    if (/\d/.test(n[i])) { seen++; if (seen === digitsBefore) return pastSeps(i + 1); }
   }
   return n.length;
 }
@@ -342,6 +372,97 @@ function zeroAmount(value) {
   const m = String(value == null ? '' : value).trim().match(/^([+-]?)([\d,]+)(?:\.(\d+))?$/);
   if (!m) return false;
   return /^0*$/.test(m[2].replace(/,/g, '')) && /^0*$/.test(m[3] || '');
+}
+
+/* ---- src/components/amount-keyboard.js ---- */
+/* Amount-field keyboard behaviour — the ONE way out of the numeric keyboard.
+ *
+ * ★★ #609 (device row 5b, iPhone 15, 2026-08-27). It lived in wallet-send.js and was
+ * shared with wallet-receive by a cross-feature import; the tip sheet then needed it
+ * too, and `#143 ②` is explicit that a shared helper belongs in a shared module rather
+ * than in whichever feature happened to write it first. So it has one.
+ *
+ * WHY THE FIELD NEEDS THIS AT ALL, and it took a device to see it. Every amount input
+ * in the app is `inputMode="decimal"`, which on iOS is the DECIMAL PAD — a keypad with
+ * no return key of any kind. The app also swizzles `inputAccessoryView` to nil
+ * process-wide (iOSWebViewHandler, for the chat composer's sake), so there is no Done
+ * button either. Between them the field had literally no dismiss affordance: Damir's
+ * "it's difficult to choose the recipient" on wallet Send, and a tip sheet whose own
+ * numeric pad covered the sheet that summoned it.
+ */
+/** Give an amount input every way out that its platform can offer.
+ *  · `enterkeyhint="done"` + Enter -> blur, for the keyboards that HAVE a return key
+ *    (Android, and any desktop browser). IME-guarded, and desktop-exempt: there is no
+ *    soft keyboard to drop there, and ejecting a keyboard user to <body> on the commit
+ *    key is a regression, not a feature.
+ *  · a tap on any NON-interactive part of the page -> blur. This is the platform
+ *    convention and, on the iOS decimal pad, the only affordance that can exist.
+ *    ⚠ Non-interactive ONLY. Blurring on `pointerdown` over a button would trade one
+ *    defect for a worse one: the keyboard collapses, the layout it was holding up
+ *    moves, and the button slides out from under the finger before `click` is
+ *    delivered. A tap on a control keeps focus and behaves exactly as it does today.
+ *  · the listener is bound on FOCUS and dropped on BLUR, so a screen with no amount
+ *    field on it never carries a document-level handler. */
+function attachAmountKeyboardDismiss(input) {
+  if (!input) return input;
+  input.setAttribute('enterkeyhint', 'done');
+  input.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+    if (document.documentElement.hasAttribute('data-desktop')) return;
+    e.preventDefault();
+    try { input.blur(); } catch (err) { /* jsdom / unfocused */ }
+  });
+  /* ⚠ ROUND 2 (adversarial review, MEDIUM-2): act on the LIFT, not on the press.
+   * `pointerdown` cannot tell a tap from the first event of a scroll. #608 reserves the
+   * keyboard's height so the content it covers can be SCROLLED to — and the drag that
+   * performs that scroll fired this handler on its first event, dropping the keyboard
+   * and collapsing the reserved space by that height, mid-gesture, under the finger,
+   * with inertia already in flight. So the press only ARMS, movement past a small slop
+   * disarms, and the blur happens on release. */
+  const SLOP_PX = 8;
+  input.addEventListener('focus', () => {
+    if (document.documentElement.hasAttribute('data-desktop')) return;
+    let armed = false, x0 = 0, y0 = 0;
+    const interactive = 'input, textarea, select, button, a, label, [role="button"], [contenteditable]';
+    const down = (e) => {
+      armed = false;
+      const t = e && e.target;
+      if (!t || t === input) return;
+      /* never on an interactive target: blurring over a button collapses the keyboard,
+         moves the layout it was holding up, and the button leaves the finger before
+         `click` is delivered — one defect traded for a worse one. */
+      if (typeof t.closest === 'function' && t.closest(interactive)) return;
+      armed = true; x0 = e.clientX || 0; y0 = e.clientY || 0;
+    };
+    const move = (e) => {
+      if (!armed) return;
+      if (Math.abs((e.clientX || 0) - x0) > SLOP_PX || Math.abs((e.clientY || 0) - y0) > SLOP_PX) armed = false;
+    };
+    const up = () => {
+      if (!armed) return;
+      armed = false;
+      try { input.blur(); } catch (err) { /* jsdom */ }
+    };
+    const off = () => {
+      document.removeEventListener('pointerdown', down, true);
+      document.removeEventListener('pointermove', move, true);
+      document.removeEventListener('pointerup', up, true);
+      document.removeEventListener('pointercancel', off, true);
+    };
+    document.addEventListener('pointerdown', down, true);
+    document.addEventListener('pointermove', move, true);
+    document.addEventListener('pointerup', up, true);
+    input.addEventListener('blur', off, { once: true });
+    /* ⚠ belt for the one path where no blur ever comes: the field is REMOVED while
+     * focused (a sheet closing with focus still inside it). Chromium fires blur on
+     * removal and self-cleans; WebKit was not testable here, and a leaked capture
+     * listener would retain the detached subtree for the life of the document. */
+    const sweep = setInterval(() => {
+      if (!input.isConnected) { off(); clearInterval(sweep); }
+    }, 2000);
+    input.addEventListener('blur', () => clearInterval(sweep), { once: true });
+  });
+  return input;
 }
 
 /* ---- src/components/disc.js ---- */
@@ -1190,7 +1311,29 @@ function attachPressFeedback({
   host.addEventListener('scroll', cancelGesture, { passive: true, capture: true });
   // A page hidden mid-press (app backgrounded, overlay opened) must not come back
   // with a row still lit — afterlives included (D-16).
-  const onHide = () => { abortGesture(); killAllAfterlives(); };
+  /* ★★ #604 (row A7.1, Damir 2026-08-27): THE TEARDOWN MUST ALSO SUPPRESS RE-ARMING.
+   *
+   * The Android-only ghost rectangle over a freshly opened mini-app picker is this
+   * teardown eating its own guards. `killAllAfterlives()` empties `afterlives` and
+   * `abortGesture()` sets `cancelled = false` — and those two are exactly what the
+   * ghost guard (the 800ms afterlife window) and the same-element guard (the 300ms
+   * arm window) read to REJECT the late, synthesised pointer stream Android emits
+   * after a committed touch tap. Disarmed, that late `pointerdown` re-arms a fresh
+   * press on the tile with no finger on the glass: paint, fill, fade — about 570ms,
+   * which is why it has never been screenshot-able (#294).
+   *
+   * So a teardown that lands MID-GESTURE now latches `cancelled` for the rest of that
+   * gesture — `cancelGesture`'s semantics, which exist for precisely this — instead of
+   * resetting it. With no finger down there is nothing to re-arm and the behaviour is
+   * unchanged, so `pagehide` and `visibilitychange` keep working exactly as before.
+   *
+   * ⚠ This is the mechanism, not a device observation: it is UNVERIFIED on hardware.
+   * The discriminator is one line — log `el.className`, `e.type` and `e.pointerType`
+   * where the arm happens, and see whether a SECOND arm follows the click. */
+  const onHide = () => {
+    if (pointerDown) { cancelGesture(); } else { abortGesture(); }
+    killAllAfterlives();
+  };
   window.addEventListener('pagehide', onHide);
   document.addEventListener('visibilitychange', onHide);
   // #589: the same teardown, reachable from a screen that opens IN the document
@@ -1285,7 +1428,19 @@ function createIndicators({ count = 0, mention = false, muted = false, strings =
 
 /* —— excerpt (§5): type → optional 16px glyph + toned text parts —— */
 const EXCERPT_GLYPHS = {
-  file: 'file-isr', gif: 'gif', call: 'phone', 'call-missed': 'phone-off',
+  file: 'file-isr', gif: 'gif', call: 'phone',
+  /* ★ #602 (row 16): a call you TURNED DOWN is not a call you missed — it gets its own
+     glyph, and both are already in the registry.
+     ★★ #621 (Damir on the device, 2026-08-28): THE TWO ARE SWAPPED from #602's first
+     cut. He read the actual shapes on a phone, which I could not: the crossed phone
+     says "unreachable" and belongs to the call nobody answered; the phone with the
+     small x says "refused" and belongs to the one that was turned down.
+     ⚠ `call-missed` is the shared kind for BOTH "Missed call" (incoming, unanswered)
+     and "No answer" (outgoing, unanswered) — the canon maps both to it — so this moves
+     the missed-call glyph too. That is consistent (neither was answered) but it was not
+     what he asked for by name; if the two want to differ they need separate kinds. */
+  'call-missed': 'phone-x',
+  'call-declined': 'phone-off',
   payment: 'wallet', 'app-invite': 'apps', draft: 'pencil', reaction: 'heart-plus',
   request: 'user-plus',   // M5 outgoing contact request — `user-plus` SHIPS today (icons.js:81)
   'request-done': 'user-plus',   // #273 settled contact event ("Contact Accepted") — same glyph, but NOT a pending request (Requests filter/chip key on type 'request' and must exclude it)
@@ -6872,7 +7027,8 @@ function setRequestAccepting(row, strings = getStrings()) {
  * and gives position/z-index/pointer-events to each; only the chat row also needs an
  * opaque ground, because `.c-chatlist-item` is transparent and a message row must
  * stay transparent so the canvas shows around the bubble. */
-let liveRowLift = null;   // { addr } — the row an OPEN anchored row menu points at
+let liveRowLift = null;   // { addr, host, token } — the row an OPEN anchored row menu points at
+let rowLiftToken = 0;     // ★ #606 r2: identity for the undo, so a dying menu cannot release a live one
 
 /* ★★ round-2 MAJOR-1 + MAJOR-2. Two defects, one cause: the first cut kept the lift
  * state in the DOM and undid it through a captured node.
@@ -6891,19 +7047,122 @@ function releaseRowLift() {
   liveRowLift = null;
   if (typeof document === 'undefined') return;
   try {
+    /* ★ #606: the ghosts go FIRST and they are REMOVED, not un-marked. A ghost is a
+       node this module created; clearing its attribute would strand an opaque copy of
+       a chat row on top of the app with nothing left to find it by. */
+    const ghosts = document.querySelectorAll('[data-menu-ghost]');
+    for (const g of ghosts) { try { g.remove(); } catch (e) {} }
+  } catch (e) {}
+  try {
     const lifted = document.querySelectorAll('[data-menu-lift="row"]');
     for (const n of lifted) { try { delete n.dataset.menuLift; } catch (e) {} }
   } catch (e) {}
 }
 
+/* ★★ #606 — THE GHOST. Rows A2.1/A2.2/12/15, the fourth round on this affordance and
+ * the first one with an iOS device in the room.
+ *
+ * Three rounds raised `z-index` on the row and every one of them was measured on
+ * Android. On iOS the row does not lift AT ALL, in either theme, and on one row it
+ * sits visibly BEHIND the dim. The chain explains why it was never safe: the scrim is
+ * a child of `document.body`, the row is a descendant of `#chat-scroll`, and on iOS
+ * that is a real composited scroller — WKWebView's own scroll view is disabled
+ * (iOSWebViewHandler), so every `.u-scroll` in this app is one. Whether WebKit will
+ * hoist a descendant out of a scrolling layer to clear a sibling of that layer is the
+ * assumption all three rounds rested on, and none of them tested.
+ *
+ * So this stops being a z-index question. We paint a COPY of the row as a SIBLING of
+ * the scrim, at the row's own screen rectangle — the technique a native context menu
+ * uses, where the pressed view is snapshotted and the real one stays where it is. Two
+ * siblings in one stacking context cannot lose to each other on any engine.
+ *
+ * ★ ADDITIVE BY CONSTRUCTION, which is what makes it safe to ship without an iOS
+ * device to prove it on:
+ *   · the `data-menu-lift` hoist is untouched, so Android keeps working the way it
+ *     works today;
+ *   · the ghost is opaque and sits at the same rectangle, so where the hoist already
+ *     works the user sees exactly the same pixels;
+ *   · a row that cannot be measured produces NO ghost and the behaviour is today's.
+ * ⚠ UNVERIFIED on iOS hardware. The mechanism is proven from the code, not from the
+ * screen. If it is still wrong, `document.elementFromPoint()` over the pressed row's
+ * centre with the menu open names the winner in one line.
+ *
+ * ⚠ Geometry is INLINE on purpose. Writing `position: fixed` into the stylesheet would
+ * put a second declared value on a rule matching `[data-menu-lift]`, and the cascade
+ * pin that keeps this family honest asserts one value per property across every rule
+ * that matches it. Inline is invisible to the cascade and cannot be out-specified. */
+function paintRowGhost(host, lift) {
+  if (typeof document === 'undefined' || !host || !lift) return;
+  try {
+    const r = lift.getBoundingClientRect();
+    if (!r || !(r.width > 0) || !(r.height > 0)) return;   // unmeasurable: no ghost, no change
+    const ghost = lift.cloneNode(true);
+    ghost.dataset.menuGhost = '1';
+    ghost.setAttribute('aria-hidden', 'true');
+    /* the original stays in the accessibility tree and keeps the row's identity; a
+       duplicate id would break every getElementById in the shell. */
+    try {
+      if (ghost.id) ghost.removeAttribute('id');
+      const ided = ghost.querySelectorAll('[id]');
+      for (const n of ided) n.removeAttribute('id');
+    } catch (e) {}
+    const st = ghost.style;
+    st.position = 'fixed';
+    st.left = r.left + 'px';
+    st.top = r.top + 'px';
+    st.width = r.width + 'px';
+    st.height = r.height + 'px';
+    st.margin = '0';
+    /* the host is the sheet's parent — the same node the scrim is a child of, so the
+       ghost is the scrim's sibling and the band ordering (z-40/42/44) applies between
+       them exactly as it was designed to. */
+    host.appendChild(ghost);
+  } catch (e) { /* a ghost is an enhancement: never let it break the menu */ }
+}
+
 function liftPressedRow(sheet, row, address) {
   if (!sheet || !sheet.dataset || sheet.dataset.mAnchor === undefined || !row) return () => {};
-  const lift = (row.closest && row.closest('.c-swipe')) || row;
+  /* ★ #606 r2 (adversarial review, finding 7): resolve the LIVE row first, exactly as
+     anchorSheetToRow does. A flush between the press and the 500ms long-press timer
+     detaches the pressed node, and a detached node measures all zeros — so the ghost's
+     own measurement guard would decline to paint, silently, on the accounts that flush
+     most (a restore re-runs loadChats every two seconds). The menu was already anchoring
+     to the replacement; the lift has to follow it to the same node. */
+  let src = row;
+  if (!row.isConnected && address) {
+    try {
+      const live = document.querySelector('.c-chatlist-item[data-address="' + CSS.escape(String(address)) + '"]');
+      if (live) src = live;
+    } catch (e) { /* no CSS.escape, or a malformed address — keep the original */ }
+  }
+  const lift = (src.closest && src.closest('.c-swipe')) || src;
   if (!lift || !lift.dataset) return () => {};
   releaseRowLift();                       // a previous menu's lift never outlives this one
   lift.dataset.menuLift = 'row';
-  liveRowLift = { addr: address ? String(address) : '' };
-  return releaseRowLift;
+  const token = ++rowLiftToken;
+  liveRowLift = { addr: address ? String(address) : '', host: sheet.parentNode || null, token };
+  paintRowGhost(sheet.parentNode, lift);  // #606: and the copy that does not need to win
+  /* ★ #606 r2 (finding 9): the undo is IDENTITY-CHECKED. `releaseRowLift` is DOM-wide by
+     design, and `onDismiss` fires up to 400ms after close — so a dying menu's deferred
+     undo could strip a NEWLY opened menu's ghost and lift. Module state exists to stop
+     exactly this class (round-2 MAJOR-2); the token extends it to the undo. */
+  return () => { if (liveRowLift && liveRowLift.token === token) releaseRowLift(); };
+}
+
+/** ★ #606 r2 (adversarial review, finding 6): RE-PAINT after a list re-render.
+ *  `renderChatsList` rebuilds every row on any flush — a message in ANY chat is enough —
+ *  and it re-applies the lift to the replacement node. The ghost is a snapshot pinned to
+ *  a viewport rectangle, so without this it was left behind: an opaque copy of chat A
+ *  stranded over whatever row the re-sort moved into A's old slot, with a frozen clock.
+ *  Called from chats-shell for the row it just re-lifted. */
+function repaintRowGhost(node) {
+  if (!liveRowLift || !liveRowLift.host || !node) return;
+  try {
+    const ghosts = document.querySelectorAll('[data-menu-ghost]');
+    for (const g of ghosts) { try { g.remove(); } catch (e) {} }
+  } catch (e) {}
+  const lift = (node.closest && node.closest('.c-swipe')) || node;
+  paintRowGhost(liveRowLift.host, lift);
 }
 
 /** ★ review MINOR-3: the address of the row an ANCHORED row menu currently points at,
@@ -7886,7 +8145,14 @@ function renderChatsList(listEl, state, opts = {}) {
     /* ★ review MINOR-3 (#572 ③): a flush replaces every row, and a message arriving in
        ANY chat is enough. Without this the row under an open anchored menu drops back
        beneath the deep scrim mid-interaction — the exact symptom the lift fixes. */
-    if (c.address && c.address === liftedRow) node.dataset.menuLift = 'row';
+    if (c.address && c.address === liftedRow) {
+      node.dataset.menuLift = 'row';
+      /* ★ #606 r2 (adversarial review): the GHOST follows the re-render too. It is a
+         snapshot pinned to a viewport rectangle, and the flush that replaced this row
+         also re-sorted the list — left alone it strands an opaque copy of this chat over
+         whatever row now occupies the old slot. */
+      try { repaintRowGhost(node); } catch (e) { /* ghost is an enhancement */ }
+    }
     listEl.append(node);
   };
 
@@ -11469,6 +11735,7 @@ function createGlyphRow({ glyph = 'qrcode', label = '', className = '', onClick 
 
 
 
+
 /* fromUnits is wallet-send-only (Max display); its inverse toUnits + the
    sanitize/canonical helpers now live in money.js (#143 dedupe). */
 function fromUnits(u) {
@@ -11479,25 +11746,6 @@ function fromUnits(u) {
   return (neg ? '-' : '') + i + (d ? '.' + d : '');
 }
 
-/* ★ W-k: Enter / Next / Go on an amount field drops the soft keyboard. A form-less
-   input has no submit to fire, so the key is otherwise a no-op that leaves the
-   keyboard covering the list. `enterkeyhint="done"` labels the key; the handler
-   blurs. Shared with wallet-receive (same rule, both screens).
-   Loop r1: the IME guard (the composer.js house rule — Enter committing a
-   composition must not blur mid-commit), and DESKTOP is exempt: there is no soft
-   keyboard to drop, and ejecting a keyboard user to <body> on the commit key is
-   a regression, not a feature. Touch = no data-desktop on <html> (the #228 flag). */
-function attachAmountKeyboardDismiss(input) {
-  if (!input) return input;
-  input.setAttribute('enterkeyhint', 'done');
-  input.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
-    if (document.documentElement.hasAttribute('data-desktop')) return;
-    e.preventDefault();
-    try { input.blur(); } catch (err) { /* jsdom / unfocused */ }
-  });
-  return input;
-}
 
 let walletSendSeq = 0;                                     // aria-controls ids (receive-audit n2)
 
@@ -15292,6 +15540,7 @@ function setRequestAmount(el, amount) {
 
 
 
+
 /** ★ #569 — the payee name as it may be SHOWN: a real nickname, else the address
  *  in the #211 truncated form. Never the raw base58, and never an empty name when
  *  an address exists ("Request from " with nothing after it was the other half). */
@@ -15373,7 +15622,18 @@ function openAmountSheet({
    * honoured wherever it puts {name}. */
   {
     const parts = copy.title.split('{name}');
-    title.append(document.createTextNode(parts[0] || ''));
+    /* ★★ #610 round 2: the ACTION gets an element of its own, not a bare text node.
+     * A weight step alone is a subtle difference on San Francisco, and the complaint was
+     * that "Testan…oo  Trinkgeld geben" read as ONE string with the verb repeated after
+     * the name. Name and action are two things; they now look like two things — the name
+     * in the title's own ink and weight, the action a step back in both. */
+    const verb = (txt) => {
+      const v = document.createElement('span');
+      v.className = 'c-tipsheet__titleverb';
+      v.textContent = txt;
+      return v;
+    };
+    title.append(verb(parts[0] || ''));
     const nameEl = document.createElement('span');
     nameEl.className = 'c-tipsheet__payee';
     nameEl.textContent = payeeName;
@@ -15385,7 +15645,7 @@ function openAmountSheet({
     nameEl.title = payeeName;
     title.append(nameEl);
     for (let i = 1; i < parts.length; i++) {
-      title.append(document.createTextNode(parts[i] || ''));
+      title.append(verb(parts[i] || ''));
       if (i < parts.length - 1) { const n2 = nameEl.cloneNode(true); title.append(n2); }
     }
   }
@@ -15466,9 +15726,32 @@ function openAmountSheet({
     state.amount = v;
     sync();
   });
-  customInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !confirm.disabled) confirm.click();   // no form — Enter still confirms
-  });
+  /* ★★ #620 (Damir, device 2026-08-28) — ENTER MUST NEVER SPEND. A MONEY DEFECT, MINE.
+   *
+   * His report: "when I want to tip and select custom, then enter the amount and tap
+   * DONE on the keyboard to hide the keyboard, IT AUTO CONFIRMS THE TIP."
+   *
+   * There was an `Enter -> confirm.click()` here, and #609 then attached the shared
+   * keyboard dismissal to the same field — which sets `enterkeyhint="done"`. So the one
+   * key a user presses to put the keyboard away became the key that sends the money,
+   * and #609 is what labelled it "Done" and invited the press.
+   *
+   * ⚠ THE COMMENT #609 SHIPPED WITH SAID: "the iOS decimal pad has no return key … so
+   * Enter above can never fire here on a phone." That reasoned about iOS and called it
+   * "a phone". ANDROID's decimal keypad has an action key, and it fires Enter. The
+   * sentence was not wrong about iOS; it was wrong about the word it generalised to,
+   * and it sat directly above the line it was excusing.
+   *
+   * So the handler is GONE rather than guarded. A confirm key and a dismiss key cannot
+   * share one keystroke on a field that spends: any guard is a race between two
+   * listeners on one event, and the failure mode is a payment the user did not make.
+   * Committing a tip now takes a deliberate press of the Confirm button, which is the
+   * only affordance that says what it does. `attachAmountKeyboardDismiss` still gives
+   * Enter its dismissal, so nothing is lost from the keyboard's point of view.
+   *
+   * ⚠ This also covers the REQUEST sheet, which shares this input through
+   * `openAmountSheet` — same keystroke, same silent commit. */
+  attachAmountKeyboardDismiss(customInput);
   const unit = document.createElement('span');
   unit.className = 'c-tipsheet__unit';
   unit.textContent = 'IXI';
@@ -16155,35 +16438,10 @@ function createChatInfo({
   /* ——— hero ——— */
   const hero = document.createElement('div');
   hero.className = 'c-chat-info__hero';
-  /* ★★ #591 (Damir's second mockup): A COVER behind the identity, "like we have for
-   * mini apps".
-   *
-   * ⚠ A cover needs a SOURCE, and this is the whole design decision. A mini app has one
-   * because its publisher ships it; a contact has exactly one image — their photo. So the
-   * cover is derived, never fetched: a blurred, scaled crop of the SAME photo when there
-   * is one, and the contact's identity gradient — the same deterministic per-address hue
-   * their fallback avatar already wears — when there is not.
-   * That buys the look with no new data, no second source of truth for one identity, and
-   * no temptation toward a remote banner, which would re-open the #82 IP-leak posture on
-   * a surface that also carries a Pay button.
-   *
-   * `aria-hidden`: it is decoration with no information the name below does not carry. */
-  const cover = document.createElement('div');
-  cover.className = 'c-chat-info__cover c-idhue';
-  cover.dataset.hue = String(identityIndex(avatarSeed || address || name));
-  cover.setAttribute('aria-hidden', 'true');
-  if (avatar) {
-    const cimg = document.createElement('img');
-    cimg.className = 'c-chat-info__cover-img';
-    cimg.alt = '';
-    cimg.decoding = 'async';
-    /* the gradient stays underneath, so a photo that fails to load degrades to the
-       identity colour rather than to a broken tile — the c-avatar onerror grammar. */
-    cimg.addEventListener('error', () => cimg.remove(), { once: true });
-    cimg.src = avatar;
-    cover.append(cimg);
-  }
-  hero.append(cover);
+  /* ★ #596: THE COVER IS RETIRED (Damir, 2026-08-27 — D1). The blurred identity band
+   * behind the avatar is gone for v1: it had no lower edge, and for a contact with no
+   * photo it became a full-bleed wash of that avatar's own single colour. A replacement
+   * is a later design job, so nothing takes its place here. */
   /* A4 (#302): presence on the hero. 1:1 only — C# structurally cannot push it for
      a group or bot (ContactDetails.updateScreen returns at :405-410, before the
      presence block, whenever isGroup is set). Guarding on `kind` here as well means
@@ -16869,24 +17127,40 @@ function createChatInfo({
   /* ——— destructive zone — every action behind a LOCKED confirm (#135-C1) ——— */
   const danger = document.createElement('div');
   danger.className = 'c-chat-info__danger';
-  /* TWO TIERS — the settings-family grammar (createSettingsDanger: a quiet
-     "free up space" tier + a red "danger zone" tier). Damir 2026-08-12: delete
-     chat history "doesn't need to be so loud" — it clears local messages and is
-     recoverable-ish (the contact keeps their copy), so it reads as a neutral row
-     with a grey disc. Red stays RESERVED for the irreversible relationship
-     actions (remove contact / leave group), which is what makes it mean
-     something. Both rows keep the bordered card + the locked confirm. */
+  /* ★★ #618 (Damir, device 2026-08-28): ONE ROW GRAMMAR ON THIS SCREEN.
+   *
+   * His words: "delete history and remove contact have completely different style to
+   * the other rows … it has to be same as our account." He was describing a real
+   * inconsistency, not a preference: these two were `c-chat-info__danger-row`, a
+   * bespoke shape with a transparent ground, its own border, no chevron and its own
+   * colour rules — while everything below them (address, notifications) is
+   * `c-chat-info__row`: a disc, a label, and a chevron or a toggle, on a card.
+   * Two grammars on one screen, and the eye reads the odd ones as unfinished.
+   *
+   * So they become ordinary rows, exactly like the Account hub's
+   * (`createSettingsDanger`: disc + label + chevron on a group card).
+   *
+   * ⚠ THIS REVERSES #148 (Damir, 2026-08-12 — "delete chat history doesn't need to be
+   * so loud"), and it does not throw that reasoning away, it MOVES it. The two-tier
+   * idea was right; carrying it in the row's own paint is what made the rows foreign.
+   * The tier now lives where it always belonged — in the DISC hue (neutral for the
+   * reversible one, error for the irreversible one) and in the locked confirm dialog
+   * that both still open. Red keeps meaning something; it just stops shouting from a
+   * row that looks like nothing else on the page. */
   const dangerRow = (label, glyph, buildOpts, { tone = 'error' } = {}) => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'c-chat-info__danger-row';
+    b.className = 'c-chat-info__row c-chat-info__row--action';
     b.dataset.tone = tone;
-    // #148: error disc = destructive reservation. The quiet tier drops the
-    // per-glyph gradient so the neutral hue actually survives (base.css).
-    b.append(
+    const lab = document.createElement('span');
+    lab.className = 'c-chat-info__row-label';
+    // #148 lives on here: the quiet tier drops the per-glyph gradient so the neutral
+    // hue actually survives (base.css), and the error tier keeps the destructive disc.
+    lab.append(
       tone === 'quiet' ? infoDisc(glyph, 'neutral', { grad: false }) : infoDisc(glyph, 'error'),
       document.createTextNode(label),
     );
+    b.append(lab, icon('chevron-right', { size: 18 }));
     // built at CLICK time (audit m7): the remove-contact title must carry the
     // nickname as it is NOW, not as it was when the panel mounted
     b.addEventListener('click', () => confirmAction(buildOpts()));
@@ -20980,8 +21254,9 @@ function createPrivacy({
  */
 function createNotificationsScreen({
   enabled = true,
-  previews = false,              // #589: matches the SHIPPED C# default (KEY_SENDER_NAME=false); the row is gone, so this is only what a restored row would start from
+  previews = false,              // matches the SHIPPED C# default (KEY_SENDER_NAME = false)
   sounds = true,
+  isDesktop = typeof document === 'object' && document.documentElement.hasAttribute('data-desktop'),
   capabilities = {},             // { globalNotifications }
   onBack,
   onEnabled, onPreviews, onSounds,   // (next, ctrl) — §9
@@ -20995,27 +21270,29 @@ function createNotificationsScreen({
       label: strings.notifAll || 'Allow notifications',
       checked: enabled, live, failText, onToggle: onEnabled,
     }));
-    /* ★★ #589 (Damir F5 2026-08-26): "show sender name is redundant" — THE ROW IS GONE.
+    /* ★★ #597 (Damir, 2026-08-27 — D3): THE ROW IS BACK, ON MOBILE ONLY.
      *
-     * Only the ROW. The `previews` option, the `onPreviews` callback, the
-     * `ixian:notifSenderName` verb and the `notif_sender_name` preference are all
-     * left exactly as they are, and the preference keeps its shipped default
-     * (FALSE — SNotificationPrefs.cs KEY_SENDER_NAME). So NO notification changes:
-     * what the user gets today is what the user gets after this.
+     * #589 removed it everywhere. The finding it implemented said "DESKTOP Account →
+     * Notifications" in its own text (f5-findings-2026-08-26-walkday.md:160), so the
+     * fix was one platform wider than the ask. On a phone the notification IS the
+     * surface — a banner with no sender is a banner you cannot triage — and on the
+     * desktop, where the window is usually open, it is the redundancy Damir named.
      *
-     * ⚠ Removing a control is not the same as changing what it controlled, and this
-     * one is still read on the message-receive path (Node.cs:1044). Damir asked for
-     * the row to go, not for the name to start appearing — if he wants the name
-     * always ON, that is a one-line default flip in C#, and it is his call to make
-     * deliberately rather than my side effect. Flagged in the F5 checklist.
+     * ⚠ `isDesktop` is read from the document, not from the window width, because
+     * `data-desktop` is a UA stamp set before first paint and is constant across a
+     * resize (settings.html:11). A pane is not a phone.
      *
-     * The prior NOTIF-2 note is kept below because it records WHY the switch had to
-     * be re-labelled, which is the same reasoning that makes it removable.
-     *
-     * NOTIF-2 (2026-08-21): the old label promised control over "sender and text".
-     * There is no text to control — AND-15 (#334) builds a per-TYPE line ("New
-     * Message", "Payment received", …) with no sender name and no message content —
-     * so it was re-wired to the one thing the notification can carry. */
+     * NOTIF-2 (2026-08-21) still applies to the LABEL: the old wording promised
+     * control over "sender and text". There is no text to control — AND-15 (#334)
+     * builds a per-TYPE line ("New Message", "Payment received", …) with no sender
+     * name and no message body — so the row governs the one thing a notification can
+     * carry, and the sub-label says so. */
+    if (onPreviews && !isDesktop) body.append(switchRow({
+      glyph: 'eye', hue: 'info',
+      label: strings.notifSender || 'Show sender name',
+      sub: strings.notifSenderSub || 'Message text is never shown in notifications',
+      checked: previews, live, failText, onToggle: onPreviews,
+    }));
     if (onSounds) body.append(switchRow({
       glyph: 'alert-small', hue: 'accent',
       label: strings.notifSounds || 'In-app sounds',
@@ -24012,5 +24289,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, ignorePushedTheme: ignorePushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, ignorePushedTheme: ignorePushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

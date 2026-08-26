@@ -430,6 +430,13 @@
   --surface-neutral-01: var(--neutral-10);
   --surface-neutral-02: var(--neutral-50);
   --surface-neutral-03: var(--neutral-100);
+  /* ★ #605: the ground of a chat row LIFTED above the context-menu scrim. Its own
+     token because the two themes want different steps, and the house rule is that a
+     component file never carries a [data-theme] selector (see --border-bubble-received
+     below). Light: the same neutral-02 the lift has always used — measured 6.2:1
+     against the dimmed list, and a lighter step would make light look heavier than
+     dark, which is precisely what row A2.2 checks. */
+  --surface-lift-row: var(--neutral-50);
   --surface-neutral-04: var(--neutral-200);
   --surface-neutral-inverse-01: var(--neutral-900);
   --surface-neutral-inverse-02: var(--neutral-800);
@@ -656,6 +663,13 @@
   --surface-neutral-01: var(--neutral-900);
   --surface-neutral-02: var(--neutral-800);
   --surface-neutral-03: var(--neutral-700);
+  /* ★ #605 dark: ONE FURTHER STEP. With the #589 ring removed, the ring's job passes
+     to the ground and to the fact that the row now genuinely escapes the scrim.
+     Measured, in dark: ΔL* 4.0 against the undimmed list (the old 1.10:1 finding),
+     9.0 once escaped, 10.7 with this step. WCAG ratios sit near 1 for all three
+     because both colours are near-black and the +0.05 flare term swamps them — a
+     large-area lightness step is the honest instrument here, not a text ratio. */
+  --surface-lift-row: var(--neutral-700);
   --surface-neutral-04: var(--neutral-600);
   --surface-neutral-inverse-01: var(--neutral-100);
   --surface-neutral-inverse-02: var(--neutral-200);

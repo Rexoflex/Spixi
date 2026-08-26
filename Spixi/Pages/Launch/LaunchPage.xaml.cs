@@ -56,6 +56,10 @@ namespace SPIXI
         // Which view the shell is showing. C# only needs this for the hardware back
         // button; the shell owns the actual switch.
         private string currentView = "welcome";
+        /* ★ #614: does the launch shell currently have an overlay up? Pushed by the shell,
+         * absolute (never a toggle), and re-synced by `launchBack` on every press so a
+         * stale `true` heals itself rather than latching the back button off. */
+        private bool shellOverlayOpen = false;
 
         public LaunchPage() : this("welcome")
         {
@@ -188,11 +192,23 @@ namespace SPIXI
              * Dispatched on the ANCHORED verb, like every payload verb (#393 MAJOR-2), and
              * the value is clamped to the four views we know — this field decides whether
              * the hardware back button is swallowed, so it never takes an arbitrary string. */
+            /* ★ #614: the shell tells us when it has a sheet open (Terms / Privacy, the
+             * language picker), so hardware back closes that first instead of changing the
+             * view underneath it — the route every other shell has had since #225. */
+            else if (verb.StartsWith("ixian:launchoverlay:", StringComparison.Ordinal))
+            {
+                shellOverlayOpen = verb.EndsWith(":1", StringComparison.Ordinal);
+                e.Cancel = true;
+                return;
+            }
             else if (verb.StartsWith("ixian:view:", StringComparison.Ordinal))
             {
                 string v = verb.Substring("ixian:view:".Length);
                 if (v == "welcome" || v == "create" || v == "restore" || v == "retry")
                 {
+                    // ★ #614: a view change closes whatever was open with it (the shell
+                    // rebuilds the view), so the flag must not survive into the new view.
+                    shellOverlayOpen = false;
                     trackView(v);
                 }
             }
@@ -356,7 +372,13 @@ namespace SPIXI
             /* ★ F-2: the OTHER half of the answer. If this line never appears in the log
              * when back is pressed, the handler is not reached at all and the field is
              * innocent; if it appears with the wrong view, the report is the problem. */
-            Logging.info("LaunchPage back: view=" + currentView);
+            Logging.info("LaunchPage back: view=" + currentView + " overlay=" + shellOverlayOpen);
+            if (shellOverlayOpen)
+            {
+                // ★ #614: one level at a time — the sheet closes, the view stays put.
+                Utils.sendUiCommand(this, "launchBack");
+                return true;
+            }
             if (currentView == "create" || currentView == "restore")
             {
                 switchView("welcome");

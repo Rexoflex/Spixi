@@ -69,7 +69,21 @@
 .c-contacts__kinds {
   display: flex;
   gap: var(--spacing-8);
+  /* ★★ #600 (row B4.1, Damir 2026-08-27): THE CHIP ROW WAS DRAGGABLE VERTICALLY and
+     ended up cut off at the top or the bottom.
+     Mechanism, and it is a spec rule rather than a bug in this file: when one axis of
+     `overflow` is not `visible`, the other's `visible` COMPUTES TO `auto`. So
+     `overflow-x: auto` alone makes this a scroll container on BOTH axes. It only
+     matters because something overflows the block axis — `.c-chip::after`, the 44px
+     extended tap area (chip.css), which hangs 7-8px below a 28-30px chip.
+     The fix is the chats-header's, which never had this defect for exactly this
+     reason: bottom padding deeper than the overhang, so the pseudo lands INSIDE the
+     padding box and `scrollHeight === clientHeight`.
+     ⚠ Not `overflow-y: hidden` — that clips hit-testing too, and would silently take
+     back the 44px target the pseudo exists to provide. */
+  padding-block: 0 var(--spacing-12);
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }

@@ -64,50 +64,6 @@
   gap: var(--spacing-12);
   padding-block: var(--spacing-8) var(--spacing-4);
   text-align: center;
-  /* ★ #591: the cover is absolutely positioned behind this block */
-  position: relative;
-  isolation: isolate;
-}
-/* ★★ #591 (Damir's second mockup) — THE COVER.
-   A soft band behind the identity: the contact's own photo, blurred and scaled, over
-   their identity gradient (`.c-idhue`, the same 12 anchors their fallback avatar uses).
-   ⚠ `z-index: -1` inside the hero's own isolation puts it above the page ground and
-   below every child, so the avatar, the name and the pencil all sit on top of it with
-   no stacking games and no risk of covering content — the same recipe the press layer
-   uses (base.css). Bleeds edge to edge by cancelling the body's inline padding. */
-.c-chat-info__cover {
-  position: absolute;
-  z-index: -1;
-  /* ⚠ AND IT BLEEDS UPWARD TOO. `top: 0` is the HERO's top, and the body's own 16px
-     padding-block-start sits above it — so the band began 16px below the chrome with a
-     hard horizontal edge, which is the same floating-panel complaint the inline fix was
-     written for, rotated 90°. The mask only fades the bottom. */
-  top: calc(-1 * var(--spacing-16));
-  /* ⚠ THE FIRST CUT DID NOT BLEED, and its own comment said it did. `100vw` with
-     `max-width: 100%` clamps straight back to the hero — the hero IS the containing
-     block, so the pair cancelled and left a hard-cornered band inset 16px from both
-     edges: a floating rectangle, not a backdrop. Viewport units were the wrong tool;
-     cancelling the body's own inline padding is the right one, and it stays correct
-     inside a 360px desktop pane, where `100vw` would have been the whole window. */
-  inset-inline: calc(-1 * var(--spacing-16));
-  height: 148px;                       /* 132 + the 16 it now reaches upward */
-  overflow: hidden;
-  pointer-events: none;
-  background: linear-gradient(140deg, var(--av-c1, var(--surface-neutral-02)), var(--av-c2, var(--surface-neutral-02)));
-  /* fades into the page rather than ending on a hard edge — the band is a backdrop,
-     not a panel. mask-image is progressive: without it the cover is simply a solid band. */
-  -webkit-mask-image: linear-gradient(to bottom, #000 40%, transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 40%, transparent 100%);
-}
-/* the photo, blurred well past recognisability — this is colour, not a second portrait.
-   `scale` hides the blur's soft edges, which would otherwise show as a light rim. */
-.c-chat-info__cover-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transform: scale(1.35);
-  filter: blur(22px) saturate(1.15);
-  opacity: 0.85;
 }
 
 /* avatar.css tokenizes 24/40/48 (+ the old 64 hero); the 80 hero sizes inline
@@ -603,42 +559,46 @@
 
 /* —— destructive zone (#142: separated, bordered rows — flush rows invited
    mistaps between "Delete chat history" and "Remove contact") —— */
+/* ★★ #618 (Damir, device 2026-08-28): the destructive rows join the ONE grammar.
+   The container keeps the body's own card rhythm so these two read as two more
+   cards in the stack, not as a foreign block wedged into it. */
 .c-chat-info__danger {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-8);
+  gap: var(--spacing-16);
 }
-.c-chat-info__danger-row {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-12);
-  min-height: 48px;
-  padding: 0 var(--spacing-12);
-  border: var(--outline-width-1) solid var(--outline-neutral-01);
-  border-radius: var(--radius-12);
-  background: transparent;
-  color: var(--text-error);
+/* ★★ #618 — AN ORDINARY ROW, ON AN ORDINARY CARD.
+   It was `background: transparent` with its own border, no chevron and red label
+   ink: a shape that appeared nowhere else on the screen, which is exactly what
+   Damir saw. It now takes the same card the address and notification rows take
+   (the `.c-chat-info__body >` rule above skips `__danger`, so the card is painted
+   here instead) and the same disc + label + chevron as the Account hub.
+   ⚠ It is a <button>, so every inherited button default has to be spelled out —
+   a half-reset button inside a card is how one row ends up a pixel off from its
+   neighbours. */
+.c-chat-info__row--action {
+  width: 100%;
+  padding: var(--spacing-12);
+  border: 0;
+  border-radius: var(--radius-16);
+  background: var(--surface-card);
+  box-shadow: var(--elevation-1);
+  color: var(--text-neutral-01);
+  font-family: inherit;
   font-size: var(--font-size-body-md);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
+  font-weight: var(--font-weight-regular);
   text-align: start;
-  -webkit-tap-highlight-color: transparent;
-  transition: background-color var(--duration-100) var(--easing-standard);
+  cursor: pointer;
 }
 @media (hover: hover) and (pointer: fine) {
-  .c-chat-info__danger-row:hover { background: var(--surface-interactive-hover); }
+  .c-chat-info__row--action:hover { background: var(--surface-interactive-hover); }
 }
-.c-chat-info__danger-row:active { background: var(--surface-interactive-pressed); }
-.c-chat-info__danger-row svg { color: currentColor; }
-/* QUIET tier (Damir 2026-08-12: "delete chat history doesn't need to be so
-   loud"): neutral ink + the grey neutral disc, regular weight. It is still a
-   bordered row in the destructive zone behind the same locked confirm — it just
-   stops competing with the irreversible action next to it. Red now MEANS
-   something (settings-shell precedent: quiet "free up space" vs danger zone). */
-.c-chat-info__danger-row[data-tone='quiet'] {
-  color: var(--text-neutral-01);
-  font-weight: var(--font-weight-regular);
-}
+.c-chat-info__row--action:active { background: var(--surface-interactive-pressed); }
+/* the chevron reads as chrome, like every other row's; the DISC keeps its own ink,
+   which is where the #148 two-tier meaning moved to — neutral for the reversible
+   action, error for the irreversible one. */
+.c-chat-info__row--action > svg { color: var(--icon-neutral-02); flex: none; }
+.c-chat-info__row--action .c-disc svg { color: currentColor; }
 
 .c-chat-info__confirm-error {
   margin: var(--spacing-8) 0 0;

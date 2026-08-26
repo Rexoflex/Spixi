@@ -435,6 +435,8 @@ export const ptbr = {
   notDeliveredNoRetry: "Não entregue",
   notifAll: "Permitir notificações",
   notifFailed: "Não foi possível atualizar as notificações.",
+  notifSender: "Mostrar nome do remetente",
+  notifSenderSub: "O texto da mensagem nunca aparece nas notificações",
   notifSounds: "Sons no app",
   notifications: "Notificações",
   ok: "OK",

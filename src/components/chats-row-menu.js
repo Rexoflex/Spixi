@@ -33,7 +33,8 @@
  * and gives position/z-index/pointer-events to each; only the chat row also needs an
  * opaque ground, because `.c-chatlist-item` is transparent and a message row must
  * stay transparent so the canvas shows around the bubble. */
-let liveRowLift = null;   // { addr } — the row an OPEN anchored row menu points at
+let liveRowLift = null;   // { addr, host, token } — the row an OPEN anchored row menu points at
+let rowLiftToken = 0;     // ★ #606 r2: identity for the undo, so a dying menu cannot release a live one
 
 /* ★★ round-2 MAJOR-1 + MAJOR-2. Two defects, one cause: the first cut kept the lift
  * state in the DOM and undid it through a captured node.
@@ -52,19 +53,122 @@ function releaseRowLift() {
   liveRowLift = null;
   if (typeof document === 'undefined') return;
   try {
+    /* ★ #606: the ghosts go FIRST and they are REMOVED, not un-marked. A ghost is a
+       node this module created; clearing its attribute would strand an opaque copy of
+       a chat row on top of the app with nothing left to find it by. */
+    const ghosts = document.querySelectorAll('[data-menu-ghost]');
+    for (const g of ghosts) { try { g.remove(); } catch (e) {} }
+  } catch (e) {}
+  try {
     const lifted = document.querySelectorAll('[data-menu-lift="row"]');
     for (const n of lifted) { try { delete n.dataset.menuLift; } catch (e) {} }
   } catch (e) {}
 }
 
+/* ★★ #606 — THE GHOST. Rows A2.1/A2.2/12/15, the fourth round on this affordance and
+ * the first one with an iOS device in the room.
+ *
+ * Three rounds raised `z-index` on the row and every one of them was measured on
+ * Android. On iOS the row does not lift AT ALL, in either theme, and on one row it
+ * sits visibly BEHIND the dim. The chain explains why it was never safe: the scrim is
+ * a child of `document.body`, the row is a descendant of `#chat-scroll`, and on iOS
+ * that is a real composited scroller — WKWebView's own scroll view is disabled
+ * (iOSWebViewHandler), so every `.u-scroll` in this app is one. Whether WebKit will
+ * hoist a descendant out of a scrolling layer to clear a sibling of that layer is the
+ * assumption all three rounds rested on, and none of them tested.
+ *
+ * So this stops being a z-index question. We paint a COPY of the row as a SIBLING of
+ * the scrim, at the row's own screen rectangle — the technique a native context menu
+ * uses, where the pressed view is snapshotted and the real one stays where it is. Two
+ * siblings in one stacking context cannot lose to each other on any engine.
+ *
+ * ★ ADDITIVE BY CONSTRUCTION, which is what makes it safe to ship without an iOS
+ * device to prove it on:
+ *   · the `data-menu-lift` hoist is untouched, so Android keeps working the way it
+ *     works today;
+ *   · the ghost is opaque and sits at the same rectangle, so where the hoist already
+ *     works the user sees exactly the same pixels;
+ *   · a row that cannot be measured produces NO ghost and the behaviour is today's.
+ * ⚠ UNVERIFIED on iOS hardware. The mechanism is proven from the code, not from the
+ * screen. If it is still wrong, `document.elementFromPoint()` over the pressed row's
+ * centre with the menu open names the winner in one line.
+ *
+ * ⚠ Geometry is INLINE on purpose. Writing `position: fixed` into the stylesheet would
+ * put a second declared value on a rule matching `[data-menu-lift]`, and the cascade
+ * pin that keeps this family honest asserts one value per property across every rule
+ * that matches it. Inline is invisible to the cascade and cannot be out-specified. */
+function paintRowGhost(host, lift) {
+  if (typeof document === 'undefined' || !host || !lift) return;
+  try {
+    const r = lift.getBoundingClientRect();
+    if (!r || !(r.width > 0) || !(r.height > 0)) return;   // unmeasurable: no ghost, no change
+    const ghost = lift.cloneNode(true);
+    ghost.dataset.menuGhost = '1';
+    ghost.setAttribute('aria-hidden', 'true');
+    /* the original stays in the accessibility tree and keeps the row's identity; a
+       duplicate id would break every getElementById in the shell. */
+    try {
+      if (ghost.id) ghost.removeAttribute('id');
+      const ided = ghost.querySelectorAll('[id]');
+      for (const n of ided) n.removeAttribute('id');
+    } catch (e) {}
+    const st = ghost.style;
+    st.position = 'fixed';
+    st.left = r.left + 'px';
+    st.top = r.top + 'px';
+    st.width = r.width + 'px';
+    st.height = r.height + 'px';
+    st.margin = '0';
+    /* the host is the sheet's parent — the same node the scrim is a child of, so the
+       ghost is the scrim's sibling and the band ordering (z-40/42/44) applies between
+       them exactly as it was designed to. */
+    host.appendChild(ghost);
+  } catch (e) { /* a ghost is an enhancement: never let it break the menu */ }
+}
+
 function liftPressedRow(sheet, row, address) {
   if (!sheet || !sheet.dataset || sheet.dataset.mAnchor === undefined || !row) return () => {};
-  const lift = (row.closest && row.closest('.c-swipe')) || row;
+  /* ★ #606 r2 (adversarial review, finding 7): resolve the LIVE row first, exactly as
+     anchorSheetToRow does. A flush between the press and the 500ms long-press timer
+     detaches the pressed node, and a detached node measures all zeros — so the ghost's
+     own measurement guard would decline to paint, silently, on the accounts that flush
+     most (a restore re-runs loadChats every two seconds). The menu was already anchoring
+     to the replacement; the lift has to follow it to the same node. */
+  let src = row;
+  if (!row.isConnected && address) {
+    try {
+      const live = document.querySelector('.c-chatlist-item[data-address="' + CSS.escape(String(address)) + '"]');
+      if (live) src = live;
+    } catch (e) { /* no CSS.escape, or a malformed address — keep the original */ }
+  }
+  const lift = (src.closest && src.closest('.c-swipe')) || src;
   if (!lift || !lift.dataset) return () => {};
   releaseRowLift();                       // a previous menu's lift never outlives this one
   lift.dataset.menuLift = 'row';
-  liveRowLift = { addr: address ? String(address) : '' };
-  return releaseRowLift;
+  const token = ++rowLiftToken;
+  liveRowLift = { addr: address ? String(address) : '', host: sheet.parentNode || null, token };
+  paintRowGhost(sheet.parentNode, lift);  // #606: and the copy that does not need to win
+  /* ★ #606 r2 (finding 9): the undo is IDENTITY-CHECKED. `releaseRowLift` is DOM-wide by
+     design, and `onDismiss` fires up to 400ms after close — so a dying menu's deferred
+     undo could strip a NEWLY opened menu's ghost and lift. Module state exists to stop
+     exactly this class (round-2 MAJOR-2); the token extends it to the undo. */
+  return () => { if (liveRowLift && liveRowLift.token === token) releaseRowLift(); };
+}
+
+/** ★ #606 r2 (adversarial review, finding 6): RE-PAINT after a list re-render.
+ *  `renderChatsList` rebuilds every row on any flush — a message in ANY chat is enough —
+ *  and it re-applies the lift to the replacement node. The ghost is a snapshot pinned to
+ *  a viewport rectangle, so without this it was left behind: an opaque copy of chat A
+ *  stranded over whatever row the re-sort moved into A's old slot, with a frozen clock.
+ *  Called from chats-shell for the row it just re-lifted. */
+export function repaintRowGhost(node) {
+  if (!liveRowLift || !liveRowLift.host || !node) return;
+  try {
+    const ghosts = document.querySelectorAll('[data-menu-ghost]');
+    for (const g of ghosts) { try { g.remove(); } catch (e) {} }
+  } catch (e) {}
+  const lift = (node.closest && node.closest('.c-swipe')) || node;
+  paintRowGhost(liveRowLift.host, lift);
 }
 
 /** ★ review MINOR-3: the address of the row an ANCHORED row menu currently points at,

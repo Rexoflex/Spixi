@@ -64,7 +64,7 @@ import { createSheet, openSheet, closeSheet } from './sheet.js';   // #527: the 
 import { sanitizeAmount, canonicalAmount, amountInputToCanonical, groupAmountDisplay, amountCaretAfterFormat } from './money.js';   // #143 shared money module · ★ I-6 (#360) display grouping
 import { icon } from './icons.js';
 import { createContactRow, setContactRowChecked } from './contact-row.js';   // ★ W-j: the shared directory row
-import { attachAmountKeyboardDismiss } from './wallet-send.js';             // ★ W-k: Enter/Next/Go drops the keyboard
+import { attachAmountKeyboardDismiss } from './amount-keyboard.js';             // ★ W-k: Enter/Next/Go drops the keyboard
 // F5-5 ③ (#556): the discGrad import is gone with the explainer disc — one glyph level now
 
 /* ★ #527 (Damir, 2026-08-23) — RECEIVE INVERTED. The surface is REQUEST-FIRST:

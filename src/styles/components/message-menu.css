@@ -315,11 +315,11 @@
    is the WRAPPER — so dropping its paint showed a translucent band of scrim through a
    row that is supposed to be lifted above it. It costs one declaration to keep. */
 :root:not([data-desktop]) .c-swipe[data-menu-lift="row"] {
-  background-color: var(--surface-neutral-02);
+  background-color: var(--surface-lift-row);
   border-radius: var(--radius-12);
 }
 :root:not([data-desktop]) .c-swipe[data-menu-lift="row"] .c-swipe__content {
-  background: var(--surface-neutral-02);
+  background: var(--surface-lift-row);
   border-radius: var(--radius-12);
 }
 /* ⚠ review MINOR-7: the lift falls back to the ROW itself when the swipe wrapper is
@@ -331,7 +331,7 @@
 /* the UNWRAPPED fallback (a handshaking row; pin and mute both off) — the row is
    the lift target itself and is transparent, so it takes the same paint directly. */
 :root:not([data-desktop]) .c-chatlist-item[data-menu-lift="row"]:not([data-pinned]):not([aria-current]) {
-  background-color: var(--surface-neutral-02);
+  background-color: var(--surface-lift-row);
   border-radius: var(--radius-12);
 }
 /* ⚠ THERE IS NO PRESS WASH HERE, and an earlier draft of this batch said there was.
@@ -347,16 +347,27 @@
    those are alpha layers that need something opaque behind them. Painting the item
    instead would either lose the state or lose the ground. */
 
-/* ★★ #589: THE LIFTED CHAT ROW TAKES THE RING TOO. `chats-row-menu.js` sets the lift
-   but never `[data-menu-target]`, so a lifted row had no ring, no border and no
-   elevation — in dark, the entire affordance was a 1.10:1 fill. The recipe is the
-   message target's, byte for byte, so there is one ring in this app and not two.
-   ⚠ Radius is set explicitly, not inherited: the lift targets carry radius-12 and the
-   iOS-62 negative forbids `border-radius: inherit` in this file (on the message tint it
-   would take the bubble parent's radius and square off every bubble). */
+/* ★★ #605 (Damir, 2026-08-27 — D2): THE RING ON THE CHAT ROW IS REMOVED.
+   His words: "it's not looking good, and it gets cut off on the sides. It's not
+   appropriate for a chat app and this action." The clipping identifies this ring and
+   not the message one: `.c-swipe` is full-bleed in the list and the scroller's
+   computed `overflow-x` cut the 5px spread at both screen edges. A message bubble
+   sits inside `.c-bubble-row`'s 16px inline padding and cannot be clipped, so the
+   message ring is UNTOUCHED here — flagged for Damir rather than assumed.
+
+   ⚠ THE RING WAS THE ONLY THING WORKING IN DARK, so it does not leave alone.
+   What replaces it is elevation and a genuinely lighter ground, and — the part that
+   actually matters — the row now really does escape the scrim on every platform
+   (chats-row-menu.js, the ghost). Measured on the tokens, in dark:
+     row against the UNDIMMED list          ΔL* 4.0   (the 1.10:1 the last round measured)
+     row against the DIMMED field, escaped  ΔL* 9.0
+     …and with the ground one step lighter  ΔL* 10.7
+   WCAG ratios are near 1 for all three because both colours are near-black and the
+   +0.05 flare term dominates — which is why the ratio was the wrong instrument for
+   this surface, and why the fix is the LAYER plus the step, not a colour. */
 :root:not([data-desktop]) .c-swipe[data-menu-lift="row"],
 :root:not([data-desktop]) .c-chatlist-item[data-menu-lift="row"] {
-  box-shadow: 0 0 0 2px var(--brand-400), 0 0 0 5px rgba(118, 157, 255, 0.28);
+  box-shadow: var(--elevation-3);
 }
 
 /* The ring, unchanged from #492 — it was never the wrong ring, only the wrong
@@ -371,4 +382,32 @@
 }
 @media (prefers-reduced-motion: reduce) {
   [data-menu-target] { transition: none; }
+}
+
+/* ★★ #606 (rows A2.1 / A2.2 / 12 / 15 — the FOURTH round, and the first with an iOS
+   device): THE LIFT IS NOW A GHOST, and it does not depend on winning a z-index race.
+   The three earlier rounds all raised `z-index` on the row and all were measured on
+   Android. On iOS the row does not lift at all, and on one row it sits BEHIND the dim.
+   The scrim is a child of `document.body`; the row is a descendant of a composited,
+   async-scrolled overflow container (`#chat-scroll`, and WKWebView's own scroll view
+   is disabled, so every `.u-scroll` is a real iOS scroller). Whether WebKit will hoist
+   a descendant out of that layer to clear a sibling of its scroller is exactly the
+   thing three rounds assumed and none proved.
+   So stop asking. `liftPressedRow` now also paints a positioned COPY of the row as a
+   SIBLING of the scrim — the same technique a native context menu uses, where the
+   pressed view is snapshotted. A sibling cannot lose a stacking contest to its
+   sibling, on any engine.
+   ★ It is purely ADDITIVE: the `data-menu-lift` hoist stays exactly as it is, the
+   ghost is opaque and covers the original pixel for pixel, and if the row cannot be
+   measured no ghost is made and the behaviour is today's. Nothing regresses on
+   Android; iOS gains the lift it never had.
+   ⚠ Geometry is set INLINE by the JS, deliberately: a `position: fixed` written here
+   would be a second declared value on a `[data-menu-lift]` rule, and the cascade pin
+   that keeps this whole family honest asserts one value per property across every
+   rule that matches. */
+[data-menu-ghost] {
+  margin: 0;
+  /* the ghost is a picture of a row, never a target — the scrim below it takes the
+     light-dismiss tap, exactly as it does for the hoisted original. */
+  pointer-events: none;
 }

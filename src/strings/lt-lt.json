@@ -434,6 +434,8 @@
   "notDeliveredNoRetry": "Nepristatyta",
   "notifAll": "Leisti pranešimus",
   "notifFailed": "Nepavyko atnaujinti pranešimų.",
+  "notifSender": "Rodyti siuntėjo vardą",
+  "notifSenderSub": "Žinutės tekstas niekada nerodomas pranešimuose",
   "notifSounds": "Garsai programoje",
   "notifications": "Pranešimai",
   "ok": "Gerai",

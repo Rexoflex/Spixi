@@ -302,6 +302,30 @@ namespace SPIXI.VoIP
                         // Answered, or we placed it — nothing was missed, so take the row down.
                         SPushService.cancelNotification(callNotifId);
                     }
+                    else if (!SNotificationPrefs.shouldNotify(endedWith))
+                    {
+                        /* ★★ #611 (device row 33, 2026-08-27): A MUTED CONTACT DOES NOT GET A
+                         * MISSED-CALL ROW EITHER.
+                         *
+                         * #586 made the MUTE reach the RING, and its own comment records that
+                         * only the SOUND was gated on purpose — "a suppressed ring still
+                         * becomes a missed call". That is still true and this does not change
+                         * it: the session, the #265 timeout and the call's place in the chat
+                         * history are all untouched. What changes is the BANNER.
+                         *
+                         * There were three producers of a missed-call notification and only
+                         * two asked. `Node.cs` asks, `StreamProcessor.cs` asks, and this one
+                         * — the only one that fires for a genuinely missed LIVE call — did
+                         * not, because `showLocalNotification` is the raw poster and applies
+                         * no policy of its own. So a muted contact rang silently, exactly as
+                         * designed, and then posted a banner 45 seconds later anyway.
+                         *
+                         * `shouldNotify`, not `shouldRingForCall`: this IS a banner, so it
+                         * inherits the global notifications master. #586's separate predicate
+                         * exists so that silencing banners does not silence a live call — the
+                         * opposite direction, and it still holds. */
+                        SPushService.cancelNotification(callNotifId);
+                    }
                     else
                     {
                         // ★ A genuinely MISSED incoming call. Correct the row; do not delete it.

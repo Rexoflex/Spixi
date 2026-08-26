@@ -13,6 +13,41 @@ namespace SPIXI
 {
     public class Utils
     {
+        /// <summary>
+        /// ★★ #613 (Damir, 2026-08-27) — DOES THIS ROOM HIDE ITS PARTICIPANTS?
+        ///
+        /// One truth, and it is the LEGACY rule, restored. `hideParticipantAddresses` is a
+        /// GROUP privacy mode: legacy qualifies every single mask it applies on
+        /// `friend.type == FriendType.Group` (SingleChatPage at the fork point `0e85a4b8`),
+        /// so a bot room could not be masked no matter what the flag on the wire said.
+        ///
+        /// The redesign lost that qualifier in two places — #348 (2026-08-15) passed the raw
+        /// flag to the chat shell, and #248 (2026-07-10) read it unqualified in
+        /// ContactDetails — and a bot room then inherited it. That is the regression behind
+        /// "the Spixi bot group has hidden members": a PUBLIC channel rendering
+        /// "Hidden member" and `[Unknown]` rows, with kick, ban and send-contact-request
+        /// structurally dead because there was no address left to act on.
+        ///
+        /// ⚠ THE HANDOVER GATE'S QUESTION, asked and answered: does this introduce an
+        /// exposure that is not at the baseline? No — the opposite. The baseline shows a bot
+        /// room's addresses; our build hid them. Returning to legacy parity removes a
+        /// divergence we introduced. A bot server that genuinely wants private participants
+        /// is a NEW capability and needs its own decision, not a silent inheritance.
+        ///
+        /// ⚠ NOT applied to the money path. `SingleChatPage`'s tip refusal still reads the
+        /// raw flag, deliberately: a blind group pays a DERIVED address, and whether a
+        /// flagged bot room's roster addresses are real or derived is not answerable from
+        /// this tree. Identity display is restored; spending waits for an answer (#215).
+        /// </summary>
+        public static bool hidesParticipants(Friend? friend)
+        {
+            if (friend == null) { return false; }
+            if (friend.type != FriendType.Group) { return false; }
+            return friend.metaData != null
+                && friend.metaData.botInfo != null
+                && friend.metaData.botInfo.hideParticipantAddresses;
+        }
+
         public static DateTime unixTimeStampToDateTime(double unixTimeStamp)
         {
             // Unix timestamp is seconds past epoch

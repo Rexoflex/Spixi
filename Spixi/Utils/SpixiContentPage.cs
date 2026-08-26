@@ -2895,9 +2895,22 @@ namespace SPIXI
             kbScrollPin = null;
         }
 
+        /// <summary>
+        /// ★★ #608 (device rows 5a / 5b / §2, 2026-08-27): the shells that publish
+        /// `--kb-inset`. It used to be chat.html alone, and that is why the wallet Send
+        /// screen and the account-create form sat under the keyboard with no way to
+        /// reach what it covered — they never received a keyboard signal at all.
+        /// ⚠ It is an ALLOW-LIST, not an "every page": a page that does not consume the
+        /// inset gains nothing from being told about it, and each entry is one more
+        /// document the observer has to be correct for.
+        /// </summary>
+        private static readonly string[] KEYBOARD_INSET_SHELLS = { "chat.html", "index.html", "intro.html" };
+
         private void attachKeyboardInsetObserver()
         {
-            if (loadedHtmlFileName != "chat.html" || kbChangeObserver != null)
+            if (kbChangeObserver != null)
+                return;
+            if (Array.IndexOf(KEYBOARD_INSET_SHELLS, loadedHtmlFileName) < 0)
                 return;
             kbChangeObserver = UIKeyboard.Notifications.ObserveWillChangeFrame((sender, e) =>
             {
@@ -2917,10 +2930,17 @@ namespace SPIXI
                     // iOS-53 (#324): pin BEFORE the inset push — WillChangeFrame precedes
                     // WebKit's reveal pan (probe: push t=59-91, pan t=75-115), so the pin
                     // is live when the first wrong offset is written.
-                    if (overlap > 0)
-                        pinKeyboardScroll();
-                    else
-                        unpinKeyboardScroll();
+                    // ⚠ #608: the iOS-53 scroll pin stays CHAT-ONLY. It exists for the
+                    // message log's reveal pan; the shells joining the allow-list have
+                    // never had it, and a page silently gaining a contentOffset clamp is
+                    // exactly the kind of side effect that costs a review round.
+                    if (loadedHtmlFileName == "chat.html")
+                    {
+                        if (overlap > 0)
+                            pinKeyboardScroll();
+                        else
+                            unpinKeyboardScroll();
+                    }
                     sendMessage("window.__setKbInset && window.__setKbInset(" + (int)overlap + ")");
                 }
                 catch { }

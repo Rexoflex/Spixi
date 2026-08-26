@@ -536,7 +536,29 @@ export function attachPressFeedback({
   host.addEventListener('scroll', cancelGesture, { passive: true, capture: true });
   // A page hidden mid-press (app backgrounded, overlay opened) must not come back
   // with a row still lit — afterlives included (D-16).
-  const onHide = () => { abortGesture(); killAllAfterlives(); };
+  /* ★★ #604 (row A7.1, Damir 2026-08-27): THE TEARDOWN MUST ALSO SUPPRESS RE-ARMING.
+   *
+   * The Android-only ghost rectangle over a freshly opened mini-app picker is this
+   * teardown eating its own guards. `killAllAfterlives()` empties `afterlives` and
+   * `abortGesture()` sets `cancelled = false` — and those two are exactly what the
+   * ghost guard (the 800ms afterlife window) and the same-element guard (the 300ms
+   * arm window) read to REJECT the late, synthesised pointer stream Android emits
+   * after a committed touch tap. Disarmed, that late `pointerdown` re-arms a fresh
+   * press on the tile with no finger on the glass: paint, fill, fade — about 570ms,
+   * which is why it has never been screenshot-able (#294).
+   *
+   * So a teardown that lands MID-GESTURE now latches `cancelled` for the rest of that
+   * gesture — `cancelGesture`'s semantics, which exist for precisely this — instead of
+   * resetting it. With no finger down there is nothing to re-arm and the behaviour is
+   * unchanged, so `pagehide` and `visibilitychange` keep working exactly as before.
+   *
+   * ⚠ This is the mechanism, not a device observation: it is UNVERIFIED on hardware.
+   * The discriminator is one line — log `el.className`, `e.type` and `e.pointerType`
+   * where the arm happens, and see whether a SECOND arm follows the click. */
+  const onHide = () => {
+    if (pointerDown) { cancelGesture(); } else { abortGesture(); }
+    killAllAfterlives();
+  };
   window.addEventListener('pagehide', onHide);
   document.addEventListener('visibilitychange', onHide);
   // #589: the same teardown, reachable from a screen that opens IN the document

@@ -66,7 +66,19 @@ export function createIndicators({ count = 0, mention = false, muted = false, st
 
 /* —— excerpt (§5): type → optional 16px glyph + toned text parts —— */
 const EXCERPT_GLYPHS = {
-  file: 'file-isr', gif: 'gif', call: 'phone', 'call-missed': 'phone-off',
+  file: 'file-isr', gif: 'gif', call: 'phone',
+  /* ★ #602 (row 16): a call you TURNED DOWN is not a call you missed — it gets its own
+     glyph, and both are already in the registry.
+     ★★ #621 (Damir on the device, 2026-08-28): THE TWO ARE SWAPPED from #602's first
+     cut. He read the actual shapes on a phone, which I could not: the crossed phone
+     says "unreachable" and belongs to the call nobody answered; the phone with the
+     small x says "refused" and belongs to the one that was turned down.
+     ⚠ `call-missed` is the shared kind for BOTH "Missed call" (incoming, unanswered)
+     and "No answer" (outgoing, unanswered) — the canon maps both to it — so this moves
+     the missed-call glyph too. That is consistent (neither was answered) but it was not
+     what he asked for by name; if the two want to differ they need separate kinds. */
+  'call-missed': 'phone-x',
+  'call-declined': 'phone-off',
   payment: 'wallet', 'app-invite': 'apps', draft: 'pencil', reaction: 'heart-plus',
   request: 'user-plus',   // M5 outgoing contact request — `user-plus` SHIPS today (icons.js:81)
   'request-done': 'user-plus',   // #273 settled contact event ("Contact Accepted") — same glyph, but NOT a pending request (Requests filter/chip key on type 'request' and must exclude it)

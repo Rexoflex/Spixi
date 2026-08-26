@@ -435,6 +435,8 @@ export const jajp = {
   notDeliveredNoRetry: "未送達",
   notifAll: "通知を許可",
   notifFailed: "通知設定を更新できませんでした。",
+  notifSender: "送信者名を表示",
+  notifSenderSub: "メッセージ本文が通知に表示されることはありません",
   notifSounds: "アプリ内サウンド",
   notifications: "通知",
   ok: "OK",

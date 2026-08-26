@@ -27,6 +27,13 @@
    what gives it a box to overflow; `max-width: 100%` keeps it inside the title's line
    box, which is what preserves the #569 anti-sideways-scroll guarantee. `vertical-align`
    keeps the baseline aligned with the words around it. */
+/* ★★ #610 round 2: the ACTION, beside the name. One step back in weight AND in ink —
+   the pair is what makes the line parse as "who" then "what", and colour is the half
+   that survives a font whose 600 and 700 are close. */
+.c-tipsheet__titleverb {
+  font-weight: var(--font-weight-regular);
+  color: var(--text-neutral-02);
+}
 .c-tipsheet__payee {
   display: inline-block;
   max-width: 100%;
@@ -34,6 +41,15 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* ★★ #610 (device evidence 12d): THE NAME AND THE VERB READ AS ONE STRING.
+     The de-de title renders "Testan…oo  Trinkgeld geben" — Damir read that as the
+     sheet repeating "tip user" beside the nickname, and he was right to: the name was
+     a bare span with no font properties of its own, so it inherited the title's size
+     and weight exactly, and nothing marked where the name ended and the action began.
+     English hid it because the verb leads there; de-de puts {name} first, so the sheet
+     opened with a name and buried the action after it.
+     One step of weight is enough to give the line a subject and a predicate. */
+  font-weight: var(--font-weight-bold);
 }
 .c-tipsheet__excerpt {
   margin: 0;
@@ -48,12 +64,43 @@
    choices deserve button-scale hits, not tag-scale (Damir round 1); the #50
    tonal selected wash + outline vocabulary still carries the brand */
 .c-tipsheet__chips .c-chip {
-  flex: 1 1 0;
+  /* ★★ #610 (device evidence 12c, de-de, iPhone 15): THE FOURTH CHIP WAS CUT OFF.
+     `flex: 1 1 0` makes every chip's hypothetical size ZERO, so four chips always "fit"
+     one line whatever their labels say — the `flex-wrap: wrap` above could never fire —
+     and `.c-chip` is `white-space: nowrap` with no `overflow`, so the label simply
+     painted outside its own box and off the screen edge. Three escapes, all closed.
+     In de-de "Benutzerdefiniert" is 17 characters against ~60px of room.
+     ⚠ It is a LAYOUT defect, not a translation-length one. A shorter German word would
+     only have hidden it, and the next locale would have found it again.
+     ⚠ ROUND 2 — WHAT THIS ACTUALLY DOES, measured, because the first version of this
+     comment claimed "English is unchanged" and that was FALSE. `flex-basis: auto` sizes
+     each chip to its CONTENT, so in English the row goes from four equal 84.3px chips to
+     74/74/86/103, and in de-de the long chip wraps to a second row and, alone on that
+     line with flex-grow, fills the full width. Both are inside the verdict's sanctioned
+     set ("the row needs to wrap, scroll, or drop to a 2×2") and neither can clip — but
+     it IS a deviation from the equal-width intent stated 14 lines above, and it is
+     Damir's call to keep or reverse, with the numbers in front of him. Reversing is one
+     declaration; the label ellipsis below then carries the German case instead. */
+  flex: 1 1 auto;
   min-width: 0;
+  max-width: 100%;
   min-height: var(--size-target-min);
   padding: var(--spacing-8) var(--spacing-12);
   font-size: var(--font-size-body-lg);
   border-radius: var(--radius-12);
+}
+/* ★★ #610 round 2 (adversarial review): THE ELLIPSIS WAS INERT, and measurably so.
+   `overflow`/`text-overflow` were on `.c-chip`, which is `inline-flex` — blockified to
+   `flex` as a flex item — and `text-overflow` applies to a block container. The label is
+   its own `<span class="c-chip__label">` child (chip.js), and that child kept
+   `overflow: visible; text-overflow: clip` with `min-width: auto`, so it could not
+   shrink either. Measured with a 48-character label the chip clipped at BOTH ends
+   (`justify-content: center`) with no "…", losing the START of the word — worse than an
+   end truncation on an option label. The declarations belong here. */
+.c-tipsheet__chips .c-chip .c-chip__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .c-tipsheet__chips .c-chip::after { content: none; }   /* real-size target — no hit-area extender needed */
 

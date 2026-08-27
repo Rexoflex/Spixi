@@ -145,16 +145,15 @@
 }
 .c-wallet-receive__result[data-tone='error'] { color: var(--text-error); }
 /* W9 CTA — the one thing on this surface that can send. Full width, primary.
-   ★ #560: STICKY — the list is full-length now (the page scrolls), so the send
-   action pins itself to the bottom of the scroller, rows sliding beneath it,
-   reachable at any scroll depth and clear of the home indicator. elevation-2
-   separates it from the rows passing under. */
+   ★ #560 made THIS BUTTON sticky, with an elevation-2 shadow, and Send's Review got
+   neither — which is exactly the mismatch Damir reported once L1 put the two takeovers
+   one tap apart: *"it has shadow and its not sticky bottom"*. The shadow was real and it
+   was here; the stickiness was real too, which is why wrapping it changed nothing.
+   ⚠ The sticky BEHAVIOUR is not dropped — it moved to the shared `.c-money-cta` wrapper
+   (base.css) so both wallet CTAs are one control with one owner. A floating shadowed
+   button was the outlier; a bar with a hairline is the house grammar the composer uses. */
 .c-wallet-receive__cta {
   margin-block-start: var(--spacing-4);
-  position: sticky;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--spacing-8));
-  z-index: 1;
-  box-shadow: var(--elevation-2);
 }
 .c-wallet-receive__none {
   margin: 0;

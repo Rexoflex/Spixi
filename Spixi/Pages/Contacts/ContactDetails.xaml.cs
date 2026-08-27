@@ -119,6 +119,17 @@ namespace SPIXI
                 Utils.sendUiCommand(this, "showCallButton", "");
             }
 
+            /* ★★ L1 (#640): declare that THIS build answers the two money composes.
+             * The shell gates Pay and Request on these capabilities (#242 grammar), so a
+             * build whose C# half is missing shows a dead tap instead of a legacy screen
+             * that no longer exists. 1:1 ONLY — a group panel renders no money action,
+             * and `handleSendRequest` fails closed on anything that is not an approved
+             * FriendType.Normal contact. */
+            if (!isGroup)
+            {
+                Utils.sendUiCommand(this, "setCaps", "composeSend,composeRequest");
+            }
+
             if (isGroup)
             {
                 // #248 GROUP INFO shell-side (Damir F5 item 2): this page now carries
@@ -389,13 +400,33 @@ namespace SPIXI
                     Logging.warn("ixian:sharedGroups: " + ex.Message);
                 }
             }
-            else if (current_url.Equals("ixian:request", StringComparison.Ordinal))
+            /* ★★ L1 (#640) — THE LEGACY MONEY BRANCHES ARE GONE.
+             *
+             * Damir, F5 2026-08-29: *"When on chat info or contact details, and pressing
+             * SEND or RECEIVE it fires the LEGACY SEND and RECEIVE SCREENS. Nothing
+             * legacy was supposed to exist in this app anymore, we need to clean it
+             * out."* This page was the ONLY live route into `WalletSendPage` /
+             * `WalletReceivePage`; both pages are deleted with this row, the way #635
+             * deleted `WalletContactRequestPage`.
+             *
+             * `ixian:send` and `ixian:request` are no longer emitted by any shell and no
+             * longer handled anywhere. The three verbs below replace them and are the
+             * SAME verbs SingleChatPage answers — one money grammar for both surfaces:
+             *   ixian:signSend:<addr>:<amount>  → SPayments (native confirm, then sign)
+             *   ixian:feeQuery:<addr>:<amount>  → SPayments (quote only, spends nothing)
+             *   ixian:sendrequest:<addr>:<amt>  → SPayments (a chat MESSAGE, no signing)
+             * ★ SECURITY.md is unchanged: the WebView still composes INTENT only. */
+            else if (current_url.StartsWith("ixian:signSend:", StringComparison.Ordinal))
             {
-                hostNav.PushAsync(new WalletReceivePage(friend), Config.defaultXamarinAnimations);   // #225: root nav
+                SPayments.handleSignSend(this, current_url.Substring("ixian:signSend:".Length));
             }
-            else if (current_url.Equals("ixian:send", StringComparison.Ordinal))
+            else if (current_url.StartsWith("ixian:feeQuery:", StringComparison.Ordinal))
             {
-                hostNav.PushAsync(new WalletSendPage(new ExtendedAddress(friend.walletAddress, AddressPaymentFlag.OfflineTag, null)), Config.defaultXamarinAnimations);   // #225: root nav
+                SPayments.handleFeeQuery(this, current_url.Substring("ixian:feeQuery:".Length));
+            }
+            else if (current_url.StartsWith("ixian:sendrequest:", StringComparison.Ordinal))
+            {
+                SPayments.handleSendRequest(this, friend, current_url.Substring("ixian:sendrequest:".Length));
             }
             else if (current_url.Equals("ixian:call", StringComparison.Ordinal))
             {

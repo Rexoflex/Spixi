@@ -23,7 +23,7 @@ import { icon } from './icons.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 
 const ATTACH_ACTIONS = [
-  { id: 'file', glyph: 'file-isr', label: 'Send file', key: 'sendFile' },
+  { id: 'file', glyph: 'file-isr', label: 'Send file', key: 'sendFile', flag: 'files' },
   { id: 'photo', glyph: 'photo', label: 'Photo', key: 'photo', flag: 'media' },
   { id: 'gif', glyph: 'gif', label: 'GIF', key: 'gif', flag: 'media' },
   { id: 'pay', glyph: 'arrow-up-right', label: 'Send payment', key: 'sendPayment', flag: 'payments' },
@@ -31,10 +31,14 @@ const ATTACH_ACTIONS = [
   { id: 'app', glyph: 'rocket', label: 'App invite', key: 'appInvite', flag: 'apps' },
 ];
 
-export function openAttachSheet({ host, media = false, apps = true, payments = true, onAction, strings = getStrings() } = {}) {
+/* `files` defaults TRUE — every existing caller keeps its tile without a change, and a
+   surface that cannot send files says so explicitly. Legacy had no file capability in a
+   blind group and the C# still refuses one there; offering the tile anyway was a control
+   that reported an outcome it did not cause. */
+export function openAttachSheet({ host, media = false, apps = true, payments = true, files = true, onAction, strings = getStrings() } = {}) {
   const grid = document.createElement('div');
   grid.className = 'c-attach';
-  const enabled = { media, apps, payments };
+  const enabled = { media, apps, payments, files };
 
   for (const a of ATTACH_ACTIONS) {
     if (a.flag && !enabled[a.flag]) continue; // #81 media flag / apps gate (voice-flag precedent #64)

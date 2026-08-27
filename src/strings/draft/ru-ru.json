@@ -691,5 +691,8 @@
   "youAreOwner": "Вы владелец",
   "youInvited": "Вы отправили приглашение",
   "youRequested": "Вы запросили",
-  "yourAddress": "Ваш адрес"
+  "yourAddress": "Ваш адрес",
+  "deliveredOf": "Доставлено {n} из {m}",
+  "readBy": "Прочитано {n}",
+  "downloadedBy": "Скачали {n}"
 }

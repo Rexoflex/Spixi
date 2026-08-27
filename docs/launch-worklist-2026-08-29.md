@@ -8,11 +8,17 @@ Two sources are merged here: **Damir's own pre-launch list**, given in his words
 remains of the review queue. Where they overlap the row says so, because several of his
 items already had a lead in the queue and the lead is the fast half of the work.
 
-**Baseline** (verified in the container, all gates):
+**Baseline** — ⚠ **THREE NUMBERS MOVED IN SESSION A, on purpose:**
 ```
-bundle 299 · shells 18 · smoke BASELINE OK 3402 / the 3 known (#136 · M5 · B3)
-· locales CLEAN 772 · cs-syntax 143+1 · Ixian-Core 097341a
+bundle 299 · shells 18 · smoke BASELINE OK 3474 / the 3 known (#136 · M5 · B3)
+· locales CLEAN 774 · cs-syntax 140+1 · Ixian-Core 097341a
 ```
+* **cs-syntax 143 → 140** — L1 part B DELETED three C# pages.
+* **locales 772 → 774** — two copy keys for the L2 read detail.
+* **smoke 3402 → 3474** — 72 new pins, 22 of them from the adversarial loop.
+
+The pre-session baseline was `bundle 299 · shells 18 · smoke 3402 · locales 772 ·
+cs-syntax 143+1`. If you are reading this before session A lands, use that one.
 
 ---
 
@@ -23,7 +29,7 @@ is the gate, not the suite.** A row is not done because the pins are green.
 
 | | rows | why they go together |
 |---|---|---|
-| **A** | **L1 · L2 · L8** | The two he named, plus the slide-out. L1 and L2 both live in the chat / contact-details surfaces, and L8 is the mirror of work already in the tree. All three are traced to the line, so the session is build-and-verify, not investigate. |
+| **A** ✅ | **L1 · L2 · L8** — BUILT 2026-08-29, DECISIONS #642–#645, awaiting Damir's walk | The two he named, plus the slide-out. L1 and L2 both live in the chat / contact-details surfaces, and L8 is the mirror of work already in the tree. All three are traced to the line, so the session is build-and-verify, not investigate. |
 | **B** | **L6 · L7 · L5 · L11 · L10** | The Account and Chats defects plus the two logged ones. Smaller and more separable than A, so a slip here costs one row rather than the session. Ends by REMOVING the `[CDPERF]` probe once L10 is re-measured. |
 | **C** | **L3 · L4 · L9** + the two flicker rows | The gesture batch. L3 and L4 are one subject — back semantics — and doing them apart would mean deciding the same rule twice. L9 and the flicker rows are the polish that fits alongside. |
 | **D** | whatever his review yields | Damir: *"I am sure my review will yield a 4th one to polish some things."* Reserve, deliberately unplanned. |
@@ -44,9 +50,31 @@ is the gate, not the suite.** A row is not done because the pins are green.
 
 ---
 
+# ★★ WHAT SESSION A CHANGED IN THIS DOCUMENT'S OWN FACTS
+
+Two rows below state something that turned out not to be true. Both are corrected in
+place, and both cost real time, so they are also listed here.
+
+* **L1's inventory said `HomePage.onSendIxi/onReceiveIxi` have "no shell emitter at
+  all".** True for `sendixi`. **False for `receiveixi`** — `home.html:2295` and `:2373`
+  emitted it live whenever the wallet's own address had not arrived. Damir pushed back
+  on the PREMISE rather than the fix — *"why wouldn't the address be ready, it never
+  happened while testing"* — and the mechanism agrees: `setAddress` is pushed inside
+  the `ixian:onload` handler, in the same turn as `selectTab`, and the shell emits
+  `ixian:onload` only after its first paint. The branch cannot be reached. The guard
+  stays and returns silently; no toast and no loading state were built.
+* **L1 names two pages. It is THREE.** `WalletSend2Page` is reachable only from
+  `WalletSendPage`, so deleting the parent orphans it. Damir: *"delete all legacy
+  pages, why do we want anything to point to it."*
+* **L2 said `setMessageSent` has zero callers.** It has one —
+  `SpixiPendingMessageProcessor.onMessageSent` — but that override is reached ONLY on
+  the offline push-server path, and in a group it is called with the MEMBER's `Friend`,
+  which does not hold the group message. So there was no truthful trigger to wait for,
+  and Damir ruled the optimistic hand-off with the cost stated.
+
 # P0 — the two Damir called out by name
 
-## L1 · ★★ THE LEGACY SEND AND RECEIVE SCREENS (#640)
+## L1 · ★★ THE LEGACY SEND AND RECEIVE SCREENS (#640) — ✅ BUILT, session A (#642). 🟡 Damir F5
 
 > *"When on chat info or contact details, and pressing SEND or RECEIVE it fires the LEGACY
 > SEND and RECEIVE SCREENS. Nothing legacy was supposed to exist in this app anymore, we
@@ -84,7 +112,7 @@ branches.
 HTML exactly as #635 deleted `WalletContactRequestPage` — including the
 `hasLegacyPageChrome` / `pageSurfaceColorFor` case labels and the `.csproj` entries.
 
-## L2 · ★★ GROUP DELIVERY TICKS NEVER ADVANCE (#641)
+## L2 · ★★ GROUP DELIVERY TICKS NEVER ADVANCE (#641) — ✅ BUILT, session A (#643). 🟡 Damir F5
 
 > *"the outgoing bubble status — apparently it's a clock icon until it's delivered to all
 > participants … if a member is long term offline or deleted account, the rest who are
@@ -235,7 +263,7 @@ The right-pane half needs a HomePage verb: drop the detail content, restore on c
 ⚠ **The mobile FLICKER is a third symptom and may be the same cause or a different one —
 measure before assuming** (#294).
 
-## L7 · "Mark as read" does not mark as read (queue 19)
+## L7 · "Mark as read" — ✅ RULED BY DAMIR 2026-08-29: **REMOVE IT.** *"we decided to remove the mark as read from chat row menu, no need to force it."* No C# verb, no persisted count, no read receipts. Delete the row from the chats row menu. Small FE change, session B.
 > *"it removes the badge, but the badge returns, so it doesn't mark as read, and the
 > counterpart doesn't get the green checks that it's read. Something to think about, and
 > worst case, we can remove the option."*
@@ -250,7 +278,7 @@ outcome it did not cause is a delivery lie, and removal beats a lie.
 
 # P3 — polish and evaluation
 
-## L8 · Chat info needs a SLIDE-OUT on close (D1)
+## L8 · Chat info needs a SLIDE-OUT on close (D1) — ✅ BUILT, session A (#644). 🟡 Damir F5
 > *"I like the slide in effect it's great makes it smoother, we just need a slide out, when
 > closing the chat info on Android."*
 
@@ -259,7 +287,21 @@ back-initiated close path, which already distinguishes a back-press close and al
 slides on iOS. ⚠ The overlay must leave `overlayStack` at the START of the close, not
 220 ms later — the same rule that made the slide-IN fire-and-forget.
 
-## L9 · Where else does a slide-in earn its place?
+## L9 · ★ SCOPE CHANGED — Damir 2026-08-29: ALL subscreens, not a per-surface evaluation
+> *"Can we make all subscreens slide in from the right on mobile, and on leave slide out?
+> does it make sense. on ios the chat conversation already slides in and out, i was
+> thinking doing it for all subscreens, since sheets (eg. account-language) already slide
+> in from the bottom."*
+
+★ This is no longer "evaluate, do not sweep". He is proposing one rule: **sheets rise from
+the bottom, subscreens come from the right**. That is a coherent grammar and the machinery
+already exists — `slideIn` is per-op and L8 gave it a mirror on every platform (#644/#652).
+⚠ It pairs with L3: he wants **fable** to take the two together, because a slide-in from
+the right and a swipe-back to the right are the same gesture read in two directions.
+🟡 Answer his "does it make sense" before building: it does, with one caveat worth raising —
+a surface that is a PANE on desktop must not slide (the #328 column rule).
+
+## L9-old · the original per-surface evaluation
 > *"we should evaluate transitions if slide in is useful for any other sub-screen"*
 
 Candidates, all on the same `presentPreload` machinery: contact details from the directory ·

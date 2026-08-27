@@ -259,3 +259,42 @@ not, and there is no verb that says "this request is withdrawn". A protocol verb
 honest fix. ⚠ Related and now CLOSED in the app: the white error page a canceled request
 produced on Pay is gone with `WalletContactRequestPage` (#635), and the unguarded lookup
 in `onViewPayment` is guarded, so a stale card can no longer crash — it just does nothing.
+
+---
+
+**CORE-3 · the SINGLE CHECK has no truthful trigger** (Damir's ruling, 2026-08-29, #649).
+
+He asked for `clock → single check → double check`, and an earlier cut delivered the
+single check by setting `sent` at the HAND-OFF — the moment the message entered the send
+queue. He then ruled against it, correctly: *"it's a lie, if it hasn't left the device
+then it's a clock, we agreed on this."* A message in the queue is on this device, which is
+exactly what the clock means, so that tick was the ⑪ delivery lie on the busiest surface
+in the app. It has been removed; the bubble goes clock → double check, as it did before.
+
+**Why the app cannot fix this on its own — verified at source, with Core at `097341a`:**
+
+| Candidate signal | Why it does not work |
+|---|---|
+| `PendingMessageProcessor.onMessageSent` | The only "sent" hook, and it is reached ONLY inside the `send_to_server` branch (`:504`) — the offline PUSH-SERVER path. |
+| the direct relay | `sent = true` at `:453` is a local bool. It gates the push block and never leaves the method. |
+| `CoreStreamProcessor` | **zero** virtual or abstract members — nothing to override. |
+| `StreamClientManager` | a `static class`. No instance, no event, no hook. |
+| the pending queue | a message stays queued until the recipient ACKs, so "still queued" ≠ "still on device". |
+
+★ **AND THERE IS A SECOND BUG BEHIND IT.** Even where `onMessageSent` does fire, a GROUP
+send is fanned out per MEMBER (`sendGroupSpixiMessage`), so it is called with the member's
+`Friend` — whose message list does not contain the group message. `setMessageSent` writes
+nowhere. The same defect makes `onMessageExpired` miss (the app works around that one in
+`SpixiPendingMessageProcessor.markGroupCopyFailed`, #647).
+
+**The ask, two parts:**
+
+1. Call `onMessageSent` on the DIRECT-RELAY path as well, not only after a push-server
+   accept — that is the moment the message actually leaves the device.
+2. In a group, resolve and pass the GROUP's `Friend` (or the group address alongside the
+   member) so the flag lands on the message the user is looking at.
+
+Until both land, the single check is unreachable and the app is honest about it. ⚠ The
+REPORTED defect is already fixed without this: the clock used to sit for ever because Core
+only advances at the full member count, and the app now derives "delivered" at one
+confirmed member (#643).

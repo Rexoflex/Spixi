@@ -167,15 +167,37 @@ export function anchorSheetToRow(sheet, row, { host = document.body, align = nul
       if (live) target = live;
     } catch (e) { /* no CSS.escape, or a malformed address — keep the fail-soft */ }
   }
-  const rr = target.getBoundingClientRect();
-  if (!fr.width || !rr.height) return sheet;   // unmeasurable → keep the bottom sheet (fail-soft)
+  const rr0 = target.getBoundingClientRect();
+  if (!fr.width || !rr0.height) return sheet;   // unmeasurable → keep the bottom sheet (fail-soft)
   sheet.dataset.mAnchor = '';
+  /* ═══ ★★★ RE-ANCHOR ON A VIEWPORT CHANGE (Damir on device, Android) ═══════════
+   * *"composer is open and I long press — the composer closes, the messages get moved
+   * down, but the dropdown is somewhere top where the messages used to be."*
+   *
+   * The placement below measured the row ONCE and wrote fixed coordinates. Long-pressing
+   * blurs the composer, the soft keyboard goes, and on Android the layout viewport GROWS —
+   * every row moves, and the menu stays where the row used to be.
+   *
+   * ⚠ The residual note at the end of this function said a keyboard-covered placement
+   * "resolves on the next open" and called it accepted. That was written from iOS, where
+   * the viewport does NOT shrink for the keyboard (#303) so the geometry never moves.
+   * On Android it does, which makes the same sentence false — a platform-specific fact
+   * generalised into a platform-independent excuse.
+   *
+   * The whole placement is a function now, re-run whenever the viewport changes while the
+   * menu is on screen. It detaches itself the first time it fires on a removed sheet, so
+   * a dismissed menu leaves no listener behind. */
   const w = Math.min(width, fr.width - 2 * M_GAP);
   sheet.style.width = w + 'px';
+
+  const place = () => {
+    const host2 = host.getBoundingClientRect();
+    const rr = target.getBoundingClientRect();
+    if (!host2.width || !rr.height) return;
   // horizontal: align with the pressed BUBBLE when given (sent bubbles sit right,
   // received left — the menu follows), else the row edge; clamped into the host
-  const ar = (align && align.getBoundingClientRect) ? align.getBoundingClientRect() : rr;
-  sheet.style.left = Math.round(Math.max(M_GAP, Math.min(ar.left - fr.left, fr.width - w - M_GAP))) + 'px';
+    const ar = (align && align.getBoundingClientRect) ? align.getBoundingClientRect() : rr;
+    sheet.style.left = Math.round(Math.max(M_GAP, Math.min(ar.left - host2.left, host2.width - w - M_GAP))) + 'px';
   /* ★ loop E-1 (r3, verdict R-1): the SAFE region bounds every placement — and it
      must be MEASURED, not read. --safe-top (base.css:31) is an UNREGISTERED custom
      property holding max(env(…), var(…)): getComputedStyle returns that token
@@ -196,31 +218,44 @@ export function anchorSheetToRow(sheet, row, { host = document.body, align = nul
       return v;
     } catch (e) { return 0; }
   };
-  const safeTop = Math.max(0, resolvePx('var(--safe-top, 0px)') - Math.max(0, fr.top));
-  const winH = (window.innerHeight || fr.height);
-  const safeBottom = Math.max(0, resolvePx('env(safe-area-inset-bottom, 0px)') - Math.max(0, winH - fr.bottom));
-  const minTop = safeTop + M_GAP;
-  const maxBottom = fr.height - M_GAP - safeBottom;
+    const safeTop = Math.max(0, resolvePx('var(--safe-top, 0px)') - Math.max(0, host2.top));
+    const winH = (window.innerHeight || host2.height);
+    const safeBottom = Math.max(0, resolvePx('env(safe-area-inset-bottom, 0px)') - Math.max(0, winH - host2.bottom));
+    const minTop = safeTop + M_GAP;
+    const maxBottom = host2.height - M_GAP - safeBottom;
   // vertical: measure AFTER the width + the [data-m-anchor] max-height land
   // (wrap + the cap change height). offsetHeight reads the layout box — the
   // enter transform never distorts it.
-  const h = sheet.offsetHeight || 0;
-  const above = rr.top - fr.top - gap - h;
-  let top;
-  if (above >= minTop) {
-    top = above;                                   // preferred: ABOVE the row (the 4.1 fix)
-  } else {
-    top = rr.bottom - fr.top + gap;                // below
-    if (top + h > maxBottom) {
-      top = Math.max(minTop, maxBottom - h);       // tall row / short host: clamp inside the safe region
+    const h = sheet.offsetHeight || 0;
+    const above = rr.top - host2.top - gap - h;
+    let top;
+    if (above >= minTop) {
+      top = above;                                 // preferred: ABOVE the row (the 4.1 fix)
+    } else {
+      top = rr.bottom - host2.top + gap;           // below
+      if (top + h > maxBottom) {
+        top = Math.max(minTop, maxBottom - h);     // tall row / short host: clamp inside the safe region
+      }
     }
-  }
-  sheet.style.top = Math.round(top) + 'px';
-  /* ⚠ Stated residuals (loop E-6/E-7): the anchored menu keeps its measured
-     position across a list re-render (the action model is captured, only the
-     affordance can go stale — the overlay dismisses on every route out), and
-     iOS does not shrink the layout viewport for the soft keyboard (#303), so a
-     keyboard-covered placement resolves on the next open. Both accepted. */
+    sheet.style.top = Math.round(top) + 'px';
+  };
+
+  place();
+  const reflow = () => {
+    if (!sheet.isConnected) {
+      try { window.removeEventListener('resize', reflow); } catch (e) {}
+      try { if (window.visualViewport) window.visualViewport.removeEventListener('resize', reflow); } catch (e) {}
+      return;
+    }
+    place();
+  };
+  try { window.addEventListener('resize', reflow); } catch (e) {}
+  try { if (window.visualViewport) window.visualViewport.addEventListener('resize', reflow); } catch (e) {}
+  /* ⚠ Stated residual (loop E-6): the anchored menu keeps its measured position across a
+     LIST RE-RENDER — the action model is captured, only the affordance can go stale, and
+     the overlay dismisses on every route out. Accepted.
+     ✅ The keyboard half of that note is FIXED above rather than accepted: it was only
+     ever true on iOS, where the layout viewport does not move for the keyboard. */
   return sheet;
 }
 

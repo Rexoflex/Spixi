@@ -691,5 +691,8 @@
   "youAreOwner": "Vi ste vlasnik",
   "youInvited": "Poslali ste pozivnicu",
   "youRequested": "Zatražili ste",
-  "yourAddress": "Vaša adresa"
+  "yourAddress": "Vaša adresa",
+  "deliveredOf": "Isporučeno {n} od {m}",
+  "readBy": "Pročitano {n}",
+  "downloadedBy": "Preuzeto {n}"
 }

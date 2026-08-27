@@ -14,7 +14,8 @@
  *   scroll intent, §5b) + desktop right-click. Keyboard path (Shift+F10 on a
  *   focusable message) lands with the chat shell — messages aren't focusable
  *   as components yet (flagged).
- * openMessageMenu({ row, host, text, capabilities, onAction, strings })
+ * openMessageMenu({ row, host, text, detail, capabilities, onAction, strings })
+ *   detail — ★★ L2 (#641): a read-only line above the actions ("3 of 4 delivered").
  *   onAction(action, arg) — 'react' (arg=emoji) | 'reply' | 'copy' | 'tip' |
  *   'delete' | 'report'. Default copy falls back to the Clipboard API.
  */
@@ -47,6 +48,11 @@ export function openMessageMenu({
   row,
   host,
   text = '',
+  /* ★★ L2 (#641): a NON-INTERACTIVE detail line, above the actions. Damir ruled that
+   * the read status leaves the bubble and the DETAIL goes here — the menu already
+   * leads with the message, and it costs no room in the bubble. Empty = no line, so
+   * a 1:1 chat and a room with no answer yet look exactly as they did. */
+  detail = '',   // string, or a function evaluated at OPEN time (see below)
   capabilities = {},
   reactions = QUICK_REACTIONS,   // overridable: the native bridge only supports a
                                  // single "like" reaction today, so the shell passes
@@ -85,6 +91,23 @@ export function openMessageMenu({
     reacts.append(b);
   }
   content.append(reacts);
+
+  // ★★ L2 (#641): the delivery detail. A note, not a control — it is never focusable
+  // and never in the action list, so keyboard order is unchanged.
+  /* ★★ L2 (#641): `detail` may be a STRING or a FUNCTION. attachMessageMenu captures its
+     options once, at row-wire time, and replays them on every long-press — so a caller
+     whose value changes after the row is rendered (a delivery count that arrives later)
+     must pass a function or it will show a frozen answer that contradicts the bubble. */
+  const detailText = typeof detail === 'function' ? (() => {
+    try { return detail(); } catch (e) { return ''; }
+  })() : detail;
+  if (detailText) {
+    const d = document.createElement('p');
+    d.className = 'c-msgmenu__detail';
+    d.setAttribute('role', 'note');
+    d.textContent = detailText;
+    content.append(d);
+  }
 
   const list = document.createElement('div');
   list.className = 'c-msgmenu__list';

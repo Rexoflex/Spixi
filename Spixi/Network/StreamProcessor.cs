@@ -12,6 +12,7 @@ using System.Text;
 using IXICore.Streaming.Models;
 using System.IO;
 using System;
+using System.Collections.Generic;
 using Microsoft.Maui.ApplicationModel;
 using System.Threading;
 using System.Threading.Tasks;   // F5-1 r2 (loop A-2): the deferred VoIP handling hops back off the UI thread
@@ -139,6 +140,15 @@ namespace SPIXI
                     if (chat_message != null)
                     {
                         friend.addReaction(sender, new ReactionMessage(chat_message.id, "fileReceived:"), ft.channel);
+                        /* ★★ Damir on device: *"the downloaded only shown in long press after
+                         * refresh, it's not live as for delivered read."* That contrast is the
+                         * whole diagnosis — delivered and read arrive as `msgReceived`, which
+                         * re-pushes its reactions since the last round; a DOWNLOAD arrives here,
+                         * as `fileFullyReceived`, and this method wrote the reaction and told the
+                         * UI nothing. Same push, same reason: the long-press detail is built from
+                         * `addReactions` and only a full history load emitted it. */
+                        UIHelpers.updateReactions(friend, ft.channel, chat_message.id);
+                        UIHelpers.shouldRefreshContacts = true;
                         if (chat_message.completed)
                         {
                             TransferManager.completeFileTransfer(sender, uid);
@@ -449,11 +459,69 @@ namespace SPIXI
                     case SpixiMessageCode.msgReceived:
                     case SpixiMessageCode.msgRead:
                         {
-                            var fm = friend.getMessage(channel, spixi_message.data);
+                            /* ═══ ★★★ ISSUE 1 (Damir on device) ══════════════════════════
+                             * *"it shows 0 of XY delivered until I refresh the chat"*, and in
+                             * a bot room *"it's always clock, when I refresh it updates."*
+                             * Two faces of one gap in these six lines.
+                             *
+                             * ① THE CHANNEL. The lookup used the RECEIPT's channel. A bot
+                             *    room stores its messages under `botInfo.defaultChannel`
+                             *    (SingleChatPage:786), so when the receipt carries a
+                             *    different one `getMessage` returned null and NOTHING was
+                             *    pushed at all — the clock simply stayed. Fall back to a
+                             *    channel-wide resolve before giving up.
+                             * ② THE COUNTS. Only `updateMessage` was pushed, which carries
+                             *    the flags and nothing else. The delivery detail is built
+                             *    from `addReactions`, which is emitted on a full history
+                             *    load and nowhere else — so the counts were stale until the
+                             *    chat was reopened. A receipt IS a reaction in a group; it
+                             *    has to re-push them. */
+                            int ch = channel;
+                            var fm = friend.getMessage(ch, spixi_message.data);
+                            if (fm == null)
+                            {
+                                ch = resolveMessageChannel(friend, spixi_message.data, channel);
+                                if (ch != channel)
+                                {
+                                    fm = friend.getMessage(ch, spixi_message.data);
+                                }
+                            }
                             if (fm != null)
                             {
-                                UIHelpers.updateMessage(friend, channel, fm);
+                                UIHelpers.updateMessage(friend, ch, fm);
+                                // ② the counts behind the long-press detail
+                                UIHelpers.updateReactions(friend, ch, fm.id);
                             }
+                            /* ★★ [RCPT] PROBE — TEMPORARY, remove once the number is read.
+                             * Damir on device: a receipt still does not update the open chat
+                             * live; a reload fixes it. I have theorised the cause three times
+                             * and been wrong twice, so this prints the whole path in one line
+                             * instead. The scan saga was solved the same way (#304/#312) —
+                             * a probe, not another theory.
+                             * ⚠ NO message content, no address: type, shape and outcome only. */
+                            try
+                            {
+                                var probePage = Utils.getChatPage(friend);
+                                int rcnt = 0;
+                                if (fm != null)
+                                {
+                                    try { lock (fm.reactions) { rcnt = fm.reactions.ContainsKey("received") ? fm.reactions["received"].Count : 0; } }
+                                    catch (Exception) { rcnt = -1; }
+                                }
+                                Logging.info("[RCPT] type={0} ftype={1} bot={2} chIn={3} chUsed={4} fm={5} local={6} conf={7} recv={8} page={9} selCh={10}",
+                                    spixi_message.type,
+                                    friend.type,
+                                    friend.bot,
+                                    channel,
+                                    ch,
+                                    fm == null ? "NULL" : "found",
+                                    fm == null ? "-" : fm.localSender.ToString(),
+                                    fm == null ? "-" : fm.confirmed.ToString(),
+                                    rcnt,
+                                    probePage == null ? "NULL" : "found",
+                                    probePage == null ? -1 : probePage.getSelectedChannel());
+                            }
+                            catch (Exception pe) { Logging.warn("[RCPT] probe: " + pe.Message); }
                             UIHelpers.shouldRefreshContacts = true;
                         }
                         break;
@@ -1017,6 +1085,55 @@ namespace SPIXI
                     Node.addMessageWithType(null, FriendMessageType.banned, bot.walletAddress, 0, SpixiLocalization._SL("chat-banned"), true);
                     break;
             }
+        }
+
+        /* ★★★ ISSUE 1 ①: find the channel a message id actually lives on.
+         *
+         * A receipt carries the channel the SENDER used, and a bot room stores its
+         * messages under `botInfo.defaultChannel` — so the two can disagree and the
+         * straight lookup returns null, which used to mean no UI push at all and a clock
+         * that only cleared on a reload. Tries the room's default first (the common case,
+         * one lookup), then the known channel list. Returns the original on no match, so
+         * the caller behaves exactly as before rather than acting on a guess. */
+        private static int resolveMessageChannel(Friend friend, byte[] msgId, int fallback)
+        {
+            if (friend == null || msgId == null)
+            {
+                return fallback;
+            }
+            try
+            {
+                int preferred = friend.metaData?.botInfo?.defaultChannel ?? 0;
+                if (preferred != fallback && friend.getMessage(preferred, msgId) != null)
+                {
+                    return preferred;
+                }
+                var known = friend.channels?.channels;
+                if (known != null)
+                {
+                    List<BotChannel> snapshot;
+                    lock (known)
+                    {
+                        snapshot = new List<BotChannel>(known.Values);
+                    }
+                    foreach (var c in snapshot)
+                    {
+                        if (c == null || c.index == fallback || c.index == preferred)
+                        {
+                            continue;
+                        }
+                        if (friend.getMessage(c.index, msgId) != null)
+                        {
+                            return c.index;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("resolveMessageChannel: " + ex.Message);
+            }
+            return fallback;
         }
     }
 }

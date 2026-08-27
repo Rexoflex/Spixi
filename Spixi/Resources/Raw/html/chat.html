@@ -2481,6 +2481,20 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   padding: var(--spacing-4) var(--spacing-8) var(--spacing-8);
   border-bottom: var(--outline-width-1) solid var(--outline-neutral-01);
 }
+/* ★★ L2 (#641): the delivery detail — a quiet caption, not a control. It sits
+   between the react row and the actions, so it reads as information about the
+   message the menu belongs to. `--spacing-8` matches the react row's own inset
+   and the border below it separates it from the actions the same way. */
+.c-msgmenu__detail {
+  margin: 0;
+  padding: 0 var(--spacing-8) var(--spacing-8);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  letter-spacing: var(--tracking-body-sm);
+  color: var(--text-neutral-02);
+  border-bottom: var(--outline-width-1) solid var(--outline-neutral-01);
+}
+
 .c-msgmenu__react {
   width: var(--size-target-min);
   height: var(--size-target-min);
@@ -7207,6 +7221,14 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   function parseReactions(str, id, ownStr) {
     const reactions = [];
     let tipCount = 0;
+    /* ★★ L2 (#641): the SAME push already carries the delivery answer. C# emits every
+       reaction key with its member count — `received:3;seen:2;like:1;` — and this parser
+       has always dropped `received` and `seen` on the floor because they are not emoji.
+       They are counted now and kept on the record, so the long-press detail is built
+       from data the shell already receives. NOTHING new crosses the bridge. */
+    let deliveredCount = 0;
+    let seenCount = 0;
+    let downloadedCount = 0;
     const ownKeys = new Set(String(ownStr || '').split(';').filter(Boolean));
     // C5: when the bridge supplies the own-keys arg (new exe) it is AUTHORITATIVE —
     // honor it exclusively so a stale local myLikes can't override an authoritative
@@ -7220,12 +7242,19 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       if (count <= 0) continue;
       if (tok.startsWith('like')) reactions.push({ emoji: '❤️', count, own: likedByMe });
       else if (tok.startsWith('tip')) tipCount += count;   // txid, not amount → count only
+      // ★★ L2 (#641): delivery + read, per DISTINCT member (Core de-duplicates by sender).
+      else if (tok.startsWith('received')) deliveredCount = count;
+      else if (tok.startsWith('seen')) seenCount = count;
+      // ★ Damir's ask: Core stores a fileReceived: reaction per member, exactly like
+      // received:. So "N of M downloaded" needs no protocol change — the count is already
+      // in this push and was being dropped with the other two.
+      else if (tok.startsWith('fileReceived')) downloadedCount = count;
     }
     const sl = window.SL || {};
     const tip = tipCount > 0
       ? (tipCount > 1 ? (sl.tipped || 'Tipped') + ' ×' + tipCount : (sl.tipped || 'Tipped'))
       : '';
-    return { reactions, tip };
+    return { reactions, tip, deliveredCount, seenCount, downloadedCount };
   }
 
   /* React to a message with a like (the ONE reaction the bridge supports —
@@ -7298,11 +7327,65 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     if (composerLock) return false;
     return true;
   }
+  /* ═══ ★★ L2 (#641) — THE READ DETAIL, IN THE LONG-PRESS MENU ═══════════════════
+   *
+   * Damir, 2026-08-29: the bubble loses the read tick, and the DETAIL goes where
+   * someone looks when they want more about ONE message. He picked COUNTS over a
+   * member list for this session; the list is logged for a later polish row.
+   *
+   * ⚠ NOTHING GOES UNDER THE BUBBLE. That is the busiest surface in the app and a
+   * per-message caption there reads as noise (his ruling, same day).
+   *
+   * The denominator is the OTHER members: `groupRoster.size` counts every participant
+   * INCLUDING this device (C# loadContacts pushes one addContact per `friend.users`
+   * entry), so the people who can confirm are one fewer. Core's own threshold agrees —
+   * it tests `received.Count + 1 >= users.count()`, and the + 1 is us.
+   *
+   * Degrades honestly, never invents:
+   *   · roster not loaded (size < 2) → NO line at all rather than a wrong "of N";
+   *   · a bot room → "Delivered" or nothing, because a bot reports no per-member
+   *     receipts and there is no roster answer to give;
+   *   · a 1:1 chat → nothing; the bubble already says everything.
+   */
+  function deliveryDetail(rec) {
+    if (!rec || rec.direction !== 'sent') return '';
+    const s = window.SL || {};
+    if (mode.isBot) {
+      return rec.status === 'delivered' || rec.status === 'read'
+        ? (s['status-delivered'] || 'Delivered') : '';
+    }
+    if (!mode.isMulti) return '';                       // 1:1 — the bubble says it all
+    const others = groupRoster.size - 1;
+    if (others < 1) return '';                          // no honest denominator yet
+    const delivered = Math.min(Number(rec.deliveredCount) || 0, others);
+    const seen = Math.min(Number(rec.seenCount) || 0, others);
+    const parts = [(s.deliveredOf || '{n} of {m} delivered')
+      .split('{n}').join(String(delivered))
+      .split('{m}').join(String(others))];
+    if (seen > 0) parts.push((s.readBy || '{n} read').split('{n}').join(String(seen)));
+    /* ★ A FILE card answers a different question — "did they get the FILE", not "did the
+       card arrive" — so the download count only shows on a file row, and only once
+       somebody has actually pulled it. Same clamp as the others: never claim more
+       recipients than the room has. */
+    if (rec.kind === 'file') {
+      const got = Math.min(Number(rec.downloadedCount) || 0, others);
+      if (got > 0) parts.push((s.downloadedBy || '{n} downloaded').split('{n}').join(String(got)));
+    }
+    return parts.join(' · ');
+  }
+
   function menuOptsFor(rec, row) {
     const isSent = rec.direction === 'sent';
     return {
       host: overlayHost,
       text: rec.text || '',
+      /* ★★ L2 (#641): a FUNCTION, not a string. attachMessageMenu captures these options
+         at ROW-WIRE time and replays them on every long-press, and neither writer of the
+         counts re-renders the row — addReactions patches the pills in place and the status
+         push takes the surgical setMessageStatus branch. A string computed here froze at
+         wire time, so a bubble showing a double check could still say "0 of 3 delivered"
+         in its own menu. Evaluated on open, it cannot disagree with the tick above it. */
+      detail: () => deliveryDetail(rec),
       reactions: ['❤️'],   // the bridge only persists "like" (C8: emoji reactions need a core change — be-cutover C8)
       capabilities: {
         reply: bridge.cap('reply'),                       // §8-gated, OFF until BE (#25)
@@ -7920,9 +8003,9 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    *   file    → ixian:sendfile            (native picker)
    *   photo/gif → ixian:sendmedia         (gated on the media capability, #81)
    *   pay     → composeSend cap: the #139 lockedRecipient compose takeover
-   *             (W5 — C# signs after the NATIVE confirm) · old exe: ixian:send
+   *             (W5 — C# signs after the NATIVE confirm). ★★ L1 (#640): no fallback
    *   request → composeRequest cap: the #139 amount sheet → ixian:sendrequest
-   *             (a request is a chat message) · old exe: ixian:request
+   *             (a request is a chat message). ★★ L1 (#640): no fallback
    * App-invite tile is hidden (no SingleChatPage invite verb); Pay/Request are
    * hidden in groups/bots (C# rejects them there). */
   function openAttach() {
@@ -7931,12 +8014,22 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       media: bridge.cap('media'),   // Photo/GIF appear only when the BE image standard lands (#81)
       apps: !mode.isBot,            // App invite: onApp is blocked in bots (xaml:834); 1:1 + groups OK
       payments: mode.type === 0,    // 1:1 only
+      /* ★★ Damir on device: *"on legacy the blind group had no Send file capability, and on
+         redesign the sheet shows send file, but doesn't work."* C# has always refused it —
+         `onSendFile` returns on `friend.bot || (type == Group && hideParticipantAddresses)` —
+         so the tile was a dead control, the ⑪ delivery lie. This is that predicate,
+         mirrored: `hidesAddresses` is the RAW flag (#613), type 1|2 are the group kinds, and
+         a NORMAL private group keeps its files exactly as legacy did. */
+      files: !mode.isBot && !((mode.type === 1 || mode.type === 2) && mode.hidesAddresses),
       strings: window.SL || {},
       onAction: (id) => {
         if (id === 'file') bridge.send('ixian:sendfile');
         else if (id === 'photo' || id === 'gif') bridge.send('ixian:sendmedia');
-        else if (id === 'pay') { if (bridge.cap('composeSend')) openSendTakeover(); else bridge.send('ixian:send'); }
-        else if (id === 'request') { if (bridge.cap('composeRequest')) openRequestForPeer(); else bridge.send('ixian:request'); }
+        // ★★ L1 (#640): the `else` legs are gone with WalletSendPage / WalletReceivePage.
+        // SingleChatPage declares BOTH caps unconditionally (:909), so those legs could
+        // only ever run against an exe that no longer exists. The gate stays honest.
+        else if (id === 'pay') { if (bridge.cap('composeSend')) openSendTakeover(); }
+        else if (id === 'request') { if (bridge.cap('composeRequest')) openRequestForPeer(); }
         else if (id === 'app') openAppPicker();
       },
     });
@@ -8889,6 +8982,22 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       // (SingleChatPage:1222). Group-only logic uses mode.type===1 directly.
       mode.isMulti = (t === 1 || t === 2 || t === 3);
       mode.admin = asBool(admin);
+      /* ★★ L2 (#641) — THE ROSTER IS PULLED AT CHAT OPEN FOR A PRIVATE GROUP.
+       *
+       * ⚠ The first cut of the delivery detail read `groupRoster` for its denominator, and
+       * that map had exactly ONE writer: the addContact push, which only ever fires from
+       * openChatInfo(). So the detail was EMPTY until the user independently opened Group
+       * info — and the bubble had already lost its read tick. The "no roster, no line"
+       * degrade was not an edge case, it was the default state.
+       *
+       * ⚠ PRIVATE AND BLIND GROUPS ONLY (t 1 and 2), never a bot room. loadContacts walks
+       * the whole roster synchronously on the UI thread, and a public bot channel holds up
+       * to 500 members — that is the #619 freeze, which cost this project a batch. A bot
+       * room needs no denominator anyway: it answers "Delivered" or nothing.
+       * Idempotent: openChatInfo clears and re-requests, so this only front-loads it. */
+      if ((t === 1 || t === 2) && !groupRoster.size) {
+        try { bridge.send('ixian:loadContacts'); } catch (e) { /* roster is best-effort */ }
+      }
       // notificationsString "True"/"False" (groups/bots) — current mute state for
       // the chat-info notifications toggle (legacy chat.js:237).
       mode.notifications = asBool(notificationsString);
@@ -9505,6 +9614,9 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       const parsed = parseReactions(reactions, id, own);
       rec.reactions = parsed.reactions;
       rec.tip = parsed.tip;
+      rec.deliveredCount = parsed.deliveredCount;   // ★★ L2 (#641): the long-press detail
+      rec.seenCount = parsed.seenCount;
+      rec.downloadedCount = parsed.downloadedCount;   // ★ file cards
       const row = rows.get(String(id));
       if (row) {
         if (rec.reactions.length || rec.tip) applyRowReactions(rec, row, true);

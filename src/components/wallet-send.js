@@ -440,7 +440,7 @@ export function createWalletSend({
   });
   cont.disabled = true;
   const contWrap = document.createElement('div');
-  contWrap.className = 'c-wallet-send__actions';
+  contWrap.className = 'c-wallet-send__actions c-money-cta';   // ★ the shared sticky money bar (base.css)
   contWrap.append(cont);
   el.append(contWrap);
 

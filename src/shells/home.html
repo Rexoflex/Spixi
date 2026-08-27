@@ -377,7 +377,9 @@
    * no-op stubs so C#'s dispatch never console.errors.
    *
    * SECURITY.md: Send/Receive delegate to the existing native signed flows
-   * (ixian:sendixi / ixian:receiveixi) — no keys/signing in the WebView.
+   * — no keys/signing in the WebView. ★★ L1 (#640): the two legacy wallet routes are
+   * DELETED with the pages they opened. ⚠ Their verb names are deliberately NOT written
+   * out here: a smoke negative over raw file text matches its own rationale comment.
    * Contract source of truth: Spixi/Pages/Home/HomePage.xaml.cs +
    * Resources/Raw/html/js/home.js (legacy). BE gaps → docs/be-cutover-brief.md.
    * ————————————————————————————————————————————————————————————————————————— */
@@ -2253,15 +2255,16 @@
   };
 
   /* ——— Receive/Request takeover (ZERO-C#, wired NOW) ————————————————————————
-   * onReceive opens the redesigned c-wallet-receive OVER the wallet view instead of
-   * pushing the native WalletReceivePage. QR of the own address (`address:ixi`, the
+   * onReceive opens the redesigned c-wallet-receive OVER the wallet view. It replaced
+   * the native receive page, which is now DELETED (★★ L1 #640). QR of the own address
+   * (`address:ixi`, the
    * legacy wallet_request format the component builds), an honest copy morph, the
    * request-an-amount reveal (#303: the QR stays CONSTANT `address:ixi` — amount-request
    * QRs aren't supported; the amount drives only the contact strip), and Share. Own
    * back closes it — never an ixian: nav verb.
    * Q2-⑥ (#268, W8 LANDED): the "send request to a contact" strip is NOW WIRED —
-   * HomePage dispatches `ixian:sendrequest:` (lifted verbatim from WalletReceivePage,
-   * the sanctioned same-page-new-host pattern), so the component's contact picker +
+   * HomePage dispatches `ixian:sendrequest:` (lifted verbatim from the legacy receive
+   * page, the sanctioned same-page-new-host pattern), so the contact picker +
    * per-contact ✓ morph light up. A request is a CHAT MESSAGE (requestFunds) — no
    * signing in the WebView (SECURITY.md). Contacts = the Q5-filtered directory MINUS
    * every NOT-YET-ACCEPTED contact, in BOTH directions (see requestableContacts) — a
@@ -2271,8 +2274,12 @@
    * zero-message group with a custom avatar is the known residual edge (§9 type-arg
    * ask), so this is the UX half only; the recipient guard on the C# side is the
    * security boundary.
-   * FALLBACK: if setAddress hasn't arrived yet (address empty), delegate to the native
-   * WalletReceivePage so Receive is never broken. */
+   * ★★ L1 (#640): THERE IS NO FALLBACK ANY MORE. The empty-address branch used to open
+   * the native receive page; that page is deleted, and the branch cannot be reached —
+   * `setAddress` is pushed INSIDE the ixian:onload handler, in the same turn as
+   * selectTab, and this shell emits ixian:onload only after its first paint. Damir,
+   * 2026-08-29, pushing back on the premise: it never happened in testing. The guard
+   * stays and returns silently. */
   let walletTakeover = null;                                  // one Receive/Send takeover open at a time
   /* Money-strip roster: people you can actually reach. `pending` only covers the
    * OUTGOING marker (requestAddrs, fed from the "Request sent" chat row) — an
@@ -2292,7 +2299,15 @@
   function mountWalletReceive() {
     if (walletTakeover) return;                               // double-open guard
     const addr = cleanReceiveAddress(walletOwnAddress);
-    if (!addr) { bridge.send('ixian:receiveixi'); return; }   // own address not pushed yet → native
+    /* ★★ L1 (#640): NO legacy degrade. This branch used to open WalletReceivePage,
+       which is deleted with this row. It also cannot be reached: `setAddress` is
+       pushed INSIDE the ixian:onload handler (HomePage.onLoaded:1751), in the same
+       turn as selectTab, and this shell emits ixian:onload only after its first
+       paint — so the address lands before the Receive button can be tapped. Damir,
+       2026-08-29: it never happened in testing, and the mechanism says it cannot.
+       The guard STAYS as a guard: an impossible state now does nothing, instead of
+       opening a screen that no longer exists. */
+    if (!addr) return;
     leaveSurfaceSearch();   // BUG-3: the takeover covers the tab — its query ends with the visit
     const over = document.createElement('div');
     over.className = 'wallet-takeover';
@@ -2370,7 +2385,7 @@
    * own degrade: a CTA that does nothing would be worse than the old screen. */
   function openWalletAddressSheet() {
     const addr = cleanReceiveAddress(walletOwnAddress);
-    if (!addr) { bridge.send('ixian:receiveixi'); return; }
+    if (!addr) return;   // ★★ L1 (#640): same unreachable guard, same silent return
     openAddressSheet({
       address: addr, strings: walletStrings, host: document.body,
       onShare: isDesktopPresentation()
@@ -2421,13 +2436,18 @@
    * `signSendResult`. The review sheet resolves ONLY on that push — never
    * optimistically. Fee: `ixian:feeQuery` → `setSendQuote`; no quote → the review
    * cannot open (no invented fee). On an old exe (no caps push) the gate below
-   * keeps the LIVE native flow (ixian:sendixi → WalletSendPage) — unchanged. */
+   * ★★ L1 (#640): there is no native flow to fall back to any more — see the gate. */
   let walletSendView = null;             // the open compose (quote + scan routing target)
   let walletSendCtrl = null;             // the review sheet's pending done/fail
   let walletSendWait = 0;                // loop fix: the no-answer backstop (tipWait grammar)
   function clearWalletSendWait() { if (walletSendWait) { clearTimeout(walletSendWait); walletSendWait = 0; } }
   function mountWalletSend() {
-    if (!bridge.cap('composeSend')) { bridge.send('ixian:sendixi'); return; }   // old exe: native signed send
+    /* ★★ L1 (#640): the old-exe degrade is gone with WalletSendPage. HomePage
+       declares composeSend UNCONDITIONALLY (:1758) in this build, so the gate could
+       only ever fail against an exe that no longer exists. The capability test stays
+       — it is the honest contract — and a build without the C# half now shows a dead
+       tap rather than a deleted page. */
+    if (!bridge.cap('composeSend')) return;
     if (walletTakeover) return;                               // double-open guard
     leaveSurfaceSearch();   // BUG-3: the takeover covers the tab — its query ends with the visit
     const over = document.createElement('div');
@@ -2492,7 +2512,7 @@
     // `wallet` key is translated everywhere ("Denarnica").
     title: strings.wallet || 'Wallet',
     strings: walletStrings,
-    onSend: mountWalletSend,                               // BE-gated compose; falls back to ixian:sendixi in v1
+    onSend: mountWalletSend,                               // BE-gated compose (★★ L1 #640: no legacy fallback)
     onReceive: mountWalletReceive,                         // redesigned Receive takeover (zero-C#); falls back to native if no address yet
     /* ★ W-e (Android F5 2026-08-23): the wallet-hero scan is PAYMENT INTENT — a
        receive QR (`addr:ixi`) must COMPOSE, not land in add-contact. The generic
@@ -3033,6 +3053,9 @@
       case 'confirmed': return 'delivered';
       case 'pending': return 'sent';
       case 'default': return 'sending';
+      // ★★ L2 (#641): the list had NO failed leg at all, so a message the conversation
+      // shows in the red retry state rendered here as an ordinary tick. C# pushes it now.
+      case 'failed': return 'failed';
       default: return undefined;   // '' / typing → no outgoing tick
     }
   }
@@ -3691,8 +3714,8 @@
       const m = String(message || '');
       ctrl.fail(m === '' ? null : m);
     },
-    // Scan → compose (C# pushes the decoded payload instead of the legacy
-    // WalletSendPage route once caps are live). Opens the compose if needed;
+    // Scan → compose (C# pushes the decoded payload; the legacy send-page route is
+    // deleted, ★★ L1 #640). Opens the compose if needed;
     // setSendAddress parses addr / addr:ixi / addr:send:amount.
     quickScanResult(data) {
       if (!bridge.cap('composeSend')) { dbg('quickScanResult (no cap)'); return; }

@@ -617,5 +617,8 @@
   "youAreOwner": "Jūs esate savininkas",
   "youInvited": "Išsiuntėte kvietimą",
   "youRequested": "Jūs paprašėte",
-  "yourAddress": "Jūsų adresas"
+  "yourAddress": "Jūsų adresas",
+  "deliveredOf": "Pristatyta {n} iš {m}",
+  "readBy": "Perskaityta {n}",
+  "downloadedBy": "Atsisiuntė {n}"
 }

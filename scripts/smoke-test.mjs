@@ -2172,8 +2172,14 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
       cssDecls(r.body).every((d) => d.prop !== 'max-height' && !/^overflow/.test(d.prop))),
       '★★ #560 (CASCADE-WIDE): no rule caps or inner-scrolls the receive roster — the PAGE scrolls, never a list inside it');
     const wrcSticky = readFileSync(join(root, 'src/styles/components/wallet-receive.css'), 'utf8');
-    ok(/\.c-wallet-receive__cta \{[^}]*position: sticky;[^}]*bottom: calc\(env\(safe-area-inset-bottom, 0px\) \+ var\(--spacing-8\)\)/.test(wrcSticky),
-      '★ #560: "Send request" is STICKY at the safe bottom — reachable at any scroll depth of the full-length list');
+    /* ★ #560 re-based: the sticky moved OFF the button and onto the shared `.c-money-cta`
+       wrapper (base.css) when Damir found Send's Review and Receive's Send request did not
+       match — Receive was sticky with an elevation-2 shadow, Send was neither. The
+       GUARANTEE is unchanged and now covers both, which is the point. */
+    const baseSticky = readFileSync(join(root, 'src/styles/base.css'), 'utf8');
+    ok(/\.c-money-cta \{[\s\S]{0,500}?position: sticky;[\s\S]{0,300}?bottom: 0;/.test(baseSticky)
+       && !/\.c-wallet-receive__cta \{[^}]*position: sticky/.test(wrcSticky),
+      '★ #560: the wallet CTA is STICKY at the safe bottom — reachable at any scroll depth — and it is ONE rule serving BOTH money takeovers, not a per-button copy that can drift');
     /* the double side inset: the takeover body owns the ONE 16px */
     ok(/\.wallet-takeover__body > \.c-wallet-send,\s*\.wallet-takeover__body > \.c-wallet-receive \{ padding: 0; \}/.test(readFileSync(join(root, 'src/shells/home.html'), 'utf8')),
       '★ #560: the money takeovers zero the component\'s inner padding — content sits at the SAME 16px inset as Contacts (was 32)');
@@ -6310,12 +6316,20 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     && /if \(shrank && wasAtBottom\) stickDuring\(500\)/.test(chat328),
     '#336/AND-16 v2: Android innerHeight-shrink re-pins the log via settle-tracked stickDuring, near-bottom judged pre-shrink');
   // #326: iOS slide-out on back-initiated overlay closes
+  // ★★ L8 re-based: popToRootAsync now also requires the top to be the ONLY overlay —
+  // sliding it over a stack being torn down showed the panel gliding across a bare list.
   ok(/closeOverlay\(PreloadOp op, bool slideOut = false\)/.test(scp328)
     && /closeOverlay\(overlayOp, true\)/.test(scp328)
-    && /closeOverlay\(overlays\[i\], i == overlays\.Count - 1\)/.test(scp328),
-    '#326: slide-out is BACK-INITIATED only (popPageAsync + popToRootAsync topmost); close-audits stay instant');
-  ok(/op\.column < 0[\s\S]{0,200}DevicePlatform\.iOS/.test(scp328),
-    '#328: column-pinned (split-view) stages never slide — phone pop-grammar stays off the iPad split (audit MINOR)');
+    && /closeOverlay\(overlays\[i\], slideTop && i == overlays\.Count - 1\)/.test(scp328),
+    '#326: slide-out is BACK-INITIATED only (popPageAsync + popToRootAsync topmost, and only when it is alone); close-audits stay instant');
+  // ★★ L8 re-based: the gate gained `op.slideIn` (the slide-in mirror runs on EVERY
+  // platform now), so the old iOS-adjacency shape no longer holds. What #328 actually
+  // guarantees is the COLUMN test, and that is what this asserts.
+  // ★★ L8 re-based twice: the MIRROR has no column guard (slideStageIn never had one, and
+  // chat info is pushed with column 1 AND slideIn — the two disagreed). #328's guard now
+  // lives where it was written, on the #326 legacy iOS path.
+  ok(/bool legacyIosSlide = isIos && !op\.slideIn && op\.column < 0;/.test(scp328),
+    '#328: column-pinned stages never take the LEGACY iOS slide — phone pop-grammar stays off the iPad split (audit MINOR)');
   ok(/InputTransparent = true;\s*\n\s*double w = op\.stage\.Width/.test(scp328),
     '#328: the sliding stage goes INPUT-DEAD before the animation starts (a second back-tap mid-slide fell through to the native stack — the #272 pop-the-top class, audit MAJOR)');
   ok(/op\.stage\.TranslationX = 0;/.test(scp328),
@@ -6415,7 +6429,10 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     '#337 AND-29: HomePage parses the homeoverlay state push');
   ok(/private void onLoaded\(\)\s*\{[\s\S]{0,700}homeShellOverlayOpen = false;/.test(hp337),
     '#337 AND-29 MAJOR: onLoaded resets the takeover flag — a shell reload (OS theme flip/reloadAllPages) must not strand back-swallowing stale state');
-  ok(/SpixiContentPage\.closeTopOverlay\(\)\)\s*\{\s*return true;\s*\}[\s\S]{0,900}if \(homeShellOverlayOpen\)/.test(hp337),
+  // ★★ L8 re-based: hardware back now passes the slide flag, so the call is
+  // closeTopOverlay(true). The ORDER is what #337 guarantees, and the order is asserted.
+  // ★★ L8 re-based (window widened): the slide-in-flight swallow sits between them now.
+  ok(/SpixiContentPage\.closeTopOverlay\(true\)\)\s*\{\s*return true;\s*\}[\s\S]{0,1800}if \(homeShellOverlayOpen\)/.test(hp337),
     '#337 AND-29 MAJOR: OnBackButtonPressed closes the top NATIVE overlay BEFORE routing into the shell (details-over-directory: first back must close the visible page)');
   // iOS-66 MAJOR (root-caused by the audit): stale hubScrollTop latch + hub
   // detach/re-attach on every hub render → Account snapped to the bottom on a
@@ -8509,9 +8526,15 @@ console.log('empty states — chats · wallet · contacts (illustration + copy +
      as a dead button", plus the degrade the takeover already had. */
   ok(/onNewChat: \(\) => openContacts\('start'\)/.test(homeSrc) && /onReceive: \(\) => openWalletAddressSheet\(\)/.test(homeSrc),
     'the PRODUCTION shell passes both zero-state callbacks (a demo-only wiring would ship a dead button)');
-  ok(/function openWalletAddressSheet\(\) \{[\s\S]{0,200}?if \(!addr\) \{ bridge\.send\('ixian:receiveixi'\); return; \}[\s\S]{0,220}?openAddressSheet\(\{/.test(homeSrc)
+  /* ★★ L1 (#640) re-based. The degrade used to open the native receive page; that page
+     is DELETED, and Damir pushed back on the premise itself — `setAddress` is pushed
+     INSIDE the ixian:onload handler, in the same turn as selectTab, and this shell emits
+     ixian:onload only after its first paint, so the branch cannot be reached. It never
+     happened in his testing. The GUARD survives as a guard: an impossible state does
+     nothing rather than reach for a screen that is gone. */
+  ok(/function openWalletAddressSheet\(\) \{[\s\S]{0,240}?if \(!addr\) return;[\s\S]{0,220}?openAddressSheet\(\{/.test(homeSrc)
      && /onReceive: mountWalletReceive,/.test(homeSrc),
-    '★★ #589: the zero-state CTA opens the address SHEET and still degrades to the native page when no address has been pushed — and the HERO Receive keeps the takeover, which is a different promise');
+    '★★ #589 → L1 (#640): the zero-state CTA opens the address SHEET, guards the no-address state, and reaches for NO deleted page — and the HERO Receive keeps the takeover, which is a different promise');
 
   /* wallet compact — the de-de clipping guard */
   /* ⚠ Slice to the FUNCTION, not to a byte budget. This was `indexOf + 1400`, and a
@@ -10449,7 +10472,8 @@ console.log('#370/#371 — D-19b reverse-resolve · N48 amOwner · N49/N50 · R2
   {
     const obb = hp370.slice(hp370.indexOf('protected override bool OnBackButtonPressed()'));
     const route = obb.indexOf('is ContactDetails cd && cd.pageLoaded && cd.shellOverlayOpen');
-    const close = obb.indexOf('SpixiContentPage.closeTopOverlay()');
+    // ★★ L8 re-based: hardware back passes the slide flag now — closeTopOverlay(true).
+    const close = obb.indexOf('SpixiContentPage.closeTopOverlay(true)');
     ok(route > 0 && close > route && /Utils\.sendUiCommand\(cd, "cdBack"\);/.test(obb),
       '★ N50 (#370): HomePage routes back INTO a ContactDetails overlay BEFORE closeTopOverlay — on desktop the details pane is a HomePage overlay, so its OnBackButtonPressed never runs and only this route can save the modal');
   }
@@ -10457,8 +10481,18 @@ console.log('#370/#371 — D-19b reverse-resolve · N48 amOwner · N49/N50 · R2
     && /new MutationObserver\(syncCdOverlay\)\.observe\(document\.body, \{ attributes: true, attributeFilter: \['data-overlay-open'\] \}\)/.test(cd370src)
     && cd370.includes("bridge.send('ixian:cdoverlay:' + (cdOverlayLive() ? '1' : '0'))"),
     'N50 (#370): the shell mirrors body[data-overlay-open] to C# (coalesced), source AND built');
-  ok(/cdBack\(\) \{\s*if \(typeof dismissTopOverlay === 'function' && dismissTopOverlay\(\)\) return;\s*syncCdOverlay\(\);\s*\}/.test(cd370src.replace(/\/\*[\s\S]*?\*\//g, '')),
-    'N50 (#370): cdBack dismisses the top overlay and SELF-HEALS a stale flag (re-sync when nothing was open) — back can never wedge (the #337 homeBack lesson)');
+  // ★★ L1 re-based: cdBack gained the money-cover branch BETWEEN the dismiss and the
+  // heal (the cover is not on the shared overlay stack). The two guarantees are
+  // unchanged and both are still asserted, plus the order the cover needs.
+  {
+    const cdBare = cd370src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    const body = cdBare.slice(cdBare.indexOf('cdBack() {'), cdBare.indexOf('cdBack() {') + 400);
+    ok(/dismissTopOverlay === 'function' && dismissTopOverlay\(\)\) return;/.test(body)
+       && /syncCdOverlay\(\);/.test(body)
+       && body.indexOf('dismissTopOverlay()') < body.indexOf('cdSendView')
+       && body.indexOf('cdSendView') < body.indexOf('syncCdOverlay();'),
+      'N50 (#370): cdBack dismisses the top overlay and SELF-HEALS a stale flag (re-sync when nothing was open) — back can never wedge (the #337 homeBack lesson). ★★ L1 (#640): the money cover is consumed BETWEEN the two, because it is not on the shared stack');
+  }
 
   /* —— R2: memberOne / pending-in / AND-35 / D-7 / I-11 / N3 —— */
   ok(/private string memberCountText\(long count\)/.test(scp370)
@@ -10574,7 +10608,8 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
     const obb = hpCs.slice(hpCs.indexOf('protected override bool OnBackButtonPressed()'));
     const cdRoute = obb.indexOf('is ContactDetails cd && cd.pageLoaded && cd.shellOverlayOpen');
     const chatRoute = obb.indexOf('is SingleChatPage chatOverlay && chatOverlay.pageLoaded && chatOverlay.shellOverlayOpen');
-    const close = obb.indexOf('SpixiContentPage.closeTopOverlay()');
+    // ★★ L8 re-based: hardware back passes the slide flag now — closeTopOverlay(true).
+    const close = obb.indexOf('SpixiContentPage.closeTopOverlay(true)');
     ok(cdRoute > 0 && chatRoute > cdRoute && close > chatRoute && /Utils\.sendUiCommand\(chatOverlay, "chatBack"\);/.test(obb),
       '★ N51: HomePage routes back INTO a SingleChatPage overlay BEFORE closeTopOverlay — chat is a HomePage overlay on mobile (#225), so ONLY this route can save an open sheet from a whole-page pop');
   }
@@ -14313,10 +14348,16 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     && /StartsWith\("ixian:payRequest:", StringComparison\.Ordinal\)/.test(scpW5)
     && /StartsWith\("ixian:sendrequest:", StringComparison\.Ordinal\)/.test(scpW5),
     'W5/#528: SingleChatPage dispatches signSend/payRequest/sendrequest the same way');
-  ok(/walletAddress\.ToString\(\)\.Equals\(addr, StringComparison\.Ordinal\)/.test(scpW5),
-    '★ #528: the chat sendrequest is PEER-SCOPED — a mismatched address fails closed');
-  ok(/friend\.type != FriendType\.Normal[\s\S]{0,120}friend\.state != FriendState\.Approved/.test(scpW5),
-    '#528: the approved/Normal/!bot guard mirrors HomePage.onSendRequest');
+  /* ★★ L1 (#640) re-based: the body MOVED to SPayments.handleSendRequest when contact
+     details grew the same Request action. The guarantees are unchanged — they are now
+     asserted at their ONE home, which is the point of the move. */
+  {
+    const spW5 = readFileSync(join(root, 'Spixi/Utils/SPayments.cs'), 'utf8');
+    ok(/walletAddress\.ToString\(\)\.Equals\(addr, StringComparison\.Ordinal\)/.test(spW5),
+      '★ #528: the sendrequest verb is PEER-SCOPED — a mismatched address fails closed');
+    ok(/friend\.type != FriendType\.Normal[\s\S]{0,120}friend\.state != FriendState\.Approved/.test(spW5),
+      '#528: the approved/Normal/!bot guard mirrors HomePage.onSendRequest');
+  }
 
   /* caps: pushed by C#, HANDLED by the shells (the D-10 r2-M3 lesson — pin the handler) */
   ok(/setCaps", "composeSend/.test(hpW5),
@@ -14331,8 +14372,16 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     '★ W5: home.html HAS a setCaps handler — without it composeSend can never arrive (the #258 bare-global class)');
 
   /* home compose: fallback kept, fee quote-gated, resolve ONLY on the push */
-  ok(/if \(!bridge\.cap\('composeSend'\)\) \{ bridge\.send\('ixian:sendixi'\); return; \}/.test(homeS),
-    'W5: an old exe (no caps push) keeps the LIVE native send flow');
+  /* ★★ L1 (#640) re-based: there is NO native flow behind this gate any more — the page
+     it opened is deleted. The gate itself is the guarantee that survives: a build with no
+     C# half must show a dead tap, never reach for something that is gone. */
+  /* ⚠ the negative is EXACT-CLOSED (`…'ixian:sendixi')`) — a loose `ixian:send` prefix
+     matches the LIVE `ixian:sendrequest:` and `ixian:sendScan` emits in the same file. */
+  ok(/if \(!bridge\.cap\('composeSend'\)\) return;/.test(homeS)
+     && !/bridge\.send\('ixian:sendixi'\)/.test(homeS)
+     && !/bridge\.send\('ixian:receiveixi'\)/.test(homeS)
+     && /bridge\.send\('ixian:sendrequest:'/.test(homeS),
+    'W5 → L1 (#640): the compose is still cap-gated, and the gate no longer falls back to a deleted page');
   ok(/fee: null,/.test(homeS) && !/const WALLET_FEE_ESTIMATE/.test(homeS),
     'W6: the home compose mounts with fee:null — the placeholder-0 fee const is GONE');
   const onSendIdx = homeS.indexOf("walletSendCtrl = ctrl;");
@@ -14367,9 +14416,13 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     'W5: ctrl.fail(\'\') is the SILENT native-confirm-cancel path');
 
   /* chat: gates + request-out Cancel (#529) + the ghost guard */
-  ok(/if \(bridge\.cap\('composeSend'\)\) openSendTakeover\(\); else bridge\.send\('ixian:send'\);/.test(chatS)
-    && /if \(bridge\.cap\('composeRequest'\)\) openRequestForPeer\(\); else bridge\.send\('ixian:request'\);/.test(chatS),
-    'W5/#528: attach Pay/Request are cap-gated with the legacy verbs as the old-exe fallback');
+  /* ★★ L1 (#640) re-based: the `else` legs went with WalletSendPage / WalletReceivePage.
+     SingleChatPage declares BOTH caps unconditionally (:909), so those legs could only
+     ever have run against an exe that no longer exists. */
+  ok(/if \(bridge\.cap\('composeSend'\)\) openSendTakeover\(\); \}/.test(chatS)
+    && /if \(bridge\.cap\('composeRequest'\)\) openRequestForPeer\(\); \}/.test(chatS)
+    && !/bridge\.send\('ixian:send'\)/.test(chatS) && !/bridge\.send\('ixian:request'\)/.test(chatS),
+    'W5/#528 → L1 (#640): attach Pay/Request stay cap-gated, and neither falls back to a deleted page');
   ok(/lockedRecipient: \{/.test(chatS) && /avatar: identity\.avatar \|\| null/.test(chatS)
     && /identity\.name !== identity\.address\) \? identity\.name : ''/.test(chatS),
     '#139/#211/#342: the in-chat compose locks the peer — never an address as a NAME, photo threaded');
@@ -15605,10 +15658,18 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     const iTop = fn.indexOf('sheet.style.top');
     ok(iDesk > 0 && iTag > iDesk && iWidth > iTag && iMeasure > iWidth && iTop > iMeasure,
       '★★ Batch E (a) (#557): anchorSheetToRow no-ops ON desktop (the #268 grammar owns that), tags [data-m-anchor], sets the WIDTH before it measures (wrap changes height), and only then places the top — reorder any of that and the dropdown lands on stale geometry');
-    ok(/const above = rr\.top - fr\.top - gap - h;/.test(fn) && fn.indexOf('rr.bottom - fr.top + gap') > fn.indexOf('const above'),
+    ok(/const above = rr\.top - host2\.top - gap - h;/.test(fn) && fn.indexOf('rr.bottom - host2.top + gap') > fn.indexOf('const above'),
       '★★ Batch E (a): placement prefers ABOVE the pressed row — the menu can never cover the message it acts on (the 4.1 fix, structural); below is the fallback, clamp the last resort');
-    ok(/if \(!fr\.width \|\| !rr\.height\) return sheet;/.test(fn),
+    ok(/if \(!fr\.width \|\| !rr0\.height\) return sheet;/.test(fn),
       'Batch E (a): unmeasurable rects (jsdom, detached hosts) keep the bottom sheet — fail-soft, never a 0×0 dropdown');
+  }
+  {
+    const daRe = readFileSync(join(root, 'src/components/desktop-anchors.js'), 'utf8');
+    ok(/const place = \(\) => \{/.test(daRe) && /window\.visualViewport\.addEventListener\('resize', reflow\)/.test(daRe)
+       && /if \(!sheet\.isConnected\)/.test(daRe),
+      '★★★ Damir on device (Android): the anchored menu RE-ANCHORS when the viewport moves. Long-pressing blurs the composer, the keyboard goes, Android GROWS the layout viewport and every row moves — the menu used to stay where the row had been. The listener detaches itself the first time it fires on a dismissed sheet');
+    ok(!/keyboard-covered placement resolves on the next open\. Both accepted/.test(daRe),
+      '★★ and the residual note that called it ACCEPTED is gone — it was only ever true on iOS, where the layout viewport does not move for the keyboard. A platform fact generalised into a platform-independent excuse');
   }
   ok(/anchorSheetToRow\(sheet, row, \{ host, align: tinted \}\)/.test(mmJsE),
     '★ Batch E (a): the message menu anchors to the pressed row, aligned with the BUBBLE (sent sits right, received left)');
@@ -15642,7 +15703,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        && /resolvePx\('env\(safe-area-inset-bottom, 0px\)'\)/.test(body)
        && !/getPropertyValue\('--safe-top'\)/.test(body),
       '★★ Batch E (a) r3 (R-1): the safe insets are RESOLVED through a probe element (computed padding-top → px), never getPropertyValue-parsed — top AND bottom');
-    ok(/const minTop = safeTop \+ M_GAP;/.test(body) && /const maxBottom = fr\.height - M_GAP - safeBottom;/.test(body)
+    ok(/const minTop = safeTop \+ M_GAP;/.test(body) && /const maxBottom = host2\.height - M_GAP - safeBottom;/.test(body)
        && /if \(above >= minTop\)/.test(body) && /top = Math\.max\(minTop, maxBottom - h\)/.test(body),
       '★★ Batch E (a) r3 (E-1) JS: every vertical placement is bounded by minTop (safe-top floor) and maxBottom (safe-bottom ceiling) — no branch can land under an inset');
   }
@@ -16437,7 +16498,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       '★★ #587 (round-2 MINOR-4): a DETACHED row is RE-RESOLVED by address, never replaced by its old rectangle — the flush that detaches also re-sorts, so a stale rect points the menu at the wrong conversation');
     ok(!/rowRect/.test(da) && !/rowRect/.test(read('src/components/chats-row-menu.js')),
       '★ #587: the press-time-rect fallback is GONE from both files — one mechanism, not two');
-    ok(/if \(!fr\.width \|\| !rr\.height\) return sheet;/.test(da),
+    ok(/if \(!fr\.width \|\| !rr0\.height\) return sheet;/.test(da),
       '★★ #587: when no live row can be found the bottom sheet STAYS. An unfindable row must fail soft, exactly as an unmeasurable one always did');
   }
 }
@@ -16908,12 +16969,19 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     const presentAt6 = scp6.indexOf('private static void presentPreload');
     const presentBody6 = scp6.slice(presentAt6, scp6.indexOf('private static async Task slideStageIn'));
     ok(presentAt6 > 0 && presentBody6.length > 2000
-       && /_ = slideStageIn\(op\.stage\);/.test(presentBody6)
+       && /_ = slideStageIn\(op\);/.test(presentBody6)
        && !/await op\.stage\.TranslateTo/.test(presentBody6)
-       && presentBody6.indexOf('_ = slideStageIn(op.stage);') < presentBody6.indexOf('overlayStack.Add(op);'),
+       && presentBody6.indexOf('_ = slideStageIn(op);') < presentBody6.indexOf('overlayStack.Add(op);'),
       '★★ ITEM 6: the slide is FIRE-AND-FORGET and it starts before the overlay joins the stack. Awaiting a 220 ms animation there would leave the overlay invisible to back handling, the same-tag sweep and closeTopOverlay for the whole time it was on screen');
-    ok(/finally\s*\n\s*\{\s*\n\s*try \{ stage\.TranslationX = 0; \} catch \(Exception\) \{ \}/.test(scp6),
-      '★★ ITEM 6: the translation is ALWAYS reset, in a finally. An interrupted or failed animation must not leave a stage parked off the edge — the parked overlay reuses its stage, so a stuck translation would come back on a later present');
+    /* ★★ L8 re-based, and this pin EARNED its rebase: it went red on my own fix and was
+       right to. The slide-IN's finally now SKIPS a closing stage (so it cannot snap one back
+       mid-exit), which moved the "always reset" guarantee onto the exit paths — and the
+       PARKED branch did not have it. The property is unchanged; it is asserted at all three
+       places that can now be the last writer. */
+    ok(/if \(!op\.closing\)\s*\r?\n\s*\{\s*\r?\n\s*try \{ stage\.TranslationX = 0; \} catch \(Exception\) \{ \}/.test(scp6)
+       && /op\.stage\.InputTransparent = true;\s*\r?\n[\s\S]{0,700}?op\.stage\.TranslationX = 0;\s*\r?\n\s*\}/.test(scp6)
+       && /op\.stage\.TranslationX = 0;   \/\/ #326 belt/.test(scp6),
+      '★★ ITEM 6 + L8: the translation is ALWAYS reset — by the slide-in unless the stage is closing, by the PARKED close branch, and by the dispose branch. The parked overlay reuses its stage, so a stuck translation would come back displaced on a later present');
     ok(/op\.slideIn = slideIn && overlayMode;/.test(scp6),
       '★ ITEM 6: only the IN-PLACE present can slide. The push fallback re-parents the page, which is the #225 repaint this whole machinery exists to avoid — animating it would add a transform to a frame that is already blank');
 
@@ -17731,6 +17799,451 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ok(!/c-chat-info__cover/.test(ci596) && !/identityIndex/.test(ci596),
       '★★ #596 (Damir — D1): the contact-details cover is gone from the component, and so is the import that existed only to give it a hue');
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+ * SESSION A — L1 (the legacy Send/Receive screens) · L2 (group delivery ticks) ·
+ * L8 (the chat-info slide-out).  docs/launch-worklist-2026-08-29.md
+ *
+ * Every pin below was written from the PROPERTY and proven by MUTATION. Two rules
+ * from the carry-over list are applied on purpose:
+ *   · a NEGATIVE pin goes green on a build where the feature is simply gone, so
+ *     each one is PAIRED with a positive that fails if the file went missing;
+ *   · the suite tests the BUILT artefact — `src/…` says nothing about what ships.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+{
+  const rdf = (pth) => readFileSync(join(root, pth), 'utf8');
+  const built = (name) => rdf('Spixi/Resources/Raw/html/' + name);
+
+  /* —— L1 · A: contact details composes IN-SHELL ————————————————————————————— */
+  {
+    const cd = built('contact_details.html');
+    ok(/onPay: \(\) => \{ if \(bridge\.cap\('composeSend'\)\) openSendTakeover\(\); \}/.test(cd)
+       && /onRequest: \(\) => \{ if \(bridge\.cap\('composeRequest'\)\) openRequestForPeer\(\); \}/.test(cd),
+      '★★ L1 (#640): the SHIPPED contact-details Pay and Request open the in-shell compose, gated on the caps — this is the chat.html grammar, ported');
+    ok(!/bridge\.send\('ixian:send'\)/.test(cd) && !/bridge\.send\('ixian:request'\)/.test(cd),
+      '★★ L1 (#640): and the two legacy emits are GONE from the shipped shell — they pushed WalletSendPage / WalletReceivePage');
+    // PAIR for the negative above: the shell is real and still emits its other verbs.
+    ok(/bridge\.send\('ixian:sharedGroups'\)/.test(cd) && /bridge\.send\('ixian:chat'\)/.test(cd),
+      '★ L1 pair: the shipped contact-details shell is intact — its other verbs still emit, so the negative above read a real file');
+    ok(/ixian:signSend:/.test(cd) && /ixian:feeQuery:/.test(cd) && /ixian:sendrequest:/.test(cd),
+      '★ L1 (#640): the three replacement verbs are in the shipped shell');
+    // The W-h gate: a compose with no stylesheet opens UNSTYLED.
+    ok(/\.c-wallet-send/.test(cd) && /\.c-contact-row/.test(cd),
+      '★★ L1 (#640) W-h: wallet-send.css AND contact-row.css are inlined in the shipped shell — the toast.css lesson, and the row atom is the companion that is easy to forget');
+    ok(/setCaps\(list\)/.test(cd) && /signSendResult\(status, message\)/.test(cd) && /setSendQuote\(addr, amount, fee, balance, max, error\)/.test(cd),
+      '★ L1 (#640): the shipped shell DEFINES setCaps / signSendResult / setSendQuote — C# emits each as a bare global, and an undefined one throws before the dispatcher can catch it (#258)');
+    ok(/if \(cdSendView\) \{ closeSendTakeover\(\); return; \}/.test(cd)
+       && /document\.body\.dataset\.overlayOpen !== undefined \|\| !!cdSendView/.test(cd),
+      '★★ L1 (#640): the money cover consumes BACK and is reported to C# — it is not on the shared overlay stack, so without both lines Android back pops the page out from under an open compose');
+  }
+
+  /* —— L1 · A: the C# half ——————————————————————————————————————————————————— */
+  {
+    const cds = rdf('Spixi/Pages/Contacts/ContactDetails.xaml.cs');
+    ok(/SPayments\.handleSignSend\(this, current_url\.Substring\("ixian:signSend:"\.Length\)\)/.test(cds)
+       && /SPayments\.handleFeeQuery\(this, current_url\.Substring\("ixian:feeQuery:"\.Length\)\)/.test(cds)
+       && /SPayments\.handleSendRequest\(this, friend, current_url\.Substring\("ixian:sendrequest:"\.Length\)\)/.test(cds),
+      '★★ L1 (#640): ContactDetails answers the three money verbs — the SAME three SingleChatPage answers, so both surfaces share one grammar');
+    ok(/"setCaps", "composeSend,composeRequest"/.test(cds),
+      '★ L1 (#640): ContactDetails DECLARES the caps the shell gates on — without the push both buttons are dead');
+    ok(!/new WalletSendPage/.test(cds) && !/new WalletReceivePage/.test(cds),
+      '★★ L1 (#640): and it pushes neither legacy page any more');
+    // PAIR: the file is real and still pushes the page it is allowed to push.
+    ok(/hostNav\.PushAsync/.test(cds) || /popPageAsync\(\)/.test(cds),
+      '★ L1 pair: ContactDetails still navigates — the negative above read a real file');
+    // ONE home for the request guard (the V-8 pattern).
+    const sp = rdf('Spixi/Utils/SPayments.cs');
+    const scp = rdf('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+    ok(/public static void handleSendRequest\(SpixiContentPage page, Friend friend, string payload\)/.test(sp)
+       && /SPayments\.handleSendRequest\(this, friend, current_url\.Substring\("ixian:sendrequest:"\.Length\)\)/.test(scp)
+       && !/private void onSendRequestFromChat/.test(scp),
+      '★★ L1 (#640): the peer-scoped request guard has ONE home. Contact details grew the same action, and a second copy of a money guard is the V-8 pattern — two homes for one rule, and they drift');
+    ok(/friend\.bot \|\| friend\.type != FriendType\.Normal/.test(sp) && /!friend\.approved \|\| friend\.state != FriendState\.Approved/.test(sp),
+      '★ L1 (#640): and the moved guard still FAILS CLOSED on anything that is not an approved 1:1 contact (#268 FIX-1/2/3)');
+  }
+
+  /* —— L1 · B: the pages are DELETED ————————————————————————————————————————— */
+  {
+    const gone = ['Spixi/Pages/Wallet/WalletSendPage.xaml.cs',
+                  'Spixi/Pages/Wallet/WalletSend2Page.xaml.cs',
+                  'Spixi/Pages/Wallet/WalletReceivePage.xaml.cs',
+                  'Spixi/Resources/Raw/html/wallet_send.html',
+                  'Spixi/Resources/Raw/html/wallet_send_2.html',
+                  'Spixi/Resources/Raw/html/wallet_request.html'];
+    ok(gone.every((f) => !existsSync(join(root, f))),
+      '★★ L1 (#640) decision 4: every legacy money page and its HTML is gone — Damir: "Nothing legacy was supposed to exist in this app anymore"');
+    // PAIR — and this is the one that matters: WalletRecipientPage STAYS.
+    ok(existsSync(join(root, 'Spixi/Pages/Wallet/WalletRecipientPage.xaml.cs'))
+       && existsSync(join(root, 'Spixi/Resources/Raw/html/wallet_recipient.html'))
+       && existsSync(join(root, 'Spixi/Resources/Raw/html/wallet_sent.html')),
+      '★★ L1 pair: WalletRecipientPage and the tx-detail page STAY — AppDetailsPage and HomePage still push the picker, and deleting it is the way this row goes wrong');
+    const csproj = rdf('Spixi/Spixi.csproj');
+    ok(!/WalletSendPage\.xaml/.test(csproj) && !/WalletSend2Page\.xaml/.test(csproj) && !/WalletReceivePage\.xaml/.test(csproj)
+       && /WalletRecipientPage\.xaml/.test(csproj) && /WalletSentPage\.xaml/.test(csproj),
+      '★ L1 (#640): the .csproj MauiXaml rows went with the pages, and the two that stay are still listed');
+    const scp2 = rdf('Spixi/Utils/SpixiContentPage.cs');
+    ok(!/case "wallet_send\.html"/.test(scp2) && !/case "wallet_send_2\.html"/.test(scp2) && !/case "wallet_request\.html"/.test(scp2)
+       && /case "wallet_recipient\.html"/.test(scp2),
+      '★ L1 (#640): the legacy-chrome and page-surface case labels went with them; wallet_recipient.html keeps both');
+    const hp = rdf('Spixi/Pages/Home/HomePage.xaml.cs');
+    ok(!/ixian:sendixi/.test(hp) && !/ixian:receiveixi/.test(hp) && !/public void onSendIxi/.test(hp) && !/public void onReceiveIxi/.test(hp),
+      '★★ L1 (#640): HomePage no longer carries the verbs or the methods that reached the deleted pages');
+    ok(/ixian:quickscan/.test(hp) && /ixian:spixiAppsLink/.test(hp),
+      '★ L1 pair: HomePage still dispatches its other verbs — the negative above read a real file');
+    // No SHIPPED shell may still emit a verb nobody answers.
+    for (const shell of ['index.html', 'chat.html', 'contact_details.html']) {
+      const b = built(shell);
+      ok(!/ixian:sendixi/.test(b) && !/ixian:receiveixi/.test(b)
+         && !/bridge\.send\('ixian:send'\)/.test(b) && !/bridge\.send\('ixian:request'\)/.test(b),
+        '★★ L1 (#640): the shipped ' + shell + ' emits no verb that reached a deleted page');
+    }
+    ok(/ixian:quickscan/.test(built('index.html')),
+      '★ L1 pair: the shipped home shell still emits its other verbs — the sweep above read real files');
+  }
+
+  /* —— L2 · the group delivery ticks ————————————————————————————————————————— */
+  {
+    const scp = rdf('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+    const dtAt = scp.indexOf('private void deliveryTicks(FriendMessage message');
+    const dt = scp.slice(dtAt, dtAt + 1400);
+    ok(dtAt > 0 && /friend\.type != FriendType\.Group/.test(dt),
+      '★★ L2 (#641): the derivation runs for FriendType.Group ONLY. A bot room is FriendType.Normal with `bot` true, so it never enters — its receipt comes from ONE known address, Core\'s own tail already calls setMessageReceived, and Damir corrected an earlier version of this row that claimed the opposite');
+    ok(/read = false;/.test(dt) && dt.indexOf('read = false;') < dt.indexOf('groupReactionCount'),
+      '★★ L2 (#641): NEVER a green double check in a group — and the override runs BEFORE the delivered test, so no ordering can leave `read` true');
+    ok(/groupReactionCount\(message, "received"\) >= 1/.test(dt),
+      '★★ L2 (#641): delivered at ONE confirmed member. Core advances the stored status only at the FULL count, which is why one absent member held the clock for everyone');
+    ok(/if \(confirmed\)\s*\r?\n?\s*\{\s*\r?\n?\s*sent = true;/.test(dt),
+      '★ L2 (#641): a delivered message was, necessarily, sent');
+    // Applied at EVERY localSender push surface — Damir asked for all of them.
+    /* ⚠ TWO, not four. The first cut called deliveryTicks at the file and app pushes too;
+       the audit proved both shell handlers DISCARD those args, so they were dead code
+       carrying a guarantee. The gap (no delivery tick on a card) is logged, not faked. */
+    const calls = (scp.match(/deliveryTicks\(message,/g) || []).length;
+    ok(calls === 2,
+      '★★ L2 (#641): the derivation runs at the TWO push sites that actually render a tick (text insert · updateMessage) — got exactly ' + calls);
+    const chDead = rdf('Spixi/Resources/Raw/html/chat.html');
+    ok(/addFile\(id, address, nick, avatar, fileid, name, time, me, sent, read, progress, complete, paid\) \{[\s\S]{0,400}?upsertFile\(/.test(chDead)
+       && !/upsertFile\([^)]*\bsent\b/.test(chDead),
+      '★★ L2 (#641) PAIRED NEGATIVE: the shipped addFile handler names `sent`/`read` and never passes them on — this is WHY the derivation was removed from that push, and if the shell ever starts reading them this pin goes red and the C# must come back');
+    ok(/"updateMessage", Crypto\.hashToString\(message\.id\), message\.message, tSent\.ToString\(\), tConfirmed\.ToString\(\), tRead\.ToString\(\)/.test(scp),
+      '★ L2 (#641): updateMessage pushes the DERIVED values, not the stored ones — the raw flags would re-stall the tick on every re-push');
+    ok(/"addFile"[^\n]*message\.confirmed\.ToString\(\), message\.read\.ToString\(\)/.test(scp)
+       && /"addAppRequest"[^\n]*message\.confirmed\.ToString\(\), message\.read\.ToString\(\)/.test(scp),
+      '★ L2 (#641): the file and app pushes carry the RAW flags — deriving values the shell throws away would be dead code with a false guarantee attached');
+    /* ★★★ L2 (#649) — NO OPTIMISTIC SINGLE CHECK. Damir ruled against his own earlier
+       pick: "it's a lie, if it hasn't left the device then it's a clock". Verified at
+       source that no truthful trigger exists with Core frozen — two overridable hooks,
+       and the one that means "sent" fires only on the offline push-server branch. */
+    ok(!/markHandedOff/.test(scp) && !/friend\.setMessageSent\(/.test(scp),
+      '★★★ L2 (#649): NOTHING sets `sent` at the hand-off. A message still on this device shows a CLOCK — the ⑪ rule, applied to a tick this batch had invented');
+    // PAIRED POSITIVE: the reported defect is still fixed, which is the whole point.
+    ok(/groupReactionCount\(message, "received"\) >= 1/.test(scp),
+      '★★★ L2 pair: and the CLOCK STILL ADVANCES at one confirmed member — the actual complaint (one absent member holding it for ever) is closed by the derivation, not by the invented tick');
+    ok(/CORE-3/.test(scp),
+      '★ L2 (#649): the single check is logged as a Core row rather than faked — onMessageSent must fire on the direct-relay path, resolving the GROUP Friend');
+  }
+
+  /* —— L2 · the read detail in the long-press menu ——————————————————————————— */
+  {
+    const ch = built('chat.html');
+    ok(/else if \(tok\.startsWith\('received'\)\) deliveredCount = count;/.test(ch)
+       && /else if \(tok\.startsWith\('seen'\)\) seenCount = count;/.test(ch),
+      '★★ L2 (#641): the counts come from the addReactions push the shell ALREADY receives — C# emits every reaction key with its member count, and this parser used to drop received/seen on the floor. Nothing new crosses the bridge');
+    ok(/const others = groupRoster\.size - 1;/.test(ch),
+      '★★ L2 (#641): the denominator is the OTHER members. C# pushes one addContact per friend.users entry, so the roster counts this device too — and Core\'s own threshold agrees, it tests received.Count + 1 >= users.count()');
+    ok(/if \(others < 1\) return '';/.test(ch),
+      '★★ L2 (#641): no roster, NO LINE — a wrong "of N" is worse than no detail, and this is the branch that invents data if it is missing');
+    /* ⚠ SCOPED to deliveryDetail's own body. A first attempt indexed the bare
+       `groupRoster.size`, which occurs EARLIER in this shell for the member count — the
+       pin then compared two unrelated offsets and went red on correct code. */
+    const dd = ch.slice(ch.indexOf('function deliveryDetail(rec) {'), ch.indexOf('function menuOptsFor(rec, row)'));
+    ok(/if \(mode\.isBot\) \{[\s\S]{0,200}?status-delivered/.test(dd)
+       && dd.indexOf('if (mode.isBot)') > 0
+       && dd.indexOf('if (mode.isBot)') < dd.indexOf('groupRoster.size'),
+      '★ L2 (#641): a bot room answers "Delivered" or nothing, and is tested FIRST — mode.isMulti is true for bot rooms too, so the order is the whole guard');
+    ok(/if \(!mode\.isMulti\) return '';/.test(ch),
+      '★ L2 (#641): a 1:1 chat gets no line — the bubble already says everything');
+    ok(/detail: \(\) => deliveryDetail\(rec\)/.test(ch),
+      '★ L2 (#641): and menuOptsFor passes it LAZILY, so the LONG-PRESS path and the keyboard path share one answer that cannot go stale');
+    ok(/\.c-msgmenu__detail \{/.test(ch),
+      '★★ L2 (#641) W-h: the detail line\'s stylesheet is INLINED in the shipped chat shell — without it the caption renders as a naked paragraph');
+    const mm = rdf('src/components/message-menu.js');
+    ok(/d\.setAttribute\('role', 'note'\)/.test(mm) && /d\.textContent = detailText;/.test(mm),
+      '★ L2 (#641): the detail is a NOTE, not a control — never focusable, never in the action list, so keyboard order is unchanged');
+    ok(!/c-msgmenu__detail[^\n]*addEventListener/.test(mm),
+      '★ L2 (#641): and nothing binds a handler to it');
+    // ⚠ NOTHING under the bubble — Damir's ruling, and the busiest surface in the app.
+    ok(!/c-bubble__delivery/.test(rdf('src/components/message-bubble.js'))
+       && /createStatusIcon|status/.test(rdf('src/components/message-bubble.js')),
+      '★★ L2 (#641): the detail did NOT land under the bubble. That is the busiest surface in the app and a per-message caption there reads as noise (Damir, same day)');
+    ok(/deliveredOf/.test(rdf('src/strings/en-us.json')) && /readBy/.test(rdf('src/strings/en-us.json'))
+       && /deliveredOf/.test(rdf('src/strings/sl-si.json')),
+      '★ L2 (#641): both copy keys exist in en-us AND in a real locale — an inline fallback that never reaches a dictionary ships English to everyone');
+  }
+
+  /* —— L8 · the chat-info slide-OUT ————————————————————————————————————————— */
+  {
+    const sp = rdf('Spixi/Utils/SpixiContentPage.cs');
+    const coAt = sp.indexOf('private static void closeOverlay(PreloadOp op, bool slideOut = false)');
+    // ⚠ closeOverlay is ~68 KB (the async main-thread body); the slide gate sits ~7 KB in.
+    const co = sp.slice(coAt, sp.indexOf('private static void cancelPreload'));
+    ok(coAt > 0 && /bool mirrorSlide = op\.slideIn;/.test(co)
+       && /if \(slideOut && \(mirrorSlide \|\| legacyIosSlide\)\)/.test(co),
+      '★★ L8: an op that slid IN slides OUT, on EVERY platform — op.slideIn is the same per-op flag presentPreload reads, so the mirror cannot drift from the entry. Damir closed the WinUI dial: the slide-in was never platform-gated, so holding only the exit back bought no safety');
+    ok(/if \(op\.slideIn\)\s*\r?\n?\s*\{\s*\r?\n?\s*await op\.stage\.TranslateTo\(w, 0, 220, Easing\.CubicIn\);/.test(co)
+       && /await op\.stage\.TranslateTo\(w, 0, 250, Easing\.CubicOut\);/.test(co),
+      '★★ L8: the mirror is EXACT (220 ms, CubicIn against slideStageIn\'s 220 ms CubicOut) and #326 keeps its own 250 ms CubicOut byte-for-byte — that was Damir\'s pick for the native pop look and this row has no mandate to re-time it');
+    /* ⚠ indexed on the GATE, not on the timing — a mutation round showed this pin going
+       red because the duration changed, which is a different property with its own pin. */
+    ok(co.indexOf('overlayStack.Remove(op)') < co.indexOf('if (slideOut && (mirrorSlide'),
+      '★★ L8: the overlay leaves overlayStack at the START of the close, not 220 ms later — the same rule that made the slide-IN fire-and-forget. Back handling, the same-tag sweep and closeTopOverlay all read that stack');
+    ok(/op\.stage\.InputTransparent = true;\s*\r?\n\s*double w = op\.stage\.Width > 0/.test(co),
+      '★ L8: the stage goes INPUT-DEAD before the first animation frame — a second back-press during the slide would otherwise fall through onto the native stack (#272 pop-the-top class)');
+    ok(/public static bool closeTopOverlay\(bool slideOut = false\)/.test(sp),
+      '★ L8: closeTopOverlay can carry the flag');
+    const hp = rdf('Spixi/Pages/Home/HomePage.xaml.cs');
+    ok(/SpixiContentPage\.closeTopOverlay\(true\)/.test(hp)
+       && /while \(!\(SpixiContentPage\.getTopOverlay\(\) is SettingsPage\)\s*\r?\n?\s*&& SpixiContentPage\.closeTopOverlay\(\)\)/.test(hp),
+      '★★ L8: HARDWARE BACK slides; the Account-resurface loop does NOT. That loop closes the overlays above a buried pane — housekeeping, not a back gesture');
+    const scp = rdf('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+    ok(/revealDelayMs: 0, slideIn: true\)/.test(scp),
+      '★ L8 pair: chat info still asks for the slide-IN — without this the whole mirror above is a rule about nothing');
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+ * SESSION A — THE ADVERSARIAL LOOP'S OWN PINS (DECISIONS #646)
+ *
+ * Seven MAJORs. Every one of them was invisible to the fifty pins the batch shipped
+ * with, and the reason is the same each time: those pins read the CALL SITE and never
+ * asked whether the code behind it RUNS, or whether the surface it feeds READS what it
+ * is given. The first pin below EXECUTES a guard against the shell's own initial state,
+ * because that is the class of pin that would have caught the worst one.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+{
+  const rdf = (pth) => readFileSync(join(root, pth), 'utf8');
+  const built = (name) => rdf('Spixi/Resources/Raw/html/' + name);
+
+  /* —— ★★ THE EXECUTING PIN — L1's openers must be REACHABLE ————————————————— */
+  {
+    const cd = built('contact_details.html');
+    /* Lift the shell's REAL initial state literal and its REAL guard lines out of the
+       shipped file and run them together. `state.group` is the metadata BAG and is always
+       truthy; `state.isGroup` is the flag. The first cut guarded on the bag, so both money
+       openers returned on their first line and Pay and Request did NOTHING — after
+       replacing a working native screen. Fifty text pins were green. */
+    const stateSrc = cd.slice(cd.indexOf('  const state = {'), cd.indexOf('  const state = {') + 2600);
+    const literal = stateSrc.slice(stateSrc.indexOf('{'), stateSrc.indexOf('\n  };') + 4);
+    /* ⚠ no `\n\s*` before the capture: openRequestForPeer's guard is the FIRST line of its
+       body, and requiring an intermediate newline matched openSendTakeover (which has a
+       comment above its guard) and silently missed the other one. My own pin, wrong on its
+       first run — which is the whole argument for running pins before trusting them. */
+    const sendGuard = (cd.match(/function openSendTakeover\(\) \{[\s\S]{0,900}?(if \([^\n]*?\) return;)/) || [])[1] || '';
+    const reqGuard = (cd.match(/function openRequestForPeer\(\) \{[\s\S]{0,900}?(if \([^\n]*?\) return;)/) || [])[1] || '';
+    let sendBlocked = null;
+    let reqBlocked = null;
+    try {
+      const mk = (guard) => new Function('literal',
+        'const state = ' + literal + ';\n'
+        + 'state.address = "TESTADDRESS";\n'
+        + 'let blocked = true;\n'
+        + guard.replace(/return;\s*$/, '{ return true; }') + '\n'
+        + 'blocked = false;\n'
+        + 'return blocked;');
+      sendBlocked = mk(sendGuard)();
+      reqBlocked = mk(reqGuard)();
+    } catch (e) { /* leaves them null → the pin fails, which is correct */ }
+    ok(sendGuard !== '' && reqGuard !== '' && sendBlocked === false && reqBlocked === false,
+      '★★★ L1 (#640) EXECUTED: on a FRESH 1:1 contact both money openers actually RUN. The first cut guarded on `state.group` — the always-truthy metadata bag instead of `state.isGroup` — so Pay and Request silently did nothing, having replaced a working native screen. This pin runs the shipped guard against the shipped initial state; a text pin cannot');
+    ok(/if \(state\.isGroup\) return;/.test(cd) && /if \(state\.isGroup \|\| !state\.address\) return;/.test(cd),
+      '★★ L1 (#640): and both guards name the FLAG, not the bag');
+  }
+
+  /* —— L2 · the bot room is untouched, and the group failure state is real ——— */
+  {
+    const scp = rdf('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+    const mhAt = scp.indexOf('private void markHandedOff(');
+    const mh = mhAt < 0 ? '' : scp.slice(mhAt, mhAt + 1600);
+    /* ★★★ L2 (#649): the bot-room guard is MOOT — the method it guarded is gone. What
+       matters is unchanged and is asserted instead: no room type gets an invented tick. */
+    ok(mh === '',
+      '★★★ L2 (#649): markHandedOff no longer exists, so no room type — 1:1, group or bot — can be given a single check it did not earn');
+    const pmp = rdf('Spixi/Network/SpixiPendingMessageProcessor.cs');
+    ok(/private static void markGroupCopyFailed\(byte\[\] msgId, int channel\)/.test(pmp)
+       && /f\.type != FriendType\.Group/.test(pmp)
+       && /markGroupCopyFailed\(msg\.id, channel\);/.test(pmp),
+      '★★★ L2 (#641): the RED RETRY STATE EXISTS FOR A GROUP. Core fans a group send out per MEMBER, so the pending queue is keyed by the member and the plain setMessageError never finds the group message — the optimistic single check was a permanent lie on an undelivered group message, which Damir\'s own ⑪ rule forbids. The comment that promised this net now has code behind it');
+    // ★ re-based by the break-my-verdict round: the test widened from `received` alone to
+    // any evidence at all (`received` OR `seen`, and unreadable reactions count as evidence).
+    ok(/anyEvidence/.test(pmp) && /if \(anyEvidence\)/.test(pmp),
+      '★★ L2 (#641): and it does NOT over-report — one unreachable member out of five is not a failed message, so the copy is marked failed only when nothing at all says somebody has it');
+    const hp = rdf('Spixi/Pages/Home/HomePage.xaml.cs');
+    ok(/bool isGroupRow = friend\.type == FriendType\.Group;/.test(hp)
+       && /if \(lastmsg\.read && !isGroupRow\)/.test(hp),
+      '★★ L2 (#641): the CHATS ROW obeys the same group rule as the bubble. The first cut forced read=false at the chat push only, so one message could show a grey double check in the conversation and a GREEN one in the list beside it — "count the surfaces", broken by the row written under it');
+  }
+
+  /* —— L2 · the read detail can actually appear, and cannot go stale ————————— */
+  {
+    const ch = built('chat.html');
+    ok(/if \(\(t === 1 \|\| t === 2\) && !groupRoster\.size\) \{/.test(ch)
+       && /bridge\.send\('ixian:loadContacts'\)/.test(ch.slice(ch.indexOf('mode.isMulti = (t === 1'))),
+      '★★★ L2 (#641): the roster is pulled at CHAT OPEN for a private group. Its only writer used to be the addContact push, which fires only from openChatInfo — so the delivery detail was EMPTY until the user independently opened Group info, while the bubble had already lost its read tick. The "no roster, no line" degrade was the DEFAULT state, not an edge case');
+    ok(!/if \(\(t === 1 \|\| t === 2 \|\| t === 3\) && !groupRoster\.size\)/.test(ch),
+      '★★ L2 (#641): and NOT for a bot room — loadContacts walks the roster synchronously on the UI thread and a public channel holds up to 500 members. That is the #619 freeze, which cost this project a batch');
+    ok(/detail: \(\) => deliveryDetail\(rec\),/.test(ch),
+      '★★★ L2 (#641): the detail is a FUNCTION, evaluated when the menu OPENS. attachMessageMenu captures its options at row-wire time and replays them on every long-press, and neither writer of the counts re-renders the row — so a frozen string let a bubble showing a double check say "0 of 3 delivered" in its own menu');
+    const mm = rdf('src/components/message-menu.js');
+    ok(/typeof detail === 'function'/.test(mm) && /catch \(e\) \{ return ''; \}/.test(mm),
+      '★★ L2 (#641): the component accepts either, and a throwing getter degrades to no line rather than taking the menu down with it');
+  }
+
+  /* —— ★★ THE BREAK-MY-VERDICT ROUND — two MAJORs found IN THE FIXES ————————— */
+  {
+    const hp = rdf('Spixi/Pages/Home/HomePage.xaml.cs');
+    ok(/private static bool groupHasDeliveryReceipt\(FriendMessage msg\)/.test(hp)
+       && /bool groupDelivered = isGroupRow && lastmsg\.localSender/.test(hp)
+       && /\(lastmsg\.confirmed \|\| groupHasDeliveryReceipt\(lastmsg\)\)/.test(hp),
+      '★★★ L2 (#641): the CHATS ROW derives "delivered at one member" too. The first fix for this only re-routed `read`, so at one confirmed member the bubble showed a DOUBLE check and the list beside it showed a SINGLE one — the same divergence, one field over. A derivation has to live wherever the answer is rendered');
+    ok(/if \(lastmsg\.errorSending\)/.test(hp) && /type = "failed";/.test(hp)
+       && /case 'failed': return 'failed';/.test(rdf('Spixi/Resources/Raw/html/index.html')),
+      '★★ L2 (#641): and the list has a FAILED leg at all — it had none, so a message the conversation shows in the red retry state rendered there as an ordinary tick');
+    const pmp = rdf('Spixi/Network/SpixiPendingMessageProcessor.cs');
+    ok(/gm\.reactions\.ContainsKey\("seen"\) && gm\.reactions\["seen"\]\.Count > 0/.test(pmp)
+       && /anyEvidence = true;/.test(pmp),
+      '★★★ L2 (#641): the group failure test reads `seen` AS WELL AS `received`, and fails SAFE. Those are two independent stream messages, so a member can READ a message whose delivery receipt was lost — testing delivery alone painted a permanent red FAILED on a message somebody had told us they read, while this row\'s own long-press detail said "1 read" underneath it');
+    ok(/cleared NOWHERE/.test(pmp),
+      '★ L2 (#641): and the reason it must fail safe is written down — Core never CLEARS errorSending, so a member who confirms tomorrow cannot undo it');
+    const sp = rdf('Spixi/Utils/SpixiContentPage.cs');
+    ok(/private const double SLIDE_OUT_MAX_SECONDS = 1;/.test(sp)
+       && /double age = \(Environment\.TickCount64 - started\) \/ 1000\.0;/.test(sp),
+      '★★★ L8: the back-swallow latch is TIME-BOUNDED. A counter alone is a latch: one TranslateTo that completes-never (handler torn down, app suspended mid-animation) and hardware back is dead for the rest of the session with no overlay on screen to explain it. This file learned that exact lesson once already, at lockPreloadPending');
+    ok(/op\.closing = false;/.test(sp),
+      '★ L8: a resurrected parked op is not closing any more — left set, its next slide-in would permanently skip its own translation reset');
+  }
+
+  /* —— L8 · back cannot fall through the animation ——————————————————————————— */
+  {
+    const sp = rdf('Spixi/Utils/SpixiContentPage.cs');
+    const hp = rdf('Spixi/Pages/Home/HomePage.xaml.cs');
+    ok(/private static int slideOutInFlight = 0;/.test(sp)
+       && /public static bool isOverlaySlidingOut\(\)/.test(sp)
+       && /Interlocked\.Increment\(ref slideOutInFlight\)/.test(sp)
+       && /finally\s*\r?\n\s*\{\s*\r?\n\s*System\.Threading\.Interlocked\.Decrement\(ref slideOutInFlight\);/.test(sp),
+      '★★★ L8: a slide-out in flight is COUNTED, and the counter is released in a finally. The op leaves overlayStack at t=0 but stays visible for 220 ms, and the first cut let a second back press in that window find an empty stack and fall through to base — BACKGROUNDING THE APP while the panel was still on screen');
+    const obb = hp.slice(hp.indexOf('protected override bool OnBackButtonPressed()'));
+    ok(obb.indexOf('SpixiContentPage.isOverlaySlidingOut()') > 0
+       && obb.indexOf('SpixiContentPage.isOverlaySlidingOut()') < obb.indexOf('if (homeShellOverlayOpen)')
+       && obb.indexOf('SpixiContentPage.isOverlaySlidingOut()') < obb.indexOf('return base.OnBackButtonPressed()'),
+      '★★★ L8: and hardware back reads it BEFORE the shell-takeover route and before base — the InputTransparent guard the old comment cited only blocks TOUCHES, and Android\'s back button never consults the visual tree');
+    ok(/public volatile bool closing = false;/.test(sp)
+       && /if \(!op\.closing\)\s*\r?\n\s*\{\s*\r?\n\s*try \{ stage\.TranslationX = 0; \}/.test(sp),
+      '★★ L8: the slide-IN\'s finally does not snap a CLOSING stage back. A back press inside the open window aborts the entry animation, and its completion would otherwise post TranslationX = 0 into the middle of the exit');
+    ok(/bool slideTop = overlays\.Count == 1;/.test(sp),
+      '★★ L8: popToRootAsync does not slide a top over a stack it is also tearing down — remove-contact and leave-group would have shown the panel gliding across a bare chats list while an alert fired over it');
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+ * DAMIR'S DEVICE ROUND — #650 · issues 1 and 2 · the wallet CTAs · Windows · files
+ * 30 pass / 0 fail, and four of the notes were one defect wearing three faces.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+{
+  const rdf = (pth) => readFileSync(join(root, pth), 'utf8');
+  const built = (name) => rdf('Spixi/Resources/Raw/html/' + name);
+
+  /* —— #650 · the single check is BACK, and true this time ——————————————————— */
+  {
+    const pmp = rdf('Spixi/Network/SpixiPendingMessageProcessor.cs');
+    ok(/markGroupCopySent\(msg\.id, channel\);/.test(pmp)
+       && /private static void markGroupCopySent\(byte\[\] msgId, int channel\)/.test(pmp),
+      '★★★ #650: onMessageSent lands the flag on the GROUP copy too. Core fans a group send out per MEMBER, so the plain call writes to a message list that does not hold the group message — which is why Damir saw a clock with every member offline while he was online');
+    ok(/private static void forEachGroupHolding\(byte\[\] msgId, int channel, Action<Friend, FriendMessage> act\)/.test(pmp)
+       && (pmp.match(/forEachGroupHolding\(msgId, channel/g) || []).length === 2,
+      '★★ #650: the group resolver has ONE home and both hooks use it — hand-off and expiry. Two copies of that walk is how they drift');
+    ok(/OfflinePushMessages/.test(pmp) || /push server has taken the message/.test(pmp),
+      '★★ #650: and the WHY is written down — onMessageSent is reached only after the offline push server ACCEPTS, so it is a fact about the past, not a guess about the future. That is what makes this check honest where the hand-off one was a lie');
+    const scp = rdf('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+    ok(!/markHandedOff/.test(scp),
+      '★★ #650 pair: and the INVENTED check stays gone — this row restores the tick from a real signal, it does not reinstate the optimistic one');
+  }
+
+  /* —— issue 1 · a receipt refreshes the counts, and finds its channel ———————— */
+  {
+    const sp = rdf('Spixi/Network/StreamProcessor.cs');
+    const at = sp.indexOf('case SpixiMessageCode.msgReceived:');
+    const body = sp.slice(at, at + 2400);
+    ok(at > 0 && /UIHelpers\.updateReactions\(friend, ch, fm\.id\);/.test(body),
+      '★★★ ISSUE 1 ②: a delivery receipt re-pushes the REACTION COUNTS, not just the flags. The detail line is built from addReactions, which was emitted on a full history load and nowhere else — Damir: "it shows 0 of XY delivered until I refresh the chat"');
+    ok(/private static int resolveMessageChannel\(Friend friend, byte\[\] msgId, int fallback\)/.test(sp)
+       && /ch = resolveMessageChannel\(friend, spixi_message\.data, channel\);/.test(body),
+      '★★★ ISSUE 1 ①: the message is found even when the receipt names a different channel. A bot room stores under botInfo.defaultChannel, so the straight lookup returned null and NOTHING was pushed — Damir: "in a bot room it is always clock until I refresh"');
+    ok(/return fallback;/.test(sp),
+      '★ ISSUE 1 ①: and a no-match returns the ORIGINAL channel, so the caller behaves exactly as before rather than acting on a guess');
+  }
+
+  /* —— issue 2 · the chats row reads the LIVE message ———————————————————————— */
+  {
+    const hp = rdf('Spixi/Pages/Home/HomePage.xaml.cs');
+    ok(/if \(lastmsg\.localSender\)\s*\r?\n\s*\{/.test(hp) && !/&& !lastmsg\.sent\s*\r?\n\s*&& !lastmsg\.confirmed\)/.test(hp),
+      '★★★ ISSUE 2: the self-heal is no longer gated on !sent && !confirmed — that gate skipped exactly the case that needs it, which is why Damir saw a double check in the chat and a clock in the row, twice, surviving a restart');
+    ok(/lastmsg = msg;/.test(hp) && /IS A SERIALIZED COPY/.test(hp),
+      '★★ ISSUE 2: and the reason is recorded — setLastMessage stores new FriendMessage(msg.getBytes()) and nothing refreshes it when a reaction lands, so the snapshot carries ZERO reactions and every derivation reading it answers false');
+  }
+
+  /* —— the wallet CTAs, and the file download count —————————————————————————— */
+  {
+    const ws = rdf('src/components/wallet-send.js');
+    const wr = rdf('src/components/wallet-receive.js');
+    const sendSize = (ws.match(/label: strings\.reviewSend \|\| 'Review', type: 'fill', size: (\d+)/) || [])[1];
+    const recvSize = (wr.match(/label: strings\.sendRequest \|\| 'Send request',\s*\r?\n\s*type: 'fill', size: (\d+)/) || [])[1];
+    ok(sendSize === '56' && recvSize === '56',
+      '★★ Damir on device: the two wallet money CTAs are the SAME control — Review was 56 and Send request was 44, and L1 put them one tap apart. Got send=' + sendSize + ' receive=' + recvSize);
+    ok(/c-wallet-send__actions c-money-cta/.test(ws) && /ctaWrap\.className = 'c-money-cta';/.test(wr),
+      '★★ and both ride ONE sticky rule. Two homes for a shared look is how these drifted in the first place');
+    ok(/\.c-money-cta \{[\s\S]{0,400}?position: sticky;/.test(rdf('src/styles/base.css')),
+      '★★ the rule lives in base.css — every shell links it, so neither takeover can own it and neither can drift from the other');
+    ok(!/askBox\.append\(cta\)/.test(wr),
+      '★ the receive CTA has its own wrapper — sticking the amount BOX would have pinned the input over the content instead of the action');
+    const ch = built('chat.html');
+    ok(/else if \(tok\.startsWith\('fileReceived'\)\) downloadedCount = count;/.test(ch)
+       && /if \(rec\.kind === 'file'\)/.test(ch),
+      '★★ Damir asked for the download count and Core already stores it — a fileReceived: reaction per member, in the same push this parser was already dropping. No protocol change');
+    ok(/downloadedBy/.test(rdf('src/strings/en-us.json')) && /downloadedBy/.test(rdf('src/strings/sl-si.json')),
+      '★ and the copy reaches a real locale, not just an inline English fallback');
+  }
+
+  /* —— Windows joins the mirror ——————————————————————————————————————————————— */
+  {
+    const spc = rdf('Spixi/Utils/SpixiContentPage.cs');
+    ok(/bool mirrorSlide = op\.slideIn;/.test(spc),
+      '★★ Damir closed the dial: the slide-out runs wherever the slide-IN does. Holding WinUI back bought no safety — slideStageIn has never been platform-gated, so Windows was already transforming that WebView on the way in; only the exit was missing');
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+ * DAMIR'S DEVICE ROUND 2 — the download push, and the blind-group file tile.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+{
+  const rdf = (pth) => readFileSync(join(root, pth), 'utf8');
+  const sp = rdf('Spixi/Network/StreamProcessor.cs');
+  const at = sp.indexOf('public static void handleFileFullyReceived');
+  const body = sp.slice(at, at + 1800);
+  ok(at > 0 && /UIHelpers\.updateReactions\(friend, ft\.channel, chat_message\.id\);/.test(body)
+     && body.indexOf('addReaction(sender, new ReactionMessage(chat_message.id, "fileReceived:")') < body.indexOf('UIHelpers.updateReactions'),
+    '★★★ Damir on device: a DOWNLOAD pushes to the UI. He named the diagnosis himself — "not live as for delivered read" — and that contrast is the whole thing: delivered/read arrive as msgReceived, which re-pushes its reactions; a download arrives as fileFullyReceived, which wrote the reaction and told the UI nothing');
+
+  const as = rdf('src/components/attach-sheet.js');
+  ok(/\{ id: 'file', glyph: 'file-isr', label: 'Send file', key: 'sendFile', flag: 'files' \}/.test(as)
+     && /files = true,/.test(as) && /const enabled = \{ media, apps, payments, files \};/.test(as),
+    "★★ the file tile is gateable, and `files` defaults TRUE — every existing caller keeps its tile without a change, so only a surface that must hide it says so");
+  const ch = rdf('Spixi/Resources/Raw/html/chat.html');
+  ok(/files: !mode\.isBot && !\(\(mode\.type === 1 \|\| mode\.type === 2\) && mode\.hidesAddresses\)/.test(ch),
+    "★★★ Damir: a BLIND group offers no Send file, and a NORMAL private group keeps it — legacy parity. This is C#'s own refusal mirrored (friend.bot || (Group && hideParticipantAddresses)), so the offer and the refusal cannot disagree");
+  const scp = rdf('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+  ok(/friend\.bot\s*\r?\n\s*\|\| \(friend\.type == FriendType\.Group && friend\.metaData\.botInfo\.hideParticipantAddresses\)/.test(scp),
+    '★★ PAIRED: the C# refusal the shell mirrors still exists. If it ever moves, this pin goes red rather than letting the two drift into a dead tile again');
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

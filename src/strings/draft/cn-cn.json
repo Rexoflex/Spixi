@@ -617,5 +617,8 @@
   "youAreOwner": "您是群主",
   "youInvited": "您已发送邀请",
   "youRequested": "您已请求",
-  "yourAddress": "您的地址"
+  "yourAddress": "您的地址",
+  "deliveredOf": "已送达 {n}/{m}",
+  "readBy": "已读 {n}",
+  "downloadedBy": "已下载 {n}"
 }

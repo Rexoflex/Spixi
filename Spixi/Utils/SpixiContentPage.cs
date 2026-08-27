@@ -190,9 +190,11 @@ namespace SPIXI
                  * (tokens.css --gradient-lock note). */
                 case "intro.html":
                     return "#1b163c";
+                // ★★ L1 (#640): wallet_request.html and wallet_send_2.html left this list
+                // with the pages that loaded them (WalletReceivePage / WalletSend2Page,
+                // both deleted). wallet_recipient.html STAYS — WalletRecipientPage is
+                // still pushed by AppDetailsPage and HomePage and is not a money screen.
                 case "wallet_recipient.html":
-                case "wallet_request.html":
-                case "wallet_send_2.html":
                 case "address.html":
                     return ThemeManager.getBackgroundColorString();
                 // wallet_sent.html left this list at #259 (B3 redesigned shell,
@@ -415,13 +417,12 @@ namespace SPIXI
         {
             switch (html_file_name)
             {
+                // ★★ L1 (#640): the three wallet_send*/wallet_request entries left this
+                // list with their pages. wallet_recipient.html STAYS.
                 case "address.html":
                 case "apps.html":
                 case "settings_lock.html":
                 case "wallet_recipient.html":
-                case "wallet_request.html":
-                case "wallet_send.html":
-                case "wallet_send_2.html":
                     return true;
                 default:
                     return false;
@@ -642,6 +643,7 @@ namespace SPIXI
              * present is an opacity flip today; Damir asked for the slide, and it is also
              * the thing most likely to mask the skeleton-to-content change on its own. */
             public bool slideIn = false;
+            public volatile bool closing = false;   // ★ L8: set at the top of closeOverlay
             // W7: the inset this stage was staged with (#245 rail strip for the Account
             // peer pane; zero for every other op). Remembered so a page opened FROM this
             // overlay can inherit the SAME geometry and cover its opener exactly —
@@ -1064,6 +1066,12 @@ namespace SPIXI
                     return false;
                 }
                 parkedOverlay = null;
+                /* ★ L8: a resurrected op is NOT closing any more. Left set, its next
+                 * slide-in would permanently skip the TranslationX reset in its `finally`.
+                 * Unreachable today (only the Account pane parks, and it never slides), but
+                 * this row's own selling point is that a future surface opting into the
+                 * slide gets the mirror for free — it must get the reset for free too. */
+                op.closing = false;
                 overlayStack.Add(op);
             }
             MainThread.BeginInvokeOnMainThread(() =>
@@ -1455,8 +1463,54 @@ namespace SPIXI
             catch (Exception e) { Logging.warn("broadcastHideCallBar: " + e); }
         }
 
-        // Hardware/host back: close the top overlay if one is open. Returns true when handled.
-        public static bool closeTopOverlay()
+        /* ═══ ★★ L8 — A SLIDE-OUT IN FLIGHT SWALLOWS BACK ═════════════════════════════
+         *
+         * ⚠ THIS EXISTS BECAUSE THE FIRST CUT OF L8 MADE HARDWARE BACK EXIT THE APP.
+         * `closeOverlay` removes the op from `overlayStack` synchronously, under the lock,
+         * at the top — deliberately, so back handling and the same-tag sweep see it as
+         * closed. Before L8 the stage went invisible on the next dispatcher turn, so that
+         * window was about one frame. With the slide it is 220 ms of VISIBLE animation, and
+         * a second back press in that window found an EMPTY stack, missed every shell route,
+         * and fell through to `base.OnBackButtonPressed()` — which backgrounds the app while
+         * the panel is still on screen.
+         *
+         * ⚠ The animation comment says the stage goes INPUT-DEAD first, and it does — but
+         * `InputTransparent` governs TOUCH hit-testing on a VisualElement. The Android
+         * hardware back button never consults the visual tree, so that guard does not travel
+         * to the press this row put on the animated path. A counter does.
+         *
+         * Read by HomePage.OnBackButtonPressed BEFORE it can reach `base`. */
+        private static int slideOutInFlight = 0;
+        private static long slideOutStartedAt = 0;
+        /* ⚠ THE BELT, and the break-my-verdict pass is why it is here. The counter alone is
+         * a LATCH: if `TranslateTo` ever completes-never — the handler torn down mid-flight,
+         * the animation ticker stopped because the app suspended inside the 220 ms — the
+         * `finally` never runs and hardware back is dead for the rest of the session, with
+         * no overlay on screen to explain it. This file already learned that lesson once:
+         * `lockPreloadPending` is time-bounded for exactly the same hazard (:689). One
+         * animation is 220 ms; a second is four hundred times too long to be real. */
+        private const double SLIDE_OUT_MAX_SECONDS = 1;
+
+        public static bool isOverlaySlidingOut()
+        {
+            if (System.Threading.Volatile.Read(ref slideOutInFlight) <= 0)
+            {
+                return false;
+            }
+            long started = System.Threading.Interlocked.Read(ref slideOutStartedAt);
+            if (started <= 0)
+            {
+                return false;
+            }
+            double age = (Environment.TickCount64 - started) / 1000.0;
+            return age >= 0 && age <= SLIDE_OUT_MAX_SECONDS;
+        }
+
+        /* Hardware/host back: close the top overlay if one is open. Returns true when handled.
+         * ★★ L8 (#630 mirror): `slideOut` is passed by the HARDWARE BACK caller only. The
+         * other caller resurfaces a buried Account pane by closing the overlays above it —
+         * that is housekeeping, not a back gesture, and it must stay instant. */
+        public static bool closeTopOverlay(bool slideOut = false)
         {
             PreloadOp? top;
             lock (preloadLock)
@@ -1467,7 +1521,7 @@ namespace SPIXI
             {
                 return false;
             }
-            closeOverlay(top);
+            closeOverlay(top, slideOut);
             return true;
         }
 
@@ -1484,6 +1538,10 @@ namespace SPIXI
                 {
                     return;
                 }
+                // ★ L8: a back press within 220 ms of OPENING aborts the slide-in, whose
+                // `finally` would then post TranslationX = 0 into the middle of the
+                // slide-out and snap the panel back for a frame. The flag suppresses it.
+                op.closing = true;
                 host = overlayHost;
                 // #46 r2 MINOR-1: only a BOOTED shell is worth keeping warm — a page
                 // that presented via the 4s timeout with its WebView wedged
@@ -1544,6 +1602,14 @@ namespace SPIXI
                         {
                             op.stage.Opacity = 0;
                             op.stage.InputTransparent = true;
+                            /* ★★ L8 — THE PARKED BRANCH MUST RESET THE TRANSLATION TOO, and a
+                             * smoke pin caught that my own fix had broken this. A parked op
+                             * REUSES its stage on the next present, so a stuck translation
+                             * comes back displaced. The slide-IN's `finally` used to be the
+                             * only reset; it now skips a CLOSING stage (so it cannot snap one
+                             * back mid-exit), which moved the guarantee onto the exit paths.
+                             * The dispose branch below already resets. This is the other one. */
+                            op.stage.TranslationX = 0;
                         }
                     }
                     else
@@ -1563,16 +1629,77 @@ namespace SPIXI
                         // page mid-teardown; (2) COLUMN-PINNED stages (wide/iPad split,
                         // op.column >= 0) never slide — phone pop-grammar across a split
                         // layout dragged the pane over its neighbour (audit MINOR).
-                        if (slideOut && op.column < 0
-                            && Microsoft.Maui.Devices.DeviceInfo.Platform == Microsoft.Maui.Devices.DevicePlatform.iOS)
+                        /* ═══ ★★ L8 (#641 batch) — THE SLIDE-OUT IS THE MIRROR OF THE SLIDE-IN ═══
+                         *
+                         * Damir, 2026-08-29: *"I like the slide in effect it's great makes it
+                         * smoother, we just need a slide out, when closing the chat info on
+                         * Android."*
+                         *
+                         * The rule is now: AN OP THAT SLID IN, SLIDES OUT — on every platform,
+                         * `op.slideIn` being the same per-op flag `presentPreload` read. Chat
+                         * info is the only caller that sets it today (#630), so nothing else
+                         * changes behaviour, and a future surface that opts into the slide-in
+                         * gets its mirror for free instead of needing a second decision.
+                         * iOS keeps #326 as well: EVERY back-initiated close slides there,
+                         * which is the native pop look and is not tied to the slide-in.
+                         *
+                         * ⚠ The overlay already left `overlayStack` at the TOP of this method,
+                         * under the lock — so back handling, the same-tag sweep and
+                         * closeTopOverlay all see it as closed for the whole 250 ms. That is
+                         * the same rule that made the slide-IN fire-and-forget.
+                         * ⚠ COLUMN-PINNED stages (wide/iPad split, op.column >= 0) never
+                         * slide — phone pop-grammar across a split layout drags the pane over
+                         * its neighbour (#328 audit MINOR).
+                         * ⚠ The stage goes INPUT-DEAD before the first animation frame, so a
+                         * second back-press during the slide cannot fall through onto the
+                         * native stack (#272 pop-the-top class). */
+                        bool isIos = Microsoft.Maui.Devices.DeviceInfo.Platform == Microsoft.Maui.Devices.DevicePlatform.iOS;
+                        /* ⚠ TWO CORRECTIONS THE AUDIT FORCED, both about the word "mirror".
+                         * ① NO COLUMN GUARD ON THE MIRROR. `slideStageIn` has never had one,
+                         *    and chat info is pushed with column 1 AND slideIn true — so on a
+                         *    wide window the panel slid IN and flipped OUT, which is exactly
+                         *    the entry/exit drift this row exists to remove. #328's column
+                         *    guard stays on the #326 path, where it was written.
+                         * ② WINUI IS IN — Damir closed the dial, 2026-08-29. The earlier cut
+                         *    held it back on the #229b WebView2 repaint hazard, but the
+                         *    review pointed out that argument was already breached by the
+                         *    entry half: `slideStageIn` has NEVER been platform-gated, so
+                         *    Windows was already transforming that WebView on the way in.
+                         *    Holding only the exit back bought no safety and guaranteed the
+                         *    asymmetry this row exists to remove. */
+                        bool mirrorSlide = op.slideIn;
+                        bool legacyIosSlide = isIos && !op.slideIn && op.column < 0;
+                        if (slideOut && (mirrorSlide || legacyIosSlide))
                         {
+                            System.Threading.Interlocked.Exchange(ref slideOutStartedAt, Environment.TickCount64);
+                            System.Threading.Interlocked.Increment(ref slideOutInFlight);
                             try
                             {
                                 op.stage.InputTransparent = true;
-                                double w = op.stage.Width > 0 ? op.stage.Width : 500;
-                                await op.stage.TranslateTo(w, 0, 250, Easing.CubicOut);
+                                double w = op.stage.Width > 0
+                                    ? op.stage.Width
+                                    : (op.host.Width > 0 ? op.host.Width : 500);
+                                /* ⚠ TWO timings, deliberately, and this is not drift.
+                                 * A slide-IN op gets the EXACT MIRROR of `slideStageIn`
+                                 * (220 ms, and CubicIn because the mirror of a decelerating
+                                 * entry is an accelerating exit). Everything else on iOS keeps
+                                 * #326 BYTE-FOR-BYTE (250 ms CubicOut) — that was Damir's own
+                                 * pick for the native pop look, it ships today, and this row
+                                 * has no mandate to re-time it. */
+                                if (op.slideIn)
+                                {
+                                    await op.stage.TranslateTo(w, 0, 220, Easing.CubicIn);
+                                }
+                                else
+                                {
+                                    await op.stage.TranslateTo(w, 0, 250, Easing.CubicOut);
+                                }
                             }
                             catch { }
+                            finally
+                            {
+                                System.Threading.Interlocked.Decrement(ref slideOutInFlight);
+                            }
                         }
                         // #229b (Damir F5: chat-info → conversation flashed): HIDE first —
                         // an Opacity flip is the #225-proven no-repaint operation — let the
@@ -2519,7 +2646,7 @@ namespace SPIXI
                             // sweep and closeTopOverlay all read that stack. Waiting 220 ms
                             // for an animation before registering would leave the overlay
                             // invisible to every one of them while it was on screen.
-                            _ = slideStageIn(op.stage);
+                            _ = slideStageIn(op);
                         }
                         else
                         {
@@ -2688,8 +2815,9 @@ namespace SPIXI
         /// reused (the parked overlay) can never come back displaced — a failed or
         /// interrupted animation must not leave a screen half off the edge.
         /// </summary>
-        private static async Task slideStageIn(View stage)
+        private static async Task slideStageIn(PreloadOp op)
         {
+            var stage = op.stage;
             try
             {
                 await stage.TranslateTo(0, 0, 220, Easing.CubicOut);
@@ -2700,7 +2828,15 @@ namespace SPIXI
             }
             finally
             {
-                try { stage.TranslationX = 0; } catch (Exception) { }
+                /* ★ L8: do NOT reset a stage that is already sliding OUT. A back press
+                 * inside the 220 ms open window aborts this animation, and MAUI completes
+                 * the aborted task — so this `finally` would post TranslationX = 0 into the
+                 * middle of the exit and snap the panel fully back for one frame. The exit
+                 * path resets the translation itself once the teardown completes. */
+                if (!op.closing)
+                {
+                    try { stage.TranslationX = 0; } catch (Exception) { }
+                }
             }
         }
 
@@ -3248,11 +3384,15 @@ namespace SPIXI
             }
             if (overlays.Find(o => o.target == this) != null)
             {
+                /* ★ L8: only the topmost slides — AND only when it is the ONLY one.
+                 * With a conversation underneath, sliding the top for 220 ms while the layer
+                 * beneath is torn down at t=0 shows the panel gliding across a bare chats
+                 * list. Reachable from remove-contact and leave-group, both of which also
+                 * raise an alert over the animation. Instant is honest there. */
+                bool slideTop = overlays.Count == 1;
                 for (int i = overlays.Count - 1; i >= 0; i--)
                 {
-                    // #326: only the TOPMOST stage slides (the visible one); anything
-                    // stacked beneath closes instantly under it.
-                    closeOverlay(overlays[i], i == overlays.Count - 1);
+                    closeOverlay(overlays[i], slideTop && i == overlays.Count - 1);
                 }
                 return;
             }

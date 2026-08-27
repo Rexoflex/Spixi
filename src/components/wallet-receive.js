@@ -204,16 +204,25 @@ export function createWalletReceive({
        stays visible at the moment of commitment) and the count (a stray tick is
        visible too). "(3)" keeps it one short line in every locale; the full
        sentence lives in aria-label. */
+    /* ★ Damir on device: the Send and Receive takeovers are one tap apart since L1, and
+       their CTAs did not match. `size: 56` is wallet-send's Review — the two primary money
+       actions in the wallet are now the same control. */
     cta = createButton({
       label: strings.sendRequest || 'Send request',
-      type: 'fill', size: 44, width: 'full',
+      type: 'fill', size: 56, width: 'full',
       disabled: true,
       onClick: () => sendRequests(),
     });
     cta.classList.add('c-wallet-receive__cta');
     ctaLabel = cta.querySelector('.c-button__label');
-    askBox.append(cta);
     el.append(askBox);                                     // #527: always visible — no reveal box
+    /* ★ the CTA gets its OWN wrapper rather than riding inside the amount box — the box
+       holds the label and the field, and sticking those to the bottom would pin the input
+       over the content instead of the action. Same wrapper Send uses, same shared rule. */
+    const ctaWrap = document.createElement('div');
+    ctaWrap.className = 'c-money-cta';
+    ctaWrap.append(cta);
+    el.append(ctaWrap);
   }
 
   /* W9: the CTA is the whole gate now. Applied IN PLACE (no re-render) so a

@@ -493,3 +493,26 @@ html:root .c-app-item[data-pressfade] .c-app-item__open[aria-current]::before {
     transition: none;
   }
 }
+
+/* ★★ THE WALLET MONEY CTA — ONE rule, because two homes is how these drifted.
+   Damir on device: Send's "Review" and Receive's "Send request" are one tap apart
+   since L1 and did not match — 56 against 44, and neither stuck. Both takeovers
+   scroll, and on a phone with the keyboard up a CTA that scrolls away is the one
+   control people hunt for. Lives here rather than in either component stylesheet
+   because both surfaces must be able to link it and neither owns the other. */
+.c-money-cta {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  /* ⚠ NO negative margins. The two takeovers pad differently — the wallet body carries
+     the 16px inset and zeroes the component root, contact-details pads the root — so a
+     bleed offset that is right on one is doubled on the other. The bar sits inside the
+     content column; that is the same on every host. */
+  margin-block-start: var(--spacing-8);
+  padding-block: var(--spacing-12);
+  padding-block-end: calc(var(--spacing-12) + env(safe-area-inset-bottom, 0px));
+  background: var(--surface-screen);
+  border-block-start: var(--outline-width-1) solid var(--outline-neutral-01);
+}

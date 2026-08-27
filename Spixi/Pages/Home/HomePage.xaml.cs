@@ -526,7 +526,7 @@ namespace SPIXI
             else if (current_url.Equals("ixian:sendScan", StringComparison.Ordinal))
             {
                 // #523: scan FROM the send compose — the result must land back in the
-                // compose (quickScanResult), never in the legacy WalletSendPage route.
+                // compose (quickScanResult), never in the legacy send-page route (deleted, ★★ L1 #640).
                 quickScanForSend();
             }
             // ★ Batch A (#539–#541): the chats-list DESTRUCTIVE verbs, address-scoped.
@@ -663,25 +663,18 @@ namespace SPIXI
                 closeContactDetailsOverlays();   // loop B-MINOR-1 (symmetry)
                 pushPageLoaded(new AppNewPage(), 4000, "formpane", rightContent.IsVisible ? 1 : -1);   // load-then-move (N3, round 2)
             }
-            else if (current_url.Equals("ixian:sendixi", StringComparison.Ordinal))
-            {
-                onSendIxi(null);
-            }
-            else if (current_url.Equals("ixian:receiveixi", StringComparison.Ordinal))
-            {
-                onReceiveIxi(null);
-            }
             else if (current_url.StartsWith("ixian:sendrequest:", StringComparison.Ordinal))
             {
                 // Q2-⑥ (#268, W8 LANDED): the Receive takeover's "request from a
-                // contact" strip. Lifted from WalletReceivePage:93-155 (parse +
-                // validate) + onRequest:185-196 — the sanctioned "same page, new
+                // contact" strip. Lifted from the legacy receive page (parse +
+                // validate + onRequest; WalletReceivePage, deleted with ★★ L1 #640) —
+                // the sanctioned "same page, new
                 // host" pattern, minus its popPageAsync (this page must NOT pop).
                 // ★ A REQUEST is a chat message (requestFunds), not a payment —
                 // nothing is signed here (SECURITY.md).
                 //
                 // DELIBERATE DEVIATION from the verbatim lift (#268 audit, FIX 4):
-                // legacy used Contains(). That was safe only on WalletReceivePage,
+                // legacy used Contains(). That was safe only on the legacy receive page,
                 // which carries no other data-carrying verbs. On HomePage this
                 // branch sits AHEAD of ixian:chat:/details:/chatinfo:/txdetails:/
                 // startApp:/appDetails:/uninstall:/acceptRequest: …, so a Contains()
@@ -1098,31 +1091,16 @@ namespace SPIXI
             e.Cancel = true;
         }
 
-        public void onSendIxi(Address? wallet)
-        {
-            if (wallet == null)
-            {
-                Navigation.PushAsync(new WalletSendPage(), Config.defaultXamarinAnimations);
-                return;
-            }
-            Navigation.PushAsync(new WalletSendPage(new ExtendedAddress(wallet, AddressPaymentFlag.OfflineTag, null)), Config.defaultXamarinAnimations);
-        }
-
-        public void onReceiveIxi(Friend? friend)
-        {
-            if (friend == null)
-            {
-                Navigation.PushAsync(new WalletReceivePage(), Config.defaultXamarinAnimations);
-                return;
-            }
-
-            Navigation.PushAsync(new WalletReceivePage(friend), Config.defaultXamarinAnimations);
-        }
+        /* ★★ L1 (#640): `onSendIxi` and `onReceiveIxi` are DELETED with WalletSendPage
+         * and WalletReceivePage, together with the two legacy wallet verbs that reached
+         * them. The wallet composes in-shell (W5/#523) and the
+         * Receive takeover owns the address surface (#527/#589). */
 
         // Q2-⑥ (#268, W8 LANDED): `ixian:sendrequest:` on the home shell — the
         // Receive takeover's "request from a contact" strip. Parse + validate +
-        // dispatch lifted VERBATIM from WalletReceivePage.onNavigating:93-155 and
-        // onRequest:185-196; the ONLY deltas are (a) no popPageAsync (HomePage
+        // dispatch lifted VERBATIM from the legacy receive page's onNavigating and
+        // onRequest (WalletReceivePage, deleted with ★★ L1 #640); the ONLY deltas are
+        // (a) no popPageAsync (HomePage
         // stays), (b) no e.Cancel plumbing (the caller cancels unconditionally).
         // ★ SECURITY.md: requestFunds is a CHAT MESSAGE (an ask) — nothing is
         // signed or broadcast here; the payer later reviews in the native flow.
@@ -1177,7 +1155,7 @@ namespace SPIXI
 
                     // #268 audit FIX 1/2/3 — RECIPIENT GUARD. A deliberate,
                     // documented DEVIATION from the verbatim lift: legacy
-                    // WalletReceivePage.onRequest:185-196 guarded only
+                    // the legacy receive page's onRequest guarded only
                     // `friend != null && amount > 0` and silently did nothing
                     // otherwise (its own `// else error?` at :196 flags the hole).
                     //
@@ -1453,7 +1431,7 @@ namespace SPIXI
             {
                 // ★ #523/#524: a payment QR now lands in the SHELL compose — the shell
                 // opens it and setSendAddress parses the payload. The legacy
-                // WalletSendPage route is retired with the other native money pages
+                // legacy send-page route is retired with the other native money pages
                 // at the §5 repoint; this exe always ships the compose-capable shell.
                 try
                 {
@@ -1752,9 +1730,9 @@ namespace SPIXI
 
             Utils.sendUiCommand(this, "setHideBalance", hideBalance.ToString());
 
-            // ★ W5 (#523): declare the money-compose capability for this build. The
-            // shell's Send button then opens the compose instead of ixian:sendixi.
-            // An old exe pushes nothing → the shell keeps the legacy native flow.
+            // ★ W5 (#523): declare the money-compose capability for this build.
+            // ★★ L1 (#640): there is no legacy flow behind this gate any more — the
+            // shell's Send button opens the compose, or it does nothing.
             Utils.sendUiCommand(this, "setCaps", "composeSend");
 
             // ★ D-20 (#357): the "Connecting…" state died with the document. warningDisplayed
@@ -1794,15 +1772,9 @@ namespace SPIXI
         }
 
 
-        public void onSend(object sender, EventArgs e)
-        {
-            Navigation.PushAsync(new WalletSendPage(), Config.defaultXamarinAnimations);
-        }
-
-        public void onReceive(object sender, EventArgs e)
-        {
-            Navigation.PushAsync(new WalletReceivePage(), Config.defaultXamarinAnimations);
-        }
+        /* ★★ L1 (#640): the `onSend` / `onReceive` XAML handlers are DELETED. Nothing in
+         * HomePage.xaml bound them — they were the pre-redesign toolbar's clicks — and
+         * the pages they pushed no longer exist. */
 
         public void onSettings(object sender, EventArgs e)
         {
@@ -2112,18 +2084,36 @@ namespace SPIXI
             if (friend.online)
                 str_online = "true";
 
-            if (lastmsg.localSender
-                && !lastmsg.sent
-                && !lastmsg.confirmed)
+            /* ★★★ ISSUE 2 (Damir on device, twice): "in chat it's a double check, in the
+             * chats row it's still a clock — on restart still the same."
+             *
+             * ⚠ `friend.metaData.lastMessage` IS A SERIALIZED COPY — `Friend.setLastMessage`
+             * does `new FriendMessage(msg.getBytes())` — and NOTHING refreshes it when a
+             * reaction lands: `addReaction` never calls it. So the snapshot carries ZERO
+             * reactions, `groupHasDeliveryReceipt` reads it and always answers false, and
+             * the row falls through to the stale flags. It survives a restart because the
+             * snapshot is what was persisted.
+             *
+             * The self-heal below already existed and already re-fetches the LIVE message —
+             * it was simply gated on `!sent && !confirmed`, which skips exactly the case
+             * that needs it. A localSender message now always resolves against the live
+             * list before anything is derived from it. One `Find` on a list already in
+             * memory, on a path that already re-runs every second. */
+            if (lastmsg.localSender)
             {
                 var msgs = friend.getMessages(friend.metaData.lastMessageChannel);
                 var msg = friend.getMessage(friend.metaData.lastMessageChannel, lastmsg.id);
                 if (msg != null)
                 {
-                    if (msg.sent != lastmsg.sent
-                        || msg.confirmed)
+                    /* ★ ALWAYS take the live instance — it is the one that carries the
+                     * reactions. The metaData copy is only re-persisted when a stored FLAG
+                     * actually moved, so this does not add a write per tick. */
+                    lastmsg = msg;
+                    if (msg.sent != friend.metaData.lastMessage.sent
+                        || msg.confirmed != friend.metaData.lastMessage.confirmed
+                        || msg.read != friend.metaData.lastMessage.read
+                        || msg.errorSending != friend.metaData.lastMessage.errorSending)
                     {
-                        lastmsg = msg;
                         friend.metaData.setLastMessage(msg, friend.metaData.lastMessageChannel);
                         friend.saveMetaData();
                     }
@@ -2255,11 +2245,37 @@ namespace SPIXI
             }
             else if (lastmsg.localSender && lastmsg.type != FriendMessageType.voiceCallEnd)
             {
-                if (lastmsg.read)
+                /* ★★ L2 (#641) — THE CHATS ROW OBEYS THE SAME GROUP RULE AS THE BUBBLE.
+                 *
+                 * The first cut of this row forced `read = false` for a group at the CHAT
+                 * push and left this derivation alone, so the same message could show a grey
+                 * double check in the conversation and a GREEN one in the list beside it —
+                 * on a tablet, both on screen at once. Core's `Friend.addReaction` does set
+                 * the stored `read` when every member reports `seen:`, and `UIHelpers`
+                 * refreshes both surfaces from the same event.
+                 * ⚠ "Count the surfaces, not the fix" — the rule this row was written under,
+                 * broken by the row itself. Groups only; a bot room is FriendType.Normal
+                 * with `bot` true and never reports reads anyway. */
+                bool isGroupRow = friend.type == FriendType.Group;
+                /* ⚠ THE FIRST FIX FOR THIS ROW PATCHED ONLY HALF OF IT, and the
+                 * break-my-verdict pass caught the other half. Re-routing `read` stopped the
+                 * GREEN tick, but the chats row still read the STORED `confirmed`, which
+                 * Core only sets at the full member count — so at one confirmed member the
+                 * bubble showed a double check and the list beside it showed a single one.
+                 * The derivation has to live wherever the answer is rendered, which is the
+                 * whole point of "count the surfaces". */
+                bool groupDelivered = isGroupRow && lastmsg.localSender
+                    && (lastmsg.confirmed || groupHasDeliveryReceipt(lastmsg));
+                if (lastmsg.errorSending)
+                {
+                    type = "failed";
+                }
+                else if (lastmsg.read && !isGroupRow)
                 {
                     type = "read";
                 }
-                else if (lastmsg.confirmed)
+                else if (lastmsg.confirmed || groupDelivered
+                         || (isGroupRow && lastmsg.read))
                 {
                     type = "confirmed";
                 }
@@ -2278,6 +2294,32 @@ namespace SPIXI
             // additive `setChatMuted` push instead.
             FriendMessageHelper helper_msg = new(friend.walletAddress.ToString(), friend.nickname, lastmsg.timestamp, avatar, str_online, excerpt, type, friend.metaData.unreadMessageCount);
             return helper_msg;
+        }
+
+        /* ★★ L2 (#641): the chats row's half of the group derivation — "delivered at ONE
+         * confirmed member", read from the per-member reactions Core stores instead of the
+         * stored flag it only sets at the full count. Read-only, innermost lock, fail-soft.
+         * ⚠ CLASS LEVEL. The first cut of this landed INSIDE getFriendMessageHelper — a
+         * nested method declaration the C# compiler rejects. cs-syntax-check parsed it
+         * happily, which is #593 in one line: that gate PARSES, it does not COMPILE. */
+        private static bool groupHasDeliveryReceipt(FriendMessage msg)
+        {
+            if (msg == null)
+            {
+                return false;
+            }
+            try
+            {
+                lock (msg.reactions)
+                {
+                    return (msg.reactions.ContainsKey("received") && msg.reactions["received"].Count > 0)
+                        || (msg.reactions.ContainsKey("seen") && msg.reactions["seen"].Count > 0);
+                }
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
 
         public void updateChat(Friend friend)
@@ -3531,7 +3573,21 @@ namespace SPIXI
             // (back-from-details must land on the directory). With the old order the
             // first back inside the details page invisibly closed the directory
             // underneath and the visible page ignored the press.
-            if (SpixiContentPage.closeTopOverlay())
+            // ★★ L8: hardware back is a BACK gesture, so it slides the top overlay out
+            // when that overlay slid in (chat info). Before this, only the shell's own
+            // Back button reached the animated path and Android back flipped instantly.
+            if (SpixiContentPage.closeTopOverlay(true))
+            {
+                return true;
+            }
+            /* ★★ L8 — SWALLOW BACK WHILE A SLIDE-OUT IS STILL ON SCREEN.
+             * The op leaves overlayStack at the START of its close, so a second press inside
+             * the 220 ms animation finds nothing above and would fall through to `base` —
+             * which BACKGROUNDS THE APP while the panel is visibly still there. The
+             * InputTransparent guard on the stage cannot help: Android's back button never
+             * consults the visual tree. This must sit BEFORE the shell-takeover route as
+             * well, or the press would instead close a takeover the user cannot see. */
+            if (SpixiContentPage.isOverlaySlidingOut())
             {
                 return true;
             }

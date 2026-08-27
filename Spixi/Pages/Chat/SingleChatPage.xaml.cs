@@ -148,17 +148,9 @@ namespace SPIXI
                 // of popping the conversation. Display-state only, no payload.
                 shellOverlayOpen = current_url.EndsWith(":1", StringComparison.Ordinal);
             }
-            else if (current_url.Equals("ixian:request", StringComparison.Ordinal))
-            {
-                onRequestIxi();
-            }
             else if (current_url.Equals("ixian:details", StringComparison.Ordinal))
             {
                 onContactDetails();
-            }
-            else if (current_url.Equals("ixian:send", StringComparison.Ordinal))
-            {
-                onSendIxi();
             }
             // ★ W5/W6 (#523) — money-compose verbs. StartsWith + trailing colon,
             // placed with the other money verbs; SPayments owns confirm/auth/sign.
@@ -180,7 +172,10 @@ namespace SPIXI
             }
             else if (current_url.StartsWith("ixian:sendrequest:", StringComparison.Ordinal))
             {
-                onSendRequestFromChat(current_url.Substring("ixian:sendrequest:".Length));
+                // ★★ L1 (#640): the body moved to SPayments.handleSendRequest — contact
+                // details grew the same Request action, and one money guard must not
+                // have two homes (the V-8 pattern). Behaviour is unchanged.
+                SPayments.handleSendRequest(this, friend, current_url.Substring("ixian:sendrequest:".Length));
             }
             else if (current_url.Equals("ixian:accept", StringComparison.Ordinal))
             {
@@ -469,43 +464,15 @@ namespace SPIXI
                 navKey: "chatinfo:" + friend.walletAddress, revealDelayMs: 0, slideIn: true);   // ★★ item 6
         }
 
-        private void onSendIxi()
-        {
-            if (friend.bot
-                || friend.type == FriendType.Group)
-            {
-                Logging.error("Send IXI is not supported in this chat.");
-                return;
-            }
-            if (homePage != null)
-            {
-                homePage.onSendIxi(friend.walletAddress);
-                return;
-            }
-
-            hostNav.PushAsync(new WalletSendPage(new ExtendedAddress(friend.walletAddress, AddressPaymentFlag.OfflineTag, null)), Config.defaultXamarinAnimations);   // #225: root nav (this page may be an overlay)
-        }
-
-        private void onRequestIxi()
-        {
-            if (friend.bot
-                || friend.type == FriendType.Group)
-            {
-                Logging.error("Request IXI is not supported in this chat.");
-                return;
-            }
-            if (homePage != null)
-            {
-                homePage.onReceiveIxi(friend);
-                return;
-            }
-
-            hostNav.PushAsync(new WalletReceivePage(friend), Config.defaultXamarinAnimations);   // #225: root nav
-        }
+        /* ★★ L1 (#640): `onSendIxi` and `onRequestIxi` are DELETED with WalletSendPage
+         * and WalletReceivePage. They were the shell's old-exe legs for Pay and Request;
+         * this build declares composeSend + composeRequest unconditionally (:909), so the
+         * shell has taken the compose path since #523 and these were never reached.
+         * Damir: "Nothing legacy was supposed to exist in this app anymore." */
 
         // ★ W5 (#523): pay an incoming payment request IN PLACE. This page resolves
         // the message; SPayments owns the guards, the NATIVE confirm (+ auth), the
-        // sign and every result push. 1:1 only — same fence as onSendIxi.
+        // sign and every result push. 1:1 only — the same fence every money verb keeps.
         /* ★★ DECLINE ON THE CARD (Damir decision 3, 2026-08-29). The twin of onPayRequest
          * and deliberately the same shape: the same lookup, the same guards, the same
          * answer channel. It SENDS A MESSAGE and spends nothing. */
@@ -547,70 +514,6 @@ namespace SPIXI
             SPayments.handlePayRequest(this, friend, msg, msg_id);
         }
 
-        // ★ #528: create a payment request from the chat — the W8 grammar
-        // (`ixian:sendrequest:<addr>:<amount>`), PEER-SCOPED: the address must be
-        // this conversation's peer. A request is a chat message; nothing is signed.
-        // Guards mirror HomePage.onSendRequest (approved + Normal + !bot, fail closed).
-        private void onSendRequestFromChat(string payload)
-        {
-            try
-            {
-                int sep = payload.IndexOf(':');
-                if (sep <= 0)
-                {
-                    return;
-                }
-                string addr = payload.Substring(0, sep);
-                string amountStr = payload.Substring(sep + 1);
-                // ★ Loop fix (#268 FIX-3 rule): every rejection is SURFACED — the sheet
-                // already morphed "Requested", so a silent no-op is the ⑪ delivery lie.
-                if (friend == null || friend.bot || friend.type != FriendType.Normal
-                    || !friend.approved || friend.state != FriendState.Approved)
-                {
-                    Logging.warn("sendrequest rejected: peer not an approved contact");
-                    displaySpixiAlert(SpixiLocalization._SL("global-invalid-address-title"), SpixiLocalization._SL("global-invalid-address-text"), SpixiLocalization._SL("global-dialog-ok"));
-                    return;
-                }
-                if (!friend.walletAddress.ToString().Equals(addr, StringComparison.Ordinal))
-                {
-                    Logging.warn("sendrequest rejected: address is not the open peer");
-                    displaySpixiAlert(SpixiLocalization._SL("global-invalid-address-title"), SpixiLocalization._SL("global-invalid-address-text"), SpixiLocalization._SL("global-dialog-ok"));
-                    return;
-                }
-                // ★ Loop fix: the HomePage.onSendRequest amount normalization, verbatim —
-                // a second dot is REJECTED (IxiNumber silently truncates "1.2.3" to 1.2
-                // while the stored message text would keep the full string).
-                string[] amount_split = amountStr.Split(new string[] { "." }, StringSplitOptions.None);
-                if (amount_split.Length > 2)
-                {
-                    displaySpixiAlert(SpixiLocalization._SL("wallet-error-amount-title"), SpixiLocalization._SL("wallet-error-amountdecimal-text"), SpixiLocalization._SL("global-dialog-ok"));
-                    return;
-                }
-                if (amount_split.Length == 1)
-                {
-                    amountStr = String.Format("{0}.0", amountStr);
-                }
-                IxiNumber _amount;
-                try { _amount = new IxiNumber(amountStr); } catch (Exception) { _amount = 0; }
-                if (_amount == 0 || _amount < (long)0)
-                {
-                    displaySpixiAlert(SpixiLocalization._SL("wallet-error-amount-title"), SpixiLocalization._SL("wallet-error-amount-text"), SpixiLocalization._SL("global-dialog-ok"));
-                    return;
-                }
-                // the exact HomePage.onSendRequest send pair (:1193-1195)
-                FriendMessage? friend_message = Node.addMessageWithType(null, FriendMessageType.requestFunds, friend.walletAddress, 0, amountStr, true);
-                if (friend_message == null)
-                {
-                    displaySpixiAlert(SpixiLocalization._SL("global-invalid-address-title"), SpixiLocalization._SL("global-invalid-address-text"), SpixiLocalization._SL("global-dialog-ok"));
-                    return;
-                }
-                StreamProcessor.transactionRequest(friend_message.id, friend, _amount, null, null);
-            }
-            catch (Exception ex)
-            {
-                Logging.error("onSendRequestFromChat failed: " + ex.Message);
-            }
-        }
 
         private void populateChannelSelector()
         {
@@ -1144,6 +1047,36 @@ namespace SPIXI
             CoreStreamProcessor.sendChatMessage(friend, friend_message, selectedChannel);
         }
 
+        /* ═══ ★★ L2 (#649) — THERE IS NO SINGLE CHECK, AND THAT IS THE HONEST ANSWER ═══
+         *
+         * Damir, 2026-08-29, ruling against his own earlier pick: *"it's a lie, if it hasn't
+         * left the device then it's a clock, we agreed on this."*
+         *
+         * An earlier cut set `sent` at the HAND-OFF — the moment the message entered the
+         * send queue — and called it optimistic. It is not optimistic, it is false: the
+         * message is still on this device, which is precisely what the clock means. His ⑪
+         * rule settles it — a control that reports an outcome it did not cause is a delivery
+         * lie, and the lie was worse than the missing state.
+         *
+         * ★★ AND THERE IS NO TRUTHFUL TRIGGER TO USE INSTEAD. Verified at source, not
+         * assumed: `PendingMessageProcessor` exposes exactly TWO overridable hooks
+         * (`onMessageSent`, `onMessageExpired`) and `onMessageSent` is reached ONLY from the
+         * offline push-server branch; the DIRECT relay sets a local `sent` bool that never
+         * leaves the method. `CoreStreamProcessor` has ZERO virtual members.
+         * `StreamClientManager` is a static class with no event. With Core frozen at
+         * 097341a there is nothing for our code to listen to.
+         *
+         * ⚠ SO THE BUBBLE GOES CLOCK → DOUBLE CHECK, and skips the single check — which is
+         * what it did before this batch, in every room type. **The reported defect is still
+         * fixed**: the clock used to sit there for ever because Core only advances at the
+         * FULL member count, and `deliveryTicks` now advances it at ONE. That is the
+         * complaint, and it is closed. The single check is a separate, currently
+         * unreachable state.
+         *
+         * → CORE-3 in the cutover brief: have `onMessageSent` fire on the direct-relay path
+         *   too, and in a group resolve the GROUP's Friend rather than the member's (the
+         *   fan-out sends per member, so today it would write to the wrong message list). */
+
         public async Task onSendFile(bool media = true)
         {
             if (friend.bot
@@ -1664,7 +1597,8 @@ namespace SPIXI
                     // The tip sheet cannot catch this for us: the shell opens it with
                     // `balance: null` on purpose (chat.html:2124), because C# owns the real
                     // balance check. This IS that check.
-                    // WalletSend2Page:113-118 is the precedent for the shape.
+                    // The legacy confirm page was the precedent for the shape
+                    // (WalletSend2Page, deleted with ★★ L1 #640).
                     if (tx == null)
                     {
                         // ★ review r3: say WHY. prepareTransactionFrom checks the balance
@@ -2435,6 +2369,14 @@ namespace SPIXI
                     {
                         progress = "100";
                     }
+                    /* ⚠ NO deliveryTicks HERE, and the first cut of this row put one in.
+                     * The shell's addFile handler NAMES its sent/read parameters and then
+                     * DISCARDS them — upsertFile never assigns a status, so a file card has
+                     * no delivery tick to correct. Deriving values nothing reads is dead code
+                     * carrying a false guarantee, which is worse than the gap it hides.
+                     * ★ THE REAL GAP, logged not faked: a file card in a group shows no
+                     * delivery state at all. Same for the app card and the payment cards.
+                     * That is its own row — it needs a shell change, not a C# one. */
                     Utils.sendUiCommand(this, "addFile", Crypto.hashToString(message.id), address, nick, avatar, uid, name, message.timestamp.ToString(), message.localSender.ToString(), message.confirmed.ToString(), message.read.ToString(), progress, message.completed.ToString(), paid.ToString());
                 }
             }
@@ -2511,14 +2453,9 @@ namespace SPIXI
                 app_image = Utils.imageToDataUri(app_image);
 
 
-                if (message.localSender)
-                {
-                    Utils.sendUiCommand(this, "addAppRequest", Crypto.hashToString(message.id), app_id, app_name, app_image, address, nick, avatar, message.timestamp.ToString(), message.localSender.ToString(), message.confirmed.ToString(), message.read.ToString(), app_state, app_install_url);
-                }
-                else
-                {
-                    Utils.sendUiCommand(this, "addAppRequest", Crypto.hashToString(message.id), app_id, app_name, app_image, address, nick, avatar, message.timestamp.ToString(), message.localSender.ToString(), message.confirmed.ToString(), message.read.ToString(), app_state, app_install_url);
-                }
+                // ⚠ NO deliveryTicks — the shell's addAppRequest handler discards these two
+                // as well, and says so in its own comment. See the addFile note above.
+                Utils.sendUiCommand(this, "addAppRequest", Crypto.hashToString(message.id), app_id, app_name, app_image, address, nick, avatar, message.timestamp.ToString(), message.localSender.ToString(), message.confirmed.ToString(), message.read.ToString(), app_state, app_install_url);
             }
 
             if (message.type == FriendMessageType.standard)
@@ -2539,7 +2476,9 @@ namespace SPIXI
                            ? Crypto.hashToString(message.replyToId) : ""
                    See docs/be-cutover-ixian-core-reply-carrier.md. */
                 string reply_to = "";
-                Utils.sendUiCommand(this, prefix, Crypto.hashToString(message.id), address, nick, avatar, message.message, message.timestamp.ToString(), message.sent.ToString(), message.confirmed.ToString(), message.read.ToString(), paid.ToString(), message.errorSending.ToString(), relation, reply_to);
+                // ★★ L2 (#641): the group answer is DERIVED — see deliveryTicks.
+                deliveryTicks(message, out bool sSent, out bool sConfirmed, out bool sRead);
+                Utils.sendUiCommand(this, prefix, Crypto.hashToString(message.id), address, nick, avatar, message.message, message.timestamp.ToString(), sSent.ToString(), sConfirmed.ToString(), sRead.ToString(), paid.ToString(), message.errorSending.ToString(), relation, reply_to);
             }
 
             if(message.type == FriendMessageType.voiceCall || message.type == FriendMessageType.voiceCallEnd)
@@ -2740,6 +2679,94 @@ namespace SPIXI
             Utils.sendUiCommand(this, "addReactions", Crypto.hashToString(fm.id), reactions_str, own_reactions_str);
         }
 
+        /* ═══ ★★ L2 (#641) — THE GROUP DELIVERY TICKS ═════════════════════════════
+         *
+         * Damir, 2026-08-29: *"if a member is long term offline or deleted account, the
+         * rest who are communicating will always see the 'sending' clock icon despite
+         * them all seeing the messages … it should at least be sent or delivered."*
+         *
+         * THE MECHANISM. In a group, a delivery receipt is never written to the message.
+         * `CoreStreamProcessor.handleMsgReceived` stores it as a PER-MEMBER REACTION and
+         * returns early, and `Friend.addReaction` then advances the stored status only at
+         * the FULL count (`received.Count + 1 >= users.count()`). One absent member holds
+         * the clock for everyone, permanently.
+         *
+         * ★ Ixian-Core is FROZEN (097341a) and does NOT need to change: the per-member
+         * reactions are already on the message, so the group answer is DERIVED HERE, at
+         * the push, and nothing in Core's stored state is widened or rewritten.
+         *
+         * THE RULE Damir set. A group's outgoing bubble walks clock → single check →
+         * double check, and STOPS:
+         *   · sent      — the single check. Set at the HAND-OFF (see onSend), because the
+         *                 clock means "still on this device" and nothing else.
+         *   · delivered — the double check, at ONE confirmed member or more.
+         *   · read      — NEVER in a group bubble. The detail moved to the long-press
+         *                 menu, where someone looks when they want more about one message.
+         *
+         * ⚠ BOT ROOMS NEED NOTHING AND GET NOTHING. A bot room is FriendType.Normal with
+         * `bot` true, so it never enters this branch. Its receipt comes from ONE known
+         * address, `group_sender_address` is null, and Core's own tail already calls
+         * `setMessageReceived` → double check. It reports no reads → never green. That is
+         * the legacy rule, already correct in shared code (Damir corrected an earlier
+         * version of this row that claimed the opposite).
+         *
+         * ⚠ Read-only. It reads `reactions` under the same lock discipline the reaction
+         * push uses and writes nothing.
+         *
+         * ⚠⚠ IT RUNS AT TWO PUSH SITES, NOT FOUR. The first cut called it at the file and
+         * app pushes as well, and those two shell handlers DISCARD the flags — the cards
+         * carry no delivery tick at all. Dead code with a guarantee attached is worse than
+         * the gap, so the calls came out and the gap is logged instead: file, app and
+         * payment cards in a group show no delivery state. That is a shell row. */
+        private void deliveryTicks(FriendMessage message, out bool sent, out bool confirmed, out bool read)
+        {
+            sent = message.sent;
+            confirmed = message.confirmed;
+            read = message.read;
+            if (!message.localSender || friend == null || friend.type != FriendType.Group)
+            {
+                return;
+            }
+            // ★ NEVER a green double check in a group. Core's addReaction CAN set the
+            // stored `read` flag when every member reports seen — the bubble still must
+            // not show it, so the override is here rather than a Core change.
+            read = false;
+            if (!confirmed && groupReactionCount(message, "received") >= 1)
+            {
+                confirmed = true;
+            }
+            // A delivered message was, necessarily, sent.
+            if (confirmed)
+            {
+                sent = true;
+            }
+        }
+
+        /* ★★ L2 (#641): how many DISTINCT members have reported this reaction. The key is
+         * the reaction name with no payload ("received", "seen") — FriendMessage.addReaction
+         * splits at the first colon and de-duplicates by sender address, so this is a
+         * member count, not a receipt count. */
+        private static int groupReactionCount(FriendMessage message, string key)
+        {
+            try
+            {
+                lock (message.reactions)
+                {
+                    return message.reactions.ContainsKey(key) ? message.reactions[key].Count : 0;
+                }
+            }
+            catch (Exception)
+            {
+                return 0;
+            }
+        }
+
+        /* ★★ [RCPT] probe support — TEMPORARY, goes with the probe in StreamProcessor. */
+        public int getSelectedChannel()
+        {
+            return selectedChannel;
+        }
+
         public void updateMessage(FriendMessage message, int channel)
         {
             if (channel != selectedChannel)
@@ -2752,7 +2779,9 @@ namespace SPIXI
             {
                 paid = true;
             }
-            Utils.sendUiCommand(this, "updateMessage", Crypto.hashToString(message.id), message.message, message.sent.ToString(), message.confirmed.ToString(), message.read.ToString(), paid.ToString(), message.errorSending.ToString());
+            // ★★ L2 (#641): the group answer is DERIVED — see deliveryTicks.
+            deliveryTicks(message, out bool tSent, out bool tConfirmed, out bool tRead);
+            Utils.sendUiCommand(this, "updateMessage", Crypto.hashToString(message.id), message.message, tSent.ToString(), tConfirmed.ToString(), tRead.ToString(), paid.ToString(), message.errorSending.ToString());
         }
 
         public void updateFile(string uid, string progress, bool complete)

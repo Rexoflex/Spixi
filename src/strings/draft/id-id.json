@@ -618,5 +618,8 @@
   "youAreOwner": "Anda pemiliknya",
   "youInvited": "Anda telah mengirim undangan",
   "youRequested": "Anda meminta",
-  "yourAddress": "Alamat Anda"
+  "yourAddress": "Alamat Anda",
+  "deliveredOf": "{n} dari {m} terkirim",
+  "readBy": "{n} dibaca",
+  "downloadedBy": "{n} diunduh"
 }

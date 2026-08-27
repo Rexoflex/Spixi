@@ -618,5 +618,8 @@
   "youAreOwner": "あなたがオーナーです",
   "youInvited": "招待を送信しました",
   "youRequested": "あなたのリクエスト",
-  "yourAddress": "あなたのアドレス"
+  "yourAddress": "あなたのアドレス",
+  "deliveredOf": "{m} 人中 {n} 人に配信",
+  "readBy": "{n} 人が既読",
+  "downloadedBy": "{n} 人がダウンロード"
 }

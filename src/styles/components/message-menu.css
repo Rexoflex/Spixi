@@ -11,6 +11,20 @@
   padding: var(--spacing-4) var(--spacing-8) var(--spacing-8);
   border-bottom: var(--outline-width-1) solid var(--outline-neutral-01);
 }
+/* ★★ L2 (#641): the delivery detail — a quiet caption, not a control. It sits
+   between the react row and the actions, so it reads as information about the
+   message the menu belongs to. `--spacing-8` matches the react row's own inset
+   and the border below it separates it from the actions the same way. */
+.c-msgmenu__detail {
+  margin: 0;
+  padding: 0 var(--spacing-8) var(--spacing-8);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  letter-spacing: var(--tracking-body-sm);
+  color: var(--text-neutral-02);
+  border-bottom: var(--outline-width-1) solid var(--outline-neutral-01);
+}
+
 .c-msgmenu__react {
   width: var(--size-target-min);
   height: var(--size-target-min);

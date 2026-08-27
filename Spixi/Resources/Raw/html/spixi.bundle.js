@@ -3227,15 +3227,37 @@ function anchorSheetToRow(sheet, row, { host = document.body, align = null, widt
       if (live) target = live;
     } catch (e) { /* no CSS.escape, or a malformed address — keep the fail-soft */ }
   }
-  const rr = target.getBoundingClientRect();
-  if (!fr.width || !rr.height) return sheet;   // unmeasurable → keep the bottom sheet (fail-soft)
+  const rr0 = target.getBoundingClientRect();
+  if (!fr.width || !rr0.height) return sheet;   // unmeasurable → keep the bottom sheet (fail-soft)
   sheet.dataset.mAnchor = '';
+  /* ═══ ★★★ RE-ANCHOR ON A VIEWPORT CHANGE (Damir on device, Android) ═══════════
+   * *"composer is open and I long press — the composer closes, the messages get moved
+   * down, but the dropdown is somewhere top where the messages used to be."*
+   *
+   * The placement below measured the row ONCE and wrote fixed coordinates. Long-pressing
+   * blurs the composer, the soft keyboard goes, and on Android the layout viewport GROWS —
+   * every row moves, and the menu stays where the row used to be.
+   *
+   * ⚠ The residual note at the end of this function said a keyboard-covered placement
+   * "resolves on the next open" and called it accepted. That was written from iOS, where
+   * the viewport does NOT shrink for the keyboard (#303) so the geometry never moves.
+   * On Android it does, which makes the same sentence false — a platform-specific fact
+   * generalised into a platform-independent excuse.
+   *
+   * The whole placement is a function now, re-run whenever the viewport changes while the
+   * menu is on screen. It detaches itself the first time it fires on a removed sheet, so
+   * a dismissed menu leaves no listener behind. */
   const w = Math.min(width, fr.width - 2 * M_GAP);
   sheet.style.width = w + 'px';
+
+  const place = () => {
+    const host2 = host.getBoundingClientRect();
+    const rr = target.getBoundingClientRect();
+    if (!host2.width || !rr.height) return;
   // horizontal: align with the pressed BUBBLE when given (sent bubbles sit right,
   // received left — the menu follows), else the row edge; clamped into the host
-  const ar = (align && align.getBoundingClientRect) ? align.getBoundingClientRect() : rr;
-  sheet.style.left = Math.round(Math.max(M_GAP, Math.min(ar.left - fr.left, fr.width - w - M_GAP))) + 'px';
+    const ar = (align && align.getBoundingClientRect) ? align.getBoundingClientRect() : rr;
+    sheet.style.left = Math.round(Math.max(M_GAP, Math.min(ar.left - host2.left, host2.width - w - M_GAP))) + 'px';
   /* ★ loop E-1 (r3, verdict R-1): the SAFE region bounds every placement — and it
      must be MEASURED, not read. --safe-top (base.css:31) is an UNREGISTERED custom
      property holding max(env(…), var(…)): getComputedStyle returns that token
@@ -3256,31 +3278,44 @@ function anchorSheetToRow(sheet, row, { host = document.body, align = null, widt
       return v;
     } catch (e) { return 0; }
   };
-  const safeTop = Math.max(0, resolvePx('var(--safe-top, 0px)') - Math.max(0, fr.top));
-  const winH = (window.innerHeight || fr.height);
-  const safeBottom = Math.max(0, resolvePx('env(safe-area-inset-bottom, 0px)') - Math.max(0, winH - fr.bottom));
-  const minTop = safeTop + M_GAP;
-  const maxBottom = fr.height - M_GAP - safeBottom;
+    const safeTop = Math.max(0, resolvePx('var(--safe-top, 0px)') - Math.max(0, host2.top));
+    const winH = (window.innerHeight || host2.height);
+    const safeBottom = Math.max(0, resolvePx('env(safe-area-inset-bottom, 0px)') - Math.max(0, winH - host2.bottom));
+    const minTop = safeTop + M_GAP;
+    const maxBottom = host2.height - M_GAP - safeBottom;
   // vertical: measure AFTER the width + the [data-m-anchor] max-height land
   // (wrap + the cap change height). offsetHeight reads the layout box — the
   // enter transform never distorts it.
-  const h = sheet.offsetHeight || 0;
-  const above = rr.top - fr.top - gap - h;
-  let top;
-  if (above >= minTop) {
-    top = above;                                   // preferred: ABOVE the row (the 4.1 fix)
-  } else {
-    top = rr.bottom - fr.top + gap;                // below
-    if (top + h > maxBottom) {
-      top = Math.max(minTop, maxBottom - h);       // tall row / short host: clamp inside the safe region
+    const h = sheet.offsetHeight || 0;
+    const above = rr.top - host2.top - gap - h;
+    let top;
+    if (above >= minTop) {
+      top = above;                                 // preferred: ABOVE the row (the 4.1 fix)
+    } else {
+      top = rr.bottom - host2.top + gap;           // below
+      if (top + h > maxBottom) {
+        top = Math.max(minTop, maxBottom - h);     // tall row / short host: clamp inside the safe region
+      }
     }
-  }
-  sheet.style.top = Math.round(top) + 'px';
-  /* ⚠ Stated residuals (loop E-6/E-7): the anchored menu keeps its measured
-     position across a list re-render (the action model is captured, only the
-     affordance can go stale — the overlay dismisses on every route out), and
-     iOS does not shrink the layout viewport for the soft keyboard (#303), so a
-     keyboard-covered placement resolves on the next open. Both accepted. */
+    sheet.style.top = Math.round(top) + 'px';
+  };
+
+  place();
+  const reflow = () => {
+    if (!sheet.isConnected) {
+      try { window.removeEventListener('resize', reflow); } catch (e) {}
+      try { if (window.visualViewport) window.visualViewport.removeEventListener('resize', reflow); } catch (e) {}
+      return;
+    }
+    place();
+  };
+  try { window.addEventListener('resize', reflow); } catch (e) {}
+  try { if (window.visualViewport) window.visualViewport.addEventListener('resize', reflow); } catch (e) {}
+  /* ⚠ Stated residual (loop E-6): the anchored menu keeps its measured position across a
+     LIST RE-RENDER — the action model is captured, only the affordance can go stale, and
+     the overlay dismisses on every route out. Accepted.
+     ✅ The keyboard half of that note is FIXED above rather than accepted: it was only
+     ever true on iOS, where the layout viewport does not move for the keyboard. */
   return sheet;
 }
 
@@ -5842,7 +5877,8 @@ function syncChatFlow(host) {
  *   scroll intent, §5b) + desktop right-click. Keyboard path (Shift+F10 on a
  *   focusable message) lands with the chat shell — messages aren't focusable
  *   as components yet (flagged).
- * openMessageMenu({ row, host, text, capabilities, onAction, strings })
+ * openMessageMenu({ row, host, text, detail, capabilities, onAction, strings })
+ *   detail — ★★ L2 (#641): a read-only line above the actions ("3 of 4 delivered").
  *   onAction(action, arg) — 'react' (arg=emoji) | 'reply' | 'copy' | 'tip' |
  *   'delete' | 'report'. Default copy falls back to the Clipboard API.
  */
@@ -5875,6 +5911,11 @@ function openMessageMenu({
   row,
   host,
   text = '',
+  /* ★★ L2 (#641): a NON-INTERACTIVE detail line, above the actions. Damir ruled that
+   * the read status leaves the bubble and the DETAIL goes here — the menu already
+   * leads with the message, and it costs no room in the bubble. Empty = no line, so
+   * a 1:1 chat and a room with no answer yet look exactly as they did. */
+  detail = '',   // string, or a function evaluated at OPEN time (see below)
   capabilities = {},
   reactions = QUICK_REACTIONS,   // overridable: the native bridge only supports a
                                  // single "like" reaction today, so the shell passes
@@ -5913,6 +5954,23 @@ function openMessageMenu({
     reacts.append(b);
   }
   content.append(reacts);
+
+  // ★★ L2 (#641): the delivery detail. A note, not a control — it is never focusable
+  // and never in the action list, so keyboard order is unchanged.
+  /* ★★ L2 (#641): `detail` may be a STRING or a FUNCTION. attachMessageMenu captures its
+     options once, at row-wire time, and replays them on every long-press — so a caller
+     whose value changes after the row is rendered (a delivery count that arrives later)
+     must pass a function or it will show a frozen answer that contradicts the bubble. */
+  const detailText = typeof detail === 'function' ? (() => {
+    try { return detail(); } catch (e) { return ''; }
+  })() : detail;
+  if (detailText) {
+    const d = document.createElement('p');
+    d.className = 'c-msgmenu__detail';
+    d.setAttribute('role', 'note');
+    d.textContent = detailText;
+    content.append(d);
+  }
 
   const list = document.createElement('div');
   list.className = 'c-msgmenu__list';
@@ -6389,7 +6447,7 @@ function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = getStri
 
 
 const ATTACH_ACTIONS = [
-  { id: 'file', glyph: 'file-isr', label: 'Send file', key: 'sendFile' },
+  { id: 'file', glyph: 'file-isr', label: 'Send file', key: 'sendFile', flag: 'files' },
   { id: 'photo', glyph: 'photo', label: 'Photo', key: 'photo', flag: 'media' },
   { id: 'gif', glyph: 'gif', label: 'GIF', key: 'gif', flag: 'media' },
   { id: 'pay', glyph: 'arrow-up-right', label: 'Send payment', key: 'sendPayment', flag: 'payments' },
@@ -6397,10 +6455,14 @@ const ATTACH_ACTIONS = [
   { id: 'app', glyph: 'rocket', label: 'App invite', key: 'appInvite', flag: 'apps' },
 ];
 
-function openAttachSheet({ host, media = false, apps = true, payments = true, onAction, strings = getStrings() } = {}) {
+/* `files` defaults TRUE — every existing caller keeps its tile without a change, and a
+   surface that cannot send files says so explicitly. Legacy had no file capability in a
+   blind group and the C# still refuses one there; offering the tile anyway was a control
+   that reported an outcome it did not cause. */
+function openAttachSheet({ host, media = false, apps = true, payments = true, files = true, onAction, strings = getStrings() } = {}) {
   const grid = document.createElement('div');
   grid.className = 'c-attach';
-  const enabled = { media, apps, payments };
+  const enabled = { media, apps, payments, files };
 
   for (const a of ATTACH_ACTIONS) {
     if (a.flag && !enabled[a.flag]) continue; // #81 media flag / apps gate (voice-flag precedent #64)
@@ -12329,7 +12391,7 @@ function createWalletSend({
   });
   cont.disabled = true;
   const contWrap = document.createElement('div');
-  contWrap.className = 'c-wallet-send__actions';
+  contWrap.className = 'c-wallet-send__actions c-money-cta';   // ★ the shared sticky money bar (base.css)
   contWrap.append(cont);
   el.append(contWrap);
 
@@ -15292,16 +15354,25 @@ function createWalletReceive({
        stays visible at the moment of commitment) and the count (a stray tick is
        visible too). "(3)" keeps it one short line in every locale; the full
        sentence lives in aria-label. */
+    /* ★ Damir on device: the Send and Receive takeovers are one tap apart since L1, and
+       their CTAs did not match. `size: 56` is wallet-send's Review — the two primary money
+       actions in the wallet are now the same control. */
     cta = createButton({
       label: strings.sendRequest || 'Send request',
-      type: 'fill', size: 44, width: 'full',
+      type: 'fill', size: 56, width: 'full',
       disabled: true,
       onClick: () => sendRequests(),
     });
     cta.classList.add('c-wallet-receive__cta');
     ctaLabel = cta.querySelector('.c-button__label');
-    askBox.append(cta);
     el.append(askBox);                                     // #527: always visible — no reveal box
+    /* ★ the CTA gets its OWN wrapper rather than riding inside the amount box — the box
+       holds the label and the field, and sticking those to the bottom would pin the input
+       over the content instead of the action. Same wrapper Send uses, same shared rule. */
+    const ctaWrap = document.createElement('div');
+    ctaWrap.className = 'c-money-cta';
+    ctaWrap.append(cta);
+    el.append(ctaWrap);
   }
 
   /* W9: the CTA is the whole gate now. Applied IN PLACE (no re-render) so a

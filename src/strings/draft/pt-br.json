@@ -691,5 +691,8 @@
   "youAreOwner": "Você é o dono",
   "youInvited": "Você enviou um convite",
   "youRequested": "Você solicitou",
-  "yourAddress": "Seu endereço"
+  "yourAddress": "Seu endereço",
+  "deliveredOf": "{n} de {m} entregues",
+  "readBy": "{n} lidos",
+  "downloadedBy": "{n} baixados"
 }

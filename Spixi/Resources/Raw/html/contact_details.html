@@ -2121,16 +2121,15 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 }
 .c-wallet-receive__result[data-tone='error'] { color: var(--text-error); }
 /* W9 CTA — the one thing on this surface that can send. Full width, primary.
-   ★ #560: STICKY — the list is full-length now (the page scrolls), so the send
-   action pins itself to the bottom of the scroller, rows sliding beneath it,
-   reachable at any scroll depth and clear of the home indicator. elevation-2
-   separates it from the rows passing under. */
+   ★ #560 made THIS BUTTON sticky, with an elevation-2 shadow, and Send's Review got
+   neither — which is exactly the mismatch Damir reported once L1 put the two takeovers
+   one tap apart: *"it has shadow and its not sticky bottom"*. The shadow was real and it
+   was here; the stickiness was real too, which is why wrapping it changed nothing.
+   ⚠ The sticky BEHAVIOUR is not dropped — it moved to the shared `.c-money-cta` wrapper
+   (base.css) so both wallet CTAs are one control with one owner. A floating shadowed
+   button was the outlier; a bar with a hairline is the house grammar the composer uses. */
 .c-wallet-receive__cta {
   margin-block-start: var(--spacing-4);
-  position: sticky;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--spacing-8));
-  z-index: 1;
-  box-shadow: var(--elevation-2);
 }
 .c-wallet-receive__none {
   margin: 0;
@@ -2643,6 +2642,20 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   padding: var(--spacing-4) var(--spacing-8) var(--spacing-8);
   border-bottom: var(--outline-width-1) solid var(--outline-neutral-01);
 }
+/* ★★ L2 (#641): the delivery detail — a quiet caption, not a control. It sits
+   between the react row and the actions, so it reads as information about the
+   message the menu belongs to. `--spacing-8` matches the react row's own inset
+   and the border below it separates it from the actions the same way. */
+.c-msgmenu__detail {
+  margin: 0;
+  padding: 0 var(--spacing-8) var(--spacing-8);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  letter-spacing: var(--tracking-body-sm);
+  color: var(--text-neutral-02);
+  border-bottom: var(--outline-width-1) solid var(--outline-neutral-01);
+}
+
 .c-msgmenu__react {
   width: var(--size-target-min);
   height: var(--size-target-min);
@@ -3051,6 +3064,617 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 }
 
 </style><!-- ★★ spec §4: openRemoveContactSheet lives here (.c-remove-contact / .c-delete-chat) — without it the sheet opens UNSTYLED, the W-h lesson -->
+<!-- ★★ L1 (#640): the money compose moved IN-SHELL. Both stylesheets are needed
+     together — contact-row.css is wallet-send's row atom (the W-j companion rule) and
+     the W-h gate catches a miss. Without them the takeover opens UNSTYLED. -->
+<style data-src="../styles/components/contact-row.css">
+/* c-contact-row — the ONE contact-row grammar for the money pickers (★ W-j,
+   Damir F5 2026-08-23). EVERY number below is the Contacts DIRECTORY row
+   (contacts-shell.css .c-contacts__row / __col / __name / __sub / __check):
+   64px min-height · spacing-8 padding · spacing-12 gap · avatar-48 · name
+   body-md semibold · sub body-sm · the 24px select circle on --icon-neutral-03.
+   A smoke pin reads BOTH files and fails on any drift — change one, change both.
+   Press feedback: base.css lists .c-contact-row with the other row families
+   (the ::before compositor sweep) and pressable.js has it in PRESSABLE_ROW. */
+.c-contact-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: 64px;                 /* sanctioned: 48 avatar + breathing room */
+  padding: var(--spacing-8);
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-12);
+  cursor: pointer;
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) { .c-contact-row:not(:disabled):hover { background-color: var(--surface-interactive-hover); } }
+.c-contact-row:disabled { cursor: default; }
+.c-contact-row:disabled > .c-avatar,
+.c-contact-row:disabled .c-contact-row__name { opacity: var(--opacity-disabled); }
+.c-contact-row__col {
+  flex: 1;
+  min-width: 0;                     /* nowrap children ellipsize (#140③ class) */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+.c-contact-row__name {
+  min-width: 0;
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-contact-row__sub {
+  min-width: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-contact-row__badge { flex: none; }
+
+/* the "Send to an address" glyph disc — sits in the avatar-48 slot (#136) */
+.c-contact-row__glyph {
+  width: var(--size-avatar-48); height: var(--size-avatar-48); flex: none;
+  border-radius: var(--radius-full);
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
+}
+
+/* multi-select check circle (trailing) — contacts-shell.css recipe, verbatim */
+.c-contact-row__check {
+  flex: none;
+  width: 24px;                      /* sanctioned: select-circle dim */
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  border: var(--outline-width-2) solid var(--icon-neutral-03);
+  color: transparent;
+  transition: background-color var(--duration-200) var(--easing-standard),
+              border-color var(--duration-200) var(--easing-standard),
+              color var(--duration-200) var(--easing-standard);
+}
+@media (prefers-reduced-motion: reduce) { .c-contact-row__check { transition: none; } }   /* contacts-shell parity */
+.c-contact-row[aria-checked='true'] .c-contact-row__check {
+  background: var(--surface-action-default);
+  border-color: var(--surface-action-default);
+  color: var(--icon-neutral-on-action);
+}
+.c-contact-row:focus-visible {          /* F19 grammar, contacts-shell parity */
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+}
+
+</style><!-- W-j: wallet-send's row atom (companion stylesheet) -->
+<style data-src="../styles/components/wallet-send.css">
+/* c-wallet-send — one-screen send + review sheet (spec §3, #26/#135). */
+
+/* Max-confirm warning strip — the #150⑥ delete-confirm recipe, adapted text
+   ("Payments cannot be undone."). Same wash/glyph grammar as
+   .c-settings-danger__confirm-warn; promote to a shared atom if a third
+   surface adopts it (the .c-disc precedent). */
+.c-wallet-send__max-warn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  margin: var(--spacing-12) 0 0;
+  padding: var(--spacing-8) var(--spacing-12);
+  border-radius: var(--radius-12);
+  background: var(--disc-error-bg);
+  color: var(--disc-error-ink);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+}
+.c-wallet-send__max-warn svg { flex: none; }
+
+.c-wallet-send {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-24);
+  padding: var(--spacing-16);
+}
+.c-wallet-send__section { display: flex; flex-direction: column; gap: var(--spacing-12); }
+.c-wallet-send__label {
+  margin: 0;
+  font-size: var(--font-size-label-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
+
+/* —— recipient picker —— */
+.c-wallet-send__picker { display: flex; flex-direction: column; gap: var(--spacing-12); }
+/* ★ W-j (Damir F5 2026-08-23): the row anatomy MOVED to contact-row.css — the rows
+   are the shared c-contact-row (directory grammar). `.c-wallet-send__contact` stays
+   on the element as an ALIAS for the pins; no layout of its own.
+   ★ F5-4 (#556) said FLAT; ★ #560 (Damir, screenshots 2026-08-25) SUPERSEDES it:
+   "straight contacts list" meant THE DIRECTORY LOOK — the same card the Contacts
+   screen uses (loop E-2 had flagged exactly this at source). The card returns,
+   BYTE-PARITY with .c-contacts__list (background / radius-16 / 4px inset /
+   elevation-1 — the #149③ anti-drift rule: one grammar, verbatim). The real
+   "extra paddings on the side" was the DOUBLE 16px — the takeover body AND the
+   component both padded; the shell now zeroes the inner one (home.html). */
+.c-wallet-send__list {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-card);
+  border-radius: var(--radius-16);
+  padding: var(--spacing-4);
+  box-shadow: var(--elevation-1);
+}
+/* the address field keeps the in-card inset that aligns it with the rows */
+.c-wallet-send__list .c-wallet-send__addrfield { padding: var(--spacing-4) var(--spacing-8) var(--spacing-8); }
+.c-wallet-send__contacts { display: flex; flex-direction: column; }
+/* hidden live region (the receive screen's grammar): announces the pick */
+.c-wallet-send__live {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0; border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.c-wallet-send__picked:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+}
+/* #255: "Request pending" tag — kept for the old class; the shared row renders the
+   directory badge (.c-contact-row__badge) instead */
+.c-wallet-send__none {
+  margin: 0;
+  padding: var(--spacing-8) var(--spacing-12);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+/* "Send to an address" — the shared glyph row (contact-row.css .c-contact-row__glyph, #136) */
+.c-wallet-send__addrfield { display: flex; flex-wrap: wrap; gap: var(--spacing-8); }
+.c-wallet-send__addrinput {
+  flex: 1; min-width: 0;
+  box-sizing: border-box;
+  padding: var(--spacing-12) var(--spacing-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+}
+.c-wallet-send__addrinput:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;                                   /* matches the apps-add input treatment (#51 text-field focus) */
+  border-color: var(--outline-action-default);
+}
+.c-wallet-send__scan {
+  flex: none;
+  width: var(--size-target-min); height: var(--size-target-min);
+  display: inline-flex; align-items: center; justify-content: center;
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: transparent;
+  color: var(--icon-action-default);
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) { .c-wallet-send__scan:hover { background: var(--surface-interactive-hover); } }
+.c-wallet-send__scan:active { background: var(--surface-interactive-pressed); }   /* #28 pressed wash */
+.c-wallet-send__addrfield .c-button { flex-basis: 100%; }
+.c-wallet-send__addrfield .c-wallet-send__error { flex-basis: 100%; }   /* validation sits under ITS input (Damir bug, round 3) */
+
+/* selected recipient */
+.c-wallet-send__picked {
+  display: flex; align-items: center; gap: var(--spacing-12);
+  min-height: 64px;                                     /* ★ W-j: the directory row height */
+  padding: var(--spacing-8) var(--spacing-12);
+  border-radius: var(--radius-16);
+  background: var(--surface-card);
+  box-shadow: var(--elevation-1);
+}
+.c-wallet-send__pickedglyph {
+  width: var(--size-avatar-48); height: var(--size-avatar-48); flex: none;   /* ★ W-j: avatar-48 slot */
+  border-radius: var(--radius-full);
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
+}
+.c-wallet-send__pickedtext { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.c-wallet-send__pickedname {                            /* ★ W-b: name over the muted truncated address */
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.c-wallet-send__pickedaddr {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.c-wallet-send__clear {
+  flex: none;
+  width: 32px; height: 32px;                            /* visual 32; hit area below (#106) */
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--icon-neutral-02);
+  cursor: pointer;
+}
+.c-wallet-send__clear::after { content: ''; position: absolute; inset: -6px; }
+@media (hover: hover) and (pointer: fine) { .c-wallet-send__clear:hover { background: var(--surface-interactive-hover); } }
+.c-wallet-send__clear:active { background: var(--surface-interactive-pressed); }   /* #28 pressed wash */
+
+/* —— amount —— */
+.c-wallet-send__amountrow { display: flex; align-items: center; gap: var(--spacing-12); }
+.c-wallet-send__amount {
+  flex: 1; min-width: 0;
+  box-sizing: border-box;
+  padding: var(--spacing-12) var(--spacing-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+  color: var(--text-neutral-01);
+  font-family: var(--font-primary);
+  font-size: var(--font-size-heading-md);               /* money entry is the hero of this screen */
+  line-height: var(--line-height-heading-md);
+  font-weight: var(--font-weight-semibold);
+}
+.c-wallet-send__amount:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+  border-color: var(--outline-action-default);
+}
+.c-wallet-send__unit {
+  flex: none;
+  font-family: var(--font-primary);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-neutral-02);
+}
+.c-wallet-send__meta {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-wallet-send__error {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-error);
+}
+.c-wallet-send__actions { margin-block-start: var(--spacing-8); display: flex; flex-direction: column; }
+
+/* —— review sheet (#26) —— */
+.c-sendreview { display: flex; flex-direction: column; gap: var(--spacing-16); }
+.c-sendreview__who { display: flex; align-items: center; gap: var(--spacing-12); }
+.c-sendreview__whotext { flex: 1; min-width: 0; }
+.c-sendreview__name {
+  font-size: var(--font-size-label-lg);
+  line-height: var(--line-height-label-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+.c-sendreview__addr {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+  overflow-wrap: anywhere;                              /* full address at the decision moment (#99) */
+}
+.c-sendreview__rows { display: flex; flex-direction: column; }
+.c-sendreview__row {
+  display: flex; align-items: center; gap: var(--spacing-12);
+  padding-block: var(--spacing-12);
+  border-block-end: var(--outline-width-1) solid var(--outline-neutral-01);
+}
+.c-sendreview__row:last-child { border-block-end: 0; }
+.c-sendreview__rowlabel { flex: none; color: var(--text-neutral-02); font-size: var(--font-size-body-md); }
+.c-sendreview__rowvalue { flex: 1; min-width: 0; text-align: end; color: var(--text-neutral-01); font-size: var(--font-size-body-md); }
+.c-sendreview__actions { display: flex; gap: var(--spacing-8); justify-content: flex-end; }
+.c-sendreview__actions .c-button { flex: 1 1 0; }       /* equal-width pair (#60) */
+
+/* ★ W-b (2026-08-24): on DESKTOP the takeover fills the whole pane, so the compose
+   stretched to the pane width (an 800px amount field). Cap the content column and
+   centre it — the same reading width the settings pane uses. Mobile is untouched. */
+:root[data-desktop] .c-wallet-send { max-width: 560px; margin-inline: auto; width: 100%; box-sizing: border-box; }
+
+</style>
+<!-- ★★ THE W-h GATE CAUGHT THESE TWO, and it was right: openRequestSheet renders
+     .c-tipsheet (no hyphen — tip-sheet.js) with a .c-chip amount row, so the Request sheet
+     would have opened UNSTYLED. Two stylesheets for one opener is the miss the gate is for. -->
+<style data-src="../styles/components/tip-sheet.css">
+/* c-tipsheet — chat tipping, #26-lite (docs/tipping-spec.md, #138).
+   Requires chip.css (amount options are c-chips — #50 tonal selected).
+   Damir round 1: roomier sheet (gap 24, padded), amount options sized up to real
+   44px equal-width targets, extra clearance before the CTA (misclick guard). */
+
+.c-tipsheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-24);
+  padding-block: var(--spacing-8);
+}
+
+.c-tipsheet__head { display: flex; align-items: center; gap: var(--spacing-12); }
+.c-tipsheet__headtext { flex: 1; min-width: 0; }
+.c-tipsheet__title {
+  margin: 0;
+  font-size: var(--font-size-label-lg);
+  line-height: var(--line-height-label-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  /* ★ #589 (Damir F5 2026-08-26): "a nick ellipsizes at the END, on overflow only."
+     The SENTENCE still wraps — the round-2 review showed that ellipsizing it whole ate
+     the verb in every locale that puts {name} first. Only the NAME truncates, below. */
+  overflow-wrap: anywhere;
+}
+/* the payee NAME inside the title: one line, ellipsized at its end. `inline-block` is
+   what gives it a box to overflow; `max-width: 100%` keeps it inside the title's line
+   box, which is what preserves the #569 anti-sideways-scroll guarantee. `vertical-align`
+   keeps the baseline aligned with the words around it. */
+/* ★★ #610 round 2: the ACTION, beside the name. One step back in weight AND in ink —
+   the pair is what makes the line parse as "who" then "what", and colour is the half
+   that survives a font whose 600 and 700 are close. */
+.c-tipsheet__titleverb {
+  font-weight: var(--font-weight-regular);
+  color: var(--text-neutral-02);
+}
+.c-tipsheet__payee {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: bottom;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* ★★ #610 (device evidence 12d): THE NAME AND THE VERB READ AS ONE STRING.
+     The de-de title renders "Testan…oo  Trinkgeld geben" — Damir read that as the
+     sheet repeating "tip user" beside the nickname, and he was right to: the name was
+     a bare span with no font properties of its own, so it inherited the title's size
+     and weight exactly, and nothing marked where the name ended and the action began.
+     English hid it because the verb leads there; de-de puts {name} first, so the sheet
+     opened with a name and buried the action after it.
+     One step of weight is enough to give the line a subject and a predicate. */
+  font-weight: var(--font-weight-bold);
+}
+.c-tipsheet__excerpt {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;   /* one line of context */
+}
+
+.c-tipsheet__chips { display: flex; flex-wrap: wrap; gap: var(--spacing-8); }
+/* amount options: c-chips sized UP to full 44px equal-width targets — money
+   choices deserve button-scale hits, not tag-scale (Damir round 1); the #50
+   tonal selected wash + outline vocabulary still carries the brand */
+.c-tipsheet__chips .c-chip {
+  /* ★★ #610 (device evidence 12c, de-de, iPhone 15): THE FOURTH CHIP WAS CUT OFF.
+     `flex: 1 1 0` makes every chip's hypothetical size ZERO, so four chips always "fit"
+     one line whatever their labels say — the `flex-wrap: wrap` above could never fire —
+     and `.c-chip` is `white-space: nowrap` with no `overflow`, so the label simply
+     painted outside its own box and off the screen edge. Three escapes, all closed.
+     In de-de "Benutzerdefiniert" is 17 characters against ~60px of room.
+     ⚠ It is a LAYOUT defect, not a translation-length one. A shorter German word would
+     only have hidden it, and the next locale would have found it again.
+     ⚠ ROUND 2 — WHAT THIS ACTUALLY DOES, measured, because the first version of this
+     comment claimed "English is unchanged" and that was FALSE. `flex-basis: auto` sizes
+     each chip to its CONTENT, so in English the row goes from four equal 84.3px chips to
+     74/74/86/103, and in de-de the long chip wraps to a second row and, alone on that
+     line with flex-grow, fills the full width. Both are inside the verdict's sanctioned
+     set ("the row needs to wrap, scroll, or drop to a 2×2") and neither can clip — but
+     it IS a deviation from the equal-width intent stated 14 lines above, and it is
+     Damir's call to keep or reverse, with the numbers in front of him. Reversing is one
+     declaration; the label ellipsis below then carries the German case instead. */
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  min-height: var(--size-target-min);
+  padding: var(--spacing-8) var(--spacing-12);
+  font-size: var(--font-size-body-lg);
+  border-radius: var(--radius-12);
+}
+/* ★★ #610 round 2 (adversarial review): THE ELLIPSIS WAS INERT, and measurably so.
+   `overflow`/`text-overflow` were on `.c-chip`, which is `inline-flex` — blockified to
+   `flex` as a flex item — and `text-overflow` applies to a block container. The label is
+   its own `<span class="c-chip__label">` child (chip.js), and that child kept
+   `overflow: visible; text-overflow: clip` with `min-width: auto`, so it could not
+   shrink either. Measured with a 48-character label the chip clipped at BOTH ends
+   (`justify-content: center`) with no "…", losing the START of the word — worse than an
+   end truncation on an option label. The declarations belong here. */
+.c-tipsheet__chips .c-chip .c-chip__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-tipsheet__chips .c-chip::after { content: none; }   /* real-size target — no hit-area extender needed */
+
+/* clearance before the money button: gap-24 + this margin ≈ 40px — a stray tap
+   below the chips lands on nothing (Damir round 1 misclick guard) */
+.c-tipsheet > .c-button { margin-block-start: var(--spacing-16); }
+
+.c-tipsheet__customrow { display: flex; align-items: center; gap: var(--spacing-12); }
+/* ghost = space reserved, nothing shown: the sheet opens at its FULL size and
+   picking Custom never grows it (Damir round 2 — no reflow under the finger) */
+.c-tipsheet__customrow[data-ghost] { visibility: hidden; }
+.c-tipsheet__custom {
+  flex: 1; min-width: 0;
+  box-sizing: border-box;
+  padding: var(--spacing-12) var(--spacing-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+  color: var(--text-neutral-01);
+  font-family: var(--font-primary);
+  font-size: var(--font-size-heading-md);                  /* money entry stays the hero (send parity) */
+  line-height: var(--line-height-heading-md);
+  font-weight: var(--font-weight-semibold);
+}
+.c-tipsheet__custom:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+  border-color: var(--outline-action-default);
+}
+.c-tipsheet__unit {
+  flex: none;
+  font-family: var(--font-primary);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-neutral-02);
+}
+
+.c-tipsheet__error {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-error);
+}
+
+</style><!-- openRequestSheet (#139 amount sheet) -->
+<style data-src="../styles/components/chip.css">
+/* c-chip — mirrors Figma chip/{small,large} + code-first selected/disabled
+   (docs/chip-search-spec.md, DECISIONS #50). Semantic tokens only. */
+
+.c-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-4);
+  border: var(--outline-width-1) solid var(--outline-neutral-04);
+  border-radius: var(--radius-16);
+  background: var(--surface-neutral-01);
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+  position: relative;
+  /* 100ms intentional: micro-interaction, same rationale as chatlist row hover */
+  /* transform = the #343 press release; declared here so base.css never has to
+     out-specify (and therefore replace) this shorthand — see #346. */
+  transition: background-color var(--duration-100) var(--easing-standard),
+              color var(--duration-100) var(--easing-standard),
+              border-color var(--duration-100) var(--easing-standard),
+              transform var(--duration-200) var(--easing-standard);
+}
+
+/* extended tap area (#50): chips are 26/30px visual (line-height + 8 padding
+   + 2 border), target must be 44 (--size-target-min); pseudo widens the hit
+   box vertically without visual change */
+.c-chip::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: var(--size-target-min);
+  transform: translateY(-50%);
+}
+
+.c-chip[data-size="large"] {
+  padding: var(--spacing-4) var(--spacing-12);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  letter-spacing: var(--tracking-body-sm);
+}
+.c-chip[data-size="small"] {
+  padding: var(--spacing-4) var(--spacing-8);
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs);
+  letter-spacing: var(--tracking-body-xs);
+}
+
+.c-chip__icon, .c-chip__dismiss { flex: none; }
+
+/* count inside a filter chip (Damir 2026-07-09): a plain trailing NUMBER, sits
+   after the label via the chip's flex gap. Muted so the label stays primary; the
+   selected chip tints it with the chip text colour (inherits currentColor). */
+.c-chip__count { flex: none; font-variant-numeric: tabular-nums; opacity: 0.7; }
+.c-chip[aria-pressed="true"] .c-chip__count { opacity: 1; }
+
+/* readonly (display) variant — non-interactive tags e.g. app permissions/capabilities */
+.c-chip[data-readonly] {
+  cursor: default;
+  background: var(--surface-neutral-02);
+  border-color: transparent;
+  color: var(--text-neutral-01);
+}
+.c-chip[data-readonly] .c-chip__icon { color: var(--icon-neutral-02); }
+.c-chip[data-readonly]::after { content: none; }   /* no expanded hit area — it's not a target */
+
+/* selected (toggle chips) — #50, Damir 2026-07-02: TONAL fill ("not too strong"),
+   action ink; pressed-on-unselected keeps its outline so the two stay distinct.
+   ★ I-2 (#358): the selected chip now carries an OUTLINE — a selected chip and a
+   tonal button both paint --surface-action-tonal-default, so "selected" and
+   "button" rendered identically (same disease as D-16 fix C, one ramp step
+   apart). The outline is a state ladder (default/hover/pressed). The border
+   SLOT already exists on every chip (--outline-width-1, transparent when
+   unused), so no layout shift — the #51 lesson.
+   ★ Loop r1 MAJOR-6: the selected PRESS keeps the DEFAULT fill — the old
+   tonal-pressed fill put the pressed outline at 2.31:1 in dark (200-on-500),
+   under the 1.4.11 bar exactly when the outline is doing its job. Press
+   feedback = outline default→pressed + ink + the #343 scale; the fill holds.
+   (Dial rider on the F5 checklist: say if the press wants its wash back.)
+   ★ Loop r1 MAJOR-7: every hover/active pair carries the SAME :not() chain —
+   the old ladder claimed "source order at equal specificity" while hover
+   out-specified active by one pseudo-class, so the pressed rung never painted
+   on a mouse. :not([data-readonly]) also stops display-tag chips (spans — they
+   match :active) from wearing the selected skin (loop r1 MINOR).
+   Contrast, non-text ≥3:1 (WCAG 1.4.11), executable in smoke (#358 pins):
+   light rest 600-on-100 = 4.73 · hover 700-on-200 = 6.28 · press 800-on-100 = 9.67
+   dark  rest 400-on-800 = 5.47 · hover 300-on-600 = 3.44 · press 200-on-800 = 8.62 */
+.c-chip[aria-pressed="true"] {
+  background: var(--surface-action-tonal-default);
+  border-color: var(--outline-action-default);
+  color: var(--text-action-default);
+}
+
+/* hover guarded per #43; :not(:disabled) — disabled elements still match :hover */
+@media (hover: hover) and (pointer: fine) {
+  .c-chip:not(:disabled):not([data-readonly]):hover {
+    background: var(--surface-neutral-02);
+    border-color: var(--outline-action-hover);
+    color: var(--text-action-hover);
+  }
+  .c-chip[aria-pressed="true"]:not(:disabled):not([data-readonly]):hover {
+    background: var(--surface-action-tonal-hover);
+    border-color: var(--outline-action-hover);   /* I-2 (#358): ladder, not transparent */
+    color: var(--text-action-hover);
+  }
+}
+
+/* pressed AFTER hover — same specificity as its hover twin, later in source */
+.c-chip:not(:disabled):not([data-readonly]):active {
+  background: var(--surface-action-tonal-default);
+  border-color: var(--outline-action-pressed);
+  color: var(--text-action-pressed);
+}
+.c-chip[aria-pressed="true"]:not(:disabled):not([data-readonly]):active {
+  background: var(--surface-action-tonal-default);   /* r1 MAJOR-6: fill holds — see header */
+  border-color: var(--outline-action-pressed);       /* I-2 (#358): ladder, not transparent */
+  color: var(--text-action-pressed);
+}
+
+/* disabled — code-first #50 */
+.c-chip:disabled {
+  background: var(--surface-neutral-disabled);
+  border-color: var(--outline-neutral-disabled);
+  color: var(--text-neutral-on-disabled);
+  cursor: not-allowed;
+}
+
+</style><!-- its amount chips -->
 
 <style>
   /* Production shell: fill the WebView. contact_details.html is loaded by the C#
@@ -3060,6 +3684,15 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   body { display: flex; flex-direction: column; overflow: hidden; }
   #contact-root { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   #contact-root > * { flex: 1; min-height: 0; }
+  /* ★★ L1 (#640): the money compose cover — the SAME grammar chat.html uses for its
+     in-chat send (.chat-send-takeover); its review sheet (z-40) and Max modal (z-50)
+     render on top. One class name per shell, so a rule can never leak between them. */
+  .cd-send-takeover {
+    position: fixed; inset: 0; z-index: var(--z-30, 30);
+    background: var(--surface-screen);
+    display: flex; flex-direction: column;
+  }
+  .cd-send-takeover__body { flex: 1; min-height: 0; overflow-y: auto; }
   /* Boot state: shown until the FIRST coalesced commit lands, so we never paint an
      empty panel that flashes to filled ~120ms later (the flicker fix). A lightweight
      centered spinner — replaced wholesale by the real panel on first render. */
@@ -3145,8 +3778,10 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    * ContactDetails, which loads this file). ONE component (createChatInfo) also
    * powers the in-chat GROUP info takeover (src/shells/chat.html).
    *
-   * ARCHITECTURE §5 / bridge-audit-A §2 (ContactDetails.xaml.cs). ZERO C# change,
-   * frozen bridge — every action is an existing legacy `ixian:` verb.
+   * ARCHITECTURE §5 / bridge-audit-A §2 (ContactDetails.xaml.cs).
+   * ⚠ NO LONGER "zero C# change": ★★ L1 (#640) routes the money composes here. The
+   * verbs are not new to the app — they are the SAME three SingleChatPage answers —
+   * but ContactDetails.xaml.cs now answers them too, and declares setCaps.
    *
    * Contract (verified ContactDetails.xaml.cs):
    *   C#→JS: setPaneMode('1'|'2') [#247 desktop pane, pre-present]
@@ -3157,9 +3792,16 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    *          · setAddress(addr) · setNickname(nick) [every sec] · setAvatar(path)
    *          ["" = none] · showIndicator("true"|"false") · clearRecentActivity()
    *          · addPaymentActivity(txid, type, time, amount, confirmed)  (5-arg;
-   *          type = LOCALIZED "Sent"/"Received"; confirmed "true"|"error").
+   *          type = LOCALIZED "Sent"/"Received"; confirmed "true"|"error")
+   *          · [★★ L1 #640] setCaps('composeSend,composeRequest') ·
+   *            setSendQuote(addr, amount, fee, balance, max, error) ·
+   *            signSendResult('ok'|'cancel'|'fail', message).
    *   JS→C#: ixian:onload · ixian:back · ixian:remove (remove contact) ·
-   *          ixian:removehistory · ixian:request · ixian:send · ixian:chat ·
+   *          ixian:removehistory · ixian:chat ·
+   *          [★★ L1 #640] ixian:signSend:<addr>:<amount> · ixian:feeQuery:<addr>:<amount>
+   *          · ixian:sendrequest:<addr>:<amount> — the money composes, IN-SHELL. They
+   *          REPLACE ixian:request / ixian:send, which pushed the legacy
+   *          WalletReceivePage / WalletSendPage; both pages are deleted.
    *          ixian:txdetails:<txid> · ixian:userdefinednick:<nick> ·
    *          [#248 group] ixian:leave · ixian:en/disableNotifications ·
    *          ixian:kick:<addr> · ixian:ban:<addr> (all forwarded by ContactDetails,
@@ -3195,6 +3837,15 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     showToast,                                       // N55: optimistic request-sent feedback,
     openAddressSheet,                                // ★ #591: the ONE address surface, peer variant
     applyPushedTheme,
+    /* ★★ L1 (#640) — the money compose, ported from chat.html. This page emitted
+     * `ixian:send` / `ixian:request`, which pushed the LEGACY WalletSendPage /
+     * WalletReceivePage. Damir: "Nothing legacy was supposed to exist in this app
+     * anymore." Same three symbols the chat shell destructures, same aliasing:
+     * `setSendQuote` is renamed because the BRIDGE HANDLER below shares the name. */
+    createTopbar,                                    // the takeover's own view topbar (Back)
+    createWalletSend,                                // Pay  → the lockedRecipient compose (W5 #523)
+    openRequestSheet,                                // Request → the amount sheet (#139/#528)
+    setSendQuote: applySendQuote,                    // W6 — the component-side quote applier
   } = window.Spixi;
   const strings = window.SL || {};
 
@@ -3457,10 +4108,14 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
          push, not a guess. */
       onCall: state.callable ? () => bridge.send('ixian:call') : undefined,
 
-      // money — these open the NATIVE C# wallet pages (the "C# signs" path, SECURITY.md):
-      //   Pay → WalletSendPage · Request → WalletReceivePage. No in-page compose.
-      onPay: () => bridge.send('ixian:send'),
-      onRequest: () => bridge.send('ixian:request'),
+      /* ★★ L1 (#640): money composes IN THIS SHELL now. The capability test is the
+         chat.html grammar verbatim (:2769-2770) and it is a REAL gate, not decoration:
+         `composeSend` / `composeRequest` are declared by ContactDetails' own setCaps,
+         so a build whose C# half is missing degrades to a dead tap rather than to a
+         legacy screen that no longer exists. The old `ixian:send` / `ixian:request`
+         emits are GONE with the two pages they reached. */
+      onPay: () => { if (bridge.cap('composeSend')) openSendTakeover(); },
+      onRequest: () => { if (bridge.cap('composeRequest')) openRequestForPeer(); },
 
       /* ★ #591: the address row opens the ONE address surface (#527) in its PEER
          variant — their address, so the copy says "their", and the self-only safety
@@ -3615,6 +4270,142 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   // the strip hides instead of shimmering forever
   setTimeout(() => { if (!state.membersLanded) scheduleCommit(); }, 2600);
   setTimeout(() => { if (state.sharedGroups === null) { state.sharedGroups = undefined; scheduleCommit(); } }, 4000);
+
+  /* ═══ ★★ L1 (#640) — THE MONEY COMPOSE, IN THIS SHELL ══════════════════════
+   * Damir, F5 2026-08-29: *"When on chat info or contact details, and pressing SEND
+   * or RECEIVE it fires the LEGACY SEND and RECEIVE SCREENS."* Contact details was
+   * the ONLY live route into `WalletSendPage` / `WalletReceivePage`; both pages are
+   * deleted with this row (decision 4 grammar, #635).
+   *
+   * The replacement is not new — it is chat.html's proven pair, ported:
+   *   Pay     → a cover that mounts createWalletSend with the peer LOCKED (#139),
+   *             which PROPOSES only: `ixian:signSend` → C# re-parses → the NATIVE
+   *             confirm (+ payment auth) → sign + broadcast → `signSendResult`.
+   *   Request → the #139 amount sheet → `ixian:sendrequest:<addr>:<amount>`. A
+   *             request is a chat MESSAGE; nothing is signed.
+   * ★ SECURITY.md is unchanged by this: the shell still composes INTENT only, and
+   *   every key, confirm and broadcast stays in C#. What went away is a WebView page
+   *   that had its own money chrome.
+   * ★ 1:1 ONLY. A group panel never renders these actions, and each opener re-tests
+   *   `state.isGroup` at the emit site — the belt the ⑪ delivery-lie rule asks for.
+   * ————————————————————————————————————————————————————————————————————————— */
+  let cdSendView = null;
+  let cdSendCtrl = null;
+  let cdSendWait = 0;
+  let cdSendFocusin = null;
+  function cdClearSendWait() { if (cdSendWait) { clearTimeout(cdSendWait); cdSendWait = 0; } }
+
+  /* The locked recipient's display name. `state.name` CAN be the address echo, and a
+   * blind pseudo-key can reach this page too — an address is never a NAME, and the
+   * component renders its own 'Address' label when the name is empty (#211/#370). */
+  function cdPeerName() {
+    const n = state.name || '';
+    if (!n || n === state.address) return '';
+    if (isAddressShaped(n) || isPseudoAddressNick(n)) return '';
+    return n;
+  }
+  function cdLockedRecipient() {
+    return { name: cdPeerName(), address: state.address, avatar: state.avatarPath || null };
+  }
+
+  function closeSendTakeover() {
+    const t = document.querySelector('.cd-send-takeover');
+    // r1 M4 grammar: never leave the review sheet orphaned above a removed cover.
+    if (cdSendView && cdSendView._closeReview) { try { cdSendView._closeReview(); } catch (e) {} }
+    if (t) t.remove();
+    cdSendView = null;
+    cdSendCtrl = null;
+    cdClearSendWait();
+    if (cdSendFocusin) { document.removeEventListener('focusin', cdSendFocusin); cdSendFocusin = null; }
+    syncCdOverlay();                                 // back must stop eating the page (AND-29 class)
+    /* ★ chat.html restores focus to its composer here; this page has none, so the anchor is
+       the panel's FIRST action. ⚠ The comment used to claim it returns to Pay and the
+       selector took whatever came first — on a 1:1 panel that is Message or Call. Saying
+       what it does beats naming a control it does not find: the point is that focus lands
+       back in the panel rather than on <body>, where the next Tab restarts the document. */
+    try {
+      const anchor = document.querySelector('#contact-root button');
+      if (anchor && anchor.focus) anchor.focus();
+    } catch (e) { /* focus restore is best-effort */ }
+  }
+
+  function openSendTakeover() {
+    /* ⚠⚠ `state.isGroup`, NOT `state.group`. `state.group` is the metadata BAG (:274) and is
+       ALWAYS TRUTHY, so the first cut of this guard returned on every contact and BOTH money
+       buttons did nothing at all — a working native screen replaced by silence, which is the
+       ⑪ delivery lie in its purest form. Fifty smoke pins were green: every one of them read
+       the CALL SITE and none asked whether the opener was reachable. The pin below this row
+       now executes the guard. */
+    if (state.isGroup) return;                       // 1:1 only — C# rejects group sends
+    if (!state.address) return;
+    if (document.querySelector('.cd-send-takeover')) return;   // double-open guard
+    const over = document.createElement('div');
+    over.className = 'cd-send-takeover';
+    over.append(createTopbar({
+      variant: 'view', title: strings.send || 'Send',
+      backLabel: strings.back || 'Back', onBack: closeSendTakeover,
+    }));
+    const body = document.createElement('div');
+    body.className = 'cd-send-takeover__body u-scroll';
+    cdSendView = createWalletSend({
+      contacts: [],                                  // locked peer — no picker
+      lockedRecipient: cdLockedRecipient(),
+      balance: 0,                                    // the real balance rides the first quote
+      fee: null,                                     // W6: gated until a quote lands
+      strings, host: document.body,
+      onQuote: (addr, amount) => bridge.send('ixian:feeQuery:' + addr + ':' + amount),
+      onSend: (payload, ctrl) => {
+        const r = (payload.recipients && payload.recipients[0]) || {};
+        cdSendCtrl = ctrl;
+        cdClearSendWait();
+        /* The tipWait grammar: a dropped push must not strand a locked sheet, and the
+         * copy must NOT claim failure — the tx may be out. 125 s sits ABOVE C#'s 120 s
+         * confirm self-heal (SPayments.acquireConfirm), so the backstop can never fire
+         * under a native dialog the user is still reading. */
+        cdSendWait = setTimeout(() => {
+          cdSendWait = 0;
+          const c = cdSendCtrl;
+          if (!c) return;
+          cdSendCtrl = null;
+          c.fail(strings.sendNoAnswer || 'No response from the app. Check your wallet activity before you try again.');
+        }, 125000);
+        bridge.send('ixian:signSend:' + r.address + ':' + payload.amount);
+      },
+      onDone: () => closeSendTakeover(),
+    });
+    body.append(cdSendView);
+    over.append(body);
+    document.body.append(over);
+    syncCdOverlay();                                 // hardware back closes the COVER, not the page
+    // The compose's FIRST FIELD (the amount) takes focus, not the topbar Back button
+    // that `button, input` finds first; containment is the #205 grammar, light.
+    const firstFocus = over.querySelector('.cd-send-takeover__body input') || over.querySelector('button, input');
+    if (firstFocus) { try { firstFocus.focus(); } catch (e) {} }
+    cdSendFocusin = (e) => {
+      if (over.contains(e.target)) return;
+      if (e.target && e.target.closest && e.target.closest('.c-sheet, .c-modal')) return;
+      const f = over.querySelector('button, input');
+      if (f) { try { f.focus(); } catch (err) {} }
+    };
+    document.addEventListener('focusin', cdSendFocusin);
+    // balance prefetch: amount 0 = "quote the balance + Max ceiling" (fee stays gated)
+    bridge.send('ixian:feeQuery:' + state.address + ':0');
+  }
+
+  /* Request — the #139 amount sheet. ONE verb per request; the peer is known, so
+   * there is no balance guard and nothing is signed. */
+  function openRequestForPeer() {
+    if (state.isGroup || !state.address) return;      // ⚠ isGroup, not the always-truthy bag
+    openRequestSheet({
+      recipient: cdLockedRecipient(),
+      host: document.body,
+      strings,
+      onRequest: (payload, ctrl) => {
+        bridge.send('ixian:sendrequest:' + state.address + ':' + payload.amount);
+        ctrl.done();                                 // a request is a message — C# alerts on refusal
+      },
+    });
+  }
 
   /* —————————————————————————————————————————————————————————————————————————
    * C#→JS handlers — page globals (executeUiCommand resolves bare fnRefs).
@@ -3772,7 +4563,43 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
        pops the page instead of wedging. */
     cdBack() {
       if (typeof dismissTopOverlay === 'function' && dismissTopOverlay()) return;
+      // ★★ L1 (#640): the money cover consumes back BEFORE the page pops — the same
+      // order chat.html uses (chatBack :4538). Without this line the page would pop
+      // out from under an open compose.
+      if (cdSendView) { closeSendTakeover(); return; }
       syncCdOverlay();
+    },
+
+    /* ★★ L1 (#640) — setCaps('a,b,…'), the #242 grammar. C# declares which OPTIONAL
+       verbs THIS build answers; the two money composes are gated on it. Mutates the
+       bridge's capability object in place — bridge.cap() reads the same reference. */
+    setCaps(list) {
+      String(list || '').split(',').forEach((c) => {
+        c = c.trim();
+        if (c) bridge.capabilities[c] = true;
+      });
+    },
+
+    /* ★★ L1 (#640) — W6 answer to ixian:feeQuery. Routed to the OPEN compose only.
+       The echo pair (addr, amount) rides along so the component drops a stale answer. */
+    setSendQuote(addr, amount, fee, balance, max, error) {
+      if (!cdSendView) return;
+      applySendQuote(cdSendView, { fee, balance, max, address: addr, amount, error });
+    },
+
+    /* ★★ L1 (#640) — W5 outcome: 'ok' → the success morph · 'cancel' → a silent
+       re-enable · anything else → fail(msg). An EMPTY fail is NOT a cancel: null
+       routes to the component's own error copy instead of the silent branch. */
+    signSendResult(status, message) {
+      cdClearSendWait();
+      const c = cdSendCtrl;
+      if (!c) return;
+      cdSendCtrl = null;
+      const st = String(status || '');
+      if (st === 'ok') { c.done(); return; }
+      if (st === 'cancel') { c.fail(''); return; }
+      const m = String(message || '');
+      c.fail(m === '' ? null : m);
     },
   };
 
@@ -3782,7 +4609,12 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      (overlay.js toggles body[data-overlay-open]) — the exact home.html recipe:
      coalesced through a zero-timeout so an open→close flurry sends one line. */
   let cdOverlaySyncT = 0;
-  function cdOverlayLive() { return document.body.dataset.overlayOpen !== undefined; }
+  /* ★★ L1 (#640): the money cover is NOT on the shared overlay stack, so it has to be
+     reported here or Android back would pop the whole page out from under it — the
+     same line chat.html carries for its own cover (chatOverlayLive :4569). */
+  function cdOverlayLive() {
+    return document.body.dataset.overlayOpen !== undefined || !!cdSendView;
+  }
   function syncCdOverlay() {
     if (cdOverlaySyncT) return;
     cdOverlaySyncT = setTimeout(() => {

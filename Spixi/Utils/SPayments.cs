@@ -81,6 +81,81 @@ namespace SPIXI
         /// error: '' | 'address'. Nothing is broadcast; the estimation signs a
         /// DISCARDED tx — the same mechanism the legacy pages use.
         /// </summary>
+        /* ★★ L1 (#640) — THE PEER-SCOPED PAYMENT REQUEST, IN ONE PLACE.
+         *
+         * This method was `SingleChatPage.onSendRequestFromChat` and is UNCHANGED
+         * except that it now takes its page and its friend as arguments. It moved
+         * because contact details grew the same Request action when the legacy
+         * WalletReceivePage was deleted, and a second copy of a money guard is the
+         * V-8 pattern: two homes for one rule, and they drift.
+         *
+         * The W8 grammar: `ixian:sendrequest:<addr>:<amount>`, ONE recipient, and the
+         * address MUST be the peer whose surface is open. A request is a chat MESSAGE
+         * — nothing is signed and nothing is broadcast here (SECURITY.md).
+         *
+         * ★ Every rejection is SURFACED (#268 FIX-3): the sheet has already morphed to
+         * "Requested", so a silent no-op is the ⑪ delivery lie. Guards mirror
+         * HomePage.onSendRequest — approved + Normal + !bot — and FAIL CLOSED.
+         */
+        public static void handleSendRequest(SpixiContentPage page, Friend friend, string payload)
+        {
+            try
+            {
+                int sep = payload.IndexOf(':');
+                if (sep <= 0)
+                {
+                    return;
+                }
+                string addr = payload.Substring(0, sep);
+                string amountStr = payload.Substring(sep + 1);
+                if (friend == null || friend.bot || friend.type != FriendType.Normal
+                    || !friend.approved || friend.state != FriendState.Approved)
+                {
+                    Logging.warn("sendrequest rejected: peer not an approved contact");
+                    page.displaySpixiAlert(SpixiLocalization._SL("global-invalid-address-title"), SpixiLocalization._SL("global-invalid-address-text"), SpixiLocalization._SL("global-dialog-ok"));
+                    return;
+                }
+                if (!friend.walletAddress.ToString().Equals(addr, StringComparison.Ordinal))
+                {
+                    Logging.warn("sendrequest rejected: address is not the open peer");
+                    page.displaySpixiAlert(SpixiLocalization._SL("global-invalid-address-title"), SpixiLocalization._SL("global-invalid-address-text"), SpixiLocalization._SL("global-dialog-ok"));
+                    return;
+                }
+                // The HomePage.onSendRequest amount normalization, verbatim — a second
+                // dot is REJECTED (IxiNumber silently truncates "1.2.3" to 1.2 while the
+                // stored message text would keep the full string).
+                string[] amount_split = amountStr.Split(new string[] { "." }, StringSplitOptions.None);
+                if (amount_split.Length > 2)
+                {
+                    page.displaySpixiAlert(SpixiLocalization._SL("wallet-error-amount-title"), SpixiLocalization._SL("wallet-error-amountdecimal-text"), SpixiLocalization._SL("global-dialog-ok"));
+                    return;
+                }
+                if (amount_split.Length == 1)
+                {
+                    amountStr = String.Format("{0}.0", amountStr);
+                }
+                IxiNumber _amount;
+                try { _amount = new IxiNumber(amountStr); } catch (Exception) { _amount = 0; }
+                if (_amount == 0 || _amount < (long)0)
+                {
+                    page.displaySpixiAlert(SpixiLocalization._SL("wallet-error-amount-title"), SpixiLocalization._SL("wallet-error-amount-text"), SpixiLocalization._SL("global-dialog-ok"));
+                    return;
+                }
+                // the exact HomePage.onSendRequest send pair (:1193-1195)
+                FriendMessage? friend_message = Node.addMessageWithType(null, FriendMessageType.requestFunds, friend.walletAddress, 0, amountStr, true);
+                if (friend_message == null)
+                {
+                    page.displaySpixiAlert(SpixiLocalization._SL("global-invalid-address-title"), SpixiLocalization._SL("global-invalid-address-text"), SpixiLocalization._SL("global-dialog-ok"));
+                    return;
+                }
+                CoreStreamProcessor.transactionRequest(friend_message.id, friend, _amount, null, null);
+            }
+            catch (Exception ex)
+            {
+                Logging.error("handleSendRequest failed: " + ex.Message);
+            }
+        }
+
         public static void handleFeeQuery(SpixiContentPage page, string payload)
         {
             try
@@ -243,7 +318,8 @@ namespace SPIXI
                 Transaction transaction = Node.sendTransactionFrom(from, to, amount, null);
                 if (transaction == null)
                 {
-                    // the WalletSend2Page:114 guard class — never dereference a failed send
+                    // the legacy send page's own guard class (WalletSend2Page, deleted with
+                    // ★★ L1 #640) — never dereference a failed send
                     Utils.sendUiCommand(page, "signSendResult", "fail", SpixiLocalization._SL("wallet-error-amount-text"));
                     return;
                 }

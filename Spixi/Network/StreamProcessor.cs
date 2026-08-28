@@ -234,7 +234,50 @@ namespace SPIXI
                 }
             }
 
-            int channel = 0;
+            /* ═══ ★★★ THE CHANNEL, AND IT IS NO LONGER A LITERAL ZERO ════════════════
+             *
+             * This was `int channel = 0;` and NOTHING reassigned it. FIVE things below
+             * then acted on that zero: the delivery receipt we send back (three call
+             * sites), the remote delete, the reaction push, the receipt lookup, and the
+             * bot action. Each one carries its own note. A bot room stores its messages
+             * under `botInfo.defaultChannel` (SingleChatPage), so in any room on a channel
+             * other than 0 every one of them named the wrong channel.
+             *
+             * ★ ROUND 2 (review-cs MINOR-1): the fifth reader is
+             * `onBotAction(spixi_message.data, friend, channel)` at the botAction case
+             * below. The old header named four and analysed four. `onBotAction` declares
+             * `int channel_id` and does not read it, so it is INERT today — but the
+             * guarantee is what the next reader will trust, so it names five.
+             *
+             * `SpixiMessage.channel` is the channel the SENDER used. It is the correct
+             * start value for all of them. A message that carries no channel still reads
+             * 0, which is exactly the old behaviour, so a peer on an older build loses
+             * nothing.
+             *
+             * ⚠ The msgReceived note below said the lookup "used the RECEIPT's channel".
+             * It did not, until this line. Read that note with this one.
+             *
+             * ★ ROUND 2 (review-cs MINOR-6) — THE NULL PAYLOAD IS TESTED ONCE, AND THE
+             * MESSAGE RETURNS. The declaration used to carry its own null test inside a
+             * ternary, defended as keeping the assignment outside the try safe. That half
+             * was true, and it bought nothing: `switch (spixi_message.type)` on the next
+             * line dereferenced the same reference unconditionally, so a null payload
+             * still threw — one line later, inside the try, where the outer catch
+             * swallowed it as an unnamed exception. The guard bought a caught exception
+             * instead of an uncaught one; it did not make a null payload survivable.
+             * A null SpixiMessage has nothing for the switch to act on, and the switch is
+             * the whole remaining body, so the honest answer is one named warning and the
+             * same return value the catch produced.
+             * ⚠ PIN OWNER: `smoke-test.mjs:18833` anchors this block on the OLD ternary
+             * text and goes RED here. Re-anchor it on the plain declaration below — and
+             * do not quote that statement in prose anywhere, or the anchor matches a
+             * comment again. */
+            if (spixi_message == null)
+            {
+                Logging.warn("receiveData: the SpixiMessage payload is null. The message is ignored.");
+                return rdr;
+            }
+            int channel = spixi_message.channel;
             try
             {
                 switch (spixi_message.type)
@@ -244,7 +287,15 @@ namespace SPIXI
                             var chat_page = Utils.getChatPage(friend);
                             if (chat_page != null)
                             {
-                                string msg_id_tx_id = Encoding.UTF8.GetString(spixi_message.data);
+                                /* ★ F3 GUARD 1 of 3. A garbage packet leaves `data` null and
+                                 * `Encoding.UTF8.GetString(null)` throws ArgumentNullException on
+                                 * the NETWORK thread. That is the exception in Damir's crash log. */
+                                string msg_id_tx_id = safeString(spixi_message.data);
+                                if (msg_id_tx_id.Length == 0)
+                                {
+                                    Logging.warn("requestFundsResponse: empty payload, ignored.");
+                                    break;
+                                }
                                 string[] msg_id_tx_id_split = msg_id_tx_id.Split(':');
                                 byte[] msg_id;
                                 string? tx_id = null;
@@ -258,18 +309,34 @@ namespace SPIXI
                                     msg_id = Crypto.stringToHash(msg_id_tx_id);
                                 }
 
-                                FriendMessage? msg = friend.getMessages(0).Find(x => x.id != null && x.id.SequenceEqual(msg_id));
+                                /* ★ F3 GUARD 2 of 3. `msg` is DECLARED nullable and was then
+                                 * dereferenced twice. `getMessages` can also return null. A peer
+                                 * that answers a request we no longer hold took the whole
+                                 * receiveData switch down on the network thread.
+                                 * ⚠ The status push below needs no message. It runs either way,
+                                 * so a missing local copy costs the UI update of nothing. */
+                                FriendMessage? msg = friend.getMessages(0)?.Find(x => x.id != null && x.id.SequenceEqual(msg_id));
 
                                 string status = SpixiLocalization._SL("chat-payment-status-pending");
                                 if (tx_id != null)
                                 {
-                                    msg.message = ":" + tx_id;
+                                    if (msg != null)
+                                    {
+                                        msg.message = ":" + tx_id;
+                                    }
                                 }
                                 else
                                 {
                                     tx_id = "";
                                     status = SpixiLocalization._SL("chat-payment-status-declined");
-                                    msg.message = "::" + msg.message; // declined
+                                    if (msg != null)
+                                    {
+                                        msg.message = "::" + msg.message; // declined
+                                    }
+                                }
+                                if (msg == null)
+                                {
+                                    Logging.warn("requestFundsResponse: no local message for this id.");
                                 }
 
                                 byte[]? b_tx_id = !string.IsNullOrEmpty(tx_id) ? Transaction.txIdLegacyToV8(tx_id) : null;
@@ -411,7 +478,8 @@ namespace SPIXI
                         break;
 
                     case SpixiMessageCode.requestFunds:
-                        Node.addMessageWithType(message.id, FriendMessageType.requestFunds, sender_address, 0, UTF8Encoding.UTF8.GetString(spixi_message.data));
+                        // ★ F3 GUARD 3 of 3 — same null payload, same exception.
+                        Node.addMessageWithType(message.id, FriendMessageType.requestFunds, sender_address, 0, safeString(spixi_message.data));
                         break;
 
                     case SpixiMessageCode.sentFunds:
@@ -420,10 +488,17 @@ namespace SPIXI
                         break;
 
                     case SpixiMessageCode.chat:
-                        Node.addMessageWithType(message.id, FriendMessageType.standard, sender_address, spixi_message.channel, Encoding.UTF8.GetString(spixi_message.data), false, group_sender_address, message.timestamp, fireLocalNotification, alert, 0);
+                        // F3: a garbage packet leaves `data` null, and GetString(null) throws
+                        // ArgumentNullException on the network thread. Read it as empty instead.
+                        Node.addMessageWithType(message.id, FriendMessageType.standard, sender_address, spixi_message.channel, safeString(spixi_message.data), false, group_sender_address, message.timestamp, fireLocalNotification, alert, 0);
                         if (friend != null && !friend.bot)
                         {
-                            sendReceivedConfirmation(friend, message.id, channel);
+                            /* ★ THE DELIVERY RECEIPT WE SEND BACK, call 1 of 3. The sender looks its own
+                             * copy up by id AND channel, so a receipt that names channel 0 for a
+                             * message stored on channel N finds nothing there. We store the
+                             * message under `spixi_message.channel` on the line above, so the
+                             * receipt must carry the same number. */
+                            sendReceivedConfirmation(friend, message.id, spixi_message.channel);
                         }
                         break;
 
@@ -441,7 +516,8 @@ namespace SPIXI
                                         if (fm.sequence >= csm.Sequence)
                                         {
                                             // already have this message or a newer one, ignore
-                                            sendReceivedConfirmation(friend, message.id, channel);
+                                            // ★ THE DELIVERY RECEIPT, call 2 of 3 — same rule as the chat case.
+                                            sendReceivedConfirmation(friend, message.id, spixi_message.channel);
                                             return null;
                                         }
                                         else
@@ -451,7 +527,8 @@ namespace SPIXI
                                         }
                                     }
                                 }
-                                sendReceivedConfirmation(friend, message.id, channel);
+                                // ★ THE DELIVERY RECEIPT, call 3 of 3 — same rule as the chat case.
+                                sendReceivedConfirmation(friend, message.id, spixi_message.channel);
                             }
                         }
                         break;
@@ -464,12 +541,12 @@ namespace SPIXI
                              * a bot room *"it's always clock, when I refresh it updates."*
                              * Two faces of one gap in these six lines.
                              *
-                             * ① THE CHANNEL. The lookup used the RECEIPT's channel. A bot
-                             *    room stores its messages under `botInfo.defaultChannel`
-                             *    (SingleChatPage:786), so when the receipt carries a
-                             *    different one `getMessage` returned null and NOTHING was
-                             *    pushed at all — the clock simply stayed. Fall back to a
-                             *    channel-wide resolve before giving up.
+                             * ① THE CHANNEL. The lookup NOW uses the RECEIPT's channel; it
+                             *    used a hardcoded 0. A bot room stores its messages under
+                             *    `botInfo.defaultChannel` (SingleChatPage:786), so when the
+                             *    receipt carries a different one `getMessage` returned null
+                             *    and NOTHING was pushed — the clock simply stayed. Fall back
+                             *    to a channel-wide resolve before giving up.
                              * ② THE COUNTS. Only `updateMessage` was pushed, which carries
                              *    the flags and nothing else. The delivery detail is built
                              *    from `addReactions`, which is emitted on a full history
@@ -492,43 +569,24 @@ namespace SPIXI
                                 // ② the counts behind the long-press detail
                                 UIHelpers.updateReactions(friend, ch, fm.id);
                             }
-                            /* ★★ [RCPT] PROBE — TEMPORARY, remove once the number is read.
-                             * Damir on device: a receipt still does not update the open chat
-                             * live; a reload fixes it. I have theorised the cause three times
-                             * and been wrong twice, so this prints the whole path in one line
-                             * instead. The scan saga was solved the same way (#304/#312) —
-                             * a probe, not another theory.
-                             * ⚠ NO message content, no address: type, shape and outcome only. */
-                            try
-                            {
-                                var probePage = Utils.getChatPage(friend);
-                                int rcnt = 0;
-                                if (fm != null)
-                                {
-                                    try { lock (fm.reactions) { rcnt = fm.reactions.ContainsKey("received") ? fm.reactions["received"].Count : 0; } }
-                                    catch (Exception) { rcnt = -1; }
-                                }
-                                Logging.info("[RCPT] type={0} ftype={1} bot={2} chIn={3} chUsed={4} fm={5} local={6} conf={7} recv={8} page={9} selCh={10}",
-                                    spixi_message.type,
-                                    friend.type,
-                                    friend.bot,
-                                    channel,
-                                    ch,
-                                    fm == null ? "NULL" : "found",
-                                    fm == null ? "-" : fm.localSender.ToString(),
-                                    fm == null ? "-" : fm.confirmed.ToString(),
-                                    rcnt,
-                                    probePage == null ? "NULL" : "found",
-                                    probePage == null ? -1 : probePage.getSelectedChannel());
-                            }
-                            catch (Exception pe) { Logging.warn("[RCPT] probe: " + pe.Message); }
                             UIHelpers.shouldRefreshContacts = true;
                         }
                         break;
 
                     case SpixiMessageCode.msgDelete:
-                        UIHelpers.deleteMessage(friend, channel, spixi_message.data);
-                        UIHelpers.shouldRefreshContacts = true;
+                        {
+                            /* ★ THE REMOTE DELETE. SingleChatPage.deleteMessage
+                             * drops the push when `channel != selectedChannel`, so a literal 0
+                             * left a deleted message on screen in every room on another
+                             * channel. Start from the wire channel, then resolve by id.
+                             * ⚠ Core handles the delete in `base.receiveData` above, so the
+                             * message can already be gone from the store. The resolver then
+                             * finds nothing and returns the wire channel, which is the best
+                             * answer available. It is still correct when Core keeps the row. */
+                            int delete_channel = resolveMessageChannel(friend, spixi_message.data, channel);
+                            UIHelpers.deleteMessage(friend, delete_channel, spixi_message.data);
+                            UIHelpers.shouldRefreshContacts = true;
+                        }
                         break;
 
                     case SpixiMessageCode.msgReaction:
@@ -539,7 +597,12 @@ namespace SPIXI
                             friend.metaData.unreadMessageCount++;
                             friend.saveMetaData();
                         }
-                        UIHelpers.updateReactions(friend, channel, reaction.msgId);
+                        /* ★ THE REACTION PUSH — every emoji, like and tip. SingleChatPage.updateReactions
+                         * gates on the same `channel == selectedChannel` test, so a literal 0
+                         * dropped every live reaction in a room on another channel. The target
+                         * message is still in the store here, so the resolver finds its real
+                         * channel. */
+                        UIHelpers.updateReactions(friend, resolveMessageChannel(friend, reaction.msgId, channel), reaction.msgId);
                         // CH8: reaction excerpt for the chats list (a reaction never becomes lastMessage)
                         UIHelpers.updateChatReaction(friend, group_sender_address != null ? group_sender_address : sender_address, reaction.reaction);
                         UIHelpers.shouldRefreshContacts = true;
@@ -1067,6 +1130,22 @@ namespace SPIXI
             UIHelpers.refreshAppRequests = true;
         }
 
+        /* ★ ROUND 2 (review-cs MINOR-9) — THE KICK AND BAN ROWS NO LONGER USE A LITERAL 0.
+         *
+         * This method runs for a BOT only (the guard below). A bot room opens on
+         * `botInfo.defaultChannel`: `SingleChatPage.xaml.cs:784-786` assigns
+         * `selectedChannel = friend.metaData.botInfo.defaultChannel` when the room has
+         * channels, and `:1033` stores with `selectedChannel`. So in a room whose default
+         * channel is not 0, both rows landed on a channel the user never looks at and were
+         * never rendered. Pre-existing, not introduced by this batch, and it is the same
+         * hardcoded-zero family the batch swept in receiveData.
+         *
+         * The room's DEFAULT channel is the target, not the wire channel: a kick or a ban
+         * is a room-level event, and the default channel is the one the page opens on. The
+         * wire channel stays as the fallback when the room carries no BotInfo, which is
+         * the literal 0 of today in every room that has none.
+         * ⚠ SCOPE: kick and ban stay bot-room only. This changes where the row is stored,
+         * nothing else. */
         public static void onBotAction(byte[] action_data, Friend bot, int channel_id)
         {
             if(!bot.bot)
@@ -1074,17 +1153,49 @@ namespace SPIXI
                 Logging.warn("Received onBotAction for a non-bot");
                 return;
             }
+            int channel = bot.metaData?.botInfo?.defaultChannel ?? channel_id;
             SpixiBotAction sba = new SpixiBotAction(action_data);
             switch (sba.action)
             {
                 case SpixiBotActionCode.kickUser:
-                    Node.addMessageWithType(null, FriendMessageType.kicked, bot.walletAddress, 0, SpixiLocalization._SL("chat-kicked"), true);
+                    Node.addMessageWithType(null, FriendMessageType.kicked, bot.walletAddress, channel, SpixiLocalization._SL("chat-kicked"), true);
                     break;
 
                 case SpixiBotActionCode.banUser:
-                    Node.addMessageWithType(null, FriendMessageType.banned, bot.walletAddress, 0, SpixiLocalization._SL("chat-banned"), true);
+                    Node.addMessageWithType(null, FriendMessageType.banned, bot.walletAddress, channel, SpixiLocalization._SL("chat-banned"), true);
                     break;
             }
+        }
+
+        /* ★ F3: read a payload as text without a crash. A malformed packet makes the
+         * SpixiMessage constructor throw, and `data` is then null. `Encoding.UTF8.GetString`
+         * answers a null with an ArgumentNullException, on the NETWORK thread. The outer
+         * catch logs it and the whole message is lost, including the parts that were good.
+         * An empty string is the honest answer: the caller stores or ignores an empty
+         * message, and nothing else in receiveData is skipped. */
+        private static string safeString(byte[]? data)
+        {
+            if (data == null || data.Length == 0)
+            {
+                return "";
+            }
+            try
+            {
+                return Encoding.UTF8.GetString(data);
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("safeString: " + ex.Message);
+                return "";
+            }
+        }
+
+        /* ★ ONE HOME for the channel resolution. SpixiPendingMessageProcessor needs the
+         * same answer for a group copy, so it calls this wrapper instead of copying the
+         * walk. The body below stays private; this only widens the reach. */
+        internal static int resolveChannelForMessage(Friend friend, byte[] msgId, int fallback)
+        {
+            return resolveMessageChannel(friend, msgId, fallback);
         }
 
         /* ★★★ ISSUE 1 ①: find the channel a message id actually lives on.

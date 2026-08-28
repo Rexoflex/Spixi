@@ -6137,11 +6137,13 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     // so groups get the same pane/takeover instead of doing nothing.
     onChatInfo: (c) => { if (c && c.address) bridge.send('ixian:chatinfo:' + c.address); },
     // Row-menu/swipe intents. delete/deleteAll → tombstone the address (the row is
-    // already removed from the model by applyChatRowAction). pin/mute/markRead have
-    // no BE persistence path yet → local model change only. When BE ships the §8
-    // verbs (CH1/CH3/CH4) the real ixian: sends slot in here, keyed on `action`:
-    //   markRead → ixian:markread:<addr> · delete → ixian:removehistory (soft)
-    //   deleteAll → history+downloads purge + ixian:remove (contact)
+    // already removed from the model by applyChatRowAction). pin/mute have no BE
+    // persistence path yet → local model change only. When BE ships the §8 verbs
+    // (CH1/CH4) the real ixian: sends slot in here, keyed on `action`.
+    // ★★ "Mark as read" IS REMOVED (Damir, #46 loop 2026-08-27): *"we decided to
+    // remove the mark as read from chat row menu, no need to force it."* It had no
+    // verb, the badge returned on the next flush, and the counterpart got no read
+    // receipt. Do not add a markRead branch here.
     // delete/deleteContact → tombstone the address (row already removed by
     // applyChatRowAction). `detail.media` + the deeper wipe (history/files) and
     // contact removal are the BE intent (CH3); recorded here for when the verbs land:
@@ -6257,7 +6259,9 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     capabilities: { pin: true, mute: true, favorites: false, delete: true },
     // onModelChange fires on EVERY re-render — including row-menu delete/accept that
     // re-render directly (not via renderChatsNow) — so update the nav badge AND the
-    // chip counts here so a delete/mark-read never leaves a stale chip count.
+    // chip counts here so a delete or an accept never leaves a stale chip count.
+    // (L7 removed "Mark as read"; this line still named it until the #46 loop r2 sweep.
+    // Keep this text equal to the code, #647.)
     onModelChange: () => { setNavBadge(nav, 'chats', navUnreadTotal()); setChatsHeaderCounts(header, chatsHeaderCounts()); },
     // zero-state CTA — the SAME action as the FAB (contacts picker), no new verb
     onNewChat: () => openContacts('start'),
@@ -7164,9 +7168,13 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 
   /* ★ #589 — the wallet zero-state's "Show my address": the ONE address surface
    * (#527 openAddressSheet), the same one the Account row opens. Share is gated
-   * exactly as the takeover gates it (N38 — desktop has no working share ladder),
-   * and a missing address degrades to the native page, which is the takeover's
-   * own degrade: a CTA that does nothing would be worse than the old screen. */
+   * exactly as the takeover gates it (N38 — desktop has no working share ladder).
+   * ★★ COMMENT CORRECTED (#46 loop, MINOR-6). The old text promised that a missing
+   * address degrades to the NATIVE PAGE. L1 deleted that page. The line below is
+   * `if (!addr) return;`, so a missing address opens nothing at all. L1 marks that
+   * guard as unreachable, and the takeover carries the same guard. This project
+   * treats a comment that describes the wrong behaviour as a defect (#647). Keep
+   * this text equal to the code. */
   function openWalletAddressSheet() {
     const addr = cleanReceiveAddress(walletOwnAddress);
     if (!addr) return;   // ★★ L1 (#640): same unreachable guard, same silent return
@@ -8038,11 +8046,34 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
       // Only set when pinned: an undefined key lets upsert-merge keep an existing
       // row's live state, and an unpin (set removal) wins on the next rebuild.
       if (pinnedChats.has(wallet)) chat.pinned = true;
-      // legacy hides the outgoing tick when there are unread messages
-      if (n === 0) {
-        const st = statusFromType(type);
-        if (st) chat.status = st;
-      }
+      /* Legacy hides the outgoing tick when there are unread messages.
+         ★★ A FAILURE IS NOT A DELIVERY STATE (#46 loop, MINOR-4). Legacy hid the tick
+         for the DELIVERY states only — sending, sent, delivered, read. Those answer
+         "did my message arrive", and an unread incoming message makes that question
+         secondary. "Not delivered" answers a different question. Inside the gate the
+         conversation showed the red retry state while the row beside it showed no tick
+         at all. So the `failed` leg leaves the gate. Every other state keeps the
+         legacy rule.
+
+         ★★ ROUND 2 (#46 loop r2, review-fe MINOR-4) — THE EXEMPTION STAYS. The review
+         shows that the red tick and a non-zero badge can appear on ONE row: a reaction
+         bumps `friend.metaData.unreadMessageCount` when the chat screen is not displayed
+         (`Spixi/Network/StreamProcessor.cs:592-598`, verified) and a reaction never becomes
+         `lastMessage`, so the tail can still be MY failed message. The row then reads
+         "You: hi ⚠ ①" and opening the chat shows no new message.
+         ⚠ THE LIE IS THE BADGE, NOT THE TICK, AND THE BADGE IS NOT OURS. The tick reports
+         a fact: my message did not go. The badge reports "unread incoming" for something
+         that is not a message. Reverting the exemption hides a real failure to hide
+         somebody else's wrong count — a delivery lie by omission, which is worse. The
+         shell cannot separate a reaction-driven count from a message-driven one: the push
+         carries one number.
+         ⚠ AND THE STATE IS SELF-EXPLAINING. If a NEWER incoming message existed it would
+         BE the tail, so `st` would not be my failed status. A non-zero count beside a
+         failed own tail therefore always means "activity that is not a message".
+         ⚠ BE ROW: stop counting a reaction as an unread MESSAGE, or push it as its own
+         signal. Fix it there, not here. Do not re-open this gate. */
+      const st = statusFromType(type);
+      if (st && (n === 0 || st === 'failed')) chat.status = st;
       // Q12: a confirmed delete of the chat's tail message left C#'s lastMessage
       // stale. While the pushed timestamp still equals the recorded deleted one,
       // show the hint's replacement excerpt (+ its timestamp so ordering/time

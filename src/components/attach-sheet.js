@@ -17,6 +17,29 @@
  *   apps     — gate the App-invite tile: no single chat-invite verb exists on
  *              every host (SingleChatPage has none), so the shell can hide it.
  *   payments — gate Pay + Request: 1:1 only (C# rejects them in groups/bots).
+ *   files    — gate Send file: C# refuses a file in a bot room and in a blind group.
+ *
+ * ★★ AN EMPTY SHEET DOES NOT OPEN (#46 loop, MAJOR-2). In a bot room every flag is
+ * false, so every tile is filtered out. The sheet opened with no tiles, no title and
+ * no text. That is a control that reports an outcome it did not cause.
+ * `attachTilesFor` is the ONE predicate. This file uses it to refuse to open. The
+ * shell uses it to hide the composer ⊕. Do not write that rule a second time.
+ * Two copies can drift, and a drift shows a ⊕ that opens nothing.
+ *
+ * ⚠ THE FLAG DEFAULTS FAIL OPEN (round 2). An absent flag takes the default below, and
+ * three of the four defaults are TRUE. That is deliberate: every caller passes a PARTIAL
+ * object and must keep its tiles. It also means this module cannot protect a caller that
+ * does not yet know its room. A caller that has no answer must pass an EXPLICIT false for
+ * every gate. The chat shell does exactly that: `attachFlags()` writes its room-known test
+ * into all four flags, so a room whose type has not arrived yields no tile and no ⊕.
+ * Do not read a missing flag as "no".
+ *
+ * ★★ `attachTilesFor` IS ALSO THE ACTION GATE (round 3). The chat shell calls it a
+ * second time when a tile is TAPPED, and drops the action when the tapped id is no
+ * longer in the list. A sheet can outlive the answer it was built from: the room type
+ * can arrive while the sheet is open. So the same list decides what is DRAWN and what
+ * is DONE. Keep this function pure and cheap for that reason — it runs on every tap as
+ * well as on every open, and it must never be given a side effect.
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
@@ -31,17 +54,41 @@ const ATTACH_ACTIONS = [
   { id: 'app', glyph: 'rocket', label: 'App invite', key: 'appInvite', flag: 'apps' },
 ];
 
+/* ★★ THE ONE PREDICATE — which tiles survive the gates.
+   `openAttachSheet` and the chat shell both call this. The shell hides the composer ⊕
+   when the list is empty. This file refuses to open an empty sheet. One rule, two
+   users, no drift.
+   Each default matches the `openAttachSheet` signature below. A caller can pass a
+   partial object. An absent flag takes the default. */
+export function attachTilesFor(flags) {
+  const f = flags || {};
+  const enabled = {
+    media: f.media === undefined ? false : !!f.media,
+    apps: f.apps === undefined ? true : !!f.apps,
+    payments: f.payments === undefined ? true : !!f.payments,
+    files: f.files === undefined ? true : !!f.files,
+  };
+  return ATTACH_ACTIONS.filter((a) => !a.flag || enabled[a.flag]);
+}
+
+/* True when at least one tile survives. Use this to show or hide the ⊕. */
+export function hasAttachTiles(flags) { return attachTilesFor(flags).length > 0; }
+
 /* `files` defaults TRUE — every existing caller keeps its tile without a change, and a
    surface that cannot send files says so explicitly. Legacy had no file capability in a
    blind group and the C# still refuses one there; offering the tile anyway was a control
    that reported an outcome it did not cause. */
 export function openAttachSheet({ host, media = false, apps = true, payments = true, files = true, onAction, strings = getStrings() } = {}) {
+  const tiles = attachTilesFor({ media, apps, payments, files });
+  /* ★★ NO TILE, NO SHEET. A sheet with no tile explains nothing and does nothing.
+     The shell keeps the ⊕ hidden for the same condition, so this path is the belt.
+     The caller must accept null. */
+  if (!tiles.length) return null;
+
   const grid = document.createElement('div');
   grid.className = 'c-attach';
-  const enabled = { media, apps, payments, files };
 
-  for (const a of ATTACH_ACTIONS) {
-    if (a.flag && !enabled[a.flag]) continue; // #81 media flag / apps gate (voice-flag precedent #64)
+  for (const a of tiles) {
     const tile = document.createElement('button');
     tile.type = 'button';
     tile.className = 'c-attach__tile';

@@ -16,9 +16,206 @@ namespace SPIXI
         public static bool shouldRefreshApps = false;
         public static bool refreshAppRequests = true;
 
+        /* ═══ ★★ #647 ROUND 4 — "DOES ANY OTHER MEMBER HAVE THIS MESSAGE?" ════════
+         *
+         * ★ THE RULE, AS DAMIR RULED IT (2026-08-27):
+         *   Any reaction on a message, from any address that is NOT the local user, is
+         *   evidence that this member has the message.
+         *
+         * The rule names NO reaction key, and that is the point. You cannot read a
+         * message that you do not have. You cannot download it. You cannot like it. You
+         * cannot tip it. Every reaction is evidence. Nothing can be added to the rule,
+         * so the rule can never need a fourth patch.
+         *
+         * ★ WHY A RULE REPLACED A LIST. The old answer was an enumerated list of
+         * reaction keys. Each review round added one more key, and each round found one
+         * more surface that still held the old list:
+         *     session A   `received`
+         *     round 1     `received` or `seen`
+         *     round 2     `received` or `seen` or `fileReceived`
+         *     round 3     `like` and `tip` are receipts too, and the shell then counted
+         *                 three keys while C# counted two.
+         * The list is open-ended. THAT is the defect, not any one missing key.
+         *
+         * ★★ THE ANSWER IS A BOOLEAN, AND THE WALK STOPS AT THE FIRST PROOF.
+         * (Round 4, `_review/review4.md` MAJOR-2.) One reaction record from an address
+         * that is not ours proves that at least one other member has the message. The
+         * walk returns TRUE there. It reads no more records. The answer is exact.
+         *
+         * ⚠ THERE IS NO MEMBER COUNT HERE ANY MORE. DO NOT ADD ONE BACK.
+         * The old body also counted DISTINCT senders. A distinct count must
+         * de-duplicate ACROSS the reaction keys, because one member can hold a `seen`
+         * AND a `like`, and Ixian-Core de-duplicates by sender inside ONE key only.
+         * That test was pairwise: n(n-1)/2 `SequenceEqual` calls for n reaction
+         * records. It ran inside `lock (message.reactions)`, on the OnUpdateUI tick,
+         * about every one to two seconds, for every group row whose last message is
+         * ours and is not yet `confirmed`. `confirmed` latches only at the FULL member
+         * count, so a large private group stays on that branch permanently.
+         * NO C# caller read the count. It is DELETED, not kept behind a flag: dead code
+         * with a guarantee attached is worse than the gap, and this project deleted two
+         * `deliveryTicks` call sites for exactly that reason.
+         *
+         * ⚠ A LATER CALLER THAT NEEDS "HOW MANY" MUST WRITE ITS OWN METHOD, with its
+         * own name and a live caller in the same batch. A count question costs more
+         * than this boolean question. Do not make every caller pay for one caller.
+         *
+         * ★ IT EXCLUDES THE LOCAL USER. The `like` case and the tip leg in
+         * `SingleChatPage.onContextAction` store OUR OWN reaction on the message. Our
+         * own like is not evidence that another member has the message. See
+         * `ownReactionAddresses` below: a blind group stores our like under a DERIVED
+         * address, so both of our addresses are excluded. The early return makes this
+         * exclusion MORE important, not less. It is the only test between a reaction
+         * record and a TRUE answer.
+         *
+         * ★ IT IS READ-ONLY AND IT TAKES THE INNERMOST LOCK. `lock (message.reactions)`
+         * is the lock the three former readers took. It is also the lock the reaction
+         * push takes. The wallet read and the address derivation run BEFORE the lock, so
+         * nothing calls out while the lock is held.
+         *
+         * ★★ IT FAILS SOFT, AND THE SAFE ANSWER BELONGS TO THE CALLER.
+         * `answerWhenUnreadable` carries that asymmetry. Do not remove it. Do not give
+         * it a default value.
+         *   · The bubble tick and the chats row pass FALSE. An unreadable set must not
+         *     claim a delivery that we cannot see.
+         *   · `markGroupCopyFailed` passes TRUE. A false red FAILED is UNRECOVERABLE,
+         *     because `errorSending` is written in one place in Ixian-Core and is
+         *     cleared NOWHERE.
+         * One method, two directions, stated once. Do not flatten them.
+         *
+         * ⚠ GROUPS ONLY. All three call sites test the room type before they call. A 1:1
+         * chat and a BOT room never reach this method, so their behaviour does not
+         * change. Keep that gate at the call site. */
+        public static bool anyOtherMemberHasMessage(Friend? friend, FriendMessage? message, bool answerWhenUnreadable)
+        {
+            if (message == null)
+            {
+                return answerWhenUnreadable;
+            }
+            // The wallet read and the derivation run OUTSIDE the lock. See the header.
+            List<Address> ownAddresses = ownReactionAddresses(friend);
+            try
+            {
+                lock (message.reactions)
+                {
+                    // The walk reads EVERY reaction key. It names none of them.
+                    var senders = message.reactions
+                        .SelectMany(entry => entry.Value)
+                        .Where(reaction => reaction != null && reaction.sender != null)
+                        .Select(reaction => reaction.sender);
+                    foreach (Address sender in senders)
+                    {
+                        bool isOwn = false;
+                        foreach (Address mine in ownAddresses)
+                        {
+                            if (mine != null && sender.SequenceEqual(mine))
+                            {
+                                isOwn = true;
+                                break;
+                            }
+                        }
+                        if (isOwn)
+                        {
+                            continue;
+                        }
+                        /* ★ THE EARLY ANSWER. This sender is not us. That is proof that
+                         * one other member has the message. The caller asked a boolean
+                         * question, so stop here. Do not read the remaining records, and
+                         * do not compare this sender with any other sender. */
+                        return true;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("anyOtherMemberHasMessage: the reaction set is unreadable. " + ex.Message);
+                return answerWhenUnreadable;
+            }
+            // Every reaction is ours, or there is no reaction. There is no evidence.
+            return false;
+        }
+
+        /* ★ THE LOCAL USER CAN HOLD TWO ADDRESSES ON ONE MESSAGE.
+         *
+         * The `like` case in `SingleChatPage.onContextAction` stores our reaction under a
+         * DERIVED address when the room is blind and we are not the owner. The tip leg
+         * stores its reaction under the primary address. Exclude both addresses.
+         *
+         * ⚠ THE CONDITION IS COPIED FROM THE WRITER, TERM FOR TERM. Read
+         * `SingleChatPage.updateReactions(FriendMessage)` for why the `botInfo` term
+         * stays beside `Utils.hidesParticipants`. That predicate fails CLOSED, and
+         * `GroupChat.DeriveGroupAddress` needs `botInfo.randomId`. A reader that derives
+         * on a condition the writer does not use reads the wrong address.
+         *
+         * ⚠ IT FAILS TO THE PRIMARY ADDRESS ALONE, and that is a known small risk. If
+         * the derivation throws in a blind group, our own `like` is then counted as a
+         * member. The bubble can show a double check that one member does not support.
+         * The opposite failure — returning no address at all — counts our own like in
+         * EVERY room, so this direction is the smaller error. */
+        private static List<Address> ownReactionAddresses(Friend? friend)
+        {
+            List<Address> addresses = new List<Address>();
+            try
+            {
+                Address? primary = IxianHandler.getWalletStorage().getPrimaryAddress();
+                if (primary == null)
+                {
+                    return addresses;
+                }
+                addresses.Add(primary);
+                // Every term below is copied from the WRITER. Keep the two equal.
+                if (friend == null || !Utils.hidesParticipants(friend))
+                {
+                    return addresses;
+                }
+                var botInfo = friend.metaData?.botInfo;
+                if (botInfo == null)
+                {
+                    return addresses;
+                }
+                Address? owner = friend.users?.getOwner();
+                if (owner == null || owner.SequenceEqual(primary))
+                {
+                    return addresses;
+                }
+                addresses.Add(GroupChat.DeriveGroupAddress(primary, botInfo.randomId));
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("ownReactionAddresses: the own address is not resolved. " + ex.Message);
+            }
+            return addresses;
+        }
+
+        /* ★★ #46 loop ROUND 2 (review-cs MAJOR-3) — SIX MORE `Last()` SITES.
+         *
+         * Round 1 replaced `Last()` with `LastOrDefault()` at HomePage.xaml.cs:3326 and
+         * stopped there. The same statement stood SIX more times in this file, at the exit
+         * of every method below. `Last()` THROWS "Sequence contains no elements" on an
+         * empty NavigationStack, and the stack is empty during a teardown window — a
+         * language change, an account switch, a shutdown.
+         *
+         * ★ THE COST IS NOT THE SAME AT EVERY CALLER, WHICH IS WHY ALL SIX ARE FIXED:
+         *   · `StreamProcessor.receiveData` wraps its switch in a try/catch, so a throw
+         *     there costs the rest of one message.
+         *   · `SpixiPendingMessageProcessor.onMessageSent` and `onMessageExpired` have NO
+         *     try/catch on the Spixi side, so a throw leaves our code and enters Core's
+         *     pending-message loop, on the NETWORK thread.
+         *   · `setContactStatus` threw BEFORE its own `else { shouldRefreshContacts =
+         *     true; }` fallback, so the fallback could never run.
+         *
+         * ★ NO REAL UI PUSH IS DROPPED BY THIS. Every site already tests `page != null &&
+         * page is HomePage`, so a null answer takes the path the code always took when the
+         * top page was not HomePage. In `setContactStatus` that path is the refresh flag,
+         * which is the correct recovery. The chat-page push above each site is a separate
+         * statement through `Utils.getChatPage`, and it is untouched.
+         *
+         * ★ The `?.` chain covers `MainPage` as well. It is null before CreateWindow
+         * assigns it and during teardown, and these hooks run on the network thread, which
+         * does not wait for either. A NullReferenceException there is the same crash class
+         * as the throw this fix removes. */
         public static void setContactStatus(Address address, bool online, int unread, string excerpt, long timestamp)
         {
-            Page? page = Application.Current.MainPage.Navigation.NavigationStack.Last();
+            Page? page = Application.Current?.MainPage?.Navigation?.NavigationStack?.LastOrDefault();
             if (page != null && page is HomePage)
             {
                 ((HomePage)page).setContactStatus(address, online, unread, excerpt, timestamp);
@@ -293,7 +490,7 @@ namespace SPIXI
         public static void updateMessage(Friend friend, int channel, FriendMessage msg)
         {
             Utils.getChatPage(friend)?.updateMessage(msg, channel);
-            Page? page = Application.Current.MainPage.Navigation.NavigationStack.Last();
+            Page? page = Application.Current?.MainPage?.Navigation?.NavigationStack?.LastOrDefault();
             if (page != null && page is HomePage)
             {
                 ((HomePage)page).updateChat(friend);
@@ -303,7 +500,7 @@ namespace SPIXI
         public static void insertMessage(Friend friend, int channel, FriendMessage msg)
         {
             Utils.getChatPage(friend)?.insertMessage(msg, channel);
-            Page? page = Application.Current.MainPage.Navigation.NavigationStack.Last();
+            Page? page = Application.Current?.MainPage?.Navigation?.NavigationStack?.LastOrDefault();
             if (page != null && page is HomePage)
             {
                 ((HomePage)page).updateChat(friend);
@@ -313,7 +510,7 @@ namespace SPIXI
         public static void deleteMessage(Friend friend, int channel, byte[] msgId)
         {
             Utils.getChatPage(friend)?.deleteMessage(msgId, channel);
-            Page? page = Application.Current.MainPage.Navigation.NavigationStack.Last();
+            Page? page = Application.Current?.MainPage?.Navigation?.NavigationStack?.LastOrDefault();
             if (page != null && page is HomePage)
             {
                 ((HomePage)page).updateChat(friend);
@@ -323,7 +520,7 @@ namespace SPIXI
         public static void updateReactions(Friend friend, int channel, byte[] msgId)
         {
             Utils.getChatPage(friend)?.updateReactions(msgId, channel);
-            Page? page = Application.Current.MainPage.Navigation.NavigationStack.Last();
+            Page? page = Application.Current?.MainPage?.Navigation?.NavigationStack?.LastOrDefault();
             if (page != null && page is HomePage)
             {
                 ((HomePage)page).updateChat(friend);
@@ -333,7 +530,7 @@ namespace SPIXI
         // CH8: reaction excerpt for the chats list (mirrors updateReactions' HomePage dispatch)
         public static void updateChatReaction(Friend friend, Address reactor_address, string reaction)
         {
-            Page? page = Application.Current.MainPage.Navigation.NavigationStack.Last();
+            Page? page = Application.Current?.MainPage?.Navigation?.NavigationStack?.LastOrDefault();
             if (page != null && page is HomePage)
             {
                 ((HomePage)page).updateChatReaction(friend, reactor_address, reaction);

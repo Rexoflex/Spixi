@@ -5040,8 +5040,15 @@ function createCallBubble({
       meta.textContent = metaText;
       el.append(meta);
     }
-    const wrap = detailsLink(reentryGuard(onCallBack), { details: strings.callBack || 'Call back' });
-    el.append(wrap);
+    /* ★★ ROUND 3 (review3-cs MAJOR-2) — A CALL-BACK LINK WITH NO HANDLER IS A DEAD
+     * CONTROL. `detailsLink` renders the button whether or not it gets a callback, and
+     * only the missed branch above tested for one, so an ANSWERED call card always
+     * showed a live-looking "Call back ›" that did nothing when the host wired no
+     * handler. The host wires one only when a call is possible, so the absence is the
+     * answer: draw no link. */
+    if (onCallBack) {
+      el.append(detailsLink(reentryGuard(onCallBack), { details: strings.callBack || 'Call back' }));
+    }
   }
   return row;
 }
@@ -6441,6 +6448,29 @@ function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = getStri
  *   apps     — gate the App-invite tile: no single chat-invite verb exists on
  *              every host (SingleChatPage has none), so the shell can hide it.
  *   payments — gate Pay + Request: 1:1 only (C# rejects them in groups/bots).
+ *   files    — gate Send file: C# refuses a file in a bot room and in a blind group.
+ *
+ * ★★ AN EMPTY SHEET DOES NOT OPEN (#46 loop, MAJOR-2). In a bot room every flag is
+ * false, so every tile is filtered out. The sheet opened with no tiles, no title and
+ * no text. That is a control that reports an outcome it did not cause.
+ * `attachTilesFor` is the ONE predicate. This file uses it to refuse to open. The
+ * shell uses it to hide the composer ⊕. Do not write that rule a second time.
+ * Two copies can drift, and a drift shows a ⊕ that opens nothing.
+ *
+ * ⚠ THE FLAG DEFAULTS FAIL OPEN (round 2). An absent flag takes the default below, and
+ * three of the four defaults are TRUE. That is deliberate: every caller passes a PARTIAL
+ * object and must keep its tiles. It also means this module cannot protect a caller that
+ * does not yet know its room. A caller that has no answer must pass an EXPLICIT false for
+ * every gate. The chat shell does exactly that: `attachFlags()` writes its room-known test
+ * into all four flags, so a room whose type has not arrived yields no tile and no ⊕.
+ * Do not read a missing flag as "no".
+ *
+ * ★★ `attachTilesFor` IS ALSO THE ACTION GATE (round 3). The chat shell calls it a
+ * second time when a tile is TAPPED, and drops the action when the tapped id is no
+ * longer in the list. A sheet can outlive the answer it was built from: the room type
+ * can arrive while the sheet is open. So the same list decides what is DRAWN and what
+ * is DONE. Keep this function pure and cheap for that reason — it runs on every tap as
+ * well as on every open, and it must never be given a side effect.
  */
 
 
@@ -6455,17 +6485,41 @@ const ATTACH_ACTIONS = [
   { id: 'app', glyph: 'rocket', label: 'App invite', key: 'appInvite', flag: 'apps' },
 ];
 
+/* ★★ THE ONE PREDICATE — which tiles survive the gates.
+   `openAttachSheet` and the chat shell both call this. The shell hides the composer ⊕
+   when the list is empty. This file refuses to open an empty sheet. One rule, two
+   users, no drift.
+   Each default matches the `openAttachSheet` signature below. A caller can pass a
+   partial object. An absent flag takes the default. */
+function attachTilesFor(flags) {
+  const f = flags || {};
+  const enabled = {
+    media: f.media === undefined ? false : !!f.media,
+    apps: f.apps === undefined ? true : !!f.apps,
+    payments: f.payments === undefined ? true : !!f.payments,
+    files: f.files === undefined ? true : !!f.files,
+  };
+  return ATTACH_ACTIONS.filter((a) => !a.flag || enabled[a.flag]);
+}
+
+/* True when at least one tile survives. Use this to show or hide the ⊕. */
+function hasAttachTiles(flags) { return attachTilesFor(flags).length > 0; }
+
 /* `files` defaults TRUE — every existing caller keeps its tile without a change, and a
    surface that cannot send files says so explicitly. Legacy had no file capability in a
    blind group and the C# still refuses one there; offering the tile anyway was a control
    that reported an outcome it did not cause. */
 function openAttachSheet({ host, media = false, apps = true, payments = true, files = true, onAction, strings = getStrings() } = {}) {
+  const tiles = attachTilesFor({ media, apps, payments, files });
+  /* ★★ NO TILE, NO SHEET. A sheet with no tile explains nothing and does nothing.
+     The shell keeps the ⊕ hidden for the same condition, so this path is the belt.
+     The caller must accept null. */
+  if (!tiles.length) return null;
+
   const grid = document.createElement('div');
   grid.className = 'c-attach';
-  const enabled = { media, apps, payments, files };
 
-  for (const a of ATTACH_ACTIONS) {
-    if (a.flag && !enabled[a.flag]) continue; // #81 media flag / apps gate (voice-flag precedent #64)
+  for (const a of tiles) {
     const tile = document.createElement('button');
     tile.type = 'button';
     tile.className = 'c-attach__tile';
@@ -7214,7 +7268,7 @@ let rowLiftToken = 0;     // ★ #606 r2: identity for the undo, so a dying menu
  *     action re-renders the list. `onDismiss` is deferred by up to 400 ms, so its undo
  *     fired on a node the re-render had already thrown away — and the REPLACEMENT node,
  *     lifted by renderChatsList, had no undo at all. A lifted row is
- *     pointer-events:none, so tapping "Mark as read" left that chat dead to taps.
+ *     pointer-events:none, so tapping a row action left that chat dead to taps.
  *   · MAJOR-2: `document.querySelector` returns the FIRST match in document order, and
  *     a dismissing sheet is still in the DOM ahead of a newly opened one. A flush
  *     during that window lifted the OLD row and left the new one under the scrim.
@@ -7361,15 +7415,15 @@ function liftedRowAddress() {
  * for 1:1 — desktop pane / mobile takeover — and opens the chat for groups).
  *
  * Pin/Mute are CAPABILITY-GATED (parkable until BE persists them, #67/§8): shown
- * only when capabilities.pin / capabilities.mute are truthy. Mark-read / Chat
- * info / Delete are always present. A HANDSHAKING row (#109, still establishing)
+ * only when capabilities.pin / capabilities.mute are truthy. Chat info is always
+ * present. Delete is capability-gated. A HANDSHAKING row (#109, still establishing)
  * gets a single "Cancel handshake" action instead — the row's only recovery path
  * (it has no swipe / open), so a stalled handshake is never an un-removable trap.
  *
  * openChatRowMenu({ chat, row, host, onAction, strings, capabilities, handshaking }) → sheet
  *   row (★ Batch E (a), #557): the pressed row element — on mobile the menu
  *   anchors to it (dropdown above the row); absent → bottom sheet, unchanged.
- *   onAction(action) — 'pin' | 'mute' | 'markRead' | 'info' | 'delete' | 'cancelHandshake' | 'revokeRequest' (B1)
+ *   onAction(action) — 'pin' | 'mute' | 'info' | 'delete' | 'cancelHandshake' | 'revokeRequest' (B1)
  * attachChatRowMenu(row, opts) — wires long-press + right-click on the row
  */
 
@@ -7384,6 +7438,19 @@ function liftedRowAddress() {
 
 const CHATMENU_LONG_PRESS_MS = 500;   // §5b
 const CHATMENU_MOVE_CANCEL_PX = 10;   // §5b: >10px move = scroll intent
+
+/* ★★ ONE HOME FOR "IS THIS ROW A ROOM?" (#46 loop r2 sweep).
+ * This expression was written out TWICE, byte-identical, in openRemoveContactSheet and in
+ * openDeleteFlow. Both answer the same question and both drive a DESTRUCTIVE choice: a room
+ * offers "Leave group" and no "Remove contact" row, a person offers the opposite. Two copies
+ * of one rule is the shape this project keeps paying for, so there is one copy now.
+ * ⚠ `chat.isGroup === true` is an EXPLICIT boolean test on purpose. #646① was a guard on a
+ * metadata BAG, which is always truthy. Do not relax it to `chat.isGroup`.
+ * ⚠ NOT the same question as the avatar's `group:` flag (:335). That one asks "draw the group
+ * glyph" and reads `chat.type === 'group'` alone. Keep them apart. */
+function isRoomRow(chat) {
+  return chat.type === 'group' || chat.type === 'bot' || chat.isGroup === true;
+}
 
 function openChatRowMenu({ chat = {}, row = null, host, onAction, onNeedGroups, strings = getStrings(), capabilities = {}, handshaking = false } = {}) {
   closeChatRowSwipe();                              // any open swipe drawer closes when a sheet takes over (single-open invariant across row types)
@@ -7410,7 +7477,9 @@ function openChatRowMenu({ chat = {}, row = null, host, onAction, onNeedGroups, 
   };
 
   // #109: a handshaking row can ONLY be cancelled (its recovery path) — no
-  // pin/mute/mark-read/info/open while the key exchange is still in flight.
+  // pin/mute/info/open while the key exchange is still in flight.
+  // (L7 removed "Mark as read"; this list named it until the #46 loop r2 sweep. A
+  // comment that describes behaviour the code no longer has is a defect here, #647.)
   if (handshaking) {
     item('x', strings.cancelHandshake || 'Cancel handshake', () => {
       releaseRowLift();   // round-2 MAJOR-1: the modal replaces the menu; the lift must not survive it
@@ -7445,7 +7514,11 @@ function openChatRowMenu({ chat = {}, row = null, host, onAction, onNeedGroups, 
          chat.muted ? (strings.unmute || 'Unmute') : (strings.mute || 'Mute'),
          () => act('mute'));
   }
-  item('checks', strings.markRead || 'Mark as read', () => act('markRead'));
+  /* ★★ "Mark as read" IS REMOVED (Damir, #46 loop 2026-08-27): *"we decided to remove
+     the mark as read from chat row menu, no need to force it."* There is no backend verb.
+     The badge returned on the next flush. The counterpart got no read receipt. So the
+     item was a control that reported an outcome it did not cause. Do not add it back
+     without a BE verb, a persisted count and a read receipt. */
   item('info-circle', strings.chatInfo || 'Chat info', () => act('info'));
   // Delete — destructive last (§5b), CAPABILITY-GATED (CH3). Removing a chat or
   // wiping history needs BE verbs (`removehistory`/`remove` live on
@@ -7548,7 +7621,7 @@ function deleteCheckbox(label, { checked = false, disabled = false } = {}) {
  *  but a dead end: the user has to find each group and leave it by hand); (c) THIS —
  *  explain + offer the fix in place. */
 function openRemoveContactSheet({ chat = {}, host, strings = getStrings(), onNeedGroups, onRemove, onKeep } = {}) {
-  const isGroup = chat.type === 'group' || chat.type === 'bot' || chat.isGroup === true;
+  const isGroup = isRoomRow(chat);   // ★ one home — see isRoomRow
   const content = document.createElement('div');
   content.className = 'c-remove-contact';
   content.append(deletePeerHeader(chat, strings));
@@ -7784,7 +7857,7 @@ function openDeleteFlow({ chat = {}, host, onAction, onNeedGroups, strings = get
    * irreversible half, and a pre-ticked destructive box is how people remove contacts
    * they meant to keep. A GROUP or a bot has no contact to remove — leaving is the
    * whole action there — so the row is not offered. */
-  const isGroupChat = chat.type === 'group' || chat.type === 'bot' || chat.isGroup === true;
+  const isGroupChat = isRoomRow(chat);   // ★ one home — see isRoomRow
   const cbContact = isGroupChat ? null : deleteCheckbox(strings.removeContactOpt || 'Remove contact');
   if (cbContact) optsWrap.append(cbContact.row);
   content.append(optsWrap);
@@ -7928,9 +8001,18 @@ function attachChatRowMenu(row, opts = {}) {
     openChatRowMenu({ row, ...opts });
   });
 
-  // keyboard path to the context menu (a11y): the swipe accelerator is pointer-only,
-  // so keyboard users reach Pin/Mute/Mark-read/Delete here. Shift+F10 and the
-  // dedicated ContextMenu/Apps key are the standard "open context menu" bindings.
+  /* KEYBOARD PATH TO THE CONTEXT MENU (a11y). ★ THE CONTRACT IS THE ROUTE, NOT THE LIST:
+     the long-press and the swipe accelerator are BOTH pointer-only, so this handler is the
+     ONLY way a keyboard user reaches ANY row action. Shift+F10 and the dedicated
+     ContextMenu/Apps key are the standard "open context menu" bindings.
+     ⚠ Keep this route working whatever the menu holds. Today the menu builds Pin/Unpin,
+     Mute/Unmute, Chat info and Hide request / Delete chat; a handshaking row builds Cancel
+     handshake alone.
+     ⚠ THIS LINE NAMED "Mark-read" UNTIL THE #46 LOOP r2 SWEEP. L7 removed that action on
+     purpose (see the note beside the menu items above) and the enumeration here was left
+     behind, so it promised a keyboard path to an action that no longer exists. Do not read
+     a missing item as an a11y gap and re-add it — it needs a BE verb, a persisted count and
+     a read receipt. Keep this text equal to the code (#647). */
   row.addEventListener('keydown', (e) => {
     if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
       e.preventDefault();
@@ -8451,10 +8533,10 @@ function renderChatsList(listEl, state, opts = {}) {
   return listEl;
 }
 
-/** Apply a row action (menu or swipe) to the model, then re-render (#44). Pin/
- *  mute toggle, mark-read clears unread+mention, delete/deleteContact remove the
- *  chat row (deleteContact = the CH3 step-2 escalation, which ALSO intends contact
- *  removal — distinguished only by the onPersist intent); info is a stub (no model
+/** Apply a row action (menu or swipe) to the model, then re-render (#44). Pin and
+ *  mute toggle. delete/deleteContact remove the chat row (deleteContact = the CH3
+ *  step-2 escalation, which ALSO intends contact removal — distinguished only by
+ *  the onPersist intent); info is a stub (no model
  *  change) → opts.onChatInfo. `detail` carries the delete options ({ media }). On a
  *  model change: fire opts.onPersist(action, chat, detail) — the bridge intent (mock
  *  no-op now; a real `ixian:` command when BE ships, §8) — then re-render + onModelChange. */
@@ -8462,7 +8544,9 @@ function applyChatRowAction(listEl, state, chat, action, opts = {}, detail = {})
   switch (action) {
     case 'pin': chat.pinned = !chat.pinned; break;
     case 'mute': chat.muted = !chat.muted; break;
-    case 'markRead': chat.unread = 0; chat.mention = false; break;
+    /* 'markRead' is REMOVED (Damir, #46 loop 2026-08-27). The chats row menu no
+       longer offers it. There is no backend verb, so the badge came back on the next
+       flush and the counterpart got no read receipt. Do not add this case back. */
     // delete + deleteContact both remove the row; the wipe granularity (media,
     // contact) rides `detail`/`action` to the bridge intent (onPersist → BE).
     case 'delete':
@@ -24637,5 +24721,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, ignorePushedTheme: ignorePushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, ignorePushedTheme: ignorePushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

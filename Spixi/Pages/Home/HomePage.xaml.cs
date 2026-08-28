@@ -328,13 +328,107 @@ namespace SPIXI
                 {
                     try
                     {
-                        if (!Node.start())
+                        /* ★★ #46 loop O (L11 F1) — A FALSE "Fatal exception" ON A LANGUAGE
+                         * CHANGE. Damir, F5 2026-08-29: a native "Fatal exception" dialog,
+                         * then a blank dark screen, after he changed the language back to
+                         * English. `Node.start()` (Node.cs:215) returns false for TWO
+                         * different things: "the node is already running", and a real start
+                         * failure. This block treated both as fatal and returned BEFORE
+                         * `Node.connectToNetwork()`.
+                         *
+                         * `running` in HomePage is an INSTANCE field, and a language change
+                         * builds a SECOND HomePage (Instance() rebuilds when the singleton is
+                         * null or not running). So this block re-enters on an already-running
+                         * node.
+                         *
+                         * ★★ ROUND 2 (review-cs MAJOR-1) — `Node.isRunning` ALONE IS NOT THE
+                         * SIGNAL, AND ROUND 1 COULD HAVE HIDDEN A REAL FAILURE.
+                         * `Node.start()` assigns `running = true` at Node.cs:307, nine lines
+                         * BEFORE its first failure return at Node.cs:316, and no failure path
+                         * clears it. So a genuinely FAILED start leaves `running == true`.
+                         * The next HomePage would read that as "already running", show no
+                         * dialog and start nothing: the app boots on a dead node in silence.
+                         * That state is not hypothetical — App.xaml.cs:1373-1378 records it
+                         * from a real device log (fatalexception.txt, 2026-08-24 12:28:00).
+                         *
+                         * ★★ ROUND 3 (review3-cs MAJOR-1) — ROUND 2 PUT THE SECOND TERM ON
+                         * THE WRONG SIDE OF THE THROW SITE, AND THIS COMMENT SAID SO IN
+                         * WORDS THAT WERE NOT TRUE. It claimed `startCounter` was
+                         * incremented "past the wallet read". It was not: `startCounter++`
+                         * sat ABOVE `SPushService.initialize()`, above the wallet read and
+                         * above the unfenced `SPushService.setTag()`. The wallet read is the
+                         * exact statement the device log names as the zombie's throw site,
+                         * so the state this test was added to EXCLUDE satisfied both terms,
+                         * and the app booted silently onto a node that never connected.
+                         * `EnsureNodeRunning` could not repair it either: the status is
+                         * `warmUp`, not `stopped`, so App.xaml.cs:1404 falls to "Node is
+                         * already running".
+                         *
+                         * `Node.start()` now increments `startCounter` as its LAST statement
+                         * before `return true` (Node.cs). So the term means what it always
+                         * claimed to mean: a start COMPLETED at least once this
+                         * process-life. App.xaml.cs:1399 asks the same question the same way.
+                         *
+                         * ★★ AND A COMPLETED START IS NOT A CONNECTED NODE. `Node.start()`
+                         * never calls `connectToNetwork()`; all three callers of start() make
+                         * that call themselves (App.xaml.cs:381, App.xaml.cs:1426 and :402
+                         * below). A throw inside that step leaves `running == true` and
+                         * `startCounter > 0` on a node that never reached the network — the
+                         * same silent boot, one door further along. `Node.connectCounter`
+                         * (Node.cs) is incremented by the last statement of
+                         * `connectToNetwork()`, so the three terms together answer
+                         * "is this node up AND did this process connect it":
+                         *   · running && startCounter > 0 && connectCounter > 0 → a healthy
+                         *     node. Not a failure.
+                         *   · running && (startCounter == 0 || connectCounter == 0) → the
+                         *     half-started node. Fall through: Node.start() answers false
+                         *     ("already running") and the fatal dialog is shown, which is
+                         *     honest — the user is told, instead of being handed a dead app.
+                         *   · !running → the node was stopped. Fall through and start it
+                         *     again; a stale connectCounter cannot be read, because
+                         *     `isRunning` gates it.
+                         * ⚠ WHY THE ZOMBIE ARM ONLY REPORTS AND DOES NOT REPAIR. Repairing
+                         * it means stopping a half-started node and starting it again, over
+                         * Ixian-Core services that are FROZEN at 097341a and absent from this
+                         * checkout, and `Node.stop()` itself early-returns on `!running`.
+                         * That is BE row CORE-6. Until it is answered the honest act is to
+                         * say so, not to guess.
+                         *
+                         * ★★ ROUND 2 (review-cs MAJOR-2) — WHY connectToNetwork() IS STILL
+                         * NOT CALLED ON THE ALREADY-RUNNING ARM. Verified at source, because
+                         * the review claimed the tree answers this in the opposite direction:
+                         *   · App.xaml.cs:1404-1427 and App.xaml.cs:360-381 both call
+                         *     `Node.connectToNetwork()` ONLY after a successful `Node.start()`
+                         *     on a node whose status was `stopped` or `stopping`.
+                         *   · No site in this tree calls `connectToNetwork()` on a node that
+                         *     is already running. There is no precedent to follow.
+                         *   · `Node.connectToNetwork` (Node.cs:385) calls
+                         *     `StreamClientManager.start()` and `NetworkClientManager.start(2)`.
+                         *     Both live in Ixian-Core, which is FROZEN at 097341a and is not
+                         *     in this checkout, so "is a second start() safe" cannot be
+                         *     answered here. That is BE row CORE-5.
+                         * ⚠ AND THE OLD COMMENT'S DIAGNOSIS IS WITHDRAWN. It said the
+                         * skipped connectToNetwork() left the stream session down, and that
+                         * this caused the decrypt and SpixiMessage parse errors in the log.
+                         * Nothing in this tree shows a HomePage rebuild dropping the stream
+                         * session; the node keeps running and nothing disconnects it. The
+                         * cause of that error storm is NOT established here. Do not re-open
+                         * this arm on the strength of that sentence. */
+                        if (Node.isRunning && Node.startCounter > 0 && Node.connectCounter > 0)
                         {
-                            Logging.error("Node.start() returned false — the node did not start.");
+                            Logging.info("HomePage start block re-entered on a running, started and connected node — not a failure.");
+                        }
+                        else if (!Node.start())
+                        {
+                            Logging.error("Node.start() returned false. isRunning={0} startCounter={1} connectCounter={2}",
+                                Node.isRunning, Node.startCounter, Node.connectCounter);
                             await safeFatalAlert("Fatal exception", "Fatal exception has occurred, please send the log files to the developers.");
                             return;
                         }
-                        Node.connectToNetwork();
+                        else
+                        {
+                            Node.connectToNetwork();
+                        }
                     }
                     catch (IOException e)
                     {
@@ -2090,8 +2184,8 @@ namespace SPIXI
              * ⚠ `friend.metaData.lastMessage` IS A SERIALIZED COPY — `Friend.setLastMessage`
              * does `new FriendMessage(msg.getBytes())` — and NOTHING refreshes it when a
              * reaction lands: `addReaction` never calls it. So the snapshot carries ZERO
-             * reactions, `groupHasDeliveryReceipt` reads it and always answers false, and
-             * the row falls through to the stale flags. It survives a restart because the
+             * reactions, the delivery question reads it and always answers false, and the
+             * row falls through to the stale flags. It survives a restart because the
              * snapshot is what was persisted.
              *
              * The self-heal below already existed and already re-fetches the LIVE message —
@@ -2264,8 +2358,16 @@ namespace SPIXI
                  * bubble showed a double check and the list beside it showed a single one.
                  * The derivation has to live wherever the answer is rendered, which is the
                  * whole point of "count the surfaces". */
+                /* ★★ #647 round 4 — ONE HOME. This row asks the same method the bubble
+                 * tick and the expiry ask: UIHelpers.anyOtherMemberHasMessage. Do not
+                 * spell the rule out here and do not add a reaction key here.
+                 * ⚠ This row passes `false` as the unreadable answer. It must not claim
+                 * a delivery it cannot see. markGroupCopyFailed passes `true`, because a
+                 * false red FAILED cannot be cleared. The two directions are deliberate.
+                 * ⚠ The room test comes FIRST, so a 1:1 chat never calls the method. */
                 bool groupDelivered = isGroupRow && lastmsg.localSender
-                    && (lastmsg.confirmed || groupHasDeliveryReceipt(lastmsg));
+                    && (lastmsg.confirmed
+                        || UIHelpers.anyOtherMemberHasMessage(friend, lastmsg, false));
                 if (lastmsg.errorSending)
                 {
                     type = "failed";
@@ -2294,32 +2396,6 @@ namespace SPIXI
             // additive `setChatMuted` push instead.
             FriendMessageHelper helper_msg = new(friend.walletAddress.ToString(), friend.nickname, lastmsg.timestamp, avatar, str_online, excerpt, type, friend.metaData.unreadMessageCount);
             return helper_msg;
-        }
-
-        /* ★★ L2 (#641): the chats row's half of the group derivation — "delivered at ONE
-         * confirmed member", read from the per-member reactions Core stores instead of the
-         * stored flag it only sets at the full count. Read-only, innermost lock, fail-soft.
-         * ⚠ CLASS LEVEL. The first cut of this landed INSIDE getFriendMessageHelper — a
-         * nested method declaration the C# compiler rejects. cs-syntax-check parsed it
-         * happily, which is #593 in one line: that gate PARSES, it does not COMPILE. */
-        private static bool groupHasDeliveryReceipt(FriendMessage msg)
-        {
-            if (msg == null)
-            {
-                return false;
-            }
-            try
-            {
-                lock (msg.reactions)
-                {
-                    return (msg.reactions.ContainsKey("received") && msg.reactions["received"].Count > 0)
-                        || (msg.reactions.ContainsKey("seen") && msg.reactions["seen"].Count > 0);
-                }
-            }
-            catch (Exception)
-            {
-                return false;
-            }
         }
 
         public void updateChat(Friend friend)
@@ -3296,7 +3372,13 @@ namespace SPIXI
                     UIHelpers.refreshAppRequests = false;
                     SpixiContentPage.broadcastCallState();
                 }
-                Page page = Navigation.NavigationStack.Last();
+                /* ★★ #46 loop O (L11 F2): `Last()` threw "Sequence contains no elements"
+                 * when the 2 s tick landed inside the teardown window, where the
+                 * NavigationStack is empty. The throw is caught below, so it was noise —
+                 * but it is noise that hides a REAL error in exactly the window where an
+                 * error matters. `LastOrDefault()` returns null there, and every use of
+                 * `page` below already tolerates null. */
+                Page? page = Navigation.NavigationStack.LastOrDefault();
                 if (page is not null and SpixiContentPage)
                 {
                     var scPage = (SpixiContentPage)page;
@@ -3565,6 +3647,37 @@ namespace SPIXI
                 Utils.sendUiCommand(chatOverlay, "chatBack");
                 return true;
             }
+            /* ★★ L8 — SWALLOW BACK WHILE A SLIDE-OUT IS STILL ON SCREEN.
+             * The op leaves overlayStack at the START of its close, so a second press inside
+             * the 220 ms animation finds nothing above and would fall through to `base` —
+             * which BACKGROUNDS THE APP while the panel is visibly still there. The
+             * InputTransparent guard on the stage cannot help: Android's back button never
+             * consults the visual tree. This must sit BEFORE the shell-takeover route as
+             * well, or the press would instead close a takeover the user cannot see.
+             *
+             * ★★ #46 loop O (MAJOR-1) — THIS SWALLOW MUST SIT ABOVE closeTopOverlay.
+             * The swallow was below closeTopOverlay before. closeTopOverlay returns false
+             * only when the overlay stack is EMPTY, so the swallow was reachable only with
+             * an empty stack. Chat info never opens over an empty stack: on mobile the
+             * conversation is itself a HomePage overlay (#225) and chat info stacks on top
+             * of it, so the stack is [chat, chatinfo]. Press one removed chatinfo at t=0 and
+             * started the 220 ms slide. Press two, inside that slide, found chat on top and
+             * closed the CONVERSATION instantly. The info panel then finished its slide
+             * across a bare chats list. popToRootAsync refuses to make that same state:
+             * SpixiContentPage.popToRootAsync sets `bool slideTop = overlays.Count == 1;`
+             * for exactly this reason. Hardware back must agree with it.
+             *
+             * ⚠ The swallow stays BELOW the SettingsPage, ContactDetails and SingleChatPage
+             * shell routes above. Those routes read the layer that is still on the stack and
+             * give the press to that page's own shell. A slide-out above them does not make
+             * their press ours to eat.
+             *
+             * ⚠ The counter is time-bounded (SLIDE_OUT_MAX_SECONDS = 1 s), so a slide that
+             * never completes cannot deaden back for the rest of the session. */
+            if (SpixiContentPage.isOverlaySlidingOut())
+            {
+                return true;
+            }
             // #225: hardware/host back closes the top NATIVE overlay first.
             // #337 audit MAJOR (AND-29 r3): this must run BEFORE the shell-takeover
             // branch — native overlays (chat, ContactDetails, formpane, txdetail)
@@ -3577,17 +3690,6 @@ namespace SPIXI
             // when that overlay slid in (chat info). Before this, only the shell's own
             // Back button reached the animated path and Android back flipped instantly.
             if (SpixiContentPage.closeTopOverlay(true))
-            {
-                return true;
-            }
-            /* ★★ L8 — SWALLOW BACK WHILE A SLIDE-OUT IS STILL ON SCREEN.
-             * The op leaves overlayStack at the START of its close, so a second press inside
-             * the 220 ms animation finds nothing above and would fall through to `base` —
-             * which BACKGROUNDS THE APP while the panel is visibly still there. The
-             * InputTransparent guard on the stage cannot help: Android's back button never
-             * consults the visual tree. This must sit BEFORE the shell-takeover route as
-             * well, or the press would instead close a takeover the user cannot see. */
-            if (SpixiContentPage.isOverlaySlidingOut())
             {
                 return true;
             }

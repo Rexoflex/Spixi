@@ -121,4 +121,81 @@ the privacy-shield posture dial · the idle-sound bug (blocked on the four log l
 
 ## 6. Verdict
 
-*(append here)*
+**RAN 2026-08-22. CLEAN after two rounds. Recorded in DECISIONS #515. Committed in
+`e1237928`.**
+
+⚠ **This section read "(append here)" until 2026-08-30, and that cost three sessions.**
+Three handoffs read the empty section, concluded the loop was still owed, and copied the
+row forward — while DECISIONS #515 held the answer the whole time. ★ **A verdict that is
+not written back into its own brief is a verdict nobody can find.** See DECISIONS #660 for
+the rule this set.
+
+### Round 1 — three disjoint auditors, 7 MAJORs
+
+★★ **The headline is an APP-LOCK BYPASS, and it is the #500 shape again.** `lockOnIdle`
+refused to present over any `LockPage` on the ModalStack, so that a user is not asked to
+authenticate twice. The settings delete flows create `new LockPage(true)` — a justConfirm
+lock that has a **Cancel**. On Android the resume branch is the backstop, and **#505 gated
+that branch behind `locksOnBackground`, which is `false` on Windows**, so the backstop was
+gone. Park the app on an authorise lock, walk away for hours, press Cancel, and you are
+inside the account.
+
+★★ **The notification lane called `PreventDefault(true)` BEFORE the row existed.** The
+extension discarded the SDK's row and posted ours second, so a throw inside
+`showLocalNotification` left the user with **no row at all** — and the "fallback" called
+the method that had just thrown. It also keyed that fallback on `fa.GetHashCode()`, a
+second id scheme that .NET randomises per process, so it stacked one row per process life
+and `cancelNotification` could never reach it. Reversed: post first, discard only on
+success. The fallback and the second id scheme are deleted.
+
+★★ **The front end: the lift's precondition was already broken in the tree, and two
+comments said so in opposite directions.** `message-menu.css` asserted `.c-chat-canvas` has
+`z-index: auto`; `chat-flow.css:17` deliberately set `z-index: 0` and its own comment said
+it creates a stacking context. The second was right, so under Live flow the lifted row
+could never clear the scrim. Fixed by enforcing the precondition, not by disabling the lift.
+
+Also round 1: a sheet at z-44 sat above **every** scrim, including one mounted later, and
+`dismissOverlay` leaves the sheet in the DOM for up to 400 ms with no `pointer-events`
+guard — tap Delete, tap again quickly, and the second tap lands on **Tip**.
+
+### Round 2 — the fresh break-my-verdict reviewers, 7 more MAJORs
+
+★ **And the fix for the bypass created the next finding, which is exactly why the fresh
+reviewer exists.** With two locks now able to coexist, `LockPage`'s two close legs popped
+the **TOP** modal rather than themselves, so a covered authorise lock could dismiss the app
+lock above it **with no password**. `CallPage.hideSurface` has carried the correct guard,
+and a comment explaining this exact hazard, since #399; `LockPage` never got it. Both legs
+route through **`popOwnModal`** now (`LockPage.xaml.cs:558`), which tests
+`ModalStack.LastOrDefault() == this`.
+
+★ **A third, found the same way.** `isLockStaging()` read `activePreload` only, while
+`pushModalLoaded` sets `preloadPending` a dispatcher turn earlier — so the ONE guard the
+bypass fix deliberately kept was blind for that whole turn. Closed with a lock-scoped stamp
+bounded at 5 s, which fixes `CallPage.lockUp` at the shared predicate for free.
+
+★★ **A reviewer got the artifact this batch said it could not get.** `nuget.org` answers
+403, but the OneSignal SDKs are open source and `raw.githubusercontent.com` answers. Read
+at the pinned 6.1.9 tag and re-verified by a second agent, which settled the 30 s callback
+budget, the single `processNotificationData` driver, and the `PreventDefault()` overload
+question at source instead of by inference.
+
+⚠ **Round 1 made one thing worse and round 2 undid it.** A 5 s `Monitor.TryEnter` was added
+in front of `fetchPushMessages` — `1 + N` blocking HTTP calls on an `HttpClient` with no
+`Timeout` — spending a sixth of the SDK's budget waiting. The wait is **0** now: take the
+lock if it is free, else skip. The lock moved to `Node.cs`, because the contended pair was
+never two push callbacks; it is the push lane against `Node.mainLoop`.
+
+★★ **The pins were the weakest part of the batch, and that is the finding worth keeping.**
+`rule()` read only the FIRST matching rule, in ONE nominated file, without stripping
+comments. That single helper is why three pins were vacuous **and** why the Live-flow MAJOR
+was invisible for a whole batch: **a CSS pin that reads one rule in one file cannot pin a
+cascade.** It is a cascade-aware `rulesFor` set now, over every stylesheet the shell links.
+
+### Stated residuals
+
+* **`Ixian-Core/Streaming/OfflinePushMessages.cs:118`** creates an `HttpClient` with **no
+  `Timeout`** and blocks on `.Result` at `:121` and `:186`. One line closes the last of the
+  two-rows path. Ixian-Core is frozen at `097341a`; not touched. **BE-owned.**
+* **#503 stays 🟡 on purpose.** A1.5 — the `(service-extension)` log line — was never read.
+* Most of round 1's MAJOR-7 fix is **dead code**, kept as labelled insurance rather than
+  disguised as a guarantee.

@@ -34,12 +34,16 @@ namespace Spixi;
  * launcher "still old" — it was not stale, it was a different icon.
  *
  * ★ Pointed at the generated pair now, so the csproj is the ONE source for every platform.
- * ⚠ ORPHANED and safe to delete once this is confirmed on a device — nothing else in the
- * tree references them (grep: this file was the only consumer):
- *     Resources/mipmap-anydpi-v26/ic_launcher.xml · ic_round_launcher.xml
- *     Resources/mipmap-{l,m,h,xh,xxh,xxxh}dpi/ic_launcher.png · ic_round_launcher.png
- *     Resources/drawable/ic_launcher_background.xml · ic_launcher_foreground.xml
- * They are left in place for one build so the change is reversible in one line. */
+ *
+ * ★★ SESSION D (#679): DAMIR CONFIRMED THE NEW ICON ON A DEVICE, AND THE OLD SET IS NOW
+ * DELETED — sixteen files, the whole committed adaptive set this attribute used to name:
+ * the two anydpi-v26 adaptive XMLs, the round/square PNG pair across six densities, and
+ * the two drawable vectors they composed. This file was their only consumer.
+ * ⚠ THE REASON TO DELETE RATHER THAN LEAVE THEM: a committed launcher set sitting beside a
+ * generated @mipmap/appicon is two icons where the build only ever shows you one, and the
+ * cost of that ambiguity has already been paid — twice, in clean rebuilds, by the person
+ * who could see the wrong icon and could not see why. A smoke pin holds both halves now:
+ * this attribute points at the generated pair, and the old set is gone from the tree. */
 [Activity(Label = "Spixi",
     Icon = "@mipmap/appicon",
     RoundIcon = "@mipmap/appicon_round",

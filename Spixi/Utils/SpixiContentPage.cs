@@ -2815,12 +2815,56 @@ namespace SPIXI
         /// reused (the parked overlay) can never come back displaced — a failed or
         /// interrupted animation must not leave a screen half off the edge.
         /// </summary>
+        /* ★★ #685 (Damir 2026-08-28): "the speed of chat info (and any subsequent screen
+         * that will have the slide in effect) should be a little bit slower, more smooth."
+         *
+         * ★★ AND THE CURVE IS NOT A NEW INVENTION — IT IS THE HOUSE ONE, WHICH THIS
+         * ANIMATION WAS NOT USING. `tokens.css` declares
+         *     --easing-standard: cubic-bezier(0.2, 0, 0, 1)
+         * and every in-document transition rides it. This stage rode `Easing.CubicOut`,
+         * which starts at MAXIMUM velocity — the panel appears to be already moving on
+         * frame one, and that abruptness is what reads as "not smooth". The house curve
+         * eases out of rest and decelerates harder into place. So the fix for Damir's ask
+         * and the fix for a real disagreement between the two motion systems are the same
+         * edit, and a smoke pin now holds the C# curve equal to the token's numbers.
+         *
+         * ⚠ THE EXIT IS DELIBERATELY NOT CHANGED. The mirror slide-out stays 220 ms
+         * (`Easing.CubicIn`, the #326 pairing): an exit that matches the entry feels slow,
+         * because the user has already decided to leave. Enter 300 / exit 220 is the
+         * asymmetry, and it is a choice, not an oversight. Damir asked about the slide IN.
+         *
+         * ⚠ Today `slideIn: true` has exactly ONE caller — chat info, from the chat header
+         * (`SingleChatPage.xaml.cs:563`). Every other screen presents with an opacity flip
+         * and no transition, so nothing else moves with this. When another screen opts in,
+         * it inherits this curve and this duration, which is the point. */
+        private const uint ScreenSlideInMs = 300;          // was 220
+
+        /// <summary>The `--easing-standard` cubic-bezier(0.2, 0, 0, 1), solved for MAUI.</summary>
+        private static readonly Easing ScreenSlideEasing = new Easing(x =>
+        {
+            // control points: P0 (0,0) · P1 (0.2, 0) · P2 (0, 1) · P3 (1,1)
+            const double x1 = 0.2, y1 = 0.0, x2 = 0.0, y2 = 1.0;
+            static double curve(double t, double a, double b) =>
+                3 * (1 - t) * (1 - t) * t * a + 3 * (1 - t) * t * t * b + t * t * t;
+            if (x <= 0) return 0;
+            if (x >= 1) return 1;
+            // bisection: monotone in t, 30 halvings is ~1e-9 and cannot diverge the way a
+            // Newton step can on a curve whose derivative reaches zero at the ends
+            double lo = 0, hi = 1, t = x;
+            for (int i = 0; i < 30; i++)
+            {
+                t = (lo + hi) / 2;
+                if (curve(t, x1, x2) < x) { lo = t; } else { hi = t; }
+            }
+            return curve(t, y1, y2);
+        });
+
         private static async Task slideStageIn(PreloadOp op)
         {
             var stage = op.stage;
             try
             {
-                await stage.TranslateTo(0, 0, 220, Easing.CubicOut);
+                await stage.TranslateTo(0, 0, ScreenSlideInMs, ScreenSlideEasing);
             }
             catch (Exception ex)
             {

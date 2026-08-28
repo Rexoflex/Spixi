@@ -1339,7 +1339,26 @@
     setNavActive(nav, railTarget());
   }
 
-  function consumeLandTab() {
+  /* ═══ ⏱ [LANDTAB] — A TEMPORARY PROBE. L14 · #677. REMOVE IT WITH ITS THREE PARTS. ═══
+   * Damir's ruling 2026-08-28: MEASURE BEFORE BUILDING (#294). The L14/L6③ flicker is
+   * traced at source — the park branch reveals this WebView (`op.stage.Opacity = 0`,
+   * SpixiContentPage.cs) BEFORE `onOverlayClosed` pushes `onSettingsClosed`, so the old
+   * tab is painted first, structurally. What is NOT known is which consumer below actually
+   * wins on Android, and that is what decides whether the C# fix is the right one:
+   *   · `storage`        — the cross-WebView event fires at settings.html's setItem, i.e.
+   *                        BEFORE the reveal. If this wins, the tab is already switched
+   *                        and the traced mechanism CANNOT be the flicker. That result
+   *                        FALSIFIES the theory and the fix must not be built.
+   *   · `settingsclosed` — the late push. If this wins, the theory holds.
+   *   · `visibility` / `focus` — the platform fallbacks.
+   * `age` is Date.now() minus the timestamp settings.html already writes INTO the key, so
+   * the probe costs no new plumbing on the shell side — the number was always there.
+   * ⚠ IT IS A DIAGNOSTIC, NOT A RECEIPT. It cannot prove a fix works: the flicker is
+   * (tab swapped) − (stage revealed) and neither end observes the other's paint. A fix has
+   * to ship its own discriminator (the L10 rule).
+   * ⚠ REMOVE ALL THREE TOGETHER, the way [CDPERF] was: this emit, HomePage's
+   * `ixian:landtabprobe:` handler, and the smoke pin that holds the trio. */
+  function consumeLandTab(via) {
     let raw = null;
     try {
       raw = localStorage.getItem('spixi.landtab');
@@ -1349,6 +1368,10 @@
     const sep = raw.lastIndexOf(':');
     const id = sep > 0 ? raw.slice(0, sep) : raw;
     const ts = sep > 0 ? Number(raw.slice(sep + 1)) : 0;
+    // ⏱ [LANDTAB] probe — before the staleness gate, so a stale hand-off is reported too
+    // (a 15 s+ age is itself the answer to "which consumer won"). No tab id, no address:
+    // the payload is one word from a fixed set plus an integer.
+    try { bridge.send('ixian:landtabprobe:' + (via || 'unknown') + ':' + Math.max(0, Date.now() - ts)); } catch (e) {}
     if (!ts || Date.now() - ts > 15000) return;             // stranded/stale → ignore
     /* ★ N42 (#443): the Account screen gained a Contacts row, and there is no C#
        verb for "go home and open the contacts directory" either — so it rides the
@@ -1389,9 +1412,9 @@
     showView(id);
     bridge.send('ixian:tab:' + NAV_TO_TAB[id]);             // C# loads tab2/tab3 data
   }
-  window.addEventListener('storage', (e) => { if (e && e.key === 'spixi.landtab' && e.newValue) consumeLandTab(); });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) consumeLandTab(); });
-  window.addEventListener('focus', consumeLandTab);
+  window.addEventListener('storage', (e) => { if (e && e.key === 'spixi.landtab' && e.newValue) consumeLandTab('storage'); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) consumeLandTab('visibility'); });
+  window.addEventListener('focus', () => consumeLandTab('focus'));
 
   /* —— chats model + list ——————————————————————————————————————————————————
    * Starts empty; C# flushes clearChats → addChat* → clearChatsDone after
@@ -1524,7 +1547,15 @@
            refusal UN-tombstones the row: a row that vanished while the data stayed is the
            lie this fixes. `detail.media` (on-device media purge) still has no verb — noted
            in the handoff as a BE row, not faked. */
-        if (action === 'delete') bridge.send('ixian:removehistory:' + chat.address);
+        /* ★ L13 (#676): a ROOM row whose "Leave group" box was ticked sends ONE verb, and
+           it is not removehistory. Core's FriendList.removeFriend deletes the history file
+           and the avatar before it drops the record (FriendList.cs:436-440, read at
+           097341a), so `ixian:leavegroup:` satisfies the fixed "Delete chat" box on its
+           own. Sending both would be two location.href sends racing for one intent — and
+           the second would arrive at a friend the first had already removed and answer
+           "fail", un-tombstoning a row that is correctly gone. */
+        if (action === 'delete' && detail && detail.leaveGroup) bridge.send('ixian:leavegroup:' + chat.address);
+        else if (action === 'delete') bridge.send('ixian:removehistory:' + chat.address);
         else bridge.send('ixian:removecontact:' + chat.address + ':' + ((detail && detail.leaveGroups && detail.leaveGroups.length) ? '1' : '0'));
         // (the unsent draft is purged on the SUCCESS answer — removeHistoryResult ok — loop r2 R2-4:
         //  a refused delete un-tombstones the row and must not have destroyed the draft)
@@ -3256,7 +3287,7 @@
     // unconditional write that clobbered the Account highlight the CONTACTS hand-off
     // had just set one line above, which is the "rail jumps to CHATS" Damir reported.
     // railTarget() answers the same question for every writer.
-    onSettingsClosed() { clearAccountPaneFlag(); consumeLandTab(); syncNav(); },
+    onSettingsClosed() { clearAccountPaneFlag(); consumeLandTab('settingsclosed'); syncNav(); },
 
     // Multi-user mini-app launch STARTED ON ANOTHER SURFACE (AppDetailsPage): that
     // page has no contacts roster of its own, so C# hands the target pick back to
@@ -3798,6 +3829,24 @@
       // returns on the flush already scheduled by the handler's own updateScreen.
       deletedChats.delete(addr);
       try { showToast({ text: s.revokeRequestFailed || 'The request could not be revoked.', tone: 'error', host: document.body, strings: s }); } catch (e) {}
+    },
+    /* ★ L13 (#676) — the leave's own answer. Its vocabulary is "left" | "fail", NOT
+       removeContactResult's ok/left/blocked+pairs: a room cannot be "blocked" (removeFriend
+       refuses a contact who is in a group, never a group itself) and there are no pairs to
+       carry. A refusal un-tombstones the row, because a row that vanished while you are
+       still in the group is exactly the lie this row was built to end. */
+    leaveGroupResult(address, status) {
+      const addr = String(address || '');
+      const s = window.SL || {};
+      if (String(status || '') === 'left') {
+        // the leave really removed the friend, and Core deleted the history file with it —
+        // the user's own unsent draft goes too (the removeHistoryResult rule, one surface over)
+        try { localStorage.removeItem(DRAFT_PREFIX + addr); } catch (e) { /* storage may be unavailable */ }
+        try { showToast({ text: s.leftGroupToast || 'You left the group', tone: 'success', host: document.body, strings: s }); } catch (e) {}
+        return;
+      }
+      deletedChats.delete(addr);                          // refused → the row comes back on the flush; never a silent lie
+      try { showToast({ text: s.leaveGroupFailed || 'You could not leave the group.', tone: 'error', host: document.body, strings: s }); } catch (e) {}
     },
     removeHistoryResult(address, status) {
       const addr = String(address || '');

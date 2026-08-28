@@ -50,7 +50,6 @@ const SHELLS = {
   contributors: { in: 'src/shells/contributors.html', out: 'contributors.html', page: 'ContributorsPage' },
   // launch — ONE page, ONE WebView, every view (★ N75)
   launch:   { in: 'src/shells/launch.html', out: 'intro.html',       page: 'LaunchPage (welcome/create/restore/retry)' },
-  payments: { in: 'src/demo/wallet.html',   out: 'wallet_send.html', page: 'WalletSendPage' },
   // B3 (#256): transaction details — Stage-4a drop-in over the legacy filename.
   // VIEW-ONLY (no compose/signing — the money path stays C#'s); loaded BOTH as a
   // pushed page (narrow) and swapped into HomePage.rightContent (wide pane).
@@ -84,7 +83,15 @@ const arg = process.argv.slice(2);
 // #288 review: `all` used to include the two still-LEGACY demo drop-ins — apps.html and
 // wallet_send.html, the MONEY page — silently overwriting them with demo markup (#284 had
 // to restore both from HEAD). They stay buildable when named explicitly; `all` skips them.
-const LEGACY_DEMO_KEYS = ['apps', 'payments'];
+/* ★★ SESSION D (#678): the `payments` TARGET IS GONE, not merely excluded. It pointed at
+ * src/demo/wallet.html → Resources/Raw/html/wallet_send.html for `WalletSendPage` — and
+ * session A deleted BOTH the page and that HTML on Damir's "delete all legacy pages" ruling
+ * (L1, #640). Excluding it from `all` was the #288 mitigation for a target that still had a
+ * live destination; with the destination deleted, `build-shells payments` would have
+ * RE-CREATED a money-page file under the legacy filename, out of demo markup, in the
+ * shipped folder — the exact artifact L1 removed. An excluded target is still a loaded gun.
+ * ⚠ apps STAYS: apps.html is a real, still-legacy drop-in that #288's rule protects. */
+const LEGACY_DEMO_KEYS = ['apps'];
 let keys = arg.length === 0 ? DEFAULT
   : arg.includes('all') ? Object.keys(SHELLS).filter((k) => !LEGACY_DEMO_KEYS.includes(k))
   : arg;

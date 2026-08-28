@@ -4923,9 +4923,14 @@ console.log('native call surface (Q4-③/#270) — call.html contract + the call
   ok(/launch:   \{ in: 'src\/shells\/launch\.html', out: 'intro\.html'/.test(buildShellsSrc)
     && !/intro_new\.html'|intro_restore\.html'|intro_retry\.html'|onboarding\.html'/.test(buildShellsSrc),
     '★ N75: the three extra launch outputs and the N76 tail output are gone from the shell map');
-  ok(/const LEGACY_DEMO_KEYS = \['apps', 'payments'\]/.test(buildShellsSrc)
+  ok(/const LEGACY_DEMO_KEYS = \['apps'\]/.test(buildShellsSrc)
     && /filter\(\(k\) => !LEGACY_DEMO_KEYS\.includes\(k\)\)/.test(buildShellsSrc),
-    "#288: build-shells 'all' no longer overwrites the legacy apps/wallet_send drop-ins");
+    "#288: build-shells 'all' no longer overwrites the legacy apps.html drop-in");
+  /* ★★ SESSION D (#678) — and the `payments` TARGET IS DELETED, not just excluded.
+     ⚠ stripCode first: the comment that records the removal necessarily NAMES wallet_send. */
+  ok(!/payments:/.test(stripCode(buildShellsSrc))
+    && !/wallet_send\.html'/.test(stripCode(buildShellsSrc)),
+    "★★ #678: build-shells has no `payments` target at all. It aimed src/demo/wallet.html at Resources/Raw/html/wallet_send.html for WalletSendPage — a page and an HTML file session A DELETED (L1 #640) — so naming it explicitly would have re-created the legacy money page out of demo markup, in the shipped folder. An excluded target with a deleted destination is still a loaded gun");
   // no shell but call.html touches call UI anymore
   for (const shell of ['home', 'chat', 'settings', 'wallet_sent', 'downloads', 'contact_details',
     'contact_new', 'app_details', 'app_new', 'dev', 'contributors', 'settings_backup', 'settings_encryption']) {
@@ -6170,7 +6175,12 @@ console.log('#314 — polish batch (selectability · mention pill · toast/CTA �
      hand-off had just set on the line before — Damir's "the rail jumps to CHATS". The
      ORDER this pin is about is unchanged; what changed is that the last call now ASKS
      railTarget() instead of asserting a tab. */
-  ok(/onSettingsClosed\(\) \{ clearAccountPaneFlag\(\); consumeLandTab\(\); syncNav\(\); \}/.test(homeSh),
+  /* ⏱ L14 (#677): consumeLandTab now takes the CONSUMER's name for the temporary
+     [LANDTAB] probe. The property this pin is about is the ORDER, which is unchanged —
+     but the argument is pinned too, because 'settingsclosed' is the one value that tells
+     the measurement the LATE path won, and a probe that cannot name its own caller
+     answers nothing. ⚠ When the probe goes, this reverts to `consumeLandTab()`. */
+  ok(/onSettingsClosed\(\) \{ clearAccountPaneFlag\(\); consumeLandTab\('settingsclosed'\); syncNav\(\); \}/.test(homeSh),
     '#314 landtab (iOS-46 leg): onSettingsClosed consumes the tab hand-off BEFORE the highlight re-sync — the storage/focus listeners never fire on iOS overlay close');
 
   /* R6 — full-detail tx sheet via roster join, hide fail-safe FIRST */
@@ -15308,7 +15318,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
 
   /* ★★ A6 — THE DATA BUG, at source: the chats-list delete/deleteContact now DISPATCH */
   ok(!/no HomePage dispatch yet — intent only/.test(homeA)
-    && /if \(action === 'delete'\) bridge\.send\('ixian:removehistory:' \+ chat\.address\);/.test(homeA)
+    && /else if \(action === 'delete'\) bridge\.send\('ixian:removehistory:' \+ chat\.address\);/.test(homeA)
     && /else bridge\.send\('ixian:removecontact:' \+ chat\.address \+ ':' \+ \(\(detail && detail\.leaveGroups && detail\.leaveGroups\.length\) \? '1' : '0'\)\);/.test(homeA),
     '★★ A6 SHELL: the chats-list delete emits ixian:removehistory:<addr>, and delete-contact emits ixian:removecontact:<addr>:<leave> — the "intent only" tombstone that left the contact on disk is GONE');
   ok(/StartsWith\("ixian:removehistory:", StringComparison\.Ordinal\)/.test(hpA) && /StartsWith\("ixian:removecontact:", StringComparison\.Ordinal\)/.test(hpA) && /StartsWith\("ixian:sharedGroups:", StringComparison\.Ordinal\)/.test(hpA),
@@ -17552,8 +17562,10 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
           strings: {}, onAction: (a, d) => acts.push([a, d]) });
         await sleep(40);
         const modal = [...dR.querySelectorAll('.c-modal')].pop();
-        ok([...modal.querySelectorAll('.c-delete-chat__opt')].length === 2,
-          '★ SPEC §1: a GROUP or a bot gets TWO boxes. There is no contact to remove there — leaving is the whole action — and offering a third would ask a question the verb cannot answer');
+        const gboxes = [...modal.querySelectorAll('.c-delete-chat__opt')];
+        ok(gboxes.length === 3 && gboxes[2].getAttribute('aria-checked') === 'false'
+           && /Leave group/.test(gboxes[2].textContent) && !/Remove contact/.test(modal.textContent),
+          '★★ SPEC §1 + L13 (#676): a GROUP or a bot gets three boxes and the third is LEAVE GROUP, not Remove contact — there is no contact to remove in a room, and until L13 the third slot was simply absent, so the room row could delete your copy of the chat and leave you in the group receiving it');
         WR.Spixi.dismissTopOverlay();
         await sleep(450);
       }
@@ -18238,7 +18250,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       '★★ L8: an op that slid IN slides OUT, on EVERY platform — op.slideIn is the same per-op flag presentPreload reads, so the mirror cannot drift from the entry. Damir closed the WinUI dial: the slide-in was never platform-gated, so holding only the exit back bought no safety');
     ok(/if \(op\.slideIn\)\s*\r?\n?\s*\{\s*\r?\n?\s*await op\.stage\.TranslateTo\(w, 0, 220, Easing\.CubicIn\);/.test(co)
        && /await op\.stage\.TranslateTo\(w, 0, 250, Easing\.CubicOut\);/.test(co),
-      '★★ L8: the mirror is EXACT (220 ms, CubicIn against slideStageIn\'s 220 ms CubicOut) and #326 keeps its own 250 ms CubicOut byte-for-byte — that was Damir\'s pick for the native pop look and this row has no mandate to re-time it');
+      '★★ L8: the exit is 220 ms CubicIn and #326 keeps its own 250 ms CubicOut byte-for-byte — that was Damir\'s pick for the native pop look and this row has no mandate to re-time it. ⚠ #685 RE-TIMED THE ENTRY TO 300 ms ON THE HOUSE CURVE AND LEFT THIS ALONE ON PURPOSE: this text used to call the pair "EXACT (220 against slideStageIn\'s 220 CubicOut)" and that sentence went stale the moment the entry moved, while the pin itself kept passing. Enter 300 / exit 220 is now the deliberate asymmetry — a leaving user has already decided');
     /* ⚠ indexed on the GATE, not on the timing — a mutation round showed this pin going
        red because the duration changed, which is a different property with its own pin. */
     ok(co.indexOf('overlayStack.Remove(op)') < co.indexOf('if (slideOut && (mirrorSlide'),
@@ -20158,7 +20170,13 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
      * CORRECT file, because the comment I had just written mentions the old blue to
      * explain the scope. Five of the pin owner's pins read prose last session; this was
      * the sixth, and running it is what found it. */
-    ok(/#175595/.test(v31) && !/#144576/.test(v31) && /Color="#175595"/.test(csproj),
+    /* ⚠ #683 TIGHTENED THIS. It used to read `/Color="#175595"/` against the WHOLE csproj,
+       which matched EITHER the MauiIcon line or the MauiSplashScreen line — they carried the
+       same value, so the pin could not tell which one it was proving. The icon ground moved
+       to #0A58A9 this batch and the pin would have gone on passing on the splash line alone.
+       Read the MauiSplashScreen element itself. */
+    ok(/#175595/.test(v31) && !/#144576/.test(v31)
+      && /<MauiSplashScreen [^>]*Color="#175595"/.test(csproj),
       '★ L16: the light splash ground and the MauiSplashScreen colour are Damir\'s #175595');
     /* ★★ AND THE WINDOW GROUND MOVED WITH IT. An earlier draft called
      * layout/splash_screen.xml "the pre-31 splash" and left it — but values/styles.xml
@@ -20198,6 +20216,67 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ok(/Icon = "@mipmap\/appicon"/.test(mainAct) && /RoundIcon = "@mipmap\/appicon_round"/.test(mainAct)
       && !/ic_launcher/.test(mainAct),
       '★★ L17, THE WIRE: MainActivity points at the MauiIcon-GENERATED icon, so Spixi.csproj is the one source for every platform. A committed @mipmap/ic_launcher beside a generated @mipmap/appicon is two icons where the build only ever shows you one');
+    /* ★★ #685 (Damir 2026-08-28) — THE SCREEN SLIDE-IN: SLOWER, AND ON THE HOUSE CURVE.
+     * ⚠ The pin does not hard-code the bezier. It reads the numbers out of BOTH files and
+     * compares them, because the whole point of the change is that the C# animation and
+     * `--easing-standard` stopped disagreeing — and a pin that restates the constant would
+     * go on passing after somebody re-dialled the token and left the stage behind. */
+    {
+      const scp685 = stripCode(rdC('Spixi/Utils/SpixiContentPage.cs'));
+      const tok685 = stripCssComments(rdC('src/styles/tokens.css'));
+      const tokM = /--easing-standard:\s*cubic-bezier\(([^)]+)\)/.exec(tok685);
+      const tokPts = tokM ? tokM[1].split(',').map((n) => parseFloat(n)) : [];
+      const csM = /const double x1 = ([\d.]+), y1 = ([\d.]+), x2 = ([\d.]+), y2 = ([\d.]+);/.exec(scp685);
+      const csPts = csM ? [csM[1], csM[2], csM[3], csM[4]].map((n) => parseFloat(n)) : [];
+      ok(tokPts.length === 4 && csPts.length === 4
+        && tokPts.every((n, i) => Math.abs(n - csPts[i]) < 1e-6),
+        '★★ #685, ONE CURVE: the C# screen slide solves the SAME cubic-bezier that --easing-standard declares, read out of both files and compared. It used to ride Easing.CubicOut, which starts at maximum velocity — the panel was already moving on frame one, and that abruptness is what Damir called "not smooth"');
+      ok(/private const uint ScreenSlideInMs = 300;/.test(scp685)
+        && /TranslateTo\(0, 0, ScreenSlideInMs, ScreenSlideEasing\)/.test(scp685),
+        '★ #685: the enter is 300 ms (was 220) and the animation reads the named constant, so the duration has one home');
+      ok(/await op\.stage\.TranslateTo\(w, 0, 220, Easing\.CubicIn\);/.test(scp685),
+        '★★ #685, AND THE EXIT IS DELIBERATELY UNCHANGED at 220 ms CubicIn. An exit that matches the entry feels slow, because the user has already decided to leave — enter 300 / exit 220 is a CHOICE. This pin exists so a later batch cannot symmetrise it by tidiness and call it consistency');
+    }
+    /* ★★ #683 (Damir 2026-08-28) — THE ICON'S GROUND AND THE MARK'S SIZE.
+     * ⚠ Both halves are pinned as ARITHMETIC, not as an eyeball. #336 shipped a clipped
+     * mark once because nobody checked the geometry; L17 shipped an icon nobody could see
+     * because nobody checked the wire. This is the third failure mode: a number nudged by
+     * hand until it looked right, with no record of what it was budgeted against. */
+    {
+      const bg683 = rdC('Spixi/Resources/AppIcon/appicon.svg');
+      const fg683 = rdC('Spixi/Resources/AppIcon/appiconfg.svg');
+      const csp683 = rdC('Spixi/Spixi.csproj');
+      ok(/<radialGradient[^>]*cx="1024"[^>]*cy="0"[^>]*r="1448.1"/.test(bg683)
+        && /stop-color="#4B9CEF" stop-opacity="0.5"/.test(bg683)
+        && /stop-color="#223A59" stop-opacity="0.5"/.test(bg683)
+        && /<rect width="1024" height="1024" fill="#0A58A9"\/>/.test(bg683),
+        '★★ #683: the icon background is Damir\'s CSS LAYERED THE SAME WAY — a #0A58A9 ground under two 50% stops on a radial centred at the top-right corner (r 1448.1 = 141.42% of 1024). Flattening it to two hexes would have made the source and the design drift the moment either moved');
+      ok(/<MauiIcon [^>]*Color="#0A58A9"/.test(csp683),
+        '★ #683: MauiIcon\'s Color carries the GROUND, so a platform that takes the flat colour instead of the file lands on the same blue family rather than the retired #175595');
+      /* the mark: the transform is DERIVED from the ink centre, so a hand-nudge shows up here */
+      const m = /<g transform="translate\(([\d.]+) ([\d.]+)\) scale\(([\d.]+)\)">/.exec(fg683);
+      const S = m ? parseFloat(m[3]) : 0;
+      const okTx = m && Math.abs(parseFloat(m[1]) - (512 - S * 16.0)) < 0.1;
+      const okTy = m && Math.abs(parseFloat(m[2]) - (512 - S * 15.936)) < 0.1;
+      const visible = 1024 * 72 / 108;                 // 682 — what the launcher shows
+      const fill = (29.65 * S) / visible;              // the mark against the VISIBLE icon
+      const diag = Math.hypot(24.256 * S, 29.65 * S);  // and against the circular mask
+      ok(!!m && okTx && okTy && fill > 0.55 && fill < 0.62 && diag < visible,
+        '★★ #683: the mark fills ' + (fill * 100).toFixed(0) + '% of the VISIBLE icon (was 50), its box diagonal ' + diag.toFixed(0) + ' clears the ' + visible.toFixed(0) + ' circular mask, and the translate is DERIVED from the measured ink centre (16.0, 15.936) rather than nudged — a hand-typed offset re-centres the mark on the viewBox and puts it off-centre inside the mask');
+    }
+    /* ★★ SESSION D (#679) — and the OLD SET IS GONE, on Damir's device confirmation.
+       The wire pin above only says what MainActivity NAMES; it cannot see a committed
+       icon set still sitting in Resources waiting for the next attribute edit to point at
+       it again. This is the other half. */
+    {
+      const orphans = ['mipmap-anydpi-v26/ic_launcher.xml', 'mipmap-anydpi-v26/ic_round_launcher.xml',
+        'drawable/ic_launcher_background.xml', 'drawable/ic_launcher_foreground.xml',
+        ...['ldpi', 'mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi'].flatMap((d) =>
+          ['ic_launcher.png', 'ic_round_launcher.png'].map((f) => 'mipmap-' + d + '/' + f))];
+      ok(orphans.length === 16
+        && orphans.every((f) => !existsSync(join(root, 'Spixi/Platforms/Android/Resources', f))),
+        '★★ #679: all SIXTEEN files of the old committed launcher set are deleted — the two adaptive XMLs, the round/square PNG pair across six densities, and the two drawable vectors. MainActivity was their only consumer, and leaving them was leaving the two-icon ambiguity that cost Damir two clean rebuilds');
+    }
   }
 
   /* —— L15 · the flags ————————————————————————————————————————————————————— */
@@ -20352,7 +20431,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
      * answers "what should the rail say" and every writer asks it. */
     ok(/function railTarget\(\)/.test(home) && /return inAccountContext\(\) \? 'account' : activeNav;/.test(home),
       '★★ L6, ONE ANSWER: railTarget() is the single place that decides the rail. Four writers is how the Account highlight got clobbered by the stale tab one line later');
-    ok(/onSettingsClosed\(\) \{ clearAccountPaneFlag\(\); consumeLandTab\(\); syncNav\(\); \}/.test(home),
+    ok(/onSettingsClosed\(\) \{ clearAccountPaneFlag\(\); consumeLandTab\('settingsclosed'\); syncNav\(\); \}/.test(home),
       '★★ L6: …and the handler that clobbered it now ASKS. It used to end setNavActive(nav, activeNav) unconditionally, with a comment calling that "a consistent no-op" — true only for the tab-id branch it was written for');
     ok(/accountPaneOpen\(\) \|\| contactsFromAccount/.test(home),
       '★ L6, ONE PREDICATE: the Account pane and the Account-launched directory answer "is the user inside Account" in one place');
@@ -20402,6 +20481,205 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       '★ L6: …and the conversation close keeps its own belt. Narrow has no detail column — a conversation there is the full screen, and closing one would shut the screen the user is standing on');
     ok(!/closeChatOverlaysForContacts/.test(hpCode.slice(hpCode.indexOf('ixian:tab:'), hpCode.indexOf('ixian:tab:') + 2000)),
       '★ L6: a plain tab switch does NOT close the conversation. Only the Account hand-off does — the pane it replaces was the one hiding it');
+  }
+}
+
+/* ═══ ★★ SESSION D — L13 · THE LEAVE-GROUP CHECK BOX (#676) ══════════════════════
+ * Before this batch the chats-row delete flow gave a ROOM two boxes and one verb:
+ * `ixian:removehistory:<addr>`. Your copy of the chat went, you stayed in the group,
+ * and the row came back on its next message. The room's irreversible half — leaving —
+ * had no entry point from the chats list at all.
+ *
+ * ⚠ THE HANDOFF SAID "ADD A TWIN THAT CALLS sendLeave + removeFriend". Read at source
+ * first: `SContacts.leaveGroup` ALREADY is that body (#567), and
+ * `ixian:removecontact:<addr>:<flag>` already routes a room into it. What was missing
+ * was the SHELL half plus a verb whose result vocabulary does not lie about a room.
+ * These pins hold BOTH halves and the choice between them. */
+{
+  console.log('\n— L13: the leave-group check box (#676) —');
+  const rdL13 = (pth) => readFileSync(join(root, pth), 'utf8');
+  const hp13 = rdL13('Spixi/Pages/Home/HomePage.xaml.cs');
+  const hp13c = stripCode(hp13);                 // ⚠ the docblock NAMES sendLeave and removehistory
+  const home13 = rdL13('src/shells/home.html');
+  const menu13 = rdL13('src/components/chats-row-menu.js');
+  const bundle13 = rdL13('src/demo/spixi.iife.js');
+
+  /* —— C#, at source ———————————————————————————————————————————————————————— */
+  ok(/StartsWith\("ixian:leavegroup:", StringComparison\.Ordinal\)/.test(hp13c)
+    && hp13c.indexOf('StartsWith("ixian:leavegroup:"') < hp13c.indexOf('current_url.Contains("ixian:qrresult:")'),
+    '★★ L13 C#: the verb is StartsWith + Ordinal + a trailing colon and it sits ABOVE the legacy Contains() branches — the #216/#393 rule every destructive verb added since has followed, so a crafted payload that merely CONTAINS the literal cannot reach it');
+
+  {
+    /* the handler body, isolated — indexOf on the STRIPPED text, so the docblock above it
+       (which necessarily names sendLeave, removeFriend and removehistory) is not in the slice */
+    const at = hp13c.indexOf('private void onLeaveGroupFor(string address)');
+    const body = at < 0 ? '' : hp13c.slice(at, hp13c.indexOf('private void', at + 40));
+    ok(at > 0 && /SContacts\.leaveGroup\(f\)/.test(body)
+      && !/CoreStreamProcessor\.sendLeave/.test(body) && !/FriendList\.removeFriend/.test(body),
+      '★★ L13 C#, ONE HOME: the handler CALLS SContacts.leaveGroup and does not re-inline sendLeave + removeFriend. ContactDetails still inlines that pair, so this would have been the THIRD copy of one grammar — and the #567 rebase had to find every copy once already');
+    ok(/var chat_page = Utils\.getChatPage\(f\);[\s\S]{0,200}?if \(SContacts\.leaveGroup\(f\)\)/.test(body)
+      && /chat_page\.popPageAsync\(\)/.test(body),
+      '★★ L13 C#: the open conversation is resolved BEFORE the leave and popped after. getChatPage matches on the Friend REFERENCE, which leaveGroup removes — resolving it afterwards finds nothing, and on a wide window that leaves a live chat page for a room you are no longer in (loop r1 A-3, one surface over)');
+    ok(/Utils\.sendUiCommand\(this, "leaveGroupResult", addr, status\)/.test(body)
+      && /UIHelpers\.shouldRefreshContacts = true;/.test(body) && /updateScreen\(\);/.test(body),
+      '★ L13 C#: EVERY outcome is pushed and every outcome re-flushes (R2-3). A refusal that answered nothing would leave the shell tombstoning a room you are still in');
+    ok(!/ex\.Message/.test(body) && /Logging\.error\("ixian:leavegroup failed/.test(body),
+      '★ L13 C#: the catch logs no ex.Message — Core\'s Address ctor formats the peer-supplied base58 token into its exception text, and this handler\'s token is peer-supplied');
+  }
+
+  /* —— the shell, at source ————————————————————————————————————————————————— */
+  ok(/if \(action === 'delete' && detail && detail\.leaveGroup\) bridge\.send\('ixian:leavegroup:' \+ chat\.address\);/.test(home13)
+    && /else if \(action === 'delete'\) bridge\.send\('ixian:removehistory:' \+ chat\.address\);/.test(home13),
+    '★★ L13 SHELL: a ticked leave sends ixian:leavegroup: INSTEAD of removehistory, not as well. Core\'s removeFriend deletes the history file itself, so two sends would race for one intent and the loser would answer "fail" about a friend the winner had already removed — un-tombstoning a row that is correctly gone');
+  {
+    /* ⚠⚠ THIS SLICE WAS `home13.slice(at, at + 1200)` AND A MUTATION WALKED STRAIGHT
+       THROUGH IT. Deleting the draft purge SHORTENS the handler, so a fixed-length window
+       ran on into `removeHistoryResult` — which carries both a DRAFT_PREFIX removal and a
+       deletedChats.delete of its own — and the pin read the NEIGHBOUR's lines as this
+       handler's. Bound a slice by the next declaration, never by a character count: a
+       character count is a bet that the code will not get shorter, and the mutation whose
+       whole job is to make it shorter is the one that has to fail. (Seventh session in
+       which mutation found a pin defect that reading did not.) */
+    const at = home13.indexOf('leaveGroupResult(address, status) {');
+    const end = home13.indexOf('removeHistoryResult(address, status) {', at);
+    const body = (at < 0 || end < at) ? '' : home13.slice(at, end);
+    ok(at > 0 && /=== 'left'/.test(body) && /deletedChats\.delete\(addr\);/.test(body)
+      && /localStorage\.removeItem\(DRAFT_PREFIX \+ addr\)/.test(body),
+      '★★ L13 SHELL: the answer un-tombstones anything that is not "left", and only a real leave sheds the unsent draft. A row that vanished while you are still in the group is the exact lie A6 was built to end');
+    ok(!/'blocked'/.test(body) && !/pairs/.test(body),
+      '★ L13 SHELL: its vocabulary is "left" | "fail" — NOT removeContactResult\'s ok/left/blocked+pairs. removeFriend refuses a CONTACT who is in a group; a group is never itself blocked, so a blocked branch here would be a promise the verb can never keep');
+  }
+
+  /* —— ★★ BOTH HOMES. Two session-C mutations survived a full suite because the
+     behavioural pins ran the SHIPPED bundle while the mutation changed the source. —— */
+  ok(/const cbLeave = isGroupChat \? deleteCheckbox\(strings\.leaveGroup \|\| 'Leave group'\) : null;/.test(menu13)
+    && /const cbLeave = isGroupChat \? deleteCheckbox\(strings\.leaveGroup \|\| 'Leave group'\) : null;/.test(bundle13),
+    '★★ L13, BOTH HOMES: the room\'s third box exists in src/components AND in the built bundle the shells actually execute. A source-only pin passes over a stale bundle, which is how two mutations survived a clean run in session C');
+  /* ⚠⚠ THIS PIN WAS `/leaveGroupNote/` AND A MUTATION WALKED THROUGH IT: renaming the key
+     to `leaveGroupNoteX` still CONTAINS the string being searched for, so the pin passed
+     over a note that resolves to undefined in every locale. A bare key name is a PREFIX
+     test unless it is anchored. Anchor the read (`strings.` / `s.`) and end it on a word
+     boundary — and pin the English fallback too, which no rename can fake. */
+  ok(/strings\.leaveGroupNote\b/.test(menu13) && /strings\.leaveGroupNote\b/.test(bundle13)
+    && /Everyone in the group is told you left/.test(menu13)
+    && /Everyone in the group is told you left/.test(bundle13)
+    && /s\.leaveGroupFailed\b/.test(home13) && /You could not leave the group\./.test(home13),
+    '★ L13: the two new keys are read in both homes, by their exact names, and each still carries its English fallback — the note beside the box and the failure toast');
+
+  /* —— ★★ F5 4.7 · OPTION 2 (Damir 2026-08-28): THE BUTTON NAMES THE ACT ————— */
+  ok(/const modal = createModal\(\{/.test(menu13) && /const modal = createModal\(\{/.test(bundle13)
+    && /strings\.leaveAndDelete \|\| 'Leave and delete'/.test(menu13)
+    && /strings\.leaveAndDelete \|\| 'Leave and delete'/.test(bundle13),
+    "★★ F5 4.7 OPTION 2, BOTH HOMES: the delete modal is held in a variable so its CTA can be relabelled, and the label the tick swaps in exists in src/components AND in the built bundle");
+
+  /* —— ⏱ [LANDTAB] · L14 (#677) — THE PROBE'S THREE PARTS, PINNED AS A TRIO ——
+   * ⚠ WHY THIS PIN EXISTS AT ALL: [CDPERF] had to be removed "with its handler, its shell
+   * emit and its pin, in one batch" (#663). A probe whose parts can be removed separately
+   * leaves a verb nothing sends, or an emit nothing answers. Pinning the trio means the
+   * removal is one edit that fails loudly if it is half done. */
+  {
+    const hpProbe = stripCode(hp13);           // ⚠ the removal note NAMES the verb
+    ok(/StartsWith\("ixian:landtabprobe:", StringComparison\.Ordinal\)/.test(hpProbe)
+      && /\[LANDTAB\] consumer=/.test(hpProbe)
+      && /bridge\.send\('ixian:landtabprobe:' \+ \(via \|\| 'unknown'\)/.test(home13)
+      && /consumeLandTab\('settingsclosed'\)/.test(home13) && /consumeLandTab\('storage'\)/.test(home13),
+      '⏱ L14 (#677) THE TRIO: the shell emits the probe from consumeLandTab with the consumer that called it, and C# logs it. TEMPORARY — remove the handler, the emit and this pin together, the way [CDPERF] went');
+    const probeAt = hpProbe.indexOf('StartsWith("ixian:landtabprobe:"');
+    const probeBody = probeAt < 0 ? '' : hpProbe.slice(probeAt, hpProbe.indexOf('StartsWith("ixian:leavegroup:"', probeAt));
+    ok(probeAt > 0 && probeBody.length > 0
+      && /Logging\.info\("\[LANDTAB\] consumer=" \+ via \+ " age=" \+ ageMs \+ "ms"\)/.test(probeBody)
+      && /via != "storage" && via != "visibility" && via != "focus" && via != "settingsclosed"/.test(probeBody)
+      && !/Logging\.[a-z]+\([^;]*current_url/.test(probeBody),
+      '⏱ L14: the probe logs a word from a FIXED SET and an integer, and no Logging call in the handler touches current_url — never the raw payload, never a tab id, never an address. A diagnostic that leaks is a diagnostic nobody may run twice');
+  }
+
+  /* —— behavioural, against the built bundle ———————————————————————————————— */
+  {
+    const dom13 = await load('chats.html');
+    const d13 = dom13.window.document, W13 = dom13.window;
+    const ROOM = { name: 'Crew', address: 'GRP1234567890ABCDEFGHIJKL', type: 'group' };
+
+    /* unticked — the leave must not fire off the back of a plain delete */
+    {
+      const acts = [];
+      W13.Spixi.openDeleteFlow({ chat: ROOM, host: d13.body, strings: {}, onAction: (a, dt) => acts.push([a, dt]) });
+      await sleep(40);
+      const modal = [...d13.querySelectorAll('.c-modal')].pop();
+      [...modal.querySelectorAll('.c-modal__actions .c-button')].pop().click();
+      await sleep(60);
+      ok(acts.length === 1 && acts[0][0] === 'delete' && acts[0][1].leaveGroup === false,
+        '★★ L13 BEHAVIOURAL: unticked, confirming deletes the chat and carries leaveGroup:false — the shell then sends removehistory and you stay in the group, which is exactly what the two ticked boxes describe');
+      W13.Spixi.dismissTopOverlay();
+      await sleep(450);
+    }
+
+    /* ticked — ONE terminal, carrying the flag */
+    {
+      const acts = [];
+      W13.Spixi.openDeleteFlow({ chat: ROOM, host: d13.body, strings: {}, onAction: (a, dt) => acts.push([a, dt]) });
+      await sleep(40);
+      const modal = [...d13.querySelectorAll('.c-modal')].pop();
+      const boxes = [...modal.querySelectorAll('.c-delete-chat__opt')];
+      boxes[2].click();                                   // tick Leave group
+      [...modal.querySelectorAll('.c-modal__actions .c-button')].pop().click();
+      await sleep(60);
+      ok(acts.length === 1 && acts[0][0] === 'delete' && acts[0][1].leaveGroup === true,
+        '★★ L13 BEHAVIOURAL: ticked, it is still ONE terminal carrying leaveGroup:true. A second onAction would be a second location.href send for one user action — the race SContacts A4/A5 refused to introduce');
+      W13.Spixi.dismissTopOverlay();
+      await sleep(450);
+    }
+
+    /* ★★ F5 4.7 OPTION 2, BEHAVIOURAL: the red button follows the tick, both ways */
+    {
+      W13.Spixi.openDeleteFlow({ chat: ROOM, host: d13.body,
+        strings: { delete: 'Delete', leaveAndDelete: 'Leave and delete' }, onAction: () => {} });
+      await sleep(40);
+      const modal = [...d13.querySelectorAll('.c-modal')].pop();
+      const boxes = [...modal.querySelectorAll('.c-delete-chat__opt')];
+      const cta = [...modal.querySelectorAll('.c-modal__actions .c-button')].pop();
+      const label = () => cta.querySelector('.c-button__label').textContent;
+      const before = label();
+      boxes[2].click();
+      await sleep(10);
+      const ticked = label();
+      boxes[2].click();                                   // and BACK — the relabel is not one-way
+      await sleep(10);
+      ok(before === 'Delete' && ticked === 'Leave and delete' && label() === 'Delete',
+        '★★ F5 4.7 OPTION 2 (Damir): the red button reads "Delete" until the leave box is ticked and "Leave and delete" while it is — and it goes BACK when the box is cleared. A one-way relabel would promise a leave the untick has already cancelled');
+      W13.Spixi.dismissTopOverlay();
+      await sleep(450);
+    }
+
+    /* …and a PERSON's modal never relabels: there is no leave box to drive it */
+    {
+      W13.Spixi.openDeleteFlow({ chat: { name: 'Ada', address: 'ADA1234567890ABCDEFGHIJKL', type: 'contact' },
+        host: d13.body, strings: { delete: 'Delete', leaveAndDelete: 'Leave and delete' },
+        onAction: () => {}, onNeedGroups: () => {} });
+      await sleep(40);
+      const modal = [...d13.querySelectorAll('.c-modal')].pop();
+      const boxes = [...modal.querySelectorAll('.c-delete-chat__opt')];
+      const cta = [...modal.querySelectorAll('.c-modal__actions .c-button')].pop();
+      boxes[2].click();                                   // tick Remove contact
+      await sleep(10);
+      ok(cta.querySelector('.c-button__label').textContent === 'Delete',
+        '★ F5 4.7 OPTION 2: ticking REMOVE CONTACT does not relabel anything. That tick escalates to its own sheet, which asks the question there — wiring the label to "a third box is on" instead of to the leave box is how the two rows would start borrowing each other\'s words');
+      W13.Spixi.dismissTopOverlay();
+      await sleep(450);
+    }
+
+    /* a PERSON's row is untouched: three boxes, and the third is still Remove contact */
+    {
+      W13.Spixi.openDeleteFlow({ chat: { name: 'Ada', address: 'ADA1234567890ABCDEFGHIJKL', type: 'contact' },
+        host: d13.body, strings: {}, onAction: () => {}, onNeedGroups: () => {} });
+      await sleep(40);
+      const modal = [...d13.querySelectorAll('.c-modal')].pop();
+      const boxes = [...modal.querySelectorAll('.c-delete-chat__opt')];
+      ok(boxes.length === 3 && /Remove contact/.test(boxes[2].textContent)
+        && !/Leave group/.test(modal.textContent),
+        '★★ L13: the two rows ask DIFFERENT third questions and neither is offered both. A person has no group to leave from here (the remove sheet handles shared groups, and it is a different question); a room has no contact to remove');
+      W13.Spixi.dismissTopOverlay();
+      await sleep(450);
+    }
   }
 }
 

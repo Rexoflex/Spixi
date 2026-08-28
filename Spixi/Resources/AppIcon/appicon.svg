@@ -1,10 +1,32 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
-<!-- ★ L17 — the ADAPTIVE ICON BACKGROUND: Damir's #175595, flat, edge to edge.
-     It must be FULL-BLEED and it must have no detail: Android masks this layer to the
-     launcher's shape (circle, squircle, rounded square) and also lets it PARALLAX behind
-     the foreground on some launchers. A gradient banded at 48px and a mark here would be
-     cropped by every mask, which is why the mark lives in appiconfg.svg instead.
-     Spixi.csproj's MauiIcon Color carries the same value for the platforms that want a
-     flat colour rather than this file. -->
-<rect width="1024" height="1024" fill="#175595"/>
+<!-- ★ L17 / #683 — the ADAPTIVE ICON BACKGROUND. Damir's gradient, 2026-08-28.
+
+     ⚠ IT MUST STAY FULL-BLEED AND DETAIL-FREE. Android masks this layer to the launcher's
+     shape (circle, squircle, rounded square) and lets it PARALLAX behind the foreground on
+     some launchers, so a mark here would be cropped and would drift. A smooth gradient is
+     fine — cropping a gradient loses nothing — but its ANCHOR moves: the bright corner is
+     the top-RIGHT, and under a circular mask the corner itself is cut away, so what the
+     user sees is the bright side, not the bright point. That is the intended reading.
+
+     ★ THIS IS DAMIR'S CSS, LAYERED THE SAME WAY, not a flattened approximation:
+         radial-gradient(141.42% 141.42% at 100% 0%,
+                         rgba(75,156,239,.50) 13.13%, rgba(34,58,89,.50) 100%), #0A58A9
+     141.42% of the 1024 box = r 1448.1 centred on the top-right CORNER (1024, 0); the
+     first stop lands at r 190.1. Both stops carry stop-opacity .5 over the #0A58A9 ground,
+     exactly as the CSS composites them — so the two can never drift, and re-deriving the
+     flattened hexes (#2A7ACC / #164981) by hand is never necessary.
+
+     ⚠ Spixi.csproj's MauiIcon Color carries the GROUND ONLY (#0A58A9). It is a flat value
+     by definition and cannot express this gradient; it is what the platforms that want a
+     colour rather than this file will use. If a build ever comes out FLAT, that is the
+     tell that the resizetizer took Color instead of rasterising this file — check
+     obj/…/resizetizer/r/mipmap-xxxhdpi/appicon_background.png before changing anything. -->
+<defs>
+  <radialGradient id="spixiIconBg" gradientUnits="userSpaceOnUse" cx="1024" cy="0" r="1448.1">
+    <stop offset="0.1313" stop-color="#4B9CEF" stop-opacity="0.5"/>
+    <stop offset="1" stop-color="#223A59" stop-opacity="0.5"/>
+  </radialGradient>
+</defs>
+<rect width="1024" height="1024" fill="#0A58A9"/>
+<rect width="1024" height="1024" fill="url(#spixiIconBg)"/>
 </svg>

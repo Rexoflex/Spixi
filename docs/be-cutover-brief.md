@@ -298,3 +298,146 @@ Until both land, the single check is unreachable and the app is honest about it.
 REPORTED defect is already fixed without this: the clock used to sit for ever because Core
 only advances at the full member count, and the app now derives "delivered" at one
 confirmed member (#643).
+
+---
+
+## From the 2026-08-30 batch (#657–#661) — Ixian-Core rows
+
+Four rows. Three are new. The fourth is a question nobody in this checkout can answer, and
+it is the one to read first.
+
+---
+
+**CORE-4 · `onMessageExpired` IS CALLED WITH A HARDCODED 0, AND ITS SIBLING IS NOT.**
+
+`PendingMessageProcessor.cs:326`:
+
+```csharp
+onMessageExpired(friend, 0, pm.streamMessage);
+```
+
+`PendingMessage` carries a real `channel` field, and the same class passes it to
+`onMessageSent` at `:504`. So one hook is told the truth and the other is handed a zero
+that means nothing.
+
+**What it costs.** A bot room stores its outgoing messages under
+`friend.metaData.botInfo.defaultChannel`, which a BotInfo off the wire sets and which
+`SingleChatPage` reads into `selectedChannel`. **Damir's own bot room has three channels.**
+With the hardcoded 0:
+
+* `friend.setMessageError(0, id)` finds no message on channel 0 and **writes nothing**;
+* `friend.getMessage(0, id)` returns null, so **no UI push is made**;
+* the bubble keeps its clock for ever, with no red failed state and no retry affordance.
+
+★ **It cannot heal.** `errorSending` is written in exactly one place in Ixian-Core and
+cleared NOWHERE, so a later reload cannot correct it either.
+
+**The app's mitigation, and its limit.** `SpixiPendingMessageProcessor.onMessageExpired`
+now resolves the channel from the message id before it writes
+(`StreamProcessor.resolveChannelForMessage`). That resolver is fail-soft by contract: it
+returns the fallback when no channel holds the id, so a 1:1 chat keeps today's answer
+exactly. It **cannot** invent a channel; it only finds one that already holds the message.
+
+**The ask: one word.** Pass the pending message's own `channel` at `:326`, as `:504`
+already does. Then the work-around in `SpixiPendingMessageProcessor` becomes a belt instead
+of the mechanism.
+
+---
+
+**CORE-5 · IS A REPEAT `connectToNetwork()` SAFE ON AN ALREADY-RUNNING NODE?**
+
+`HomePage` re-enters its start block whenever a second `HomePage` is built — the unlock
+path does this through `HomePage.Instance(true)`. The block now takes an "already running"
+arm and **deliberately does NOT call `Node.connectToNetwork()` a second time.**
+
+`Node.connectToNetwork()` (`Spixi/Meta/Node.cs:443`) calls
+`NetworkUtils.resumeNetworkOperations()`, then **`StreamClientManager.start()`** and
+**`NetworkClientManager.start(2)`**. Both managers live in Ixian-Core, which is frozen at
+`097341a` and is not in this checkout, so *"is a second `start()` idempotent"* cannot be
+answered from the app.
+
+⚠ **There is no precedent in the app to copy.** `grep` finds exactly two
+`connectToNetwork()` call sites besides this one — `App.xaml.cs:381` and
+`App.xaml.cs:1426` — and both call it **only after a successful `Node.start()` on a node
+whose `IxianHandler.status` was `stopped` or `stopping`. No site in this tree reconnects a
+node that is already running.
+
+⚠ **An earlier diagnosis was WITHDRAWN, not deleted.** It said the skipped
+`connectToNetwork()` left the stream session down and caused a storm of ChaCha decrypt and
+`SpixiMessage` parse errors in Damir's log. **Nothing in this tree shows a HomePage rebuild
+dropping the stream session.** The errors are real; the causal claim is not established.
+Do not re-open the arm on the strength of that sentence.
+
+**The ask.** Read `StreamClientManager.start()` and `NetworkClientManager.start(2)` at
+`097341a` and answer one question: **is a second call on a live node safe, a no-op, or
+harmful?** If it is safe, the honest fix is to call `connectToNetwork()` on both arms and
+delete this row.
+
+---
+
+**CORE-6 · `Node.start()` HAS NO FAILURE UNWIND, AND `running` IS LATCHED BEFORE THE FIRST
+FAILURE RETURN.**
+
+`Spixi/Meta/Node.cs:307` assigns `running = true`. The first failure return is at `:312`
+(`prepareStorage`). **No failure path clears the flag**, and every statement down to
+`return true` can throw. So `running == true` means only *"`start()` got past line 307"*.
+
+★ **This is not hypothetical.** `App.xaml.cs` records the state from a real device log
+(`fatalexception.txt`, 2026-08-24 12:28:00): a `KeyNotFoundException` on the wallet read
+left a half-started zombie, and the real restore then got *"Cannot start Node, it is
+already running"* while `connectToNetwork()` never ran.
+
+**What the app did instead, in three attempts.** The app cannot fix Core, so it stopped
+trusting the flag. `Node.startCounter++` is now the **last statement before `return true`**,
+and a new `Node.connectCounter++` is the **last statement of `connectToNetwork()`**. The
+guard is `Node.isRunning && Node.startCounter > 0 && Node.connectCounter > 0`, which answers
+*"is this node up AND did this process connect it"*. A half-started node falls through, gets
+`false` from `Node.start()`, and the user is told — which is honest, not silent.
+
+⚠ **Why the app did not clear `running` itself.** An honest unwind is not one assignment. At
+the first failure return `IxianHandler.status` is already `warmUp` and `UpdateVerify.start()`
+has run; later returns sit above more started subsystems. **A cleared flag admits a SECOND
+`start()` over half-started Ixian-Core services** — NetworkQueue, TransferManager,
+UpdateVerify. `Node.stop()` cannot unwind it either, because it early-returns on `!running`.
+
+**The ask.** A real failure unwind in `Node.start()`, written against Core: clear `running`
+on every failure return **and** tear down whatever that return leaves started. Until it
+exists, every consumer must test `startCounter`, never `running` alone.
+
+---
+
+**★★ THE MEMBERSHIP QUESTION — read this one first.**
+
+The app now answers *"does anybody else have this message"* in ONE place,
+`UIHelpers.anyOtherMemberHasMessage`. It names **no reaction key**: any reaction from an
+address that is not the local user counts as evidence, because you cannot read, download,
+like or tip a message you do not have.
+
+⚠ **It answers "any ADDRESS that reacted", not "any MEMBER that reacted."** There is no
+`friend.users` membership test in the walk.
+
+Every writer in this tree passes a real member — `handleFileFullyReceived` passes the
+downloading peer, and the `received:` / `seen:` receipts come from Core's own receipt path.
+But **`Friend.addReaction` is Ixian-Core, frozen at `097341a` and absent from this
+checkout**, so nothing here proves Core refuses a reaction from an address that is not in
+the room.
+
+**If Core does not refuse one, a single crafted reaction:**
+
+* turns a group bubble to a **double check that no member supports**; and, worse,
+* stops `markGroupCopyFailed` from **ever painting an honestly failed message red** — and
+  that direction is unrecoverable, because `errorSending` has one writer in Core and no
+  clearer.
+
+⚠ **CARRIED, NOT INTRODUCED.** The old two-key list had the same hole: a crafted
+`received:` had exactly the same effect. **What changed is the surface**, from two keys to
+every key, and by how much cannot be measured from this checkout.
+
+**The ask.** Read `Friend.addReaction` at `097341a` and answer: **does it verify that the
+sender is a member of the room before it stores a reaction?** If it does not, that is the
+place to fix it — one membership test at the writer closes every reader at once.
+
+⚠ **Do not ask the app to add `friend.users.hasUser(sender)` as a work-around without an
+answer first.** `users` semantics for a blind group and for a bot room are not answerable
+from this tree, and **a wrong membership test would silently DELETE evidence** (#215) — a
+message somebody really received would read as undelivered, and then as failed.

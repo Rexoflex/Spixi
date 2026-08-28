@@ -404,8 +404,15 @@ export function createCallBubble({
       meta.textContent = metaText;
       el.append(meta);
     }
-    const wrap = detailsLink(reentryGuard(onCallBack), { details: strings.callBack || 'Call back' });
-    el.append(wrap);
+    /* ★★ ROUND 3 (review3-cs MAJOR-2) — A CALL-BACK LINK WITH NO HANDLER IS A DEAD
+     * CONTROL. `detailsLink` renders the button whether or not it gets a callback, and
+     * only the missed branch above tested for one, so an ANSWERED call card always
+     * showed a live-looking "Call back ›" that did nothing when the host wired no
+     * handler. The host wires one only when a call is possible, so the absence is the
+     * answer: draw no link. */
+    if (onCallBack) {
+      el.append(detailsLink(reentryGuard(onCallBack), { details: strings.callBack || 'Call back' }));
+    }
   }
   return row;
 }

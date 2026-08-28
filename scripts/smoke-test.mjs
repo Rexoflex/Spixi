@@ -888,14 +888,27 @@ console.log('chat.html — chat info (#141)');
   {
     const cds = readFileSync(join(root, 'src/shells/contact_details.html'), 'utf8');
     const cd = readFileSync(join(root, 'Spixi/Pages/Contacts/ContactDetails.xaml.cs'), 'utf8');
+    const rdf3 = (pth) => readFileSync(join(root, pth), 'utf8');
     ok(/showCallButton\(\) \{ if \(!state\.callable\)/.test(cds)
        && /callable: state\.callable,/.test(cds)
        && /onCall: state\.callable \?/.test(cds),
       '★★ #591: the shell WAITS for the reveal, and `callable` is in stateSig — the NOTIF-2 note in this file records what happens when a pushed flag is left out of the signature: scheduleCommit becomes decorative');
+    /* ⚠ REBASED, ROUND 4. This counted `friend.state == FriendState.Approved` twice in
+       ContactDetails — the reveal and the belt. Agent R3 moved the whole rule into ONE
+       method (`SingleChatPage.canPlaceCall`), so the term is spelled ONCE in the tree and
+       this page asks for it twice instead. The guarantee is unchanged: the reveal is gated
+       AND the verb is re-gated, because a contact can leave Approved between the push and
+       the tap. The Approved term itself is read inside the one method, by the call-gate
+       block at the end of this file. */
+    /* ⚠ COUNT CODE, NOT PROSE. This file carries a doc-block that POINTS the next reader at
+       the one method, so a raw count reads that comment too — the same defect this round
+       rewrote four other pins to remove, written fresh by me and caught by the suite. */
+    const cdAsks = cd.split('\n')
+      .filter((l) => !/^\s*(\*|\/\/|\/\*)/.test(l) && /SingleChatPage\.canPlaceCall\(friend\)/.test(l)).length;
     ok(/Utils\.sendUiCommand\(this, "showCallButton", ""\);/.test(cd)
-       && /friend\.state == FriendState\.Approved/.test(cd)
-       && (cd.match(/friend\.state == FriendState\.Approved/g) || []).length >= 2,
-      '★★ #591 (audit MAJOR): C# gates the reveal AND re-gates the verb on FriendState.Approved — the same rule the chat header uses, and the belt matters because a contact can leave Approved between the push and the tap');
+       && cdAsks === 2
+       && /friend\.state == FriendState\.Approved/.test(rdf3('Spixi/Pages/Chat/SingleChatPage.xaml.cs')),
+      '★★ #591 (audit MAJOR) + round 4: C# gates the reveal AND re-gates the verb — both by asking the ONE call rule, which carries the Approved term. The belt matters because a contact can leave Approved between the push and the tap, and a snapshot taken in the constructor cannot see that');
     ok(/ixian:call/.test(cd),
       '★ #591: the verb EXISTS on this page — it was handled only by SingleChatPage, so the button would have been dead the day it shipped (#215)');
   }
@@ -17818,9 +17831,20 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   /* —— L1 · A: contact details composes IN-SHELL ————————————————————————————— */
   {
     const cd = built('contact_details.html');
-    ok(/onPay: \(\) => \{ if \(bridge\.cap\('composeSend'\)\) openSendTakeover\(\); \}/.test(cd)
-       && /onRequest: \(\) => \{ if \(bridge\.cap\('composeRequest'\)\) openRequestForPeer\(\); \}/.test(cd),
-      '★★ L1 (#640): the SHIPPED contact-details Pay and Request open the in-shell compose, gated on the caps — this is the chat.html grammar, ported');
+    /* ⚠ REBASED by the #46 loop, AFTER the pipeline ran. The old pin required the
+       UNCONDITIONAL form:
+         onPay: () => { if (bridge.cap('composeSend')) openSendTakeover(); },
+       Fix agent F made the HANDLER ITSELF conditional (findings-B MAJOR-2). chat-info.js
+       renders an action whenever it is given a handler, so passing one that returns early
+       still drew a Pay button that did nothing — a dead tap after the native screen it
+       replaced was deleted. An absent capability must now pass NO HANDLER, so the panel
+       renders no action at all. The guarantee is kept and tightened: the ternary, the
+       `: undefined` arm, and the inner belt are all required.
+       ⚠ This pin reads the BUILT shell on purpose — the ternary must reach the artifact
+       that ships, not only the source. */
+    ok(/onPay: bridge\.cap\('composeSend'\)\s*\n?\s*\? \(\) => \{ if \(bridge\.cap\('composeSend'\)\) openSendTakeover\(\); \}\s*\n?\s*: undefined,/.test(cd)
+       && /onRequest: bridge\.cap\('composeRequest'\)\s*\n?\s*\? \(\) => \{ if \(bridge\.cap\('composeRequest'\)\) openRequestForPeer\(\); \}\s*\n?\s*: undefined,/.test(cd),
+      '★★★ L1 (#640) + #46 loop: the SHIPPED contact-details Pay and Request open the in-shell compose AND are passed only when the capability is present. An absent cap passes `undefined`, and a missing handler is how chat-info hides an action — so the panel renders NO action rather than a dead tap that morphs the sheet to "Requested" for a request C# refuses');
     ok(!/bridge\.send\('ixian:send'\)/.test(cd) && !/bridge\.send\('ixian:request'\)/.test(cd),
       '★★ L1 (#640): and the two legacy emits are GONE from the shipped shell — they pushed WalletSendPage / WalletReceivePage');
     // PAIR for the negative above: the shell is real and still emits its other verbs.
@@ -17906,13 +17930,35 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   {
     const scp = rdf('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
     const dtAt = scp.indexOf('private void deliveryTicks(FriendMessage message');
-    const dt = scp.slice(dtAt, dtAt + 1400);
-    ok(dtAt > 0 && /friend\.type != FriendType\.Group/.test(dt),
+    /* ⚠ RE-ANCHORED by the #46 loop. This slice was a fixed 1400 characters from the
+       signature. Fix agent L added the `seen` leg and a comment, and the last string the
+       pins below need moved to offset 1067 of 1400. The next comment inside this method
+       would have pushed a pin red with no defect behind it. The slice now ends at the NEXT
+       member, so it is exactly the method and it cannot run out of budget. */
+    /* ⚠⚠ RE-ANCHORED AGAIN, ROUND 4. The end anchor was `groupReactionCount`, which agent
+       CS3 DELETED — so `dtEnd` was −1 and this slice silently fell back to a fixed
+       1400-character window. Two pins below then compared offsets against `indexOf(...) === -1`.
+       One of them stayed GREEN by luck, which is the hazard the first re-anchor removed and
+       which came straight back the moment the anchor member was deleted.
+       ★ THE LESSON: an end anchor must be a member that is STRUCTURAL, not one that is
+       incidental to the rule being pinned. `updateMessage` is the next member and it is the
+       push site — it cannot vanish while `deliveryTicks` exists, because `deliveryTicks`
+       is called from it. There is no silent fallback: `dtEnd < 0` makes `dt` empty and every
+       pin below goes red. */
+    const dtEnd = scp.indexOf('public void updateMessage(FriendMessage message, int channel)', dtAt);
+    const dt = (dtAt < 0 || dtEnd < 0) ? '' : scp.slice(dtAt, dtEnd);
+    ok(dtAt > 0 && dtEnd > dtAt && /friend\.type != FriendType\.Group/.test(dt),
       '★★ L2 (#641): the derivation runs for FriendType.Group ONLY. A bot room is FriendType.Normal with `bot` true, so it never enters — its receipt comes from ONE known address, Core\'s own tail already calls setMessageReceived, and Damir corrected an earlier version of this row that claimed the opposite');
-    ok(/read = false;/.test(dt) && dt.indexOf('read = false;') < dt.indexOf('groupReactionCount'),
+    ok(dt !== '' && /read = false;/.test(dt)
+       && dt.indexOf('read = false;') < dt.indexOf('anyOtherMemberHasMessage'),
       '★★ L2 (#641): NEVER a green double check in a group — and the override runs BEFORE the delivered test, so no ordering can leave `read` true');
-    ok(/groupReactionCount\(message, "received"\) >= 1/.test(dt),
-      '★★ L2 (#641): delivered at ONE confirmed member. Core advances the stored status only at the FULL count, which is why one absent member held the clock for everyone');
+    /* ★★ REBASED, ROUND 4 — DAMIR\'S RULING. "Was this delivered" was an enumerated list of
+       reaction keys that grew every round: `received`, then `+ seen`, then `+ fileReceived`,
+       and a reviewer then found `like` and `tip`. FOUR homes held that list and they kept
+       drifting. The list is gone. ONE method answers the question, it NAMES NO KEY, and the
+       pin reads the CALL, not a literal. */
+    ok(/if \(!confirmed && UIHelpers\.anyOtherMemberHasMessage\(friend, message, false\)\)/.test(dt),
+      '★★★ L2 (#641) + Damir\'s round-4 ruling: the bubble asks the ONE HOME, and it asks for the FALSE direction. The clock still advances at one member who has the message — Core advances the stored status only at the FULL count, which is why one absent member held it for everyone — but the rule is no longer a key list this pin has to keep up with');
     ok(/if \(confirmed\)\s*\r?\n?\s*\{\s*\r?\n?\s*sent = true;/.test(dt),
       '★ L2 (#641): a delivered message was, necessarily, sent');
     // Applied at EVERY localSender push surface — Damir asked for all of them.
@@ -17938,18 +17984,44 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ok(!/markHandedOff/.test(scp) && !/friend\.setMessageSent\(/.test(scp),
       '★★★ L2 (#649): NOTHING sets `sent` at the hand-off. A message still on this device shows a CLOCK — the ⑪ rule, applied to a tick this batch had invented');
     // PAIRED POSITIVE: the reported defect is still fixed, which is the whole point.
-    ok(/groupReactionCount\(message, "received"\) >= 1/.test(scp),
-      '★★★ L2 pair: and the CLOCK STILL ADVANCES at one confirmed member — the actual complaint (one absent member holding it for ever) is closed by the derivation, not by the invented tick');
-    ok(/CORE-3/.test(scp),
-      '★ L2 (#649): the single check is logged as a Core row rather than faked — onMessageSent must fire on the direct-relay path, resolving the GROUP Friend');
+    ok(/UIHelpers\.anyOtherMemberHasMessage\(friend, message, false\)/.test(scp),
+      '★★★ L2 pair: and the CLOCK STILL ADVANCES at one member who has the message — the actual complaint (one absent member holding it for ever) is closed by the derivation, not by the invented tick');
+    /* ⚠ REWRITTEN by the #46 loop (findings-B V-3). The old pin was `ok(/CORE-3/.test(scp))`
+       — a regex on a COMMENT STRING in a .cs file. It went red only when somebody edited
+       prose. The guarantee behind that prose is real and testable: the single check is not
+       FAKED anywhere. So sweep the whole C# tree. `setMessageSent` may be called from ONE
+       file — the pending-message processor, which is driven by Core's own onMessageSent
+       hook. Any other surface that reaches for it is re-inventing the optimistic tick that
+       Damir ruled against twice, and this pin goes red wherever it is written. */
+    const csFiles = [];
+    const walkCs = (dir) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = join(dir, e.name);
+        if (e.isDirectory()) { if (e.name !== 'bin' && e.name !== 'obj') walkCs(p); }
+        else if (e.name.endsWith('.cs')) csFiles.push(p.slice(root.length + 1).replace(/\\/g, '/'));
+      }
+    };
+    walkCs(join(root, 'Spixi'));
+    const setsSent = csFiles.filter((f) => /\.setMessageSent\(/.test(readFileSync(join(root, f), 'utf8')));
+    ok(setsSent.length === 1 && setsSent[0] === 'Spixi/Network/SpixiPendingMessageProcessor.cs',
+      '★★★ L2 (#649): the invented single check cannot come back on ANY surface. `setMessageSent` is called from exactly ONE file in the whole C# tree — the pending processor, on Core\'s own hand-off hook. A message still on this device shows a CLOCK, which is the ⑪ rule applied to a tick this batch had invented. Files that call it: ' + (setsSent.join(', ') || 'none'));
   }
 
   /* —— L2 · the read detail in the long-press menu ——————————————————————————— */
   {
     const ch = built('chat.html');
-    ok(/else if \(tok\.startsWith\('received'\)\) deliveredCount = count;/.test(ch)
-       && /else if \(tok\.startsWith\('seen'\)\) seenCount = count;/.test(ch),
-      '★★ L2 (#641): the counts come from the addReactions push the shell ALREADY receives — C# emits every reaction key with its member count, and this parser used to drop received/seen on the floor. Nothing new crosses the bridge');
+    /* ⚠ REBASED, ROUND 4 — DAMIR\'S RULING. The menu no longer reports DELIVERED, so the
+       parser no longer counts `received:`. The bubble tick already answers "did it arrive",
+       and repeating that answer beside it is what produced an impossible sentence in three
+       consecutive rounds. What the menu answers is the part the tick cannot show: who READ
+       it, and who PULLED the file. Two clean keys, one count each.
+       ★ AND `deliveredCount` IS DELETED FROM THE PARSER, not merely unread. A stored number
+       that no reader may use is how the next agent re-derives from it. */
+    ok(/else if \(tok\.startsWith\('seen'\)\) seenCount = count;/.test(ch)
+       && /else if \(tok\.startsWith\('fileReceived'\)\) downloadedCount = count;/.test(ch)
+       && !/deliveredCount/.test(ch)
+       && !/startsWith\('received'\)/.test(ch),
+      '★★★ L2 (#641) + round 4: the menu counts come from the addReactions push the shell ALREADY receives — two keys, `seen:` and `fileReceived:`, one count each. `received:` is no longer parsed and `deliveredCount` does not exist in the shipped shell. Nothing new crosses the bridge, and no number is stored that no reader may use');
     ok(/const others = groupRoster\.size - 1;/.test(ch),
       '★★ L2 (#641): the denominator is the OTHER members. C# pushes one addContact per friend.users entry, so the roster counts this device too — and Core\'s own threshold agrees, it tests received.Count + 1 >= users.count()');
     ok(/if \(others < 1\) return '';/.test(ch),
@@ -17957,29 +18029,80 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     /* ⚠ SCOPED to deliveryDetail's own body. A first attempt indexed the bare
        `groupRoster.size`, which occurs EARLIER in this shell for the member count — the
        pin then compared two unrelated offsets and went red on correct code. */
-    const dd = ch.slice(ch.indexOf('function deliveryDetail(rec) {'), ch.indexOf('function menuOptsFor(rec, row)'));
-    ok(/if \(mode\.isBot\) \{[\s\S]{0,200}?status-delivered/.test(dd)
+    const dd = ch.slice(ch.indexOf('function receiptDetail(rec) {'), ch.indexOf('function menuOptsFor(rec, row)'));
+    /* ⚠ REBASED, ROUND 4. A bot room reported "Delivered"; it now reports NOTHING. A bot
+       reports no per-member receipt, so there is no honest count and no honest roster to
+       divide by — and "Delivered" was the delivered clause under another name, which the
+       tick above the menu already says. The ORDER still matters and is still pinned:
+       `mode.isMulti` is true for a bot room too, so the bot test must run first. */
+    ok(dd.length > 200
+       && /if \(mode\.isBot\) return '';/.test(dd)
+       && !/status-delivered/.test(dd)
        && dd.indexOf('if (mode.isBot)') > 0
        && dd.indexOf('if (mode.isBot)') < dd.indexOf('groupRoster.size'),
-      '★ L2 (#641): a bot room answers "Delivered" or nothing, and is tested FIRST — mode.isMulti is true for bot rooms too, so the order is the whole guard');
+      '★★ L2 (#641) + round 4: a BOT room gets NO LINE, and it is tested FIRST — mode.isMulti is true for bot rooms too, so the order is the whole guard. A bot reports no per-member receipt, so a count there would be invented and "Delivered" only repeated the tick');
     ok(/if \(!mode\.isMulti\) return '';/.test(ch),
       '★ L2 (#641): a 1:1 chat gets no line — the bubble already says everything');
-    ok(/detail: \(\) => deliveryDetail\(rec\)/.test(ch),
+    ok(/detail: \(\) => receiptDetail\(rec\)/.test(ch),
       '★ L2 (#641): and menuOptsFor passes it LAZILY, so the LONG-PRESS path and the keyboard path share one answer that cannot go stale');
     ok(/\.c-msgmenu__detail \{/.test(ch),
       '★★ L2 (#641) W-h: the detail line\'s stylesheet is INLINED in the shipped chat shell — without it the caption renders as a naked paragraph');
     const mm = rdf('src/components/message-menu.js');
     ok(/d\.setAttribute\('role', 'note'\)/.test(mm) && /d\.textContent = detailText;/.test(mm),
       '★ L2 (#641): the detail is a NOTE, not a control — never focusable, never in the action list, so keyboard order is unchanged');
-    ok(!/c-msgmenu__detail[^\n]*addEventListener/.test(mm),
-      '★ L2 (#641): and nothing binds a handler to it');
-    // ⚠ NOTHING under the bubble — Damir's ruling, and the busiest surface in the app.
-    ok(!/c-bubble__delivery/.test(rdf('src/components/message-bubble.js'))
-       && /createStatusIcon|status/.test(rdf('src/components/message-bubble.js')),
-      '★★ L2 (#641): the detail did NOT land under the bubble. That is the busiest surface in the app and a per-message caption there reads as noise (Damir, same day)');
-    ok(/deliveredOf/.test(rdf('src/strings/en-us.json')) && /readBy/.test(rdf('src/strings/en-us.json'))
-       && /deliveredOf/.test(rdf('src/strings/sl-si.json')),
-      '★ L2 (#641): both copy keys exist in en-us AND in a real locale — an inline fallback that never reaches a dictionary ships English to everyone');
+    /* ⚠ REWRITTEN by the #46 loop (findings-B V-2). The old pin was
+         ok(!/c-msgmenu__detail[^\n]*addEventListener/.test(mm))
+       which asserted that a class name and `addEventListener` never share ONE LINE. The
+       plausible regression — a handler bound on the NEXT line, or through a variable —
+       passed it. The guarantee is that the detail node is NOT A CONTROL. This reads the
+       block that builds it and asserts the whole shape: a <p>, role note, text only. Any
+       handler, any tabindex, any button inside those braces turns it red. */
+    const detBlock = mm.slice(mm.indexOf('if (detailText) {'), mm.indexOf("const list = document.createElement('div');"));
+    ok(detBlock.length > 40
+       && /createElement\('p'\)/.test(detBlock)
+       && /\.setAttribute\('role', 'note'\)/.test(detBlock)
+       && /\.textContent = detailText;/.test(detBlock)
+       && !/addEventListener/.test(detBlock)
+       && !/tabIndex|tabindex/.test(detBlock)
+       && !/createElement\('button'\)/.test(detBlock),
+      '★★ L2 (#641): the detail line is a NOTE, not a control — the block that builds it makes a <p> with role="note" and text, and binds no handler, no tabindex and no button. It must never enter the keyboard order or the action list');
+    /* ⚠ REWRITTEN by the #46 loop (findings-B V-1). The old pin was
+         ok(!/c-bubble__delivery/.test(bub) && /createStatusIcon|status/.test(bub))
+       and it guaranteed nothing. `c-bubble__delivery` is a class name NOBODY EVER WROTE, so
+       the negative half was true by construction, and the positive half matched the word
+       "status", which that file contains many times. It passed for any file that mentions
+       "status". The real guarantee is that the DELIVERY DETAIL — the "n of m delivered"
+       sentence — is not rendered under the bubble. So pin the thing that builds it: the
+       bubble must not call deliveryDetail and must not carry either copy key. */
+    /* ⚠⚠ REBASED, ROUND 4 — IT HAD GONE VACUOUS. Every name this pin forbade
+       (`deliveryDetail`, `deliveredOf`, `readBy`, `downloadedBy`) is now DEAD, so three of
+       its four negatives could not fail on any change to the code that replaced them. The
+       guarantee is real and unchanged: the receipt line must not be rendered under the
+       bubble. So it forbids the LIVE names instead. */
+    const bub = rdf('src/components/message-bubble.js');
+    ok(!/receiptDetail/.test(bub) && !/deliveryDetail/.test(bub)
+       && !/readOf/.test(bub) && !/downloadedOf/.test(bub)
+       && !/seenCount|downloadedCount/.test(bub)
+       && /createStatusIcon\(status\)/.test(bub),
+      '★★ L2 (#641) + round 4: the receipt line did NOT land under the bubble — message-bubble.js calls no receiptDetail, carries neither LIVE copy key and reads neither count, and still renders the TICK. That is the busiest surface in the app and a per-message caption there reads as noise (Damir, same day)');
+    /* PAIRED: the receipt line has exactly ONE home, and it is the long-press menu. */
+    const chSrc = rdf('src/shells/chat.html');
+    ok((chSrc.match(/receiptDetail\(/g) || []).length === 2
+       && /detail: \(\) => receiptDetail\(rec\),/.test(chSrc)
+       && !/deliveryDetail/.test(chSrc),
+      '★★ L2 (#641) PAIRED + round 4: `receiptDetail` has TWO mentions in the chat shell — its own declaration and the ONE menu call site — and the old name is gone. A third would be a second surface printing the same sentence, and this project has written three rows about two homes for one rule');
+    /* ⚠⚠ REBASED, ROUND 4 — IT HAD GONE VACUOUS. It asserted that `deliveredOf` and
+       `readBy` reach a real locale. Nothing reads either key now, so the pin guarded two
+       dead strings. The guarantee — a menu string must reach a DICTIONARY and not ship as
+       an inline English fallback to every locale — now points at the two LIVE keys.
+       ⚠ `readOf` and `downloadedOf` ship with inline fallbacks today and are not yet
+       extracted, so this reads the SHELL for the fallback and the dictionaries for the old
+       keys\' replacements once `extract-strings` runs. Until then it asserts the fallback
+       exists and is a template, which is what makes the extraction possible. */
+    ok(/s\.readOf \|\| '\{n\} of \{m\} read'/.test(chSrc)
+       && /s\.downloadedOf \|\| '\{n\} of \{m\} downloaded'/.test(chSrc)
+       && /\{n\}/.test(chSrc) && /\{m\}/.test(chSrc),
+      '★ L2 (#641) + round 4: both LIVE menu strings are keyed and templated — `readOf` and `downloadedOf`, each with its own {n} of {m} placeholders. Every clause carries its own denominator, so a clause can be dropped without changing what the other one means. ★ ROUND 5: both keys now reach every locale dictionary and the built artifact — the inline `||` fallbacks stay as the belt for a missing dictionary, not as the only thing standing');
   }
 
   /* —— L8 · the chat-info slide-OUT ————————————————————————————————————————— */
@@ -18063,12 +18186,22 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   /* —— L2 · the bot room is untouched, and the group failure state is real ——— */
   {
     const scp = rdf('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
-    const mhAt = scp.indexOf('private void markHandedOff(');
-    const mh = mhAt < 0 ? '' : scp.slice(mhAt, mhAt + 1600);
-    /* ★★★ L2 (#649): the bot-room guard is MOOT — the method it guarded is gone. What
-       matters is unchanged and is asserted instead: no room type gets an invented tick. */
-    ok(mh === '',
-      '★★★ L2 (#649): markHandedOff no longer exists, so no room type — 1:1, group or bot — can be given a single check it did not earn');
+    /* ⚠ REWRITTEN by the #46 loop (findings-A VACUOUS-5). The old pin asserted that a
+       DELETED method name is absent:  ok(mh === '').  A pin on an absent name cannot go red
+       for ANY change to the code that replaced it — and #650 did replace it, by a different
+       route (markGroupCopySent). The guarantee is "no room type gets a single check it did
+       not earn". The only writer of `sent` today is markGroupCopySent. So pin the thing
+       that makes it honest: its ONLY caller is the Core hook. If a send path ever calls it,
+       the check becomes optimistic again and this pin goes red. */
+    ok(!/markHandedOff/.test(scp),
+      '★★ L2 (#649) pair: the invented hand-off tick is gone from the chat page');
+    const pmpSent = rdf('Spixi/Network/SpixiPendingMessageProcessor.cs');
+    const sentCalls = (pmpSent.match(/markGroupCopySent\(/g) || []).length;
+    const onSentAt = pmpSent.indexOf('protected override void onMessageSent(');
+    const onSentEnd = pmpSent.indexOf('/* ★★★ #650', onSentAt);
+    const onSentBody = onSentAt < 0 ? '' : pmpSent.slice(onSentAt, onSentEnd > onSentAt ? onSentEnd : onSentAt + 900);
+    ok(onSentAt > 0 && sentCalls === 2 && /markGroupCopySent\(msg\.id, channel\);/.test(onSentBody),
+      '★★★ L2 (#649): the single check is written from ONE place, and that place is CORE\'S OWN hand-off hook. `markGroupCopySent` is named exactly twice in the file — its declaration and the call inside `protected override void onMessageSent`. A call from a SEND path would make the tick optimistic again, which is the lie Damir ruled against twice. Got ' + sentCalls + ' mentions');
     const pmp = rdf('Spixi/Network/SpixiPendingMessageProcessor.cs');
     ok(/private static void markGroupCopyFailed\(byte\[\] msgId, int channel\)/.test(pmp)
        && /f\.type != FriendType\.Group/.test(pmp)
@@ -18092,8 +18225,8 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       '★★★ L2 (#641): the roster is pulled at CHAT OPEN for a private group. Its only writer used to be the addContact push, which fires only from openChatInfo — so the delivery detail was EMPTY until the user independently opened Group info, while the bubble had already lost its read tick. The "no roster, no line" degrade was the DEFAULT state, not an edge case');
     ok(!/if \(\(t === 1 \|\| t === 2 \|\| t === 3\) && !groupRoster\.size\)/.test(ch),
       '★★ L2 (#641): and NOT for a bot room — loadContacts walks the roster synchronously on the UI thread and a public channel holds up to 500 members. That is the #619 freeze, which cost this project a batch');
-    ok(/detail: \(\) => deliveryDetail\(rec\),/.test(ch),
-      '★★★ L2 (#641): the detail is a FUNCTION, evaluated when the menu OPENS. attachMessageMenu captures its options at row-wire time and replays them on every long-press, and neither writer of the counts re-renders the row — so a frozen string let a bubble showing a double check say "0 of 3 delivered" in its own menu');
+    ok(/detail: \(\) => receiptDetail\(rec\),/.test(ch) && !/detail: receiptDetail\(rec\)/.test(ch),
+      '★★★ L2 (#641): the detail is a FUNCTION, evaluated when the menu OPENS. attachMessageMenu captures its options at ROW-WIRE time and replays them on every long-press, and neither writer of the counts re-renders the row — so a frozen string let a menu contradict the bubble above it. The eager form is refused explicitly, because `detail: receiptDetail(rec)` is a one-character edit that reads almost identically');
     const mm = rdf('src/components/message-menu.js');
     ok(/typeof detail === 'function'/.test(mm) && /catch \(e\) \{ return ''; \}/.test(mm),
       '★★ L2 (#641): the component accepts either, and a throwing getter degrades to no line rather than taking the menu down with it');
@@ -18102,19 +18235,63 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   /* —— ★★ THE BREAK-MY-VERDICT ROUND — two MAJORs found IN THE FIXES ————————— */
   {
     const hp = rdf('Spixi/Pages/Home/HomePage.xaml.cs');
-    ok(/private static bool groupHasDeliveryReceipt\(FriendMessage msg\)/.test(hp)
+    /* ⚠ REBASED, ROUND 4. `groupHasDeliveryReceipt` was the chats row\'s PRIVATE COPY of
+       the delivery rule, and it is deleted. The row still derives the same answer — it now
+       asks the one home. The room test still comes first, so a 1:1 row never calls it. */
+    ok(!/groupHasDeliveryReceipt/.test(hp)
        && /bool groupDelivered = isGroupRow && lastmsg\.localSender/.test(hp)
-       && /\(lastmsg\.confirmed \|\| groupHasDeliveryReceipt\(lastmsg\)\)/.test(hp),
-      '★★★ L2 (#641): the CHATS ROW derives "delivered at one member" too. The first fix for this only re-routed `read`, so at one confirmed member the bubble showed a DOUBLE check and the list beside it showed a SINGLE one — the same divergence, one field over. A derivation has to live wherever the answer is rendered');
+       && /\(lastmsg\.confirmed\s*\r?\n?\s*\|\| UIHelpers\.anyOtherMemberHasMessage\(friend, lastmsg, false\)\)/.test(hp),
+      '★★★ L2 (#641): the CHATS ROW derives "delivered at one member" too, and it derives it from the ONE HOME. Its private copy is deleted. The first fix for this only re-routed `read`, so at one member the bubble showed a DOUBLE check and the list beside it showed a SINGLE one — a derivation has to live wherever the answer is rendered, and it has to be the SAME derivation');
     ok(/if \(lastmsg\.errorSending\)/.test(hp) && /type = "failed";/.test(hp)
        && /case 'failed': return 'failed';/.test(rdf('Spixi/Resources/Raw/html/index.html')),
       '★★ L2 (#641): and the list has a FAILED leg at all — it had none, so a message the conversation shows in the red retry state rendered there as an ordinary tick');
     const pmp = rdf('Spixi/Network/SpixiPendingMessageProcessor.cs');
-    ok(/gm\.reactions\.ContainsKey\("seen"\) && gm\.reactions\["seen"\]\.Count > 0/.test(pmp)
-       && /anyEvidence = true;/.test(pmp),
-      '★★★ L2 (#641): the group failure test reads `seen` AS WELL AS `received`, and fails SAFE. Those are two independent stream messages, so a member can READ a message whose delivery receipt was lost — testing delivery alone painted a permanent red FAILED on a message somebody had told us they read, while this row\'s own long-press detail said "1 read" underneath it');
-    ok(/cleared NOWHERE/.test(pmp),
-      '★ L2 (#641): and the reason it must fail safe is written down — Core never CLEARS errorSending, so a member who confirms tomorrow cannot undo it');
+    /* ⚠ REBASED, ROUND 4. The old pin read the literal `gm.reactions["seen"]` inside this
+       file. The inline walk is deleted; the expiry asks the one home. What survives, and
+       what matters more, is the DIRECTION it asks for. */
+    ok(/bool anyEvidence = UIHelpers\.anyOtherMemberHasMessage\(f, gm, true\);/.test(pmp)
+       && !/gm\.reactions/.test(pmp) && !/ContainsKey\("seen"\)/.test(pmp),
+      '★★★ L2 (#641): the group failure test asks the ONE HOME and asks for the TRUE direction — and its own inline walk is gone. A member can READ a message whose delivery receipt was lost; testing delivery alone painted a permanent red FAILED on a message somebody had told us they read');
+    /* ⚠⚠ REWRITTEN TWICE. Round 1 replaced a prose regex (`/cleared NOWHERE/`) with a read
+       of the catch inside markGroupCopyFailed. Round 4 moved that catch into the one home,
+       so the TEXT moved again — but the PROPERTY did not, and the property is the whole
+       point. Pin the property.
+       ★ THE ASYMMETRY IS THE GUARANTEE, AND IT HAS THREE PARTS.
+       An unreadable reaction set must answer DIFFERENTLY depending on who is asking:
+         · the bubble tick  → false. It must not claim a delivery it cannot see.
+         · the chats row    → false. Same surface, same answer, or the two disagree again.
+         · the expiry red   → TRUE.  A false red FAILED is UNRECOVERABLE, because
+                                     `errorSending` is written in one place in Ixian-Core
+                                     and cleared NOWHERE.
+       A pin that cannot tell the three apart is worthless here: flatten them either way and
+       one surface starts lying. So this reads all three call sites AND the catch that
+       honours them. `answerWhenUnreadable` has no default value in the signature, so a
+       caller cannot omit its direction by accident — that is asserted too. */
+    const uih = rdf('Spixi/Utils/UIHelpers.cs');
+    const scpAsym = rdf('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+    /* ⚠ RE-ANCHORED, ROUND 5. Round 4 sliced this body from the 4-ARGUMENT signature, and
+       agent CS4 deleted that overload with the count it existed for. The END anchor was
+       `otherMemberCount = members;`, which went with it.
+       ★ BOTH NEW ANCHORS ARE STRUCTURAL, not incidental. The 3-argument signature is the
+       ONLY form now and all three callers use it. The end anchor is the comment above the
+       no-evidence exit, which cannot vanish while the method has one — an end anchor that
+       is incidental to the rule is how this same slice silently fell back to a fixed
+       window in round 4 and stayed green by luck. */
+    const ANY_SIG = 'public static bool anyOtherMemberHasMessage(Friend? friend, FriendMessage? message, bool answerWhenUnreadable)';
+    const anyBody = uih.slice(uih.indexOf(ANY_SIG));
+    const anyCatch = anyBody.slice(anyBody.indexOf('catch (Exception ex)'), anyBody.indexOf('// Every reaction is ours'));
+    ok(/UIHelpers\.anyOtherMemberHasMessage\(friend, message, false\)/.test(scpAsym)
+       && /UIHelpers\.anyOtherMemberHasMessage\(friend, lastmsg, false\)/.test(hp)
+       && /UIHelpers\.anyOtherMemberHasMessage\(f, gm, true\)/.test(pmp)
+       && anyBody.length > 200 && anyCatch.length > 20
+       && /return answerWhenUnreadable;/.test(anyCatch)
+       && !/return true;/.test(anyCatch) && !/return false;/.test(anyCatch)
+       && /bool answerWhenUnreadable\)/.test(uih)
+       && !/bool answerWhenUnreadable = /.test(uih)
+       /* ⚠ ONE FORM ONLY. The 4-argument overload is deleted; a second overload is how a
+          caller acquires a default direction by accident. */
+       && !/bool answerWhenUnreadable, out int/.test(uih),
+      '★★★ L2 (#641) + round 4: THE THREE FAIL-SOFT DIRECTIONS ARE DELIBERATE AND THEY ARE NOT THE SAME. The bubble tick and the chats row pass FALSE — they must not claim a delivery they cannot see. markGroupCopyFailed passes TRUE — a false red FAILED is unrecoverable, because `errorSending` is written in one place in Ixian-Core and cleared NOWHERE. The one catch returns the CALLER\'s direction, never a hardcoded answer, and the parameter has no default, so a caller cannot omit its direction by accident. Flatten these and one surface starts lying');
     const sp = rdf('Spixi/Utils/SpixiContentPage.cs');
     ok(/private const double SLIDE_OUT_MAX_SECONDS = 1;/.test(sp)
        && /double age = \(Environment\.TickCount64 - started\) \/ 1000\.0;/.test(sp),
@@ -18159,11 +18336,42 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ok(/markGroupCopySent\(msg\.id, channel\);/.test(pmp)
        && /private static void markGroupCopySent\(byte\[\] msgId, int channel\)/.test(pmp),
       '★★★ #650: onMessageSent lands the flag on the GROUP copy too. Core fans a group send out per MEMBER, so the plain call writes to a message list that does not hold the group message — which is why Damir saw a clock with every member offline while he was online');
-    ok(/private static void forEachGroupHolding\(byte\[\] msgId, int channel, Action<Friend, FriendMessage> act\)/.test(pmp)
+    /* ⚠ REBASED by the #46 loop (fix agent L, item 4). `act` now receives the channel the
+       message was FOUND on, not the channel the hook was handed, so the delegate grew a
+       third argument. The pin's INTENT is unchanged — ONE home for the walk, both hooks
+       through it — and only the arity moved. */
+    ok(/private static void forEachGroupHolding\(byte\[\] msgId, int channel, Action<Friend, int, FriendMessage> act\)/.test(pmp)
        && (pmp.match(/forEachGroupHolding\(msgId, channel/g) || []).length === 2,
       '★★ #650: the group resolver has ONE home and both hooks use it — hand-off and expiry. Two copies of that walk is how they drift');
-    ok(/OfflinePushMessages/.test(pmp) || /push server has taken the message/.test(pmp),
-      '★★ #650: and the WHY is written down — onMessageSent is reached only after the offline push server ACCEPTS, so it is a fact about the past, not a guess about the future. That is what makes this check honest where the hand-off one was a lie');
+    /* ★★ #46 loop (fix agent L, item 4) — THE FOUND CHANNEL REACHES THE WRITE.
+       The walk resolves the channel by message id when the argument does not match. That
+       resolve is worth nothing if the callback then writes with the argument again. Both
+       hooks must take the delegate's own `ch`. A pin on the signature alone cannot see
+       that; this reads the two bodies. */
+    const cbSent = pmp.slice(pmp.indexOf('private static void markGroupCopySent'),
+                             pmp.indexOf('/* The shared group resolver.'));
+    const cbFail = pmp.slice(pmp.indexOf('private static void markGroupCopyFailed'));
+    ok(/forEachGroupHolding\(msgId, channel, \(f, ch, gm\) =>/.test(cbSent)
+       && /f\.setMessageSent\(ch, msgId\);/.test(cbSent)
+       && !/f\.setMessageSent\(channel, msgId\);/.test(cbSent)
+       && /forEachGroupHolding\(msgId, channel, \(f, ch, gm\) =>/.test(cbFail)
+       && /f\.setMessageError\(ch, msgId\);/.test(cbFail)
+       && !/f\.setMessageError\(channel, msgId\);/.test(cbFail),
+      '★★★ #46 loop: both hooks write with the RESOLVED channel `ch`, never with the argument they were handed. Core calls onMessageExpired with a hardcoded 0 (CORE-4), so the walk resolves the channel from the message id — and a callback that then writes to `channel` throws that answer away in silence');
+    /* ⚠ REWRITTEN by the #46 loop (findings-A VACUOUS-2). The old pin was
+         ok(/OfflinePushMessages/.test(pmp) || /push server has taken the message/.test(pmp))
+       and BOTH halves of that disjunction read the SAME COMMENT BLOCK — `OfflinePushMessages`
+       appears nowhere in this file as code. It asserted that a sentence is still written
+       down. The behavioural half of the same claim is that the group check is IDEMPOTENT and
+       lands on the group copy: Core fans one group send out per member, so this callback
+       runs once per member, and without the early return the second member re-writes and
+       re-pushes a flag that is already set. */
+    const mgcs = pmp.slice(pmp.indexOf('private static void markGroupCopySent'),
+                           pmp.indexOf('/* The shared group resolver.'));
+    ok(/if \(gm\.sent\)/.test(mgcs)
+       && mgcs.indexOf('if (gm.sent)') < mgcs.indexOf('f.setMessageSent(ch, msgId);')
+       && /return;/.test(mgcs.slice(mgcs.indexOf('if (gm.sent)'), mgcs.indexOf('f.setMessageSent(ch, msgId);'))),
+      '★★ #650: the group single check is IDEMPOTENT — an already-sent copy returns BEFORE the write. Core fans a group send out per MEMBER, so this callback runs once per member of the room; without the early return one message costs twenty writes and twenty WebView pushes');
     const scp = rdf('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
     ok(!/markHandedOff/.test(scp),
       '★★ #650 pair: and the INVENTED check stays gone — this row restores the tick from a real signal, it does not reinstate the optimistic one');
@@ -18173,14 +18381,33 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   {
     const sp = rdf('Spixi/Network/StreamProcessor.cs');
     const at = sp.indexOf('case SpixiMessageCode.msgReceived:');
-    const body = sp.slice(at, at + 2400);
+    /* ⚠ RE-ANCHORED by the #46 loop. This slice was a fixed 2400 characters. Fix agent L
+       widened the comment above the lookup and the last string the pins below need sat at
+       offset 2337 of 2400 — 19 characters of margin. The slice now ends at the NEXT case
+       label, so it is exactly the msgReceived / msgRead arm. */
+    const caseEnd = sp.indexOf('case SpixiMessageCode.msgDelete:', at);
+    const body = at < 0 ? '' : sp.slice(at, caseEnd > at ? caseEnd : at + 2400);
     ok(at > 0 && /UIHelpers\.updateReactions\(friend, ch, fm\.id\);/.test(body),
       '★★★ ISSUE 1 ②: a delivery receipt re-pushes the REACTION COUNTS, not just the flags. The detail line is built from addReactions, which was emitted on a full history load and nowhere else — Damir: "it shows 0 of XY delivered until I refresh the chat"');
     ok(/private static int resolveMessageChannel\(Friend friend, byte\[\] msgId, int fallback\)/.test(sp)
        && /ch = resolveMessageChannel\(friend, spixi_message\.data, channel\);/.test(body),
       '★★★ ISSUE 1 ①: the message is found even when the receipt names a different channel. A bot room stores under botInfo.defaultChannel, so the straight lookup returned null and NOTHING was pushed — Damir: "in a bot room it is always clock until I refresh"');
-    ok(/return fallback;/.test(sp),
-      '★ ISSUE 1 ①: and a no-match returns the ORIGINAL channel, so the caller behaves exactly as before rather than acting on a guess');
+    /* ⚠ REWRITTEN by the #46 loop (findings-A VACUOUS-4). The old pin was
+         ok(/return fallback;/.test(sp))
+       tested against the WHOLE FILE. `resolveMessageChannel` holds TWO such statements — the
+       null guard at the head and the no-match tail. Delete the TAIL, which is the one the
+       pin describes, and the null guard kept the pin green. The TAIL is the guarantee: a
+       walk that matched nothing must hand back the channel it was given, not a guess. So
+       scope to the method and assert the LAST statement of its body is that return. */
+    const rmcAt = sp.indexOf('private static int resolveMessageChannel(Friend friend, byte[] msgId, int fallback)');
+    const rmc = rmcAt < 0 ? '' : sp.slice(rmcAt, sp.indexOf('\n        }\n', sp.indexOf('return fallback;', sp.indexOf('catch (Exception ex)', rmcAt))));
+    const rmcTail = rmc.slice(rmc.indexOf('catch (Exception ex)'));
+    const rmcLast = rmcTail.trim().split('\n').map((l) => l.trim()).filter(Boolean).slice(-1)[0] || '';
+    ok(rmcAt > 0
+       && (rmc.match(/return fallback;/g) || []).length === 2
+       && rmcLast === 'return fallback;'
+       && /return preferred;/.test(rmc) && /return c\.index;/.test(rmc),
+      '★★★ ISSUE 1 ①: a no-match returns the ORIGINAL channel — the LAST statement of resolveMessageChannel, after the catch, is `return fallback;`. The caller then behaves exactly as before rather than acting on a guess. The method also still has both real answers, the preferred channel and the walk, so this read a live resolver and not a stub');
   }
 
   /* —— issue 2 · the chats row reads the LIVE message ———————————————————————— */
@@ -18188,8 +18415,21 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     const hp = rdf('Spixi/Pages/Home/HomePage.xaml.cs');
     ok(/if \(lastmsg\.localSender\)\s*\r?\n\s*\{/.test(hp) && !/&& !lastmsg\.sent\s*\r?\n\s*&& !lastmsg\.confirmed\)/.test(hp),
       '★★★ ISSUE 2: the self-heal is no longer gated on !sent && !confirmed — that gate skipped exactly the case that needs it, which is why Damir saw a double check in the chat and a clock in the row, twice, surviving a restart');
-    ok(/lastmsg = msg;/.test(hp) && /IS A SERIALIZED COPY/.test(hp),
-      '★★ ISSUE 2: and the reason is recorded — setLastMessage stores new FriendMessage(msg.getBytes()) and nothing refreshes it when a reaction lands, so the snapshot carries ZERO reactions and every derivation reading it answers false');
+    /* ⚠ REWRITTEN by the #46 loop (findings-A VACUOUS-3). The first half was real; the
+       second, /IS A SERIALIZED COPY/, read a COMMENT. The behaviour it argued for is the
+       ORDER: the live instance must replace `lastmsg` BEFORE anything is derived from it.
+       The metaData copy is a serialized snapshot that carries ZERO reactions, so a
+       derivation that runs first answers false for every group message. This reads the
+       self-heal block and asserts the swap happens inside it, and that the derivation site
+       comes after. */
+    const shAt = hp.indexOf('if (lastmsg.localSender)');
+    const shBlk = hp.slice(shAt, hp.indexOf('else if (msgs == null', shAt));
+    ok(shAt > 0
+       && /var msg = friend\.getMessage\(friend\.metaData\.lastMessageChannel, lastmsg\.id\);/.test(shBlk)
+       && /lastmsg = msg;/.test(shBlk)
+       && shBlk.indexOf('lastmsg = msg;') < shBlk.indexOf('friend.metaData.setLastMessage(msg')
+       && shAt < hp.indexOf('anyOtherMemberHasMessage(friend, lastmsg'),
+      '★★★ ISSUE 2: the LIVE message replaces the snapshot BEFORE any tick is derived from it. metaData.setLastMessage stores new FriendMessage(msg.getBytes()) and nothing refreshes it when a reaction lands, so the snapshot carries ZERO reactions — every derivation reading it answers false, which is the double check in the chat and the clock in the row beside it, surviving a restart');
   }
 
   /* —— the wallet CTAs, and the file download count —————————————————————————— */
@@ -18207,11 +18447,20 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ok(!/askBox\.append\(cta\)/.test(wr),
       '★ the receive CTA has its own wrapper — sticking the amount BOX would have pinned the input over the content instead of the action');
     const ch = built('chat.html');
+    /* ⚠ ROUND 4: the second clause was `/if \(rec\.kind === 'file'\)/` over the WHOLE SHELL.
+       That also matches two unrelated file-row sites, so it could not fail for a change to
+       the receipt line it describes. It is now scoped to the receipt function\'s own body. */
+    const rdBody = ch.slice(ch.indexOf('function receiptDetail(rec) {'), ch.indexOf('function menuOptsFor(rec, row)'));
     ok(/else if \(tok\.startsWith\('fileReceived'\)\) downloadedCount = count;/.test(ch)
-       && /if \(rec\.kind === 'file'\)/.test(ch),
-      '★★ Damir asked for the download count and Core already stores it — a fileReceived: reaction per member, in the same push this parser was already dropping. No protocol change');
-    ok(/downloadedBy/.test(rdf('src/strings/en-us.json')) && /downloadedBy/.test(rdf('src/strings/sl-si.json')),
-      '★ and the copy reaches a real locale, not just an inline English fallback');
+       && rdBody.length > 200
+       && /const got = rec\.kind === 'file' \? inRoom\(rec\.downloadedCount\) : 0;/.test(rdBody),
+      '★★ Damir asked for the download count and Core already stores it — a fileReceived: reaction per member, in the same push this parser was already dropping. No protocol change. The count is read on a FILE row only: no other row kind carries that receipt, so a count on one would answer a question nobody asked');
+    /* ⚠⚠ REBASED, ROUND 4 — IT HAD GONE VACUOUS. `downloadedBy` is a dead key; nothing
+       reads it. The guarantee is that the download clause is KEYED and reaches a
+       dictionary rather than shipping English inline. Point it at the live key. */
+    ok(/s\.downloadedOf \|\| '\{n\} of \{m\} downloaded'/.test(ch)
+       && !/downloadedBy/.test(ch),
+      '★ and the download clause is KEYED as `downloadedOf`, with its own {n} of {m}, and the dead `downloadedBy` is gone from the shipped shell. ★ ROUND 5: `downloadedOf` now reaches every locale dictionary and the built artifact; the inline `||` fallback stays only as the belt for a missing dictionary');
   }
 
   /* —— Windows joins the mirror ——————————————————————————————————————————————— */
@@ -18235,15 +18484,1491 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     '★★★ Damir on device: a DOWNLOAD pushes to the UI. He named the diagnosis himself — "not live as for delivered read" — and that contrast is the whole thing: delivered/read arrive as msgReceived, which re-pushes its reactions; a download arrives as fileFullyReceived, which wrote the reaction and told the UI nothing');
 
   const as = rdf('src/components/attach-sheet.js');
+  /* ⚠ REBASED by the #46 loop. Fix agent F lifted the gate out of `openAttachSheet` into a
+     shared `attachTilesFor`, so the old `const enabled = { media, apps, payments, files };`
+     line no longer exists and this pin went red on a DELIBERATE change. The GUARANTEE is
+     unchanged and is re-asserted against the new shape: the file tile carries the `files`
+     flag, and `files` defaults TRUE in BOTH homes — the openAttachSheet signature and the
+     predicate — so every existing caller keeps its tile without a change. The behavioural
+     half is executed in the #46 loop block below, which calls attachTilesFor({}) and reads
+     the answer. */
   ok(/\{ id: 'file', glyph: 'file-isr', label: 'Send file', key: 'sendFile', flag: 'files' \}/.test(as)
-     && /files = true,/.test(as) && /const enabled = \{ media, apps, payments, files \};/.test(as),
+     && /files = true,/.test(as)
+     && /files: f\.files === undefined \? true : !!f\.files,/.test(as)
+     && /return ATTACH_ACTIONS\.filter\(\(a\) => !a\.flag \|\| enabled\[a\.flag\]\);/.test(as),
     "★★ the file tile is gateable, and `files` defaults TRUE — every existing caller keeps its tile without a change, so only a surface that must hide it says so");
   const ch = rdf('Spixi/Resources/Raw/html/chat.html');
-  ok(/files: !mode\.isBot && !\(\(mode\.type === 1 \|\| mode\.type === 2\) && mode\.hidesAddresses\)/.test(ch),
-    "★★★ Damir: a BLIND group offers no Send file, and a NORMAL private group keeps it — legacy parity. This is C#'s own refusal mirrored (friend.bot || (Group && hideParticipantAddresses)), so the offer and the refusal cannot disagree");
+  /* ⚠ REBASED, ROUND 2 (fix-F2 FIX 5). The predicate moved into a named `canSendFile`,
+     because C# routes BOTH `ixian:sendmedia` and `ixian:sendfile` into `onSendFile`
+     (SingleChatPage.xaml.cs:200 and :206) — one method, one refusal. Round 1 gated only the
+     file tile on it and left `media` on the #81 capability alone, so the day that capability
+     lands a bot room and a blind group would have shown Photo and GIF, which C# refuses:
+     the same ⑪ lie, pre-built on the next feature. So the pin now requires BOTH tiles to
+     ride the one predicate. The behavioural half is executed in the #46 loop block. */
+  ok(/const canSendFile = known && !mode\.isBot && !\(\(mode\.type === 1 \|\| mode\.type === 2\) && mode\.hidesAddresses\);/.test(ch)
+     && /files: canSendFile,/.test(ch)
+     && /media: canSendFile && bridge\.cap\('media'\),/.test(ch),
+    "★★★ Damir: a BLIND group offers no Send file, and a NORMAL private group keeps it — legacy parity. This is C#'s own refusal mirrored (friend.bot || (Group && hideParticipantAddresses)), so the offer and the refusal cannot disagree — and Photo and GIF ride the SAME predicate, because C# routes both verbs into the one method that refuses them");
   const scp = rdf('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
   ok(/friend\.bot\s*\r?\n\s*\|\| \(friend\.type == FriendType\.Group && friend\.metaData\.botInfo\.hideParticipantAddresses\)/.test(scp),
     '★★ PAIRED: the C# refusal the shell mirrors still exists. If it ever moves, this pin goes red rather than letting the two drift into a dead tile again');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+ * ★★★ #46 LOOP — THE PIN ROUND OVER SESSION A'S REPAIRS. 2026-08-27.
+ *
+ * THE LESSON THIS PROJECT PAID FOR TWICE, and the reason this block exists:
+ *   · A pin that reads a CALL SITE proves the call site. It says nothing about
+ *     whether the callee RUNS. Three of #646's seven MAJORs were that shape, and
+ *     the suite was green for every one of them.
+ *   · A pin that asserts a PUSH proves the push, not that the surface READS what
+ *     it is given.
+ *   · A pin that reads PROSE is a comment with a green tick.
+ * findings-B VACUOUS-5 named the gap in one line: the read detail had NO EXECUTING
+ * PIN. Every pin over it read source text. So the first two pins below LIFT the
+ * shipped functions out and RUN them.
+ *
+ * ⚠ THE SOURCE SHELLS, NOT THE BUILT ONES. The fixes in this loop landed in
+ * `src/shells/` and `src/components/`. The bundle and the shells under
+ * `Spixi/Resources/Raw/html` are regenerated by the pipeline AFTER this session, so
+ * a pin that read them would be reading pre-fix content. Each such pin says so.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+{
+  const rdf = (pth) => readFileSync(join(root, pth), 'utf8');
+
+  /* —— ★★★ EXECUTING PIN 1 · THE RECEIPT DETAIL IS RUN, NOT READ ————————————— */
+  {
+    /* ⚠⚠ REBASED, ROUND 4 — DAMIR'S RULING, AND IT IS A DESIGN CHANGE.
+     * `deliveryDetail` is now `receiptDetail`. The menu no longer reports DELIVERED at all.
+     * The bubble tick already answers "did it arrive"; the menu answers the part the tick
+     * cannot show — who READ it, and who PULLED the file. One clean key each.
+     *
+     * ★ WHY THE OLD PINS HAD TO GO, and it is not that they were stale. Three rounds in a
+     * row found an impossible sentence on the delivered clause, and every round found it on
+     * the SAME line, because that clause repeated an answer the tick already gave. Round 3's
+     * pin asserted '2 of 3 delivered · 2 downloaded' as correct output. Duplication produced
+     * the defect; deleting the duplicate is the repair, and the pins follow the code.
+     *
+     * ★ THE NEW GUARANTEE THAT DID NOT EXIST BEFORE: NO COUNTS, NO LINE. A zero is a claim
+     * about every member. A missing receipt is not a claim. So `seen: 0` prints nothing at
+     * all — it does not print "0 of 3 read". That case is asserted below, and it is the one
+     * a text pin can never see. */
+    const liftDetail = (pth) => {
+      const t = rdf(pth);
+      const a = t.indexOf('function receiptDetail(rec) {');
+      const b = t.indexOf('function menuOptsFor(rec, row) {');
+      return a > 0 && b > a ? t.slice(a, b) : '';
+    };
+    const ddSrc = liftDetail('src/shells/chat.html');
+    const ddBuilt = liftDetail('Spixi/Resources/Raw/html/chat.html');
+    /* The shell counts THIS DEVICE in the roster and derives `others = groupRoster.size - 1`,
+       so a room of 4 gives 3 others. */
+    const roster = (n) => new Map(Array.from({ length: n }, (_, i) => ['M' + i, { nick: 'M' + i }]));
+    const mkFrom = (body) => (mode, size, sl) => {
+      const f = new Function('mode', 'groupRoster', 'window', body + '\nreturn receiptDetail;');
+      return f(mode, roster(size), { SL: sl || {} });
+    };
+    const GROUP = { isBot: false, isMulti: true, type: 1 };
+    const runAll = (body) => {
+      const mk = mkFrom(body);
+      const g = mk(GROUP, 4);
+      return {
+        read2: g({ direction: 'sent', seenCount: 2 }),
+        readNone: g({ direction: 'sent', seenCount: 0 }),
+        readOver: g({ direction: 'sent', seenCount: 9 }),
+        incoming: g({ direction: 'received', seenCount: 2 }),
+        fileDl: g({ direction: 'sent', kind: 'file', seenCount: 0, downloadedCount: 2 }),
+        fileBoth: g({ direction: 'sent', kind: 'file', seenCount: 1, downloadedCount: 2 }),
+        fileOver: g({ direction: 'sent', kind: 'file', seenCount: 0, downloadedCount: 9 }),
+        fileNone: g({ direction: 'sent', kind: 'file', seenCount: 0, downloadedCount: 0 }),
+        textWithDl: g({ direction: 'sent', seenCount: 0, downloadedCount: 2 }),
+        negative: g({ direction: 'sent', seenCount: -5 }),
+        garbage: g({ direction: 'sent', seenCount: 'x' }),
+        noRoster: mk(GROUP, 1)({ direction: 'sent', seenCount: 2 }),
+        oneToOne: mk({ isBot: false, isMulti: false, type: 0 }, 2)({ direction: 'sent', seenCount: 2 }),
+        bot: mk({ isBot: true, isMulti: true, type: 3 }, 4)({ direction: 'sent', seenCount: 2, status: 'delivered' }),
+        /* ★ ROUND 6 — THE FOUR SILENT RETURNS, each asked with NOTHING to report. This is
+           the set that must NOT get the new sentence: we have no honest answer in any of
+           them, and saying "nobody has seen this yet" would be a claim we cannot support. */
+        silentIncoming: g({ direction: 'received', seenCount: 0 }),
+        silentOneToOne: mk({ isBot: false, isMulti: false, type: 0 }, 4)({ direction: 'sent', seenCount: 0 }),
+        silentBot: mk({ isBot: true, isMulti: true, type: 3 }, 4)({ direction: 'sent', seenCount: 0 }),
+        silentRoster1: mk(GROUP, 1)({ direction: 'sent', seenCount: 0 }),
+        silentRoster0: mk(GROUP, 0)({ direction: 'sent', seenCount: 0 }),
+        /* ★ and the sentence is a KEY, not a hardcoded string. */
+        localized: mkFrom(body)(GROUP, 4, { noneSeenYet: 'LOCALIZED' })({ direction: 'sent', seenCount: 0 }),
+      };
+    };
+    let ran = false;
+    let out = {};
+    let outBuilt = {};
+    try {
+      out = runAll(ddSrc);
+      outBuilt = ddBuilt ? runAll(ddBuilt) : {};
+      ran = true;
+    } catch (e) { out.err = e.message; }
+
+    ok(ran && out.read2 === '2 of 3 read' && out.readOver === '3 of 3 read',
+      '★★★ ROUND 4 EXECUTED: the menu reports READ, with its own denominator, clamped to the room. { seen: 2 } in a room of 4 → "2 of 3 read"; { seen: 9 } → "3 of 3 read", never "9 of 3". Got: ' + JSON.stringify(ran ? [out.read2, out.readOver] : out.err));
+    /* ⚠ REBASED, ROUND 6 — DAMIR ON WINDOWS: *"the row should say - nobody has seen this
+       yet"*. Round 4's guarantee was NO COUNTS, NO LINE, and the reasoning was that a zero
+       is a claim about every member while a missing receipt is not a claim. That reasoning
+       held for a row we could not describe. It does NOT hold here: we have the roster, the
+       message is ours, and every member reported nothing. That IS the answer, and the empty
+       row was the shell declining to give it.
+       ★ THE LINE IS REACHED IN EXACTLY ONE PLACE — the tail, after both counts came back
+       zero. The four returns above it stay silent, and that is pinned separately and harder,
+       because those four are the cases where we have no honest answer to give. */
+    ok(ran && out.readNone === 'Nobody has seen this yet' && out.fileNone === 'Nobody has seen this yet',
+      '★★★ ROUND 6 EXECUTED — A ROOM WITH NO RECEIPTS SAYS SO. { seen: 0 } in a known group answers "' + JSON.stringify(out.readNone) + '", not the empty string. We have the roster, the message is ours, and every member reported nothing — that is an answer, not a gap. A file row with no download and no read says the same thing');
+    ok(ran && out.fileDl === '2 of 3 downloaded' && out.fileBoth === '1 of 3 read · 2 of 3 downloaded'
+       && out.fileOver === '3 of 3 downloaded',
+      '★★★ ROUND 4 EXECUTED: a FILE row adds the DOWNLOAD clause, with its OWN denominator, through the SAME roster clamp. Every clause carries its own "of {m}", so a clause can be dropped without changing what the other one means — which is what makes the empty case above trivial instead of a special case. Got: ' + JSON.stringify(ran ? [out.fileDl, out.fileBoth, out.fileOver] : out.err));
+    /* ★★★ ROUND 6 — THE FOUR SILENT RETURNS. PIN THIS HARDEST.
+       The new sentence is only honest where we have a roster and the message is ours. In
+       these four we do not:
+         · an INCOMING message — the receipts are not ours to report;
+         · a 1:1 chat — the bubble tick already says everything;
+         · a BOT room — a bot reports no per-member receipt, so there is no set to be empty;
+         · a roster under 2 — there is no honest denominator, and a roster of 0 gives
+           `others = -1`, which must not be reported as "nobody" either.
+       Each of them returns BEFORE the counts are read, so "nobody has seen this" would be a
+       claim about a set we never looked at. A mutation that lets any of the four reach the
+       sentence must go red — that is the whole point of this pin. */
+    const silent = ran
+      ? { incoming: out.silentIncoming, oneToOne: out.silentOneToOne, bot: out.silentBot,
+          roster1: out.silentRoster1, roster0: out.silentRoster0 }
+      : {};
+    const speaking = Object.keys(silent).filter((k) => silent[k] !== '');
+    ok(ran && speaking.length === 0 && out.textWithDl === 'Nobody has seen this yet',
+      '★★★ ROUND 6 EXECUTED — THE FOUR SILENT RETURNS STAY SILENT. An INCOMING message, a 1:1, a BOT room and a roster under 2 all return the EMPTY STRING even with nothing to report. They are silent because we have no honest answer, not because the answer is "nobody": each returns before the counts are read, so the sentence would be a claim about a set we never looked at. A roster of 0 gives others = -1 and is silent too. And a TEXT row carrying a stray download count DOES speak, because it is a real group row with a real roster. Cases that wrongly spoke: ' + JSON.stringify(speaking));
+    ok(ran && out.bot === '',
+      '★★★ ROUND 4 EXECUTED — A BOT ROOM SAYS NOTHING. It used to answer "Delivered". A bot reports no per-member receipt, so there is no honest count and no honest roster to divide by; "Delivered" was the delivered clause under another name, and the tick above the menu already says it. Got: ' + JSON.stringify(ran ? out.bot : out.err));
+    ok(ran && out.negative === 'Nobody has seen this yet' && out.garbage === 'Nobody has seen this yet',
+      '★★ ROUND 6 EXECUTED: a NEGATIVE or non-numeric count still never prints "-5 of 3 read" — the clamp floors at zero as well as capping at the roster, so both land on the no-receipts sentence rather than on a number nobody can read');
+    /* ★ AND THE SENTENCE IS A KEY, NOT A LITERAL. The English text is the `||` fallback for
+       a missing dictionary; a dictionary that HAS the key must win, or the row ships English
+       to 12 locales — which is the MAJOR this session already paid for once. */
+    ok(ran && out.localized === 'LOCALIZED',
+      '★★★ ROUND 6 EXECUTED: the sentence is read from `s.noneSeenYet` and the inline English is only the fallback. A dictionary value wins over it. An inline `||` string that no key can override is invisible to verify-locales, and that is exactly how the receipt line shipped English to all 12 locales the last time');
+
+    /* ★★★ THE DIFFERENTIAL. The built shell is what ships. A pin over the source alone was
+       green through a whole session in round 2, while the artifact printed the impossible
+       sentence. Every case is answered twice and compared. */
+    const ddKeys = Object.keys(out).filter((k) => k !== 'err');
+    const ddDrift = ran ? ddKeys.filter((k) => out[k] !== outBuilt[k]) : ['<did not run>'];
+    ok(ran && ddBuilt.length > 200 && ddDrift.length === 0,
+      '★★★ ROUND 4 EXECUTED, DIFFERENTIAL: the BUILT chat shell and the SOURCE chat shell give the SAME answer for all fourteen inputs. The built shell is what ships; a stale or mangled artifact makes every source pin in this block a comment. Cases that differ: ' + JSON.stringify(ddDrift));
+    ok(ran && outBuilt.readNone === 'Nobody has seen this yet' && outBuilt.read2 === '2 of 3 read'
+       && outBuilt.silentBot === '' && outBuilt.silentOneToOne === ''
+       && !/delivered/i.test(String(outBuilt.fileBoth || 'x')),
+      '★★★ ROUND 6 EXECUTED, ON THE SHIPPED FILE: the artifact under Spixi/Resources/Raw/html reports READ and DOWNLOADED, says "nobody has seen this yet" for a group with no receipts, stays SILENT for a bot room and a 1:1, and never says the word "delivered". Got: ' + JSON.stringify([outBuilt.read2, outBuilt.readNone, outBuilt.fileBoth]));
+
+    /* ★ THE LINE ITSELF, NAMED SO A REVIEWER CAN FIND IT, IN BOTH HOMES.
+       ⚠ The clamp now has TWO uses, not three: the delivered count that used to pass
+       through it does not exist. The count is asserted so a THIRD count added later
+       without the clamp turns this red instead of shipping an unclamped number.
+       ★ AND THE NEGATIVE THAT STOPS THE FOURTH HOME GROWING BACK: `deliveredCount` must
+       appear ZERO times in either shell. */
+    const clampDecl = /const inRoom = \(n\) => Math\.min\(Math\.max\(Number\(n\) \|\| 0, 0\), others\);/;
+    const usesClamp = (t) => (t.match(/inRoom\(/g) || []).length === 2;
+    ok(ddSrc.length > 200 && ddBuilt.length > 200
+       && clampDecl.test(ddSrc) && clampDecl.test(ddBuilt)
+       && usesClamp(ddSrc) && usesClamp(ddBuilt)
+       && !/deliveredCount/.test(rdf('src/shells/chat.html'))
+       && !/deliveredCount/.test(rdf('Spixi/Resources/Raw/html/chat.html'))
+       && !/Math\.max\([^)]*seen/.test(ddSrc),
+      '★★★ ROUND 4: ONE roster clamp, declared once, used by BOTH counts, in both homes — and `deliveredCount` appears ZERO times in either shell, so the number a reader must not use is not merely unread, it does not exist. A stored number that no reader may use is how the next agent re-derives from it, and that is how this loop reached round four');
+  }
+
+  /* —— ★★★ EXECUTING PIN 2 · THE ATTACH PREDICATE IS RUN, IN BOTH ITS USERS ——— */
+  {
+    /* findings-C MAJOR-2: in a bot room every attach flag is false, every tile was
+       filtered out, and `openAttachSheet` still opened a sheet with no tiles, no title
+       and no text — while the composer ⊕ stayed visible. That is a control reporting an
+       outcome it did not cause. The fix is ONE predicate with TWO users. A text pin over
+       the exports cannot tell whether the predicate ANSWERS correctly, so this imports
+       the shipped module and calls it. */
+    const pinDom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true, url: 'file:///pin/' });
+    pinDom.window.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+    const hadWin = 'window' in globalThis ? globalThis.window : undefined;
+    const hadDoc = 'document' in globalThis ? globalThis.document : undefined;
+    const hadRaf = 'requestAnimationFrame' in globalThis ? globalThis.requestAnimationFrame : undefined;
+    globalThis.window = pinDom.window; globalThis.document = pinDom.window.document;
+    globalThis.requestAnimationFrame = (cb) => setTimeout(cb, 0);
+    try {
+      const AS = await import('file://' + join(root, 'src/components/attach-sheet.js'));
+      const ids = (flags) => AS.attachTilesFor(flags).map((t) => t.id).join(',');
+      /* The four rooms, with the flags the chat shell's own attachFlags() computes.
+         media is false until the BE image standard lands (#81). */
+      const BOT = { media: false, apps: false, payments: false, files: false };
+      const ONE = { media: false, apps: true, payments: true, files: true };
+      const GROUP = { media: false, apps: true, payments: false, files: true };
+      const BLIND = { media: false, apps: true, payments: false, files: false };
+      ok(ids(BOT) === '' && AS.hasAttachTiles(BOT) === false,
+        '★★★ #46 loop EXECUTED (findings-C MAJOR-2): a BOT room yields ZERO tiles. Every flag is false there, so all six are filtered out. The Spixi community bot is the first chat many users have, because N76 made joining it a chat-list empty-state CTA. Got: ' + JSON.stringify(ids(BOT)));
+      ok(ids(ONE) === 'file,pay,request,app' && AS.hasAttachTiles(ONE) === true,
+        '★★★ #46 loop EXECUTED: a 1:1 chat yields file, pay, request and app — in that order. Photo and GIF stay behind the media flag (#81). Got: ' + JSON.stringify(ids(ONE)));
+      /* ★ THE DEFAULTS, EXECUTED. Every existing caller passes a PARTIAL flag object, so
+         an absent flag must take the signature's own default. A text pin on the default
+         line cannot see whether the predicate really reads it. */
+      ok(ids({}) === 'file,pay,request,app' && ids({ files: false }) === 'pay,request,app',
+        '★★★ #46 loop EXECUTED: an ABSENT flag takes the default — attachTilesFor({}) still yields file, pay, request and app, and only a caller that says `files: false` loses the tile. Every existing caller passes a partial object, so a default that stopped being read would silently strip tiles from surfaces nobody edited. Got: ' + JSON.stringify([ids({}), ids({ files: false })]));
+      ok(ids(GROUP) === 'file,app' && ids(BLIND) === 'app',
+        '★★★ #46 loop EXECUTED: a NORMAL private group keeps Send file and a BLIND group loses it — legacy parity, and C#\'s own refusal mirrored. Money stays out of both. Got: ' + JSON.stringify([ids(GROUP), ids(BLIND)]));
+      /* ★ THE SHEET ITSELF. The predicate answering "no tiles" is only half of it: the
+         opener must then REFUSE, not build an empty sheet. */
+      const host = pinDom.window.document.createElement('div');
+      pinDom.window.document.body.append(host);
+      const botSheet = AS.openAttachSheet({ host, ...BOT, onAction() {}, strings: {} });
+      ok(botSheet === null && pinDom.window.document.querySelectorAll('.c-attach__tile').length === 0,
+        '★★★ #46 loop EXECUTED (findings-C MAJOR-2): openAttachSheet RETURNS NULL for a bot room instead of opening an empty sheet, and puts nothing in the document. Before this, tapping ⊕ in a bot chat opened a bottom sheet with no tiles, no title and no explanation');
+      const oneSheet = AS.openAttachSheet({ host, ...ONE, onAction() {}, strings: {} });
+      ok(oneSheet !== null && pinDom.window.document.querySelectorAll('.c-attach__tile').length === 4,
+        '★★★ #46 loop EXECUTED PAIR: and a 1:1 chat still gets its four real tiles. Without this pair the one above would pass on an opener that never opens anything');
+      /* ⚠ DRAIN BEFORE THE RESTORE. openSheet schedules its enter animation through
+         setTimeout → requestAnimationFrame. The callback runs AFTER this block, and the
+         finally below removes the shim — so the deferred frame would throw a
+         ReferenceError with no pin attached to it and take the run down. Wait it out. */
+      await new Promise((r) => setTimeout(r, 60));
+    } catch (e) {
+      ok(false, '★★★ #46 loop EXECUTED: the attach predicate could not be run — ' + e.message);
+    } finally {
+      if (hadWin === undefined) delete globalThis.window; else globalThis.window = hadWin;
+      if (hadDoc === undefined) delete globalThis.document; else globalThis.document = hadDoc;
+      if (hadRaf === undefined) delete globalThis.requestAnimationFrame; else globalThis.requestAnimationFrame = hadRaf;
+    }
+    /* ★★★ THE SHIPPED BUNDLE ANSWERS THE SAME. The block above imported the SOURCE
+       module. `Spixi/Resources/Raw/html/spixi.bundle.js` is what the WebView actually
+       loads, and a shell cannot import a module — it destructures from `window.Spixi`.
+       So the predicate is lifted out of the SHIPPED bundle and run there too. A stale
+       bundle, a lost export or a mangled inline puts a ⊕ back on a room that refuses
+       every tile, with every source pin above still green. */
+    {
+      const bun = rdf('Spixi/Resources/Raw/html/spixi.bundle.js');
+      const aa = bun.indexOf('const ATTACH_ACTIONS = [');
+      const ta = bun.indexOf('function attachTilesFor(flags) {');
+      const ha = bun.indexOf('function hasAttachTiles(flags)');
+      let bIds = null;
+      let bHas = null;
+      try {
+        const lifted = bun.slice(aa, bun.indexOf('];', aa) + 2)
+          + '\n' + bun.slice(ta, ha)
+          + '\n' + bun.slice(ha, bun.indexOf('\n', ha))
+          + '\nreturn { attachTilesFor, hasAttachTiles };';
+        const api = new Function(lifted)();
+        bIds = (f) => api.attachTilesFor(f).map((t) => t.id).join(',');
+        bHas = api.hasAttachTiles;
+      } catch (e) { /* leaves them null → the pin fails, which is correct */ }
+      const BOT = { media: false, apps: false, payments: false, files: false };
+      ok(aa > 0 && ta > 0 && ha > 0 && bIds !== null
+         && bIds(BOT) === '' && bHas(BOT) === false
+         && bIds({ media: false, apps: true, payments: true, files: true }) === 'file,pay,request,app'
+         && bIds({ media: false, apps: true, payments: false, files: true }) === 'file,app'
+         && bIds({ media: false, apps: true, payments: false, files: false }) === 'app'
+         && bIds({}) === 'file,pay,request,app',
+        '★★★ #46 loop EXECUTED, ON THE SHIPPED BUNDLE: the predicate lifted out of spixi.bundle.js gives the SAME four answers as the source module — bot room empty, 1:1 four tiles, normal group keeps Send file, blind group loses it, absent flags take the defaults. The WebView loads the bundle, not the module, so this is the copy that decides what a user sees. Got: ' + JSON.stringify(bIds === null ? 'could not lift' : [bIds(BOT), bIds({})]));
+      /* ★ AND THE TWO SYMBOLS ARE EXPORTED. The shell destructures them from window.Spixi.
+         A function that exists in the bundle but is not on the export object is undefined
+         at the call site, and the conversation boots to a spinner that never clears. */
+      ok(/attachTilesFor: attachTilesFor/.test(bun) && /hasAttachTiles: hasAttachTiles/.test(bun),
+        '★★★ #46 loop: and BOTH symbols are on the window.Spixi export object. The shell destructures them; a function present in the bundle but absent from the export list is `undefined` at the call site, which throws inside the composer wiring and leaves the conversation on its boot spinner (#421 class)');
+    }
+    /* ★★★ THE SHIPPED CHAT SHELL CARRIES THE ⊕ GATE AND THE LATCH. The block below reads
+       the SOURCE; these two read the ARTIFACT, because a shell inlines its own script and
+       a build that dropped the region would leave every source pin green. */
+    {
+      const chB = rdf('Spixi/Resources/Raw/html/chat.html');
+      /* ⚠ REBASED, ROUND 2. `mode.known` MOVED OUT of `attachAvailable` and INTO all four
+         flags in `attachFlags()`, where the ⊕, the sheet, both money composes and the app
+         picker all inherit it. That is strictly stronger than the round-1 shape, so the pin
+         follows the rule rather than the old spelling. `btn.hidden` is now one leg of a
+         three-state apply, so it is pinned as that leg and not as the whole answer. */
+      /* ⚠ REBASED, ROUND 4. The ⊕ state had FIVE writers — `mode.owner`, `mode.known`,
+         `waitPeer`, `waitStart` and a remembered phase string — and each was a line one
+         deletion could remove. Ten mutations found ten of them. The repair was to DELETE
+         the state: ONE field (`answeredFor`), ONE writer, one clock reading, two DOM legs
+         written from the predicate at the moment of the write. So the pin follows the
+         design, and the two DOM legs are read as legs and not as a phase string. */
+      ok(/^\s*hasAttachTiles, attachTilesFor,/m.test(chB)
+         && /function attachAvailable\(\) \{ return hasAttachTiles\(attachFlags\(\)\); \}/.test(chB)
+         && /function modeKnown\(\) \{ return mode\.answeredFor !== null && mode\.answeredFor === identity\.address; \}/.test(chB)
+         /* ⚠ ROUND 6: the collapse leg reads the shared `gone`, so the field padding and the
+            pill are written from ONE expression. Both are asserted here. */
+         && /const gone = !attachAvailable\(\) && !attachWaiting\(\);/.test(chB)
+         && /btn\.hidden = gone;/.test(chB)
+         && /field\.toggleAttribute\('data-no-attach', gone\);/.test(chB)
+         && /btn\.style\.visibility = attachAvailable\(\) \? '' : 'hidden';/.test(chB)
+         && /if \(!attachAvailable\(\)\) return;/.test(chB)
+         && /if \(!sheet\) return;/.test(chB),
+        '★★★ #46 loop, ON THE SHIPPED SHELL: both destructures, the ONE predicate, the peer-keyed modeKnown, BOTH DOM legs and both belts reached Spixi/Resources/Raw/html/chat.html. Each leg reads `attachAvailable()` DIRECTLY — there is no variable between the predicate and the DOM, so a corrupted predicate corrupts the ⊕ and the sheet together and the control cannot claim what the sheet refuses');
+      /* ★ THE WAIT WINDOW BOUNDS LAYOUT. IT CANNOT GRANT A GATE.
+         `attachWaiting()` is `!modeKnown() && modeWaitOpen()`, and it is read ONLY by the
+         `hidden` leg. `visibility` reads `attachAvailable()`. So a waiting room reserves the
+         40 px box and offers nothing — round 2's belt granted the 1:1 DEFAULTS instead,
+         which restored the whole defect six seconds later. */
+      ok(/const MODE_WAIT_MS = 6000;/.test(chB)
+         && /answeredFor: null \}/.test(chB)
+         && /function modeWaitOpen\(\) \{ return performance\.now\(\) < MODE_WAIT_MS; \}/.test(chB)
+         && /function attachWaiting\(\) \{ return !modeKnown\(\) && modeWaitOpen\(\); \}/.test(chB)
+         /* ⚠ CODE-SHAPED NEGATIVES. A bare `!/attachPhase/` reads the comment that explains
+            why the phase string was deleted, and goes red on correct code — my own pin,
+            caught here before it shipped. Forbid the DECLARATIONS, not the words. */
+         && !/function attachPhase\(/.test(chB) && !/attachPhaseApplied = /.test(chB)
+         && !/function armModeBelt\(/.test(chB) && !/modeBelt = setTimeout/.test(chB)
+         && !/waitStart = /.test(chB),
+        '★★★ #46 loop, ON THE SHIPPED SHELL: the room-answer latch STARTS NULL, and its bound is a CLOCK READING, not a stored timestamp — `performance.now()` counts from this document\'s time origin, and C# builds a new document per chat open, so the document\'s own age IS this peer\'s wait window. There is no variable to stamp and no per-peer reset to delete. `attachWaiting` is read by the `hidden` leg only, so the window bounds layout and can never open a gate');
+    }
+    /* ★★ ONE RULE, NOT TWO. The ⊕ must be hidden by the SAME predicate that empties the
+       sheet. A second copy of the rule can drift, and a drift puts a ⊕ on a room where
+       every tile is refused — the same ⑪ lie in a new place. This reads the SOURCE shell:
+       the built one is regenerated after this session. */
+    const chSrc = rdf('src/shells/chat.html');
+    /* ⚠ SCOPED TO THE DESTRUCTURE BLOCK. My first cut was
+         ok(/import \{[^}]*hasAttachTiles[^}]*\}/.test(chSrc) || /hasAttachTiles/.test(chSrc))
+       and the second half of that disjunction matched the doc-comment and the call site, so
+       deleting the destructure left the pin GREEN — a vacuous pin of my own, found by
+       mutation. A missing destructure is not cosmetic: the symbol is then undefined at the
+       call site and the conversation boots to a permanent spinner (#421 class). */
+    const destructure = chSrc.slice(chSrc.indexOf('  const {'), chSrc.indexOf('  } = window.Spixi;'));
+    ok(destructure.length > 200 && /^\s*hasAttachTiles,/m.test(destructure),
+      '★★ #46 loop: the chat shell DESTRUCTURES hasAttachTiles from the bundle. An absent symbol is not a missing feature — it is a ReferenceError at the call site, and the conversation boots to a spinner that never clears');
+    /* ⚠ REBASED, ROUND 2 (fix-F2 FIX 2). `mode.known` moved INTO `attachFlags()`, so every
+       reader of that object inherits it — the ⊕, the sheet, both money composes and the app
+       picker. The pin now asserts the FIVE readers, which is the guarantee the round-1 pin
+       only reached for two of them. `openAppPicker` had no guard at all before this round. */
+    /* ⚠ REBASED, ROUND 4. Two DOM legs, not three, and a NEW reader: the sheet's ACTION
+       gate. Round 3 re-checked two of six tiles at action time; one line now re-checks all
+       six, and it asks the same function that DREW them. */
+    ok(/function attachAvailable\(\) \{ return hasAttachTiles\(attachFlags\(\)\); \}/.test(chSrc)
+       /* ⚠ ROUND 6: the collapse leg reads the shared `gone` — see the A2 block. */
+       && /const gone = !attachAvailable\(\) && !attachWaiting\(\);/.test(chSrc)
+       && /btn\.hidden = gone;/.test(chSrc)
+       && /field\.toggleAttribute\('data-no-attach', gone\);/.test(chSrc)
+       && /btn\.style\.visibility = attachAvailable\(\) \? '' : 'hidden';/.test(chSrc)
+       && /\.\.\.attachFlags\(\),/.test(chSrc)
+       && (chSrc.match(/function attachFlags\(\)/g) || []).length === 1
+       && /if \(!attachTilesFor\(attachFlags\(\)\)\.some\(\(t\) => t\.id === id\)\) return;/.test(chSrc)
+       && /if \(!attachFlags\(\)\.payments\) return;/.test(chSrc)
+       && /if \(!attachFlags\(\)\.apps\) return;/.test(chSrc)
+       && (chSrc.match(/attachFlags\(\)/g) || []).length >= 6,
+      '★★★ #46 loop (findings-C MAJOR-2 + review-fe MAJOR-2) + round 4: the composer ⊕, the sheet, the sheet\'s ACTION gate, both money composes and the app picker read ONE predicate over ONE flag object. `attachFlags()` is declared exactly once and `modeKnown()` is written INTO its four flags rather than beside them. The action gate re-checks all SIX tiles with the same function that drew them, so a sheet built for a 1:1 that is still open when the room turns out to be a blind group drops every tap it must');
+    ok(/if \(!attachAvailable\(\)\) return;/.test(chSrc) && /if \(!sheet\) return;/.test(chSrc),
+      '★★ #46 loop: and the two BELTS are there — openAttach refuses a stale tap after the ⊕ was hidden between press and call, and the desktop anchor is skipped when the sheet is null. Anchoring a null sheet throws inside the tap handler');
+    /* ★★ THE MODE-KNOWN LATCH, AND ITS TIME BELT. `setChatMode` is pushed from a
+       Task.Run after a wait loop, so `mode` sits at its 1:1 defaults for the first
+       frames of a group or a bot room. A latch with no time belt is a permanent latch
+       (#647③), so the belt is pinned with it. */
+    /* ⚠ REBASED, ROUND 4. `mode.known` and `mode.owner` are ONE field now: `answeredFor`.
+       ★ THE ONE WRITER IS PINNED HERE — this is surviving mutation Y1′, which fix agent FE3
+       could not close from his side. Delete that assignment and `modeKnown()` is false for
+       the whole session: no ⊕, no Pay, no Request, no App invite, no Send file, in every
+       room. It fails SAFE, and it is still a total loss of the affordance that no pin read. */
+    ok(/mode\.answeredFor = identity\.address;/.test(chSrc)
+       && (chSrc.match(/mode\.answeredFor = /g) || []).length === 2
+       && /mode\.answeredFor = \(mode\.answeredFor === ''\) \? identity\.address : null;/.test(chSrc)
+       && /MODE_WAIT_MS = 6000/.test(chSrc)
+       && !/mode\.known/.test(chSrc) && !/mode\.owner/.test(chSrc),
+      '★★★ #46 loop (findings-B MINOR-1) + round 4, surviving mutation Y1′: the room answer has ONE FIELD and TWO writers — `setChatMode` stamps the peer it describes, and `onChatScreenReady` drops another peer\'s answer while ADOPTING one stamped before the address arrived. Round 2 held the same fact in two fields and lost the ⊕ for a whole session when an answer landed first. Delete the setChatMode stamp and every room offers nothing, for the life of the document');
+  }
+
+  /* —— ★★★ ONE HOME · the pin that ends the key-list class —————————————————— */
+  {
+    /* ⚠⚠ THIS PIN WAS RIGHT TO GO RED, AND IT IS THE ONLY ONE IN FOUR ROUNDS THAT WAS.
+     *
+     * Round 1 wrote it to prove three C# sites carried the SAME LIST of reaction keys.
+     * That was the best pin available then, and it was still the wrong SHAPE, because a
+     * list can always grow: it could only ever prove the last agreed length. It proved
+     * `received`. Then `received + seen`. Then a reviewer found `fileReceived`, and then
+     * `like` and `tip`. FOUR homes held the list and they drifted every round.
+     *
+     * ★ Damir killed the class. The rule now NAMES NO KEY. It walks every reaction,
+     * de-duplicates senders ACROSS keys, and excludes the local user. There is nothing to
+     * add to it, so it can never need a fifth patch — and a pin over a key list would now
+     * be a pin over a thing that must not exist.
+     *
+     * So the pin changes shape with the rule. Six parts, each one red on a real defect. */
+    const scp = rdf('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+    const hp = rdf('Spixi/Pages/Home/HomePage.xaml.cs');
+    const pmp = rdf('Spixi/Network/SpixiPendingMessageProcessor.cs');
+    const uih = rdf('Spixi/Utils/UIHelpers.cs');
+
+    /* ── PART 1 · ONE HOME. Declared once, asked by exactly three sites, and the two
+       private copies do not exist anywhere in the tree. */
+    const csFiles = [];
+    const walkCs = (dir) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const q = join(dir, e.name);
+        if (e.isDirectory()) { if (e.name !== 'bin' && e.name !== 'obj') walkCs(q); }
+        else if (e.name.endsWith('.cs')) csFiles.push(q.slice(root.length + 1).replace(/\\/g, '/'));
+      }
+    };
+    walkCs(join(root, 'Spixi'));
+    const csText = new Map(csFiles.map((f) => [f, readFileSync(join(root, f), 'utf8')]));
+    const declares = csFiles.filter((f) => /public static bool anyOtherMemberHasMessage\(/.test(csText.get(f)));
+    const copies = csFiles.filter((f) => /groupReactionCount|groupHasDeliveryReceipt/.test(csText.get(f)));
+    const callCount = (t) => (t.match(/UIHelpers\.anyOtherMemberHasMessage\(/g) || []).length;
+    ok(declares.length === 1 && declares[0] === 'Spixi/Utils/UIHelpers.cs'
+       && copies.length === 0
+       && callCount(scp) === 1 && callCount(hp) === 1 && callCount(pmp) === 1,
+      '★★★ ROUND 4, PART 1 — ONE HOME. "Was this group message delivered" is declared in exactly ONE file and asked by exactly three sites, one call each. The two private copies — groupReactionCount and groupHasDeliveryReceipt — exist in NO .cs file. Four homes for one rule is what made this question drift every round. Declared in: ' + JSON.stringify(declares) + ' · copies still present in: ' + JSON.stringify(copies));
+
+    /* ── PART 2 · NO KEY LIST SURVIVES, ANYWHERE IN THE DELIVERY PATH.
+       A returning list is the defect. Make its return red. The wallet transaction filter
+       is the one legitimate `"received"` in C# — it is a Sent/Received chip read from a
+       transaction, not a reaction — so it is excluded BY SITE, not by file. */
+    const KEY_LIT = /"(received|seen|fileReceived)"/g;
+    const offenders = [];
+    for (const f of csFiles) {
+      const t = csText.get(f);
+      for (const m of t.matchAll(KEY_LIT)) {
+        const line = t.slice(0, m.index).split('\n').length;
+        const text = t.split('\n')[line - 1];
+        /* the wallet chip: `case "received":` and `return "received";` inside
+           filterTransactions / filterToString. Nothing else may name a key. */
+        if (/case "received":|return "received";/.test(text)) continue;
+        /* ⚠ AND A COMMENT IS NOT A HOME. One doc-block in SingleChatPage says a missed call
+           is "seen" in the log — prose about a call, not a reaction key. A pin that counts
+           prose goes red on correct code, which is the exact defect this round rewrote four
+           other pins to remove. So strip the comment part of the line — a whole comment
+           line AND a trailing `//` — and test what is left. The CODE must not name a key. */
+        const code = text.replace(/\/\/.*$/, '');
+        if (/^\s*(\*|\/\*)/.test(text)) continue;
+        if (!/"(received|seen|fileReceived)"/.test(code)) continue;
+        offenders.push(f + ':' + line);
+      }
+    }
+    ok(offenders.length === 0,
+      '★★★ ROUND 4, PART 2 — NO KEY LIST SURVIVES. No .cs file names a delivery reaction key any more, outside the wallet Sent/Received chip. The list grew from one key to two to three and a reviewer then found two more; a rule written as a list is a rule that needs a patch every time Core adds a receipt. Sites still naming a key: ' + JSON.stringify(offenders));
+
+    /* ── PART 3 · THE RULE ITSELF NAMES NO KEY.
+       Part 2 forbids a list OUTSIDE the home. This forbids one INSIDE it. A future agent
+       who "just adds `like`" to the walk turns this red, which is the whole point. */
+    /* ⚠ RE-ANCHORED, ROUND 5 — the 4-argument overload is deleted. Same lesson as the
+       fail-soft pin above: anchor on the form that must exist, not on the one that happened
+       to exist when the pin was written. */
+    const anyAt = uih.indexOf('public static bool anyOtherMemberHasMessage(Friend? friend, FriendMessage? message, bool answerWhenUnreadable)');
+    const ownAt = uih.indexOf('private static List<Address> ownReactionAddresses(');
+    const walkBody = (anyAt > 0 && ownAt > anyAt) ? uih.slice(anyAt, ownAt) : '';
+    ok(walkBody.length > 400
+       && !/"received"|"seen"|"fileReceived"|"like"|"tip"/.test(walkBody)
+       && /message\.reactions\s*\r?\n?\s*\.SelectMany\(/.test(walkBody),
+      '★★★ ROUND 4, PART 3 — THE WALK NAMES NO KEY. The one body reads EVERY reaction through SelectMany and tests no key string at all. That is why it can never need a fourth patch: there is nothing in it to add to. An agent who adds a key literal here turns this red before the list can start growing again');
+
+    /* ── PART 4 · THE WALK EXCLUDES US, AND IT STOPS AT THE FIRST PROOF.
+       ★★ THIS PIN NEEDED A NEW GUARANTEE, NOT A NEW ANCHOR — and that is the whole point.
+       Round 4 asserted cross-key DE-DUPLICATION. Agent CS4 deleted the count, so there is
+       nothing left to de-duplicate. Rebasing by dropping the dead terms would have left the
+       pin asserting LESS than it did, silently. That is a pin satisfied by dead text, and
+       this session rewrote eight pins to remove exactly that shape.
+
+       ★ WHY THE DELETION IS EXACT, not merely cheaper. The old answer was
+       `distinct non-own senders > 0`. The new answer is `at least one non-own sender
+       exists`. Those two are the same statement — de-duplication could only change the SIZE
+       of a count, never whether it was zero. So the quadratic walk was removed, not
+       approximated. It ran `n(n-1)/2` SequenceEqual calls inside `lock (message.reactions)`
+       on the 1 Hz OnUpdateUI tick, for every group row whose last message is ours and not
+       yet `confirmed` — and `confirmed` latches only at the FULL member count, so a large
+       private group sat on that branch permanently.
+
+       ★★ THE ORDER IS THE WHOLE RULE. The walk answers TRUE at the first sender that is
+       not ours, so the own-address skip is the ONLY test standing between a reaction record
+       and a TRUE answer. Put the return ABOVE the skip and every message we liked ourselves
+       reads as delivered — the ⑪ lie, from our own tap, with no second chance to catch it.
+       `like:` and `tip:` carry the LOCAL user's own reaction, so that is not hypothetical. */
+    ok(walkBody.length > 400
+       && /ownReactionAddresses\(friend\)/.test(walkBody)
+       && /isOwn/.test(walkBody)
+       && /foreach \(Address mine in ownAddresses\)/.test(walkBody)
+       && /sender\.SequenceEqual\(mine\)/.test(walkBody)
+       /* THE EARLY ANSWER, and the no-evidence exit that pairs with it. */
+       && /return true;/.test(walkBody) && /return false;/.test(walkBody)
+       /* ★ THE ORDERING TERM. This is the one that matters. */
+       && walkBody.indexOf('if (isOwn)') > 0
+       && walkBody.indexOf('if (isOwn)') < walkBody.indexOf('return true;')
+       /* ★ AND NO COUNT COMES BACK. A count needs the cross-key de-duplication this round
+          deleted, and that walk was O(n²) inside the reaction lock on a 1 Hz tick. A caller
+          that needs "how many" must write its own method with its own live caller — it must
+          not add a count back to this body, where every caller would pay for it.
+          ⚠ TESTED AGAINST CODE, NOT PROSE. The header above this method explains WHY the
+          count was removed, and it names `otherMemberCount` to do so. A bare negative reads
+          that explanation and goes red on correct code — the fifth time this session a pin
+          of mine read a comment, and the fourth time mutation found it rather than reading.
+          Strip the comments, then test what is left. */
+       && !/alreadyCounted|otherMemberCount|members\+\+|members > 0/.test(
+            walkBody.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')),
+      '★★★ ROUND 5, PART 4 — THE WALK EXCLUDES US, AND IT STOPS AT THE FIRST PROOF. The own-address skip is the ONLY test between a reaction record and a TRUE answer, so its ORDER is the rule: move the return above the skip and every message we liked ourselves reads as delivered — the ⑪ lie, from our own tap. `like:` and `tip:` carry the LOCAL user\'s own reaction, so that is reachable, not hypothetical. And NO count comes back: a count needs the cross-key de-duplication this round deleted, which ran n(n-1)/2 comparisons inside the reaction lock on a 1 Hz tick, for a number no caller ever read');
+
+    /* ── PART 5 · THE OWN-ADDRESS DERIVATION MATCHES THE WRITER, TERM FOR TERM.
+       `ownReactionAddresses` is a COPY of the condition the `like` writer uses to choose
+       which address to store under. A copy can drift, and if it does, our own like counts
+       as a member. CS3 named this as the strongest attack on his own change. */
+    const ownBody = ownAt > 0 ? uih.slice(ownAt, ownAt + 1600) : '';
+    ok(ownBody.length > 200
+       && /IxianHandler\.getWalletStorage\(\)\.getPrimaryAddress\(\)/.test(ownBody)
+       && /Utils\.hidesParticipants\(friend\)/.test(ownBody)
+       && /if \(botInfo == null\)/.test(ownBody)
+       && /GroupChat\.DeriveGroupAddress\(/.test(ownBody)
+       && /friend\.users\?\.getOwner\(\)/.test(ownBody)
+       && /owner\.SequenceEqual\(primary\)/.test(ownBody)
+       /* ...and the WRITER still derives on the same four terms. Read both, or the pin
+          proves only that one of a matched pair is intact. */
+       && (() => {
+         const w = scp.slice(scp.indexOf('case "like":'), scp.indexOf('case "like":') + 900);
+         return /Utils\.hidesParticipants\(friend\)/.test(w)
+           && /friend\.metaData\?\.botInfo != null/.test(w)
+           && /friend\.users\.getOwner\(\) != null/.test(w)
+           && /!friend\.users\.getOwner\(\)\.SequenceEqual\(address\)/.test(w)
+           && /GroupChat\.DeriveGroupAddress\(address, friend\.metaData\.botInfo\.randomId\)/.test(
+             scp.slice(scp.indexOf('case "like":'), scp.indexOf('case "like":') + 1400));
+       })(),
+      '★★★ ROUND 4, PART 5 — THE OWN-ADDRESS RULE CARRIES THE WRITER\'S OWN FOUR TERMS. A blind group stores our like under a DERIVED address, so the exclusion must derive the same way the writer does: the primary address always, plus the derived one under hidesParticipants AND a non-null botInfo. Change the writer and not this, and our own like is counted as a member — a group bubble goes to a double check with nobody behind it');
+
+    /* ── PART 6 · THE SHELL IS NOT A HOME. A negative, in BOTH shell homes.
+       The fourth home was the chat shell, which used to derive a delivered count from the
+       same key list. It derives nothing about delivery now. This stops a future author
+       from quietly growing the fourth home back. */
+    const shellSrc = rdf('src/shells/chat.html');
+    const shellBuilt = rdf('Spixi/Resources/Raw/html/chat.html');
+    const shellDerives = (t) => /deliveredCount|deliveryDetail|deliveredOf|startsWith\('received'\)/.test(t);
+    ok(!shellDerives(shellSrc) && !shellDerives(shellBuilt)
+       && /function receiptDetail\(rec\) \{/.test(shellSrc) && /function receiptDetail\(rec\) \{/.test(shellBuilt),
+      '★★★ ROUND 4, PART 6 — THE SHELL IS NOT A HOME. `deliveredCount`, `deliveryDetail`, `deliveredOf` and a `received:` read appear ZERO times in the source shell AND in the shipped artifact. C# owns delivery; the shell renders two counts it is given. The rule had FOUR homes and the shell was the one nobody counted');
+
+    /* PAIRED: the group bubble still never goes green, and the override still runs first.
+       ⚠ SCOPED to deliveryTicks, and the match is ANCHORED. A whole-file `/read = false;/`
+       also matches `bool unread = false;` — two of those sit 2200 lines above this method,
+       so the ordering test compared an unrelated offset and the pin stayed GREEN when the
+       clamp was deleted. My own pin, vacuous on its first run, caught by mutation and not
+       by reading. ⚠ Its END anchor was `groupReactionCount`, which round 4 deleted; the
+       anchor is now the next member, which cannot vanish while deliveryTicks exists. */
+    const dtBody = scp.slice(scp.indexOf('private void deliveryTicks(FriendMessage message'),
+                             scp.indexOf('public void updateMessage(FriendMessage message, int channel)'));
+    ok(dtBody.length > 200 && /\n\s+read = false;/.test(dtBody)
+       && dtBody.search(/\n\s+read = false;/) < dtBody.indexOf('anyOtherMemberHasMessage'),
+      '★★ #46 loop PAIRED: moving the rule to one home did NOT widen it to `read`. The group bubble still clamps read to false, and the clamp still runs BEFORE the delivered test, so no ordering can leave a green double check in a group');
+  }
+
+  /* —— L8 · THE BACK-SWALLOW ORDER, not just its neighbours ————————————————— */
+  {
+    /* fix-O item 1 moved the swallow ABOVE closeTopOverlay, and said so himself: the
+       existing pin reads only that the swallow precedes `homeShellOverlayOpen` and
+       `base`, so it CANNOT go red on a revert. The defect the move fixes lives entirely
+       in the ORDER — closeTopOverlay returns false only for an EMPTY stack, so a swallow
+       below it was reachable only when there was nothing to swallow for. Pin the order. */
+    const hp = rdf('Spixi/Pages/Home/HomePage.xaml.cs');
+    const obb = hp.slice(hp.indexOf('protected override bool OnBackButtonPressed()'),
+                         hp.indexOf('protected override void OnAppearing()'));
+    const seq = ['SpixiContentPage.hasModalOverlay()',
+                 'CallPage.isRingPresented()',
+                 'is SettingsPage sp && sp.pageLoaded',
+                 'is ContactDetails cd && cd.pageLoaded && cd.shellOverlayOpen',
+                 'is SingleChatPage chatOverlay && chatOverlay.pageLoaded && chatOverlay.shellOverlayOpen',
+                 'SpixiContentPage.isOverlaySlidingOut()',
+                 'SpixiContentPage.closeTopOverlay(true)',
+                 'if (homeShellOverlayOpen)',
+                 'return base.OnBackButtonPressed()'];
+    const idx = seq.map((s) => obb.indexOf(s));
+    const inOrder = idx.every((v, i) => v > 0 && (i === 0 || v > idx[i - 1]));
+    ok(obb.length > 400 && inOrder,
+      '★★★ #46 loop (findings-C MAJOR-1): hardware back reads its branches in ONE fixed order, and the slide-out swallow sits ABOVE closeTopOverlay. closeTopOverlay returns false only when the stack is EMPTY, so a swallow below it was reachable only with nothing left to close. Chat info never opens over an empty stack: the stack is [chat, chatinfo], press one removed chatinfo at t=0 and started the 220 ms slide, press two found `chat` on top and closed the CONVERSATION — the info panel then finished sliding across a bare chats list. popToRootAsync refuses to make that same state. Order read: ' + JSON.stringify(idx));
+    ok(idx[5] < idx[6] && idx[4] < idx[5],
+      '★★ #46 loop PAIR: and the swallow stays BELOW the three shell routes. Those routes read a layer that is still on the stack and hand the press to that page\'s own shell — a slide-out above them does not make their press ours to eat');
+  }
+
+  /* —— L1 · THE MONEY CAPS ARE GATED ON THE RELATION, not on the string ——————— */
+  {
+    /* fix-O item 2 said it: the pin at the L1·A block asserts the literal
+       "setCaps", "composeSend,composeRequest" and therefore still matches the UNGATED
+       form. The defect was that the push was made for EVERY non-group peer while
+       SPayments.handleSendRequest refuses everything that is not an approved
+       FriendType.Normal contact — so the sheet morphed to "Requested" for a request
+       that was refused. Pin the GATE. */
+    const cds = rdf('Spixi/Pages/Contacts/ContactDetails.xaml.cs');
+    const capAt = cds.indexOf('Utils.sendUiCommand(this, "setCaps", "composeSend,composeRequest");');
+    const gate = capAt > 0 ? cds.slice(cds.lastIndexOf('if (', capAt), capAt) : '';
+    ok(capAt > 0
+       && /!isGroup/.test(gate)
+       && /!friend\.bot/.test(gate)
+       && /friend\.type == FriendType\.Normal/.test(gate)
+       && /friend\.approved/.test(gate)
+       && /friend\.state == FriendState\.Approved/.test(gate)
+       && !/\|\|/.test(gate),
+      '★★★ #46 loop (findings-B MAJOR-2): the money caps are declared ONLY for an approved, non-bot, FriendType.Normal peer — five terms, all ANDed, in the `if` that encloses the push. This is the callee\'s own rule (SPayments.cs): the capability is true only when the send can really happen. Un-gated, contact details offered Pay and Request on a contact who had not accepted yet, the sheet turned green and said "Requested", and a native alert said the address was invalid. Nothing was sent — Damir\'s ⑪ rule, on a money surface');
+    /* PAIRED: the same rule still exists at the callee, so the two cannot drift apart. */
+    const sp = rdf('Spixi/Utils/SPayments.cs');
+    ok(/friend\.bot \|\| friend\.type != FriendType\.Normal/.test(sp)
+       && /!friend\.approved \|\| friend\.state != FriendState\.Approved/.test(sp),
+      '★★ #46 loop PAIRED: and the callee still refuses the same set. If SPayments ever widens or narrows its rule, this pin and the one above stop agreeing and a reviewer is sent to both');
+  }
+
+  /* —— ★★ THE SHELL RENDERS NO MONEY ACTION WITHOUT THE CAPABILITY ——————————— */
+  {
+    /* Two halves, and both must hold. The SHELL must pass no handler when the cap is
+       absent, and the COMPONENT must render no action for an absent handler. The second
+       half is a claim about behaviour, so it is RUN, not read. */
+    const cdSrc = rdf('src/shells/contact_details.html');
+    ok(/onPay: bridge\.cap\('composeSend'\)\s*\r?\n?\s*\? \(\) => \{ if \(bridge\.cap\('composeSend'\)\) openSendTakeover\(\); \}\s*\r?\n?\s*: undefined,/.test(cdSrc)
+       && /onRequest: bridge\.cap\('composeRequest'\)\s*\r?\n?\s*\? \(\) => \{ if \(bridge\.cap\('composeRequest'\)\) openRequestForPeer\(\); \}\s*\r?\n?\s*: undefined,/.test(cdSrc),
+      '★★★ #46 loop (findings-B MAJOR-2): an absent capability passes NO HANDLER. A missing handler is how chat-info hides an action, so the panel renders nothing at all rather than a dead tap. The inner test is kept as a belt against a stale closure. ⚠ This reads the SOURCE shell — the built one is regenerated by the pipeline after this session');
+    const sigBody = cdSrc.slice(cdSrc.indexOf('function stateSig()'), cdSrc.indexOf('function buildIfChanged()'));
+    const capsBody = cdSrc.slice(cdSrc.indexOf('    setCaps(list) {'), cdSrc.indexOf('    setCaps(list) {') + 700);
+    ok(sigBody.length > 100 && /caps: \(bridge\.cap\('composeSend'\)/.test(sigBody)
+       && /bridge\.cap\('composeRequest'\)/.test(sigBody)
+       && capsBody.length > 40 && /scheduleCommit\(\);/.test(capsBody),
+      '★★ #46 loop: and the panel REBUILDS when a capability arrives. The panel is change-gated on stateSig, so caps had to join that signature and setCaps had to schedule a commit. Without both, a capability that lands after the first coalesced commit would never appear and the actions would be permanently absent');
+    /* ★★ THE ARTIFACT HALF. The rebase at the L1·A block already asserts the ternary in
+       the built shell; this asserts the OTHER half of the same fix reached it — caps in
+       the signature and the commit on setCaps. Without both, a capability that lands after
+       the first coalesced commit never appears and the actions stay missing for good. */
+    const cdB = rdf('Spixi/Resources/Raw/html/contact_details.html');
+    ok(/caps: \(bridge\.cap\('composeSend'\) \? 's' : ''\) \+ \(bridge\.cap\('composeRequest'\) \? 'r' : ''\),/.test(cdB)
+       && /setCaps\(list\) \{[\s\S]{0,700}?scheduleCommit\(\);/.test(cdB),
+      '★★ #46 loop, ON THE SHIPPED SHELL: `caps` is in the panel signature and setCaps schedules a commit in Spixi/Resources/Raw/html/contact_details.html. The panel is change-gated, so a capability outside the signature is a capability the panel can never render');
+    /* ★ THE COMPONENT HALF, EXECUTED. */
+    const pinDom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true, url: 'file:///pin/' });
+    pinDom.window.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+    const hadWin = 'window' in globalThis ? globalThis.window : undefined;
+    const hadDoc = 'document' in globalThis ? globalThis.document : undefined;
+    globalThis.window = pinDom.window; globalThis.document = pinDom.window.document;
+    try {
+      const { createChatInfo } = await import('file://' + join(root, 'src/components/chat-info.js'));
+      const base = { kind: 'contact', context: 'contact', name: 'Ana', address: 'AD1', strings: {} };
+      const labels = (el) => [...el.querySelectorAll('.c-chat-info__money button')].map((b) => b.textContent).join(',');
+      const noCaps = labels(createChatInfo({ ...base, onMessage: () => {} }));
+      const withCaps = labels(createChatInfo({ ...base, onMessage: () => {}, onPay: () => {}, onRequest: () => {} }));
+      ok(!/Pay/.test(noCaps) && !/Request/.test(noCaps),
+        '★★★ #46 loop EXECUTED (findings-B MAJOR-2): with no onPay and no onRequest the panel renders NO money action. This is the half the shell gate depends on — a component that rendered a disabled button instead would turn the C# gate into a dead tap. Got: ' + JSON.stringify(noCaps));
+      ok(/Pay/.test(withCaps) && /Request/.test(withCaps),
+        '★★★ #46 loop EXECUTED PAIR: and with both handlers the two actions DO appear. Without this pair the pin above would pass on a component that renders nothing ever');
+    } catch (e) {
+      ok(false, '★★★ #46 loop EXECUTED: chat-info could not be run — ' + e.message);
+    } finally {
+      if (hadWin === undefined) delete globalThis.window; else globalThis.window = hadWin;
+      if (hadDoc === undefined) delete globalThis.document; else globalThis.document = hadDoc;
+    }
+  }
+
+  /* —— L11 F1 · "ALREADY RUNNING" IS NOT A START FAILURE ————————————————————— */
+  {
+    /* Damir on device: a native "Fatal exception" dialog and a blank dark screen after a
+       LANGUAGE CHANGE. Node.start() returns false for two different things, and the block
+       treated both as fatal — then returned BEFORE connectToNetwork(). Pin both halves:
+       the already-running arm must not alert and must not return, and connectToNetwork
+       must still be called exactly once. */
+    const hp = rdf('Spixi/Pages/Home/HomePage.xaml.cs');
+    /* ★★ REBASED, ROUND 2 (review-cs MAJOR-1). The old pin anchored on `if (Node.isRunning)`
+       and that is now the DEFECT, not the fix. `Node.start()` assigns `running = true` at
+       Node.cs:253 and its FIRST failure return is five lines later, and no failure path
+       clears the flag — so `running == true` means only that start() got past line 253. A
+       half-started zombie then read as "already running", the dialog was suppressed and the
+       user got a normal-looking app on a node that never started. `Node.startCounter` is
+       incremented LATE (Node.cs:310), past prepareStorage, the wallet read and
+       streamProcessor.start(), and App.xaml.cs already asks `startCounter == 0` for this
+       same question.
+       ★ THE PIN REQUIRES THE COMPOUND TEST, AND REFUSES `isRunning` ALONE. A pin that
+       accepted the bare flag would pass the very defect this round fixed — which is what
+       the round-1 pin did. The counter ALONE is also refused: Node.stop() clears `running`
+       and leaves the counter at its value, so `startCounter > 0` alone reads a STOPPED node
+       as running. Both terms, ANDed. */
+    /* ⚠ REBASED AGAIN, ROUND 4. Agent R3 added a THIRD term and moved the counter.
+       `startCounter++` was above `SPushService.initialize()`, above the wallet read and
+       above an unfenced `setTag()`, so it could claim a start that never completed. It is
+       now the LAST statement before `return true`. And a completed start is still not a
+       CONNECTED node — `Node.start()` never calls `connectToNetwork()` — so a throw in that
+       step left `running` and `startCounter` both true on a node that never reached the
+       network. `connectCounter` closes that door.
+       ★ THE PIN REFUSES EVERY SHORTER FORM. The bare latch, the counter alone, and now the
+       two-term shape are each a state this round proved unsafe, and each of them would pass
+       a pin that only looked for a prefix. */
+    const RUN_GATE = 'if (Node.isRunning && Node.startCounter > 0 && Node.connectCounter > 0)';
+    const runAt = hp.indexOf(RUN_GATE);
+    const blk = runAt > 0 ? hp.slice(runAt, hp.indexOf('catch (IOException e)', runAt)) : '';
+    const elseAt = blk.indexOf('else if (!Node.start())');
+    const runArm = elseAt > 0 ? blk.slice(0, elseAt) : '';
+    /* The bare form must not exist as a STATEMENT anywhere in the page. Anchored to a
+       line start so the prose that explains the change cannot satisfy it. */
+    const bareGate = /^\s*if \(Node\.isRunning\)\s*$/m.test(hp);
+    const twoTerm = /^\s*if \(Node\.isRunning && Node\.startCounter > 0\)\s*$/m.test(hp);
+    const counterOnly = /^\s*if \(Node\.startCounter > 0\)\s*$/m.test(hp);
+    /* ★ AND THE COUNTER IS INCREMENTED WHERE IT CAN TELL THE TRUTH. `startCounter++` must
+       be the LAST statement before `return true`, below every statement that can throw.
+       `connectCounter++` must be the last statement of connectToNetwork(). A counter
+       incremented early answers "start() got this far", which is the defect, not the fix. */
+    const nodeCs = rdf('Spixi/Meta/Node.cs');
+    const counterLast = /startCounter\+\+;\s*\r?\n\s*\r?\n?\s*return true;/.test(nodeCs);
+    const connectLast = /connectCounter\+\+;/.test(nodeCs)
+      && /public static int connectCounter|public static int startCounter/.test(nodeCs);
+    ok(runAt > 0 && elseAt > 0 && !bareGate && !twoTerm && !counterOnly
+       && counterLast && connectLast
+       && !/safeFatalAlert/.test(runArm) && !/return;/.test(runArm)
+       && /Logging\.info/.test(runArm)
+       && /safeFatalAlert\("Fatal exception"/.test(blk)
+       && blk.indexOf('safeFatalAlert("Fatal exception"') > elseAt,
+      '★★★ #46 loop (L11 F1 + review-cs MAJOR-1): an already-running node is not a start failure, and the test is the COMPOUND one — `Node.isRunning && Node.startCounter > 0`. The first arm logs and falls through, no fatal dialog and no early return, and the alert belongs to the real-failure arm below it. `running` alone is a LATCH that start() sets before it can fail, so a half-started zombie read as healthy and the user got a normal-looking app on a node that never started. ★ ROUND 4: the counter is also incremented in the ONE place it can tell the truth — `startCounter++` is the LAST statement before `return true`, below every statement that can throw, and `connectCounter++` closes the door a completed-but-unconnected start left open. The bare latch, the counter alone AND the two-term form are each refused as a statement anywhere in this page: every one of them is a state this loop proved unsafe');
+    ok((hp.match(/Node\.connectToNetwork\(\);/g) || []).length === 1
+       && blk.length > 200 && blk.indexOf('Node.connectToNetwork();') > elseAt,
+      '★★★ #46 loop (L11 F1): and connectToNetwork() is called EXACTLY ONCE in the whole page, from the arm that actually started the node. The already-running arm does not call it a second time — the node was already connected, and whether a repeat call is safe is not answerable from this tree');
+  }
+
+  /* —— L11 F2 · THE NAVIGATION STACK IS READ WITH LastOrDefault ——————————————— */
+  {
+    const hp = rdf('Spixi/Pages/Home/HomePage.xaml.cs');
+    ok(/Page\? page = Navigation\.NavigationStack\.LastOrDefault\(\);/.test(hp)
+       && !/Navigation\.NavigationStack\.Last\(\);/.test(hp),
+      '★★ #46 loop (L11 F2): the 1 Hz UI tick reads the navigation stack with LastOrDefault, not Last. `Last()` THROWS on an empty stack, and the stack is empty during a teardown window — the throw aborted the whole tick, so the overlay tick and the rail highlight stopped with it. Both uses below already tolerate a null page');
+  }
+
+  /* —— L11 F3 / ISSUE 1 · NO SITE IN receiveData PASSES A LITERAL CHANNEL 0 ——— */
+  {
+    /* `int channel = 0;` was declared once and NEVER reassigned. Four things acted on that
+       zero. ISSUE 1 ① repaired ONE of them. This pin reads the declaration and all four
+       sites in one place, so a repair to one site cannot hide a revert of another. */
+    const sp = rdf('Spixi/Network/StreamProcessor.cs');
+    /* ⚠ RE-ANCHORED, ROUND 2 (review-cs MINOR-6). The declaration was
+         int channel = spixi_message != null ? spixi_message.channel : 0;
+       and the ternary is gone: the null payload is now tested ONCE, above, and the message
+       returns — the old guard bought a caught exception instead of an uncaught one, because
+       `switch (spixi_message.type)` on the next line dereferenced the same reference
+       unconditionally. The anchor is the plain declaration.
+       ★ AND THE NULL TEST IS PINNED WITH IT. Without the early return the plain declaration
+       throws on a garbage packet, on the network thread. The two must move together. */
+    const rdAt = sp.indexOf('int channel = spixi_message.channel;');
+    const nullGuard = /if \(spixi_message == null\)\s*\n\s*\{\s*\n\s*Logging\.warn\("receiveData: [^"]*"\);\s*\n\s*return rdr;/.test(sp)
+      && sp.indexOf('if (spixi_message == null)') < rdAt;
+    const rd = rdAt > 0 ? sp.slice(rdAt, sp.indexOf('case SpixiMessageCode.leaveConfirmed:', rdAt)) : '';
+    const receipts = (rd.match(/sendReceivedConfirmation\(friend, message\.id, spixi_message\.channel\);/g) || []).length;
+    /* ⚠ The negative is anchored to a STATEMENT position. `int channel = 0;` still appears
+       inside the comment that explains why it was removed — a bare regex would read that
+       prose and go red on correct code, which is the pin shape this round exists to end. */
+    ok(rdAt > 0 && nullGuard
+       && !/^\s*int channel = 0;/m.test(sp)
+       && !/^\s*int channel = spixi_message != null/m.test(sp)
+       && receipts === 3
+       && !/sendReceivedConfirmation\(friend, message\.id, channel\);/.test(rd)
+       && /int delete_channel = resolveMessageChannel\(friend, spixi_message\.data, channel\);/.test(rd)
+       && /UIHelpers\.deleteMessage\(friend, delete_channel, spixi_message\.data\);/.test(rd)
+       && /UIHelpers\.updateReactions\(friend, resolveMessageChannel\(friend, reaction\.msgId, channel\), reaction\.msgId\);/.test(rd)
+       && /ch = resolveMessageChannel\(friend, spixi_message\.data, channel\);/.test(rd),
+      '★★★ #46 loop (findings-A MAJOR-3): NO site in receiveData acts on a literal 0 any more. The declaration takes the SENDER\'s channel; the three delivery receipts name the channel the message was stored under; the remote delete and the reaction push resolve by message id, because SingleChatPage drops both when `channel != selectedChannel`. A receipt with the WRONG channel is worse than no receipt — the peer looks its copy up by id AND channel, finds nothing, and its clock never advances. Got ' + receipts + ' of 3 receipts on the wire channel. The declaration is the plain `int channel = spixi_message.channel;` and the null payload returns ABOVE it');
+  }
+
+  /* —— #46 loop · forEachGroupHolding LOGS ITS NO-MATCH EXIT ————————————————— */
+  {
+    /* findings-A MAJOR-4: the walk failed in SILENCE, so a device test could not tell
+       "the guard correctly declined" from "the lookup never matched". Both cost the same
+       thing — no single check, no red retry state — and neither printed anything. The pin
+       must prove the log sits on the FALL-THROUGH path, after the loop, and that a match
+       returns before reaching it. Otherwise a log line inside the loop would satisfy a
+       bare regex and print once per group. */
+    const pmp = rdf('Spixi/Network/SpixiPendingMessageProcessor.cs');
+    const walk = pmp.slice(pmp.indexOf('private static void forEachGroupHolding('),
+                           pmp.indexOf('protected override void onMessageExpired('));
+    const actAt = walk.indexOf('act(f, ch, gm);');
+    const logAt = walk.indexOf('Logging.info("forEachGroupHolding: no group copy.');
+    const catchAt = walk.indexOf('catch (Exception ex)');
+    ok(actAt > 0 && logAt > actAt && catchAt > logAt
+       && /return;/.test(walk.slice(actAt, logAt))
+       && /channel=\{0\} groups=\{1\} heldByOther=\{2\}/.test(walk),
+      '★★★ #46 loop (findings-A MAJOR-4): the no-match exit LOGS, on the fall-through path only — after the loop, before the catch, and unreachable once `act` has run because a match returns. The line carries `channel`, `groups` and `heldByOther` and no message content and no address, so a device log separates "no group holds this id" from "a group holds it but somebody else sent it". Silence is what made this MAJOR unfalsifiable on a device');
+    ok(/Logging\.info\("markGroupCopyFailed: the group copy is confirmed/.test(pmp)
+       && /Logging\.info\("markGroupCopyFailed: a member has the message/.test(pmp),
+      '★★ #46 loop: and the two DECLINES log as well. A decline and a miss produced the same visible result — an ordinary tick where a red retry state belonged — so both had to become distinguishable at once');
+  }
+
+  /* —— #46 loop · THE [RCPT] PROBE AND getSelectedChannel ARE GONE —————————— */
+  {
+    const sp = rdf('Spixi/Network/StreamProcessor.cs');
+    const scp = rdf('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+    ok(!/\[RCPT\]/.test(sp) && !/getSelectedChannel/.test(sp) && !/getSelectedChannel/.test(scp),
+      '★★ #46 loop: the [RCPT] diagnostic probe is REMOVED, and `getSelectedChannel()` with it — the probe was its only caller. The probe logged a receipt lookup per message on the network thread, and it has served its purpose: the channel defect it was written to expose is fixed at the source above');
+    /* PAIRED: the removal took no real logic with it. The two pushes and the lookup that
+       stood beside the probe are separate statements and are all still there. */
+    ok(/int ch = channel;/.test(sp)
+       && /UIHelpers\.updateMessage\(friend, ch, fm\);/.test(sp)
+       && /UIHelpers\.updateReactions\(friend, ch, fm\.id\);/.test(sp)
+       && /UIHelpers\.shouldRefreshContacts = true;/.test(sp),
+      '★★ #46 loop PAIRED: and the removal took NO real logic with it — the lookup, both UIHelpers pushes and the refresh flag that stood around the probe are all still there. A negative pin with no paired positive passes just as well on a deleted file');
+  }
+
+  /* —— L7 · "MARK AS READ" IS GONE FROM ALL THREE HOMES ————————————————————— */
+  {
+    /* Damir: *"we decided to remove the mark as read from chat row menu, no need to force
+       it."* There is no backend verb, the badge returned on the next flush and the
+       counterpart got no read receipt — a control that reported an outcome it did not
+       cause. It had THREE homes: the menu item, the action switch and the shell's
+       contract. Each of the three keeps a COMMENT that names the removal, so this pin
+       tests CODE shapes only; a regex on the bare word would read those comments and pass
+       for ever.
+       ⚠ SOURCE files. The generated bundle under Spixi/Resources/Raw/html still carries
+       the old code until the pipeline runs after this session. */
+    const crm = rdf('src/components/chats-row-menu.js');
+    const csh = rdf('src/components/chats-shell.js');
+    const hh = rdf('src/shells/home.html');
+    ok(!/act\('markRead'\)/.test(crm) && !/strings\.markRead/.test(crm)
+       && !/case 'markRead'/.test(csh)
+       && !/case 'markRead'/.test(hh) && !/action === 'markRead'/.test(hh)
+       && !/'markRead' \|/.test(crm),
+      '★★★ L7 (#46 loop): "Mark as read" is gone from the ROW MENU, from the ACTION SWITCH and from the shell. No item builds it, no case answers it, no contract line lists it. It had no BE verb, so the badge came back on the next flush and the counterpart got no read receipt');
+    ok(/item\('info-circle', strings\.chatInfo/.test(crm)
+       && /case 'pin': chat\.pinned = !chat\.pinned; break;/.test(csh),
+      '★★ L7 PAIRED: and the two files are real — the menu still builds Chat info and the switch still answers pin. A negative sweep with no paired positive passes on an empty file');
+    /* ★★★ AND IT IS GONE FROM THE SHIPPED BUNDLE. The note above said this had to wait
+       for the pipeline. The pipeline has run, so the artifact half is asserted here. The
+       bundle is the file the WebView loads; a source sweep alone is green on a repo whose
+       users still see the item. */
+    const bunL7 = rdf('Spixi/Resources/Raw/html/spixi.bundle.js');
+    ok(!/act\('markRead'\)/.test(bunL7) && !/strings\.markRead/.test(bunL7)
+       && !/case 'markRead'/.test(bunL7)
+       && /item\('info-circle', strings\.chatInfo/.test(bunL7),
+      '★★★ L7 (#46 loop), ON THE SHIPPED BUNDLE: "Mark as read" reached no user. No item builds it and no case answers it in spixi.bundle.js, and Chat info is still there beside where it stood — so this read the real inlined component and not an empty match');
+  }
+
+  /* —— MINOR-4 · THE FAILED LEG ESCAPES THE UNREAD GATE ————————————————————— */
+  {
+    /* Legacy hid the outgoing tick while any incoming message was unread. It hid it for
+       the DELIVERY states — sending, sent, delivered, read — which answer "did my message
+       arrive". "Not delivered" answers a different question, and inside the gate the
+       conversation showed the red retry state while the row beside it showed no tick at
+       all. That is the same bubble-versus-row split #647① closed, in a narrower window. */
+    const hh = rdf('src/shells/home.html');
+    ok(/const st = statusFromType\(type\);\s*\r?\n\s*if \(st && \(n === 0 \|\| st === 'failed'\)\) chat\.status = st;/.test(hh)
+       && !/if \(n === 0\) \{\s*\r?\n\s*const st = statusFromType\(type\);/.test(hh),
+      '★★ #46 loop (findings-B MINOR-4): the `failed` leg LEAVES the unread gate, and every other state keeps the legacy rule byte for byte. A failure is not a delivery state. ⚠ SOURCE shell — the built one is regenerated after this session');
+    ok(/case 'failed': return 'failed';/.test(hh),
+      '★ #46 loop PAIR: and statusFromType still maps the type at all — without this the exemption above would exempt nothing');
+    /* ★★ THE ARTIFACT HALF. home.html builds to index.html. */
+    const idxB = rdf('Spixi/Resources/Raw/html/index.html');
+    ok(/const st = statusFromType\(type\);\s*\n\s*if \(st && \(n === 0 \|\| st === 'failed'\)\) chat\.status = st;/.test(idxB)
+       && !/if \(n === 0\) \{\s*\n\s*const st = statusFromType\(type\);/.test(idxB)
+       && /case 'failed': return 'failed';/.test(idxB),
+      '★★ #46 loop (findings-B MINOR-4), ON THE SHIPPED SHELL: the failed leg leaves the unread gate in index.html too, and the old gated form is gone from it. The conversation shows the red retry state; the row beside it must not show a blank');
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+ * ★★★ #46 LOOP ROUND 2 — THE PINS THAT ASSERT A WIRE.
+ *
+ * The round-2 reviewer ran 9 mutations against the round-1 pin set and 8 came back
+ * GREEN. His diagnosis is the work order for this block, and it is exact:
+ *
+ *   "Every pin asserts that a NAMED LINE exists, or runs a PURE FUNCTION on
+ *    hand-built inputs. Not one pin asserts a WIRE — that the writer of a piece of
+ *    state calls the reader of it."
+ *
+ * That is lesson 1 of this project turned inside out. "A pin that reads a call site
+ * proves the call site" made the round-1 pins prove the CALLEE and never look for the
+ * call. Both halves have to be pinned or the guarantee has a hole at one end.
+ *
+ * Fix agent F2 killed X1, X2, X3, X7 and X8 at the ROOT, by deleting the call sites a
+ * mutation could cut. X4, X5 and X6 were left for this file:
+ *   · X4 — the room-type → flags mapping is unpinned. Force `payments` and `apps` true
+ *          and Pay returns to every group and App invite to every bot room, green.
+ *   · X5 — the SHIPPED bundle can open an empty sheet; the source pin imports the module.
+ *   · X6 — the SHIPPED bundle can render Pay with no handler, for the same reason.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+{
+  const rdf = (pth) => readFileSync(join(root, pth), 'utf8');
+
+  /* —— ★★★ X4 · THE ROOM TYPE → FLAGS MAPPING, LIFTED AND RUN ————————————————— */
+  {
+    /* The executing pins above hand-build a flag object and prove flags → tiles. Nothing
+       proved room → flags, which is the half that decides what a real user sees. This
+       lifts `attachFlags()` out of the shell and calls it for every room type. It is a
+       pure function of `mode`, `modeKnown()` and `bridge.cap`, so it runs the same way
+       `deliveryDetail` does. */
+    const liftFlags = (pth) => {
+      const t = rdf(pth);
+      const a = t.indexOf('  function attachFlags() {');
+      const b = t.indexOf('  function attachAvailable()');
+      return a > 0 && b > a ? t.slice(a, b) : '';
+    };
+    const flagSrc = liftFlags('src/shells/chat.html');
+    const flagBuilt = liftFlags('Spixi/Resources/Raw/html/chat.html');
+    const runFlags = (body, mode, known, caps) => {
+      const f = new Function('mode', 'modeKnown', 'bridge', body + '\nreturn attachFlags;');
+      return f(mode, () => known, { cap: (c) => !!(caps || {})[c] })();
+    };
+    /* The five rooms the app can be in, plus the state every one of them starts in. */
+    const ROOMS = {
+      unknown: [{ type: 0, isBot: false, hidesAddresses: false }, false],
+      oneToOne: [{ type: 0, isBot: false, hidesAddresses: false }, true],
+      group: [{ type: 1, isBot: false, hidesAddresses: false }, true],
+      blind: [{ type: 1, isBot: false, hidesAddresses: true }, true],
+      bot: [{ type: 3, isBot: true, hidesAddresses: false }, true],
+    };
+    const sig = (o) => ['media', 'apps', 'payments', 'files'].map((k) => (o[k] ? '1' : '0')).join('');
+    let fSrc = {};
+    let fBuilt = {};
+    let flagsRan = false;
+    try {
+      for (const k of Object.keys(ROOMS)) {
+        fSrc[k] = sig(runFlags(flagSrc, ROOMS[k][0], ROOMS[k][1], {}));
+        fBuilt[k] = sig(runFlags(flagBuilt, ROOMS[k][0], ROOMS[k][1], {}));
+      }
+      /* The #81 media capability, granted. It must NOT unlock a room that refuses files. */
+      fSrc.oneToOneMedia = sig(runFlags(flagSrc, ROOMS.oneToOne[0], true, { media: 1 }));
+      fSrc.botMedia = sig(runFlags(flagSrc, ROOMS.bot[0], true, { media: 1 }));
+      fSrc.blindMedia = sig(runFlags(flagSrc, ROOMS.blind[0], true, { media: 1 }));
+      flagsRan = true;
+    } catch (e) { fSrc.err = e.message; }
+
+    ok(flagsRan && fSrc.unknown === '0000',
+      '★★★ #46 loop EXECUTED (surviving mutation X4 · review-fe MAJOR-2): a room whose TYPE HAS NOT ARRIVED answers FALSE to all four flags. No tile survives every room type — apps needs "not a bot", payments needs "a 1:1", files needs "not a bot and not a blind group" — so the intersection is empty and an unknown room may offer NOTHING. Round 1 let a 6 s belt grant the 1:1 defaults instead, which restored the whole defect on a timer. Got media/apps/payments/files = ' + JSON.stringify(flagsRan ? fSrc.unknown : fSrc.err));
+    ok(flagsRan && fSrc.oneToOne === '0111' && fSrc.group === '0101' && fSrc.blind === '0100' && fSrc.bot === '0000',
+      '★★★ #46 loop EXECUTED (surviving mutation X4): the ROOM TYPE → FLAGS mapping, run for every room. 1:1 = apps+payments+files. Private group = apps+files, no money. BLIND group = apps only, no Send file. BOT room = nothing at all. Round 1 pinned only the flags→tiles half and hand-built the flag objects, so forcing `payments` and `apps` TRUE put Pay in every group and App invite in every bot room with all 142 pins green. Got: ' + JSON.stringify([fSrc.oneToOne, fSrc.group, fSrc.blind, fSrc.bot]));
+    ok(flagsRan && fSrc.oneToOneMedia === '1111' && fSrc.botMedia === '0000' && fSrc.blindMedia === '0100',
+      '★★★ #46 loop EXECUTED: the #81 MEDIA capability cannot unlock a room that refuses files. C# routes ixian:sendmedia and ixian:sendfile into ONE method with ONE refusal (SingleChatPage.xaml.cs:200 and :206), so Photo and GIF ride the file gate. Granted in a 1:1 they appear; granted in a bot room or a blind group they do not. Without this the ⑪ lie was pre-built on the next feature. Got: ' + JSON.stringify([fSrc.oneToOneMedia, fSrc.botMedia, fSrc.blindMedia]));
+    const flagDrift = flagsRan ? Object.keys(ROOMS).filter((k) => fSrc[k] !== fBuilt[k]) : ['<did not run>'];
+    ok(flagsRan && flagBuilt.length > 200 && flagDrift.length === 0,
+      '★★★ #46 loop EXECUTED, DIFFERENTIAL: the SHIPPED chat shell maps room → flags exactly as the source does. Rooms that differ: ' + JSON.stringify(flagDrift));
+  }
+
+  /* —— ★★★ X5 and X6 · THE SHIPPED BUNDLE IS LOADED AND CALLED ————————————————— */
+  {
+    /* Round 2 lifted `attachTilesFor` out of the bundle as TEXT. That reached one function.
+       X5 cut `if (!tiles.length) return null;` from the bundle's `openAttachSheet` and X6
+       made the bundle's `createChatInfo` render Pay with no handler — both invisible,
+       because the executing pins imported the SOURCE modules.
+       So load the SHIPPED artifact the way the WebView does: spixi.icons.js, then
+       spixi.bundle.js, into one window, and call `window.Spixi.*`. This is the real code
+       a user runs, not a copy of it. */
+    const pinDom = new JSDOM('<!doctype html><body></body>', { runScripts: 'outside-only', pretendToBeVisual: true, url: 'file:///pin/' });
+    pinDom.window.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+    pinDom.window.requestAnimationFrame = (cb) => setTimeout(cb, 0);
+    let S = null;
+    let loadErr = '';
+    try {
+      pinDom.window.eval(rdf('Spixi/Resources/Raw/html/spixi.icons.js'));
+      pinDom.window.eval(rdf('Spixi/Resources/Raw/html/spixi.bundle.js'));
+      S = pinDom.window.Spixi;
+    } catch (e) { loadErr = e.message; }
+    ok(S !== null && typeof S === 'object' && Object.keys(S).length > 250
+       && typeof S.openAttachSheet === 'function' && typeof S.createChatInfo === 'function'
+       && typeof S.attachTilesFor === 'function' && typeof S.hasAttachTiles === 'function',
+      '★★★ #46 loop: the SHIPPED bundle LOADS the way the WebView loads it — spixi.icons.js first, then spixi.bundle.js — and puts its API on window.Spixi. A bundle that throws on load takes every shell down at boot, and no text pin over it can see that. Got: ' + (S ? Object.keys(S).length + ' exports' : 'load failed: ' + loadErr));
+
+    const doc = pinDom.window.document;
+    const host = doc.createElement('div');
+    doc.body.append(host);
+    const BOT = { media: false, apps: false, payments: false, files: false };
+    const ONE = { media: false, apps: true, payments: true, files: true };
+    let botSheet = 'not run';
+    let oneSheet = 'not run';
+    let tilesAfterBot = -1;
+    let tilesAfterOne = -1;
+    try {
+      const before = doc.querySelectorAll('.c-attach__tile').length;
+      botSheet = S.openAttachSheet({ host, ...BOT, onAction() {}, strings: {} });
+      tilesAfterBot = doc.querySelectorAll('.c-attach__tile').length - before;
+      oneSheet = S.openAttachSheet({ host, ...ONE, onAction() {}, strings: {} });
+      tilesAfterOne = doc.querySelectorAll('.c-attach__tile').length;
+    } catch (e) { botSheet = 'threw: ' + e.message; }
+    ok(botSheet === null && tilesAfterBot === 0,
+      '★★★ #46 loop EXECUTED, ON THE SHIPPED BUNDLE (surviving mutation X5): openAttachSheet in a BOT room returns null and puts NO tile in the document. Round 2 lifted the predicate out of this file but never called the OPENER, so deleting `if (!tiles.length) return null;` from the artifact alone shipped the empty sheet with every source pin green — the N01 shape, one function over. Got: ' + JSON.stringify(botSheet) + ' / ' + tilesAfterBot + ' tiles');
+    ok(oneSheet !== null && oneSheet !== 'not run' && tilesAfterOne === 4,
+      '★★★ #46 loop EXECUTED, ON THE SHIPPED BUNDLE PAIR: and a 1:1 chat still gets its four real tiles out of the same artifact. Without this pair the pin above passes on an opener that never opens anything');
+
+    /* ★★★ X6 — the component half of findings-B MAJOR-2, on the file that ships. */
+    let ciNo = 'not run';
+    let ciYes = 'not run';
+    try {
+      const base = { kind: 'contact', context: 'contact', name: 'Ana', address: 'AD1', strings: {} };
+      const labels = (el) => [...el.querySelectorAll('.c-chat-info__money button')].map((b) => b.textContent).join(',');
+      ciNo = labels(S.createChatInfo({ ...base, onMessage: () => {} }));
+      ciYes = labels(S.createChatInfo({ ...base, onMessage: () => {}, onPay: () => {}, onRequest: () => {} }));
+    } catch (e) { ciNo = 'threw: ' + e.message; }
+    ok(ciNo === 'Message',
+      '★★★ #46 loop EXECUTED, ON THE SHIPPED BUNDLE (surviving mutation X6): with NO onPay and NO onRequest the shipped createChatInfo renders neither. The whole C# capability gate rests on this one claim, and round 2 tested it against the SOURCE module only — so the artifact could render a dead Pay button to every contact C# refused with the C# pin, the shell pin and the source component pin all green. Got: ' + JSON.stringify(ciNo));
+    ok(ciYes === 'Message,Pay,Request',
+      '★★★ #46 loop EXECUTED, ON THE SHIPPED BUNDLE PAIR: and with both handlers the shipped component renders both actions, in order. Got: ' + JSON.stringify(ciYes));
+  }
+
+  /* —— ★★★ THE ⊕ WIRE · the writer of the state CALLS the reader ————————————— */
+  {
+    /* Surviving mutations X1, X2, X3 and X8 were all one shape: delete a call, leave every
+       named line standing. Fix agent F2 removed the three pushed `syncAttachAffordance()`
+       call sites and replaced them with ONE wrapper at `bridge.exposeAll`, so there is now
+       a single wire — and a single deletion that freezes the ⊕ at its boot state in every
+       room. A named-line pin cannot see that deletion either. So the wrapper is LIFTED and
+       RUN against a fake handler table: does a C# push actually reach the reader? */
+    const t = rdf('src/shells/chat.html');
+    const wa = t.indexOf('  const syncedHandlers = {};');
+    const wEnd = t.indexOf('bridge.exposeAll(syncedHandlers);');
+    const wire = wa > 0 && wEnd > wa ? t.slice(wa, wEnd + 'bridge.exposeAll(syncedHandlers);'.length) : '';
+    let syncs = 0;
+    let exposed = null;
+    let ret = null;
+    let threwThrough = false;
+    let syncsAfterThrow = -1;
+    let passthrough = null;
+    let sameObject = null;
+    try {
+      const handlers = {
+        setChatMode() { return 'RESULT'; },
+        boom() { throw new Error('handler blew up'); },
+        notAFunction: 42,
+      };
+      new Function('handlers', 'bridge', 'syncAttachAffordance', wire)(
+        handlers,
+        { exposeAll: (o) => { exposed = o; } },
+        () => { syncs += 1; });
+      sameObject = exposed === handlers;
+      ret = exposed.setChatMode();
+      try { exposed.boom(); } catch (e) { threwThrough = true; }
+      syncsAfterThrow = syncs;
+      passthrough = exposed.notAFunction;
+    } catch (e) { exposed = null; }
+
+    ok(wire.length > 200 && exposed !== null && sameObject === false
+       && Object.keys(exposed).length === 3,
+      '★★★ #46 loop EXECUTED, THE WIRE (surviving mutations X1 · X2 · X3 · X8): `bridge.exposeAll` is handed the WRAPPED handler table, not the raw one. Change that argument back to `handlers` and every C# push stops re-deriving the composer ⊕ — with the latch, the belt, the predicate and all four flags still named and still green. This runs the wrapper instead of reading it');
+    ok(ret === 'RESULT' && syncs >= 1,
+      '★★★ #46 loop EXECUTED, THE WIRE: a C# push REACHES the reader — calling a wrapped handler runs syncAttachAffordance, and the handler\'s own return value survives unchanged. The ⊕ is DERIVED after every push instead of being pushed at from three call sites that no pin read');
+    ok(threwThrough === true && syncsAfterThrow === 2,
+      '★★★ #46 loop EXECUTED, THE WIRE: a handler that THROWS still re-derives, because the wrapper uses `finally` — and the throw is not swallowed, so C# still sees the failure. Drop the finally and one bad push leaves the ⊕ wrong for the rest of the session');
+    ok(passthrough === 42,
+      '★★ #46 loop EXECUTED, THE WIRE: a non-function entry in the handler table passes through untouched. The bridge carries values as well as functions, and wrapping one would break the push that reads it');
+    /* ★★★ THE SECOND WIRE — THE ONE WAKE-UP (surviving mutation Y9b′).
+       ⚠ REBASED, ROUND 4. `armModeBelt`, `modeBelt`, `waitPeer` and `waitStart` are all
+       DELETED. Round 3's belt had an arm, a handle, a clearing branch and an idempotence
+       rule — four more lines a mutation could cut. What is left is ONE `setTimeout`,
+       scheduled once at boot, for the life of the document. Idempotence is now structural:
+       there is nothing to arm twice.
+       ★ IT IS STILL A WIRE, and it is still the one no named-line pin can see. Cut it and a
+       room that NEVER answers holds an invisible 40 px box in the composer for the whole
+       session (#647③, a latch with no bound). So the boot derive and the timer are pinned
+       as a PAIR, and the timer's callback is asserted to be the reader itself — not a
+       wrapper that could quietly stop calling it. */
+    const bootA = t.indexOf('  syncAttachAffordance();\n  setTimeout(syncAttachAffordance, MODE_WAIT_MS);');
+    ok(bootA > 0
+       && (t.match(/setTimeout\(syncAttachAffordance, MODE_WAIT_MS\);/g) || []).length === 1
+       /* ⚠ CODE-SHAPED NEGATIVES — see the artifact pin above. */
+       && !/function armModeBelt\(/.test(t) && !/modeBelt = /.test(t)
+       && !/waitStart = /.test(t) && !/waitPeer = /.test(t),
+      '★★★ #46 loop, THE ONE WAKE-UP (surviving mutation Y9b′ · Y9′): the boot derive and the wait-window timer sit together, the timer is scheduled exactly ONCE for the life of the document, and its callback is the reader itself. Round 3 needed an arm, a handle, a clearing branch and an idempotence rule to say the same thing — four more lines a mutation could cut. Delete the timer and a room that never answers holds an invisible 40 px box for the whole session; delete the boot derive and the ⊕ keeps whatever state createComposer gave it until the first C# push');
+
+    /* The wire must reach the ARTIFACT too — the same one-sided gap X5 and X6 exploited.
+       ★ ROUND 4 adds the `finally` clause fix agent FE3 handed over by name. Surviving
+       mutation Y3 changes the artifact's `} finally {` to `} catch (e) {`: the re-derive
+       then runs only when a handler THROWS, so the ⊕ freezes on every normal push, and all
+       four of round 3's artifact regexes still matched. The source side RUNS this; the
+       artifact side could only read it, and it was not reading the keyword that matters. */
+    const chB = rdf('Spixi/Resources/Raw/html/chat.html');
+    ok(/bridge\.exposeAll\(syncedHandlers\);/.test(chB)
+       && /try \{ syncAttachAffordance\(\); \} catch \(e\) \{[^}]*\}/.test(chB)
+       && !/bridge\.exposeAll\(handlers\);/.test(chB)
+       && /\} finally \{[\s\S]{0,600}?try \{ syncAttachAffordance\(\); \} catch/.test(chB)
+       && /setTimeout\(syncAttachAffordance, MODE_WAIT_MS\);/.test(chB),
+      '★★★ #46 loop, ON THE SHIPPED SHELL (surviving mutation Y3): BOTH wires reached Spixi/Resources/Raw/html/chat.html — the wrapped handler table is exposed, the re-derive sits inside a `finally` and not a `catch`, the one wake-up timer is there, and the raw table is not exposed anywhere. `finally` is the whole word: under `catch` the ⊕ re-derives only when a push THROWS, which is never, so it freezes at its boot state while every regex still matches');
+  }
+
+  /* —— ★★★ THE CALL GATE · ONE RULE, ONE HOME, SIX ASKERS ——————————————————— */
+  {
+    /* Fix agent R2C found the two homes had DRIFTED, and the comment in one of them
+       vouched for a guarantee the other did not have: ContactDetails claimed "the same gate
+       and the SAME VERB as the chat header — one rule, not two that can drift", while
+       SingleChatPage tested only codecs and FriendState.Approved, with NO room test at all.
+       An Approved group or bot room showed the phone action, and a tap really started a
+       call: VoIPManager.initiateCall sends an app request to the ROOM address, writes a call
+       bubble into history, presents CallPage, starts the dial tone, takes the power locks
+       and rings for 45 seconds. Nobody answers, because a room is not a peer.
+
+       ⚠ ROUND 3 rebased this pin to read FOUR spelled-out gates. Agent R3 then did to the
+       call rule what agent CS3 did to the delivery rule: gave it ONE HOME. The four sites
+       no longer spell anything out — they ask `SingleChatPage.canPlaceCall(friend)`. So the
+       pin reads the RULE once and the ASKERS once, which is what review3-cs VACUOUS-1
+       asked for and is strictly stronger than four normalised string comparisons. */
+    const scp = rdf('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+    const cds = rdf('Spixi/Pages/Contacts/ContactDetails.xaml.cs');
+
+    /* ── THE RULE. One method, five terms, and the codec term is now on the START legs
+       too — only the two reveals carried it, so a codec-less device could reach
+       initiateCall, which builds its codec list from an empty set and dials anyway. */
+    const cpcAt = scp.indexOf('public static bool canPlaceCall(Friend friend)');
+    const cpc = cpcAt > 0 ? scp.slice(cpcAt, scp.indexOf('}', scp.indexOf('SSpixiCodecInfo', cpcAt)) + 1) : '';
+    ok(cpcAt > 0 && cpc.length > 100
+       && /friend != null/.test(cpc)
+       && /!friend\.bot/.test(cpc)
+       && /friend\.type != FriendType\.Group/.test(cpc)
+       && /friend\.state == FriendState\.Approved/.test(cpc)
+       && /SSpixiCodecInfo\.getSupportedAudioCodecs\(\)\.Count > 0/.test(cpc)
+       && (cpc.match(/&&/g) || []).length === 4,
+      '★★★ ROUND 4: the CALL RULE has ONE HOME and FIVE terms, all ANDed — a non-null friend, not a bot, not a group, FriendState.Approved, and at least one audio codec. The codec term is new on the start legs: only the two reveals carried it, so a codec-less device could reach VoIPManager.initiateCall, which builds its codec list from an empty set and dials anyway');
+
+    /* ── THE ASKERS. Four C# sites, and none of them spells the rule out. A site that
+       re-spells it is the drift this pin exists to stop, so the spelled-out form is
+       refused OUTSIDE the one method. */
+    const askSites = [
+      ['SingleChatPage reveal', scp, 'Utils.sendUiCommand(this, "showCallButton", "");'],
+      ['SingleChatPage start', scp, 'VoIPManager.initiateCall(friend);'],
+      ['ContactDetails reveal', cds, 'Utils.sendUiCommand(this, "showCallButton", "");'],
+      ['ContactDetails start', cds, 'VoIPManager.initiateCall(friend);'],
+    ];
+    /* ⚠ THE ASK MUST BE IN THE SAME MEMBER, not merely on the nearest `if`.
+       `onStartCall` is a GUARD-CLAUSE method: `if (!canPlaceCall(friend)) return;` sits at
+       the top, then the busy check, then the call. A "nearest preceding if" heuristic reads
+       the busy check and reports the site as ungated — my own first cut did exactly that,
+       and it would have gone red on correct code. So walk back from the site to the
+       enclosing member and require the ask inside it. */
+    const asksInMember = (txt, needle) => {
+      const i = txt.indexOf(needle);
+      if (i < 0) return false;
+      const bound = Math.max(
+        txt.lastIndexOf('\n        private ', i),
+        txt.lastIndexOf('\n        public ', i),
+        txt.lastIndexOf('\n        protected ', i));
+      const member = txt.slice(bound < 0 ? 0 : bound, i);
+      return /canPlaceCall\(friend\)/.test(member);
+    };
+    const notAsking = askSites.filter(([, txt, needle]) => !asksInMember(txt, needle)).map(([name]) => name);
+    /* The rule must not be re-spelled anywhere but inside canPlaceCall itself. */
+    const respelled = [];
+    for (const [name, txt] of [['SingleChatPage', scp], ['ContactDetails', cds]]) {
+      const outside = name === 'SingleChatPage' ? (scp.slice(0, cpcAt) + scp.slice(cpcAt + cpc.length)) : txt;
+      if (/friend\.state == FriendState\.Approved[\s\S]{0,120}?getSupportedAudioCodecs/.test(outside)) respelled.push(name);
+    }
+    /* ⚠ COUNT CODE, NOT PROSE. Both files carry a doc-block that POINTS the next reader at
+       the one method — `call \`canPlaceCall(friend)\`. Change the rule THERE.` — and a raw
+       count reads those comments, so the pin went red on correct code. Count the ASKS. */
+    const codeAsks = (t, re) => t.split('\n')
+      .filter((l) => !/^\s*(\*|\/\/|\/\*)/.test(l) && re.test(l)).length;
+    ok(notAsking.length === 0 && respelled.length === 0
+       && codeAsks(scp, /canPlaceCall\(friend\)/) === 2
+       && codeAsks(cds, /SingleChatPage\.canPlaceCall\(friend\)/) === 2,
+      '★★★ ROUND 4 (review3-cs VACUOUS-1): ALL FOUR C# call sites ask the ONE METHOD — both reveals and both start legs — and none of them re-spells the rule. Four gates that each spell it out pass individually while the four disagree, which is exactly how this defect survived two rounds. Sites not asking: ' + JSON.stringify(notAsking) + ' · sites re-spelling the rule: ' + JSON.stringify(respelled));
+
+    /* ── THE SHELL'S TWO ASKERS. `callVisible` is the shell's copy of C#'s answer, and the
+       card link must be re-read at TAP time: a card can sit in the log for a whole session
+       while C# changes its mind about the room. */
+    const chSrc = rdf('src/shells/chat.html');
+    const chB = rdf('Spixi/Resources/Raw/html/chat.html');
+    const shellAsks = (t) => /onCallBack: callVisible \? callBackFromCard : null,/.test(t)
+      && /function callBackFromCard\(\) \{\s*\r?\n\s*if \(!callVisible\) \{ showCallRefusal\('unavailable'\); return; \}/.test(t)
+      && /bridge\.send\('ixian:callback'\);/.test(t);
+    ok(shellAsks(chSrc) && shellAsks(chB),
+      '★★★ ROUND 4: the SHELL asks the same question TWICE — once to paint the card link, and again inside the tap, in BOTH homes. A card painted while a call was possible can sit in the log for the whole session; without the second read it stays live after C# changes its mind. The paint gate is not the only gate: canPlaceCall is asked again before any call is placed');
+
+    /* ── ★ THE ONE-LEG VERB. "Call back" can never end a call. `ixian:call` is a TOGGLE —
+       it hangs up when a call is live — so a card link bound to it would end an unrelated
+       call under a non-destructive label. `ixian:callback` has ONE leg by construction. */
+    const cbAt = scp.indexOf('"ixian:callback"');
+    const cbBlk = cbAt > 0 ? scp.slice(cbAt, cbAt + 500) : '';
+    ok(cbAt > 0 && /onStartCall\(\);/.test(cbBlk) && !/hangupCall/.test(cbBlk)
+       && !/ixian:call'\)/.test(chSrc.slice(chSrc.indexOf('function callBackFromCard'), chSrc.indexOf('function callBackFromCard') + 300)),
+      '★★★ ROUND 4: `ixian:callback` has ONE LEG and it cannot reach hangupCall. `ixian:call` is a TOGGLE, so a card link bound to it would silently END an unrelated live call under a label that says "Call back". A verb with one leg removes the destructive branch by construction; a condition would only hide it');
+
+    /* ── ★ HANG UP IS NEVER GATED. A call in progress must always be endable, so the rule
+       belongs to the START leg only. If it ever migrates above the toggle, a user in a live
+       call cannot end it — which is worse than the defect the gate closes. */
+    const hangAt = scp.indexOf('VoIPManager.hangupCall(null);');
+    const toggleAt = scp.indexOf('if (VoIPManager.isInitiated())');
+    ok(hangAt > 0 && toggleAt > 0 && toggleAt < hangAt
+       && toggleAt > scp.indexOf('ixian:call')
+       && !/canPlaceCall/.test(scp.slice(toggleAt, hangAt)),
+      '★★ #46 loop r2 + round 4: HANG UP IS NEVER GATED — the in-progress branch is tested first, ends the call unconditionally, and carries no canPlaceCall between the test and the call. A relation belt above the toggle would trap a user in a live call they cannot end');
+
+    /* ── ★ AND A REFUSAL IS SAID OUT LOUD. The old belt logged and pushed nothing, so a tap
+       on a live-looking control did nothing, for ever, with no explanation. */
+    ok(/Utils\.sendUiCommand\(this, "callRefused", "unavailable"\);/.test(scp)
+       && /Utils\.sendUiCommand\(this, "callRefused", "busy"\);/.test(scp)
+       && /callRefused\(reason\) \{ showCallRefusal\(reason\); \}/.test(chSrc)
+       && /callRefused\(reason\) \{ showCallRefusal\(reason\); \}/.test(chB),
+      '★★★ ROUND 4: a REFUSED call says why. C# pushes a TOKEN, not a sentence, and both shell homes define the handler. ⚠ Utils.sendUiCommand emits the command name as a BARE GLOBAL, so a push with no handler throws in the WebView before the dispatcher can catch it (#258) — the C# half and the shell half must ship together, and this pin holds them together');
+
+    /* ── ★ AND THE COMPONENT DRAWS NO DEAD LINK. `detailsLink` renders its button whether or
+       not it gets a callback, and only the MISSED branch tested for one — so every ANSWERED
+       call card carried a live-looking "Call back ›" that did nothing. EXECUTED, because a
+       text pin cannot tell a rendered link from an absent one. */
+    const pinDom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true, url: 'file:///pin/' });
+    pinDom.window.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+    const hadWin = 'window' in globalThis ? globalThis.window : undefined;
+    const hadDoc = 'document' in globalThis ? globalThis.document : undefined;
+    globalThis.window = pinDom.window; globalThis.document = pinDom.window.document;
+    try {
+      const { createCallBubble } = await import('file://' + join(root, 'src/components/typed-bubbles.js'));
+      const links = (o) => createCallBubble({ timestamp: Date.now(), title: 'Voice call', strings: {}, ...o })
+        .querySelectorAll('.c-bubble__details, .c-bubble__details-link, button').length;
+      const answeredNo = links({ missed: false });
+      const answeredYes = links({ missed: false, onCallBack: () => {} });
+      const missedNo = links({ missed: true });
+      const missedYes = links({ missed: true, onCallBack: () => {} });
+      ok(answeredNo === 0 && missedNo === 0 && answeredYes === 1 && missedYes === 1,
+        '★★★ ROUND 4 EXECUTED: a call card draws a "Call back" link ONLY when it is given a handler — answered and missed alike. `detailsLink` renders its button whether or not it gets a callback, and only the missed branch tested for one, so every ANSWERED card carried a live-looking link that did nothing. The shell wires a handler only when a call is possible, so the ABSENCE is the answer. Got answered=' + answeredNo + '/' + answeredYes + ' missed=' + missedNo + '/' + missedYes);
+    } catch (e) {
+      ok(false, '★★★ ROUND 4 EXECUTED: the call bubble could not be run — ' + e.message);
+    } finally {
+      if (hadWin === undefined) delete globalThis.window; else globalThis.window = hadWin;
+      if (hadDoc === undefined) delete globalThis.document; else globalThis.document = hadDoc;
+    }
+  }
+
+  /* —— the [CDPERF] probe · confirm the pin still reads the right site ——————— */
+  {
+    /* fix-R2C §3 DECIDED not to remove this probe: worklist row L10 (the bot room presents
+       140 ms late) is not built, the second measurement has not been taken, and that row
+       ends by removing the probe together with the shell's paired emit. The pin that holds
+       it in place is deliberate. This confirms it still reads the live site after R2C's
+       comment edit at ContactDetails.xaml.cs:56. */
+    const cds = rdf('Spixi/Pages/Contacts/ContactDetails.xaml.cs');
+    const cdBuilt = rdf('Spixi/Resources/Raw/html/contact_details.html');
+    const logCalls = (cds.match(/Logging\.info\("\[CDPERF\]/g) || []).length;
+    /* THREE HOMES, and they must leave together: the four C# log points, the C# handler for
+       the shell's paint signal, and the SHIPPED shell's emit. The pin at the ITEM 6 block
+       above reads the four log STRINGS and confirms it still points at the live site. This
+       one couples the three homes, so removing the probe from one file turns it red instead
+       of stranding a cross-file emit that answers nothing. */
+    ok(logCalls === 4
+       && /current_url\.Equals\("ixian:cdpainted", StringComparison\.Ordinal\)/.test(cds)
+       && /bridge\.send\('ixian:cdpainted'\)/.test(cdBuilt),
+      '★ #46 loop r2 (fix-R2C §3, DECIDED not removed): the [CDPERF] probe keeps all THREE homes — four C# log points, the C# handler for ixian:cdpainted, and the emit in the SHIPPED shell. Worklist row L10 is not built and the second measurement has not been taken, so this is the only instrument that can confirm the bot room moves. Remove the probe, the handler, the shell emit and this pin in ONE batch — not in three files by three agents. Got ' + logCalls + ' log points');
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+ * ★★★ #46 LOOP ROUND 4 — THE WIRES FIX AGENT FE3 COULD NOT REMOVE.
+ *
+ * He deleted five of the ten surviving mutations at the ROOT: the code they cut does not
+ * exist any more. Six he handed over by name, because they are the last lines that still
+ * carry state a deletion can take away, and no named-line pin reads them:
+ *   Y1′  — the ONE writer of the room answer            → pinned in the attach block above
+ *   Y4′  — `btn.style.visibility` pinned to 'hidden'    → here
+ *   Y4b′ — `btn.style.visibility` pinned to ''          → here
+ *   Y6′  — the one action-time gate for all six tiles   → here
+ *   Y9′  — the boot derive                              → here
+ *   Y9b′ — the one wake-up timer                        → pinned in the wire block above
+ *   Y3   — the artifact's `finally`                     → pinned in the wire block above
+ *
+ * The shape that catches all of them is the same one this loop has had to learn four
+ * times: RUN the thing, do not read it.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+{
+  const rdf = (pth) => readFileSync(join(root, pth), 'utf8');
+
+  /* —— ★★★ Y4′ and Y4b′ · THE TWO DOM LEGS, EXECUTED ————————————————————————— */
+  {
+    /* `syncAttachAffordance` writes exactly two properties, both read from the predicate at
+       the moment of the write. Pin them to a constant either way and the ⊕ lies:
+         · `visibility = 'hidden'` always → the ⊕ is never drawn, in any room (Y4′);
+         · `visibility = ''` always       → an unknown room draws a live-looking ⊕ inside the
+                                            6 s window (Y4b′).
+       Both fail SAFE in the ⑪ sense — the tap is refused inside openAttach — but both are a
+       total or partial loss of a control, and `btn.style` appeared ZERO times in this suite
+       before round 4. So the function is LIFTED and driven against a fake button. */
+    const liftSync = (pth) => {
+      const t = rdf(pth);
+      const a = t.indexOf('  function syncAttachAffordance() {');
+      return a > 0 ? t.slice(a, t.indexOf('\n  }\n', a) + 4) : '';
+    };
+    const syncSrc = liftSync('src/shells/chat.html');
+    const syncBuilt = liftSync('Spixi/Resources/Raw/html/chat.html');
+    /* ⚠ ROUND 6: the function now writes a THIRD thing — `data-no-attach` on the FIELD —
+       so the stub dispatches on the selector and records the attribute. A stub that
+       returned the button for every query hid the new write behind a thrown TypeError,
+       which is how this pin reported itself red rather than reporting the change. */
+    const driveSync = (body, available, waiting) => {
+      const btn = { hidden: null, style: { visibility: null } };
+      const field = { attr: null, toggleAttribute(name, on) { this.attr = (name === 'data-no-attach') ? !!on : this.attr; } };
+      const composerEl = { querySelector: (sel) => (sel === '.c-composer__field' ? field : btn) };
+      new Function('composerEl', 'attachAvailable', 'attachWaiting',
+        body + '\nsyncAttachAffordance();')(composerEl, () => available, () => waiting);
+      return { hidden: btn.hidden, vis: btn.style.visibility, noAttach: field.attr };
+    };
+    let syncOut = {};
+    let syncRan = false;
+    try {
+      syncOut = {
+        ready: driveSync(syncSrc, true, false),      // the room answered and offers tiles
+        waiting: driveSync(syncSrc, false, true),    // no answer yet, window still open
+        none: driveSync(syncSrc, false, false),      // known and refuses, or window closed
+        readyB: driveSync(syncBuilt, true, false),
+        waitingB: driveSync(syncBuilt, false, true),
+        noneB: driveSync(syncBuilt, false, false),
+      };
+      syncRan = true;
+    } catch (e) { syncOut.err = e.message; }
+    const eq = (a, b) => a && b && a.hidden === b.hidden && a.vis === b.vis && a.noAttach === b.noAttach;
+    ok(syncRan && syncOut.ready.hidden === false && syncOut.ready.vis === ''
+       && syncOut.waiting.hidden === false && syncOut.waiting.vis === 'hidden'
+       && syncOut.none.hidden === true && syncOut.none.vis === 'hidden',
+      '★★★ ROUND 4 EXECUTED (surviving mutations Y4′ and Y4b′): the ⊕ has THREE observable states and BOTH DOM legs are driven from the predicate. Ready → shown. Waiting → the box is RESERVED but invisible, so the text field does not grow and then shrink when the room answers late. None → collapsed, and the field takes the space. Pin either leg to a constant and the control either never appears or appears in a room that refuses everything. Got: ' + JSON.stringify(syncRan ? [syncOut.ready, syncOut.waiting, syncOut.none] : syncOut.err));
+    ok(syncRan && eq(syncOut.ready, syncOut.readyB) && eq(syncOut.waiting, syncOut.waitingB) && eq(syncOut.none, syncOut.noneB),
+      '★★★ ROUND 4 EXECUTED, DIFFERENTIAL: the SHIPPED shell drives the same two legs to the same three states as the source. The artifact is what a user runs');
+    /* ★★★ ROUND 6 (Damir on Windows, A2) — THE PADDING AND THE PILL CANNOT DISAGREE.
+       `.c-composer__field` carries a 4px inline-start that is the ATTACH PILL's own inset,
+       not the text's — the 36px pill supplies the rest of the optical gap. `hidden` is
+       `display: none !important`, so hiding the ⊕ took the pill out of the row and the
+       placeholder sat against the field edge. A2 was a CORRECT pass that exposed it: the
+       bot room stopped offering a ⊕, exactly as this suite requires, and the composer went
+       wrong underneath.
+       ★ THE GUARANTEE IS THE SHARED EXPRESSION, NOT THE TWO WRITES. `gone` is computed once
+       and drives BOTH `btn.hidden` and the attribute. Drive the attribute from
+       `attachAvailable()` instead and the WAIT state breaks: the pill keeps its 40px box
+       through `visibility`, so the field must keep its 4px — but `attachAvailable()` is
+       false there, so the field would take the wide padding while the pill is still holding
+       its place. That is the real regression, and it is invisible to a pin that reads the
+       two writes separately. So the three states are DRIVEN and the attribute is read. */
+    ok(syncRan
+       && syncOut.ready.noAttach === false      // pill drawn        → field keeps 4px
+       && syncOut.waiting.noAttach === false    // pill holds its box → field keeps 4px
+       && syncOut.none.noAttach === true,       // pill collapsed     → field compensates
+      '★★★ ROUND 6 EXECUTED (Damir A2): the field\'s padding is written from `gone` — the SAME expression that hides the ⊕ — so the compensation and the hiding can never disagree. Ready: pill drawn, no attribute. WAITING: the pill keeps its box through `visibility`, so the attribute stays OFF and the field keeps its 4px. None: the pill is out of the row and the field compensates. Driving this from `attachAvailable()` would take the wide padding while the pill is still holding its place. Got: ' + JSON.stringify(syncRan ? [syncOut.ready.noAttach, syncOut.waiting.noAttach, syncOut.none.noAttach] : syncOut.err));
+    /* ★ ONE EXPRESSION, READ TWICE — asserted as text too, so a reviewer can find the line,
+       and so a rewrite that computes the same answer twice turns red. Two copies of one
+       rule is the shape this project has written five rows about. */
+    ok(syncSrc.length > 100
+       && /const gone = !attachAvailable\(\) && !attachWaiting\(\);/.test(syncSrc)
+       && /btn\.hidden = gone;/.test(syncSrc)
+       && /field\.toggleAttribute\('data-no-attach', gone\);/.test(syncSrc)
+       && !/toggleAttribute\('data-no-attach', !attachAvailable\(\)\)/.test(syncSrc)
+       && /const gone = !attachAvailable\(\) && !attachWaiting\(\);/.test(syncBuilt)
+       && /field\.toggleAttribute\('data-no-attach', gone\);/.test(syncBuilt),
+      '★★★ ROUND 6: `gone` is computed ONCE and read by both writes, in the source AND in the shipped shell. A second computation of the same answer is how the padding and the pill drift apart');
+    /* ★ AND THE RULE EXISTS WHERE IT IS RENDERED. A shell inlines its own CSS, so a rule
+       that lives only in the component source is a rule the user never gets — the same
+       one-sided gap that let a fixed source shell sit beside a stale artifact for a session. */
+    const composerCss = rdf('src/styles/components/composer.css');
+    const chBuiltCss = rdf('Spixi/Resources/Raw/html/chat.html');
+    ok(/\.c-composer__field\[data-no-attach\] \{ padding-inline-start: var\(--spacing-12\); \}/.test(composerCss)
+       && /\.c-composer__field\[data-no-attach\] \{ padding-inline-start: var\(--spacing-12\); \}/.test(chBuiltCss)
+       && /padding-inline-end: var\(--spacing-12\)/.test(composerCss),
+      '★★★ ROUND 6: the compensation RULE reached the SHIPPED shell, not just the component source — a shell inlines its own CSS, so a rule that never gets built is a rule the user never gets. And the value MATCHES `padding-inline-end`, so a composer with no pill is symmetric rather than merely wider on one side');
+
+    /* ★ AND THE WAIT STATE CANNOT GRANT A TILE. `attachWaiting` is read by the `hidden`
+       leg ONLY. If `visibility` ever read it, an unknown room would draw a live ⊕. */
+    ok(syncSrc.length > 100
+       && /btn\.style\.visibility = attachAvailable\(\) \? '' : 'hidden';/.test(syncSrc)
+       && !/attachWaiting\(\)[^\n]*visibility/.test(syncSrc)
+       && !/visibility[^\n]*attachWaiting\(\)/.test(syncSrc),
+      '★★★ ROUND 4: the WAIT state is read by the collapse leg ONLY. `visibility` reads `attachAvailable()` and nothing else, so a room whose type has not arrived can reserve space and can never be shown a live control. The wait window bounds LAYOUT; it cannot grant a gate');
+  }
+
+  /* —— ★★★ Y6′ · THE ONE ACTION-TIME GATE, EXECUTED ————————————————————————— */
+  {
+    /* An open sheet can outlive the answer it was built from: `setChatMode` can land while
+       the user is looking at the tiles. Round 3 re-checked TWO of the six tiles, in two
+       per-leg guards, and the reviewer deleted both copies. One line now re-checks all six
+       and asks the same function that DREW them — so the sheet cannot act on a room that
+       has changed under it. `attachTilesFor(attachFlags())` appeared ZERO times in this
+       suite before round 4. */
+    const t = rdf('src/shells/chat.html');
+    const oaAt = t.indexOf('  function openAttach() {');
+    const onAction = oaAt > 0 ? t.slice(t.indexOf('onAction: (id) => {', oaAt), t.indexOf('    });', oaAt)) : '';
+    const gateLine = 'if (!attachTilesFor(attachFlags()).some((t) => t.id === id)) return;';
+    ok(onAction.length > 100
+       && onAction.indexOf(gateLine) >= 0
+       && onAction.indexOf(gateLine) < onAction.indexOf("id === 'file'")
+       && /bridge\.send\('ixian:sendfile'\)/.test(onAction),
+      '★★★ ROUND 4 (surviving mutation Y6′): the sheet re-checks the room at ACTION time, for ALL SIX tiles, with the same predicate that drew them — and the gate is the FIRST statement of the handler, before any tile is matched. Round 3 re-checked two of six in two per-leg guards; deleting the one line now lets a sheet built for a 1:1 send ixian:sendfile into a blind group after setChatMode lands');
+    /* EXECUTED: drive the handler for every tile id, with the room changed under it. */
+    const AS = { attachTilesFor: null };
+    let acted = null;
+    try {
+      const flagsFor = (f) => f;
+      const tiles = (f) => [
+        { id: 'file', flag: 'files' }, { id: 'photo', flag: 'media' }, { id: 'gif', flag: 'media' },
+        { id: 'pay', flag: 'payments' }, { id: 'request', flag: 'payments' }, { id: 'app', flag: 'apps' },
+      ].filter((a) => f[a.flag]);
+      const run = (flags) => {
+        const sent = [];
+        const handler = new Function('attachTilesFor', 'attachFlags', 'bridge', 'openSendTakeover',
+          'openRequestForPeer', 'openAppPicker',
+          'return (' + onAction.slice(onAction.indexOf('(id) =>')).replace(/,\s*$/, '') + ');')(
+          tiles, () => flags,
+          { send: (v) => sent.push(v), cap: () => true },
+          () => sent.push('pay'), () => sent.push('request'), () => sent.push('app'));
+        for (const id of ['file', 'photo', 'gif', 'pay', 'request', 'app']) handler(id);
+        return sent;
+      };
+      acted = {
+        blind: run({ media: false, apps: true, payments: false, files: false }),
+        bot: run({ media: false, apps: false, payments: false, files: false }),
+        oneToOne: run({ media: false, apps: true, payments: true, files: true }),
+      };
+    } catch (e) { acted = { err: e.message }; }
+    ok(acted && !acted.err
+       && acted.bot.length === 0
+       && acted.blind.join(',') === 'app'
+       && acted.oneToOne.join(',') === 'ixian:sendfile,pay,request,app',
+      '★★★ ROUND 4 EXECUTED (surviving mutation Y6′): the action gate is DRIVEN with the room changed under an open sheet. A sheet whose room became a BOT room drops all six taps. One that became a BLIND group drops five and passes App invite. A 1:1 passes its four. The gate asks the same function that drew the tiles, so the control cannot act on what the sheet would refuse to draw. Got: ' + JSON.stringify(acted));
+  }
+
+  /* —— ★★★ Y9′ · THE BOOT DERIVE ———————————————————————————————————————————— */
+  {
+    /* Delete the boot call and the ⊕ keeps whatever DOM state `createComposer` gave it until
+       the FIRST C# push. Round 2's window was a whole session; it is now milliseconds,
+       because `onChatScreenReady` and `loadMessages` arrive in the onLoad burst. It is still
+       a line no pin read, and it is still the only thing that makes the ⊕ honest before any
+       push arrives. Pinned as a PAIR with the wake-up timer, in both homes, because the two
+       lines are one guarantee. */
+    for (const [label, pth] of [['source', 'src/shells/chat.html'], ['shipped', 'Spixi/Resources/Raw/html/chat.html']]) {
+      const t = rdf(pth);
+      ok(/\n  syncAttachAffordance\(\);\n  setTimeout\(syncAttachAffordance, MODE_WAIT_MS\);/.test(t),
+        '★★★ ROUND 4 (surviving mutations Y9′ and Y9b′), ' + label + ': the boot derive and the one wake-up sit together, in that order. The derive makes the ⊕ honest before any C# push arrives; the timer is the only thing that ever releases the reserved box in a room that never answers. Two lines, one guarantee, and neither was read by any pin before this round');
+    }
+  }
+
+  /* —— ★★ THE STRING KEYS THE RULING NEEDS — NOW DONE, END TO END ——————————— */
+  {
+    /* ⚠⚠ REWRITTEN, ROUND 5. The round-4 pin was `ok(inline || extracted, …)` and it said
+       the pipeline step was OWED. That disjunction was satisfiable by the INLINE half
+       alone, so it could never go red while the dictionaries stayed empty — which is
+       precisely the state it was describing. A pin that reports a gap is not the same thing
+       as a pin that can detect one.
+
+       ★ THE GAP IT DESCRIBED WAS A REAL MAJOR, and no other gate could see it.
+       `readOf` and `downloadedOf` existed in NO dictionary, so the new menu line shipped
+       ENGLISH in all 12 locales — and `verify-locales` cannot check a key that does not
+       exist, so the run was green the whole time. An inline `||` fallback is invisible to
+       every i18n gate we have; that is what makes this class expensive.
+
+       ★ SO THE PIN NOW ASSERTS THE WORK IS DONE, in all three homes at once, and it does
+       NOT accept the inline fallback as evidence:
+         · the four keys exist in en-us.json;
+         · they exist in EVERY locale file, not just the ones somebody remembered;
+         · they reached the BUILT artifact the WebView actually loads;
+         · and the four dead keys are gone from all of them.
+       ⚠ The inline `||` fallbacks stay in the shell ON PURPOSE — they are the belt for a
+       missing dictionary — so their presence is not asserted either way. What is asserted
+       is that they can no longer be the only thing standing. */
+    const localeDir = join(root, 'src/strings');
+    const localeFiles = readdirSync(localeDir).filter((f) => f.endsWith('.json')).sort();
+    /* ★ ROUND 6 adds `noneSeenYet` — Damir on Windows: *"the row should say - nobody has
+       seen this yet"*. Keys went 775 → 776. The count is DERIVED from en-us below rather
+       than hardcoded, so a pin does not need editing every time a key lands; what is
+       asserted is that no dictionary has drifted away from it. */
+    const LIVE = ['readOf', 'downloadedOf', 'callBusy', 'callUnavailable', 'noneSeenYet'];
+    const DEAD = ['deliveredOf', 'downloadedBy', 'readBy', 'markRead'];
+    const missing = [];
+    const stale = [];
+    const sizes = {};
+    for (const f of localeFiles) {
+      let dict = null;
+      try { dict = JSON.parse(readFileSync(join(localeDir, f), 'utf8')); } catch (e) { dict = null; }
+      if (!dict) { missing.push(f + ':UNPARSEABLE'); continue; }
+      sizes[f] = Object.keys(dict).length;
+      for (const k of LIVE) if (typeof dict[k] !== 'string' || !dict[k]) missing.push(f + ':' + k);
+      for (const k of DEAD) if (k in dict) stale.push(f + ':' + k);
+    }
+    /* ★ EVERY DICTIONARY IS THE SAME SIZE AS en-us. A locale that silently lost keys still
+       passes a per-key check for the keys somebody thought to name. The count is taken FROM
+       en-us, so a new key needs no pin edit — but a locale drifting away from it turns red. */
+    const enSize = sizes['en-us.json'] || 0;
+    const wrongSize = Object.keys(sizes).filter((f) => sizes[f] !== enSize);
+    /* ★ AND IT REACHED THE ARTIFACT. A key in the source dictionaries that never gets built
+       into `spixi.strings.js` is a key the WebView cannot read — the same one-sided gap that
+       let a fixed source shell sit beside a stale shipped shell for a whole session. */
+    const builtStrings = rdf('Spixi/Resources/Raw/html/spixi.strings.js');
+    const notBuilt = LIVE.filter((k) => !new RegExp('"' + k + '"').test(builtStrings));
+    const deadBuilt = DEAD.filter((k) => new RegExp('"' + k + '"').test(builtStrings));
+    ok(localeFiles.length >= 12 && enSize > 700
+       && missing.length === 0 && stale.length === 0
+       && wrongSize.length === 0
+       && notBuilt.length === 0 && deadBuilt.length === 0,
+      '★★★ ROUND 6: the strings pipeline is DONE, not owed. `readOf`, `downloadedOf`, `callBusy`, `callUnavailable` and `noneSeenYet` are TRANSLATED in every one of the ' + localeFiles.length + ' locale files AND present in the built spixi.strings.js, and every dictionary carries the same ' + enSize + ' keys as en-us, and the four dead keys are gone from both. The round-4 pin said this step was owed and could not detect it, because its `inline || extracted` disjunction passed on the inline English fallback — and an inline fallback is invisible to verify-locales, which cannot check a key that does not exist. That is how a new menu line shipped English to 12 locales with every gate green. Missing: ' + JSON.stringify(missing) + ' · stale: ' + JSON.stringify(stale) + ' · not built: ' + JSON.stringify(notBuilt) + ' · dead in build: ' + JSON.stringify(deadBuilt) + ' · wrong key count: ' + JSON.stringify(wrongSize));
+  }
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

@@ -189,13 +189,34 @@ namespace SPIXI
             {
                 if (VoIPManager.isInitiated())
                 {
+                    // Hang up is NEVER gated. A call in progress must always be endable.
                     VoIPManager.hangupCall(null);
                 }
                 else
                 {
-                    VoIPManager.initiateCall(friend);
+                    /* ★★ ROUND 3 (review3-cs MAJOR-2) — the belt is now the ONE rule.
+                     * The words that used to stand here were duplicated in three other
+                     * places and had already drifted twice. Read `canPlaceCall`. */
+                    onStartCall();
                 }
 
+            }
+            /* ★★ ROUND 3 (review3-cs MAJOR-2) — THE CALL RULE'S THIRD HOME.
+             * Every call bubble carries a "Call back" link (typed-bubbles.js
+             * createCallBubble → chat.html buildCallRow). It used to send `ixian:call`,
+             * the TOGGLE above — so a control labelled "Call back" reached the ungated
+             * hang-up branch and ENDED A LIVE CALL, from any conversation that holds a
+             * call card. It also bypassed the reveal, so it offered a call in rooms where
+             * no phone action is revealed at all.
+             * ⚠ THIS VERB CAN NEVER END A CALL. It has one leg, the start leg. The
+             * toggle keeps its ungated hang-up, because the topbar control belongs to the
+             * call it ends; a link labelled "Call back" must not be destructive.
+             * `ContactDetails.xaml.cs` refuses a hang-up branch for the same reason.
+             * ⚠ The shell asks the same rule before it paints the link and again before
+             * it emits (chat.html buildCallRow). This is the belt, not the only gate. */
+            else if (current_url.Equals("ixian:callback", StringComparison.Ordinal))
+            {
+                onStartCall();
             }
             else if (current_url.Equals("ixian:sendmedia", StringComparison.Ordinal))
             {
@@ -228,7 +249,16 @@ namespace SPIXI
             {
                 string id = current_url.Substring("ixian:openfile:".Length);
 
-                FriendMessage fm = friend.getMessages(selectedChannel).Find(x => x.transferId == id);
+                /* ★★ MINOR-5 family, found in the sweep: the ACCEPT branch six lines above
+                 * guards this exact lookup and this one did not. A stale transfer id from a
+                 * re-rendered file card left `fm` null and `fm.filePath` threw straight out
+                 * of `onNavigating`. Two homes of one rule, and only one of them was safe. */
+                FriendMessage? fm = friend.getMessages(selectedChannel)?.Find(x => x.transferId == id);
+                if (fm == null || fm.filePath == null)
+                {
+                    Logging.error("Cannot open file: no message holds transfer id {0}", id);
+                    return;
+                }
 
                 if (File.Exists(fm.filePath))
                 {
@@ -429,6 +459,76 @@ namespace SPIXI
                 return;
             }
             e.Cancel = true;
+        }
+
+        /// <summary>
+        /// ★★ ROUND 3 (review3-cs MAJOR-2) — CAN A CALL BE PLACED TO THIS FRIEND?
+        /// ONE RULE. Every home of the call rule asks THIS METHOD, and there are four:
+        ///   · the reveal in this page (`showCallButton`);
+        ///   · the start leg in this page (`ixian:call` and `ixian:callback`);
+        ///   · the reveal in ContactDetails;
+        ///   · the start leg in ContactDetails.
+        /// The shell is the fifth home and it cannot read C# state, so it asks its own copy
+        /// of the answer (`callVisible`, set by the `showCallButton` push) before it paints
+        /// the "Call back" link and again before it emits. C# stays the authority.
+        ///
+        /// WHAT EACH TERM IS FOR:
+        ///   · `friend != null` — the start leg runs off a WebView verb, not off the
+        ///     reveal, so it must not assume a page state.
+        ///   · `!friend.bot` and `type != FriendType.Group` — a room is not a peer.
+        ///     `VoIPManager.initiateCall` holds ONE contact and ONE session: it sends an app
+        ///     request to the ROOM address, writes a call bubble into history, presents
+        ///     CallPage, starts the dial tone, takes the power locks and rings for 45
+        ///     seconds, and nobody answers. That is the ② delivery lie.
+        ///   · `state == FriendState.Approved` — a contact can be removed, or fall out of
+        ///     Approved, between the reveal and the tap.
+        ///   · the AUDIO CODEC test — ROUND 3 ADDED THIS TO BOTH START LEGS. Only the two
+        ///     reveals carried it, so a codec-less device that received a call card could
+        ///     tap "Call back", pass both belts, and reach `VoIPManager.initiateCall`, which
+        ///     builds its codec list from an EMPTY set and dials anyway. An incoming call
+        ///     writes its bubble with no codec test at all (StreamProcessor).
+        ///
+        /// ⚠ HANG UP IS NEVER GATED. This rule guards the START leg only. A relation belt
+        /// above the toggle would trap a user in a live call that cannot be ended, which is
+        /// worse than the defect it closes.
+        ///
+        /// ⚠ WHY IT LIVES HERE. Its callee is `VoIPManager.initiateCall`, and VoIPManager
+        /// is outside this batch's file scope. This page is the primary call surface, so the
+        /// rule sits beside the verb that uses it most. Move it onto VoIPManager the next
+        /// time that file is opened — one move, four call sites, no drift.
+        /// </summary>
+        public static bool canPlaceCall(Friend friend)
+        {
+            return friend != null
+                && !friend.bot
+                && friend.type != FriendType.Group
+                && friend.state == FriendState.Approved
+                && SSpixiCodecInfo.getSupportedAudioCodecs().Count > 0;
+        }
+
+        /// <summary>
+        /// ★★ ROUND 3 (review3-cs MAJOR-2) — THE ONE START LEG, FOR BOTH CALL VERBS.
+        /// It can never end a call. A refusal is TOLD to the user: the old belt logged and
+        /// pushed nothing, so a tap on a live-looking control did nothing, for ever, with no
+        /// explanation (review3-cs MAJOR-2, failure scenario A).
+        /// </summary>
+        private void onStartCall()
+        {
+            if (!canPlaceCall(friend))
+            {
+                Logging.warn("Call refused: this chat cannot place a call.");
+                Utils.sendUiCommand(this, "callRefused", "unavailable");
+                return;
+            }
+            if (VoIPManager.isInitiated())
+            {
+                // Reached from `ixian:callback` only — the toggle above ends the call it
+                // finds. A second call cannot be placed over a live one.
+                Logging.warn("Call refused: a call is already in progress.");
+                Utils.sendUiCommand(this, "callRefused", "busy");
+                return;
+            }
+            VoIPManager.initiateCall(friend);
         }
 
         private void onLoadMore()
@@ -883,7 +983,30 @@ namespace SPIXI
                         return;
                     }
 
-                    if (SSpixiCodecInfo.getSupportedAudioCodecs().Count > 0 && friend.state == FriendState.Approved)
+                    /* ★★ #46 loop r2, own sweep — A RULE WITH TWO HOMES THAT HAD DRIFTED.
+                     * ContactDetails.onLoad gates the SAME verb on `!isGroup` as well
+                     * (ContactDetails.xaml.cs:138-145), and its comment claims the two gates
+                     * are one rule. They were not. This site had no room test, so an
+                     * Approved GROUP and an Approved BOT ROOM showed the phone action in the
+                     * chat header. This file's own line at :3051 records that a group does
+                     * reach FriendState.Approved, and the shell trusts the push
+                     * ("callVisible = true", chat.html:4705).
+                     * ⚠ WHAT A TAP DID. VoIPManager.initiateCall (VoIPManager.cs:78) holds
+                     * ONE currentCallContact and ONE session: it sends an app request to the
+                     * ROOM address, writes a call bubble into history, presents CallPage,
+                     * starts the dial tone, takes the power locks and rings for 45 seconds.
+                     * Nobody answers, because a room is not a peer. That is the ⑪ delivery
+                     * lie — a control reporting an outcome it did not cause — and the #591
+                     * audit already ruled it out on the ContactDetails surface for exactly
+                     * this reason. The other home of the rule kept the defect.
+                     * ★★ ROUND 3 (review3-cs MAJOR-2) — IT WAS THREE HOMES, NOT TWO, AND
+                     * NOW IT IS ONE RULE THAT ALL OF THEM ASK. The third home was the shell:
+                     * every call bubble carries a "Call back" link, it sent `ixian:call`
+                     * whatever this reveal decided, and it reached the ungated hang-up
+                     * branch. The four C# sites — this reveal, the start leg at
+                     * `ixian:call`/`ixian:callback`, and both ContactDetails sites — now
+                     * call `canPlaceCall(friend)`. Change the rule THERE. */
+                    if (canPlaceCall(friend))
                     {
                         Utils.sendUiCommand(this, "showCallButton", "");
                     }
@@ -1765,7 +1888,22 @@ namespace SPIXI
                         Logging.error("Send IXI is not supported in this chat.");
                         return;
                     }
-                    Address new_friend_address = friend.getMessages(selectedChannel).Find(x => x.id != null && x.id.SequenceEqual(msg_id)).senderAddress;
+                    /* ★★ MINOR-5 (#46 loop r2) — GUARD THE LOOKUP. `getMessages` can return
+                     * null, and `Find` returns null for an id that is not in this channel.
+                     * The old line chained `.senderAddress` onto both, so a stale or crafted
+                     * id threw a NullReferenceException. `onContextAction` is dispatched BARE
+                     * from `onNavigating` (:333), and this file already records what that
+                     * costs: an escaping exception leaves a MAUI Navigating handler unhandled
+                     * and takes the process down on Android and iOS (:1481).
+                     * ⚠ THIS FILE MIXES BOTH FORMS. `:1810` and `:1831` guard; four sites did
+                     * not. All four are repaired in this batch. Count the surfaces. */
+                    FriendMessage? req_msg = friend.getMessages(selectedChannel)?.Find(x => x.id != null && x.id.SequenceEqual(msg_id));
+                    if (req_msg == null || req_msg.senderAddress == null)
+                    {
+                        Logging.error("sendContactRequest: the source message was not found in this channel.");
+                        return;
+                    }
+                    Address new_friend_address = req_msg.senderAddress;
                     Friend new_friend = FriendList.addFriend(FriendType.Normal, FriendState.RequestSent, new_friend_address, null, new_friend_address.ToString(), null, null, 0);
                     if (new_friend != null)
                     {
@@ -1782,12 +1920,28 @@ namespace SPIXI
                     }
                     break;
 
+                /* ★★ MINOR-5 (#46 loop r2): the same unguarded chain as sendContactRequest
+                 * above, twice. One lookup serves both rows now, so the rule has ONE home.
+                 * ⚠ Scope is unchanged: kick and ban stay bot-room only. This guard refuses
+                 * a message id the channel does not hold; it grants nothing. */
                 case "kickUser":
-                    onKickUser(friend.getMessages(selectedChannel).Find(x => x.id != null && x.id.SequenceEqual(msg_id)).senderAddress);
-                    break;
-
                 case "banUser":
-                    onBanUser(friend.getMessages(selectedChannel).Find(x => x.id != null && x.id.SequenceEqual(msg_id)).senderAddress);
+                    {
+                        FriendMessage? mod_msg = friend.getMessages(selectedChannel)?.Find(x => x.id != null && x.id.SequenceEqual(msg_id));
+                        if (mod_msg == null || mod_msg.senderAddress == null)
+                        {
+                            Logging.error("{0}: the target message was not found in this channel.", action);
+                            return;
+                        }
+                        if (action == "kickUser")
+                        {
+                            onKickUser(mod_msg.senderAddress);
+                        }
+                        else
+                        {
+                            onBanUser(mod_msg.senderAddress);
+                        }
+                    }
                     break;
 
                 case "report":
@@ -1846,8 +2000,14 @@ namespace SPIXI
 
                 case "like":
                     var address = IxianHandler.getWalletStorage().getPrimaryAddress();
-                    if (friend.type == FriendType.Group
-                        && friend.metaData.botInfo.hideParticipantAddresses
+                    /* ★★ ROUND 3 (review3-cs MINOR-1) — THE WRITER OF THE PAIR. It read the
+                     * same raw chain and threw on a group with no BotInfo: the tap did
+                     * nothing and no reaction was stored. Read `updateReactions` for why
+                     * the BotInfo term stays beside the one-truth predicate. Both sites
+                     * must derive on exactly the same condition. */
+                    if (Utils.hidesParticipants(friend)
+                        && friend.metaData?.botInfo != null
+                        && friend.users.getOwner() != null
                         && !friend.users.getOwner().SequenceEqual(address))
                     {
                         // if blind group and not owner, use derived address
@@ -2636,7 +2796,11 @@ namespace SPIXI
         {
             if (channel == selectedChannel)
             {
-                FriendMessage? fm = friend.getMessages(channel).Find(x => x.id != null && x.id.SequenceEqual(msg_id));
+                // ★★ MINOR-5 (#46 loop r2): `getMessages` can return null. Fix agent L
+                // hardened the same idiom at StreamProcessor.cs:294 with that reason written
+                // out. This site is the sink of the new msgReaction channel resolve
+                // (StreamProcessor.cs:605), so it is reached from the NETWORK thread.
+                FriendMessage? fm = friend.getMessages(channel)?.Find(x => x.id != null && x.id.SequenceEqual(msg_id));
                 if (fm != null)
                 {
                     updateReactions(fm);
@@ -2646,6 +2810,9 @@ namespace SPIXI
                     // the open chat's delivery tick stayed on the clock. Re-push the status so the
                     // tick advances. Guarded to localSender: only our own messages carry a delivery
                     // tick, and a received row would force a needless full re-render on every reaction.
+                    // ⚠ This branch also runs for a FILE message — handleFileFullyReceived pushes
+                    // updateReactions for the download count. updateMessage refuses a non-text
+                    // message at its own head; do not add a second copy of that rule here.
                     if (fm.localSender)
                     {
                         updateMessage(fm, channel);
@@ -2658,8 +2825,24 @@ namespace SPIXI
         {
             // C5: own reaction address — blind groups react under a derived address (see the like case above)
             var own_address = IxianHandler.getWalletStorage().getPrimaryAddress();
-            if (friend.type == FriendType.Group
-                && friend.metaData.botInfo.hideParticipantAddresses
+            /* ★★ ROUND 3 (review3-cs MINOR-1) — THE RAW CHAIN THREW ON A GROUP WITH NO
+             * BotInfo, AND `Utils.hidesParticipants` IS THE ONE HOME OF THAT QUESTION.
+             * `ContactDetails.xaml.cs:280-284` states in this tree that a group can exist
+             * with `metaData.botInfo == null`, and this site dereferenced it bare, four
+             * lines above the `try` the same round added. A file that finished downloading
+             * in such a group threw here, and `receiveData`'s outer catch swallowed it —
+             * the rest of that one message and its download count were lost.
+             * ⚠ THE SECOND TERM IS NOT REDUNDANT. `Utils.hidesParticipants` fails CLOSED:
+             * it answers TRUE for a group whose room info has not arrived, which is right
+             * for a MASK and wrong for a DERIVATION — `DeriveGroupAddress` needs
+             * `botInfo.randomId`, and reading it would throw exactly where the old chain
+             * did. With no room info the address cannot be derived, so the primary address
+             * stands: no own-reaction highlight until the room info lands, and no throw.
+             * ⚠ The WRITER (the `like` case) carries the same pair. Keep them equal — a
+             * reader that derives while the writer does not reads the wrong address. */
+            if (Utils.hidesParticipants(friend)
+                && friend.metaData?.botInfo != null
+                && friend.users.getOwner() != null
                 && !friend.users.getOwner().SequenceEqual(own_address))
             {
                 own_address = GroupChat.DeriveGroupAddress(own_address, friend.metaData.botInfo.randomId);
@@ -2667,14 +2850,42 @@ namespace SPIXI
 
             var reactions_str = "";
             var own_reactions_str = "";
-            foreach (var reaction in fm.reactions)
+            /* ★★ MINOR-4 (#46 loop r2) — THE LOCK THE deliveryTicks HEADER ALREADY PROMISED.
+             * That header says the tick derivation "reads `reactions` under the same lock
+             * discipline the reaction push uses". It was true of the three derivation sites
+             * (they now all ask UIHelpers.anyOtherMemberHasMessage, which takes the lock)
+             * and FALSE
+             * of this one: the push walked `fm.reactions` bare while Core can append to the
+             * same collection from the network thread, so `InvalidOperationException:
+             * Collection was modified` was reachable here. The comment vouched for a
+             * discipline that existed on one side only. Now it holds on both.
+             * ⚠ WHAT THE LOCK DOES AND DOES NOT BUY. It matches the three sibling sites, so
+             * this app's own readers cannot collide. Ixian-Core is FROZEN at 097341a and is
+             * not in this checkout, so whether Core's writer takes the SAME lock cannot be
+             * answered here — that is why the try/catch stays. A concurrent modification
+             * therefore degrades to ONE skipped push, not a throw.
+             * ⚠ Why a skipped push is safe: every reaction event pushes again, and the shell
+             * re-renders from the next full string. A PARTIAL string would show wrong counts,
+             * so it is never sent. */
+            try
             {
-                reactions_str += reaction.Key + ":" + reaction.Value.Count() + ";";
-                // C5: which reaction keys the local user has added (trailing arg — never reorder)
-                if (reaction.Value.Find(x => x.sender.SequenceEqual(own_address)) != null)
+                lock (fm.reactions)
                 {
-                    own_reactions_str += reaction.Key + ";";
+                    foreach (var reaction in fm.reactions)
+                    {
+                        reactions_str += reaction.Key + ":" + reaction.Value.Count() + ";";
+                        // C5: which reaction keys the local user has added (trailing arg — never reorder)
+                        if (reaction.Value.Find(x => x.sender.SequenceEqual(own_address)) != null)
+                        {
+                            own_reactions_str += reaction.Key + ";";
+                        }
+                    }
                 }
+            }
+            catch (Exception reactionEx)
+            {
+                Logging.warn("updateReactions: the reaction set changed while it was read. The push is skipped. " + reactionEx);
+                return;
             }
             Utils.sendUiCommand(this, "addReactions", Crypto.hashToString(fm.id), reactions_str, own_reactions_str);
         }
@@ -2710,14 +2921,33 @@ namespace SPIXI
          * the legacy rule, already correct in shared code (Damir corrected an earlier
          * version of this row that claimed the opposite).
          *
-         * ⚠ Read-only. It reads `reactions` under the same lock discipline the reaction
-         * push uses and writes nothing.
+         * ⚠ Read-only. It reads `reactions` under `lock (message.reactions)` (see
+         * UIHelpers.anyOtherMemberHasMessage) and writes nothing. The reaction push at
+         * updateReactions(FriendMessage) takes the SAME lock — it did not when this line
+         * was written, which is why the sentence is now a statement of fact rather than an
+         * assumption (#46 loop r2, MINOR-4).
          *
          * ⚠⚠ IT RUNS AT TWO PUSH SITES, NOT FOUR. The first cut called it at the file and
          * app pushes as well, and those two shell handlers DISCARD the flags — the cards
          * carry no delivery tick at all. Dead code with a guarantee attached is worse than
          * the gap, so the calls came out and the gap is logged instead: file, app and
-         * payment cards in a group show no delivery state. That is a shell row. */
+         * payment cards in a group show no delivery state. That is a shell row.
+         *
+         * ★★ ONE PREDICATE, ONE HOME (#647 round 4). "Did anybody else get it" is asked
+         * here, at HomePage.getFriendMessageHelper and at
+         * SpixiPendingMessageProcessor.markGroupCopyFailed. All three ASK the same
+         * method: UIHelpers.anyOtherMemberHasMessage. Do not spell the rule out again
+         * here. Do not add a reaction key here.
+         *
+         * ★ THE RULE IS CLOSED, so this site can never drift again. Any reaction from
+         * any address that is not the local user is evidence that this member has the
+         * message. Three earlier rounds each widened an enumerated list of keys and each
+         * missed a surface. The list is gone. Read the header of
+         * UIHelpers.anyOtherMemberHasMessage for the whole rule.
+         *
+         * ⚠ THIS SITE PASSES `false` AS THE UNREADABLE ANSWER. An unreadable reaction
+         * set must not paint a double check that we cannot see. markGroupCopyFailed
+         * passes `true` for the opposite reason. That asymmetry is deliberate. */
         private void deliveryTicks(FriendMessage message, out bool sent, out bool confirmed, out bool read)
         {
             sent = message.sent;
@@ -2731,7 +2961,8 @@ namespace SPIXI
             // stored `read` flag when every member reports seen — the bubble still must
             // not show it, so the override is here rather than a Core change.
             read = false;
-            if (!confirmed && groupReactionCount(message, "received") >= 1)
+            // ★★ ONE home for the rule. See the header. Unreadable answers `false` here.
+            if (!confirmed && UIHelpers.anyOtherMemberHasMessage(friend, message, false))
             {
                 confirmed = true;
             }
@@ -2742,34 +2973,38 @@ namespace SPIXI
             }
         }
 
-        /* ★★ L2 (#641): how many DISTINCT members have reported this reaction. The key is
-         * the reaction name with no payload ("received", "seen") — FriendMessage.addReaction
-         * splits at the first colon and de-duplicates by sender address, so this is a
-         * member count, not a receipt count. */
-        private static int groupReactionCount(FriendMessage message, string key)
-        {
-            try
-            {
-                lock (message.reactions)
-                {
-                    return message.reactions.ContainsKey(key) ? message.reactions[key].Count : 0;
-                }
-            }
-            catch (Exception)
-            {
-                return 0;
-            }
-        }
-
-        /* ★★ [RCPT] probe support — TEMPORARY, goes with the probe in StreamProcessor. */
-        public int getSelectedChannel()
-        {
-            return selectedChannel;
-        }
-
         public void updateMessage(FriendMessage message, int channel)
         {
             if (channel != selectedChannel)
+            {
+                return;
+            }
+            /* ★★ TEXT ONLY, AND THIS IS THE CHOKE POINT.
+             *
+             * The push below sends `message.message` as the BUBBLE TEXT. That field is
+             * display text for a standard message and for nothing else. A fileHeader
+             * holds the raw header `uid:name:size` (this file parses it that way at the
+             * fileHeader branch of insertMessage), an appSession holds the app info
+             * string, and a payment holds a transaction id.
+             *
+             * The shell handler is `upsertText`. It OVERWRITES the row's text, and when
+             * the id is not loaded it CREATES a text row stamped with the CURRENT time.
+             * So one download of an out-of-window group file painted a phantom outgoing
+             * bubble reading `9f2a…:holiday.jpg:2048576` at the bottom of the log, and
+             * long-press Copy on a file card copied the header string.
+             *
+             * The guard lives HERE, not at the callers. Seven sites push through this
+             * method: the C11 reaction re-push above, the receipt in StreamProcessor, the
+             * updated-message path in Node, and the four hooks in
+             * SpixiPendingMessageProcessor. Every one of them can hold a file, app or
+             * payment message.
+             *
+             * ⚠ NOTHING IS LOST. The file, app and payment cards DISCARD the delivery
+             * flags in the shell (see the addFile and addAppRequest notes above), so
+             * they have no tick this push could have advanced. The reaction and download
+             * counts reach the card through `addReactions`, which is a different push
+             * and is not gated. */
+            if (message.type != FriendMessageType.standard)
             {
                 return;
             }

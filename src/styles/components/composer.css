@@ -113,6 +113,18 @@
    for a text input; every non-text control in the bar keeps its ring. */
 .c-composer__field:focus-within { box-shadow: none; }
 
+/* ★ A2 (Damir F5, 2026-08-28). The 4px inline-start above is the ATTACH PILL's own
+   inset, not the text's — the 36px pill supplies the rest of the optical gap. When a
+   host hides the pill, `[hidden] { display: none !important }` takes it out of the
+   row entirely and the placeholder sits against the field edge. Damir saw this the
+   moment the bot room stopped offering a ⊕.
+   ⚠ ONE ATTRIBUTE, SET BY THE FUNCTION THAT HIDES THE BUTTON. The compensation and
+   the hiding must never be able to disagree, so this rule has no predicate of its
+   own — it renders whatever `syncAttachAffordance` decided. A host that always shows
+   the pill never sets the attribute and is byte-identical to before.
+   The value matches `padding-inline-end`, so a composer with no pill is symmetric. */
+.c-composer__field[data-no-attach] { padding-inline-start: var(--spacing-12); }
+
 .c-composer__attach {
   position: relative; /* hit-area extension below (r2 backlog B6) */
   flex: none;

@@ -38,6 +38,30 @@ namespace SPIXI.Meta
 
         public static int startCounter = 0;
 
+        /// <summary>
+        /// ★★ ROUND 3 (review3-cs MAJOR-1) — "IS THE NODE CONNECTED?", AS HONESTLY AS THIS
+        /// TREE CAN ANSWER IT.
+        ///
+        /// `startCounter` records that `start()` COMPLETED. It does not record that the
+        /// node reached the network, because `connectToNetwork()` is a separate step that
+        /// every caller of `start()` makes for itself: App.xaml.cs:381, App.xaml.cs:1426 and
+        /// HomePage.xaml.cs:402. A throw inside that step leaves `running == true` and
+        /// `startCounter > 0` on a node that never connected — the same silent boot
+        /// MAJOR-1 closes, reached through a narrower door.
+        ///
+        /// This counter is incremented by the LAST statement of `connectToNetwork()`, so
+        /// `connectCounter > 0` means "a connect attempt COMPLETED this process-life".
+        /// It is not a live link state: Ixian-Core owns the client managers, it is FROZEN
+        /// at 097341a and it is not in this checkout, so nothing here can read the socket.
+        /// Consumers must AND it with `isRunning`, which `stop()` clears — a stale count
+        /// after a stop is then unreadable. HomePage.xaml.cs:389 is the one consumer.
+        ///
+        /// ⚠ Nothing resets it, and nothing needs to: it is only ever read beside
+        /// `isRunning`, and every path that clears `running` is followed by a fresh
+        /// `start()` + `connectToNetwork()` pair.
+        /// </summary>
+        public static int connectCounter = 0;
+
         public static TransactionInclusion tiv = null;
 
         public static MiniAppManager MiniAppManager = null;
@@ -223,6 +247,63 @@ namespace SPIXI.Meta
                 }
                 Logging.info("Starting node");
 
+                /* ★★ #46 loop ROUND 2 (review-cs MAJOR-1) — `running` IS LATCHED HERE, AND
+                 * IT IS NOT CLEARED ON A FAILURE. READ THIS BEFORE YOU TRUST IT.
+                 *
+                 * `running = true` is five lines above the first failure return below, and
+                 * every statement down to the `return true` at the end can throw. So
+                 * `running == true` means only "start() got past this line". It does NOT
+                 * mean the node started. A device log already records that state:
+                 * App.xaml.cs:1373-1378 (fatalexception.txt, 2026-08-24 12:28:00) — a
+                 * KeyNotFoundException on the wallet read left a half-started zombie.
+                 *
+                 * `startCounter` below is the honest signal, and ROUND 3 MOVED IT.
+                 *
+                 * ★★ ROUND 3 (review3-cs MAJOR-1) — THE COUNTER WAS ON THE WRONG SIDE OF
+                 * THE RECORDED THROW SITE, AND THE COMMENT THAT SHIPPED HERE WAS FALSE.
+                 * Round 2 wrote that the counter is incremented "past the wallet read".
+                 * It was not. `startCounter++` sat above `SPushService.initialize()`, above
+                 * the wallet read `IxianHandler.getWalletStorage().getPrimaryAddress()`,
+                 * above the UNFENCED `SPushService.setTag(tag)`, above `resume()` and above
+                 * the API server. The wallet read is the exact statement the device log
+                 * names as the observed zombie's throw site (App.xaml.cs:1373-1378,
+                 * fatalexception.txt, 2026-08-24 12:28:00). So the zombie satisfied BOTH
+                 * terms of `Node.isRunning && Node.startCounter > 0`, and HomePage read it
+                 * as healthy: the app booted onto a node that never called
+                 * `connectToNetwork()`, with no dialog and no repair path.
+                 *
+                 * `startCounter++` is now the LAST statement before `return true`. A start
+                 * that throws anywhere leaves the counter at its old value. `startCounter > 0`
+                 * now means what both consumers already claim it means: a start() COMPLETED
+                 * at least once this process-life. Two consumers ask it that way:
+                 * App.xaml.cs:1399 and HomePage.xaml.cs:389.
+                 * ⚠ A SUCCESSFUL start is unchanged. Every statement between the old
+                 * position and the new one runs before `return true` either way, and no
+                 * statement in that span reads `startCounter`.
+                 *
+                 * ⚠ AND `startCounter > 0` IS NOT "CONNECTED". `connectToNetwork()` is a
+                 * SEPARATE step, owned by the three callers of start(). `connectCounter`
+                 * (below :385) records that step. HomePage.xaml.cs:389 asks for both.
+                 *
+                 * ⚠ "NOTHING RESETS IT" IS NOT TRUE EITHER (review3-cs MINOR-3).
+                 * `SettingsPage.wipeEverything` sets `Node.startCounter = 0` at :1192,
+                 * beside `IxianHandler.shutdown()`, so a post-wipe restore is guarded like
+                 * a first boot. That is the ONE reset. Do not add a second one, and do not
+                 * reset the counter in `stop()`: `App.EnsureNodeRunning` reads
+                 * `startCounter == 0` as "the boot flow owns the first start", so a counter
+                 * cleared by stop() would stop that method from ever resuming a stopped node.
+                 *
+                 * ⚠ WHY THE FAILURE RETURNS DO NOT CLEAR `running`, AND WHY THAT WAS NOT
+                 * CHANGED IN THIS LOOP. An honest unwind is not one assignment. By this
+                 * point `IxianHandler.status` is already `warmUp` and `UpdateVerify.start()`
+                 * has run, and later returns sit above more started subsystems. Clearing
+                 * the flag alone would admit a SECOND start() over half-started Ixian-Core
+                 * services — NetworkQueue, TransferManager, UpdateVerify — and Ixian-Core
+                 * is FROZEN at 097341a and is not in this checkout, so "is a second start()
+                 * safe" cannot be answered here. The teardown that could answer it is
+                 * `stop()`, which itself early-returns on `!running`. A real repair is a
+                 * failure unwind written against Core; that is BE row CORE-6. Until then
+                 * every consumer must test `startCounter`, not `running` alone. */
                 running = true;
                 IxianHandler.status = NodeStatus.warmUp;
 
@@ -230,6 +311,7 @@ namespace SPIXI.Meta
 
                 if (!storage.prepareStorage(false))
                 {
+                    // ⚠ `running` stays TRUE on this path. See the note above.
                     Logging.error("Error while preparing block storage! Aborting.");
                     return false;
                 }
@@ -279,8 +361,6 @@ namespace SPIXI.Meta
 
                 MiniAppManager.start();
 
-                startCounter++;
-
                 // Init push service
                 SPushService.initialize();
 
@@ -296,6 +376,12 @@ namespace SPIXI.Meta
                 }
 
                 Logging.info("Node started");
+
+                /* ★★ ROUND 3 (review3-cs MAJOR-1) — THE LAST STATEMENT, ON PURPOSE.
+                 * Read the header of this method before you move this line. The counter
+                 * answers ONE question: "did a start() complete this process-life?" It can
+                 * only answer it from here, below every statement that can throw. */
+                startCounter++;
 
                 return true;
             }
@@ -369,6 +455,11 @@ namespace SPIXI.Meta
 
             // Start the network client manager
             NetworkClientManager.start(2);
+
+            /* ★★ ROUND 3 (review3-cs MAJOR-1) — THE LAST STATEMENT, ON PURPOSE. See the
+             * `connectCounter` header above. A throw in any line above leaves the count
+             * where it was, so the counter cannot claim a connect that did not finish. */
+            connectCounter++;
         }
 
         private static void connectToBotNodes()

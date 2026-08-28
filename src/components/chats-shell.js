@@ -333,10 +333,10 @@ export function renderChatsList(listEl, state, opts = {}) {
   return listEl;
 }
 
-/** Apply a row action (menu or swipe) to the model, then re-render (#44). Pin/
- *  mute toggle, mark-read clears unread+mention, delete/deleteContact remove the
- *  chat row (deleteContact = the CH3 step-2 escalation, which ALSO intends contact
- *  removal — distinguished only by the onPersist intent); info is a stub (no model
+/** Apply a row action (menu or swipe) to the model, then re-render (#44). Pin and
+ *  mute toggle. delete/deleteContact remove the chat row (deleteContact = the CH3
+ *  step-2 escalation, which ALSO intends contact removal — distinguished only by
+ *  the onPersist intent); info is a stub (no model
  *  change) → opts.onChatInfo. `detail` carries the delete options ({ media }). On a
  *  model change: fire opts.onPersist(action, chat, detail) — the bridge intent (mock
  *  no-op now; a real `ixian:` command when BE ships, §8) — then re-render + onModelChange. */
@@ -344,7 +344,9 @@ export function applyChatRowAction(listEl, state, chat, action, opts = {}, detai
   switch (action) {
     case 'pin': chat.pinned = !chat.pinned; break;
     case 'mute': chat.muted = !chat.muted; break;
-    case 'markRead': chat.unread = 0; chat.mention = false; break;
+    /* 'markRead' is REMOVED (Damir, #46 loop 2026-08-27). The chats row menu no
+       longer offers it. There is no backend verb, so the badge came back on the next
+       flush and the counterpart got no read receipt. Do not add this case back. */
     // delete + deleteContact both remove the row; the wipe granularity (media,
     // contact) rides `detail`/`action` to the bridge intent (onPersist → BE).
     case 'delete':

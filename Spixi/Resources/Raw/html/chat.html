@@ -1286,6 +1286,18 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    for a text input; every non-text control in the bar keeps its ring. */
 .c-composer__field:focus-within { box-shadow: none; }
 
+/* ★ A2 (Damir F5, 2026-08-28). The 4px inline-start above is the ATTACH PILL's own
+   inset, not the text's — the 36px pill supplies the rest of the optical gap. When a
+   host hides the pill, `[hidden] { display: none !important }` takes it out of the
+   row entirely and the placeholder sits against the field edge. Damir saw this the
+   moment the bot room stopped offering a ⊕.
+   ⚠ ONE ATTRIBUTE, SET BY THE FUNCTION THAT HIDES THE BUTTON. The compensation and
+   the hiding must never be able to disagree, so this rule has no predicate of its
+   own — it renders whatever `syncAttachAffordance` decided. A host that always shows
+   the pill never sets the attribute and is byte-identical to before.
+   The value matches `padding-inline-end`, so a composer with no pill is symmetric. */
+.c-composer__field[data-no-attach] { padding-inline-start: var(--spacing-12); }
+
 .c-composer__attach {
   position: relative; /* hit-area extension below (r2 backlog B6) */
   flex: none;
@@ -5735,6 +5747,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     createAppBubble, createSystemNotice, createUnreadDivider,
     attachMessageMenu, openMessageMenu,   // openMessageMenu = the KEYBOARD path (Shift+F10 / Menu key)
     enterChatSelect, openTipSheet, openMemberSheet, openAttachSheet,
+    hasAttachTiles, attachTilesFor, // the ONE attach predicate — see openAttach / syncAttachAffordance
     openRequestSheet,               // #528: attach → Request (the #139 amount sheet, live)
     createWalletSend,               // W5 (#523): attach → Pay (lockedRecipient compose)
     openPaymentReview,              // ★ W-d: request-in Pay → the review sheet BEFORE the native confirm
@@ -5985,7 +5998,68 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   /* —— chat mode (setChatMode type: 0 = 1:1, 1 = group, 2 = blind group,
    *    3 = bot — chat.js setChatMode / xaml.cs:526,549). We keep it so the
    *    header + grouping know whether to show sender labels/avatars. ————————— */
-  const mode = { type: 0, isBot: false, isMulti: false, blind: false, blindKnown: true, admin: false, notifications: true, costText: '', description: '' };
+  /* ★★ ONE FIELD ANSWERS "IS THE ROOM TYPE KNOWN, AND FOR WHOM" (round 3).
+     `answeredFor` is the peer address the CURRENT room answer describes. `null` means
+     no answer has arrived. Round 2 held the same fact in TWO fields, `owner` and
+     `known`, and each of them was a separate line that one deletion could remove
+     (surviving mutation Y1). One fact, one field, one writer.
+     `hidesAddresses` is declared here so the unknown-room answer is explicit and not
+     an undefined read. `answeredFor` stays LAST — a pin names the tail of this literal. */
+  const mode = { type: 0, isBot: false, isMulti: false, blind: false, blindKnown: true, admin: false, notifications: true, costText: '', description: '', hidesAddresses: false, answeredFor: null };
+
+  /* ★★ THE ROOM-ANSWER LATCH AND ITS ONE WAKE-UP (#46 loop; round 3).
+   * `mode` above starts at its 1:1 DEFAULTS. C# sends setChatMode for every room.
+   * For a 1:1 room C# sends it SYNCHRONOUSLY, in the onLoad burst
+   * (SingleChatPage.xaml.cs:804). For a group or a bot room C# sends it from inside a
+   * Task.Run, after a wait loop (SingleChatPage.xaml.cs:730-771). So the first frames
+   * of a group or a bot room read as a 1:1, and every gate that reads `mode` answers
+   * for the wrong room.
+   *
+   * ★★ WHAT A ROOM OF UNKNOWN TYPE MAY OFFER: NOTHING. Read the four gates in
+   * `attachFlags()`. `apps` needs "not a bot". `payments` needs "a 1:1". `files` needs
+   * "not a bot and not a blind group". No tile survives every room type, so the
+   * intersection over the four room types is EMPTY. An unknown room therefore offers no
+   * tile, and the ⊕ that opens the tiles stays away. `attachFlags()` reads `modeKnown()`
+   * for that reason. It is the ONE predicate. `openAttach`, the sheet's own action gate,
+   * `openSendTakeover`, `openRequestForPeer` and `openAppPicker` all read that one
+   * object. A round-1 belt granted the 1:1 DEFAULTS on a timer instead, and a bot room
+   * then offered Pay, Request, App invite and Send file. C# refuses all four.
+   *
+   * ★ THE TIMEOUT IS PROOF, NOT PERMISSION. C# pushes the 1:1 setChatMode on the UI
+   * thread, in the same burst as onChatScreenReady. So a room that has sent no
+   * setChatMode after the wait is NOT a 1:1. Accepting the 1:1 defaults is the one
+   * answer that the timeout rules out.
+   *
+   * ★ SO WHAT DOES THE WAIT WINDOW DO? It bounds the composer LAYOUT. It does not open
+   * a gate. While the shell waits, the ⊕ keeps its place in the composer row and stays
+   * invisible. The text field does not grow and then shrink under a typing finger. When
+   * the window closes the shell stops holding space for a control that may never
+   * arrive, and the ⊕ collapses. A latch with no time bound is a permanent latch
+   * (#647③). This window is that time bound, and it cannot grant a capability.
+   *
+   * ★★★ THE WINDOW IS A CLOCK READING, NOT A STORED TIMESTAMP (round 3, surviving
+   * mutations Y7 and Y8). Round 2 stamped `waitStart` and `waitPeer` inside the derive
+   * function. Deleting that stamp, or setting it to 0, made the whole `wait` phase
+   * unreachable and nothing went red. `performance.now()` counts milliseconds from THIS
+   * document's time origin, and C# builds a NEW SingleChatPage — and therefore a new
+   * document — for every chat it opens (HomePage.xaml.cs:2043). So the document's own
+   * age IS this peer's wait window. There is no variable to stamp, no per-peer reset to
+   * delete, and no writer to forget.
+   * ★ It also closes review QUESTION-2: `performance.now()` is MONOTONIC, so an NTP
+   * step backwards cannot leave the ⊕ parked in `wait`. `Date.now()` could.
+   * ⚠ If a desktop reparent ever hands ONE document to a SECOND peer, that peer's
+   * window is already closed and the ⊕ collapses until its setChatMode lands. That
+   * direction is safe: it offers nothing. Do not "fix" it by re-stamping a variable.
+   *
+   * ⚠ MODE_WAIT_MS is compared against a FLOOR, not a ceiling. The C# wait is 50 sleeps
+   * of 100 ms and has no upper bound. That is safe, because the window only releases
+   * layout space. Do NOT restore a timer that opens a gate. */
+  const MODE_WAIT_MS = 6000;
+  /* The room type is known only when setChatMode answered for THIS peer. */
+  function modeKnown() { return mode.answeredFor !== null && mode.answeredFor === identity.address; }
+  /* True while this document is still inside its wait window. Pure: it reads a clock
+     and a constant, and it writes nothing. */
+  function modeWaitOpen() { return performance.now() < MODE_WAIT_MS; }
 
   /* —— header identity model. setNickname / setOnlineStatus mutate this; the
    *    topbar is rebuilt so name + presence sub-line stay live. ——————————————— */
@@ -7190,9 +7264,45 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   /* call event card (chat.js addCall:1496). VIEW-ONLY best-effort (BE cutover
    * C4): the bridge conflates direction + no-answer/missed into one `declined`
    * flag plus a localized text blob. declined → render as "missed" so a call-
-   * back is offered (via the existing ixian:call toggle); otherwise it was
-   * answered → the (m:ss) duration is pulled out of the text. directionLabel is
-   * left empty — it isn't recoverable from the localized string. */
+   * back is offered; otherwise it was answered → the (m:ss) duration is pulled
+   * out of the text. directionLabel is left empty — it isn't recoverable from
+   * the localized string.
+   *
+   * ★★ ROUND 3 (review3-cs MAJOR-2) — THIS LINK WAS THE CALL RULE'S THIRD HOME,
+   * AND IT ANSWERED DIFFERENTLY FROM THE OTHER TWO.
+   *   ① It sent `ixian:call`, which is a TOGGLE. During a live call that branch
+   *      hangs up, ungated. So a user in a call could open any chat holding a
+   *      call card, tap a control labelled "Call back", and END THE CALL with no
+   *      confirmation. It now sends `ixian:callback`, a verb with ONE leg that
+   *      can never end a call. Hang up stays ungated on the topbar toggle, where
+   *      it belongs.
+   *   ② It ignored the reveal. Any conversation that holds a call card offered a
+   *      call, in rooms where C# reveals no phone action at all — including a
+   *      device with no audio codec, which then dialled with an EMPTY codec list.
+   *      The link is now painted only when `callVisible` is true, which is the
+   *      shell's copy of C#'s own answer (`showCallButton`), and it is RE-ASKED
+   *      at tap time because the room type and the relation can flip in between.
+   *   ③ Its refusal was silent. C# now pushes `callRefused`, and the handler
+   *      below says so on screen.
+   * ⚠ C# is the authority. This is the paint gate, not the only gate: the same
+   * rule is enforced in SingleChatPage.canPlaceCall before any call is placed. */
+  /* the tap. `callVisible` is re-read HERE, not captured at paint time: a card can
+   * sit in the log for a whole session while C# changes its mind about the room. */
+  function callBackFromCard() {
+    if (!callVisible) { showCallRefusal('unavailable'); return; }
+    bridge.send('ixian:callback');
+  }
+
+  /* one refusal copy, for the shell's own gate and for C#'s `callRefused` push. */
+  function showCallRefusal(reason) {
+    const sl = window.SL || {};
+    const text = String(reason || '') === 'busy'
+      ? (sl.callBusy || 'A call is in progress. End that call first.')
+      : (sl.callUnavailable || 'You cannot make a call in this chat.');
+    try { showToast({ text: text, tone: 'error', host: overlayHost, strings: sl }); }
+    catch (e) { dbg('showCallRefusal: the toast failed — ' + e); }
+  }
+
   function buildCallRow(rec) {
     return createCallBubble({
       missed: rec.missed,
@@ -7207,7 +7317,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       title: rec.label || '',
       duration: rec.duration || '',
       timestamp: rec.ts,
-      onCallBack: () => bridge.send('ixian:call'),
+      onCallBack: callVisible ? callBackFromCard : null,
     });
   }
 
@@ -7221,12 +7331,15 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   function parseReactions(str, id, ownStr) {
     const reactions = [];
     let tipCount = 0;
-    /* ★★ L2 (#641): the SAME push already carries the delivery answer. C# emits every
-       reaction key with its member count — `received:3;seen:2;like:1;` — and this parser
-       has always dropped `received` and `seen` on the floor because they are not emoji.
-       They are counted now and kept on the record, so the long-press detail is built
-       from data the shell already receives. NOTHING new crosses the bridge. */
-    let deliveredCount = 0;
+    /* ★★ L2 (#641): the SAME push carries the receipt counts. C# emits every reaction
+       key with its member count — `received:3;seen:2;like:1;` — and this parser dropped
+       every non-emoji key on the floor. Two of them are counted now and kept on the
+       record, so the long-press detail is built from data the shell already receives.
+       NOTHING new crosses the bridge.
+       ★★ `received:` IS NOT COUNTED, AND THAT IS DELIBERATE (Damir, 2026-08-27). It is
+       the DELIVERY receipt. C# owns the delivery rule and the bubble tick renders it.
+       A delivery number kept here would be a number with no legal reader, and the next
+       agent would find it and derive from it. See receiptDetail. */
     let seenCount = 0;
     let downloadedCount = 0;
     const ownKeys = new Set(String(ownStr || '').split(';').filter(Boolean));
@@ -7242,8 +7355,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       if (count <= 0) continue;
       if (tok.startsWith('like')) reactions.push({ emoji: '❤️', count, own: likedByMe });
       else if (tok.startsWith('tip')) tipCount += count;   // txid, not amount → count only
-      // ★★ L2 (#641): delivery + read, per DISTINCT member (Core de-duplicates by sender).
-      else if (tok.startsWith('received')) deliveredCount = count;
+      // ★★ L2 (#641): read + download, per DISTINCT member (Core de-duplicates by sender).
+      // `received:` falls through this chain on purpose — see the note above.
       else if (tok.startsWith('seen')) seenCount = count;
       // ★ Damir's ask: Core stores a fileReceived: reaction per member, exactly like
       // received:. So "N of M downloaded" needs no protocol change — the count is already
@@ -7254,7 +7367,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     const tip = tipCount > 0
       ? (tipCount > 1 ? (sl.tipped || 'Tipped') + ' ×' + tipCount : (sl.tipped || 'Tipped'))
       : '';
-    return { reactions, tip, deliveredCount, seenCount, downloadedCount };
+    return { reactions, tip, seenCount, downloadedCount };
   }
 
   /* React to a message with a like (the ONE reaction the bridge supports —
@@ -7327,50 +7440,84 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     if (composerLock) return false;
     return true;
   }
-  /* ═══ ★★ L2 (#641) — THE READ DETAIL, IN THE LONG-PRESS MENU ═══════════════════
+  /* ═══ ★★ L2 (#641) — THE RECEIPT DETAIL, IN THE LONG-PRESS MENU ═══════════════
    *
-   * Damir, 2026-08-29: the bubble loses the read tick, and the DETAIL goes where
-   * someone looks when they want more about ONE message. He picked COUNTS over a
-   * member list for this session; the list is logged for a later polish row.
+   * Damir, 2026-08-27: *"perhaps we don't need in the long press menu to show
+   * delivered. Just seen and downloaded if there's a file. having delivered seems
+   * redundant"*. He is right. The reason decides the shape of this function.
    *
-   * ⚠ NOTHING GOES UNDER THE BUBBLE. That is the busiest surface in the app and a
-   * per-message caption there reads as noise (his ruling, same day).
+   * ★★ THE BUBBLE TICK ALREADY ANSWERS "DID IT ARRIVE". C# derives that one answer
+   * and pushes it as the message status. This menu answers the part the tick cannot
+   * show: who has READ the message, and who has PULLED the file. A delivered count
+   * here repeated the tick. Three review rounds found an impossible sentence on that
+   * repeated count, every round on this line. Duplication is what produced it.
+   *
+   * ★★ THE SHELL DERIVES NOTHING ABOUT DELIVERY. It prints two counts that C# sends.
+   * It reconciles nothing. The delivery rule has ONE home and that home is C#. Do NOT
+   * add a `received:` term to this function. Do NOT take a maximum over the receipt
+   * keys. `parseReactions` drops `received:` for the same reason: a number that no
+   * reader may use must not be kept, because the next agent finds it and uses it.
+   *
+   * ★ TWO CLEAN KEYS, AND ONLY TWO.
+   *   · `seen:`         — the READ count. Core writes one per member.
+   *   · `fileReceived:` — the DOWNLOAD count. A FILE row only.
+   * Both count DISTINCT members, because Core de-duplicates a reaction by sender.
+   * ⚠ `like:` and `tip:` are NOT usable here, and this is why the "one rule, all
+   * receipt keys" story cannot be completed: SingleChatPage.xaml.cs:1934 and :1751
+   * add the LOCAL user's own like and own tip under the local address. So `like:1`
+   * can name nobody but me (review3-fe MAJOR-2).
    *
    * The denominator is the OTHER members: `groupRoster.size` counts every participant
    * INCLUDING this device (C# loadContacts pushes one addContact per `friend.users`
-   * entry), so the people who can confirm are one fewer. Core's own threshold agrees —
-   * it tests `received.Count + 1 >= users.count()`, and the + 1 is us.
+   * entry), so the people who can confirm are one fewer.
    *
-   * Degrades honestly, never invents:
-   *   · roster not loaded (size < 2) → NO line at all rather than a wrong "of N";
-   *   · a bot room → "Delivered" or nothing, because a bot reports no per-member
-   *     receipts and there is no roster answer to give;
-   *   · a 1:1 chat → nothing; the bubble already says everything.
+   * ★ EVERY CLAUSE CARRIES ITS OWN DENOMINATOR. A clause can then be dropped without
+   * changing what the other clause means, and a row with one clause reads exactly
+   * like a row with two.
+   *
+   * ★★ NO COUNTS, NO LINE. The menu says NOTHING rather than say something it cannot
+   * support. That one rule covers every empty case:
+   *   · an INCOMING message — no line. The counts describe my own message.
+   *   · a 1:1 chat — no line. The bubble says it all.
+   *   · a BOT room — no line. A bot reports no per-member receipt, so there is no
+   *     honest count and no honest roster to divide by.
+   *   · a roster under 2 — no line. A denominator we do not have.
+   *   · nobody read and nobody downloaded — ★ SEE THE NEXT PARAGRAPH. This one case
+   *     is no longer silent.
+   *
+   * ★★ THE EMPTY-COUNT CASE SAYS SO IN WORDS (Damir F5, 2026-08-28: *"the row should
+   * say - nobody has seen this yet"*). He is right, and the reason is precise: the
+   * four cases above are silent because we have NO HONEST ANSWER — no roster, no
+   * receipts to describe, or a room type that reports none. This case is different.
+   * We HAVE the roster, the message is mine, and every member has reported nothing.
+   * "Nobody has seen this yet" is exactly that fact, stated.
+   * ⚠ It is still NOT "0 of 3 read". A zero reads as a measurement of every member;
+   * the sentence reads as the absence of any report, which is what we actually know.
+   * The other four returns stay empty — do not fold them into this line.
    */
-  function deliveryDetail(rec) {
+  function receiptDetail(rec) {
     if (!rec || rec.direction !== 'sent') return '';
-    const s = window.SL || {};
-    if (mode.isBot) {
-      return rec.status === 'delivered' || rec.status === 'read'
-        ? (s['status-delivered'] || 'Delivered') : '';
-    }
+    if (mode.isBot) return '';                          // a bot reports no per-member receipt
     if (!mode.isMulti) return '';                       // 1:1 — the bubble says it all
     const others = groupRoster.size - 1;
     if (others < 1) return '';                          // no honest denominator yet
-    const delivered = Math.min(Number(rec.deliveredCount) || 0, others);
-    const seen = Math.min(Number(rec.seenCount) || 0, others);
-    const parts = [(s.deliveredOf || '{n} of {m} delivered')
-      .split('{n}').join(String(delivered))
-      .split('{m}').join(String(others))];
-    if (seen > 0) parts.push((s.readBy || '{n} read').split('{n}').join(String(seen)));
-    /* ★ A FILE card answers a different question — "did they get the FILE", not "did the
-       card arrive" — so the download count only shows on a file row, and only once
-       somebody has actually pulled it. Same clamp as the others: never claim more
-       recipients than the room has. */
-    if (rec.kind === 'file') {
-      const got = Math.min(Number(rec.downloadedCount) || 0, others);
-      if (got > 0) parts.push((s.downloadedBy || '{n} downloaded').split('{n}').join(String(got)));
-    }
+    const s = window.SL || {};
+    /* ★★ ONE ROSTER CLAMP, BOTH COUNTS. Each count counts DISTINCT members, so no
+       count can exceed the room. The clamp is written ONCE and both counts pass
+       through it. Delete this line and the "9 of 3" case fails for both counts. */
+    const inRoom = (n) => Math.min(Math.max(Number(n) || 0, 0), others);
+    const seen = inRoom(rec.seenCount);
+    /* The download count belongs to a FILE row only. No other row kind carries a
+       fileReceived: receipt, so a count on one would answer a question nobody asked. */
+    const got = rec.kind === 'file' ? inRoom(rec.downloadedCount) : 0;
+    const fill = (t, n) => t.split('{n}').join(String(n)).split('{m}').join(String(others));
+    const parts = [];
+    if (seen > 0) parts.push(fill(s.readOf || '{n} of {m} read', seen));
+    if (got > 0) parts.push(fill(s.downloadedOf || '{n} of {m} downloaded', got));
+    /* ★ Damir F5, 2026-08-28. Reached ONLY here: a group, my own message, a known
+       roster of two or more, and not one receipt of any kind. Every other empty case
+       returned above, where we have no honest answer to give. */
+    if (!parts.length) return s.noneSeenYet || 'Nobody has seen this yet';
     return parts.join(' · ');
   }
 
@@ -7380,12 +7527,11 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       host: overlayHost,
       text: rec.text || '',
       /* ★★ L2 (#641): a FUNCTION, not a string. attachMessageMenu captures these options
-         at ROW-WIRE time and replays them on every long-press, and neither writer of the
-         counts re-renders the row — addReactions patches the pills in place and the status
-         push takes the surgical setMessageStatus branch. A string computed here froze at
-         wire time, so a bubble showing a double check could still say "0 of 3 delivered"
-         in its own menu. Evaluated on open, it cannot disagree with the tick above it. */
-      detail: () => deliveryDetail(rec),
+         at ROW-WIRE time and replays them on every long-press, and the writer of the
+         counts does not re-render the row — addReactions patches the pills in place. A
+         string computed here froze at wire time, so a menu could report a read count
+         that a later push had already raised. Evaluated on open, it is always current. */
+      detail: () => receiptDetail(rec),
       reactions: ['❤️'],   // the bridge only persists "like" (C8: emoji reactions need a core change — be-cutover C8)
       capabilities: {
         reply: bridge.cap('reply'),                       // §8-gated, OFF until BE (#25)
@@ -8008,21 +8154,117 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    *             (a request is a chat message). ★★ L1 (#640): no fallback
    * App-invite tile is hidden (no SingleChatPage invite verb); Pay/Request are
    * hidden in groups/bots (C# rejects them there). */
+  /* ★★ ONE GATE, TWO SURFACES (#46 loop, MAJOR-2). These flags decide which tiles the
+     sheet shows. The composer ⊕ is shown or hidden from the SAME flags, through
+     `hasAttachTiles`. Write the rule here only. A second copy can drift, and a drift
+     puts a ⊕ on a room where every tile is refused — the ⑪ delivery lie again. */
+  /* ★★ AND AN UNKNOWN ROOM ANSWERS FALSE TO ALL FOUR — see THE ROOM-ANSWER LATCH.
+     Every gate below needs a room type. No tile survives every room type. So a room
+     whose type has not arrived offers nothing, and `modeKnown()` is written into all
+     four flags rather than beside them. Every reader of this object then inherits the
+     rule: the ⊕, the sheet, the money composes and the app picker. */
+  function attachFlags() {
+    const known = modeKnown();
+    /* ★★ Damir on device: *"on legacy the blind group had no Send file capability, and on
+       redesign the sheet shows send file, but doesn't work."* C# has always refused it —
+       `onSendFile` returns on `friend.bot || (type == Group && hideParticipantAddresses)` —
+       so the tile was a dead control, the ⑪ delivery lie. This is that predicate,
+       mirrored: `hidesAddresses` is the RAW flag (#613), type 1|2 are the group kinds, and
+       a NORMAL private group keeps its files exactly as legacy did.
+       ★★ ROUND 2: the SAME gate answers for Photo and GIF. C# routes `ixian:sendmedia` to
+       `onSendFile(true)` and `ixian:sendfile` to `onSendFile(false)`
+       (SingleChatPage.xaml.cs:200 and :206). One method, one refusal. Before this line
+       `media` read the #81 capability alone, so the day that capability lands a bot room
+       and a blind group would have shown two more tiles that C# refuses — the same ⑪ lie,
+       pre-built on the next feature. */
+    const canSendFile = known && !mode.isBot && !((mode.type === 1 || mode.type === 2) && mode.hidesAddresses);
+    return {
+      media: canSendFile && bridge.cap('media'),   // Photo/GIF also need the BE image standard (#81)
+      apps: known && !mode.isBot,            // App invite: onApp is blocked in bots (xaml:834); 1:1 + groups OK
+      payments: known && mode.type === 0,    // 1:1 only
+      files: canSendFile,
+    };
+  }
+
+  /* ★★ THE ⊕ IS HIDDEN WHEN NO TILE SURVIVES.
+     In a bot room every flag above is false. All six tiles are filtered out. Before this
+     fix the ⊕ opened a sheet with no tiles, no title and no text. The Spixi community bot
+     is the first chat of many users, because N76 made it a chat-list empty-state CTA.
+     An unknown room also answers false to every flag — see THE ROOM-ANSWER LATCH. A button
+     that opens nothing is a control that reports an outcome it did not cause. */
+  function attachAvailable() { return hasAttachTiles(attachFlags()); }
+
+  /* ★★ THE WAIT STATE IS DERIVED WHERE IT IS USED (round 3).
+     `attachWaiting()` is true only while the room type has NOT arrived and this
+     document is still inside its wait window. It can never make a tile legal: it is
+     tested only against `attachAvailable()`, never instead of it. */
+  function attachWaiting() { return !modeKnown() && modeWaitOpen(); }
+
+  /* ★★★ THE ⊕ IS A PURE FUNCTION OF STATE, READ AT THE MOMENT IT IS PAINTED
+     (round 3; surviving mutations Y4, Y5, Y9, Y10).
+     Round 2 computed a phase STRING, remembered it in `attachPhaseApplied`, and then
+     wrote THREE independent DOM properties from it. That is four pieces of state for
+     one answer, and the review broke the control by corrupting any one of them:
+     force the phase to 'ready' and a bot room got a live ⊕ that opened nothing; pin
+     `visibility` to 'hidden' and the ⊕ vanished from every room; pin `disabled` to
+     false and the third leg stopped agreeing with the other two.
+     There is no phase string and no memo now. Both writes below call the SAME
+     predicate the sheet, the money composes and the app picker call, at the moment
+     the answer is needed. A corrupted `attachAvailable()` therefore corrupts the ⊕
+     and the sheet TOGETHER — the control cannot claim what the sheet refuses — and
+     that function is one pinned line in both homes.
+     ★ Two legs, not three. `visibility: hidden` already takes the button out of hit
+     testing, out of the tab order and out of the accessibility tree, so `disabled`
+     and `aria-hidden` added nothing but two more writers to corrupt. A control the
+     user can reach is refused again inside `openAttach`.
+     ★ COST, stated truthfully (round 3 MINOR-3 — the round-2 comment here said "three
+     boolean reads" and the code did far more). This runs on every C# push and costs:
+     one `querySelector`, two `attachFlags()` objects, two filtered arrays over six
+     entries, and two property writes. While the room does not change, both writes write
+     the value that is already there. Nothing is read back from the DOM, so no push
+     forces a synchronous layout. Round 2 memoised a phase string to skip this work; the
+     memo was a fourth piece of state for one answer, and the review broke the control by
+     corrupting the state, never the arithmetic. Measure before adding a memo back — the
+     [CDPERF] probe is the instrument. */
+  function syncAttachAffordance() {
+    const btn = composerEl && composerEl.querySelector('.c-composer__attach');
+    if (!btn) return;
+    /* `hidden` removes the control from the row: base.css:54 is
+       `[hidden] { display: none !important; }`. `visibility` keeps its 40 px box, so
+       the text field does not grow and then shrink when the room answers late. */
+    const gone = !attachAvailable() && !attachWaiting();
+    btn.hidden = gone;
+    btn.style.visibility = attachAvailable() ? '' : 'hidden';
+    /* ★ A2 (Damir F5, 2026-08-28): the field's 4px inline-start is the ⊕ pill's own
+       inset. `hidden` removes the pill from the row, so without this the placeholder
+       sits against the field edge — which is what a bot room showed the moment the ⊕
+       correctly went away. The attribute is written from `gone`, the SAME expression
+       that hides the button, so the padding can never disagree with the pill.
+       ⚠ Not from `attachAvailable()` alone: during the wait the pill keeps its box
+       (`visibility`), so the field must keep the 4px too. */
+    const field = composerEl.querySelector('.c-composer__field');
+    if (field) field.toggleAttribute('data-no-attach', gone);
+  }
+
   function openAttach() {
+    /* Belt for a stale tap: the ⊕ can be hidden between the press and this call. */
+    if (!attachAvailable()) return;
     const sheet = openAttachSheet({
       host: overlayHost,
-      media: bridge.cap('media'),   // Photo/GIF appear only when the BE image standard lands (#81)
-      apps: !mode.isBot,            // App invite: onApp is blocked in bots (xaml:834); 1:1 + groups OK
-      payments: mode.type === 0,    // 1:1 only
-      /* ★★ Damir on device: *"on legacy the blind group had no Send file capability, and on
-         redesign the sheet shows send file, but doesn't work."* C# has always refused it —
-         `onSendFile` returns on `friend.bot || (type == Group && hideParticipantAddresses)` —
-         so the tile was a dead control, the ⑪ delivery lie. This is that predicate,
-         mirrored: `hidesAddresses` is the RAW flag (#613), type 1|2 are the group kinds, and
-         a NORMAL private group keeps its files exactly as legacy did. */
-      files: !mode.isBot && !((mode.type === 1 || mode.type === 2) && mode.hidesAddresses),
+      ...attachFlags(),
       strings: window.SL || {},
+      /* ★★★ THE TILE IS RE-CHECKED AT ACTION TIME, ONCE, FOR ALL SIX TILES (round 3;
+         surviving mutation Y6). An open sheet can outlive the answer it was built
+         from: setChatMode can land while the sheet is open, and a tile that was legal
+         at open is then refused by C#.
+         Round 2 wrote that re-check as TWO per-leg guards on the two legs that reach C#
+         directly, and the review deleted both with no pin turning red. The gate below
+         asks `attachTilesFor` — the SAME function that decided which tiles the sheet
+         drew — whether this tile still survives. One gate, six tiles, one rule. Do not
+         add a per-leg copy back: a second copy of a rule is how the ⊕ and the sheet
+         start disagreeing. */
       onAction: (id) => {
+        if (!attachTilesFor(attachFlags()).some((t) => t.id === id)) return;
         if (id === 'file') bridge.send('ixian:sendfile');
         else if (id === 'photo' || id === 'gif') bridge.send('ixian:sendmedia');
         // ★★ L1 (#640): the `else` legs are gone with WalletSendPage / WalletReceivePage.
@@ -8035,6 +8277,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     });
     // Batch C (M6): desktop presents the share grid as a POPOVER rising from the
     // composer ⊕ (demo 06d ① grammar); no-op on mobile / when the ⊕ isn't found.
+    // `sheet` is null when no tile survived. Then there is nothing to anchor.
+    if (!sheet) return;
     anchorSheetAbove(sheet, composerEl && composerEl.querySelector('.c-composer__attach'), { host: overlayHost });
   }
 
@@ -8059,7 +8303,12 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     try { focusComposer(); } catch (e) { /* focus restore is best-effort */ }
   }
   function openSendTakeover() {
-    if (mode.type !== 0) return;                       // 1:1 only (C# rejects group sends)
+    /* ★★ ONE PREDICATE (round 2, MAJOR-2). The old guard read `mode.type !== 0`. An
+       unknown room still has type 0, so the compose OPENED in a bot room six seconds
+       after the round-1 belt granted the 1:1 defaults. `attachFlags().payments` answers
+       false until setChatMode answers for this peer, and it is the same answer the ⊕,
+       the sheet and the sheet's action gate read. */
+    if (!attachFlags().payments) return;               // 1:1 only (C# rejects group sends)
     if (!identity.address) return;
     if (document.querySelector('.chat-send-takeover')) return;   // double-open guard
     const s = window.SL || {};
@@ -8185,7 +8434,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    * ONE verb per request (`ixian:sendrequest:<addr>:<amount>`, the W8 grammar on
    * SingleChatPage now); the request-out card arrives via the normal push. */
   function openRequestForPeer() {
-    if (mode.type !== 0 || !identity.address) return;
+    // ★★ ONE PREDICATE (round 2, MAJOR-2) — see openSendTakeover.
+    if (!attachFlags().payments || !identity.address) return;
     openRequestSheet({
       recipient: {
         name: (identity.name && identity.name !== identity.address) ? identity.name : '',
@@ -8206,6 +8456,9 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    * one emits ixian:app:<id> → onApp starts an app session with the peer
    * (xaml:832). Empty state when none are installed. */
   function openAppPicker() {
+    // ★★ ONE PREDICATE (round 2, MAJOR-2): C# blocks onApp in a bot room (xaml:834),
+    // and an unknown room answers false too.
+    if (!attachFlags().apps) return;
     const s = window.SL || {};
     const content = document.createElement('div');
     content.className = 'chat-app-picker';
@@ -9025,6 +9278,18 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
          redesign closes; logged in the security review. */
       mode.description = String(botDescription == null ? '' : botDescription).trim().slice(0, DESCRIPTION_MAX);
 
+      /* ★★★ THE ROOM IS ANSWERED NOW — see THE ROOM-ANSWER LATCH. Until this line the
+         attach gates read the 1:1 defaults and offer nothing. This is the ONE writer of
+         the room answer, and it records WHICH peer the answer describes, so the answer
+         cannot survive into another peer.
+         ⚠ Delete this line and `modeKnown()` is false for the whole session: no ⊕, no
+         Pay, no Request, no App invite and no Send file, in every room. That direction
+         is SAFE — the shell offers nothing it cannot deliver — but it is a total loss of
+         the affordance, and nothing in the suite reads this line (round 3, surviving
+         mutation Y1). It needs a pin.
+         The ⊕ re-derives by itself: every handler in this object is wrapped at
+         bridge.exposeAll. Do not add a syncAttachAffordance() call here. */
+      mode.answeredFor = identity.address;
       // reflect a live mode/notification change into an OPEN chat-info takeover
       if (chatInfoOpen) refreshChatInfo();
       // channel UI is bot-gated (channel-as-title) — re-evaluate on any mode change
@@ -9299,6 +9564,19 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
                                            // — the next open re-derives (or, normally, doesn't)
       resetOlder();                        // A1 per-peer reset — no stale spinner or scroll anchor
       setStlUnread(0);                     // N53 per-peer reset — peer A's unseen count must not badge peer B
+      /* ★ per-peer handling of THE ROOM-ANSWER LATCH. This push always precedes this
+         peer's setChatMode (SingleChatPage.xaml.cs:626 before :771 / :804).
+         ⚠ THIS LINE IS NOT THE CROSS-PEER GUARANTEE. `modeKnown()` compares
+         `mode.answeredFor` with `identity.address`, and this handler set that address to
+         THIS peer at the top of the block. So peer B cannot inherit peer A's room type
+         even if this line is deleted. Deleting it fails SAFE.
+         ★ What it DOES do is answer review QUESTION-1. If setChatMode reaches the
+         WebView BEFORE this push — a warm bot room, or a language flip that rebuilds the
+         document — the stamp above was made against the empty address. One document
+         serves ONE peer (HomePage.xaml.cs:2043 builds a new SingleChatPage per open), so
+         an answer stamped before any address describes THIS peer. Adopt it. An answer
+         stamped for a DIFFERENT peer is dropped. */
+      mode.answeredFor = (mode.answeredFor === '') ? identity.address : null;
       dbg('onChatScreenReady', address);
     },
     // End of the initial load burst (fires after loadMessages, xaml:588) — paint
@@ -9369,6 +9647,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
         c = c.trim();
         if (c) bridge.capabilities[c] = true;
       });
+      // The `media` capability is one of the attach gates. The ⊕ re-derives by itself:
+      // every handler in this object is wrapped at bridge.exposeAll (X8).
     },
 
     onChatScreenLoaded() {
@@ -9614,8 +9894,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       const parsed = parseReactions(reactions, id, own);
       rec.reactions = parsed.reactions;
       rec.tip = parsed.tip;
-      rec.deliveredCount = parsed.deliveredCount;   // ★★ L2 (#641): the long-press detail
-      rec.seenCount = parsed.seenCount;
+      rec.seenCount = parsed.seenCount;               // ★★ L2 (#641): the long-press detail
       rec.downloadedCount = parsed.downloadedCount;   // ★ file cards
       const row = rows.get(String(id));
       if (row) {
@@ -9669,7 +9948,22 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     // composer the user just unlocked.
     showContactRequest() { if (requestResolved) return; showRequestPane(); },
     // reveal the topbar call action (C# gates when a call is possible, xaml:583)
-    showCallButton() { callVisible = true; renderTopbar(); },
+    /* ★★ ROUND 3 (review3-cs MAJOR-2): the call cards read `callVisible` too, and this
+     * push can land AFTER a history burst has already painted them (C# sends it before
+     * loadMessages today, but the order is C#'s to change). Repaint the log once when
+     * the flag actually turns on, so a card painted early is not left without its
+     * "Call back" link for the session. The N34 groupOwner handler uses this pattern. */
+    showCallButton() {
+      const changed = !callVisible;
+      callVisible = true;
+      renderTopbar();
+      if (changed && model.size) renderLog();
+    },
+    /* ★★ ROUND 3 (review3-cs MAJOR-2): C#'s refusal, said out loud. The old start leg
+     * logged and pushed nothing, so a tap on a live-looking control did nothing, for
+     * ever. `reason` ∈ {unavailable, busy} — a token, not a sentence, so the wording
+     * stays in the shell dictionary. */
+    callRefused(reason) { showCallRefusal(reason); },
     // APP invite/session card (chat.js addAppRequest:1174). appStatus ∈
     // {Missing, Minimized, else} — already enum-shaped. Reuses installApp/joinApp.
     // ⚠ GLOBAL NAME COLLISION (Batch A): displayAppRequests also pushes a 4-arg
@@ -9828,7 +10122,34 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     },
   };
 
-  bridge.exposeAll(handlers);
+  /* ★★★ ONE WIRE, NOT THREE (round 2, surviving mutations X1, X2, X8).
+     Round 1 pushed the composer ⊕ state from three handlers. Each call site was a
+     separate line that a single deletion could remove, and the suite read none of them:
+     deleting the one in `setChatMode` hid the ⊕ for the whole session in every room.
+     The state is DERIVED instead. Every C#→JS handler runs through this one wrapper, and
+     the wrapper re-derives the ⊕ after the handler returns. A new handler that changes
+     the room, the peer or a capability needs no new call.
+     `finally`, so a handler that throws still leaves the ⊕ honest.
+     ⚠ Delete this wrapper and the ⊕ freezes at its boot state in every room. */
+  const syncedHandlers = {};
+  for (const name of Object.keys(handlers)) {
+    const fn = handlers[name];
+    syncedHandlers[name] = typeof fn !== 'function' ? fn : function (...args) {
+      try {
+        return fn.apply(this, args);
+      } finally {
+        /* Best-effort, and deliberately so: this wrapper sits on EVERY C# push, and a
+           throw here would replace the handler's own result. `composerEl` is assigned
+           far below this line, so a push that lands before the composer is built reads
+           it in its temporal dead zone. */
+        /* ★ round 3 MINOR-4: a ONE-OFF throw is healed by the next push, and a throw
+           that REPEATS freezes the ⊕ for the whole session. Say so on the debug
+           channel, or the device report reads "the ⊕ never appears" with a clean log. */
+        try { syncAttachAffordance(); } catch (e) { dbg('syncAttachAffordance threw', e && e.message); }
+      }
+    };
+  }
+  bridge.exposeAll(syncedHandlers);
 
   /* N51: mirror the shell's overlay-stack state to C# so Android back closes the
      TOP overlay (an overlay.js sheet, the hand-rolled channel selector, select
@@ -10305,6 +10626,22 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     mentionSource: mentionMembers,
   });
   document.getElementById('chat-composer').replaceChildren(composerEl);
+  /* The ⊕ offers nothing at boot: the room type is not known yet, so it holds its place
+     and stays invisible until setChatMode answers or the wait window closes. THE
+     ROOM-ANSWER LATCH above holds the whole rule. This is the FIRST derive; every later
+     one rides the bridge.exposeAll wrapper.
+     ★★★ AND THIS IS THE ONLY WAKE-UP THE WAIT WINDOW GETS (round 3; surviving mutations
+     Y2 and Y11). Round 2 armed a timer from inside the derive function and cleared it
+     again on the next push, so the ARM was a line that one deletion could remove while
+     the timer itself stayed pinned and green. There is no arm now, no timer handle and
+     no clearing branch: ONE timeout, scheduled once, for the life of this document.
+     It only re-derives. It cannot grant a gate — `syncAttachAffordance` reads the same
+     predicate whenever it runs.
+     ⚠ Delete this timeout and a room that NEVER answers holds an invisible 40 px box in
+     the composer for the whole session (#647③, a latch with no bound). It offers
+     nothing, so the direction is safe, but the space is never released. */
+  syncAttachAffordance();
+  setTimeout(syncAttachAffordance, MODE_WAIT_MS);
 
   /* Save the draft as the user types (debounced ~400ms). Only genuine typing
    * (isTrusted) persists — a synthetic restore/clear event must not re-write.

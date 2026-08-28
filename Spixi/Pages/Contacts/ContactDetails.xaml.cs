@@ -2,7 +2,7 @@
 using IXICore.Meta;
 using IXICore.SpixiBot;
 using IXICore.Streaming;
-using Spixi;                             // ★ #591: SSpixiCodecInfo (per-platform, namespace Spixi)
+using Spixi;                             // ★ #591: SSpixiCodecInfo (per-platform, namespace Spixi) — the codec term moved into SingleChatPage.canPlaceCall in round 3
 using Microsoft.Maui.ApplicationModel;   // F5-2 r2 (loop A-4): the posted drained-marker breadcrumb
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Xaml;
@@ -46,13 +46,30 @@ namespace SPIXI
             // owner as a desktop pane) — the in-chat takeover overtook the conversation.
             isGroup = friend.type == FriendType.Group || friend.bot;
 
-            /* ★★ [CDPERF] PROBE (item 6, 2026-08-29) — TEMPORARY, remove when the number
-             * is read. Damir reports chat info is slow to appear. `presentPreload`'s
-             * 120 ms hold is 0 for this page now, but that hold was only PART of the
-             * wait: page construction (generatePage re-localizes and rewrites a 168 KB
-             * shell to disk on every open) and the WebView boot are the rest, and
-             * nobody has ever measured which is which. One log line per open, so the
-             * next device run answers it instead of the next guess. */
+            /* ★★ [CDPERF] PROBE (item 6, 2026-08-29) — TEMPORARY. Damir reports chat info
+             * is slow to appear. `presentPreload`'s 120 ms hold is 0 for this page now, but
+             * that hold was only PART of the wait: page construction (generatePage
+             * re-localizes and rewrites a 168 KB shell to disk on every open) and the
+             * WebView boot are the rest, and nobody has ever measured which is which. One
+             * log line per open, so the next device run answers it instead of the next guess.
+             *
+             * ★★ WHEN TO REMOVE IT — NOT YET, AND THIS IS A DECISION, NOT AN OVERSIGHT
+             * (#46 loop r2, review-cs MINOR-7). The review reads the "remove when the number
+             * is read" line, notes that the sibling [RCPT] probe was deleted in this batch,
+             * and asks why this one survives. The answer is in three places in the tree:
+             *   · `docs/cdperf-2026-08-29-android.md` holds the FIRST measurement and its own
+             *     verdict: *"can be removed once the fix above is built and re-measured —
+             *     keep it until then, because it is the only way to confirm the bot room
+             *     actually moves."*
+             *   · `docs/launch-worklist-2026-08-29.md` row L10 (the bot room presents 140 ms
+             *     late) is NOT BUILT, and that row ends by removing this probe.
+             *   · `scripts/smoke-test.mjs:17033-17036` PINS all four lines present, so they
+             *     "cannot be forgotten in place".
+             * [RCPT] is different: its question was answered and closed. This probe's second
+             * measurement has not been taken. Deleting it now destroys the instrument L10
+             * needs, turns a deliberate pin red, and strands the shell's `ixian:cdpainted`
+             * emit. It costs four `Logging.info` lines per open, no address and no content.
+             * ⚠ REMOVE IT IN L10, together with the shell emit — not before, not alone. */
             perfOpenedAt = DateTime.Now;
             loadPage(webView, "contact_details.html");
             Logging.info("[CDPERF] " + (isGroup ? "group" : "contact") + " constructed +" + perfSince() + "ms (ctor + generatePage)");
@@ -110,11 +127,29 @@ namespace SPIXI
              * tone, power locks, 45 seconds of ringing, and the peer gets nothing. That
              * is the ⑪ delivery-lie class the composer lock (#275) exists to prevent,
              * one tap away on the same contact.
-             * Same gate and the SAME VERB as the chat header (SingleChatPage:889) —
-             * one rule for "can this person be called", not two that can drift. */
-            if (!isGroup
-                && SSpixiCodecInfo.getSupportedAudioCodecs().Count > 0
-                && friend.state == FriendState.Approved)
+             * Same gate and the SAME VERB as the chat header — one rule for "can this
+             * person be called", not two that can drift.
+             * ★★ ROUND 2 (#46 loop, own sweep): that sentence was NOT TRUE when it was
+             * written. The chat header tested only codecs and `state == Approved`, with no
+             * room test, so a group and a bot room showed the phone action and a tap rang
+             * a room address. The sibling now carries `!friend.bot && friend.type !=
+             * FriendType.Group`, which is exactly this page's `!isGroup` (:46 = Group ||
+             * bot), so the two gates are equal today.
+             * ★★ ROUND 3 (review3-cs MAJOR-2) — THERE WERE THREE HOMES, NOT TWO, AND THE
+             * THIRD ONE ANSWERED DIFFERENTLY. Every call bubble in the chat shell carries a
+             * "Call back" link that sent `ixian:call` whatever either reveal decided. Both
+             * start legs also lacked the AUDIO CODEC term that both reveals carried, so a
+             * codec-less device could reach `VoIPManager.initiateCall` through them.
+             * All four C# sites now ask ONE method — `SingleChatPage.canPlaceCall(friend)`.
+             * Read its header; change the rule there.
+             * ★★ AND THIS SITE NOW READS THE FRIEND LIVE (review3-cs MINOR-5). It used to
+             * read `isGroup`, a field computed ONCE in the constructor at :46. `friend.bot`
+             * has a private setter that Core's `setBotMode()` flips off the wire on the
+             * network thread, and this page can be open and parked while that happens: the
+             * snapshot then said "not a room" about a friend that had become one, and the
+             * chat surface refused the identical friend. The money gate below KEEPS
+             * `isGroup` on purpose — see its own note. */
+            if (SingleChatPage.canPlaceCall(friend))
             {
                 Utils.sendUiCommand(this, "showCallButton", "");
             }
@@ -122,10 +157,53 @@ namespace SPIXI
             /* ★★ L1 (#640): declare that THIS build answers the two money composes.
              * The shell gates Pay and Request on these capabilities (#242 grammar), so a
              * build whose C# half is missing shows a dead tap instead of a legacy screen
-             * that no longer exists. 1:1 ONLY — a group panel renders no money action,
-             * and `handleSendRequest` fails closed on anything that is not an approved
-             * FriendType.Normal contact. */
-            if (!isGroup)
+             * that no longer exists. 1:1 ONLY — a group panel renders no money action.
+             *
+             * ★★ #46 loop O (MAJOR-2) — THE PUSH IS GATED ON THE RELATION, NOT ONLY ON
+             * `!isGroup`. The old line declared both caps for EVERY non-group peer with no
+             * state test. `SPayments.handleSendRequest` then refused every peer that is not
+             * an approved FriendType.Normal contact and showed a native alert — but the
+             * shell had already morphed the sheet to "Requested". A control must not report
+             * an outcome it did not cause (Damir's ⑪ rule). Before L1 the same tap opened
+             * the legacy page, which claimed nothing, so L1 INTRODUCED the false confirm.
+             *
+             * The gate is the SAME rule the callee applies (SPayments.cs:111-113): a real
+             * 1:1 contact, not a bot, approved, and in FriendState.Approved. So the cap is
+             * present only when the send can really happen. FIX AGENT F gates `onPay` and
+             * `onRequest` in contact_details.html on these two caps, so an absent capability
+             * renders NO action instead of a dead tap.
+             *
+             * The composer lock in SingleChatPage (:854-855) refuses the same set on the
+             * chat surface. It keeps RequestReceived unlocked because the incoming-request
+             * pane is that state's own affordance. This page has no such pane, and a money
+             * compose to a peer who has not been accepted still cannot be delivered, so
+             * RequestReceived gets no money action here.
+             *
+             * ★★ ROUND 2 (#46 loop, review-cs MINOR-8) — WHY THIS GATE AND THE CALL GATE
+             * ABOVE ARE DELIBERATELY DIFFERENT, AND MUST STAY DIFFERENT. The review notes
+             * that the Call reveal (:138-145) and this one disagree by two terms,
+             * `friend.approved` and `type == FriendType.Normal`, so a FriendType that is
+             * neither Normal nor Group would render a Call button and no money action on
+             * one panel. That reads as drift and it is not. They are TWO RULES for TWO
+             * CALLEES, and each one mirrors its own callee verbatim:
+             *   · the call gate mirrors what VoIPManager can actually place — see the
+             *     sibling test at SingleChatPage.xaml.cs:933;
+             *   · this gate mirrors SPayments.cs:111-113, which refuses `friend == null ||
+             *     friend.bot || friend.type != FriendType.Normal || !friend.approved ||
+             *     friend.state != FriendState.Approved` and shows a native alert.
+             * A control must not report an outcome it did not cause. Making the two tests
+             * identical would break one mirror, whichever way it was unified.
+             * ⚠ FriendType lives in Ixian-Core, which is FROZEN at 097341a and is NOT in
+             * this checkout, so "is there a type that is neither Normal nor Group" cannot be
+             * answered here. For MONEY the honest posture is to fail CLOSED, and mirroring
+             * the callee does exactly that: an unknown type gets no money action, because
+             * SPayments would refuse it anyway. Do not relax this to `!isGroup`. */
+            if (!isGroup
+                && friend != null
+                && !friend.bot
+                && friend.type == FriendType.Normal
+                && friend.approved
+                && friend.state == FriendState.Approved)
             {
                 Utils.sendUiCommand(this, "setCaps", "composeSend,composeRequest");
             }
@@ -445,14 +523,26 @@ namespace SPIXI
                  * "Call" and nothing else, so making it silently hang up an unrelated
                  * live call would be a destructive action behind a non-destructive
                  * label. An in-progress call is ended from the call surface itself. */
-                /* ⚠ The state clause is the belt for the reveal above: a contact can be
-                 * removed or fall out of Approved between the push and the tap. Without
-                 * it this is the ⑪ delivery lie (audit MAJOR). Bots and groups are
-                 * covered by `isGroup` (:46 = Group || bot). */
-                if (friend != null && !isGroup && friend.state == FriendState.Approved
-                    && !VoIPManager.isInitiated())
+                /* ⚠ This is the belt for the reveal above: a contact can be removed, fall
+                 * out of Approved, or be promoted to a bot room between the push and the
+                 * tap. Without it this is the ② delivery lie (audit MAJOR).
+                 * ★★ ROUND 3 (review3-cs MAJOR-2): ONE RULE. This leg used to spell the
+                 * test out and it MISSED the audio-codec term that the reveal above carried,
+                 * so a codec-less device that reached this verb dialled anyway. It also read
+                 * the constructor's `isGroup` snapshot instead of the live friend
+                 * (MINOR-5). Both are closed by asking the one method. */
+                if (SingleChatPage.canPlaceCall(friend) && !VoIPManager.isInitiated())
                 {
                     VoIPManager.initiateCall(friend);
+                }
+                else
+                {
+                    /* ⚠ NO push on this surface, deliberately. `Utils.sendUiCommand` emits
+                     * the command name as a BARE GLOBAL, so a name this shell does not
+                     * define throws in the WebView before the dispatcher can catch it
+                     * (#258). `contact_details.html` has no refusal handler and it is not in
+                     * this batch's file scope. The chat shell has one. Log only, here. */
+                    Logging.warn("Call refused: this contact cannot be called, or a call is already in progress.");
                 }
             }
             else if (current_url.Equals("ixian:chat", StringComparison.Ordinal))

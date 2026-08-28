@@ -485,14 +485,30 @@
          push, not a guess. */
       onCall: state.callable ? () => bridge.send('ixian:call') : undefined,
 
-      /* ★★ L1 (#640): money composes IN THIS SHELL now. The capability test is the
-         chat.html grammar verbatim (:2769-2770) and it is a REAL gate, not decoration:
-         `composeSend` / `composeRequest` are declared by ContactDetails' own setCaps,
-         so a build whose C# half is missing degrades to a dead tap rather than to a
-         legacy screen that no longer exists. The old `ixian:send` / `ixian:request`
-         emits are GONE with the two pages they reached. */
-      onPay: () => { if (bridge.cap('composeSend')) openSendTakeover(); },
-      onRequest: () => { if (bridge.cap('composeRequest')) openRequestForPeer(); },
+      /* ★★ L1 (#640): money composes IN THIS SHELL now. `composeSend` and
+         `composeRequest` are declared by ContactDetails' own setCaps. The old
+         `ixian:send` / `ixian:request` emits are GONE with the two pages they reached.
+
+         ★★ #46 loop (MAJOR-2) — THE CAPABILITY DECIDES WHETHER THE ACTION EXISTS.
+         The handlers were passed unconditionally and each tested the capability inside
+         its own body. `chat-info.js` renders an action whenever it gets a handler, so an
+         ungated build still showed Pay and Request and the tap did nothing. C# now
+         declares the two caps only for a real 1:1 contact, not a bot, in
+         FriendState.Approved (ContactDetails.xaml.cs:146-153), because
+         `SPayments.handleSendRequest` refuses every other peer. An absent capability must
+         therefore render NO action. A missing handler is how this component hides an
+         action, and an empty action row is not appended at all.
+         ⚠ Keep the inner test as well. It costs nothing and it stops a stale closure
+         from spending money the caps no longer allow.
+         ⚠ The panel is change-gated: `caps` is part of stateSig and setCaps calls
+         scheduleCommit, so a capability that lands after the first paint rebuilds the
+         panel. Without that the actions would never appear. */
+      onPay: bridge.cap('composeSend')
+        ? () => { if (bridge.cap('composeSend')) openSendTakeover(); }
+        : undefined,
+      onRequest: bridge.cap('composeRequest')
+        ? () => { if (bridge.cap('composeRequest')) openRequestForPeer(); }
+        : undefined,
 
       /* ★ #591: the address row opens the ONE address surface (#527) in its PEER
          variant — their address, so the copy says "their", and the self-only safety
@@ -605,6 +621,12 @@
       // ★ #591: the Call reveal MUST be in the signature or scheduleCommit is decorative
       // — the exact defect the NOTIF-2 note above records, one push later.
       callable: state.callable,
+      /* ★★ #46 loop (MAJOR-2): the two money CAPABILITIES decide whether Pay and Request
+         are rendered at all, so they must be in the signature. C# pushes setCaps inside
+         the onLoad burst, which normally precedes the first coalesced commit — but a
+         capability that lands later must still rebuild the panel, or the actions stay
+         missing for the life of the page. Same lesson as the NOTIF-2 note above. */
+      caps: (bridge.cap('composeSend') ? 's' : '') + (bridge.cap('composeRequest') ? 'r' : ''),
       isGroup: state.isGroup,
       group: state.group,
       members: state.members.map((m) => [m.address, m.name, m.avatar])
@@ -955,6 +977,10 @@
         c = c.trim();
         if (c) bridge.capabilities[c] = true;
       });
+      /* ★★ #46 loop (MAJOR-2): Pay and Request are rendered only when their capability
+         is present, so a capability change must reach the panel. `caps` is in stateSig,
+         so this commit rebuilds only when the answer really changed. */
+      scheduleCommit();
     },
 
     /* ★★ L1 (#640) — W6 answer to ixian:feeQuery. Routed to the OPEN compose only.

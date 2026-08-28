@@ -964,6 +964,14 @@
    * re-flush it live via its controller. */
   let contactsRoster = [];
   let contactsView = null;           // open takeover controller ({ close, setContacts }) or null
+  /* ★ L6 (Damir, 2026-08-31): "when clicking on contacts from account — the left rail
+     jumps to CHATS, while it should stay on contacts."
+     There is no Contacts item in the rail — it has four, and Contacts is a takeover, not
+     a destination — so "stay" means: keep lighting where BACK goes, which is Account.
+     That is the same rule #589 already wrote for the Account PANE (syncAccountRail
+     below): the highlight describes the stack, the view and activeNav are left alone
+     because they are what we fall back to. This flag is the takeover's half of it. */
+  let contactsFromAccount = false;
   let contactsRenderTimer = 0;
   /* AND-29 (#336, Damir F5): the contacts/new-chat + wallet Receive/Send takeovers
    * are WebView-internal covers (not native overlays), so Android hardware back
@@ -978,8 +986,21 @@
    * never tracked. Now the pushed state covers takeovers AND any open overlay
    * (body[data-overlay-open]), and homeBack closes the top SHEET first, then a
    * takeover — so hardware back never falls through to exit while anything is up. */
+  /* AND-29 back routing needs "is ANYTHING up"; ★ L6 review MAJOR-2 needs a second,
+   * narrower answer, so the one signal now carries a LEVEL rather than a boolean:
+   *   0 nothing · 1 a sheet or menu · 2 a FULL-SHELL TAKEOVER
+   * Back routing is unchanged (it asks >= 1). The level-2 case is the one that repaints
+   * the OS bars, because a takeover is an opaque --surface-screen cover from y=0 — and
+   * HomePage overrides the status-bar colour to the WALLET HERO whenever currentTab is
+   * tab2. Before this row the Account hand-off forced tab1, which hid the problem on
+   * that path; it did NOT hide it on the wallet's own Receive/Send takeover, which has
+   * shipped with hero-coloured glyphs over a screen-surface cover the whole time. */
+  function homeOverlayLevel() {
+    if (contactsView || walletTakeover) return 2;
+    return document.body.dataset.overlayOpen !== undefined ? 1 : 0;
+  }
   function homeOverlayLive() {
-    return !!(contactsView || walletTakeover) || document.body.dataset.overlayOpen !== undefined;
+    return homeOverlayLevel() > 0;
   }
   /* AND-29 r3 (#337 audit MAJOR): DEFERRED + coalesced. bridge.send is a raw
    * location.href assignment with NO queue (native.js) — two navigations in one
@@ -995,7 +1016,7 @@
     if (homeOverlaySyncT) return;
     homeOverlaySyncT = setTimeout(() => {
       homeOverlaySyncT = 0;
-      try { bridge.send('ixian:homeoverlay:' + (homeOverlayLive() ? '1' : '0')); } catch (e) {}
+      try { bridge.send('ixian:homeoverlay:' + homeOverlayLevel()); } catch (e) {}
     }, 0);
   }
   // overlay.js toggles body[data-overlay-open] as sheets/menus open+close — mirror
@@ -1115,18 +1136,67 @@
   function openContacts(purpose, appId, opts) {
     const returnTo = (opts && opts.returnTo) || '';
     if (contactsView) contactsView.close();       // onClose nulls the handle
+    /* ★ L6: DERIVED from returnTo, not passed separately, and set AFTER the close
+     * above — an earlier draft set it at the call site and the close of a previous
+     * takeover cleared it one line later. One expression drives both the rail
+     * highlight and where Back goes, so they cannot disagree. */
+    contactsFromAccount = (returnTo === 'account');
+    /* ⚠ review MINOR-5: the flag's only clear is the takeover's own onClose, so if the
+     * mount below throws there is nothing left to turn it off and the rail claims
+     * Account for the life of the document — over a screen with no directory on it.
+     * The mount is guarded at the bottom of this function and resets the flag. */
     leaveSurfaceSearch();   // BUG-3: a takeover covers the tab — its query does not outlive the visit
-    contactsView = mountContacts({
-      host: document.body, bridge, strings, purpose, appId: appId || '',
-      getRoster: () => directoryRoster(),               // iOS-26: groups included in BOTH purposes
-      onClose: (reason) => {
-        contactsView = null; syncHomeOverlay();         // AND-29
-        if (reason === 'back' && returnTo === 'account') {
-          setNavActive(nav, 'account');
-          deferToPaint(() => bridge.send('ixian:settings'));   // the same deferral the Account tab uses
-        }
-      },
-    });
+    try {
+        contactsView = mountContacts({
+        host: document.body, bridge, strings, purpose, appId: appId || '',
+        getRoster: () => directoryRoster(),               // iOS-26: groups included in BOTH purposes
+        onClose: (reason) => {
+          contactsView = null; syncHomeOverlay();         // AND-29
+          contactsFromAccount = false;                    // ★ L6: the flag dies with the takeover
+          if (reason === 'back' && returnTo === 'account') {
+            /* Account is coming BACK, so the highlight is written directly rather than
+             * asked for: railTarget() would answer `activeNav` in the window between
+             * this close and settings.html re-marking its pane flag, and that window is
+             * exactly one visible frame of the wrong tab. */
+            setNavActive(nav, 'account');
+            deferToPaint(() => bridge.send('ixian:settings'));   // the same deferral the Account tab uses
+            return;
+          }
+          /* ★ Any OTHER close and the rail stops saying Account, because railTarget()
+           * now answers false. ⚠ DEFERRED by one task on purpose: a rail TAP reaches
+           * here through onChange, and onChange assigns `activeNav = id` AFTER it closes
+           * takeovers — so a synchronous read would hand the rail the tab the user just
+           * left. (A first draft read `aria-current` back instead and guarded on it
+           * being 'account'; the review proved that branch unreachable on every path
+           * that could have needed it.) */
+          setTimeout(syncNav, 0);
+        },
+      });
+    } catch (e) {
+      /* ⚠ review MINOR-5: nothing else can clear the flag, and a rail permanently
+       * claiming Account over a screen with no directory is worse than the failed
+       * open itself. The detail column has not been touched yet either — the emit
+       * below only runs on success. */
+      contactsFromAccount = false;
+      contactsView = null;
+      syncNav();
+      throw e;
+    }
+    /* ★ L6, the right-pane half. On a wide window the conversation lives in a SEPARATE
+     * native overlay in grid column 1; this takeover is inside the home WebView, which
+     * is column 0, so it cannot cover it. The Account pane could — it spans the whole
+     * grid — so closing Account to come here simply REVEALED the conversation that had
+     * been hidden underneath, and Damir read that as the pane "jumping to an open
+     * chat". C# clears the detail column and the welcome pane shows. Damir's call:
+     * nothing is restored on the way out.
+     * Only the ACCOUNT hand-off does this — the FAB picker opens from the chats
+     * context, where a conversation beside it is correct.
+     * ⚠ The CONVERSATION close is wide-only (C# gates it on rightContent.IsVisible);
+     * the three sibling sweeps in that verb are gated with it, so the whole verb is a
+     * no-op on a narrow window. An earlier comment here claimed that of all four while
+     * only one carried the gate. */
+    if (contactsFromAccount) bridge.send('ixian:cleardetail');
+
     syncHomeOverlay();   // AND-29: tell C# a takeover is up (hardware back closes it, not the app)
   }
 
@@ -1199,6 +1269,22 @@
     },
   });
   document.getElementById('chats-nav').append(nav);
+  /* ★★ L6 review MINOR-6: THE ACCOUNT ITEM MUST NOT GO DEAD.
+   * bottomnav.js early-returns on a re-tap of the item that already carries
+   * aria-current, and this row deliberately lights Account while the contacts
+   * directory is open — so on desktop, where the rail stays visible beside the
+   * takeover, tapping Account did nothing at all. For the Account PANE that no-op is
+   * honest (the pane really is open). Here it is not: the hand-off CLOSED the pane, so
+   * the item describes a destination the tap cannot reach.
+   * Capture phase, because the component's own listener is the thing that returns
+   * early. Closing with reason 'back' routes through the takeover's own return path,
+   * which is the same thing its Back button does — one behaviour, not two. */
+  nav.addEventListener('click', (e) => {
+    const btn = e.target && e.target.closest ? e.target.closest('.c-bottomnav__item') : null;
+    if (!btn || btn.dataset.id !== 'account') return;
+    if (!contactsFromAccount || !contactsView) return;
+    contactsView.close('back');
+  }, true);
 
   /* r3 QUIRK fix (Damir: leaving Account always landed on the tab home was on
    * BEFORE Account). No C# land-on-tab verb exists (S11) — settings.html writes
@@ -1231,7 +1317,26 @@
      when it closes, and C#'s own `selectTab` is right about them. Only the HIGHLIGHT
      is a lie while a pane covers the list. */
   function syncAccountRail() {
-    if (accountPaneOpen()) setNavActive(nav, 'account');
+    // ★ L6: the directory opened FROM Account is the same situation as the pane — the
+    // user is inside the Account context and Back returns there.
+    if (inAccountContext()) setNavActive(nav, 'account');
+  }
+  /* ★★ L6 review MAJOR-1. The rail highlight had FOUR writers and they did not agree:
+   * `onSettingsClosed` ends with an unconditional `setNavActive(nav, activeNav)`, and
+   * it runs `consumeLandTab()` on the line before — so the Account highlight this row
+   * exists to set was overwritten by the stale tab a microsecond later, on the exact
+   * path Damir reported. The comment above that handler even asserted the overwrite
+   * was "a consistent no-op", which had been true only for the tab-id branch.
+   * So the question "what should the rail say" is answered in ONE place now, and every
+   * writer that used to pass `activeNav` asks it instead. */
+  function inAccountContext() {
+    return accountPaneOpen() || contactsFromAccount;
+  }
+  function railTarget() {
+    return inAccountContext() ? 'account' : activeNav;
+  }
+  function syncNav() {
+    setNavActive(nav, railTarget());
   }
 
   function consumeLandTab() {
@@ -1250,11 +1355,32 @@
        SAME hand-off. 'contacts' means: land on Chats, then open the directory
        takeover. Nothing else about the trio changes. */
     if (id === 'contacts') {
-      activeNav = 'chats';
-      setNavActive(nav, 'chats');
-      showView('chats');
-      bridge.send('ixian:tab:' + NAV_TO_TAB.chats);
+      /* ★ L6 (2026-08-31). Four lines went, and each was doing damage.
+       *   activeNav / setNavActive('chats') — lit Chats while Back went to Account.
+       *     Damir's report. The rail now says Account, via the flag + syncAccountRail.
+       *   showView('chats') — switched the tab UNDERNEATH the takeover for no reason.
+       *     ⚠ AND IT IS NOT THE FLICKER, though a first draft of this comment said it
+       *     was. This runs in ONE task with the mount below, and .contacts-takeover is
+       *     opaque, fixed inset:0, with no enter transition — so the browser paints
+       *     once, already covered. It could not flash. What it did do is leave the
+       *     shell on a tab the user never chose, which is wrong on its own and is what
+       *     the rail was reporting.
+       *   ixian:tab:chats — told C# to load tab1 AND ran its overlay-exit sweep. The
+       *     sweep is redundant (settings.html already called exitSettings before
+       *     writing the hand-off) and the tab is not changing any more.
+       *
+       * ⚠ SO "Contacts on mobile causes flickering" IS NOT ADDRESSED HERE, and saying
+       * otherwise would be the worse outcome. The mechanism that fits: on mobile
+       * Account is a PARKED peer tab (#315), so C# re-presents this WebView showing
+       * whatever tab it left, and consumeLandTab cannot run until a LATER task — it is
+       * driven by the onSettingsClosed push (or the storage/visibility/focus fallback),
+       * every one of which arrives after the re-present. At least one frame of the old
+       * tab is therefore unavoidable from inside this document. That is the same
+       * mechanism L14 describes, and the two want ONE fix, in C#, not two guesses.
+       * activeNav and the visible view are deliberately untouched: they are what the
+       * rail falls back to when the directory closes. */
       openContacts('directory', '', { returnTo: 'account' });   // ★ C4: Back returns to Account, never Chats
+      syncNav();                                                // ★ L6: …and the rail says so
       return;
     }
     if (id === 'account' || !NAV_TO_TAB[id]) return;
@@ -2959,8 +3085,9 @@
     if (document.body.dataset.overlayOpen !== undefined) return false;   // overlay.js:107
     // Takeovers are z-30, sheets z-40 — a nudge would paint straight over them, and
     // overlay.js's flag does not track them. Gate on the shell's own live handles
-    // (authoritative) plus a DOM belt: mountContacts appends `.c-contacts` to body
-    // directly, so the `.contacts-takeover` wrapper the CSS anticipates never exists.
+    // (authoritative) plus a DOM belt on BOTH selectors. (An older note here claimed
+    // the `.contacts-takeover` wrapper "never exists" — it does: contacts-page.js
+    // builds it and appends the picker into it. The belt matches either way.)
     if (contactsView || walletTakeover) return false;
     if (document.querySelector('.c-contacts, .wallet-takeover')) return false;
     if (nudgeTabId !== 'chats') return false;      // a nudge over Wallet/Apps reads as a hijack
@@ -3123,10 +3250,13 @@
     // one deterministic "Account just closed" signal on iOS, where the storage
     // event never crosses WebViews and focus/visibility don't fire on overlay
     // close (the settings shell's exit-tap write raced listeners that never ran).
-    // consumeLandTab sets activeNav itself when a fresh key is present; the
-    // setNavActive after it is then a consistent no-op, and the real fallback
-    // when there was no tab hand-off.
-    onSettingsClosed() { clearAccountPaneFlag(); consumeLandTab(); setNavActive(nav, activeNav); },
+    // consumeLandTab sets activeNav itself for a TAB hand-off, so the sync after it
+    // is a no-op there, and the real fallback when there was no hand-off at all.
+    // ★ L6 review MAJOR-1: it used to end `setNavActive(nav, activeNav)` — an
+    // unconditional write that clobbered the Account highlight the CONTACTS hand-off
+    // had just set one line above, which is the "rail jumps to CHATS" Damir reported.
+    // railTarget() answers the same question for every writer.
+    onSettingsClosed() { clearAccountPaneFlag(); consumeLandTab(); syncNav(); },
 
     // Multi-user mini-app launch STARTED ON ANOTHER SURFACE (AppDetailsPage): that
     // page has no contacts roster of its own, so C# hands the target pick back to

@@ -542,6 +542,24 @@
   --text-action-hover: var(--primary-700);
   --text-action-pressed: var(--primary-800);
   --text-action-disabled: var(--neutral-400);
+  /* ★ L18 (Damir, 2026-08-31): the SPIXI LOGOTYPE ink — its own role because the
+     two themes want different answers and a component file never carries a
+     [data-theme] selector (the house rule stated at the top of this file).
+     "the Spixi logo and type on dark mode should be neutral01, and no longer
+     blue, on light mode we keep it."
+     LIGHT is unchanged on BOTH consumers. topbar.css already read
+     --text-action-default (--primary-600) and bottomnav.css's rail mark read
+     --icon-accent (--accent-600) — and --primary-600 and --accent-600 are the
+     SAME primitive, --brand-600. So one token can serve both without moving a
+     light pixel; two would only be two places to drift.
+     ⚠ It points at the PRIMITIVE, not at --text-action-default. Aliasing another
+     semantic role would re-couple exactly what a role exists to separate: re-anchor
+     the action ink for links and buttons one day and the wordmark would follow it,
+     silently, which is the drift this token was created to stop.
+     It is a --text- role rather than an --icon- one because the topbar mark is
+     an inline SVG on currentColor and INHERITS the title ink (topbar.js:74) —
+     the mark and the wordmark cannot disagree, and that is the point. */
+  --text-logotype: var(--primary-600);
   --text-accent: var(--accent-600);
   --text-info: var(--info-700);
   --text-info-inverse: var(--info-300);
@@ -766,6 +784,9 @@
   --text-action-hover: var(--primary-300);
   --text-action-pressed: var(--primary-300);
   --text-action-disabled: var(--neutral-500);
+  /* ★ L18: dark = neutral-01, the plain title ink. Not a dimmer blue — Damir
+     asked for the mark and the wordmark to stop being blue in dark, full stop. */
+  --text-logotype: var(--text-neutral-01);
   --text-accent: var(--accent-300);
   --text-info: var(--info-300);
   --text-info-inverse: var(--info-800);

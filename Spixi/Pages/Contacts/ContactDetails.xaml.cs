@@ -46,46 +46,10 @@ namespace SPIXI
             // owner as a desktop pane) — the in-chat takeover overtook the conversation.
             isGroup = friend.type == FriendType.Group || friend.bot;
 
-            /* ★★ [CDPERF] PROBE (item 6, 2026-08-29) — TEMPORARY. Damir reports chat info
-             * is slow to appear. `presentPreload`'s 120 ms hold is 0 for this page now, but
-             * that hold was only PART of the wait: page construction (generatePage
-             * re-localizes and rewrites a 168 KB shell to disk on every open) and the
-             * WebView boot are the rest, and nobody has ever measured which is which. One
-             * log line per open, so the next device run answers it instead of the next guess.
-             *
-             * ★★ WHEN TO REMOVE IT — NOT YET, AND THIS IS A DECISION, NOT AN OVERSIGHT
-             * (#46 loop r2, review-cs MINOR-7). The review reads the "remove when the number
-             * is read" line, notes that the sibling [RCPT] probe was deleted in this batch,
-             * and asks why this one survives. The answer is in three places in the tree:
-             *   · `docs/cdperf-2026-08-29-android.md` holds the FIRST measurement and its own
-             *     verdict: *"can be removed once the fix above is built and re-measured —
-             *     keep it until then, because it is the only way to confirm the bot room
-             *     actually moves."*
-             *   · `docs/launch-worklist-2026-08-29.md` row L10 (the bot room presents 140 ms
-             *     late) is NOT BUILT, and that row ends by removing this probe.
-             *   · `scripts/smoke-test.mjs:17033-17036` PINS all four lines present, so they
-             *     "cannot be forgotten in place".
-             * [RCPT] is different: its question was answered and closed. This probe's second
-             * measurement has not been taken. Deleting it now destroys the instrument L10
-             * needs, turns a deliberate pin red, and strands the shell's `ixian:cdpainted`
-             * emit. It costs four `Logging.info` lines per open, no address and no content.
-             * ⚠ REMOVE IT IN L10, together with the shell emit — not before, not alone. */
-            perfOpenedAt = DateTime.Now;
+            /* ★ The [CDPERF] probe that lived here from 2026-08-29 is REMOVED (L10, #668).
+             * It answered its question: docs/cdperf-2026-08-29-android.md holds BOTH
+             * measurements and the trade the fix makes. The numbers are only there now. */
             loadPage(webView, "contact_details.html");
-            Logging.info("[CDPERF] " + (isGroup ? "group" : "contact") + " constructed +" + perfSince() + "ms (ctor + generatePage)");
-        }
-
-        // ★★ [CDPERF] PROBE — temporary, see the ctor.
-        private DateTime perfOpenedAt = DateTime.Now;
-        private int perfSince()
-        {
-            return (int)(DateTime.Now - perfOpenedAt).TotalMilliseconds;
-        }
-
-        // ★★ [CDPERF] PROBE — temporary. The moment the stage becomes visible.
-        protected internal override void onPreloadPresented()
-        {
-            Logging.info("[CDPERF] presented +" + perfSince() + "ms");
         }
 
         // #247: HomePage's toggle/close routing compares by address, never by instance.
@@ -106,7 +70,6 @@ namespace SPIXI
             // MutationObserver mirror only reports CHANGES — reset here or a stale
             // true swallows hardware back (the #337 homeShellOverlayOpen lesson).
             shellOverlayOpen = false;
-            Logging.info("[CDPERF] document loaded +" + perfSince() + "ms");   // ★★ probe, temporary
 
             // #247: pane layout FIRST — coalesces ahead of the present, so the shell
             // never paints a takeover layout that reflows into the pane grammar.
@@ -268,7 +231,67 @@ namespace SPIXI
                     owner,
                     friend.type == FriendType.Group ? "group" : "bot",   // #249: surface kind
                     amOwner ? "1" : "0");                                // N48 (#370): additive — old shells ignore it
-                loadMembers(blind);
+                /* ★★ L10 (2026-08-31): PRESENT BEFORE THE ROSTER BURST.
+                 * Measured (docs/cdperf-2026-08-29-android.md): a bot room takes 250 ms
+                 * from ixian:onload to present, against 111 ms for a private group and
+                 * 106 ms for a 1:1. The +142 ms is right below — loadMembers walks the
+                 * roster and does a file read plus a base64 encode (imageToDataUri) and
+                 * one marshal PER MEMBER, synchronously on the UI thread, and a bot room
+                 * is the only surface with a large one (up to a 500 cap). Everything
+                 * above this line is a handful of pushes and costs nothing measurable,
+                 * which is why the other two surfaces do not pay.
+                 *
+                 * ⚠⚠ AND A HOIST ALONE DOES NOTHING — but not for the reason a first
+                 * cut of this comment gave, and the difference is the whole fix.
+                 * That draft said presentPreload's body is QUEUED because it runs inside
+                 * MainThread.BeginInvokeOnMainThread. It is not: that API runs the action
+                 * INLINE when the caller is already on the main thread, and a Navigating
+                 * handler is. This tree knows it — SpixiContentPage.cs writes
+                 * `if (MainThread.IsMainThread) drop(); else MainThread.BeginInvoke…`,
+                 * treating the two arms as equivalent. So the present below completes
+                 * SYNCHRONOUSLY (every ContactDetails push site passes revealDelayMs 0,
+                 * so presentPreload has no await before its opacity flip), and a second
+                 * BeginInvokeOnMainThread for the burst would have run inline too —
+                 * leaving the roster exactly where it started and the fix measuring zero.
+                 *
+                 * What actually costs the user the 142 ms is that the UI THREAD NEVER
+                 * RETURNS: the present is applied, but no frame can be composited until
+                 * onLoad finishes, and onLoad is busy doing a file read and a base64 per
+                 * member. So the burst has to leave the turn for real. Dispatcher.Dispatch
+                 * always posts — that is the distinction it carries from
+                 * DispatchIfRequired, which is the conditional one.
+                 *
+                 * ★ AND IT WAS MEASURED RATHER THAN ASSERTED. Two temporary [CDPERF] lines
+                 * proved the post is real on Damir's device — `roster burst` landed AFTER
+                 * `onLoad returned` on both opens (+18 ms, +15 ms), and `presented` moved
+                 * 250 ms → 104 ms. The probe is gone; the numbers are in
+                 * docs/cdperf-2026-08-29-android.md. ⚠ If you change this, put an
+                 * instrument back FIRST: the old "presented" line improved either way, so
+                 * a broken version of this fix reports itself as a success.
+                 *
+                 * ⚠ deferPreloadReady is deliberately NOT set. It would stop the base
+                 * handler (SpixiContentPage.webViewNavigating) from presenting, and that
+                 * call is the belt that covers a page which never reaches this line.
+                 * presentPreload is one-shot via op.tryFinish(), so the later call is a
+                 * harmless no-op and the belt is kept.
+                 *
+                 * Order: setPaneMode, setContext and setGroupInfo are all issued above,
+                 * and the member COUNT rides setGroupInfo, so the panel knows how many
+                 * rows to expect before one arrives. The roster now lands after
+                 * setAddress and updateScreen too; contact_details.html funnels every
+                 * push into its own state and paints on a coalesced settle, so it has no
+                 * push-order dependency in either direction. */
+                signalPreloadReady();
+                Dispatcher.Dispatch(() =>
+                {
+                    // presentPreload's abandoned branch disposes the target, and with a
+                    // real post there is now a window in which that can happen first.
+                    if (isDisposed)
+                    {
+                        return;
+                    }
+                    loadMembers(blind);
+                });
             }
 
             Utils.sendUiCommand(this, "setAddress", friend.walletAddress.ToString());
@@ -370,12 +393,6 @@ namespace SPIXI
             if (current_url.Equals("ixian:onload", StringComparison.Ordinal))
             {
                 onLoad();
-            }
-            else if (current_url.Equals("ixian:cdpainted", StringComparison.Ordinal))
-            {
-                // ★★ [CDPERF] PROBE — temporary. The shell says its first real content
-                // frame is up. Remove this branch with the rest of the probe.
-                Logging.info("[CDPERF] content painted +" + perfSince() + "ms");
             }
             else if (current_url.StartsWith("ixian:cdoverlay:", StringComparison.Ordinal))
             {

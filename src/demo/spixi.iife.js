@@ -40,7 +40,9 @@ function setStrings(dict) {
  *     evaluated, i.e. BEFORE executeUiCommand is entered, so the dispatcher's
  *     own try/catch cannot save it (the #258 `addAppRequest` lesson, which cost
  *     ten shells). Every shell C# can reach must therefore DEFINE setTheme —
- *     including the fixed-surface ones, where it is a deliberate no-op.
+ *     the launch flow and the lock included. ⚠ They used to define it as a
+ *     deliberate NO-OP; L5 retired that, and the reason is at the foot of this
+ *     file. All eighteen apply the push now.
  *  2. Before this module the body was copy-pasted into five shells and absent
  *     from thirteen. Copies drift; #251 and #288 MAJOR-1 are both that story.
  *
@@ -85,17 +87,29 @@ function applyPushedTheme(name, { onApplied, doc } = {}) {
   return true;
 }
 
-/**
- * The no-op every FIXED-SURFACE shell installs — the launch flow and the lock,
- * which are brand-dark in BOTH themes (N73 / #203). They must still DEFINE the
- * global for reason 1 above: without it an OS theme flip throws a ReferenceError
- * into the page while the user is looking at a password field.
+/* ★ L5 (2026-08-31) RETIRED `ignorePushedTheme`, and the reason is worth keeping.
  *
- * Deliberately NOT `applyPushedTheme`: flipping data-theme on these documents
- * would be worse than doing nothing, because their fixed dark chrome is painted
- * against a themed token set that would then move underneath it.
- */
-function ignorePushedTheme() { /* fixed-surface shell — see the docblock */ }
+ * It was the no-op the two FIXED-SURFACE shells installed — the launch flow and the
+ * lock — on this stated reasoning: "flipping data-theme on these documents would be
+ * worse than doing nothing, because their fixed dark chrome is painted against a
+ * themed token set that would then move underneath it."
+ *
+ * That is not true of either document, and the source says so. Both pin
+ * data-theme="dark" on their OWN subtree — `.c-launch` (launch-shell.js) and
+ * #lock-root (lock.html markup) — and an element carrying data-theme redefines the
+ * tokens for its subtree whatever the root holds. Everything they paint outside those
+ * subtrees is a hard-coded literal. So the root theme could never reach the chrome the
+ * no-op was protecting.
+ *
+ * What it DID reach is the only thing in those documents that is token-driven: an
+ * overlay, which mounts on document.body outside the pin. With no root theme those
+ * always resolved the LIGHT block — a light language sheet on the dark launch (Damir's
+ * report) and a light "Use a different wallet?" modal on the dark lock (found while
+ * fixing it). Both shells now carry the same pre-paint theme carrier as the other
+ * sixteen and call applyPushedTheme, so there is no second body to install.
+ *
+ * ⚠ The half that was ALWAYS right, and did not change: a fixed-surface shell must
+ * still DEFINE the setTheme global. Reason 1 above is why. */
 
 /* ---- src/components/money.js ---- */
 /**
@@ -555,6 +569,192 @@ function discGrad(glyph) {
   for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
   return ((h >>> 0) % DISC_GRADS) + 1;
 }
+
+/* ---- src/components/flags.js ---- */
+/**
+ * flags — the language list, and the flag beside each row.
+ *
+ * ★ L15 (Damir, 2026-08-31): "Windows - Account - Language - no flags shown, just
+ * country abbreviations. on phone the flags are shown."
+ *
+ * VERIFIED AT SOURCE. The rows were built from a REGIONAL-INDICATOR PAIR — 🇺🇸 is
+ * U+1F1FA U+1F1F8, two letters a FONT is expected to substitute with one flag glyph.
+ * Android and iOS ship those substitutions. Windows ships no colour flag glyph at all,
+ * so WebView2 draws the two letters it was given: "US", "CO", "DE". Same shell, same
+ * dictionary, same code path — the difference was never logic, it was a font.
+ *
+ * ★★ SO THE EMOJI STAYS WHERE IT WORKS. Damir, on seeing a drawn-SVG replacement:
+ * "can we use damn emojis" · "do we keep the emojis on mobile right, as they are
+ * perfect." They are, and they are the platform's own artwork — better than anything
+ * we would ship, and free. The fallback is only for platforms that cannot draw one.
+ *
+ * ⚠ AND THE TEST IS NOT "IS THIS DESKTOP". macOS has colour flag emoji; only Windows
+ * does not. `data-desktop` would have given a Mac the fallback for no reason and would
+ * be wrong again the day a platform changes. `flagGlyphAvailable()` below asks the
+ * question that actually matters — can this device paint one — once, on a canvas.
+ *
+ * ★ THE FALLBACK IS DAMIR'S OWN ASSET. `Spixi/Resources/Raw/html/img/flags/*.png` has
+ * shipped with the app since the legacy build and nothing in the redesign referenced it.
+ * Thirteen 40px PNGs, already in the APK, already his — no new dependency, no licence
+ * question, and they are the flags this product has always used.
+ * ⚠ The set had `gb.png` and no `us.png`; `us.png` was added at the same size so the
+ * en-us row shows the SAME country on both paths. A row that is 🇺🇸 on a phone and a
+ * Union Jack on Windows would be a worse bug than the one this row fixes.
+ *
+ * ★ ONE LIST. `launch-shell.js` used to carry a second copy of the same thirteen
+ * languages, and its own comment admitted the hazard: "keep the two in sync BY HAND".
+ * Both pickers, both demos and the welcome pill read LANGUAGES from here now, so a
+ * language, a label or a flag is added once and cannot be added to only one of them.
+ */
+
+/* Where the fallback PNGs live, relative to the document. The shells are generated
+ * INTO the folder that contains `img/`, so the default is right for every one of them.
+ * The demos live in src/demo/ and call setFlagBase() once — they are the only reason
+ * this is a variable rather than a constant. */
+let FLAG_BASE = 'img/flags/';
+
+/** Point the fallback at another folder (demo pages only). */
+function setFlagBase(path) {
+  FLAG_BASE = String(path || '');
+}
+
+/**
+ * The emoji for a two-letter country code, DERIVED rather than listed.
+ *
+ * A regional-indicator symbol is just the letter offset into U+1F1E6, so 'us' becomes
+ * U+1F1FA U+1F1F8. ⚠ Deriving it is the point: a second hand-written table of thirteen
+ * emoji would be one more place for a row to disagree with its own flag, which is the
+ * defect that put the language list in two files in the first place.
+ *
+ * @param {string} code  'us', 'de', … (case-insensitive)
+ * @returns {string} the two-code-point pair, or '' for anything that is not two letters
+ */
+function flagEmoji(code) {
+  const c = String(code || '').toLowerCase();
+  if (!/^[a-z]{2}$/.test(c)) return '';
+  return String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 97)
+    + String.fromCodePoint(0x1F1E6 + c.charCodeAt(1) - 97);
+}
+
+let glyphSupport = null;   // null = not asked yet
+
+/**
+ * Can this device actually PAINT a flag emoji?
+ *
+ * Draws one on a 16px canvas and looks for colour. A real flag glyph paints red and
+ * blue; a missing one paints two black letters in the fill colour, so every pixel is
+ * neutral. That is the whole test, and it asks the device rather than guessing from a
+ * user-agent string.
+ *
+ * ⚠ FAIL-SAFE IS THE PNG. No canvas, a blocked getImageData, a thrown anything — the
+ * answer is false and the row gets the asset, which works everywhere. The failure mode
+ * of a wrong `true` is Damir's original bug; the failure mode of a wrong `false` is a
+ * correct flag from a slightly different set. Those are not the same size of mistake.
+ *
+ * Asked once and cached: it cannot change while the document is alive.
+ */
+function flagGlyphAvailable() {
+  if (glyphSupport !== null) return glyphSupport;
+  glyphSupport = false;
+  try {
+    const c = document.createElement('canvas');
+    c.width = 16; c.height = 16;
+    const ctx = c.getContext && c.getContext('2d');
+    if (!ctx) return glyphSupport;
+    ctx.textBaseline = 'top';
+    ctx.font = '16px sans-serif';
+    ctx.fillStyle = '#000000';
+    ctx.fillText(flagEmoji('us'), 0, 0);
+    const d = ctx.getImageData(0, 0, 16, 16).data;
+    for (let i = 0; i < d.length; i += 4) {
+      // opaque AND not grey — a letter drawn in #000 can never satisfy both
+      if (d[i + 3] > 32 && (Math.abs(d[i] - d[i + 1]) > 24 || Math.abs(d[i + 1] - d[i + 2]) > 24)) {
+        glyphSupport = true;
+        break;
+      }
+    }
+  } catch (e) {
+    glyphSupport = false;   // see the docblock: the asset is the safe answer
+  }
+  return glyphSupport;
+}
+
+/** Test seam — the pins drive both paths without a real canvas. */
+function setFlagGlyphAvailable(v) {
+  glyphSupport = v === null ? null : !!v;
+}
+
+/**
+ * Build the flag for one row.
+ *
+ * ★ ONE function, so the emoji/asset decision exists in ONE place. The picker row and
+ * the welcome pill both call it; an earlier cut had the pill rendering its flag its own
+ * way, which is how it kept an emoji through a batch that was removing them.
+ *
+ * @param {string} code  a two-letter country code, or '' for "no flag"
+ * @returns {HTMLElement|null}  null means DRAW NOTHING — the honest answer for the
+ *   unknown-locale fallback row, which has no country. The caller still renders the
+ *   slot so the row stays aligned.
+ */
+function createFlag(code) {
+  const c = String(code || '').toLowerCase();
+  /* ⚠ Membership, NOT shape. A first cut tested /^[a-z]{2}$/ and happily built
+   * `img/flags/zz.png` for any two letters — a broken image icon in the picker for a
+   * country we do not ship an asset for. The emoji path would have drawn a real flag
+   * for the same code, so the two paths would have disagreed about whether the row has
+   * a flag at all. The list is the authority on both. */
+  if (KNOWN.indexOf(c) < 0) return null;
+  if (flagGlyphAvailable()) {
+    const s = document.createElement('span');
+    s.className = 'c-flag c-flag--emoji';
+    s.setAttribute('aria-hidden', 'true');
+    s.textContent = flagEmoji(c);
+    return s;
+  }
+  const img = document.createElement('img');
+  img.className = 'c-flag c-flag--img';
+  img.setAttribute('aria-hidden', 'true');
+  img.setAttribute('alt', '');
+  /* Decorative and never blocking: if the asset is missing the row still reads, because
+   * the LABEL is the name of the language, in that language. */
+  img.setAttribute('loading', 'lazy');
+  img.src = FLAG_BASE + c + '.png';
+  return img;
+}
+
+/**
+ * ★ THE ONE language list. Both pickers, both demos and the welcome pill read it.
+ *
+ * `flag` is a two-letter COUNTRY code — which is not always the locale's second half:
+ * sr-sp is written with the rs flag, and the emoji and the PNG both derive from this
+ * one field so the two paths can never show different countries.
+ *
+ * A locale whose dictionary has not landed is not listed here at all (build-locales.mjs
+ * owns that gate, N4/#379) — hiding it is what stops a tap silently moving someone off
+ * their own language.
+ */
+const LANGUAGES = [
+  { code: 'en-us', label: 'English', flag: 'us' },
+  { code: 'es-co', label: 'Español', flag: 'co' },
+  { code: 'de-de', label: 'Deutsch', flag: 'de' },
+  { code: 'fr-fr', label: 'Français', flag: 'fr' },
+  { code: 'pt-br', label: 'Português (Brasil)', flag: 'br' },
+  { code: 'ru-ru', label: 'Русский', flag: 'ru' },
+  { code: 'sl-si', label: 'Slovenščina', flag: 'si' },
+  { code: 'sr-sp', label: 'Srpski', flag: 'rs' },   // ⚠ locale sr-sp, flag rs — they differ
+  { code: 'it-it', label: 'Italiano', flag: 'it' },
+  { code: 'id-id', label: 'Bahasa Indonesia', flag: 'id' },
+  { code: 'lt-lt', label: 'Lietuvių', flag: 'lt' },
+  { code: 'cn-cn', label: '中文', flag: 'cn' },
+  { code: 'ja-jp', label: '日本語', flag: 'jp' },
+];
+
+/** Every country code the list uses — the pins enumerate this, never a hand list. */
+const FLAG_CODES = LANGUAGES.map((l) => l.flag);
+/* The set createFlag is allowed to draw. Derived from the ONE list, so a code we do not
+ * ship an asset for cannot be requested down either path. Declared after LANGUAGES and
+ * read only at call time, which is why createFlag above can close over it. */
+const KNOWN = FLAG_CODES;
 
 /* ---- src/components/timestamp.js ---- */
 /**
@@ -19787,6 +19987,7 @@ function createEncPassScreen({
 
 
 
+
 // ★ Batch E (d) (#557): createQrSvg + overlayId left with the inline QR reveal —
 // the hub renders no code of its own now; openAddressSheet owns the surface
 
@@ -19883,11 +20084,20 @@ function settingsOptionSheet({ title, hint, options, current, host, strings = ge
     opt.className = 'c-settings__opt';
     opt.setAttribute('role', 'radio');
     opt.setAttribute('aria-checked', String(o.value === current));
-    if (o.flag) {                              // #148⑥: leading flag slot (emoji now; SVG assets can swap in)
+    /* #148⑥ leading flag slot. ★ L15 (2026-08-31): createFlag decides emoji vs asset —
+     * the emoji stays on every platform that can paint one (Damir: "they are perfect"),
+     * and Windows, which ships no colour flag glyph, gets the PNG the app has always
+     * carried. The SLOT is built whenever this option set uses flags at all, even when
+     * nothing is drawn: `.c-settings__opt` is a flex row with a gap, so a missing 28px
+     * slot took the gap with it and the fallback row's label sat 36px left of every
+     * other — and that is the row that is pre-selected and carries the hint.
+     * `o.flag === undefined` (the theme and security pickers) still gets no slot. */
+    if (o.flag !== undefined && o.flag !== null) {
       const fl = document.createElement('span');
       fl.className = 'c-settings__opt-flag';
       fl.setAttribute('aria-hidden', 'true');
-      fl.textContent = o.flag;
+      const flagEl = createFlag(o.flag);
+      if (flagEl) fl.append(flagEl);
       opt.append(fl);
     }
     const lab = document.createElement('span');
@@ -22645,6 +22855,7 @@ function createSettingsHowTo({
 
 
 
+
 const launchState = new WeakMap(); // el → st
 
 const LAUNCH_VIEWS = ['welcome', 'create', 'restore', 'retry'];
@@ -22762,29 +22973,15 @@ function hostEl(st) {
   return st.opts.host || (st.root && st.root.closest('.demo-phone')) || undefined;
 }
 
-// #148⑥ inventory shape (settings parity — flags emoji now, SVG swaps later);
-// overridable via opts.languages. A4 (Damir, Batch A): a locale WITHOUT a shell
-// dictionary (build-locales.mjs LANGS) is hidden until translated, matching the
-// Account hub picker — picking one only translated the C# layer and left every
-// shell string English. (The old zh-cn entry was also a WRONG code —
-// SpixiLocalization ships cn-cn.)
-// N4 (#379): it/id/lt/cn/ja shipped dictionaries → real rows, same order as the
-// Account hub list (settings.html LANGS — keep the two in sync BY HAND).
-const LAUNCH_LANGS = [
-  { code: 'en-us', label: 'English', flag: '🇺🇸' },
-  { code: 'es-co', label: 'Español', flag: '🇨🇴' },
-  { code: 'de-de', label: 'Deutsch', flag: '🇩🇪' },
-  { code: 'fr-fr', label: 'Français', flag: '🇫🇷' },
-  { code: 'pt-br', label: 'Português (Brasil)', flag: '🇧🇷' },
-  { code: 'ru-ru', label: 'Русский', flag: '🇷🇺' },
-  { code: 'sl-si', label: 'Slovenščina', flag: '🇸🇮' },
-  { code: 'sr-sp', label: 'Srpski', flag: '🇷🇸' },
-  { code: 'it-it', label: 'Italiano', flag: '🇮🇹' },
-  { code: 'id-id', label: 'Bahasa Indonesia', flag: '🇮🇩' },
-  { code: 'lt-lt', label: 'Lietuvių', flag: '🇱🇹' },
-  { code: 'cn-cn', label: '中文', flag: '🇨🇳' },
-  { code: 'ja-jp', label: '日本語', flag: '🇯🇵' },
-];
+/* ★ L15 (2026-08-31): this file used to carry its OWN copy of the thirteen
+ * languages, and the comment that stood here admitted the hazard in its own words —
+ * "keep the two in sync BY HAND". It is gone. Both pickers now read LANGUAGES from
+ * flags.js, so a language, a label or a flag is added ONCE.
+ * What the deleted note said and is still true: a locale whose dictionary has not
+ * landed is not listed at all (build-locales.mjs LANGS, N4/#379) — picking one would
+ * translate only the C# layer and leave every shell string English. The old zh-cn
+ * entry was also a WRONG code; SpixiLocalization ships cn-cn. */
+const LAUNCH_LANGS = LANGUAGES;
 
 /* A4 fallback row (settings.html carries the same guard, one grammar).
  * App.xaml.cs:100-107 auto-detects CultureInfo on FIRST RUN and PERSISTS it when
@@ -22839,8 +23036,14 @@ function buildWelcome(st) {
   langLabel.className = 'c-launch__pill-label';
   const syncLang = () => {
     const cur = languages.find((l) => l.code === st.language) || languages[0];
-    langFlag.textContent = cur.flag || '';
-    langFlag.hidden = !cur.flag;
+    /* ★ L15: the pill draws through the SAME function as the picker row it opens.
+     * It carried a raw emoji of its own, so on Windows it showed "US" beside
+     * "English" — one defect, two surfaces, and the pill is the one a new user sees
+     * FIRST. Now neither can be right while the other is wrong. */
+    const flagEl = cur.flag ? createFlag(cur.flag) : null;
+    langFlag.replaceChildren();
+    if (flagEl) langFlag.append(flagEl);
+    langFlag.hidden = !flagEl;
     langLabel.textContent = cur.label;
     langPill.setAttribute('aria-label', (strings.language || 'Language') + ': ' + cur.label);
   };
@@ -22864,10 +23067,15 @@ function buildWelcome(st) {
   });
 
   /* ★ N72 (#391, Damir's product call): the APPEARANCE pill is gone. The whole
-     launch flow is a fixed-dark brand surface in both themes (dataset.theme =
-     'dark' below; the shell carries no *SL{SpixiThemeName} boot script), so the
-     pick changed nothing the user could see and cost a page reload. The app
-     rides the system theme until the user reaches Account → Appearance. */
+     launch flow is a fixed-dark brand surface in both themes (dataset.theme = 'dark'
+     below), so the pick changed nothing the user could see and cost a page reload.
+     The app rides the system theme until the user reaches Account → Appearance.
+     ⚠ This comment used to add "the shell carries no theme boot script". L5 gave it
+     one — the root now carries the real theme so the launch SHEETS follow the phone —
+     and the fixed chrome is unaffected because it is pinned on its own subtree.
+     ⚠⚠ It also spelled the carrier out in prose, and that is not free: generatePage
+     substitutes text-based and does not skip comments (N83), and this file is inlined
+     whole into the bundle. The marker is named indirectly here for that reason. */
   top.append(langPill);
   v.append(top);
 
@@ -24721,5 +24929,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, ignorePushedTheme: ignorePushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, PATTERN_LEVELS: PATTERN_LEVELS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

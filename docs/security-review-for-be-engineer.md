@@ -365,3 +365,54 @@ if (!full.StartsWith(Path.GetFullPath(appsPath) + Path.DirectorySeparatorChar, S
 Same class as the `..`-traversal on downloads that #266 closed in
 `TransferManager.resolveDownloadPath`.
 
+
+---
+
+# ★★ A1 · THE WALLET PASSWORD IS STORED IN CLEARTEXT — BE ROW (Damir, 2026-08-31)
+
+**Ruled BE by Damir:** *"wallet password is for BE engineer, we are just focusing on FE
+work."* Recorded here so it stops being carried on the FE list, where it had been filed
+under "the nine iOS rows / office Mac" — ⚠ **which is wrong twice over: it is not iOS-only,
+and it does not need a Mac.**
+
+## What is true, read at source 2026-08-31
+
+`Preferences.Default` is plaintext on every platform — SharedPreferences XML on Android,
+an NSUserDefaults plist on iOS. The wallet password is written to it under `walletpass`:
+
+| site | what |
+|---|---|
+| `Spixi/Pages/Launch/LaunchPage.xaml.cs:521` | wallet CREATE. ⚠ Carries a literal `// TODO: encrypt the password` on the line above |
+| `Spixi/Pages/Launch/LaunchPage.xaml.cs:634` | wallet RESTORE |
+| `Spixi/Pages/Launch/LaunchPage.xaml.cs:887` | the third launch path |
+| `Spixi/Pages/Settings/SettingsPage.xaml.cs:389` | password change |
+| `Spixi/Pages/Settings/EncryptionPassword.xaml.cs:85` | encryption-password screen |
+
+Read back at **`Spixi/Meta/Node.cs:410`** (`Node.loadWallet`) and
+**`Spixi/Pages/Settings/BackupPage.xaml.cs:151`**.
+
+★ **There is no `SecureStorage` anywhere in the tree** — verified by sweep, zero matches
+in `Spixi/**/*.cs`.
+
+## What is NOT wrong, checked before it was written down here
+
+* **Delete-account does clear it.** `SettingsPage.xaml.cs:1195` calls
+  `Preferences.Default.Clear()` in the wipe path, so the key does not survive a wipe.
+* ⚠ `LaunchPage.xaml.cs:500` and `:616` call `Preferences.Default.Remove("waletpass")` —
+  **one `l`**, a key nothing ever writes. Both are immediately followed by a `Set` of the
+  correct key, so nothing is stranded by it. **A dead line, not a leak.** Worth deleting
+  while the file is open, but it is not the finding.
+
+## The ask
+
+Move `walletpass` to `SecureStorage` (Keychain / Android Keystore-backed), with:
+
+1. a **migration** for existing installs — read the old `Preferences` value once, write it
+   secure, then `Preferences.Default.Remove("walletpass")`;
+2. a **fallback path**, because `SecureStorage` genuinely throws on some Android devices
+   (missing/!broken keystore) — decide whether that means "prompt every launch" or a
+   documented degrade, rather than silently falling back to plaintext;
+3. the two `"waletpass"` typos removed with it.
+
+⚠ Every site above is on the auth path and one is on the backup path. This wants its own
+security-gate row and the #46 loop, not a drive-by.

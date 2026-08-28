@@ -8,11 +8,21 @@ Two sources are merged here: **Damir's own pre-launch list**, given in his words
 remains of the review queue. Where they overlap the row says so, because several of his
 items already had a lead in the queue and the lead is the fast half of the work.
 
-**Baseline** — ⚠ **UPDATED AFTER THE SESSION B WALK (2026-08-31). TWO MORE NUMBERS MOVED:**
+**Baseline** — ⚠ **UPDATED AFTER SESSION C (2026-08-31):**
 ```
-bundle 301 · shells 18 · smoke BASELINE OK 3586 / the 3 known (#136 · M5 · B3)
-· locales ALL CLEAN 776 · cs-syntax 140+1 · Ixian-Core 097341a, verified clean
+bundle 305 · shells 18 · smoke BASELINE OK 3631 / the 3 known (#136 · M5 · B3)
+· locales ALL CLEAN 776 · cs-syntax 140+1 · i18n-lint ✓ · pseudo 9/9
 ```
+* **bundle 301 → 305** — flags.js adds `LANGUAGES`, `flagSvg`, `FLAG_CODES`, `FLAG_W`,
+  `FLAG_H`; `ignorePushedTheme` was retired with its last two callers (net +4).
+* **smoke 3586 → 3631** — the session-C block plus the #46 loop's repairs.
+* ★ **locales stay 776, and that is real rather than a coincidence: this batch added no
+  string at all.** Nothing in it is user-facing text.
+* ⚠ **Ixian-Core was NOT verifiable this session** — it is a sibling folder outside the
+  connected root and the access request could not be granted from the client that answered
+  it. L13 is blocked on the same thing.
+
+The session-B baseline was `bundle 301 · shells 18 · smoke 3586 · locales 776`.
 * **locales 775 → 776** — the new key `noneSeenYet`, drafted into all 12 locales.
 * **smoke 3582 → 3586** — the pins for the two walk fixes.
 * Everything else is unchanged: bundle 301 · shells 18 · cs-syntax 140+1 · the 3 known
@@ -44,7 +54,7 @@ is the gate, not the suite.** A row is not done because the pins are green.
 |---|---|---|
 | **A** ✅ | **L1 · L2 · L8** — BUILT 2026-08-29, DECISIONS #642–#645, awaiting Damir's walk | The two he named, plus the slide-out. L1 and L2 both live in the chat / contact-details surfaces, and L8 is the mirror of work already in the tree. All three are traced to the line, so the session is build-and-verify, not investigate. |
 | **B** ✅ | **L7 · L11** — BUILT 2026-08-30, DECISIONS #657–#661, awaiting Damir's walk | ⚠ **The session was planned as L6 · L7 · L5 · L11 · L10 and it did not deliver five rows.** The #46 loop that #646 marked `🟡 re-review` ran first and found **22 MAJORs over five rounds**. It earned its time. **L6, L5 and L10 move to session C.** The `[RCPT]` probe is removed and the member-context check is folded into `cs-syntax-check`. |
-| **C** | **L6 · L5 · L10 · L3 · L4 · L9 · L13 · L14 · L15 · L16 · L17 · L18** + the two flicker rows | ⚠ **This session is now large.** L3 and L4 are one subject — back semantics — and doing them apart would mean deciding the same rule twice. L6, L5 and L10 carry over from B. L13 is Damir's new leave-group row and it is VERIFY-FIRST. **L14 to L17 are new from the 2026-08-31 walk and three of the four are VERIFY-FIRST.** ★ L17 (launcher icon) and L18 (the dark-mode logotype ink) are both cheap and safe to do early. Split the session if it will not fit; L3 is the row that decides the size. |
+| **C** ✅ | **L18 · L16 · L15 · L5 · L10 · L6** — BUILT 2026-08-31, DECISIONS #664–#670, awaiting Damir's walk | ⚠ **This session is now large.** L3 and L4 are one subject — back semantics — and doing them apart would mean deciding the same rule twice. L6, L5 and L10 carry over from B. L13 is Damir's new leave-group row and it is VERIFY-FIRST. **L14 to L17 are new from the 2026-08-31 walk and three of the four are VERIFY-FIRST.** ★ L17 (launcher icon) and L18 (the dark-mode logotype ink) are both cheap and safe to do early. Split the session if it will not fit; L3 is the row that decides the size. |
 | **D** | whatever his review yields | Damir: *"I am sure my review will yield a 4th one to polish some things."* Reserve, deliberately unplanned. |
 
 ## What could go wrong, and what it costs
@@ -314,7 +324,16 @@ has never been read on a device:** `LaunchPage.xaml.cs` logs
 `"LaunchPage back: view=… overlay=…"` on every press. One walk with logcat answers what the
 first press actually does.
 
-## L5 · Launch sheets are light on a dark phone (queue 22) — ⏭ MOVED TO SESSION C
+## L5 · Launch sheets are light on a dark phone (queue 22) — ✅ BUILT, session C (#667). 🟡 Damir F5
+★ **ROOT CAUSE, and it is one line.** Of eighteen shells, `launch.html` and `lock.html` were
+the ONLY two that set no root `data-theme` at all, so every token-driven surface in them
+resolved the LIGHT `:root` block on every phone. The CHROME never showed it because
+`.c-launch` and `#lock-root` pin dark on their own subtree; a SHEET mounts on
+`document.body`, outside the pin, and `launch-shell.js`'s own comment already called those
+"themed pickers". ⚠ **The lock had the same defect, unreported** — the "Use a different
+wallet?" modal was a light dialog over the dark lock. `ignorePushedTheme` is retired: its
+stated rationale was disproved at source, and a pin asserting it was right to go red.
+The original entry follows.
 > *"Welcome/Create — while the phone is in dark theme, the terms/languages/privacy sheet is
 > in light mode. I think it should follow the phone theme."*
 
@@ -326,7 +345,17 @@ whether the SHEETS were meant to be exempt from that, or whether the exemption o
 
 # P2 — Account and Chats
 
-## L6 · Account → Contacts: the rail jumps, and the right pane opens a chat (queue 18) — ⏭ MOVED TO SESSION C
+## L6 · Account → Contacts: the rail jumps, and the right pane opens a chat (queue 18) — ✅ BUILT (① ②), session C (#669). ⏭ ③ → L14. 🟡 Damir F5
+★ The rail lights **Account** (Damir's call — there is no Contacts rail item, and Account is
+where Back goes). ★★ The first cut was **defeated one line later**: `onSettingsClosed` ends
+an unconditional `setNavActive(nav, activeNav)`, so the highlight was clobbered by the stale
+tab a microsecond after it was set. The rail had FOUR writers; `railTarget()` answers it
+once now. The right pane "jumped" because the Account pane spans the whole grid and was
+HIDING a conversation — new verb `ixian:cleardetail` clears the column, nothing is restored
+(Damir). ⚠ **The MOBILE FLICKER IS NOT FIXED**: `showView('chats')` cannot have caused it
+(same task as the mount, opaque takeover, one paint), and the real mechanism is the parked
+peer re-present — the same one **L14** describes. They want ONE fix.
+The original entry follows.
 > *"Contacts on mobile causes flickering, while on desktop it opens contacts, but the right
 > pane jumps to an open chat. Right pane should stay in account empty state."*
 > *"when clicking on contacts from account — the left rail jumps to CHATS, while it should
@@ -385,7 +414,18 @@ the apps detail pane · wallet tx detail · settings sub-screens. ★ Evaluate, 
 #630's per-op `revealDelayMs` and `slideIn` are already per-navigation, so each surface is
 an independent decision rather than one global switch.
 
-## L10 · The bot room presents 140 ms late (D2) — ⏭ MOVED TO SESSION C
+## L10 · The bot room presents 140 ms late (D2) — ✅ BUILT, session C (#668). 🟡 Damir F5 + the owed measurement
+★★ **AND THE ROW WAS WRONG TWICE.** It first said "hoist `signalPreloadReady()`"; session B
+corrected that to "not a one-line reorder"; **both were still wrong.**
+`MainThread.BeginInvokeOnMainThread` runs its action **INLINE** when the caller is already on
+the main thread — which a `Navigating` handler is, and which this tree already states at
+`SpixiContentPage.cs`. So the present completed synchronously and the burst never left the
+turn: the first cut of the fix measured **zero**, and `[CDPERF] presented` fires either way,
+so a device run would have reported it as a success. It uses `Dispatcher.Dispatch` now,
+which always posts, and it **ships its own discriminator** — `roster burst` vs `onLoad
+returned`. ⚠ **The [CDPERF] probe STAYS for this walk (Damir's call) and comes out in a
+one-file follow-up once he has read those two numbers.**
+The original entry follows.
 
 ★★ **SESSION B CORRECTION: THIS IS NOT A ONE-LINE REORDER, AND THIS ROW SAID IT WAS.**
 Auditor C read the ordering at source and reports a real hazard.
@@ -444,7 +484,26 @@ F5 6.1 came back n/a: *"i dont have admin rights with these test accounts, will 
 another time."* **That is the half Damir asked to protect**, and a mistake there silently
 removes a working feature. #637 is not done until someone walks it with real admin rights.
 
-## L13 · ★ NEW, Damir 2026-08-30 — a "leave group" check box on Delete chat
+## L13 · a "leave group" check box on Delete chat — 🟡 UNBLOCKED, session C (#672). Build in D
+★★ **VERIFIED AT SOURCE, and the answer is YES.** Damir connected Ixian-Core (it is at
+`..\Ixian-Core`, one level above the folder the session had). At `097341a`:
+`SpixiMessageCode.leave = 37` · `sendLeave` (`CoreStreamProcessor.cs:2916`) · `handleLeave`
+(`:1600`) · `leaveConfirmed = 38`. **What the box can truthfully promise:** the leave rides
+the PENDING-message path with a push notification (`:852-864`), so it reaches members who
+are offline; on their device `handleLeave` runs `group.users.delUser(sender)` — the leaver
+really is removed from their roster — and an OWNER leaving removes the group outright.
+★★ **AND THE APP ALREADY DOES IT**: `ixian:leave` (`ContactDetails.xaml.cs:652`,
+`SingleChatPage.xaml.cs:414`) is #567, shipped, one grammar for group and bot. So this is
+NOT a Core row and never was — it is the same proven path offered from the chats-list Delete
+flow. ⚠ The only real work: `ixian:leave` is PAGE-SCOPED, so the chats list needs the
+per-address twin pattern HomePage already uses for `ixian:remove`.
+The original entry follows.
+★ **Not built, and not because it is hard.** It is verify-at-source-first and Ixian-Core was
+**not reachable**: it is a sibling folder outside this session's connected root, and every
+access request was answered from a client that could not confirm which folder was asked for.
+Nothing about the box was assumed in the meantime. **The approval has to come from inside the
+conversation in the desktop app.** Carries to the next session unchanged.
+
 
 > *"we need a 'leave group' check box when long press on a group in chats list and tap on
 > delete chat. so similar to 1:1 where we offer to remove the contacts as well."*
@@ -464,7 +523,16 @@ and what it does to the roster on every other member's device, and then tell Dam
 box can truthfully promise. If the verb is missing it becomes a BE row, not a build row.
 
 
-## L14 · ★ NEW, Damir 2026-08-31 — a tab flickers into view before Wallet
+## L14 · a tab flickers into view before Wallet — ★ SESSION C FOUND ITS TWIN
+⚠ **L6 ③ is the same bug.** "Contacts on mobile causes flickering" cannot be caused by
+anything in the shell's contacts branch: `showView` and the mount run in ONE task and the
+takeover is opaque `fixed inset:0` with no enter transition, so the browser paints once.
+What is left is the mechanism this row already names — Account is a PARKED peer tab on
+mobile (#315), C# re-presents the home WebView showing whatever tab it left, and the shell
+cannot run until a LATER task (the `onSettingsClosed` push, or the storage/visibility/focus
+fallback), every one of which arrives after the re-present. **At least one frame of the old
+tab is unavoidable from inside the document**, so the fix is in C#. Build the two together.
+
 
 > *"if i go to CHATS or APPS - then to account and then to Wallet - theres a brief flicker
 > of either the chats or apps screen before wallet is shown. only in that order and only on
@@ -492,7 +560,20 @@ not as a second bug.
 🟡 **OWED: the iOS leg.** Walk the same order on iOS and record it here. Do not close the
 row on Android alone.
 
-## L15 · ★ NEW, Damir 2026-08-31 — the Windows language picker shows no flags
+## L15 · the Windows language picker shows no flags — ✅ BUILT, session C (#666). 🟡 Damir F5
+★ Confirmed at source: regional-indicator emoji pairs, and WebView2 ships no colour flag
+glyph. ★ **The row existed twice because the LIST did** — `launch-shell.js` carried a second
+copy whose own comment said "keep the two in sync BY HAND", and the welcome PILL carried an
+emoji too. ONE list now.
+★★ **AND THE EMOJI STAYS.** I first replaced all thirteen with drawn SVG; a rasteriser found
+Brazil reading as a smiley face and Serbia's shield as the Swiss emblem, and then Damir
+deleted the class: *"do we keep the emojis on mobile right, as they are perfect."* They are.
+The emoji is used wherever the device can PAINT one — tested on a canvas, not guessed from
+the platform, because macOS has the glyphs and Windows does not — and the fallback is
+`img/flags/*.png`, the PNGs this app has shipped since the legacy build and which nothing in
+the redesign referenced. Only `us.png` was missing and was added, because a row that is 🇺🇸 on
+a phone and a Union Jack on Windows is worse than the bug being fixed.
+The original entry follows.
 
 > *"Windows - Account - Language - no flags shown, just country abbreviations. on phone the
 > flags are shown."*
@@ -508,7 +589,15 @@ the two letters — which is exactly what Damir sees. Android's emoji font has t
 confirm the fallback, before building anything. If it is confirmed, the fix is an ASSET or a
 text treatment — a flag image set, or a deliberate two-letter style — **not a logic change**.
 
-## L16 · ★ NEW, Damir 2026-08-31 — splash: a smaller logo, and no logo background in light mode
+## L16 · splash: a smaller logo, and no logo background in light mode — ✅ BUILT, session C (#665). 🟡 Damir F5
+★ The squircle was ONE missing line, as this row said. ⚠⚠ **BUT THE SCOPE WAS WRONG AND
+DAMIR'S ANSWER RESTED ON IT:** `layout/splash_screen.xml` is NOT "the pre-31 splash" —
+`values/styles.xml` sets it as `windowBackground` with **no version qualifier**, so it is the
+activity ground on every api level, and leaving it behind would have handed a #175595 system
+splash over to a #144576 window on a modern phone. Its gradient moved; the `@drawable/splash`
+BITMAP is what genuinely stays out of scope. ⚠ `Spixi.csproj`'s MauiSplashScreen colour is
+dead on Android but LIVE on iOS and Windows — that repaint rides this row.
+The original entry follows.
 
 > *"Smaller logo on the splash screen and on light OS mode when splash is blue, remove the
 > small logo background … small reduction in logo and light mode splash screen: #175595"*
@@ -556,7 +645,14 @@ calls the launcher-icon fallback *"reads correctly"*; **this row reverses that j
 follows the **OS** theme, not Spixi's in-app override — a light OS with Spixi set to dark
 still gets the light splash, and that is not a defect.
 
-## L18 · ★ NEW, Damir 2026-08-31 — the logotype is blue in dark mode
+## L18 · the logotype is blue in dark mode — ✅ BUILT, session C (#664). 🟡 Damir F5
+★ One token, `--text-logotype`, consumed by the topbar logotype AND (Damir's extension) the
+desktop rail mark. Light is unchanged to the pixel only because `--primary-600` and
+`--accent-600` are the same primitive — pinned, because re-anchoring accent would move the
+rail's light mark silently. 🟡 **OPEN: the launch welcome logo and the lock logo are still
+blue** (`--icon-accent` inside dark-pinned subtrees) and the boot cover is white. Four Spixi
+marks, three answers, and nothing records which are deliberate.
+The original entry follows.
 
 > *"the Spixi logo and type on dark mode should be neutral01, and no longer blue, on light
 > mode we keep it. its in the chats screen the title bar"*
@@ -595,7 +691,14 @@ logo:true`, #237) — verify whether it takes this rule or paints its own.
 
 ★ Cheap and low risk: one token plus one word. Safe to do early, like L17.
 
-## L17 · ★ NEW, Damir 2026-08-31 — the launcher icon
+## L17 · the launcher icon — ✅ BUILT, session C (#671). 🟡 Damir F5
+★★ **THERE WAS NOTHING TO WAIT FOR.** Three handoffs said "Damir owes the new logo SVG";
+he asked why, and he was right — `src/assets/icons/logo.svg` is in the repo and is the SAME
+mark the Android-12 splash already draws. Rebuilt on Damir's #175595 with real padding
+(measured: the ink is 24.256 × 29.65 of a 32-unit box, landing 388 × 474 in 1024 — diagonal
+612 against the 676 safe circle). `MauiIcon Color` moved off `#000000`.
+⚠ Needs an UNINSTALL to be seen; launchers cache icons hard.
+The original entry follows.
 
 > *"Fix the launcher icon - new logo svg used and better color- and smaller logo in the
 > launcher (this can be done before we finalize work)"*

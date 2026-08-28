@@ -124,20 +124,15 @@
     notifs: { enabled: true, previews: true, sounds: true },   // §9-gated
     securityTier: 'basic',                      // §9-gated (#147 tiers)
   };
-  // #148⑥: 10 biggest languages, flags leading (emoji now — SVG assets can swap
-  // into the flag slot later); the >6 list scrolls inside the taller sheet
-  const LANGS = [
-    { code: 'en-us', label: 'English', flag: '🇺🇸' },
-    { code: 'zh-cn', label: '中文', flag: '🇨🇳' },
-    { code: 'es-es', label: 'Español', flag: '🇪🇸' },
-    { code: 'hi-in', label: 'हिन्दी', flag: '🇮🇳' },
-    { code: 'fr-fr', label: 'Français', flag: '🇫🇷' },
-    { code: 'de-de', label: 'Deutsch', flag: '🇩🇪' },
-    { code: 'pt-br', label: 'Português', flag: '🇧🇷' },
-    { code: 'ru-ru', label: 'Русский', flag: '🇷🇺' },
-    { code: 'ja-jp', label: '日本語', flag: '🇯🇵' },
-    { code: 'sr-latn', label: 'Srpski', flag: '🇷🇸' },
-  ];
+  /* ★ L15 (2026-08-31): the demo used to carry its own "10 biggest languages" set,
+     with codes the app does not ship (zh-cn, es-es, hi-in, sr-latn). It now shows the
+     SAME thirteen the app offers, from flags.js — so a flag reviewed here is the flag
+     that ships. The >6 list still scrolls inside the taller sheet. */
+  const LANGS = window.Spixi.LANGUAGES;
+  /* ★ L15: the PNG fallback lives with the SHIPPED shells, and these pages do not.
+     Only a browser with no flag glyph ever asks for it (Chrome on Windows), so this
+     keeps the demo honest on the one platform the row is about. */
+  window.Spixi.setFlagBase('../../Spixi/Resources/Raw/html/img/flags/');
   const CAPS = {                                // demo: every gate ON to show the designs
     dev: true, downloads: true, contributors: true, changePassword: true,
     globalNotifications: true, securityTiers: true,

@@ -20,9 +20,29 @@ using View = Android.Views.View;
 
 namespace Spixi;
 
+/* ★★ L17 (2026-08-31): THE LAUNCHER ICON CAME FROM HERE, NOT FROM MauiIcon.
+ *
+ * This attribute pointed at "@mipmap/ic_launcher" — a COMMITTED adaptive icon set
+ * (Platforms/Android/Resources/mipmap-anydpi-v26/ic_launcher.xml → drawable/
+ * ic_launcher_background.xml, a 192dp vector filled #FF154576, plus ic_launcher_foreground)
+ * that predates the redesign. Meanwhile Spixi.csproj's MauiIcon generates @mipmap/appicon
+ * on every build, and NOTHING referenced it. So editing appicon.svg changed the iOS,
+ * Windows and Mac icons and could not touch Android at all.
+ *
+ * ⚠ It cost Damir two clean rebuilds before anyone read this line. He cleared the
+ * resizetizer cache and uninstalled, on my instructions, and correctly reported the
+ * launcher "still old" — it was not stale, it was a different icon.
+ *
+ * ★ Pointed at the generated pair now, so the csproj is the ONE source for every platform.
+ * ⚠ ORPHANED and safe to delete once this is confirmed on a device — nothing else in the
+ * tree references them (grep: this file was the only consumer):
+ *     Resources/mipmap-anydpi-v26/ic_launcher.xml · ic_round_launcher.xml
+ *     Resources/mipmap-{l,m,h,xh,xxh,xxxh}dpi/ic_launcher.png · ic_round_launcher.png
+ *     Resources/drawable/ic_launcher_background.xml · ic_launcher_foreground.xml
+ * They are left in place for one build so the change is reversible in one line. */
 [Activity(Label = "Spixi",
-    Icon = "@mipmap/ic_launcher",
-    RoundIcon = "@mipmap/ic_round_launcher",
+    Icon = "@mipmap/appicon",
+    RoundIcon = "@mipmap/appicon_round",
     Theme = "@style/MainTheme",
     MainLauncher = true,
     SupportsPictureInPicture = true,

@@ -239,7 +239,11 @@
    correctly becomes --text-on-hero. Hard-setting --text-neutral-01 here would have
    given the right colour on four screens and broken the fifth.
    The flag is set by topbar.js's logotype branch; see the note there for why not :has(). */
-.c-topbar[data-variant="root"] .c-topbar__title[data-logotype] { color: var(--text-action-default); }
+/* ★ L18 (Damir, 2026-08-31): the ink is now a ROLE, --text-logotype — brand blue in
+   light (byte-identical: the role aliases --text-action-default) and neutral-01 in
+   dark. The theme answer lives in tokens.css; a [data-theme] selector here is the
+   shape #421 retired (tokens.css states the rule). */
+.c-topbar[data-variant="root"] .c-topbar__title[data-logotype] { color: var(--text-logotype); }
 .screen--hero .c-topbar[data-variant="root"] .c-topbar__title { color: var(--text-topbar); }
 
 .c-topbar__logo { display: block; flex: none; } /* inline SVG, currentColor from title */
@@ -4175,7 +4179,6 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      before the page became visible. The hold is 0 for this page now, which makes the
      skeleton real — and a snap from skeleton to panel is what the crossfade replaces.
      Reduced motion and a missing transitionend both fall back to the plain swap. */
-  let paintedReported = false;
   function crossfadeIn(next) {
     const boot = root.querySelector('.contact-boot');
     let reduced = false;
@@ -4209,9 +4212,6 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     const nb = root.querySelector('.c-chat-info__body');
     if (nb) nb.scrollTop = top;
     built = true;
-    /* ★★ [CDPERF] PROBE — temporary, remove with the C# half. The first real content
-       frame, reported once, so the timeline has an end. */
-    if (!paintedReported) { paintedReported = true; try { bridge.send('ixian:cdpainted'); } catch (e) {} }
   }
 
   // Signature of the state that actually AFFECTS the rendered panel (name,

@@ -1,17 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- C5 (#548): the NIGHT splash icon: a STATIC white logomark for the Android-12+
-     system splash on a dark OS theme (values-night-v31/styles.xml). The three paths are
-     the #336 logomark (src/assets/icons/logo.svg, viewBox 32), placed in the 108dp
-     viewport Android reserves for the splash icon so the 32-unit mark fills ~52% of it
-     (inside the 66% safe circle, with margin: the #336 "too big + clipped" lesson). No
-     animation: nothing moves, nothing can be "too fast". fillType=evenOdd is REQUIRED
-     on the swirl or its interior openings render solid.
-     ★ L16 (Damir, 2026-08-31): "small reduction in logo". The scale drops 1.75 -> 1.4,
-     so the 32-unit mark now spans 44.8 of the 108 viewport, ~42% instead of ~52%. The
-     translate is recomputed to keep it centred, (108 - 32*scale)/2 = 31.6 - the size
-     lives in THIS transform, never in BaseSize. The rendered box diagonal is 63.4 against
-     the 71.3 of Android's 66% safe circle, so the mark clears the splash mask with room:
-     the #336 "too big + clipped" lesson, measured rather than eyeballed. -->
+<!-- ★ L16 (Damir, 2026-08-31): the LIGHT twin of spixi_splash_icon_night.xml, and the
+     line whose ABSENCE was the defect. Until now values-v31/styles.xml declared no
+     windowSplashScreenAnimatedIcon at all, so Android 12+ fell back to the app LAUNCHER
+     icon - which carries its own BACKGROUND LAYER, and the system paints that layer
+     inside the splash mask. That is the squircle behind the mark on a light OS, and the
+     reason the dark splash never had one: values-night-v31 has supplied its own drawable
+     since #534. Declaring ours removes the fallback, and the background layer with it.
+     The mark is WHITE, identical to the night twin, because the light ground is #175595
+     - a mid-dark blue that carries white at about 7:1. The two themes therefore show the
+     SAME mark on different grounds, which is what "keep them identical" in the night
+     file's own note asks for: if you change the transform, change BOTH.
+     ⚠ Pre-31 devices never read this file — they get layout/splash_screen.xml and its
+     @drawable/splash bitmap lockup, which is out of scope. That layout's GRADIENT did
+     move to #175595 though: it is the window background on every api level, not only
+     before 31, which an earlier draft of this row got wrong. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"

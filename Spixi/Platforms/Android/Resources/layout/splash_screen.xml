@@ -1,11 +1,23 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- ★ L16 (2026-08-31): the blue moved #144576 → #175595 with the system splash.
+     ⚠ AND THIS FILE IS NOT "the pre-31 splash", which is what an earlier draft of the
+     L16 row called it — a premise Damir's scope answer was then based on. It is the
+     ACTIVITY WINDOW BACKGROUND on EVERY api level: values/styles.xml sets
+     windowBackground to this layout with NO version qualifier, MainActivity declares
+     @style/MainTheme, and values-v31 only overrides the system-splash attributes on top
+     of that same MainTheme.Base. Leaving it behind would have shown a #175595 system
+     splash handing over to a #144576 window ground on a modern phone — and this project
+     has already MEASURED that ground showing through (SPlatformUtils calls it the only
+     source of that blue anywhere in the app).
+     What stays out of scope is the @drawable/splash BITMAP layer below: a 140x283
+     lockup, a different asset, and resizing it is not a transform. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
   <item>
     <shape>
       <gradient
       android:angle="90"
-      android:startColor="#144576"
-      android:endColor="#144576"
+      android:startColor="#175595"
+      android:endColor="#175595"
       android:type="linear"/>
     </shape>
   </item>

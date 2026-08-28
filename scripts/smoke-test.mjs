@@ -34,6 +34,29 @@ let passes = 0;
 const ok = (cond, msg) => { if (!cond) failures.push(msg); else passes += 1; console.log((cond ? '  ✓ ' : '  ✗ ') + msg); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); // top-level: shared by every demo block
 
+/* ★★ stripCode — comments OUT before any NEGATIVE sweep. Top-level and shared, because
+ * this file kept relearning it one pin at a time.
+ *
+ * SESSION C paid for it FIVE times, and every one of them failed against CORRECT code:
+ *   · a `#144576` inside the comment explaining which blue was deliberately left behind
+ *   · an `ixian:homeoverlay:` inside the comment explaining why the new verb is NOT that
+ *     one — which truncated a slice to nothing, twice
+ *   · a `data-desktop` inside the comment explaining why the test is not data-desktop
+ *   · a `[CDPERF]` inside the comment recording that [CDPERF] had been removed
+ * The rule was written down after the second. It was broken three more times anyway, by
+ * the person who wrote it down, because each new pin looked like the case where it did
+ * not matter. It never is: a comment explaining an absence necessarily NAMES the thing
+ * that is absent. So the decision is not made per pin any more.
+ *
+ * ⚠ A POSITIVE sweep should usually read the raw text — a pin may legitimately want the
+ * prose (that a file RECORDS its reasoning is often the thing worth pinning). This is for
+ * the `!/…/.test(…)` direction. */
+const stripCode = (t) => t
+  .replace(/<!--[\s\S]*?-->/g, '')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/^\s*\/\/.*$/gm, '')
+  .replace(/(^|[^:])\/\/.*$/gm, '$1');
+
 const load = (file) => new Promise((resolve) => {
   const vc = new VirtualConsole();
   vc.on('jsdomError', (e) => failures.push(file + ' PAGE ERROR: ' + e.message));
@@ -1344,10 +1367,16 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   langRow.click();
   await sleep(50);
   const langOpts = d.querySelectorAll('.c-settings__opt');
-  ok(langOpts.length === 10
-    && d.querySelectorAll('.c-settings__opt-flag').length === 10
+  /* ★ L15: the demo used to carry its own "10 biggest languages" set with codes the
+   * app does not ship. It reads flags.js LANGUAGES now, so the count is DERIVED — a
+   * literal here would have to be edited every time a language lands, and the pin
+   * would fail on the operation it is meant to protect. */
+  const langCount = (d.defaultView.Spixi && d.defaultView.Spixi.LANGUAGES || []).length;
+  ok(langCount >= 13 && langOpts.length === langCount
+    && d.querySelectorAll('.c-settings__opt-flag').length === langCount
+    && d.querySelectorAll('.c-settings__opt-flag > .c-flag').length === langCount
     && d.querySelector('.c-settings__opts').classList.contains('c-settings__opts--scroll'),
-    'language sheet: 10 languages with leading flags, list scrolls (#148⑥)');
+    'language sheet: every offered language gets a row and a DRAWN flag (' + langCount + '), list scrolls (#148⑥ · L15). ⚠ Matched on .c-flag, not on a tag — jsdom has no canvas so it takes the ASSET path, and a device with emoji takes the other one; a pin naming svg or img would only ever check the platform it happened to run on');
   d.dispatchEvent(new W4.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
   await sleep(500);
 
@@ -6135,8 +6164,13 @@ console.log('#314 — polish batch (selectability · mention pill · toast/CTA �
   /* landtab — consumed on the deterministic C# close push */
   /* ★ #589 rebase: the line gained `clearAccountPaneFlag()` in front. The ORDER is the
      property — the flag clear and the hand-off consume both run BEFORE the highlight
-     re-sync, or the re-sync would assert a tab against state nobody had updated yet. */
-  ok(/onSettingsClosed\(\) \{ clearAccountPaneFlag\(\); consumeLandTab\(\); setNavActive\(nav, activeNav\); \}/.test(homeSh),
+     re-sync, or the re-sync would assert a tab against state nobody had updated yet.
+     ★★ L6 (2026-08-31): the re-sync used to be `setNavActive(nav, activeNav)`, an
+     unconditional write, and that is what CLOBBERED the Account highlight the CONTACTS
+     hand-off had just set on the line before — Damir's "the rail jumps to CHATS". The
+     ORDER this pin is about is unchanged; what changed is that the last call now ASKS
+     railTarget() instead of asserting a tab. */
+  ok(/onSettingsClosed\(\) \{ clearAccountPaneFlag\(\); consumeLandTab\(\); syncNav\(\); \}/.test(homeSh),
     '#314 landtab (iOS-46 leg): onSettingsClosed consumes the tab hand-off BEFORE the highlight re-sync — the storage/focus listeners never fire on iOS overlay close');
 
   /* R6 — full-detail tx sheet via roster join, hide fail-safe FIRST */
@@ -6438,8 +6472,11 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   ok((home337.match(/walletTakeoverClose = close;/g) || []).length === 2,
     '#337 AND-29: BOTH wallet takeover mounts (Receive + Send) register their close for hardware back');
   // C# half: verb parse + fresh-document reset + native-overlay-first ordering.
-  ok(/ixian:homeoverlay:/.test(hp337) && /homeShellOverlayOpen = current_url\.EndsWith/.test(hp337),
-    '#337 AND-29: HomePage parses the homeoverlay state push');
+  /* ★ L6: the push carries a LEVEL now (0 nothing · 1 a sheet · 2 a full-shell
+     takeover) instead of a boolean, because the OS bars need to know which. Back
+     routing is unchanged and still asks "not 0". */
+  ok(/ixian:homeoverlay:/.test(hp337) && /homeShellOverlayOpen = overlayLevel != "0";/.test(hp337),
+    '#337 AND-29: HomePage parses the homeoverlay state push — as a LEVEL, so an older shell sending only 0 or 1 still means exactly what it meant');
   ok(/private void onLoaded\(\)\s*\{[\s\S]{0,700}homeShellOverlayOpen = false;/.test(hp337),
     '#337 AND-29 MAJOR: onLoaded resets the takeover flag — a shell reload (OS theme flip/reloadAllPages) must not strand back-swallowing stale state');
   // ★★ L8 re-based: hardware back now passes the slide flag, so the call is
@@ -6519,8 +6556,17 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     '#337 #10: both alert sites carry ??-fallbacks (the #334 L5 hidden-locale lesson)');
   // Splash: static blue only — the animated icon stays reverted.
   const v31s337 = readFileSync(join(root, 'Spixi/Platforms/Android/Resources/values-v31/styles.xml'), 'utf8');
-  ok(/windowSplashScreenBackground/.test(v31s337) && !/<item name="android:windowSplashScreenAnimatedIcon/.test(v31s337),
-    '#337 splash: values-v31 keeps the static blue splash; the animated icon stays reverted (Damir F5)');
+  /* ★ L16 (2026-08-31) REVERSES the second half of this pin, and it was right to go
+   * red. #337 asserted that the light theme declares NO icon, on #336's reasoning that
+   * an icon there had been reverted. What the absence actually did was hand the splash
+   * to the LAUNCHER icon, which brings its own background layer — the squircle Damir
+   * photographed. #336's revert was about an ANIMATED icon being too big and too fast;
+   * the mark declared now is static and smaller. The STILL-nothing-moves half of that
+   * lesson is what survives here. */
+  const icoL16 = readFileSync(join(root, 'Spixi/Platforms/Android/Resources/drawable/spixi_splash_icon.xml'), 'utf8');
+  ok(/windowSplashScreenBackground/.test(v31s337) && /<item name="android:windowSplashScreenAnimatedIcon/.test(v31s337)
+    && !/<objectAnimator|animated-vector/.test(icoL16),
+    '★ L16 (was #337 splash): values-v31 declares OUR mark — and it is STATIC. #336 reverted an animated one; nothing moves here, so nothing can be "too fast"');
 }
 
 /* —— W5 (Damir 2026-08-12): chat background pattern STYLES ————————————————
@@ -7757,9 +7803,13 @@ console.log('#348b — F5 follow-up fixes');
     '★ D-9② (#348b): no unguarded fatal alert remains in the start path');
 
   /* —— I-5: only the logotype keeps the accent —— */
-  ok(/\.c-topbar\[data-variant="root"\] \.c-topbar__title\[data-logotype\] \{ color: var\(--text-action-default\); \}/.test(tbCss)
-    && !/\.c-topbar\[data-variant="root"\] \.c-topbar__title \{[^}]*color: var\(--text-action-default\)/.test(tbCss),
-    '★ I-5 (#348b): the accent ink is scoped to the LOGOTYPE, not to the root variant. Root is what every tab screen uses, so Apps, Wallet and Account all inherited a brand colour meant for the wordmark alone');
+  /* ★ L15/L18: the ink moved from --text-action-default to the --text-logotype ROLE
+   * (light aliases the old value, dark is neutral-01). The claim this pin exists for
+   * is UNCHANGED and is the scoping, not the colour name: the brand ink must reach the
+   * logotype ONLY. */
+  ok(/\.c-topbar\[data-variant="root"\] \.c-topbar__title\[data-logotype\] \{ color: var\(--text-logotype\); \}/.test(tbCss)
+    && !/\.c-topbar\[data-variant="root"\] \.c-topbar__title \{[^}]*color: var\(--text-(action-default|logotype)\)/.test(tbCss),
+    '★ I-5 (#348b): the logotype ink is scoped to the LOGOTYPE, not to the root variant. Root is what every tab screen uses, so Apps, Wallet and Account all inherited a brand colour meant for the wordmark alone');
   ok(/titleEl\.dataset\.logotype = '';/.test(tbJs),
     '★ I-5 (#348b): the flag is set by the branch that BUILDS the logotype. CSS cannot select a parent by its child without :has(), and the WebView baseline is conservative CSS');
   ok(/\.screen--hero \.c-topbar\[data-variant="root"\] \.c-topbar__title \{ color: var\(--text-topbar\); \}/.test(tbCss),
@@ -9242,8 +9292,15 @@ console.log('BUG-3 — search reset (static)');
   const show = home.slice(home.indexOf('function showView(navId)'), home.indexOf('NUDGE QUEUE'));
   ok(/leaveSurfaceSearch\(isChats \? chatsView : isWallet \? walletView : isApps \? appsView : null\)/.test(show),
     'BUG-3: a TAB SWITCH drops the query of the tab being left and KEEPS the one being entered (the field the user can actually see)');
-  ok(/function openContacts\([\s\S]{0,240}?leaveSurfaceSearch\(\);/.test(home),
-    'BUG-3: opening the contacts takeover drops it too — that is Damir\'s exact path (chats → FAB → create group → back)');
+  /* ⚠ This read a FIXED 240-char window and L6's comment pushed the call past it —
+   * the exact brittleness the N4 pin warns about two thousand lines below ("slice to
+   * the closing `];`, never a fixed window"). Sliced to the function and asserted as
+   * an ORDER, which is also the stronger claim: the query must be dropped BEFORE the
+   * takeover mounts, not merely somewhere nearby. */
+  const ocBody = home.slice(home.indexOf('function openContacts('), home.indexOf('/* —— bottom nav'));
+  ok(ocBody.indexOf('leaveSurfaceSearch();') > 0
+    && ocBody.indexOf('leaveSurfaceSearch();') < ocBody.indexOf('mountContacts('),
+    'BUG-3: opening the contacts takeover drops the query, and drops it BEFORE the takeover mounts — that is Damir\'s exact path (chats → FAB → create group → back)');
   ok((home.match(/leaveSurfaceSearch\(\);\s*(?:\/\/[^\n]*)?\n?\s*const over = document\.createElement\('div'\);/g) || []).length === 2,
     'BUG-3: both wallet takeovers (Receive and Send) drop it — a cover over the tab is leaving the tab');
   ok(/setNavActive\(nav, 'account'\);[\s\S]{0,300}?leaveSurfaceSearch\(\);/.test(home),
@@ -9898,14 +9955,19 @@ console.log('N-batch — static pins (N5 · N22 · N24 · N36 · N38 · N2a · N
       const seg = src.slice(src.indexOf(marker));
       return [...seg.slice(0, seg.indexOf('];')).matchAll(/code: '([a-z]{2}-[a-z]{2})'/g)].map((m) => m[1]);
     };
-    const settingsLangs = rowsOf(read('src/shells/settings.html'), 'const LANGS = [');
-    const launchLangs = rowsOf(read('src/components/launch-shell.js'), 'const LAUNCH_LANGS = [');
+    /* ★ L15: BOTH pickers read flags.js LANGUAGES now, so "the two agree" is
+     * structural rather than checked (the wire pin in the session-C block asserts
+     * they read it). What survives here is the half that still matters and that
+     * nothing else covers: the OFFERED list must not outrun the dictionaries that
+     * were actually built. */
+    const settingsLangs = rowsOf(read('src/components/flags.js'), 'export const LANGUAGES = [');
+    const launchLangs = settingsLangs;
     const buildLangs = codesOf(read('scripts/build-locales.mjs'), 'const LANGS = [');
     const iifeLangs = codesOf(read('scripts/build-strings-iife.mjs'), 'const LOCALES = [');
     const same = (a, b) => a.length === b.length && a.slice().sort().join() === b.slice().sort().join();
     ok(settingsLangs.length === 13 && same(settingsLangs, launchLangs)
       && same(settingsLangs, ['en-us'].concat(buildLangs)) && same(buildLangs, iifeLangs),
-      'N4: the two pickers, build-locales LANGS and build-strings-iife LOCALES agree (13 = en-us + 12) — a row cannot ship ahead of its dictionary');
+      'N4: the offered list, build-locales LANGS and build-strings-iife LOCALES agree (13 = en-us + 12) — a row cannot ship ahead of its dictionary');
     ok(settingsLangs.every((c) => existsSync(join(root, 'src/strings', c + '.json'))),
       'N4: every picker code has a built dictionary file in src/strings/');
 
@@ -11129,26 +11191,63 @@ console.log('#383 — N12 restore-nudge + N40 connectivity/update');
         }
       }
       const body = stripComments421(src);
+      /* ⚠ L15 review NIT-9 widened this. The gate matched a CALL — `name(` — and L15
+       * added the first export a shell consumes as a VALUE (`const LANGS = LANGUAGES;`).
+       * Had the destructure been forgotten, settings.html would have thrown
+       * `ReferenceError: LANGUAGES` at module top level and booted blank, and neither
+       * this gate nor build-shells' preflight (which validates only names a shell DOES
+       * declare) would have said a word. The blind spot pre-dated L15 — ENC_DELIM,
+       * THEME_OPTIONS and PATTERN_STYLES are all value-shaped — so it is closed for all
+       * of them, not only the new one.
+       * Names the shell defines ITSELF are excluded, or a local `const createSheet`
+       * would read as an undeclared use of the export that shares its name. */
+      /* ⚠ …and it reads CODE, not prose. stripComments421 leaves a TRAILING `//`
+       * comment on a line of code, and the first run of this check reported four
+       * "undeclared" names that were all mentioned in such comments — the pin-reads-
+       * prose failure this project keeps finding, on the very pin written to close a
+       * gap. The `[^:]` guard keeps `https://` intact. */
+      const codeBody = body.replace(/(^|[^:])\/\/.*$/gm, '$1');
+      const selfDeclared = new Set(
+        [...codeBody.matchAll(/(?:^|[;{}\s])(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)/g)].map((x) => x[1]),
+      );
       for (const name of bundleExports421) {
         if (declared.has(name)) continue;
         // a bare call `name(` that is not a property access `.name(` or `window.Spixi.name(`
-        if (new RegExp('(^|[^\\w$.])' + name + '\\s*\\(', 'm').test(body)) undeclared421.push(f + ':' + name);
+        if (new RegExp('(^|[^\\w$.])' + name + '\\s*\\(', 'm').test(body)) { undeclared421.push(f + ':' + name + ' (call)'); continue; }
+        if (selfDeclared.has(name)) continue;
+        // …or a bare READ of it, which is how a value-shaped export is consumed
+        if (new RegExp('(^|[^\\w$.\'"`])' + name + '(?![\\w$:])', 'm').test(codeBody)) undeclared421.push(f + ':' + name + ' (value)');
       }
     }
     ok(undeclared421.length === 0,
-      '★ THE DESTRUCTURE GATE: no shell calls a bundle export it did not destructure. Found: ' + (undeclared421.join(', ') || 'none'));
+      '★ THE DESTRUCTURE GATE: no shell CALLS or READS a bundle export it did not destructure. An undefined bare global throws before the dispatcher\'s try/catch can run (#258), and a value-shaped one throws at module top level and boots the shell blank. Found: ' + (undeclared421.join(', ') || 'none'));
     ok(bundleExports421.size > 200 && bundleExports421.has('applyPushedTheme') && bundleExports421.has('patternLevelVar'),
       '★ the destructure gate reads a REAL export list (a mis-parsed empty set would make the gate above vacuously pass — the failure mode of every "check nothing is missing" test)');
 
     const themeRt421 = readFileSync(join(root, 'src/components/theme-runtime.js'), 'utf8');
-    ok(/export function applyPushedTheme\b/.test(themeRt421) && /export function ignorePushedTheme\b/.test(themeRt421)
-      && /theme-switching/.test(themeRt421),
-      '★ N71 (#421): ONE implementation of the swap body (transitions suppressed across it, #53). Five shells carried a copy and thirteen carried none — copies drift, which is the #251/#288 story twice');
+    ok(/export function applyPushedTheme\b/.test(themeRt421) && /theme-switching/.test(themeRt421)
+      && !/export function ignorePushedTheme\b/.test(themeRt421),
+      '★ N71 (#421): ONE implementation of the swap body (transitions suppressed across it, #53). Five shells carried a copy and thirteen carried none — copies drift, which is the #251/#288 story twice. ★ L5 retired the ignorePushedTheme no-op with its last two callers; a dead export whose docblock states a disproved rule is the next drift');
     const lockShell421 = readFileSync(join(shellDir421, 'lock.html'), 'utf8');
     const launchShell421 = readFileSync(join(shellDir421, 'launch.html'), 'utf8');
-    ok(/ignorePushedTheme/.test(lockShell421) && /ignorePushedTheme/.test(launchShell421)
-      && !/applyPushedTheme/.test(lockShell421) && !/applyPushedTheme/.test(launchShell421),
-      '★ N71 (#421): the lock and the launch flow IGNORE the push — they are brand-dark in BOTH themes (#203 / N73), so following a flip would repaint fixed chrome against a token set that moved under it. They still DEFINE the global, which is the point');
+    /* ★ L5 (2026-08-31). The pin that stood here asserted the OPPOSITE — that these two
+     * shells must IGNORE the push, "because following a flip would repaint fixed chrome
+     * against a token set that moved under it". It was a good pin and it was RIGHT to go
+     * red: the premise was disproved at source, not the assertion weakened. Both shells
+     * pin data-theme on their OWN subtree, so no root flip can reach their chrome; the
+     * only thing it reaches is an overlay on document.body, which had no theme to follow
+     * and was therefore light on every device (Damir's launch sheet; the lock modal was
+     * the same defect, unreported). The pins below assert the PROPERTY that makes the
+     * change safe, not the call shape — a shell that dropped its subtree pin would pass
+     * a "calls applyPushedTheme" check and ship a light launch screen. */
+    ok(/applyPushedTheme/.test(lockShell421) && /applyPushedTheme/.test(launchShell421)
+      && !/ignorePushedTheme/.test(lockShell421) && !/ignorePushedTheme/.test(launchShell421),
+      '★ L5: the lock and the launch flow FOLLOW the theme on the ROOT — that is the only way their body-mounted overlays get one. They still DEFINE the global, which was always the point (#258)');
+    ok(/documentElement\.dataset\.theme\s*=/.test(lockShell421) && /documentElement\.dataset\.theme\s*=/.test(launchShell421)
+      && /SL\{SpixiThemeName\}/.test(lockShell421) && /SL\{SpixiThemeName\}/.test(launchShell421),
+      '★ L5: …and they set it PRE-PAINT from the same C# carrier the other sixteen shells use. A push alone arrives a navigation round-trip late, so the first frame of a sheet would still be the wrong theme');
+    ok(/data-theme="dark"/.test(lockShell421) && /dataset\.theme = 'dark'/.test(readFileSync(join(root, 'src/components/launch-shell.js'), 'utf8')),
+      '★ L5, THE SAFETY PROPERTY: the fixed chrome is pinned on its OWN subtree (#lock-root in the lock markup, .c-launch in launch-shell.js). That is what makes a root theme harmless here — delete either pin and the brand surface starts following the phone, which is exactly what N71 was protecting against');
 
     /* ★ settings.html is the one shell whose handler needs more than the shared body. */
     const setShell421 = readFileSync(join(shellDir421, 'settings.html'), 'utf8');
@@ -12652,9 +12751,15 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
     const carriers = [...new Set((lockBuilt.match(/\*SL\{[\w-]+\}/g) || []))].sort();
     ok(!/\*SL\{LaunchBootView\}/.test(lockBuilt),
       '★ N83 (Damir\'s 2026-08-22 log): the lock page no longer carries LaunchBootView. generatePage substitutes text-based and does NOT skip comments, so a carrier named in prose was really resolved on a page that never registers it — `Unknown localization key; LaunchBootView` on EVERY lock presentation, cold start and pause, in a log this project keeps trying to read');
-    ok(carriers.length === 3
-      && carriers.join(',') === '*SL{AndroidInsetTop},*SL{LockAuthPending},*SL{language-code}',
-      '★ N83: the BUILT lock shell carries exactly the three keys the lock page registers. Pinned on the built artifact, not the source, because that is the file C# actually substitutes — and pinned as a SET so the next stray carrier is caught rather than the one we happened to find');
+    /* ★ L5 added SpixiThemeName here, and this pin CAUGHT it — which is what a set pin
+     * is for. It is admitted only because the key really does resolve on this page:
+     * SpixiLocalization.addCustomString writes into the LIVE dictionary as well as the
+     * seed map, ThemeManager.loadTheme calls it during App startup before any page
+     * exists, and loadLanguage re-merges customStrings on every language change. So it
+     * cannot log the "Unknown localization key" this pin was written to stop. */
+    ok(carriers.length === 4
+      && carriers.join(',') === '*SL{AndroidInsetTop},*SL{LockAuthPending},*SL{SpixiThemeName},*SL{language-code}',
+      '★ N83: the BUILT lock shell carries exactly the four keys the lock page resolves. Pinned on the built artifact, not the source, because that is the file C# actually substitutes — and pinned as a SET so the next stray carrier is caught rather than the one we happened to find');
   }
 }
 
@@ -15594,9 +15699,14 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     const cp = readFileSync(join(root, 'src/bridge/contacts-page.js'), 'utf8');
     ok(/const close = \(reason\) => \{[\s\S]{0,200}?if \(onClose\) onClose\(reason === 'back' \? 'back' : 'auto'\);/.test(cp) && /onBack: \(\) => close\('back'\),/.test(cp),
       'C4 (#547): the contacts takeover reports WHY it closed — the user\'s own Back vs a programmatic close');
-    ok(/if \(reason === 'back' && returnTo === 'account'\) \{\s*setNavActive\(nav, 'account'\);\s*deferToPaint\(\(\) => bridge\.send\('ixian:settings'\)\);/.test(homeC)
+    /* ★ L6 rebase: the Back branch gained a comment between its two statements, and
+       the hand-off no longer "lands on Chats" on the way in — that was the defect
+       Damir reported. The property this pin is about, that Back returns to ACCOUNT,
+       is unchanged and is now also what the RAIL says while the directory is open. */
+    const backBranch = homeC.slice(homeC.indexOf("if (reason === 'back' && returnTo === 'account')"), homeC.indexOf('setTimeout(syncNav, 0);'));
+    ok(/setNavActive\(nav, 'account'\);/.test(backBranch) && /bridge\.send\('ixian:settings'\)/.test(backBranch)
       && /openContacts\('directory', '', \{ returnTo: 'account' \}\);/.test(homeC) && /contactsView\.close\('back'\); return true; \}/.test(homeC),
-      '★★ C4 (#547, #533 ③): the directory opened from the Account hub returns to ACCOUNT on its own Back (and on hardware back), never to Chats — the N42 landtab hand-off (the #294 mechanism: exit Account → land on Chats → open the takeover) now carries the return');
+      '★★ C4 (#547, #533 ③): the directory opened from the Account hub returns to ACCOUNT on its own Back (and on hardware back), never to Chats — the N42 landtab hand-off carries the return, and since L6 it no longer passes through Chats on the way in either');
     ok(/onClick: \(\) => openContacts\('directory'\) \}/.test(homeC) && /addEventListener\('click', \(\) => openContacts\('start'\)\)/.test(homeC),
       'C4: the old entry points (topbar Contacts, the FAB) keep working unchanged — no returnTo');
     /* ★ #575 REBASE, rewritten in place: N42's ruling HOLDS — Contacts is still a
@@ -15613,10 +15723,20 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     const ln = readFileSync(join(root, 'Spixi/Platforms/Android/Resources/layout-night/splash_screen.xml'), 'utf8');
     ok(/<style name="MainTheme" parent="MainTheme\.Base">/.test(vn) && /windowSplashScreenBackground">#13171b</.test(vn) && /windowSplashScreenAnimatedIcon">@drawable\/spixi_splash_icon_night</.test(vn),
       '★ C5 (#548, #534): values-night-v31 keeps the MainTheme.Base inheritance and paints the Android-12 splash near-black (#13171b = the shells\' dark instant bg) with the white logomark');
-    ok(/windowSplashScreenBackground">#144576</.test(vl) && !/windowSplashScreenAnimatedIcon/.test(vl.replace(/<!--[\s\S]*?-->/g, '')),
-      'C5: the LIGHT splash (values-v31) is untouched — brand blue, no icon');
-    ok(/android:width="108dp"/.test(ic) && /android:scaleX="1\.75"/.test(ic) && (ic.match(/android:fillColor="#FFFFFF"/g) || []).length === 3 && /fillType="evenOdd"/.test(ic) && !/<objectAnimator|animated-vector/.test(ic),
-      'C5: the night icon is a STATIC white logomark (3 paths, evenOdd swirl) at ~52% of the 108dp viewport — inside the safe circle, no animation (#336\'s lesson)');
+    /* ★ L16 REVERSES this too. "Untouched — brand blue, no icon" WAS the defect: with
+     * no icon declared the system drew the launcher icon and its background layer.
+     * Now the light theme is a full peer of the night one — its own ground (#175595,
+     * Damir) and its own mark. */
+    ok(/windowSplashScreenBackground">#175595</.test(vl)
+      && /windowSplashScreenAnimatedIcon">@drawable\/spixi_splash_icon</.test(vl.replace(/<!--[\s\S]*?-->/g, '')),
+      '★ L16 (was C5): the LIGHT splash is a peer of the night one — Damir\'s #175595 and OUR mark, so no launcher-icon background layer is drawn inside the mask');
+    /* ★ L16 shrank the mark on Damir's ask, so the 1.75 literal is gone. The size claim
+     * moved to the session-C block, where it is COMPUTED against the 66% safe circle
+     * rather than asserted as a number — #336 shipped a clipped mark once. What is
+     * pinned here is what did NOT change: the artwork itself, and that nothing moves. */
+    ok(/android:width="108dp"/.test(ic) && (ic.match(/android:fillColor="#FFFFFF"/g) || []).length === 3
+      && /fillType="evenOdd"/.test(ic) && !/<objectAnimator|animated-vector/.test(ic),
+      'C5: the night icon is a STATIC white logomark (3 paths, evenOdd swirl — evenOdd is REQUIRED or the swirl fills solid), no animation (#336\'s lesson)');
     ok(/startColor="#13171b"/.test(ln) && /@drawable\/splash/.test(ln), 'C5: pre-Android-12 devices get the same dark ground via layout-night (the white lockup bitmap reads on it)');
     ok(/html\[data-theme="dark"\] \.app-boot \{ background: #13171b; \}/.test(homeC), 'C5 Windows: the themed .app-boot cover is all there is — verified, no work');
   }
@@ -17043,11 +17163,13 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
         '★★ ITEM 6 EXECUTED: the belt settles it — the skeleton is gone, the root is back to its normal flex column and the panel carries no leftover transition class. jsdom fires no transitionend, so this is the belt alone doing the work, which is exactly the case that would have stranded the skeleton');
     }
 
-    /* the [CDPERF] probe — TEMPORARY, and pinned so it cannot be forgotten in place */
-    ok(/\[CDPERF\] " \+ \(isGroup \? "group" : "contact"\) \+ " constructed/.test(cd6)
-       && /\[CDPERF\] document loaded/.test(cd6) && /\[CDPERF\] presented/.test(cd6)
-       && /\[CDPERF\] content painted/.test(cd6) && /bridge\.send\('ixian:cdpainted'\)/.test(cdShell6),
-      '★ ITEM 6 PROBE (temporary): the timeline is COMPLETE — constructed, document loaded, presented, content painted. The 120 ms hold was only part of the wait; generatePage re-localizes and rewrites a 168 KB shell to disk on every open, and nobody has measured which half costs what. Four points or the log answers nothing');
+    /* ★ L10 (#668): the [CDPERF] probe is REMOVED, and the pin that held it in place goes
+       with it — in ONE batch, as the row required. Both measurements and the trade the fix
+       makes live in docs/cdperf-2026-08-29-android.md; the numbers exist nowhere else now.
+       ⚠ If anyone re-opens the chat-info timing, put an instrument back FIRST: the old
+       "presented" line improved whether or not the fix worked. */
+    ok(!/\[CDPERF\]/.test(stripCode(cd6)) && !/cdpainted/.test(stripCode(cdShell6)),
+      '★ L10: the [CDPERF] probe is gone from BOTH homes — the C# log points and the shell emit left together, which is the thing the old pin existed to force');
   }
 
   /* ═══ ★★ V-5 / V-8 / V-10 — the C# findings from the #46 loop ═══════════════════
@@ -19704,25 +19826,21 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     }
   }
 
-  /* —— the [CDPERF] probe · confirm the pin still reads the right site ——————— */
+  /* —— the [CDPERF] probe is GONE (L10, #668) ————————————————————————————————— */
   {
-    /* fix-R2C §3 DECIDED not to remove this probe: worklist row L10 (the bot room presents
-       140 ms late) is not built, the second measurement has not been taken, and that row
-       ends by removing the probe together with the shell's paired emit. The pin that holds
-       it in place is deliberate. This confirms it still reads the live site after R2C's
-       comment edit at ContactDetails.xaml.cs:56. */
+    /* ★ It was kept alive across three sessions by a deliberate pin, because it was the
+       only instrument that could confirm the bot room moved. It has now confirmed it:
+       presented 250 ms → 104 ms, and `roster burst` landed AFTER `onLoad returned` on both
+       opens, which is what proves the dispatcher post is real rather than inline.
+       Both measurements and the honest half — time-to-CONTENT did not improve — are in
+       docs/cdperf-2026-08-29-android.md. This pin is now the OPPOSITE assertion: the probe
+       left all three homes together, so no half of it can be stranded. */
     const cds = rdf('Spixi/Pages/Contacts/ContactDetails.xaml.cs');
     const cdBuilt = rdf('Spixi/Resources/Raw/html/contact_details.html');
-    const logCalls = (cds.match(/Logging\.info\("\[CDPERF\]/g) || []).length;
-    /* THREE HOMES, and they must leave together: the four C# log points, the C# handler for
-       the shell's paint signal, and the SHIPPED shell's emit. The pin at the ITEM 6 block
-       above reads the four log STRINGS and confirms it still points at the live site. This
-       one couples the three homes, so removing the probe from one file turns it red instead
-       of stranding a cross-file emit that answers nothing. */
-    ok(logCalls === 4
-       && /current_url\.Equals\("ixian:cdpainted", StringComparison\.Ordinal\)/.test(cds)
-       && /bridge\.send\('ixian:cdpainted'\)/.test(cdBuilt),
-      '★ #46 loop r2 (fix-R2C §3, DECIDED not removed): the [CDPERF] probe keeps all THREE homes — four C# log points, the C# handler for ixian:cdpainted, and the emit in the SHIPPED shell. Worklist row L10 is not built and the second measurement has not been taken, so this is the only instrument that can confirm the bot room moves. Remove the probe, the handler, the shell emit and this pin in ONE batch — not in three files by three agents. Got ' + logCalls + ' log points');
+    const cdsCode = stripCode(cds);
+    ok(!/\[CDPERF\]/.test(cdsCode) && !/cdpainted/.test(cdsCode) && !/cdpainted/.test(stripCode(cdBuilt))
+       && !/perfSince/.test(cdsCode),
+      '★ L10: the [CDPERF] probe left ALL THREE homes together — the C# log points, the C# handler for ixian:cdpainted, and the emit in the SHIPPED shell. A stranded emit that answers nothing is exactly what the old pin was written to prevent');
   }
 }
 
@@ -19968,6 +20086,322 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        && wrongSize.length === 0
        && notBuilt.length === 0 && deadBuilt.length === 0,
       '★★★ ROUND 6: the strings pipeline is DONE, not owed. `readOf`, `downloadedOf`, `callBusy`, `callUnavailable` and `noneSeenYet` are TRANSLATED in every one of the ' + localeFiles.length + ' locale files AND present in the built spixi.strings.js, and every dictionary carries the same ' + enSize + ' keys as en-us, and the four dead keys are gone from both. The round-4 pin said this step was owed and could not detect it, because its `inline || extracted` disjunction passed on the inline English fallback — and an inline fallback is invisible to verify-locales, which cannot check a key that does not exist. That is how a new menu line shipped English to 12 locales with every gate green. Missing: ' + JSON.stringify(missing) + ' · stale: ' + JSON.stringify(stale) + ' · not built: ' + JSON.stringify(notBuilt) + ' · dead in build: ' + JSON.stringify(deadBuilt) + ' · wrong key count: ' + JSON.stringify(wrongSize));
+  }
+}
+
+
+/* ============================================================================
+ * SESSION C — L18 · L16 · L15 · L5 · L10 · L6, after the #46 loop
+ * Pins assert the WIRE (a writer reaches its reader) and EXECUTE the shipped
+ * bundle where the claim is about behaviour rather than about a line existing.
+ * Several of these exist because the FIRST version of the pin beside them was
+ * wrong; where that is so, the note says what it got wrong.
+ * ========================================================================== */
+{
+  const rdC = (pth) => readFileSync(join(root, pth), 'utf8');
+  const stripComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const stripJs = (js) => js.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const stripXml = (x) => x.replace(/<!--[\s\S]*?-->/g, '');
+
+  /* —— L18 · the logotype ink —————————————————————————————————————————————— */
+  {
+    const tok = stripComments(rdC('src/styles/tokens.css'));
+    const darkStart = tok.indexOf('[data-theme="dark"]');
+    /* ⚠ Splitting by POSITION is weak on its own — three `:root` blocks sit AFTER the
+     * dark one, so a declaration misplaced in one of those would count as dark.
+     * Counting the declarations is what actually pins "one per theme". */
+    const decls = [...tok.matchAll(/--text-logotype:\s*var\((--[a-z0-9-]+)\)/g)];
+    ok(decls.length === 2 && decls[0].index < darkStart && decls[1].index > darkStart
+      && decls[0][1] === '--primary-600' && decls[1][1] === '--text-neutral-01',
+      '★ L18: EXACTLY two declarations of the logotype ink, one per theme block — the brand primitive in light, the plain title ink in dark. Damir: "on dark mode should be neutral01 … on light mode we keep it"');
+    /* ⚠ It points at the PRIMITIVE. The first cut aliased --text-action-default, which
+     * re-couples what a role exists to separate: re-anchor the action ink for links and
+     * buttons one day and the wordmark follows it, silently. */
+    ok(!/--text-logotype:\s*var\(--text-action-default\)/.test(tok),
+      '★ L18: the role aliases a PRIMITIVE, not another semantic role. Aliasing the action ink would make the wordmark follow the next link/button re-anchor without a word being changed here');
+
+    /* ★ THE WIRE, and the reason ONE role can replace TWO consumers with light
+     * unchanged. topbar.css read --text-action-default (--primary-600) and the rail read
+     * --icon-accent (--accent-600). Interchangeable only while both resolve to the same
+     * primitive; re-anchor accent and the rail's LIGHT mark moves, which is the one
+     * thing Damir said must not change. */
+    const prim600 = (tok.match(/--primary-600:\s*var\((--[a-z0-9-]+)\)/) || [])[1];
+    const acc600 = (tok.match(/--accent-600:\s*var\((--[a-z0-9-]+)\)/) || [])[1];
+    ok(!!prim600 && prim600 === acc600,
+      '★ L18, THE WIRE: --primary-600 and --accent-600 are the SAME primitive (' + prim600 + '), which is why one role could replace both consumers with light unchanged to the pixel. Re-anchor accent and the desktop rail mark moves in light — this pin is the only thing that would say so');
+
+    const topbarCss = rdC('src/styles/components/topbar.css');
+    const navCss = rdC('src/styles/components/bottomnav.css');
+    ok(/\[data-logotype\]\s*\{\s*color:\s*var\(--text-logotype\)/.test(topbarCss)
+      && /\.c-bottomnav__logo\s*\{[^}]*color:\s*var\(--text-logotype\)/.test(navCss),
+      '★ L18: BOTH marks consume the role — the chats-screen logotype and the desktop rail. Damir asked for the two together, and a second declaration is a second place to drift');
+    /* ⚠ MY FIRST VERSION OF THIS PIN WAS WRONG and went red on its first run. It swept
+     * for ANY [data-theme] selector in either component file, reading the house rule in
+     * tokens.css as absolute. It is not: topbar.css has carried three dark BORDER
+     * overrides since long before this row. A pin that asserts something untrue about
+     * the tree gets deleted by the next reader rather than believed. */
+    const themedRules = (css) => stripComments(css).split('}')
+      .filter((r) => /\[data-theme/.test(r) && /(data-logotype|c-bottomnav__logo)/.test(r));
+    ok(themedRules(topbarCss).length === 0 && themedRules(navCss).length === 0,
+      '★ L18: no [data-theme] rule in a COMPONENT file touches either mark — the per-theme answer lives in tokens.css, as one role. (The three pre-existing dark border overrides in topbar.css are not this)');
+  }
+
+  /* —— L16 · the splash ——————————————————————————————————————————————————— */
+  {
+    const v31 = stripXml(rdC('Spixi/Platforms/Android/Resources/values-v31/styles.xml'));
+    const night = rdC('Spixi/Platforms/Android/Resources/values-night-v31/styles.xml');
+    const csproj = rdC('Spixi/Spixi.csproj');
+    const layout = stripXml(rdC('Spixi/Platforms/Android/Resources/layout/splash_screen.xml'));
+    ok(/windowSplashScreenAnimatedIcon">@drawable\/spixi_splash_icon</.test(v31),
+      '★ L16, THE MISSING LINE: the LIGHT Android-12 splash declares its own icon. Without it the system falls back to the LAUNCHER icon and paints that icon\'s BACKGROUND LAYER inside the splash mask — the squircle in Damir\'s screenshot, and the reason dark never had one');
+    /* ⚠ COMMENTS STRIPPED FIRST. The first version of this pin went red against a
+     * CORRECT file, because the comment I had just written mentions the old blue to
+     * explain the scope. Five of the pin owner's pins read prose last session; this was
+     * the sixth, and running it is what found it. */
+    ok(/#175595/.test(v31) && !/#144576/.test(v31) && /Color="#175595"/.test(csproj),
+      '★ L16: the light splash ground and the MauiSplashScreen colour are Damir\'s #175595');
+    /* ★★ AND THE WINDOW GROUND MOVED WITH IT. An earlier draft called
+     * layout/splash_screen.xml "the pre-31 splash" and left it — but values/styles.xml
+     * points windowBackground at it with NO version qualifier, so it is the activity
+     * ground on EVERY api level. The review caught it. */
+    ok(/#175595/.test(layout) && !/#144576/.test(layout),
+      '★★ L16: ONE blue. layout/splash_screen.xml is the window background on every api level (values/styles.xml sets it with no version qualifier), not "the pre-31 splash" — leaving it behind would have handed a #175595 splash over to a #144576 window');
+
+    const icon = rdC('Spixi/Platforms/Android/Resources/drawable/spixi_splash_icon.xml');
+    const iconN = rdC('Spixi/Platforms/Android/Resources/drawable/spixi_splash_icon_night.xml');
+    const grp = (x) => {
+      const m = x.match(/<group android:translateX="([\d.]+)" android:translateY="([\d.]+)" android:scaleX="([\d.]+)" android:scaleY="([\d.]+)">/);
+      return m ? { tx: +m[1], ty: +m[2], sx: +m[3], sy: +m[4] } : null;
+    };
+    const g = grp(icon); const gn = grp(iconN);
+    ok(!!g && !!gn && g.tx === gn.tx && g.ty === gn.ty && g.sx === gn.sx && g.sy === gn.sy,
+      '★ L16: the two drawables carry the SAME transform. They are one mark on two grounds — the night file\'s own note says change BOTH, and two files that must agree are exactly where a size dial drifts');
+    /* Computed, not asserted as a literal: #336 shipped a mark the splash mask CLIPPED,
+     * and the drawable's own comment records it. Arithmetic, every run. */
+    const span = g ? 32 * g.sx : 0;
+    const fill = span / 108;
+    const diag = span * Math.SQRT2;
+    ok(g && Math.abs(g.tx - (108 - span) / 2) < 0.2 && fill > 0.30 && fill < 0.50 && diag < 108 * 0.66,
+      '★ L16: the mark is SMALLER (' + (fill * 100).toFixed(0) + '% of the viewport, was ~52), still CENTRED (translate = (108 - 32*scale)/2), and its box diagonal ' + diag.toFixed(1) + ' clears Android\'s 66% safe circle ' + (108 * 0.66).toFixed(1) + '. #336 shipped a clipped mark once; this is arithmetic, not an eyeball');
+    ok(/spixi_splash_icon_night/.test(night),
+      '★ L16: the dark theme keeps its own drawable — the two themes stay independent declarations on one artwork');
+
+    /* ★★ L17, AND THIS PIN EXISTS BECAUSE THE ABSENCE OF IT COST TWO CLEAN REBUILDS.
+     * MainActivity's [Activity] attribute is what Android reads for the launcher, and it
+     * pointed at a COMMITTED icon set (@mipmap/ic_launcher → drawable/ic_launcher_*, a
+     * 192dp vector filled with the OLD blue) while Spixi.csproj's MauiIcon generated
+     * @mipmap/appicon that nothing referenced. Editing the SVG changed iOS, Windows and
+     * Mac and could not touch Android. Damir cleared caches and uninstalled twice on my
+     * instructions and correctly kept reporting the launcher "still old".
+     * ⚠ Comments stripped — the note at the call site necessarily NAMES the old icon. */
+    const mainAct = stripCode(rdC('Spixi/Platforms/Android/MainActivity.cs'));
+    ok(/Icon = "@mipmap\/appicon"/.test(mainAct) && /RoundIcon = "@mipmap\/appicon_round"/.test(mainAct)
+      && !/ic_launcher/.test(mainAct),
+      '★★ L17, THE WIRE: MainActivity points at the MauiIcon-GENERATED icon, so Spixi.csproj is the one source for every platform. A committed @mipmap/ic_launcher beside a generated @mipmap/appicon is two icons where the build only ever shows you one');
+  }
+
+  /* —— L15 · the flags ————————————————————————————————————————————————————— */
+  {
+    const flagsSrc = rdC('src/components/flags.js');
+    /* ★ EXECUTED, from the SHIPPED bundle — the artifact a WebView loads, not the
+     * module. And BOTH paths are driven: the emoji one that every phone takes, and the
+     * asset one that Windows takes, because a pin that only exercises the platform it
+     * happens to run on would have shipped Damir's bug straight back. */
+    const dom = new JSDOM('<!doctype html><body></body>', { runScripts: 'outside-only' });
+    dom.window.eval(rdC('src/components/icons.iife.js'));
+    dom.window.eval(rdC('src/demo/spixi.iife.js'));
+    const S = dom.window.Spixi;
+
+    /* ★★ THE EMOJI IS DERIVED, NOT LISTED. A regional-indicator symbol is the letter
+     * offset into U+1F1E6; a second table of thirteen would be one more place for a row
+     * to disagree with its own flag, which is the defect that put the language list in
+     * two files. */
+    ok(S.flagEmoji('us') === '\u{1F1FA}\u{1F1F8}' && S.flagEmoji('rs') === '\u{1F1F7}\u{1F1F8}'
+      && S.flagEmoji('x') === '' && S.flagEmoji('') === '',
+      '★ L15: the emoji is DERIVED from the country code, so it cannot drift from the flag beside it. A non-code draws nothing');
+
+    S.setFlagGlyphAvailable(true);
+    const emojiBad = S.LANGUAGES.filter((l) => {
+      const el = S.createFlag(l.flag);
+      return !el || String(el.tagName).toLowerCase() !== 'span' || el.textContent !== S.flagEmoji(l.flag);
+    }).map((l) => l.code);
+    ok(emojiBad.length === 0,
+      '★★ L15 EXECUTED, the EMOJI path: on a device that can paint a flag glyph every row gets the platform\'s own emoji. Damir: "do we keep the emojis on mobile right, as they are perfect." Broken: ' + JSON.stringify(emojiBad));
+
+    S.setFlagGlyphAvailable(false);
+    const assetBad = S.LANGUAGES.filter((l) => {
+      const el = S.createFlag(l.flag);
+      return !el || String(el.tagName).toLowerCase() !== 'img' || el.getAttribute('src') !== 'img/flags/' + l.flag + '.png';
+    }).map((l) => l.code);
+    ok(assetBad.length === 0,
+      '★★ L15 EXECUTED, the ASSET path: on a device that cannot, every row gets the PNG the app has shipped since the legacy build. This is the path Windows takes and the whole reason the row exists. Broken: ' + JSON.stringify(assetBad));
+
+    /* ★★★ THE ONE THAT MATTERS. The two paths must name the SAME country. A row that is
+     * 🇺🇸 on a phone and a Union Jack on Windows would be worse than the bug this fixes —
+     * and it was one asset away from happening, because the shipped set had gb.png and
+     * no us.png. Both are read off the SAME `flag` field, and this proves it end to end
+     * rather than trusting that they are. */
+    const disagree = S.LANGUAGES.filter((l) => {
+      S.setFlagGlyphAvailable(false);
+      const src = S.createFlag(l.flag).getAttribute('src');
+      S.setFlagGlyphAvailable(true);
+      const emo = S.createFlag(l.flag).textContent;
+      return src !== 'img/flags/' + l.flag + '.png' || emo !== S.flagEmoji(l.flag);
+    }).map((l) => l.code);
+    ok(disagree.length === 0,
+      '★★★ L15: the emoji and the asset name the SAME country for every row. Two renderings of one list is the drift shape this project keeps paying for, so it is proven per row, not argued. Disagreeing: ' + JSON.stringify(disagree));
+
+    /* ★ AND THE ASSET HAS TO EXIST. The shipped set had gb.png and no us.png; without
+     * this pin the en-us row would have been a broken image on Windows only — the one
+     * platform nobody develops on. */
+    const noAsset = S.LANGUAGES.filter((l) => {
+      try { readFileSync(join(root, 'Spixi/Resources/Raw/html/img/flags/' + l.flag + '.png')); return false; }
+      catch (e) { return true; }
+    }).map((l) => l.code + ':' + l.flag);
+    ok(noAsset.length === 0,
+      '★★ L15: every offered language has a PNG in Spixi/Resources/Raw/html/img/flags. A language added without one is a broken image on Windows and nowhere else. Missing: ' + JSON.stringify(noAsset));
+
+    S.setFlagGlyphAvailable(false);
+    ok(S.createFlag('zz') === null && S.createFlag('') === null && S.createFlag(null) === null,
+      '★ L15: an unknown code draws NOTHING down EITHER path. ⚠ A first cut tested the SHAPE of the code (/^[a-z]{2}$/) and built img/flags/zz.png for any two letters — a broken image for a country we ship no asset for, while the emoji path would have drawn a real flag for the same code');
+    S.setFlagGlyphAvailable(null);
+
+    /* ★ THE DETECTION, and why it is not "is this desktop". macOS HAS colour flag
+     * emoji; only Windows does not. A platform test would have given a Mac the fallback
+     * for no reason and would be wrong again the next time a platform changed. */
+    /* ⚠ COMMENTS STRIPPED. The first run of this pin went red against a CORRECT file,
+     * because the negative sweep matched `data-desktop` inside the comment explaining
+     * why the test is NOT data-desktop. That is the FOURTH pin in this batch to read its
+     * own prose, and the rule was already written down when I wrote this one. Strip
+     * before you sweep, every time, without deciding whether it matters. */
+    const flagsCode = stripJs(flagsSrc);
+    ok(/getContext\('2d'\)/.test(flagsCode) && /getImageData/.test(flagsCode)
+      && !/data-desktop/.test(flagsCode) && !/navigator\.userAgent/.test(flagsCode),
+      '★★ L15, THE TEST ASKS THE DEVICE: can it PAINT a flag glyph, measured once on a canvas — a real flag paints colour, a missing one paints two black letters. Not a user-agent string and not data-desktop, because macOS has the glyphs and Windows does not');
+    ok(/glyphSupport = false;/.test(flagsCode) && /catch \(e\) \{\s*\n\s*glyphSupport = false;/.test(flagsCode),
+      '★ L15: the detection FAILS SAFE to the asset. A wrong "true" is Damir\'s original bug back; a wrong "false" is a correct flag from a different set. Those are not the same size of mistake');
+
+    /* ★ THE WIRE: one list, and one function deciding. */
+    const launchSrc = rdC('src/components/launch-shell.js');
+    const setShell = rdC('src/shells/settings.html');
+    ok(/import \{[^}]*LANGUAGES[^}]*\} from '\.\/flags\.js'/.test(launchSrc)
+      && /LAUNCH_LANGS = LANGUAGES;/.test(launchSrc)
+      && /LANGS = LANGUAGES;/.test(setShell),
+      '★★ L15, THE WIRE: BOTH pickers read the one list. launch-shell.js used to hold a second copy and its own comment admitted it — "keep the two in sync BY HAND"');
+    ok(/createFlag\(o\.flag\)/.test(rdC('src/components/settings-shell.js'))
+      && /createFlag\(cur\.flag\)/.test(launchSrc)
+      && !/flagEmoji\(/.test(launchSrc) && !/flagEmoji\(/.test(rdC('src/components/settings-shell.js')),
+      '★★ L15: the picker ROW and the welcome PILL both draw through createFlag, and neither reaches past it to the emoji. The pill is the first flag a new user ever sees and it carried a raw emoji of its own — one defect, two surfaces');
+    ok(/o\.flag !== undefined && o\.flag !== null/.test(rdC('src/components/settings-shell.js')),
+      '★ L15: a row whose flag draws NOTHING still gets its 28px slot, so the unknown-locale fallback row stays aligned with the twelve above it');
+    ok(/\.c-flag--emoji/.test(rdC('src/styles/components/settings-shell.css'))
+      && /\.c-flag--img/.test(rdC('src/styles/components/settings-shell.css')),
+      '★ L15: one 28px slot, two fillings — the glyph is sized by font-size, the PNG carries the hairline that keeps jp and id from reading as a hole in a light sheet');
+  }
+
+  /* —— L10 · present before the roster burst ———————————————————————————————— */
+  {
+    const cd = rdC('Spixi/Pages/Contacts/ContactDetails.xaml.cs');
+    const scp = rdC('Spixi/Utils/SpixiContentPage.cs');
+    const iSignal = cd.indexOf('signalPreloadReady();');
+    const iDefer = cd.indexOf('Dispatcher.Dispatch(', iSignal);
+    const iLoad = cd.indexOf('loadMembers(blind);', iSignal);
+    ok(iSignal > 0 && iDefer > iSignal && iLoad > iDefer,
+      '★★ L10, THE WHOLE FIX IN ONE ORDER: the present is signalled, THEN the roster burst is POSTED to a later turn. Measured cost was +142 ms for a bot room against +7 for a private group (docs/cdperf-2026-08-29-android.md) — one file read, one base64 and one marshal PER MEMBER, on the UI thread');
+    /* ★★ THE PREMISE, AND IT IS THE OPPOSITE OF WHAT THE FIRST CUT PINNED. That version
+     * asserted presentPreload "QUEUES its body on the main thread" and used
+     * MainThread.BeginInvokeOnMainThread for the burst. MainThread runs the action
+     * INLINE when the caller is already on the main thread — which a Navigating handler
+     * is — so the present completed synchronously and the burst never left the turn.
+     * The fix measured ZERO and the probe would have reported a success. This tree
+     * states the inline behaviour itself, and that line is the pin. */
+    ok(/if \(MainThread\.IsMainThread\) drop\(\);\s*\n?\s*else MainThread\.BeginInvokeOnMainThread\(drop\);/.test(scp.replace(/\r/g, '')),
+      '★★ L10, THE PREMISE: this tree treats MainThread.BeginInvokeOnMainThread and a direct call as EQUIVALENT when already on the main thread — because they are. That is why the burst uses Dispatcher.Dispatch, which always posts, and why a hoist alone measured nothing');
+    ok(iLoad > 0 && !/MainThread\.BeginInvokeOnMainThread/.test(cd.slice(iSignal, iLoad + 40)),
+      '★★ L10: and the burst does NOT use MainThread here. It would run inline and the fix would silently do nothing — which is exactly what the first cut shipped');
+    /* ★★ MEASURED, AND THE MEASUREMENT IS BANKED. The two temporary probe lines that
+     * proved this are gone with the rest of the probe (#668) — `roster burst` landed AFTER
+     * `onLoad returned` on both of Damir's opens (+18 ms, +15 ms), and `presented` moved
+     * 250 → 104. docs/cdperf-2026-08-29-android.md is the only record now.
+     * ⚠ What survives is the SHAPE that makes it work, because the old "presented" line
+     * improved whether the fix worked or not: anyone re-opening this must add an
+     * instrument before trusting a number. */
+    ok(/docs\/cdperf-2026-08-29-android\.md/.test(cd),
+      '★★ L10: the code points at the measurement that justifies it. The probe is removed, so a reader who doubts the ordering has somewhere to go other than re-deriving it');
+    ok(!/deferPreloadReady\s*=\s*true/.test(cd),
+      '★ L10, THE TRAP: deferPreloadReady stays UNSET. Setting it stops the base handler presenting, and that call is the belt covering a page that never reaches the signal. presentPreload is one-shot, so the later call is a harmless no-op');
+    ok(/protected bool isDisposed/.test(scp) && /if \(isDisposed\)/.test(cd),
+      '★ L10: the posted turn checks it is still alive. With a REAL post there is now a window in which presentPreload\'s abandoned branch can dispose the target first — under the inline version there was none, which is why that guard was dead code before this fix');
+  }
+
+  /* —— L6 · Account → Contacts ——————————————————————————————————————————— */
+  {
+    const home = rdC('src/shells/home.html');
+    const hp = rdC('Spixi/Pages/Home/HomePage.xaml.cs');
+    const branch = home.slice(home.indexOf("if (id === 'contacts') {"), home.indexOf("if (id === 'account' || !NAV_TO_TAB[id]) return;"));
+    const branchCode = stripJs(branch);
+    ok(branchCode.length > 0 && !/showView\(/.test(branchCode) && !/ixian:tab:/.test(branchCode) && !/activeNav\s*=/.test(branchCode),
+      '★ L6: the Account hand-off no longer switches the tab underneath the takeover. It lit Chats while Back went to Account — Damir\'s "the left rail jumps to CHATS" — and left the shell on a tab nobody chose');
+
+    /* ★★ THE REVIEW'S HEADLINE. The rail highlight had FOUR writers and they did not
+     * agree: onSettingsClosed ended with an unconditional setNavActive(nav, activeNav),
+     * on the line AFTER consumeLandTab — so the Account highlight this row exists to set
+     * was overwritten a microsecond later, on the exact path Damir reported. Every pin
+     * in the first cut was a shape-grep over the branch and openContacts; not one read
+     * the rail's final state. THE FIX WAS TO DELETE THE DISAGREEMENT: one function
+     * answers "what should the rail say" and every writer asks it. */
+    ok(/function railTarget\(\)/.test(home) && /return inAccountContext\(\) \? 'account' : activeNav;/.test(home),
+      '★★ L6, ONE ANSWER: railTarget() is the single place that decides the rail. Four writers is how the Account highlight got clobbered by the stale tab one line later');
+    ok(/onSettingsClosed\(\) \{ clearAccountPaneFlag\(\); consumeLandTab\(\); syncNav\(\); \}/.test(home),
+      '★★ L6: …and the handler that clobbered it now ASKS. It used to end setNavActive(nav, activeNav) unconditionally, with a comment calling that "a consistent no-op" — true only for the tab-id branch it was written for');
+    ok(/accountPaneOpen\(\) \|\| contactsFromAccount/.test(home),
+      '★ L6, ONE PREDICATE: the Account pane and the Account-launched directory answer "is the user inside Account" in one place');
+
+    /* ★ SINGLE WRITER. An earlier draft set the flag at the CALL SITE, and openContacts
+     * closes any previous takeover first — whose onClose cleared it one line later. */
+    /* ⚠ TWO versions of this used a negative lookahead and both matched `= false;`
+     * anyway: `\s*` backtracks to consume nothing, which puts the lookahead on the
+     * SPACE, where "false;" is not what follows. Matched and then FILTERED in JS —
+     * a lookahead that has to survive backtracking is not worth defending. */
+    const onWrites = [...home.matchAll(/contactsFromAccount\s*=\s*([^;]+);/g)]
+      .map((m) => m[0]).filter((m) => !/=\s*false\s*;$/.test(m));
+    ok(onWrites.length === 1 && /returnTo === 'account'/.test(onWrites[0]),
+      '★★ L6, THE WIRE: exactly ONE statement can turn contactsFromAccount on, and it DERIVES it from returnTo — the same expression that decides where Back goes, so the rail highlight and the back target cannot disagree. Found: ' + JSON.stringify(onWrites));
+    const oc = home.slice(home.indexOf('function openContacts('), home.indexOf('/* —— bottom nav'));
+    ok(/catch \(e\) \{[\s\S]{0,500}?contactsFromAccount = false;/.test(oc)
+      && oc.indexOf('catch (e)') < oc.indexOf("bridge.send('ixian:cleardetail')"),
+      '★ L6: a THROWING mount resets the flag, and the detail column is cleared only after the mount succeeded. Nothing else can turn the flag off, so a failed open would have left the rail claiming Account over a screen with no directory on it — for the life of the document');
+    ok(/if \(contactsFromAccount\) bridge\.send\('ixian:cleardetail'\);/.test(oc),
+      '★ L6: the detail column is cleared ONLY for the Account hand-off. The FAB picker opens from the chats context, where a conversation beside it is correct');
+    ok(/btn\.dataset\.id !== 'account'/.test(home) && /contactsView\.close\('back'\)/.test(home),
+      '★★ L6: the Account rail item is NOT dead while the directory is open. bottomnav.js early-returns on a re-tap of the item carrying aria-current, and this row deliberately lights Account — so on desktop, where the rail stays visible beside the takeover, the tap did nothing at all. A capture-phase listener routes it through the takeover\'s own Back');
+
+    /* ★★ MAJOR-2: dropping ixian:tab: also dropped repaintOwnSystemBars(), and this page
+     * paints the status bar with the WALLET HERO whenever currentTab is tab2. */
+    ok(/function homeOverlayLevel\(\)/.test(home) && /ixian:homeoverlay:' \+ homeOverlayLevel\(\)/.test(home),
+      '★★ L6: the overlay signal carries a LEVEL (0 nothing · 1 a sheet · 2 a full-shell takeover). Back routing still asks >= 1; level 2 is what the OS bars need');
+    ok(/homeShellTakeoverOpen = overlayLevel == "2";/.test(hp) && /if \(wasTakeover != homeShellTakeoverOpen\)/.test(hp),
+      '★★ L6: C# repaints the bars when a takeover opens or closes. Nothing NAVIGATES then, so nothing else would — the AND-7b/#407 reasoning, one surface over');
+    ok(/if \(currentTab == "tab2" && !homeShellTakeoverOpen\)/.test(hp),
+      '★★ L6: the hero colour is suppressed while a takeover covers the wallet tab. ⚠ This also closes a PRE-EXISTING hole — the wallet\'s own Receive/Send takeover is reached FROM tab2 and always had it; L6 only made it reachable a second way, which is how the review found it');
+
+    ok(/current_url\.Equals\("ixian:cleardetail", StringComparison\.Ordinal\)/.test(hp),
+      '★ L6: the verb is an exact Ordinal match, like every verb added since #216');
+    /* ⚠ COMMENTS STRIPPED, and this took two goes. v1 sliced to the first
+     * 'ixian:homeoverlay:' in the whole file — a FIELD COMMENT a thousand lines above.
+     * v2 sliced forward from the verb and still landed inside a comment, because the
+     * verb's OWN docblock explains why it is not reusing ixian:homeoverlay. Both times
+     * the pin failed on correct code by reading prose. Third time it reads code. */
+    const hpCode = hp.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    const iVerb = hpCode.indexOf('ixian:cleardetail');
+    const verb = hpCode.slice(iVerb, hpCode.indexOf('ixian:homeoverlay:', iVerb));
+    ok(/if \(rightContent\.IsVisible\)/.test(verb) && /closeChatOverlaysForContacts\(\);/.test(verb),
+      '★★ L6, THE GATE: the WHOLE verb is wide-only. The first cut gated one of its four sweeps while the shell\'s comment promised "a no-op on a narrow window" of all of them — and a narrow window has no detail column for any of them to be beside');
+    const helper = hpCode.slice(hpCode.indexOf('private void closeChatOverlaysForContacts()'), hpCode.indexOf('private void closeTxDetailOverlays()'));
+    ok(/if \(!rightContent\.IsVisible\)/.test(helper) && /p is SingleChatPage/.test(helper),
+      '★ L6: …and the conversation close keeps its own belt. Narrow has no detail column — a conversation there is the full screen, and closing one would shut the screen the user is standing on');
+    ok(!/closeChatOverlaysForContacts/.test(hpCode.slice(hpCode.indexOf('ixian:tab:'), hpCode.indexOf('ixian:tab:') + 2000)),
+      '★ L6: a plain tab switch does NOT close the conversation. Only the Account hand-off does — the pane it replaces was the one hiding it');
   }
 }
 

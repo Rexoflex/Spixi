@@ -27,6 +27,7 @@
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { discGrad } from './disc.js';
+import { createFlag } from './flags.js';
 import { createAvatar } from './avatar.js';
 import { createButton, setLoading } from './button.js';
 import { createTopbar } from './topbar.js';
@@ -127,11 +128,20 @@ export function settingsOptionSheet({ title, hint, options, current, host, strin
     opt.className = 'c-settings__opt';
     opt.setAttribute('role', 'radio');
     opt.setAttribute('aria-checked', String(o.value === current));
-    if (o.flag) {                              // #148⑥: leading flag slot (emoji now; SVG assets can swap in)
+    /* #148⑥ leading flag slot. ★ L15 (2026-08-31): createFlag decides emoji vs asset —
+     * the emoji stays on every platform that can paint one (Damir: "they are perfect"),
+     * and Windows, which ships no colour flag glyph, gets the PNG the app has always
+     * carried. The SLOT is built whenever this option set uses flags at all, even when
+     * nothing is drawn: `.c-settings__opt` is a flex row with a gap, so a missing 28px
+     * slot took the gap with it and the fallback row's label sat 36px left of every
+     * other — and that is the row that is pre-selected and carries the hint.
+     * `o.flag === undefined` (the theme and security pickers) still gets no slot. */
+    if (o.flag !== undefined && o.flag !== null) {
       const fl = document.createElement('span');
       fl.className = 'c-settings__opt-flag';
       fl.setAttribute('aria-hidden', 'true');
-      fl.textContent = o.flag;
+      const flagEl = createFlag(o.flag);
+      if (flagEl) fl.append(flagEl);
       opt.append(fl);
     }
     const lab = document.createElement('span');

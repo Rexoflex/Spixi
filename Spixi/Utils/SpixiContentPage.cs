@@ -3277,6 +3277,13 @@ namespace SPIXI
          * #328 residual for every caller rather than only this one. */
         private volatile bool disposed = false;
 
+        /* ★ L10 (2026-08-31): read-only for subclasses. A page that defers work to a
+         * LATER dispatcher turn has to ask whether it is still alive when that turn
+         * arrives — presentPreload's abandoned branch disposes the target from the same
+         * main-thread queue, and it was enqueued FIRST, so it can run in between.
+         * sendUiCommand only swallows the resulting exception into the log. */
+        protected bool isDisposed { get { return disposed; } }
+
         public void Dispose()
         {
             disposed = true;

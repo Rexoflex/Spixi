@@ -5,7 +5,7 @@ Build order, and **the Windows one matters** (#663):
 ```
 node scripts/build-demo-bundle.mjs      # BEFORE shells, always (#258 §5.6)
 node scripts/build-shells.mjs
-node scripts/smoke-test.mjs             # expect BASELINE OK 3632 / the 3 known (#136 · M5 · B3)
+node scripts/smoke-test.mjs             # expect BASELINE OK 3633 / the 3 known (#136 · M5 · B3)   ⚠ CORRECTED, session D #681: this file recorded 3632 at 16:14:30 and the L17 launcher-wire pin landed in the suite at 16:51:58, 37 minutes later
 node scripts/verify-locales.mjs         # ALL CLEAN 776 — no string changed this batch
 node scripts/cs-syntax-check.mjs        # 140 + 1 known grammar gap
 ```

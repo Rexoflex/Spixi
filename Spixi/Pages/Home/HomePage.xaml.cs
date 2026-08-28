@@ -649,6 +649,47 @@ namespace SPIXI
             {
                 onUndoRequestFor(current_url.Substring("ixian:undorequest:".Length));
             }
+            /* ⏱ [LANDTAB] — A TEMPORARY PROBE. L14 · #677, Damir 2026-08-28: MEASURE
+             * BEFORE BUILDING (#294). Payload is `<consumer>:<ageMs>`, both from a fixed
+             * shape — one word out of four, and an integer. NO tab id and NO address ever
+             * reach this line, so the handover-gate log rule is kept by construction.
+             * ⚠ REMOVE THIS WITH ITS TWO SIBLINGS the way [CDPERF] went (#663): this
+             * handler, home.html's emit in consumeLandTab, and the smoke pin holding the
+             * trio — one batch, all three, once Damir has taken the measurement. */
+            else if (current_url.StartsWith("ixian:landtabprobe:", StringComparison.Ordinal))
+            {
+                try
+                {
+                    string[] probe = current_url.Substring("ixian:landtabprobe:".Length).Split(':');
+                    string via = probe.Length > 0 ? probe[0] : "";
+                    // fixed vocabulary — anything else is logged as "other", never echoed
+                    if (via != "storage" && via != "visibility" && via != "focus" && via != "settingsclosed")
+                    {
+                        via = "other";
+                    }
+                    long ageMs = 0;
+                    if (probe.Length > 1)
+                    {
+                        long.TryParse(probe[1], out ageMs);
+                    }
+                    IXICore.Meta.Logging.info("[LANDTAB] consumer=" + via + " age=" + ageMs + "ms");
+                }
+                catch (Exception)
+                {
+                    Logging.error("ixian:landtabprobe failed (malformed payload)");
+                }
+                e.Cancel = true;
+                return;
+            }
+            // ★ L13 (#676): LEAVE A ROOM from the chats-row delete flow — the per-address
+            // twin of ContactDetails' page-scoped `ixian:leave`. Same StartsWith + Ordinal
+            // + trailing-colon shape as the four verbs above (#216/#393), and placed with
+            // them, ABOVE the legacy Contains() branches.
+            // ⚠ The colon is what keeps this verb and ContactDetails' `ixian:leave` apart.
+            else if (current_url.StartsWith("ixian:leavegroup:", StringComparison.Ordinal))
+            {
+                onLeaveGroupFor(current_url.Substring("ixian:leavegroup:".Length));
+            }
             else if (current_url.Contains("ixian:qrresult:"))
             {
                 string[] split = current_url.Split(new string[] { "ixian:qrresult:" }, StringSplitOptions.None);
@@ -4584,6 +4625,63 @@ namespace SPIXI
             }
             catch (Exception) { }
             UIHelpers.shouldRefreshContacts = true;   // loop r2 R2-3: every outcome re-flushes (a refused remove restores the row)
+            updateScreen();
+        }
+
+        /* ★★ L13 (#676) — LEAVE A ROOM, address-scoped. The chats-row delete flow's
+         * "Leave group" tick lands here INSTEAD of `ixian:removehistory:` (one verb, one
+         * order — the same reason SContacts A4/A5 refused to fire two location.href sends
+         * for one intent).
+         *
+         * ★ THE BODY IS SContacts.leaveGroup, NOT A THIRD COPY. sendLeave + immediate
+         * removeFriend is #567's grammar and it already has one home; ContactDetails'
+         * `ixian:leave` still inlines it, which is the second copy this project would be
+         * paying for if this were a third.
+         *
+         * ★ WHY NO SEPARATE HISTORY VERB IS NEEDED, read at Ixian-Core 097341a:
+         * FriendList.removeFriend deletes the history file AND the avatar
+         * (localStorage.deleteMessages / deleteAvatar, FriendList.cs:436-440) before it
+         * drops the record. Leaving therefore satisfies the "Delete chat" box on its own.
+         *
+         * ⚠ THE ORDER MATTERS AND IT IS THE OPPOSITE OF THE OBVIOUS ONE. The leave is
+         * fanned out PER MEMBER (sendGroupSpixiMessage → sendSpixiMessage(pf, …) for each
+         * member's own Friend), so the pending copies live on the MEMBER contacts, not on
+         * the group record — removing the group immediately afterwards cannot strand them.
+         * add_to_pending_messages and send_push_notification are both true on that path,
+         * which is what lets the shell promise it reaches members who are offline.
+         *
+         * ⚠ The open conversation is resolved BEFORE the removal (getChatPage matches on
+         * the Friend reference) and popped after — loop r1 A-3: a room you have left must
+         * not leave a live chat page behind on a wide window. */
+        private void onLeaveGroupFor(string address)
+        {
+            string status = "fail";
+            string addr = "";
+            try
+            {
+                addr = (address ?? "").Trim();
+                Friend? f = FriendList.getFriend(new Address(addr));
+                if (f != null)
+                {
+                    var chat_page = Utils.getChatPage(f);
+                    if (SContacts.leaveGroup(f))
+                    {
+                        status = "left";
+                        if (chat_page != null)
+                        {
+                            try { chat_page.popPageAsync(); } catch (Exception) { }
+                        }
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // no ex.Message — Core's Address ctor formats the peer-supplied base58 token
+                // into its exception text (the same rule the four verbs above follow)
+                Logging.error("ixian:leavegroup failed (malformed payload or address)");
+            }
+            try { Utils.sendUiCommand(this, "leaveGroupResult", addr, status); } catch (Exception) { }
+            UIHelpers.shouldRefreshContacts = true;   // R2-3: a REFUSAL must re-flush too (the shell un-tombstones)
             updateScreen();
         }
 

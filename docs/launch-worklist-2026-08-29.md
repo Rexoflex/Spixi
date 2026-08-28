@@ -10,7 +10,9 @@ items already had a lead in the queue and the lead is the fast half of the work.
 
 **Baseline** — ⚠ **UPDATED AFTER SESSION C (2026-08-31):**
 ```
-bundle 305 · shells 18 · smoke BASELINE OK 3631 / the 3 known (#136 · M5 · B3)
+bundle 307 · shells 18 · smoke BASELINE OK 3653 / the 3 known (#136 · M5 · B3)
+⚠ SESSION D (2026-08-28) — locales 776 → 779. The session-C figures in this block were
+stale twice over: 3631 here, 3632 in the handoff, 3633 measured (#681).
 · locales ALL CLEAN 776 · cs-syntax 140+1 · i18n-lint ✓ · pseudo 9/9
 ```
 * **bundle 301 → 305** — flags.js adds `LANGUAGES`, `flagSvg`, `FLAG_CODES`, `FLAG_W`,
@@ -484,7 +486,21 @@ F5 6.1 came back n/a: *"i dont have admin rights with these test accounts, will 
 another time."* **That is the half Damir asked to protect**, and a mistake there silently
 removes a working feature. #637 is not done until someone walks it with real admin rights.
 
-## L13 · a "leave group" check box on Delete chat — 🟡 UNBLOCKED, session C (#672). Build in D
+## L13 · a "leave group" check box on Delete chat — ✅ BUILT, session D (#676). 🟡 Damir F5
+★★ **AND THE ROW'S OWN DESCRIPTION WAS HALF WRONG.** It said "fully traced, nothing left to
+discover — add a twin verb calling the same `sendLeave` + `removeFriend`". Opened at source
+first, and **two of the three pieces already existed**: `SContacts.leaveGroup` IS that body
+(#567, `SContacts.cs:68`) and `ixian:removecontact:<addr>:<flag>` already routes a room into
+it and answers `"left"` (`:102`). What was missing was the **shell** half —
+`openDeleteFlow` built its third box as `isGroupChat ? null : removeContact`, so a room got
+TWO boxes and one verb, and deleting a group chat destroyed your copy while leaving you in
+the group, receiving it, with the row back on the next message.
+★ **ONE verb on a ticked leave, never two:** Core's `removeFriend` deletes the history file
+and the avatar before it drops the record (`FriendList.cs:436-440`), so `ixian:leavegroup:`
+satisfies the fixed "Delete chat" box alone — two sends would race and the loser would
+answer `fail` about a friend the winner had already removed, un-tombstoning a correctly-gone
+row. ★ `leaveGroupResult` answers `"left" | "fail"` — a room is never "blocked".
+The original entry follows.
 ★★ **VERIFIED AT SOURCE, and the answer is YES.** Damir connected Ixian-Core (it is at
 `..\Ixian-Core`, one level above the folder the session had). At `097341a`:
 `SpixiMessageCode.leave = 37` · `sendLeave` (`CoreStreamProcessor.cs:2916`) · `handleLeave`
@@ -523,7 +539,32 @@ and what it does to the roster on every other member's device, and then tell Dam
 box can truthfully promise. If the verb is missing it becomes a BE row, not a build row.
 
 
-## L14 · a tab flickers into view before Wallet — ★ SESSION C FOUND ITS TWIN
+## L14 · a tab flickers into view before Wallet — ⛔ THE TRACED MECHANISM IS FALSIFIED (#688). Do NOT build the costed fix.
+★★★ **Damir's nine hand-offs, 2026-08-29: `storage` 4 · `focus` 5 · `settingsclosed` ZERO,
+ages 3–39 ms** (`docs/landtab-2026-08-29-android.md`). `settings.html` writes the hand-off
+BEFORE its exit verb and the cross-WebView `storage` event DOES cross on Android, so the
+shell switches the tab **before C# finishes closing the overlay**. The source trace below is
+still true about the C# ordering; the conclusion drawn from it is not. **A document-ordering
+fix has nothing left to fix.**
+★ What survives: the flicker is real, so it is at or after the **paint** — leading candidate
+a stale composited frame, ⚠ a CANDIDATE, not a finding. The next instrument must observe the
+paint, not the swap. ★★ And "only on wallet" fits a paint-cost story, which is the SAME
+surface as the wallet-tx-shimmer row below — **measure the wallet's first paint once, for
+both, before building either.**
+The session-D entry follows.
+★★ **The mechanism is now CONFIRMED at both ends, not inferred.** The park branch sets
+`op.stage.Opacity = 0` (`SpixiContentPage.cs:1603`); `host?.onOverlayClosed(...)` — which
+pushes `onSettingsClosed`, which is what makes the shell run `consumeLandTab` — runs
+**after it** (`:1729`), in the same lambda, with an async JS eval on top. The home WebView
+is revealed on the tab it left first, structurally, every time.
+★★ **AND IT WAS NOT BUILT, BECAUSE IT IS THE L10 CLASS.** The flicker is *(tab swapped)* −
+*(stage revealed)* and neither end can observe the other's paint; the only honest receipt is
+an ack round trip, which is the fix's own machinery. Damir was told before building, as
+ordered, and ruled **diagnose first**. A temporary `[LANDTAB]` probe ships instead — see
+`docs/handoff-2026-09-02.md` §2 and the checklist §3. ⚠ **It can falsify the theory**: if
+the cross-WebView `storage` event wins, the tab is switched before the reveal and this
+mechanism cannot be the flicker. ★ Free second falsifier: the same order on **desktop**.
+The original entry follows.
 ⚠ **L6 ③ is the same bug.** "Contacts on mobile causes flickering" cannot be caused by
 anything in the shell's contacts branch: `showView` and the mount run in ONE task and the
 takeover is opaque `fixed inset:0` with no enter transition, so the browser paints once.
@@ -721,13 +762,45 @@ It touches no shell, no verb and no shared surface, so it can ride any session w
 * **Wallet tx rows shimmer on entry.** ★ Lead: `renderWalletTxList` (`wallet-shell.js:139`)
   empties and rebuilds every row and has **no avatar cache** — the chats list got
   `avatarCacheFor` (N58) for exactly this. Measure the flush cadence first (#294).
+  ⚠⚠ **AND THIS MAY BE L14'S SECOND FACE (#688).** L14's mechanism was falsified on
+  2026-08-29 and what survives is a PAINT-cost story on the wallet tab specifically —
+  the same surface, the same "only on wallet" shape. **Measure the wallet's first paint
+  ONCE and answer both rows with it.** Two rounds of one class is where the design gets
+  questioned, not patched twice.
 * **Avatars flicker in the chats rows "often."** That list HAS the cache, so either it
   misses a case or it is a different mechanism. One measurement first.
-* **A group row's Delete has no confirmation** (F5 4.7): *"do we need it is the question.
-  For now its ok."* 🟡 Open question.
+* **A group row's Delete has no confirmation** (F5 4.7) — ✅ **ANSWERED AND BUILT, session D
+  (#680): Damir ruled OPTION 2.** It was un-answerable while a room's modal had nothing
+  destructive to confirm; L13's leave tick gave it something. **One modal, no second
+  surface** — the red button reads "Delete" until the box is ticked and "Leave and delete"
+  while it is, and goes back when it is cleared. Deliberately NOT the person-row grammar:
+  that row escalates because its sheet has work to do (it enumerates the blocking groups);
+  there is nothing to enumerate here.
 * **Payment-request cancel** — the app half is closed (#635). F5 5.5 refines what is left:
   the CARD disappears correctly on both ends, in redesign AND legacy. Only the chats-list
   excerpt remains → CORE-2 in the cutover brief.
+* ★★ **GIFs cannot be sent, two ways, and both are TRACED (Damir 2026-08-28, #684).**
+  *"i cant send gifs to the new spixi but could on legacy"* — he clarified it is the **GIF
+  keyboard** and **pasting a Giphy/Tenor link**, not the file picker. ⚠ **The picker is
+  INNOCENT and was checked first:** Android asks for `image/*` and hands the raw stream
+  through untouched (`SFilePicker.PickImageAsync` → `MainActivity.OnActivityResult`, no
+  re-encode), and on Windows MAUI's own `FileExtensions.AllImage` is
+  `.png .jpg .jpeg .gif .bmp` — read out of the MAUI source, not recalled. Two mechanisms:
+  · **① THE PASTED LINK.** `mediaUrlOf` (`chat.html:1681`) accepts a lone URL only if the
+    PATHNAME matches `MEDIA_EXT` (`.gif|png|jpe?g|webp|bmp|avif`) or the host matches
+    `^media\d*\.(tenor|giphy)\.com$` / `^c\.tenor\.com$`. **The link Giphy's and Tenor's
+    Copy-Link buttons actually produce is `https://giphy.com/gifs/<slug>` /
+    `https://tenor.com/view/<slug>` — a PAGE url, bare host, no extension.** It matches
+    neither test, so it lands as plain text. The allowlist describes the DIRECT media host,
+    which is not the URL a human ever has on their clipboard.
+  · **② THE GIF KEYBOARD.** Android keyboards insert rich content through
+    `InputConnection.commitContent`, which Chromium surfaces to the page as a `paste`
+    carrying a file. **Nothing in the composer listens.** The only `paste` handlers in the
+    tree are `chat-select.js:384` (re-checks the selection) and `money.js:216` (numeric
+    field guard) — neither reads `clipboardData.files`. A committed GIF is silently dropped.
+  🟡 **Damir 2026-08-28: DEFER.** *"if we can have gif in picker, we can keep that for next
+  versions."* ⚠ Do not close this by pointing at the picker — the picker is not what he is
+  using, and saying otherwise is how a row gets marked done while the complaint stands.
 * **Tip in a bot room** — do not build; Damir wants to look at legacy first.
 * **A delivery issue in a 6-member private group** — needs his repro.
 * **The nine iOS rows**, on the office Mac.

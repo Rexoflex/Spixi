@@ -610,6 +610,9 @@ export function setRemoveSheetResult(address, status, groups, strings = getStrin
  *  Each terminal fires onAction(action, detail) so the shell emits the verb
  *  (★ A6: `ixian:removehistory:<addr>` / `ixian:removecontact:<addr>:<leave>` —
  *  before this batch nothing reached C#, and the contact stayed on disk).
+ *  ★ L13 (#676): on a ROOM row the third box is "Leave group" instead, and a ticked
+ *  one swaps the chat verb for `ixian:leavegroup:<addr>` — Core's removeFriend deletes
+ *  the history file itself, so leaving covers the "Delete chat" box too.
  *  opts.onNeedGroups(addr) → the shell asks C# for the shared groups. */
 export function openDeleteFlow({ chat = {}, host, onAction, onNeedGroups, strings = getStrings() } = {}) {
   const content = document.createElement('div');
@@ -634,9 +637,45 @@ export function openDeleteFlow({ chat = {}, host, onAction, onNeedGroups, string
   const isGroupChat = isRoomRow(chat);   // ★ one home — see isRoomRow
   const cbContact = isGroupChat ? null : deleteCheckbox(strings.removeContactOpt || 'Remove contact');
   if (cbContact) optsWrap.append(cbContact.row);
+  /* ★★ L13 (#676, Damir): the ROOM's half of the same question. A person's row offers
+   * "Remove contact"; a room has no contact to remove — the irreversible half there is
+   * LEAVING, and until this batch the room row could not do it from here at all: the flow
+   * sent `ixian:removehistory:` alone, so the chat vanished and you were still in the
+   * group, still receiving it, and it came back on the next message.
+   * ⚠ OFF by default, for the same reason as "Remove contact": it is the irreversible
+   * half, and it is the ONLY box here that other people can see the effect of.
+   * ⚠ The LABEL is the existing `leaveGroup` key, which the row menu and the chat-info
+   * danger row already use for both a group and a bot room — one word for one action, and
+   * no new string for a batch that adds no new concept. */
+  const cbLeave = isGroupChat ? deleteCheckbox(strings.leaveGroup || 'Leave group') : null;
+  if (cbLeave) optsWrap.append(cbLeave.row);
   content.append(optsWrap);
+  /* ★ What the tick may TRUTHFULLY promise, read at Ixian-Core 097341a (#672 · #676):
+   * the leave rides the PENDING-message path with a push notification, per member, so it
+   * reaches members who are offline; on their device handleLeave runs
+   * users.delUser(sender) — you really do leave their roster — and if YOU are the owner,
+   * handleLeave removes the group outright on every member's device. Nothing here claims
+   * delivery, because a pending message is a promise to keep trying, not a receipt. */
+  if (cbLeave) {
+    const note = document.createElement('p');
+    note.className = 'c-delete-chat__body';
+    note.textContent = strings.leaveGroupNote
+      || 'Everyone in the group is told you left, even if they are offline right now.';
+    content.append(note);
+  }
 
-  openModal(createModal({
+  /* ★★ F5 4.7, RULED BY DAMIR 2026-08-28 — OPTION 2: no second surface, the ONE modal
+   * carries the weight. Until L13 a room's Delete had nothing destructive to confirm (two
+   * boxes, both local), which is why the row read as "no confirmation" on the walk. The
+   * leave tick changes that — other people see it, Core cannot undo it, and an OWNER
+   * leaving removes the group for everyone — so THE RED BUTTON NAMES THE ACT: "Delete"
+   * becomes "Leave and delete" the moment the box is ticked, and the note stays on screen
+   * beside it. One screen, one press, and the press says what it does.
+   * ⚠ Deliberately NOT the person's grammar. That row escalates its irreversible tick to a
+   * second sheet because the sheet has WORK to do — it enumerates the shared groups Core
+   * refuses on and offers to leave them first. There is nothing to enumerate here, and a
+   * second surface whose only content is the question again is a tap, not a safeguard. */
+  const modal = createModal({
     title: strings.deleteChatTitle || 'Delete chat?',
     content, role: 'alertdialog', host,
     actions: [
@@ -646,7 +685,12 @@ export function openDeleteFlow({ chat = {}, host, onAction, onNeedGroups, string
           if (step1Fired) return;                              // loop r1 A-2: one shot (modal actions get no event)
           step1Fired = true;
           const media = cbMedia.input.checked;
-          if (onAction) onAction('delete', { media });          // removes the row (+ media intent)
+          // ★ L13: the leave rides the SAME terminal, as a flag on the delete detail —
+          // one intent, one verb (the shell swaps `ixian:removehistory:` for
+          // `ixian:leavegroup:`, which does the history removal itself). A second
+          // onAction here would be a second location.href send for one user action.
+          const leaveGroup = !!(cbLeave && cbLeave.input.checked);
+          if (onAction) onAction('delete', { media, leaveGroup });   // removes the row (+ media/leave intent)
           // ★ §1: only a ticked "Remove contact" escalates. Without it the chat is
           // deleted and the contact stays, which is what the two other boxes describe.
           if (!cbContact || !cbContact.input.checked) return;
@@ -656,7 +700,24 @@ export function openDeleteFlow({ chat = {}, host, onAction, onNeedGroups, string
           });
         } },
     ],
-  }));
+  });
+  /* ★ The relabel is wired to the SAME box the terminal reads — one source for the word
+   * and for the act, so the button can never promise a leave the flag does not carry.
+   * ⚠ deleteCheckbox's row is a role=checkbox BUTTON that flips aria-checked in its own
+   * click listener, and listeners fire in registration order, so this one — added after —
+   * always reads the value the confirm will read. */
+  if (cbLeave) {
+    const cta = [...modal.querySelectorAll('.c-modal__actions .c-button')].pop();
+    const lab = cta ? cta.querySelector('.c-button__label') : null;
+    if (lab) {
+      cbLeave.row.addEventListener('click', () => {
+        lab.textContent = cbLeave.input.checked
+          ? (strings.leaveAndDelete || 'Leave and delete')
+          : (strings.delete || 'Delete');
+      });
+    }
+  }
+  openModal(modal);
 }
 
 /** ★ B1's revoke prompt, REWRITTEN by ★ #562 (Damir 2026-08-25): HIDE, explained

@@ -146,7 +146,7 @@
 		     into the foreground, which Android then zoomed 1.5x (undoing the padding) and
 		     tinted as a solid blob for themed icons. Splitting them is what makes the
 		     "smaller mark" real on the screen rather than only in the file. -->
-		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#175595" />
+		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#0A58A9" />
 		<!-- Splash Screen -->
 		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#175595" BaseSize="128,128" />
 		<!-- Images -->

@@ -91,3 +91,62 @@ Two of the three things this measurement produced were CORRECTIONS to reasoning 
 looked sound in writing: `generatePage` was not the bottleneck, and the roster cost is
 bot-room-only rather than room-wide. Neither would have been caught by reading the code
 more carefully — only by running it.
+
+---
+
+# ★★ THE SECOND MEASUREMENT — 2026-08-31, after L10 shipped
+
+Damir's device, `adb logcat | Select-String "CDPERF"`, two consecutive opens of the **bot
+group** info panel. **This is the number the probe was kept alive for, and it settles the
+row.**
+
+| | constructed | document loaded | presented | onLoad returned | roster burst | content painted |
+|---|---|---|---|---|---|---|
+| open 1 | 19 | 95 | **104** | 106 | **124** | 730 |
+| open 2 | 39 | 133 | **139** | 140 | **155** | 579 |
+| *before (bot, 2026-08-29)* | 37 | 108 | **250** | — | — | 541 |
+
+## 1 · ★★ The present moved, and by exactly what was predicted
+
+**250 ms → 104 ms.** `presented` now lands **9 ms after `document loaded`**, which is what a
+1:1 and a private group have always done (+18 and +7). The bot room's ~140 ms penalty is
+**gone**, and the prediction in the row was 110 ms.
+
+## 2 · ★★ THE DISCRIMINATOR PASSES — the post is real
+
+This is why the two extra log points existed. The first cut of the fix used
+`MainThread.BeginInvokeOnMainThread`, which runs **inline** when already on the main thread,
+so the burst never left the dispatcher turn and **nothing moved** — while `presented` would
+have improved anyway and reported a success.
+
+```
+onLoad returned +106   →   roster burst +124     (open 1, +18 ms later)
+onLoad returned +140   →   roster burst +155     (open 2, +15 ms later)
+```
+
+**`roster burst` is AFTER `onLoad returned` on both opens.** `Dispatcher.Dispatch` genuinely
+posted; the UI thread was released; a frame could be composited in between. Had the burst
+timestamp been the smaller one, the fix would have been a no-op wearing a green number.
+
+## 3 · ⚠ AND THE HONEST HALF: time-to-CONTENT did not improve, and may be slightly worse
+
+`content painted` is **730** and **579**, against **541** before. Two samples, one of them an
+outlier, so the average is ~110 ms later.
+
+That is the **expected trade and it should be recorded as a trade, not as a win**: the total
+work is unchanged, and it has been *reordered*. Before, the roster burst finished before the
+pane was ever shown. Now the pane appears at ~104 ms with its skeleton and the members land
+afterwards, competing with the WebView's own first paint.
+
+* **What the user gains:** the panel opens **146 ms sooner**, which is the complaint.
+* **What it costs:** the roster completes ~110 ms later than it used to.
+* ★ **This is what the skeleton is for** (#630) — but it is a trade, and if Damir would
+  rather have both, the next lever is **chunking the burst** (N members per dispatcher turn)
+  so the WebView can paint between chunks. ⚠ Not built: two samples do not justify more
+  machinery, and #294 says measure first.
+
+## 4 · The probe is REMOVED with this entry
+
+Six C# log points, the `ixian:cdpainted` handler, the shell's emit and the smoke pin, in one
+batch, exactly as the row required. **The numbers above are the record** — the instrument is
+gone, so this table is the only place they now exist.

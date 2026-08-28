@@ -349,12 +349,31 @@
   max-height: min(56vh, 480px);     /* sanctioned: tall-sheet clearance */
   padding-inline-end: var(--spacing-4);
 }
+/* ★ L15 (2026-08-31): the slot holds either the platform's emoji or a PNG. The width
+   is the same 28px it always was, so no row moves on any platform. */
 .c-settings__opt-flag {
   flex: none;
-  width: 28px;                      /* sanctioned: flag slot (emoji now, SVG swap later) */
-  font-size: 20px;                  /* sanctioned: emoji glyph size */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;                      /* sanctioned: flag slot */
   line-height: 1;
-  text-align: center;
+}
+/* ★ L15: ONE box, two fillings. The emoji is a glyph so it is sized by font-size and
+   needs no border; the PNG is a picture and gets the hairline, because several of the
+   flags are mostly WHITE (jp, id) and without an edge they read as a hole in a light
+   sheet. The two are deliberately NOT made to look identical — each is the best version
+   of itself on the platform that gets it. */
+.c-flag { display: block; }
+.c-flag--emoji {
+  font-size: 20px;                  /* sanctioned: emoji flag optical size */
+  line-height: 1;
+}
+.c-flag--img {
+  width: 20px;                      /* sanctioned: flag artwork box (img/flags/*.png are 40px wide) */
+  height: auto;
+  border-radius: 2px;               /* sanctioned: flag corner */
+  box-shadow: 0 0 0 1px var(--outline-neutral-02);
 }
 .c-settings__opts-hint {
   margin: 0 0 var(--spacing-8);

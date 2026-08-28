@@ -1,0 +1,116 @@
+Session C: L18 · L16 · L15 · L5 · L10 · L6 · L17 — and the #46 loop found 4 MAJORs, two of them mine
+
+Six worklist rows plus the launcher icon, the adversarial loop over all of it, and
+Damir's walk, which reshaped three of the rows after they were "done".
+DECISIONS #664-#675.
+
+  bundle 307 · shells 18 · smoke BASELINE OK 3632 / the 3 known (#136 · M5 · B3)
+  locales ALL CLEAN 776 · cs-syntax 140+1 · i18n-lint OK · pseudo 9/9
+  Ixian-Core 097341a, verified clean
+
+THE ROWS
+
+L18  The logotype ink is a ROLE. One --text-logotype token: the brand primitive in
+     light, neutral-01 in dark. Damir extended it to the desktop rail, which painted
+     its own --icon-accent -- and one token can serve both with light unchanged to the
+     pixel only because --primary-600 and --accent-600 are the same primitive. That
+     equality is pinned; re-anchoring accent would move the rail's light mark silently.
+
+L16  The splash squircle was ONE missing line. The light Android-12 theme declared no
+     windowSplashScreenAnimatedIcon, so the system drew the LAUNCHER icon and painted
+     its background layer inside the mask. A light drawable twin now exists, both
+     drawables share one transform, the mark shrank ~20%, and the blue is #175595.
+     ⚠ Damir's scope answer rested on a premise of mine that was FALSE:
+     layout/splash_screen.xml is the window ground on EVERY api level (values/styles.xml
+     sets it with no version qualifier), not "the pre-31 splash". Its gradient moved too.
+
+L15  The flags were TEXT. The rows were built from a regional-indicator emoji pair, and
+     Windows ships no colour flag glyph, so WebView2 drew the two letters -- a FONT, not
+     logic. The row also existed TWICE because the LIST did: launch-shell.js carried a
+     second copy whose own comment said "keep the two in sync BY HAND", and the welcome
+     pill carried an emoji too.
+     ★ I first replaced the emoji with drawn SVG. Damir rejected it and deleted the
+     class: "do we keep the emojis on mobile right, as they are perfect." They are. The
+     emoji now stays wherever the device can PAINT one -- tested on a canvas, because
+     macOS has the glyphs and only Windows does not -- and the fallback is
+     img/flags/*.png, thirteen PNGs shipping since the legacy build that nothing in the
+     redesign referenced. He pointed at the folder. Only us.png was missing.
+
+L5   launch.html and lock.html were the ONLY two of eighteen shells with no root
+     data-theme, so every token-driven surface in them resolved the LIGHT block on every
+     phone. Their chrome never showed it (each pins dark on its own subtree); an overlay
+     mounts on document.body, OUTSIDE the pin. The lock had the same defect, unreported.
+     ignorePushedTheme is retired: its stated rationale was disproved at source, and the
+     pin asserting it was RIGHT to go red.
+
+L10  The first fix was a NO-OP that would have reported itself as a success.
+     MainThread.BeginInvokeOnMainThread runs INLINE when already on the main thread --
+     this tree says so in its own code -- so the present completed synchronously and the
+     roster burst never left the turn. And [CDPERF] presented improves either way.
+     Dispatcher.Dispatch posts for real now, and it shipped its own discriminator.
+     ★ MEASURED on Damir's device: presented 250ms -> 104ms, and roster burst landed
+     AFTER onLoad returned on both opens. ⚠ The honest half: time-to-CONTENT did not
+     improve (730/579 vs 541) -- the work was reordered, not reduced. Probe removed with
+     its handler, shell emit and pin, in one batch; both numbers are the only record.
+
+L6   The rail had FOUR writers and they disagreed. The hand-off lit Chats while Back went
+     to Account; the first fix was defeated one line later by an unconditional
+     setNavActive in onSettingsClosed whose comment called it "a consistent no-op".
+     railTarget() answers it once now. The right pane "jumped" because the Account pane
+     was HIDING a conversation -- new verb ixian:cleardetail clears the column.
+     ⚠ The mobile flicker is NOT fixed and the source says so: it is the parked-peer
+     re-present, the same mechanism as L14, and they want one fix.
+
+L17  The launcher icon -- and there was nothing to wait for. Three handoffs said "Damir
+     owes the new logo SVG"; src/assets/icons/logo.svg was in the repo, and it is the
+     mark the splash already draws.
+     ⚠⚠ Then it cost him two clean rebuilds: MainActivity declared
+     Icon = "@mipmap/ic_launcher", a COMMITTED icon set, while MauiIcon generated
+     @mipmap/appicon that NOTHING referenced. Editing the SVG reached iOS, Windows and
+     Mac and could not touch Android. Now split into an adaptive background + transparent
+     foreground (Android zooms the foreground 1.5x, which was undoing the padding) and
+     MainActivity points at the generated pair.
+
+THE #46 LOOP -- 4 MAJOR, 12 MINOR/NIT, all fixed
+
+Three read-only auditors with disjoint scopes, then fixes, then 23 mutations.
+Two MAJORs were mine and invisible to every gate: L10's no-op, and L6's rail fix being
+undone one line later. Also found: dropping ixian:tab: dropped repaintOwnSystemBars with
+it (the status bar paints the WALLET HERO colour on tab2) -- fixing that closed a
+PRE-EXISTING hole on the wallet's own Receive/Send takeover; the whole ixian:cleardetail
+verb is wide-gated now; a throwing mountContacts no longer strands the rail; the Account
+rail item is no longer dead while the directory is open; the destructure gate now reads
+value-shaped exports, which L15 was the first to need.
+
+⚠ 2 of 23 mutations SURVIVED, and they were the ones that mattered: both flag pins
+execute the SHIPPED bundle while the mutation changed only the source. A differential pin
+now runs both homes and compares them.
+
+⚠⚠ EIGHT of my pins were wrong on first run and FIVE read their own prose -- three of
+those after the rule was written down, by the person who wrote it. It stopped being a
+rule: stripCode is a top-level helper now, with all five failures listed where it is
+defined, and every negative sweep goes through it.
+
+WHAT DAMIR CAUGHT THAT NO GATE COULD
+
+Four stale claims, three of which he found himself: the logo SVG that was already in the
+repo, the wallet-SEND redesign that session A had already finished, A1 filed under "the
+office Mac" when it needs neither iOS nor a Mac, and the launcher icon I sent him to
+clear caches for twice. Every one was the same shape -- reading the artifact I expected
+to matter instead of tracing what the platform reads.
+
+ALSO
+
+A1 (the cleartext wallet password) is a BE row by his ruling, #675, with the full source
+trace in docs/security-review-for-be-engineer.md: five write sites, no SecureStorage
+anywhere in the tree, and a literal "TODO: encrypt the password" above the first.
+Ixian-Core verified at 097341a once he connected it -- it sits OUTSIDE the git repo, and
+not seeing it had blocked L13 and the baseline all session.
+
+New files: src/components/flags.js · Spixi/Resources/AppIcon/appiconfg.svg ·
+Spixi/Platforms/Android/Resources/drawable/spixi_splash_icon.xml ·
+Spixi/Resources/Raw/html/img/flags/us.png
+
+Docs: handoff-2026-09-01 · opus-review-verdict-session-c ·
+f5-checklist-2026-08-31-session-c · cdperf-2026-08-29-android (the second measurement) ·
+security-review-for-be-engineer (A1) · next-session-prompt

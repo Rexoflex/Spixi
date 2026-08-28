@@ -18,6 +18,22 @@
      UNRESOLVED marker also fails the numeric test and leaves the variable unset.
      The value is validated as a plain number before it reaches a style property. -->
 <script>(function(){function a(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-top',v+'px');}a('*SL{AndroidInsetTop}');window.setInsetTop=a;})();</script>
+<!-- ★ L5 (Damir, 2026-08-31): "while the phone is in dark theme, the terms/languages/
+     privacy sheet is in light mode. I think it should follow the phone theme."
+     ROOT CAUSE, read at source: of the eighteen shells, this one and lock.html were the
+     ONLY two that set no root data-theme at all — so every token-driven surface in them
+     resolved the LIGHT :root block, on every phone, forever. The launch CHROME never
+     showed it because launch-shell.js pins data-theme="dark" on the .c-launch section
+     itself and everything outside that section is a hard-coded literal (#1b163c,
+     #ffffff, above). But a SHEET mounts on document.body, OUTSIDE the pin — and
+     launch-shell.js's own comment says so, calling them "themed pickers". They were
+     meant to follow the app theme all along; there was simply no theme on this
+     document to follow.
+     So the root carries the real theme now, exactly as the other sixteen shells do, and
+     for the same pre-paint reason. It cannot repaint the fixed chrome: an element
+     carrying data-theme redefines the tokens for its own subtree regardless of the
+     root, so .c-launch stays dark in a light app. -->
+<script>(function(){var n='*SL{SpixiThemeName}';if(n==='light'||n==='dark'){document.documentElement.dataset.theme=n;return;}var a='';try{a=localStorage.getItem('spixi.appearance')||'';}catch(e){}document.documentElement.dataset.theme=a==='1'?'light':a==='2'?'dark':(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');})();</script>
 <style>
   /* The launch flow is a FIXED-DARK brand surface in BOTH themes (--gradient-
      launch, lock.html precedent #160): paint a deep dark IMMEDIATELY — launch
@@ -163,7 +179,7 @@
   const {
     createLaunchShell, setLaunchVersion, setLaunchAvatar, setLaunchFile, setLaunchView,
     createNativeBridge, installExecuteUiCommand,
-    ignorePushedTheme,
+    applyPushedTheme,
     dismissTopOverlay,          // ★ #614: back closes an open sheet before it changes view
     } = window.Spixi;
   const strings = window.SL || {};
@@ -281,13 +297,20 @@
   };
 
   const handlers = {
-    /* ★ N71 (#421): a DELIBERATE no-op. This surface is brand-dark in BOTH themes,
-     * so it must not follow a theme flip — but it must still DEFINE the global,
-     * because C# emits `executeUiCommand(setTheme, …)` with setTheme as a bare
-     * identifier: an undefined one throws a ReferenceError while the arguments are
-     * evaluated, before the dispatcher's own try/catch can run (the #258
-     * addAppRequest lesson). Silence here is the feature. */
-    setTheme(name) { ignorePushedTheme(name); },
+    /* ★ N71 (#421) gave this shell a DELIBERATE no-op, on the reasoning that a
+     * brand-dark surface must not follow a flip or its "fixed chrome would repaint
+     * against a token set that moved under it".
+     * ★ L5 (2026-08-31) disproves that for THIS shell, at source: the fixed chrome is
+     * inside a section that pins data-theme="dark" ON ITSELF (launch-shell.js), and an
+     * element carrying data-theme redefines the tokens for its own subtree whatever the
+     * root does — so no flip can reach it. Everything else this document paints is a
+     * hard-coded literal. The ONLY thing the root theme reaches is an overlay mounted
+     * on document.body, which is precisely the surface Damir reported as stuck light.
+     * The reason to DEFINE the global is unchanged and is still the point: C# emits
+     * `executeUiCommand(setTheme, …)` with setTheme as a BARE identifier, and an
+     * undefined one throws a ReferenceError while the arguments are evaluated, before
+     * the dispatcher's own try/catch can run (the #258 addAppRequest lesson). */
+    setTheme(name) { applyPushedTheme(name); },
     setVersion: (v) => setLaunchVersion(el, v),
     showTerms: () => { termsRequired = true; },      // arm the one-shot ixian:accept
     showOnboardingSection: () => {},                 // legacy no-op: welcome always shows CTAs

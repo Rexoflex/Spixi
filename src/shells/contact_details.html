@@ -552,7 +552,6 @@
      before the page became visible. The hold is 0 for this page now, which makes the
      skeleton real — and a snap from skeleton to panel is what the crossfade replaces.
      Reduced motion and a missing transitionend both fall back to the plain swap. */
-  let paintedReported = false;
   function crossfadeIn(next) {
     const boot = root.querySelector('.contact-boot');
     let reduced = false;
@@ -586,9 +585,6 @@
     const nb = root.querySelector('.c-chat-info__body');
     if (nb) nb.scrollTop = top;
     built = true;
-    /* ★★ [CDPERF] PROBE — temporary, remove with the C# half. The first real content
-       frame, reported once, so the timeline has an end. */
-    if (!paintedReported) { paintedReported = true; try { bridge.send('ixian:cdpainted'); } catch (e) {} }
   }
 
   // Signature of the state that actually AFFECTS the rendered panel (name,

@@ -18,6 +18,22 @@
      UNRESOLVED marker also fails the numeric test and leaves the variable unset.
      The value is validated as a plain number before it reaches a style property. -->
 <script>(function(){function a(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-top',v+'px');}a('*SL{AndroidInsetTop}');window.setInsetTop=a;})();</script>
+<!-- ★ L5 (Damir, 2026-08-31): "while the phone is in dark theme, the terms/languages/
+     privacy sheet is in light mode. I think it should follow the phone theme."
+     ROOT CAUSE, read at source: of the eighteen shells, this one and lock.html were the
+     ONLY two that set no root data-theme at all — so every token-driven surface in them
+     resolved the LIGHT :root block, on every phone, forever. The launch CHROME never
+     showed it because launch-shell.js pins data-theme="dark" on the .c-launch section
+     itself and everything outside that section is a hard-coded literal (#1b163c,
+     #ffffff, above). But a SHEET mounts on document.body, OUTSIDE the pin — and
+     launch-shell.js's own comment says so, calling them "themed pickers". They were
+     meant to follow the app theme all along; there was simply no theme on this
+     document to follow.
+     So the root carries the real theme now, exactly as the other sixteen shells do, and
+     for the same pre-paint reason. It cannot repaint the fixed chrome: an element
+     carrying data-theme redefines the tokens for its own subtree regardless of the
+     root, so .c-launch stays dark in a light app. -->
+<script>(function(){var n='*SL{SpixiThemeName}';if(n==='light'||n==='dark'){document.documentElement.dataset.theme=n;return;}var a='';try{a=localStorage.getItem('spixi.appearance')||'';}catch(e){}document.documentElement.dataset.theme=a==='1'?'light':a==='2'?'dark':(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');})();</script>
 <style>
   /* The launch flow is a FIXED-DARK brand surface in BOTH themes (--gradient-
      launch, lock.html precedent #160): paint a deep dark IMMEDIATELY — launch
@@ -253,7 +269,11 @@
    correctly becomes --text-on-hero. Hard-setting --text-neutral-01 here would have
    given the right colour on four screens and broken the fifth.
    The flag is set by topbar.js's logotype branch; see the note there for why not :has(). */
-.c-topbar[data-variant="root"] .c-topbar__title[data-logotype] { color: var(--text-action-default); }
+/* ★ L18 (Damir, 2026-08-31): the ink is now a ROLE, --text-logotype — brand blue in
+   light (byte-identical: the role aliases --text-action-default) and neutral-01 in
+   dark. The theme answer lives in tokens.css; a [data-theme] selector here is the
+   shape #421 retired (tokens.css states the rule). */
+.c-topbar[data-variant="root"] .c-topbar__title[data-logotype] { color: var(--text-logotype); }
 .screen--hero .c-topbar[data-variant="root"] .c-topbar__title { color: var(--text-topbar); }
 
 .c-topbar__logo { display: block; flex: none; } /* inline SVG, currentColor from title */
@@ -1563,12 +1583,31 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   max-height: min(56vh, 480px);     /* sanctioned: tall-sheet clearance */
   padding-inline-end: var(--spacing-4);
 }
+/* ★ L15 (2026-08-31): the slot holds either the platform's emoji or a PNG. The width
+   is the same 28px it always was, so no row moves on any platform. */
 .c-settings__opt-flag {
   flex: none;
-  width: 28px;                      /* sanctioned: flag slot (emoji now, SVG swap later) */
-  font-size: 20px;                  /* sanctioned: emoji glyph size */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;                      /* sanctioned: flag slot */
   line-height: 1;
-  text-align: center;
+}
+/* ★ L15: ONE box, two fillings. The emoji is a glyph so it is sized by font-size and
+   needs no border; the PNG is a picture and gets the hairline, because several of the
+   flags are mostly WHITE (jp, id) and without an edge they read as a hole in a light
+   sheet. The two are deliberately NOT made to look identical — each is the best version
+   of itself on the platform that gets it. */
+.c-flag { display: block; }
+.c-flag--emoji {
+  font-size: 20px;                  /* sanctioned: emoji flag optical size */
+  line-height: 1;
+}
+.c-flag--img {
+  width: 20px;                      /* sanctioned: flag artwork box (img/flags/*.png are 40px wide) */
+  height: auto;
+  border-radius: 2px;               /* sanctioned: flag corner */
+  box-shadow: 0 0 0 1px var(--outline-neutral-02);
 }
 .c-settings__opts-hint {
   margin: 0 0 var(--spacing-8);
@@ -2122,7 +2161,9 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   padding: 0;
   color: var(--text-neutral-02);
 }
-.c-launch__pill-flag { font-size: 16px; line-height: 1; } /* sanctioned: emoji flag optical size (#148⑥) */
+/* ★ L15: an emoji glyph OR a PNG (flags.js decides per device), so the slot centres
+   whatever it is given rather than assuming a text baseline. */
+.c-launch__pill-flag { display: flex; align-items: center; line-height: 1; }
 
 /* #160: bare glowing glyph, no disc chrome — the gradient's crown halo
    (--gradient-launch layer 1) backs it, the drop-shadow tightens it */
@@ -2596,7 +2637,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   const {
     createLaunchShell, setLaunchVersion, setLaunchAvatar, setLaunchFile, setLaunchView,
     createNativeBridge, installExecuteUiCommand,
-    ignorePushedTheme,
+    applyPushedTheme,
     dismissTopOverlay,          // ★ #614: back closes an open sheet before it changes view
     } = window.Spixi;
   const strings = window.SL || {};
@@ -2714,13 +2755,20 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   };
 
   const handlers = {
-    /* ★ N71 (#421): a DELIBERATE no-op. This surface is brand-dark in BOTH themes,
-     * so it must not follow a theme flip — but it must still DEFINE the global,
-     * because C# emits `executeUiCommand(setTheme, …)` with setTheme as a bare
-     * identifier: an undefined one throws a ReferenceError while the arguments are
-     * evaluated, before the dispatcher's own try/catch can run (the #258
-     * addAppRequest lesson). Silence here is the feature. */
-    setTheme(name) { ignorePushedTheme(name); },
+    /* ★ N71 (#421) gave this shell a DELIBERATE no-op, on the reasoning that a
+     * brand-dark surface must not follow a flip or its "fixed chrome would repaint
+     * against a token set that moved under it".
+     * ★ L5 (2026-08-31) disproves that for THIS shell, at source: the fixed chrome is
+     * inside a section that pins data-theme="dark" ON ITSELF (launch-shell.js), and an
+     * element carrying data-theme redefines the tokens for its own subtree whatever the
+     * root does — so no flip can reach it. Everything else this document paints is a
+     * hard-coded literal. The ONLY thing the root theme reaches is an overlay mounted
+     * on document.body, which is precisely the surface Damir reported as stuck light.
+     * The reason to DEFINE the global is unchanged and is still the point: C# emits
+     * `executeUiCommand(setTheme, …)` with setTheme as a BARE identifier, and an
+     * undefined one throws a ReferenceError while the arguments are evaluated, before
+     * the dispatcher's own try/catch can run (the #258 addAppRequest lesson). */
+    setTheme(name) { applyPushedTheme(name); },
     setVersion: (v) => setLaunchVersion(el, v),
     showTerms: () => { termsRequired = true; },      // arm the one-shot ixian:accept
     showOnboardingSection: () => {},                 // legacy no-op: welcome always shows CTAs

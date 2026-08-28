@@ -194,6 +194,7 @@
     createNativeBridge, installExecuteUiCommand,
     applyPushedTheme,
     readPatternLevel,
+    LANGUAGES,                       // ★ L15: the ONE language list, shared with the launch picker
   } = window.Spixi;
   // #228 platform flag (set pre-paint, constant): desktop swaps the peer-tab
   // bottom bar for the LEFT RAIL + drops the topbar back (rail = the exit).
@@ -385,21 +386,13 @@
    * N4 (#379): the #360 residual five (it/id/lt/cn/ja) shipped dictionaries →
    * their #258 languagePending rows are REAL rows now. PENDING_LANGS below is
    * empty but the guard grammar stays for any future pre-dictionary code. */
-  const LANGS = [
-    { code: 'en-us', label: 'English', flag: '🇺🇸' },
-    { code: 'es-co', label: 'Español', flag: '🇨🇴' },
-    { code: 'de-de', label: 'Deutsch', flag: '🇩🇪' },
-    { code: 'fr-fr', label: 'Français', flag: '🇫🇷' },
-    { code: 'pt-br', label: 'Português (Brasil)', flag: '🇧🇷' },
-    { code: 'ru-ru', label: 'Русский', flag: '🇷🇺' },
-    { code: 'sl-si', label: 'Slovenščina', flag: '🇸🇮' },
-    { code: 'sr-sp', label: 'Srpski', flag: '🇷🇸' },
-    { code: 'it-it', label: 'Italiano', flag: '🇮🇹' },
-    { code: 'id-id', label: 'Bahasa Indonesia', flag: '🇮🇩' },
-    { code: 'lt-lt', label: 'Lietuvių', flag: '🇱🇹' },
-    { code: 'cn-cn', label: '中文', flag: '🇨🇳' },
-    { code: 'ja-jp', label: '日本語', flag: '🇯🇵' },
-  ];
+  /* ★ L15 (2026-08-31): the thirteen rows moved to flags.js LANGUAGES, which
+   * launch-shell.js now reads too — the two lists used to be maintained BY HAND and
+   * said so. The flag field is a flags.js key now, not an emoji: a regional-indicator
+   * pair has no glyph on Windows, so WebView2 drew its two letters and Damir saw
+   * "just country abbreviations". Everything the old comment above says about WHICH
+   * locales are listed is unchanged and still lives at the list. */
+  const LANGS = LANGUAGES;
 
   /* —— A4 fallback row (hidden-locale REGRESSION guard) ————————————————————————
    * App.xaml.cs:100-107 — on FIRST RUN, with no `language` preference, Spixi

@@ -10,7 +10,9 @@
  *     evaluated, i.e. BEFORE executeUiCommand is entered, so the dispatcher's
  *     own try/catch cannot save it (the #258 `addAppRequest` lesson, which cost
  *     ten shells). Every shell C# can reach must therefore DEFINE setTheme —
- *     including the fixed-surface ones, where it is a deliberate no-op.
+ *     the launch flow and the lock included. ⚠ They used to define it as a
+ *     deliberate NO-OP; L5 retired that, and the reason is at the foot of this
+ *     file. All eighteen apply the push now.
  *  2. Before this module the body was copy-pasted into five shells and absent
  *     from thirteen. Copies drift; #251 and #288 MAJOR-1 are both that story.
  *
@@ -55,14 +57,26 @@ export function applyPushedTheme(name, { onApplied, doc } = {}) {
   return true;
 }
 
-/**
- * The no-op every FIXED-SURFACE shell installs — the launch flow and the lock,
- * which are brand-dark in BOTH themes (N73 / #203). They must still DEFINE the
- * global for reason 1 above: without it an OS theme flip throws a ReferenceError
- * into the page while the user is looking at a password field.
+/* ★ L5 (2026-08-31) RETIRED `ignorePushedTheme`, and the reason is worth keeping.
  *
- * Deliberately NOT `applyPushedTheme`: flipping data-theme on these documents
- * would be worse than doing nothing, because their fixed dark chrome is painted
- * against a themed token set that would then move underneath it.
- */
-export function ignorePushedTheme() { /* fixed-surface shell — see the docblock */ }
+ * It was the no-op the two FIXED-SURFACE shells installed — the launch flow and the
+ * lock — on this stated reasoning: "flipping data-theme on these documents would be
+ * worse than doing nothing, because their fixed dark chrome is painted against a
+ * themed token set that would then move underneath it."
+ *
+ * That is not true of either document, and the source says so. Both pin
+ * data-theme="dark" on their OWN subtree — `.c-launch` (launch-shell.js) and
+ * #lock-root (lock.html markup) — and an element carrying data-theme redefines the
+ * tokens for its subtree whatever the root holds. Everything they paint outside those
+ * subtrees is a hard-coded literal. So the root theme could never reach the chrome the
+ * no-op was protecting.
+ *
+ * What it DID reach is the only thing in those documents that is token-driven: an
+ * overlay, which mounts on document.body outside the pin. With no root theme those
+ * always resolved the LIGHT block — a light language sheet on the dark launch (Damir's
+ * report) and a light "Use a different wallet?" modal on the dark lock (found while
+ * fixing it). Both shells now carry the same pre-paint theme carrier as the other
+ * sixteen and call applyPushedTheme, so there is no second body to install.
+ *
+ * ⚠ The half that was ALWAYS right, and did not change: a fixed-surface shell must
+ * still DEFINE the setTheme global. Reason 1 above is why. */

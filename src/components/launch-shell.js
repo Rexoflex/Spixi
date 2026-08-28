@@ -67,6 +67,7 @@ import { createSheet, openSheet, closeSheet } from './sheet.js';
 import { createAvatar } from './avatar.js';
 import { passwordField, ENC_MIN } from './lock-shell.js';
 import { settingsOptionSheet } from './settings-shell.js';
+import { LANGUAGES, createFlag } from './flags.js';
 
 const launchState = new WeakMap(); // el → st
 
@@ -185,29 +186,15 @@ function hostEl(st) {
   return st.opts.host || (st.root && st.root.closest('.demo-phone')) || undefined;
 }
 
-// #148⑥ inventory shape (settings parity — flags emoji now, SVG swaps later);
-// overridable via opts.languages. A4 (Damir, Batch A): a locale WITHOUT a shell
-// dictionary (build-locales.mjs LANGS) is hidden until translated, matching the
-// Account hub picker — picking one only translated the C# layer and left every
-// shell string English. (The old zh-cn entry was also a WRONG code —
-// SpixiLocalization ships cn-cn.)
-// N4 (#379): it/id/lt/cn/ja shipped dictionaries → real rows, same order as the
-// Account hub list (settings.html LANGS — keep the two in sync BY HAND).
-const LAUNCH_LANGS = [
-  { code: 'en-us', label: 'English', flag: '🇺🇸' },
-  { code: 'es-co', label: 'Español', flag: '🇨🇴' },
-  { code: 'de-de', label: 'Deutsch', flag: '🇩🇪' },
-  { code: 'fr-fr', label: 'Français', flag: '🇫🇷' },
-  { code: 'pt-br', label: 'Português (Brasil)', flag: '🇧🇷' },
-  { code: 'ru-ru', label: 'Русский', flag: '🇷🇺' },
-  { code: 'sl-si', label: 'Slovenščina', flag: '🇸🇮' },
-  { code: 'sr-sp', label: 'Srpski', flag: '🇷🇸' },
-  { code: 'it-it', label: 'Italiano', flag: '🇮🇹' },
-  { code: 'id-id', label: 'Bahasa Indonesia', flag: '🇮🇩' },
-  { code: 'lt-lt', label: 'Lietuvių', flag: '🇱🇹' },
-  { code: 'cn-cn', label: '中文', flag: '🇨🇳' },
-  { code: 'ja-jp', label: '日本語', flag: '🇯🇵' },
-];
+/* ★ L15 (2026-08-31): this file used to carry its OWN copy of the thirteen
+ * languages, and the comment that stood here admitted the hazard in its own words —
+ * "keep the two in sync BY HAND". It is gone. Both pickers now read LANGUAGES from
+ * flags.js, so a language, a label or a flag is added ONCE.
+ * What the deleted note said and is still true: a locale whose dictionary has not
+ * landed is not listed at all (build-locales.mjs LANGS, N4/#379) — picking one would
+ * translate only the C# layer and leave every shell string English. The old zh-cn
+ * entry was also a WRONG code; SpixiLocalization ships cn-cn. */
+const LAUNCH_LANGS = LANGUAGES;
 
 /* A4 fallback row (settings.html carries the same guard, one grammar).
  * App.xaml.cs:100-107 auto-detects CultureInfo on FIRST RUN and PERSISTS it when
@@ -262,8 +249,14 @@ function buildWelcome(st) {
   langLabel.className = 'c-launch__pill-label';
   const syncLang = () => {
     const cur = languages.find((l) => l.code === st.language) || languages[0];
-    langFlag.textContent = cur.flag || '';
-    langFlag.hidden = !cur.flag;
+    /* ★ L15: the pill draws through the SAME function as the picker row it opens.
+     * It carried a raw emoji of its own, so on Windows it showed "US" beside
+     * "English" — one defect, two surfaces, and the pill is the one a new user sees
+     * FIRST. Now neither can be right while the other is wrong. */
+    const flagEl = cur.flag ? createFlag(cur.flag) : null;
+    langFlag.replaceChildren();
+    if (flagEl) langFlag.append(flagEl);
+    langFlag.hidden = !flagEl;
     langLabel.textContent = cur.label;
     langPill.setAttribute('aria-label', (strings.language || 'Language') + ': ' + cur.label);
   };
@@ -287,10 +280,15 @@ function buildWelcome(st) {
   });
 
   /* ★ N72 (#391, Damir's product call): the APPEARANCE pill is gone. The whole
-     launch flow is a fixed-dark brand surface in both themes (dataset.theme =
-     'dark' below; the shell carries no *SL{SpixiThemeName} boot script), so the
-     pick changed nothing the user could see and cost a page reload. The app
-     rides the system theme until the user reaches Account → Appearance. */
+     launch flow is a fixed-dark brand surface in both themes (dataset.theme = 'dark'
+     below), so the pick changed nothing the user could see and cost a page reload.
+     The app rides the system theme until the user reaches Account → Appearance.
+     ⚠ This comment used to add "the shell carries no theme boot script". L5 gave it
+     one — the root now carries the real theme so the launch SHEETS follow the phone —
+     and the fixed chrome is unaffected because it is pinned on its own subtree.
+     ⚠⚠ It also spelled the carrier out in prose, and that is not free: generatePage
+     substitutes text-based and does not skip comments (N83), and this file is inlined
+     whole into the bundle. The marker is named indirectly here for that reason. */
   top.append(langPill);
   v.append(top);
 

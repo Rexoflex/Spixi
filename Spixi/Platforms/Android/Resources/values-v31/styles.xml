@@ -7,17 +7,36 @@
        This v31 override keeps the whole MainTheme.Base inheritance and only brands
        the system splash: brand splash blue background (= the csproj MauiSplashScreen
        color, dead config on Android because MainActivity declares @style/MainTheme,
-       not the MAUI splash theme). No windowSplashScreenAnimatedIcon on purpose: the
-       only splash bitmap (@drawable/splash) is 140x283 - a tall lockup that would
-       distort in the system splash icon circle; the default (the app launcher icon)
-       reads correctly. Pre-31 devices never read this folder: legacy splash untouched. -->
+       not the MAUI splash theme).
+       * L18-era update (L16, Damir 2026-08-31): the ground is now #175595, his blue.
+       * L16, and this REVERSES the judgment this comment used to carry. It said the
+       launcher-icon default "reads correctly". It does not: with NO
+       windowSplashScreenAnimatedIcon declared, Android 12+ falls back to the app
+       LAUNCHER icon, and the launcher icon brings its own BACKGROUND LAYER, which the
+       system paints inside the splash mask. That is the squircle behind the mark that
+       Damir photographed - "on light OS mode when splash is blue, remove the small logo
+       background". The DARK theme never had it, because values-night-v31 supplies its own
+       drawable, and the two screenshots differ for exactly that reason.
+       The fix is the missing line: declare our own mark. The 140x283 @drawable/splash
+       lockup the old comment worried about is NOT what is declared here - that bitmap
+       belongs to the pre-31 layout and is untouched.
+       Pre-31 devices never read THIS FOLDER. ⚠ They do read layout/splash_screen.xml —
+       and so does every other Android, because values/styles.xml sets windowBackground
+       to it with no version qualifier. An earlier draft of this row called that file
+       "the pre-31 splash" and left it blue; the review caught it. Its gradient moved to
+       #175595 with this one, so there is ONE blue. Out of scope, as Damir ruled: the
+       @drawable/splash BITMAP that layout draws on top — a different asset. -->
   <style name="MainTheme" parent="MainTheme.Base">
-    <item name="android:windowSplashScreenBackground">#144576</item>
-    <!-- #336 round-2: the animated icon was REVERTED (Damir F5: barely noticeable,
-         mark too big + clipped by the splash circle, dots too fast). Back to the
-         #334 static blue splash. A truly premium splash = a proper icon artwork
-         sized to the Android-12 safe circle (66% fill) + a slower single motion;
-         drawable/spixi_splash_{logo,anim}.xml are kept for that future round. -->
+    <item name="android:windowSplashScreenBackground">#175595</item>
+    <item name="android:windowSplashScreenAnimatedIcon">@drawable/spixi_splash_icon</item>
+    <!-- The declared mark is STATIC, and deliberately so. #336 round-2 reverted an
+         ANIMATED icon on three counts (Damir F5: barely noticeable, mark too big and
+         clipped by the splash circle, dots too fast). Only the second of those is about
+         the mark itself, and L16 answers it: this drawable is the same white logomark the
+         dark theme has shown since #534, now at ~42% of the viewport instead of ~52%,
+         well inside the Android-12 66% safe circle. Nothing moves, so nothing can be
+         "too fast". drawable/spixi_splash_{logo,anim}.xml stay parked for a future
+         motion round. -->
   </style>
 
 </resources>

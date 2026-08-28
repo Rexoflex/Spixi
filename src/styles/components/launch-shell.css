@@ -76,7 +76,9 @@
   padding: 0;
   color: var(--text-neutral-02);
 }
-.c-launch__pill-flag { font-size: 16px; line-height: 1; } /* sanctioned: emoji flag optical size (#148⑥) */
+/* ★ L15: an emoji glyph OR a PNG (flags.js decides per device), so the slot centres
+   whatever it is given rather than assuming a text baseline. */
+.c-launch__pill-flag { display: flex; align-items: center; line-height: 1; }
 
 /* #160: bare glowing glyph, no disc chrome — the gradient's crown halo
    (--gradient-launch layer 1) backs it, the drop-shadow tightens it */

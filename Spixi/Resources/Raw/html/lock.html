@@ -17,6 +17,18 @@
      UNRESOLVED marker also fails the numeric test and leaves the variable unset.
      The value is validated as a plain number before it reaches a style property. -->
 <script>(function(){function a(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-top',v+'px');}a('*SL{AndroidInsetTop}');window.setInsetTop=a;})();</script>
+<!-- ★ L5 (2026-08-31), the SAME defect Damir reported on the launch sheets, found here
+     while fixing that one: this shell and launch.html were the ONLY two of eighteen with
+     no root data-theme, so every token-driven surface resolved the LIGHT :root block on
+     every phone. The lock CHROME never showed it — #lock-root below pins data-theme
+     ="dark" on its own subtree and everything outside it is a literal (#13171b, #ffffff,
+     below). But the "Use a different wallet?" MODAL mounts on document.body, OUTSIDE
+     that pin (lock-shell.js passes no host in production), so it painted a LIGHT dialog
+     over the dark lock. Nobody had reported it; it is the same one line.
+     The root now carries the real theme, pre-paint, like the other sixteen shells. It
+     cannot repaint the fixed chrome: an element carrying data-theme redefines the tokens
+     for its own subtree whatever the root says. -->
+<script>(function(){var n='*SL{SpixiThemeName}';if(n==='light'||n==='dark'){document.documentElement.dataset.theme=n;return;}var a='';try{a=localStorage.getItem('spixi.appearance')||'';}catch(e){}document.documentElement.dataset.theme=a==='1'?'light':a==='2'?'dark':(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');})();</script>
 <style>
   /* The lock screen is a FIXED-DARK brand surface in BOTH themes (#160): the
      .c-lock subtree pins itself to dark tokens over --gradient-lock. So paint a
@@ -797,21 +809,27 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   const {
     mountLockPage,
     createNativeBridge, installExecuteUiCommand,
-    ignorePushedTheme,
+    applyPushedTheme,
   } = window.Spixi;
   const strings = window.SL || {};
 
   /* —— bridge transport ———————————————————————————————————————————————————— */
   installExecuteUiCommand();                     // defines window.executeUiCommand for C# (setJustConfirm)
 
-  /* ★ N71 (#421): a DELIBERATE no-op — the lock is dark in BOTH themes (#203), so
-   * it must not follow a theme flip. It must still DEFINE the global: C# emits
-   * `executeUiCommand(setTheme, …)` with setTheme as a bare identifier, and an
-   * undefined one throws a ReferenceError while the arguments are evaluated,
-   * before the dispatcher can catch it (the #258 addAppRequest lesson). Throwing
-   * into the page while the user is at a password field is the failure this
-   * prevents. Shared body: theme-runtime.js. */
-  window.setTheme = function (name) { ignorePushedTheme(name); };
+  /* ★ N71 (#421) made this a DELIBERATE no-op, reasoning that a brand-dark surface
+   * must not follow a flip. ★ L5 (2026-08-31) shows the root theme cannot reach the
+   * lock's chrome: #lock-root pins data-theme="dark" on itself, and an element
+   * carrying data-theme redefines the tokens for its whole subtree whatever the root
+   * says. What the root DOES reach is the "Use a different wallet?" modal, which
+   * mounts on document.body outside that pin and was therefore a light dialog over a
+   * dark lock on every device.
+   * The reason to DEFINE the global is unchanged, and it is still the important half:
+   * C# emits `executeUiCommand(setTheme, …)` with setTheme as a BARE identifier, and
+   * an undefined one throws a ReferenceError while the arguments are evaluated,
+   * before the dispatcher can catch it (the #258 addAppRequest lesson). Throwing into
+   * the page while the user is at a password field is the failure this prevents.
+   * Shared body: theme-runtime.js. */
+  window.setTheme = function (name) { applyPushedTheme(name); };
   const bridge = createNativeBridge();           // default sink: location.href = 'ixian:…'
 
   /* mountLockPage appends the screen, exposes setJustConfirm AND fires

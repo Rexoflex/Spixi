@@ -1341,13 +1341,11 @@
     ],
   };
   const CAPS = { dev: true, downloads: true, contributors: true, changePassword: true, globalNotifications: true, securityTiers: true, readReceipts: true, typing: true, paymentAuth: true };
-  const LANGS = [
-    { code: 'en-us', label: 'English', flag: '🇺🇸' },
-    { code: 'zh-cn', label: '中文', flag: '🇨🇳' },
-    { code: 'es-es', label: 'Español', flag: '🇪🇸' },
-    { code: 'de-de', label: 'Deutsch', flag: '🇩🇪' },
-    { code: 'sr-latn', label: 'Srpski', flag: '🇷🇸' },
-  ];
+  const LANGS = window.Spixi.LANGUAGES;   // ★ L15: the app's own list, flags.js
+  /* ★ L15: the PNG fallback lives with the SHIPPED shells, and these pages do not.
+     Only a browser with no flag glyph ever asks for it (Chrome on Windows), so this
+     keeps the demo honest on the one platform the row is about. */
+  window.Spixi.setFlagBase('../../Spixi/Resources/Raw/html/img/flags/');
   const fmtToday = () => new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
   const mockCtrl = (ctrl, ms = 700) => setTimeout(() => ctrl.done(), ms);   // demo bridge: always lands
 

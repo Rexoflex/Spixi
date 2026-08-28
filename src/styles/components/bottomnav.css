@@ -181,7 +181,11 @@
 .c-bottomnav__logo {
   display: flex;
   justify-content: center;
-  color: var(--icon-accent);
+  /* ★ L18 (Damir, 2026-08-31): the rail mark is the desktop's logotype, so it takes the
+     logotype ROLE, not the generic accent. Light is unchanged to the pixel —
+     --icon-accent was --accent-600 and the role resolves to --primary-600, and both are
+     the same primitive, --brand-600. Dark goes neutral-01 with the topbar wordmark. */
+  color: var(--text-logotype);
   padding-block: var(--spacing-4) var(--spacing-8);
 }
 /* items size to content and stack from the top (the horizontal flex:1

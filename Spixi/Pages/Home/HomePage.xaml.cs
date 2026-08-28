@@ -140,6 +140,12 @@ namespace SPIXI
         // wallet Receive/Send) is open — pushed by the shell via ixian:homeoverlay so
         // hardware back closes it instead of exiting the app.
         private bool homeShellOverlayOpen = false;
+        /* ★ L6 review MAJOR-2: the same push now carries a LEVEL, and 2 means a
+         * FULL-SHELL TAKEOVER (contacts, wallet Receive/Send) rather than a sheet.
+         * It exists for systemBarSurfaceColorString below: a takeover is an opaque
+         * --surface-screen cover from y=0, and this page otherwise paints the status
+         * bar with the WALLET HERO colour whenever currentTab is tab2. */
+        private bool homeShellTakeoverOpen = false;
 
         // D1 (#240): native resizable left pane. The boundary sits between two
         // ISOLATED WebViews (#221 model), so the divider must be native — a thin
@@ -1100,13 +1106,49 @@ namespace SPIXI
                 string appId = current_url.Substring("ixian:uninstall:".Length);
                 onUninstallApp(appId);
             }
+            else if (current_url.Equals("ixian:cleardetail", StringComparison.Ordinal))
+            {
+                // ★ L6 (2026-08-31): the shell is about to cover column 0 with a
+                // full-shell takeover that belongs to the ACCOUNT context — clear the
+                // detail column so a conversation from the chats context does not sit
+                // beside it. See closeChatOverlaysForContacts for why the pane "jumped"
+                // and why nothing is restored afterwards.
+                // ⚠ NOT reusing ixian:homeoverlay: that one also fires for ordinary
+                // sheets (a tx sheet, a row menu — home.html mirrors
+                // body[data-overlay-open] to it), and tearing the detail column down
+                // every time a sheet opens would be a far worse bug than the one this
+                // fixes. A distinct verb says a distinct thing.
+                /* ⚠ review: the WIDE gate belongs to the whole verb, not only to the
+                 * conversation. The first cut gated one of four, while the shell's
+                 * comment promised "a no-op on a narrow window" of all of them — and a
+                 * narrow window has no detail column for any of these to be beside. */
+                if (rightContent.IsVisible)
+                {
+                    closeChatOverlaysForContacts();
+                    closeContactDetailsOverlays();
+                    closeFormPaneOverlays();
+                    closeTxDetailOverlays();
+                }
+            }
             else if (current_url.StartsWith("ixian:homeoverlay:", StringComparison.Ordinal))
             {
                 // AND-29 (#336): the home shell pushes 1/0 whenever a WebView-internal
                 // takeover (contacts/new-chat, wallet Receive/Send) opens or closes, so
                 // OnBackButtonPressed can route Android hardware back INTO the shell
                 // (close the takeover) instead of popping the root and exiting the app.
-                homeShellOverlayOpen = current_url.EndsWith(":1", StringComparison.Ordinal);
+                /* ⚠ Parsed as a LEVEL, not matched as ":1". An older shell only ever
+                 * sent 0 or 1, and those still mean exactly what they meant. */
+                string overlayLevel = current_url.Substring("ixian:homeoverlay:".Length);
+                bool wasTakeover = homeShellTakeoverOpen;
+                homeShellOverlayOpen = overlayLevel != "0";
+                homeShellTakeoverOpen = overlayLevel == "2";
+                if (wasTakeover != homeShellTakeoverOpen)
+                {
+                    // The surface under the status bar just changed and NOTHING navigates
+                    // when a WebView-internal takeover opens or closes, so nothing else
+                    // would repaint it (the AND-7b/#407 reasoning, one surface over).
+                    repaintOwnSystemBars();
+                }
             }
             else if (current_url.StartsWith("ixian:acceptRequest:", StringComparison.Ordinal))
             {
@@ -1451,6 +1493,41 @@ namespace SPIXI
             }
         }
 
+        /* ★ L6 (Damir, 2026-08-31): "on desktop it opens contacts, but the right pane
+         * jumps to an open chat. Right pane should stay in account empty state."
+         *
+         * Why it jumped: the Account pane covers the WHOLE grid minus the rail (#245),
+         * so it HIDES a conversation pinned in the detail column. Opening Contacts from
+         * Account closes that pane, and the conversation underneath was simply revealed
+         * again — nothing "opened" at all. The contacts directory is a takeover inside
+         * THIS page's WebView, which is grid column 0, so it can never cover column 1
+         * by itself.
+         *
+         * Damir's call: close the conversation and let the welcome pane show. It is NOT
+         * restored afterwards — leaving Contacts lands on an empty right pane, which he
+         * chose over carrying a restore-what-was-there state across the visit.
+         *
+         * ⚠ WIDE ONLY. On a narrow window a conversation is a full-screen overlay and
+         * nothing is beside anything; closing one there would shut a screen the user is
+         * standing on. The caller gates it and this gate is the belt.
+         *
+         * A conversation holds no unsaved state — a half-typed message lives in the
+         * shell's own draft store (spixi.draft.<addr>, CH7) and survives. */
+        private void closeChatOverlaysForContacts()
+        {
+            if (!rightContent.IsVisible)
+            {
+                return;
+            }
+            foreach (SpixiContentPage p in SpixiContentPage.getOverlayPages())
+            {
+                if (p is SingleChatPage)
+                {
+                    removePage(p);   // #225: removing an open overlay = closeOverlay
+                }
+            }
+        }
+
         // #263: same close-audit for the tx-detail overlay ("txdetail", pinned col 1
         // on wide) — leaving the wallet context closes it. View-only, no held state.
         private void closeTxDetailOverlays()
@@ -1731,7 +1808,15 @@ namespace SPIXI
          * tab2 is the wallet tab (HomePage's own tab ids, see the ixian:tab: branch). */
         protected override string systemBarSurfaceColorString()
         {
-            if (currentTab == "tab2")
+            /* ★ L6 review MAJOR-2. The hero colour is right for the WALLET TAB and wrong
+             * for anything covering it. A full-shell takeover paints --surface-screen
+             * from y=0, so while one is up the strip must be the screen surface or the
+             * glyph contrast is computed against a colour that is not on screen.
+             * ⚠ This also closes a PRE-EXISTING hole rather than only the one L6 opened:
+             * the wallet's own Receive/Send takeover is reached FROM tab2 and has always
+             * had it. L6 made it reachable a second way (Wallet → Account → Contacts no
+             * longer forces tab1), which is how the review found it. */
+            if (currentTab == "tab2" && !homeShellTakeoverOpen)
             {
                 return ThemeManager.getHeroColorString();
             }
@@ -1804,6 +1889,7 @@ namespace SPIXI
             // reloadShell, renderer crash). A stale `true` would swallow EVERY
             // hardware back (homeBack closes nothing, we return true) with no heal.
             homeShellOverlayOpen = false;
+            homeShellTakeoverOpen = false;
             // …and a FRESH document holds no app rows either — the next tab3 entry must
             // force one push (PERF latch, see appsPushedToShell).
             appsPushedToShell = false;

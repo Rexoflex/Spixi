@@ -20247,12 +20247,31 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       const fg683 = rdC('Spixi/Resources/AppIcon/appiconfg.svg');
       const csp683 = rdC('Spixi/Spixi.csproj');
       ok(/<radialGradient[^>]*cx="1024"[^>]*cy="0"[^>]*r="1448.1"/.test(bg683)
-        && /stop-color="#4B9CEF" stop-opacity="0.5"/.test(bg683)
-        && /stop-color="#223A59" stop-opacity="0.5"/.test(bg683)
-        && /<rect width="1024" height="1024" fill="#0A58A9"\/>/.test(bg683),
-        '★★ #683: the icon background is Damir\'s CSS LAYERED THE SAME WAY — a #0A58A9 ground under two 50% stops on a radial centred at the top-right corner (r 1448.1 = 141.42% of 1024). Flattening it to two hexes would have made the source and the design drift the moment either moved');
-      ok(/<MauiIcon [^>]*Color="#0A58A9"/.test(csp683),
-        '★ #683: MauiIcon\'s Color carries the GROUND, so a platform that takes the flat colour instead of the file lands on the same blue family rather than the retired #175595');
+        && /stop-color="#4B9CEF" stop-opacity="0.45"/.test(bg683)
+        && /stop-color="#223A59" stop-opacity="0.2"/.test(bg683)
+        && /<rect width="1024" height="1024" fill="#0076E1"\/>/.test(bg683),
+        '★★ #683/#689: the icon background is Damir\'s CSS LAYERED THE SAME WAY — a #0076E1 ground under a radial centred at the top-right corner (r 1448.1 = 141.42% of 1024), stops at .45/.20. Flattening it to two hexes would have made the source and the design drift the moment either moved');
+      /* ★★ #689 — THE GROUND IS PINNED AS A MEASUREMENT, NOT A HEX. The icon was not too
+         DARK (Discord's ground is L* 43.8 against our 40.2); it was under-SATURATED, at
+         chroma 38 against a coloured-ground peer band of 65-71. A pin on the literal
+         "#0076E1" would survive any re-dial back into the dull zone, so this one converts
+         the ground to Lab and holds the property that was actually bought. */
+      {
+        const gm = /<rect width="1024" height="1024" fill="#([0-9A-Fa-f]{6})"\/>/.exec(bg683);
+        const hex = gm ? gm[1] : '000000';
+        const lin = (v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+        const [R, G, B] = [0, 2, 4].map((i) => lin(parseInt(hex.substr(i, 2), 16)));
+        const X = R * 0.4124 + G * 0.3576 + B * 0.1805, Y = R * 0.2126 + G * 0.7152 + B * 0.0722,
+              Z = R * 0.0193 + G * 0.1192 + B * 0.9505;
+        const f = (t) => t > 216 / 24389 ? Math.cbrt(t) : (841 / 108) * t + 4 / 29;
+        const fx = f(X / 0.95047), fy = f(Y), fz = f(Z / 1.08883);
+        const chroma = Math.hypot(500 * (fx - fy), 200 * (fy - fz));
+        const hue = (Math.atan2(200 * (fy - fz), 500 * (fx - fy)) * 180 / Math.PI + 360) % 360;
+        ok(!!gm && chroma > 58 && Math.abs(hue - 282) < 8,
+          '★★ #689: the DECLARED ground carries chroma ' + chroma.toFixed(1) + ' on hue ' + hue.toFixed(0) + ' — near the sRGB ceiling for the Ixian hue (63 at this lightness) and still that hue. ⚠ THIS PINS THE DECLARATION, NOT THE RENDER: the composited icon measures 54.4, because the gradient\'s own overlays cost chroma on the way through. That is up from 38.1 and roughly half the way to the coloured-ground peer band (Discord 68 · Viber 71 · WhatsApp 65, measured off Damir\'s home screen) — recorded here so nobody reads this pin as a claim that the icon reaches it');
+      }
+      ok(/<MauiIcon [^>]*Color="#0076E1"/.test(csp683),
+        '★ #683/#689: MauiIcon\'s Color carries the GROUND, so a platform that takes the flat colour instead of the file lands on the same blue rather than the retired #175595');
       /* the mark: the transform is DERIVED from the ink centre, so a hand-nudge shows up here */
       const m = /<g transform="translate\(([\d.]+) ([\d.]+)\) scale\(([\d.]+)\)">/.exec(fg683);
       const S = m ? parseFloat(m[3]) : 0;

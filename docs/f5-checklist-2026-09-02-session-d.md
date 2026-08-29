@@ -12,7 +12,7 @@ node scripts/build-demo-bundle.mjs       # expect 307 exports  (BUNDLE BEFORE SH
 node scripts/build-shells.mjs            # expect 18 shell(s) written
 ```
 ```
-node scripts/smoke-test.mjs              # expect BASELINE OK 3659 / the 3 known (#136 · M5 · B3)
+node scripts/smoke-test.mjs              # expect BASELINE OK 3660 / the 3 known (#136 · M5 · B3)
 ```
 ```
 node scripts/verify-locales.mjs          # expect ALL LOCALES CLEAN ✓ · 779
@@ -128,9 +128,14 @@ different mechanism and were not touched.
 theme are cached hard and a plain redeploy shows the old ones — this is what cost the two
 rebuilds.
 4.2 Install. The launcher shows the **new** icon.
-4.3 **#683 — the new ground and the bigger mark.** The background is your gradient
-(`#0A58A9` under the two 50% stops, bright at the top-right) and the mark now fills **58%**
-of the visible icon, up from 50%.
+4.3 **#683 · #689 — the new ground and the bigger mark.** The background is your gradient
+on the **brighter ground** (`#0076E1`, stops `.45/.20`, bright at the top-right) and the
+mark now fills **58%** of the visible icon, up from 50%.
+★ **Look at it in the row with Discord, Telegram, WhatsApp and Viber, not on its own.** That
+is the comparison the change was measured against: ground chroma went 38.1 → 54.4, against
+a coloured-ground peer band of 65–71. It should no longer read as the recessed one. If it
+still does, the next lever is the gradient's own stops, not the ground.
+⚠ The light splash is deliberately unchanged (`#175595`) — see the handoff.
 ⚠⚠ **IF THE BACKGROUND COMES OUT FLAT `#0A58A9` WITH NO GRADIENT, THAT IS A REAL ANSWER,
 NOT A GLITCH** — it means the MAUI resizetizer substituted `MauiIcon`'s flat `Color` for the
 background instead of rasterising `appicon.svg`. I could not read the resizetizer from here
@@ -171,32 +176,57 @@ git --no-optional-locks diff --ignore-cr-at-eol --stat
 The commit message:
 
 ```
-Session D: L13 leave-group check box · F5 4.7 Option 2 · the [LANDTAB] probe · two cleanups
+Session D: L13 leave-group check box · the launcher icon · the screen slide · two cleanups
 
-L13 (#676): a room's delete flow gains a "Leave group" box, OFF by default, and one
-verb — ixian:leavegroup:<addr> → SContacts.leaveGroup, called not re-inlined. Core's
-removeFriend deletes the history file itself, so the leave satisfies the fixed
-"Delete chat" box alone; two sends would race and the loser would un-tombstone a
-correctly-gone row. leaveGroupResult answers "left" | "fail" — a room is never
+L13 (#676): a room's delete flow gains a "Leave group" box, OFF by default, and ONE
+verb — ixian:leavegroup:<addr> → SContacts.leaveGroup, called not re-inlined. The row
+said "fully traced, nothing to discover"; two thirds of it already existed and the
+missing third was in the half it did not name — the shell built its third box as
+`isGroupChat ? null : removeContact`, so a room got two boxes and ixian:removehistory:,
+and deleting a group chat destroyed your copy while leaving you in the group. Core's
+removeFriend deletes the history file itself (FriendList.cs:436-440, read at 097341a),
+so the leave satisfies the fixed "Delete chat" box alone; two sends would race and the
+loser would answer fail about a friend the winner had already removed, un-tombstoning a
+row that is correctly gone. leaveGroupResult answers "left" | "fail" — a room is never
 "blocked". The open conversation is resolved before the leave and popped after.
 
 F5 4.7 (#680): Damir's Option 2. One modal; the red button reads "Leave and delete"
-while the box is ticked and "Delete" when it is not.
+while the box is ticked and "Delete" when it is not, both directions. The question was
+un-answerable until L13 gave the modal something destructive to confirm.
 
-L14/L6-3 (#677): NOT built. The mechanism is confirmed at source (the parked stage is
-hidden before onOverlayClosed pushes onSettingsClosed) but verifying a fix is the L10
-class, so a temporary [LANDTAB] probe ships instead, on Damir's call. It removes as a
-trio.
+L14/L6-3 (#677, #688): NOT built, and the measurement is why. The mechanism was
+confirmed at source — the parked stage is hidden before onOverlayClosed pushes
+onSettingsClosed — but verifying a fix was the L10 class, so a temporary [LANDTAB] probe
+shipped instead, on Damir's call. His nine hand-offs came back storage 4 / focus 5 /
+settingsclosed ZERO, ages 3-39ms: settings.html writes the hand-off before its exit verb
+and the storage event does cross WebViews on Android, so the shell switches the tab
+before C# finishes closing. The trace was true and the inference from it was wrong. The
+costed ack round trip is CANCELLED. What survives is a paint-side candidate, and it may
+be the same mechanism as the separately-reported wallet tx shimmer.
+docs/landtab-2026-08-29-android.md is the record; the probe now leaves as a trio.
 
+#683: the launcher icon — Damir's gradient, layered as he wrote it rather than
+flattened, and the mark 50% -> 58% of the visible icon, picked off a masked render
+rather than a number. MauiIcon's Color moves to #0A58A9; MauiSplashScreen stays #175595.
+#685: the screen slide-in is 300ms (was 220) on cubic-bezier(0.2, 0, 0, 1) — the curve
+tokens.css already declares and this animation was not using. Measured over the first
+5% of the motion the old curve ran at 2.85x average speed against the new one's 0.57x:
+the panel was already moving on frame one, which is what read as "not smooth". The exit
+stays 220ms CubicIn, deliberately.
 #678: the dead `payments` shell target is deleted — its destination was removed in
 session A, so building it would have re-created the legacy money page.
 #679: the orphaned Android launcher set is deleted, sixteen files, on device
 confirmation.
+#684: GIFs cannot be sent, traced and deferred — not the picker, which is innocent on
+both platforms. A Giphy/Tenor share link is a page URL the media allowlist does not
+match, and nothing in the composer reads clipboardData.files, which is how the GIF
+keyboard delivers.
+#686: the floating composer and the batched roster paint, costed and NOT built.
 #681: the entry baseline was recorded one pin low; corrected in three docs.
-#682: mutation found two vacuous pins of mine — a fixed-length slice and an unanchored
-key name. Both repaired.
+#682, #687: mutation found three defective pins of mine — a fixed-length slice, an
+unanchored key name, and a stale claim inside a pin that was still passing. All fixed.
 
-bundle 307 · shells 18 · smoke 3653 / the 3 known · locales 779 · cs-syntax 140+1
+bundle 307 · shells 18 · smoke 3660 / the 3 known · locales 779 · cs-syntax 140+1
 ```
 
 ## 7 · What you are NOT being asked to walk

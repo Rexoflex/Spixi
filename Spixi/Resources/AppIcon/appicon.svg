@@ -8,25 +8,39 @@
      the top-RIGHT, and under a circular mask the corner itself is cut away, so what the
      user sees is the bright side, not the bright point. That is the intended reading.
 
-     ★ THIS IS DAMIR'S CSS, LAYERED THE SAME WAY, not a flattened approximation:
+     ★ DAMIR'S CSS, LAYERED THE SAME WAY, not a flattened approximation:
          radial-gradient(141.42% 141.42% at 100% 0%,
-                         rgba(75,156,239,.50) 13.13%, rgba(34,58,89,.50) 100%), #0A58A9
+                         rgba(75,156,239,.A) 13.13%, rgba(34,58,89,.B) 100%), <ground>
      141.42% of the 1024 box = r 1448.1 centred on the top-right CORNER (1024, 0); the
-     first stop lands at r 190.1. Both stops carry stop-opacity .5 over the #0A58A9 ground,
-     exactly as the CSS composites them — so the two can never drift, and re-deriving the
-     flattened hexes (#2A7ACC / #164981) by hand is never necessary.
+     first stop lands at r 190.1. The stops carry their opacity over the ground exactly as
+     the CSS composites them, so the file and the design can never drift and re-deriving
+     flattened hexes by hand is never necessary.
 
-     ⚠ Spixi.csproj's MauiIcon Color carries the GROUND ONLY (#0A58A9). It is a flat value
+     ★★ #689 (Damir 2026-08-29) — THE GROUND AND THE STOP OPACITIES MOVED, AND THE REASON
+     IS A MEASUREMENT OF HIS OWN HOME SCREEN, not taste. Sampling all six launcher icons in
+     his screenshot, GROUND ONLY with the white mark excluded:
+         Discord  L* 43.8 / chroma 68.1     Viber  47.8 / 71.3     WhatsApp  68.3 / 65.2
+         Spixi    L* 40.2 / chroma 38.1   <- ours
+     ⚠ THE ICON WAS NOT TOO DARK. Discord sits at essentially our lightness — 43.8 against
+     40.2 — and reads bright because it carries nearly TWICE our chroma. The first fix
+     tried was "lighten the ground"; rendered in situ it came out DULLER, which is what
+     sent the question to the right measurement. And the gradient was eating colour on top
+     of that: #0A58A9 is chroma 50.5 alone and 43 after two 50% stops.
+     ★ #0076E1 is the SAME HUE as #0A58A9 (282) at close to the maximum chroma sRGB can
+     carry on that hue — the ceiling at this lightness is 63. Lighter stops (.45/.20) stop
+     the gradient washing it back out. Same blue family, peer-band vividness.
+
+     ⚠ Spixi.csproj's MauiIcon Color carries the GROUND ONLY (#0076E1). It is a flat value
      by definition and cannot express this gradient; it is what the platforms that want a
      colour rather than this file will use. If a build ever comes out FLAT, that is the
      tell that the resizetizer took Color instead of rasterising this file — check
      obj/…/resizetizer/r/mipmap-xxxhdpi/appicon_background.png before changing anything. -->
 <defs>
   <radialGradient id="spixiIconBg" gradientUnits="userSpaceOnUse" cx="1024" cy="0" r="1448.1">
-    <stop offset="0.1313" stop-color="#4B9CEF" stop-opacity="0.5"/>
-    <stop offset="1" stop-color="#223A59" stop-opacity="0.5"/>
+    <stop offset="0.1313" stop-color="#4B9CEF" stop-opacity="0.45"/>
+    <stop offset="1" stop-color="#223A59" stop-opacity="0.2"/>
   </radialGradient>
 </defs>
-<rect width="1024" height="1024" fill="#0A58A9"/>
+<rect width="1024" height="1024" fill="#0076E1"/>
 <rect width="1024" height="1024" fill="url(#spixiIconBg)"/>
 </svg>

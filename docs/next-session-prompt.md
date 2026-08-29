@@ -11,7 +11,7 @@ Read docs/handoff-2026-09-02.md and follow it. §4 is your whole job.
   The #515 lesson: a verdict that is not written back is a verdict nobody can find.
 
 VERIFY THE BASELINE FIRST. If any number differs, say so and STOP:
-  bundle 307 · shells 18 · smoke BASELINE OK 3659 / the 3 known (#136 · M5 · B3)
+  bundle 307 · shells 18 · smoke BASELINE OK 3660 / the 3 known (#136 · M5 · B3)
   · locales ALL CLEAN 779 · cs-syntax 140+1 · i18n-lint ✓ · pseudo 9/9
   · Ixian-Core 097341a (170 modified files = CRLF churn; --ignore-cr-at-eol is EMPTY)
 ★ THAT NUMBER WAS MEASURED AFTER THE LAST EDIT TO THE SUITE. Session D's entry baseline was

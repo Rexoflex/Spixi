@@ -32,6 +32,7 @@
 <link rel="stylesheet" href="../styles/components/button.css">
 <link rel="stylesheet" href="../styles/components/topbar.css">
 <link rel="stylesheet" href="../styles/components/scan-shell.css"><!-- prompt/denied/scanning + torch -->
+<link rel="stylesheet" href="../styles/components/overlay.css"><!-- ★ L3 (#706): the swipe consults the overlay stack (dismissTopOverlay) — W-h gate: a destructured family links its sheet -->
 <style>
   /* Production shell: fill the WebView. scan.html is loaded by the C# ScanPage
      (full takeover, camera). createScanView provides its own topbar (variant
@@ -95,6 +96,7 @@
   const {
     mountScanPage,
     createNativeBridge, installExecuteUiCommand,
+    attachEdgeBack, dismissTopOverlay,   // ★ L3 (#706): the iOS back signal + the one-level chain
     applyPushedTheme,
   } = window.Spixi;
   const strings = window.SL || {};
@@ -127,6 +129,13 @@
   window.setTheme = function (name) { applyPushedTheme(name); };
   const bridge = createNativeBridge();           // default sink: location.href = 'ixian:…'
 
+  /* ★ L3 (#706): the iOS back signal. One level per gesture — a sheet on the shared
+     stack closes first (the level this shell never had before, docs/swipe-back-spec.md
+     §3.2), otherwise the same verb the topbar arrow sends (cancel → C# pops + GC.Collect). Desktop never attaches. */
+  attachEdgeBack({ onBack: () => {
+    if (dismissTopOverlay()) return;
+    bridge.send('ixian:back');
+  } });
   /* mountScanPage appends the view AND fires bridge.ready() — so mount on the
    * window LOAD event (#177 load-timing invariant), never during parse. The
    * html5-qrcode library must be present BEFORE mount (mountScanPage defaults

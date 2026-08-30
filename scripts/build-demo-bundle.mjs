@@ -56,6 +56,7 @@ const FILES = [
   'src/components/system-notice.js',
   'src/components/lazy-history.js',
   'src/components/attach-sheet.js',
+  'src/components/edge-back.js',     // ★ L3 (#706): the iOS back signal — no imports, attached once per shell
   'src/components/channel-sheet.js',
   'src/components/member-sheet.js',
   'src/components/media-viewer.js',

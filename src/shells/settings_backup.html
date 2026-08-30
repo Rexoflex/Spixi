@@ -100,6 +100,7 @@
   const {
     createSettingsBackup,
     createNativeBridge, installExecuteUiCommand,
+    attachEdgeBack, dismissTopOverlay,   // ★ L3 (#706): the iOS back signal + the one-level chain
     applyPushedTheme,
   } = window.Spixi;
   const strings = window.SL || {};
@@ -172,6 +173,13 @@
 
   /* —— page ready — fire ixian:onload on the window LOAD event (#177 load-timing
    *    invariant): firing during parse races C#'s first push. ————————————————— */
+  /* ★ L3 (#706): the iOS back signal. One level per gesture — a sheet on the shared
+     stack closes first (the level this shell never had before, docs/swipe-back-spec.md
+     §3.2), otherwise the same verb the topbar arrow sends. Desktop never attaches. */
+  attachEdgeBack({ onBack: () => {
+    if (dismissTopOverlay()) return;
+    bridge.send('ixian:back');
+  } });
   function signalReady() { bridge.ready(); }
   if (document.readyState === 'complete') signalReady();
   else window.addEventListener('load', signalReady, { once: true });

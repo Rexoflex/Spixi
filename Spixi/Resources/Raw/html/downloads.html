@@ -1294,9 +1294,13 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   color: var(--text-neutral-02);
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* ★ #712 (Damir on device, 2026-08-30): the sub-label WRAPS. It was a single
+     ellipsised line, and on a phone "Message text is never shown in notific…" and
+     "Off: messages arrive when Spixi check…" cut the sentence exactly where the
+     meaning was. A sub-label is an explanation; an explanation that ends in "…" is
+     not one. Two or three lines cost nothing in a stacked row. */
+  white-space: normal;
+  overflow-wrap: anywhere;
   max-width: 100%;
   min-width: 0;
 }
@@ -1618,6 +1622,12 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 /* #453: the address explainer is a text action UNDER the address chip, not a third icon
    inside it. Centred with the QR and the chip above it. */
 .c-settings__addrinfo { align-self: center; }
+
+/* ★ #712: the push-provider note reads as a paragraph under its row, not as a row */
+.c-settings-notifs__push-note {
+  margin-block-start: calc(-1 * var(--spacing-4));
+  padding-inline: var(--spacing-16);
+}
 
 </style><!-- shared row/group/section grammar -->
 <style data-src="../styles/components/settings-app.css">
@@ -2001,6 +2011,7 @@ button.c-settings-howto__join:disabled {
   const {
     createSettingsDownloads, setDownloads,
     createNativeBridge, installExecuteUiCommand,
+    attachEdgeBack,   // ★ L3 (#706): the iOS back signal + the one-level chain
     dismissTopOverlay,                   // ★ L3 (Session F): hardware back closes an open confirm first
     attachPressFeedback,
     applyPushedTheme,
@@ -2086,6 +2097,12 @@ button.c-settings-howto__join:disabled {
       settle();
     },
   };
+  /* ★ L3 (#706): the iOS back signal — a confirm on the stack closes first (the level
+     Session F gave hardware back), then the verb the topbar arrow sends. */
+  attachEdgeBack({ onBack: () => {
+    if (typeof dismissTopOverlay === 'function' && dismissTopOverlay()) return;
+    bridge.send('ixian:back');
+  } });
   bridge.exposeAll(handlers);
 
   /* ★ L3 (Session F): mirror overlay.js's body[data-overlay-open] to C# so back can be

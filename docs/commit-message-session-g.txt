@@ -1,0 +1,97 @@
+Session G: the pre-iPhone sweep — composer, edge-back, L9, P2, the copy rulings
+
+BASELINE  bundle 313 · shells 18 · smoke BASELINE OK 3831 / the 3 known (#136 · M5 · B3)
+          locales ALL CLEAN 788 · i18n-lint OK · pseudo 9/9 · cs-syntax 140 clean + 1 gap
+          Ixian-Core 097341a (170 modified = CRLF churn; --ignore-cr-at-eol EMPTY)
+          entry was 3716 / 780 keys / 308 exports. cs-syntax was recorded 110 by a
+          partial-tree run in Session F; 140 is the whole tree (141 − Android 16 − iOS 14
+          = 111). Damir accepted the corrected baseline.
+
+═══ THE FOUR RULINGS (#702 · #703 · #704) ═══
+rsa2 stays; the secure notice is NOT technical — "post-quantum" is gone from the copy
+because it is false for an rsa2 peer and Damir wants a line that is true on both paths.
+slide1Copy and aboutBody take the handoff drafts (no "no servers" claim; omission is
+honest). The chat-list hold reads "Setting up a secure connection…". Twelve locales
+re-drafted and second-passed: register drift fixed in sr/sl/id/cn (informal against a
+formal locale), it-it title agreement, ru/lt "in between" rendered literally, de
+chatGround "Fläche" → "Untergrund".
+L9 vs L8 RESOLVED: on desktop only chat info slides; the rest is instant. On mobile every
+subscreen slides. An unclear subscreen is ASKED before it is built.
+
+═══ #705 · THE COMPOSER, RENDERED FIRST, THEN BUILT AS RENDERED ═══
+Playwright render of the real demo components (five frames, light + dark) went to Damir
+before a line changed. Approved, all three: the ⊕ is a 44 disc OUTSIDE the pill on the
+leading side (the A2 compensation re-homed onto the BAR: 8 beside the disc, 16 without);
+the attach grid opens as a TRAY under the composer on mobile (268 px — the keyboard's
+slot; the input blurs so the keyboard yields; ⊕ → ✕; a tile closes it; NOT an overlay, so
+every back path closes it explicitly in the order channel → stack → tray → cover →
+selection, and chatOverlayLive() reads it so C# routes hardware back in); the send disc
+keeps the action colour while disabled. Desktop keeps the M6 popover. ONE grid builder
+and ONE action handler (onAttachAction) serve both presentations.
+Pins: 10. Mutations: the chatBack arm · the tile-close · the disabled paint — all killed.
+
+═══ #706 · L3 — THE iOS BACK SIGNAL, IN EVERY SHELL ═══
+iOS raises no back signal at all (swipe-back-spec §1). chat.html's inline recogniser is
+ONE component now, src/components/edge-back.js, shipped numbers byte-for-byte (24 / 70
+scaled by drift / 50 / 700, the selection-handle guard). Fifteen shells attach it with one
+line; lock, call and empty_detail never do. Each shell owns its chain in its hardware-back
+order. Home: a takeover closes, the ROOT never pops. Launch: launchShellBack — the same
+exit the form's Back arrow takes (scrub → welcome → the F-2 view report), never a bare
+ixian:back. wallet_sent follows its arrow. The seven latent shells got the back LEVEL they
+never had (sheet before page) on the JS side; their C# mirror stays unbuilt because no
+overlay can open there. scan.html links overlay.css (the W-h gate caught it).
+Pins: 40, the recogniser EXECUTED against synthetic touches. Mutations: the edge width ·
+the home root pop — killed.
+
+═══ #707 · L9 — EVERY MOBILE SUBSCREEN SLIDES ═══
+SpixiContentPage.pushPageLoaded: op.slideIn = overlayMode && (slideIn || (mobilePlatform
+&& column < 0)). Column-pinned iPad panes keep #328. L8's mirror slides them out for
+free. revealStage(op) is ONE reveal for the fresh present and the parked re-present (the
+mobile Account pane snapped in before). Consequence: #326's 250 ms CubicOut leg is now
+unreachable on iOS — every op it matched takes the 220 ms mirror. Not on hardware yet.
+Mutation: the flag — killed.
+
+═══ #708 · P2 — A REAL OPT-OUT FOR THIRD-PARTY PUSH ═══
+SNotificationPrefs.pushProviderEnabled (default TRUE). Settings → Notifications row
+"Instant delivery via OneSignal", sub-label per platform from the UA stamp (Android: on the
+poll, not instantly; iOS: only when you open Spixi). Cap pushProvider only where a provider
+exists (Android/iOS); Windows/Mac get no row. Android initialize(): ConsentGiven follows
+the pref (withheld consent = the SDK transmits nothing, P1's gate). iOS initialize():
+returns before its latch when off. Verb ixian:notifPushProvider: store → apply (OptOut +
+consent withdrawn / consent given + OptIn or a fresh initialise) → echo. Twelve locales.
+⚠ Not compile-verified (no NuGet egress) — the OneSignalNative fallback is one line.
+Mutations: the apply call · the cap gate — killed.
+
+═══ #709 · THE STATIC GUI SWEEP ═══
+0 missing glyphs. ONE duplicate meaning: arrow-up-right is "send money" AND "opens outside
+the app". Damir exports tabler-icon-external-link + tabler-icon-link; two literals swap.
+The P2 row takes topology-star, not a third `world`.
+
+═══ THE SAME EVENING: DAMIR'S WALK (31 pass · 7 fail) AND THE FIXES #710–#721 ═══
+#710 external-link / link exported and swapped; Tabler credited (MIT) + docs/legal/
+third-party-notices.md (the chat pattern's origin is OPEN — Damir to state it).
+#711 the composer FLOATS (inside the canvas, no bar ground; pill hairline + lift; chevron
+and @ FAB offset by --composer-h), ⊕→pill gap halved, dark pattern 0.05 → 0.03.
+#712 settings sub-labels wrap; a state-aware note under the OneSignal row says what
+happens ON and OFF, and that OneSignal's existing record is not deleted by the switch.
+#713 "Spixi App" (de) was a legacy mistranslation carried by an English match — NO_REUSE.
+#714 ★★ L4 ROOT CAUSE: a top-level const in launch.html SHADOWED the exposed handler
+setLaunchView; C# calls handlers by bare identifier, so hardware back called the
+component with 'welcome' as `el`. Aliased; a pin sweeps every shell for the trap.
+#715 Downloads / App details: hardware back reaches the overlay's shell (routeShellBack,
+one virtual asked before closeTopOverlay) — the confirm closes, not the page.
+#716 GIF keyboard: OnCommitContent looked at the navigation stack; the chat is an OVERLAY.
+#717 the @ picker never offers me. #718 Account is a peer tab and never slides.
+#719 [EXCERPTDIAG] logs the blank-excerpt row. #720 the connected line is middle-
+truncated through the full stop and takes the row's nickname. #721 keyboard ↔ tray swap
+in place (hold until the viewport shrinks; instant open while the keyboard is up).
+
+═══ STILL OPEN, FOR DAMIR ═══
+The requester's side of "you are now connected" (repro owed — traced, not guessed) · the
+Contacts pane jump / Wallet flash path · the L4 logcat walk · the five §1c hardware items.
+
+═══ THE RULES THIS SESSION PAID FOR ═══
+cp -al is not isolation for a BUILD (shared inodes; three parallel builds wrote one file;
+one "survived" mutation was this artefact). open(p,'w').write(open(p).read()…) zeroes the
+file — twice in one session. A new Function stub needs every free name the lifted body
+now uses. One glyph, two meanings, is found by a sweep. Measure the baseline too.

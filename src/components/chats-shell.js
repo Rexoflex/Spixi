@@ -19,7 +19,7 @@
  *   filter ∈ 'all' | 'unread' | 'favorites' | 'groups' | 'requests'
  *
  * #109 staged accept: acceptContactRequest turns a request into a handshaking
- * chat (excerpt "Establishing a quantum-secure handshake…", typing style); it's
+ * chat (excerpt "Setting up a secure connection…", typing style); it's
  * un-openable/un-swipeable/un-menuable until completeHandshake fires on the bridge
  * signal. The caller latches the Accept button first (setRequestAccepting).
  *
@@ -363,8 +363,8 @@ export function applyChatRowAction(listEl, state, chat, action, opts = {}, detai
 /* ————————————————————— #109 staged accept handshake ————————————————————— */
 
 /** Accept a pending request → transition it into a HANDSHAKING chat. Removes the
- *  request, prepends a chat with handshaking:true + the "Establishing a
- *  quantum-secure handshake…" excerpt (typing style), re-renders, and returns the
+ *  request, prepends a chat with handshaking:true + the "Setting up a
+ *  secure connection…" excerpt (typing style), re-renders, and returns the
  *  new chat so the caller can settle it via completeHandshake on the bridge's
  *  handshake-complete signal (§9). No-op (returns null) if the request is already
  *  gone — guards double-accept from a double-tap before re-render. Opening the
@@ -376,7 +376,7 @@ export function acceptContactRequest(listEl, state, req, opts = {}) {
   const chat = {
     name: req.name, nick: req.nick, address: req.address, avatar: req.avatar,
     type: 'direct', timestamp: Date.now(), handshaking: true, unread: 0, mention: false,
-    excerpt: { type: 'typing', text: strings.handshakeEstablishing || 'Establishing a quantum-secure handshake…' },
+    excerpt: { type: 'typing', text: strings.handshakeEstablishing || 'Setting up a secure connection…' },
   };
   state.chats = [chat, ...(state.chats || [])];
   renderChatsList(listEl, state, opts);

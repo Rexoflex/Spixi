@@ -175,7 +175,21 @@ namespace Spixi
              * a second source of truth that could disagree with the wallet, the wallet's
              * existence is used; if a persisted flag is ever added, set it HERE and nowhere
              * else. */
-            OneSignal.ConsentGiven = true;
+            /* ★★ P2 (#708): CONSENT FOLLOWS THE USER'S CHOICE. With the push provider switched
+             * off, consent is WITHHELD — registerEarly armed ConsentRequired before Initialize,
+             * so a withheld consent means the SDK transmits nothing (no token, no device
+             * metadata, no IP). The OS notification permission is still requested below: the
+             * app raises LOCAL notifications for polled messages (Node.mainLoop →
+             * fetchPushMessages with fireLocalNotification on Android) and those need it too.
+             * ⚠ Whether OneSignal's RequestPermissionAsync still prompts while consent is
+             * withheld could not be verified in the container (no NuGet egress); the default
+             * is ON, so on a fresh install the prompt always runs with consent given, and the
+             * grant persists across the user later turning the provider off. */
+            OneSignal.ConsentGiven = SPIXI.Meta.SNotificationPrefs.pushProviderEnabled;
+            if (!SPIXI.Meta.SNotificationPrefs.pushProviderEnabled)
+            {
+                Logging.info("[NOTIFDIAG] push provider OFF by user choice (P2) — consent withheld, SDK transmits nothing");
+            }
 
             /* ★ #494 (#489) — THE LATCH THAT SWALLOWED ITS OWN RETRY.
              *
@@ -212,6 +226,56 @@ namespace Spixi
             {
                 isInitializing = false;
                 Logging.error("RequestPermissionAsync threw: {0}", e);
+            }
+        }
+
+        /* ★★ P2 (#708) — THE RUNTIME HALF OF THE OPT-OUT. Called by SettingsPage on the
+         * ixian:notifPushProvider verb, after the preference is stored.
+         *   OFF → the subscription opts out (OneSignal stops addressing this device) AND
+         *         consent is withdrawn (the SDK stops transmitting). Both, deliberately:
+         *         OptOut alone keeps the SDK live; ConsentGiven=false alone is documented to
+         *         clear SDK state, and the explicit OptOut is the belt that survives an SDK
+         *         that keeps a cached subscription.
+         *   ON  → consent given again, then OptIn; if the node never initialised the SDK
+         *         (a session that started with the provider off), initialize() does the rest.
+         * ⚠ COULD NOT BE COMPILE-VERIFIED (no NuGet egress in the container) — same caveat
+         * as P1. `OneSignal.User.PushSubscription.OptOut()/OptIn()` and `OneSignal.ConsentGiven`
+         * are the documented v5+ surface. If the build rejects a member, the Java setters are
+         * one line away through `OneSignalNative` (see the P1 note in registerEarly). */
+        /* ★ P2 (#708): does this platform have a push provider at all? Decides whether the
+         * settings row exists (SettingsPage withholds the cap when false). */
+        public static bool pushProviderSupported() { return true; }
+
+        public static void applyPushProviderPreference()
+        {
+            bool enabled = SPIXI.Meta.SNotificationPrefs.pushProviderEnabled;
+            try
+            {
+                if (enabled)
+                {
+                    OneSignal.ConsentGiven = true;
+                    if (!isInitialized)
+                    {
+                        initialize();
+                    }
+                    else
+                    {
+                        OneSignal.User.PushSubscription.OptIn();
+                    }
+                    Logging.info("[NOTIFDIAG] push provider ON (P2) — consent given, subscription opted in");
+                }
+                else
+                {
+                    OneSignal.User.PushSubscription.OptOut();
+                    OneSignal.ConsentGiven = false;
+                    Logging.info("[NOTIFDIAG] push provider OFF (P2) — subscription opted out, consent withdrawn");
+                }
+            }
+            catch (Exception e)
+            {
+                // A failed apply must not take the settings page down; the preference is stored
+                // and initialize() re-reads it on the next start.
+                Logging.error("applyPushProviderPreference({0}) failed: {1}", enabled, e);
             }
         }
 

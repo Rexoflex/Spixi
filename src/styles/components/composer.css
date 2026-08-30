@@ -1,11 +1,14 @@
 /* c-composer — chat input bar (DECISIONS #64). Field pill mirrors Figma input;
-   trailing 44 action circle = send (v1) / mic⇄send (voice flag). */
+   trailing 44 action circle = send (v1) / mic⇄send (voice flag).
+   ★ #705 (Session G, Damir): the ⊕ is a leading 44 disc OUTSIDE the pill, the send
+   disc keeps the action colour while disabled, and the attach grid can open as a
+   TRAY under the bar (attach-sheet.css .c-attach-tray) instead of a sheet over it. */
 
 .c-composer {
   display: flex;
   align-items: flex-end;
   flex-wrap: wrap; /* batch 3b: the reply/edit ctx strip takes the full first line */
-  gap: var(--spacing-8);
+  gap: var(--spacing-4);  /* #711 (Damir): tighter between the ⊕ and the pill */
   position: relative; /* anchor for the @-mention autocomplete popover (#210) */
   min-height: var(--layout-composer-min);
   /* logical props — RTL-correct (audit MAJOR). Block padding split: the composer is
@@ -13,10 +16,16 @@
      (edge-to-edge, iOS-1/3/4) — env() = 0 everywhere else. */
   padding-block-start: var(--spacing-8);
   padding-block-end: calc(var(--spacing-8) + env(safe-area-inset-bottom, 0px));
-  padding-inline-start: var(--spacing-16);
+  /* #705: 8 at the start because the leading ⊕ disc supplies the rest of the optical
+     gap — the same reason the trailing edge is 12 beside the send disc. */
+  padding-inline-start: var(--spacing-8);
   padding-inline-end: var(--spacing-12);
-  background: var(--surface-composer);
-  border-top: var(--outline-width-1) solid var(--outline-neutral-01);
+  /* ★ #711 (Damir 2026-08-30): the bar FLOATS. No ground of its own and no hairline —
+     the canvas (gradient + pattern) runs on behind it and the pill, the ⊕ and the send
+     disc sit on it as three floating shapes (iMessage / Telegram grammar). The pill
+     carries a hairline and a soft lift so it has a findable edge on the pattern. */
+  background: transparent;
+  border-top: 0;
   z-index: var(--z-20);
 }
 
@@ -100,10 +109,11 @@
   align-items: flex-end;
   gap: var(--spacing-4);
   background: var(--surface-input);
+  border: var(--outline-width-1) solid var(--outline-neutral-01);   /* #711: the floating pill's edge */
+  box-shadow: var(--elevation-1);                                    /* #711: a soft lift off the pattern */
   border-radius: var(--radius-24);
   padding-block: var(--spacing-4);
-  padding-inline-start: var(--spacing-4);  /* attach pill side */
-  padding-inline-end: var(--spacing-12);
+  padding-inline: var(--spacing-12);  /* #705: symmetric — nothing lives inside the pill but the text */
   transition: box-shadow var(--duration-100) var(--easing-standard);
 }
 /* #265 (Damir ⑩, supersedes Q10b): NO focus ring on the composer at all, BOTH
@@ -113,26 +123,24 @@
    for a text input; every non-text control in the bar keeps its ring. */
 .c-composer__field:focus-within { box-shadow: none; }
 
-/* ★ A2 (Damir F5, 2026-08-28). The 4px inline-start above is the ATTACH PILL's own
-   inset, not the text's — the 36px pill supplies the rest of the optical gap. When a
-   host hides the pill, `[hidden] { display: none !important }` takes it out of the
-   row entirely and the placeholder sits against the field edge. Damir saw this the
-   moment the bot room stopped offering a ⊕.
+/* ★ A2 (Damir F5, 2026-08-28), RE-HOMED BY #705. The compensation used to live on the
+   FIELD: the ⊕ sat inside the pill, so hiding it left the placeholder against the pill
+   edge. The ⊕ is outside the pill now, so hiding it changes the BAR's leading edge
+   instead — the 8px start above assumed a disc beside it. Without the disc the bar
+   goes back to the 16 a chrome edge normally carries.
    ⚠ ONE ATTRIBUTE, SET BY THE FUNCTION THAT HIDES THE BUTTON. The compensation and
    the hiding must never be able to disagree, so this rule has no predicate of its
    own — it renders whatever `syncAttachAffordance` decided. A host that always shows
-   the pill never sets the attribute and is byte-identical to before.
-   The value matches `padding-inline-end`, so a composer with no pill is symmetric. */
-.c-composer__field[data-no-attach] { padding-inline-start: var(--spacing-12); }
+   the disc never sets the attribute and is byte-identical to before. */
+.c-composer[data-no-attach] { padding-inline-start: var(--spacing-16); }
 
 .c-composer__attach {
-  position: relative; /* hit-area extension below (r2 backlog B6) */
   flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px; /* visual size sanctioned; touch target reaches 44 via ::after */
-  height: 36px;
+  width: var(--size-target-min);  /* #705: the same 44 disc as the send action */
+  height: var(--size-target-min);
   border: 0;
   border-radius: var(--radius-full);
   background: transparent;
@@ -141,15 +149,18 @@
   -webkit-tap-highlight-color: transparent;
   transition: background-color var(--duration-100) var(--easing-standard);
 }
-.c-composer__attach::after { content: ''; position: absolute; inset: -4px; }
-/* optical centering (Damir screenshot 2026-07-03): field is bottom-aligned for
-   multi-line grow; the 36px circle vs the 40px single-line input left the ⊕
-   2px low against the placeholder line */
-.c-composer__attach { margin-block-end: 2px; } /* sanctioned: optical offset */
+.c-composer__attach svg { transition: transform var(--duration-200) var(--easing-standard); }
+/* tray open: the ⊕ turns into a ✕ by rotation — the same control closes what it
+   opened (WhatsApp/Telegram grammar). aria-expanded is written by the tray. */
+.c-composer__attach[aria-expanded="true"] { background: var(--surface-action-tonal-default); }
+.c-composer__attach[aria-expanded="true"] svg { transform: rotate(45deg); }
 @media (hover: hover) and (pointer: fine) {
   .c-composer__attach:hover { background: var(--surface-interactive-hover); color: var(--icon-action-hover); }
 }
 .c-composer__attach:active { background: var(--surface-interactive-pressed); }
+@media (prefers-reduced-motion: reduce) {
+  .c-composer__attach svg { transition: none; }
+}
 
 .c-composer__input {
   flex: 1;
@@ -187,9 +198,13 @@
   .c-composer__action:not(:disabled):hover { background: var(--surface-action-hover); }
 }
 .c-composer__action:not(:disabled):active { background: var(--surface-action-pressed); }
+/* ★ #705 (Damir, Session G): the send disc KEEPS the action colour while disabled —
+   "livelier than the current disabled grey". The state is still `disabled` (no
+   click, no hover, no pressed), only its paint changed; a11y reads the attribute,
+   not the colour. Mic mode is never disabled, so this rule never meets it. */
 .c-composer__action:disabled {
-  background: var(--surface-action-disabled);
-  color: var(--text-neutral-on-disabled);
+  background: var(--surface-action-default);
+  color: var(--text-neutral-on-action);
   cursor: default;
 }
 

@@ -236,6 +236,9 @@
   @media (hover: hover) and (pointer: fine) { .chat-older__btn:not(:disabled):hover { background: var(--surface-interactive-hover, var(--surface-card)); } } /* #334 AND-18 guard */
   .chat-older__btn:disabled { cursor: default; color: var(--text-neutral-02); }
   #chat-composer { flex: none; }
+  /* ★ #711: the @ FAB sits ABOVE the floating composer — --composer-h is written on the
+     canvas by a ResizeObserver over #chat-composer (the chevron reads it in
+     scroll-latest.css). Falls back to 0 where nothing writes it. */
   /* iOS-29 attempt 4 (#301) — CHANGED LEVER per #294: never resize <body> (that
      fought WKWebView's own focus pan through three attempts). The flex column
      keeps its 100% layout height; while the soft keyboard is up the composer is
@@ -427,7 +430,7 @@
   .chat-mention-fab {
     position: absolute;
     inset-inline-end: var(--spacing-16);
-    inset-block-end: var(--spacing-16);   /* primary bottom slot (chevron hidden) */
+    inset-block-end: calc(var(--composer-h, 0px) + var(--spacing-16));   /* primary bottom slot (chevron hidden) — above the floating composer (#711) */
     width: var(--size-target-min); height: var(--size-target-min);
     display: flex; align-items: center; justify-content: center;
     border: var(--outline-width-1) solid var(--outline-neutral-01);
@@ -445,7 +448,7 @@
   }
   /* chevron visible → stack the @ FAB one 44px button + gap above it */
   .c-scroll-latest[data-visible] ~ .chat-mention-fab {
-    inset-block-end: calc(var(--spacing-16) + var(--size-target-min) + var(--spacing-8));
+    inset-block-end: calc(var(--composer-h, 0px) + var(--spacing-16) + var(--size-target-min) + var(--spacing-8));
   }
   .chat-mention-fab[data-visible] { opacity: 1; transform: translateY(0); visibility: visible; pointer-events: auto; }
   @media (hover: hover) and (pointer: fine) { .chat-mention-fab:hover { background: var(--surface-action-tonal-hover); } } /* #334 AND-18 guard */
@@ -508,8 +511,13 @@
   <div class="c-chat-canvas">
     <!-- tabindex: keyboard users must be able to scroll text-only history -->
     <div class="messages u-scroll" id="messages" role="log" aria-label="Messages" tabindex="0"><div class="chat-boot" aria-hidden="true"><span class="chat-boot__spinner"></span></div></div>
+    <!-- ★ #711 (Damir 2026-08-30): the composer FLOATS — it lives inside the canvas, so
+         the gradient and the pattern run on behind a bar that has no background of its
+         own. Still in the flex flow (no absolute positioning): the keyboard margin, the
+         tray under it and the request pane before it all work exactly as before. The
+         chevron and the @ FAB offset themselves by --composer-h (set below). -->
+    <div id="chat-composer"></div>
   </div>
-  <div id="chat-composer"></div>
 
 <script src="../components/icons.iife.js"></script>
 <script src="../demo/strings.iife.js"></script>
@@ -563,6 +571,8 @@
     createAppBubble, createSystemNotice, createUnreadDivider,
     attachMessageMenu, openMessageMenu,   // openMessageMenu = the KEYBOARD path (Shift+F10 / Menu key)
     enterChatSelect, openTipSheet, openMemberSheet, openAttachSheet,
+    openAttachTray, closeAttachTray, isAttachTrayOpen,   // ★ #705: the mobile tray under the composer
+    attachEdgeBack,                 // ★ L3 (#706): the iOS back signal, one line per shell
     hasAttachTiles, attachTilesFor, // the ONE attach predicate — see openAttach / syncAttachAffordance
     openRequestSheet,               // #528: attach → Request (the #139 amount sheet, live)
     createWalletSend,               // W5 (#523): attach → Pay (lockedRecipient compose)
@@ -1391,16 +1401,24 @@
    * + SEEN SENDERS from the loaded messages (model) — the last is essential so the
    * picker works on a chat you just opened, BEFORE chat-info/loadContacts has run
    * (Damir F5 2026-07-09: "@ in composer does nothing"). */
+  /* ★ #717 (Damir on device, 2026-08-30): "in groups I can @ myself". The roster and the
+     seen-senders both carry ME, and nothing filtered me out. C# tells the shell who I am
+     on every own message (addMe's address + nick), so the picker drops that one entry —
+     by address when it has one, by nick as the belt for a roster row without one. */
+  let selfAddress = '';
+  let selfNick = '';
   function mentionMembers() {
     if (!mode.isMulti) return [];
     const by = new Map();
+    const isMe = (m) => (selfAddress && m.address && m.address === selfAddress) || (!m.address && selfNick && m.name === selfNick);
+    const out = () => [...by.values()].filter((m) => !isMe(m));
     for (const [, m] of groupRoster) { if (m && m.name && !by.has(m.name)) by.set(m.name, { name: m.name, address: m.address || '', avatar: m.avatar || null }); }
     for (const [addr, n] of groupNicks) { if (n && !by.has(n)) by.set(n, { name: n, address: addr || '', avatar: null }); }
     for (const rec of model.values()) {                       // seen senders (addThem) — before any roster load
       const nm = rec && senderHasNick(rec) ? rec.senderNick : '';   // the ONE nick predicate (r2 F-2)
       if (nm && !by.has(nm)) by.set(nm, { name: nm, address: rec.senderAddress || '', avatar: rec.avatar || null });
     }
-    return [...by.values()];
+    return out();
   }
   // msg-ids I've liked THIS session. The bridge's addReactions sends only
   // key:count (no per-user flag — C5), so a fresh reaction can't tell the shell
@@ -3132,20 +3150,85 @@
     const gone = !attachAvailable() && !attachWaiting();
     btn.hidden = gone;
     btn.style.visibility = attachAvailable() ? '' : 'hidden';
-    /* ★ A2 (Damir F5, 2026-08-28): the field's 4px inline-start is the ⊕ pill's own
-       inset. `hidden` removes the pill from the row, so without this the placeholder
-       sits against the field edge — which is what a bot room showed the moment the ⊕
-       correctly went away. The attribute is written from `gone`, the SAME expression
-       that hides the button, so the padding can never disagree with the pill.
-       ⚠ Not from `attachAvailable()` alone: during the wait the pill keeps its box
-       (`visibility`), so the field must keep the 4px too. */
-    const field = composerEl.querySelector('.c-composer__field');
-    if (field) field.toggleAttribute('data-no-attach', gone);
+    /* ★ A2 (Damir F5, 2026-08-28), RE-HOMED BY #705: the ⊕ is a 44 disc OUTSIDE the
+       pill now, so `hidden` changes the BAR's leading edge, not the field's. The bar
+       carries 8px beside the disc and 16px without it (composer.css). The attribute is
+       written from `gone`, the SAME expression that hides the button, so the padding
+       can never disagree with the disc.
+       ⚠ Not from `attachAvailable()` alone: during the wait the disc keeps its box
+       (`visibility`), so the bar must keep the 8px too. */
+    composerEl.toggleAttribute('data-no-attach', gone);
+    /* ★ #705: a tray that is open when the ⊕ goes away would offer tiles the room has
+       just refused. Same rule as the sheet's action-time re-check, applied at the
+       moment the answer changes. */
+    if (gone) closeAttachTrayIfOpen();
+  }
+
+  /* ★ #705: the tray is closed by every back path (chatBack, the edge swipe, Escape) —
+     it is NOT on the overlay stack (attach-sheet.js explains why), so each site asks
+     this instead of dismissTopOverlay. Returns true when it closed one. */
+  function closeAttachTrayIfOpen() {
+    if (!composerEl || !isAttachTrayOpen(composerEl)) return false;
+    closeAttachTray(composerEl.nextElementSibling);
+    syncChatOverlay();
+    return true;
+  }
+  /* ★ #721 (Damir): the field was tapped while the tray is up — the keyboard is coming.
+     Hold the tray in place until the viewport shrinks (the keyboard has the slot), then
+     remove it in one frame; a 450 ms backstop covers an engine that never resizes (a
+     hardware keyboard, desktop). The bar never dips and rises between the two. */
+  function handTrayToKeyboard() {
+    if (!composerEl || !isAttachTrayOpen(composerEl)) return false;
+    const tray = composerEl.nextElementSibling;
+    let done = false;
+    const drop = () => {
+      if (done) return;
+      done = true;
+      window.removeEventListener('resize', drop);
+      if (window.visualViewport) window.visualViewport.removeEventListener('resize', drop);
+      closeAttachTray(tray, { instant: true });
+      syncChatOverlay();
+    };
+    window.addEventListener('resize', drop);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', drop);
+    setTimeout(drop, 450);
+    return true;
+  }
+
+  /* The tile → verb routing, ONE function for both presentations (tray and sheet). */
+  function onAttachAction(id) {
+    if (!attachTilesFor(attachFlags()).some((t) => t.id === id)) return;
+    if (id === 'file') bridge.send('ixian:sendfile');
+    else if (id === 'photo' || id === 'gif') bridge.send('ixian:sendmedia');
+    // ★★ L1 (#640): the `else` legs are gone with WalletSendPage / WalletReceivePage.
+    // SingleChatPage declares BOTH caps unconditionally (:909), so those legs could
+    // only ever run against an exe that no longer exists. The gate stays honest.
+    else if (id === 'pay') { if (bridge.cap('composeSend')) openSendTakeover(); }
+    else if (id === 'request') { if (bridge.cap('composeRequest')) openRequestForPeer(); }
+    else if (id === 'app') openAppPicker();
   }
 
   function openAttach() {
     /* Belt for a stale tap: the ⊕ can be hidden between the press and this call. */
     if (!attachAvailable()) return;
+    /* ★ #705 (Damir, Session G): on MOBILE the grid is a TRAY under the composer,
+       WhatsApp-style, and the ⊕ toggles it. Desktop keeps the M6 popover rising from
+       the ⊕ — a keyboard-slot tray has no keyboard to replace there. */
+    if (!document.documentElement.hasAttribute('data-desktop')) {
+      if (closeAttachTrayIfOpen()) return;
+      const input = composerEl && composerEl.querySelector('.c-composer__input');
+      const tray = openAttachTray({
+        composerEl,
+        instant: !!input && document.activeElement === input,   // #721: the keyboard is up → swap, do not rise
+        ...attachFlags(),
+        strings: window.SL || {},
+        /* the tile CLOSES the tray inside the component; the mirror must hear about it
+           here, or C# keeps routing the next back press into an empty chatBack. */
+        onAction: (id) => { syncChatOverlay(); onAttachAction(id); },
+      });
+      if (tray) syncChatOverlay();   // back must close the tray before it closes the chat
+      return;
+    }
     const sheet = openAttachSheet({
       host: overlayHost,
       ...attachFlags(),
@@ -3160,17 +3243,7 @@
          drew — whether this tile still survives. One gate, six tiles, one rule. Do not
          add a per-leg copy back: a second copy of a rule is how the ⊕ and the sheet
          start disagreeing. */
-      onAction: (id) => {
-        if (!attachTilesFor(attachFlags()).some((t) => t.id === id)) return;
-        if (id === 'file') bridge.send('ixian:sendfile');
-        else if (id === 'photo' || id === 'gif') bridge.send('ixian:sendmedia');
-        // ★★ L1 (#640): the `else` legs are gone with WalletSendPage / WalletReceivePage.
-        // SingleChatPage declares BOTH caps unconditionally (:909), so those legs could
-        // only ever run against an exe that no longer exists. The gate stays honest.
-        else if (id === 'pay') { if (bridge.cap('composeSend')) openSendTakeover(); }
-        else if (id === 'request') { if (bridge.cap('composeRequest')) openRequestForPeer(); }
-        else if (id === 'app') openAppPicker();
-      },
+      onAction: onAttachAction,
     });
     // Batch C (M6): desktop presents the share grid as a POPOVER rising from the
     // composer ⊕ (demo 06d ① grammar); no-op on mobile / when the ⊕ isn't found.
@@ -3425,7 +3498,7 @@
       /* ★★ AUG (Damir 2026-08-30, ON DEVICE): "the 'you are now connected' or
          'establishing…' is not shown upon accepting request, and then abruptly shows".
          DIAGNOSIS: the chats list DOES stage a handshaking row — acceptContactRequest()
-         gives it `handshaking:true` and the "Establishing a quantum-secure handshake…"
+         gives it `handshaking:true` and the "Setting up a secure connection…"
          excerpt for a ≥3s hold (#109 / CH2). But that staging lives in home.html's
          REQUEST-CARD handler, and accepting from inside the CHAT never reaches it: the two
          shells share no JS (#221) and C# gives us nothing back on accept. So the list sat
@@ -3557,8 +3630,12 @@
          AES-256-GCM + ChaCha20-Poly1305 with per-message derived keys. The hybrid is real.
          ⚠ rsa2 (RSA-4096 key wrap) is still the fallback when a peer does not support spixi2
          (CoreStreamProcessor.cs:1618/1623) and is NOT post-quantum. This copy says nothing the
-         fallback contradicts — but WHEN rsa2 RETIRES IS AN OPEN QUESTION; see §7. */
-      text: s.secureNoticeText || 'Messages are sealed on your device with post-quantum encryption and can be opened only by the person you sent them to. Nobody in between can read them, not even us.',
+         fallback contradicts — but WHEN rsa2 RETIRES IS AN OPEN QUESTION; see §7.
+         ★ RULED 2026-08-30 (Session G, Damir): the notice is NOT technical. "post-quantum"
+         is dropped from the copy — not because it is false on spixi2 (it is true there), but
+         because it is false for an rsa2 peer and Damir wants a reassuring line that is true on
+         both paths. rsa2 is deprecated in due course; the copy does not wait for it. */
+      text: s.secureNoticeText || 'Messages are sealed on your device and can be opened only by the person you sent them to. Nobody in between can read them, not even us.',
       linkLabel: s.secureNoticeLink || 'How it works',
       onLink: () => bridge.send('ixian:openLink:' + SECURE_LINK),
     });
@@ -4334,6 +4411,8 @@
 
     // TEXT create — own message. 12-arg legacy addMe shape (xaml.cs:1460).
     addMe(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo) {
+      if (address) selfAddress = String(address);   // #717: who I am, for the @ picker
+      if (nick) selfNick = String(nick);
       // M1 (#441): `relation` and `replyTo` are the two trailing ADDITIVE args C#
       // now sends on BOTH prefixes (one sendUiCommand). addMe declared 11 params
       // and would otherwise silently discard the reply target on own messages —
@@ -5047,6 +5126,7 @@
       if (channelDropdown) { closeChannelSelector(); return; }
       const dismiss = window.Spixi && window.Spixi.dismissTopOverlay;
       if (dismiss && dismiss()) return;
+      if (closeAttachTrayIfOpen()) return;                  // ★ #705: the tray under the bar, after any sheet above it
       if (chatSendView) { closeSendTakeover(); return; }   // loop MAJOR fix: the cover before select mode
       if (chatSelect) {
         // #376 loop A-1 belt: a dead handle must not eat the press with no heal —
@@ -5105,7 +5185,8 @@
     return document.body.dataset.overlayOpen !== undefined
       || box.dataset.overlayOpen !== undefined
       || !!channelDropdown || !!chatSelect
-      || !!chatSendView;                               // loop MAJOR fix: the money cover consumes back too
+      || !!chatSendView                                // loop MAJOR fix: the money cover consumes back too
+      || (composerEl && isAttachTrayOpen(composerEl)); // ★ #705: the attach tray consumes back
   }
   function syncChatOverlay() {
     if (chatOverlaySyncT) return;
@@ -5563,6 +5644,15 @@
     mentionSource: mentionMembers,
   });
   document.getElementById('chat-composer').replaceChildren(composerEl);
+  /* ★ #711: publish the composer slot's height so the chevron and the @ FAB float above
+     it. ResizeObserver covers every reason it grows — a fifth line, the reply strip, the
+     cost line, the tray. Where the API is missing the FABs keep the 0 fallback. */
+  try {
+    const slot = document.getElementById('chat-composer');
+    const publish = () => { try { chatCanvasEl.style.setProperty('--composer-h', slot.offsetHeight + 'px'); } catch (_) {} };
+    new ResizeObserver(publish).observe(slot);
+    publish();
+  } catch (_) {}
   /* The ⊕ offers nothing at boot: the room type is not known yet, so it holds its place
      and stays invisible until setChatMode answers or the wait window closes. THE
      ROOM-ANSWER LATCH above holds the whole rule. This is the FIRST derive; every later
@@ -5595,6 +5685,11 @@
         draftSaveTimer = setTimeout(() => saveDraft(v), 400);
       });
       input.addEventListener('blur', flushDraft);
+      /* ★ #705: the tray took the keyboard's slot; the user asking for the keyboard
+         back (a tap in the field) hands the slot back. Escape mirrors the sheet's
+         safe dismiss for a hardware keyboard. */
+      input.addEventListener('focus', () => { handTrayToKeyboard(); });   // #721: seamless swap
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAttachTrayIfOpen(); });
       // WebView back/navigation away → persist the in-progress draft now.
       window.addEventListener('pagehide', flushDraft);
       document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushDraft(); });
@@ -5824,50 +5919,26 @@
    * verb (popToRootAsync — overlay-aware C#-side). Touch surfaces only;
    * desktop untouched. No horizontal gesture exists in the chat surface, so
    * there is nothing to collide with; vertical scroll intent bails early. */
-  (function edgeSwipeBack() {
-    if (document.documentElement.hasAttribute('data-desktop')) return;
-    let x0 = 0, y0 = 0, t0 = 0, tracking = false, fired = false;
-    document.addEventListener('touchstart', (e) => {
-      if (e.touches.length !== 1) { tracking = false; return; }
-      const t = e.touches[0];
-      tracking = t.clientX <= 24;
-      fired = false;
-      x0 = t.clientX; y0 = t.clientY; t0 = performance.now();
-    }, { passive: true });
-    document.addEventListener('touchmove', (e) => {
-      if (!tracking || fired || e.touches.length !== 1) return;
-      if (performance.now() - t0 > 700) { tracking = false; return; }
-      const t = e.touches[0];
-      const dx = t.clientX - x0;
-      const dy = Math.abs(t.clientY - y0);
-      if (dy > 50 && dy > dx) { tracking = false; return; }   // vertical scroll intent
-      // #328 r2: dominant-axis gate. The r1 form (`dx > dy * 1.4` beside
-      // dy < 50) was DEAD CODE — for any dy < 50, dy*1.4 < 70 < dx, so it
-      // never bound (break-my-verdict catch: its own cited 71/49 case still
-      // fired). Real gate: the dx threshold SCALES with drift — a shallow
-      // swipe fires at 70px, a 49px-drift diagonal needs 98px of travel.
-      if (dy < 50 && dx > Math.max(70, dy * 2)) {
-        // #328 (audit MINOR): an active text selection means the user is
-        // dragging a selection handle (received bubbles sit left-aligned —
-        // a start-handle drag from the edge IS this gesture's shape). Never
-        // steal it.
-        const sel = document.getSelection && document.getSelection();
-        if (sel && !sel.isCollapsed) { tracking = false; return; }
-        fired = true; tracking = false;
-        // #328 (audit MINOR): the bot channel selector is hand-rolled (top-
-        // anchored panel, deliberately NOT on the shared overlay stack) — the
-        // sheet-first contract must cover it too, or the swipe closes the
-        // whole chat under an open panel.
-        if (channelDropdown) { closeChannelSelector(); return; }   // live-state probe: nulled at close START (an exiting panel must not eat the swipe)
-        const dismiss = window.Spixi && window.Spixi.dismissTopOverlay;
-        if (dismiss && dismiss()) return;                          // a sheet/menu sits ABOVE the selection bar
-        // SELECTION FIRST: back out of the contextual bar before it backs out of
-        // the conversation (the natives' order; the ✕ is the same exit).
-        if (chatSelect) { exitChatSelect(); return; }
-        bridge.send('ixian:back');
-      }
-    }, { passive: true });
-  })();
+  /* ★ L3 (#706): the recogniser moved to src/components/edge-back.js so every shell can
+   * attach it with one line; the numbers are the shipped ones. What stays HERE is the
+   * one-level chain — the same order chatBack runs for hardware back: channel → stack
+   * → tray → cover → selection → ixian:back. */
+  attachEdgeBack({ onBack: () => {
+    // #328 (audit MINOR): the bot channel selector is hand-rolled (top-
+    // anchored panel, deliberately NOT on the shared overlay stack) — the
+    // sheet-first contract must cover it too, or the swipe closes the
+    // whole chat under an open panel.
+    if (channelDropdown) { closeChannelSelector(); return; }   // live-state probe: nulled at close START (an exiting panel must not eat the swipe)
+    const dismiss = window.Spixi && window.Spixi.dismissTopOverlay;
+    if (dismiss && dismiss()) return;                          // a sheet/menu sits ABOVE the selection bar
+    if (closeAttachTrayIfOpen()) return;                       // ★ #705: the attach tray, same order as chatBack
+    // SELECTION FIRST: back out of the contextual bar before it backs out of
+    // the conversation (the natives' order; the ✕ is the same exit).
+    if (chatSelect) { exitChatSelect(); return; }
+    // ★ L1 (#640) / W5: the money cover consumes back before the page pops (chatBack order)
+    if (chatSendView) { closeSendTakeover(); return; }
+    bridge.send('ixian:back');
+  } });
 
   /* —— page ready — fire ixian:onload AFTER the document fully loads, matching
    *    the legacy onload() timing (spixi.js:88 → window load). Firing it

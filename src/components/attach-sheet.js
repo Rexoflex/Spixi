@@ -11,6 +11,9 @@
  *
  * openAttachSheet({ host, media = false, apps = true, payments = true,
  *                   onAction, strings }) → sheet
+ * openAttachTray({ composerEl, …same flags, onAction, strings }) → tray | null
+ *   ★ #705: the MOBILE presentation — the grid under the composer, not over it.
+ *   The sheet stays the desktop popover (M6). Same tiles, same gates, one builder.
  *   onAction(id) — 'file' | 'photo' | 'gif' | 'pay' | 'request' | 'app'
  *   (shell routes: sendfile / sendmedia / payment intent / app invite)
  *   media    — #81 flag: reveals Photo + GIF (BE image standard).
@@ -85,27 +88,10 @@ export function openAttachSheet({ host, media = false, apps = true, payments = t
      The caller must accept null. */
   if (!tiles.length) return null;
 
-  const grid = document.createElement('div');
-  grid.className = 'c-attach';
-
-  for (const a of tiles) {
-    const tile = document.createElement('button');
-    tile.type = 'button';
-    tile.className = 'c-attach__tile';
-    const med = document.createElement('span');
-    med.className = 'c-attach__medallion';
-    med.setAttribute('aria-hidden', 'true');
-    med.append(icon(a.glyph, { size: 22 }));
-    const label = document.createElement('span');
-    label.className = 'c-attach__label';
-    label.textContent = strings[a.key] || a.label;
-    tile.append(med, label);
-    tile.addEventListener('click', () => {
-      closeSheet(sheet);
-      if (onAction) onAction(a.id);
-    });
-    grid.append(tile);
-  }
+  const grid = buildAttachGrid(tiles, strings, (id) => {
+    closeSheet(sheet);
+    if (onAction) onAction(id);
+  });
 
   /* TITLE: none (Damir 2026-08-12 — "it's titled Share, that's incorrect").
    * Nothing here is sharing: the tiles SEND things into this conversation (a
@@ -122,4 +108,120 @@ export function openAttachSheet({ host, media = false, apps = true, payments = t
   });
   openSheet(sheet);
   return sheet;
+}
+
+/* The tile grid, shared by the sheet (desktop popover) and the tray (mobile). ONE
+   builder, so a tile cannot exist in one presentation and not the other. */
+function buildAttachGrid(tiles, strings, onPick) {
+  const grid = document.createElement('div');
+  grid.className = 'c-attach';
+  for (const a of tiles) {
+    const tile = document.createElement('button');
+    tile.type = 'button';
+    tile.className = 'c-attach__tile';
+    const med = document.createElement('span');
+    med.className = 'c-attach__medallion';
+    med.setAttribute('aria-hidden', 'true');
+    med.append(icon(a.glyph, { size: 22 }));
+    const label = document.createElement('span');
+    label.className = 'c-attach__label';
+    label.textContent = strings[a.key] || a.label;
+    tile.append(med, label);
+    tile.addEventListener('click', () => onPick(a.id));
+    grid.append(tile);
+  }
+  return grid;
+}
+
+/* ═══ ★ #705 (Session G, Damir): THE TRAY — the attach grid UNDER the composer ═══
+ *
+ * WhatsApp grammar: the grid takes the KEYBOARD's slot, below the bar, and the
+ * conversation shrinks above it. The composer stays visible and usable the whole
+ * time; the ⊕ that opened the tray turns into a ✕ and closes it.
+ * ⚠ NOT AN OVERLAY. It has no scrim, it is in the document flow, and it does not
+ *   trap focus — the bar above it is meant to stay live. So it is NOT on the shared
+ *   overlay stack, and the shell must close it on back itself (chat.html `chatBack`,
+ *   the edge swipe and Escape all do), the same way the bot channel selector is
+ *   handled. `isAttachTrayOpen` is the predicate for those sites.
+ * ⚠ The keyboard: opening the tray BLURS the composer input so the soft keyboard
+ *   drops and the tray takes its place instead of stacking under it. Focusing the
+ *   input again (the user taps the field) closes the tray — the shell wires that.
+ *
+ * openAttachTray({ composerEl, media, apps, payments, files, onAction, strings })
+ *   → tray element, or null when no tile survives (same rule as the sheet).
+ * closeAttachTray(tray) — exit transition then removal; idempotent.
+ * isAttachTrayOpen(composerEl) — the tray sits directly after the composer. */
+const TRAY_EXIT_MS = 300;   // > --duration-200; covers reduced-motion 0 ms
+const trayState = new WeakMap();   // tray → { composerEl, closing }
+
+/* ★ #721 (Damir on device): THE KEYBOARD AND THE TRAY SWAP SEAMLESSLY. Opening while the
+   keyboard is up: the input blurs (the keyboard drops) and the tray takes the slot at
+   its full height at once — no rise animation stacked on the keyboard's own retreat.
+   `instant` is decided by the caller from `document.activeElement`. */
+export function openAttachTray({ composerEl, media = false, apps = true, payments = true, files = true, onAction, strings = getStrings(), instant = false } = {}) {
+  if (!composerEl || !composerEl.parentNode) return null;
+  const tiles = attachTilesFor({ media, apps, payments, files });
+  if (!tiles.length) return null;
+  const existing = composerEl.nextElementSibling;
+  if (existing && existing.classList.contains('c-attach-tray')) return existing;   // already open — no-op
+
+  const tray = document.createElement('div');
+  tray.className = 'c-attach-tray';
+  tray.setAttribute('role', 'group');
+  tray.setAttribute('aria-label', strings.attachTitle || 'Add to chat');
+  tray.append(buildAttachGrid(tiles, strings, (id) => {
+    closeAttachTray(tray);
+    if (onAction) onAction(id);
+  }));
+  trayState.set(tray, { composerEl, closing: false });
+
+  const btn = composerEl.querySelector('.c-composer__attach');
+  if (btn) btn.setAttribute('aria-expanded', 'true');
+  composerEl.setAttribute('data-tray-open', '');   // the composer drops its safe-area pad; the tray carries it
+  const input = composerEl.querySelector('.c-composer__input');
+  if (input && document.activeElement === input) input.blur();   // the tray takes the keyboard's slot
+
+  composerEl.after(tray);
+  if (instant) {
+    tray.dataset.instant = '';   // attach-sheet.css: no height transition on this tray
+    tray.dataset.open = '';
+    return tray;
+  }
+  // two rAFs so the closed height paints first and the rise animates
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (tray.isConnected && !trayState.get(tray).closing) tray.dataset.open = '';
+  }));
+  return tray;
+}
+
+/* ★ #721: `instant` removes the tray with no exit transition — used when the keyboard is
+   about to take the slot: the caller holds the tray until the viewport actually shrinks
+   (the keyboard is up), then drops it in one frame, so the composer never dips to the
+   bottom and rises again between the two. */
+export function closeAttachTray(tray, { instant = false } = {}) {
+  const st = tray && trayState.get(tray);
+  if (!st || st.closing) return false;
+  st.closing = true;
+  const btn = st.composerEl.querySelector('.c-composer__attach');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+  st.composerEl.removeAttribute('data-tray-open');
+  if (instant) { tray.remove(); trayState.delete(tray); return true; }
+  delete tray.dataset.open;
+  let done = false;
+  const remove = () => {
+    if (done) return;
+    done = true;
+    tray.removeEventListener('transitionend', onEnd);
+    tray.remove();
+    trayState.delete(tray);
+  };
+  const onEnd = (e) => { if (e.target === tray && e.propertyName === 'height') remove(); };
+  tray.addEventListener('transitionend', onEnd);
+  setTimeout(remove, TRAY_EXIT_MS);
+  return true;
+}
+
+export function isAttachTrayOpen(composerEl) {
+  const n = composerEl && composerEl.nextElementSibling;
+  return !!(n && n.classList.contains('c-attach-tray') && trayState.has(n) && !trayState.get(n).closing);
 }

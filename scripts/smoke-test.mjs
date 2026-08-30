@@ -5052,7 +5052,7 @@ console.log('missing-bits Batch B — B2 pattern default · B3 tx-details shell 
     'B3: home wallet tab routes a tx tap to ixian:txdetails:<txid>');
   ok(/addEntry\(address, username, avatar, amount, fiat, time, type, confirmed\)/.test(txShell)
     && /setData\(amount, fee, time, txid, confirmed\)/.test(txShell)
-    && /hideBackButton\(\) \{ buildTopbar\(false\); \}/.test(txShell),
+    && /hideBackButton\(\) \{ sentHasBack = false; buildTopbar\(false\); \}/.test(txShell),   // #706 re-based: the swipe's flag turns off with the arrow
     'B3: wallet_sent.html carries the WalletSentPage contract (#270: the #258 §0 attachCallUi spread is RETIRED)');
   ok(/clearEntries\(\) \{ model\.entries = \[\]; model\.received = false; \}/.test(txShell),
     'B3: a lone clearEntries resets the BUFFER only (never blanks the rendered card)');
@@ -6366,13 +6366,21 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   ok(/cancelAnimationFrame\(stickRaf\);\s*\n\s*stickEnd = 0;/.test(chat328),
     '#328: any user touch cancels the stick (the loop must never fight a scroll or yank the @-FAB jump while the mention marker burns — audit MAJOR)');
   // #325: shell edge-swipe back — sheet-first, channel-panel aware, selection-guarded
-  ok(/function edgeSwipeBack|\(function edgeSwipeBack\(\)/.test(chat328)
+  // ★ L3 (#706) re-based: the recogniser is the shared component now (edge-back.js); the
+  // shell keeps the CHAIN. The property — the signal is raised IN THE PAGE, never by a
+  // native recogniser — is unchanged, and the component's own pins hold the numbers.
+  ok(/attachEdgeBack\(\{ onBack: /.test(chat328) && !/\(function edgeSwipeBack\(\)/.test(chat328)
     && /dismissTopOverlay/.test(chat328) && /ixian:back/.test(chat328),
-    '#325: edge-swipe back lives in the SHELL (two native recognizer rounds died in UIKit arbitration — do not resurrect them) and consults the overlay stack before ixian:back');
-  ok(/Math\.max\(70, dy \* 2\)[\s\S]{0,900}if \(channelDropdown\) \{ closeChannelSelector\(\); return; \}/.test(chat328),
-    '#328: the hand-rolled channel selector (not on the overlay stack) consumes the swipe INSIDE the edge handler — sheet-first covers it (audit MINOR; anchored past the axis gate: the #252 title-tap toggle uses the same line shape elsewhere)');
-  ok(/sel && !sel\.isCollapsed/.test(chat328) && /dx > Math\.max\(70, dy \* 2\)/.test(chat328),
-    '#328: an active text selection is never stolen by the swipe + dominant-axis gate (audit MINOR/NIT)');
+    '#325 → #706: edge-swipe back lives in the SHELL, through the shared edge-back component (two native recognizer rounds died in UIKit arbitration — do not resurrect them) and consults the overlay stack before ixian:back');
+  // ★ #706 re-based: the axis gate and the selection guard live in edge-back.js now; the
+  // channel-selector arm is the FIRST line of the shell's chain (anchored on the attach).
+  ok(/attachEdgeBack\(\{ onBack: \(\) => \{[\s\S]{0,600}?if \(channelDropdown\) \{ closeChannelSelector\(\); return; \}/.test(chat328),
+    '#328 → #706: the hand-rolled channel selector (not on the overlay stack) consumes the swipe as the FIRST arm of the shell\'s chain — sheet-first covers it (audit MINOR; the #252 title-tap toggle uses the same line shape elsewhere)');
+  {
+    const eb328 = readFileSync(join(root, 'src/components/edge-back.js'), 'utf8');
+    ok(/sel && !sel\.isCollapsed/.test(eb328) && /dx > Math\.max\(TRAVEL_PX, dy \* 2\)/.test(eb328) && !/sel && !sel\.isCollapsed/.test(chat328),
+      '#328 → #706: an active text selection is never stolen by the swipe + dominant-axis gate (audit MINOR/NIT) — in the component, and NOT duplicated in the shell (one recogniser)');
+  }
   /* #336: the Android kb-probe measured (2026-08-12) → RETIRED with the lever.
    * Both probes stay gone; AND-16 v2 (the settle-tracked re-pin on the Android
    * innerHeight shrink) is pinned present. */
@@ -6673,9 +6681,10 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   ok(/--chat-pattern-ink: #061663;/.test(lightN81) && /--chat-pattern-alpha-1: 0\.06;/.test(lightN81)
     && /--chat-pattern-alpha-2: 0\.1;/.test(lightN81),
     '★★★ AUG (Damir 2026-08-30): LIGHT pattern = rgba(6,22,99,0.06) — a deep brand indigo. The tile is a MASK, so the artwork\'s own colour is discarded and this token alone decides the ink. MEASURED on the #EBF0F5 ground: ΔL* −4.53, STRONGER than the #231F20 @5% it replaces (−3.53) and back in the range E1c approved (−3.47/−4.26); the composited stroke lands at hue 266° against the ground\'s 256°, the same cool family. It also holds on the GRADIENT option: −3.66 teal / −4.39 periwinkle. ⚠ alpha-2 is pinned but UNREACHABLE — Strong is retired; the token is kept one line from returning. Superseded: AUG TILE: LIGHT pattern = rgba(35,31,32,0.05) at Default — the doodle-pattern-aug ARTWORK colour, since the tile is a mask and this token is the only thing that decides the hue. ⚠ MEASURED AND DELIBERATELY SOFTER: .05 reads ΔL* −2.90 teal / −3.40 green against E1c\'s −3.47 / −4.26, i.e. ~17% fainter than what shipped; .06 would have matched it almost exactly (−3.47 / −4.08) and Damir chose .05 on the render. Superseded, and the E1c reasoning is kept because it is still the record of why the ground moved: E1c (Damir 2026-08-29): LIGHT pattern = rgba(18,59,71,0.07) at Default. The ink followed the ground onto the teal (hue only — the two inks are within 0.03 L* at this alpha) and .06→.07 RESTORES the approved strength rather than raising it: on the old near-white ground the stroke sat 4.03 L* below it, on the colourful one .06 reached only 2.96/3.62 and .07 gives 3.47/4.26. Superseded: rgba(33,57,75,0.06) at Default, 0.1 at Strong. The ink carries a HUE now (slate, C* 1.80 → 2.43 on the composited stroke) and the Default alpha rose because the doodles tile lays down 1.15× the ink of the triangles tile it replaced, yet read as blank at 0.042. Supersedes the N81 pair (#181a20 / 0.042)');
-  ok(/--chat-pattern-ink: #ffffff;/.test(darkN81) && /--chat-pattern-alpha-1: 0\.05;/.test(darkN81)
+  // ★ #711 re-based (Damir on device, 2026-08-30): 0.05 → 0.03 — "reduce dark by 2%". The ink stays white; the 0.05 reasoning below is kept as the superseded ruling.
+  ok(/--chat-pattern-ink: #ffffff;/.test(darkN81) && /--chat-pattern-alpha-1: 0\.03;/.test(darkN81)
     && /--chat-pattern-alpha-2: 0\.1;/.test(darkN81),
-    '★★★ AUG TILE (Damir 2026-08-30): DARK pattern = rgba(255,255,255,0.05). ⚠⚠ THIS PIN IS A REVERSAL AND IT IS PINNED AS ONE. The 2026-07-03 ruling in tokens.css says the pattern is "theme-colored, not white (white isn\'t premium, Damir)", and dark has carried a tinted ink ever since. Damir reversed it on 2026-08-30. ★ The measurement is the reassurance: white @ .05 reads ΔL* +5.64 against the #701 canvas where #bbd0ff @ .065 read +5.89 — the STRENGTH is unchanged within 4%, so what moved is the HUE, not the visibility. The superseded reasoning is kept verbatim because a ruling that quietly disappears is how it gets fixed back: E1: DARK pattern = rgba(187,208,255,0.065) at Default, 0.1 at Strong — its OWN hue, not light\'s. MEASURED trade-off behind the value: a bluer ink is a darker ink, so #bbd0ff buys C* 3.37 → 5.29 for 1.2 L*, while #8fb3ee bought 6.04 for 2.3 L* and was rejected on that arithmetic. Supersedes #f0f4ff / 0.045');
+    '★★★ AUG TILE (Damir 2026-08-30) → #711: DARK pattern = rgba(255,255,255,0.03) (was 0.05 until his device call the same evening). ⚠⚠ THIS PIN IS A REVERSAL AND IT IS PINNED AS ONE. The 2026-07-03 ruling in tokens.css says the pattern is "theme-colored, not white (white isn\'t premium, Damir)", and dark has carried a tinted ink ever since. Damir reversed it on 2026-08-30. ★ The measurement is the reassurance: white @ .05 reads ΔL* +5.64 against the #701 canvas where #bbd0ff @ .065 read +5.89 — the STRENGTH is unchanged within 4%, so what moved is the HUE, not the visibility. The superseded reasoning is kept verbatim because a ruling that quietly disappears is how it gets fixed back: E1: DARK pattern = rgba(187,208,255,0.065) at Default, 0.1 at Strong — its OWN hue, not light\'s. MEASURED trade-off behind the value: a bluer ink is a darker ink, so #bbd0ff buys C* 3.37 → 5.29 for 1.2 L*, while #8fb3ee bought 6.04 for 2.3 L* and was rejected on that arithmetic. Supersedes #f0f4ff / 0.045');
   ok(/--chat-pattern-ink: #061663;/.test(lightN81) !== /--chat-pattern-ink: #061663;/.test(darkN81)
     && /--chat-pattern-ink: #ffffff;/.test(darkN81) !== /--chat-pattern-ink: #ffffff;/.test(lightN81),
     '★ E1: the two inks are genuinely DIFFERENT tokens per theme — Damir asked for a hue of its own in each mode, and one ink shared by both is the failure this pin names. Asserted as a per-block XOR so a copy-paste of one value into the other block turns it red');
@@ -8447,6 +8456,48 @@ console.log('multi-select entry gestures · counted confirm · attach sheet titl
   ok(attach.getAttribute('aria-label') === 'Add to chat' && !attach.hasAttribute('aria-labelledby'),
     'the title-less sheet still carries an accessible name ("Add to chat" — attachTitle, translated in all 8 locales)');
   W.Spixi.closeSheet(attach);
+
+  /* ★★ #705 (Session G, Damir): THE ATTACH TRAY, EXECUTED on the demo's real composer.
+     The ⊕ is a 44 disc OUTSIDE the pill; on mobile it opens the grid as a TRAY directly
+     after .c-composer (the conversation shrinks above it), the ⊕ reports aria-expanded
+     and reads as a ✕, the composer drops its safe-area pad while the tray carries it, a
+     tile tap CLOSES the tray before it fires, and the send disc keeps the action colour
+     while disabled. Read from the RUNNING page, not the CSS text. */
+  {
+    const comp = D.querySelector('#composer-direct .c-composer');
+    const attachBtn = comp && comp.querySelector('.c-composer__attach');
+    const sendBtn = comp && comp.querySelector('.c-composer__action');
+    ok(!!attachBtn && attachBtn.parentElement === comp && !comp.querySelector('.c-composer__field .c-composer__attach')
+      && [...comp.children].indexOf(attachBtn) < [...comp.children].indexOf(comp.querySelector('.c-composer__field')),
+      '★ #705: the ⊕ is a direct child of the bar, BEFORE the field — outside the pill, leading (WhatsApp/iMessage grammar)');
+    const composerCss705 = readFileSync(join(root, 'src/styles/components/composer.css'), 'utf8');
+    const disabledRule = composerCss705.slice(composerCss705.indexOf('.c-composer__action:disabled {'), composerCss705.indexOf('}', composerCss705.indexOf('.c-composer__action:disabled {')));
+    ok(!!sendBtn && sendBtn.disabled
+      && /background: var\(--surface-action-default\);/.test(disabledRule)
+      && /color: var\(--text-neutral-on-action\);/.test(disabledRule)
+      && !/surface-action-disabled/.test(disabledRule),
+      '★ #705: the send disc is DISABLED when empty and its :disabled rule paints --surface-action-default / on-action ink — the state is real (no click, no hover), only the grey went');
+    let picked = null;
+    const tray = W.Spixi.openAttachTray({ composerEl: comp, media: true, strings: W.SL || {}, onAction: (id) => { picked = id; } });
+    await sleep(60);
+    ok(!!tray && tray.classList.contains('c-attach-tray') && comp.nextElementSibling === tray
+      && tray.querySelectorAll('.c-attach__tile').length === 6 && tray.getAttribute('aria-label') === 'Add to chat',
+      '★ #705: the tray mounts DIRECTLY AFTER the composer (in the flow — the canvas shrinks like it does for the keyboard), with the same six tiles the sheet draws and the same accessible name');
+    ok(W.Spixi.isAttachTrayOpen(comp) && attachBtn.getAttribute('aria-expanded') === 'true' && comp.hasAttribute('data-tray-open')
+      && tray.dataset.open !== undefined,
+      '★ #705: open state is REPORTED, not inferred — aria-expanded on the ⊕ (it reads as ✕ through that attribute), data-tray-open on the bar (the safe-area pad moves to the tray), data-open on the tray (the rise)');
+    ok(W.Spixi.openAttachTray({ composerEl: comp, media: true, strings: W.SL || {} }) === tray,
+      '#705: a second open while the tray is up is a no-op that returns the SAME tray — the ⊕ toggles, it never stacks');
+    tray.querySelector('.c-attach__tile').click();
+    ok(picked === 'file' && !W.Spixi.isAttachTrayOpen(comp) && attachBtn.getAttribute('aria-expanded') === 'false' && !comp.hasAttribute('data-tray-open'),
+      '★ #705: a tile tap fires its action AND closes the tray (aria-expanded false, the bar takes its pad back) — the tray never outlives the choice');
+    await sleep(400);
+    ok(comp.nextElementSibling !== tray && !D.querySelector('#composer-direct .c-attach-tray'),
+      '#705: the closed tray is REMOVED after its exit window — nothing stays in the flow');
+    ok(W.Spixi.openAttachTray({ composerEl: comp, media: false, apps: false, payments: false, files: false, strings: W.SL || {} }) === null
+      && !D.querySelector('#composer-direct .c-attach-tray'),
+      '★ #705: NO TILE, NO TRAY — the same #46-loop MAJOR-2 rule as the sheet (a bot room opens nothing), through the ONE predicate attachTilesFor');
+  }
 
   const chatShell2 = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
   ok(/if \(!\(e\.metaKey \|\| e\.ctrlKey\)\) return;/.test(chatShell2)
@@ -10852,18 +10903,29 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
     ok(txt.includes("bridge.send('ixian:chatoverlay:' + (chatOverlayLive() ? '1' : '0'))")
       && /new MutationObserver\(syncChatOverlay\)\.observe\(document\.body, \{ attributes: true, attributeFilter: \['data-overlay-open'\] \}\)/.test(txt)
       && /new MutationObserver\(syncChatOverlay\)\.observe\(box, \{ attributes: true, attributeFilter: \['data-overlay-open'\] \}\)/.test(txt)
-      && /return document\.body\.dataset\.overlayOpen !== undefined\s*\|\| box\.dataset\.overlayOpen !== undefined\s*\|\| !!channelDropdown \|\| !!chatSelect\s*\|\| !!chatSendView;/.test(nc(txt)),
-      'N51 (' + label + '): the mirror covers body[data-overlay-open], the BOX host (loop A-2: the reactions inspect sheet mounts on #messages — dead until C8, covered now) and the two off-stack surfaces');
+      /* ★ #705 re-based: a FOURTH off-stack surface, the attach tray under the composer.
+         The old predicate ended `|| !!chatSendView;` — the tray is in the flow, not on the
+         overlay stack, so the mirror must read it explicitly or hardware back pops the
+         conversation under an open tray. */
+      && /return document\.body\.dataset\.overlayOpen !== undefined\s*\|\| box\.dataset\.overlayOpen !== undefined\s*\|\| !!channelDropdown \|\| !!chatSelect\s*\|\| !!chatSendView\s*\|\| \(composerEl && isAttachTrayOpen\(composerEl\)\);/.test(nc(txt)),
+      'N51 (' + label + '): the mirror covers body[data-overlay-open], the BOX host (loop A-2: the reactions inspect sheet mounts on #messages — dead until C8, covered now) and the THREE off-stack surfaces (+ the #705 attach tray)');
   }
-  ok(/chatBack\(\) \{\s*if \(channelDropdown\) \{ closeChannelSelector\(\); return; \}\s*const dismiss = window\.Spixi && window\.Spixi\.dismissTopOverlay;\s*if \(dismiss && dismiss\(\)\) return;\s*if \(chatSendView\) \{ closeSendTakeover\(\); return; \}\s*if \(chatSelect\) \{\s*if \(box\.dataset\.selecting === undefined\) \{ chatSelect = null; syncChatOverlay\(\); return; \}\s*exitChatSelect\(\);\s*return;\s*\}\s*syncChatOverlay\(\);\s*\}/.test(chatNc),
-    '★ N51: chatBack arms in the edge-swipe order (#328 precedent: channel → stack → selection) and EVERY arm self-heals a stale mirror — incl. the loop A-1 belt on the select arm (a dead handle re-syncs instead of eating every press)');
+  /* ★ #705 re-based: the attach TRAY arm sits after the stack and before the money
+     cover. A sheet above the tray closes first. The tray and the cover never coexist
+     (the tile that opens the cover closes the tray first), so their relative order is
+     only a tie-break. The order is channel → stack → tray → cover → selection. Same
+     shape in the edge swipe (pinned below). */
+  ok(/chatBack\(\) \{\s*if \(channelDropdown\) \{ closeChannelSelector\(\); return; \}\s*const dismiss = window\.Spixi && window\.Spixi\.dismissTopOverlay;\s*if \(dismiss && dismiss\(\)\) return;\s*if \(closeAttachTrayIfOpen\(\)\) return;\s*if \(chatSendView\) \{ closeSendTakeover\(\); return; \}\s*if \(chatSelect\) \{\s*if \(box\.dataset\.selecting === undefined\) \{ chatSelect = null; syncChatOverlay\(\); return; \}\s*exitChatSelect\(\);\s*return;\s*\}\s*syncChatOverlay\(\);\s*\}/.test(chatNc),
+    '★ N51: chatBack arms in the edge-swipe order (#328 precedent: channel → stack → tray (#705) → cover → selection) and EVERY arm self-heals a stale mirror — incl. the loop A-1 belt on the select arm (a dead handle re-syncs instead of eating every press)');
+  ok(/if \(dismiss && dismiss\(\)\) return;\s*if \(closeAttachTrayIfOpen\(\)\) return;\s*if \(chatSelect\) \{ exitChatSelect\(\); return; \}/.test(chatNc),
+    '★ #705: the iOS edge swipe closes the attach tray in the SAME order as chatBack (after the stack, before selection) — one gesture grammar, two entry points');
   ok(/if \(chatSelect && box\.dataset\.selecting === undefined\) chatSelect = null;/.test(chatNc),
     '★ N51 (#376 loop A-1, MAJOR): a constructor-auto-exited selection (initial row not selectable) fires onExit BEFORE the handle lands — the dead-handle guard at startChatSelect drops it, or hardware back is WEDGED for the life of the conversation');
-  ok((chatNc.match(/syncChatOverlay\(\);/g) || []).length === 8   // +2 (#523): the money cover's open + close
+  ok((chatNc.match(/syncChatOverlay\(\);/g) || []).length === 12   // +2 (#523): the money cover's open + close · +3 (#705): the attach tray's open (openAttach), close (closeAttachTrayIfOpen) and the tile-close (the tray's onAction) · +1 (#721): the keyboard hand-off drop
     && /channelDropdown = overlay;\s*syncChatOverlay\(\);/.test(chatNc)
     && /channelDropdown = null;\s*channelSheetBody = null;\s*syncChatOverlay\(\);/.test(chatNc)
     && /onExit: \(\) => \{ chatSelect = null; syncChatOverlay\(\); \}/.test(chatNc),
-    'N51: the off-stack surfaces sync EXPLICITLY at every open/close site (8 call sites incl. the two A-1 heals + the #523 money cover pair — the MutationObservers only see data-overlay-open)');
+    'N51: the off-stack surfaces sync EXPLICITLY at every open/close site (12 call sites incl. the two A-1 heals, the #523 money cover pair, the #705 tray trio and the #721 hand-off — the MutationObservers only see data-overlay-open)');
 
   /* —— AND-37: settings back over a sheet —— */
   for (const [label, txt] of [['source', setSrcNc], ['built', nc(setBuilt)]]) {
@@ -14696,7 +14758,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   ok(/lockedRecipient: \{/.test(chatS) && /avatar: identity\.avatar \|\| null/.test(chatS)
     && /identity\.name !== identity\.address\) \? identity\.name : ''/.test(chatS),
     '#139/#211/#342: the in-chat compose locks the peer — never an address as a NAME, photo threaded');
-  ok(/\|\| !!chatSendView;/.test(chatS) && /if \(chatSendView\) \{ closeSendTakeover\(\); return; \}/.test(chatS),
+  ok(/\|\| !!chatSendView\s/.test(chatS) && /if \(chatSendView\) \{ closeSendTakeover\(\); return; \}/.test(chatS),   // #705 re-based: the predicate no longer ENDS at chatSendView (the tray follows it)
     '★ W5 (loop MAJOR, the AND-29 class): hardware back closes the money COVER, never the conversation under it');
   const chatSendIdx = chatS.indexOf('chatSendCtrl = ctrl;');
   ok(chatSendIdx !== -1 && chatS.slice(chatSendIdx, chatSendIdx + 200).indexOf('ctrl.done()') === -1,
@@ -17272,12 +17334,26 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
 
     /* ★ the slide must NOT be awaited before the overlay is registered. */
     const presentAt6 = scp6.indexOf('private static void presentPreload');
-    const presentBody6 = scp6.slice(presentAt6, scp6.indexOf('private static async Task slideStageIn'));
+    /* ★ L9 (#707) re-based: the reveal is ONE helper, `revealStage(op)`, shared by the
+       fresh present and the parked re-present. The property is unchanged — fire-and-forget,
+       before the stack registration — it is read through the helper now. */
+    const presentBody6 = scp6.slice(presentAt6, scp6.indexOf('private static void revealStage'));
+    const revealBody7 = scp6.slice(scp6.indexOf('private static void revealStage'), scp6.indexOf('private static async Task slideStageIn'));
     ok(presentAt6 > 0 && presentBody6.length > 2000
-       && /_ = slideStageIn\(op\);/.test(presentBody6)
-       && !/await op\.stage\.TranslateTo/.test(presentBody6)
-       && presentBody6.indexOf('_ = slideStageIn(op);') < presentBody6.indexOf('overlayStack.Add(op);'),
-      '★★ ITEM 6: the slide is FIRE-AND-FORGET and it starts before the overlay joins the stack. Awaiting a 220 ms animation there would leave the overlay invisible to back handling, the same-tag sweep and closeTopOverlay for the whole time it was on screen');
+       && /revealStage\(op\);/.test(presentBody6)
+       && /_ = slideStageIn\(op\);/.test(revealBody7)
+       && !/await op\.stage\.TranslateTo/.test(presentBody6) && !/await/.test(revealBody7)
+       && presentBody6.indexOf('revealStage(op);') < presentBody6.indexOf('overlayStack.Add(op);'),
+      '★★ ITEM 6 → L9: the slide is FIRE-AND-FORGET (inside revealStage) and it starts before the overlay joins the stack. Awaiting a 220 ms animation there would leave the overlay invisible to back handling, the same-tag sweep and closeTopOverlay for the whole time it was on screen');
+    /* ★★ L9 (#707, Damir): "On mobile all subscreens slide. On desktop only the chat info
+       from the actual chat slides." The per-op flag stays (chat info, every platform); a
+       PLATFORM rule adds the mobile full-screen overlays (column < 0). Column-pinned panes
+       keep #328. The parked re-present (mobile Account) takes the SAME reveal. */
+    ok(/op\.slideIn = overlayMode && \(slideIn \|\| \(mobilePlatform && column < 0 && !peerTab\)\);/.test(scp6)   // #718 re-based: Account is a peer tab
+       && /bool mobilePlatform = Microsoft\.Maui\.Devices\.DeviceInfo\.Platform == Microsoft\.Maui\.Devices\.DevicePlatform\.Android\s*\r?\n\s*\|\| Microsoft\.Maui\.Devices\.DeviceInfo\.Platform == Microsoft\.Maui\.Devices\.DevicePlatform\.iOS;/.test(scp6)
+       && (scp6.match(/revealStage\(op\);/g) || []).length === 2
+       && /Utils\.sendUiCommand\(op\.target, "onRepresented"\);\s*\r?\n\s*op\.stage\.InputTransparent = false;[\s\S]{0,600}?revealStage\(op\);/.test(scp6),
+      '★★ L9 (#707): every MOBILE full-screen overlay slides (Android + iOS, column < 0), desktop keeps the flip unless the caller asks, and the parked Account re-present reveals through the SAME helper as the fresh present — two call sites, one reveal, so the two paths cannot drift');
     /* ★★ L8 re-based, and this pin EARNED its rebase: it went red on my own fix and was
        right to. The slide-IN's finally now SKIPS a closing stage (so it cannot snap one back
        mid-exit), which moved the "always reset" guarantee onto the exit paths — and the
@@ -17287,8 +17363,8 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        && /op\.stage\.InputTransparent = true;\s*\r?\n[\s\S]{0,700}?op\.stage\.TranslationX = 0;\s*\r?\n\s*\}/.test(scp6)
        && /op\.stage\.TranslationX = 0;   \/\/ #326 belt/.test(scp6),
       '★★ ITEM 6 + L8: the translation is ALWAYS reset — by the slide-in unless the stage is closing, by the PARKED close branch, and by the dispose branch. The parked overlay reuses its stage, so a stuck translation would come back displaced on a later present');
-    ok(/op\.slideIn = slideIn && overlayMode;/.test(scp6),
-      '★ ITEM 6: only the IN-PLACE present can slide. The push fallback re-parents the page, which is the #225 repaint this whole machinery exists to avoid — animating it would add a transform to a frame that is already blank');
+    ok(/op\.slideIn = overlayMode && \(slideIn \|\|/.test(scp6) && !/op\.slideIn = slideIn && overlayMode;/.test(scp6),
+      '★ ITEM 6 → L9: only the IN-PLACE present can slide — `overlayMode &&` leads the expression. The push fallback re-parents the page, which is the #225 repaint this whole machinery exists to avoid — animating it would add a transform to a frame that is already blank');
 
     /* ★ the shell must not signal ready before the skeleton has actually PAINTED. */
     ok(/requestAnimationFrame\(\(\) => requestAnimationFrame\(\(\) => \{\s*\n\s*bridge\.ready\(\);/.test(cdShell6),
@@ -19093,7 +19169,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
             pill are written from ONE expression. Both are asserted here. */
          && /const gone = !attachAvailable\(\) && !attachWaiting\(\);/.test(chB)
          && /btn\.hidden = gone;/.test(chB)
-         && /field\.toggleAttribute\('data-no-attach', gone\);/.test(chB)
+         && /composerEl\.toggleAttribute\('data-no-attach', gone\);/.test(chB)   // #705 re-based: the attribute moved from the FIELD to the BAR (the ⊕ is outside the pill now)
          && /btn\.style\.visibility = attachAvailable\(\) \? '' : 'hidden';/.test(chB)
          && /if \(!attachAvailable\(\)\) return;/.test(chB)
          && /if \(!sheet\) return;/.test(chB),
@@ -19140,7 +19216,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        /* ⚠ ROUND 6: the collapse leg reads the shared `gone` — see the A2 block. */
        && /const gone = !attachAvailable\(\) && !attachWaiting\(\);/.test(chSrc)
        && /btn\.hidden = gone;/.test(chSrc)
-       && /field\.toggleAttribute\('data-no-attach', gone\);/.test(chSrc)
+       && /composerEl\.toggleAttribute\('data-no-attach', gone\);/.test(chSrc)   // #705 re-based: on the BAR, not the field
        && /btn\.style\.visibility = attachAvailable\(\) \? '' : 'hidden';/.test(chSrc)
        && /\.\.\.attachFlags\(\),/.test(chSrc)
        && (chSrc.match(/function attachFlags\(\)/g) || []).length === 1
@@ -20059,14 +20135,22 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     /* ⚠ ROUND 6: the function now writes a THIRD thing — `data-no-attach` on the FIELD —
        so the stub dispatches on the selector and records the attribute. A stub that
        returned the button for every query hid the new write behind a thrown TypeError,
-       which is how this pin reported itself red rather than reporting the change. */
+       which is how this pin reported itself red rather than reporting the change.
+       ★ #705 re-based: the attribute is written on the BAR (`composerEl`) now that the ⊕
+       is a disc beside the pill — the stub records it there. The `gone` branch also calls
+       `closeAttachTrayIfOpen` (an open tray must close when the ⊕ goes); stubbed closed. */
     const driveSync = (body, available, waiting) => {
       const btn = { hidden: null, style: { visibility: null } };
-      const field = { attr: null, toggleAttribute(name, on) { this.attr = (name === 'data-no-attach') ? !!on : this.attr; } };
-      const composerEl = { querySelector: (sel) => (sel === '.c-composer__field' ? field : btn) };
-      new Function('composerEl', 'attachAvailable', 'attachWaiting',
-        body + '\nsyncAttachAffordance();')(composerEl, () => available, () => waiting);
-      return { hidden: btn.hidden, vis: btn.style.visibility, noAttach: field.attr };
+      const field = {};
+      const composerEl = {
+        attr: null,
+        toggleAttribute(name, on) { this.attr = (name === 'data-no-attach') ? !!on : this.attr; },
+        querySelector: (sel) => (sel === '.c-composer__field' ? field : btn),
+        nextElementSibling: null,
+      };
+      new Function('composerEl', 'attachAvailable', 'attachWaiting', 'closeAttachTrayIfOpen',
+        body + '\nsyncAttachAffordance();')(composerEl, () => available, () => waiting, () => false);
+      return { hidden: btn.hidden, vis: btn.style.visibility, noAttach: composerEl.attr };
     };
     let syncOut = {};
     let syncRan = false;
@@ -20113,20 +20197,27 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ok(syncSrc.length > 100
        && /const gone = !attachAvailable\(\) && !attachWaiting\(\);/.test(syncSrc)
        && /btn\.hidden = gone;/.test(syncSrc)
-       && /field\.toggleAttribute\('data-no-attach', gone\);/.test(syncSrc)
+       && /composerEl\.toggleAttribute\('data-no-attach', gone\);/.test(syncSrc)   // #705: on the bar
        && !/toggleAttribute\('data-no-attach', !attachAvailable\(\)\)/.test(syncSrc)
        && /const gone = !attachAvailable\(\) && !attachWaiting\(\);/.test(syncBuilt)
-       && /field\.toggleAttribute\('data-no-attach', gone\);/.test(syncBuilt),
+       && /composerEl\.toggleAttribute\('data-no-attach', gone\);/.test(syncBuilt),
       '★★★ ROUND 6: `gone` is computed ONCE and read by both writes, in the source AND in the shipped shell. A second computation of the same answer is how the padding and the pill drift apart');
     /* ★ AND THE RULE EXISTS WHERE IT IS RENDERED. A shell inlines its own CSS, so a rule
        that lives only in the component source is a rule the user never gets — the same
        one-sided gap that let a fixed source shell sit beside a stale artifact for a session. */
     const composerCss = rdf('src/styles/components/composer.css');
     const chBuiltCss = rdf('Spixi/Resources/Raw/html/chat.html');
-    ok(/\.c-composer__field\[data-no-attach\] \{ padding-inline-start: var\(--spacing-12\); \}/.test(composerCss)
-       && /\.c-composer__field\[data-no-attach\] \{ padding-inline-start: var\(--spacing-12\); \}/.test(chBuiltCss)
-       && /padding-inline-end: var\(--spacing-12\)/.test(composerCss),
-      '★★★ ROUND 6: the compensation RULE reached the SHIPPED shell, not just the component source — a shell inlines its own CSS, so a rule that never gets built is a rule the user never gets. And the value MATCHES `padding-inline-end`, so a composer with no pill is symmetric rather than merely wider on one side');
+    /* ★ #705 re-based (Session G). The old rule was
+         `.c-composer__field[data-no-attach] { padding-inline-start: var(--spacing-12); }`
+       — the field compensating for a pill that lived INSIDE it. The ⊕ is a 44 disc beside
+       the pill now, so the field is symmetric always (12/12) and the compensation moved to
+       the BAR: 8 beside the disc, 16 without it — the chrome edge a bar normally carries.
+       The A2 guarantee is unchanged: one attribute, written from `gone`. */
+    ok(/\.c-composer\[data-no-attach\] \{ padding-inline-start: var\(--spacing-16\); \}/.test(composerCss)
+       && /\.c-composer\[data-no-attach\] \{ padding-inline-start: var\(--spacing-16\); \}/.test(chBuiltCss)
+       && !/\.c-composer__field\[data-no-attach\]/.test(composerCss)
+       && /padding-inline: var\(--spacing-12\);/.test(composerCss),
+      '★★★ ROUND 6 → #705: the compensation RULE reached the SHIPPED shell, not just the component source — a shell inlines its own CSS, so a rule that never gets built is a rule the user never gets. It lives on the BAR now (8 beside the ⊕ disc, 16 without it), and the field is symmetric on its own, so a composer with no ⊕ is a bar with a normal chrome edge rather than one wider on one side');
 
     /* ★ AND THE WAIT STATE CANNOT GRANT A TILE. `attachWaiting` is read by the `hidden`
        leg ONLY. If `visibility` ever read it, an unknown room would draw a live ⊕. */
@@ -20145,15 +20236,21 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        and asks the same function that DREW them — so the sheet cannot act on a room that
        has changed under it. `attachTilesFor(attachFlags())` appeared ZERO times in this
        suite before round 4. */
+    /* ★ #705 re-based: the handler is a NAMED function now — `onAttachAction(id)` — because
+       two presentations share it (the mobile tray and the desktop sheet). One handler, so
+       the gate cannot exist for one and not the other. Both call sites are asserted. */
     const t = rdf('src/shells/chat.html');
-    const oaAt = t.indexOf('  function openAttach() {');
-    const onAction = oaAt > 0 ? t.slice(t.indexOf('onAction: (id) => {', oaAt), t.indexOf('    });', oaAt)) : '';
+    const oaAt = t.indexOf('  function onAttachAction(id) {');
+    const onAction = oaAt > 0 ? t.slice(oaAt, t.indexOf('\n  }\n', oaAt) + 4) : '';
     const gateLine = 'if (!attachTilesFor(attachFlags()).some((t) => t.id === id)) return;';
     ok(onAction.length > 100
        && onAction.indexOf(gateLine) >= 0
        && onAction.indexOf(gateLine) < onAction.indexOf("id === 'file'")
-       && /bridge\.send\('ixian:sendfile'\)/.test(onAction),
-      '★★★ ROUND 4 (surviving mutation Y6′): the sheet re-checks the room at ACTION time, for ALL SIX tiles, with the same predicate that drew them — and the gate is the FIRST statement of the handler, before any tile is matched. Round 3 re-checked two of six in two per-leg guards; deleting the one line now lets a sheet built for a 1:1 send ixian:sendfile into a blind group after setChatMode lands');
+       && /bridge\.send\('ixian:sendfile'\)/.test(onAction)
+       && (t.match(/onAction: onAttachAction,/g) || []).length === 1                                   // the sheet
+       && /onAction: \(id\) => \{ syncChatOverlay\(\); onAttachAction\(id\); \},/.test(t)                // the tray — re-syncs the C# mirror first
+       && (t.match(/function onAttachAction\(id\)/g) || []).length === 1,
+      '★★★ ROUND 4 (surviving mutation Y6′) → #705: the grid re-checks the room at ACTION time, for ALL SIX tiles, with the same predicate that drew them — and the gate is the FIRST statement of the handler, before any tile is matched. ONE handler serves the tray and the sheet (two call sites, one declaration). Round 3 re-checked two of six in two per-leg guards; deleting the one line now lets a grid built for a 1:1 send ixian:sendfile into a blind group after setChatMode lands');
     /* EXECUTED: drive the handler for every tile id, with the room changed under it. */
     const AS = { attachTilesFor: null };
     let acted = null;
@@ -20167,7 +20264,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
         const sent = [];
         const handler = new Function('attachTilesFor', 'attachFlags', 'bridge', 'openSendTakeover',
           'openRequestForPeer', 'openAppPicker',
-          'return (' + onAction.slice(onAction.indexOf('(id) =>')).replace(/,\s*$/, '') + ');')(
+          onAction + '\nreturn onAttachAction;')(
           tiles, () => flags,
           { send: (v) => sent.push(v), cap: () => true },
           () => sent.push('pay'), () => sent.push('request'), () => sent.push('app'));
@@ -21141,6 +21238,342 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       '★ #684 (Session F): a Giphy SHARE page url resolves to its direct media form — a page url is not a media url, which is why a pasted share link rendered as plain text. Tenor is deliberately NOT derived (its page id is not the media hash; that needs an API key, which does not belong in the client — #82)');
     ok(/media\.kind === 'gif' \? 'gif' : 'image'/.test(ch),
       '★ #684 (Session F): replyKindOf asks mediaUrlOf for the kind instead of regex-testing the OBJECT it returns — String({url,kind}) is "[object Object]", so every media reply-quote was labelled "image", GIFs included');
+  }
+}
+
+/* ═══ ★★ L3 (#706, Session G) — THE iOS BACK SIGNAL, IN EVERY SHELL ═══════════════
+ * docs/swipe-back-spec.md §1: iOS raises no back signal at all. chat.html carried a JS
+ * edge recogniser inline since iOS-56 r3; it is ONE component now (edge-back.js) and
+ * every shell that can go back attaches it with one line. The recogniser is EXECUTED
+ * against synthetic touches, and every shell's chain is read: a sheet on the shared stack
+ * closes before the page pops, home never pops its root, and the three surfaces that must
+ * NOT unwind on a gesture (lock, call, the empty detail) never attach. */
+console.log('L3 (#706): edge-back — the recogniser executed + every shell\'s chain');
+{
+  const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
+  const dom = await load('components.html');
+  const W = dom.window, D = W.document;
+  await sleep(300);
+  const attach = W.Spixi && W.Spixi.attachEdgeBack;
+  ok(typeof attach === 'function', '★ #706: attachEdgeBack is on the window.Spixi export object (a shell destructures it; an absent symbol is a ReferenceError at boot, #421 class)');
+  // synthetic touch stream — jsdom has no TouchEvent constructor with touches, so plain
+  // Events carry a `touches` array (the recogniser reads only e.touches[i].clientX/Y)
+  const touch = (type, x, y, n = 1) => {
+    const e = new W.Event(type, { bubbles: true });
+    Object.defineProperty(e, 'touches', { value: Array.from({ length: n }, () => ({ clientX: x, clientY: y })) });
+    D.body.dispatchEvent(e);
+  };
+  const run = (steps) => {
+    let fired = 0;
+    const detach = attach({ onBack: () => { fired++; } });
+    for (const [t, x, y, n] of steps) touch(t, x, y, n);
+    detach();
+    return fired;
+  };
+  ok(run([['touchstart', 10, 300], ['touchmove', 40, 302], ['touchmove', 90, 305], ['touchend', 90, 305]]) === 1,
+    '★★ #706 EXECUTED: an edge start (x ≤ 24) with > 70 px of rightward travel and little drift fires back ONCE — the shipped chat numbers');
+  ok(run([['touchstart', 60, 300], ['touchmove', 200, 300]]) === 0,
+    '★ #706 EXECUTED: a swipe that starts OFF the edge (x > 24) is not back — a horizontal drag in the middle of a page stays the page\'s');
+  ok(run([['touchstart', 10, 300], ['touchmove', 30, 380], ['touchmove', 60, 420]]) === 0,
+    '★ #706 EXECUTED: vertical intent (dy > 50 and dy > dx) bails — a scroll that happens to begin at the edge is a scroll');
+  ok(run([['touchstart', 10, 300], ['touchmove', 95, 345]]) === 0 && run([['touchstart', 10, 300], ['touchmove', 105, 345]]) === 1,
+    '★ #706 EXECUTED (#328 r2): the travel threshold SCALES with drift — at 45 px of drift 85 px of travel does not fire and 95 px (> 2·45) does; the dominant-axis gate is live, not dead code');
+  ok(run([['touchstart', 10, 300, 2], ['touchmove', 120, 300, 2]]) === 0,
+    '★ #706 EXECUTED: two fingers never fire — a pinch that starts at the edge is a pinch');
+  ok(run([['touchstart', 10, 300], ['touchmove', 40, 300], ['touchmove', 120, 300], ['touchmove', 200, 300]]) === 1,
+    '★ #706 EXECUTED: one gesture, one signal — the crossing fires on the move that crosses and the rest of the same drag is ignored');
+  {
+    let fired = 0;
+    D.documentElement.setAttribute('data-desktop', '');
+    const detach = attach({ onBack: () => { fired++; } });
+    touch('touchstart', 10, 300); touch('touchmove', 120, 300);
+    detach();
+    D.documentElement.removeAttribute('data-desktop');
+    ok(fired === 0, '★ #706: :root[data-desktop] never attaches — a mouse has no edge swipe and desktop panes keep their own back affordances');
+  }
+  const detachNoop = attach({});
+  ok(typeof detachNoop === 'function', '#706: attaching without a router is a no-op that still returns a detach function — a shell cannot throw on a missing option');
+
+  /* —— the shells: who attaches, and what the chain does —— */
+  const eb = rdF('src/components/edge-back.js');
+  ok(/const EDGE_PX = 24;/.test(eb) && /const TRAVEL_PX = 70;/.test(eb) && /const DRIFT_PX = 50;/.test(eb) && /const MAX_MS = 700;/.test(eb)
+     && /dx > Math\.max\(TRAVEL_PX, dy \* 2\)/.test(eb) && /sel && !sel\.isCollapsed/.test(eb),
+    '★ #706: the component carries the SHIPPED numbers (24 / 70 / 50 / 700), the #328 r2 dominant-axis gate and the selection-handle guard — the lift changed the home of the recogniser, not its behaviour');
+  const attaching = ['home', 'chat', 'settings', 'contact_details', 'app_details', 'downloads', 'launch',
+    'app_new', 'contact_new', 'contributors', 'dev', 'scan', 'settings_backup', 'settings_encryption', 'wallet_sent'];
+  const never = ['lock', 'call', 'empty_detail'];
+  const builtName = (sh) => (sh === 'home' ? 'index' : sh === 'launch' ? 'intro' : sh);
+  for (const sh of attaching) {
+    const src = rdF('src/shells/' + sh + '.html');
+    const built = rdF('Spixi/Resources/Raw/html/' + builtName(sh) + '.html');
+    ok((src.match(/attachEdgeBack\(\{ onBack: /g) || []).length === 1 && /attachEdgeBack\(\{ onBack: /.test(built)
+       && /^\s*attachEdgeBack,/m.test(src.slice(src.indexOf('const {'), src.indexOf('} = window.Spixi'))),
+      '★ #706 [' + sh + ']: attaches the edge-back ONCE, destructures it from the bundle, and the shipped artifact carries it');
+  }
+  for (const sh of never) {
+    const src = rdF('src/shells/' + sh + '.html');
+    ok(!/attachEdgeBack/.test(src),
+      '★★ #706 [' + sh + ']: NEVER attaches — the lock swallows unconditionally, the call ring swallows, the empty detail has nowhere to go (docs/swipe-back-spec.md §5, the four exceptions)');
+  }
+  // the simple shells: a sheet closes first, then the arrow's verb
+  for (const sh of ['app_new', 'contact_new', 'contributors', 'dev', 'scan', 'settings_backup', 'settings_encryption']) {
+    const src = stripCode(rdF('src/shells/' + sh + '.html'));
+    ok(/attachEdgeBack\(\{ onBack: \(\) => \{\s*if \(dismissTopOverlay\(\)\) return;\s*bridge\.send\('ixian:back'\);\s*\} \}\);/.test(src),
+      '★ #706 [' + sh + ']: the chain is sheet → ixian:back — the back LEVEL this shell never had (spec §3.2: it emitted ixian:back but never imported dismissTopOverlay)');
+  }
+  {
+    const ws = stripCode(rdF('src/shells/wallet_sent.html'));
+    ok(/if \(dismissTopOverlay\(\)\) return;\s*if \(sentHasBack\) bridge\.send\('ixian:dismiss'\);/.test(ws)
+       && /hideBackButton\(\) \{ sentHasBack = false; buildTopbar\(false\); \}/.test(ws),
+      '★ #706 [wallet_sent]: the swipe follows the ARROW — ixian:dismiss, and only while the page offers a back (hideBackButton turns both off together, one state)');
+    const hm = stripCode(rdF('src/shells/home.html'));
+    ok(/attachEdgeBack\(\{ onBack: \(\) => \{ closeTopHomeTakeover\(\); \} \}\);/.test(hm),
+      '★★ #706 [home]: the ROOT never pops — a swipe closes the top takeover (sheet → wallet cover → contacts) and does nothing else; there is no exit gesture on iOS and Android\'s edge is the system\'s');
+    const st = stripCode(rdF('src/shells/settings.html'));
+    ok(/attachEdgeBack\(\{ onBack: \(\) => handlers\.onBack\(\) \}\);/.test(st),
+      '★ #706 [settings]: the swipe runs the SAME router hardware back runs (sheet → sub-screen → hub → exit) — nothing decided twice');
+    const ch = stripCode(rdF('src/shells/chat.html'));
+    ok(!/function edgeSwipeBack\(\)/.test(ch) && !/tracking = t\.clientX <= 24;/.test(ch)
+       && /attachEdgeBack\(\{ onBack: \(\) => \{\s*if \(channelDropdown\) \{ closeChannelSelector\(\); return; \}/.test(ch)
+       && /if \(chatSendView\) \{ closeSendTakeover\(\); return; \}\s*bridge\.send\('ixian:back'\);\s*\} \}\);/.test(ch),
+      '★★ #706 [chat]: the inline recogniser is GONE (one implementation, not two) and the chain is chatBack\'s order with the money cover included: channel → stack → tray → selection → cover → ixian:back');
+    const cd = stripCode(rdF('src/shells/contact_details.html'));
+    ok(/if \(cdSendView\) \{ closeSendTakeover\(\); return; \}\s*bridge\.send\('ixian:back'\);/.test(cd),
+      '★ #706 [contact_details]: the money cover consumes the swipe before the page pops — the cdBack order (L1 #640)');
+    const la = stripCode(rdF('src/shells/launch.html'));
+    ok(/try \{ if \(dismissTopOverlay\(\)\) return; \} catch \(e\) \{\}\s*launchShellBack\(el\);/.test(la)
+       && !/bridge\.send\('ixian:back'\)/.test(la),
+      '★ #706 [launch]: the #614 order — a sheet first, then launchShellBack: the SAME exit the form\'s Back arrow takes (scrub → welcome → the F-2 view report), never a bare ixian:back (F-2 retired those: one source of truth for the view field)');
+    const lsJs = rdF('src/components/launch-shell.js');
+    const lsb = lsJs.slice(lsJs.indexOf('export function launchShellBack'), lsJs.indexOf('export function setLaunchVersion'));
+    ok(/if \(!st \|\| st\.view === 'welcome'\) return false;/.test(lsb) && /st\.scrubs\.forEach/.test(lsb) && /show\(st, 'welcome'\);/.test(lsb) && /st\.opts\.onBack\(from\)/.test(lsb),
+      '★ #706 [launch-shell]: launchShellBack SCRUBS every field it leaves (SECURITY §5), shows welcome through show() (so the switch is REPORTED, not silent), runs the registered hook, and is a no-op on welcome');
+  }
+  ok(/'src\/components\/edge-back\.js'/.test(rdF('scripts/build-demo-bundle.mjs')),
+    '#706: edge-back.js is in the bundle FILES list — a component that is not bundled is undefined in every shell');
+}
+
+/* ═══ ★★ P2 (#708, Session G) — THE THIRD-PARTY PUSH OPT-OUT ═══════════════════════
+ * privacy-workorder §P2: "Allow notifications" gated DISPLAY only; the SDK still
+ * registered. This is the real switch — the row EXECUTED on the bundle, the shell's latch
+ * wired to the verb, and the C# half read: the pref, the cap (only where a provider
+ * exists), the seed, the verb → store → apply → echo, and both platforms' apply paths. */
+console.log('P2 (#708): the push-provider opt-out — row, latch, verb, apply');
+{
+  const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
+  const dom = await load('components.html');
+  const W = dom.window;
+  await sleep(300);
+  const mk = (o) => W.Spixi.createNotificationsScreen({ capabilities: { globalNotifications: true, pushProvider: true }, onEnabled() {}, onPushProvider() {}, strings: W.SL || {}, ...o });
+  const withIos = mk({ platform: 'ios' });
+  const withAnd = mk({ platform: 'android' });
+  const noCap = W.Spixi.createNotificationsScreen({ capabilities: { globalNotifications: true }, onEnabled() {}, onPushProvider() {}, strings: W.SL || {} });
+  const noHandler = W.Spixi.createNotificationsScreen({ capabilities: { globalNotifications: true, pushProvider: true }, onEnabled() {}, strings: W.SL || {} });
+  ok(/OneSignal/.test(withIos.textContent) && /open Spixi/.test(withIos.textContent) && !/when Spixi checks/.test(withIos.textContent),
+    '★★ #708 EXECUTED: on iOS the row names the iOS cost — "you see new messages only when you open Spixi" — because the remote push IS the wake-up there');
+  ok(/OneSignal/.test(withAnd.textContent) && /when Spixi checks/.test(withAnd.textContent) && !/open Spixi/.test(withAnd.textContent),
+    '★★ #708 EXECUTED: on Android the row names the Android cost — "messages arrive when Spixi checks, not instantly" — the app polls and raises a LOCAL notification');
+  ok(!/OneSignal/.test(noCap.textContent) && !/OneSignal/.test(noHandler.textContent),
+    '★ #708: no cap or no handler → NO row. Windows/Mac carry a stub SPushService, so a switch there would change nothing — the cap is withheld and the row never renders (the W-g rule)');
+  {
+    let got = null;
+    const el = mk({ platform: 'android', pushProvider: true, onPushProvider: (next, ctrl) => { got = next; ctrl.done(); } });
+    const sw = [...el.querySelectorAll('.c-settings__switch[role="switch"]')].find((n) => /OneSignal/.test(n.getAttribute('aria-label') || ''));
+    if (sw) sw.click();
+    ok(sw && got === false, '★ #708 EXECUTED: tapping the ON switch asks for OFF (next=false) through onPushProvider — the shell latches it to ixian:notifPushProvider:off');
+  }
+  const st = stripCode(rdF('src/shells/settings.html'));
+  ok(/\(key === 'notifPushProvider'\) \? 'ixian:notifPushProvider:'/.test(st)
+     && /setNotifPushProvider\(s\) \{ applyNotifPush\('notifPushProvider', s\); \}/.test(st)
+     && /pushProvider: state\.notifPushProvider,/.test(st) && /platform: pushPlatform\(\),/.test(st)
+     && /pushProvider: bridge\.cap\('pushProvider'\)/.test(st)
+     && /notifPushProvider: true,/.test(st)
+     && /\[state\.notifEnabled, state\.notifSenderName, state\.notifSounds, state\.notifPushProvider\]\.join/.test(st),
+    '★ #708 [settings]: the row rides the SAME latch/echo grammar as the other three switches (verb → C# stores → echoes → the switch settles on the STORED value), is seeded from the echo, defaults to the C# default, gates on the pushed cap, and is in the rebuild signature');
+  ok(/function pushPlatform\(\)/.test(st) && /\/Android\/i\.test\(ua\)/.test(st) && /iPhone\|iPad\|iPod/.test(st),
+    '#708 [settings]: the platform for the sub-label is read from the UA stamp (the same signal as data-desktop), never from the screen size');
+  const cs = (p) => rdF(p).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const prefs = cs('Spixi/Meta/SNotificationPrefs.cs');
+  ok(/private const string KEY_PUSH_PROVIDER = "notif_push_provider";/.test(prefs)
+     && /public static bool pushProviderEnabled\s*\{\s*get \{ return getBool\(KEY_PUSH_PROVIDER, true\); \}\s*set \{ setBool\(KEY_PUSH_PROVIDER, value\); \}\s*\}/.test(prefs),
+    '★ #708 [prefs]: pushProviderEnabled lives in SNotificationPrefs (the ONE home), defaults TRUE (today\'s behaviour byte for byte), through the same fail-safe getBool/setBool');
+  const sp = cs('Spixi/Pages/Settings/SettingsPage.xaml.cs');
+  ok(/if \(SPushService\.pushProviderSupported\(\)\)\s*\{\s*caps \+= ",pushProvider";\s*\}/.test(sp)
+     && /if \(SPushService\.pushProviderSupported\(\)\)\s*\{\s*Utils\.sendUiCommand\(this, "setNotifPushProvider", SNotificationPrefs\.pushProviderEnabled\.ToString\(\)\);\s*\}/.test(sp)
+     && /current_url\.StartsWith\("ixian:notifPushProvider:", StringComparison\.Ordinal\)/.test(sp)
+     && /SNotificationPrefs\.pushProviderEnabled = status\.Equals\("on", StringComparison\.Ordinal\);\s*SPushService\.applyPushProviderPreference\(\);\s*Utils\.sendUiCommand\(this, "setNotifPushProvider", SNotificationPrefs\.pushProviderEnabled\.ToString\(\)\);/.test(sp),
+    '★★ #708 [SettingsPage]: the cap and the seed are gated on pushProviderSupported(), and the verb does store → APPLY → echo in that order — the switch settles on what was stored, and the SDK is told before the shell is');
+  const and = cs('Spixi/Platforms/Android/SPushService.cs');
+  ok(/OneSignal\.ConsentGiven = SPIXI\.Meta\.SNotificationPrefs\.pushProviderEnabled;/.test(and) && !/OneSignal\.ConsentGiven = true;\s*\n\s*\/\* ★ #494/.test(and)
+     && /public static bool pushProviderSupported\(\) \{ return true; \}/.test(and)
+     && /OneSignal\.User\.PushSubscription\.OptOut\(\);\s*OneSignal\.ConsentGiven = false;/.test(and)
+     && /OneSignal\.ConsentGiven = true;\s*if \(!isInitialized\)\s*\{\s*initialize\(\);\s*\}\s*else\s*\{\s*OneSignal\.User\.PushSubscription\.OptIn\(\);/.test(and),
+    '★★ #708 [Android]: consent FOLLOWS the preference at initialize() (registerEarly armed ConsentRequired, so withheld consent = the SDK transmits nothing), and the runtime apply does OptOut + consent withdrawn / consent given + OptIn (or a fresh initialize)');
+  const ios = cs('Spixi/Platforms/iOS/SPushService.cs');
+  ok(/if \(!SPIXI\.Meta\.SNotificationPrefs\.pushProviderEnabled\)\s*\{\s*Logging\.info\([^;]*\);\s*return;\s*\}\s*isInitializing = true;/.test(ios)
+     && /public static bool pushProviderSupported\(\) \{ return true; \}/.test(ios)
+     && /else if \(isInitialized\)\s*\{\s*OneSignal\.User\.PushSubscription\.OptOut\(\);/.test(ios),
+    '★★ #708 [iOS]: initialize() returns BEFORE isInitializing is latched when the provider is off (so a later ON can still initialise), and OFF at runtime opts a live SDK out');
+  for (const p of ['Spixi/Platforms/Windows/SPushService.cs', 'Spixi/Platforms/MacCatalyst/SPushService.cs']) {
+    const t = cs(p);
+    ok(/public static bool pushProviderSupported\(\) \{ return false; \}/.test(t) && /public static void applyPushProviderPreference\(\)/.test(t),
+      '★ #708 [' + p.split('/')[2] + ']: no provider → pushProviderSupported() false (no cap, no row) and a parity stub so the shared call site compiles');
+  }
+  for (const k of ['notifPushProvider', 'notifPushProviderSubAndroid', 'notifPushProviderSubIos']) {
+    ok(new RegExp('^  ' + k + ': "', 'm').test(rdF('src/strings/en-us.js')) && new RegExp('"' + k + '":').test(rdF('src/strings/de-de.json')),
+      '#708 [i18n]: ' + k + ' is extracted into en-us and drafted (de-de as the probe; verify-locales holds the other eleven)');
+  }
+}
+
+/* ═══ ★ #710 — ONE GLYPH, ONE MEANING: the external-link export lands ═══════════════ */
+console.log('#710: external-link / link glyphs + the Tabler credit');
+{
+  const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
+  const icons = rdF('src/components/icons.js');
+  ok(/"external-link":\{"v"/.test(icons) && /"link":\{"v"/.test(icons) && /"external-link":\{"v"/.test(rdF('Spixi/Resources/Raw/html/spixi.icons.js')),
+    '★ #710: external-link and link are in the registry AND in the shipped icons file (Damir\'s export → generate-icons)');
+  const sa = stripCode(rdF('src/components/settings-app.js'));
+  const ws = stripCode(rdF('src/components/wallet-shell.js'));
+  ok(!/icon\('arrow-up-right'/.test(sa) && /b\.append\(lab, icon\('external-link', \{ size: 18 \}\)\);/.test(sa)
+     && (ws.match(/icon\('external-link', \{ size: 18 \}\), iconPosition: 'trailing'/g) || []).length === 2 && !/icon\('arrow-up-right'/.test(ws),
+    '★★ #710: "opens outside the app" (About links, both Explorer buttons) is external-link; arrow-up-right is money only (#709 — the #602 class)');
+  ok(/method\('link', strings\.pasteLink/.test(stripCode(rdF('src/components/apps-add.js'))) && /glyph: 'world', hue: 'info',\s*\/\/ #146/.test(rdF('src/components/settings-shell.js')) === false || /glyph: 'world'/.test(rdF('src/components/settings-shell.js')),
+    '#710: Paste link is the link glyph; world stays the Language row\'s');
+  ok(/key: 'creditIcons',\s*fallback: 'Interface icons',\s*source: 'Tabler Icons — tabler\.io\/icons, © Paweł Kuna',\s*licence: 'MIT',/.test(sa)
+     && /case 'creditIcons': return strings\.creditIcons \|\| 'Interface icons';/.test(sa)
+     && /^  creditIcons: "Interface icons",/m.test(rdF('src/strings/en-us.js')),
+    '★ #710: the Tabler credit is in ASSET_CREDITS with its creditLabel case (a credit without its case ships English-only) and its extracted string');
+  const notices = rdF('docs/legal/third-party-notices.md');
+  ok(/Copyright \(c\) 2020-2025 Paweł Kuna/.test(notices) && /SIL Open Font License, Version 1\.1/.test(notices) && /html5-qrcode/.test(notices) && /chat-bg-doodles\.svg/.test(notices) && /OPEN — Damir to state the source/.test(notices),
+    '★ #710: third-party-notices.md carries the MIT text (Tabler), the OFL notice (Sora, Source Sans 3), the Apache notice (html5-qrcode) and records the chat pattern\'s origin as OPEN');
+}
+
+/* ═══ ★ #711 / #712 — the floating composer · the Notifications screen ═══════════════ */
+console.log('#711 / #712: floating composer + the notifications sub-labels');
+{
+  const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
+  const ch = rdF('src/shells/chat.html'), chB = rdF('Spixi/Resources/Raw/html/chat.html');
+  for (const [label, t] of [['source', ch], ['built', chB]]) {
+    ok(/<div class="messages u-scroll" id="messages"[^\n]*\n[\s\S]{0,700}?<div id="chat-composer"><\/div>\s*\n\s*<\/div>/.test(t) && !/<\/div>\s*\n\s*<div id="chat-composer"><\/div>\s*\n\s*<script/.test(t),
+      '★★ #711 [' + label + ']: #chat-composer lives INSIDE .c-chat-canvas (after #messages) — the composer floats over the pattern, still in the flex flow (keyboard margin, tray, request pane unchanged)');
+    ok(/new ResizeObserver\(publish\)\.observe\(slot\);/.test(t) && /setProperty\('--composer-h', slot\.offsetHeight \+ 'px'\)/.test(t)
+       && /inset-block-end: calc\(var\(--composer-h, 0px\) \+ var\(--spacing-16\)\);\s*\/\* primary bottom slot/.test(t)
+       && /inset-block-end: calc\(var\(--composer-h, 0px\) \+ var\(--spacing-16\) \+ var\(--size-target-min\) \+ var\(--spacing-8\)\);/.test(t),
+      '★ #711 [' + label + ']: the composer publishes its height (--composer-h, ResizeObserver) and the @ FAB\'s two slots read it — the FABs float ABOVE the composer, never under it');
+  }
+  const cc = rdF('src/styles/components/composer.css');
+  const bar = cc.slice(cc.indexOf('.c-composer {'), cc.indexOf('}', cc.indexOf('.c-composer {')));
+  ok(/background: transparent;/.test(bar) && /border-top: 0;/.test(bar) && /gap: var\(--spacing-4\);/.test(bar) && !/border-top: var\(--outline-width-1\)/.test(bar),
+    '★ #711: the bar has NO ground and no hairline (it floats), and the ⊕→pill gap is spacing-4');
+  const field = cc.slice(cc.indexOf('.c-composer__field {'), cc.indexOf('}', cc.indexOf('.c-composer__field {')));
+  ok(/border: var\(--outline-width-1\) solid var\(--outline-neutral-01\);/.test(field) && /box-shadow: var\(--elevation-1\);/.test(field),
+    '★ #711: the floating pill carries a hairline and elevation-1 — a findable edge on the pattern');
+  ok(/inset-block-end: calc\(var\(--composer-h, 0px\) \+ var\(--spacing-16\)\);/.test(rdF('src/styles/components/scroll-latest.css')),
+    '★ #711: the scroll-to-latest chevron offsets itself by --composer-h (0 where nothing writes it — the desktop demo keeps its old slot)');
+  const ss = rdF('src/styles/components/settings-shell.css');
+  const sub = ss.slice(ss.indexOf('.c-settings__row-sub,'), ss.indexOf('}', ss.indexOf('.c-settings__row-sub,')));
+  ok(/white-space: normal;/.test(sub) && /overflow-wrap: anywhere;/.test(sub) && !/text-overflow: ellipsis/.test(sub),
+    '★ #712: settings sub-labels WRAP instead of ellipsising — "Message text is never shown in notific…" was cut where the meaning was (Damir on device)');
+  const dom = await load('components.html');
+  const W = dom.window; await sleep(300);
+  const mk = (o) => W.Spixi.createNotificationsScreen({ capabilities: { globalNotifications: true, pushProvider: true }, onEnabled() {}, onPushProvider() {}, strings: W.SL || {}, ...o });
+  const on = mk({ platform: 'android', pushProvider: true }).querySelector('.c-settings-notifs__push-note');
+  const offA = mk({ platform: 'android', pushProvider: false }).querySelector('.c-settings-notifs__push-note');
+  const offI = mk({ platform: 'ios', pushProvider: false }).querySelector('.c-settings-notifs__push-note');
+  ok(on && /push token/.test(on.textContent) && /never sees your messages/.test(on.textContent) && on.getAttribute('aria-live') === 'polite',
+    '★★ #712 EXECUTED: ON → the note says what OneSignal receives (a push token, the IP) and what it never sees (messages, contacts), in a polite live region');
+  ok(offA && /unsubscribed there/.test(offA.textContent) && /checks for new messages itself/.test(offA.textContent) && /not deleted/.test(offA.textContent)
+     && offI && /when you open Spixi/.test(offI.textContent) && /not deleted/.test(offI.textContent) && !/checks for new messages itself/.test(offI.textContent),
+    '★★ #712 EXECUTED: OFF → the note says the device is unsubscribed, what delivery becomes on THIS platform, and — honestly — that OneSignal\'s existing record is NOT deleted by the switch');
+  ok(!mk({ platform: 'android', pushProvider: true, onPushProvider: undefined }).querySelector('.c-settings-notifs__push-note'),
+    '#712: no row → no note');
+}
+
+/* ═══ ★★ #713–#721 — Damir's Session G walk, the fix batch ═══════════════════════ */
+console.log('#713–#721: the walk fixes');
+{
+  const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
+  const nc = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  /* ★★ #714 — L4 ROOT CAUSE: a top-level lexical binding in a classic shell script SHADOWS
+     the exposed handler of the same name, and C# calls handlers by BARE IDENTIFIER. Swept
+     for EVERY shell: no top-level const/let/function may share a name with a handler key. */
+  for (const f of readdirSync(join(root, 'src/shells')).filter((n) => n.endsWith('.html'))) {
+    const s = rdF('src/shells/' + f);
+    const m = /const \{([\s\S]*?)\} = window\.Spixi/.exec(s);
+    const names = new Set();
+    if (m) for (const tok of nc(m[1]).split(',')) { const t = tok.trim(); if (t) names.add(t.includes(':') ? t.split(':')[1].trim() : t); }
+    for (const mm of s.matchAll(/^  (?:const|let|function) ([A-Za-z_]\w*)/gm)) names.add(mm[1]);
+    const keys = new Set();
+    const hm = /const handlers = \{([\s\S]*?)\n  \};/.exec(s);
+    if (hm) for (const k of hm[1].matchAll(/^\s{4}([A-Za-z_]\w*)\s*(?:\(|:)/gm)) keys.add(k[1]);
+    for (const k of s.matchAll(/handlers\.([A-Za-z_]\w*)\s*=/g)) keys.add(k[1]);
+    for (const k of s.matchAll(/bridge\.expose\('([A-Za-z_]\w*)'/g)) keys.add(k[1]);
+    for (const k of s.matchAll(/window\.([A-Za-z_]\w*)\s*=\s*function/g)) keys.add(k[1]);
+    const clash = [...names].filter((n) => keys.has(n));
+    ok(clash.length === 0, '★★ #714 [' + f + ']: no top-level lexical binding shadows an exposed handler — C# calls `executeUiCommand(<name>, …)` by bare identifier, and a shadowed one calls the WRONG function silently (L4: setLaunchView(el, view) received (\'welcome\')). Clash: ' + JSON.stringify(clash));
+  }
+  ok(/setLaunchView: setLaunchViewOf,/.test(rdF('src/shells/launch.html')) && /setLaunchView: \(v\) => setLaunchViewOf\(el, String\(v \|\| ''\)\),/.test(rdF('src/shells/launch.html')),
+    '★ #714 [launch]: the component import is ALIASED (setLaunchViewOf); window.setLaunchView is the handler and nothing else');
+  /* #713 — the wrong legacy translation never wins */
+  const bl = rdF('scripts/build-locales.mjs');
+  ok(/const NO_REUSE = new Set\(\[\s*'appDetails',/.test(bl) && /const id = NO_REUSE\.has\(k\) \? null : keyToId\[k\];/.test(bl)
+     && /"appDetails": "App-Details"/.test(rdF('src/strings/de-de.json')) && !/"appDetails": "Spixi App"/.test(rdF('src/strings/de-de.json')),
+    '★ #713: `appDetails` skips legacy reuse (de "Spixi App" was a mistranslation carried by the English match) and the draft ships: "App-Details"');
+  /* #715 — hardware back reaches an overlay\'s own shell */
+  const scp = nc(rdF('Spixi/Utils/SpixiContentPage.cs'));
+  const hp = nc(rdF('Spixi/Pages/Home/HomePage.xaml.cs'));
+  ok(/public virtual bool routeShellBack\(\) \{ return false; \}/.test(scp)
+     && /is SpixiContentPage topShell && topShell\.routeShellBack\(\)\)\s*\{\s*return true;\s*\}/.test(hp)
+     && hp.indexOf('topShell.routeShellBack()') < hp.indexOf('SpixiContentPage.closeTopOverlay(true)')
+     && /public override bool routeShellBack\(\)[\s\S]{0,300}?Utils\.sendUiCommand\(this, "downloadsBack"\);/.test(nc(rdF('Spixi/Pages/Downloads/DownloadsPage.xaml.cs')))
+     && /public override bool routeShellBack\(\)[\s\S]{0,300}?Utils\.sendUiCommand\(this, "appDetailsBack"\);/.test(nc(rdF('Spixi/Pages/MiniApps/AppDetailsPage.xaml.cs'))),
+    '★★ #715: HomePage asks the top overlay to route its own shell back BEFORE closeTopOverlay — Downloads and App details answer through ONE virtual, so a confirm dialog closes instead of the page (Session F\'s routes lived in OnBackButtonPressed, which an overlay never receives on mobile)');
+  /* #716 — the GIF keyboard finds the chat OVERLAY */
+  const wv = nc(rdF('Spixi/Platforms/Android/WebViewRenderer.cs'));
+  ok(/Page p = SpixiContentPage\.getTopOverlay\(\) as SingleChatPage\s*\?\? App\.Current\.MainPage\.Navigation\.NavigationStack\.Last\(\);/.test(wv)
+     && /LinkUri is null \(mime: \{0\}, content: \{1\}\)/.test(wv),
+    '★★ #716: OnCommitContent resolves the chat from the OVERLAY stack first — on mobile the conversation is a HomePage overlay, so the navigation stack\'s last page is HomePage and the #684 branch never ran (Samsung\'s "Can\'t add images" toast). The null-LinkUri log names the mime + whether a content URI came');
+  /* #718 — Account never slides */
+  ok(/bool peerTab = tag == "settings";/.test(scp) && /op\.slideIn = overlayMode && \(slideIn \|\| \(mobilePlatform && column < 0 && !peerTab\)\);/.test(scp),
+    '★ #718: Account (tag "settings") is a PEER tab and is excluded from the mobile slide rule; its subscreens still slide');
+  /* #719 — the diagnostic */
+  ok(/\[EXCERPTDIAG\] empty excerpt: type=\{0\} local=\{1\} state=\{2\} approved=\{3\} unread=\{4\} msgLen=\{5\} id=\{6\}/.test(hp) && !/lastmsg\.message\)/.test(hp.slice(hp.indexOf('[EXCERPTDIAG]'), hp.indexOf('[EXCERPTDIAG]') + 400)),
+    '★ #719: an EMPTY excerpt logs type/flags/lengths — never the message text — so the blank-row-with-a-badge seen on both sides of a request is explained by one logcat line');
+  /* #720 — the connected line, EXECUTED */
+  {
+    const home = rdF('src/shells/home.html');
+    const fn = home.slice(home.indexOf('  function canonExcerptText(s, name) {'), home.indexOf('\n  }\n', home.indexOf('  function canonExcerptText(s, name) {')) + 4);
+    const dom = await load('components.html'); const W = dom.window; await sleep(200);
+    const canon = new Function('isAddressShaped', 'truncateAddressMiddle', 'domainOf', fn + '\nreturn canonExcerptText;')(W.Spixi.isAddressShaped, W.Spixi.truncateAddressMiddle, (t) => t);
+    const addr = '4spoznALF8ikPLqCy4EeN7a5Bkb7TskdLmQ2xR9vU6uArf';
+    const a = canon('You are now connected with ' + addr + '.', addr);
+    const b = canon('You are now connected with ' + addr + '.', 'Androoo');
+    ok(!a.includes(addr) && /^You are now connected with [^ ]{5,}…[^ ]{4,}\.$/.test(a),
+      '★★ #720 EXECUTED: the address INSIDE a sentence, followed by the full stop, is middle-truncated (the dot is peeled and put back) — the row stops shipping the 48-char address. Got: ' + a);
+    ok(b === 'You are now connected with Androoo.',
+      '★★ #720 EXECUTED: when the row already has a real nickname it REPLACES the address in the connected line — the text was written before the nick arrived, the list knows the name now. Got: ' + b);
+    ok(canon('plain text with no address', 'Androoo') === 'plain text with no address',
+      '#720: text without an address is untouched (fast path)');
+    ok(/excerpt: excerptFor\(wallet, excerpt_msg, type, from\),/.test(home) && /return \{ type: 'connected', text: canonExcerptText\(decoded, name\) \};/.test(home),
+      '#720: the pushed name reaches the canon through excerptFor → excerptFromRaw, and ONLY the connected branch substitutes it');
+  }
+  /* #717 — the @ picker never offers me */
+  {
+    const ch = nc(rdF('src/shells/chat.html'));
+    ok(/const isMe = \(m\) => \(selfAddress && m\.address && m\.address === selfAddress\) \|\| \(!m\.address && selfNick && m\.name === selfNick\);/.test(ch)
+       && /if \(address\) selfAddress = String\(address\);/.test(ch) && /return out\(\);/.test(ch),
+      '★ #717: mentionMembers drops ME — by address from addMe, by nick as the belt for a roster row without one');
+  }
+  /* #721 — the keyboard ↔ tray swap */
+  {
+    const ch = nc(rdF('src/shells/chat.html'));
+    const as = nc(rdF('src/components/attach-sheet.js'));
+    ok(/function handTrayToKeyboard\(\)/.test(ch) && /window\.addEventListener\('resize', drop\);/.test(ch) && /setTimeout\(drop, 450\);/.test(ch)
+       && /closeAttachTray\(tray, \{ instant: true \}\);/.test(ch) && /input\.addEventListener\('focus', \(\) => \{ handTrayToKeyboard\(\); \}\);/.test(ch)
+       && /instant: !!input && document\.activeElement === input,/.test(ch)
+       && /if \(instant\) \{ tray\.remove\(\); trayState\.delete\(tray\); return true; \}/.test(as) && /tray\.dataset\.instant = '';/.test(as)
+       && /\.c-attach-tray\[data-instant\] \{ transition: none; \}/.test(rdF('src/styles/components/attach-sheet.css')),
+      '★ #721: a tap in the field HOLDS the tray until the viewport shrinks (the keyboard has the slot) and then drops it in one frame; opening while the keyboard is up takes the slot instantly — no dip-and-rise between the two');
   }
 }
 

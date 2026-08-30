@@ -294,9 +294,13 @@
   color: var(--text-neutral-02);
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* ★ #712 (Damir on device, 2026-08-30): the sub-label WRAPS. It was a single
+     ellipsised line, and on a phone "Message text is never shown in notific…" and
+     "Off: messages arrive when Spixi check…" cut the sentence exactly where the
+     meaning was. A sub-label is an explanation; an explanation that ends in "…" is
+     not one. Two or three lines cost nothing in a stacked row. */
+  white-space: normal;
+  overflow-wrap: anywhere;
   max-width: 100%;
   min-width: 0;
 }
@@ -618,3 +622,9 @@
 /* #453: the address explainer is a text action UNDER the address chip, not a third icon
    inside it. Centred with the QR and the chip above it. */
 .c-settings__addrinfo { align-self: center; }
+
+/* ★ #712: the push-provider note reads as a paragraph under its row, not as a row */
+.c-settings-notifs__push-note {
+  margin-block-start: calc(-1 * var(--spacing-4));
+  padding-inline: var(--spacing-16);
+}

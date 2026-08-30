@@ -1,8 +1,11 @@
 /**
  * c-composer — chat input bar (Figma `input` 11306:7242 + `send` 11306:7223;
- * DECISIONS #64). ⊕ attach inside the field, auto-grow textarea, trailing
- * 44px circle: voice flag OFF (v1) → send always visible, disabled-styled when
- * empty; voice ON → mic when empty ⇄ send when text (design's morph).
+ * DECISIONS #64). ⊕ attach OUTSIDE the field on the leading side (#705 —
+ * Damir, Session G; it lived inside the pill until then), auto-grow textarea,
+ * trailing 44px circle: voice flag OFF (v1) → send always visible, and it KEEPS
+ * the action colour when empty (#705: "livelier than the disabled grey" — the
+ * disabled state is still real, only its paint changed); voice ON → mic when
+ * empty ⇄ send when text (design's morph).
  * Bridge: ixian:chat / ixian:typing / clearInput (§4); sendfile/sendmedia via attach.
  *
  * createComposer({ placeholder, voice = false, onSend(text), onAttach,
@@ -45,13 +48,17 @@ export function createComposer({
   const field = document.createElement('div');
   field.className = 'c-composer__field';
 
+  /* ★ #705 (Session G): the ⊕ sits BESIDE the pill, not in it — WhatsApp/iMessage
+     grammar, and the same 44px disc as the send action so the bar reads as
+     [⊕] [field] [send]. `aria-expanded` is the tray's open state (attach-sheet.js
+     writes it); the glyph rotates to a ✕ through that attribute in composer.css. */
   const attach = document.createElement('button');
   attach.type = 'button';
   attach.className = 'c-composer__attach';
   attach.setAttribute('aria-label', strings.attach || 'Attach');
   attach.append(icon('circle-plus', { size: 24 }));
   if (onAttach) attach.addEventListener('click', onAttach);
-  field.append(attach);
+  el.append(attach);
 
   const input = document.createElement('textarea');
   input.className = 'c-composer__input';

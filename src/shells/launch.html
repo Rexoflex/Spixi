@@ -177,8 +177,19 @@
    * component gates the create:<nick>:<password> parse hazards inline (§1).
    * ————————————————————————————————————————————————————————————————————————— */
   const {
-    createLaunchShell, setLaunchVersion, setLaunchAvatar, setLaunchFile, setLaunchView,
+    createLaunchShell, setLaunchVersion, setLaunchAvatar, setLaunchFile, launchShellBack,
+    /* ★★ L4 ROOT CAUSE (#714, Damir's logcat 2026-08-30: "view=create" on press one, the
+       view did not move, "view=welcome" on press two, app exits). C# pushes
+       `executeUiCommand(setLaunchView, …)` with setLaunchView as a BARE IDENTIFIER, and this
+       classic script declared a top-level `const setLaunchView` — the COMPONENT function
+       (el, view) — which SHADOWS window.setLaunchView (the exposed handler) in the global
+       lexical scope. So every hardware-back push called the component with ('welcome') as
+       `el`, launchState.get('welcome') was undefined, and nothing happened while C# believed
+       the view had moved. The topbar arrow never took this path, which is why only OS back
+       failed. The import is ALIASED; the exposed name is now the only `setLaunchView`. */
+    setLaunchView: setLaunchViewOf,
     createNativeBridge, installExecuteUiCommand,
+    attachEdgeBack,   // ★ L3 (#706): the iOS back signal + the one-level chain
     applyPushedTheme,
     dismissTopOverlay,          // ★ #614: back closes an open sheet before it changes view
     } = window.Spixi;
@@ -316,7 +327,7 @@
     showOnboardingSection: () => {},                 // legacy no-op: welcome always shows CTAs
     // ★ N75: C# view router (hardware back, and the retry lockout falling back to
     // welcome). setLaunchView ignores an unknown or unchanged view.
-    setLaunchView: (v) => setLaunchView(el, String(v || '')),
+    setLaunchView: (v) => setLaunchViewOf(el, String(v || '')),
     // loadAvatar(path) — native picker result (create view).
     loadAvatar: (path) => setLaunchAvatar(el, path || null),
     // C# sends the full tmp filepath — display the basename (legacy parity,
@@ -379,6 +390,15 @@
     syncLaunchOverlay();
   };
 
+  /* ★ L3 (#706): the iOS back signal — the #614 order: a sheet on the stack closes
+     first, then a form view (create/restore/retry) goes back to welcome by the SAME exit
+     its Back arrow takes (launchShellBack: scrub → show → the F-2 view report, so C#
+     stays in step through ixian:view, never a bare ixian:back). On welcome the swipe
+     does nothing — there is nothing behind this page worth showing (#585). */
+  attachEdgeBack({ onBack: () => {
+    try { if (dismissTopOverlay()) return; } catch (e) {}
+    launchShellBack(el);
+  } });
   bridge.exposeAll(handlers);
 
   /* ★★ #615 (verdict §2 — SEVERITY 1): THE KEYBOARD ON THE FIRST SCREEN A USER SEES.

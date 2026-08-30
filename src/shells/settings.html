@@ -192,6 +192,7 @@
     openAddressSheet, closeAddressSheet,   // ★ Batch E (d) (#557): the ONE address surface — createSheet/openSheet left with the hand-built #443 explainer; close rides exitSettings (C-8, this document PARKS)
     createBottomNav, setNavActive, setNavBadge, showToast,
     createNativeBridge, installExecuteUiCommand,
+    attachEdgeBack,   // ★ L3 (#706): the iOS back signal + the one-level chain
     applyPushedTheme,
     readPatternLevel,
     LANGUAGES,                       // ★ L15: the ONE language list, shared with the launch picker
@@ -369,6 +370,7 @@
     notifEnabled: true,
     notifSenderName: false,
     notifSounds: true,
+    notifPushProvider: true,   // ★ P2 (#708): matches the C# default (KEY_PUSH_PROVIDER = true)
     /* PA1 (#525): "Confirm payments" — display state only. The C# verb persists
        IMMEDIATELY (Preferences, like theme/language) and echoes setPaymentAuth,
        so this never rides the dirty/save path (no #288 clobber class). */
@@ -1176,8 +1178,17 @@
    * and re-entered the sublevel.
    * Same shape as #274's langBuilt: a state-keyed signature, rebuilt only on a real change,
    * so a rebuild cannot churn the screen under a user's finger. */
-  const notifSig = () => [state.notifEnabled, state.notifSenderName, state.notifSounds].join('|');
+  const notifSig = () => [state.notifEnabled, state.notifSenderName, state.notifSounds, state.notifPushProvider].join('|');
 
+  /* ★ P2 (#708): which platform's COST the push-provider row describes. The UA stamp is the
+     same signal the desktop flag reads (settings.html:11); a WKWebView reports iPhone/iPad,
+     an Android WebView reports Android. Anything else has no push provider and no row. */
+  function pushPlatform() {
+    const ua = (typeof navigator === 'object' && navigator.userAgent) || '';
+    if (/Android/i.test(ua)) return 'android';
+    if (/iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'ios';
+    return '';
+  }
   const NOTIF_ACK_MS = 4000;
   const notifPending = Object.create(null);
 
@@ -1209,6 +1220,7 @@
     notifPending[key] = { ctrl, timer, want: !!next };
     const verb = (key === 'notifEnabled') ? 'ixian:notifEnabled:'
       : (key === 'notifSenderName') ? 'ixian:notifSenderName:'
+      : (key === 'notifPushProvider') ? 'ixian:notifPushProvider:'   // ★ P2 (#708)
       : 'ixian:notifSounds:';
     bridge.send(verb + (next ? 'on' : 'off'));
   }
@@ -1288,12 +1300,15 @@
         enabled: state.notifEnabled,
         previews: state.notifSenderName,
         sounds: state.notifSounds,
-        capabilities: { globalNotifications: bridge.cap('globalNotifications') },
+        pushProvider: state.notifPushProvider,                    // ★ P2 (#708)
+        platform: pushPlatform(),                                 // ★ P2: the sub-label names the platform's cost
+        capabilities: { globalNotifications: bridge.cap('globalNotifications'), pushProvider: bridge.cap('pushProvider') },
         strings,
         onBack: showHub,
         onEnabled: (next, ctrl) => { latchNotif('notifEnabled', next, ctrl); },
         onPreviews: (next, ctrl) => { latchNotif('notifSenderName', next, ctrl); },
         onSounds: (next, ctrl) => { latchNotif('notifSounds', next, ctrl); },
+        onPushProvider: (next, ctrl) => { latchNotif('notifPushProvider', next, ctrl); },   // ★ P2 (#708)
       });
       case 'contributors': return createSettingsContributors({
         strings,
@@ -1665,6 +1680,7 @@
     setNotifEnabled(s) { applyNotifPush('notifEnabled', s); },
     setNotifSenderName(s) { applyNotifPush('notifSenderName', s); },
     setNotifSounds(s) { applyNotifPush('notifSounds', s); },
+    setNotifPushProvider(s) { applyNotifPush('notifPushProvider', s); },   // ★ P2 (#708): the echo half of ixian:notifPushProvider
 
     // showRemoveAvatar('1'|'0') — onLoad:63 (only when a custom avatar exists) + onRemoveAvatar:411
     showRemoveAvatar(show) { state.hasCustomAvatar = (show === '1' || show === 'true' || show === true); scheduleRebuild(); },
@@ -1889,6 +1905,9 @@
     },
   };
 
+  /* ★ L3 (#706): the iOS back signal runs the SAME router hardware back runs — sheet →
+     sub-screen → hub → exit. Nothing is decided twice. */
+  attachEdgeBack({ onBack: () => handlers.onBack() });
   bridge.exposeAll(handlers);
 
   /* —— peer-tab bottom nav (Damir): Account reads as a home tab. Non-Account taps

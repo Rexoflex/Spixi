@@ -393,6 +393,7 @@
     createWarningBanner, setWarning,     // M16: actionable warnings only (connectivity = title-state)
     startTimestampTicker, refreshTimestamps,
     createNativeBridge, installExecuteUiCommand,
+    attachEdgeBack,   // ★ L3 (#706): the iOS back signal + the one-level chain
     dismissTopOverlay,                   // AND-29 v2 (#336): hardware back closes a sheet/menu first
     mountContacts,                       // Track D: contacts picker/directory takeover
     // wallet (tab2)
@@ -1469,7 +1470,7 @@
     if (Array.isArray(arr)) for (const a of arr) if (typeof a === 'string') pinnedChats.add(a);
   } catch (e) {}
   function savePins() { try { localStorage.setItem(PINS_KEY, JSON.stringify([...pinnedChats])); } catch (e) {} }
-  /* CH2 (Damir): after Accept, hold the "Establishing a quantum-secure handshake…"
+  /* CH2 (Damir): after Accept, hold the "Setting up a secure connection…"
    * row for a MINIMUM ~3s so it reads as real (the C# contacts re-flush would
    * otherwise replace it sub-second). While an address is held: clearChats keeps its
    * row and addChat forces it back to handshaking; a 3s timer then settles it. */
@@ -2027,12 +2028,23 @@
   function domainOf(t) {
     try { const h = new URL(t).hostname.replace(/^www\./, ''); return h || t; } catch (_) { return t; }
   }
-  function canonExcerptText(s) {
+  /* ★ #720 (Damir's screenshots, 2026-08-30): "You are now connected with 4spoznALF…TskdL…"
+     shipped the FULL address, end-truncated by the row — B4 said addresses are never shown
+     in full. The token was `4spozn…U6uArf.` WITH the sentence's full stop, so isAddressShaped
+     failed on the dot and the canon never ran. The dot (and any trailing punctuation) is
+     peeled, tested, and put back. `name` — the row's own display name — replaces the
+     address outright when it is a real nickname: the text was written with the address
+     because the nick had not arrived yet (Ixian-Core writes the line at acceptAdd2, before
+     `nick`), and the list is the one place that knows the name now. */
+  function canonExcerptText(s, name) {
     if (!s || (!/https?:\/\//i.test(s) && !/[1-9A-HJ-NP-Za-km-z]{40}/.test(s))) return s; // fast path — #589: same floor as the token test below
+    const nick = name && !isAddressShaped(name) ? String(name) : '';
     let changed = false;
     const out = s.split(/(\s+)/).map((tok) => {
       if (!tok || /^\s+$/.test(tok)) return tok;
-      if (isAddressShaped(tok)) { changed = true; return truncateAddressMiddle(tok); }
+      const m = /^(.*?)([.,;:!?)\]]*)$/.exec(tok);
+      const core = m ? m[1] : tok, tail = m ? m[2] : '';
+      if (isAddressShaped(core)) { changed = true; return (nick || truncateAddressMiddle(core)) + tail; }
       if (/^https?:\/\/\S+$/i.test(tok)) { changed = true; return domainOf(tok); }
       return tok;
     });
@@ -2060,7 +2072,7 @@
     return false;
   }
 
-  function excerptFromRaw(raw, statusType) {
+  function excerptFromRaw(raw, statusType, name) {
     const decoded = decodeEntities(raw);
     if (statusType === 'typing') return { type: 'typing', text: decoded };
     const trimmed = (decoded || '').trim();
@@ -2095,7 +2107,7 @@
        in an excerpt. Returning `trimmed` here shipped the whole 48-char wallet address into
        the row (Damir, desktop, 2026-08-30) where the chat's own chip had been rendering the
        9…6 canon all along. Same sentence, two surfaces, two different answers. */
-    if (trimmed && connectedEventText(trimmed)) return { type: 'connected', text: canonExcerptText(decoded) };
+    if (trimmed && connectedEventText(trimmed)) return { type: 'connected', text: canonExcerptText(decoded, name) };   // #720: the row's nickname fills the {0}
     return { type: 'text', text: canonExcerptText(decoded) };                       // B4 (#231)
   }
 
@@ -2111,10 +2123,10 @@
     try { return (localStorage.getItem(DRAFT_PREFIX + addr) || '').trim(); } catch (_) { return ''; }
   }
   /** Excerpt for a chat row: a pending draft wins, else the canon reverse-map. */
-  function excerptFor(address, raw, statusType) {
+  function excerptFor(address, raw, statusType, name) {
     const draft = getDraft(address);
     if (draft) return { type: 'draft', text: draft };
-    return excerptFromRaw(raw, statusType);
+    return excerptFromRaw(raw, statusType, name);
   }
 
   /* —— Q12: deleted-tail excerpt hints (shared contract with chat.html). Deleting
@@ -2234,7 +2246,7 @@
       if (!c) continue;              // C# has not pushed the approved row yet; the marker is gone, and
                                      // the row will arrive already-connected — no worse than before
       c.handshaking = true;
-      c.excerpt = { type: 'typing', text: (strings && strings.handshakeEstablishing) || 'Establishing a quantum-secure handshake…' };
+      c.excerpt = { type: 'typing', text: (strings && strings.handshakeEstablishing) || 'Setting up a secure connection…' };
       handshakeHold.add(addr);
       setTimeout(() => {
         handshakeHold.delete(addr);
@@ -3492,7 +3504,7 @@
         // a re-flush after read must CLEAR a stale mention.
         mention: mention === 'True' || mention === 'true',
         // canon reverse-map (CH6) + draft override (CH7); a pending draft wins.
-        excerpt: excerptFor(wallet, excerpt_msg, type),
+        excerpt: excerptFor(wallet, excerpt_msg, type, from),   // #720: the name reaches the canon
         unread: n,
         // clear any leftover outgoing tick; re-set below when unread === 0
         status: undefined,
@@ -3568,7 +3580,7 @@
       // approved chat — the 3s timer settles it (completeHandshake) afterwards.
       if (handshakeHold.has(wallet)) {
         chat.handshaking = true;
-        chat.excerpt = { type: 'typing', text: (strings && strings.handshakeEstablishing) || 'Establishing a quantum-secure handshake…' };
+        chat.excerpt = { type: 'typing', text: (strings && strings.handshakeEstablishing) || 'Setting up a secure connection…' };
       }
       upsertChat(chat);
       if (!chatsFlushing) scheduleChatsRender();   // lone updateChat → render now-ish
@@ -4121,6 +4133,12 @@
     updateDebugInfo(info) { renderDevHud(info); },
   };
 
+  /* ★ L3 (#706): the iOS back signal. Home is the ROOT: a swipe closes the top
+     takeover (sheet → wallet Receive/Send → contacts/new-chat, the homeBack order) and
+     does NOTHING at the root — iOS has no exit gesture, and on Android the system owns
+     the edge. The chat-row swipe (leading = pin) lives on the root list, where this
+     gesture is inert, so the two cannot collide. */
+  attachEdgeBack({ onBack: () => { closeTopHomeTakeover(); } });
   bridge.exposeAll(handlers);
 
   /* —— live relative timestamps ("2h", "yesterday", …) ————————————————————— */

@@ -207,6 +207,7 @@
   const {
     createChatInfo, setChatInfoPresence, formatIxiAmount,
     createNativeBridge, installExecuteUiCommand,
+    attachEdgeBack,   // ★ L3 (#706): the iOS back signal + the one-level chain
     attachPressFeedback,
     openRemoveContactSheet, setRemoveSheetGroups, setRemoveSheetResult,   // ★★ spec §4: the SAME sheet the chats row opens
     isPseudoAddressNick, dismissTopOverlay,          // D-19b (#370) blind pseudo-key display guard · N50 back-dismiss wiring
@@ -1002,6 +1003,14 @@
     },
   };
 
+  /* ★ L3 (#706): the iOS back signal — the SAME chain hardware back runs (cdBack), then
+     the verb the topbar arrow sends. cdBack returns nothing, so the swipe asks the
+     mirror's own predicate: if it closed something, stop there. */
+  attachEdgeBack({ onBack: () => {
+    if (typeof dismissTopOverlay === 'function' && dismissTopOverlay()) return;
+    if (cdSendView) { closeSendTakeover(); return; }
+    bridge.send('ixian:back');
+  } });
   bridge.exposeAll(handlers);
 
   /* N50 (#370): mirror the shared overlay stack's open-state to C#

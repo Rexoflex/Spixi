@@ -47,3 +47,34 @@
   color: var(--text-neutral-01);
   text-align: center;
 }
+
+/* ═══ ★ #705 (Session G, Damir): the TRAY — the grid UNDER the composer ═══════
+   In the document flow, directly after .c-composer, so the conversation shrinks
+   above it the way it does for the keyboard. Height animates 0 → the slot; the
+   slot is a literal because it is the keyboard's height class, not a layout
+   token (sanctioned, one place). overflow hidden so the grid does not paint
+   during the rise. */
+.c-attach-tray {
+  flex: none;
+  height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: var(--surface-composer);
+  border-top: var(--outline-width-1) solid var(--outline-neutral-01);
+  padding-inline: var(--spacing-16);
+  transition: height var(--duration-200) var(--easing-standard);
+}
+.c-attach-tray[data-open] { height: 268px; } /* sanctioned: the keyboard-slot class */
+.c-attach-tray[data-instant] { transition: none; } /* #721: swapped with the keyboard, not animated */
+.c-attach-tray .c-attach {
+  gap: var(--spacing-12) var(--spacing-8);
+  padding: var(--spacing-8) 0 calc(var(--spacing-16) + env(safe-area-inset-bottom, 0px));
+}
+.c-attach-tray .c-attach__medallion { width: 56px; height: 56px; }
+/* the tray owns the home-indicator inset while it is open — the composer above it
+   is no longer the bottom-most chrome. A DATA ATTRIBUTE the tray writes, not :has()
+   (topbar.css:252 — the house rule: nothing may silently break on a WebView without it). */
+.c-composer[data-tray-open] { padding-block-end: var(--spacing-8); }
+@media (prefers-reduced-motion: reduce) {
+  .c-attach-tray { transition: none; }
+}

@@ -13,6 +13,17 @@ namespace Spixi
 
         }
 
+        // ★ P2 (#708): no push provider on this platform — the settings row is never shown
+        // (SettingsPage withholds the cap), so this is signature parity only.
+        /* ★ P2 (#708): does this platform have a push provider at all? Decides whether the
+         * settings row exists (SettingsPage withholds the cap when false). */
+        public static bool pushProviderSupported() { return false; }
+
+        public static void applyPushProviderPreference()
+        {
+
+        }
+
         public static void setTag(string tag)
         {
 

@@ -789,9 +789,13 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   color: var(--text-neutral-02);
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* ★ #712 (Damir on device, 2026-08-30): the sub-label WRAPS. It was a single
+     ellipsised line, and on a phone "Message text is never shown in notific…" and
+     "Off: messages arrive when Spixi check…" cut the sentence exactly where the
+     meaning was. A sub-label is an explanation; an explanation that ends in "…" is
+     not one. Two or three lines cost nothing in a stacked row. */
+  white-space: normal;
+  overflow-wrap: anywhere;
   max-width: 100%;
   min-width: 0;
 }
@@ -1113,6 +1117,12 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 /* #453: the address explainer is a text action UNDER the address chip, not a third icon
    inside it. Centred with the QR and the chip above it. */
 .c-settings__addrinfo { align-self: center; }
+
+/* ★ #712: the push-provider note reads as a paragraph under its row, not as a row */
+.c-settings-notifs__push-note {
+  margin-block-start: calc(-1 * var(--spacing-4));
+  padding-inline: var(--spacing-16);
+}
 
 </style><!-- shared body/note grammar -->
 <style data-src="../styles/components/settings-app.css">
@@ -1884,6 +1894,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   const {
     createSettingsDev, setDevLog,
     createNativeBridge, installExecuteUiCommand,
+    attachEdgeBack, dismissTopOverlay,   // ★ L3 (#706): the iOS back signal + the one-level chain
     applyPushedTheme,
     } = window.Spixi;
   const strings = window.SL || {};
@@ -1950,6 +1961,13 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
       if (!had && bridge.cap('sendlog')) buildDev();
     },
   };
+  /* ★ L3 (#706): the iOS back signal. One level per gesture — a sheet on the shared
+     stack closes first (the level this shell never had before, docs/swipe-back-spec.md
+     §3.2), otherwise the same verb the topbar arrow sends. Desktop never attaches. */
+  attachEdgeBack({ onBack: () => {
+    if (dismissTopOverlay()) return;
+    bridge.send('ixian:back');
+  } });
   bridge.exposeAll(handlers);
 
   /* —— page ready — fire ixian:onload on the window LOAD event (#177). ————————— */

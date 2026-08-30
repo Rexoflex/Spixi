@@ -143,6 +143,14 @@ namespace SPIXI
             {
                 caps += ",paymentAuth";
             }
+            // ★★ P2 (#708): + pushProvider — ONLY where a push provider exists. Windows and
+            // Mac Catalyst carry a stub SPushService, so a switch there would change nothing
+            // (the W-g rule: a no-op switch is a lie). The shell never renders the row
+            // without this cap.
+            if (SPushService.pushProviderSupported())
+            {
+                caps += ",pushProvider";
+            }
             Utils.sendUiCommand(this, "setCaps", caps);
 
             // ★ NOTIF-2: the current values, so the switches render in the right position
@@ -151,6 +159,10 @@ namespace SPIXI
             Utils.sendUiCommand(this, "setNotifEnabled", SNotificationPrefs.notificationsEnabled.ToString());
             Utils.sendUiCommand(this, "setNotifSenderName", SNotificationPrefs.showSenderName.ToString());
             Utils.sendUiCommand(this, "setNotifSounds", SNotificationPrefs.inAppSounds.ToString());
+            if (SPushService.pushProviderSupported())
+            {
+                Utils.sendUiCommand(this, "setNotifPushProvider", SNotificationPrefs.pushProviderEnabled.ToString());   // P2 (#708): seed the switch
+            }
             if (SPayments.paymentAuthSupported())
             {
                 Utils.sendUiCommand(this, "setPaymentAuth", SPayments.paymentAuthEnabled().ToString());   // PA1 (#525) · W-g: no seed where there is no row
@@ -660,6 +672,15 @@ namespace SPIXI
                 string status = current_url.Substring("ixian:notifSenderName:".Length);
                 SNotificationPrefs.showSenderName = status.Equals("on", StringComparison.Ordinal);
                 Utils.sendUiCommand(this, "setNotifSenderName", SNotificationPrefs.showSenderName.ToString());
+            }
+            else if (current_url.StartsWith("ixian:notifPushProvider:", StringComparison.Ordinal))
+            {
+                // ★★ P2 (#708): store, APPLY (OptOut/OptIn on the live SDK), then echo the stored
+                // value — the shell's switch settles on what was stored, never on what was asked.
+                string status = current_url.Substring("ixian:notifPushProvider:".Length);
+                SNotificationPrefs.pushProviderEnabled = status.Equals("on", StringComparison.Ordinal);
+                SPushService.applyPushProviderPreference();
+                Utils.sendUiCommand(this, "setNotifPushProvider", SNotificationPrefs.pushProviderEnabled.ToString());
             }
             else if (current_url.StartsWith("ixian:notifSounds:", StringComparison.Ordinal))
             {

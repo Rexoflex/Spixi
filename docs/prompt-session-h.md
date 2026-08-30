@@ -55,7 +55,15 @@ a protocol addition, BE), or none. Write the decision memo; build nothing until 
 - The chat doodle pattern's ORIGIN (docs/legal/third-party-notices.md marks it OPEN).
 - `[EXCERPTDIAG]` and the Samsung `LinkUri is null (mime…)` lines from his next walk.
 - The iOS rows of the walk (15–27, 37) — return them when he says he is on the Mac.
-- Wide desktop: the centred 760px conversation column (#711) — a ruling, then one CSS rule.
+
+## ⑤b THE 760 COLUMN — RULED, BUILD IT (Damir 2026-08-30: "Yes 760")
+Wide desktop only (`:root[data-desktop]`): the conversation column and the composer are
+capped at **760px** and centred; the canvas (gradient + pattern) stays full-bleed. Bubbles
+keep `--layout-bubble-max` inside the column; the unread strip, date pills and the secure
+notice centre with it; the chevron / @ FAB keep their inset from the COLUMN's edge, not the
+window's. Telegram Desktop / iMessage / Signal Desktop grammar — the render is in the
+Session G chat (lower half of the desktop image). One rule in `chat.html`'s desktop block,
+a pin, a Windows walk. Phones untouched.
 
 ## ⑥ THEN THE REVIEW
 A full Opus adversarial review of Sessions A–G (#642–#721): three read-only auditors with

@@ -163,7 +163,27 @@ public class SpixiWebview(Context context) : AWebView(context), InputConnectionC
             Page p = App.Current.MainPage.Navigation.NavigationStack.Last();
             if (p != null && p.GetType() == typeof(SingleChatPage))
             {
-                string rx_pattern = @"^https://[A-Za-z0-9]+\.(tenor|giphy)\.com/[A-Za-z0-9_/=%\?\-\.\&]+$";
+                /* ★★ #684 (Session F): THE GIF KEYBOARD DEFECT WAS HERE, NOT IN THE PICKER
+                   AND NOT IN THE COMPOSER.
+                   The old pattern was  ^https://[A-Za-z0-9]+\.(tenor|giphy)\.com/…  — the
+                   `[A-Za-z0-9]+\.` REQUIRES a subdomain. Gboard sets LinkUri to the GIF's
+                   SHARE page, and those are bare-domain:
+                       https://tenor.com/view/happy-dance-gif-12345678      → REJECTED
+                       https://giphy.com/gifs/excited-yay-l0HlvtIPzPdt2usKs → REJECTED
+                       https://media.tenor.com/abc/happy.gif                → matched
+                   So every GIF picked from the keyboard fell through with processed=false
+                   and was SILENTLY DROPPED. That is the "the GIF keyboard does nothing"
+                   report. It is not a paste/clipboardData problem — this path never reaches
+                   the WebView's paste handler at all.
+                   ⚠ The subdomain is now OPTIONAL, not unanchored: `([A-Za-z0-9-]+\.)*` must
+                   end at a literal dot, so `eviltenor.com` still fails, and `tenor.com.evil.com/x`
+                   fails too (after `.com` the pattern demands `/`). Hyphens are allowed because
+                   real CDN labels carry them.
+                   ⚠ Utils.IsAllowedURL carries a SEPARATE copy of the old pattern. It is the
+                   NAVIGATION allowlist, a different question, and it is deliberately NOT
+                   widened here — loosening what the WebView may navigate to is a security
+                   decision, not a GIF fix. */
+                string rx_pattern = @"^https://([A-Za-z0-9-]+\.)*(tenor|giphy)\.com/[A-Za-z0-9_/=%\?\-\.\&]+$";
 
                 if (Regex.IsMatch(url, rx_pattern))
                 {

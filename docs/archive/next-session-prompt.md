@@ -1,96 +1,59 @@
-Spixi — F5 FIXES (post batch-A device pass). Repo = connected folder
-~/Documents/GitHub/Spixi, branch redesign/frontend, HEAD ae2867c7.
+Spixi frontend redesign. Repo: C:\Users\Damir\Claude\Projects\Spixi Rework Of Frontend\Spixi
+Branch redesign/frontend. Ixian-Core is a SIBLING clone at ..\Ixian-Core, frozen at 097341a.
+Read docs/handoff-2026-09-03-pattern.md and follow it.
 
-READ IN ORDER:
-1. docs/handoff-2026-08-04.md          — F5 results + the 4 findings, with evidence
-2. docs/parity-a-preflight.md          — why batch A was built the way it was
-3. DECISIONS #297–#299                 — what shipped in batch A
+★★ THIS IS A SMALL STANDALONE SESSION AND ITS SUBJECT IS THE CHAT BACKGROUND PATTERN.
+  Damir, 2026-08-29: "i will fix up the background pattern, which is still a bit off...
+  it will be a small standalone session for pattern."
+★★ HE IS DRIVING IT FROM HIS OWN INSTRUCTIONS. START BY INTERVIEWING HIM. DO NOT OPEN WITH
+  A PROPOSAL, AND DO NOT REDESIGN THE PATTERN. Handoff §0 has the questions worth asking.
+⚠ THE #46 LOOP IS SESSION F, NOT THIS ONE. It is still ordered — docs/handoff-2026-09-02.md
+  §4 holds the scopes — and it runs AFTER this. Do not run it here and do not fold pattern
+  work into it.
 
-Damir F5'd batch A on an iPhone 15. Six of eight testable items pass, ZERO batch-A
-regressions. Four findings came out; three are fixes, one is a BE log. Do NOT
-re-derive the evidence in the handoff — it is file:line verified. Spend the tokens
-on building.
+VERIFY THE BASELINE FIRST. If any number differs, say so and STOP:
+  bundle 307 · shells 18 · smoke BASELINE OK 3660 / the 3 known (#136 · M5 · B3)
+  · locales ALL CLEAN 779 · cs-syntax 140+1 · i18n-lint ✓ · pseudo 9/9
+  · Ixian-Core 097341a (170 modified files = CRLF churn; --ignore-cr-at-eol is EMPTY)
+★ MEASURE THE CLOSING NUMBER AFTER THE LAST EDIT TO THE SUITE, or it is not the closing
+  number (#681 — three documents carried a figure recorded before the final pin landed).
+⚠ Smoke takes ~6 min and the bridge shell kills anything past 45 s — run it in the container.
+⚠ cs-syntax-check needs tree-sitter, whose native build FAILS on the device VM. Container too.
+⚠ CHECK WHAT IS MOUNTED before anything else. Ixian-Core is OUTSIDE the git repo; if
+  $HOME/mnt/ shows only Spixi, ask Damir to add it. Session C lost two rows to this.
 
-WORK, in this order:
+★★ THE PATTERN HAS SIX INDEPENDENT DIALS AND "A BIT OFF" COULD BE ANY OF THEM (handoff §2):
+  the style · the tile artwork · its scale · the ink colour · the strength · AND THE GROUND
+  BEHIND IT, which is NOT the same in both themes (light is flat, dark carries a blue
+  radial). Localise before touching. 49 existing pins reference this surface.
+⚠ src/styles/chat-pattern.css is GENERATED — never hand-edit it; change the generator or the
+  source SVG and re-run scripts/generate-chat-pattern.mjs. The generator GUARDS the line-art
+  SVG (Damir's export): do not pass --accept-lineart-change to silence an error.
+★ THE REBUILD IS CHEAP HERE: CSS + bundle + shells, NO C#, so NO obj/bin wipe and NO
+  UNINSTALL. Those were for the launcher icon and the splash theme. Bundle before shells
+  (#258 §5.6). Windows still builds with F5 only (#663).
 
-F1 — iOS inline media playback (C#, ~10 lines). THE PRIORITY.
-  The iOS scanner does not scan at all, while the torch works — which proves the
-  camera track is live and the problem is video RENDERING, not permission. This is
-  iOS-49 from DECISIONS #293, half-finished: MediaCaptureUIDelegate landed,
-  AllowsInlineMediaPlayback never did (zero hits repo-wide).
-  It CANNOT be set in ConnectHandler — WKWebViewConfiguration is immutable after
-  the WKWebView is constructed. Override CreatePlatformView() in
-  Spixi/Platforms/iOS/iOSWebViewHandler.cs, build the configuration there with
-  AllowsInlineMediaPlayback = true and MediaTypesRequiringUserActionForPlayback =
-  None, and construct the WKWebView from it.
-  Then check the vendored html5-qrcode sets `playsinline` on its <video> element
-  (Spixi/Resources/Raw/html/js/html5-qrcode.min.js) — if it doesn't, that's a small
-  shell-side patch and part of this fix.
-  This also unblocks verifying A8 (scan zoom), which is built but has never been
-  observed on iOS.
-  ⚠ This is the one C# item. Everything else below is zero-C#.
+★★ THE RULES THIS PROJECT KEEPS PAYING FOR:
+1. ★★ TRACE WHAT THE PLATFORM ACTUALLY READS, not the artifact you expect to matter.
+2. ★★ CHECK A BLOCKING CLAIM AT SOURCE BEFORE REPEATING IT.
+3. ★★ STRIP COMMENTS BEFORE ANY NEGATIVE SWEEP (the top-level stripCode in smoke-test.mjs).
+4. ★★ MUTATE EVERY PIN BEFORE BELIEVING IT, AND READ BOTH HOMES — src/components AND
+   src/demo/spixi.iife.js. ★ Session D's three pin classes: BOUND A SLICE BY THE NEXT
+   DECLARATION, NEVER BY A CHARACTER COUNT · A BARE KEY NAME IS A PREFIX TEST · AND A PIN'S
+   TEXT GOES STALE LIKE A COMMENT — when you re-time or re-colour anything, GREP THE SUITE
+   FOR THE OLD NUMBER, not just the old code.
+   ⚠ The harness: cp -al the tree, ONE edit per copy, os.remove before writing (never write
+   through a hardlink), three runs at a time — seven concurrent jsdom runs wedge the box.
+5. When a reviewer finds the same class twice, question the DESIGN.
+6. ★★ MEASURE BEFORE ASSUMING (#294), AND RENDER BEFORE HE REBUILDS. Three rows in a row
+   were decided by a measurement that contradicted the obvious reading: L14's mechanism was
+   falsified (#688), L10 was a no-op whose probe would have called it a success (#670), and
+   "the launcher is too dark" was wrong — it was under-saturated, and lightening it made it
+   worse (#689). A rasteriser settles a look question; opinion does not.
+7. SIZE THE SESSION AROUND THE REVIEW, NOT THE ROWS.
 
-F2 — Pinch-to-zoom sweep (zero-C#, 17 shells + an optional 2-line C# belt).
-  Every shell EXCEPT chat.html lets WKWebView raster-zoom the whole document.
-  chat.html:10 already carries the correct clamp (minimum-scale=1, maximum-scale=1,
-  user-scalable=no) — it was added 2026-07-29 for the pinch-to-text gesture and
-  never swept. Apply the same clamp to the other 17 shells; chat keeps its gesture
-  handler, nothing else needs one.
-  Consider the C# belt too (iOSWebViewHandler.ConnectHandler, beside the existing
-  ScrollView lines): MinimumZoomScale = MaximumZoomScale = 1. It covers the
-  still-legacy pages the FE sweep can't reach, and costs nothing because the shells
-  scroll inner containers, not the WebView scroll view.
-  ⚠ ASK DAMIR FIRST: --chat-text-scale is chat-only, so clamping every screen
-  removes the only way to enlarge text on wallet/apps/account. Recommend clamping
-  now and logging app-wide text scale as a follow-up — but it's his call, so put it
-  to him before you sweep.
-
-F3 — Wallet Share must not carry `:send:<amount>` (zero-C#, small).
-  Damir: "we can't share a request for a specific amount yet, so that needs to go
-  out." Share should send the BARE ADDRESS always. That collapses the amount-gate
-  branch batch A added in home.html's shareReceivePayload — the gate existed to
-  stop the amount being silently dropped; his call is that it shouldn't be in the
-  shared text at all. The QR keeps encoding address:send:<amount> — scanner-to-
-  scanner is still correct; this is only about text leaving the app.
-  ⚠ ASK DAMIR: should the Share button still be offered while an amount is entered,
-  given it will share something without the amount? Bare-address-anyway vs
-  hide/disable Share. One line either way; the second is more honest.
-
-F4 — Presence staleness: LOG ONLY, do not touch the shell.
-  A contact shows online for ~2 min after quitting. The A4 render is correct — it
-  shows what C# pushes. Node.cs:418-455 reports online while a PresenceList entry
-  exists and hasn't expired; it never goes false on a clean quit. There is no
-  honest signal to render differently, so this is a BE/Ixian-Core item.
-  Add it to docs/security-review-for-be-engineer.md (or the BE cutover brief) as a
-  trust-signal correctness row, alongside the chat-transport work order in
-  docs/chat-transport-spec.md.
-
-RULES
-- Zero-C# EXCEPT F1 (and the optional F2 belt). If anything else turns out to need
-  C#, STOP, log it, skip it (#215 discipline).
-- ★ #221 chat isolation untouched. No money-path changes.
-- Full build pipeline, bundle BEFORE shells: extract-strings → build-locales →
-  build-strings-iife → build-demo-bundle → build-shells → i18n-lint +
-  pseudo-locale-smoke + smoke-test.
-- Smoke baseline is 868 pass / 4 fail. Those 4 are PRE-EXISTING at HEAD (#136 · #149③
-  · M5 · B3) — do not "fix" them as part of this, just confirm you added none.
-- Add smoke assertions per fix. #46 audit loop after the batch. DECISIONS #300+ and
-  a CLAUDE.md status line. Per-item F5 checklist for Damir. ONE commit after his F5.
-- ⚠ BRIDGE GOTCHA: always `git --no-optional-locks` on the mounted folder — a plain
-  git status strands a 0-byte .git/index.lock and GitHub Desktop then refuses to
-  commit. The bridge cannot delete it; move it to _to_delete/.
-- ⚠ BUILD GOTCHA: MSBuild's obj stamp means changed shells can silently not reach
-  the app bundle. After building, verify the new code is actually in
-  Spixi/bin/Debug/net10.0-ios/ios-arm64/Spixi.app/html/. Force with
-  rm -rf Spixi/obj/Debug/net10.0-ios Spixi/bin/Debug/net10.0-ios.
-
-STILL OWED, not this batch: the >64 000-char paste that A7's guard has never been
-exercised with · W1 in Spanish/Russian · A10 on WINDOWS (it decides part of batch B)
-· A2/A6/A9/A11 (need a paid bot, a bot, a dual-capability app, a 30-day timer).
-
-Batch B remains blocked on Damir's three dials: R3 media-cap scope · R6 mobile tx
-detail · R4 timestamp burn.
-
-Before you do anything: analyse the problem and see whether any of these can be
-done better than described. That instruction caught two ship-blocking defects last
-session.
+⚠ Owed by Damir: his pattern instructions (this session's whole input) · L12 (an admin
+  account) · the desktop leg of the L14 order, which is free and still unspent.
+Do NOT re-open anything in docs/handoff-2026-09-02.md §8.
+Interview him for anything unknown, don't assume. One command per code block, real paths,
+no placeholders. He has been right every time he pushed back.

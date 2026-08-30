@@ -117,6 +117,7 @@
     createAppDetails, showAppRemoved: showAppRemovedModal,
     createTopbar,
     createNativeBridge, installExecuteUiCommand,
+    dismissTopOverlay,                   // ★ L3 (Session F): hardware back closes an open confirm first
     applyPushedTheme,
     } = window.Spixi;
   const strings = window.SL || {};
@@ -217,6 +218,14 @@
      * (theme-runtime.js) — never re-derive 'auto' from matchMedia here, the
      * WebView's prefers-color-scheme can disagree with the app theme. */
     setTheme(name) { applyPushedTheme(name); },
+    /* ★★ L3 (Session F) — THE BACK LEVEL THIS SHELL NEVER HAD.
+       createAppDetails opens two confirm modals (openModal), so hardware back could pop
+       the page out from under one. Same grammar as ContactDetails' cdBack (N50 #370) and
+       home's homeBack (#336). Self-heals a stale mirror by re-syncing, so back never wedges. */
+    appDetailsBack() {
+      if (typeof dismissTopOverlay === 'function' && dismissTopOverlay()) return;
+      syncAppDetailsOverlay();
+    },
     // Q4-③ (#270): call-ui wiring GONE — calls present on the native CallPage.
     // init(...) — 14 positional args → the `app` model consumed by createAppDetails.
     init(name, iconPath, publisher, description, version, url, humanSize,
@@ -263,6 +272,21 @@
   };
 
   bridge.exposeAll(handlers);
+
+  /* ★ L3 (Session F): mirror body[data-overlay-open] to C#. Deferred + coalesced (#337):
+     bridge.send is a raw location.href assignment with no queue, so a state push must
+     never share a navigation slot with a verb; state is read at FIRE time. */
+  let adOverlaySyncT = 0;
+  function syncAppDetailsOverlay() {
+    if (adOverlaySyncT) return;
+    adOverlaySyncT = setTimeout(() => {
+      adOverlaySyncT = 0;
+      try { bridge.send('ixian:appdetailsoverlay:' + (document.body.dataset.overlayOpen !== undefined ? '1' : '0')); } catch (e) {}
+    }, 0);
+  }
+  try {
+    new MutationObserver(syncAppDetailsOverlay).observe(document.body, { attributes: true, attributeFilter: ['data-overlay-open'] });
+  } catch (e) {}
 
   /* —— page ready — fire ixian:onload on the window LOAD event (#177 load-timing
    *    invariant): firing during parse races C#'s first init push. ——————————— */

@@ -737,7 +737,20 @@
   --surface-card: var(--neutral-800);
   --surface-card-raised: var(--neutral-700);
   --surface-bubble-sent: #1956b2;      /* ★ N81 (#422) — matches --gradient-bubble-sent in both themes */
-  --surface-bubble-received: #1a1d24;  /* ★ N81 (#422) — Damir */
+  /* ★★ AUG (Damir 2026-08-30, ON DEVICE): "incoming bubbles on dark mode need a bit more
+     colour tuning so it stands out a bit more". MEASURED, and the number explains the
+     report: #1a1d24 sat +5.72 ΔL* above the dark BASE but only +2.86 above the canvas
+     CENTRE, where the #701 radial lift is strongest — so the bubbles blended at the top of
+     the screen and separated further down. #1e222b is +8.17 / +5.31.
+     ★ Damir picked the NEUTRAL step off a render of four candidates; the bluer options
+     (#1c2333, #20283a) were shown and not taken, so this stays a lightness change and the
+     bubble keeps its near-neutral hue.
+     ⚠ Worth recording because it inverts the obvious reading: the #701 lift drop IMPROVED
+     this. At the old .20 the canvas centre measured L* 15.66 against the bubble's 10.75 —
+     the "bubble" was DARKER than the canvas behind it. Dropping to .06 put it the right way
+     up, and this change widens the margin rather than fixing a new regression.
+     ⚠ Superseded: #1a1d24. */
+  --surface-bubble-received: #1e222b;  /* ★ N81 (#422) — Damir */
   --surface-input: var(--neutral-800);
   --surface-qr: var(--neutral-10); /* stays near-white: QR scan readability */
   --on-qr: #131415; /* module ink stays dark too — the QR pair never theme-flips */
@@ -989,13 +1002,51 @@
      opacity), which is what made the W5 F5 measurement necessary in the first place
      — you could not read the rendered strength off either number. One number now.
      Superseded: the primary-400 "Primary soft" ink and the 0.5/0.18 ladder (#76). */
-  --chat-pattern-ink: #181a20;
+  /* ★ E1 (Damir 2026-08-29): the ink carries its OWN HUE per theme now — a slate
+     blue in light, a soft blue in dark. Measured on the composited stroke over the
+     real canvas at the Default alpha: C* 1.80 (the old neutral #181a20) → 2.43. The
+     hue is readable without tinting the canvas, which is the whole ask. Superseded:
+     #181a20 (#422). The doodles EXPORT is drawn in #181a20, but that colour never
+     reaches a screen — the tile is a MASK, so only its alpha survives and this token
+     is the only thing that decides the colour. */
+  /* ★ E1c (Damir 2026-08-29): the ink follows the ground onto the teal. Hue only — the
+     LIGHTNESS is what decides how strong a stroke reads, and #123b47 and #21394b are within
+     0.03 L* of each other at this alpha, so this buys harmony with the new canvas and costs
+     nothing in strength. Superseded: #21394b (E1), #181a20 (#422). */
+  /* ★★ AUG TILE (Damir 2026-08-30): the ink is the ARTWORK'S OWN colour now.
+     The tile is a MASK, so the SVG's fills are discarded and this token is the only
+     thing that decides the colour — #231F20 is the doodle-pattern-aug artwork colour,
+     carried over so the on-screen hue matches the source.
+     ⚠ Superseded: #123b47 (E1c, sampled to sit on the teal→green ground) ← #181a20 (N81).
+     ⚠ MEASURED, AND IT IS A DELIBERATE SOFTENING: at .05 this ink reads ΔL* −2.90 on the
+     teal end and −3.40 on the green end, against E1c's −3.47 / −4.26. So the pattern is
+     about 17% FAINTER than what shipped. .06 would match the old strength almost exactly
+     (−3.47 / −4.08). Damir chose .05 with the render in front of him. */
+  /* ★★ AUG (Damir 2026-08-30): #061663, a deep brand indigo, at 6%. The tile is a MASK,
+     so the artwork's own colour is discarded and this token is the only thing that decides
+     the ink — it does not have to match the source SVG.
+     ★ MEASURED on the #EBF0F5 ground: ΔL* −4.53, STRONGER than the #231F20 @5% it replaces
+     (−3.53) and back in the range E1c approved (−3.47 / −4.26). The composited stroke lands
+     at hue 266° against the ground's 256°, i.e. the same cool family rather than the near
+     neutral the artwork colour gave.
+     ★ It also holds on the GRADIENT option: −3.66 at the teal end, −4.39 at the green end.
+     ⚠ Superseded: #231F20 @5% (same day) ← #123b47 @7% (E1c) ← #181a20 (N81). */
+  --chat-pattern-ink: #061663;
   /* The per-theme alpha LADDER. The stored preference is a LEVEL (0/1/2), not an
      alpha — so the theme picks the number and the JS does no derivation at all.
      ★ That is the point: the old code multiplied the stored light value by 0.36 for
      dark IN JAVASCRIPT, which meant a live setTheme push had to re-run the ladder or
      dark painted the light number (the W5 F5 bug). CSS cannot get that wrong. */
-  --chat-pattern-alpha-1: 0.042;   /* Default */
+  /* ★ E1: 0.042 was tuned against the TRIANGLES tile, whose mean ink coverage is
+     0.0553. The doodles tile measures 0.0638 — 1.15× — so a like-for-like carry-over
+     would be 0.037, and rendered at phone size the whole ladder read as nearly blank.
+     Damir picked 0.06/0.065 off the rendered ladder. Strong keeps his 0.10 ceiling.
+     Superseded: 0.042 (#422). */
+  /* ★ E1c: .06 → .07, and this is a MATCH rather than a bump. On the old near-white ground
+     the Default stroke sat 4.03 L* below it; the colourful canvas is darker and mid-lightness,
+     so the same alpha only reached 2.96 (teal end) / 3.62 (green end). .07 restores 3.47 / 4.26
+     — the strength Damir already approved, carried onto a different ground rather than re-picked. */
+  --chat-pattern-alpha-1: 0.06;    /* Subtle — Damir 2026-08-30, see the ink note above */
   --chat-pattern-alpha-2: 0.1;     /* Strong */
   --chat-pattern-opacity: var(--chat-pattern-alpha-1);
   /* message text scale (#147 — Chat appearance setting, FE-only). Bubbles
@@ -1016,13 +1067,94 @@
      that made white incoming bubbles read muddy, and it lifts white-bubble
      separation from 1.034 to 1.083, which is better than cream ever managed WITH
      the hairline (1.055). Superseded: #fcfbfa (#422). */
-  --chat-canvas-base: #f4f6f9;
-  /* ★ N81 (#422): FLAT cream — no wash (Damir's dial). The sky-blue diagonal that
-     used to sit here was tuned to make a BLUE canvas read as depth; over a warm
-     off-white it only turns the cream blue again, which is the one thing the new
-     palette is for. Light and dark are deliberately asymmetric now: cream is the
-     point in light, depth is the point in dark (which keeps its radial glow). */
+  /* ★★★ AUG GROUND (Damir 2026-08-30): a FLAT green-leaning off-white. The gradient is
+     retired in light — see --gradient-chat below for the full reversal note.
+     ★ This token was DEAD PAINT under E1c (both stops of the wash were opaque, so the base
+     never showed) and it is load-bearing again: it IS the ground now.
+     ⚠ Superseded within the same day: #eff5eb (green-leaning) → #ebf0f5. Damir: "more on
+     brand", and the measurement agrees — it is a COOL off-white (hue 256°, the same family
+     as #1956b2 at 287° and #0076E1 at 282°, where #eff5eb sat at 132° green) and it gives
+     the BEST white-bubble separation of any flat ground tried: ΔL* +5.44, against +4.15 for
+     #eff5eb and +3.19 for the pre-E1c #f4f6f9. Sent bubble 6.07, pattern ink @5% −3.53. */
+  --chat-canvas-base: #ebf0f5;
+  /* ★★ AUG (Damir 2026-08-30, ON DEVICE): "the unread messages strip is not very visible,
+     and the Today badge also". MEASURED, and it is a direct consequence of the new ground:
+     both chips fill with --surface-neutral-02 (#edf0f2), which sat −2.19 ΔL* BELOW the old
+     #f4f6f9 ground and read as a darker pill. Against #ebf0f5 it measures +0.07 — the same
+     colour. They did not fade, they DISAPPEARED.
+     ★ The fix is a chip surface of its own rather than moving --surface-neutral-02, which
+     is shared by half the app. On the chat canvas the chip should read as LIGHTER than the
+     ground and quieter than a bubble: #f9fafb is +3.67 against the ground, where the white
+     incoming bubble is +5.44. */
+  --surface-chat-chip: #f9fafb;
+  /* ★ E1 (Damir 2026-08-29): the wash is BACK, and light now MIRRORS dark exactly —
+     the same radial, the same colour, the same alpha, the same extent. That is the
+     point of the change: Damir reported the ground off in BOTH themes, and the two
+     were not the same surface (flat here, radial there), so an identical tile at an
+     identical alpha genuinely could not look identical. Symmetry is the fix.
+     ⚠ This is NOT the N81 revert. What #422 removed was a sky-blue DIAGONAL wash
+     tuned for a blue canvas, which turned the then-CREAM base blue again. The base
+     has since become a cool grey (#f4f6f9, #427), so that objection has expired —
+     and this is a top radial, not a diagonal. Superseded: flat (#422).
+     ★ E1b (Damir 2026-08-29, asked for "a stronger gradient"): .10 → .20, extent 58% → 62%,
+     ⚠ IN BOTH THEMES, and the "both" is a MEASURED correction to my own first instinct.
+     I assumed a dark ground would amplify the same rgba and that light needed a bigger
+     number to match it. It does not: at .10 the top-centre lift is ΔL* −4.16 in light and
+     +5.01 in dark — near-identical. So raising light alone would have re-opened exactly the
+     light-vs-dark asymmetry this token was changed to close. At .20 the pair is −8.35 / +10.34.
+     ⚠ REJECTED on the same render: the teal→lime wash from Damir's reference. It is a hue
+     change wearing a gradient's clothes — the #1956b2 outgoing bubble falls to 4.53:1 on it
+     (worst of four candidates) and dark cannot mirror it, so it re-breaks the symmetry from
+     the other side. Stronger: yes. That colour: no, and he agreed. */
+  /* ★★ E1c (Damir 2026-08-29): "let's do the colorful gradient, it's better." His ruling,
+     against my recommendation, and he has been right every time he has pushed back.
+     ⚠ THIS DELIBERATELY BREAKS THE LIGHT/DARK SYMMETRY E1 BUILT. Dark keeps its blue radial;
+     light is now a diagonal teal→green wash. The symmetry was my answer to "the ground is off
+     in both themes" and it was a good answer to THAT question — it is not a veto on a later,
+     different design decision, and the pin that compared the two grounds as strings is retired
+     rather than quietly loosened.
+     ★ The endpoints are SAMPLED from Damir's own reference mock, not eyeballed: the canvas
+     there runs #7FC8DA at the top-right to #CBE7C6 at the bottom-left, and the direction is
+     diagonal — measured across the frame (top-right #81C9D9 vs bottom-left #C3E3CA), which is
+     why this is `to bottom left` and not the vertical wash it reads as at a glance.
+     ⚠ WHAT IT COSTS, MEASURED AND ACCEPTED: the outgoing #1956b2 bubble separates from the
+     canvas by 3.72 at the teal end (was 5.79) — still clear of the 3:1 non-text floor, but it
+     is the tightest this surface has been. White incoming bubbles go the other way, 1.87 / 1.33.
+     The pattern ink and the notice card BOTH moved to suit this ground; see their comments. */
+  /* ★★★ AUG GROUND (Damir 2026-08-30) — THE LIGHT GRADIENT IS RETIRED. FLAT #EFF5EB.
+     ⚠ Superseded: the E1c teal→green diagonal (#7fc8da → #cbe7c6), which Damir chose on
+     2026-08-29 from his own mock and against my measured recommendation. That ruling is
+     recorded above and is NOT deleted — this is a reversal, pinned as one.
+     ★ MEASURED, and it improves the two numbers E1c had to accept as costs:
+       · sent bubble #1956b2 vs ground:  3.71 → 6.28.  E1c called 3.71 "the tightest this
+         surface has been"; that is no longer true.
+       · white received bubble: ΔL* +4.15. Subtler than the gradient's +23.4/+11.1, but
+         SAFER than the #f4f6f9 flat ground (+3.19) that shipped for months, so it stays on
+         the right side of the 2026-07-03 ruling that a screen-white ground makes white
+         bubbles vanish.
+       · pattern ink #231F20 @5% reads ΔL* −3.75, slightly STRONGER than on the teal (−2.90).
+     ⚠ WHAT IT COST, and it is the only thing that broke: the notice card. On a saturated
+     ground #e8f3ef worked by being LIGHTER (+18.34 at the teal end). On a near-white ground
+     it has nowhere lighter to go and measured −0.91 — it dissolved. The relationship had to
+     invert, so the card is now a slightly DARKER tint; see system-notice.css.
+     ★ It is written as the base rather than a one-stop gradient so the token stays honest:
+     there is no gradient in light any more, and --chat-canvas-base is load-bearing again. */
   --gradient-chat: var(--chat-canvas-base);
+  /* ★★ SESSION F (measured): the "Off" pattern swatch's diagonal slash is its ONLY
+     signifier — at Off the mask paints nothing, so the slash is the whole difference
+     between "no pattern" and "broken tile". It was var(--outline-neutral-02) (#dde2e9),
+     which measured 1.203 on the OLD flat #f4f6f9 ground. E1c's wash broke it: 1.443 at
+     the teal end but 1.022 / ΔL* +0.81 at the GREEN end — invisible — and the ink FLIPS
+     relationship across the gradient (darker than the old ground, lighter than teal,
+     identical to green). A fixed light grey cannot stay consistent over a ground that
+     spans L* 76→88.
+     ★ This value is not a new taste pick — it RESTORES THE PROMINENCE THE SLASH ALREADY
+     HAD. E1c's own sanctioned canvas ink #123b47 at .12 measures 1.198 (teal) / 1.224
+     (green), bracketing the original 1.203, and is consistently DARKER than the ground
+     at both ends (ΔL* −5.97 / −7.33 against the original −7.12).
+     ⚠ Dark is UNTOUCHED and still uses the outline token — E1c did not move dark's ground,
+     and the #701 lift makes dark's canvas darker, so its slash gets more visible, not less. */
+  --swatch-off-slash: rgba(18, 59, 71, 0.12);
   /* OUTGOING (sent) bubble fill — premium saturated gradient, NOT washed out
      (Damir 2026-07-07). White text (--text-bubble-sent) rides on top. This is the
      ONE line to tune the sent-bubble look (Damir owns the final palette); the solid
@@ -1050,13 +1182,17 @@
      Recorded because the measurement and the pick disagree: dark bubbles now
      separate on 1.120 alone. The dark line below is DELETED rather than set, so both
      themes inherit this one value.
-     ⚠ THE EIGHT box-shadow RULES THAT READ THIS TOKEN ARE KEPT ON PURPOSE. The token
+     ⚠ THE SEVEN box-shadow RULES THAT READ THIS TOKEN ARE KEPT ON PURPOSE. The token
      is transparent, not absent, so the hairline is one line from returning in either
-     theme; deleting the rules would mean re-deriving eight sites, and re-adding it
-     per theme would put [data-theme="dark"] selectors into eight component files —
-     the exact must-agree shape #422 spent a batch removing. Consumers:
+     theme; deleting the rules would mean re-deriving seven sites, and re-adding it
+     per theme would put [data-theme="dark"] selectors into six component files —
+     the exact must-agree shape #422 spent a batch removing. Consumers (7 rules / 6 files):
      message-bubble · typed-bubbles (×2) · media-bubble · typing-indicator ·
-     system-notice · settings-screens · chat.html .chat-event__chip. */
+     settings-screens · chat.html .chat-event__chip.
+     ⚠ Corrected (Session F audit): this list said EIGHT and named system-notice. The
+     notice LEFT this set at E1b and carries its own literal edge in both themes — see
+     system-notice.css. smoke-test pins HAIR.length === 6 for exactly that reason, so the
+     old count here contradicted the suite. Restoring the hairline reaches six files. */
   --border-bubble-received: transparent;
   /* #170: c-disc gradient palette — vivid, distinct, mode-agnostic (paired with a
      white glyph, so the same fills read in light AND dark). Assigned per-glyph by
@@ -1162,15 +1298,89 @@
      rule as light: the ink is opaque and the ladder value IS the rendered stroke
      alpha, rgba(240,244,255,0.045). Superseded: the hsla(242,76%,72%) ink and the
      0.18 value derived in JS as 0.5 × 0.36 (#76 / W5 F5). */
-  --chat-pattern-ink: #f0f4ff;
-  --chat-pattern-alpha-1: 0.045;   /* Default — dark carries a hair more, per Damir */
+  /* ★ E1 (Damir 2026-08-29): dark gets its own hue too. MEASURED trade-off worth
+     keeping: a bluer ink is also a DARKER ink, so it dims as it colours. Over the
+     dark ground at Default, #f0f4ff sits at L* 12.6 / C* 3.37; #bbd0ff at L* 11.4 /
+     C* 5.29 — hue up 57%, brightness down 1.2 L*. #8fb3ee reached C* 6.04 but cost
+     2.3 L*, which is why it is not this value. Superseded: #f0f4ff (#422). */
+  /* ★★★ AUG TILE (Damir 2026-08-30) — AND THIS REVERSES A STANDING RULING, ON PURPOSE.
+     The 2026-07-03 note at the top of this file says the pattern is "theme-colored, not
+     white ('white isn't premium', Damir)". Dark has carried a tinted ink ever since:
+     #f0f4ff → #bbd0ff (E1, chosen on the measured trade that a bluer ink is a darker ink —
+     #bbd0ff bought C* 3.37→5.29 for 1.2 L*, where #8fb3ee cost 2.3 L* and was rejected).
+     ⚠ Damir has now asked for PLAIN WHITE at 5%. It is his call and it is recorded here as
+     a REVERSAL rather than by deleting the old reasoning — a ruling that quietly disappears
+     is how it gets "fixed" back later.
+     ★ MEASURED, and this is the reassuring part: white @ .05 reads ΔL* +5.64 against the
+     #701 canvas, where #bbd0ff @ .065 read +5.89. So the STRENGTH is unchanged (within 4%)
+     and what actually changes is the HUE — a neutral ink instead of a blue-tinted one. */
+  --chat-pattern-ink: #ffffff;
+  --chat-pattern-alpha-1: 0.05;    /* Default — matched to light at Damir's 2026-08-30 call */
   --chat-pattern-alpha-2: 0.1;     /* Strong — the same ceiling in both themes */
   --chat-pattern-opacity: var(--chat-pattern-alpha-1);
-  --chat-canvas-base: #0f1115;
+  /* ★★★ AUG (Damir 2026-08-30, ON DEVICE, ruled off a render): the dark canvas takes the
+     CHROME'S OWN colour. He reported the desktop chat pane not fitting the rest of the app.
+     ⚠ IT WAS NEVER A LIGHTNESS PROBLEM, IT WAS A COLOUR FAMILY PROBLEM — which is why the
+     obvious reading (make it darker/lighter) would not have fixed it. Sampled from his
+     screenshot: rail #131821 (L* 8.14), chat list #11161f (7.15), canvas #111317 (5.84) at
+     the bottom. The chrome is --surface-screen #10151e, chroma 7.00 — blue-tinted ink. The
+     old base #0f1115 was chroma 2.62 — near-neutral grey. A different material.
+     ★ THE .20 RADIAL WAS HIDING IT. At the old lift the canvas carried enough blue to read
+     as the same family; #701 dropped it to .06 (correct on its own terms) and exposed the
+     bare base over most of the pane. So this is not a regression from #701, it is something
+     #701 revealed. ⚠ Mobile never showed it because the canvas is full-bleed there with no
+     chrome beside it — which is exactly why it took a desktop walk to find.
+     ★ Using --surface-screen's own value rather than a new one means the BOTTOM of the pane,
+     where the radial has faded out, matches the rail and list exactly, and the lift reads as
+     a gentle rise off that same colour. Damir picked this off a three-option render.
+     ⚠ Supersedes the #701 ruling "leave the base at #0f1115" — which he made against a
+     measurement about neutral01 LIGHTNESS, with no knowledge of the chrome adjacency. New
+     information, not a re-opened argument. */
+  --chat-canvas-base: #10151e;
+  /* ★ AUG: dark's ground did not move, so its chips keep the surface they had. Defined
+     here so the token resolves in BOTH themes rather than inheriting light's near-white. */
+  --surface-chat-chip: var(--surface-neutral-02);
+  /* dark keeps the outline token for the Off-swatch slash — see the light block for why
+     light needed its own. Dark's ground did not move at E1c and #701 makes it DARKER,
+     so this slash separates more than before, not less. Defined here so the token has a
+     value in BOTH themes rather than inheriting light's teal ink onto a near-black tile. */
+  --swatch-off-slash: var(--outline-neutral-02);
   /* the radial glow STAYS, over the new deeper base (Damir's P.S.). It is what
      keeps dark from reading flat, and it is the half of the old treatment that was
-     always doing real work — unlike light's diagonal wash, which is gone. */
-  --gradient-chat: radial-gradient(120% 85% at 50% 0%, rgba(80, 122, 249, 0.10) 0%, transparent 58%), var(--chat-canvas-base);
+     always doing real work.
+     ⚠ Superseded (E1c, #697): this sentence used to end "— unlike light's diagonal wash,
+     which is gone." THAT IS NO LONGER TRUE. Light's wash is BACK and is a diagonal again
+     (tokens.css --gradient-chat in the light block: linear-gradient(to bottom left,
+     #7fc8da, #cbe7c6), Damir's ruling at #697). The two grounds differ ON PURPOSE and the
+     symmetry pin was RETIRED, not loosened. Do not read this comment as a standing ban on
+     a light wash — that reading is how a deliberate decision gets "fixed" back.
+
+     ★★ #701 — THE LIFT DROPS .20 → .06, AND THE BASE STAYS. RULED BY DAMIR, AWAKE, 2026-08-30
+     00:15. NOT PROVISIONAL — do not re-open either half.
+     His words were "the radial lift was counterproductive and it should be near black close to
+     our neutral01, and a slight radial gradient", and taken literally those contradict: what
+     ships is ALREADY darker than both readings of neutral01 —
+         --chat-canvas-base  #0f1115  L* 5.03      ← what ships
+         dark --surface-neutral-01  #13171b  L* 7.50
+         light --text-neutral-01    #131415  L* 6.26
+     so moving the base "close to neutral01" would have made dark PALER while he was asking for
+     darker. Shown that measurement, he ruled: LEAVE THE BASE AT #0f1115. The base was never the
+     problem — the LIFT was. At .20 the canvas centre reached L* 15.66, three times the base,
+     which is what stopped it reading as near-black. At .06 it lands at 7.96.
+
+     ⚠ THE LADDER, RECOMPUTED (Session F). The numbers previously quoted here, in
+     smoke-test.mjs and in the handoff were SYSTEMATICALLY ~3% LOW — consistent in sign and
+     magnitude across all seven values, while the flat-hex L* figures beside them were correct
+     to two decimals, so it was a blending-step error in the tool, not a Lab difference:
+         alpha   ΔL* over the base        (previously quoted)
+         .04     +1.86                    +1.81
+         .06     +2.94   ← SHIPPING       +2.85
+         .08     +4.06                    +3.94
+         .10     +5.17                    +5.02
+         .20     +10.63  ← was shipping   +10.34
+     The correction does not move the decision — .06 was the right pick at either set — but a
+     ladder that gets quoted as a measurement has to be right. Recompute before re-quoting. */
+  --gradient-chat: radial-gradient(120% 85% at 50% 0%, rgba(80, 122, 249, 0.06) 0%, transparent 62%), var(--chat-canvas-base);
   /* OUTGOING (sent) bubble fill — ★ N81 (#422): the SAME #1956B2 as light. Damir
      asked for one outgoing blue across both themes, so the dark-only two-stop
      gradient (#353FB7→#2046A7) is retired. */
@@ -1190,3 +1400,48 @@
 }
 
 
+/* ══════════════════════════════════════════════════════════════════════════════════
+   ★★★ AUG GROUND (Damir 2026-08-30) — THE LIGHT CANVAS IS A USER CHOICE.
+   Default is the flat #EFF5EB declared in the light block. This restores the E1c
+   teal→green wash for anyone who picks it.
+
+   ⚠ SCOPED OUT OF DARK ON PURPOSE, and the specificity is the whole point. A bare
+   `[data-chat-ground='gradient']` is (0,1,0) — the SAME weight as `[data-theme="dark"]`
+   — so placed here, after the dark block, it would win on source order and paint the
+   LIGHT wash over a dark chat. `:root:not([data-theme='dark'])` lifts it to (0,2,0) and
+   makes the exclusion explicit rather than accidental.
+   ⚠ TWO SELECTORS, and both are needed: the real chat sets the attribute on <html> (the
+   pre-paint script, so it cannot flash), while the settings PREVIEW sets it on a child
+   div. One selector would leave the preview lying about what the chat will look like.
+   ★ The notice card follows this — see system-notice.css. On the wash it separates by
+   being LIGHTER; on the flat ground it has to be slightly DARKER. */
+:root:not([data-theme='dark'])[data-chat-ground='gradient'],
+:root:not([data-theme='dark']) [data-chat-ground='gradient'] {
+  /* ★★ Damir 2026-08-30 gave the base as
+       linear-gradient(289deg, #94D2E3 0%, #ADAEE8 92.62%)
+     and asked for stops to be added. HIS ANGLE AND HIS END POSITION ARE UNCHANGED —
+     289deg and 92.62% are exactly as supplied; the three interior stops are derived.
+     ★ WHY STOPS, measured: a two-stop CSS gradient interpolates in a straight line, and
+     these endpoints are 69° apart in hue (223.3° teal → 292.6° periwinkle), so the line
+     passes near the neutral axis and the middle goes chalky — chroma 21.4 → 22.2 → 31.5,
+     a −4.26 DIP against the average of the ends. That sag is what reads as a cheap
+     gradient. The interior stops follow the HUE ARC instead (OKLCH), which holds chroma
+     up: 21.4 → 23.1 → 25.8 → 28.8 → 31.5, dip −0.72. Same endpoints, same direction.
+     ⚠ NOT written as `linear-gradient(in oklch, …)`, which would express this in one word:
+     on a WebView that does not support the syntax the WHOLE declaration is invalid, the
+     ground falls back to the bare base, and that is a fail-soft hazard days before ship.
+     Explicit stops have no compatibility cliff.
+     ⚠ WHAT IT COSTS: the sent bubble #1956b2 bottoms out at 3.32 against this ramp —
+     above the 3:1 non-text floor but tighter than the flat ground's 6.07. White incoming
+     bubbles are fine (1.67 min). The pattern ink holds at ΔL* −3.4 to −3.8 across it. */
+  --gradient-chat: linear-gradient(289deg, #94d2e3 0%, #94cae9 23.16%, #99c2ed 46.31%, #a2b8ec 69.47%, #adaee8 92.62%), var(--chat-canvas-base);
+}
+/* ⚠★ AND THE FLAT TILE HAS TO SAY SO EXPLICITLY. Custom properties INHERIT: once <html>
+   carries data-chat-ground='gradient', the wash above cascades into every descendant —
+   including the settings swatch that is meant to preview the FLAT option, which would then
+   show the gradient and make the two tiles identical again for a different reason. Only a
+   DESCENDANT can be in this position (the root is one or the other, never both), so this is
+   scoped to the descendant form alone. */
+:root:not([data-theme='dark']) [data-chat-ground='flat'] {
+  --gradient-chat: var(--chat-canvas-base);
+}

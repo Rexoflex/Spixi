@@ -134,19 +134,40 @@
   inset: 0;
   display: block;
 }
-/* doodle rescaled for the mini tile — the 314px source tile reads as a near-blank
-   crop at 64px; 96px keeps several motifs visible so the levels differ at a glance */
+/* Tile rescaled for the mini swatch — the source tile reads as a near-blank crop at
+   64px, so the mask is shrunk until several motifs are visible and the levels differ
+   at a glance.
+   ★ E1 (2026-08-29): 96px was tuned against the 314px LINE-ART tile — a 3.3× reduction.
+   The doodles tile is 610px, so carrying 96px over would have been a 6.4× reduction and
+   the motifs would have shrunk to noise. Re-picked by RENDERING the swatch at 110×64 in
+   both themes at the boosted alpha: 96px is crowded, 187px and 240px show too few
+   motifs to read as a pattern, 140px is the one.
+   ★★ AUG TILE (Damir 2026-08-30, reported on device) — AND THE OLD VALUE WAS A SQUARE,
+   WHICH IS THE BUG. `140px 140px` forces a SQUARE mask cell. That was harmless while the
+   doodles tile was itself square (610×610), and it broke the moment the tile became
+   320×557: an SVG mask scales to FIT its cell preserving aspect, so 320×557 art inside a
+   140×140 cell renders 80px wide and CENTRED, leaving transparent gutters either side.
+   The swatch showed a vertical band of pattern, a blank gap, then the next band — which
+   is exactly what Damir photographed on both desktop and Android.
+   ⚠ THE LESSON, because it will recur: this value must carry the TILE'S ASPECT, never a
+   square. Re-derived by rendering at the real swatch size (185×64) at the boosted alpha:
+   90px reads as noise, 180px and 220px read as a crop of one motif rather than a pattern,
+   110px is the one — and it is a clean HALF of the chat's own painted 220px, so the
+   swatch stays a miniature of the chat rather than an unrelated scale. */
 .c-settings-swatch .c-settings-swatch__canvas::before {
-  -webkit-mask-size: 96px 96px;
-  mask-size: 96px 96px;
+  -webkit-mask-size: 110px 191px;
+  mask-size: 110px 191px;
 }
 /* W5 — pattern STYLE row. Same tile grammar as the intensity row above; the
    only differences are per-style mask scaling and (for Live flow) a canvas
    face instead of a mask.
    The 288px data-matrix tile crops to a near-empty corner at 64px, so it gets
    its own scale: 144px puts ~10 cells across the tile, which is what makes it
-   read as a MATRIX rather than as noise. Specificity (0,3,0) clears the
-   shared 96px rule above. */
+   read as a MATRIX rather than as noise. Specificity (0,3,0) clears the shared
+   rule above. ★ E1: that shared value is 140px now, close enough to this 144px
+   that the override looks redundant — it is not. 144px is derived from THIS tile
+   (288px ÷ 2 = ~10 cells across); the 140px above is derived from the doodles
+   tile. They agree by coincidence and must not be merged. */
 .c-settings-swatch .c-settings-swatch__canvas[data-chat-pattern='matrix']::before {
   -webkit-mask-size: 144px 144px;
   mask-size: 144px 144px;
@@ -164,8 +185,8 @@
   inset: 0;
   background: linear-gradient(to top right,
     transparent calc(50% - 1px),
-    var(--outline-neutral-02) calc(50% - 1px),
-    var(--outline-neutral-02) calc(50% + 1px),
+    var(--swatch-off-slash) calc(50% - 1px),
+    var(--swatch-off-slash) calc(50% + 1px),
     transparent calc(50% + 1px));
   pointer-events: none;
 }

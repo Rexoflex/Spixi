@@ -112,6 +112,28 @@
 		<TargetSdkVersion>35</TargetSdkVersion>
 	</PropertyGroup>
 	<PropertyGroup Condition="$(TargetFramework.Contains('-windows'))">
+		<!-- ★★ #684-adjacent / row 5 (Session F) — THE MULTI-SIZE .ico.
+		     Damir reported the Windows icon as "rough" at small sizes. Cause, measured at the
+		     artifact: the resizetizer's generated appicon_windows.ico carries exactly ONE
+		     64x64 bitmap, so Windows invents 16/24/32/40 by downscaling it.
+		     ⚠ THERE IS NO SIZE LIST IN THIS REPO TO CHANGE. Nothing here produces that .ico —
+		     no ApplicationIcon property existed, no .ico file was committed, there are no
+		     Directory.Build.props, and the one custom target in this project is unrelated.
+		     MauiIcon exposes no size-list metadata. The .ico is emitted entirely inside the
+		     MAUI SDK's Resizetizer. So the fix is to STOP taking the generated one for the
+		     executable and ship a committed icon that has all seven sizes.
+		     ★ appicon_windows.ico is rendered FROM appicon_windows.svg — same artwork, no new
+		     source of truth — at 16/24/32/48/64/128/256, each rasterised from VECTOR at its own
+		     size rather than downscaled, 32bpp BGRA with alpha, PNG-compressed at 256.
+		     ⚠ VERIFIED AT THE ARTIFACT, NEVER AT THE TASKBAR (which caches a stale square
+		     indefinitely): the container's ICONDIR was read back independently and by
+		     ImageMagick — 7 entries, the exact expected sizes, and alpha 0 on all four corner
+		     pixels of every entry. smoke-test pins that; see the row-5 pin.
+		     ⚠⚠ THIS IS A COMMITTED ASSET SITTING BESIDE A GENERATED ONE — the L17 shape, which
+		     has already cost two clean rebuilds. It is deliberate and it is pinned, but the
+		     FIRST Windows build must confirm the .exe takes THIS file and not the resizetizer's.
+		     ★ If the icon ever needs to change, re-render it from the SVG; do not hand-edit. -->
+		<ApplicationIcon>Platforms\Windows\appicon_windows.ico</ApplicationIcon>
 		<SatelliteResourceLanguages>en-US;en</SatelliteResourceLanguages>
 		<AppxPackage>false</AppxPackage>
 		<PublishAppxPackage>false</PublishAppxPackage>
@@ -146,7 +168,42 @@
 		     into the foreground, which Android then zoomed 1.5x (undoing the padding) and
 		     tinted as a solid blob for themed icons. Splitting them is what makes the
 		     "smaller mark" real on the screen rather than only in the file. -->
-		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#0076E1" />
+		<!-- ★★ E1b (Damir 2026-08-29): WINDOWS GETS ITS OWN ICON, and the split is forced by a
+		     MEASURED conflict rather than by taste. The shared pair pads the mark to 31.8% of the
+		     1024 tile because L17 needs that headroom for Android's adaptive mask + ~1.5x foreground
+		     zoom. Windows neither masks nor zooms — it draws the composed square as-is — so the
+		     same padding renders the taskbar mark at about two thirds the size Android shows, with
+		     square corners nothing rounds for it. Shrinking the padding would fix Windows and break
+		     Android, so the two platforms take different files.
+		     ⚠ THE ANDROID/iOS PAIR BELOW IS UNCHANGED. Keep it that way — its foreground/background
+		     split is what makes the "smaller mark" real on a launcher (L17), and a single-file icon
+		     there put the whole opaque square into the foreground.
+		     ⚠⚠ CORRECTED BY THE SESSION F AUDIT — THIS PARAGRAPH USED TO SAY "Color is IDENTICAL
+		     on both lines on purpose". IT IS NOT, AND MUST NOT BE. E1b DROPPED Color from the
+		     Windows line four lines below (it floods the rounded corners — the reason is spelled
+		     out there), and this text was left behind asserting an invariant the file no longer
+		     holds. A reader working top-down would "restore" it and hand back the square corners
+		     Damir reported. Color lives on the ANDROID/iOS line ONLY.
+		     ★ What is still true: Color is the flat ground a platform takes when it will not
+		     rasterise the file, and #689 settled THAT value by measurement (the icon was
+		     under-saturated, not too dark). It matters on Android/iOS, which have no ground of
+		     their own; the Windows file carries its own. -->
+		<MauiIcon Condition="!$(TargetFramework.Contains('-windows'))" Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#0076E1" />
+		<!-- ⚠⚠ NO Color ON THE WINDOWS LINE, AND THIS IS NOT AN OVERSIGHT. Damir on the first
+		     build: "the logo is bigger, but the rectangle is sharp". MEASURED at the artifact
+		     rather than guessed from the taskbar — every corner pixel of the generated
+		     appicon_windows.ico AND of appicon_windowsLogo.*.png came back (0,118,225,255):
+		     fully OPAQUE #0076E1. That is not this file's ground showing through a failed clip
+		     — the ground carries a radial, so a leaked corner would vary between top-right and
+		     bottom-left, and all four corners were identical and flat. It is the Color
+		     attribute, which the resizetizer paints as a BACKGROUND behind the rasterised SVG
+		     and which therefore floods exactly the transparency the rounded corners are made of.
+		     ★ Windows does not need the fallback: this file carries its own ground. Android and
+		     iOS keep theirs on the line above, where #689's measured blue still matters.
+		     ⚠ VERIFY AT THE ARTIFACT, NEVER AT THE TASKBAR — Windows caches icons hard enough
+		     that a correct build can show a stale square for as long as you are willing to
+		     stare at it. The corner pixel of the built .ico is the answer. -->
+		<MauiIcon Condition="$(TargetFramework.Contains('-windows'))" Include="Resources\AppIcon\appicon_windows.svg" />
 		<!-- Splash Screen -->
 		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#175595" BaseSize="128,128" />
 		<!-- Images -->

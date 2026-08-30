@@ -470,25 +470,36 @@
    * so this document does no derivation — the old "v × 0.36 for dark" line is gone
    * from here, from chat.html's pre-paint script and from applyPatternPrefs alike.
    * readPatternLevel migrates the legacy fractional values. */
-  const CHAT_PREFS = { pattern: 'spixi.chat.pattern', textScale: 'spixi.chat.textscale', patternStyle: 'spixi.chat.patternstyle' };
+  const CHAT_PREFS = { pattern: 'spixi.chat.pattern', textScale: 'spixi.chat.textscale', patternStyle: 'spixi.chat.patternstyle', ground: 'spixi.chat.ground' };
   function readChatPrefs() {
     // B2 (#256): ONE key, PLATFORM-AWARE default when unset — desktop Off (0),
     // mobile Default (1). Mirrors chat.html's pre-paint boot read so the
     // Chat-appearance swatch pre-selects what the chat actually shows.
     const desktop = document.documentElement.hasAttribute('data-desktop');
     let pattern = desktop ? 0 : 1, textScale = 1;   // · scale M
-    // W5: the STYLE default is line art (the pre-W5 look — an absent pref must
-    // change nothing). 'flow' is desktop-only, so a stored 'flow' on mobile
-    // reads back as line art, exactly what chat.html's pre-paint script applies.
-    let patternStyle = 'triangles';   // ★ 2026-08-22: the new default style
+    // E1 (#690): the STYLE default is DOODLES. 'flow' is desktop-only, so a stored
+    // 'flow' on mobile reads back as doodles, exactly what chat.html's pre-paint
+    // script applies. ⚠ This said "line art" — the pre-E1 default — until the Session F
+    // audit; line art and triangles were RETIRED at #690 and exist nowhere in the code.
+    let patternStyle = 'doodles';     // ★ E1 2026-08-29: the new default style
+    /* ★★ AUG (Damir 2026-08-30): the LIGHT canvas is a choice — 'flat' (default) |
+       'gradient'. Allowlisted exactly like the style, so a corrupt or retired value lands
+       on 'flat'. THIS IS THE THIRD LADDER (#690): chat.html's pre-paint script and its
+       live re-resolve are the other two, and all three must agree or the picker shows a
+       selection the chat does not have. */
+    let chatGround = desktop ? 'flat' : 'gradient';   // ★ AUG: platform-aware, mirrors chat.html
     try {
       pattern = readPatternLevel(localStorage.getItem(CHAT_PREFS.pattern), pattern);   // ★ N81 (#422)
       const t = parseFloat(localStorage.getItem(CHAT_PREFS.textScale));
       if (!isNaN(t)) textScale = Math.min(1.5, Math.max(0.8, t));
       const st = localStorage.getItem(CHAT_PREFS.patternStyle);
-      if (st === 'matrix' || st === 'lineart' || (st === 'flow' && desktop)) patternStyle = st;
+      // ★ E1: 'triangles' and 'lineart' are retired and deliberately absent here, so a
+      // stored value naming either falls through to the 'doodles' default above.
+      if (st === 'matrix' || (st === 'flow' && desktop)) patternStyle = st;
+      const gr = localStorage.getItem(CHAT_PREFS.ground);
+      if (gr === 'gradient') chatGround = gr;   // anything else, incl. absent/corrupt → 'flat'
     } catch (e) {}
-    return { pattern, textScale, patternStyle };
+    return { pattern, textScale, patternStyle, chatGround };
   }
 
   /* —— exit — the ONLY persist path is ixian:save, which persists nick + promotes
@@ -1296,12 +1307,14 @@
         return (appearanceEl = createChatAppearance({
           patternOpacity: prefs.pattern,
           patternStyle: prefs.patternStyle,
+          chatGround: prefs.chatGround,
           textScale: prefs.textScale,
           isDesktop,
           strings,
           onBack: showHub,
           onPattern: (v) => { try { localStorage.setItem(CHAT_PREFS.pattern, String(v)); } catch (e) {} },
           onPatternStyle: (v) => { try { localStorage.setItem(CHAT_PREFS.patternStyle, String(v)); } catch (e) {} },
+          onChatGround: (v) => { try { localStorage.setItem(CHAT_PREFS.ground, String(v)); } catch (e) {} },
           onTextScale: (v) => { try { localStorage.setItem(CHAT_PREFS.textScale, String(v)); } catch (e) {} },
         }));
       }

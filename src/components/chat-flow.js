@@ -33,7 +33,7 @@
  * DESKTOP ONLY (Damir 2026-08-12): constant animation is a battery cost on
  * phones, so the style picker offers it only under :root[data-desktop]. This
  * module does not enforce that — the picker and the pre-paint pref script do
- * (a mobile device that somehow carries the pref falls back to line art).
+ * (a mobile device that somehow carries the pref falls back to doodles).
  *
  * Ink + intensity are READ FROM COMPUTED STYLE every frame, never captured:
  * a theme switch or a move of the visibility dial applies live with no
@@ -106,7 +106,7 @@ export function attachChatFlow(host, opts = {}) {
   // getContext must be treated as THROWING, not merely nullable: jsdom (the
   // smoke harness) raises "not implemented" rather than returning null, and a
   // hardened WebView can do the same. Either way the caller falls back to the
-  // line-art tile — a pattern style must never be able to break the shell.
+  // doodles tile — a pattern style must never be able to break the shell.
   let ctx = null;
   try { ctx = canvas.getContext && canvas.getContext('2d'); } catch (e) { ctx = null; }
   if (!ctx) return null;                       // no 2d context → tile fallback below

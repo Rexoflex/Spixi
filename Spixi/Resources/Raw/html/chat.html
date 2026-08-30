@@ -47,7 +47,7 @@
      style picks the SOURCE, the intensity pref keeps mapping to opacity, and
      "Off" lives ONLY in the intensity dial (there is no fourth style).
      Live flow is DESKTOP-ONLY — a mobile client carrying the pref (restore,
-     hand-edited storage) falls back to line art here rather than burning
+     hand-edited storage) falls back to DOODLES here rather than burning
      battery on a constant rAF loop. -->
 <!-- ★ N81 (#422): the level is an INDEX (0 Off / 1 Default / 2 Strong) and the
      alpha comes from the theme's own --chat-pattern-alpha-N. The old dark ×0.36
@@ -56,7 +56,18 @@
      number. Legacy fractional prefs migrate here exactly as readPatternLevel()
      does in settings-screens.js; this copy is inline because it must run BEFORE
      the bundle loads (pre-paint). Keep the two in step. -->
-<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),p=NaN,t=NaN,s='';try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));s=localStorage.getItem('spixi.chat.patternstyle')||'';}catch(e){}var lv;if(!isFinite(p))lv=de?0:1;else if(p<=0)lv=0;else if(p===1||p===2)lv=p;else lv=p>0.5?2:1;r.setProperty('--chat-pattern-opacity',lv===2?'var(--chat-pattern-alpha-2)':lv<=0?'0':'var(--chat-pattern-alpha-1)');if(!isNaN(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));if(s==='flow'&&!de)s='triangles';if(s!=='lineart'&&s!=='matrix'&&s!=='flow'&&s!=='triangles')s='triangles';document.documentElement.setAttribute('data-chat-pattern',s);})();</script>
+<!-- ★★★ AUG (Damir 2026-08-30) — TWO CHANGES IN THIS SCRIPT, both pre-paint for the
+     same reason the style already was: resolved after first paint, they FLASH.
+     ① STRONG IS RETIRED. Levels are Off / Subtle. A stored `2` is a level that no longer
+        exists and folds to 1 here, exactly as readPatternLevel() does in
+        settings-screens.js. Keep the two in step — they are the same rule in two homes
+        because this one must run before the bundle loads.
+     ② THE LIGHT CANVAS IS A CHOICE: `spixi.chat.ground` = 'flat' (default) | 'gradient'.
+        Allowlisted the same way the style is, so a corrupt or retired value lands on
+        'flat' BEFORE first paint rather than painting an undefined ground. The attribute
+        is set in BOTH themes and is simply inert in dark — tokens.css scopes the gradient
+        rule out of dark, so there is nothing to branch on here. -->
+<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),p=NaN,t=NaN,s='',g='';try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));s=localStorage.getItem('spixi.chat.patternstyle')||'';g=localStorage.getItem('spixi.chat.ground')||'';}catch(e){}var lv;if(!isFinite(p))lv=de?0:1;else if(p<=0)lv=0;else lv=1;r.setProperty('--chat-pattern-opacity',lv<=0?'0':'var(--chat-pattern-alpha-1)');if(!isNaN(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));if(s==='flow'&&!de)s='doodles';if(s!=='doodles'&&s!=='matrix'&&s!=='flow')s='doodles';document.documentElement.setAttribute('data-chat-pattern',s);if(g!=='flat'&&g!=='gradient')g=de?'flat':'gradient';document.documentElement.setAttribute('data-chat-ground',g);})();</script>
 <style>
   /* Paint the screen surface IMMEDIATELY — before tokens.css/base.css load and
      before the JS bundle parses — so entering a chat doesn't flash an empty
@@ -1059,6 +1070,22 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-bubble-row[data-direction="sent"] .c-bubble__meta > * { opacity: 0.7; }
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="read"],
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="failed"] { opacity: 1; }
+/* ★ E1 (Damir 2026-08-29): the DELIVERED double-check drops below the rest of the
+   meta row so the READ tick separates. The measurement is the reason this is a real
+   change and not a preference: on the #1956b2 bubble the two glyphs were almost the
+   same LIGHTNESS — delivered L* 76.8, read L* 75.3 — and differed only in hue, which
+   is exactly why read did not pop. At 0.571 delivered lands at L* 70.0 and ΔE(read,
+   delivered) goes 43.3 → 48.6.
+   ⚠ 0.571, not the 0.525 that "reduce alpha by 25%" reads as literally: 0.525 puts
+   the glyph at 2.76:1 against the bubble, under the 3:1 non-text contrast floor this
+   file already tracks (audit findings 1+2, two rules up). 0.571 sits exactly ON 3.00:1
+   — an 18.4% reduction — and Damir took that trade knowingly.
+   ★ This targets the DELIVERED glyph ALONE. It must not be folded into the blanket
+   `.c-bubble__meta > *` rule above, which also carries the timestamp and the edited
+   marker; those stay at 0.7. And it needs no dark-mode twin: the sent bubble is the
+   same #1956b2 in both themes and --icon-bubble-delivered resolves to the same
+   --text-bubble-sent-meta in both, so ONE rule genuinely covers both modes. */
+.c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="delivered"] { opacity: 0.571; }
 /* A2 (#302): paid marker. Inherits the meta ink on BOTH directions — those inks are
    already AA-tuned per direction two rules up (--text-bubble-*-meta), so the glyph
    needs no token of its own and reads correctly in light and dark. flex:none stops
@@ -1141,7 +1168,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-datesep__pill {
   padding: var(--spacing-2) var(--spacing-12);
   border-radius: var(--radius-full);
-  background: var(--surface-neutral-02);
+  background: var(--surface-chat-chip);   /* ★ AUG: see tokens.css — neutral-02 vanished on the new light ground */
   border: var(--outline-width-1) solid var(--outline-neutral-01); /* audit: pill vanished on same-value canvas */
   color: var(--text-neutral-02);
   font-size: var(--font-size-label-xs);
@@ -1795,7 +1822,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   gap: var(--spacing-8);
   margin: var(--spacing-12) 0;
   padding: var(--spacing-4) var(--spacing-16);
-  background: var(--surface-neutral-02);
+  background: var(--surface-chat-chip);   /* ★ AUG: see tokens.css — neutral-02 vanished on the new light ground */
   border-block: var(--outline-width-1) solid var(--outline-neutral-02); /* -02: -01 vanished on same-value surfaces in dark (audit) */
   color: var(--text-neutral-02);
   font-size: var(--font-size-label-xs);
@@ -2034,6 +2061,20 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   line-height: var(--line-height-body-md);
   letter-spacing: var(--tracking-body-md);
   color: var(--text-neutral-02);
+  /* ★★ E1d (Damir on device, 2026-08-29 — Windows AND mobile): a long URL OVERFLOWS the
+     dialog. The external-link confirm (#82, chat.html confirmOpenLink) puts the raw URL in
+     this slot as its body, and a URL is ONE unbroken token — no spaces, and a query string
+     or a `#fragment` gives the line breaker nothing to work with. The modal is capped at
+     360px, so the text ran straight past the rounded corner on both platforms.
+     ⚠ `anywhere`, not `break-word`: `overflow-wrap: break-word` only breaks BETWEEN
+     opportunities and still refuses to split a single long token in several engines, which
+     is exactly the case here. `anywhere` breaks only when the line would otherwise overflow,
+     so ordinary body copy in every other modal is untouched — it is not `word-break:
+     break-all`, which would hyphen-less-chop normal sentences too.
+     ★ This slot is shared by every modal body, which is why the fix belongs here and not in
+     the link dialog: the same overflow waits for any long token — a wallet address, a
+     file name, a base58 transaction id — and those are all things this app puts in dialogs. */
+  overflow-wrap: anywhere;
 }
 
 .c-modal__actions {
@@ -3105,14 +3146,60 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   padding: var(--spacing-16) var(--spacing-16) var(--spacing-12);
   border-radius: var(--radius-16);
   /* #265 (Damir ⑧): borderless — the elevation + surface carry the card */
-  background: var(--surface-neutral-02);
-  /* ★ N81 (#422, #46 audit): this surface floated on the light-BLUE canvas and
-     relied on elevation to separate, so it took the same incoming hairline the
-     received bubble carries.
-     ★ N82(b) (#427): the token is `transparent` in BOTH themes now (Damir's pick
-     on the rendered comparison), so this rule paints nothing and is kept only as
-     the one-line reversal hook. See tokens.css --border-bubble-received. */
-  box-shadow: inset 0 0 0 1px var(--border-bubble-received);
+  /* ★★ E1b (Damir 2026-08-29): "the notice in light mode sucks". ⚠ THIS SUPERSEDES
+     N82(c)'s explicit constraint below — "LIGHT KEEPS ITS NOTICE EXACTLY AS IT IS" —
+     which was right under the ground light had THEN and wrong under the one it has now.
+     MEASURED cause, not taste: --surface-neutral-02 is #edf0f2, chroma 1.47, and only
+     1.057 luminance separation from the canvas. A near-neutral grey card was fine on a
+     flat grey ground; E1 put a blue wash behind it, and a grey card on a blue canvas
+     reads as dirt. Dark never had the problem because N82(c) gave it #0c1a4a at 1.136.
+     #dfe8ff + the edge below lands at 1.133 — dark's separation, near enough exactly —
+     with chroma 12.2. Ink stays clear of AA: title 15.04:1 · body 6.01:1 · link 5.69:1.
+     ⚠ NOT white: white IS the incoming bubble, so a white card would read as one more
+     bubble rather than as the notice that sits above the thread.
+     ⚠ Written here rather than by moving --surface-neutral-02, for the same reason
+     N82(c) gave: that token is shared, and editing it would drag every other surface. */
+  /* ★ E1c: re-tuned for the colourful canvas. #dfe8ff was a BLUE card chosen for a blue
+     ground; on the teal→green wash it clashes in hue and washes out at the green end
+     (1.088 separation — the card would have disappeared into the bottom of the screen).
+     #e8f3ef separates at BOTH ends — 1.655 against the teal, 1.172 against the green — and,
+     the constraint that is easy to miss, it also stays distinct from the WHITE incoming
+     bubble at 1.135, which a paler teal would not. Ink: title 16.25:1 · body 6.50:1 ·
+     link 6.15:1. Superseded: #dfe8ff (E1b), var(--surface-neutral-02) (#264). */
+  /* ★★ AUG GROUND (Damir 2026-08-30): re-tuned for the flat #EBF0F5 ground. #e8f3ef
+     measured −0.91 ΔL* against a near-white ground and DISSOLVED — it had been a LIGHTER
+     card on a saturated wash (+18.34 at the teal end), and there is nothing lighter than
+     a near-white ground to be. The relationship had to invert: the card is a slightly
+     DARKER tint now, at −3.57 ΔL*.
+     ⚠ AND IT HAD TO CHANGE HUE, not just lightness. The first cut of this was #e4ece0,
+     picked for the green-leaning #EFF5EB ground; on the COOL #EBF0F5 that card measures
+     hue 134° against the ground's 256° and reads as a green patch on a blue-grey field.
+     #dfe6ee is hue 260° — the ground's own family.
+     ⚠ Superseded: #e4ece0 (same day) ← #e8f3ef (E1c) ← var(--surface-neutral-02) (#264)
+     ← #dfe8ff (E1b). */
+  background: #dfe6ee;
+  /* ⚠ HISTORY, NOT INSTRUCTION (rewritten by the Session F audit). This surface once
+     took the same --border-bubble-received hairline the received bubble carries
+     (N81 #422/#46), and that hook was later kept as a paint-nothing reversal hook
+     (N82(b) #427). ★ BOTH ARE GONE FROM THIS FILE. The rule below is a LITERAL edge
+     and it PAINTS. The old text sat directly above it saying "this rule paints nothing
+     and is kept only as the one-line reversal hook", which described a declaration that
+     no longer exists — anyone acting on it would delete E1c's edge, reinstate the hook
+     and turn smoke-test's HAIR.length === 6 red. Do not reintroduce the token here. */
+  /* ★ E1b: the light EDGE, mirroring what N82(c) did for dark. Dark's edge measures
+     2.19 against its ground; rgba(48,80,189,0.40) over this card measures 2.08 against
+     the light ground — the same job, the same order of prominence. It replaces the
+     N82(b) hairline hook, which painted nothing (the token is `transparent` in both
+     themes) and so left light with no edge at all.
+     ⚠ Superseded: rgba(48,80,189,0.40) (E1b) → rgba(18,59,71,0.40) (E1c, the teal ground).
+     The 2.08 figure above is the E1b measurement against the OLD flat ground and is kept
+     as history; the shipping edge measures 1.31 (teal end) / 1.85 (green end). */
+  box-shadow: inset 0 0 0 1px rgba(18, 59, 71, 0.40);
+  /* ★ E1c: a teal edge for the teal ground. ⚠ Stated honestly rather than claimed as parity:
+     it measures 1.31 against the teal end and 1.85 against the green, so unlike dark's flat
+     2.19 its prominence VARIES down the screen. That is inherent to a mid-lightness gradient —
+     a dark edge has less room to separate at the lighter end — and the card is carrying most
+     of the separation itself here, which it was not on the near-white ground. */
   text-align: center;
 }
 .c-sysnotice__medallion {
@@ -3184,6 +3271,25 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 [data-theme="dark"] .c-sysnotice__card {
   background: #0c1a4a;
   box-shadow: inset 0 0 0 1px rgba(118, 157, 255, 0.35);
+}
+
+
+/* ★★ AUG GROUND (Damir 2026-08-30): the card FOLLOWS the canvas choice.
+   On the flat near-white #EFF5EB it must be slightly DARKER (#e4ece0, −3.34 ΔL*) because
+   there is nothing lighter than a near-white ground to be. On the teal→green wash the
+   original relationship holds and the card works by being LIGHTER (#e8f3ef, +18.34 ΔL* at
+   the teal end / +6.06 at the green end, and 1.135 against the white incoming bubble).
+   ⚠ Same specificity discipline as the tokens.css ground rule: :root:not([data-theme…])
+   keeps this out of dark, and both the <html> form (real chat) and the descendant form
+   (settings preview) are listed so the preview cannot lie about the chat. */
+:root:not([data-theme='dark'])[data-chat-ground='gradient'] .c-sysnotice__card,
+:root:not([data-theme='dark']) [data-chat-ground='gradient'] .c-sysnotice__card {
+  /* ★ The card is LIGHTER than a saturated ground (the relationship that was inverted for
+     the flat one). #e8f3ef is retired here too: it is hue 171° GREEN, tuned for the
+     retired teal→green wash, and it read as a green patch on this blue-periwinkle ramp.
+     #eaf0fa is hue 268°, inside the ramp's own 223→293 span, and separates at both ends
+     (ΔL* +13.9 teal / +21.7 periwinkle). */
+  background: #eaf0fa;
 }
 
 </style>
@@ -5792,19 +5898,37 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    * the two TILE styles need nothing more — chat-pattern.css has already painted
    * them from the inherited custom properties. Only "Live flow" needs code, and
    * only once the bundle has parsed. Fail-soft ladder: no 2d context → fall the
-   * root attribute back to 'lineart', so a canvas-less WebView gets the doodle
-   * tile instead of a bare gradient. */
+   * root attribute back to 'doodles', so a canvas-less WebView gets a tile instead
+   * of a bare gradient.
+   * ⚠ This sentence said 'lineart' while the code below said 'triangles' — it had
+   * been stale since 2026-08-22. Both now say 'doodles' (★ E1). */
   const chatCanvasEl = document.querySelector('.c-chat-canvas');
   function syncFlowIfActive() {
     if (chatCanvasEl && typeof syncChatFlow === 'function') syncChatFlow(chatCanvasEl);
   }
+  /* ★★ SESSION F AUDIT — TWO FAIL-SOFT HOLES CLOSED HERE.
+     chat-flow.js's own contract says "a pattern style must never be able to break the
+     shell", and settings-screens.js mountFlowFace honours it with a try/catch. This
+     call site did not. attachChatFlow catches its documented getContext throw, but it
+     still does host.prepend(canvas) and constructs a ResizeObserver UNGUARDED — and
+     this function runs at TOP LEVEL in the shell's main script, so a throw from either
+     aborted everything below it (identity title, boot theme, the whole bridge wiring).
+     That is far worse than the bare gradient the ladder exists to prevent.
+     ⚠ And the !chatCanvasEl guard returned BEFORE the fail-soft instead of after it, so
+     an absent canvas left 'flow' on the root with --chat-pattern-tile: none — the one
+     path in all three ladders that can still end at a bare gradient. Unreachable today
+     (.c-chat-canvas is static markup above), but it would be introduced silently by any
+     refactor that renders the canvas from JS. Both now land on doodles. */
   function applyChatPatternStyle() {
-    if (!chatCanvasEl) return;
+    if (!chatCanvasEl) { document.documentElement.setAttribute('data-chat-pattern', 'doodles'); return; }
     const flow = document.documentElement.getAttribute('data-chat-pattern') === 'flow';
-    if (!flow) { if (typeof detachChatFlow === 'function') detachChatFlow(chatCanvasEl); return; }
-    if (typeof attachChatFlow !== 'function' || !attachChatFlow(chatCanvasEl)) {
-      document.documentElement.setAttribute('data-chat-pattern', 'triangles');
+    if (!flow) {
+      try { if (typeof detachChatFlow === 'function') detachChatFlow(chatCanvasEl); } catch (e) { /* never break the shell */ }
+      return;
     }
+    let mounted = false;
+    try { mounted = typeof attachChatFlow === 'function' && !!attachChatFlow(chatCanvasEl); } catch (e) { mounted = false; }
+    if (!mounted) document.documentElement.setAttribute('data-chat-pattern', 'doodles');
   }
   applyChatPatternStyle();
 
@@ -5827,22 +5951,39 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    * never double-paint: chat-pattern.css sets --chat-pattern-tile:none under
    * [data-chat-pattern='flow'] (::before display:none) and every non-flow style
    * detaches the canvas first. */
-  const PATTERN_PREF_KEYS = { level: 'spixi.chat.pattern', style: 'spixi.chat.patternstyle' };
+  /* ★★ AUG (Damir 2026-08-30, ON DEVICE): the GROUND joins this live re-resolve.
+     "the chat that was preselected doesnt refresh" — the canvas pref was resolved once in
+     the pre-paint head script, so an open chat kept its boot ground until the WebView
+     reloaded. That is the identical defect W5 F5 fixed for the pattern pair in 2026-08-13,
+     and the fix is to put the third key through the SAME machinery rather than add another
+     one: same storage event, same focus/visibility fallback, same stamp gate. */
+  const PATTERN_PREF_KEYS = { level: 'spixi.chat.pattern', style: 'spixi.chat.patternstyle', ground: 'spixi.chat.ground' };
   function readPatternPrefs() {
     const de = document.documentElement.hasAttribute('data-desktop');
-    let p = NaN, s = '';
+    let p = NaN, s = '', gr = '';
     try {
       p = parseFloat(localStorage.getItem(PATTERN_PREF_KEYS.level));
       s = localStorage.getItem(PATTERN_PREF_KEYS.style) || '';
+      gr = localStorage.getItem(PATTERN_PREF_KEYS.ground) || '';
     } catch (e) { /* DomStorageEnabled=false → boot defaults, forever */ }
     // ★ N81 (#422): p is a LEVEL INDEX now. readPatternLevel migrates the legacy
     // fractional alphas (0.3/0.5/0.7) and clamps; B2 (#256) platform-aware default
     // survives unchanged — desktop Off, mobile Default.
     p = readPatternLevel(p, de ? 0 : 1);
-    if (s === 'flow' && !de) s = 'triangles';    // Live flow is desktop-only (battery)
-    // ★ 2026-08-22: unknown/absent → TRIANGLES, the new default (was line art).
-    if (s !== 'lineart' && s !== 'matrix' && s !== 'flow' && s !== 'triangles') s = 'triangles';
-    return { level: p, style: s };
+    if (s === 'flow' && !de) s = 'doodles';      // Live flow is desktop-only (battery)
+    // ★ E1 2026-08-29: unknown/absent → DOODLES, the new default. This allowlist IS
+    // the migration for the two retired styles: a stored 'triangles' or 'lineart'
+    // matches nothing and falls through to 'doodles'. The stale value stays in
+    // localStorage until the next pick overwrites it, which is harmless — it is
+    // never read back as anything but "not in the list".
+    if (s !== 'doodles' && s !== 'matrix' && s !== 'flow') s = 'doodles';
+    /* ★ AUG: same allowlist discipline as the style, and the DEFAULT is platform-aware the
+       way the intensity default already is (B2 #256, desktop Off / mobile Subtle). Damir
+       2026-08-30: "for android we leave the default view on light mode always gradient
+       canvas and new pattern" — so an unset pref means GRADIENT on mobile, FLAT on desktop,
+       where the canvas sits beside the chrome and a wash competes with it. */
+    if (gr !== 'flat' && gr !== 'gradient') gr = de ? 'flat' : 'gradient';
+    return { level: p, style: s, ground: gr };
   }
   function applyPatternPrefs(prefs) {
     const r = document.documentElement;
@@ -5855,10 +5996,14 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      * genuinely does need a repaint), but it can no longer paint the wrong number. */
     r.style.setProperty('--chat-pattern-opacity', patternLevelVar(prefs.level));
     r.setAttribute('data-chat-pattern', prefs.style);
+    r.setAttribute('data-chat-ground', prefs.ground);   // ★ AUG: light-only in effect; inert in dark
     applyChatPatternStyle();     // mount / detach the flow canvas for the new style
     syncFlowIfActive();          // …and repaint it now (reduced motion = no loop to self-heal)
   }
-  const patternStamp = (p) => p.level + '|' + p.style;
+  /* ⚠ THE STAMP IS THE GATE. A key left out of it is a key whose change is invisible to
+     the poll — the ground would have needed a WebView reload exactly like the pattern did
+     before W5 F5. Every field readPatternPrefs returns must appear here. */
+  const patternStamp = (p) => p.level + '|' + p.style + '|' + p.ground;
   let seenPatternPrefs = patternStamp(readPatternPrefs());
   function refreshPatternPrefsIfChanged() {
     const prefs = readPatternPrefs();
@@ -6690,7 +6835,11 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     if (rec.kind === 'app') return 'app';
     if (rec.kind === 'call') return 'call';
     const media = mediaUrlOf(rec.text);
-    if (media) return /\.gif(\?|#|$)/i.test(media) ? 'gif' : 'image';
+    /* ★ #684 (Session F): this tested the regex against the OBJECT mediaUrlOf returns,
+       not against a string — String({url,kind}) is "[object Object]", which never matches
+       /\.gif/, so EVERY media reply-quote was labelled "image", GIFs included. mediaUrlOf
+       already decided the kind; ask it rather than re-deriving from a value that is not a URL. */
+    if (media) return media.kind === 'gif' ? 'gif' : 'image';
     return null;
   }
   const REPLY_TEXT_MAX = 140;   // the quote is one clamped line; the bubble clamps visually too
@@ -6877,17 +7026,55 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    * a site's meta from the WebView is CORS-blocked; that needs a proxy or
    * sender-composed meta (§82). */
   const MEDIA_EXT = /\.(gif|png|jpe?g|webp|bmp|avif)(\?|#|$)/i;
+  /* ★★ #684 (Session F) — A SHARE LINK IS A PAGE URL, AND THAT IS THE WHOLE BUG.
+     What a user pastes, and what the Android GIF keyboard hands us (LinkUri, see
+     WebViewRenderer.OnCommitContent), is the SHARE page:
+         https://giphy.com/gifs/excited-yay-l0HlvtIPzPdt2usKs
+         https://tenor.com/view/happy-dance-gif-12345678
+     Neither carries a media extension and neither is on a direct-media host, so both
+     fell to `return null` and rendered as plain text. The picker was checked and is
+     innocent — do not close this by pointing at it.
+     ★ GIPHY IS DERIVABLE, so it is derived here: the share id is the last token of the
+     last path segment, and https://i.giphy.com/<id>.gif is Giphy's canonical direct
+     form. The tile then loads a real GIF instead of a web page.
+     ⚠ TENOR IS NOT DERIVABLE and is deliberately left alone. A tenor.com/view/… page id
+     is NOT the media hash in media.tenor.com/<hash>/… — recovering it needs a Tenor API
+     call with a key, which this shell has no business making (#82: no auto-fetch, and a
+     key in the client is a key in everyone's client). A Tenor share link therefore stays
+     a confirm-to-open LINK. That is honest and it is still strictly better than today,
+     where the keyboard's copy was dropped before it ever reached the shell.
+     ★★ THE RIGHT LONG-TERM FIX IS NOT HERE AT ALL — see §7. Gboard hands C# BOTH a
+     LinkUri and a ContentUri (the actual GIF file). Sending the FILE down the existing
+     transfer path would render every provider identically AND close the #82 IP leak,
+     because the recipient would fetch nothing from Tenor or Giphy. */
+  function giphyDirectFromShare(u) {
+    if (!/^(www\.)?giphy\.com$/.test(u.hostname.toLowerCase())) return null;
+    const seg = u.pathname.split('/').filter(Boolean);
+    // /gifs/<slug>-<id> · /stickers/<slug>-<id> · /embed/<id> · /gifs/<id>
+    if (seg.length < 2 || !/^(gifs|stickers|embed|clips)$/.test(seg[0])) return null;
+    // ⚠ clips are MP4, not GIF — a .gif URL for one 404s. Leave them as links.
+    if (seg[0] === 'clips') return null;
+    const last = seg[seg.length - 1];
+    const id = last.split('-').pop() || '';
+    /* Slug words are lowercase letters; a Giphy id is base62 and in practice carries a
+       digit or a capital. Requiring one of those keeps "…/gifs/excited" from being read
+       as an id. A wrong guess costs a broken tile, so the test is deliberately tight. */
+    if (!/^[A-Za-z0-9]{7,}$/.test(id) || !/[A-Z0-9]/.test(id)) return null;
+    return 'https://i.giphy.com/' + id + '.gif';
+  }
   function mediaUrlOf(text) {
     const t = (text == null ? '' : String(text)).trim();
     if (!/^https?:\/\/\S+$/i.test(t) || /\s/.test(t)) return null;   // must be a lone URL
     let u;
     try { u = new URL(t); } catch (_) { return null; }
     const host = u.hostname.toLowerCase();
-    const directGifHost = /^media\d*\.(tenor|giphy)\.com$/.test(host) || /^c\.tenor\.com$/.test(host);
+    const directGifHost = /^media\d*\.(tenor|giphy)\.com$/.test(host) || /^c\.tenor\.com$/.test(host) || /^i\.giphy\.com$/.test(host);
     if (MEDIA_EXT.test(u.pathname)) {
       return { url: t, kind: /\.gif(\?|#|$)/i.test(u.pathname) ? 'gif' : 'image' };
     }
     if (directGifHost) return { url: t, kind: 'gif' };
+    const giphy = giphyDirectFromShare(u);
+    if (giphy) return { url: giphy, kind: 'gif', from: t };
     return null;
   }
   function buildMediaRow(rec, media) {
@@ -8529,7 +8716,28 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       // latch. C# gives us nothing back on accept (see the docblock above), so the
       // pane's removal is OURS to do; the latch makes it stick against the pending
       // heartbeat that keeps ticking until the next updateScreen.
-      onAccept: () => { bridge.send('ixian:accept'); markRequestResolved(); },
+      /* ★★ AUG (Damir 2026-08-30, ON DEVICE): "the 'you are now connected' or
+         'establishing…' is not shown upon accepting request, and then abruptly shows".
+         DIAGNOSIS: the chats list DOES stage a handshaking row — acceptContactRequest()
+         gives it `handshaking:true` and the "Establishing a quantum-secure handshake…"
+         excerpt for a ≥3s hold (#109 / CH2). But that staging lives in home.html's
+         REQUEST-CARD handler, and accepting from inside the CHAT never reaches it: the two
+         shells share no JS (#221) and C# gives us nothing back on accept. So the list sat
+         on a bare row until the C# contacts re-flush landed with the connected message.
+         ★ The marker below is the SAME cross-WebView grammar this codebase already uses for
+         exactly this problem — one file:// localStorage origin, a namespaced key, read by
+         the other shell on its storage event + focus/visibility fallback (spixi.backup.last
+         #314, and Q12's spixi.exdel.<addr>). No bridge verb, no shared JS.
+         ⚠ NO PEER TEXT IS STORED, only an address and a timestamp — the #254 rule, because
+         mini-apps share this storage partition. */
+      onAccept: () => {
+        bridge.send('ixian:accept');
+        try {
+          const a = identity.address || '';
+          if (a) localStorage.setItem('spixi.hsstage.' + a, String(Date.now()));
+        } catch (_) { /* DomStorageEnabled=false → the list just misses the staging */ }
+        markRequestResolved();
+      },
       onDecline: () => bridge.send('ixian:undorequest'),
     }));
     document.getElementById('chat-composer').before(requestPane);
@@ -8625,7 +8833,26 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     const s = window.SL || {};
     return createSystemNotice({
       title: s.secureNoticeTitle || 'Encrypted. Peer-to-peer. Yours alone.',
-      text: s.secureNoticeText || 'Messages go straight from device to device, sealed with post-quantum encryption. No server carries or stores them. Every message exists only with you two, nowhere else.',
+      /* ★★ §0 LAUNCH BLOCKER — RULED BY DAMIR, AWAKE, 2026-08-30 00:20.
+         The old copy ended "No server carries or stores them. Every message exists only with
+         you two, nowhere else." THAT WAS FALSE whenever the recipient is offline:
+         Ixian-Core/Streaming/OfflinePushMessages.cs POSTs to ipn.ixian.io/v2/push.php with
+         tag = recipient, data = the ciphertext, fa = SENDER — held until the recipient's device
+         calls fetch.php. A server does carry and store it, and it observes who sent to whom and
+         when. The ENCRYPTION half was always fine; the "no server" sentence was the lie, and it
+         is the exact sentence a journalist or a regulator tests first.
+         ★ He asked for copy that leads on the encryption without narrating the relay. This makes
+         NO server claim at all — omission is honest, an affirmative denial was not.
+         ★★ "post-quantum" WAS VERIFIED AT SOURCE BEFORE IT WAS KEPT, and a careless sweep nearly
+         killed it wrongly: grepping Kyber|ML-KEM|ML_KEM|CRYSTALS returns NOTHING because the
+         identifier is `MLKem`, no separator. What actually runs: CoreStreamProcessor's
+         prepareSharedSecret/finalizeSharedSecret build the message secret from ECDH + ML-KEM-1024
+         combined (BouncyCastle.cs:49, MLKemParameters.ml_kem_1024), and spixi2 bodies are
+         AES-256-GCM + ChaCha20-Poly1305 with per-message derived keys. The hybrid is real.
+         ⚠ rsa2 (RSA-4096 key wrap) is still the fallback when a peer does not support spixi2
+         (CoreStreamProcessor.cs:1618/1623) and is NOT post-quantum. This copy says nothing the
+         fallback contradicts — but WHEN rsa2 RETIRES IS AN OPEN QUESTION; see §7. */
+      text: s.secureNoticeText || 'Messages are sealed on your device with post-quantum encryption and can be opened only by the person you sent them to. Nobody in between can read them, not even us.',
       linkLabel: s.secureNoticeLink || 'How it works',
       onLink: () => bridge.send('ixian:openLink:' + SECURE_LINK),
     });

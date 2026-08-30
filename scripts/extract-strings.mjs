@@ -71,16 +71,26 @@ const DYNAMIC = {
    * would still have shipped in English in all 12 languages. Both i18n gates are
    * blind by construction: they compare locales against EACH OTHER, so a key that
    * is missing from all of them is perfectly "consistent". */
-  patternDefault: 'Default',
-  patternStrong: 'Strong',
+  /* ★★ AUG (Damir 2026-08-30): Strong RETIRED — two levels, Off and Subtle. The key is
+     deleted here, which is what removes it from en-us.json and therefore from every
+     locale on the next build-locales run. 'Default' was a poor label with only two
+     options; the KEY is kept so no locale loses its entry, only the English value moves. */
+  patternDefault: 'Subtle',
+  /* ★★ AUG GROUND (Damir 2026-08-30): the light canvas choice. These two are dynamic
+     (`strings[o.key]` off CHAT_GROUNDS) so the sweep cannot see them — same reason the
+     pattern levels are listed here. */
+  groundFlat: 'Solid',
+  groundGradient: 'Gradient',
   // #341 review MINOR-4: PATTERN_STYLES is read as strings[o.key] exactly like
   // PATTERN_LEVELS, so it is unextractable and MUST live here. It did not, so the
   // three style names existed in the locale files only until the next extract run —
   // and that run silently deleted every translation of them. Both i18n gates were
   // blind to it: they compare locales against each other, and a key dropped from
   // ALL of them stays "consistent".
-  patternStyleTriangles: 'Triangles',   // ★ 2026-08-22: the new DEFAULT style
-  patternStyleLineArt: 'Line art',
+  patternStyleDoodles: 'Doodles',       // ★ E1 2026-08-29: the DEFAULT style
+  // ★ E1: patternStyleTriangles / patternStyleLineArt REMOVED with the styles
+  // themselves (Damir's ruling, 2026-08-29). Their translations go with them —
+  // a key nothing reads is a key that rots.
   patternStyleMatrix: 'Data matrix',
   patternStyleFlow: 'Live flow',
   textS: 'S',

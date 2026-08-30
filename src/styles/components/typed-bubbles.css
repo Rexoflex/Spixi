@@ -330,7 +330,7 @@
   gap: var(--spacing-8);
   margin: var(--spacing-12) 0;
   padding: var(--spacing-4) var(--spacing-16);
-  background: var(--surface-neutral-02);
+  background: var(--surface-chat-chip);   /* ★ AUG: see tokens.css — neutral-02 vanished on the new light ground */
   border-block: var(--outline-width-1) solid var(--outline-neutral-02); /* -02: -01 vanished on same-value surfaces in dark (audit) */
   color: var(--text-neutral-02);
   font-size: var(--font-size-label-xs);

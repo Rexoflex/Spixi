@@ -11,6 +11,17 @@ namespace SPIXI
     [XamlCompilation(XamlCompilationOptions.Compile)]
     public partial class DownloadsPage : SpixiContentPage
     {
+
+        /* ★★ L3 (Session F) — A SHEET OPEN IN THIS SHELL IS NOW A BACK LEVEL.
+         * The defect: this page emitted/consumed ixian:back but never asked the shell
+         * whether an overlay was up, so hardware back POPPED THE PAGE OUT FROM UNDER an
+         * open modal. Identical to N50 (#370) on ContactDetails and #336 on Home; this
+         * is that same grammar, not a new one — the shell mirrors its overlay state and
+         * back is routed INTO the shell while it is up.
+         * ★ Self-heal: the shell's downloadsBack re-syncs when nothing was actually open, so a
+         * stale mirror can never wedge back. */
+        private bool shellOverlayOpen = false;
+
         public DownloadsPage()
         {
             InitializeComponent();
@@ -52,6 +63,11 @@ namespace SPIXI
             if (current_url.StartsWith("ixian:onload", StringComparison.Ordinal))
             {
                 onLoad();
+            }
+            else if (current_url.StartsWith("ixian:downloadsoverlay:", StringComparison.Ordinal))
+            {
+                // L3: display-state only, no payload — the homeoverlay/cdoverlay grammar.
+                shellOverlayOpen = current_url.EndsWith(":1", StringComparison.Ordinal);
             }
             else if (current_url.Equals("ixian:back", StringComparison.Ordinal))
             {
@@ -188,6 +204,13 @@ namespace SPIXI
 
         protected override bool OnBackButtonPressed()
         {
+            // L3: a shell overlay (the three settingsConfirm dialogs this screen can open)
+            // consumes back before the page pops — the order every native surface keeps.
+            if (shellOverlayOpen)
+            {
+                Utils.sendUiCommand(this, "downloadsBack");
+                return true;
+            }
             onBack();
 
             return true;

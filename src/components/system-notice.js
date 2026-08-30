@@ -12,7 +12,16 @@ import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 
 export function createSystemNotice({
-  glyph = 'shield-lock', // Damir export landed — shield+lock reads "protected" universally
+  /* ★ E1b (Damir 2026-08-29): a topology glyph replacing shield-lock. The shield said
+     "security"; the topology says PEER-TO-PEER, which is what the copy on this card is
+     about. The asset is his export; generate-icons.mjs sweeps every tabler-icon-*.svg
+     and keys it by the stripped name, so it needs no registration.
+     ★ Damir 2026-08-30: topology-star-2 → topology-star. Add-only (84 → 85 icons):
+     topology-star-2 STAYS in the registry, so this is a call-site swap and not a
+     retirement — nothing else that might reference it can break.
+     ⚠ The copy quoted in the old version of this note ("No server carries or stores
+     them") is GONE — it was the §0 launch blocker and was replaced on 2026-08-30. */
+  glyph = 'topology-star',
   title = '',
   text = '',
   linkLabel = '',

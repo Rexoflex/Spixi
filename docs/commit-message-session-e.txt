@@ -1,0 +1,90 @@
+Session E: the chat background pattern — and a legal sweep that found shipped copy which is not true
+
+THE PATTERN (#690, #695, #696, #697)
+Damir's export lands as src/assets/images/chat-bg-doodles.svg and becomes the default
+style `doodles`. TRIANGLES and LINE ART are retired on his explicit ruling — gone from the
+picker, the generator and the generated sheet. Data matrix stays and is offered on mobile;
+Live flow stays desktop-only.
+
+The retirement is only safe because all THREE resolution ladders moved together: the
+pre-paint head script in chat.html, the live re-resolve in the same file, and
+settings.html. A stored 'triangles' or 'lineart' matches no allowlist and lands on doodles
+before first paint. A fourth site would have broken it silently — [data-chat-pattern='flow']
+kept a fallback URI pointing at line art, and a fallback aimed at a var() that no longer
+exists resolves to nothing and fail-softs the canvas to a bare gradient.
+
+Tile painted at 366 while the export stays 610 (DOODLES_SCALE) — scaling is a CSS concern
+and the asset is untouched. The drift guard had to move to a natural-size marker or it
+would have fired on every run, which trains whoever hits it to pass --accept-doodles-change
+and disarm the one thing it exists to do.
+
+Ink #123b47 at .07 light / #bbd0ff at .065 dark — a hue of its own per theme. The .07 is a
+MATCH, not a bump: on the darker colourful ground .06 reached only 2.96/3.62 L* against
+4.03 on the old one. Light ground is the sampled teal→green diagonal (#7FC8DA → #CBE7C6),
+Damir's ruling against my measured recommendation. E1's light/dark symmetry is deliberately
+broken and its pin is RETIRED, not loosened — a pin that outlives its ruling is how a
+deliberate decision gets "fixed" back.
+
+Notice card reversed out of N82(c)'s "light keeps its notice exactly as it is", then
+re-tuned to #e8f3ef when the ground changed again. Glyph shield-lock → topology-star-2.
+
+THE DELIVERED TICK (#692)
+0.571, holding 3.00:1 exactly — not the 0.525 that "reduce by 25%" reads as literally,
+which measures 2.76:1. The measurement is the story: delivered and read were within 1.5 L*
+of each other and differed only in hue, which is why read never popped.
+
+THE WINDOWS ICON (#698)
+Its own file behind a TFM condition. The shared foreground pads the mark to 31.8% because
+L17 needs that headroom for Android's mask-and-zoom; Windows neither masks nor zooms, so
+the taskbar rendered it at two thirds the size a phone shows. The first build came back
+still square and the artifact said why: every corner pixel was opaque #0076E1, and the
+flatness is the tell — this file's ground carries a radial, so a leaked corner would differ
+between corners. Color is painted BEHIND the SVG and floods the transparency a rounded
+corner is made of. Dropped from the Windows line.
+
+TWO THINGS THE WORK NEARLY BROKE (#693, #700)
+build-shells.mjs ends with cpSync(src/demo/images → Resources/Raw/html/images). Damir had
+re-exported the onboarding illustrations into the BUILD OUTPUT; the next shells build would
+have restored the old ones silently. Copied up into the source first.
+
+A long URL overflowed the confirm dialog on Windows and mobile both — a URL is one unbroken
+token. overflow-wrap:anywhere on the shared .c-modal__body, where the same overflow was
+waiting for every wallet address and transaction id this app puts in a dialog.
+
+THE LEGAL SWEEP (#699) — docs/legal/, docs/privacy-workorder-2026-08-29.md
+Every claim traced to the code that implements it. Two findings change what the app may say:
+the secure-notice card on EVERY conversation claims "No server carries or stores them",
+which is FALSE when the recipient is offline; and the app ships OneSignal, a US third party
+that on Android initialises before the first screen and therefore before consent. Damir
+caught an error of mine in the same pass: "no crash-reporting SDK" is not "no crash data
+reaches IXI Labs" — Play Console collects crashes at the OS level with no SDK at all.
+
+The sweep also proved three things the old policy gave away for free: no analytics SDK
+anywhere, no contact-book upload, and the client never publishes its IP.
+
+VERIFICATION
+bundle 307 · shells 18 · smoke 3686 / the 3 known (#136 · M5 · B3) · locales ALL CLEAN 778
+· i18n-lint ✓ · pseudo 9/9 · cs-syntax SKIPPED (tree-sitter native build fails everywhere)
+Measured after the last edit to the suite (#681).
+
+52 mutations run across two passes, all killed. Three survivors on the first pass were
+repaired and re-killed (#694) — one was Session D's "a bare key name is a PREFIX TEST",
+reproduced in a pin written the same day that rule was quoted. Mutation debt is real and
+named in the handoff §5: two mutations never completed and the entire E1c round is
+unmutated, because every value in it changed after that pass ran.
+
+ORDERED AND NOT BUILT (#701)
+Dark: Damir ruled the .20 radial lift counterproductive and asked for near-black plus a
+slight gradient. Logged rather than implemented, because the measurement contradicts the
+literal reading: the canvas base #0f1115 is L* 5.03 and BOTH readings of "our neutral01"
+measure lighter (7.50 and 6.26). The base is not the problem, the +10.34 L* lift is. The
+ladder is rendered and waiting; the overnight session takes the lift to .06 and leaves the
+base alone.
+
+HANDOVER
+docs/handoff-2026-09-04.md (the overnight order) · docs/prompt-session-f.md ·
+docs/privacy-workorder-2026-08-29.md · docs/legal/ · the consumed pattern handoff is
+archived under docs/archive/.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01BWEdv6VvhCrxb6UeCWn9uM

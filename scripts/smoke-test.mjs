@@ -1749,15 +1749,25 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   // W5 split the swatches into TWO radiogroups: pattern STYLE then INTENSITY.
   // Scope the #334 assertion to the intensity row so it keeps meaning what it
   // meant (4 levels, tiles not pills) instead of counting the whole screen.
+  /* ⚠⚠ THIS SELECTOR WAS EXCLUSION-BY-IDENTITY AND THE AUG GROUND ROW BROKE IT.
+     It used to take the FIRST `.c-settings-swatches--style` as the style group and then
+     `find(g => g !== styleGroup)` for the intensity group. That worked only while there
+     was exactly ONE style-shaped group on the screen. The ground row (Damir 2026-08-30)
+     is also built with styleSwatchGroup — it previews a canvas, so it should be — and
+     `find` then returned the GROUND row, so this pin silently started asserting the wrong
+     control. It went red on the tile COUNT, which is the only reason it was noticed.
+     ★ Selected by CLASS now, the way the other intensity pin in this file already does it:
+     the intensity group is the only swatch group WITHOUT --style. That is a property of
+     what the control IS, not of how many siblings it happens to have. */
+  const intensityGroup = appear.querySelector('.c-settings-swatches:not(.c-settings-swatches--style)');
   const styleGroup = appear.querySelector('.c-settings-swatches--style');
-  const intensityGroup = [...appear.querySelectorAll('.c-settings-swatches')].find((g) => g !== styleGroup);
   const swatches = [...intensityGroup.querySelectorAll('.c-settings-swatch')];
   ok(segs.length === 1
     && segs[0].querySelectorAll('.c-settings-seg__pill').length === 4
-    && swatches.length === 3
-    && swatches.map((s) => s.dataset.value).join() === '0,1,2'
+    && swatches.length === 2
+    && swatches.map((s) => s.dataset.value).join() === '0,1'
     && swatches.every((s) => s.getAttribute('role') === 'radio' && s.getAttribute('aria-label')),
-    '★ N81: pattern = 3 swatch tiles — Off / Default / Strong (role=radio + localized aria-label); text size = the one remaining segGroup (4 pills)');
+    '★★ AUG (Damir 2026-08-30): pattern = 2 swatch tiles — Off / Subtle (role=radio + localized aria-label); text size = the one remaining segGroup (4 pills). Superseded: 3 tiles, Off / Default / Strong (N81). Strong is retired; the VALUES are pinned, not just the count, so a third tile reappearing turns this red rather than passing on arity alone');
   const offTile = appear.querySelector('.c-settings-swatch[data-off]');
   ok(!!offTile && swatches.every((s) => s.querySelector('.c-settings-swatch__canvas.c-chat-canvas')),
     '#334 iOS-60: every tile face rides the REAL chat-canvas paint; the Off tile is marked distinct (data-off)');
@@ -5029,8 +5039,8 @@ console.log('missing-bits Batch B — B2 pattern default · B3 tx-details shell 
     '★ N81: the desktop dark grey-1000 ground rule is RETIRED (it was #207/B2). #111213 is LIGHTER than Damir\'s new #0f1115, so keeping it would have made desktop dark PALER than mobile — the opposite of what it was written for, plus a second undocumented dark canvas colour');
   ok(/if\(!isFinite\(p\)\)lv=de\?0:1;/.test(chat),
     'B2 + ★ N81: chat boot pattern default is platform-aware — desktop Off (0), mobile Default (1). The value is a LEVEL INDEX now, not an alpha');
-  ok(/else if\(p<=0\)lv=0;else if\(p===1\|\|p===2\)lv=p;else lv=p>0\.5\?2:1;/.test(chat),
-    '★ N81 MIGRATION: the pre-paint script maps a LEGACY fractional pref (0.3/0.5/0.7) onto the new ladder — old Bold → Strong, everything else → Default. Old and new values overlap only at 0, which means Off in both, so the mapping needs no guessing');
+  ok(/else if\(p<=0\)lv=0;else lv=1;/.test(chat),
+    '★★ AUG MIGRATION (Damir 2026-08-30): Strong is retired, so the pre-paint script folds EVERY non-zero stored value to Subtle — the level index 2 that a Strong user has, and the legacy fractional alphas (0.3/0.5/0.7) alike. An old Bold user lands on the loudest option that still EXISTS. Superseded: N81 MIGRATION mapped old Bold → Strong, everything else → Default. ⚠ Old and new values still overlap only at 0, which means Off in both, so nothing has to be guessed. This must stay in step with readPatternLevel() — same rule, two homes, because this copy runs before the bundle loads');
   ok(chat.indexOf("p.get('desktop')==='1'") < chat.indexOf('if(!isFinite(p))lv=de?0:1;'),
     'B2: the ?desktop/?mobile preview-forcing script runs BEFORE the pattern default derives (re-pinned on the #422 literal — the ordering is the contract, not the expression)');
   ok(/const desktop = document\.documentElement\.hasAttribute\('data-desktop'\);/.test(settings)
@@ -6580,14 +6590,19 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
 }
 
 /* —— W5 (Damir 2026-08-12): chat background pattern STYLES ————————————————
- * Style (Line art / Data matrix / Live flow) is orthogonal to the existing
+ * Style (★ E1: Doodles / Data matrix / Live flow) is orthogonal to the existing
  * visibility dial; "Off" stays in the visibility control only. */
 {
   const gen = readFileSync(join(root, 'scripts/generate-chat-pattern.mjs'), 'utf8');
-  ok(/--chat-pattern-uri-lineart/.test(gen) && /--chat-pattern-uri-matrix/.test(gen),
-    'W5: the generator emits BOTH tiles (line art + data matrix) from one run');
-  ok(/LINE-ART DRIFT/.test(gen) && /accept-lineart-change/.test(gen),
-    'W5: the generator REFUSES to silently reskin the shipped line-art tile (asset on disk is 248 vs the committed 314)');
+  ok(/--chat-pattern-uri-doodles: \$\{doodlesUri\}/.test(gen) && /--chat-pattern-uri-matrix: \$\{matrixUri\}/.test(gen),
+    'W5 (★ E1 rebase): the generator emits BOTH tiles (doodles + data matrix) from one run, and it is the DECLARATION that is pinned, not the name. ⚠ MUTATION 01 SURVIVED the first version of this pin: `--chat-pattern-uri-doodles` occurs three times in the generator (the declaration, the :root default, the style block), so breaking the one that emits the tile left two matches behind and the pin stayed green. Session D\'s "a bare key name is a PREFIX TEST" — the same class, found again in a pin written the same day it was quoted');
+  ok(/prev\.match\(\/doodles-natural:/.test(gen)
+    && /if \(pm && \(pm\[1\] !== lw \|\| pm\[2\] !== lh\)\)/.test(gen)
+    && /doodlesUri = carried\[1\];/.test(gen)
+    && /!ACCEPT_DOODLES_CHANGE/.test(gen) && /--accept-doodles-change/.test(gen),
+    '★ E1: the drift guard MOVED to the new asset with the style, and the MECHANISM is what is pinned: read the committed NATURAL size out of the marker line in the previous sheet, compare it to the asset, and on a mismatch CARRY THE COMMITTED URI THROUGH rather than re-encode — gated on the opt-in flag. ⚠ E1b MOVED WHAT IT READS: the guard used to read --chat-pattern-size-doodles, which stopped being the natural size the moment DOODLES_SCALE arrived, and this pin went red on the change — correctly, and it is the pin catching my own edit rather than a defect. It is the same guard that refused to reskin the shipped tile from inside an unrelated batch, but it now starts in AGREEMENT (asset and committed tile both 610×610) instead of papering over the old 248-vs-314 mismatch. Never pass the flag to silence it. ⚠ MUTATION 02 SURVIVED the first version, which grepped for the words "DOODLES DRIFT" — a string that also appears in the console.warn, so the pin could not tell whether the guard\'s LOGIC still existed or only its shouting');
+  ok(!/buildTriangleSvg|--chat-pattern-uri-triangles|--chat-pattern-uri-lineart/.test(gen),
+    '★★ E1 NEGATIVE: the triangles synth and the line-art tile are GONE from the generator, not merely unlisted in the picker. A retired style that still emits a URI is a style someone can reach by hand-editing a pref');
   ok(/cells: 24/.test(gen) && /cell: 12/.test(gen) && /gridAlpha: 0\.16/.test(gen)
     && /pFillAfterFilled: 0\.62/.test(gen) && /pFillAfterEmpty: 0\.3/.test(gen)
     && /pBig: 0\.45/.test(gen) && /rBig: 1\.7/.test(gen) && /rSmall: 0\.9/.test(gen)
@@ -6595,15 +6610,30 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     'W5: the Damir-approved data-matrix dial is intact (24×12 · grid 0.16 · Markov .62/.30 · 45% r1.7 · r0.9@0.55 · seed 11)');
 
   const pat = readFileSync(join(root, 'src/styles/chat-pattern.css'), 'utf8');
-  ok(/--chat-pattern-size-lineart: 314px 314px/.test(pat),
-    'W5: the SHIPPED line-art tile is still 314×314 — the matrix addition changed no existing pixel');
+  ok(/--chat-pattern-size-doodles: 220px 383px/.test(pat) && /doodles-natural: 320x557\s+scale: 0\.6875/.test(pat),
+    '★★ AUG TILE (Damir 2026-08-30): the tile is PAINTED at 220×383 from a 320×557 export — about 1.77 repeats across a 390px phone, which is the 1.5x–2x density Damir asked for. ⚠ THE EXPORT IS DELIBERATELY SMALL: the artwork arrived as a 3078×5361 sheet and was rescaled with coordinates rounded to INTEGERS, which is what took the asset 306KB → 237KB and chat-pattern.css 323KB → 255KB (-21%) while the pattern got DENSER. That rounding is safe because the tile is a mask painted at 5% ink: the worst measured deviation is 0.135 of one 8-bit level on screen. Superseded, kept because the reasoning still holds for why a tile is painted below its export: E1b (Damir 2026-08-29): the tile is PAINTED at 366×366 — 40% smaller — while the export stays 610×610. At its natural size the motifs read as individual drawings; at 0.6 they read as texture, which is what a chat background is for. Both numbers are pinned because the pair is the point: scaling is a CSS concern and the ASSET IS UNTOUCHED, so this can never be confused with the export moving');
+  ok(/const DOODLES_SCALE = 0\.6875;/.test(gen) && /prev\.match\(\/doodles-natural:/.test(gen),
+    '★★ E1b: the drift guard reads the NATURAL size from the emitted marker, not the scaled --chat-pattern-size. Compare the asset\'s 610 against the emitted 366 and the guard fires on EVERY run — which would train whoever hits it to pass --accept-doodles-change, i.e. to disarm the one thing the guard exists to do');
   ok(/--chat-pattern-size-matrix: 288px 288px/.test(pat), 'W5: the data-matrix tile is the spec 288×288');
   ok(/\[data-chat-pattern='matrix'\]/.test(pat) && /\[data-chat-pattern='flow'\]/.test(pat),
     'W5: styles switch on an ATTRIBUTE selector, not a descendant one — the settings swatches each need their own style');
   ok(/display: var\(--chat-pattern-tile, block\)/.test(pat),
     'W5: the tile hides via an INHERITED custom property, so :root and a single canvas can both drive it');
-  ok(/\[data-chat-pattern='flow'\][^}]*--chat-pattern-uri: var\(--chat-pattern-uri-lineart\)/s.test(pat),
-    'W5: flow keeps a resolvable tile URI — a failed canvas mount falls back to line art, never a bare gradient');
+  {
+    /* ⚠ MUTATION 05: the first version of this pin read `[^}]*` from the selector and
+       accepted ANY doodles reference inside the block. That is not what the browser does
+       — the LAST declaration of a property wins — so a block carrying two
+       --chat-pattern-uri lines would have passed on the loser. (The mutation that exposed
+       it was itself invalid, which is the useful part: designing the mutation is what
+       showed the pin was reading the wrong thing.) Bound the slice by the block's own
+       closing brace and assert the EFFECTIVE value, i.e. the last one. */
+    const flowBlock = (pat.split("[data-chat-pattern='flow'] {")[1] || '').split('}')[0];
+    const uris = [...flowBlock.matchAll(/--chat-pattern-uri:\s*var\((--chat-pattern-uri-[a-z]+)\)/g)].map((m) => m[1]);
+    ok(uris.length >= 1 && uris[uris.length - 1] === '--chat-pattern-uri-doodles',
+      '★★ E1: flow keeps a resolvable tile URI and the EFFECTIVE one is DOODLES. This is the pin that would have caught the retirement half-done — flow used to fall back to line art, and a fallback pointing at a var() that no longer exists resolves to nothing, which fail-softs the canvas to a BARE GRADIENT. The style that is hardest to test by hand is the one that breaks silently. Got: ' + JSON.stringify(uris));
+  }
+  ok(!/\[data-chat-pattern='(triangles|lineart)'\]/.test(pat) && !/--chat-pattern-uri-(triangles|lineart):/.test(pat),
+    '★★ E1 NEGATIVE: no selector and no URI survives for either retired style in the generated sheet');
 
   /* W5 F5 (Damir 2026-08-13): "on light mode perhaps bump opacity, as its barely
    * visible on the strongest." Measured in Chromium, the light pattern's contrast
@@ -6640,23 +6670,50 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   const darkN81 = blocksN81('[data-theme="dark"]');
   ok(lightN81.length > 1000 && darkN81.length > 1000 && !darkN81.includes('--grey-1000'),
     '★ N81 harness self-check: the token blocks split by SELECTOR, not by the first textual match — a slice on the first "[data-theme=\"dark\"]" hits a comment on line 12 and would hand the whole file to `dark`, passing every assertion below for the wrong reason');
-  ok(/--chat-pattern-ink: #181a20;/.test(lightN81) && /--chat-pattern-alpha-1: 0\.042;/.test(lightN81)
+  ok(/--chat-pattern-ink: #061663;/.test(lightN81) && /--chat-pattern-alpha-1: 0\.06;/.test(lightN81)
     && /--chat-pattern-alpha-2: 0\.1;/.test(lightN81),
-    '★ N81: LIGHT line art = rgba(24,26,32,0.042) at Default, 0.1 at Strong (Damir 2026-08-19)');
-  ok(/--chat-pattern-ink: #f0f4ff;/.test(darkN81) && /--chat-pattern-alpha-1: 0\.045;/.test(darkN81)
+    '★★★ AUG (Damir 2026-08-30): LIGHT pattern = rgba(6,22,99,0.06) — a deep brand indigo. The tile is a MASK, so the artwork\'s own colour is discarded and this token alone decides the ink. MEASURED on the #EBF0F5 ground: ΔL* −4.53, STRONGER than the #231F20 @5% it replaces (−3.53) and back in the range E1c approved (−3.47/−4.26); the composited stroke lands at hue 266° against the ground\'s 256°, the same cool family. It also holds on the GRADIENT option: −3.66 teal / −4.39 periwinkle. ⚠ alpha-2 is pinned but UNREACHABLE — Strong is retired; the token is kept one line from returning. Superseded: AUG TILE: LIGHT pattern = rgba(35,31,32,0.05) at Default — the doodle-pattern-aug ARTWORK colour, since the tile is a mask and this token is the only thing that decides the hue. ⚠ MEASURED AND DELIBERATELY SOFTER: .05 reads ΔL* −2.90 teal / −3.40 green against E1c\'s −3.47 / −4.26, i.e. ~17% fainter than what shipped; .06 would have matched it almost exactly (−3.47 / −4.08) and Damir chose .05 on the render. Superseded, and the E1c reasoning is kept because it is still the record of why the ground moved: E1c (Damir 2026-08-29): LIGHT pattern = rgba(18,59,71,0.07) at Default. The ink followed the ground onto the teal (hue only — the two inks are within 0.03 L* at this alpha) and .06→.07 RESTORES the approved strength rather than raising it: on the old near-white ground the stroke sat 4.03 L* below it, on the colourful one .06 reached only 2.96/3.62 and .07 gives 3.47/4.26. Superseded: rgba(33,57,75,0.06) at Default, 0.1 at Strong. The ink carries a HUE now (slate, C* 1.80 → 2.43 on the composited stroke) and the Default alpha rose because the doodles tile lays down 1.15× the ink of the triangles tile it replaced, yet read as blank at 0.042. Supersedes the N81 pair (#181a20 / 0.042)');
+  ok(/--chat-pattern-ink: #ffffff;/.test(darkN81) && /--chat-pattern-alpha-1: 0\.05;/.test(darkN81)
     && /--chat-pattern-alpha-2: 0\.1;/.test(darkN81),
-    '★ N81: DARK line art = rgba(240,244,255,0.045) at Default, 0.1 at Strong (Damir 2026-08-19)');
+    '★★★ AUG TILE (Damir 2026-08-30): DARK pattern = rgba(255,255,255,0.05). ⚠⚠ THIS PIN IS A REVERSAL AND IT IS PINNED AS ONE. The 2026-07-03 ruling in tokens.css says the pattern is "theme-colored, not white (white isn\'t premium, Damir)", and dark has carried a tinted ink ever since. Damir reversed it on 2026-08-30. ★ The measurement is the reassurance: white @ .05 reads ΔL* +5.64 against the #701 canvas where #bbd0ff @ .065 read +5.89 — the STRENGTH is unchanged within 4%, so what moved is the HUE, not the visibility. The superseded reasoning is kept verbatim because a ruling that quietly disappears is how it gets fixed back: E1: DARK pattern = rgba(187,208,255,0.065) at Default, 0.1 at Strong — its OWN hue, not light\'s. MEASURED trade-off behind the value: a bluer ink is a darker ink, so #bbd0ff buys C* 3.37 → 5.29 for 1.2 L*, while #8fb3ee bought 6.04 for 2.3 L* and was rejected on that arithmetic. Supersedes #f0f4ff / 0.045');
+  ok(/--chat-pattern-ink: #061663;/.test(lightN81) !== /--chat-pattern-ink: #061663;/.test(darkN81)
+    && /--chat-pattern-ink: #ffffff;/.test(darkN81) !== /--chat-pattern-ink: #ffffff;/.test(lightN81),
+    '★ E1: the two inks are genuinely DIFFERENT tokens per theme — Damir asked for a hue of its own in each mode, and one ink shared by both is the failure this pin names. Asserted as a per-block XOR so a copy-paste of one value into the other block turns it red');
   ok(/--chat-pattern-opacity: var\(--chat-pattern-alpha-1\);/.test(lightN81)
     && /--chat-pattern-opacity: var\(--chat-pattern-alpha-1\);/.test(darkN81),
     '★ N81: the UNSET default resolves to each theme\'s own alpha — an absent preference must not fall back to one theme\'s number');
-  ok(/--chat-canvas-base: #f4f6f9;/.test(lightN81) && /--gradient-chat: var\(--chat-canvas-base\);/.test(lightN81),
-    '★ N82(a) (#427): LIGHT canvas is FLAT #f4f6f9 — Damir rejected the #fcfbfa cream on F5 and picked the light cool grey from the measured set. Still flat: the sky-blue diagonal wash stays gone (#422)');
+  ok(/--chat-canvas-base: #ebf0f5;/.test(lightN81)
+    && /--gradient-chat: var\(--chat-canvas-base\);/.test(lightN81),
+    '★★★ AUG GROUND (Damir 2026-08-30): LIGHT is a FLAT #EBF0F5 and the wash is now a user CHOICE, not the ground. He asked for the gradient to stay available, so it lives behind data-chat-ground=gradient (tokens.css, scoped out of dark) rather than being retired. MEASURED: the flat ground takes the sent bubble from 3.71 to 6.07 — E1c had to accept 3.71 as "the tightest this surface has been" — and gives the best white-bubble separation of any flat ground tried (ΔL* +5.44 vs +4.15 for #eff5eb and +3.19 for the pre-E1c #f4f6f9). ⚠ --chat-canvas-base was DEAD PAINT under E1c (both wash stops were opaque) and is load-bearing again. Superseded, and the E1c reasoning is kept because it records why the ground moved in the first place: E1c (Damir 2026-08-29): LIGHT is the COLOURFUL diagonal wash — his ruling, against my measured recommendation. The endpoints are SAMPLED from his reference mock (#7FC8DA top-right, #CBE7C6 bottom-left) and the DIRECTION is measured too (top-right #81C9D9 vs bottom-left #C3E3CA), which is why it is `to bottom left` and not the vertical it reads as at a glance. Superseded: the E1b radial, and before it the E1 one. Previously: LIGHT is NO LONGER FLAT — the wash is back, and it is the SAME radial as dark. ⚠ This is not a revert of #422: what #422 removed was a sky-blue DIAGONAL over a CREAM base, which turned the cream blue; the base is a cool grey since #427 and this is a top radial. The N82(a) base itself is unchanged at #f4f6f9');
+  {
+    /* ⚠⚠ E1c RETIRED THE SYMMETRY PIN, and it is RETIRED rather than quietly loosened so the
+       next reader can see it was a real ruling that a later one replaced.
+       ★ WHAT IT SAID, AND WHY IT WAS RIGHT: Damir reported the ground off in BOTH themes; the
+       two were not the same surface (flat light, radial dark), so an identical tile at an
+       identical alpha genuinely could not look identical. Making them one ground answered THAT
+       question, and it compared them as STRINGS because two regexes that each pass prove
+       nothing about whether the grounds AGREE.
+       ★ WHY IT IS GONE: Damir chose the colourful teal→green wash for light ("let's do the
+       colorful gradient, it's better"), against my measured recommendation. Dark cannot mirror
+       it, so the divergence is deliberate and the old pin would now assert a property the
+       design no longer wants. A pin that outlives its ruling is exactly how a later agent
+       "fixes" a deliberate decision back into the thing it replaced.
+       ⚠ WHAT REPLACES IT: the failure the old pin ALSO caught — one theme silently losing its
+       gradient — is still real, so both grounds must be declared, and they must now DIFFER. */
+    const grab = (blk) => (blk.match(/--gradient-chat: ([^;]+);/) || [])[1];
+    ok(!!grab(lightN81) && !!grab(darkN81) && grab(lightN81) !== grab(darkN81)
+      && (lightN81.match(/--gradient-chat:/g) || []).length === 1
+      && (darkN81.match(/--gradient-chat:/g) || []).length === 1,
+      '★★ E1c: light and dark each declare their OWN ground and the two DIFFER on purpose — light the sampled teal→green diagonal, dark its blue radial. Damir\'s ruling, replacing E1\'s deliberate symmetry. Asserted as a difference rather than dropped, because "a theme lost its gradient" is still a real failure and this still catches it');
+  }
   ok((lightN81.match(/--chat-canvas-base:/g) || []).length === 1
     && !/--chat-canvas-base: #fcfbfa/.test(lightN81),
     '★ N82(a): exactly ONE --chat-canvas-base declaration in the light block, and it is not the cream — a leftover declaration would win on source order (the #422 sent-meta lesson). Counted rather than grepped for the hex, because the comment that RECORDS the supersession names the old value on purpose');
-  ok(/--chat-canvas-base: #0f1115;/.test(darkN81)
-    && /--gradient-chat: radial-gradient\(120% 85% at 50% 0%, rgba\(80, 122, 249, 0\.10\) 0%, transparent 58%\), var\(--chat-canvas-base\);/.test(darkN81),
-    '★ N81: DARK keeps its radial glow OVER the new #0f1115 base (Damir\'s P.S.) — the asymmetry with light is deliberate');
+  ok(/--chat-canvas-base: #10151e;/.test(darkN81)
+    && (darkN81.match(/--chat-canvas-base:/g) || []).length === 1
+    && /--gradient-chat: radial-gradient\(120% 85% at 50% 0%, rgba\(80, 122, 249, 0\.06\) 0%, transparent 62%\), var\(--chat-canvas-base\);/.test(darkN81)
+    && (darkN81.match(/--gradient-chat:/g) || []).length === 1,
+    '★★★ AUG (Damir 2026-08-30, ON DEVICE): the dark lift is .06 and the base is #10151e — the CHROME\'S OWN --surface-screen. ⚠ THE DEFECT WAS COLOUR FAMILY, NOT LIGHTNESS: the old #0f1115 was chroma 2.62 (near-neutral grey) inside chrome at 7.00 (blue-tinted ink), and the .20 radial had been masking it — #701 dropped the lift and EXPOSED it. Desktop only, because mobile is full-bleed with no chrome beside the canvas. Now the bottom of the pane, where the radial fades out, matches the rail and list exactly. ⚠ This SUPERSEDES the #701 ruling below, which he made against a measurement about neutral01 lightness with no knowledge of the chrome adjacency. Superseded: #701 (Damir, awake, 2026-08-30 00:15): the dark lift is .06 and the BASE STAYS #0f1115. Both halves are RULED, neither is provisional. His words ("near black close to neutral01") contradicted the measurement — #0f1115 is L* 5.03, ALREADY darker than dark neutral01 (#13171b, 7.50) and light text-neutral01 (#131415, 6.26) — so moving the base would have made dark PALER while he asked for darker. The base was never the problem: at .20 the canvas centre reached L* 15.66 against a 5.03 base, which is what stopped it reading near-black; at .06 it lands at 7.96. Superseded: E1b\'s .20, whose "DARK rose WITH light" reasoning was sound for the question E1b asked and is simply not the question #701 asked. ⚠ BOTH declarations are COUNTED, not just matched — a later duplicate wins on source order (the #422 sent-meta lesson), and the ground token is exactly what a re-open would duplicate');
   ok(/--gradient-bubble-sent: #1956b2;/.test(lightN81) && /--gradient-bubble-sent: #1956b2;/.test(darkN81)
     && /--surface-bubble-sent: #1956b2;/.test(lightN81) && /--surface-bubble-sent: #1956b2;/.test(darkN81),
     '★ N81: ONE outgoing blue #1956B2 in BOTH themes, and the solid fallback AGREES with the gradient token (a fallback that disagrees is a colour change nobody can reproduce)');
@@ -6673,8 +6730,8 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     '★ N81/N82(b): the surfaces that FLOATED on the old blue canvas still READ the hairline token (transparent since #427) rather than baking their own edge — including the Chat-appearance PREVIEW bubble, the one screen whose whole job is showing what the chat looks like. If it ever baked an edge the preview would stop matching the chat');
   ok(/--text-bubble-sent-meta/.test(darkN81) && !/--text-bubble-sent-meta: var\(--neutral-300\)/.test(darkN81),
     '★ N81 (#422): the superseded dark sent-meta ink is GONE, not merely shadowed — a leftover declaration in the dark block would win on source order');
-  ok(/--surface-bubble-received: #ffffff;/.test(lightN81) && /--surface-bubble-received: #1a1d24;/.test(darkN81),
-    '★ N81: the incoming bubble surface, both themes (Damir 2026-08-19) — unchanged by N82');
+  ok(/--surface-bubble-received: #ffffff;/.test(lightN81) && /--surface-bubble-received: #1e222b;/.test(darkN81),
+    '★★ AUG (Damir 2026-08-30, ON DEVICE): the incoming bubble surface — WHITE in light, #1e222b in dark. Dark was raised because #1a1d24 measured only +2.86 ΔL* against the canvas CENTRE (where the #701 radial lift is strongest) and blended at the top of the screen; #1e222b is +5.31. Damir picked the NEUTRAL step off a four-candidate render — the bluer options were offered and declined, so this is a lightness change and the bubble keeps its hue. ⚠ The #701 lift drop IMPROVED this rather than causing it: at .20 the canvas centre was L* 15.66 against the bubble\'s 10.75, i.e. the bubble was DARKER than its own background. Superseded: #1a1d24 (N81, Damir 2026-08-19)');
   ok(/--border-bubble-received: transparent;/.test(lightN81)
     && !/--border-bubble-received:/.test(darkN81),
     '★ N82(b) (#427): the bubble hairline is OFF in BOTH themes — one `transparent` in :root and NO dark override. Damir chose symmetric removal against the rendered comparison; the asymmetric build (transparent in light, rgba(255,255,255,.05) in dark) is what he was shown, not what ships');
@@ -6684,26 +6741,44 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
      * Pinned because a later "dead rule" cleanup would silently make the reversal a
      * re-derivation of eight sites (#423: a comment cleanup already reverted a
      * migration once in this project). */
+    /* ⚠⚠ E1b REMOVED system-notice.css FROM THIS SET, and this existing pin is what caught
+       it — a red on a file I had not thought about while recolouring a card. Recorded rather
+       than quietly re-listed, because the question it raises is a design one:
+       ★ THE SECURE NOTICE IS NO LONGER A BUBBLE-HAIRLINE SURFACE IN EITHER THEME. N82(c)
+       already argued this for dark, in as many words — "the edge is written here, not via
+       --border-bubble-received: that token is the BUBBLE hairline, it is shared with seven
+       other surfaces, and N82(b) retired it" — and gave dark its own literal edge. E1b
+       extends the same reasoning to light: the card now carries a deliberate blue edge of
+       its own in BOTH themes, so the shared bubble hairline is no longer its reversal hook,
+       and pretending otherwise would mean restoring the hairline silently re-edging a card
+       that already has one.
+       ⚠ WHAT THIS COSTS, STATED PLAINLY: restoring the bubble hairline is still one token
+       edit, but it now reaches SIX files, not seven. The notice needs its own line. That is
+       the honest trade, and the count below is the record of it. */
     const HAIR = [
       'src/styles/components/message-bubble.css', 'src/styles/components/typed-bubbles.css',
       'src/styles/components/media-bubble.css', 'src/styles/components/typing-indicator.css',
-      'src/styles/components/system-notice.css', 'src/styles/components/settings-screens.css',
+      'src/styles/components/settings-screens.css',
       'src/shells/chat.html',
     ];
     const missing = HAIR.filter((f) => !/box-shadow: inset 0 0 0 1px var\(--border-bubble-received\)/
       .test(readFileSync(join(root, f), 'utf8')));
-    ok(HAIR.length === 7 && missing.length === 0,
-      '★ N82(b): all seven files still READ --border-bubble-received (eight rules — typed-bubbles carries two), so restoring the hairline stays a one-line token edit. Missing: ' + (missing.join(', ') || 'none'));
+    ok(HAIR.length === 6 && missing.length === 0,
+      '★ N82(b) + E1b: the SIX remaining files still READ --border-bubble-received (seven rules — typed-bubbles carries two), so restoring the hairline stays a one-line token edit for the bubble family. system-notice.css left the set at E1b — it carries its own edge in both themes now. Missing: ' + (missing.join(', ') || 'none'));
+    ok(!/var\(--border-bubble-received\)/.test(readFileSync(join(root, 'src/styles/components/system-notice.css'), 'utf8')),
+      '★ E1b: and the notice genuinely does NOT read the token any more — asserted from the other side, so the file cannot be half-migrated (a literal edge plus a leftover hook rule, where the leftover wins on source order and paints nothing while looking like it does)');
   }
   ok(!/--chat-canvas-base: var\(--neutral-1000\)/.test(readFileSync(join(root, 'src/shells/chat.html'), 'utf8')),
     '★ N81: the #207 desktop dark GROUND override is retired — grey-1000 (#111213) is LIGHTER than the new #0f1115, so it would have made desktop dark paler than mobile, inverting its own purpose');
 
-  /* ★ N82(c) (#427) — the security notice, DARK ONLY.
-   * The constraint IS the design: Damir narrowed it to dark in the same breath he
-   * asked for it, so light must be provably untouched. That makes the shape of the
-   * change assertable — a [data-theme="dark"] override, never a token edit, because
-   * editing --surface-neutral-02 would have dragged light along with it (and every
-   * other consumer of that surface). Pinned from both ends. */
+  /* ★ N82(c) (#427) — the security notice. WAS dark-only; E1b gave light its own card too.
+   * ⚠ The original constraint IS worth remembering even though it no longer holds: Damir
+   * narrowed N82(c) to dark in the same breath he asked for it, and the pin below held him
+   * to it until he reversed it himself on 2026-08-29. What SURVIVES the reversal is the
+   * shape of the change — a component-level override, never a token edit, because editing
+   * --surface-neutral-02 would drag every other consumer of that surface along. Both cards
+   * are now literals in this file, and the token pin at the end of the block still proves
+   * the token itself never moved. Pinned from both ends, as before. */
   {
     const notice = readFileSync(join(root, 'src/styles/components/system-notice.css'), 'utf8');
     ok(/\[data-theme="dark"\] \.c-sysnotice__card \{[^}]*background: #0c1a4a;[^}]*\}/.test(notice),
@@ -6715,12 +6790,24 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
      * inside the dark selector too — which is how the first version of this pin
      * failed against a correct file. What is left must be light-only. */
     const noticeLight = notice.replace(/\[data-theme="dark"\][^{]*\{[^}]*\}/g, '');
-    ok(!/\.c-sysnotice__card[^{]*\{[^}]*background: #/.test(noticeLight)
-      && /\.c-sysnotice__card \{[^}]*background: var\(--surface-neutral-02\)/.test(noticeLight),
-      '★ N82(c): ⚠ LIGHT IS UNTOUCHED — outside the dark override the card still resolves to var(--surface-neutral-02) and no literal colour is baked into it. This is the half of Damir\'s instruction that is easiest to break by accident');
+    /* ⚠⚠ E1b REVERSES THIS PIN, ON DAMIR'S RULING ("the notice in light mode sucks",
+       2026-08-29). N82(c) said in as many words "LIGHT KEEPS ITS NOTICE EXACTLY AS IT IS",
+       and this pin held him to it. That was correct under the ground light had THEN — flat
+       #f4f6f9 — and wrong under the one E1 gave it. MEASURED cause: --surface-neutral-02 is
+       #edf0f2, chroma 1.47, separating from the canvas by only 1.057. A near-neutral card on
+       a blue-washed canvas reads as dirt. The new card matches DARK's separation almost
+       exactly: 1.133 against dark's 1.136.
+       ★ A reversal is pinned as a reversal, never by deleting the old pin — the next reader
+       has to be able to see that "light is untouched" was a real ruling that a later one
+       replaced, or they will restore it as a "fix". */
+    ok(/\.c-sysnotice__card \{[^}]*background: #dfe6ee;/.test(noticeLight)
+      && /\.c-sysnotice__card \{[^}]*box-shadow: inset 0 0 0 1px rgba\(18, 59, 71, 0\.40\);/.test(noticeLight),
+      '★★★ AUG GROUND (Damir 2026-08-30): the LIGHT notice card is #dfe6ee with the rgba(18,59,71,0.40) edge. ⚠ THE RELATIONSHIP INVERTED: on a saturated wash the card worked by being LIGHTER (+18.34 ΔL* at the teal end); on a near-white ground there is nothing lighter to be, and #e8f3ef measured −0.91 and DISSOLVED. It is a slightly DARKER tint now, −3.57. ⚠ And it had to change HUE too — the first cut #e4ece0 was picked for the green-leaning #EFF5EB and reads as a green patch (hue 134°) on the cool #EBF0F5 (256°); #dfe6ee is 260°, the ground\'s own family. ★ The GRADIENT option carries its own card (#eaf0fa) in a ground-scoped rule, because there the lighter relationship still holds. Superseded: E1c: the LIGHT notice card is #e8f3ef with a rgba(18,59,71,0.40) edge, re-tuned for the colourful canvas. #dfe8ff was a BLUE card picked for a blue ground; on the teal→green wash it clashed and washed out at the green end (1.088 — it would have vanished into the bottom of the screen). #e8f3ef separates at BOTH ends, 1.655 teal / 1.172 green, AND stays distinct from the white incoming bubble at 1.135, which a paler teal would not. Ink: title 16.25:1 · body 6.50:1 · link 6.15:1');
+    ok(!/background: #ffffff;/.test(noticeLight) && !/background: #fff;/.test(noticeLight),
+      '★ E1b/E1c: the card is NOT white. White IS the incoming bubble in light mode, so a white card would read as one more bubble in the thread rather than as the notice that sits above it — which is the same reason dark went to #0c1a4a rather than to a lighter grey');
     ok(/--surface-neutral-02: var\(--neutral-800\);/.test(darkN81)
       && /--surface-neutral-02: var\(--neutral-50\);/.test(lightN81),
-      '★ N82(c): …and --surface-neutral-02 itself is UNCHANGED in both themes. A token edit would have recoloured every other surface that reads it — the reason this is written as a component override');
+      '★ N82(c), STILL TRUE AFTER E1b: --surface-neutral-02 itself is UNCHANGED in both themes. Both the dark card and now the light one are written as COMPONENT literals; a token edit would have recoloured every other surface that reads it. The ruling about the light card reversed — the rule about how to write it did not');
   }
 
   const flow = readFileSync(join(root, 'src/components/chat-flow.js'), 'utf8');
@@ -6759,12 +6846,14 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   ok(/localStorage\.getItem\('spixi\.chat\.patternstyle'\)/.test(chatW5)
     && /setAttribute\('data-chat-pattern',s\)/.test(chatW5),
     'W5: the style is resolved PRE-PAINT in the same script as the intensity — no wrong-pattern flash on load');
-  /* ★ REBASED 2026-08-22: TRIANGLES replaced line art as the default style, so every
-   * fallback target moved with it. The RULE is unchanged and is what this pin guards —
-   * Live flow is desktop-only and a mobile client carrying that pref must land somewhere
-   * deterministic. */
-  ok(/if\(s==='flow'&&!de\)s='triangles'/.test(chatW5),
-    'W5: Live flow is desktop-only — a mobile client carrying the pref falls back to line art (battery)');
+  /* ★ REBASED AGAIN 2026-08-29 (E1): line art → triangles → doodles. Every fallback
+   * target moved with the default each time. The RULE is unchanged and is what this pin
+   * guards — Live flow is desktop-only and a mobile client carrying that pref must land
+   * somewhere deterministic. */
+  ok(/if\(s==='flow'&&!de\)s='doodles'/.test(chatW5),
+    'W5 (★ E1): Live flow is desktop-only — a mobile client carrying the pref falls back to the DOODLES tile (battery)');
+  ok(/if\(s!=='doodles'&&s!=='matrix'&&s!=='flow'\)s='doodles'/.test(chatW5),
+    '★★ E1 MIGRATION (pre-paint): the head-script allowlist names only the LIVE styles, which is what migrates the two retired ones — a stored \'triangles\' or \'lineart\' matches nothing and lands on doodles BEFORE first paint. Retiring a style without this is how you re-skin someone to a bare gradient on launch');
   ok(chatW5.indexOf("p.get('desktop')==='1'") < chatW5.indexOf("spixi.chat.patternstyle"),
     'W5: the ?desktop/?mobile forcing still runs BEFORE the style default derives (the B2 ordering rule)');
   ok(/attachChatFlow, syncChatFlow, detachChatFlow/.test(chatW5) && /function applyChatPatternStyle/.test(chatW5),
@@ -6786,10 +6875,14 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     'W5 live-apply: the #314 grammar verbatim — storage event + focus + visibilitychange + a visibility-guarded 2s poll (WKWebView fires no cross-WebView storage event, and a covered WebView stays "visible")');
   ok(/if \(stamp === seenPatternPrefs\) return;/.test(chatW5),
     'W5 live-apply: gated on an ACTUAL change of the stored pair — the poll is a no-op read under a live chat');
-  ok(/if \(s === 'flow' && !de\) s = 'triangles';/.test(chatW5),
-    'W5 live-apply: the re-resolve keeps the desktop-only rule — a mobile chat can never mount the canvas from a stored flow');
-  ok(/r\.setAttribute\('data-chat-pattern', prefs\.style\);\s*\n\s*applyChatPatternStyle\(\);/.test(chatW5),
-    'W5 live-apply: the attribute moves and THEN the canvas mounts/detaches — a style switch can never leave a tile and a canvas painting at once');
+  ok(/if \(s === 'flow' && !de\) s = 'doodles';/.test(chatW5),
+    'W5 live-apply (★ E1): the re-resolve keeps the desktop-only rule — a mobile chat can never mount the canvas from a stored flow');
+  ok(/if \(s !== 'doodles' && s !== 'matrix' && s !== 'flow'\) s = 'doodles';/.test(chatW5)
+    && !/'triangles'|'lineart'/.test(chatW5.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')),
+    '★★ E1 MIGRATION (live re-apply): the SECOND ladder carries the same allowlist, and neither retired id survives anywhere in chat.html once comments are stripped. Two ladders that must agree is exactly the shape the W5 F5 bug had — pin BOTH or the live path keeps re-resolving to a style the sheet no longer defines');
+  ok(/r\.setAttribute\('data-chat-pattern', prefs\.style\);[\s\S]{0,220}?applyChatPatternStyle\(\);/.test(chatW5)
+    && chatW5.indexOf("r.setAttribute('data-chat-pattern', prefs.style);") < chatW5.indexOf('applyChatPatternStyle();     // mount / detach'),
+    'W5 live-apply: the attribute moves and THEN the canvas mounts/detaches — a style switch can never leave a tile and a canvas painting at once. ★ AUG: the ORDER is what this pin is about, so it is asserted as an order rather than as adjacency — the ground attribute is set between the two now (it is a sibling display-state write, not part of the mount), and a strict "next line" match made an unrelated insertion look like a regression');
   /* ★ N81 (#422): this used to pin that the ×0.36 dark derivation was RE-RUN on
    * every apply. There is no derivation left to re-run — the level is an index and
    * the alpha is a per-theme token, so CSS resolves it. Pin the ABSENCE, at all
@@ -6804,6 +6897,34 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     '★ N81: setTheme still re-runs the pattern ladder via the shared onApplied hook — the INTENSITY no longer needs it (CSS resolves that), but the flow canvas genuinely does: under prefers-reduced-motion there is no loop to re-theme itself');
 
   const setW5 = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
+  ok(/let patternStyle = 'doodles';/.test(setW5)
+    && /if \(st === 'matrix' \|\| \(st === 'flow' && desktop\)\) patternStyle = st;/.test(setW5),
+    '★★ E1 MIGRATION (settings): the THIRD ladder. settings.html reads the same pref with its own allowlist, and it too names only the live styles — so a stored \'triangles\' or \'lineart\' falls through to doodles and the Account screen agrees with the chat about what is selected. Three ladders had to move together; the retirement is only safe because all three did');
+  {
+    const ssCss = readFileSync(join(root, 'src/styles/components/settings-screens.css'), 'utf8');
+    ok(/\.c-settings-swatch \.c-settings-swatch__canvas::before \{[\s\S]*?-webkit-mask-size: 110px 191px;\s*mask-size: 110px 191px;/.test(ssCss),
+      '★★ AUG TILE (Damir 2026-08-30, ON DEVICE): the swatch mask is 110×191 — the TILE\'S OWN ASPECT, not a square. ⚠ THE OLD VALUE WAS 140px 140px AND IT WAS A LATENT BUG: it only worked because the doodles tile was itself square, and the moment the tile became 320×557 the art letterboxed inside the square cell and the swatch rendered band/gap/band on both desktop and Android. 110px re-picked BY RENDERING at the real 185×64 swatch at the boosted alpha (90 reads as noise, 180/220 read as a crop of one motif) and it is a clean half of the chat\'s painted 220, so the swatch stays a miniature of the chat. The companion pin above asserts the ASPECT against the emitted natural size so this cannot silently break again. Superseded: E1: the swatch mask is re-scaled to 140px for the new tile. 96px was derived from the 314px LINE-ART tile (a 3.3× reduction); the doodles tile is 610px NATURAL, so carrying 96px over would have been 6.4× and shrunk the motifs to noise in a 64px-tall swatch. ⚠ E1b: the CHAT now paints that tile at 366, but this override is an absolute mask-size and is deliberately independent of DOODLES_SCALE — the swatch is an icon for a choice, not a scale model of the canvas. Re-picked by RENDERING the swatch at both themes and the boosted alpha, not by arithmetic — 96px crowded, 187px and 240px too sparse');
+    ok(/\[data-chat-pattern='matrix'\]::before \{\s*-webkit-mask-size: 144px 144px;/.test(ssCss),
+      '★ E1: the matrix override survives at 144px even though the shared rule is now 140px. The two agree by coincidence — 144 is derived from the 288px matrix tile, 140 from the doodles tile at its 610px natural size — and merging them would couple two unrelated tiles to one number');
+  }
+  {
+    const snjs = readFileSync(join(root, 'src/components/system-notice.js'), 'utf8');
+    const icons = readFileSync(join(root, 'src/components/icons.js'), 'utf8');
+    const iconsIife = readFileSync(join(root, 'src/components/icons.iife.js'), 'utf8');
+    ok(/glyph = 'topology-star',/.test(snjs) && !/glyph = 'shield-lock'/.test(snjs),
+      '★ Damir 2026-08-30: the secure-notice glyph is topology-star. The shield said "security"; the topology says PEER-TO-PEER, which is what the card\'s copy is about. Superseded: topology-star-2 (E1b) ← shield-lock. ⚠ ADD-ONLY — topology-star-2 stays registered, so this was a call-site swap and nothing that references it can break');
+    ok(/"topology-star":\{"v":/.test(icons) && /"topology-star":\{"v":/.test(iconsIife)
+      && /"topology-star-2":\{"v":/.test(icons) && /"topology-star-2":\{"v":/.test(iconsIife),
+      '★★ E1b: the glyph is registered in BOTH icon homes — icons.js (ESM) and icons.iife.js (the classic script the file:// demos load). A glyph present in one and absent from the other renders in the app and vanishes in the demo, or the reverse, and only one of those gets looked at');
+  }
+  {
+    const ovl = readFileSync(join(root, 'src/styles/components/overlay.css'), 'utf8');
+    const modalBody = ovl.split('.c-modal__body {')[1].split('}')[0];
+    ok(/overflow-wrap: anywhere;/.test(modalBody),
+      '★★ E1d (Damir on device, Windows AND mobile): the modal body wraps a long unbroken token. The external-link confirm puts the raw URL here and a URL is ONE token — no spaces, and a query string or #fragment offers the breaker nothing — so it ran past the 360px dialog edge on both platforms');
+    ok(!/word-break: break-all/.test(modalBody),
+      '★ E1d: and it is NOT word-break:break-all, which would chop ordinary sentences in every other modal that shares this slot. `anywhere` breaks only the line that would otherwise overflow');
+  }
   ok(/patternStyle: 'spixi\.chat\.patternstyle'/.test(setW5) && /onPatternStyle: \(v\) =>/.test(setW5),
     'W5: the Account screen persists the style like the intensity pref (same origin, try/catch)');
   ok(/st === 'flow' && desktop/.test(setW5),
@@ -6816,13 +6937,13 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   wdoc.documentElement.setAttribute('data-desktop', '');
   const host5 = wdoc.createElement('div');
   wdoc.body.append(host5);
-  const ap5 = wd.Spixi.createChatAppearance({ patternOpacity: 0.5, patternStyle: 'lineart', isDesktop: true });
+  const ap5 = wd.Spixi.createChatAppearance({ patternOpacity: 0.5, patternStyle: 'doodles', isDesktop: true });
   host5.append(ap5);
   const sg = ap5.querySelector('.c-settings-swatches--style');
   ok(!!sg && sg.getAttribute('role') === 'radiogroup', 'W5: the style picker is its own radiogroup');
   const styleTiles = [...sg.querySelectorAll('.c-settings-swatch')];
-  ok(styleTiles.length === 4 && styleTiles.map((b) => b.dataset.value).join() === 'triangles,lineart,matrix,flow',
-    'W5: desktop offers all three styles in spec order');
+  ok(styleTiles.length === 3 && styleTiles.map((b) => b.dataset.value).join() === 'doodles,matrix,flow',
+    '★ E1: desktop offers THREE styles in spec order — doodles (default, listed first because the first entry is what a new install lands on), data matrix, live flow. Was four; triangles and line art are retired');
   ok(styleTiles.every((b) => b.getAttribute('role') === 'radio' && b.getAttribute('aria-label')),
     'W5: style tiles keep the #334 swatch a11y grammar (role=radio + localized label, no visible text to overflow)');
   ok(styleTiles.every((b) => b.querySelector('.c-settings-swatch__canvas').dataset.chatPattern === b.dataset.value),
@@ -6830,32 +6951,58 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   const prev5 = ap5.querySelector('.c-settings-appearance__preview');
   /* ★ REBASED 2026-08-22: addressed BY VALUE, not by index. Adding `triangles` at the
      front shifted every index and turned three pins red at once; a value lookup cannot be
-     broken by the next style anyone adds. */
+     broken by the next style anyone adds. ★ E1 vindicated it: REMOVING two styles moved
+     every index again, and the value lookups below needed no edit at all. */
   styleTiles.find((b) => b.dataset.value === 'matrix').click();
   ok(prev5.dataset.chatPattern === 'matrix', 'W5: the live preview reflects the style pick');
   const intensityFaces = [...ap5.querySelectorAll('.c-settings-swatches:not(.c-settings-swatches--style) .c-settings-swatch__canvas')];
-  ok(intensityFaces.length === 3 && intensityFaces.every((f) => f.dataset.chatPattern === 'matrix'),
-    'W5: the intensity tiles re-skin to the picked style — line-art tiles under a Data-matrix pick would be a lie (3 levels since ★ N81)');
+  ok(intensityFaces.length === 2 && intensityFaces.every((f) => f.dataset.chatPattern === 'matrix'),
+    '★★ AUG (Damir 2026-08-30): the intensity tiles re-skin to the picked style, and there are TWO of them — Off and Subtle. Superseded: three levels since ★ N81; Strong is retired and a stored 2 folds to Subtle in readPatternLevel and in both pre-paint ladders. ⚠ The COUNT is asserted, not just the skin: the old pin indexed intensityFaces[2] and this file CRASHED rather than failed when the third tile went away, which is a worse failure than a red line');
   /* ★ N81: the tiles must carry the per-theme VAR, not a baked number. This is what
    * closes the #239 ⓐ flag — the preview used to paint the raw light-scale value
    * while the real dark chat rendered v × 0.36, so in dark theme it promised a
    * pattern the chat never showed. Same var(), same theme, same pixels. */
   ok(intensityFaces[0].style.getPropertyValue('--chat-pattern-opacity') === '0'
-    && /^calc\(var\(--chat-pattern-alpha-1\) \* \d+\)$/.test(intensityFaces[1].style.getPropertyValue('--chat-pattern-opacity'))
-    && /^calc\(var\(--chat-pattern-alpha-2\) \* \d+\)$/.test(intensityFaces[2].style.getPropertyValue('--chat-pattern-opacity')),
-    '★ N81 (closes #239 ⓐ): each intensity tile assigns the per-theme ALPHA VAR, so the preview resolves under its own theme instead of baking one theme\'s number');
+    && /^calc\(var\(--chat-pattern-alpha-1\) \* \d+\)$/.test(intensityFaces[1].style.getPropertyValue('--chat-pattern-opacity')),
+    '★ N81 (closes #239 ⓐ): each intensity tile assigns the per-theme ALPHA VAR, so the preview resolves under its own theme instead of baking one theme\'s number. ★ AUG: alpha-2 is no longer referenced — Strong is retired — but the TOKEN stays defined in tokens.css, one line from returning, the same way --border-bubble-received is kept');
+  /* ★★★ AUG GROUND (Damir 2026-08-30) — the light-only canvas toggle, pinned on BOTH
+     sides of the theme because "renders in light" and "is absent in dark" are two
+     different promises and only one of them is about the happy path.
+     ⚠ The harness document is data-theme="dark", so a pin that only ever built the screen
+     as-is would never see this control at all. Both themes are forced explicitly. */
+  {
+    const de = wdoc.documentElement;
+    const prevTheme = de.getAttribute('data-theme');
+    de.setAttribute('data-theme', 'light');
+    const apLight = wd.Spixi.createChatAppearance({ isDesktop: false });
+    const lightGroups = [...apLight.querySelectorAll('.c-settings-swatches--style')];
+    const groundTiles = lightGroups.length > 1
+      ? [...lightGroups[1].querySelectorAll('.c-settings-swatch')].map((b) => b.dataset.value) : [];
+    ok(lightGroups.length === 2 && groundTiles.join() === 'flat,gradient',
+      '★★★ AUG GROUND: in LIGHT the appearance screen offers the canvas choice — flat (default) and the gradient Damir asked to keep. Two style-shaped groups: the pattern STYLE list and this one');
+    de.setAttribute('data-theme', 'dark');
+    const apDark = wd.Spixi.createChatAppearance({ isDesktop: false });
+    ok([...apDark.querySelectorAll('.c-settings-swatches--style')].length === 1,
+      '★★★ AUG GROUND: in DARK the row is ABSENT, not shown with one option. Dark carries the blue radial in both cases, so there is nothing to choose between and a one-option radiogroup reads as a broken control. The stored pref survives the theme flip untouched; it simply has no effect until the user is back in light');
+    if (prevTheme === null) de.removeAttribute('data-theme'); else de.setAttribute('data-theme', prevTheme);
+  }
+
   // fail-soft: this harness has no canvas backend, so picking Live flow must
   // land on the line-art tile rather than a bare gradient or a thrown error
   styleTiles.find((b) => b.dataset.value === 'flow').click();
-  ok(prev5.dataset.chatPattern === 'triangles',
-    'W5 fail-soft: no 2d context → the preview falls back to the line-art tile, never a bare gradient');
-  styleTiles[1].click();
+  ok(prev5.dataset.chatPattern === 'doodles',
+    'W5 fail-soft (★ E1): no 2d context → the preview falls back to the DOODLES tile, never a bare gradient');
+  styleTiles.find((b) => b.dataset.value === 'doodles').click();
   const apMobile = wd.Spixi.createChatAppearance({ patternOpacity: 0.5, patternStyle: 'flow', isDesktop: false });
-  const mobileTiles = [...apMobile.querySelectorAll('.c-settings-swatches--style .c-settings-swatch')];
-  ok(mobileTiles.length === 3 && mobileTiles.map((b) => b.dataset.value).join() === 'triangles,lineart,matrix',
-    'W5: mobile shows two styles — Live flow is not offered');
-  ok(mobileTiles[0].getAttribute('aria-checked') === 'true',
-    'W5: a stored desktop-only style falls back to a SELECTED line art on mobile (never an empty radiogroup)');
+  /* ⚠ SCOPED TO THE FIRST --style GROUP. There are TWO of them in light since the Aug
+     ground row, and this pin is about the STYLE list. It survived the change only because
+     the harness document happens to carry data-theme="dark", where the ground row does not
+     render — i.e. it was passing by accident, not by construction. Indexed explicitly now. */
+  const mobileTiles = [...apMobile.querySelectorAll('.c-settings-swatches--style')[0].querySelectorAll('.c-settings-swatch')];
+  ok(mobileTiles.length === 2 && mobileTiles.map((b) => b.dataset.value).join() === 'doodles,matrix',
+    '★ E1: mobile shows TWO styles — doodles and the data matrix ("keep that tech thingy on mobile", Damir 2026-08-29). Live flow stays desktop-only');
+  ok(mobileTiles[0].getAttribute('aria-checked') === 'true' && mobileTiles[0].dataset.value === 'doodles',
+    'W5 (★ E1): a stored desktop-only style falls back to a SELECTED doodles on mobile (never an empty radiogroup)');
 }
 
 /* —— Contact-details PREMIUM pass (Damir 2026-08-12) ——————————————————————
@@ -7914,7 +8061,8 @@ console.log('#341 — Change password renders inside the Account pane');
 
   /* —— #341 REVIEW ROUND 2: what the break-my-verdict pass found —————————————— */
   const extractSrc = readFileSync(join(root, 'scripts/extract-strings.mjs'), 'utf8');
-  ok(/patternStyleLineArt: 'Line art',[\s\S]{0,120}?patternStyleMatrix:[\s\S]{0,120}?patternStyleFlow:/.test(extractSrc),
+  ok(/patternStyleDoodles: 'Doodles',[\s\S]{0,400}?patternStyleMatrix:[\s\S]{0,120}?patternStyleFlow:/.test(extractSrc)
+    && !/patternStyle(Triangles|LineArt):/.test(extractSrc.replace(/\/\/[^\n]*/g, '')),
     '★ #341 review MINOR-4: PATTERN_STYLES is in the extractor DYNAMIC table. It is read as strings[o.key] exactly like PATTERN_LEVELS, so it is unextractable — and while it was missing, the FIRST extract run silently deleted every translation of the three style names from all seven locales. Both i18n gates were blind, because they compare locales against each other and a key dropped from all of them still looks consistent');
   ok(/strings\.encpassRejected \|\|/.test(shEnc) && !/strings\.badPassword \|\|/.test(shEnc),
     '★ #341 review MINOR-2: the "2" result uses its OWN key. Re-using badPassword collided with the component value for the same key, and extract-strings sets exitCode 1 on a fallback conflict — Damir\'s documented build chain would have stopped at step 1 and rebuilt nothing');
@@ -10619,11 +10767,11 @@ console.log('#370/#371 — D-19b reverse-resolve · N48 amOwner · N49/N50 · R2
   ok(JSON.parse(read('src/strings/draft/sl-si.json')).appsEmptyBody === 'Igre, orodja in AI, ki delujejo neposredno v klepetu.',
     'N3 (#371, loop C-3): the sl-si draft carries Damir\'s EXACT supplied empty-state text');
   const ss370 = njs(read('src/components/settings-screens.js'));
-  ok(/body\.append\(sizeSec, styleSec, patternSec\);/.test(ss370)
+  ok(/body\.append\(sizeSec, styleSec, groundSec, patternSec\);/.test(ss370)
     && ss370.includes("strings.patternStyle || 'Background'")
     && ss370.includes("strings.patternIntensity || 'Opacity'")
     && !ss370.includes("|| 'Pattern style'") && !ss370.includes("|| 'Background pattern'"),
-    'AND-35 (#371, Damir dial): Chat appearance = Text size first, then Background, then Opacity — and the two labels renamed at the fallback source (extract-strings picks them up)');
+    '★ AUG (Damir 2026-08-30): Chat appearance = Text size, Background (style), CANVAS (ground), then Opacity — what the canvas IS, then what is drawn on it, then how loud. Superseded: AND-35 (#371, Damir dial) had Text size / Background / Opacity. ⚠ groundSec is appended UNCONDITIONALLY and is an empty div in dark (there is no wash to choose between there), so the order cannot shift under a live setTheme push');
   {
     const compDir = join(root, 'src/components');
     const shellDir = join(root, 'src/shells');
@@ -14346,30 +14494,24 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   const patCss = readFileSync(join(root, 'src/styles/chat-pattern.css'), 'utf8');
   const gen = readFileSync(join(root, 'scripts/generate-chat-pattern.mjs'), 'utf8');
 
-  ok(/--chat-pattern-uri-triangles:/.test(patCss) && /\[data-chat-pattern='triangles'\]/.test(patCss),
-    '★ PATTERN: the triangle tile is generated and selectable');
-  ok(/--chat-pattern-uri: var\(--chat-pattern-uri-triangles\);/.test(patCss.split(':root {')[1].split('}')[0]),
-    '★ PATTERN (Damir 2026-08-22): TRIANGLES is the :root default, replacing the line-art doodle. An install with no stored style lands here; anyone who explicitly picked one keeps it, because that pref sets data-chat-pattern and outranks :root');
-  ok(/--chat-pattern-uri-lineart:/.test(patCss) && /\[data-chat-pattern='lineart'\]/.test(patCss),
-    '★ PATTERN: line art is KEPT, not retired — removing a style would silently re-skin every user who had chosen it');
+  ok(/--chat-pattern-uri-doodles:/.test(patCss) && /\[data-chat-pattern='doodles'\]/.test(patCss),
+    '★ E1 PATTERN: the doodles tile is generated and selectable');
+  ok(/--chat-pattern-uri: var\(--chat-pattern-uri-doodles\);/.test(patCss.split(':root {')[1].split('}')[0]),
+    '★ E1 PATTERN (Damir 2026-08-29): DOODLES is the :root default, replacing the triangles synth. An install with no stored style lands here; anyone who explicitly picked a LIVE style keeps it, because that pref sets data-chat-pattern and outranks :root');
+  ok(!/--chat-pattern-uri-triangles:/.test(patCss) && !/--chat-pattern-uri-lineart:/.test(patCss),
+    '★★ E1 PATTERN: triangles and line art are RETIRED — and this pin is the inverse of the one it replaces, which said line art was "KEPT, not retired". That was the right rule under the old ruling and it is not a rule anyone may reverse quietly: Damir retired both explicitly on 2026-08-29, and the allowlists in chat.html and settings.html migrate the stored prefs so nobody lands on a style that no longer exists');
   {
-    // ★ "It just sits flat on both modes" (Damir). One alpha, no shading, no per-theme
-    // branch in the tile — so --chat-pattern-ink can colour it per theme and it cannot
-    // read heavier in dark than in light.
-    const triBlock = gen.split('function buildTriangleSvg()')[1].split('\nconst triW')[0];
-    ok(/stroke-opacity="\$\{alpha\}"/.test(triBlock) && !/fill="#/.test(triBlock),
-      '★ PATTERN: the tile is a single-alpha STROKE mask with no fills and no per-theme branch — that is what makes it sit flat on both modes rather than needing two tiles');
-    ok(/const rowH = num\(step \* Math\.sqrt\(3\) \/ 2\)/.test(gen),
-      'PATTERN: equilateral geometry — the row height is the true triangle height, so the tessellation closes');
-    ok(/const off = \(r % 2\) \* \(step \/ 2\);/.test(gen),
-      '★ PATTERN: the half-drop is what makes this TRIANGLES rather than a diamond grid — alternate rows shift by half a base');
-  }
-  {
-    // No asset was invented: the tile is geometry synthesized in the generator, the same
-    // way Data matrix is, and the line-art SVG export remains the only shipped artwork.
+    /* ★ E1: the tile is an EXPORT again, not synthesized geometry — so the properties
+       worth pinning moved from "how is it drawn" to "what does the pipeline do with it".
+       The mask throws COLOUR away and keeps only alpha, which is why a single ink token
+       can theme it per mode, and why the export's own #181A20 never reaches a screen. */
     const genNC = gen.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-    ok(!/triangle[^\n]*\.svg/i.test(genNC),
-      '★ PATTERN: no triangle ASSET was invented — the tile is synthesized geometry (the Data matrix precedent). A real export from Damir is a drop-in replacement');
+    ok(/src\/assets\/images\/chat-bg-doodles\.svg/.test(genNC),
+      '★ E1 PATTERN: the generator reads the DOODLES export as its source of truth');
+    ok(!/chat-bg-pattern\.svg/.test(genNC),
+      '★ E1 PATTERN: the retired line-art asset is no longer READ. The file stays on disk unreferenced — deleting an artwork export is not a code change to make on an agent\'s own initiative — but nothing inlines it any more, so it cannot come back through the generated sheet');
+    ok(/-webkit-mask-image: var\(--chat-pattern-uri\)/.test(patCss) && /background-color: var\(--chat-pattern-ink\)/.test(patCss),
+      '★★ E1 PATTERN: the tile is painted as a MASK over a flat ink, which is the fact the whole colour story rests on — the SVG\'s own fills are discarded and --chat-pattern-ink is the only thing that decides the colour. Change this to background-image and the per-theme hue silently stops working while the pattern still looks fine in whichever theme was open');
   }
 
   /* —— the saturated dark surface —————————————————————————————————————— */
@@ -15557,7 +15699,27 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ok(/\.c-bubble-row\[data-direction="sent"\] \.c-bubble__meta > \* \{ opacity: 0\.7; \}/.test(mbcss)
       && /\.c-bubble-row\[data-direction="sent"\] \.c-bubble__meta \.c-status-icon\[data-tone="read"\],\s*\.c-bubble-row\[data-direction="sent"\] \.c-bubble__meta \.c-status-icon\[data-tone="failed"\] \{ opacity: 1; \}/.test(mbcss)
       && !/\.c-bubble__meta \{[^}]*opacity/.test(mbcss),
-      '★ A9: outgoing timestamp + status glyphs at 0.7 alpha on the CHILDREN (a box opacity would cap the read tick), the READ tick (and failed) at 1.0; received bubbles untouched');
+      '★ A9: outgoing timestamp + edited marker at 0.7 alpha on the CHILDREN (a box opacity would cap the read tick), the READ tick (and failed) at 1.0; received bubbles untouched. ⚠ E1 amended the DELIVERED glyph out of that 0.7 group — see the pin below; this one still owns the blanket rule and the 1.0 pair');
+    {
+      /* ★★ E1 (Damir 2026-08-29): "the double check for message delivered … reduce alpha
+         by 25% so that the actual read is more distinguishable."
+         The measurement is why this is a real change and not a preference: on the #1956b2
+         bubble the two glyphs were almost the same LIGHTNESS — delivered L* 76.8, read
+         L* 75.3 — and differed only in hue, which is exactly why read did not pop.
+         The VALUE is 0.571, not the 0.525 that "by 25%" reads as literally: 0.525 measures
+         2.76:1 against the bubble, under the 3:1 non-text floor this file already tracks
+         (audit findings 1+2). 0.571 sits exactly ON 3.00:1 — an 18.4% reduction — and
+         Damir took that trade knowingly rather than having it taken for him. */
+      const deliveredRule = /\.c-bubble-row\[data-direction="sent"\] \.c-bubble__meta \.c-status-icon\[data-tone="delivered"\] \{ opacity: 0\.571; \}/;
+      ok(deliveredRule.test(mbcss),
+        '★★ E1: the DELIVERED double-check sits at 0.571, below the rest of the meta row, so the READ tick separates on LIGHTNESS and not on hue alone (ΔE 43.3 → 48.6)');
+      ok(mbcss.search(deliveredRule) > mbcss.indexOf('.c-bubble__meta > * { opacity: 0.7; }'),
+        '★ E1: the delivered rule comes AFTER the blanket 0.7 in source order. It also outranks it on specificity, so this is belt and braces — but a future refactor that flattens the selector would leave source order as the only thing deciding, and a 0.7 that wins puts the tick back where it started');
+      ok(!/\.c-bubble__meta > \* \{ opacity: 0\.5/.test(mbcss),
+        '★★ E1: the drop targets the DELIVERED GLYPH ALONE. Damir asked for "just that case" — folding it into the blanket rule would have dimmed the timestamp and the edited marker with it, which is a legibility regression sold as a receipt fix');
+      ok((mbcss.match(/\[data-tone="delivered"\] \{ opacity:/g) || []).length === 1,
+        '★ E1: ONE delivered-opacity declaration. There is deliberately no dark-mode twin — the sent bubble is the same #1956b2 in both themes and --icon-bubble-delivered resolves to the same --text-bubble-sent-meta in both, so "both modes" is genuinely one rule. A second copy under [data-theme="dark"] would be a home that can drift');
+    }
   }
 }
 
@@ -20270,8 +20432,51 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
         ok(!!gm && chroma > 58 && Math.abs(hue - 282) < 8,
           '★★ #689: the DECLARED ground carries chroma ' + chroma.toFixed(1) + ' on hue ' + hue.toFixed(0) + ' — near the sRGB ceiling for the Ixian hue (63 at this lightness) and still that hue. ⚠ THIS PINS THE DECLARATION, NOT THE RENDER: the composited icon measures 54.4, because the gradient\'s own overlays cost chroma on the way through. That is up from 38.1 and roughly half the way to the coloured-ground peer band (Discord 68 · Viber 71 · WhatsApp 65, measured off Damir\'s home screen) — recorded here so nobody reads this pin as a claim that the icon reaches it');
       }
-      ok(/<MauiIcon [^>]*Color="#0076E1"/.test(csp683),
-        '★ #683/#689: MauiIcon\'s Color carries the GROUND, so a platform that takes the flat colour instead of the file lands on the same blue rather than the retired #175595');
+      {
+        /* ⚠⚠ E1b SPLIT MauiIcon IN TWO, so this pin had to be tightened the SAME WAY #683
+           tightened the splash one: `/<MauiIcon [^>]*Color="#0076E1"/` now matches EITHER
+           line, and both carry that colour, so it could no longer tell which one it proved.
+           That is the identical defect recorded a few lines up about #175595 matching either
+           MauiIcon or MauiSplashScreen. Count them instead. */
+        const iconLines = (csp683.match(/<MauiIcon [^>]*\/>/g) || []);
+        const nonWin = iconLines.filter((l) => !/appicon_windows/.test(l));
+        const winLine = iconLines.filter((l) => /appicon_windows/.test(l));
+        ok(iconLines.length === 2 && nonWin.length === 1 && /Color="#0076E1"/.test(nonWin[0]),
+          '★ #683/#689 + E1b: the ANDROID/iOS MauiIcon carries the GROUND colour, so a platform that takes the flat colour instead of the file lands on #689\'s measured blue. Pinned on that line specifically — one regex across the whole csproj matched either line and could not tell which it proved, the identical defect #683 fixed for MauiSplashScreen. Got ' + iconLines.length + ' line(s)');
+        /* ★★ E1b ROUND 2 — THE COLOR ATTRIBUTE IS WHAT SQUARED THE CORNERS.
+           Damir on the first build: "the logo is bigger, but the rectangle is sharp."
+           MEASURED at the built artifact, not judged from the taskbar: every corner pixel of
+           appicon_windows.ico and of appicon_windowsLogo.*.png came back (0,118,225,255) —
+           fully OPAQUE #0076E1. ⚠ That flat value is the TELL. This file's own ground carries
+           a radial centred top-right, so a corner leaking through a failed clip would differ
+           between corners; all four were identical and flat, which only the Color background
+           can produce. The resizetizer paints Color BEHIND the rasterised SVG, flooding the
+           very transparency a rounded corner is made of. So the Windows line must not have it. */
+        ok(winLine.length === 1 && !/Color=/.test(winLine[0]),
+          '★★ E1b: the WINDOWS MauiIcon carries NO Color. It is painted as a background behind the SVG, so it floods the transparent corners and hands back the square this file exists to round. The Windows icon needs no fallback colour — it carries its own ground');
+        ok(/<MauiIcon Condition="!\$\(TargetFramework\.Contains\('-windows'\)\)" Include="Resources\\AppIcon\\appicon\.svg" ForegroundFile="Resources\\AppIcon\\appiconfg\.svg"/.test(csp683)
+          && /<MauiIcon Condition="\$\(TargetFramework\.Contains\('-windows'\)\)" Include="Resources\\AppIcon\\appicon_windows\.svg"/.test(csp683),
+          '★★ E1b: the icon is split by TARGET FRAMEWORK — Android/iOS keep the foreground+background pair L17 needs for the adaptive mask, Windows takes a single file. The conditions are complements of one another, so exactly one applies to any build and no target is left with none');
+        ok(!/appicon_windows\.svg[^>]*ForegroundFile/.test(csp683),
+          '★ E1b: the Windows icon is deliberately a SINGLE file with no ForegroundFile. The split exists for Android\'s adaptive layers; Windows has no adaptive layer to feed, and pairing it would reintroduce the padding this file exists to remove');
+        const win = rdC('Spixi/Resources/AppIcon/appicon_windows.svg');
+        ok(/<rect width="1024" height="1024" rx="229" ry="229"\/>/.test(win) && /clip-path="url\(#spixiWinIconClip\)"/.test(win),
+          '★★ E1b: the Windows icon bakes its OWN rounded rectangle (r=229, 22.4% of 1024 — the Win11 app-icon convention) and clips the ground to it. On Android the rounding is the LAUNCHER\'s job and baking it in would double it; Windows rounds nothing for you, so it has to be in the asset. This is why the two files can never be merged');
+        ok(/<g transform="translate\(512 512\) scale\(1\.5\) translate\(-512 -512\)">/.test(win),
+          '★★ E1b: the Windows mark is scaled 1.5x ABOUT THE TILE CENTRE, and 1.5 is not a nudge — it is Android\'s own adaptive-icon zoom. MEASURED: the shared foreground puts the mark at 326x398 of 1024 (31.8% wide) with 349px of padding each side, which Android needs because it masks and zooms and Windows does not, so the taskbar was rendering it at about two thirds the size a phone does. Matching Android\'s factor makes the two platforms agree on how big the logo LOOKS rather than on what the file contains');
+        ok(/<rect width="1024" height="1024" fill="#0076E1"\/>/.test(win)
+          && /stop-color="#4B9CEF" stop-opacity="0\.45"/.test(win) && /stop-color="#223A59" stop-opacity="0\.2"/.test(win),
+          '★★ E1b: the Windows ground is COPIED VERBATIM from appicon.svg — same flat #0076E1, same radial, same stops. #689 settled that colour by measurement (the icon was under-saturated, not too dark, and lightening it made it worse), so a second file is a second place it could silently drift. If the brand ground ever moves, it moves in BOTH');
+        /* ⚠ XML COMMENTS STRIPPED FIRST. stripCode() handles // and slash-star; an .xml file
+           uses <!-- --> and would sail straight through it, so a comment that merely NAMES
+           the Windows icon to explain the scope would turn this negative red against a
+           correct file. That is the exact failure the L16 pin a few hundred lines up records
+           having hit — the third time this class has cost this file a red. */
+        const stripXml = (t) => t.replace(/<!--[\s\S]*?-->/g, '');
+        ok(!/appicon_windows/.test(stripXml(rdC('Spixi/Platforms/Android/Resources/values/styles.xml')))
+          && !/appicon_windows/.test(mainAct),
+          '★ E1b: nothing on the ANDROID side references the Windows icon. L17\'s wire (MainActivity → @mipmap/appicon) is untouched — adding a platform file must not become a second icon on a platform that already had one, which is exactly the failure L17 shipped');
+      }
       /* the mark: the transform is DERIVED from the ink centre, so a hand-nudge shows up here */
       const m = /<g transform="translate\(([\d.]+) ([\d.]+)\) scale\(([\d.]+)\)">/.exec(fg683);
       const S = m ? parseFloat(m[3]) : 0;
@@ -20699,6 +20904,243 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       W13.Spixi.dismissTopOverlay();
       await sleep(450);
     }
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════════
+   ★★★ SESSION F — THE BUILT ARTIFACT IS A HOME, AND IT HAD NO PINS.
+
+   Row 1 ran 16 mutations from the row-2 audit. FOURTEEN SURVIVED. Six of them were the
+   SAME hole stated six ways: every E1/E1b/E1c value was pinned in `src/` ONLY, while the
+   thing the app actually loads is `Spixi/Resources/Raw/html/`. A source-only pin passes
+   over a stale bundle — and that is not hypothetical here: the audit found the shipped
+   `spixi.strings.js` was a whole session behind, still shipping the two RETIRED pattern
+   style names and MISSING the new default's label, so the Doodles tile fell back to
+   hardcoded English in all twelve locales while the tiles either side of it translated.
+   Nothing could have caught it: the build's strings preflight only tests that the file
+   contains `setDocLang`, its mtime warning covers src/components and src/bridge but not
+   src/strings, and the ROUND-6 pin compares key COUNTS between locale files and never the
+   built dictionary against source.
+
+   ⚠ These pins deliberately assert BYTE-IDENTITY where the build step is a straight copy.
+   That is stronger than re-listing values (which is how the pins above went stale) and it
+   costs one line per pair. If a build step ever stops being a copy, this pin is the right
+   place to find out.
+   ══════════════════════════════════════════════════════════════════════════════════ */
+{
+  const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
+  const COPIES = [
+    ['src/styles/tokens.css',              'Spixi/Resources/Raw/html/spixi.tokens.css'],
+    ['src/styles/chat-pattern.css',        'Spixi/Resources/Raw/html/spixi.chat-pattern.css'],
+    ['src/components/icons.iife.js',       'Spixi/Resources/Raw/html/spixi.icons.js'],
+    ['src/demo/spixi.iife.js',             'Spixi/Resources/Raw/html/spixi.bundle.js'],
+    ['src/demo/strings.iife.js',           'Spixi/Resources/Raw/html/spixi.strings.js'],
+  ];
+  for (const [src, built] of COPIES) {
+    let same = false;
+    try { same = rdF(src) === rdF(built); } catch (_) { same = false; }
+    ok(same, '★★ SESSION F: the BUILT ' + built.split('/').pop() + ' is byte-identical to ' + src.split('/').pop()
+      + ' — the app loads the built copy, so a value pinned only in src/ proves nothing about what ships (mutations M10/M11/M12/M13 each survived on exactly this gap)');
+  }
+
+  /* ★★ THE DICTIONARY THE WEBVIEW LOADS MUST BE THE DICTIONARY WE WROTE.
+     Key SETS, not counts: the live bug was equal-ish counts (779 vs 778) hiding two
+     retired keys present and one live key absent. A count check passes that. */
+  {
+    const srcEn = JSON.parse(rdF('src/strings/en-us.json'));
+    const builtRaw = rdF('Spixi/Resources/Raw/html/spixi.strings.js');
+    const m = builtRaw.match(/var enUS\s*=\s*(\{[\s\S]*?\});\s*\n/);
+    let missing = ['<enUS not found in the built dictionary>'], extra = [];
+    if (m) {
+      let built = {};
+      try { built = JSON.parse(m[1]); } catch (_) { built = {}; }
+      const S = new Set(Object.keys(srcEn)), B = new Set(Object.keys(built));
+      missing = [...S].filter((k) => !B.has(k));
+      extra = [...B].filter((k) => !S.has(k));
+    }
+    ok(missing.length === 0 && extra.length === 0,
+      '★★★ SESSION F: the BUILT en-us dictionary has exactly the keys of src/strings/en-us.json — no key missing, no RETIRED key still shipping'
+      + (missing.length ? ' [missing: ' + missing.slice(0, 4).join(', ') + ']' : '')
+      + (extra.length ? ' [stale extras: ' + extra.slice(0, 4).join(', ') + ']' : '')
+      + '. This is the pin the live #690 miss needed: patternStyleDoodles was absent and patternStyleTriangles/LineArt were still being shipped to twelve locales');
+  }
+
+  /* ★ The three pattern ladders, pinned in the SHIPPED shells (mutation M15 survived here:
+     the built pre-paint allowlist could be widened to re-admit a retired style and every
+     existing pin stayed green). Asserted as the allowlist SHAPE plus a negative on both
+     retired ids, with HTML comments stripped FIRST — <!-- --> is not a JS comment, and the
+     existing E1 pin's JS-only stripper deletes ~62KB of real code from an HTML file. */
+  {
+    /* ⚠ ORDER AND FORM BOTH MATTER (this pin was RED on its first run, from its own
+       documentation). <!-- --> first, because an HTML file is not a JS file and stripCode()
+       sails straight past them. Then block comments. Then LINE comments — but NOT a bare
+       /\/\// : that deletes ~62KB of real code from chat.html and eats everything after any
+       https:// or data: URI. `(?<![:/])` is the URL-safe form. The retired ids legitimately
+       appear in the migration comments that DOCUMENT the retirement, which is exactly what a
+       negative sweep must not trip on. */
+    const stripHtmlThenJs = (x) => x
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(?<![:/])\/\/[^\n]*/g, '');
+    for (const f of ['Spixi/Resources/Raw/html/chat.html', 'Spixi/Resources/Raw/html/settings.html']) {
+      let src = '';
+      try { src = stripHtmlThenJs(rdF(f)); } catch (_) { src = ''; }
+      ok(src.length > 0 && !/'triangles'|'lineart'/.test(src),
+        '★★ SESSION F: neither RETIRED pattern id survives in the SHIPPED ' + f.split('/').pop()
+        + ' once HTML comments are stripped (#690 was ruled explicitly; a stored value matching no allowlist must land on doodles BEFORE first paint, and only the built file can prove that)');
+    }
+  }
+
+  /* ★ M2: the Windows icon's rounded corners depend on the clip REFERENCE resolving. The
+     existing pin asserted the rounded rect exists and that something carries a clip-path,
+     and never that the two ids MATCH — so renaming the clipPath id silently returned the
+     square corners Damir reported. Pin the relationship, not the two halves. */
+  {
+    let win = '';
+    try { win = rdF('Spixi/Resources/AppIcon/appicon_windows.svg'); } catch (_) { win = ''; }
+    const idm = win.match(/<clipPath id="([^"]+)"/);
+    const refm = win.match(/clip-path="url\(#([^)]+)\)"/);
+    ok(!!idm && !!refm && idm[1] === refm[1],
+      '★★ SESSION F (mutation M2): the Windows icon\'s clip-path REFERENCE resolves to the clipPath it names — a dangling url(#id) drops the clip silently and hands back the sharp rectangle the file exists to remove');
+  }
+
+  /* ★ M9: the hairline reversal promise is "one line from returning". That is only true
+     while every rule that reads the token is still there. The old pin asserted
+     HAIR.length === 6 — the length of an array the test itself wrote, which cannot fail —
+     and counted files, never RULES, so deleting one of typed-bubbles' two was invisible. */
+  {
+    const HAIRFILES = [
+      'src/shells/chat.html', 'src/styles/components/media-bubble.css',
+      'src/styles/components/typing-indicator.css', 'src/styles/components/message-bubble.css',
+      'src/styles/components/typed-bubbles.css', 'src/styles/components/settings-screens.css',
+    ];
+    let rules = 0, files = 0;
+    for (const f of HAIRFILES) {
+      let n = 0;
+      try { n = (rdF(f).match(/var\(--border-bubble-received\)/g) || []).length; } catch (_) { n = 0; }
+      rules += n; if (n > 0) files += 1;
+    }
+    ok(rules === 7 && files === 6,
+      '★★ SESSION F (mutation M9): SEVEN rules across SIX files still read --border-bubble-received (typed-bubbles carries two) — the count the reversal comment promises, asserted as RULES and not as the length of a literal the test wrote. system-notice left this set at E1b and carries its own edge; do not add it back');
+  }
+
+  /* ★ M4/M8/M3: generator pins that were prefix tests or declaration-only.
+     A bare `seed: 11` matches `seed: 117`; a flag name that also appears in a console.warn
+     is matched by the docblock rather than by the argv read; a constant can be declared and
+     never applied. Bound each to the next declaration, and assert USE, not existence. */
+  {
+    let gen = '';
+    try { gen = rdF('scripts/generate-chat-pattern.mjs'); } catch (_) { gen = ''; }
+    ok(/process\.argv\.includes\('--accept-doodles-change'\)/.test(gen),
+      '★★ SESSION F (mutation M4): the drift-guard opt-in is read from argv by its EXACT name — the old pin matched the flag anywhere, and the string also appears in two docblocks and a console.warn, so a typo in the only live read left the documented escape hatch unreachable with the pin still green');
+    ok(/--chat-pattern-size-doodles: \$\{scaled\(doodlesW\)\}px \$\{scaled\(doodlesH\)\}px;/.test(gen),
+      '★★ SESSION F (mutation M3): the emitted doodles size is the SCALED one — DOODLES_SCALE being declared proves nothing if the template interpolates the natural size, which is E1b\'s 366 silently undone on the next regeneration');
+    ok(/\bseed: 11,/.test(gen) && /\bcells: 24,/.test(gen) && /\bcell: 12,/.test(gen) && /\bgridAlpha: 0\.16,/.test(gen),
+      '★ SESSION F (mutation M8): the data-matrix dial is bound by the trailing comma, not left as a prefix test — `seed: 11` matched `seed: 117` and `cell: 12` matched `cell: 120`, so the whole approved layout could change under a green pin');
+  }
+
+  /* ★ M5/M16: last-declaration-wins. CSS takes the LAST declaration in a block, so a pin
+     that only asks "does this value appear" is defeated by appending another one. */
+  {
+    let pat = '';
+    try { pat = rdF('src/styles/chat-pattern.css'); } catch (_) { pat = ''; }
+    const rootBlock = (pat.split(':root {')[1] || '').split('}')[0];
+    ok((rootBlock.match(/--chat-pattern-uri:/g) || []).length === 1
+      && /--chat-pattern-uri: var\(--chat-pattern-uri-doodles\);/.test(rootBlock),
+      '★★ SESSION F (mutation M5): the :root default declares --chat-pattern-uri exactly ONCE and it is doodles — a second, later declaration wins on source order and lands every no-pref install on the data matrix, which the contains-test could not see');
+    let ovl = '';
+    try { ovl = rdF('src/styles/components/overlay.css'); } catch (_) { ovl = ''; }
+    ok((ovl.match(/overflow-wrap:\s*normal/g) || []).length === 0,
+      '★ SESSION F (mutation M16): nothing later in overlay.css re-normalises overflow-wrap — #700\'s long-URL fix is a single rule in a shared body slot, and a higher-specificity rule appended below it restores the overflow on Windows and mobile both');
+    ok(!/word-break\s*:\s*break-all/.test(ovl.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(?<![:/])\/\/[^\n]*/g, '')),
+      '★ SESSION F (mutation M17): still not word-break:break-all, matched WITHOUT depending on the single-space spelling the old pin required');
+  }
+
+  /* ★ M1/M18: XML negatives. stripCode() handles // and slash-star; an .xml or .csproj
+     comment is <!-- -->, so an element can be commented OUT and still be "found". */
+  {
+    const stripX = (x) => x.replace(/<!--[\s\S]*?-->/g, '');
+    let csp = '';
+    try { csp = stripX(rdF('Spixi/Spixi.csproj')); } catch (_) { csp = ''; }
+    const icons = csp.match(/<MauiIcon [^>]*\/>/g) || [];
+    ok(icons.length === 2,
+      '★★ SESSION F (mutation M1): exactly two LIVE MauiIcon entries after XML comments are stripped — the old pin counted them in the RAW file, so commenting the Android/iOS line out left both platforms with no icon at all and the pin still green. This is the L17 failure class and it is an XML file, so stripCode() is the wrong tool');
+    let androidRefs = 0;
+    for (const f of ['Spixi/Platforms/Android/Resources/values/styles.xml',
+                     'Spixi/Platforms/Android/Resources/values-v31/styles.xml',
+                     'Spixi/Platforms/Android/Resources/values-night-v31/styles.xml',
+                     'Spixi/Platforms/Android/AndroidManifest.xml',
+                     'Spixi/Platforms/Android/MainActivity.cs']) {
+      try { if (/appicon_windows/.test(stripX(rdF(f)))) androidRefs += 1; } catch (_) { /* absent file is not a reference */ }
+    }
+    ok(androidRefs === 0,
+      '★ SESSION F (mutation M18): NO Android-side file references the Windows icon — swept across the whole values/manifest/activity set rather than the two files the old pin read, which left values-v31 (the file that actually names a splash drawable) unguarded');
+  }
+
+  /* ★★ L3 (Session F) — THE BACK LEVEL, PINNED AS A TRIPLE IN BOTH HOMES PLUS ITS C# HALF.
+     The defect class: a shell emits ixian:back but never tells C# an overlay is open, so
+     hardware back pops the page out from under a sheet. It was true of NINE shells; it was
+     REACHABLE in two (the other seven mount factories that open no overlay — latent, and
+     listed in the handoff). A JS half with no C# half is dead code and a C# half with no JS
+     half wedges back, so all four parts are asserted together, per shell. */
+  {
+    const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
+    const L3 = [
+      ['downloads', 'downloadsBack', 'ixian:downloadsoverlay:', 'Spixi/Pages/Downloads/DownloadsPage.xaml.cs'],
+      ['app_details', 'appDetailsBack', 'ixian:appdetailsoverlay:', 'Spixi/Pages/MiniApps/AppDetailsPage.xaml.cs'],
+    ];
+    for (const [shell, cmd, verb, page] of L3) {
+      for (const home of ['src/shells/' + shell + '.html', 'Spixi/Resources/Raw/html/' + shell + '.html']) {
+        let s = '';
+        try { s = rdF(home); } catch (_) { s = ''; }
+        ok(/dismissTopOverlay/.test(s) && s.includes(cmd + '()') && s.includes(verb),
+          '★★ L3 (Session F): ' + home.split('/')[0] + '/' + shell + '.html carries all three parts — it imports dismissTopOverlay, exposes ' + cmd + ', and mirrors its overlay state on ' + verb + '. Pinned in BOTH homes because the built shell is what the app loads');
+      }
+      let cs = '';
+      try { cs = rdF(page); } catch (_) { cs = ''; }
+      ok(/private bool shellOverlayOpen/.test(cs) && cs.includes(verb) && cs.includes('"' + cmd + '"'),
+        '★★ L3 (Session F): ' + page.split('/').pop() + ' holds the other half — the shellOverlayOpen field, the ' + verb + ' mirror, and OnBackButtonPressed routing into ' + cmd + '. A JS half alone is dead code; a C# half alone wedges back');
+    }
+  }
+
+  /* ★★ AUG TILE (Damir 2026-08-30, found ON DEVICE) — THE SWATCH MASK MUST CARRY THE
+     TILE'S ASPECT, NEVER A SQUARE.
+     `mask-size: 140px 140px` shipped for a year because the doodles tile happened to be
+     square (610×610). The Aug tile is 320×557, and an SVG mask scales to FIT its cell
+     preserving aspect — so the art rendered 80px wide inside a 140px cell and the swatch
+     showed band / gap / band. Nothing in the suite could see it: every pin read the value,
+     none related it to the TILE. This one does, so the next artwork swap cannot repeat it. */
+  {
+    const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
+    let css = '', pat = '';
+    try { css = rdF('src/styles/components/settings-screens.css'); pat = rdF('src/styles/chat-pattern.css'); } catch (_) {}
+    const nat = pat.match(/doodles-natural: (\d+)x(\d+)/);
+    const ms = css.match(/\n  mask-size: (\d+)px (\d+)px;/);
+    let aspectOk = false, detail = 'not found';
+    if (nat && ms) {
+      const tileAspect = Number(nat[2]) / Number(nat[1]);
+      const maskAspect = Number(ms[2]) / Number(ms[1]);
+      aspectOk = Math.abs(tileAspect - maskAspect) / tileAspect < 0.02;
+      detail = `tile ${nat[1]}x${nat[2]} (${tileAspect.toFixed(3)}) vs mask ${ms[1]}x${ms[2]} (${maskAspect.toFixed(3)})`;
+    }
+    ok(aspectOk,
+      '★★ AUG TILE: the chat-appearance swatch mask-size carries the DOODLES TILE\'S OWN ASPECT within 2% — ' + detail
+      + '. A square mask-size against a non-square tile letterboxes the art inside its cell and the swatch renders band/gap/band, which is what shipped to Damir on 2026-08-30. Derived from the emitted natural size so it re-checks itself whenever the artwork changes');
+  }
+
+  /* ★ #684 — the GIF chain, pinned end to end, because all three defects were invisible. */
+  {
+    let wv = '';
+    try { wv = rdF('Spixi/Platforms/Android/WebViewRenderer.cs'); } catch (_) { wv = ''; }
+    ok(/\(\[A-Za-z0-9-\]\+\\\.\)\*\(tenor\|giphy\)/.test(wv),
+      '★★ #684 (Session F): the GIF-keyboard commitContent allowlist accepts a BARE domain — the old [A-Za-z0-9]+\\. REQUIRED a subdomain, and every share link Gboard hands over (tenor.com/view/…, giphy.com/gifs/…) is bare-domain, so the GIF was dropped with processed=false and no error the user could see. That was "the GIF keyboard does nothing"');
+    let ch = '';
+    try { ch = rdF('src/shells/chat.html'); } catch (_) { ch = ''; }
+    ok(/function giphyDirectFromShare\(/.test(ch) && /i\.giphy\.com\//.test(ch),
+      '★ #684 (Session F): a Giphy SHARE page url resolves to its direct media form — a page url is not a media url, which is why a pasted share link rendered as plain text. Tenor is deliberately NOT derived (its page id is not the media hash; that needs an API key, which does not belong in the client — #82)');
+    ok(/media\.kind === 'gif' \? 'gif' : 'image'/.test(ch),
+      '★ #684 (Session F): replyKindOf asks mediaUrlOf for the kind instead of regex-testing the OBJECT it returns — String({url,kind}) is "[object Object]", so every media reply-quote was labelled "image", GIFs included');
   }
 }
 

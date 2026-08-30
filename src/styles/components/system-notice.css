@@ -17,14 +17,60 @@
   padding: var(--spacing-16) var(--spacing-16) var(--spacing-12);
   border-radius: var(--radius-16);
   /* #265 (Damir ⑧): borderless — the elevation + surface carry the card */
-  background: var(--surface-neutral-02);
-  /* ★ N81 (#422, #46 audit): this surface floated on the light-BLUE canvas and
-     relied on elevation to separate, so it took the same incoming hairline the
-     received bubble carries.
-     ★ N82(b) (#427): the token is `transparent` in BOTH themes now (Damir's pick
-     on the rendered comparison), so this rule paints nothing and is kept only as
-     the one-line reversal hook. See tokens.css --border-bubble-received. */
-  box-shadow: inset 0 0 0 1px var(--border-bubble-received);
+  /* ★★ E1b (Damir 2026-08-29): "the notice in light mode sucks". ⚠ THIS SUPERSEDES
+     N82(c)'s explicit constraint below — "LIGHT KEEPS ITS NOTICE EXACTLY AS IT IS" —
+     which was right under the ground light had THEN and wrong under the one it has now.
+     MEASURED cause, not taste: --surface-neutral-02 is #edf0f2, chroma 1.47, and only
+     1.057 luminance separation from the canvas. A near-neutral grey card was fine on a
+     flat grey ground; E1 put a blue wash behind it, and a grey card on a blue canvas
+     reads as dirt. Dark never had the problem because N82(c) gave it #0c1a4a at 1.136.
+     #dfe8ff + the edge below lands at 1.133 — dark's separation, near enough exactly —
+     with chroma 12.2. Ink stays clear of AA: title 15.04:1 · body 6.01:1 · link 5.69:1.
+     ⚠ NOT white: white IS the incoming bubble, so a white card would read as one more
+     bubble rather than as the notice that sits above the thread.
+     ⚠ Written here rather than by moving --surface-neutral-02, for the same reason
+     N82(c) gave: that token is shared, and editing it would drag every other surface. */
+  /* ★ E1c: re-tuned for the colourful canvas. #dfe8ff was a BLUE card chosen for a blue
+     ground; on the teal→green wash it clashes in hue and washes out at the green end
+     (1.088 separation — the card would have disappeared into the bottom of the screen).
+     #e8f3ef separates at BOTH ends — 1.655 against the teal, 1.172 against the green — and,
+     the constraint that is easy to miss, it also stays distinct from the WHITE incoming
+     bubble at 1.135, which a paler teal would not. Ink: title 16.25:1 · body 6.50:1 ·
+     link 6.15:1. Superseded: #dfe8ff (E1b), var(--surface-neutral-02) (#264). */
+  /* ★★ AUG GROUND (Damir 2026-08-30): re-tuned for the flat #EBF0F5 ground. #e8f3ef
+     measured −0.91 ΔL* against a near-white ground and DISSOLVED — it had been a LIGHTER
+     card on a saturated wash (+18.34 at the teal end), and there is nothing lighter than
+     a near-white ground to be. The relationship had to invert: the card is a slightly
+     DARKER tint now, at −3.57 ΔL*.
+     ⚠ AND IT HAD TO CHANGE HUE, not just lightness. The first cut of this was #e4ece0,
+     picked for the green-leaning #EFF5EB ground; on the COOL #EBF0F5 that card measures
+     hue 134° against the ground's 256° and reads as a green patch on a blue-grey field.
+     #dfe6ee is hue 260° — the ground's own family.
+     ⚠ Superseded: #e4ece0 (same day) ← #e8f3ef (E1c) ← var(--surface-neutral-02) (#264)
+     ← #dfe8ff (E1b). */
+  background: #dfe6ee;
+  /* ⚠ HISTORY, NOT INSTRUCTION (rewritten by the Session F audit). This surface once
+     took the same --border-bubble-received hairline the received bubble carries
+     (N81 #422/#46), and that hook was later kept as a paint-nothing reversal hook
+     (N82(b) #427). ★ BOTH ARE GONE FROM THIS FILE. The rule below is a LITERAL edge
+     and it PAINTS. The old text sat directly above it saying "this rule paints nothing
+     and is kept only as the one-line reversal hook", which described a declaration that
+     no longer exists — anyone acting on it would delete E1c's edge, reinstate the hook
+     and turn smoke-test's HAIR.length === 6 red. Do not reintroduce the token here. */
+  /* ★ E1b: the light EDGE, mirroring what N82(c) did for dark. Dark's edge measures
+     2.19 against its ground; rgba(48,80,189,0.40) over this card measures 2.08 against
+     the light ground — the same job, the same order of prominence. It replaces the
+     N82(b) hairline hook, which painted nothing (the token is `transparent` in both
+     themes) and so left light with no edge at all.
+     ⚠ Superseded: rgba(48,80,189,0.40) (E1b) → rgba(18,59,71,0.40) (E1c, the teal ground).
+     The 2.08 figure above is the E1b measurement against the OLD flat ground and is kept
+     as history; the shipping edge measures 1.31 (teal end) / 1.85 (green end). */
+  box-shadow: inset 0 0 0 1px rgba(18, 59, 71, 0.40);
+  /* ★ E1c: a teal edge for the teal ground. ⚠ Stated honestly rather than claimed as parity:
+     it measures 1.31 against the teal end and 1.85 against the green, so unlike dark's flat
+     2.19 its prominence VARIES down the screen. That is inherent to a mid-lightness gradient —
+     a dark edge has less room to separate at the lighter end — and the card is carrying most
+     of the separation itself here, which it was not on the near-white ground. */
   text-align: center;
 }
 .c-sysnotice__medallion {
@@ -96,4 +142,23 @@
 [data-theme="dark"] .c-sysnotice__card {
   background: #0c1a4a;
   box-shadow: inset 0 0 0 1px rgba(118, 157, 255, 0.35);
+}
+
+
+/* ★★ AUG GROUND (Damir 2026-08-30): the card FOLLOWS the canvas choice.
+   On the flat near-white #EFF5EB it must be slightly DARKER (#e4ece0, −3.34 ΔL*) because
+   there is nothing lighter than a near-white ground to be. On the teal→green wash the
+   original relationship holds and the card works by being LIGHTER (#e8f3ef, +18.34 ΔL* at
+   the teal end / +6.06 at the green end, and 1.135 against the white incoming bubble).
+   ⚠ Same specificity discipline as the tokens.css ground rule: :root:not([data-theme…])
+   keeps this out of dark, and both the <html> form (real chat) and the descendant form
+   (settings preview) are listed so the preview cannot lie about the chat. */
+:root:not([data-theme='dark'])[data-chat-ground='gradient'] .c-sysnotice__card,
+:root:not([data-theme='dark']) [data-chat-ground='gradient'] .c-sysnotice__card {
+  /* ★ The card is LIGHTER than a saturated ground (the relationship that was inverted for
+     the flat one). #e8f3ef is retired here too: it is hue 171° GREEN, tuned for the
+     retired teal→green wash, and it read as a green patch on this blue-periwinkle ramp.
+     #eaf0fa is hue 268°, inside the ramp's own 223→293 span, and separates at both ends
+     (ΔL* +13.9 teal / +21.7 periwinkle). */
+  background: #eaf0fa;
 }

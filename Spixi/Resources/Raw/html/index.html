@@ -1021,7 +1021,11 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    #273: request-done ("Contact Accepted") keeps the SAME look — only the pending
    semantics differ (filter/chip exclude it via the distinct excerpt kind). */
 .c-excerpt[data-type="request"] .c-excerpt__text,
-.c-excerpt[data-type="request-done"] .c-excerpt__text { color: var(--text-action-default); }
+.c-excerpt[data-type="request-done"] .c-excerpt__text,
+/* ★★ AUG (Damir 2026-08-30): the "you are now connected with X" tail reads in the ACTION
+   colour so a brand-new contact stands out in the list. Same treatment the request rows
+   already carry — one grammar for "something happened with this contact", not a third. */
+.c-excerpt[data-type="connected"] .c-excerpt__text { color: var(--text-action-default); }
 .c-excerpt[data-type="request"] svg,
 .c-excerpt[data-type="request-done"] svg { color: var(--icon-action-default); }
 .c-excerpt[data-type="call-missed"] { color: var(--text-error); }
@@ -1477,6 +1481,20 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   line-height: var(--line-height-body-md);
   letter-spacing: var(--tracking-body-md);
   color: var(--text-neutral-02);
+  /* ★★ E1d (Damir on device, 2026-08-29 — Windows AND mobile): a long URL OVERFLOWS the
+     dialog. The external-link confirm (#82, chat.html confirmOpenLink) puts the raw URL in
+     this slot as its body, and a URL is ONE unbroken token — no spaces, and a query string
+     or a `#fragment` gives the line breaker nothing to work with. The modal is capped at
+     360px, so the text ran straight past the rounded corner on both platforms.
+     ⚠ `anywhere`, not `break-word`: `overflow-wrap: break-word` only breaks BETWEEN
+     opportunities and still refuses to split a single long token in several engines, which
+     is exactly the case here. `anywhere` breaks only when the line would otherwise overflow,
+     so ordinary body copy in every other modal is untouched — it is not `word-break:
+     break-all`, which would hyphen-less-chop normal sentences too.
+     ★ This slot is shared by every modal body, which is why the fix belongs here and not in
+     the link dialog: the same overflow waits for any long token — a wallet address, a
+     file name, a base58 transaction id — and those are all things this app puts in dialogs. */
+  overflow-wrap: anywhere;
 }
 
 .c-modal__actions {
@@ -6830,6 +6848,28 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     });
     return changed ? out.join('') : s;
   }
+  /* ★★ AUG (2026-08-30) — the "now connected" event, recognised from its TEMPLATE.
+     Same mechanism chat.html uses to draw the event chip (tplParts/EVENT_TPLS), kept
+     local because the #221 wall means these two shells share no JS. */
+  const CONNECTED_TPLS = [
+    slCarrier('sl-request-connected', 'You are now connected with {0}.'),
+    slCarrier('sl-request-accepted', '{0} has accepted your contact request.'),
+  ].map((tpl) => {
+    const i = String(tpl || '').indexOf('{0}');
+    return i === -1 ? null : [tpl.slice(0, i), tpl.slice(i + 3)];
+  }).filter(Boolean)
+    .sort((a, b) => (b[0].length + b[1].length) - (a[0].length + a[1].length));
+  /** @returns {boolean} true when `text` is one of the connected/accepted sentences. */
+  function connectedEventText(text) {
+    const s = String(text || '');
+    for (const [pfx, sfx] of CONNECTED_TPLS) {
+      // a template with an EMPTY prefix and suffix would match everything — refuse it
+      if (!pfx && !sfx) continue;
+      if (s.length > pfx.length + sfx.length && s.startsWith(pfx) && s.endsWith(sfx)) return true;
+    }
+    return false;
+  }
+
   function excerptFromRaw(raw, statusType) {
     const decoded = decodeEntities(raw);
     if (statusType === 'typing') return { type: 'typing', text: decoded };
@@ -6849,6 +6889,23 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     if (statusType && trimmed && trimmed === REQUEST_SENT_TEXT) return { type: 'request', text: (window.SL && window.SL.requestSent) || 'Request sent' };
     if (trimmed && isHeartOnly(trimmed)) return { type: 'reaction', text: (window.SL && window.SL.reacted) || 'Reacted' };
     if (trimmed && isGifExcerptUrl(trimmed)) return { type: 'gif', text: 'GIF' };   // parity w/ chat.html buildMediaRow
+    /* ★★ AUG (Damir 2026-08-30): "You are now connected with X." reads in the ACTION
+       colour, so a brand-new contact stands out in the list instead of looking like any
+       other text tail.
+       ★ Matched by TEMPLATE, never by a substring: the sentence is localised, so a
+       hardcoded English test would light up for English users only — the exact failure
+       ONLINE_TEXT was rewritten to avoid in chat.html. The carrier gives us the live
+       locale phrase, and the {0} split lets any contact name fill the hole.
+       ★ BOTH templates, longest-prefix-first, mirroring chat.html's EVENT_TPLS: the live
+       direction-neutral sentence AND the legacy "has accepted your contact request", so an
+       existing history renders the same as a new one.
+       ⚠ Placed AFTER the canon lookups on purpose — if a phrase ever earns a canon kind,
+       that kind wins and this stays out of its way. */
+    /* ⚠ canonExcerptText, NOT the raw text — B4 (#231): addresses are NEVER shown in full
+       in an excerpt. Returning `trimmed` here shipped the whole 48-char wallet address into
+       the row (Damir, desktop, 2026-08-30) where the chat's own chip had been rendering the
+       9…6 canon all along. Same sentence, two surfaces, two different answers. */
+    if (trimmed && connectedEventText(trimmed)) return { type: 'connected', text: canonExcerptText(decoded) };
     return { type: 'text', text: canonExcerptText(decoded) };                       // B4 (#231)
   }
 
@@ -6953,6 +7010,54 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   }
   window.addEventListener('storage', (e) => { if (e && e.key && e.key.indexOf(EXDEL_PREFIX) === 0 && e.newValue) applyExdelHints(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) applyExdelHints(); });
+
+  /* ★★ AUG (Damir 2026-08-30, ON DEVICE) — ACCEPTING FROM INSIDE THE CHAT MUST STAGE THE
+     SAME "Establishing…" ROW THE REQUEST CARD STAGES.
+     The chats list already models this (#109 / CH2): acceptContactRequest gives the row
+     `handshaking:true` and the establishing excerpt for a ≥3s hold, so it does not blink
+     out before the C# contacts re-flush. But that path only fires for the REQUEST CARD.
+     Accepting inside the chat (`chat.html` → ixian:accept) reached none of it — the two
+     shells share no JS (#221) and C# returns nothing on accept — so the row sat blank and
+     then snapped straight to "You are now connected", which is what Damir photographed.
+     ★ chat.html now writes `spixi.hsstage.<addr>` and this reads it, over the SAME
+     one-origin localStorage grammar the exdel hints and spixi.backup.last (#314) use.
+     ⚠ STALE-GUARDED: a marker older than the hold window is dropped rather than applied —
+     otherwise a stored key from a previous session would stage a handshake on every boot.
+     ⚠ The key is CONSUMED on read, so the 3s hold runs exactly once per accept. */
+  const HSSTAGE_PREFIX = 'spixi.hsstage.';
+  const HSSTAGE_MAX_AGE = 30000;   // a marker older than this is a leftover, not an accept
+  function applyHandshakeStageMarkers() {
+    let keys = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.indexOf(HSSTAGE_PREFIX) === 0) keys.push(k);
+      }
+    } catch (_) { return; }
+    for (const k of keys) {
+      const addr = k.slice(HSSTAGE_PREFIX.length);
+      let ts = 0;
+      try { ts = parseInt(localStorage.getItem(k), 10) || 0; localStorage.removeItem(k); } catch (_) {}
+      if (!addr || !ts || Date.now() - ts > HSSTAGE_MAX_AGE) continue;   // stale → drop, do not stage
+      if (handshakeHold.has(addr)) continue;                             // already staged by the card path
+      const c = (state.chats || []).find((x) => x && x.address === addr);
+      if (!c) continue;              // C# has not pushed the approved row yet; the marker is gone, and
+                                     // the row will arrive already-connected — no worse than before
+      c.handshaking = true;
+      c.excerpt = { type: 'typing', text: (strings && strings.handshakeEstablishing) || 'Establishing a quantum-secure handshake…' };
+      handshakeHold.add(addr);
+      setTimeout(() => {
+        handshakeHold.delete(addr);
+        const cc = (state.chats || []).find((x) => x && x.address === addr);
+        if (cc && cc.handshaking) completeHandshake(list, state, cc, opts);
+        else renderChatsNow();
+      }, 3000);
+      scheduleChatsRender();
+    }
+  }
+  window.addEventListener('storage', (e) => { if (e && e.key && e.key.indexOf(HSSTAGE_PREFIX) === 0 && e.newValue) applyHandshakeStageMarkers(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) applyHandshakeStageMarkers(); });
+  window.addEventListener('focus', applyHandshakeStageMarkers);
 
   /* ★ #562 — HIDDEN outgoing requests. The key family `spixi.hidereq.<addr>` IS
    * the durable tombstone (the pins/draft class — survives restarts, unlike the

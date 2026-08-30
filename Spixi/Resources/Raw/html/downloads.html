@@ -745,6 +745,20 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   line-height: var(--line-height-body-md);
   letter-spacing: var(--tracking-body-md);
   color: var(--text-neutral-02);
+  /* ★★ E1d (Damir on device, 2026-08-29 — Windows AND mobile): a long URL OVERFLOWS the
+     dialog. The external-link confirm (#82, chat.html confirmOpenLink) puts the raw URL in
+     this slot as its body, and a URL is ONE unbroken token — no spaces, and a query string
+     or a `#fragment` gives the line breaker nothing to work with. The modal is capped at
+     360px, so the text ran straight past the rounded corner on both platforms.
+     ⚠ `anywhere`, not `break-word`: `overflow-wrap: break-word` only breaks BETWEEN
+     opportunities and still refuses to split a single long token in several engines, which
+     is exactly the case here. `anywhere` breaks only when the line would otherwise overflow,
+     so ordinary body copy in every other modal is untouched — it is not `word-break:
+     break-all`, which would hyphen-less-chop normal sentences too.
+     ★ This slot is shared by every modal body, which is why the fix belongs here and not in
+     the link dialog: the same overflow waits for any long token — a wallet address, a
+     file name, a base58 transaction id — and those are all things this app puts in dialogs. */
+  overflow-wrap: anywhere;
 }
 
 .c-modal__actions {
@@ -1987,6 +2001,7 @@ button.c-settings-howto__join:disabled {
   const {
     createSettingsDownloads, setDownloads,
     createNativeBridge, installExecuteUiCommand,
+    dismissTopOverlay,                   // ★ L3 (Session F): hardware back closes an open confirm first
     attachPressFeedback,
     applyPushedTheme,
     } = window.Spixi;
@@ -2051,6 +2066,19 @@ button.c-settings-howto__join:disabled {
      * WebView's prefers-color-scheme can disagree with the app theme. */
     setTheme(name) { applyPushedTheme(name); },
     // Q4-③ (#270): call-ui wiring GONE — calls present on the native CallPage.
+    /* ★★ L3 (Session F) — THE BACK LEVEL THIS SHELL NEVER HAD.
+       This shell emitted ixian:back but never told C# whether an overlay was up, so
+       hardware back POPPED THE PAGE OUT FROM UNDER an open confirm. createSettingsDownloads
+       opens three (settingsConfirm: delete one, delete all, and the destructive row), so
+       this was reachable, not theoretical.
+       Grammar copied verbatim from ContactDetails' cdBack (N50 #370) / home's homeBack
+       (#336) — one implementation of "back closes the top thing", not a third dialect.
+       ★ Self-heal: if nothing was actually open the mirror was stale, so re-sync and let
+       the NEXT back pop the page. Back can never wedge. */
+    downloadsBack() {
+      if (typeof dismissTopOverlay === 'function' && dismissTopOverlay()) return;
+      syncDownloadsOverlay();
+    },
     clearFiles() { buf = []; settle(); },
     addFile(name, ctime) {
       if (buf === null) buf = [];
@@ -2059,6 +2087,23 @@ button.c-settings-howto__join:disabled {
     },
   };
   bridge.exposeAll(handlers);
+
+  /* ★ L3 (Session F): mirror overlay.js's body[data-overlay-open] to C# so back can be
+     routed INTO this shell while a confirm is up. DEFERRED + coalesced for the #337
+     reason: bridge.send is a raw location.href assignment with no queue, so two
+     navigations in one task coalesce last-wins and a state push must never share a slot
+     with a verb. State is read at FIRE time, so the trailing push is always absolute. */
+  let dlOverlaySyncT = 0;
+  function syncDownloadsOverlay() {
+    if (dlOverlaySyncT) return;
+    dlOverlaySyncT = setTimeout(() => {
+      dlOverlaySyncT = 0;
+      try { bridge.send('ixian:downloadsoverlay:' + (document.body.dataset.overlayOpen !== undefined ? '1' : '0')); } catch (e) {}
+    }, 0);
+  }
+  try {
+    new MutationObserver(syncDownloadsOverlay).observe(document.body, { attributes: true, attributeFilter: ['data-overlay-open'] });
+  } catch (e) {}
 
   /* —— page ready — fire ixian:onload on the window LOAD event (#177). ————————— */
   function signalReady() { bridge.ready(); }

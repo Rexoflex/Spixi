@@ -1,0 +1,113 @@
+Session F: the overnight batch, the Aug tile, and the light canvas
+
+BASELINE  bundle 308 · shells 18 · smoke BASELINE OK 3716 / the 3 known (#136 · M5 · B3)
+          locales ALL CLEAN 780 · i18n-lint OK · pseudo 9/9 · cs-syntax 110 clean + 1 gap
+          Ixian-Core 097341a (170 modified = CRLF churn; --ignore-cr-at-eol EMPTY)
+          entry was 3686 / 778 keys; every delta below is accounted for.
+
+═══ THE OVERNIGHT ROWS ═══
+
+ROW 1 · MUTATION DEBT PAID, AND EVERY REPAIR PROVEN BY RE-MUTATION
+16 mutations run: 13 SURVIVED, 3 KILLED, 0 INVALID. Both CONTROLS killed, which is what
+makes the rest trustworthy. Pins written for all 13, then the 13 re-run against the
+repaired suite: 13 run, KILLED 13, SURVIVED 0.
+⚠ THE HARNESS ITSELF FAILED FIRST, in this project's signature way. It detected a kill as
+`'BASELINE OK' not in output`, and smoke-test.mjs:17053 is a PIN MESSAGE containing the
+words "BASELINE OK". A bare string match is a substring test — the rule this repo keeps
+paying for, biting the tool built to enforce it. Kill is the process EXIT CODE now. Only
+the two controls exposed it; without them all 16 results were silently worthless.
+
+ROW 2 · THE ADVERSARIAL LOOP — four auditors, and a LIVE SHIPPING BUG
+★★ The built strings dictionary was a session behind: spixi.strings.js carried 779 keys
+against source's 778 — still shipping the two RETIRED pattern names and MISSING
+patternStyleDoodles. In all twelve locales the Doodles tile fell back to English while its
+neighbours translated. Invisible in en-us because fallback and string are the same word.
+No gate could see it: the build preflight only tests for setDocLang, its mtime warning does
+not cover src/strings, and the ROUND-6 pin compares locales to EACH OTHER, never the built
+dictionary to source. That pin now exists (key SETS, not counts — the counts were 779 vs
+778 and a count check passes that).
+★ #686 roster-paint flag SETTLED: not the same change (the flag rests on a date error), but
+the row DIES anyway on measurement quality — the 146 ms times an opacity flip on a stage
+that is off-screen, and the regression sits inside the before-spread of its own metric.
+★★ NEW: Package.appxmanifest points every Windows visual at eleven committed 2026-07-05
+bitmaps that nothing else in the repo references — the L17 shape again. Unpackaged today.
+
+ROW 3 · GIFs (#684) — the §4c premise was FALSIFIED
+The GIF keyboard never reaches the WebView's paste path. WebViewRenderer.cs:139 already
+implements IOnCommitContentListener and sends LinkUri to onSend(). The bug was one
+character class: `^https://[A-Za-z0-9]+\.(tenor|giphy)\.com/` REQUIRES a subdomain, and
+every share link Gboard hands over is bare-domain — so the GIF was dropped with
+processed=false and no error. Fixed, still anchored (eviltenor.com and
+tenor.com.evil.com/x both still fail). Utils.IsAllowedURL keeps the old pattern on purpose:
+it is the NAVIGATION allowlist and widening it is a security decision.
+★ Also fixed: a pasted Giphy SHARE page now resolves to i.giphy.com/<id>.gif (Tenor is not
+derivable client-side — its page id is not the media hash). And replyKindOf regex-tested
+the OBJECT mediaUrlOf returns, so EVERY media reply-quote was labelled "image".
+
+ROW 4 · NOTIFICATIONS P1 — the live pre-consent flow closed
+ConsentRequired before Initialize, ConsentGiven at Node.start(). #493's early handler
+registration is UNTOUCHED — the gate makes Initialize transmit nothing rather than delaying
+it. ⚠ The work order says "when the stored acceptance is set"; there is no stored
+acceptance (LaunchPage.acceptedTerms is never persisted), so the wallet's existence is used
+— the same condition iOS already had. NOT COMPILE-VERIFIED (no NuGet egress); the native
+fallback spelling is written at the edit.
+
+ROW 5 · THE WINDOWS .ico — and the row as scoped was not actionable
+There is no size list in this repo. Nothing here produces the .ico; MauiIcon exposes no
+size metadata; it is emitted inside the MAUI SDK. So the fix is to stop taking the generated
+one: a committed 7-size .ico rendered FROM appicon_windows.svg, each size rasterised from
+vector, wired via <ApplicationIcon>. Verified AT THE ARTIFACT by two independent readers.
+⚠ A committed asset beside a generated one — the L17 shape. The first Windows build must
+confirm the .exe takes this file.
+
+ROW 6 · #701 DARK CANVAS — landed WHOLE, because Damir ruled the other half awake
+Lift .20 → .06, base stays #0f1115. Not provisional. ⚠ The ladder §4d quotes was
+systematically ~3% low; recomputed and corrected in the token.
+
+ROW 6b · §0 SECURE NOTICE — the launch blocker, in twelve locales
+"No server carries or stores them" was false whenever the recipient is offline. Replaced
+with copy that makes NO server claim at all — omission is honest, the denial was not.
+★★ "post-quantum" was VERIFIED AT SOURCE before it was kept, and a careless sweep nearly
+killed it wrongly: grepping Kyber|ML-KEM|CRYSTALS returns NOTHING because the identifier is
+`MLKem`. A negative sweep is only as good as its spelling. ECDH + ML-KEM-1024 hybrid,
+AES-256-GCM + ChaCha20-Poly1305 bodies. ⚠ rsa2 is still the non-PQ fallback — open.
+⚠ Two MORE strings carry the same falsehood and were NOT changed (copy is Damir's):
+slide1Copy (ONBOARDING) and aboutBody. Drafts in the handoff.
+
+ROW 7 · L3 partial, L4 settled, L9 blocked
+L3's live half: the wiring gap is real in nine shells but REACHABLE in two (measured — the
+other seven mount factories that open no overlay). Both halves landed for those two.
+L4: traced end to end and already fixed by #399; the walk is now an acceptance test.
+L9: BLOCKED on a real contradiction — its caveat says a desktop pane must not slide, but L8
+shipped chat info as column 1 WITH slideIn and deliberately removed that guard.
+
+═══ THE AUG BATCH (Damir, live, 2026-08-30) ═══
+
+THE TILE. doodle-pattern-aug rescaled 3078×5361 → 320×557 with integer coordinates and
+attributes hoisted: asset 306KB → 237KB, chat-pattern.css 323KB → 255KB (−21%) while the
+pattern got DENSER. Safe because the tile is a MASK painted at 6%: worst measured deviation
+is 0.135 of one 8-bit level. Painted 220×383 ≈ 1.77 repeats across a 390px phone.
+THE GROUND. Light is flat #EBF0F5 (best white-bubble separation of any flat option tried,
+ΔL* +5.44; sent bubble 3.71 → 6.07). The E1c wash is RETAINED as a user choice, not retired.
+Ink #061663 @6%. Gradient option is Damir's 289deg ramp with three added hue-arc stops —
+a plain 2-stop interpolation dipped −4.26 in chroma at the midpoint, which is what reads as
+a cheap gradient; the arc holds it to −0.72. NOT written as `in oklch`: unsupported syntax
+invalidates the whole declaration and drops to a bare ground.
+STRONG RETIRED. Two levels, Off / Subtle, with a migration in all three ladders.
+ANDROID defaults to the gradient; desktop to flat.
+ALSO: topology-star glyph (add-only, 85 icons) · the "now connected" excerpt reads in the
+action colour and is TRUNCATED via canonExcerptText (it shipped the full 48-char address) ·
+the unread strip and Today pill got their own --surface-chat-chip (neutral-02 measured
++0.07 against the new ground — they did not fade, they disappeared) · dark incoming bubble
+#1a1d24 → #1e222b (+2.86 → +5.31 against the lifted canvas centre).
+
+⚠ TWO LATENT BUGS THE DEVICE FOUND, both of the same shape — a value that only worked
+because of a coincidence:
+· mask-size: 140px 140px was a SQUARE, fine while the tile was square, and letterboxed the
+  320×557 art into band/gap/band the moment it was not. Now carries the tile's aspect, and
+  a companion pin derives the aspect from the emitted natural size.
+· styleSwatchGroup hard-coded data-chat-pattern on the face, so both ground tiles rendered
+  IDENTICALLY. faceAttr now selects the attribute.
+· And a pin identified the intensity row as "the group that is not the style group" — the
+  new ground row is also style-shaped, so it silently started asserting the wrong control.
+  Selected by class now.

@@ -31,11 +31,14 @@ import { attachChatFlow, detachChatFlow } from './chat-flow.js';
  * style here. Live flow is DESKTOP-ONLY (constant animation = battery); the
  * picker renders two options on mobile, three on desktop. */
 export const PATTERN_STYLES = [
-  /* ★ Damir 2026-08-22: TRIANGLES is the default now, replacing the line-art doodle. Listed
-     first because the picker's first entry is what a new install lands on. Line art is kept
-     — retiring a style would silently re-skin anyone who chose it. */
-  { id: 'triangles', key: 'patternStyleTriangles', label: 'Triangles' },
-  { id: 'lineart', key: 'patternStyleLineArt', label: 'Line art' },
+  /* ★★ E1 (Damir 2026-08-29): DOODLES is the default, and TRIANGLES + LINE ART are
+     RETIRED on his explicit ruling — asked for and given, because retiring a style
+     silently re-skins whoever chose it and that is not a tidy-up to make on your own.
+     Listed first because the picker's first entry is what a new install lands on.
+     Data matrix stays (his words: "keep that tech thingy on mobile"); Live flow stays
+     desktop-only. A stored 'triangles' or 'lineart' no longer matches any allowlist,
+     so it FALLS THROUGH to 'doodles' on read — see chat.html / settings.html. */
+  { id: 'doodles', key: 'patternStyleDoodles', label: 'Doodles' },
   { id: 'matrix', key: 'patternStyleMatrix', label: 'Data matrix' },
   { id: 'flow', key: 'patternStyleFlow', label: 'Live flow', desktopOnly: true },
 ];
@@ -53,10 +56,32 @@ export const PATTERN_STYLES = [
  *
  * patternLevelVar() below maps index → the var() reference; readPatternLevel()
  * migrates the old fractional prefs. */
+/* ★★★ AUG GROUND (Damir 2026-08-30) — the light canvas is a CHOICE now.
+   The flat #EFF5EB ground became the default; the E1c teal→green wash is kept as an
+   option rather than retired, on his explicit call ("leave the gradient as an option in
+   chat appearance on light mode").
+   ⚠ LIGHT ONLY, and that is not an oversight: dark has no wash to choose between — it
+   carries the blue radial in both cases — so the row is HIDDEN in dark rather than shown
+   with one option, which would read as a broken control. The stored pref survives a theme
+   flip untouched; it simply has no effect until the user is back in light.
+   ★ The notice card follows the ground (system-notice.css): on the saturated wash it works
+   by being LIGHTER, on the flat near-white ground it has to be slightly DARKER. */
+export const CHAT_GROUNDS = [
+  { id: 'flat', key: 'groundFlat', label: 'Solid' },
+  { id: 'gradient', key: 'groundGradient', label: 'Gradient' },
+];
+
+/* ★★★ AUG (Damir 2026-08-30): STRONG IS RETIRED — two levels, Off and Subtle.
+   ⚠ THIS IS A RETIREMENT, SO IT CARRIES A MIGRATION, not just a shorter array. A user
+   who chose Strong has `2` in localStorage; readPatternLevel below folds 2 → 1 so they
+   land on Subtle rather than on a level that no longer exists. The same fold is repeated
+   in the two pre-paint ladders (chat.html, settings.html), because a level resolved after
+   first paint flashes the wrong intensity — the #690 three-ladder rule.
+   ★ 'Default' was a poor label once there are only two options; it is 'Subtle' now, which
+   is also the word Damir used. The KEY is unchanged so no locale loses its entry. */
 export const PATTERN_LEVELS = [
   { value: 0, key: 'patternOff', label: 'Off' },
-  { value: 1, key: 'patternDefault', label: 'Default' },
-  { value: 2, key: 'patternStrong', label: 'Strong' },
+  { value: 1, key: 'patternDefault', label: 'Subtle' },
 ];
 
 /**
@@ -64,7 +89,8 @@ export const PATTERN_LEVELS = [
  *
  * @param {number} level 0 Off · 1 Default · 2 Strong
  * @param {number} [boost] multiply the alpha — for SWATCH-SIZE previews only.
- *   ★ break-my-verdict MINOR-3: at true alpha (0.042 vs 0.1) the Off and Default
+ *   ★ break-my-verdict MINOR-3: at true alpha (0.06 vs 0.1 — 0.042 vs 0.1 when this
+ *   was written) the Off and Default
  *   tiles are the same tile in light mode at 56px, so the control could not be read
  *   even though it was operable. The style row above already carries this exact
  *   compromise for the same reason. The LIVE preview canvas and the real chat stay
@@ -73,15 +99,34 @@ export const PATTERN_LEVELS = [
 export function patternLevelVar(level, boost) {
   const n = Number(level);
   if (n <= 0) return '0';
-  const tok = n === 2 ? '--chat-pattern-alpha-2' : '--chat-pattern-alpha-1';
+  /* ★ AUG (2026-08-30): Strong is retired, so alpha-2 is no longer reachable from the
+     picker. The TOKEN stays defined in tokens.css — it is one line from returning and
+     removing it would mean re-deriving it per theme (the --border-bubble-received
+     precedent) — but nothing selects it any more. A stored 2 folds to 1 upstream. */
+  const tok = '--chat-pattern-alpha-1';
   return boost && boost !== 1
     ? 'calc(var(' + tok + ') * ' + boost + ')'
     : 'var(' + tok + ')';
 }
 
 /* Swatch-face amplification (see patternLevelVar's `boost`). 6× puts the three
-   tiles at 0 / ~0.25 / ~0.6 — separable at 56px in both themes, and it keeps the
-   Default:Strong RATIO intact so the tiles still rank the way the chat does. */
+   tiles at 0 / 0.36 / 0.6 — separable at 56px in both themes, and it keeps the
+   Default:Strong RATIO intact so the tiles still rank the way the chat does.
+   ★ E1 (2026-08-29): re-checked after the ladder moved to 0.06/0.10. The boost is
+   unchanged at 6, but the swatch faces are NOT: Default was 0.042×6 ≈ 0.25 and is
+   now 0.06×6 = 0.36, so Off↔Default separates further than before while
+   Default↔Strong narrows from a 0.42 ratio to 0.60 — which is correct, because 0.60
+   is the ratio the real chat now has and the swatch is meant to rank the way the
+   chat does. Verified by render at 56px in both themes, not by arithmetic alone.
+   ⚠⚠ THE NUMBERS ABOVE ARE PRE-E1c AND THE RENDER VERIFICATION WAS DONE AT THEM.
+   E1c moved LIGHT's Default to 0.07 (dark stayed 0.065), so the SHIPPING figures are:
+     light  0.07 ×6 = 0.42, Default:Strong ratio 0.07/0.10 = 0.70
+     dark   0.065×6 = 0.39, ratio 0.65
+   The boost of 6 is still safe — both stay below 1.0 and the "rank like the chat"
+   property still holds, which is why this is a comment fix and not a code change. But
+   "0.60 is the ratio the real chat now has" is no longer true of either theme, and the
+   render was never repeated at 0.42/0.39. E1c walked tokens.css and system-notice.css
+   and did not walk to this consumer. (Session F audit.) */
 export const PATTERN_SWATCH_BOOST = 6;
 
 /**
@@ -100,8 +145,12 @@ export function readPatternLevel(raw, fallback = 1) {
   const n = parseFloat(raw);
   if (!isFinite(n)) return fallback;
   if (n <= 0) return 0;
-  if (n === 1 || n === 2) return n;          // already a level index
-  return n > 0.5 ? 2 : 1;                    // legacy alpha: Bold → Strong, rest → Default
+  /* ★★ AUG (2026-08-30): Strong retired. A stored 2 is a level that no longer exists, so
+     it folds to Subtle rather than being honoured or thrown away. Legacy fractional alphas
+     fold the same way — an old Bold user lands on the loudest option that still EXISTS,
+     which is the same promise the pre-Aug comment made, just with a shorter ladder. */
+  if (n === 1 || n === 2) return 1;          // already a level index (2 = retired Strong)
+  return 1;                                  // legacy alpha: anything above 0 → Subtle
 }
 export const TEXT_SIZES = [            // --chat-text-scale — bubble adoption LIVE (message-bubble.css, 6e.2)
   { value: 0.9, key: 'textS', label: 'S' },
@@ -205,12 +254,12 @@ function swatchGroup({ options, current, ariaLabel, onPick }) {
   }
   paint();
   /* W5: the intensity tiles must show the pattern the user actually picked —
-     four line-art tiles under a "Data matrix" selection would be showing them a
+     three doodles tiles under a "Data matrix" selection would be showing them a
      level of something they aren't using. Flow tiles paint ONE still frame each
      (the Off tile draws nothing, so its diagonal-slash treatment still reads). */
   let swatchRaf = 0;
   g.setSwatchStyle = (id) => {
-    // cancel a still-pending mount: a flow→lineart flip inside one frame used to
+    // cancel a still-pending mount: a flow→tile flip inside one frame used to
     // let the deferred mount run AFTER the detach, leaving an orphan canvas under
     // a tile face until the next style change (#46 audit)
     if (swatchRaf) { cancelAnimationFrame(swatchRaf); swatchRaf = 0; }
@@ -250,18 +299,25 @@ function swatchGroup({ options, current, ariaLabel, onPick }) {
 const FLOW_SWATCH_TUNE = { still: true, spacing: 8, dash: 5, lineWidth: 1, fieldScale: 20 };
 
 /* Fail-soft for every flow face: attachChatFlow returns null when the WebView
-   has no 2d context. A style that can't paint must fall back to the line-art
-   TILE — a bare gradient would read as a broken tile, and the whole point of
-   keeping a resolvable URI under [data-chat-pattern='flow'] (chat-pattern.css)
-   is that this fallback is one attribute flip. */
+   has no 2d context. A style that can't paint must fall back to a real TILE — a
+   bare gradient would read as a broken tile, and the whole point of keeping a
+   resolvable URI under [data-chat-pattern='flow'] (chat-pattern.css) is that this
+   fallback is one attribute flip. ★ E1: that URI, and this fallback, are DOODLES
+   now; both said line art / triangles before the two were retired. */
 function mountFlowFace(face, opts) {
   let ctrl = null;
   try { ctrl = attachChatFlow(face, opts); } catch (e) { ctrl = null; }
-  if (!ctrl) face.dataset.chatPattern = 'triangles';   // ★ default style
+  if (!ctrl) face.dataset.chatPattern = 'doodles';    // ★ E1 default style
   return ctrl;
 }
 
-function styleSwatchGroup({ options, current, ariaLabel, onPick }) {
+/* ★★ AUG (Damir 2026-08-30, ON DEVICE): `faceAttr` — WHICH dataset attribute the tile face
+   carries. It was hard-coded to `chatPattern`, which was right while this group only ever
+   drew the pattern STYLE list. The ground row reuses this component (it previews a canvas,
+   so it should) and set data-chat-pattern="flat" / "gradient" — values that match no rule
+   in chat-pattern.css, so BOTH ground tiles inherited the document's ground and rendered
+   IDENTICALLY. Damir: "on windows the canvas tiles look the same". */
+function styleSwatchGroup({ options, current, ariaLabel, onPick, faceAttr = 'chatPattern' }) {
   const g = document.createElement('div');
   const flowFaces = [];
   let styleRaf = 0;
@@ -282,16 +338,20 @@ function styleSwatchGroup({ options, current, ariaLabel, onPick }) {
     const face = document.createElement('span');
     face.className = 'c-chat-canvas c-settings-swatch__canvas';
     face.setAttribute('aria-hidden', 'true');
-    face.dataset.chatPattern = o.id;
+    face.dataset[faceAttr] = o.id;
     // the style tiles must show the PATTERN, not the user's current intensity —
     // a user sitting on "Off" would otherwise be picking between three blanks.
     // Intensity has its own swatch row directly below.
     // ★ N81 (#422): this was the literal '0.5' — the old light-mode Standard alpha,
     // which under the new ladder would paint these tiles ~12× the real pattern and
-    // promise a background the chat never shows. It rides the STRONG step instead:
-    // the loudest thing the user can actually choose, so the tile is legible at
-    // swatch size without lying about what Default looks like.
-    face.style.setProperty('--chat-pattern-opacity', 'var(--chat-pattern-alpha-2)');
+    // promise a background the chat never shows. It rode the STRONG step instead.
+    /* ★★ AUG (Damir 2026-08-30, ON DEVICE): STRONG IS RETIRED, so alpha-2 was no longer
+       "the loudest thing the user can actually choose" — it was a step nobody can pick,
+       and at 0.1 against the intensity row's boosted 0.36 these tiles read markedly
+       FAINTER than the row below them in Damir's screenshot. They ride the SAME boosted
+       Subtle alpha the intensity row uses now, so all three swatch rows are painted at one
+       density and the tile is legible at 64px. PATTERN_SWATCH_BOOST is the single dial. */
+    face.style.setProperty('--chat-pattern-opacity', patternLevelVar(1, PATTERN_SWATCH_BOOST));
     b.append(face);
     if (o.id === 'flow') {
       // mount after layout — a 0×0 face would size the backing store to 1×1
@@ -393,12 +453,14 @@ function screenShell(className, title, onBack) {
  */
 export function createChatAppearance({
   patternOpacity = 1,             // ★ N81 (#422): a LEVEL index (0/1/2), not an alpha
-  patternStyle = 'triangles',    // W5 + 2026-08-22: 'triangles' (default) | 'lineart' | 'matrix' | 'flow' (desktop only)
+  patternStyle = 'doodles',      // W5 + ★ E1 2026-08-29: 'doodles' (default) | 'matrix' | 'flow' (desktop only)
+  chatGround = 'flat',           // ★ AUG 2026-08-30: 'flat' (default) | 'gradient' — LIGHT only
   textScale = 1,
   isDesktop = typeof document === 'object' && document.documentElement.hasAttribute('data-desktop'),
   onBack,
   onPattern,                     // (level) — shell persists the index; CSS resolves the alpha
   onPatternStyle,                // (id) — shell sets data-chat-pattern + persists (W5)
+  onChatGround,                  // (id) — shell sets data-chat-ground + persists (★ AUG)
   onTextScale,                   // (scale) — sets --chat-text-scale (bubble adoption: chat-shell integration, #147 flag)
   strings = getStrings(),
 } = {}) {
@@ -422,10 +484,10 @@ export function createChatAppearance({
   /* W5 — STYLE first, then INTENSITY: the user picks what the pattern IS
      before deciding how loud it is. Live flow is dropped from the list on
      mobile (desktop-only, Damir 2026-08-12); a mobile user whose stored pref
-     somehow says 'flow' sees Line art selected, matching what chat.html's
+     somehow says 'flow' sees Doodles selected, matching what chat.html's
      pre-paint script actually applies. */
   const styleOpts = PATTERN_STYLES.filter((o) => isDesktop || !o.desktopOnly);
-  let styleCurrent = styleOpts.some((o) => o.id === patternStyle) ? patternStyle : 'triangles';
+  let styleCurrent = styleOpts.some((o) => o.id === patternStyle) ? patternStyle : 'doodles';
   const styleSec = document.createElement('div');
   styleSec.className = 'c-settings__section';
   const stLab = document.createElement('h3');
@@ -445,6 +507,36 @@ export function createChatAppearance({
   // AND-35 (#371, Damir dial): the SIZE control leads — appended below, before
   // this section (build order unchanged; only the visual order flips).
 
+  /* ★★ AUG GROUND (Damir 2026-08-30). Rendered only in LIGHT — see CHAT_GROUNDS.
+     `isLight` is read from the live document rather than passed in, because this screen
+     can be open across a setTheme push (#421) and a row that was correct at build time
+     would then be wrong on screen. */
+  const isLight = !document.documentElement.getAttribute('data-theme')
+    || document.documentElement.getAttribute('data-theme') === 'light';
+  let groundCurrent = CHAT_GROUNDS.some((o) => o.id === chatGround) ? chatGround : 'flat';
+  const groundSec = document.createElement('div');
+  groundSec.className = 'c-settings__section';
+  if (isLight) {
+    const gLab = document.createElement('h3');
+    gLab.className = 'c-settings__label';
+    gLab.textContent = strings.chatGround || 'Canvas';
+    const groundGroup = styleSwatchGroup({
+      options: CHAT_GROUNDS.map((o) => ({ id: o.id, label: strings[o.key] || o.label })),
+      current: groundCurrent,
+      ariaLabel: strings.chatGround || 'Canvas',
+      /* ★★ the face must carry data-chat-GROUND, not data-chat-pattern — see faceAttr.
+         Without this both tiles preview the document's ground and look identical. */
+      faceAttr: 'chatGround',
+      onPick: (id) => {
+        groundCurrent = id;
+        /* the LIVE preview follows immediately — the swatch is not the only feedback */
+        preview.setAttribute('data-chat-ground', id);
+        if (onChatGround) onChatGround(id);
+      },
+    });
+    groundSec.append(gLab, groundGroup);
+  }
+
   const patternSec = document.createElement('div');
   patternSec.className = 'c-settings__section';
   const pLab = document.createElement('h3');
@@ -452,7 +544,7 @@ export function createChatAppearance({
   pLab.textContent = strings.patternIntensity || 'Opacity';
   // #334 iOS-60: swatch tiles, not text pills — the tile face IS the preview
   // mechanism (same .c-chat-canvas paint, per-level --chat-pattern-opacity).
-  // ★ N81 (#422): three levels now — Off / Default / Strong.
+  // ★ N81 (#422): three levels; ★ AUG (2026-08-30): TWO now — Off / Subtle.
   const intensityGroup = swatchGroup({
     options: PATTERN_LEVELS.map((o) => ({ value: o.value, label: strings[o.key] || o.label })),
     current: patternOpacity,
@@ -474,7 +566,11 @@ export function createChatAppearance({
   }));
   // AND-35 (#371, Damir dial): Text size first, then Background (style), then
   // Opacity (intensity) — the pattern pair reads as one topic under two labels.
-  body.append(sizeSec, styleSec, patternSec);
+  /* AUG: ground sits with the other canvas dials, after STYLE and before INTENSITY —
+     what the canvas IS, then what is drawn on it, then how loud that is. groundSec is an
+     empty div in dark (see isLight above), so appending it unconditionally is safe and
+     keeps the order stable across a live theme flip. */
+  body.append(sizeSec, styleSec, groundSec, patternSec);
 
   // preview honors the incoming state
   preview.style.setProperty('--chat-pattern-opacity', patternLevelVar(patternOpacity));

@@ -93,6 +93,7 @@
   const {
     createSettingsDownloads, setDownloads,
     createNativeBridge, installExecuteUiCommand,
+    dismissTopOverlay,                   // ★ L3 (Session F): hardware back closes an open confirm first
     attachPressFeedback,
     applyPushedTheme,
     } = window.Spixi;
@@ -157,6 +158,19 @@
      * WebView's prefers-color-scheme can disagree with the app theme. */
     setTheme(name) { applyPushedTheme(name); },
     // Q4-③ (#270): call-ui wiring GONE — calls present on the native CallPage.
+    /* ★★ L3 (Session F) — THE BACK LEVEL THIS SHELL NEVER HAD.
+       This shell emitted ixian:back but never told C# whether an overlay was up, so
+       hardware back POPPED THE PAGE OUT FROM UNDER an open confirm. createSettingsDownloads
+       opens three (settingsConfirm: delete one, delete all, and the destructive row), so
+       this was reachable, not theoretical.
+       Grammar copied verbatim from ContactDetails' cdBack (N50 #370) / home's homeBack
+       (#336) — one implementation of "back closes the top thing", not a third dialect.
+       ★ Self-heal: if nothing was actually open the mirror was stale, so re-sync and let
+       the NEXT back pop the page. Back can never wedge. */
+    downloadsBack() {
+      if (typeof dismissTopOverlay === 'function' && dismissTopOverlay()) return;
+      syncDownloadsOverlay();
+    },
     clearFiles() { buf = []; settle(); },
     addFile(name, ctime) {
       if (buf === null) buf = [];
@@ -165,6 +179,23 @@
     },
   };
   bridge.exposeAll(handlers);
+
+  /* ★ L3 (Session F): mirror overlay.js's body[data-overlay-open] to C# so back can be
+     routed INTO this shell while a confirm is up. DEFERRED + coalesced for the #337
+     reason: bridge.send is a raw location.href assignment with no queue, so two
+     navigations in one task coalesce last-wins and a state push must never share a slot
+     with a verb. State is read at FIRE time, so the trailing push is always absolute. */
+  let dlOverlaySyncT = 0;
+  function syncDownloadsOverlay() {
+    if (dlOverlaySyncT) return;
+    dlOverlaySyncT = setTimeout(() => {
+      dlOverlaySyncT = 0;
+      try { bridge.send('ixian:downloadsoverlay:' + (document.body.dataset.overlayOpen !== undefined ? '1' : '0')); } catch (e) {}
+    }, 0);
+  }
+  try {
+    new MutationObserver(syncDownloadsOverlay).observe(document.body, { attributes: true, attributeFilter: ['data-overlay-open'] });
+  } catch (e) {}
 
   /* —— page ready — fire ixian:onload on the window LOAD event (#177). ————————— */
   function signalReady() { bridge.ready(); }

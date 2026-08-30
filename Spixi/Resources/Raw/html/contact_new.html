@@ -1120,6 +1120,20 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   line-height: var(--line-height-body-md);
   letter-spacing: var(--tracking-body-md);
   color: var(--text-neutral-02);
+  /* ★★ E1d (Damir on device, 2026-08-29 — Windows AND mobile): a long URL OVERFLOWS the
+     dialog. The external-link confirm (#82, chat.html confirmOpenLink) puts the raw URL in
+     this slot as its body, and a URL is ONE unbroken token — no spaces, and a query string
+     or a `#fragment` gives the line breaker nothing to work with. The modal is capped at
+     360px, so the text ran straight past the rounded corner on both platforms.
+     ⚠ `anywhere`, not `break-word`: `overflow-wrap: break-word` only breaks BETWEEN
+     opportunities and still refuses to split a single long token in several engines, which
+     is exactly the case here. `anywhere` breaks only when the line would otherwise overflow,
+     so ordinary body copy in every other modal is untouched — it is not `word-break:
+     break-all`, which would hyphen-less-chop normal sentences too.
+     ★ This slot is shared by every modal body, which is why the fix belongs here and not in
+     the link dialog: the same overflow waits for any long token — a wallet address, a
+     file name, a base58 transaction id — and those are all things this app puts in dialogs. */
+  overflow-wrap: anywhere;
 }
 
 .c-modal__actions {

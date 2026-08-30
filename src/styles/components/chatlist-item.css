@@ -163,7 +163,11 @@
    #273: request-done ("Contact Accepted") keeps the SAME look — only the pending
    semantics differ (filter/chip exclude it via the distinct excerpt kind). */
 .c-excerpt[data-type="request"] .c-excerpt__text,
-.c-excerpt[data-type="request-done"] .c-excerpt__text { color: var(--text-action-default); }
+.c-excerpt[data-type="request-done"] .c-excerpt__text,
+/* ★★ AUG (Damir 2026-08-30): the "you are now connected with X" tail reads in the ACTION
+   colour so a brand-new contact stands out in the list. Same treatment the request rows
+   already carry — one grammar for "something happened with this contact", not a third. */
+.c-excerpt[data-type="connected"] .c-excerpt__text { color: var(--text-action-default); }
 .c-excerpt[data-type="request"] svg,
 .c-excerpt[data-type="request-done"] svg { color: var(--icon-action-default); }
 .c-excerpt[data-type="call-missed"] { color: var(--text-error); }

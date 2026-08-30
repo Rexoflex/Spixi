@@ -108,10 +108,37 @@ namespace Spixi
                     OneSignal.Notifications.WillDisplay += handleNotificationReceived;
                 }
 
+                /* ★★ P1 (privacy work order 2026-08-29) — CONSENT GATE, SET BEFORE Initialize.
+                 *
+                 * THE FLOW THIS CLOSES IS LIVE AND ANDROID-ONLY. MainApplication.OnCreate runs
+                 * before ANY Activity, on every process start INCLUDING A FIRST INSTALL — so
+                 * until now the SDK was live, with a token, device metadata and an IP address
+                 * reaching a US third party, before the user had seen a single screen, let
+                 * alone accepted anything. iOS was already correct: its initialize() is called
+                 * from Node.start(), which needs a wallet and therefore runs after onboarding.
+                 *
+                 * ★ THIS KEEPS #493 EXACTLY AS IT IS. The handlers above still attach here, in
+                 * the Application, so a push that wakes a dead process still finds a handler
+                 * ~4 s before an Activity could have registered one. ConsentRequired does not
+                 * delay Initialize — it makes Initialize TRANSMIT NOTHING until consent is
+                 * given. ⚠ Do NOT "fix" this by moving Initialize later; that is the exact
+                 * regression #493 exists to prevent, and it is why the gate is used instead.
+                 *
+                 * ⚠ COULD NOT BE COMPILE-VERIFIED (Session F ran in a container with no NuGet
+                 * egress, so OneSignalSDK.DotNet 6.1.9's surface could not be read). The
+                 * property form below is the documented v5+ API and is what the work order
+                 * specifies. IF THE BUILD REJECTS IT, the fallback is one line and this file
+                 * already imports what it needs — `OneSignalNative` (used for
+                 * ClearAllNotifications below) exposes the Java setters:
+                 *     OneSignalNative.ConsentRequired = true;   //  setConsentRequired(true)
+                 *     OneSignalNative.ConsentGiven = true;      //  setConsentGiven(true)
+                 */
+                OneSignal.ConsentRequired = true;
+
                 OneSignal.Initialize(SPIXI.Meta.Config.oneSignalAppId);
 
                 oneSignalReady = true;
-                Logging.info("[NOTIFDIAG] OneSignal handlers registered in the Application (#493)");
+                Logging.info("[NOTIFDIAG] OneSignal handlers registered in the Application, consent gate ARMED (#493 + P1)");
             }
             catch (Exception e)
             {
@@ -135,6 +162,20 @@ namespace Spixi
             }
 
             isInitializing = true;
+
+            /* ★★ P1 — CONSENT GIVEN. This runs from Node.start(), which needs a wallet, so
+             * reaching it means onboarding is behind us: on a first install the user has been
+             * through the terms view, and on every later launch the wallet on disk IS the
+             * stored acceptance. That is deliberately the SAME condition iOS already uses, so
+             * the two platforms now consent at the same moment instead of Android consenting
+             * before the user existed.
+             * ⚠ The work order says "when the stored acceptance is set". There is NO stored
+             * acceptance flag in this app — LaunchPage's `acceptedTerms` is a page-local bool
+             * that is never persisted (LaunchPage.xaml.cs:53/217, checked). Rather than invent
+             * a second source of truth that could disagree with the wallet, the wallet's
+             * existence is used; if a persisted flag is ever added, set it HERE and nowhere
+             * else. */
+            OneSignal.ConsentGiven = true;
 
             /* ★ #494 (#489) — THE LATCH THAT SWALLOWED ITS OWN RETRY.
              *

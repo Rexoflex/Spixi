@@ -133,8 +133,8 @@
         <div class="c-chat-canvas">
           <!-- tabindex: keyboard users must be able to scroll text-only history (audit r2) -->
           <div class="messages u-scroll" id="messages-direct" role="log" aria-label="Messages" tabindex="0"></div>
+          <div id="composer-direct"></div><!-- #711: inside the canvas — the composer floats -->
         </div>
-        <div id="composer-direct"></div>
       </div>
       <div class="demo-caption">1:1 chat (C17 fix: no sender labels/avatars) · typed cards · live download · unread divider · live composer · batch 3: overlap reactions · typing pill (hugs composer) · scroll-to-latest · long-press/right-click menu · GIF tap-to-load · link → confirm modal · #141: TAP THE HEADER → chat info (nickname edit · QR · Pay/Request · media strip · payments accordion · disappearing messages · destructive zone) · #142: sectioned layout, txlist rows styled, full member scroll</div>
     </div>
@@ -144,8 +144,8 @@
         <div id="topbar-group"></div>
         <div class="c-chat-canvas">
           <div class="messages u-scroll" id="messages-group" role="log" aria-label="Messages" tabindex="0"></div>
+          <div id="composer-group"></div><!-- #711 -->
         </div>
-        <div id="composer-group"></div>
       </div>
       <div class="demo-caption">group chat (#63 calibration surface): sender labels first-of-group · avatars last-of-group · identity hues · overlap reactions + tip (#65) · gutter-aligned card (C8) · named typing pill · unread badge on scroll button · #99: TAP A SENDER NAME/AVATAR → member sheet (address + copy + contact request) · #141: TAP THE HEADER → group info (members w/ search + admin kick/ban · notifications · leave) · #142: FULL A–Z member scroll (no caps) · tap Han Solo's identity in the member sheet → CONTACT INFO page (Message leads · no delete-history)</div>
     </div>
@@ -188,7 +188,7 @@
     setComposerContext, getComposerContext,
     createMediaBubble, createModal, openModal,
     setMessageStatus, setPaymentStatus, removeMessage,
-    createSystemNotice, attachLazyHistory, openAttachSheet, openMemberSheet,
+    createSystemNotice, attachLazyHistory, openAttachTray, closeAttachTray, isAttachTrayOpen, openMemberSheet,
     openMediaViewer, showIncomingCall, showCallBar, hideCallBar,
   } = window.Spixi;
 
@@ -938,14 +938,20 @@
         placeholder: 'Message',
         voice,
         onSend: sendMessage,
-        // ⊕ attach sheet (#87①): tile grid; media tiles shown (flag ON in demo)
-        onAttach: () => openAttachSheet({
-          host: phone, media: true,
-          onAction: (id) => handleAttach(id, phone, box),  // #139: pay/request are LIVE
-        }),
+        // ⊕ attach TRAY (#705, was the #87① sheet): the grid under the composer, the ⊕
+        // toggles it; media tiles shown (flag ON in demo). The sheet is desktop's (desktop.html).
+        onAttach: () => {
+          if (isAttachTrayOpen(entry.el)) { closeAttachTray(entry.el.nextElementSibling); return; }
+          openAttachTray({
+            composerEl: entry.el, media: true,
+            onAction: (id) => handleAttach(id, phone, box),  // #139: pay/request are LIVE
+          });
+        },
         onRecord: () => showToast({ text: 'Voice recording lands with the BE proposal', tone: 'info', host: phone }),
       });
       slot.append(entry.el);
+      // #711: the floating composer — publish its height so the chevron floats above it
+      try { const canvas = slot.closest('.c-chat-canvas'); const pub = () => canvas.style.setProperty('--composer-h', slot.offsetHeight + 'px'); new ResizeObserver(pub).observe(slot); pub(); } catch (_) {}
       // #139: paste of a multi-copy → inline "Send as N separate messages" offer
       attachSplitPaste(entry.el, { onSendEach: (items) => items.forEach((it) => sendMessage(it.text)) });
     };

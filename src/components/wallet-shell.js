@@ -913,7 +913,7 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer,
   if (onExplorer) {
     content.append(createButton({
       label: strings.viewTxExplorer || 'View transaction on Explorer', type: 'outline', size: 44, width: 'full',
-      icon: icon('arrow-up-right', { size: 18 }), iconPosition: 'trailing',
+      icon: icon('external-link', { size: 18 }), iconPosition: 'trailing',   // #710: an Explorer link opens outside the app
       onClick: latched(() => sheet, () => onExplorer(tx)),
     }));
   }
@@ -1018,7 +1018,7 @@ export function openMissingTxSheet({ host, strings = getStrings(), onExplorer, s
     // legacy parity: `ixian:explorer` opens THIS address on explorer.ixian.io
     actions.append(createButton({
       label: strings.viewAllExplorer || 'View all transactions on Explorer', type: 'fill', size: 44, width: 'full',
-      icon: icon('arrow-up-right', { size: 18 }), iconPosition: 'trailing',
+      icon: icon('external-link', { size: 18 }), iconPosition: 'trailing',   // #710: an Explorer link opens outside the app
       onClick: latched(() => sheet, () => onExplorer(null)),
     }));
   }

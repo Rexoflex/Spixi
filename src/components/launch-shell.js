@@ -311,7 +311,7 @@ function buildWelcome(st) {
     {
       img: base + 'step1.png',
       title: strings.slide1Title || 'Built for you. Owned by you.',
-      copy: strings.slide1Copy || 'No servers, no middlemen. Every message is encrypted and stays on your device, delivered straight to your contact, and to no one else.',
+      copy: strings.slide1Copy || 'Encrypted on your device and opened only by the person you sent to. Simple, private messaging with no account and no phone number.',
     },
     {
       img: base + 'step2.png',
@@ -1037,6 +1037,20 @@ export function setLaunchView(el, view) {
      on any switch. */
   st.scrubs.forEach((s) => { try { s(); } catch { /* a dead field must not block the switch */ } });
   show(st, view, true);      // ★ F-2: C# drove this one — do not echo it back
+}
+
+/** ★ L3 (#706): ONE LEVEL BACK, from the shell's own gesture. The same exit the view's
+ *  Back arrow takes — scrub, show welcome, report through `show()` — so the swipe and the
+ *  arrow cannot disagree. Returns true when a view was left; false on welcome, where the
+ *  shell has nothing to unwind (LaunchPage swallows hardware back there too, #585). */
+export function launchShellBack(el) {
+  const st = launchState.get(el);
+  if (!st || st.view === 'welcome') return false;
+  const from = st.view;
+  st.scrubs.forEach((s) => { try { s(); } catch { /* a dead field must not block the switch */ } });
+  show(st, 'welcome');
+  try { if (st.opts && st.opts.onBack) st.opts.onBack(from); } catch { /* nav */ }
+  return true;
 }
 
 /** ← setVersion(Config.version) — quiet welcome footer line. */

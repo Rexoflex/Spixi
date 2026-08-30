@@ -69,6 +69,7 @@ function appCtrl(onDone, onFail) {
 function creditLabel(credit, strings) {
   switch (credit.key) {
     case 'creditSounds': return strings.creditSounds || 'Interface sounds';
+    case 'creditIcons': return strings.creditIcons || 'Interface icons';
     default: return credit.fallback;   // a credit added without its case still renders
   }
 }
@@ -79,6 +80,17 @@ export const ASSET_CREDITS = [
     fallback: 'Interface sounds',
     source: 'UI SFX — uisfx.com',
     licence: 'CC0 1.0',
+  },
+  /* ★ #710 (Damir, 2026-08-30): the icon set is Tabler Icons (Paweł Kuna), exported
+     through Figma as filled outlines. MIT requires the copyright notice and the licence
+     text to travel with the software; a credit row here plus the notice in
+     docs/legal/third-party-notices.md satisfies it. Attribution in the UI is not
+     required by MIT but is the house courtesy. */
+  {
+    key: 'creditIcons',
+    fallback: 'Interface icons',
+    source: 'Tabler Icons — tabler.io/icons, © Paweł Kuna',
+    licence: 'MIT',
   },
 ];
 
@@ -501,7 +513,7 @@ function linkRow({ label, url, onOpenLink, strings }) {
     const lab = document.createElement('span');
     lab.className = 'c-settings-links__label';
     lab.textContent = label;
-    b.append(lab, icon('arrow-up-right', { size: 18 }));
+    b.append(lab, icon('external-link', { size: 18 }));   // #710: "opens outside the app" — arrow-up-right is money (#709)
     b.addEventListener('click', () => onOpenLink(url));
     return b;
   }
@@ -564,7 +576,7 @@ export function createSettingsAbout({
   const desc = document.createElement('p');
   desc.className = 'c-settings__note c-settings-about__desc';
   desc.textContent = description || strings.aboutBody
-    || 'Spixi lets you chat and send IXI directly, peer-to-peer. No central server holds your messages or your keys. Everything stays on your device and the Ixian network.';
+    || 'Spixi lets you chat and send IXI directly, peer to peer. Your messages are encrypted on your device and your keys never leave it.';
   body.append(desc);
 
   /* links card — website / network / source (degrade to text without onOpenLink) */

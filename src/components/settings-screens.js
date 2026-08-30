@@ -653,9 +653,12 @@ export function createNotificationsScreen({
   previews = false,              // matches the SHIPPED C# default (KEY_SENDER_NAME = false)
   sounds = true,
   isDesktop = typeof document === 'object' && document.documentElement.hasAttribute('data-desktop'),
-  capabilities = {},             // { globalNotifications }
+  pushProvider = true,           // ★ P2 (#708): the third-party push opt-out; C# default TRUE
+  platform = '',                 // 'android' | 'ios' | '' — the opt-out COSTS something different on each, and the row says which
+  capabilities = {},             // { globalNotifications, pushProvider }
   onBack,
   onEnabled, onPreviews, onSounds,   // (next, ctrl) — §9
+  onPushProvider,                // (next, ctrl) — ★ P2 (#708): ixian:notifPushProvider:on|off
   strings = getStrings(),
 } = {}) {
   const { el, body, live } = screenShell('c-settings-notifs', strings.notifications || 'Notifications', onBack);
@@ -694,6 +697,45 @@ export function createNotificationsScreen({
       label: strings.notifSounds || 'In-app sounds',
       checked: sounds, live, failText, onToggle: onSounds,
     }));
+    /* ★★ P2 (#708, privacy work order §P2 — Damir raised it again in Session G): A REAL
+       OPT-OUT FOR THIRD-PARTY PUSH. Before this row, "Allow notifications" gated DISPLAY
+       only: the OneSignal SDK still initialised and still registered, so a token, device
+       metadata and an IP address kept reaching a US third party with notifications off.
+       This switch is the genuine choice — off skips the SDK (iOS) / withdraws consent and
+       opts the subscription out (Android). ⚠ THE COST DIFFERS BY PLATFORM AND THE ROW
+       SAYS SO: Android polls and raises a LOCAL notification (messages arrive on the
+       poll instead of instantly); iOS has no wake-up without the remote push, so nothing
+       arrives until the app is opened. The sub-label is chosen by `platform`, never by
+       guessing from the screen size. Threema built a feature out of exactly this choice
+       (Threema Push); almost nobody else offers it. The cap comes from C#, which pushes
+       it only where a push provider exists (never on Windows, where SPushService is a
+       stub — a switch that changes nothing is a lie). */
+    if (capabilities.pushProvider && onPushProvider) {
+      body.append(switchRow({
+        glyph: 'topology-star', hue: 'info',   // a relay in the middle — NOT 'world', which is the Language row's glyph (one glyph, one meaning: the #602 rule)
+        label: strings.notifPushProvider || 'Instant delivery via OneSignal',
+        sub: platform === 'ios'
+          ? (strings.notifPushProviderSubIos || 'Off: you see new messages only when you open Spixi. Nothing is sent to a third party.')
+          : (strings.notifPushProviderSubAndroid || 'Off: messages arrive when Spixi checks, not instantly. Nothing is sent to a third party.'),
+        checked: pushProvider, live, failText, onToggle: onPushProvider,
+      }));
+      /* ★ #712 (Damir): THE FEEDBACK IS PROMINENT AND SAYS WHAT HAPPENS IN BOTH STATES.
+         A note under the row, rebuilt from the STORED value on every echo (the screen is
+         rebuilt on each push), so after a flip the user reads what is now true — not a
+         toast that vanishes. Honest about the record: opting out stops every further
+         contact and unsubscribes this device at OneSignal; it does not delete what
+         OneSignal already holds (only their API can, and that key must not ship in an
+         app). */
+      const note = document.createElement('p');
+      note.className = 'c-settings__note c-settings-notifs__push-note';
+      note.setAttribute('aria-live', 'polite');
+      note.textContent = pushProvider
+        ? (strings.notifPushProviderOn || 'On: OneSignal wakes this device the moment a message arrives. OneSignal receives a push token for this device and sees its IP address. It never sees your messages or your contacts.')
+        : (platform === 'ios'
+          ? (strings.notifPushProviderOffIos || 'Off: nothing more is sent to OneSignal and this device is unsubscribed there. New messages appear when you open Spixi. The record OneSignal already holds is not deleted by this switch.')
+          : (strings.notifPushProviderOffAndroid || 'Off: nothing more is sent to OneSignal and this device is unsubscribed there. Spixi checks for new messages itself and notifies you when it finds some, so they can arrive a little later. The record OneSignal already holds is not deleted by this switch.'));
+      body.append(note);
+    }
   }
   return el;
 }

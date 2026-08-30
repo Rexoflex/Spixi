@@ -62,6 +62,18 @@ namespace Spixi
                 return;
             }
 
+            /* ★★ P2 (#708): SKIP THE SDK ENTIRELY when the user has switched the push provider
+             * off. Nothing below runs — no Initialize, no token, no permission prompt from
+             * OneSignal. On iOS this means no remote wake-up at all (UIBackgroundModes
+             * remote-notification IS the wake-up), which the settings row says in words.
+             * Not latched: initialize() is re-callable, so switching the provider back on
+             * (applyPushProviderPreference) initialises normally. */
+            if (!SPIXI.Meta.SNotificationPrefs.pushProviderEnabled)
+            {
+                Logging.info("[NOTIFDIAG] push provider OFF by user choice (P2) — OneSignal not initialised");
+                return;
+            }
+
             isInitializing = true;
             OneSignal.Debug.LogLevel = LogLevel.WARN;
             OneSignal.Debug.AlertLevel = LogLevel.NONE;
@@ -176,6 +188,43 @@ namespace Spixi
             catch (Exception ex)
             {
                 Logging.warn("[APNSDIAG] " + when + " read failed: " + ex.Message);
+            }
+        }
+
+        /* ★★ P2 (#708) — THE RUNTIME HALF OF THE OPT-OUT (see the Android twin for the
+         * full note). iOS has no consent gate (Initialize already runs post-onboarding), so
+         * OFF is an OptOut on a live SDK, and ON is an OptIn — or a fresh initialize() when
+         * this session never initialised the SDK. ⚠ Not compile-verified (no NuGet egress). */
+        /* ★ P2 (#708): does this platform have a push provider at all? Decides whether the
+         * settings row exists (SettingsPage withholds the cap when false). */
+        public static bool pushProviderSupported() { return true; }
+
+        public static void applyPushProviderPreference()
+        {
+            bool enabled = SPIXI.Meta.SNotificationPrefs.pushProviderEnabled;
+            try
+            {
+                if (enabled)
+                {
+                    if (!isInitialized)
+                    {
+                        initialize();
+                    }
+                    else
+                    {
+                        OneSignal.User.PushSubscription.OptIn();
+                    }
+                    Logging.info("[NOTIFDIAG] push provider ON (P2)");
+                }
+                else if (isInitialized)
+                {
+                    OneSignal.User.PushSubscription.OptOut();
+                    Logging.info("[NOTIFDIAG] push provider OFF (P2) — subscription opted out");
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.error("applyPushProviderPreference({0}) failed: {1}", enabled, e);
             }
         }
 

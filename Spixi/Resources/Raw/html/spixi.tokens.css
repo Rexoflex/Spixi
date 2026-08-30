@@ -1315,7 +1315,7 @@
      #701 canvas, where #bbd0ff @ .065 read +5.89. So the STRENGTH is unchanged (within 4%)
      and what actually changes is the HUE — a neutral ink instead of a blue-tinted one. */
   --chat-pattern-ink: #ffffff;
-  --chat-pattern-alpha-1: 0.05;    /* Default — matched to light at Damir's 2026-08-30 call */
+  --chat-pattern-alpha-1: 0.03;    /* Default — 0.05 → 0.03, Damir 2026-08-30 (#711): "reduce dark by 2%" — the ink stays white */
   --chat-pattern-alpha-2: 0.1;     /* Strong — the same ceiling in both themes */
   --chat-pattern-opacity: var(--chat-pattern-alpha-1);
   /* ★★★ AUG (Damir 2026-08-30, ON DEVICE, ruled off a render): the dark canvas takes the

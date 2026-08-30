@@ -7,7 +7,10 @@
      (as in the demos) or the button would anchor to the scroll flow */
   position: absolute;
   inset-inline-end: var(--spacing-16);
-  inset-block-end: var(--spacing-16);
+  /* ★ #711: the composer floats INSIDE the canvas now, so the chevron offsets itself by
+     the composer slot's height (--composer-h, written on the canvas by the shell's
+     ResizeObserver). 0 where nothing writes it (the desktop demo keeps its old slot). */
+  inset-block-end: calc(var(--composer-h, 0px) + var(--spacing-16));
   width: var(--size-target-min);
   height: var(--size-target-min);
   display: flex;

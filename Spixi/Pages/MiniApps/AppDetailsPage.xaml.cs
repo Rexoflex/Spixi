@@ -288,7 +288,19 @@ namespace SPIXI
             }
         }
 
-        protected override bool OnBackButtonPressed()
+        /* ★ #715: HomePage asks this BEFORE closeTopOverlay — on mobile this page is a
+         * HomePage overlay and never receives OnBackButtonPressed itself. Same rule, one home. */
+        public override bool routeShellBack()
+        {
+            if (shellOverlayOpen && pageLoaded)
+            {
+                Utils.sendUiCommand(this, "appDetailsBack");
+                return true;
+            }
+            return false;
+        }
+
+protected override bool OnBackButtonPressed()
         {
             // L3: a shell overlay (this screen's two confirm modals) consumes back before
             // the page pops — the order every native surface keeps.

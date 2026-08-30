@@ -656,6 +656,298 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 }
 
 </style><!-- prompt/denied/scanning + torch -->
+<style data-src="../styles/components/overlay.css">
+/* Overlay layer: scrim + c-sheet + c-modal (docs/overlays-spec.md, DECISIONS #56).
+   Overlays position inside their HOST (shell root / demo phone), not the viewport. */
+
+[data-overlay-open] { overflow: hidden; } /* host scroll lock while an overlay is up */
+
+.c-scrim {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: var(--z-40);
+  background: var(--surface-scrim);
+  opacity: 0;
+  transition: opacity var(--duration-200) var(--easing-standard);
+}
+.c-scrim[data-open] { opacity: 1; }
+/* ★ Batch E (b) (#557, Damir 2026-08-22): the MOBILE scrim is one level deeper
+   (0.6 → 0.7) — the lifted message (#506②) reads better against the darker
+   ground. Desktop keeps 0.6 for its centred dialogs; anchored desktop menus
+   stay wash-free (#268, [data-dt-clear] below). */
+:root:not([data-desktop]) .c-scrim { background: var(--surface-scrim-deep); }
+
+/* —— bottom sheet (z-44) ————————————————————————————————————————————————
+   ⚠ #506②: this used to be z-40 and sat above its scrim by SOURCE ORDER alone.
+   That stopped being enough once a long-pressed message is promoted to z-42: an
+   explicit number is the only thing that keeps the menu above the message it is
+   acting on when the two overlap at the bottom of the log. Still below the modal
+   (z-50), the call bar (z-60) and toasts (z-70). */
+.c-sheet {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  z-index: var(--z-44);
+  max-width: var(--layout-content-max);
+  margin-inline: auto;
+  background: var(--surface-menu);
+  border-radius: var(--radius-24) var(--radius-24) 0 0;
+  box-shadow: var(--elevation-3);
+  padding: var(--spacing-8) var(--spacing-16) var(--spacing-16);
+  padding-bottom: calc(var(--spacing-16) + env(safe-area-inset-bottom, 0px));
+  transform: translateY(100%);
+  transition: transform var(--duration-200) var(--easing-accelerate);
+  outline: none;
+}
+.c-sheet[data-open] {
+  transform: translateY(0);
+  transition-timing-function: var(--easing-decelerate);
+}
+
+/* ★★ #608 (device row 5a, iPhone 15) — THE SHEET RISES FOR THE KEYBOARD.
+   A bottom sheet is `bottom: 0` of its host, and on iOS the host does NOT shrink under
+   the soft keyboard: the whole sheet sat behind it. On the tip sheet only the title row
+   stayed visible — the amount chips, the custom-amount field the sheet had just FOCUSED
+   itself, and the button that commits the payment were all underneath, on a surface with
+   no scroll and no cap, so nothing could reach them. That is also why the keyboard read
+   as having "no way out": the scrim you would tap to dismiss it was under the keyboard
+   too.
+   Three declarations, and every one of them is INERT at `--kb-inset: 0` — no keyboard,
+   no change, anywhere in the app:
+     · the sheet sits on top of the keyboard instead of behind it;
+     · the home-indicator pad is given back while the keyboard covers that strip anyway
+       (the same max() the chat composer uses), so the sheet does not float twice;
+     · it is capped and scrollable, so a sheet taller than the space that is left can
+       still be read to the end rather than being clipped at both ends.
+   ⚠ Mobile only. A desktop dialog is centred, has no soft keyboard, and is scoped
+   separately further down this file. */
+:root:not([data-desktop]) .c-sheet {
+  bottom: var(--kb-inset, 0px);
+  padding-bottom: calc(var(--spacing-16) + max(0px, env(safe-area-inset-bottom, 0px) - var(--kb-inset, 0px)));
+  max-height: calc(100% - var(--kb-inset, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* —— #46 loop MAJOR-3: A CLOSING SHEET MUST NOT TAKE TAPS ————————————————————
+   The sheet is z-44 and every scrim is z-40, so a sheet paints above a scrim that
+   opens LATER. dismissOverlay does not remove the sheet at once: it drops
+   data-open, starts the exit transition, and removes on transitionend with a
+   400 ms timeout fallback. For that window the sheet is still in the DOM, still
+   above the new scrim, and still sliding.
+   The house pattern is "close the sheet, then open the modal". A second quick tap
+   in that window lands on the sheet, at a row the finger did not choose, because
+   the sheet has moved down. Tap Delete twice fast and you get Tip. This rule kills
+   that path: no data-open, no hit-testing.
+   ⚠ The descendant selector is part of the fix, not decoration. pointer-events
+   INHERITS, so one descendant with `pointer-events: auto` would re-open the hole.
+   ⚠ The `html:root` prefix is the base.css grammar for a rule that must beat every
+   component file on specificity (0,3,1). Do not lower it.
+   ⚠ The SCRIM keeps its hit-testing on purpose. A tap over the closing sheet now
+   falls to the closing scrim, which swallows it. Make the scrim dead too and the
+   same tap reaches the screen behind the overlay.
+   ⚠ This rule is also live in the OPEN window, between append and the two-rAF
+   data-open. Nothing is lost there, but the REASON differs by surface — do not
+   write "the sheet is off-screen", which is true on one surface only:
+     · mobile: the sheet sits at translateY(100%), below the host.
+     · desktop, centred dialog: `:root[data-desktop] .c-sheet` is
+       transform: translate(-50%, calc(-50% + 16px)) with opacity 0 — CENTRED, and
+       fully inside the host.
+     · desktop, [data-dt-anchor] dropdown: transform: none, opacity 0, sitting at
+       its anchor. It transitions opacity only.
+   The one property all three share is that the user cannot SEE the sheet, so the
+   user cannot aim at it. An opacity-0 element still hit-tests, so on desktop this
+   rule closes a hole rather than leaving one — which is more than the mobile case
+   needed. Focus is not affected: pointer-events does not change focusability, so
+   the open-time focus move and the exit focus restore both still work. */
+html:root .c-sheet:not([data-open]),
+html:root .c-sheet:not([data-open]) *,
+html:root .c-modal:not([data-open]),
+html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSING modal's action re-entered `fire` on a second tap — same hole, same rule */
+  pointer-events: none;
+}
+
+.c-sheet__handle {
+  display: block;
+  width: 32px;  /* grab-handle: fixed affordance size, no token (spec ①) */
+  height: 4px;
+  margin: 0 auto var(--spacing-8);
+  border-radius: var(--radius-full);
+  background: var(--outline-neutral-03);
+}
+
+.c-sheet__title { margin-bottom: var(--spacing-12); color: var(--text-neutral-01); }
+.c-sheet__content { color: var(--text-neutral-01); }
+
+/* —— modal (z-50) —— */
+.c-modal {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: var(--z-50);
+  width: calc(100% - 2 * var(--spacing-24));
+  max-width: 360px; /* dialog max — token candidate at next Figma sync */
+  background: var(--surface-menu);
+  border-radius: var(--radius-24);
+  box-shadow: var(--elevation-3);
+  padding: var(--spacing-24);
+  transform: translate(-50%, -50%) scale(0.95);
+  opacity: 0;
+  transition: transform var(--duration-200) var(--easing-standard),
+              opacity var(--duration-200) var(--easing-standard);
+  outline: none;
+}
+.c-modal[data-open] {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+}
+
+.c-modal__title { margin-bottom: var(--spacing-8); color: var(--text-neutral-01); }
+
+.c-modal__body {
+  margin: 0 0 var(--spacing-24);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  letter-spacing: var(--tracking-body-md);
+  color: var(--text-neutral-02);
+  /* ★★ E1d (Damir on device, 2026-08-29 — Windows AND mobile): a long URL OVERFLOWS the
+     dialog. The external-link confirm (#82, chat.html confirmOpenLink) puts the raw URL in
+     this slot as its body, and a URL is ONE unbroken token — no spaces, and a query string
+     or a `#fragment` gives the line breaker nothing to work with. The modal is capped at
+     360px, so the text ran straight past the rounded corner on both platforms.
+     ⚠ `anywhere`, not `break-word`: `overflow-wrap: break-word` only breaks BETWEEN
+     opportunities and still refuses to split a single long token in several engines, which
+     is exactly the case here. `anywhere` breaks only when the line would otherwise overflow,
+     so ordinary body copy in every other modal is untouched — it is not `word-break:
+     break-all`, which would hyphen-less-chop normal sentences too.
+     ★ This slot is shared by every modal body, which is why the fix belongs here and not in
+     the link dialog: the same overflow waits for any long token — a wallet address, a
+     file name, a base58 transaction id — and those are all things this app puts in dialogs. */
+  overflow-wrap: anywhere;
+}
+
+.c-modal__actions {
+  display: flex;
+  /* ★ Batch B/C loop r1 M-1 (2026-08-24): WRAP. A long localized confirm label
+     ("Supprimer le compte", "Отменить приглашение") overflowed the fixed pair —
+     nowrap labels + flex-basis 0 + min-width:auto has no out. Wrapping drops the
+     long action onto its own full-width row (the remove-contact sheet's answer);
+     short pairs render exactly as before. */
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+  justify-content: flex-end;
+  /* rich `content` slots carry no trailing margin (only __body does) — without this the
+     last content line sat flush against the buttons (Damir screenshot, install modal).
+     Collapses with __body's margin-block-end so plain modals keep their 24 gap. */
+  margin-block-start: var(--spacing-24);
+}
+.c-modal__actions .c-button { flex: 1 1 0; } /* equal-width pair (spec ②). ⚠ NO min-width:0 here — loop r2 R2-1: with flex-basis 0 a used min of 0 makes every item's hypothetical size 0, so the wrap above could NEVER fire; min-width:auto (the label's min-content) is what trips it. Measured in Chrome: with auto, the long confirm wraps to its own full row; with 0 it spilled 43px past its button */
+
+/* ═════════ DESKTOP presentation (:root[data-desktop] — Batch C, #256 M6) ═════════
+   Bottom sheets read poorly on desktop → they PRESENT as centered dialogs; three
+   surfaces stay contextual (the demo grammar, desktop.html:205-237/:302-305/
+   :320-328, Damir-approved 2026-07-06c/d): the bot channel selector (chat.html's
+   hand-rolled top-anchored panel — NOT a c-sheet, already matches), right-click
+   context menus ([data-dt-anchor="menu"], positioned by desktop-anchors.js at the
+   pointer/source row) and the composer ⊕ attach grid ([data-dt-anchor="up"],
+   popover above the trigger). PRESENTATION-ONLY: the #56 stack/host/dismissal
+   grammar, the #205 a11y wiring and the money sheet's JS-side locks
+   (lightDismiss/escDismiss:false) are untouched. Modals need no change. */
+:root[data-desktop] .c-sheet {
+  left: 50%; right: auto; top: 50%; bottom: auto;
+  width: min(480px, 92%);
+  max-height: 76%;
+  overflow-y: auto;
+  border-radius: var(--radius-24);
+  /* the top 8px was the drag-handle's seat — a dialog title needs real air */
+  padding: var(--spacing-24);
+  padding-bottom: var(--spacing-24);   /* drop the mobile safe-area pad */
+  transform: translate(-50%, calc(-50% + var(--spacing-16)));
+  opacity: 0;
+  transition: transform var(--duration-200) var(--easing-accelerate),
+              opacity var(--duration-200) var(--easing-accelerate);
+}
+:root[data-desktop] .c-sheet[data-open] {
+  transform: translate(-50%, -50%);
+  opacity: 1;
+  transition-timing-function: var(--easing-decelerate);
+}
+:root[data-desktop] .c-sheet .c-sheet__handle { display: none; }
+/* anchored variants: dropdowns FADE IN PLACE — no transform at any point, so
+   nothing can visually "arrive from" anywhere (06d). Inline left/top/bottom/
+   width are set by desktop-anchors.js (or a shell) at open. */
+:root[data-desktop] .c-sheet[data-dt-anchor] {
+  right: auto; bottom: auto; margin: 0;
+  min-width: 320px;
+  border-radius: 0 0 var(--radius-16) var(--radius-16);
+  padding: var(--spacing-12) var(--spacing-16) var(--spacing-16);  /* dropdowns stay tighter than dialogs */
+  transform: none;
+  transition: opacity var(--duration-200) var(--easing-decelerate);
+  /* Q2 review (#268 loop): with the wash gone (below), elevation was the ONLY
+     separation — and in LIGHT mode --surface-menu == --surface-screen (both
+     neutral-10), so a white dropdown over the white chats list read as loose
+     text. A hairline restores the edge; dark mode never needed it (menu-700 on
+     screen-900). Art dial: drop the border and re-dial the elevation instead. */
+  border: 1px solid var(--outline-neutral-03);
+}
+:root[data-desktop] .c-sheet[data-dt-anchor][data-open] { transform: none; }
+/* right-click context menu: rounded on all corners, source row highlighted */
+:root[data-desktop] .c-sheet[data-dt-anchor="menu"] { border-radius: var(--radius-16); min-width: 260px; }
+/* ★ Batch E (c) (#557, Damir 2026-08-22): #268 STANDS (no wash) and the source
+   highlight is RETUNED — the SELECTED tint read as a selection state on the
+   right-clicked row. It now rides the #519 press wash (--surface-press-row-hover,
+   the alpha recipe that lands one perceptual level on EVERY ground — the plain
+   press step is invisible on a card, the 5c-iii lesson), so the row reads as
+   "held", not "chosen".
+   ⚠ loop E-4 (r2): :not([aria-current]) is LOAD-BEARING — this (0,3,0) shorthand
+   would otherwise REPLACE the OPEN conversation's tonal selected paint (0,2,0)
+   in the desktop split view, visually deselecting the row under its own menu.
+   The selected row keeps its tonal; the wash marks only unselected sources. */
+:root[data-desktop] [data-dt-ctx-source]:not([aria-current]) { background: var(--surface-press-row-hover); border-radius: var(--radius-12); }
+/* attach/share grid: popover RISING above the composer ⊕ (bottom-anchored) */
+:root[data-desktop] .c-sheet[data-dt-anchor="up"] {
+  right: auto; top: auto; margin: 0;
+  border-radius: var(--radius-16);
+  transform: none;
+}
+:root[data-desktop] .c-sheet[data-dt-anchor="up"][data-open] { transform: none; }
+/* #268 (Damir 2026-07-12): anchored CONTEXTUAL menus (right-click dropdown +
+   composer ⊕ popover) get NO backdrop wash on desktop — the menu + source-row
+   highlight are the affordance; a full-viewport dim reads modal. desktop-anchors.js
+   tags the sheet's own scrim [data-dt-clear]; the ELEMENT stays (outside-click
+   dismissal + the #56 stack/a11y grammar untouched) — it's just invisible.
+   Centered sheets-as-dialogs and modals keep their wash. */
+:root[data-desktop] .c-scrim[data-dt-clear] { background: transparent; }
+
+/* ═════════ MOBILE anchored dropdown (Batch E (a), #557, Damir 2026-08-22) ═════════
+   The message menu + the chats-row menu present as a DROPDOWN anchored to the
+   pressed row (desktop-anchors.js anchorSheetToRow sets the tag + inline
+   left/top/width). Placement prefers ABOVE the row, so the menu can never cover
+   the message it acts on — the 4.1 fix, structural. Everything else about the
+   overlay is UNCHANGED: same z-44 (above the z-42 lifted row, #506②), same scrim
+   (one level deeper here, (b) above), same focus/Esc/stack grammar, and the
+   `:not([data-open])` pointer-events rule still covers the fade windows.
+   Enter/exit = FADE IN PLACE (the desktop [data-dt-anchor] rule): a panel that
+   slid from the bottom edge to mid-screen would point at the wrong origin. */
+:root:not([data-desktop]) .c-sheet[data-m-anchor] {
+  left: auto; right: auto; bottom: auto;
+  margin: 0;
+  max-width: none;
+  border-radius: var(--radius-16);
+  padding: var(--spacing-8) var(--spacing-12) var(--spacing-12);
+  /* ★ loop E-1 (r2): the dropdown must never leave the SAFE region or outgrow the
+     host — a menu taller than the screen with the body scroll locked is
+     unreachable UI, and a clamp to y=8 puts the react row under the Dynamic
+     Island (the #288 inset class). The height cap makes the menu its own
+     scroller; the JS clamp (anchorSheetToRow) keeps top ≥ safe-top + 8. */
+  max-height: calc(100% - var(--safe-top, 0px) - env(safe-area-inset-bottom, 0px) - 2 * var(--spacing-8));
+  overflow-y: auto;
+  transform: none;
+  opacity: 0;
+  transition: opacity var(--duration-200) var(--easing-decelerate);
+}
+:root:not([data-desktop]) .c-sheet[data-m-anchor][data-open] { transform: none; opacity: 1; }
+:root:not([data-desktop]) .c-sheet[data-m-anchor] .c-sheet__handle { display: none; }
+
+</style><!-- ★ L3 (#706): the swipe consults the overlay stack (dismissTopOverlay) — W-h gate: a destructured family links its sheet -->
 <style>
   /* Production shell: fill the WebView. scan.html is loaded by the C# ScanPage
      (full takeover, camera). createScanView provides its own topbar (variant
@@ -720,6 +1012,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   const {
     mountScanPage,
     createNativeBridge, installExecuteUiCommand,
+    attachEdgeBack, dismissTopOverlay,   // ★ L3 (#706): the iOS back signal + the one-level chain
     applyPushedTheme,
   } = window.Spixi;
   const strings = window.SL || {};
@@ -752,6 +1045,13 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   window.setTheme = function (name) { applyPushedTheme(name); };
   const bridge = createNativeBridge();           // default sink: location.href = 'ixian:…'
 
+  /* ★ L3 (#706): the iOS back signal. One level per gesture — a sheet on the shared
+     stack closes first (the level this shell never had before, docs/swipe-back-spec.md
+     §3.2), otherwise the same verb the topbar arrow sends (cancel → C# pops + GC.Collect). Desktop never attaches. */
+  attachEdgeBack({ onBack: () => {
+    if (dismissTopOverlay()) return;
+    bridge.send('ixian:back');
+  } });
   /* mountScanPage appends the view AND fires bridge.ready() — so mount on the
    * window LOAD event (#177 load-timing invariant), never during parse. The
    * html5-qrcode library must be present BEFORE mount (mountScanPage defaults

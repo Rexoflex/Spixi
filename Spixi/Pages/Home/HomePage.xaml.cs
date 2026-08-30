@@ -2521,6 +2521,17 @@ namespace SPIXI
             // ★ THE BADGE DIAL: the TRUE count — see the addContact site. FriendMessageHelper
             // lives in Ixian-Core and cannot carry a muted flag, so the mute rides its own
             // additive `setChatMuted` push instead.
+            /* ★ #719 (Damir's walk, 2026-08-30): a row with an unread badge and NO excerpt was
+             * seen on BOTH sides of a contact request (the requester after accept; the
+             * acceptor after the handshake). No branch above yields an empty excerpt for a
+             * message with text, so the message itself must be empty — and this line says
+             * which type wrote it. Diagnostic only: type, flags and lengths, never content. */
+            if (string.IsNullOrEmpty(excerpt))
+            {
+                Logging.info("[EXCERPTDIAG] empty excerpt: type={0} local={1} state={2} approved={3} unread={4} msgLen={5} id={6}",
+                    lastmsg.type, lastmsg.localSender, friend.state, friend.approved, friend.metaData.unreadMessageCount,
+                    lastmsg.message?.Length ?? -1, lastmsg.id != null ? Crypto.hashToString(lastmsg.id) : "null");
+            }
             FriendMessageHelper helper_msg = new(friend.walletAddress.ToString(), friend.nickname, lastmsg.timestamp, avatar, str_online, excerpt, type, friend.metaData.unreadMessageCount);
             return helper_msg;
         }
@@ -3769,6 +3780,12 @@ namespace SPIXI
             // SingleChatPage from under it. Same slot as the ContactDetails route
             // above; the shell self-heals a stale flag (chatBack re-syncs). Var name
             // deliberately NOT scp (the CS0136 lesson, loop A-1 #372).
+            // ★ #715: any other overlay with its own shell back level (Downloads, App details —
+            // the Session F routes that never fired because the press lands HERE on mobile).
+            if (SpixiContentPage.getTopOverlay() is SpixiContentPage topShell && topShell.routeShellBack())
+            {
+                return true;
+            }
             if (SpixiContentPage.getTopOverlay() is SingleChatPage chatOverlay && chatOverlay.pageLoaded && chatOverlay.shellOverlayOpen)
             {
                 Utils.sendUiCommand(chatOverlay, "chatBack");

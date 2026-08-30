@@ -742,7 +742,7 @@
         setTimeout(() => {                            // bridge handshake-start → HANDSHAKING chat row
           const hs = createChatItem({
             name: req.name, address: req.address, timestamp: Date.now(), strings,
-            excerpt: { type: 'typing', text: strings.handshakeEstablishing || 'Establishing a quantum-secure handshake…' },
+            excerpt: { type: 'typing', text: strings.handshakeEstablishing || 'Setting up a secure connection…' },
             onClick: () => toast('Securing the connection — you can chat once the handshake completes'),
           });
           hs.dataset.handshaking = '';

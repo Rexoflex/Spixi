@@ -160,7 +160,14 @@ public class SpixiWebview(Context context) : AWebView(context), InputConnectionC
         {
             string url = inputContentInfo.LinkUri.ToString();
 
-            Page p = App.Current.MainPage.Navigation.NavigationStack.Last();
+            /* ★★ #716 (Damir on device, 2026-08-30 — the Samsung Keyboard toast "Can't add images
+               to Spixi through clipboard or Samsung Keyboard"): #684 fixed the regex, but the
+               page lookup below read the NAVIGATION STACK's last page — and on mobile the
+               conversation is a HomePage OVERLAY (#225), so `p` was HomePage, the branch never
+               ran, processed stayed false, and the keyboard reported the failure. The chat is
+               resolved from the overlay stack first, the navigation stack second. */
+            Page p = SpixiContentPage.getTopOverlay() as SingleChatPage
+                ?? App.Current.MainPage.Navigation.NavigationStack.Last();
             if (p != null && p.GetType() == typeof(SingleChatPage))
             {
                 /* ★★ #684 (Session F): THE GIF KEYBOARD DEFECT WAS HERE, NOT IN THE PICKER
@@ -194,7 +201,10 @@ public class SpixiWebview(Context context) : AWebView(context), InputConnectionC
         }
         else
         {
-            Logging.error("Error adding keyboard content, LinkUri is null");
+            // #716: log WHAT the keyboard offered, so a provider that ships only a content
+            // URI (no link) can be told apart from a provider we simply do not handle yet.
+            Logging.error("Error adding keyboard content, LinkUri is null (mime: {0}, content: {1})",
+                inputContentInfo.Description?.GetMimeType(0) ?? "?", inputContentInfo.ContentUri != null ? "yes" : "no");
         }
 
         if (permission_requested)

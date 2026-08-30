@@ -51,13 +51,24 @@ for (const k of KEYS) { if (PH.test(enUS[k])) continue; const id = valToId.get(n
 let draft = {};
 const draftDir = join(root, 'src/strings/draft');
 
+/* ★ #713 (Damir on device, 2026-08-30): a legacy translation that is WRONG must not win
+   over a draft just because the English matched. `app-details-title` is "App details" in
+   en-us but "Spixi App" / "Aplikacija Spixi" / "Spixi アプリ" in every other legacy file —
+   a mistranslation the reuse-first recipe carried into the redesign's `appDetails` for
+   twelve locales (the 3-dots sheet on an app row read "SPIXI APP" in German). Keys here
+   skip the legacy lookup and take the draft. Add a key only with the wrong legacy value
+   quoted beside it, so the reason travels with the exception. */
+const NO_REUSE = new Set([
+  'appDetails',   // legacy app-details-title: de "Spixi App", sl "Aplikacija Spixi", ja "Spixi アプリ" — a name, not "details"
+]);
+
 for (const code of LANGS) {
   const legacy = parseLang(code);
   const draftFile = join(draftDir, code + '.json');
   const drafted = existsSync(draftFile) ? JSON.parse(readFileSync(draftFile, 'utf8')) : {};
   const out = {}, todo = {}, stats = { reused: 0, drafted: 0, english: 0 };
   for (const k of KEYS) {
-    const id = keyToId[k];
+    const id = NO_REUSE.has(k) ? null : keyToId[k];   // #713: a wrong legacy value never wins
     const leg = id ? legacy.get(id) : null;
     // #288 review: a legacy value byte-identical to the ENGLISH is not a translation. It
     // was shadowing a good draft AND counting itself as "reused", so the fill silently did

@@ -202,7 +202,19 @@ namespace SPIXI
             popPageAsync();
         }
 
-        protected override bool OnBackButtonPressed()
+        /* ★ #715: HomePage asks this BEFORE closeTopOverlay — on mobile this page is a
+         * HomePage overlay and never receives OnBackButtonPressed itself. Same rule, one home. */
+        public override bool routeShellBack()
+        {
+            if (shellOverlayOpen && pageLoaded)
+            {
+                Utils.sendUiCommand(this, "downloadsBack");
+                return true;
+            }
+            return false;
+        }
+
+protected override bool OnBackButtonPressed()
         {
             // L3: a shell overlay (the three settingsConfirm dialogs this screen can open)
             // consumes back before the page pops — the order every native surface keeps.

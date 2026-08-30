@@ -79,8 +79,8 @@ export function createAppsAdd({ strings = getStrings(), discover = true, onFetch
     return b;
   };
   methods.append(
-    // 'world' glyph (web link) — 'link' isn't in the icon export yet (glyph-sweep list).
-    method('world', strings.pasteLink || 'Paste link', () => { field.hidden = false; input.focus(); }),
+    // #710: 'link' is exported now — 'world' stays the Language row's glyph (one glyph, one meaning).
+    method('link', strings.pasteLink || 'Paste link', () => { field.hidden = false; input.focus(); }),
     method('scan', strings.scanQr || 'Scan QR', () => { if (onScan) onScan(); }),
     method('file-isr', strings.pickFile || 'From file', () => { if (onPickFile) onPickFile(); }),
   );

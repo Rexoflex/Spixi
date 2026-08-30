@@ -119,6 +119,22 @@ namespace SPIXI.Meta
             set { setBool(KEY_SOUNDS, value); }
         }
 
+        /* ★★ P2 (#708, privacy work order 2026-08-29 §P2) — THE THIRD-PARTY PUSH OPT-OUT.
+         * `notificationsEnabled` gates DISPLAY only; with it off the OneSignal SDK was still
+         * initialised and still registered, so a token, device metadata and an IP address
+         * kept reaching a US third party. This is the genuine choice. Default TRUE — today's
+         * behaviour, byte for byte. Read by SPushService.initialize() (skip / withhold
+         * consent when off) and applied at runtime by SPushService.applyPushProviderPreference()
+         * (OptOut / OptIn). Android polls and raises a LOCAL notification without it; iOS
+         * receives nothing until the app is opened — the settings row says which. */
+        private const string KEY_PUSH_PROVIDER = "notif_push_provider";
+
+        public static bool pushProviderEnabled
+        {
+            get { return getBool(KEY_PUSH_PROVIDER, true); }
+            set { setBool(KEY_PUSH_PROVIDER, value); }
+        }
+
         /// <summary>
         /// ★ The notification display name, with the #211/#212 truncation canon applied.
         /// `friend.nickname` falls back to `_nick`, which two call sites seed with the raw

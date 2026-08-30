@@ -93,6 +93,7 @@
   const {
     createSettingsDownloads, setDownloads,
     createNativeBridge, installExecuteUiCommand,
+    attachEdgeBack,   // ★ L3 (#706): the iOS back signal + the one-level chain
     dismissTopOverlay,                   // ★ L3 (Session F): hardware back closes an open confirm first
     attachPressFeedback,
     applyPushedTheme,
@@ -178,6 +179,12 @@
       settle();
     },
   };
+  /* ★ L3 (#706): the iOS back signal — a confirm on the stack closes first (the level
+     Session F gave hardware back), then the verb the topbar arrow sends. */
+  attachEdgeBack({ onBack: () => {
+    if (typeof dismissTopOverlay === 'function' && dismissTopOverlay()) return;
+    bridge.send('ixian:back');
+  } });
   bridge.exposeAll(handlers);
 
   /* ★ L3 (Session F): mirror overlay.js's body[data-overlay-open] to C# so back can be

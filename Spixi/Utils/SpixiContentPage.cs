@@ -1086,7 +1086,12 @@ namespace SPIXI
                     // WebView's queue BEFORE the stage becomes visible/interactive.
                     Utils.sendUiCommand(op.target, "onRepresented");
                     op.stage.InputTransparent = false;
-                    op.stage.Opacity = 1;
+                    /* ★ L9 (#707): a re-presented parked overlay (the mobile Account pane,
+                     * #315) is a subscreen like any other — it takes the same slide the
+                     * fresh present takes, through the same helper, so the two paths cannot
+                     * drift. L8 already cleared `op.closing` above so the `finally` reset
+                     * inside slideStageIn works on the resurrected op. */
+                    revealStage(op);
                     try
                     {
                         op.host.onOverlayPresented(op.target);
@@ -1853,6 +1858,16 @@ namespace SPIXI
         // Host hook: fired on the overlay HOST (HomePage) after an overlay closed —
         // the host was never detached, so OnAppearing does not fire; per-close
         // refreshes (Account exit, rating prompt) live here instead.
+        /* ★★ #715 (Damir on device, 2026-08-30): "the confirm dialog — OS back goes back to
+         * Account rather than dismissing the dialog." Session F gave DownloadsPage and
+         * AppDetailsPage a shell back route in THEIR OnBackButtonPressed — but on mobile both
+         * are HomePage OVERLAYS (#225), and Android delivers back to the page on the
+         * navigation stack, which is HomePage. HomePage routed only Settings, ContactDetails
+         * and SingleChatPage by name and then called closeTopOverlay, so the overlay closed
+         * under its open dialog. ONE virtual instead of a fourth and fifth name: an overlay
+         * that has a shell overlay open handles the press itself and returns true. */
+        public virtual bool routeShellBack() { return false; }
+
         public virtual void onOverlayClosed(SpixiContentPage overlay)
         {
         }
@@ -2251,7 +2266,25 @@ namespace SPIXI
                 op.parkOnLoad = parkOnLoad && overlayMode;   // C3 (#546): a non-overlay fallback cannot park — it presents
                 op.navKey = navKey;                         // ★★ V-19: the supersede dedupe key
                 op.revealDelayMs = revealDelayMs < 0 ? 0 : revealDelayMs;   // ★★ item 6
-                op.slideIn = slideIn && overlayMode;                        // ★★ item 6: only the in-place present can slide
+                /* ★★ L9 (#707, Damir 2026-08-30): "On mobile all subscreens slide. On desktop
+                 * only the chat info from the actual chat slides in and out; the rest
+                 * crossfades or just appears instant."
+                 * So the per-op flag stays what it was (chat info is the ONE caller that
+                 * sets it, on every platform), and MOBILE adds a platform rule on top: an
+                 * in-place overlay that takes the whole screen (column < 0 — a column-pinned
+                 * pane on a wide iPad split keeps #328's rule and never slides) slides in
+                 * from the trailing edge. L8's mirror then slides it out for free, because
+                 * it reads this same flag. Desktop is untouched: Windows/Mac ops keep the
+                 * opacity flip unless the caller asked for the slide.
+                 * ⚠ The push FALLBACK (no overlay host) is not here on purpose — a plain
+                 * PushAsync already carries the platform's own push transition. */
+                bool mobilePlatform = Microsoft.Maui.Devices.DeviceInfo.Platform == Microsoft.Maui.Devices.DevicePlatform.Android
+                    || Microsoft.Maui.Devices.DeviceInfo.Platform == Microsoft.Maui.Devices.DevicePlatform.iOS;
+                /* ★ #718 (Damir on device): ACCOUNT IS A PEER TAB — "same as Apps and Wallet" — so
+                 * the mobile rule excludes the `settings` tag. Everything pushed FROM Account
+                 * (Backup, Downloads, Change password) is a subscreen and still slides. */
+                bool peerTab = tag == "settings";
+                op.slideIn = overlayMode && (slideIn || (mobilePlatform && column < 0 && !peerTab));   // ★★ item 6: only the in-place present can slide · L9: every mobile subscreen does · #718: not a peer tab
                 // loop r2 R2-4: the warm flags clear on EVERY staging outcome — a stuck
                 // warmPending made a later claim return true with no present coming
                 lock (preloadLock)
@@ -2624,34 +2657,9 @@ namespace SPIXI
                         // showing it is a property flip, nothing re-attaches, nothing can
                         // repaint blank. Content stays hosted in the stage until close.
                         op.stage.InputTransparent = false;
-                        /* ★★ Item 6 (Damir): SLIDE IN from the trailing edge. Presentation
-                         * only — the view is already attached and painted, so this animates
-                         * a transform on a stage that is finished, never a re-attach.
-                         * Fail-soft: an unmeasured stage falls back to the host width, and
-                         * a host with no width falls back to the opacity flip. The
-                         * translation is always reset, so a stage that is reused (the
-                         * parked overlay) can never come back displaced. */
-                        double slideFrom = 0;
-                        if (op.slideIn)
-                        {
-                            slideFrom = op.stage.Width > 0 ? op.stage.Width
-                                : (op.host.Width > 0 ? op.host.Width : 0);
-                        }
-                        if (slideFrom > 0)
-                        {
-                            op.stage.TranslationX = slideFrom;
-                            op.stage.Opacity = 1;
-                            // NOT awaited: everything below registers the overlay in the
-                            // stack and lays the host out, and back handling, the same-tag
-                            // sweep and closeTopOverlay all read that stack. Waiting 220 ms
-                            // for an animation before registering would leave the overlay
-                            // invisible to every one of them while it was on screen.
-                            _ = slideStageIn(op);
-                        }
-                        else
-                        {
-                            op.stage.Opacity = 1;
-                        }
+                        /* ★★ Item 6 (Damir): SLIDE IN from the trailing edge — revealStage
+                         * (shared with the parked re-present since L9, #707). */
+                        revealStage(op);
                         lock (preloadLock)
                         {
                             overlayStack.Add(op);
@@ -2858,6 +2866,37 @@ namespace SPIXI
             }
             return curve(t, y1, y2);
         });
+
+        /* ★★ Item 6 (Damir): SLIDE IN from the trailing edge. Presentation only — the
+         * view is already attached and painted, so this animates a transform on a stage
+         * that is finished, never a re-attach. Fail-soft: an unmeasured stage falls back
+         * to the host width, and a host with no width falls back to the opacity flip. The
+         * translation is always reset, so a stage that is reused (the parked overlay) can
+         * never come back displaced.
+         * ★ L9 (#707): ONE reveal for the fresh present AND the parked re-present. The
+         * slide is NOT awaited: the caller registers the overlay in the stack and lays the
+         * host out right after, and back handling, the same-tag sweep and closeTopOverlay
+         * all read that stack. Waiting 220 ms before registering would leave the overlay
+         * invisible to every one of them while it was on screen. */
+        private static void revealStage(PreloadOp op)
+        {
+            double slideFrom = 0;
+            if (op.slideIn)
+            {
+                slideFrom = op.stage.Width > 0 ? op.stage.Width
+                    : (op.host.Width > 0 ? op.host.Width : 0);
+            }
+            if (slideFrom > 0)
+            {
+                op.stage.TranslationX = slideFrom;
+                op.stage.Opacity = 1;
+                _ = slideStageIn(op);
+            }
+            else
+            {
+                op.stage.Opacity = 1;
+            }
+        }
 
         private static async Task slideStageIn(PreloadOp op)
         {

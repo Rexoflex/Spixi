@@ -133,6 +133,7 @@
   const {
     createTopbar, openTxSheet, closeSheet,
     createNativeBridge, installExecuteUiCommand,
+    attachEdgeBack, dismissTopOverlay,   // ★ L3 (#706): the iOS back signal + the one-level chain
     truncateAddressMiddle,               // #276: address-shaped counterparty names render truncated
     isAddressShaped,                     // ★ #589: the ONE address-shape test (was a local 20-char regex)
     createButton,                        // #285: the per-view reveal button
@@ -375,6 +376,14 @@
     rendered = true;
   }
 
+  /* ★ L3 (#706): the iOS back signal. The topbar arrow sends ixian:dismiss, and only
+     while the page offers one (hideBackButton rebuilds it for the desktop pane, which
+     never attaches anyway). A sheet on the shared stack closes first. */
+  let sentHasBack = true;
+  attachEdgeBack({ onBack: () => {
+    if (dismissTopOverlay()) return;
+    if (sentHasBack) bridge.send('ixian:dismiss');
+  } });
   const handlers = {
     // Q4-③ (#270): the #258 §0 "every shell exposes the call globals" contract is
     // RETIRED — calls present on the ONE native CallPage; no shell receives call
@@ -410,7 +419,7 @@
       render();
     },
     // Pane-hosted (wide): drop the back affordance — C# owns the pane lifecycle.
-    hideBackButton() { buildTopbar(false); },
+    hideBackButton() { sentHasBack = false; buildTopbar(false); },   // #706: the swipe follows the arrow
     // #285: the persisted #263 hide flag (bool.ToString() → "True"/"False" —
     // home.html setHideBalance parity). A flip that CHANGES the value drops the
     // per-view reveal; an unchanged-value re-push early-returns and PRESERVES it —

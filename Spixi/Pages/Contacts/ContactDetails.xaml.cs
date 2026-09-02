@@ -2,7 +2,7 @@
 using IXICore.Meta;
 using IXICore.SpixiBot;
 using IXICore.Streaming;
-using Spixi;                             // ★ #591: SSpixiCodecInfo (per-platform, namespace Spixi) — the codec term moved into SingleChatPage.canPlaceCall in round 3
+using Spixi;                             // SPayments/SContacts et al. (review N-6: the #591 SSpixiCodecInfo note was stale — that symbol left this file in round 3)
 using Microsoft.Maui.ApplicationModel;   // F5-2 r2 (loop A-4): the posted drained-marker breadcrumb
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Xaml;
@@ -249,7 +249,10 @@ namespace SPIXI
                  * handler is. This tree knows it — SpixiContentPage.cs writes
                  * `if (MainThread.IsMainThread) drop(); else MainThread.BeginInvoke…`,
                  * treating the two arms as equivalent. So the present below completes
-                 * SYNCHRONOUSLY (every ContactDetails push site passes revealDelayMs 0,
+                 * SYNCHRONOUSLY (every ContactDetails push site passes revealDelayMs 0
+                 * — except ContactNewPage:166, which passes 4000: there the reveal AWAITS
+                 * first and the burst can run ahead of it, so the L10 win simply does not
+                 * apply on that one entry (review B MINOR-3); four of five sites hold —
                  * so presentPreload has no await before its opacity flip), and a second
                  * BeginInvokeOnMainThread for the burst would have run inline too —
                  * leaving the roster exactly where it started and the fix measuring zero.
@@ -326,15 +329,56 @@ namespace SPIXI
 
         // #248: full participant roster for the group surface — same push contract
         // as SingleChatPage.loadContacts (CI1), incl. the blind-group masking.
+        /* ★ Session H (Damir, L10's family): THE ROSTER LEAVES THE UI THREAD IN CHUNKS.
+         * L10 moved the burst off onLoad's turn (one Dispatcher.Dispatch), which let the
+         * page PRESENT at ~104 ms — but the burst itself was still one post: a file read,
+         * a base64 (imageToDataUri, cached after the first open) and one
+         * EvaluateJavaScriptAsync marshal PER MEMBER, synchronously, so no frame could
+         * composite for its whole length and the shell's skeleton → real swap painted as
+         * one late jump. Chunks of 24 (the shell's own measured frame batch) with a
+         * Dispatcher.Dispatch between them let a frame through after every chunk.
+         * The roster CONTENT and ORDER are byte-identical — the per-member body moved
+         * verbatim. The snapshot is taken under lock (BotUsers' own convention — the old
+         * foreach iterated the live OrderedDictionary unlocked, an inherited hazard) and
+         * a generation counter orphans a superseded chain: a reload's clearMembers must
+         * never interleave with the previous chain's addMember. */
+        private int membersLoadSeq = 0;
+        private const int membersChunk = 24;
+
         private void loadMembers(bool blind)
         {
             Utils.sendUiCommand(this, "clearMembers");
+            int seq = ++membersLoadSeq;
             // #249 (Damir F5 r3): the LOCAL user is a participant too, but has no
             // participant nick / stored contact avatar — resolve self from localStorage.
             Address selfAddress = IxianHandler.getWalletStorage().getPrimaryAddress();
             var contacts = friend.users.contacts;
-            foreach (var contact in contacts)
+            List<KeyValuePair<Address, BotContact>> entries = new List<KeyValuePair<Address, BotContact>>(contacts.Count);
+            // ⚠ (review B MINOR-6): BotUsers' own mutators serialise the WHOLE roster to
+            // disk while holding this lock (writeContactsToFile), so at the 500 cap this
+            // snapshot can block the UI thread behind one such write. Accepted: the wait
+            // is bounded by one file write, and snapshotting WITHOUT the lock is the data
+            // race the old foreach had. A Core-side fix (write outside the lock) = BE.
+            lock (contacts)
             {
+                foreach (var contact in contacts)
+                {
+                    entries.Add(contact);
+                }
+            }
+            loadMembersChunk(entries, 0, blind, seq, selfAddress);
+        }
+
+        private void loadMembersChunk(List<KeyValuePair<Address, BotContact>> entries, int start, bool blind, int seq, Address selfAddress)
+        {
+            if (isDisposed || seq != membersLoadSeq)
+            {
+                return;   // page gone, or a newer loadMembers owns the surface
+            }
+            int end = Math.Min(start + membersChunk, entries.Count);
+            for (int idx = start; idx < end; idx++)
+            {
+                var contact = entries[idx];
                 var contactAddress = contact.Key;
                 bool isSelf = selfAddress != null && contactAddress.SequenceEqual(selfAddress);
                 string address = contactAddress.ToString();
@@ -377,6 +421,13 @@ namespace SPIXI
                 }
                 // D-5/N26 (#366): trailing relation ("" on blind rows — no identity hints).
                 Utils.sendUiCommand(this, "addMember", address, nick, avatar, contact.Value.getPrimaryRole().ToString(), blind ? "" : contactRelationFor(contactAddress));
+            }
+            if (end < entries.Count)
+            {
+                Dispatcher.Dispatch(() =>
+                {
+                    loadMembersChunk(entries, end, blind, seq, selfAddress);
+                });
             }
         }
 
@@ -513,7 +564,7 @@ namespace SPIXI
              * ★ SECURITY.md is unchanged: the WebView still composes INTENT only. */
             else if (current_url.StartsWith("ixian:signSend:", StringComparison.Ordinal))
             {
-                SPayments.handleSignSend(this, current_url.Substring("ixian:signSend:".Length));
+                SPayments.handleSignSend(this, current_url.Substring("ixian:signSend:".Length), friend.walletAddress);   // ★ review MINOR-4: this surface is peer-locked
             }
             else if (current_url.StartsWith("ixian:feeQuery:", StringComparison.Ordinal))
             {
@@ -578,7 +629,7 @@ namespace SPIXI
                     HomePage.Instance()?.onChat(friend.walletAddress, null);
                 }
             }
-            else if (current_url.StartsWith("ixian:leave"))
+            else if (current_url.Equals("ixian:leave", StringComparison.Ordinal))   // ★ review MINOR-7: was a bare-name PREFIX test — any future ixian:leave* verb from this shell would have been swallowed as "leave this room"
             {
                 // #248 group surface: leave — mirrors SingleChatPage's ixian:leave
                 // (group AND bot: sendLeave + immediate removeFriend, #567).

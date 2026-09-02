@@ -49,7 +49,7 @@ namespace Spixi
             Intent shareIntent = new Intent();
             shareIntent.SetAction(Intent.ActionSend);
             shareIntent.SetType("application/octet-stream");
-            Android.Net.Uri uriShare = FileProvider.GetUriForFile(context, "com.ixilabs.spixi.provider", file);
+            Android.Net.Uri uriShare = FileProvider.GetUriForFile(context, context.PackageName + ".provider", file);   // ★ #734: derived, never hardcoded — a bare authority is a GLOBAL name and blocked the #732 dev-coexist install
             shareIntent.PutExtra(Intent.ExtraStream, uriShare);
 
             var chooserIntent = Intent.CreateChooser(shareIntent, title ?? string.Empty);
@@ -126,7 +126,7 @@ namespace Spixi
 
             try
             {
-                Android.Net.Uri file_uri = FileProvider.GetUriForFile(context, "com.ixilabs.spixi.provider", f);
+                Android.Net.Uri file_uri = FileProvider.GetUriForFile(context, context.PackageName + ".provider", f);   // ★ #734: derived (see above)
 
                 string mime_type = getMimeType(file_uri);
 

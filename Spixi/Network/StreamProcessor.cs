@@ -1206,6 +1206,11 @@ namespace SPIXI
          * that only cleared on a reload. Tries the room's default first (the common case,
          * one lookup), then the known channel list. Returns the original on no match, so
          * the caller behaves exactly as before rather than acting on a guess. */
+        /* ⚠ (Session H review, B MINOR-8): coverage is CONDITIONAL on room metadata. A bot
+         * room whose BotInfo/channel list has not arrived yet resolves to the fallback
+         * unchanged — for onMessageExpired that fallback is Core's hardcoded 0, so the
+         * expiry writes nowhere and the bubble keeps its clock (no heal exists for
+         * errorSending). Common case covered; do not read this as "always finds it". */
         private static int resolveMessageChannel(Friend friend, byte[] msgId, int fallback)
         {
             if (friend == null || msgId == null)

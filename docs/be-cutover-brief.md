@@ -441,3 +441,23 @@ place to fix it — one membership test at the writer closes every reader at onc
 answer first.** `users` semantics for a blind group and for a bot room are not answerable
 from this tree, and **a wrong membership test would silently DELETE evidence** (#215) — a
 message somebody really received would read as undelivered, and then as failed.
+
+---
+
+**CORE-7 · `OfflinePushMessages.sendPushMessage` RETURNS TRUE ON ITS SKIP PATH — the
+"returned true ⇒ posted" invariant has one hole (Session H review, auditor B MINOR-1).**
+`OfflinePushMessages.cs:59-61`: `FriendList.getFriend(msg.recipient) == null` → `return
+true;` to drop the queue entry WITHOUT posting. Spixi's #650 "one honest check" fires on
+that path — the message is marked SENT after the friend was removed with a message still
+in the pending queue. Reachable only via removeFriend on a chat with a queued message
+(the row + history are gone, so nobody sees the false check), and removeFriend refuses
+while the friend is a group participant, so no amplification. Ask: a distinct return
+(or an out-param) for "dropped, not posted", OR purge the pending queue in
+removeFriend. The Spixi-side comment at `SpixiPendingMessageProcessor.cs` now names the
+hole so nothing new is built on the invariant.
+
+**CORE-7b (nicety, same review) · `BotUsers` mutators serialise the WHOLE roster to disk
+while holding `lock(contacts)`** (`writeContactsToFile` inside the lock, every setter).
+Any UI-thread reader taking that lock (ContactDetails' roster snapshot) can block behind
+one file write at the 500-contact cap. Ask: move the write outside the lock (serialise
+under the lock into memory, write after).

@@ -17,6 +17,9 @@
  * Interview #0 (Damir 2026-07-06): ① welcome carousel ② the #160 brand
  * treatment (fixed-dark pin + brand gradient + bare glowing logo) is
  * WELCOME-ONLY — create/restore/retry are normal themed surfaces
+ * ⚠ SUPERSEDED (review NIT-2): N72 pinned the WHOLE flow dark — createLaunchShell
+ * sets dataset.theme='dark' on .c-launch, the root of every view. Read the N72
+ * paragraph above as current; this interview note is a dated record only.
  * ③ [L2] the
  * window-pagehide scrub also lands on createLockScreen (lock-shell.js).
  *
@@ -68,6 +71,7 @@ import { createAvatar } from './avatar.js';
 import { passwordField, ENC_MIN } from './lock-shell.js';
 import { settingsOptionSheet } from './settings-shell.js';
 import { LANGUAGES, createFlag } from './flags.js';
+import { slideSubscreenIn, slideSubscreenOut, settleSubscreenSlide } from './subscreen-slide.js';
 
 const launchState = new WeakMap(); // el → st
 
@@ -150,9 +154,33 @@ function illoSlot(name, src) {
  * must never strand the user on the view they just left. */
 function show(st, view, silent) {
   const changed = st.view !== view;
+  const prev = st.view;
   st.view = view;
   st.root.dataset.view = view;
-  for (const [name, node] of Object.entries(st.views)) node.hidden = name !== view;
+  const reveal = () => { for (const [name, node] of Object.entries(st.views)) node.hidden = name !== view; };
+  /* ★ Session H (walk row 31): create / restore SLIDE over welcome and slide back off it,
+     on the shared in-shell grammar (subscreen-slide.js — desktop and reduced-motion get
+     the plain swap from the stylesheet, not from a check here). The boot view (prev ===
+     null) and any switch on a detached root swap at once. The welcome view stays
+     UNHIDDEN under an entering form and is unhidden BEFORE a leaving one, so the slide
+     always runs over the page it reveals. A switch landing mid-flight settles the
+     previous one first (settle → its reveal → this one). */
+  const prevNode = prev ? st.views[prev] : null;
+  const nextNode = st.views[view];
+  if (changed && prevNode && nextNode && st.root.isConnected) {
+    settleSubscreenSlide(st.root);
+    if (prev === 'welcome') {
+      nextNode.hidden = false;
+      slideSubscreenIn(st.root, nextNode, reveal, { positioned: 'host', append: false });
+    } else if (view === 'welcome') {
+      st.views.welcome.hidden = false;
+      slideSubscreenOut(st.root, prevNode, reveal, { positioned: 'host' });
+    } else {
+      reveal();
+    }
+  } else {
+    reveal();
+  }
   if (changed && !silent && st.opts && st.opts.onViewChange) {
     try { st.opts.onViewChange(view); } catch { /* report only — never block the switch */ }
   }
@@ -464,7 +492,16 @@ function buildWelcome(st) {
 // requires per-jurisdiction legal review and is out of scope for the i18n batch. Their
 // TITLES (termsTitle / privacyTitle) ARE translated.
 const TERMS_DEFAULT = 'Spixi is a decentralised, self-custodial app on the Ixian Platform. You are solely responsible for your wallet, backup file and password. No other way to recover them exists. IXI Labs collects no personal data. You must be at least 16 years old (or the higher minimum age your country requires) to use Spixi.\n\nThe full document is provided in English only.';
-const PRIVACY_DEFAULT = 'IXI Labs does not collect any personal data through the Spixi app. No phone number or email is required, your messages stay on your device, and IXI Labs cannot access your message history or wallet keys.\n\nThe full Privacy Policy is provided in English only.';
+/* ★ Session H gate sweep (OURS-3): the old default claimed "does not collect any
+ * personal data" while the policy in the same tree documents OneSignal holding a push
+ * token + IP for delivery. The in-app summary now says what the policy says — a privacy
+ * app must not undersell its own disclosure. 🟡 Damir: wording pass welcome; the claim
+ * boundaries (no phone/email · content stays on device · push token+IP to OneSignal
+ * on Android/iOS unless switched off · NO push provider on Windows/Catalyst — the
+ * reviewer's oversell catch: pushProviderSupported() is false there and the switch is
+ * never rendered, so the copy must not promise it) are the facts and must survive any
+ * rewrite. */
+const PRIVACY_DEFAULT = 'No phone number or email is required. Your messages stay on your device, and IXI Labs cannot read your message history or access your wallet keys.\n\nOn Android and iOS, notification delivery uses OneSignal, a push provider: a push token and your IP address reach it. You can turn this off in Settings \u2192 Notifications. The desktop app uses no push provider.\n\nThe full Privacy Policy is provided in English only.';
 
 function openDocSheet(st, title, text) {
   const strings = st.strings;

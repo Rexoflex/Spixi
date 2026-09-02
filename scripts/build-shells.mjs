@@ -16,7 +16,70 @@
  * This is ENFORCED: a preflight (below) fails the build when a shell references a
  * window.Spixi symbol the bundle it is about to inline does not export.
  */
-import { readFileSync, writeFileSync, mkdirSync, cpSync, existsSync, statSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync as _rawWriteFileSync, mkdirSync, cpSync as _rawCpSync, existsSync, statSync, readdirSync } from 'node:fs';
+
+/* ★★ Session H review (auditor C, MAJOR-1 + MINOR-4). Two holes in one wrapper:
+ *
+ * 1. `--check` (MAJOR-1): the suite verified src/ structurally and the SHIPPED shells
+ *    only at enumerated values — a tree where somebody forgot to run build-shells (the
+ *    #285/#287/#288 class, hit three times) passed BASELINE OK with the feature absent
+ *    from the artifacts the app loads. `--check` builds every DEFAULT shell in memory,
+ *    writes NOTHING, and exits 1 naming each artifact that differs from a fresh build.
+ *    smoke-test.mjs runs it the way it already runs i18n-overflow-audit.
+ *    ⚠ The flag is FILTERED OUT of the key args below — auditor C's first prototype
+ *    fell through to the key parser, compared zero shells and printed success over an
+ *    empty set. A gate that passes on nothing is the defect class this file guards.
+ *
+ * 2. NUL / lone-surrogate / short-write (MINOR-4): build-demo-bundle has carried this
+ *    gate since #255; the 18 shell writes had none, and #255/#262 both record NUL debris
+ *    reaching Raw/html. Every write is now checked in memory AND read back.
+ */
+const CHECK = process.argv.includes('--check');
+const checkDiffs = [];
+const NUL_CH = String.fromCharCode(0);
+function firstLoneSurrogateSh(text) {
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if (c >= 0xD800 && c <= 0xDBFF) {
+      const n = text.charCodeAt(i + 1);
+      if (!(n >= 0xDC00 && n <= 0xDFFF)) return i;
+      i++;
+    } else if (c >= 0xDC00 && c <= 0xDFFF) return i;
+  }
+  return -1;
+}
+function writeFileSync(p, body) {
+  if (typeof body === 'string') {
+    let hit = body.indexOf(NUL_CH);
+    if (hit !== -1) throw new Error(p + ': generated output contains a NUL byte at offset ' + hit + ' — check the SOURCE first (the #255 rule; grep -rlP "\x00" src/)');
+    hit = firstLoneSurrogateSh(body);
+    if (hit !== -1) throw new Error(p + ': generated output contains a lone surrogate at offset ' + hit + ' — IO/mount corruption class (#175)');
+  }
+  if (CHECK) {
+    let cur = null;
+    try { cur = readFileSync(p, 'utf8'); } catch (e) { cur = null; }
+    if (cur === null) checkDiffs.push(p + ' — MISSING on disk (never built)');
+    else if (cur !== body) checkDiffs.push(p + ' — differs from a fresh build (' + Buffer.byteLength(cur, 'utf8') + ' bytes on disk vs ' + Buffer.byteLength(String(body), 'utf8') + ' rebuilt)');
+    return;
+  }
+  _rawWriteFileSync(p, body);
+  if (typeof body === 'string') {
+    const written = readFileSync(p);
+    if (written.includes(0)) throw new Error(p + ': WRITE corrupted — NUL on disk, the generated string was clean (#175)');
+    if (written.length !== Buffer.byteLength(body, 'utf8')) throw new Error(p + ': SHORT WRITE — ' + written.length + ' bytes on disk vs ' + Buffer.byteLength(body, 'utf8') + ' generated (#175)');
+  }
+}
+function cpSync(a, b, o) { if (!CHECK) _rawCpSync(a, b, o); }
+process.on('exit', () => {
+  if (!CHECK) return;
+  if (checkDiffs.length) {
+    console.error('\n\u2717 build-shells --check: the SHIPPED artifacts are STALE\n  ' + checkDiffs.join('\n  ')
+      + '\n\n  Fix: node scripts/build-demo-bundle.mjs && node scripts/build-shells.mjs (bundle BEFORE shells, always)\n');
+    process.exitCode = 1;
+  } else {
+    console.log('build-shells --check: every generated artifact matches a fresh build \u2713 (images/ are verbatim copies — not compared; fonts are EMBEDDED in the compared css)');
+  }
+});
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inlineHtml, inlineFonts } from './lib/inline.mjs';
@@ -79,7 +142,7 @@ const SHELLS = {
 const DEFAULT = ['chat', 'contact_details', 'contact_new', 'home', 'settings', 'app_details', 'app_new',
   'settings_backup', 'settings_encryption', 'scan', 'lock', 'downloads', 'dev', 'contributors',
   'empty_detail', 'wallet_sent', 'call', 'launch'];   // bridge-wired shells (real C# data)
-const arg = process.argv.slice(2);
+const arg = process.argv.slice(2).filter((x) => x !== '--check');   // ★ the flag is not a shell key (see the wrapper docblock)
 // #288 review: `all` used to include the two still-LEGACY demo drop-ins — apps.html and
 // wallet_send.html, the MONEY page — silently overwriting them with demo markup (#284 had
 // to restore both from HEAD). They stay buildable when named explicitly; `all` skips them.

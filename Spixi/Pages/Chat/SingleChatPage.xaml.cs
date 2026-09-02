@@ -156,7 +156,7 @@ namespace SPIXI
             // placed with the other money verbs; SPayments owns confirm/auth/sign.
             else if (current_url.StartsWith("ixian:signSend:", StringComparison.Ordinal))
             {
-                SPayments.handleSignSend(this, current_url.Substring("ixian:signSend:".Length));
+                SPayments.handleSignSend(this, current_url.Substring("ixian:signSend:".Length), friend.walletAddress);   // ★ review MINOR-4: the chat compose is peer-locked (#139)
             }
             else if (current_url.StartsWith("ixian:feeQuery:", StringComparison.Ordinal))
             {
@@ -256,7 +256,10 @@ namespace SPIXI
                 FriendMessage? fm = friend.getMessages(selectedChannel)?.Find(x => x.transferId == id);
                 if (fm == null || fm.filePath == null)
                 {
-                    Logging.error("Cannot open file: no message holds transfer id {0}", id);
+                    // ★ Session H gate sweep (OURS-1): the id is a WEBVIEW-SUPPLIED token and this
+                    // log is DevPage-shareable — log its SHAPE, never the value (the handover-gate
+                    // log rule; baseline had no line here at all).
+                    Logging.error("Cannot open file: no message holds the supplied transfer id (len={0})", id != null ? id.Length : -1);
                     return;
                 }
 

@@ -57,6 +57,7 @@ const FILES = [
   'src/components/lazy-history.js',
   'src/components/attach-sheet.js',
   'src/components/edge-back.js',     // ★ L3 (#706): the iOS back signal — no imports, attached once per shell
+  'src/components/subscreen-slide.js', // ★ Session H: the in-shell subscreen slide — no imports; launch-shell + contacts-page import it, so it precedes them
   'src/components/channel-sheet.js',
   'src/components/member-sheet.js',
   'src/components/media-viewer.js',

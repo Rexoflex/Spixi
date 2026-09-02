@@ -64,6 +64,7 @@
 // names (a multi-line import leaves its tail behind; an `x as y` alias survives
 // into the bundle → "Unexpected identifier 'as'"). Both fail the syntax gate.
 import { createContactsPicker, setPickerContacts, createGroupSetup, setGroupAvatar, setPickerMode } from '../components/contacts-shell.js';
+import { slideSubscreenIn, slideSubscreenOut } from '../components/subscreen-slide.js';
 import { clearPressFeedback } from '../components/pressable.js';   // ★ #589: a press must not outlive the screen that owned it
 
 // local handle so the returned controller can expose its own `setGroupAvatar`
@@ -71,7 +72,7 @@ import { clearPressFeedback } from '../components/pressable.js';   // ★ #589: 
 const paintGroupAvatar = setGroupAvatar;
 
 export function mountContacts({
-  host = document.body, bridge, strings, purpose = 'start', appId = '', getRoster, onClose,
+  host = document.body, bridge, strings, purpose = 'start', appId = '', getRoster, onClose, onExitSettled,
 } = {}) {
   /* ★ #589 (Damir F5 2026-08-26): "a mini app that opens the contacts picker leaves
      a pressed-row rectangle over the new screen." A takeover COVERS the list, it does
@@ -91,7 +92,15 @@ export function mountContacts({
   const close = (reason) => {
     if (closed) return;
     closed = true;
-    overlay.remove();
+    /* ★ Session H (walk row 31): the user's OWN Back — arrow, hardware back, the edge
+       swipe, all of which arrive here as 'back' — slides the takeover off the list it
+       covered (the native pop grammar, #707). A programmatic close ('auto': a tab tap,
+       an app launch, a chat open) removes it at once, because the thing replacing it
+       brings its own transition and a second one underneath would only fight it.
+       The shell's state changes (onClose: handle nulled, C# told) run NOW, not after
+       the slide — only the pixels linger, and the `closed` latch is the second-exit guard. */
+    if (reason === 'back') slideSubscreenOut(host, overlay, () => { overlay.remove(); if (onExitSettled) { try { onExitSettled(); } catch (e) {} } }, { positioned: false });
+    else overlay.remove();
     if (onClose) onClose(reason === 'back' ? 'back' : 'auto');
   };
 
@@ -171,6 +180,7 @@ export function mountContacts({
   });
   overlay.append(picker);
   host.append(overlay);
+  slideSubscreenIn(host, overlay, null, { positioned: false, append: false });   // ★ Session H: slides in over the list (instant on desktop / reduced motion — the stylesheet decides)
 
   return {
     el: overlay,

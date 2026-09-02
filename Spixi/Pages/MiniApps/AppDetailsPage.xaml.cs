@@ -156,6 +156,9 @@ namespace SPIXI
 
         private void onLoad()
         {
+            // ★ Session H review (auditor B MINOR-2): fresh document → the mirror starts
+            // CLOSED (the #337 lesson; ContactDetails/SingleChatPage both do this).
+            shellOverlayOpen = false;
             MiniApp app = fetchedApp;
             string icon = null;
             if (app == null)
@@ -300,11 +303,12 @@ namespace SPIXI
             return false;
         }
 
-protected override bool OnBackButtonPressed()
+        protected override bool OnBackButtonPressed()
         {
             // L3: a shell overlay (this screen's two confirm modals) consumes back before
             // the page pops — the order every native surface keeps.
-            if (shellOverlayOpen)
+            // ★ review N-3: same predicate as routeShellBack (see DownloadsPage).
+            if (shellOverlayOpen && pageLoaded)
             {
                 Utils.sendUiCommand(this, "appDetailsBack");
                 return true;

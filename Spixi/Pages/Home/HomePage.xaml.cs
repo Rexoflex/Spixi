@@ -135,6 +135,7 @@ namespace SPIXI
         private bool running = false;
 
         private bool fromSettings = false;
+        private static int excerptDiagLogged = 0;   // ★ review MINOR-5: the [EXCERPTDIAG] cap (12 lines/process)
         private bool fromChat = false;
         // AND-29 (#336): true while a WebView-internal home takeover (contacts/new-chat,
         // wallet Receive/Send) is open — pushed by the shell via ixian:homeoverlay so
@@ -656,6 +657,44 @@ namespace SPIXI
              * ⚠ REMOVE THIS WITH ITS TWO SIBLINGS the way [CDPERF] went (#663): this
              * handler, home.html's emit in consumeLandTab, and the smoke pin holding the
              * trio — one batch, all three, once Damir has taken the measurement. */
+            /* ★ Session H ③ ([PAINTDIAG], TEMPORARY — the L14-family flashes, walk rows 57/58).
+             * #688 falsified the last traced mechanism, so this round only OBSERVES THE PAINT.
+             * The shell emits two fixed words with one integer each:
+             *   cover:<ms>    — consumeLandTab('contacts') → the SECOND rAF frame after the
+             *                   directory takeover mounted, i.e. the takeover is ON GLASS.
+             *                   [PAINTDIAG account-closed] (onOverlayClosed below) to this
+             *                   line = how long the chat list was actually visible.
+             *   backsend:<ms> — takeover Back closed → the deferred ixian:settings left the
+             *                   shell. This line to [PAINTDIAG re-present] + the reveal =
+             *                   the way-back flash Damir reports as "longer the second time".
+             * Fixed vocabulary, one parsed integer, nothing echoed — the landtabprobe
+             * grammar. ⚠ REMOVE ALL FOUR TOGETHER once measured: this handler, the two
+             * home.html emits, the two Logging.info lines (onOverlayClosed +
+             * representParkedOverlay), and the smoke pin holding the set. */
+            else if (current_url.StartsWith("ixian:paintdiag:", StringComparison.Ordinal))
+            {
+                try
+                {
+                    string[] probe = current_url.Substring("ixian:paintdiag:".Length).Split(':');
+                    string what = probe.Length > 0 ? probe[0] : "";
+                    if (what != "cover" && what != "backsend")
+                    {
+                        what = "other";
+                    }
+                    long ms = 0;
+                    if (probe.Length > 1)
+                    {
+                        long.TryParse(probe[1], out ms);
+                    }
+                    IXICore.Meta.Logging.info("[PAINTDIAG] " + what + "=" + ms + "ms t=" + Environment.TickCount64);
+                }
+                catch (Exception)
+                {
+                    Logging.error("ixian:paintdiag failed (malformed payload)");
+                }
+                e.Cancel = true;
+                return;
+            }
             else if (current_url.StartsWith("ixian:landtabprobe:", StringComparison.Ordinal))
             {
                 try
@@ -2492,9 +2531,6 @@ namespace SPIXI
                  * a delivery it cannot see. markGroupCopyFailed passes `true`, because a
                  * false red FAILED cannot be cleared. The two directions are deliberate.
                  * ⚠ The room test comes FIRST, so a 1:1 chat never calls the method. */
-                bool groupDelivered = isGroupRow && lastmsg.localSender
-                    && (lastmsg.confirmed
-                        || UIHelpers.anyOtherMemberHasMessage(friend, lastmsg, false));
                 if (lastmsg.errorSending)
                 {
                     type = "failed";
@@ -2503,18 +2539,27 @@ namespace SPIXI
                 {
                     type = "read";
                 }
-                else if (lastmsg.confirmed || groupDelivered
-                         || (isGroupRow && lastmsg.read))
-                {
-                    type = "confirmed";
-                }
-                else if (lastmsg.sent)
-                {
-                    type = "pending";
-                }
                 else
                 {
-                    type = "default";
+                    // ★ review N-1: computed only when the two cheap branches above miss —
+                    // anyOtherMemberHasMessage takes a lock and walks reactions, and this
+                    // helper runs per row per flush.
+                    bool groupDelivered = isGroupRow && lastmsg.localSender
+                        && (lastmsg.confirmed
+                            || UIHelpers.anyOtherMemberHasMessage(friend, lastmsg, false));
+                    if (lastmsg.confirmed || groupDelivered
+                        || (isGroupRow && lastmsg.read))
+                    {
+                        type = "confirmed";
+                    }
+                    else if (lastmsg.sent)
+                    {
+                        type = "pending";
+                    }
+                    else
+                    {
+                        type = "default";
+                    }
                 }
             }
 
@@ -2526,8 +2571,13 @@ namespace SPIXI
              * acceptor after the handshake). No branch above yields an empty excerpt for a
              * message with text, so the message itself must be empty — and this line says
              * which type wrote it. Diagnostic only: type, flags and lengths, never content. */
-            if (string.IsNullOrEmpty(excerpt))
+            // ★ review MINOR-5: CAPPED — this helper runs per row per flush (≈1 Hz with a
+            // receipt storm on top), so one unapproved bot row could print thousands of
+            // lines into the 5-file rolling log the other probes share. Twelve lines
+            // answer #719's question; the cap resets with the process.
+            if (string.IsNullOrEmpty(excerpt) && excerptDiagLogged < 12)
             {
+                excerptDiagLogged++;
                 Logging.info("[EXCERPTDIAG] empty excerpt: type={0} local={1} state={2} approved={3} unread={4} msgLen={5} id={6}",
                     lastmsg.type, lastmsg.localSender, friend.state, friend.approved, friend.metaData.unreadMessageCount,
                     lastmsg.message?.Length ?? -1, lastmsg.id != null ? Crypto.hashToString(lastmsg.id) : "null");
@@ -3572,6 +3622,9 @@ namespace SPIXI
                 Utils.sendUiCommand(this, "setTheme", ThemeManager.getResolvedAppearanceName());
                 Utils.sendUiCommand(this, "loadAvatar", Utils.imageToDataUri(IxianHandler.localStorage.getOwnAvatarPath()));   // X1
                 // #245: drop the rail's Account highlight back to the real in-page tab.
+                // ★ Session H ③ [PAINTDIAG]: from THIS instant the home WebView is what the
+                // user sees — the gap to the shell's cover=<ms> line is the flash.
+                IXICore.Meta.Logging.info("[PAINTDIAG] account-closed t=" + Environment.TickCount64);
                 Utils.sendUiCommand(this, "onSettingsClosed");
                 UIHelpers.shouldRefreshContacts = true;
                 fromSettings = false;

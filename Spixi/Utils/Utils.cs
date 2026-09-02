@@ -57,6 +57,34 @@ namespace SPIXI
         /// UNKNOWN now means MASK, for a GROUP only. That is stricter than legacy rather
         /// than looser, so it cannot introduce an exposure. A bot or a 1:1 is unchanged.
         /// </summary>
+        /* ★ Session I (Damir's premium walk, measured): THE DEVICE'S 12/24-HOUR SETTING.
+         * The shells formatted every time from the document LOCALE alone, so a phone set to
+         * 24-hour with the app in en-us printed "04:42 PM" beside Telegram's "16:42". The
+         * three apps' time digits measure the same height (21 px on the Motorola); the " PM"
+         * is the width that read as "bigger". Registered as the `hourCycle` custom string at
+         * HomePage boot; the shells copy it onto <html data-hour-cycle> and Intl takes it as
+         * `hourCycle`. Answers: "h23" (24-hour) · "h12" · "" (unknown → the locale's default,
+         * byte-identical to before). Fail-soft: any exception answers "". */
+        public static string deviceHourCycle()
+        {
+            try
+            {
+#if ANDROID
+                return Android.Text.Format.DateFormat.Is24HourFormat(Android.App.Application.Context) ? "h23" : "h12";
+#elif IOS || MACCATALYST
+                string fmt = Foundation.NSDateFormatter.GetDateFormatFromTemplate("j", (nuint)0, Foundation.NSLocale.CurrentLocale) ?? "";
+                return fmt.Contains("a") ? "h12" : "h23";
+#else
+                string pattern = System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.ShortTimePattern ?? "";
+                return pattern.Contains("h") ? "h12" : (pattern.Contains("H") ? "h23" : "");
+#endif
+            }
+            catch (Exception)
+            {
+                return "";
+            }
+        }
+
         public static bool hidesParticipants(Friend? friend)
         {
             if (friend == null) { return false; }

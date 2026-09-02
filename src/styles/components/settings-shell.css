@@ -16,8 +16,8 @@
   min-height: 0;                    /* flex-column scroll rule (#136①) */
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-16);
-  padding: var(--spacing-16) var(--spacing-16) var(--spacing-32);
+  gap: var(--screen-gap);                      /* ★ Session I canon: 12 (was 16) */
+  padding: var(--screen-pad) var(--spacing-16) var(--spacing-32);   /* ★ Session I canon: 12 top (was 16) */
 }
 /* #148: children of a SCROLLING flex column are shrinkable by default — the
    56px CTA was compressing under overflow (Damir screenshot). Never shrink. */
@@ -58,7 +58,7 @@
   flex-direction: column;
   align-items: center;
   gap: var(--spacing-8);
-  padding-top: var(--spacing-8);
+  padding-top: var(--spacing-4);    /* ★ Session I canon: hero tightened (was 8) */
 }
 .c-settings__avatar {
   flex: none;
@@ -226,7 +226,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-8);
-  min-height: 52px;                 /* sanctioned: 44 target + disc breathing room */
+  min-height: var(--row-h-nav);     /* ★ Session I canon: 48 (was 52 "44 target + disc breathing room"); switch rows 56 below */
   padding: var(--spacing-4) var(--spacing-8);
   border: 0;
   background: transparent;
@@ -304,7 +304,8 @@
   max-width: 100%;
   min-width: 0;
 }
-.c-settings__row--backup { min-height: 56px; }
+.c-settings__row--backup { min-height: var(--row-h-switch); }   /* ★ Session I canon: the two-line backup row shares the 56 */
+.c-settings__row[data-row="switch"] { min-height: var(--row-h-switch); }   /* ★ Session I canon: a row that carries a switch is 56 */
 .c-settings__backup-badge { flex: none; }
 
 /* —— switch (chat-info parity) —— */

@@ -543,6 +543,7 @@ export function createSettingsAbout({
   links,
   onOpenLink,                    // OPTIONAL (url) — wired since iOS-21 (ixian:openLink)
   host,                          // iOS-23: sheet host for the legal doc sheets
+  devSeed,                       // ★ Session I: OPTIONAL { onSeed, onUnseed, status } — the DEV-BUILD seed harness (see below); absent = no card
   onBack,
   strings = getStrings(),
 } = {}) {
@@ -625,6 +626,45 @@ export function createSettingsAbout({
   legal.className = 'c-settings__note c-settings-about__legal';
   legal.textContent = strings.aboutLegal || '© Ixian. Open source, MIT licensed.';
   body.append(legal);
+
+  /* ★ Session I ② — THE SEED HARNESS CARD (DEV BUILDS ONLY, Damir: "button in About").
+     Rendered ONLY when the host passes `devSeed`, and settings.html passes it ONLY after
+     C# pushed `setDevSeed` — which SettingsPage sends under `#if SPIXI_DEV_COEXIST`, the
+     compile symbol Spixi.csproj defines for a SpixiDevCoexist build (#732). A store build
+     has no symbol, no push, no card, no verbs. Fifty deterministic contacts with history
+     go through the REAL message store (FriendList.addFriend + addMessageWithType), so the
+     [CDPERF] chat-open stamps and the chats-list rows are measured at 50, not at 3.
+     English-only by the #301 precedent: an engineering instrument that cannot ship. The
+     `i18n-lint-ok:dev` marks are counted by a smoke pin (#420's cap, now two sites). */
+  if (devSeed && (devSeed.onSeed || devSeed.onUnseed)) {
+    const wrap = document.createElement('div');
+    wrap.className = 'c-settings__groupwrap c-settings-about__devseed';
+    const head = document.createElement('p');
+    head.className = 'c-settings__note';
+    head.textContent = 'Dev build (SpixiDevCoexist) — seed harness. Fifty test contacts with history, through the real message store. Remove before measuring anything else.';   // i18n-lint-ok:dev — dev-build instrument, compiled out of release (#732)
+    wrap.append(head);
+    const card = document.createElement('div');
+    card.className = 'c-settings__group c-settings-links';
+    const row = (label, onClick) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'c-settings-links__row';
+      const lab = document.createElement('span');
+      lab.className = 'c-settings-links__label';
+      lab.textContent = label;
+      b.append(lab, icon('chevron-right', { size: 18 }));
+      b.addEventListener('click', () => { if (onClick) onClick(); });
+      return b;
+    };
+    if (devSeed.onSeed) card.append(row('Seed 50 test contacts', devSeed.onSeed));         // i18n-lint-ok:dev — dev-build instrument (#732)
+    if (devSeed.onUnseed) card.append(row('Remove seeded contacts', devSeed.onUnseed));   // i18n-lint-ok:dev — dev-build instrument (#732)
+    wrap.append(card);
+    const status = document.createElement('p');
+    status.className = 'c-settings__note c-settings-about__devseed-status';
+    status.textContent = devSeed.status || '';
+    wrap.append(status);
+    body.append(wrap);
+  }
 
   return el;
 }

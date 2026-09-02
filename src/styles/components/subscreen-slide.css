@@ -10,10 +10,15 @@
   background: var(--subslide-ground, var(--surface-screen));   /* opaque: the covered view must not show through */
   display: flex;
   flex-direction: column;
-  will-change: transform;
-  --subslide-from: 100%;                             /* LTR: from the trailing (right) edge */
+  will-change: transform, opacity;
+  /* ★ Session I — THE HYBRID (Damir's A1 note, ruled 2026-09-02): slide + fade. The travel
+     is 40% of the width, not 100%, and opacity rides the same clock — fewer pixels per
+     frame at the same duration reads smoother on a dropped frame. ALL or NONE: the
+     native overlay slide (SpixiContentPage SlideTravel = 0.4, TranslateTo + FadeTo on one
+     clock) carries the same numbers, and a smoke pin holds the two equal. */
+  --subslide-from: 40%;                              /* LTR: from the trailing (right) edge, 40% travel */
 }
-html[dir="rtl"] .c-subslide { --subslide-from: -100%; }
+html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
 .c-subslide--viewport { position: fixed; inset: 0; }        /* covers the whole page, bars included — the settled layout of a sublevel */
 .c-subslide-host { position: relative; }
 .c-subslide--host { position: absolute; inset: 0; }          /* inside one host (the launch views) */
@@ -25,8 +30,8 @@ html[dir="rtl"] .c-subslide { --subslide-from: -100%; }
 .c-subslide--in  { animation: c-subslide-in  var(--duration-300) var(--easing-standard) both; }
 .c-subslide--out { animation: c-subslide-out 220ms var(--easing-accelerate) both; pointer-events: none; }
 
-@keyframes c-subslide-in  { from { transform: translateX(var(--subslide-from)); } to { transform: none; } }
-@keyframes c-subslide-out { from { transform: none; } to { transform: translateX(var(--subslide-from)); } }
+@keyframes c-subslide-in  { from { transform: translateX(var(--subslide-from)); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes c-subslide-out { from { transform: none; opacity: 1; } to { transform: translateX(var(--subslide-from)); opacity: 0; } }
 
 /* #704: desktop — only chat info slides (natively). Every in-shell view swaps at once. */
 :root[data-desktop] .c-subslide--in,

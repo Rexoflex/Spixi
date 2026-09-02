@@ -20,7 +20,7 @@
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
-import { docLocale } from './timestamp.js';
+import { docLocale, timeOpts } from './timestamp.js';
 
 const mediaCtl = new WeakMap(); // tile el → { setSrc } (audit r3: setMediaSrc must reuse the closure state machine)
 
@@ -164,7 +164,7 @@ export function createMediaBubble({
       const time = document.createElement('time');
       time.className = 'c-mbubble__time u-tabular';
       time.setAttribute('datetime', d.toISOString());
-      time.textContent = d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
+      time.textContent = d.toLocaleTimeString(docLocale(), timeOpts());   // ★ Session I: the device's 12/24-hour setting
       el.append(time);
     }
   }

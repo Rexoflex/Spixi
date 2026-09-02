@@ -2126,8 +2126,9 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   ok(/\.c-chat-info__txs-list \{[^}]*margin-inline: calc\(-1 \* var\(--spacing-12\)\)/.test(infoCss2)
     && /\.c-chat-info__txs \{[^}]*overflow: hidden/.test(infoCss2),
     'chat-info tx rows run full-bleed in the card, clipped to its radius (#149①)');
-  ok(/\.c-chat-info__row \{[^}]*min-height: 52px/.test(infoCss2),
-    'chat-info rows breathe at 52px — settings parity (#149②)');
+  /* ★ Session I re-base (the gap canon, sheet 3a): 52 → var(--row-h-nav) = 48; switch rows 56 */
+  ok(/\.c-chat-info__row \{[^}]*min-height: var\(--row-h-nav\)/.test(infoCss2) && /\.c-chat-info__row\[data-row="switch"\] \{ min-height: var\(--row-h-switch\); \}/.test(infoCss2),
+    'chat-info rows breathe on the CANON — 48 nav / 56 switch (was 52, #149② settings parity; Session I sheet 3a)');
   /* ★ N86 ③ — #149③ RETIRED, and it was never a code defect. The pin expected 148px;
      the CSS moved to 185px on 2026-07-29 when Damir F5'd that 148 "scanned poorly on a
      phone held at arm's length", and the assertion was left behind. It has been one of
@@ -2445,8 +2446,12 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
     'Q4: translation-collision guard — a request title never signs (audit A-1)');
   ok(/if \(channelDropdown\) \{ closeChannelSelector\(\); return; \}/.test(chat),
     'Q9: channel-selector title tap toggles closed');
-  ok(/if \(!document\.documentElement\.hasAttribute\('data-desktop'\)\) return;\s*\n\s*try \{\s*\n\s*const input = composerEl/.test(chat),
-    'Q10a: composer entry autofocus gated to desktop (#228 flag)');
+  /* ★ Session I re-base (#733①, Damir: "caret WITHOUT the keyboard"): desktop keeps the plain
+     autofocus; MOBILE focuses with inputmode=none (caret, no keyboard) and arms the first tap. */
+  ok(/if \(document\.documentElement\.hasAttribute\('data-desktop'\)\) \{ input\.focus\(\); return; \}/.test(chat)
+     && /input\.setAttribute\('inputmode', 'none'\);/.test(chat) && /input\.setAttribute\('inputmode', 'text'\);/.test(chat)
+     && /input\.focus\(\{ preventScroll: true \}\);/.test(chat) && /if \(caretArmed\) return;\s*caretArmed = true;/.test(chat),
+    'Q10a → #733①: desktop autofocus as before; mobile = caret WITHOUT the keyboard (inputmode=none on entry, text + refocus on the first tap, latched once)');
   ok(/CONNECTIVITY_TEXTS/.test(chat) && /setTopbarSub\(topbarHost, topbarSubText\(/.test(chat),
     'M16: chat connectivity → topbar sub title-state, updated IN PLACE (aria-live, audit A-2)');
   /* REBASED by #383 (N40): M16's original one-line handler routed BOTH surfaces from
@@ -5037,16 +5042,18 @@ console.log('missing-bits Batch B — B2 pattern default · B3 tx-details shell 
     'B2: the #207 desktop pattern hard-force is DELETED from chat.html');
   ok(!/--chat-canvas-base: var\(--neutral-1000\)/.test(chat),
     '★ N81: the desktop dark grey-1000 ground rule is RETIRED (it was #207/B2). #111213 is LIGHTER than Damir\'s new #0f1115, so keeping it would have made desktop dark PALER than mobile — the opposite of what it was written for, plus a second undocumented dark canvas colour');
-  ok(/if\(!isFinite\(p\)\)lv=de\?0:1;/.test(chat),
-    'B2 + ★ N81: chat boot pattern default is platform-aware — desktop Off (0), mobile Default (1). The value is a LEVEL INDEX now, not an alpha');
+  /* ★ Session I re-base (#735③, Damir 2026-08-31): "pattern AND gradient default-ON in light" — on
+     EVERY platform, so the desktop-Off branch is gone; the value is still a LEVEL index. */
+  ok(/if\(!isFinite\(p\)\)lv=1;/.test(chat) && !/lv=de\?0:1/.test(chat),
+    'B2 + ★ N81 → Session I: chat boot pattern default is Subtle (1) on every platform (was desktop Off / mobile 1 — #735③ amends). The value is a LEVEL INDEX, not an alpha');
   ok(/else if\(p<=0\)lv=0;else lv=1;/.test(chat),
     '★★ AUG MIGRATION (Damir 2026-08-30): Strong is retired, so the pre-paint script folds EVERY non-zero stored value to Subtle — the level index 2 that a Strong user has, and the legacy fractional alphas (0.3/0.5/0.7) alike. An old Bold user lands on the loudest option that still EXISTS. Superseded: N81 MIGRATION mapped old Bold → Strong, everything else → Default. ⚠ Old and new values still overlap only at 0, which means Off in both, so nothing has to be guessed. This must stay in step with readPatternLevel() — same rule, two homes, because this copy runs before the bundle loads');
-  ok(chat.indexOf("p.get('desktop')==='1'") < chat.indexOf('if(!isFinite(p))lv=de?0:1;'),
+  ok(chat.indexOf("p.get('desktop')==='1'") < chat.indexOf('if(!isFinite(p))lv=1;'),
     'B2: the ?desktop/?mobile preview-forcing script runs BEFORE the pattern default derives (re-pinned on the #422 literal — the ordering is the contract, not the expression)');
   ok(/const desktop = document\.documentElement\.hasAttribute\('data-desktop'\);/.test(settings)
-    && /let pattern = desktop \? 0 : 1/.test(settings)
+    && /let pattern = 1, textScale = 1;/.test(settings)   // ★ Session I re-base: default-ON everywhere (#735③)
     && /pattern = readPatternLevel\(localStorage\.getItem\(CHAT_PREFS\.pattern\), pattern\);/.test(settings),
-    '★ N81: settings readChatPrefs mirrors the platform-aware default on the new LEVEL ladder (desktop 0 / mobile 1) — the Chat-appearance swatch must pre-select what the chat actually paints');
+    '★ N81 → Session I: settings readChatPrefs mirrors chat.html\'s default on the LEVEL ladder (Subtle on every platform since #735③) — the Chat-appearance swatch must pre-select what the chat actually paints');
   // B3: tx tap routed to the detail page; shell contract markers present
   ok(/onTx: \(tx\) => bridge\.send\('ixian:txdetails:' \+ tx\.txid\)/.test(home),
     'B3: home wallet tab routes a tx tap to ixian:txdetails:<txid>');
@@ -5347,8 +5354,11 @@ console.log('missing-bits Batch B — B2 pattern default · B3 tx-details shell 
               if (n) marked.push(f + '×' + n);
             }
           }
-          ok(marked.length === 1 && marked[0] === 'chat.html×1',
-            '★ #420: the i18n dev exemption is used ONCE, on the load probe. It is greppable and counted by the linter on purpose — "dev-only" must never become the door untranslated copy walks through (found: ' + (marked.join(', ') || 'none') + ')');
+          /* ★ Session I: a SECOND site — the seed-harness card in settings-app.js (About, dev
+             builds only, compiled out of release with SpixiDevCoexist #732). The cap is still a
+             cap: exactly these two files, exactly these counts. */
+          ok(marked.length === 2 && marked.includes('chat.html×1') && marked.includes('settings-app.js×4'),
+            '★ #420: the i18n dev exemption is used at exactly TWO sites — the load probe (chat.html×1) and the dev-build seed-harness card (settings-app.js×4). Greppable and counted on purpose — "dev-only" must never become the door untranslated copy walks through (found: ' + (marked.join(', ') || 'none') + ')');
         }
         ok(/if \(now - loadProbeLastPaint < 200\) return;/.test(chatSrc),
           '★ N77 (#416): the line repaints WHILE the burst runs, throttled to 200 ms. The first cut painted only at start and end, so mid-load it read n=0 — useless at the one moment it is being looked at — and an unthrottled write per message would pollute the hot path it measures');
@@ -5537,10 +5547,13 @@ console.log('#275 composer lock (legacy states) · #276 address-truncation sweep
     '#276: contacts rows title nameless/echo contacts as the truncated address');
   // #277: tx-row title = chat-row parity (body-lg regular); amount keeps label-lg semibold.
   const txCss = readFileSync(join(root, 'src/styles/components/txlist-item.css'), 'utf8');
-  ok(/\.c-txlist-item__name \{[^}]*var\(--font-size-body-lg\)/s.test(txCss)
-    && !/\.c-txlist-item__name \{[^}]*font-weight/s.test(txCss)
+  /* ★ Session I re-base (#735⑤/⑦, sheet 2): names +1 weight on BOTH row types — the tx name is
+     semibold at --tx-name-size (15 mobile / 14 desktop); #277's regular was Damir's earlier
+     call and this is his later one. The amount keeps its emphasis. */
+  ok(/\.c-txlist-item__name \{[^}]*var\(--tx-name-size\)/s.test(txCss)
+    && /\.c-txlist-item__name \{[^}]*font-weight: var\(--tx-name-weight\)/s.test(txCss)
     && /\.c-txlist-item__amount \{[^}]*var\(--font-size-label-lg\)/s.test(txCss),
-    '#277: tx-row name rides body-lg regular (chat-row parity); amount keeps its emphasis');
+    '#277 → Session I: tx-row name rides --tx-name-size at --tx-name-weight (semibold — chat-row parity kept, both rows moved together); amount keeps its emphasis');
   // #278: misstx pill collapses by MEASUREMENT (pane-width aware), not viewport only.
   const walletJs = readFileSync(join(root, 'src/components/wallet-shell.js'), 'utf8');
   const walletCss = readFileSync(join(root, 'src/styles/components/wallet-shell.css'), 'utf8');
@@ -6678,20 +6691,22 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   const darkN81 = blocksN81('[data-theme="dark"]');
   ok(lightN81.length > 1000 && darkN81.length > 1000 && !darkN81.includes('--grey-1000'),
     '★ N81 harness self-check: the token blocks split by SELECTOR, not by the first textual match — a slice on the first "[data-theme=\"dark\"]" hits a comment on line 12 and would hand the whole file to `dark`, passing every assertion below for the wrong reason');
-  ok(/--chat-pattern-ink: #061663;/.test(lightN81) && /--chat-pattern-alpha-1: 0\.06;/.test(lightN81)
+  /* ★ Session I re-base (#735③, sheet 4): the LIGHT ink is the brand magenta #83058E now (was #061663, AUG) — same 6%; the AUG reasoning below is the superseded ruling. */
+  ok(/--chat-pattern-ink: #83058E;/.test(lightN81) && /--chat-pattern-alpha-1: 0\.06;/.test(lightN81)
     && /--chat-pattern-alpha-2: 0\.1;/.test(lightN81),
     '★★★ AUG (Damir 2026-08-30): LIGHT pattern = rgba(6,22,99,0.06) — a deep brand indigo. The tile is a MASK, so the artwork\'s own colour is discarded and this token alone decides the ink. MEASURED on the #EBF0F5 ground: ΔL* −4.53, STRONGER than the #231F20 @5% it replaces (−3.53) and back in the range E1c approved (−3.47/−4.26); the composited stroke lands at hue 266° against the ground\'s 256°, the same cool family. It also holds on the GRADIENT option: −3.66 teal / −4.39 periwinkle. ⚠ alpha-2 is pinned but UNREACHABLE — Strong is retired; the token is kept one line from returning. Superseded: AUG TILE: LIGHT pattern = rgba(35,31,32,0.05) at Default — the doodle-pattern-aug ARTWORK colour, since the tile is a mask and this token is the only thing that decides the hue. ⚠ MEASURED AND DELIBERATELY SOFTER: .05 reads ΔL* −2.90 teal / −3.40 green against E1c\'s −3.47 / −4.26, i.e. ~17% fainter than what shipped; .06 would have matched it almost exactly (−3.47 / −4.08) and Damir chose .05 on the render. Superseded, and the E1c reasoning is kept because it is still the record of why the ground moved: E1c (Damir 2026-08-29): LIGHT pattern = rgba(18,59,71,0.07) at Default. The ink followed the ground onto the teal (hue only — the two inks are within 0.03 L* at this alpha) and .06→.07 RESTORES the approved strength rather than raising it: on the old near-white ground the stroke sat 4.03 L* below it, on the colourful one .06 reached only 2.96/3.62 and .07 gives 3.47/4.26. Superseded: rgba(33,57,75,0.06) at Default, 0.1 at Strong. The ink carries a HUE now (slate, C* 1.80 → 2.43 on the composited stroke) and the Default alpha rose because the doodles tile lays down 1.15× the ink of the triangles tile it replaced, yet read as blank at 0.042. Supersedes the N81 pair (#181a20 / 0.042)');
   // ★ #711 re-based (Damir on device, 2026-08-30): 0.05 → 0.03 — "reduce dark by 2%". The ink stays white; the 0.05 reasoning below is kept as the superseded ruling.
   ok(/--chat-pattern-ink: #ffffff;/.test(darkN81) && /--chat-pattern-alpha-1: 0\.03;/.test(darkN81)
     && /--chat-pattern-alpha-2: 0\.1;/.test(darkN81),
     '★★★ AUG TILE (Damir 2026-08-30) → #711: DARK pattern = rgba(255,255,255,0.03) (was 0.05 until his device call the same evening). ⚠⚠ THIS PIN IS A REVERSAL AND IT IS PINNED AS ONE. The 2026-07-03 ruling in tokens.css says the pattern is "theme-colored, not white (white isn\'t premium, Damir)", and dark has carried a tinted ink ever since. Damir reversed it on 2026-08-30. ★ The measurement is the reassurance: white @ .05 reads ΔL* +5.64 against the #701 canvas where #bbd0ff @ .065 read +5.89 — the STRENGTH is unchanged within 4%, so what moved is the HUE, not the visibility. The superseded reasoning is kept verbatim because a ruling that quietly disappears is how it gets fixed back: E1: DARK pattern = rgba(187,208,255,0.065) at Default, 0.1 at Strong — its OWN hue, not light\'s. MEASURED trade-off behind the value: a bluer ink is a darker ink, so #bbd0ff buys C* 3.37 → 5.29 for 1.2 L*, while #8fb3ee bought 6.04 for 2.3 L* and was rejected on that arithmetic. Supersedes #f0f4ff / 0.045');
-  ok(/--chat-pattern-ink: #061663;/.test(lightN81) !== /--chat-pattern-ink: #061663;/.test(darkN81)
+  ok(/--chat-pattern-ink: #83058E;/.test(lightN81) !== /--chat-pattern-ink: #83058E;/.test(darkN81)
     && /--chat-pattern-ink: #ffffff;/.test(darkN81) !== /--chat-pattern-ink: #ffffff;/.test(lightN81),
     '★ E1: the two inks are genuinely DIFFERENT tokens per theme — Damir asked for a hue of its own in each mode, and one ink shared by both is the failure this pin names. Asserted as a per-block XOR so a copy-paste of one value into the other block turns it red');
   ok(/--chat-pattern-opacity: var\(--chat-pattern-alpha-1\);/.test(lightN81)
     && /--chat-pattern-opacity: var\(--chat-pattern-alpha-1\);/.test(darkN81),
     '★ N81: the UNSET default resolves to each theme\'s own alpha — an absent preference must not fall back to one theme\'s number');
-  ok(/--chat-canvas-base: #ebf0f5;/.test(lightN81)
+  /* ★ Session I re-base (#735③, sheet 4 = k2): the flat base is #EEECEF now (was #ebf0f5), the wash stays a user choice. */
+  ok(/--chat-canvas-base: #EEECEF;/.test(lightN81)
     && /--gradient-chat: var\(--chat-canvas-base\);/.test(lightN81),
     '★★★ AUG GROUND (Damir 2026-08-30): LIGHT is a FLAT #EBF0F5 and the wash is now a user CHOICE, not the ground. He asked for the gradient to stay available, so it lives behind data-chat-ground=gradient (tokens.css, scoped out of dark) rather than being retired. MEASURED: the flat ground takes the sent bubble from 3.71 to 6.07 — E1c had to accept 3.71 as "the tightest this surface has been" — and gives the best white-bubble separation of any flat ground tried (ΔL* +5.44 vs +4.15 for #eff5eb and +3.19 for the pre-E1c #f4f6f9). ⚠ --chat-canvas-base was DEAD PAINT under E1c (both wash stops were opaque) and is load-bearing again. Superseded, and the E1c reasoning is kept because it records why the ground moved in the first place: E1c (Damir 2026-08-29): LIGHT is the COLOURFUL diagonal wash — his ruling, against my measured recommendation. The endpoints are SAMPLED from his reference mock (#7FC8DA top-right, #CBE7C6 bottom-left) and the DIRECTION is measured too (top-right #81C9D9 vs bottom-left #C3E3CA), which is why it is `to bottom left` and not the vertical it reads as at a glance. Superseded: the E1b radial, and before it the E1 one. Previously: LIGHT is NO LONGER FLAT — the wash is back, and it is the SAME radial as dark. ⚠ This is not a revert of #422: what #422 removed was a sky-blue DIAGONAL over a CREAM base, which turned the cream blue; the base is a cool grey since #427 and this is a top radial. The N82(a) base itself is unchanged at #f4f6f9');
   {
@@ -6723,9 +6738,13 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     && /--gradient-chat: radial-gradient\(120% 85% at 50% 0%, rgba\(80, 122, 249, 0\.06\) 0%, transparent 62%\), var\(--chat-canvas-base\);/.test(darkN81)
     && (darkN81.match(/--gradient-chat:/g) || []).length === 1,
     '★★★ AUG (Damir 2026-08-30, ON DEVICE): the dark lift is .06 and the base is #10151e — the CHROME\'S OWN --surface-screen. ⚠ THE DEFECT WAS COLOUR FAMILY, NOT LIGHTNESS: the old #0f1115 was chroma 2.62 (near-neutral grey) inside chrome at 7.00 (blue-tinted ink), and the .20 radial had been masking it — #701 dropped the lift and EXPOSED it. Desktop only, because mobile is full-bleed with no chrome beside the canvas. Now the bottom of the pane, where the radial fades out, matches the rail and list exactly. ⚠ This SUPERSEDES the #701 ruling below, which he made against a measurement about neutral01 lightness with no knowledge of the chrome adjacency. Superseded: #701 (Damir, awake, 2026-08-30 00:15): the dark lift is .06 and the BASE STAYS #0f1115. Both halves are RULED, neither is provisional. His words ("near black close to neutral01") contradicted the measurement — #0f1115 is L* 5.03, ALREADY darker than dark neutral01 (#13171b, 7.50) and light text-neutral01 (#131415, 6.26) — so moving the base would have made dark PALER while he asked for darker. The base was never the problem: at .20 the canvas centre reached L* 15.66 against a 5.03 base, which is what stopped it reading near-black; at .06 it lands at 7.96. Superseded: E1b\'s .20, whose "DARK rose WITH light" reasoning was sound for the question E1b asked and is simply not the question #701 asked. ⚠ BOTH declarations are COUNTED, not just matched — a later duplicate wins on source order (the #422 sent-meta lesson), and the ground token is exactly what a re-open would duplicate');
-  ok(/--gradient-bubble-sent: #1956b2;/.test(lightN81) && /--gradient-bubble-sent: #1956b2;/.test(darkN81)
-    && /--surface-bubble-sent: #1956b2;/.test(lightN81) && /--surface-bubble-sent: #1956b2;/.test(darkN81),
-    '★ N81: ONE outgoing blue #1956B2 in BOTH themes, and the solid fallback AGREES with the gradient token (a fallback that disagrees is a colour change nobody can reproduce)');
+  /* ★ Session I re-base (#735⑥, sheet 1d = A): the blue softened one step to #2160C2, REVERSIBLY —
+     #1956b2 rides in every token comment. The property is unchanged: ONE blue, both themes,
+     fallback ≡ gradient. */
+  ok(/--gradient-bubble-sent: #2160c2;/.test(lightN81) && /--gradient-bubble-sent: #2160c2;/.test(darkN81)
+    && /--surface-bubble-sent: #2160c2;/.test(lightN81) && /--surface-bubble-sent: #2160c2;/.test(darkN81)
+    && (lightN81.match(/#1956b2/g) || []).length >= 2,
+    '★ N81 → Session I: ONE outgoing blue #2160C2 in BOTH themes (was #1956B2, kept in the comments as the reversal), and the solid fallback AGREES with the gradient token');
   /* ★ N81 (#422, #46 audit MAJOR): the flat bubble INTRODUCED a sub-AA timestamp.
    * Dark's old sent gradient (#353FB7→#2046A7) carried --neutral-300 at 5.06–5.17;
    * on the flat #1956B2 the same ink measures 4.28 at 12px regular. One ink in both
@@ -6809,7 +6828,10 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
        ★ A reversal is pinned as a reversal, never by deleting the old pin — the next reader
        has to be able to see that "light is untouched" was a real ruling that a later one
        replaced, or they will restore it as a "fix". */
-    ok(/\.c-sysnotice__card \{[^}]*background: #dfe6ee;/.test(noticeLight)
+    /* ★ Session I re-base (#735③, sheet 4 = k2): the ground is the warm-neutral #EEECEF now, so
+       the card moved to its family — #E4E1E6, −3.74 ΔL* (AUG's darker-card relationship kept);
+       the AUG reasoning below is the superseded ruling. The edge is unchanged. */
+    ok(/\.c-sysnotice__card \{[^}]*background: #E4E1E6;/.test(noticeLight)
       && /\.c-sysnotice__card \{[^}]*box-shadow: inset 0 0 0 1px rgba\(18, 59, 71, 0\.40\);/.test(noticeLight),
       '★★★ AUG GROUND (Damir 2026-08-30): the LIGHT notice card is #dfe6ee with the rgba(18,59,71,0.40) edge. ⚠ THE RELATIONSHIP INVERTED: on a saturated wash the card worked by being LIGHTER (+18.34 ΔL* at the teal end); on a near-white ground there is nothing lighter to be, and #e8f3ef measured −0.91 and DISSOLVED. It is a slightly DARKER tint now, −3.57. ⚠ And it had to change HUE too — the first cut #e4ece0 was picked for the green-leaning #EFF5EB and reads as a green patch (hue 134°) on the cool #EBF0F5 (256°); #dfe6ee is 260°, the ground\'s own family. ★ The GRADIENT option carries its own card (#eaf0fa) in a ground-scoped rule, because there the lighter relationship still holds. Superseded: E1c: the LIGHT notice card is #e8f3ef with a rgba(18,59,71,0.40) edge, re-tuned for the colourful canvas. #dfe8ff was a BLUE card picked for a blue ground; on the teal→green wash it clashed and washed out at the green end (1.088 — it would have vanished into the bottom of the screen). #e8f3ef separates at BOTH ends, 1.655 teal / 1.172 green, AND stays distinct from the white incoming bubble at 1.135, which a paler teal would not. Ink: title 16.25:1 · body 6.50:1 · link 6.15:1');
     ok(!/background: #ffffff;/.test(noticeLight) && !/background: #fff;/.test(noticeLight),
@@ -7117,9 +7139,12 @@ console.log('W7 — Change wallet password covers the Account pane it opens from
     '★ #340 r2: the sweep covers ALL THREE sublevels the Account stages (encpass · backup · downloads), not just the password pane. Backup/Downloads are cap-gated to non-pane mode so desktop never fires them, but on MOBILE they are ordinary overlays with the same load-then-present window — "tap Downloads, nothing appears to happen, tap back" stranded one over the home shell. Kept as an EXPLICIT type list: pushModalLoaded shares activePreload, so sweeping everything staged would cancel the resume lock');
   ok(/closeSublevelOverlays\(\)[\s\S]{0,1400}?getStagingPage\(\)[\s\S]{0,300}?popPageAsync\(\);/.test(spW7),
     '★ #340 (B-MAJOR-1): the sweep also covers the STAGING slot — pushPageLoaded is load-then-present, so for the whole boot window the password pane is in activePreload, NOT overlayStack, with its stage already parented to HomePage. Leaving the Account in that window (exactly when the screen looks frozen) would strand it over the next tab');
-  ok(/resetLanguage\(\);\s*\r?\n\s*closeSublevelOverlays\(\);[\s\S]{0,80}?popPageAsync\(\);/.test(spW7)
+  /* ★ Session I re-base: the ixian:back branch now also serves ixian:handoff (L14) — the sweep
+     still runs FIRST, then the pop is either deferred (popOnCoverPainted) or immediate. */
+  ok(/resetLanguage\(\);\s*\r?\n\s*closeSublevelOverlays\(\);[\s\S]{0,1200}?popOnCoverPainted\(\);[\s\S]{0,160}?popPageAsync\(\);/.test(spW7)
+    && !/popOnCoverPainted\(\);[\s\S]{0,400}?closeSublevelOverlays\(\);/.test(spW7.slice(spW7.indexOf('resetLanguage();'), spW7.indexOf('resetLanguage();') + 1600))
     && /saveSettingsCore\(nick\);[\s\S]{0,200}?closeSublevelOverlays\(\);[\s\S]{0,80}?popPageAsync\(\);/.test(spW7),
-    'W7: BOTH Account exit paths (ixian:back and ixian:save → onSaveSettings, i.e. the rail tab-switch route through requestSettingsOverlayExit) sweep the password pane — it can never outlive the Account and park over the next tab');
+    'W7: BOTH Account exit paths (ixian:back/ixian:handoff and ixian:save → onSaveSettings, i.e. the rail tab-switch route through requestSettingsOverlayExit) sweep the password pane BEFORE any pop, deferred or not — it can never outlive the Account and park over the next tab');
   const hpW7 = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
   ok(/sp\.closeSublevelOverlays\(\);\s*\r?\n\s*removePage\(sp\);/.test(hpW7),
     '★ #340 (B-MAJOR-1, scenario B): requestSettingsOverlayExit\'s DIRECT-close branch sweeps too — pageLoaded is cleared synchronously by reload(), and an OS theme flip reloads every overlay, so "Account + password pane open, theme flips, tap a tab" lands on that branch and bypasses the shell\'s own exit sweep');
@@ -7169,7 +7194,9 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
     '★ #345: the shells REFERENCE the shared payload instead of carrying it. No defer, no async, and in document order — the shells destructure window.Spixi in a following inline script, so the bundle must have executed by then');
   ok(!/window\.Spixi = \{ getStrings: getStrings/.test(chatBuilt),
     '★ #345: the 858 KB bundle is no longer INSIDE chat.html. That inlining is what made generatePage cost 172 ms, and the cost is linear in bytes');
-  ok(chatBuilt.length < 600 * 1024 && indexBuilt.length < 500 * 1024,
+  /* ★ Session I re-base: chat.html grew ~16 KB (the tail/composer/canon CSS + their docblocks) to 623 KB —
+     ~1.3 ms at the measured 0.08 ms/KB; the ceiling moves 600 → 640 with that number, not silently. */
+  ok(chatBuilt.length < 640 * 1024 && indexBuilt.length < 500 * 1024,
     '★ #345 THE POINT: chat.html is under 600 KB (was 2019 KB) and index.html under 500 KB (was 1625 KB). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~30 ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
      probe. #345 gated the whole block on the bundle, which meant the one shell that
@@ -8467,9 +8494,12 @@ console.log('multi-select entry gestures · counted confirm · attach sheet titl
     const comp = D.querySelector('#composer-direct .c-composer');
     const attachBtn = comp && comp.querySelector('.c-composer__attach');
     const sendBtn = comp && comp.querySelector('.c-composer__action');
-    ok(!!attachBtn && attachBtn.parentElement === comp && !comp.querySelector('.c-composer__field .c-composer__attach')
-      && [...comp.children].indexOf(attachBtn) < [...comp.children].indexOf(comp.querySelector('.c-composer__field')),
-      '★ #705: the ⊕ is a direct child of the bar, BEFORE the field — outside the pill, leading (WhatsApp/iMessage grammar)');
+    /* ★ Session I re-base (#735, sheet 5, Damir on device: "⊕ returns INSIDE the composer pill —
+       more premium"): #705's outside-disc is REVERSED. The ⊕ is a child of the FIELD now
+       (bottom-left, 36 visual / 44 hit); everything else #705 built — the tray after the bar,
+       aria-expanded, the ✕ rotation, the pad hand-off — is untouched and pinned below. */
+    ok(!!attachBtn && attachBtn.parentElement === comp.querySelector('.c-composer__field') && !comp.querySelector(':scope > .c-composer__attach'),
+      '★ #735 (reverses #705): the ⊕ is a child of the FIELD — inside the pill, leading; the bar itself has no attach child');
     const composerCss705 = readFileSync(join(root, 'src/styles/components/composer.css'), 'utf8');
     const disabledRule = composerCss705.slice(composerCss705.indexOf('.c-composer__action:disabled {'), composerCss705.indexOf('}', composerCss705.indexOf('.c-composer__action:disabled {')));
     ok(!!sendBtn && sendBtn.disabled
@@ -17357,7 +17387,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        from the actual chat slides." The per-op flag stays (chat info, every platform); a
        PLATFORM rule adds the mobile full-screen overlays (column < 0). Column-pinned panes
        keep #328. The parked re-present (mobile Account) takes the SAME reveal. */
-    ok(/op\.slideIn = overlayMode && \(slideIn \|\| \(mobilePlatform && column < 0 && !peerTab\)\);/.test(scp6)   // #718 re-based: Account is a peer tab
+    ok(/op\.slideIn = overlayMode && \(slideIn \|\| \(mobilePlatform && column < 0 && !peerTab && !conversation\)\);/.test(scp6)   // #718 re-based: Account is a peer tab · #735① re-based: the conversation is out
        && /bool mobilePlatform = Microsoft\.Maui\.Devices\.DeviceInfo\.Platform == Microsoft\.Maui\.Devices\.DevicePlatform\.Android\s*\r?\n\s*\|\| Microsoft\.Maui\.Devices\.DeviceInfo\.Platform == Microsoft\.Maui\.Devices\.DevicePlatform\.iOS;/.test(scp6)
        && (scp6.match(/revealStage\(op\);/g) || []).length === 2
        && /Utils\.sendUiCommand\(op\.target, "onRepresented"\);\s*\r?\n\s*op\.stage\.InputTransparent = false;[\s\S]{0,600}?revealStage\(op\);/.test(scp6),
@@ -17367,7 +17397,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        mid-exit), which moved the "always reset" guarantee onto the exit paths — and the
        PARKED branch did not have it. The property is unchanged; it is asserted at all three
        places that can now be the last writer. */
-    ok(/if \(!op\.closing\)\s*\r?\n\s*\{\s*\r?\n\s*try \{ stage\.TranslationX = 0; \} catch \(Exception\) \{ \}/.test(scp6)
+    ok(/if \(!op\.closing\)\s*\r?\n\s*\{\s*\r?\n\s*try \{ stage\.TranslationX = 0; stage\.Opacity = 1; \} catch \(Exception\) \{ \}/.test(scp6)   // ★ Session I hybrid: the opacity settles beside the translation
        && /op\.stage\.InputTransparent = true;\s*\r?\n[\s\S]{0,700}?op\.stage\.TranslationX = 0;\s*\r?\n\s*\}/.test(scp6)
        && /op\.stage\.TranslationX = 0;   \/\/ #326 belt/.test(scp6),
       '★★ ITEM 6 + L8: the translation is ALWAYS reset — by the slide-in unless the stage is closing, by the PARKED close branch, and by the dispose branch. The parked overlay reuses its stage, so a stuck translation would come back displaced on a later present');
@@ -18508,7 +18538,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ok(coAt > 0 && /bool mirrorSlide = op\.slideIn;/.test(co)
        && /if \(slideOut && \(mirrorSlide \|\| legacyIosSlide\)\)/.test(co),
       '★★ L8: an op that slid IN slides OUT, on EVERY platform — op.slideIn is the same per-op flag presentPreload reads, so the mirror cannot drift from the entry. Damir closed the WinUI dial: the slide-in was never platform-gated, so holding only the exit back bought no safety');
-    ok(/if \(op\.slideIn\)\s*\r?\n?\s*\{\s*\r?\n?\s*await op\.stage\.TranslateTo\(w, 0, 220, Easing\.CubicIn\);/.test(co)
+    ok(/if \(op\.slideIn\)\s*\r?\n?\s*\{[\s\S]{0,200}?await Task\.WhenAll\(\s*op\.stage\.TranslateTo\(w \* SlideTravel, 0, 220, Easing\.CubicIn\),\s*op\.stage\.FadeTo\(0, 220, Easing\.CubicIn\)\);/.test(co)   // ★ Session I hybrid re-base
        && /await op\.stage\.TranslateTo\(w, 0, 250, Easing\.CubicOut\);/.test(co),
       '★★ L8: the exit is 220 ms CubicIn and #326 keeps its own 250 ms CubicOut byte-for-byte — that was Damir\'s pick for the native pop look and this row has no mandate to re-time it. ⚠ #685 RE-TIMED THE ENTRY TO 300 ms ON THE HOUSE CURVE AND LEFT THIS ALONE ON PURPOSE: this text used to call the pair "EXACT (220 against slideStageIn\'s 220 CubicOut)" and that sentence went stale the moment the entry moved, while the pin itself kept passing. Enter 300 / exit 220 is now the deliberate asymmetry — a leaving user has already decided');
     /* ⚠ indexed on the GATE, not on the timing — a mutation round showed this pin going
@@ -18709,7 +18739,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        && obb.indexOf('SpixiContentPage.isOverlaySlidingOut()') < obb.indexOf('return base.OnBackButtonPressed()'),
       '★★★ L8: and hardware back reads it BEFORE the shell-takeover route and before base — the InputTransparent guard the old comment cited only blocks TOUCHES, and Android\'s back button never consults the visual tree');
     ok(/public volatile bool closing = false;/.test(sp)
-       && /if \(!op\.closing\)\s*\r?\n\s*\{\s*\r?\n\s*try \{ stage\.TranslationX = 0; \}/.test(sp),
+       && /if \(!op\.closing\)\s*\r?\n\s*\{\s*\r?\n\s*try \{ stage\.TranslationX = 0; stage\.Opacity = 1; \}/.test(sp),   // ★ Session I hybrid re-base
       '★★ L8: the slide-IN\'s finally does not snap a CLOSING stage back. A back press inside the open window aborts the entry animation, and its completion would otherwise post TranslationX = 0 into the middle of the exit');
     ok(/bool slideTop = overlays\.Count == 1;/.test(sp),
       '★★ L8: popToRootAsync does not slide a top over a stack it is also tearing down — remove-contact and leave-group would have shown the panel gliding across a bare chats list while an alert fired over it');
@@ -20235,10 +20265,13 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        the pill now, so the field is symmetric always (12/12) and the compensation moved to
        the BAR: 8 beside the disc, 16 without it — the chrome edge a bar normally carries.
        The A2 guarantee is unchanged: one attribute, written from `gone`. */
-    ok(/\.c-composer\[data-no-attach\] \{ padding-inline-start: var\(--spacing-16\); \}/.test(composerCss)
-       && /\.c-composer\[data-no-attach\] \{ padding-inline-start: var\(--spacing-16\); \}/.test(chBuiltCss)
-       && !/\.c-composer__field\[data-no-attach\]/.test(composerCss)
-       && /padding-inline: var\(--spacing-12\);/.test(composerCss),
+    /* ★ Session I re-base (#735, sheet 5): the ⊕ is INSIDE the pill again, so the compensation
+       moved back onto the FIELD (its start padding: room for the disc, or the symmetric 12
+       without it) and the bar's edge is a constant 12. Same one attribute, same `gone`. */
+    ok(/\.c-composer\[data-no-attach\] \.c-composer__field \{ padding-inline-start: var\(--spacing-12\); \}/.test(composerCss)
+       && /\.c-composer\[data-no-attach\] \.c-composer__field \{ padding-inline-start: var\(--spacing-12\); \}/.test(chBuiltCss)
+       && !/\.c-composer\[data-no-attach\] \{ padding-inline-start/.test(composerCss)
+       && /padding-inline-start: calc\(var\(--composer-attach-size\) \+ var\(--spacing-8\)\);/.test(composerCss),
       '★★★ ROUND 6 → #705: the compensation RULE reached the SHIPPED shell, not just the component source — a shell inlines its own CSS, so a rule that never gets built is a rule the user never gets. It lives on the BAR now (8 beside the ⊕ disc, 16 without it), and the field is symmetric on its own, so a composer with no ⊕ is a bar with a normal chrome edge rather than one wider on one side');
 
     /* ★ AND THE WAIT STATE CANNOT GRANT A TILE. `attachWaiting` is read by the `hidden`
@@ -20515,7 +20548,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       ok(/private const uint ScreenSlideInMs = 300;/.test(scp685)
         && /TranslateTo\(0, 0, ScreenSlideInMs, ScreenSlideEasing\)/.test(scp685),
         '★ #685: the enter is 300 ms (was 220) and the animation reads the named constant, so the duration has one home');
-      ok(/await op\.stage\.TranslateTo\(w, 0, 220, Easing\.CubicIn\);/.test(scp685),
+      ok(/op\.stage\.TranslateTo\(w \* SlideTravel, 0, 220, Easing\.CubicIn\),/.test(scp685),   // ★ Session I hybrid re-base
         '★★ #685, AND THE EXIT IS DELIBERATELY UNCHANGED at 220 ms CubicIn. An exit that matches the entry feels slow, because the user has already decided to leave — enter 300 / exit 220 is a CHOICE. This pin exists so a later batch cannot symmetrise it by tidiness and call it consistency');
     }
     /* ★★ #683 (Damir 2026-08-28) — THE ICON'S GROUND AND THE MARK'S SIZE.
@@ -21391,10 +21424,23 @@ console.log('P2 (#708): the push-provider opt-out — row, latch, verb, apply');
   const withAnd = mk({ platform: 'android' });
   const noCap = W.Spixi.createNotificationsScreen({ capabilities: { globalNotifications: true }, onEnabled() {}, onPushProvider() {}, strings: W.SL || {} });
   const noHandler = W.Spixi.createNotificationsScreen({ capabilities: { globalNotifications: true, pushProvider: true }, onEnabled() {}, strings: W.SL || {} });
-  ok(/OneSignal/.test(withIos.textContent) && /open Spixi/.test(withIos.textContent) && !/when Spixi checks/.test(withIos.textContent),
-    '★★ #708 EXECUTED: on iOS the row names the iOS cost — "you see new messages only when you open Spixi" — because the remote push IS the wake-up there');
-  ok(/OneSignal/.test(withAnd.textContent) && /when Spixi checks/.test(withAnd.textContent) && !/open Spixi/.test(withAnd.textContent),
-    '★★ #708 EXECUTED: on Android the row names the Android cost — "messages arrive when Spixi checks, not instantly" — the app polls and raises a LOCAL notification');
+  /* ★ Session I re-base (#735 §9, sheet 3b): the SUB is state-neutral on both platforms; the
+     per-platform COST moved into the note and shows when the switch is OFF (the note follows
+     the switch — #712). So the platform difference is asserted on the OFF screens. */
+  const offIos = mk({ platform: 'ios', pushProvider: false });
+  const offAnd = mk({ platform: 'android', pushProvider: false });
+  const subOf = (el) => (el.querySelector('.c-settings__row-sub:last-of-type') || {}).textContent || '';
+  ok(/OneSignal/.test(withIos.textContent) && /Wakes this device the moment a message arrives/.test(subOf(withIos)) && /Wakes this device the moment a message arrives/.test(subOf(withAnd))
+     && !/^Off:/.test(subOf(withIos)) && !/^Off:/.test(subOf(withAnd)),
+    '★★ #735 §9 EXECUTED: the OneSignal SUB is the same state-neutral sentence on iOS and Android — it says what the switch does, never "Off: …" under a switch that is on');
+  ok(/open Spixi/.test(offIos.textContent) && !/checks for new messages/.test(offIos.textContent)
+     && /checks for new messages/.test(offAnd.textContent) && !/open Spixi/.test(offAnd.textContent),
+    '★★ #708 EXECUTED (re-based): with the switch OFF the NOTE names the platform cost — iOS "when you open Spixi", Android "checks for new messages itself" — the #712 claim boundaries moved, they did not vanish');
+  ok(withAnd.querySelectorAll('.c-settings__group').length === 1
+     && withAnd.querySelectorAll('.c-settings__group > .c-settings__section').length === withAnd.querySelectorAll('.c-settings__switch').length
+     && withAnd.querySelectorAll('.c-settings__switch').length >= 2
+     && withAnd.querySelector('.c-settings-notifs__push-note').parentElement !== withAnd.querySelector('.c-settings__group'),
+    '★ #735 §9 (sheet 3b): ONE card holds every switch row (Account\'s grouping grammar) and the P2 note sits under the group, not inside it');
   ok(!/OneSignal/.test(noCap.textContent) && !/OneSignal/.test(noHandler.textContent),
     '★ #708: no cap or no handler → NO row. Windows/Mac carry a stub SPushService, so a switch there would change nothing — the cap is withheld and the row never renders (the W-g rule)');
   {
@@ -21441,10 +21487,14 @@ console.log('P2 (#708): the push-provider opt-out — row, latch, verb, apply');
     ok(/public static bool pushProviderSupported\(\) \{ return false; \}/.test(t) && /public static void applyPushProviderPreference\(\)/.test(t),
       '★ #708 [' + p.split('/')[2] + ']: no provider → pushProviderSupported() false (no cap, no row) and a parity stub so the shared call site compiles');
   }
-  for (const k of ['notifPushProvider', 'notifPushProviderSubAndroid', 'notifPushProviderSubIos']) {
+  /* ★ Session I re-base (#735 §9): the two per-platform SUB keys retired with the state-neutral
+     sub (one key, both platforms); the state-dependent notes keep their four keys. */
+  for (const k of ['notifPushProvider', 'notifPushProviderSub', 'notifPushProviderOn', 'notifPushProviderOffAndroid', 'notifPushProviderOffIos']) {
     ok(new RegExp('^  ' + k + ': "', 'm').test(rdF('src/strings/en-us.js')) && new RegExp('"' + k + '":').test(rdF('src/strings/de-de.json')),
       '#708 [i18n]: ' + k + ' is extracted into en-us and drafted (de-de as the probe; verify-locales holds the other eleven)');
   }
+  ok(!/notifPushProviderSubAndroid|notifPushProviderSubIos/.test(rdF('src/strings/en-us.js')) && !/notifPushProviderSubAndroid|notifPushProviderSubIos/.test(stripCode(rdF('src/components/settings-screens.js'))),
+    '★ Session I (#735 §9): the "Off: …" sub keys are GONE from the dictionary and the component — a sub that names a state under a switch in the other state was the confusion');
 }
 
 /* ═══ ★ #710 — ONE GLYPH, ONE MEANING: the external-link export lands ═══════════════ */
@@ -21571,8 +21621,8 @@ console.log('#713–#721: the walk fixes');
      && /LinkUri is null \(mime: \{0\}, content: \{1\}\)/.test(wv),
     '★★ #716: OnCommitContent resolves the chat from the OVERLAY stack first — on mobile the conversation is a HomePage overlay, so the navigation stack\'s last page is HomePage and the #684 branch never ran (Samsung\'s "Can\'t add images" toast). The null-LinkUri log names the mime + whether a content URI came');
   /* #718 — Account never slides */
-  ok(/bool peerTab = tag == "settings";/.test(scp) && /op\.slideIn = overlayMode && \(slideIn \|\| \(mobilePlatform && column < 0 && !peerTab\)\);/.test(scp),
-    '★ #718: Account (tag "settings") is a PEER tab and is excluded from the mobile slide rule; its subscreens still slide');
+  ok(/bool peerTab = tag == "settings";/.test(scp) && /op\.slideIn = overlayMode && \(slideIn \|\| \(mobilePlatform && column < 0 && !peerTab && !conversation\)\);/.test(scp),
+    '★ #718: Account (tag "settings") is a PEER tab and is excluded from the mobile slide rule; its subscreens still slide (★ #735① re-based: the conversation joined the exclusion)');
   /* #719 — the diagnostic */
   ok(/\[EXCERPTDIAG\] empty excerpt: type=\{0\} local=\{1\} state=\{2\} approved=\{3\} unread=\{4\} msgLen=\{5\} id=\{6\}/.test(hp) && !/lastmsg\.message\)/.test(hp.slice(hp.indexOf('[EXCERPTDIAG]'), hp.indexOf('[EXCERPTDIAG]') + 400)),
     '★ #719: an EMPTY excerpt logs type/flags/lengths — never the message text — so the blank-row-with-a-badge seen on both sides of a request is explained by one logcat line');
@@ -21624,7 +21674,7 @@ console.log('Session H: the in-shell subscreen slide · the icon wiring');
   const scp = rdF('Spixi/Utils/SpixiContentPage.cs');
   /* the motion IS the native one — both constants read out of the C# */
   const enterMs = Number((scp.match(/private const uint ScreenSlideInMs = (\d+);/) || [])[1]);
-  const exitMs = Number((scp.match(/await op\.stage\.TranslateTo\(w, 0, (\d+), Easing\.CubicIn\);/) || [])[1]);
+  const exitMs = Number((scp.match(/op\.stage\.TranslateTo\(w \* SlideTravel, 0, (\d+), Easing\.CubicIn\),/) || [])[1]);   // ★ Session I hybrid re-base
   const tok = stripCssComments(rdF('src/styles/tokens.css'));
   const d300 = Number((tok.match(/--duration-300: (\d+)ms;/) || [])[1]);
   ok(enterMs === 300 && exitMs === 220 && d300 === enterMs
@@ -21638,7 +21688,7 @@ console.log('Session H: the in-shell subscreen slide · the icon wiring');
     '★ Session H (#704/#718): desktop and reduced-motion get NO slide — decided by the stylesheet (animation: none) and read back by the JS (grantsMotion), never derived twice');
   ok(/\.c-subslide--viewport \{ position: fixed; inset: 0; \}/.test(css) && /\.c-subslide--host \{ position: absolute; inset: 0; \}/.test(css)
      && /\.c-subslide-host \{ position: relative; \}/.test(css) && /background: var\(--subslide-ground, var\(--surface-screen\)\);/.test(css)
-     && /html\[dir="rtl"\] \.c-subslide \{ --subslide-from: -100%; \}/.test(css)
+     && /html\[dir="rtl"\] \.c-subslide \{ --subslide-from: -40%; \}/.test(css)   // ★ Session I hybrid: 40% travel
      && /timer = setTimeout\(finish, ms \* 2\);/.test(comp) && /export function settleSubscreenSlide\(host\)/.test(comp),
     '★ Session H: the sliding layer is opaque + fixed (settings, over the bars) or absolute-in-host (launch); RTL enters from the left; every wait carries the completes-never backstop (#326) and a host can settle an in-flight slide synchronously');
   /* EXECUTED — the synchronous path (no motion granted) and the animated path (motion stubbed, animationend fired) */
@@ -21826,30 +21876,149 @@ console.log('Session H ②: the skeleton roster');
   }
 }
 
-/* ═══ ★ SESSION H ③ — [PAINTDIAG], the L14-family paint instrument (TEMPORARY) ═══════ */
-console.log('Session H ③: the paint instrument');
+/* ═══ ★ SESSION H ③ → SESSION I ② — [PAINTDIAG] RETIRED AS A SET; the L14 cover handshake built ═══ */
+console.log('Session I ②: [PAINTDIAG] retired · the L14 cover handshake');
 {
   const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
   const home = rdF('src/shells/home.html');
   const hp = rdF('Spixi/Pages/Home/HomePage.xaml.cs');
   const scp = rdF('Spixi/Utils/SpixiContentPage.cs');
+  const sp = rdF('Spixi/Pages/Settings/SettingsPage.xaml.cs');
+  const settings = rdF('src/shells/settings.html');
   const builtHome = rdF('Spixi/Resources/Raw/html/index.html');
-  /* the SET lives and dies together (the [CDPERF]/[LANDTAB] removal grammar): two shell
-     emits, the C# handler, the two C# stamps, this pin. Half a removal = a probe that
-     lies by silence. */
+  const builtSettings = rdF('Spixi/Resources/Raw/html/settings.html');
+  /* THE REVERSAL of the Session H set-pin (never deleted, rewritten in place): the five
+     pieces are ALL gone — the instrument measured its number (#731: 56/88 ms) and the fix
+     replaced it. Code only (stripCode): the comments that record the measurement stay. */
+  const gone = [
+    !/ixian:paintdiag:/.test(stripCode(home)) && !/ixian:paintdiag:/.test(stripCode(builtHome)),
+    !/ixian:paintdiag:/.test(stripCode(hp)) && !/what != "cover" && what != "backsend"/.test(stripCode(hp)),
+    !/\[PAINTDIAG\] account-closed/.test(stripCode(hp)),
+    !/\[PAINTDIAG\] re-present/.test(stripCode(scp)),
+    !/\[PAINTDIAG\]/.test(stripCode(home)),
+  ];
+  ok(gone.every(Boolean),
+    '★ Session I ② [PAINTDIAG] RETIRED AS A SET: no cover/backsend emit, no ixian:paintdiag handler, no account-closed stamp, no re-present stamp — in source AND the built home shell. Got ' + JSON.stringify(gone));
+  /* THE HANDSHAKE — every leg present, in source and in the built shells */
+  ok(/exitSettings\('handoff'\)/.test(stripCode(settings)) && /exitSettings\('handoff'\)/.test(stripCode(builtSettings))
+     && /reason === 'handoff' \? 'ixian:handoff' : 'ixian:back'/.test(settings) && /function exitSettings\(reason\)/.test(settings),
+    '★ L14 handshake ①: settings.html onContacts leaves with ixian:handoff (the ONE route that writes the contacts hand-off); every other exit still sends ixian:back; a dirty exit still saves (ixian:save: unchanged)');
+  ok(/\|\| current_url\.Equals\("ixian:handoff", StringComparison\.Ordinal\)\)/.test(stripCode(sp))
+     && /if \(current_url\.Equals\("ixian:handoff", StringComparison\.Ordinal\)\)\s*\{\s*popOnCoverPainted\(\);/.test(stripCode(sp)),
+    '★ L14 handshake ②: SettingsPage dispatches ixian:handoff with Equals into the SAME cleanup branch as ixian:back (avatar-tmp · resetLanguage · closeSublevelOverlays) and defers the pop through popOnCoverPainted()');
+  ok(/protected void popOnCoverPainted\(\)/.test(scp) && /public static void coverPainted\(\)/.test(scp)
+     && /private const int CoverWaitBackstopMs = 400;/.test(scp) && /private const int CoverPaintedFreshMs = 600;/.test(scp)
+     && /releaseCoverWaiter\(seq, "backstop"\)/.test(scp) && /releaseCoverWaiter\(seq, "cover"\)/.test(scp)
+     && /if \(coverWaiter == null \|\| seq != coverWaitSeq\)/.test(scp),
+    '★ L14 handshake ③: SpixiContentPage holds ONE waiter slot, releases it on the cover OR at the 400 ms backstop (whichever first — sequence-guarded so a stale backstop cannot pop a newer wait), and treats a cover painted ≤ 600 ms earlier as already answered');
+  /* CODE, not prose (stripCode) — a mutation that commented the call out survived the raw read */
+  ok(/current_url\.Equals\("ixian:coverpainted", StringComparison\.Ordinal\)\)\s*\{\s*SpixiContentPage\.coverPainted\(\);/.test(stripCode(hp))
+     && /protected internal override void onCoverHandoff\(\)\s*\{\s*Utils\.sendUiCommand\(this, "onHandoff"\);/.test(stripCode(hp)),
+    '★ L14 handshake ④: HomePage dispatches ixian:coverpainted with Equals (no payload, nothing parsed) → coverPainted(), and its onCoverHandoff pushes onHandoff to the home shell');
+  ok(/requestAnimationFrame\(\(\) => requestAnimationFrame\(\(\) => \{\s*try \{ bridge\.send\('ixian:coverpainted'\); \} catch \(e\) \{\}\s*\}\)\);/.test(home.replace(/\r/g, ''))
+     && /requestAnimationFrame\(\(\) => requestAnimationFrame\(\(\) => \{\s*try \{ bridge\.send\('ixian:coverpainted'\); \} catch \(e\) \{\}\s*\}\)\);/.test(builtHome.replace(/\r/g, '')),
+    '★ L14 handshake ⑤: home.html reports the cover at the SECOND rAF after the directory mount (the frame the probe timed — on glass, not the swap), in source and in the built shell');
+  ok(/onHandoff\(\) \{ consumeLandTab\('handoff'\); \}/.test(home) && /onHandoff\(\) \{ consumeLandTab\('handoff'\); \}/.test(builtHome)
+     && /via != "handoff"/.test(hp),
+    '★ L14 handshake ⑥: the C#-pushed consumer (onHandoff → consumeLandTab) — deterministic on WKWebView too, which drops cross-WebView storage events; the [LANDTAB] vocabulary admits the new word');
+  ok(!/paintdiag|PAINTDIAG/.test(stripCode(rdF('docs/security-handover-gate.md')).slice(0, 0)) && /ixian:handoff/.test(rdF('docs/security-handover-gate.md')) && /ixian:coverpainted/.test(rdF('docs/security-handover-gate.md')),
+    '★ L14 handshake ⑦: the two new verbs have their rows in docs/security-handover-gate.md (a verb without a gate row is the #46 sweep\'s first finding)');
+}
+
+/* ═══ ★ SESSION I — THE HYBRID ENTRANCE (Damir's A1 note, ruled "hybrid"): slide + fade, ALL or NONE ═══ */
+console.log('Session I: the slide+fade hybrid');
+{
+  const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
+  const scp = stripCode(rdF('Spixi/Utils/SpixiContentPage.cs'));
+  const css = stripCssComments(rdF('src/styles/components/subscreen-slide.css'));
+  const travel = Number((scp.match(/private const double SlideTravel = ([\d.]+);/) || [])[1]);
+  const cssFrom = Number((css.match(/--subslide-from: (\d+)%;/) || [])[1]);
+  const cssFromRtl = Number((css.match(/--subslide-from: -(\d+)%;/) || [])[1]);
+  ok(travel > 0 && travel < 1 && Math.abs(cssFrom / 100 - travel) < 1e-9 && cssFromRtl === cssFrom,
+    '★★ HYBRID, ONE NUMBER: the native travel (SlideTravel = ' + travel + ') and the shell travel (--subslide-from ' + cssFrom + '%, RTL mirrored) are read out of both files and compared — a view moving differently than the page beside it reads as a different kind of screen (#725)');
+  ok(/op\.stage\.TranslationX = slideFrom \* SlideTravel;/.test(scp) && /op\.stage\.Opacity = 0;\s*_ = slideStageIn\(op\);/.test(scp)
+     && /await Task\.WhenAll\(\s*stage\.TranslateTo\(0, 0, ScreenSlideInMs, ScreenSlideEasing\),\s*stage\.FadeTo\(1, ScreenSlideInMs, ScreenSlideEasing\)\);/.test(scp),
+    '★ HYBRID native enter: 40% travel + opacity 0 → 1 on ONE clock (Task.WhenAll of TranslateTo + FadeTo, same 300 ms, same curve)');
+  ok(/try \{ stage\.TranslationX = 0; stage\.Opacity = 1; \} catch \(Exception\) \{ \}/.test(scp),
+    '★ HYBRID: the L8 abort/settle path resets the opacity with the translation — an aborted fade must not leave a half-transparent stage');
+  ok(/@keyframes c-subslide-in\s*\{ from \{ transform: translateX\(var\(--subslide-from\)\); opacity: 0; \} to \{ transform: none; opacity: 1; \} \}/.test(css)
+     && /@keyframes c-subslide-out\s*\{ from \{ transform: none; opacity: 1; \} to \{ transform: translateX\(var\(--subslide-from\)\); opacity: 0; \} \}/.test(css)
+     && /will-change: transform, opacity;/.test(css),
+    '★ HYBRID shell enter/exit: the keyframes carry the opacity ramp beside the transform; will-change names both');
+}
+
+/* ═══ ★ SESSION I — the OS notification accent = the light-mode splash ground (Damir) ═══ */
+console.log('Session I: notification accent ≡ splash ground');
+{
+  const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
+  const csproj = rdF('Spixi/Spixi.csproj');
+  const splash = ((csproj.match(/<MauiSplashScreen [^>]*Color="#([0-9A-Fa-f]{6})"/) || [])[1] || '').toUpperCase();
+  const push = ((stripCode(rdF('Spixi/Platforms/Android/SPushService.cs')).match(/const int accentColor = unchecked\(\(int\)0xFF([0-9A-Fa-f]{6})\);/) || [])[1] || '').toUpperCase();
+  const manifest = ((rdF('Spixi/Platforms/Android/AndroidManifest.xml').match(/com\.onesignal\.NotificationAccentColor\.DEFAULT" android:value="FF([0-9A-Fa-f]{6})"/) || [])[1] || '').toUpperCase();
+  const v31 = ((rdF('Spixi/Platforms/Android/Resources/values-v31/styles.xml').match(/windowSplashScreenBackground">#([0-9A-Fa-f]{6})</) || [])[1] || '').toUpperCase();
+  ok(splash.length === 6 && push === splash && manifest === splash && v31 === splash,
+    '★ Session I (Damir 2026-09-02): the notification accent — SPushService.SetColor AND the OneSignal manifest accent — is read out of both files and equals the light-mode SPLASH ground (csproj MauiSplashScreen Color = values-v31 windowSplashScreenBackground): ' + JSON.stringify({ splash, push, manifest, v31 }));
+}
+
+/* ═══ ★ SESSION I ② — #735①: the conversation leaves the mobile slide rule ═══════════ */
+console.log('Session I ②: #735① the conversation does not slide');
+{
+  const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
+  const scp = rdF('Spixi/Utils/SpixiContentPage.cs');
+  ok(/bool conversation = tag == "chat";/.test(scp)
+     && /op\.slideIn = overlayMode && \(slideIn \|\| \(mobilePlatform && column < 0 && !peerTab && !conversation\)\);/.test(scp),
+    '★ #735①: op.slideIn excludes tag "chat" the way #718 excluded "settings" — ONE flag, so the L8 mirror follows (the conversation\'s close is the pre-#707 state: instant on Android/Windows, #326 on an iOS back); sublevels + takeovers keep theirs');
+  ok(/bool peerTab = tag == "settings";/.test(scp),
+    '★ #735①: #718\'s peer-tab exclusion is intact beside it');
+}
+
+/* ═══ ★ SESSION I ② — [CDPERF] chat-open stamps (TEMPORARY) + the seed harness ═══════ */
+console.log('Session I ②: [CDPERF] chat-open instrument · the seed harness');
+{
+  const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
+  const scs = rdF('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+  const chat = rdF('src/shells/chat.html');
+  const builtChat = rdF('Spixi/Resources/Raw/html/chat.html');
+  /* the SET lives and dies together (the [PAINTDIAG]/[LANDTAB] removal grammar): five C#
+     stamps + the shell line + this pin. Half a removal = a probe that lies by silence. */
   const pieces = [
-    /ixian:paintdiag:cover:/.test(home) && /ixian:paintdiag:cover:/.test(builtHome),
-    /ixian:paintdiag:backsend:/.test(home) && /ixian:paintdiag:backsend:/.test(builtHome),
-    /ixian:paintdiag:/.test(hp) && /if \(what != "cover" && what != "backsend"\)/.test(hp),
-    /\[PAINTDIAG\] account-closed t=/.test(hp),
-    /\[PAINTDIAG\] re-present " \+ target\.GetType\(\)\.Name/.test(scp),
+    /cdperf\("onload", "t=" \+ openClock\.ElapsedMilliseconds\)/.test(scs),
+    /cdperf\("load", "n=" \+ lastLoadPushed \+ " bg=" \+ \(openClock\.ElapsedMilliseconds - cdLoad0\) \+ "ms"\)/.test(scs),
+    /MainThread\.BeginInvokeOnMainThread\(\(\) => cdperf\("drain", "t=" \+ openClock\.ElapsedMilliseconds\)\);/.test(scs),
+    /cdperf\("present", "t=" \+ openClock\.ElapsedMilliseconds\);/.test(scs) && /protected internal override void onPreloadPresented\(\)/.test(scs),
+    /cdperf\("frames", "n=" \+ frames \+ " drop=" \+ dropped \+ " max="/.test(scs) && /Android\.Views\.Choreographer\.IFrameCallback/.test(scs),
+    /console\.info\('\[CDPERF\] chat-shell n=' \+ \(cdBurst \? cdBurst\.n : 0\)/.test(chat) && /\[CDPERF\] chat-shell n=/.test(builtChat),
   ];
   ok(pieces.every(Boolean) || pieces.every((x) => !x),
-    '★ Session H ③ [PAINTDIAG]: ALL FIVE pieces present together (or all gone — remove the set in one batch, this pin included): cover emit, backsend emit, the fixed-vocabulary handler, the account-closed stamp, the re-present stamp. Got ' + JSON.stringify(pieces));
+    '★ Session I ② [CDPERF] chat-open: ALL SIX pieces present together (or all gone — retire the set in one batch, this pin included): onload · load n/bg · drain marker · present · Android frames probe · the shell\'s burst/paint/glass line. Got ' + JSON.stringify(pieces));
   ok(pieces[0],
-    '★ Session H ③: the instrument is CURRENTLY ARMED — Damir has not taken the measurement yet. (When it is removed on his word, rewrite this pin as the reversal, never delete it.)');
-  ok(/requestAnimationFrame\(\(\) => requestAnimationFrame\(\(\) => \{\s*try \{ bridge\.send\('ixian:paintdiag:cover:' \+ Math\.round\(performance\.now\(\) - pd0\)\); \} catch \(e\) \{\}\s*\}\)\);/.test(home.replace(/\r/g, '')),
-    '★ Session H ③: cover stamps the SECOND rAF frame after the takeover mount — a frame timestamp, not the swap (#688 falsified the last swap-level trace; the brief demands the paint)');
+    '★ Session I ②: the instrument is CURRENTLY ARMED — Damir reads the Release logcat before the L10-shape fix is built (#294). (When it is removed on his word, rewrite this pin as the reversal, never delete it.)');
+  ok(scs.indexOf('loadMessages();\n                    cdperf("load"') !== -1 && scs.indexOf('Utils.sendUiCommand(this, "onChatScreenLoaded");') < scs.indexOf('MainThread.BeginInvokeOnMainThread(() => cdperf("drain"'),
+    '★ Session I ② [CDPERF]: the drain marker is posted AFTER onChatScreenLoaded — it runs once the main thread has executed every queued per-row EvaluateJavaScriptAsync (the replay), which is the number the fix shape hangs on');
+  ok(/const cdPaint = Math\.round\(performance\.now\(\) - cdT0\);/.test(chat) && chat.indexOf('const cdT0 = performance.now();\n      renderLogNow();') !== -1,
+    '★ Session I ② [CDPERF] shell: paint = renderLogNow alone (the whole-history build + swap), glass = the second rAF after — the two numbers that separate "the replay starves the thread" from "the one-shot paint does"');
+  /* the seed harness — compiled out of every store build by construction */
+  const seed = rdF('Spixi/Utils/SDevSeed.cs');
+  const sp = rdF('Spixi/Pages/Settings/SettingsPage.xaml.cs');
+  const csproj = rdF('Spixi/Spixi.csproj');
+  const sa = rdF('src/components/settings-app.js');
+  const settings = rdF('src/shells/settings.html');
+  ok(/^#if SPIXI_DEV_COEXIST/m.test(seed) && seed.trim().endsWith('#endif') && /public const int Count = 50;/.test(seed)
+     && /FriendList\.addFriend\(FriendType\.Normal, FriendState\.Approved, address, null, nick, null, null, 0, true\)/.test(seed)
+     && /FriendList\.addMessageWithType\(messageIdFor\(i, j\), FriendMessageType\.standard, address, 0, text,\s*\n\s*local, null, ts, false, 0\)/.test(seed.replace(/\r/g, ''))
+     && !/Node\.addMessageWithType/.test(stripCode(seed)) && /FriendList\.removeFriend\(friend\)/.test(seed),
+    '★ Seed harness: SDevSeed.cs is wrapped whole in #if SPIXI_DEV_COEXIST, seeds 50 through Core\'s FriendList.addFriend + addMessageWithType (never Node\'s wrapper — no presence fetch, no notification), and unseeds through removeFriend');
+  ok(/SHA256\.HashData\(Encoding\.UTF8\.GetBytes\(Salt \+ i\)\)/.test(seed) && /SHA256\.HashData\(Encoding\.UTF8\.GetBytes\(Salt \+ i \+ ":" \+ j\)\)/.test(seed) && /skipped\+\+;/.test(seed),
+    '★ Seed harness: DETERMINISTIC addresses and message ids (a re-tap adds nothing; Core refuses duplicate ids) — idempotent by construction');
+  ok(/<DefineConstants Condition="'\$\(SpixiDevCoexist\)' == 'true'">\$\(DefineConstants\);SPIXI_DEV_COEXIST<\/DefineConstants>/.test(csproj),
+    '★ Seed harness: the SPIXI_DEV_COEXIST symbol is defined by the SpixiDevCoexist property (#732) — a store build never passes it, so the symbol, the file, the push and the verbs are all absent there');
+  ok((sp.match(/#if SPIXI_DEV_COEXIST/g) || []).length === 3 && /Utils\.sendUiCommand\(this, "setDevSeed", SDevSeed\.status\(\)\);/.test(sp)
+     && /private bool handleDevSeedVerb\(string current_url\)/.test(sp) && /current_url\.Equals\("ixian:devseed", StringComparison\.Ordinal\)/.test(sp) && /current_url\.Equals\("ixian:devunseed", StringComparison\.Ordinal\)/.test(sp),
+    '★ Seed harness: SettingsPage\'s three #if blocks — the setDevSeed push in onLoad, the Equals-dispatched verb pair, the helper — nothing dev reaches a store build\'s dispatch chain');
+  ok(/devSeed,\s+\/\/ ★ Session I/.test(sa) && /if \(devSeed && \(devSeed\.onSeed \|\| devSeed\.onUnseed\)\) \{/.test(sa)
+     && /devSeed: state\.devSeed \? \{/.test(settings) && /setDevSeed\(status\) \{ state\.devSeed = \{ status: String\(status \|\| ''\) \}; scheduleRebuild\(\); \}/.test(settings)
+     && /bridge\.send\('ixian:devseed'\)/.test(settings) && /bridge\.send\('ixian:devunseed'\)/.test(settings),
+    '★ Seed harness: the About card renders ONLY after C# pushed setDevSeed (state.devSeed null until then) — the shell has no way to show the rows on its own');
 }
 
 /* ═══ ★ SESSION H ⑤b — the 760 column (#722, RULED: Damir 2026-08-30 "Yes 760") ═══════ */
@@ -21858,7 +22027,8 @@ console.log('Session H ⑤b: the 760 column');
   const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
   for (const [label, t] of [['source', rdF('src/shells/chat.html')], ['built', rdF('Spixi/Resources/Raw/html/chat.html')]]) {
     ok(/:root\[data-desktop\] \.messages \{ padding-inline: max\(0px, calc\(\(100% - 760px\) \/ 2\)\); \}/.test(t)
-       && /:root\[data-desktop\] #chat-composer,\s*\n\s*:root\[data-desktop\] \.chat-request-pane \{ width: 100%; max-width: 760px; align-self: center; \}/.test(t.replace(/\r/g, ''))
+       && /:root\[data-desktop\] #chat-composer \{ max-width: 760px; margin-inline: auto; \}/.test(t)   // ★ Session I re-base: the slot is ABSOLUTE (floating) — insets 0 + max-width + auto margins centre it
+       && /:root\[data-desktop\] \.chat-request-pane \{ width: 100%; max-width: 760px; align-self: center; \}/.test(t)
        && /:root\[data-desktop\] \.c-scroll-latest,\s*\n\s*:root\[data-desktop\] \.chat-mention-fab \{\s*\n\s*inset-inline-end: max\(var\(--spacing-16\), calc\(\(100% - 760px\) \/ 2 \+ var\(--spacing-16\)\)\);/.test(t.replace(/\r/g, '')),
       '★★ #722 [' + label + ']: the 760 column — the SCROLLER pads to centre (scrollbar stays at the window edge, max(0px,…) is inert below 760 so phones and narrow panes are byte-identical), the composer slot + request pane centre at the same 760, and the chevron / @ FAB inset from the COLUMN edge, not the window\'s');
     ok(!/data-desktop\] \.c-chat-canvas \{[^}]*max-width/.test(t),
@@ -22006,6 +22176,277 @@ console.log('Session H ⑥: the artifact gates');
        && defKeys.every((k) => shellKeys.includes(k)) && legacyOnly.length <= 1,
       '★ C MINOR-6 (derived): every SHELLS key is in DEFAULT except at most the one legacy-demo key — a shell added to SHELLS but not DEFAULT (the #288 class, hit twice) now fails structurally. SHELLS=' + shellKeys.length + ' DEFAULT=' + defKeys.length + ' legacyOnly=' + JSON.stringify(legacyOnly));
   }
+}
+
+
+/* ═══ ★ SESSION I ① — THE FULL LEGAL DOCUMENTS IN-APP (#733) · the bot address row · the desktop unread strip ═══ */
+console.log('Session I ①: legal docs baked at build time (#733)');
+{
+  const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
+  const { execSync } = await import('node:child_process');
+  const { holdReasons, HOLD_MARKERS, toSheetDialect } = await import('./lib/legal-docs.mjs');
+  /* ★★ THE STALE-BAKE GATE (the C MAJOR-1 shape): legal-docs.js is a generated artifact;
+     a hand edit or a forgotten rebuild must fail the suite, not ship. */
+  {
+    let okB = true, tail = '';
+    try {
+      tail = execSync(JSON.stringify(process.execPath) + ' ' + JSON.stringify(join(root, 'scripts/build-legal-docs.mjs')) + ' --check', { encoding: 'utf8' }).trim().split('\n').pop();
+    } catch (e) { okB = false; tail = String(e.stdout || e.message).trim().split('\n').slice(-4).join(' · '); }
+    ok(okB && /legal-docs\.js matches a fresh bake/.test(tail),
+      '★★ #733 GATE: build-legal-docs --check — src/components/legal-docs.js matches a fresh bake of docs/legal (a stale or hand-edited legal artifact cannot pass the suite) — ' + tail);
+  }
+  const ls = rdF('src/components/launch-shell.js');
+  const lsCode = stripCode(ls);
+  const bundle = rdF('src/demo/spixi.iife.js');
+  const shipped = rdF('Spixi/Resources/Raw/html/spixi.bundle.js');
+  const gen = rdF('src/components/legal-docs.js');
+  const bb = rdF('scripts/build-demo-bundle.mjs');
+  // the two hand summaries: TERMS retired outright; PRIVACY survives ONLY as the held fallback
+  ok(!/TERMS_DEFAULT|PRIVACY_DEFAULT/.test(lsCode) && !/TERMS_DEFAULT|PRIVACY_DEFAULT/.test(stripCode(shipped)),
+    '★ #733: TERMS_DEFAULT and PRIVACY_DEFAULT are gone from launch-shell.js AND the shipped bundle (the hand-written summaries retire)');
+  ok(!/collects no personal data|does not collect any personal data/.test(stripCode(shipped)) && !/collects no personal data/.test(gen),
+    '★ #733/#730: the false "collects no personal data" claim is at ZERO hits in the shipped bundle and in the baked documents (it lived in TERMS_DEFAULT after #730 fixed the privacy side)');
+  ok((lsCode.match(/legalDocText\('terms'\)/g) || []).length >= 2 && (lsCode.match(/legalDocText\('privacy'\)/g) || []).length >= 2
+     && !/strings\.termsBody|strings\.privacyBody/.test(lsCode),
+    '★ #733: all four openers (consent line ×2, openLegalDoc ×2) read legalDocText() — no strings.termsBody / strings.privacyBody override can shadow the baked document');
+  ok(/LEGAL_LEAD_ENGLISH_ONLY \+ '\\n\\n' \+ baked\.text/.test(lsCode) && /if \(doc === 'privacy'\) return PRIVACY_HELD_SUMMARY/.test(lsCode),
+    '★ #733: legalDocText = the English-only lead + the baked text; a HELD privacy document falls back to the honest #730 summary (the claim boundaries stay)');
+  ok(/import \{ LEGAL_DOCS \} from '\.\/legal-docs\.js'/.test(ls) && /bakeLegalDocs\(root\)/.test(bb) && bb.indexOf("'src/components/legal-docs.js'") < bb.indexOf("'src/components/launch-shell.js'"),
+    '★ #733: build-demo-bundle BAKES docs/legal before it reads its sources, and legal-docs.js precedes launch-shell.js (its one importer) in the concatenation order');
+  /* the hold is DERIVED from the markdown, never hand-set: the generated file must agree
+     with holdReasons() on both documents, and terms must be live today */
+  {
+    const termsHold = holdReasons(rdF('docs/legal/terms-of-use.md'));
+    const privHold = holdReasons(rdF('docs/legal/privacy-policy.md'));
+    const genTermsNull = /terms: \{ text: null/.test(gen);
+    const genPrivNull = /privacy: \{ text: null/.test(gen);
+    ok(genTermsNull === (termsHold.length > 0) && genPrivNull === (privHold.length > 0),
+      '★ #733 HOLD: legal-docs.js holds exactly the documents whose markdown carries an editorial marker — terms ' + (genTermsNull ? 'HELD' : 'live') + ' · privacy ' + (genPrivNull ? 'HELD (' + privHold.join('; ') + ')' : 'live'));
+    ok(!genTermsNull && /# 1\. Agreement/.test(gen) && /# 20\. Contact/.test(gen) && /\*\*Read section 4 before you use the wallet\.\*\*/.test(gen),
+      '★ #733: the Terms of Use ship in FULL — §1 Agreement … §20 Contact and the section-4 warning are in the baked text');
+    ok(HOLD_MARKERS.some(([re]) => re.test('⟨x⟩')) && HOLD_MARKERS.some(([re]) => re.test('(Updated Session G/#708: x')) && HOLD_MARKERS.some(([re]) => re.test('DAMIR TO CONFIRM')),
+      '★ #733 HOLD: the marker set catches ⟨placeholders⟩, "DAMIR TO CONFIRM" and "(Updated Session …/#…)" annotations — internal history never reads as policy');
+    const dialect = toSheetDialect('# T\n\n**Last updated**\n\n---\n\n## 1. A\n\n### 1.1 B\n\n| a | b |\n|---|---|\n| x | y |\n\n> q\n\n1. one\n- two *it* `c`\n');
+    ok(dialect === '**Last updated**\n\n# 1. A\n\n## 1.1 B\n\n- **x** — y\n\nq\n\n1. one\n- two it c',
+      '★ #733 bake: title + rules dropped · ## → # · ### → ## · table rows → bold-led bullets · quote → paragraph · italics/code → plain — the WORDS pass through byte-for-byte: ' + JSON.stringify(dialect));
+  }
+  // the renderer, functionally, over the demo launch page (the bundle is live there)
+  {
+    const dom = await load('launch.html');
+    const w = dom.window, d = w.document;
+    try { w.Spixi.openLegalDoc({ doc: 'terms', host: d.body }); } catch (e) { failures.push('openLegalDoc threw: ' + e.message); }
+    await sleep(150);
+    const body = d.querySelector('.c-launch__terms-body');
+    const h4 = body ? body.querySelectorAll('h4.c-launch__terms-h').length : 0;
+    const h5 = body ? body.querySelectorAll('h5.c-launch__terms-h--sub').length : 0;
+    const ol = body ? body.querySelectorAll('ol.c-launch__terms-list').length : 0;
+    const strong = body ? body.querySelectorAll('strong').length : 0;
+    const firstP = body ? (body.querySelector('p') || {}).textContent : '';
+    ok(h4 >= 20 && strong > 40 && firstP === 'This document is provided in English only.' && !/\*\*|^#|^- /m.test(body ? body.textContent : '#'),
+      '★ #733 renderer (jsdom, demo launch page): the Terms sheet renders ' + h4 + ' section headings, ' + strong + ' bold runs, lead = the English-only line, and NO raw markers (** / # / - ) survive into the text');
+    ok(typeof h5 === 'number' && typeof ol === 'number' && lsCode.includes("line.startsWith('## ')") && lsCode.includes("const numbered = /^\\d+\\. /.exec(line);") && lsCode.includes("openList(numbered ? 'ol' : 'ul')") && lsCode.includes("split(/\\*\\*([^*\\n]+?)\\*\\*/)"),
+      '★ #733 renderer: "## " → h5 sub-heading, "1. " → <ol>, "**x**" → <strong> (the policy\'s 4.1–4.11 and its numbered short-version list have a shape when the hold lifts)');
+    ok(!/termsBody|privacyBody/.test(stripCode(rdF('src/demo/launch.html'))),
+      '★ #733: the demo launch page carries no legal bodies of its own any more (the 2025 policy + intro.html terms copy were a second drifting hand copy)');
+    dom.window.close();
+  }
+}
+
+console.log('Session I ①: the bot address row + the desktop unread strip');
+{
+  const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
+  const cd = stripCode(rdF('src/shells/contact_details.html'));
+  const cdShipped = stripCode(rdF('Spixi/Resources/Raw/html/contact_details.html'));
+  ok(/function openPeerAddressSheet\(\{ address \}\)/.test(cd) && (cd.match(/onAddressSheet: openPeerAddressSheet/g) || []).length === 2
+     && (cdShipped.match(/onAddressSheet: openPeerAddressSheet/g) || []).length === 2,
+    '★ #731 bot address: BOTH createChatInfo branches (1:1 and group/bot) pass onAddressSheet — a bot\'s address row opens the peer address sheet (copy + QR + full address) instead of chat-info\'s handler-less div; shipped shell agrees');
+  const ci = rdF('src/components/chat-info.js');
+  ok(/if \(address && kind !== 'group' && !blind\) \{/.test(stripCode(ci)),
+    '★ #731 bot address: chat-info still suppresses the row for kind \'group\' only (a group id is a session id, not an address) — bot rows render and now have a handler');
+  const ch = rdF('src/shells/chat.html');
+  const pad = /:root\[data-desktop\] \.messages \{ padding-inline: max\(0px, calc\(\(100% - (\d+)px\) \/ 2\)\); \}/.exec(ch);
+  const div = /:root\[data-desktop\] \.c-unread-divider \{ margin-inline: calc\(-1 \* max\(0px, \(100vw - (\d+)px\) \/ 2\)\); \}/.exec(ch);
+  ok(pad && div && pad[1] === div[1] && pad[1] === '760',
+    '★ Session I (Damir, Windows): the unread strip pulls back over the 760 gutters on desktop — its 100vw term carries the SAME column literal as the .messages padding (' + (pad && pad[1]) + ' / ' + (div && div[1]) + '); phones untouched (data-desktop only, max floors at 0)');
+  ok(div && ch.indexOf(div[0]) > ch.indexOf(pad[0]) && /html, body \{ margin: 0; height: 100%;/.test(ch) && /body \{ display: flex; flex-direction: column; overflow: hidden; \}/.test(ch),
+    '★ Session I unread strip: the 100vw == .messages-width assumption holds — body is margin 0 / overflow hidden (the pane IS the viewport)');
+  ok(/scrollbar-gutter: stable/.test(rdF('src/styles/base.css')),
+    '★ Session I unread strip: .u-scroll keeps scrollbar-gutter stable, so the strip ends at the scrollbar edge instead of running under a scrollbar that appears later');
+}
+
+/* ═══ ★★ SESSION I ③ — THE PREMIUM DENSITY PASS: every dial a PICK, every pick a pin ═══════ */
+console.log('Session I ③: the premium pass token batch');
+{
+  const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
+  const tok = stripCssComments(rdF('src/styles/tokens.css'));
+  /* the Session I dials live in the :root block near --bubble-max-pct; the FIRST match of a name is
+     the light value (dark overrides come later in the file) */
+  const light = tok;
+  /* the Session I dials sit in the :root block right after --bubble-max-pct, AFTER the desktop
+     override block (which re-points the list sizes) — so the dial lookup starts there */
+  const dial = tok.slice(tok.indexOf('--bubble-max-pct:'));
+  const bub = stripCssComments(rdF('src/styles/components/message-bubble.css'));
+  const val = (name, block = dial) => ((block.match(new RegExp('--' + name + ': ([^;]+);')) || [])[1] || '').trim();
+  /* 1a = A (TG-tight): the bubble role is its OWN dial set — body-md (≈90 riders) is untouched */
+  ok(val('bubble-line-height') === '20px' && val('bubble-pad-y') === '6px' && val('bubble-pad-x') === '11px' && val('bubble-radius') === '18px'
+     && val('bubble-gap-group') === '10px' && val('bubble-gap-inner') === '3px' && val('bubble-meta-margin-top') === '4px'
+     && /--font-size-body-md: 16px;\s*--line-height-body-md: 24px;/.test(light),
+    '★★ 1a = A: bubble 16/20 · pad 6×11 · radius 18 · in-group 3 · group 10 · meta tail 4 (single-line 32 CSS = 80 px on the Motorola; was 40 = 100) — and body-md itself is UNTOUCHED at 16/24 (the #423 lesson: ~90 riders)');
+  ok(/padding: var\(--bubble-pad-y\) var\(--bubble-pad-x\);/.test(bub) && /border-radius: var\(--bubble-radius\);/.test(bub)
+     && /line-height: calc\(var\(--bubble-line-height\) \* var\(--chat-text-scale, 1\)\);/.test(bub)
+     && /margin-top: var\(--bubble-gap-group\);/.test(bub) && /\.c-bubble-row\[data-position="last"\] \{ margin-top: var\(--bubble-gap-inner\); \}/.test(bub)
+     && /margin-top: var\(--bubble-meta-margin-top\);/.test(bub),
+    '★ 1a: message-bubble.css reads every bubble dial from its token (padding, radius, line-height × text-scale, both gaps, the meta tail)');
+  /* the timestamp: 11px Medium + the DEVICE 12/24-hour cycle */
+  ok(val('bubble-meta-size') === '11px' && val('bubble-meta-line-height') === '14px' && /font-size: var\(--bubble-meta-size\);/.test(bub) && /font-weight: var\(--bubble-meta-weight\);/.test(bub),
+    '★ Damir "reduce the timestamp": the meta is 11/14 Medium (was body-xs 12/16 regular) — measured: TG/WA/ours digits were the SAME 21 px; the " PM" width was the difference');
+  {
+    const ts = stripCode(rdF('src/components/timestamp.js'));
+    ok(/export function timeOpts\(extra\)/.test(ts) && /const hc = document\.documentElement\.dataset\.hourCycle;/.test(ts) && /if \(hc === 'h23' \|\| hc === 'h12'\) opts\.hourCycle = hc;/.test(ts)
+       && /toLocaleTimeString\(docLocale\(\), timeOpts\(\)\)/.test(ts) && /toLocaleTimeString\(locale, timeOpts\(\{ hour: 'numeric' \}\)\)/.test(ts),
+      '★ hourCycle: timeOpts() reads <html data-hour-cycle> ("h23"/"h12", else the locale default — byte-identical to before) and both timestamp.js formatters take it');
+    for (const f of ['src/components/message-bubble.js', 'src/components/typed-bubbles.js', 'src/components/media-bubble.js']) {
+      const t = stripCode(rdF(f));
+      ok(/toLocaleTimeString\(docLocale\(\), timeOpts\(\)\)/.test(t) && !/\{ hour: '2-digit', minute: '2-digit' \}/.test(t),
+        '★ hourCycle: ' + f.split('/').pop() + ' formats its time through timeOpts() — no consumer is left on the locale-only literal');
+    }
+    const hp = stripCode(rdF('Spixi/Pages/Home/HomePage.xaml.cs'));
+    const ut = rdF('Spixi/Utils/Utils.cs');
+    ok(/SpixiLocalization\.addCustomString\("hourCycle", Utils\.deviceHourCycle\(\)\);/.test(hp)
+       && /public static string deviceHourCycle\(\)/.test(ut) && /Android\.Text\.Format\.DateFormat\.Is24HourFormat\(Android\.App\.Application\.Context\) \? "h23" : "h12"/.test(ut)
+       && /GetDateFormatFromTemplate\("j", \(nuint\)0, Foundation\.NSLocale\.CurrentLocale\)/.test(ut) && /ShortTimePattern/.test(ut),
+      '★ hourCycle: HomePage registers the `hourCycle` custom string at boot from Utils.deviceHourCycle() — Android DateFormat.is24HourFormat · iOS/Catalyst the "j" skeleton · desktop the culture\'s short-time pattern; fail-soft ""');
+    for (const f of ['src/shells/chat.html', 'src/shells/home.html', 'src/shells/contact_details.html', 'Spixi/Resources/Raw/html/chat.html', 'Spixi/Resources/Raw/html/index.html', 'Spixi/Resources/Raw/html/contact_details.html']) {
+      const t = rdF(f);
+      ok(/<span id="sl-hourcycle">/.test(t) && /if\(t==='h23'\|\|t==='h12'\)document\.documentElement\.dataset\.hourCycle=t;/.test(t),
+        '★ hourCycle: ' + f.replace('Spixi/Resources/Raw/html/', 'built ').replace('src/shells/', '') + ' carries the sl-hourcycle span and the boot line that copies it onto <html> (a raw *SL marker copies nothing)');
+    }
+  }
+  /* 1c = tail + elevation */
+  ok(val('bubble-tail') === '8px' && val('bubble-tail-h') === '13px' && val('bubble-elevation') === '0 1px 0.5px rgba(0, 0, 0, 0.13)'
+     && /--bubble-elevation: 0 1px 1px rgba\(0, 0, 0, 0\.45\);/.test(tok.slice(tok.indexOf('[data-theme="dark"] {'))),
+    '★★ 1c = tail + elevation: an 8×13 tail on the group-start bubble, a 0 1px 0.5px @.13 lift in light and 0 1px 1px @.45 in dark (the 1.12:1 canvas, #427)');
+  ok(/\.c-bubble-row\[data-position="first"\] \.c-bubble::before,\s*\.c-bubble-row\[data-position="single"\] \.c-bubble::before \{/.test(bub)
+     && /width: var\(--bubble-tail\);/.test(bub) && /filter: drop-shadow\(var\(--bubble-elevation\)\);/.test(bub)
+     && /clip-path: path\('M8 0 L0 0 Q5 1\.5 8 13 Z'\);/.test(bub) && /clip-path: path\('M0 0 L8 0 Q3 1\.5 0 13 Z'\);/.test(bub)
+     && /\[dir="rtl"\] \.c-bubble-row\[data-direction="received"\]\[data-position="first"\] \.c-bubble::before/.test(bub)
+     && /padding-inline: calc\(var\(--spacing-16\) \+ var\(--bubble-tail\)\);/.test(bub)
+     && /\.c-bubble-row \.c-bubble\[data-emoji-only\]::before \{ content: none !important; \}/.test(bub)
+     && /\[data-position="single"\] \.c-bubble \{ border-start-end-radius: 0; \}/.test(bub) && /\[data-position="single"\] \.c-bubble \{ border-start-start-radius: 0; \}/.test(bub),
+    '★ 1c: the tail is a ::before on FIRST/SINGLE bubbles only, in the bubble\'s own surface, RTL-mirrored, carrying the lift as a drop-shadow, inside a widened row inset; the tail corner is SQUARE (Damir\'s walk: 4px read as a flag beside a rounded box); the emoji sticker has none — at (0,3,1)+!important, because the (0,3,1) tail rules beat the first (0,2,1) cut and a sent sticker grew a tail');
+  /* EXECUTED (the walk defect): a SENT, SINGLE, emoji-only message has no tail, and its reactions pill sits at the far corner from the time chip */
+  {
+    const dom = await load('chat.html');
+    const W = dom.window, d = W.document;
+    const host = d.createElement('div'); d.body.append(host);
+    const row = W.Spixi.createMessageBubble({ direction: 'sent', position: 'single', text: '😂😂', timestamp: Date.now(), status: 'read', strings: W.SL || {} });
+    host.append(row);
+    const b = row.querySelector('.c-bubble');
+    /* jsdom has no pseudo-element cascade, so the ::before content is asserted on the CSS text
+       above; the executed half checks the attribute the rule keys on lands on a SENT SINGLE
+       (the exact case that grew a tail), and Playwright over the built shell read
+       content:none for it (probe, Session I). */
+    ok(b.hasAttribute('data-emoji-only') && row.dataset.direction === 'sent' && row.dataset.position === 'single',
+      '★ EXECUTED (Damir\'s walk): a sent single emoji-only message carries data-emoji-only — the attribute the no-tail rule keys on');
+    ok(/\.c-bubble-row\[data-direction\] \.c-bubble\[data-emoji-only\] \.c-reactions\[data-placement="overlap"\] \{ inset-inline-start: 0; inset-inline-end: auto; \}/.test(stripCssComments(rdF('src/styles/components/reactions.css'))),
+      '★ Damir\'s walk: on a sticker the overlap reactions pill moves to the corner AWAY from the time chip (it covered the timestamp)');
+    dom.window.close();
+  }
+  ok(/box-shadow: var\(--bubble-elevation\);/.test(bub) && /box-shadow: inset 0 0 0 1px var\(--border-bubble-received\), var\(--bubble-elevation\);/.test(bub) && !/--bubble-elevation: none/.test(tok),
+    '★ 1c: the lift rides the bubble (sent) and rides BESIDE the #427 hairline hook (received) — the hook is intact, and the token is never `none` (a shadow list with `none` in it is invalid CSS)');
+  /* 1d = A #2160C2, reversible */
+  ok(val('surface-bubble-sent', light) === '#2160c2' && val('gradient-bubble-sent', light) === '#2160c2' && /was #1956b2/.test(rdF('src/styles/tokens.css')),
+    '★ 1d = A: sent blue #2160C2 in both tokens (white text 5.97:1, meta 5.05:1), #1956b2 kept in the comments as the reversal (#735⑥ "reversibly")');
+  /* 1e = (a′) Roboto tuned */
+  ok(val('bubble-tracking') === '-0.2px' && /letter-spacing: var\(--bubble-tracking, var\(--tracking-body-md\)\);/.test(bub) && /--bubble-meta-weight: var\(--font-weight-medium, 500\);/.test(light),
+    '★ 1e = (a′): Roboto tuned — bubble tracking −0.2px + Medium meta; the OEM Moto face is unreachable from a WebView (§6 settled by Damir\'s Font-style screenshot), Source Sans 3 stays retired (#226)');
+  /* emoji-only = sticker, flags detected */
+  {
+    const mb = rdF('src/components/message-bubble.js');
+    ok(mb.includes('\\p{Regional_Indicator}{2}') && mb.includes('[0-9#*]\uFE0F?\u20E3') && mb.includes("const EMOJI_ONLY_RE = new RegExp('^(?:' + EMOJI_GLYPH + '\\\\s*){1,3}$', 'u');"),
+      '★ flags: the emoji-only detector admits a Regional-Indicator PAIR (🇸🇮), a keycap and a tag sequence beside the pictographic run — same 1–3 cap');
+    const G = '(?:\\p{Extended_Pictographic}(?:️|\\p{Emoji_Modifier})*(?:‍\\p{Extended_Pictographic}(?:️|\\p{Emoji_Modifier})*)*(?:[\\u{E0020}-\\u{E007F}]+)?|\\p{Regional_Indicator}{2}|[0-9#*]️?⃣)';
+    const re = new RegExp('^(?:' + G + '\\s*){1,3}$', 'u');
+    ok(re.test('🇸🇮') && re.test('🇸🇮 🇩🇪') && re.test('👍') && re.test('👨‍👩‍👧') && re.test('#️⃣') && !re.test('ok 👍') && !re.test('👍👍👍👍'),
+      '★ flags EXECUTED: 🇸🇮 · 🇸🇮 🇩🇪 · 👨‍👩‍👧 · #️⃣ are emoji-only; "ok 👍" and four glyphs are not');
+    ok(/\.c-bubble\[data-emoji-only\] \{\s*background: transparent !important;\s*box-shadow: none !important;/.test(bub) && /\.c-bubble\[data-emoji-only\] \.c-bubble__meta \{[^}]*background: var\(--surface-chat-chip\);/.test(bub),
+      '★ sticker grammar (#731): an emoji-only message has NO bubble (surface, lift, hairline all off) and its time sits in a canvas chip');
+  }
+  /* 2 = current avatar + A */
+  ok(val('row-name-size') === '17px' && val('row-name-weight') === 'var(--font-weight-semibold)' && val('row-name-weight-unread') === 'var(--font-weight-bold)' && val('row-pad-y') === '11px'
+     && val('tx-name-size') === '15px' && val('tx-name-weight') === 'var(--font-weight-semibold)' && val('chip-weight') === 'var(--font-weight-semibold)'
+     && /--size-avatar-48: 48px;/.test(light) && /createAvatar\(\{ src: avatar, name: hasNick \? name : '', address, size: 48/.test(rdF('src/components/chatlist-item.js')),
+    '★★ 2 = "current avatar and everything else from A": avatar stays 48 · names 17 semibold / bold unread · row pad 11 (pitch 76 = TG\'s 191 px) · tx names 15 semibold · chips semibold');
+  ok(/--row-name-size: var\(--font-size-body-lg\);/.test(tok.slice(tok.indexOf(':root[data-desktop] {'))) && /--row-pad-y: var\(--spacing-12\);/.test(tok.slice(tok.indexOf(':root[data-desktop] {'))),
+    '★ 2: desktop keeps the #227 sizes (names 14, pad 12) and takes only the weights — the desktop block re-points the size tokens');
+  ok(/font-size: var\(--row-name-size\);/.test(rdF('src/styles/components/chatlist-item.css')) && /font-weight: var\(--row-name-weight\);/.test(rdF('src/styles/components/chatlist-item.css'))
+     && /padding: var\(--row-pad-y\) var\(--spacing-12\);/.test(rdF('src/styles/components/chatlist-item.css')) && /font-weight: var\(--chip-weight\);/.test(rdF('src/styles/components/chip.css')),
+    '★ 2: chatlist-item.css and chip.css read the row tokens');
+  /* 2b = D */
+  {
+    const av = stripCssComments(rdF('src/styles/components/avatar.css'));
+    ok(/data-hue="1"\][^{]*\{ --av-c1: hsl\(20, 78%, 43%\);\s*--av-c2: hsl\(12, 70%, 38%\);/.test(av) && /data-hue="2"\][^{]*\{ --av-c1: hsl\(30, 80%, 38%\);\s*--av-c2: hsl\(26, 74%, 34%\);/.test(av)
+       && /data-hue="3"\][^{]*\{ --av-c1: hsl\(100, 55%, 33%\);\s*--av-c2: hsl\(125, 50%, 26%\);/.test(av),
+      '★★ 2b = D: the three muddy anchors re-tuned (olive → orange, brown → amber, dull green lifted); every stop ≥ 4.5:1 under white ink (measured 4.66 / 6.60 · 4.65 / 6.14 · 4.69 / 7.29)');
+    ok(/radial-gradient\(100% 100% at 28% 18%, rgba\(255, 255, 255, 0\.22\) 0%, rgba\(255, 255, 255, 0\) 50%\),\s*linear-gradient\(160deg,/.test(av),
+      '★ 2b = D: the TG-like depth — a 22% white highlight top-left, gone by half the radius (≈5% at the initials), over a 160° pair gradient');
+    ok(/\.c-avatar\[data-size="80"\] \.c-avatar__initials \{ font-size: 30px; \}/.test(av) && /\.c-avatar\[data-size="96"\] \.c-avatar__initials \{ font-size: 36px; \}/.test(av),
+      '★ 2b: the HEROES (80: chat info / contacts / Account · 96: launch) finally have an initials rule — they fell through to the base font-size before, a list-sized letter on a hero disc');
+  }
+  /* 3 = the gap canon everywhere */
+  ok(val('row-h-nav') === '48px' && val('row-h-switch') === '56px' && val('row-h-member') === '56px' && val('screen-gap') === '12px' && val('screen-pad') === '12px',
+    '★★ 3 = canon: TWO row heights (48 nav / 56 switch + member), screen gap 12, screen pad 12 — four heights (44/48/52/56) coexisted before');
+  {
+    const ci = stripCssComments(rdF('src/styles/components/chat-info.css')), ss = stripCssComments(rdF('src/styles/components/settings-shell.css')), sa = stripCssComments(rdF('src/styles/components/settings-app.css'));
+    ok(/\.c-chat-info__row \{[^}]*min-height: var\(--row-h-nav\);/.test(ci) && /\.c-chat-info__row\[data-row="switch"\] \{ min-height: var\(--row-h-switch\); \}/.test(ci) && /\.c-chat-info__member \{[^}]*min-height: var\(--row-h-member\);/.test(ci)
+       && /\.c-chat-info__body \{[^}]*gap: var\(--screen-gap\);\s*padding: var\(--screen-pad\) var\(--spacing-16\) var\(--spacing-32\);/.test(ci)
+       && /\.c-settings__row \{[^}]*min-height: var\(--row-h-nav\);/.test(ss) && /\.c-settings__row\[data-row="switch"\] \{ min-height: var\(--row-h-switch\); \}/.test(ss)
+       && /\.c-settings__body \{[^}]*gap: var\(--screen-gap\);\s*padding: var\(--screen-pad\) var\(--spacing-16\) var\(--spacing-32\);/.test(ss)
+       && (sa.match(/min-height: var\(--row-h-nav\);/g) || []).length === 2 && !/min-height: 52px/.test(ci + ss + sa),
+      '★ 3: chat-info, settings-shell and settings-app rows all read the canon; no 52px row survives in the family');
+    const sw = [rdF('src/components/chat-info.js'), rdF('src/components/settings-shell.js'), rdF('src/components/settings-screens.js')].map(stripCode);
+    ok(sw.every((t) => /row\.dataset\.row = 'switch';/.test(t)),
+      '★ 3: every switch-row builder (chat-info notifications · settings-shell authSwitchRow · settings-screens switchRow) stamps data-row="switch", so the 56 is keyed by the attribute, never by :has()');
+  }
+  /* 4 = k2 */
+  ok(val('chat-canvas-base', light) === '#EEECEF' && val('chat-pattern-ink', light) === '#83058E' && val('chat-pattern-alpha-1', light) === '0.06'
+     && /:root:not\(\[data-theme='dark'\]\)\[data-chat-ground='gradient'\],\s*:root:not\(\[data-theme='dark'\]\) \[data-chat-ground='gradient'\] \{[^}]*--gradient-chat: linear-gradient\(289deg, #E9EDF4 0%, #EEECEF 50%, #F2EAF1 100%\), var\(--chat-canvas-base\);/.test(tok),
+    '★★ 4 = k2: light canvas #EEECEF · ink #83058E @ 6% · the gradient option is the soft 289° wash (#E9EDF4 → base → #F2EAF1), the teal wash retired');
+  ok(/if\(g!=='flat'&&g!=='gradient'\)g='gradient';/.test(rdF('src/shells/chat.html')) && /let chatGround = 'gradient';/.test(rdF('src/shells/settings.html')),
+    '★ 4: gradient default-ON on every platform — chat.html\'s pre-paint ladder and settings.html\'s readChatPrefs agree (the #690 three-ladder rule)');
+  ok(/\.c-sysnotice__card \{[^}]*background: #E4E1E6;/.test(stripCssComments(rdF('src/styles/components/system-notice.css')).slice(0, 4000)),
+    '★ 4: the secure-notice card followed the ground into its family (#E4E1E6, −3.74 ΔL* — AUG\'s darker-card relationship kept) instead of sitting as a blue patch on a warm-neutral field');
+  /* 5 = B */
+  {
+    const cc = stripCssComments(rdF('src/styles/components/composer.css'));
+    ok(val('composer-pad-block') === '6px' && val('composer-input-pad') === '6px' && val('composer-attach-size') === '36px'
+       && /padding-block-start: var\(--composer-pad-block\);/.test(cc) && /padding: var\(--composer-input-pad\) 0;/.test(cc)
+       && /max-height: calc\(5 \* var\(--line-height-body-md\) \+ 2 \* var\(--composer-input-pad\)\);/.test(cc)
+       && /\.c-composer__attach \{[^}]*position: absolute;[^}]*width: var\(--composer-attach-size\);[^}]*padding: calc\(\(var\(--size-target-min\) - var\(--composer-attach-size\)\) \/ 2\);/.test(cc)
+       && /padding-inline-start: calc\(var\(--composer-attach-size\) \+ var\(--spacing-8\)\);/.test(cc),
+      '★★ 5 = B: pill 46 (input pad 6, bar pad 6) = WhatsApp\'s 115 px; the ⊕ is a 36 disc INSIDE the pill with a 44 hit area from the negative-margin padding; the 5-line cap derives from the same tokens the JS grows by');
+    ok(/field\.append\(attach\);/.test(stripCode(rdF('src/components/composer.js'))) && !/el\.append\(attach\);/.test(stripCode(rdF('src/components/composer.js'))),
+      '★ 5: composer.js parents the ⊕ to the FIELD (reverses #705\'s outside-disc; the tray/✕ behaviour is untouched and pinned in the #705 block)');
+    const ch = rdF('src/shells/chat.html'), chB = rdF('Spixi/Resources/Raw/html/chat.html');
+    ok(/#chat-composer \{ position: absolute; inset-inline: 0; inset-block-end: 0; \}/.test(ch) && /#chat-composer \{ position: absolute; inset-inline: 0; inset-block-end: 0; \}/.test(chB)
+       && /#messages \{ flex: 1; min-height: 0; padding-bottom: calc\(var\(--composer-h, 0px\) \+ var\(--spacing-4\)\);/.test(ch) && /padding-bottom: calc\(var\(--composer-h, 0px\) \+ var\(--spacing-4\)\);/.test(chB),
+      '★★ 5 FLOATING (#731 "messages pass under the pill"): the slot is absolute at the canvas bottom and the log pads by the published --composer-h — source AND built shell');
+    ok(!/#chat-composer \{[^}]*(z-index|transform|contain|will-change)/.test(ch),
+      '★ 5: the absolute slot adds NO stacking-context property (the message-menu lift rule on the canvas\'s children still holds)');
+  }
+  /* 6 = A */
+  ok(/:root\[data-desktop\] \.c-sheet\[data-dt-anchor="menu"\] \{ border-radius: var\(--radius-16\); min-width: 220px; padding: var\(--spacing-8\); \}/.test(rdF('src/styles/components/overlay.css'))
+     && /\.c-msgmenu__react \{[^}]*width: var\(--menu-row-h\);/.test(stripCssComments(rdF('src/styles/components/message-menu.css'))),
+    '★ 6 (Damir\'s walk: "quite substantial"): the desktop anchored MENU sheet itself tightened — padding 8 (was 12/16/16), min-width 220 (was 260); the react disc rides the 40 row');
+  ok(val('menu-row-h') === '40px' && val('menu-row-gap') === '10px' && val('menu-gap') === '4px'
+     && /\.c-msgmenu \{ display: flex; flex-direction: column; gap: var\(--menu-gap\); \}/.test(stripCssComments(rdF('src/styles/components/message-menu.css')))
+     && /\.c-msgmenu__item \{[^}]*min-height: var\(--menu-row-h\);/.test(stripCssComments(rdF('src/styles/components/message-menu.css'))),
+    '★ 6 = A: the shared .c-msgmenu grammar (message menu + chats-row menu) tightens once — rows 40, item gap 10, menu gap 4, react/detail rows a step tighter');
+  /* the rest of §4: blue event canon · nameless bot sender */
+  ok(/\.c-excerpt\[data-type="file"\] \.c-excerpt__text,\s*\.c-excerpt\[data-type="reaction"\] \.c-excerpt__text,\s*\.c-excerpt\[data-type="app-invite"\] \.c-excerpt__text \{ color: var\(--text-action-default\); \}/.test(stripCssComments(rdF('src/styles/components/chatlist-item.css'))),
+    '★ blue event canon (#731): file sent · reacted · app invite join the connected line\'s action tint — ONE list ("left the group" waits on the #215 device check)');
+  ok(/\.c-bubble__sender\[data-address\] \{\s*font-family: var\(--font-secondary\);\s*letter-spacing: var\(--tracking-label-sm\);\s*\}/.test(bub),
+    '★ nameless bot sender (#731): the truncated address wears the NICKNAME face (was the monospace face, Damir 2026-07-07 — the reversal is in the comment)');
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

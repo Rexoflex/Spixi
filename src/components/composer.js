@@ -48,17 +48,18 @@ export function createComposer({
   const field = document.createElement('div');
   field.className = 'c-composer__field';
 
-  /* ★ #705 (Session G): the ⊕ sits BESIDE the pill, not in it — WhatsApp/iMessage
-     grammar, and the same 44px disc as the send action so the bar reads as
-     [⊕] [field] [send]. `aria-expanded` is the tray's open state (attach-sheet.js
-     writes it); the glyph rotates to a ✕ through that attribute in composer.css. */
+  /* ★ #705 (Session G) put the ⊕ BESIDE the pill; ★ Session I (#735, sheet 5, Damir on
+     device: "more premium") puts it back INSIDE, bottom-left of the field, as a 36 disc
+     with a 44 hit area (composer.css). The tray/✕ behaviour is untouched: `aria-expanded`
+     is the tray's open state (attach-sheet.js writes it) and the glyph still rotates to a
+     ✕ through that attribute. Only the housing moved — it is a child of the FIELD now. */
   const attach = document.createElement('button');
   attach.type = 'button';
   attach.className = 'c-composer__attach';
   attach.setAttribute('aria-label', strings.attach || 'Attach');
   attach.append(icon('circle-plus', { size: 24 }));
   if (onAttach) attach.addEventListener('click', onAttach);
-  el.append(attach);
+  field.append(attach);
 
   const input = document.createElement('textarea');
   input.className = 'c-composer__input';

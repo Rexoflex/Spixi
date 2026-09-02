@@ -623,6 +623,7 @@ export function createSettingsHub({
     section.className = 'c-settings__section';
     const row = document.createElement('div');
     row.className = 'c-settings__row c-settings__row--static';
+    row.dataset.row = 'switch';   // ★ Session I canon: switch rows are 56, nav rows 48
     const lab = document.createElement('span');
     lab.className = 'c-settings__row-label' + (sub ? ' c-settings__row-label--stack' : '');
     if (sub) {

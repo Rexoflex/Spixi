@@ -36,6 +36,11 @@
 .c-bubble-row[data-direction="received"] .c-reactions[data-placement="overlap"] { inset-inline-start: var(--spacing-8); }
 .c-bubble-row[data-direction="sent"] .c-reactions[data-placement="overlap"] { inset-inline-end: var(--spacing-8); }
 .c-bubble-row[data-reactions="overlap"] { margin-bottom: var(--spacing-16); } /* overhang reserve */
+/* ★ Session I (Damir's walk): on an emoji-only STICKER the meta sits in a chip at the
+   bottom-right — exactly where the overlap pill lands — so the pill covered the time.
+   On a sticker the pill goes to the OTHER bottom corner (inline-start), both directions;
+   the chip stays where it is. (0,5,0) beats the two direction rules above. */
+.c-bubble-row[data-direction] .c-bubble[data-emoji-only] .c-reactions[data-placement="overlap"] { inset-inline-start: 0; inset-inline-end: auto; }
 /* cards lack the bubble's position:relative — overlap needs the anchor */
 .c-bubble-row[data-reactions="overlap"] .c-tcard,
 .c-bubble-row[data-reactions="overlap"] .c-fbubble { position: relative; }

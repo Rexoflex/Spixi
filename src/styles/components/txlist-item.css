@@ -73,9 +73,10 @@
      names moved to body-lg (14px), and the always-semibold weight made
      addresses read outsized (Damir F5). body-lg regular; the AMOUNT keeps
      label-lg semibold as the row's money emphasis (dial if too loud). */
-  font-size: var(--font-size-body-lg);
+  font-size: var(--tx-name-size);            /* ★ Session I (sheet 2, #735⑦): 15 mobile / 14 desktop — was body-lg */
   line-height: var(--line-height-body-lg);
   letter-spacing: var(--tracking-body-lg);
+  font-weight: var(--tx-name-weight);        /* ★ Session I: semibold — #277's regular reversed on Damir's ruling */
   color: var(--text-neutral-01);
   overflow: hidden;
   text-overflow: ellipsis;

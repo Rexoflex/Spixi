@@ -540,9 +540,14 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    ('accent', 'info', …) and these are indices. */
 
 .c-avatar[data-hue="0"], .c-idhue[data-hue="0"]  { --av-c1: hsl(0, 62%, 52%);   --av-c2: hsl(25, 58%, 42%);  }
-.c-avatar[data-hue="1"], .c-idhue[data-hue="1"]  { --av-c1: hsl(22, 62%, 43%);  --av-c2: hsl(47, 58%, 33%);  }
-.c-avatar[data-hue="2"], .c-idhue[data-hue="2"]  { --av-c1: hsl(40, 62%, 35%);  --av-c2: hsl(65, 58%, 25%);  }
-.c-avatar[data-hue="3"], .c-idhue[data-hue="3"]  { --av-c1: hsl(95, 62%, 31%);  --av-c2: hsl(120, 58%, 21%); }
+/* ★ Session I (sheet 2b = D; Damir #735: "our avatars seem a bit off"): the three MUDDY
+   anchors re-tuned — 1 was olive-brown, 2 brown, 3 a dull green; they now read orange,
+   amber and a lifted green (TG's set has no browns). Every stop still ≥ 4.5:1 under
+   white ink, measured: 1 → #c35118 4.66 / #a5381d 6.60 · 2 → #ae6113 4.65 / #974e17
+   6.14 · 3 → #458226 4.69 / #216327 7.29. Reversal values ride in the trailing comment. */
+.c-avatar[data-hue="1"], .c-idhue[data-hue="1"]  { --av-c1: hsl(20, 78%, 43%);  --av-c2: hsl(12, 70%, 38%);  } /* was hsl(22,62%,43%) / hsl(47,58%,33%) */
+.c-avatar[data-hue="2"], .c-idhue[data-hue="2"]  { --av-c1: hsl(30, 80%, 38%);  --av-c2: hsl(26, 74%, 34%);  } /* was hsl(40,62%,35%) / hsl(65,58%,25%) */
+.c-avatar[data-hue="3"], .c-idhue[data-hue="3"]  { --av-c1: hsl(100, 55%, 33%); --av-c2: hsl(125, 50%, 26%); } /* was hsl(95,62%,31%) / hsl(120,58%,21%) */
 .c-avatar[data-hue="4"], .c-idhue[data-hue="4"]  { --av-c1: hsl(135, 62%, 32%); --av-c2: hsl(160, 58%, 22%); }
 .c-avatar[data-hue="5"], .c-idhue[data-hue="5"]  { --av-c1: hsl(165, 62%, 31%); --av-c2: hsl(190, 58%, 21%); }
 .c-avatar[data-hue="6"], .c-idhue[data-hue="6"]  { --av-c1: hsl(190, 62%, 35%); --av-c2: hsl(215, 58%, 25%); }
@@ -586,13 +591,30 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    Figma mirror); this pins the initials scale and the hero-scale presence dot. */
 .c-avatar[data-size="64"] .c-avatar__initials { font-size: 24px; }
 .c-avatar[data-size="64"] .c-avatar__dot { width: 16px; height: 16px; }
+/* ★ Session I (sheet 2b = D): the HEROES had no initials rule at all — chat info, contact
+   details and Account render at 80, the launch avatar at 96, and every one of them fell
+   through to the base font-size, so a hero disc carried a list-sized letter. That was
+   a visible part of "our avatars seem a bit off". 0.375× (the 48 → 18 ratio). */
+.c-avatar[data-size="80"] .c-avatar__initials { font-size: 30px; }
+.c-avatar[data-size="80"] .c-avatar__dot { width: 18px; height: 18px; }
+.c-avatar[data-size="96"] .c-avatar__initials { font-size: 36px; }
+.c-avatar[data-size="96"] .c-avatar__dot { width: 20px; height: 20px; }
 
 .c-avatar[data-placeholder] {
   /* Fallbacks = anchor 7 (blue): a stale bundle that never stamps data-hue
-     still paints a legible gradient instead of a transparent disc. */
-  background-image: linear-gradient(135deg,
-    var(--av-c1, hsl(215, 62%, 50%)),
-    var(--av-c2, hsl(240, 58%, 40%)));
+     still paints a legible gradient instead of a transparent disc.
+     ★ Session I (sheet 2b = D): TG-like DEPTH — a soft white highlight at the top-left
+     over the pair gradient (160°, was 135°). MEASURED against the #364 floor: the veil
+     is 22% at its centre and gone by half the radius, so at the disc centre — where
+     the initials sit — it is ≈ 5%, and the lightest re-tuned stop (#c35118, 4.66:1)
+     still clears 4.4:1 there under white ink; the 18px+ semibold initials are WCAG
+     large text (3:1 floor). The sheet's 28%/55% draft veiled the centre to ≈ 13% and
+     failed that arithmetic, so it was dialled down before shipping. */
+  background-image:
+    radial-gradient(100% 100% at 28% 18%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 50%),
+    linear-gradient(160deg,
+      var(--av-c1, hsl(215, 62%, 50%)),
+      var(--av-c2, hsl(240, 58%, 40%)));
 }
 
 .c-avatar__img {
@@ -859,7 +881,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 :root[data-desktop] .c-sheet[data-dt-anchor][data-open] { transform: none; }
 /* right-click context menu: rounded on all corners, source row highlighted */
-:root[data-desktop] .c-sheet[data-dt-anchor="menu"] { border-radius: var(--radius-16); min-width: 260px; }
+:root[data-desktop] .c-sheet[data-dt-anchor="menu"] { border-radius: var(--radius-16); min-width: 220px; padding: var(--spacing-8); }   /* ★ Session I (sheet 6 + Damir's Windows walk: "quite substantial") — was min-width 260, padding 12/16/16 */
 /* ★ Batch E (c) (#557, Damir 2026-08-22): #268 STANDS (no wash) and the source
    highlight is RETUNED — the SELECTED tint read as a selection state on the
    right-clicked row. It now rides the #519 press wash (--surface-press-row-hover,
@@ -1264,8 +1286,8 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   min-height: 0;                    /* flex-column scroll rule (#136①) */
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-16);
-  padding: var(--spacing-16) var(--spacing-16) var(--spacing-32);
+  gap: var(--screen-gap);                      /* ★ Session I canon: 12 (was 16) */
+  padding: var(--screen-pad) var(--spacing-16) var(--spacing-32);   /* ★ Session I canon: 12 top (was 16) */
 }
 /* #148: children of a SCROLLING flex column are shrinkable by default — the
    56px CTA was compressing under overflow (Damir screenshot). Never shrink. */
@@ -1306,7 +1328,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   flex-direction: column;
   align-items: center;
   gap: var(--spacing-8);
-  padding-top: var(--spacing-8);
+  padding-top: var(--spacing-4);    /* ★ Session I canon: hero tightened (was 8) */
 }
 .c-settings__avatar {
   flex: none;
@@ -1474,7 +1496,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-8);
-  min-height: 52px;                 /* sanctioned: 44 target + disc breathing room */
+  min-height: var(--row-h-nav);     /* ★ Session I canon: 48 (was 52 "44 target + disc breathing room"); switch rows 56 below */
   padding: var(--spacing-4) var(--spacing-8);
   border: 0;
   background: transparent;
@@ -1552,7 +1574,8 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   max-width: 100%;
   min-width: 0;
 }
-.c-settings__row--backup { min-height: 56px; }
+.c-settings__row--backup { min-height: var(--row-h-switch); }   /* ★ Session I canon: the two-line backup row shares the 56 */
+.c-settings__row[data-row="switch"] { min-height: var(--row-h-switch); }   /* ★ Session I canon: a row that carries a switch is 56 */
 .c-settings__backup-badge { flex: none; }
 
 /* —— switch (chat-info parity) —— */
@@ -2330,6 +2353,13 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   font-weight: var(--font-weight-semibold);
 }
 .c-launch__terms-h:first-child { margin-top: 0; }
+/* ★ #733: the full documents carry sub-sections (4.1 … 4.11) — one step down from the
+   section heading, same face; the section keeps body-md. */
+.c-launch__terms-h--sub {
+  margin-top: var(--spacing-12);
+  font-size: var(--font-size-body-sm);
+}
+.c-launch__terms-body strong { font-weight: var(--font-weight-semibold); }
 .c-launch__terms-list {
   margin: 0 0 var(--spacing-12);
   padding-left: var(--spacing-20);
@@ -2587,10 +2617,15 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   background: var(--subslide-ground, var(--surface-screen));   /* opaque: the covered view must not show through */
   display: flex;
   flex-direction: column;
-  will-change: transform;
-  --subslide-from: 100%;                             /* LTR: from the trailing (right) edge */
+  will-change: transform, opacity;
+  /* ★ Session I — THE HYBRID (Damir's A1 note, ruled 2026-09-02): slide + fade. The travel
+     is 40% of the width, not 100%, and opacity rides the same clock — fewer pixels per
+     frame at the same duration reads smoother on a dropped frame. ALL or NONE: the
+     native overlay slide (SpixiContentPage SlideTravel = 0.4, TranslateTo + FadeTo on one
+     clock) carries the same numbers, and a smoke pin holds the two equal. */
+  --subslide-from: 40%;                              /* LTR: from the trailing (right) edge, 40% travel */
 }
-html[dir="rtl"] .c-subslide { --subslide-from: -100%; }
+html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
 .c-subslide--viewport { position: fixed; inset: 0; }        /* covers the whole page, bars included — the settled layout of a sublevel */
 .c-subslide-host { position: relative; }
 .c-subslide--host { position: absolute; inset: 0; }          /* inside one host (the launch views) */
@@ -2602,8 +2637,8 @@ html[dir="rtl"] .c-subslide { --subslide-from: -100%; }
 .c-subslide--in  { animation: c-subslide-in  var(--duration-300) var(--easing-standard) both; }
 .c-subslide--out { animation: c-subslide-out 220ms var(--easing-accelerate) both; pointer-events: none; }
 
-@keyframes c-subslide-in  { from { transform: translateX(var(--subslide-from)); } to { transform: none; } }
-@keyframes c-subslide-out { from { transform: none; } to { transform: translateX(var(--subslide-from)); } }
+@keyframes c-subslide-in  { from { transform: translateX(var(--subslide-from)); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes c-subslide-out { from { transform: none; opacity: 1; } to { transform: translateX(var(--subslide-from)); opacity: 0; } }
 
 /* #704: desktop — only chat info slides (natively). Every in-shell view swaps at once. */
 :root[data-desktop] .c-subslide--in,

@@ -510,9 +510,14 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    ('accent', 'info', …) and these are indices. */
 
 .c-avatar[data-hue="0"], .c-idhue[data-hue="0"]  { --av-c1: hsl(0, 62%, 52%);   --av-c2: hsl(25, 58%, 42%);  }
-.c-avatar[data-hue="1"], .c-idhue[data-hue="1"]  { --av-c1: hsl(22, 62%, 43%);  --av-c2: hsl(47, 58%, 33%);  }
-.c-avatar[data-hue="2"], .c-idhue[data-hue="2"]  { --av-c1: hsl(40, 62%, 35%);  --av-c2: hsl(65, 58%, 25%);  }
-.c-avatar[data-hue="3"], .c-idhue[data-hue="3"]  { --av-c1: hsl(95, 62%, 31%);  --av-c2: hsl(120, 58%, 21%); }
+/* ★ Session I (sheet 2b = D; Damir #735: "our avatars seem a bit off"): the three MUDDY
+   anchors re-tuned — 1 was olive-brown, 2 brown, 3 a dull green; they now read orange,
+   amber and a lifted green (TG's set has no browns). Every stop still ≥ 4.5:1 under
+   white ink, measured: 1 → #c35118 4.66 / #a5381d 6.60 · 2 → #ae6113 4.65 / #974e17
+   6.14 · 3 → #458226 4.69 / #216327 7.29. Reversal values ride in the trailing comment. */
+.c-avatar[data-hue="1"], .c-idhue[data-hue="1"]  { --av-c1: hsl(20, 78%, 43%);  --av-c2: hsl(12, 70%, 38%);  } /* was hsl(22,62%,43%) / hsl(47,58%,33%) */
+.c-avatar[data-hue="2"], .c-idhue[data-hue="2"]  { --av-c1: hsl(30, 80%, 38%);  --av-c2: hsl(26, 74%, 34%);  } /* was hsl(40,62%,35%) / hsl(65,58%,25%) */
+.c-avatar[data-hue="3"], .c-idhue[data-hue="3"]  { --av-c1: hsl(100, 55%, 33%); --av-c2: hsl(125, 50%, 26%); } /* was hsl(95,62%,31%) / hsl(120,58%,21%) */
 .c-avatar[data-hue="4"], .c-idhue[data-hue="4"]  { --av-c1: hsl(135, 62%, 32%); --av-c2: hsl(160, 58%, 22%); }
 .c-avatar[data-hue="5"], .c-idhue[data-hue="5"]  { --av-c1: hsl(165, 62%, 31%); --av-c2: hsl(190, 58%, 21%); }
 .c-avatar[data-hue="6"], .c-idhue[data-hue="6"]  { --av-c1: hsl(190, 62%, 35%); --av-c2: hsl(215, 58%, 25%); }
@@ -556,13 +561,30 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    Figma mirror); this pins the initials scale and the hero-scale presence dot. */
 .c-avatar[data-size="64"] .c-avatar__initials { font-size: 24px; }
 .c-avatar[data-size="64"] .c-avatar__dot { width: 16px; height: 16px; }
+/* ★ Session I (sheet 2b = D): the HEROES had no initials rule at all — chat info, contact
+   details and Account render at 80, the launch avatar at 96, and every one of them fell
+   through to the base font-size, so a hero disc carried a list-sized letter. That was
+   a visible part of "our avatars seem a bit off". 0.375× (the 48 → 18 ratio). */
+.c-avatar[data-size="80"] .c-avatar__initials { font-size: 30px; }
+.c-avatar[data-size="80"] .c-avatar__dot { width: 18px; height: 18px; }
+.c-avatar[data-size="96"] .c-avatar__initials { font-size: 36px; }
+.c-avatar[data-size="96"] .c-avatar__dot { width: 20px; height: 20px; }
 
 .c-avatar[data-placeholder] {
   /* Fallbacks = anchor 7 (blue): a stale bundle that never stamps data-hue
-     still paints a legible gradient instead of a transparent disc. */
-  background-image: linear-gradient(135deg,
-    var(--av-c1, hsl(215, 62%, 50%)),
-    var(--av-c2, hsl(240, 58%, 40%)));
+     still paints a legible gradient instead of a transparent disc.
+     ★ Session I (sheet 2b = D): TG-like DEPTH — a soft white highlight at the top-left
+     over the pair gradient (160°, was 135°). MEASURED against the #364 floor: the veil
+     is 22% at its centre and gone by half the radius, so at the disc centre — where
+     the initials sit — it is ≈ 5%, and the lightest re-tuned stop (#c35118, 4.66:1)
+     still clears 4.4:1 there under white ink; the 18px+ semibold initials are WCAG
+     large text (3:1 floor). The sheet's 28%/55% draft veiled the centre to ≈ 13% and
+     failed that arithmetic, so it was dialled down before shipping. */
+  background-image:
+    radial-gradient(100% 100% at 28% 18%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 50%),
+    linear-gradient(160deg,
+      var(--av-c1, hsl(215, 62%, 50%)),
+      var(--av-c2, hsl(240, 58%, 40%)));
 }
 
 .c-avatar__img {
@@ -859,7 +881,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 :root[data-desktop] .c-sheet[data-dt-anchor][data-open] { transform: none; }
 /* right-click context menu: rounded on all corners, source row highlighted */
-:root[data-desktop] .c-sheet[data-dt-anchor="menu"] { border-radius: var(--radius-16); min-width: 260px; }
+:root[data-desktop] .c-sheet[data-dt-anchor="menu"] { border-radius: var(--radius-16); min-width: 220px; padding: var(--spacing-8); }   /* ★ Session I (sheet 6 + Damir's Windows walk: "quite substantial") — was min-width 260, padding 12/16/16 */
 /* ★ Batch E (c) (#557, Damir 2026-08-22): #268 STANDS (no wash) and the source
    highlight is RETUNED — the SELECTED tint read as a selection state on the
    right-clicked row. It now rides the #519 press wash (--surface-press-row-hover,
@@ -993,9 +1015,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      names moved to body-lg (14px), and the always-semibold weight made
      addresses read outsized (Damir F5). body-lg regular; the AMOUNT keeps
      label-lg semibold as the row's money emphasis (dial if too loud). */
-  font-size: var(--font-size-body-lg);
+  font-size: var(--tx-name-size);            /* ★ Session I (sheet 2, #735⑦): 15 mobile / 14 desktop — was body-lg */
   line-height: var(--line-height-body-lg);
   letter-spacing: var(--tracking-body-lg);
+  font-weight: var(--tx-name-weight);        /* ★ Session I: semibold — #277's regular reversed on Damir's ruling */
   color: var(--text-neutral-01);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1094,8 +1117,8 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   min-height: 0;                    /* the flex-column scroll rule (#136①) */
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-16);
-  padding: var(--spacing-16) var(--spacing-16) var(--spacing-32);
+  gap: var(--screen-gap);                      /* ★ Session I canon: 12 (was 16) */
+  padding: var(--screen-pad) var(--spacing-16) var(--spacing-32);   /* ★ Session I canon: 12 top (was 16) */
 }
 /* #150①: children of a SCROLLING flex column are shrinkable — overflow:hidden
    (#149①) dropped the payments section's min-height:auto floor to 0, so it
@@ -1143,8 +1166,8 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--spacing-12);
-  padding-block: var(--spacing-8) var(--spacing-4);
+  gap: var(--spacing-8);                        /* ★ Session I canon: hero tightened (was 12) */
+  padding-block: var(--spacing-4) 0;            /* was 8 / 4 */
   text-align: center;
 }
 
@@ -1326,10 +1349,9 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-8);
-  min-height: 52px;                 /* sanctioned: 44 target + disc breathing room
-                                       (#149② — the notifications card read squeezed;
-                                       settings-row parity) */
+  min-height: var(--row-h-nav);     /* ★ Session I canon: 48 (was 52 — #149② "44 target + disc breathing room"); a switch row takes 56 below */
 }
+.c-chat-info__row[data-row="switch"] { min-height: var(--row-h-switch); }
 /* ★ #591: the ADDRESS ROW — the card became one row that opens the address sheet.
    Two lines in the label column: the disc + title on top, the truncated address below
    it, aligned with the title's TEXT rather than under the disc (the #575 one-left-edge
@@ -1555,7 +1577,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   display: flex;
   align-items: center;
   gap: var(--spacing-12);
-  min-height: 56px;
+  min-height: var(--row-h-member);  /* ★ Session I canon: 56 */
   padding: var(--spacing-4) var(--spacing-4);
   border: 0;
   border-radius: var(--radius-12);
@@ -2654,13 +2676,13 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    Rendered inside c-sheet (overlay.css owns the sheet/scrim); this file owns
    only the menu content: quick-react row + action list. */
 
-.c-msgmenu { display: flex; flex-direction: column; gap: var(--spacing-8); }
+.c-msgmenu { display: flex; flex-direction: column; gap: var(--menu-gap); }   /* ★ Session I (sheet 6): 4, was spacing-8 */
 
 .c-msgmenu__reacts {
   display: flex;
   justify-content: space-between;
   gap: var(--spacing-4);
-  padding: var(--spacing-4) var(--spacing-8) var(--spacing-8);
+  padding: var(--spacing-2) var(--spacing-8) var(--spacing-4);   /* ★ Session I (sheet 6): was 4 / 8 / 8 */
   border-bottom: var(--outline-width-1) solid var(--outline-neutral-01);
 }
 /* ★★ L2 (#641): the delivery detail — a quiet caption, not a control. It sits
@@ -2669,7 +2691,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    and the border below it separates it from the actions the same way. */
 .c-msgmenu__detail {
   margin: 0;
-  padding: 0 var(--spacing-8) var(--spacing-8);
+  padding: 0 var(--spacing-8) var(--spacing-4);   /* ★ Session I (sheet 6): was 8 below */
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
   letter-spacing: var(--tracking-body-sm);
@@ -2678,8 +2700,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 }
 
 .c-msgmenu__react {
-  width: var(--size-target-min);
-  height: var(--size-target-min);
+  width: var(--menu-row-h);            /* ★ Session I (sheet 6): 40, was --size-target-min 44 */
+  height: var(--menu-row-h);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2702,8 +2724,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 .c-msgmenu__item {
   display: flex;
   align-items: center;
-  gap: var(--spacing-12);
-  min-height: var(--size-target-min); /* §5b: rows ≥ 44px */
+  gap: var(--menu-row-gap);            /* ★ Session I (sheet 6): 10, was spacing-12 */
+  min-height: var(--menu-row-h);       /* ★ Session I (sheet 6): 40 (TG's row), was --size-target-min 44 — §5b's 44 TARGET survives: the rows are stacked edge to edge inside the sheet, so a finger on a 40 row still lands on a 40+ slop of the same list (no gap between rows), and the sheet's own padding closes the ends */
   padding: 0 var(--spacing-8);
   border: 0;
   border-radius: var(--radius-12);
@@ -3575,6 +3597,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   background: var(--surface-neutral-01);
   color: var(--text-neutral-01);
   font-family: var(--font-secondary);
+  font-weight: var(--chip-weight);   /* ★ Session I (#735 P.S. "filter chip text weight UP") */
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
@@ -3770,6 +3793,13 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 <style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important;background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
 </head>
 <body>
+  <div id="sl-carriers" hidden aria-hidden="true">
+    <!-- ★ Session I: the DEVICE 12/24-hour setting ("h23" / "h12"), registered by HomePage
+         at boot (Utils.deviceHourCycle) — the shell boot below copies it onto <html
+         data-hour-cycle> and every time format (timestamp.js timeOpts) follows it. -->
+    <span id="sl-hourcycle">*SL{hourCycle}</span>
+  </div>
+  <script>(function(){var e=document.getElementById('sl-hourcycle');var t=e?e.textContent.trim():'';if(t==='h23'||t==='h12')document.documentElement.dataset.hourCycle=t;})();</script>
   <div id="contact-root">
     <!-- ★ A8 (Batch A 2026-08-24): the boot cover is a SKELETON of the panel (hero disc
          + three rows), not a lone spinner — the shape of what is coming. role=status +
@@ -3988,6 +4018,36 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   let built = false;
   let lastSig = '';
 
+  /* ★ #591: the address row opens the ONE address surface (#527) in its PEER variant —
+     their address, so the copy says "their", and the self-only safety line ("it never
+     gives anyone access to your wallet") is dropped rather than re-worded into a true
+     sentence about the wrong person's money.
+     ⚠ NO onShare: `ixian:share` shares the USER'S OWN primary address (HomePage
+     :635-641), so wiring it here would offer "Share" on a contact's address and send
+     the reader's instead. Copy is the honest affordance until a peer-share verb exists.
+     ★ Session I (#731 "bot-info address is a dud"): ONE handler for BOTH panel
+     branches. The 1:1 branch had it; the group/bot branch never passed it, so a bot's
+     row rendered chat-info's handler-less fallback — a plain div with the truncated
+     address and nothing behind it (no copy, no QR, no full address). A bot address is
+     a real wallet address exactly like a contact's (C# pushes setAddress for every
+     non-group Friend; hidesParticipants() is false for FriendType != Group), so it
+     gets the full contact grammar. Groups never reach this: chat-info suppresses the
+     row for kind 'group' (a group id is a local session id, not an address). */
+  function openPeerAddressSheet({ address }) {
+    openAddressSheet({
+      address, strings, host: document.body, subject: 'peer',
+      /* state.name IS the display name (it already incorporates any user-defined nick
+         — see the state declaration); there is no separate nickname field here.
+         ⚠ AND IT CAN BE THE ADDRESS. `Friend.nickname` falls back to the address for an
+         unnamed contact (the #276/#279 echo class), so an unguarded title would render
+         a full base58 as the sheet's heading and aria-label — directly above the row
+         #591 truncated to 9…6. Same guard the roster ingests use. */
+      title: (state.name && !isAddressShaped(state.name) && !isPseudoAddressNick(state.name))
+        ? state.name
+        : (strings.peerAddressTitle || 'Ixian address'),
+    });
+  }
+
   function buildPanel() {
     // #248 GROUP surface: kind 'group' renders name/avatar + notifications toggle +
     // the full member list (owner chip, admin kick/ban) + Leave — no money, no
@@ -4058,6 +4118,9 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
           }
         },
         onLeave: (ctrl) => { bridge.send('ixian:leave'); ctrl.done(); },
+        // ★ Session I: the bot's address row opens the same peer address sheet as a
+        // contact's (chat-info renders the row for kind 'bot' only — never 'group').
+        onAddressSheet: openPeerAddressSheet,
       });
     }
     return createChatInfo({
@@ -4163,18 +4226,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
          :635-641), so wiring it here would offer "Share" on a contact's address and
          send the reader's instead. Copy is the honest affordance until a peer-share
          verb exists. */
-      onAddressSheet: ({ address }) => openAddressSheet({
-        address, strings, host: document.body, subject: 'peer',
-        /* state.name IS the display name (it already incorporates any user-defined nick
-           — see the state declaration); there is no separate nickname field here.
-           ⚠ AND IT CAN BE THE ADDRESS. `Friend.nickname` falls back to the address for an
-           unnamed contact (the #276/#279 echo class), so an unguarded title would render
-           a full base58 as the sheet's heading and aria-label — directly above the row
-           this batch just truncated to 9…6. Same guard the roster ingests use. */
-        title: (state.name && !isAddressShaped(state.name) && !isPseudoAddressNick(state.name))
-          ? state.name
-          : (strings.peerAddressTitle || 'Ixian address'),
-      }),
+      onAddressSheet: openPeerAddressSheet,
 
       // payment activity row tap → native tx detail (WalletSentPage).
       onTx: (tx) => { if (tx && tx.txid) bridge.send('ixian:txdetails:' + tx.txid); },

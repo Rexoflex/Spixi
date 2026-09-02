@@ -774,6 +774,23 @@ function docLocale() {
   try { Intl.getCanonicalLocales(lang); return lang; } catch { return undefined; }
 }
 
+/** ★ Session I (Damir's premium walk, measured): the DEVICE's 12/24-hour setting.
+ *  Every time here used to follow the document LOCALE only, so a phone set to
+ *  24-hour with the app in en-us printed "04:42 PM" beside Telegram's and WhatsApp's
+ *  "16:42" on the same screen — the three timestamps measure the SAME digit height
+ *  (21 px on the Motorola), the extra width of " PM" is what read as "bigger".
+ *  C# registers the platform answer as the `hourCycle` custom string ("h23" / "h12";
+ *  Android DateFormat.is24HourFormat · iOS the "j" skeleton · desktop the culture's
+ *  short-time pattern) and the shell boot copies the carrier onto
+ *  <html data-hour-cycle>. Absent (demos, an old exe) = the locale's own default,
+ *  byte-identical to before. */
+function timeOpts(extra) {
+  const hc = document.documentElement.dataset.hourCycle;
+  const opts = Object.assign({ hour: '2-digit', minute: '2-digit' }, extra || {});
+  if (hc === 'h23' || hc === 'h12') opts.hourCycle = hc;
+  return opts;
+}
+
 /** Shared day-bucket ladder (chat list + conversation separators — single source,
  *  audit DRY finding). `todayLabel` null → caller handles today itself. */
 function dayBucketLabel(ts, strings = getStrings(), now = Date.now(), todayLabel = null) {
@@ -795,7 +812,7 @@ function dayBucketLabel(ts, strings = getStrings(), now = Date.now(), todayLabel
 function formatChatTimestamp(ts, strings = getStrings(), now = Date.now()) {
   const bucket = dayBucketLabel(ts, strings, now, null);
   if (bucket !== null) return bucket; // incl. '' for invalid ts (audit r2)
-  return new Date(ts).toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
+  return new Date(ts).toLocaleTimeString(docLocale(), timeOpts());
 }
 
 /**
@@ -810,7 +827,7 @@ function formatTxTimestamp(ts, now = Date.now()) {
   const date = d.toLocaleDateString(locale, sameYear
     ? { day: 'numeric', month: 'short' }
     : { day: 'numeric', month: 'short', year: 'numeric' });
-  const time = d.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
+  const time = d.toLocaleTimeString(locale, timeOpts({ hour: 'numeric' }));
   return date + ', ' + time;
 }
 
@@ -3844,7 +3861,7 @@ function hideCallBar(host = document.body) {
 
 
 function bubbleTime(d) {
-  return d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString(docLocale(), timeOpts());   // ★ Session I: follows the device's 12/24-hour setting
 }
 
 /* linkify (Damir 2026-07-03; EXTENDED 2026-07-10 #231c): URLs become BUTTONS
@@ -3915,7 +3932,13 @@ function REPLY_KIND_LABELS(kind, strings = getStrings()) {
 
 /* emoji-only detection (Damir 2026-07-03): 1–3 emoji and nothing else render
    BIG with the meta dropped below. Covers ZWJ sequences, skin tones, VS16. */
-const EMOJI_ONLY_RE = /^(?:\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})*(?:‍\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})*)*\s*){1,3}$/u;
+/* ★ Session I (#731/#735): FLAGS were missed — a flag is a PAIR of Regional Indicator
+   symbols (🇸🇮 = U+1F1F8 U+1F1EE), which \p{Extended_Pictographic} does not match, so
+   "🇸🇮" rendered as ordinary text in a bubble. One glyph = a pictographic run (with its
+   modifiers / ZWJ chain / an optional tag sequence, the subdivision flags 🏴󠁧󠁢󠁥󠁮󠁧󠁿) OR a regional
+   pair OR a keycap. Same 1–3 cap. */
+const EMOJI_GLYPH = '(?:\\p{Extended_Pictographic}(?:️|\\p{Emoji_Modifier})*(?:‍\\p{Extended_Pictographic}(?:️|\\p{Emoji_Modifier})*)*(?:[\\u{E0020}-\\u{E007F}]+)?|\\p{Regional_Indicator}{2}|[0-9#*]️?⃣)';
+const EMOJI_ONLY_RE = new RegExp('^(?:' + EMOJI_GLYPH + '\\s*){1,3}$', 'u');
 /* @-mention highlighting (Damir 2026-07-09, premium mentions, DECISIONS #210).
    A mention token = "@" + a name; rendered as a styled span (color + bold, theme-
    aware, XSS-safe textContent — never innerHTML). When the shell supplies the known
@@ -4471,17 +4494,18 @@ function createComposer({
   const field = document.createElement('div');
   field.className = 'c-composer__field';
 
-  /* ★ #705 (Session G): the ⊕ sits BESIDE the pill, not in it — WhatsApp/iMessage
-     grammar, and the same 44px disc as the send action so the bar reads as
-     [⊕] [field] [send]. `aria-expanded` is the tray's open state (attach-sheet.js
-     writes it); the glyph rotates to a ✕ through that attribute in composer.css. */
+  /* ★ #705 (Session G) put the ⊕ BESIDE the pill; ★ Session I (#735, sheet 5, Damir on
+     device: "more premium") puts it back INSIDE, bottom-left of the field, as a 36 disc
+     with a 44 hit area (composer.css). The tray/✕ behaviour is untouched: `aria-expanded`
+     is the tray's open state (attach-sheet.js writes it) and the glyph still rotates to a
+     ✕ through that attribute. Only the housing moved — it is a child of the FIELD now. */
   const attach = document.createElement('button');
   attach.type = 'button';
   attach.className = 'c-composer__attach';
   attach.setAttribute('aria-label', strings.attach || 'Attach');
   attach.append(icon('circle-plus', { size: 24 }));
   if (onAttach) attach.addEventListener('click', onAttach);
-  el.append(attach);
+  field.append(attach);
 
   const input = document.createElement('textarea');
   input.className = 'c-composer__input';
@@ -4864,7 +4888,7 @@ function setComposerCost(el, costText, strings = getStrings()) {
 
 
 function cardTime(d) {
-  return d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString(docLocale(), timeOpts());   // ★ Session I: the device's 12/24-hour setting
 }
 
 let tcardNoteUid = 0; // aria-describedby ids for insufficient-balance notes (C15)
@@ -6481,7 +6505,7 @@ function createMediaBubble({
       const time = document.createElement('time');
       time.className = 'c-mbubble__time u-tabular';
       time.setAttribute('datetime', d.toISOString());
-      time.textContent = d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
+      time.textContent = d.toLocaleTimeString(docLocale(), timeOpts());   // ★ Session I: the device's 12/24-hour setting
       el.append(time);
     }
   }
@@ -17731,6 +17755,7 @@ function createChatInfo({
   if (capabilities.notifications && onNotifications) {
     const row = document.createElement('div');
     row.className = 'c-chat-info__row';
+    row.dataset.row = 'switch';   // ★ Session I canon: a switch row is 56, a nav row 48
     const lab = document.createElement('span');
     lab.className = 'c-chat-info__row-label';
     lab.append(infoDisc('bell', 'warning'), document.createTextNode(strings.notifications || 'Notifications'));
@@ -21059,6 +21084,7 @@ function createSettingsHub({
     section.className = 'c-settings__section';
     const row = document.createElement('div');
     row.className = 'c-settings__row c-settings__row--static';
+    row.dataset.row = 'switch';   // ★ Session I canon: switch rows are 56, nav rows 48
     const lab = document.createElement('span');
     lab.className = 'c-settings__row-label' + (sub ? ' c-settings__row-label--stack' : '');
     if (sub) {
@@ -22202,6 +22228,7 @@ function switchRow({ glyph, hue, label, sub, checked, live, failText, onToggle }
   section.className = 'c-settings__section';
   const row = document.createElement('div');
   row.className = 'c-settings__row c-settings__row--static';
+  row.dataset.row = 'switch';   // ★ Session I canon: switch rows are 56, nav rows 48
   const lab = document.createElement('span');
   lab.className = 'c-settings__row-label' + (sub ? ' c-settings__row-label--stack' : '');
   const disc = document.createElement('span');
@@ -22483,8 +22510,19 @@ function createNotificationsScreen({
   onPushProvider,                // (next, ctrl) — ★ P2 (#708): ixian:notifPushProvider:on|off
   strings = getStrings(),
 } = {}) {
-  const { el, body, live } = screenShell('c-settings-notifs', strings.notifications || 'Notifications', onBack);
+  const { el, body: screenBody, live } = screenShell('c-settings-notifs', strings.notifications || 'Notifications', onBack);
   const failText = strings.notifFailed || 'Couldn’t update notifications.';
+  /* ★ Session I (#735 §9, sheet 3b): ONE CARD GRAMMAR. Every switch row used to be its own
+     card with inter-card gaps ("gaps read wrong"), while Account groups related rows in
+     shared cards. The four rows are one "Notifications" group now — switchRow still
+     returns a section, so appending the sections into a .c-settings__group gives the
+     hub's dividers for free; the P2 note stays under the group. */
+  const groupWrap = document.createElement('div');
+  groupWrap.className = 'c-settings__groupwrap';
+  const body = document.createElement('div');
+  body.className = 'c-settings__group';
+  groupWrap.append(body);
+  screenBody.append(groupWrap);
   if (capabilities.globalNotifications) {
     if (onEnabled) body.append(switchRow({
       glyph: 'bell', hue: 'warning',
@@ -22536,9 +22574,14 @@ function createNotificationsScreen({
       body.append(switchRow({
         glyph: 'cloud-bolt', hue: 'info',   // ★ Session H: a cloud that wakes the device. NOT 'world' (the Language row) and NOT 'topology-star' (the secure notice, Damir 2026-08-30) — one glyph, one meaning (#602). bell-ringing was exported too; 'bell' already means "Allow notifications" one row above, so a second bell would blur it
         label: strings.notifPushProvider || 'Instant delivery via OneSignal',
-        sub: platform === 'ios'
-          ? (strings.notifPushProviderSubIos || 'Off: you see new messages only when you open Spixi. Nothing is sent to a third party.')
-          : (strings.notifPushProviderSubAndroid || 'Off: messages arrive when Spixi checks, not instantly. Nothing is sent to a third party.'),
+        /* ★ Session I (#735 §9, Damir: "the OneSignal sub-label is confusing"): the SUB is
+           STATE-NEUTRAL now — it says what the switch DOES, in one sentence, on both
+           platforms. #712's intent (sub = the cost of the off state) read as a
+           contradiction under a switch that is ON ("Off: …"). The state-dependent
+           explanation — the #712 claim boundaries: token + IP to OneSignal, the per-platform
+           off cost, the record it keeps — lives in the NOTE below, which follows the switch.
+           The two old per-platform sub keys retire (their locales are rebuilt). */
+        sub: strings.notifPushProviderSub || 'Wakes this device the moment a message arrives. Uses OneSignal, a push provider.',
         checked: pushProvider, live, failText, onToggle: onPushProvider,
       }));
       /* ★ #712 (Damir): THE FEEDBACK IS PROMINENT AND SAYS WHAT HAPPENS IN BOTH STATES.
@@ -22551,12 +22594,12 @@ function createNotificationsScreen({
       const note = document.createElement('p');
       note.className = 'c-settings__note c-settings-notifs__push-note';
       note.setAttribute('aria-live', 'polite');
+      screenBody.append(note);   // ★ Session I: under the GROUP, not inside the card
       note.textContent = pushProvider
         ? (strings.notifPushProviderOn || 'On: OneSignal wakes this device the moment a message arrives. OneSignal receives a push token for this device and sees its IP address. It never sees your messages or your contacts.')
         : (platform === 'ios'
           ? (strings.notifPushProviderOffIos || 'Off: nothing more is sent to OneSignal and this device is unsubscribed there. New messages appear when you open Spixi. The record OneSignal already holds is not deleted by this switch.')
           : (strings.notifPushProviderOffAndroid || 'Off: nothing more is sent to OneSignal and this device is unsubscribed there. Spixi checks for new messages itself and notifies you when it finds some, so they can arrive a little later. The record OneSignal already holds is not deleted by this switch.'));
-      body.append(note);
     }
   }
   return el;
@@ -23203,6 +23246,7 @@ function createSettingsAbout({
   links,
   onOpenLink,                    // OPTIONAL (url) — wired since iOS-21 (ixian:openLink)
   host,                          // iOS-23: sheet host for the legal doc sheets
+  devSeed,                       // ★ Session I: OPTIONAL { onSeed, onUnseed, status } — the DEV-BUILD seed harness (see below); absent = no card
   onBack,
   strings = getStrings(),
 } = {}) {
@@ -23285,6 +23329,45 @@ function createSettingsAbout({
   legal.className = 'c-settings__note c-settings-about__legal';
   legal.textContent = strings.aboutLegal || '© Ixian. Open source, MIT licensed.';
   body.append(legal);
+
+  /* ★ Session I ② — THE SEED HARNESS CARD (DEV BUILDS ONLY, Damir: "button in About").
+     Rendered ONLY when the host passes `devSeed`, and settings.html passes it ONLY after
+     C# pushed `setDevSeed` — which SettingsPage sends under `#if SPIXI_DEV_COEXIST`, the
+     compile symbol Spixi.csproj defines for a SpixiDevCoexist build (#732). A store build
+     has no symbol, no push, no card, no verbs. Fifty deterministic contacts with history
+     go through the REAL message store (FriendList.addFriend + addMessageWithType), so the
+     [CDPERF] chat-open stamps and the chats-list rows are measured at 50, not at 3.
+     English-only by the #301 precedent: an engineering instrument that cannot ship. The
+     `i18n-lint-ok:dev` marks are counted by a smoke pin (#420's cap, now two sites). */
+  if (devSeed && (devSeed.onSeed || devSeed.onUnseed)) {
+    const wrap = document.createElement('div');
+    wrap.className = 'c-settings__groupwrap c-settings-about__devseed';
+    const head = document.createElement('p');
+    head.className = 'c-settings__note';
+    head.textContent = 'Dev build (SpixiDevCoexist) — seed harness. Fifty test contacts with history, through the real message store. Remove before measuring anything else.';   // i18n-lint-ok:dev — dev-build instrument, compiled out of release (#732)
+    wrap.append(head);
+    const card = document.createElement('div');
+    card.className = 'c-settings__group c-settings-links';
+    const row = (label, onClick) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'c-settings-links__row';
+      const lab = document.createElement('span');
+      lab.className = 'c-settings-links__label';
+      lab.textContent = label;
+      b.append(lab, icon('chevron-right', { size: 18 }));
+      b.addEventListener('click', () => { if (onClick) onClick(); });
+      return b;
+    };
+    if (devSeed.onSeed) card.append(row('Seed 50 test contacts', devSeed.onSeed));         // i18n-lint-ok:dev — dev-build instrument (#732)
+    if (devSeed.onUnseed) card.append(row('Remove seeded contacts', devSeed.onUnseed));   // i18n-lint-ok:dev — dev-build instrument (#732)
+    wrap.append(card);
+    const status = document.createElement('p');
+    status.className = 'c-settings__note c-settings-about__devseed-status';
+    status.textContent = devSeed.status || '';
+    wrap.append(status);
+    body.append(wrap);
+  }
 
   return el;
 }
@@ -23414,6 +23497,18 @@ function createSettingsHowTo({
   return el;
 }
 
+/* ---- src/components/legal-docs.js ---- */
+/* GENERATED by scripts/build-legal-docs.mjs from docs/legal — DO NOT EDIT.
+ * ★ #733: the FULL legal documents, baked at build time (scripts/lib/legal-docs.mjs).
+ * A document with an editorial marker still in it is HELD (text = null, hold = why);
+ * launch-shell falls back to its honest summary for that one document until the
+ * marker leaves docs/legal. Rebuild: node scripts/build-legal-docs.mjs (build-demo-bundle
+ * runs it first, so a bundle can never carry a stale copy). */
+const LEGAL_DOCS = {
+  terms: { text: "**Last updated: 29 August 2026** · Supersedes the version of 07 December 2025.\n\n**Read section 4 before you use the wallet.** If you lose your backup file or your password, your funds and your identity are gone permanently. Not difficult to recover — **gone**. Nobody, including us, can restore them. This is not a limitation we intend to fix; it is what self-custody means, and it is the reason we cannot be compelled to hand your data to anyone.\n\n# 1. Agreement\n\nThese Terms of Use (the \"Terms\") form a binding agreement between **IXI Labs d.o.o.**, a company registered in the Republic of Slovenia (\"IXI Labs\", \"we\", \"us\"), and you.\n\nThey govern your use of **the Spixi application** on all platforms, **the website at spixi.io**, and any related content and services (together, the \"Services\").\n\nBy installing, opening or using the Services you confirm that you have read, understood and agree to these Terms and to our **Privacy Policy**. **If you do not agree, do not use the Services.**\n\nUnlike our previous Terms, which addressed the website, these Terms cover the **application** and the website together. Where they conflict with the earlier version, these govern.\n\n# 2. Eligibility\n\nYou must be at least **16 years old**, or older where the law that applies to you requires it, and you must have the legal capacity to enter into this agreement.\n\nYou must not use the Services if you are subject to sanctions that would prohibit it, or if doing so would breach the law where you are.\n\n# 3. What Spixi is, and what it is not\n\nSpixi is **software you run**. It is a decentralised, self-custodial messenger and wallet built on the Ixian platform.\n\n**There is no account.** We do not register you, we do not authenticate you, and we hold nothing on your behalf. Your identity is a cryptographic key pair your device generates.\n\nConsequently, and this is the whole architecture in one line: **we are not a party to your messages and not a custodian of your funds.** We cannot read your conversations, freeze your wallet, reverse your transactions, restore your keys, or recover your account, because there is no account and we hold no keys.\n\n**Spixi is not** a bank, a payment service, an exchange, a broker, a custodian, or a financial adviser. We do not hold client funds and we do not offer regulated financial services.\n\n# 4. Self-custody — your keys, your backup, your responsibility\n\n**This section is the most important in these Terms.**\n\nWhen you first run Spixi, your device generates a wallet. From it come your keys and your Spixi address, which are your funds and your identity.\n\nYou are **solely and entirely responsible** for:\n\n- **your private keys**, which exist only on your device;\n- **your backup file**, and keeping a copy somewhere safe, offline and durable;\n- **your password**, which protects them and which we never receive;\n- **the security of every device** on which you install Spixi.\n\n**We cannot help you if these are lost.** There is no password reset, no recovery phrase held in escrow, no support process, no override key, and no court order that can produce one. **If you lose your backup file or forget your password, your wallet and your identity are permanently unrecoverable.** If someone else obtains them, they have your funds and can impersonate you, and nothing can be done.\n\nBefore you put anything of value into Spixi:\n\n- **make a backup, and verify you can restore from it**;\n- **store it offline**, ideally in more than one place;\n- **never share your backup file, password or keys with anyone** — including anyone claiming to be IXI Labs support. **We will never ask for them.**\n\n# 5. Transactions are irreversible\n\nTransactions on the Ixian blockchain are **final**. Once confirmed they cannot be cancelled, reversed or refunded by us or by anyone.\n\nYou are responsible for every detail of every transaction, including the **recipient address** and the **amount**. Sending to a wrong or mistyped address will lose the funds permanently. Verify before you send.\n\nBlockchain records are **public and permanent**. Your addresses and transactions can be read and analysed by anyone, now and in the future.\n\n# 6. No financial, investment, legal or tax advice\n\nNothing in the Services is financial, investment, legal or tax advice, a recommendation, or a solicitation.\n\nCrypto-assets carry **significant risk**, including total loss. Values are volatile. Networks can fail, fork or be attacked. We are not your adviser, broker or fiduciary. You are responsible for your own decisions and for complying with the law and your tax obligations where you live. Take professional advice if you need it.\n\nAny price shown in the app is **indicative, third-party sourced and may be wrong or stale**. Do not rely on it for a decision that matters.\n\n# 7. Your conduct\n\nYou are responsible for what you send and for how you use the Services. You must not use them to:\n\n- break any law that applies to you;\n- send unlawful, abusive, harassing, defamatory, or deceptive content;\n- distribute material that sexually exploits or endangers children;\n- infringe anyone's intellectual property or privacy;\n- distribute malware, or attack, overload or disrupt the network, the website or other users;\n- attempt unauthorised access to any system or another person's device or wallet;\n- impersonate any person or organisation, including us.\n\n⚠ **Understand what enforcement can and cannot mean here.** We cannot see your messages and we cannot disable an account, because neither exists. We can suspend access to services we do operate — the website, the offline delivery service, Mini App distribution — and we can and will report unlawful conduct to the competent authorities. Beyond that, moderation is not technically available to us, and you should not use Spixi on the assumption that anyone is supervising it.\n\n# 8. Other people's content\n\nContent you receive comes from other users, not from us. We do not review, endorse or verify it and we are not responsible for it. If someone is abusing you, block them. If content is unlawful, report it to the authorities — and please tell us if it involves something we distribute, such as a Mini App.\n\n# 9. Mini Apps and third-party services\n\nMini Apps and linked third-party services are operated by others under **their own terms and privacy policies**. Listing one is not an endorsement, and we are not responsible for its content, security or conduct. Assess it before you use it, particularly before granting access to anything or sending it funds.\n\n# 10. The network, availability and change\n\nSpixi runs on the **Ixian network**, a decentralised system of **independently operated nodes** we do not own or control. Its availability, performance and continued existence are not within our gift.\n\nWe provide the Services **\"as is\" and \"as available\"**. We do not promise they will be uninterrupted, timely, secure or error-free, and we may change, suspend, restrict or discontinue any part of them at any time. Messages may be delayed or fail to deliver. Features may be added or removed. There is no service level and no uptime commitment.\n\n# 11. Open source\n\nThe Spixi software is open source, published under the **MIT licence** or another licence stated in the relevant repository. Your use, modification and redistribution of the source are governed by that licence.\n\n**Where these Terms conflict with the applicable open-source licence, the licence governs the software** to the extent of the conflict. Nothing here grants you rights to the software beyond those the licence gives.\n\nOur **name, logo and brand** are not covered by that licence and remain ours (§12).\n\n# 12. Intellectual property\n\nExcept for the source code released under an open-source licence, all rights in the Services — including the website, its content, our design, our trade marks and the Spixi and Ixian names and logos — belong to IXI Labs or its licensors.\n\nYou may use the website for your personal, non-commercial purposes and print or download extracts for that purpose. You must not modify them, separate images from their accompanying text, remove proprietary notices, or use them commercially without our written permission.\n\n**Your content stays yours.** We claim no rights over your messages or files. We could not exercise them if we did — we cannot read them.\n\n# 13. Disclaimer of warranties\n\nTo the fullest extent permitted by law, the Services are provided **\"as is\"** and **\"as available\"** without warranties of any kind, express or implied, including any implied warranties of merchantability, fitness for a particular purpose, title, non-infringement, or that the Services will be uninterrupted, secure, accurate or error-free.\n\nYou are responsible for your own device, software and security arrangements.\n\n# 14. Limitation of liability\n\nTo the maximum extent permitted by law, IXI Labs and its directors, employees and affiliates will not be liable for:\n\n- **any loss of crypto-assets, keys, passwords, backup files or data**, however caused;\n- loss of profits, revenue, business, opportunity, goodwill or anticipated savings;\n- business interruption;\n- any indirect, incidental, special, punitive or consequential loss,\n\narising out of or in connection with your use of, or inability to use, the Services, whether in contract, tort (including negligence), breach of statutory duty or otherwise, and even if foreseeable.\n\nWhere we are found liable notwithstanding the above, our **total aggregate liability** for all claims connected with the Services and these Terms is limited to the greater of **the amount you have actually paid us for the Services** and **EUR 100**.\n\n**Nothing in these Terms excludes or limits liability that cannot lawfully be excluded** under the law of the Republic of Slovenia — including liability for death or personal injury caused by negligence, for fraud or fraudulent misrepresentation, or any liability owed to you as a consumer that the law makes unwaivable.\n\n# 15. Indemnity\n\nYou agree to indemnify and hold harmless IXI Labs, its directors, employees and affiliates against any claim, liability, damage, loss or expense (including reasonable legal fees) arising from your use of the Services, your content, or your breach of these Terms or of any law.\n\n# 16. Suspension and termination\n\nYou may stop using Spixi at any time by uninstalling it. **Uninstalling deletes your local data, including your keys** — make sure your backup exists first.\n\nWe may suspend or withdraw access to the parts of the Services we operate where we reasonably believe you have breached these Terms or that it is necessary for legal, security or operational reasons. **We cannot terminate \"your account\", because you do not have one**, and we cannot prevent you from running open-source software.\n\nSections that by their nature should survive termination — intellectual property, disclaimers, limitation of liability, indemnity and governing law — do survive.\n\n# 17. Changes to these Terms\n\nWe may amend these Terms. The \"Last updated\" date will change, and for material changes we will give notice in the app or on the website. Continued use after a change takes effect means you accept it. If you do not accept, stop using the Services.\n\n# 18. Governing law and jurisdiction\n\nThese Terms, their subject matter and formation, and any non-contractual dispute connected with them, are governed by the **law of the Republic of Slovenia**, without regard to conflict-of-law rules.\n\nThe courts of the Republic of Slovenia have exclusive jurisdiction, **except** that if you are a consumer resident in the EU you keep the right to bring proceedings, and to be sued only, in the courts of your country of residence, and you keep the protection of any mandatory consumer law there.\n\n# 19. General\n\nIf a provision is held unenforceable, the rest stands. Our failure to enforce a provision is not a waiver of it. You may not assign these Terms; we may assign them to a successor. These Terms and the Privacy Policy are the entire agreement between us about the Services.\n\n# 20. Contact\n\n**IXI Labs d.o.o.**, Slovenia · **support@spixi.io** · https://www.spixi.io", hold: [], source: "docs/legal/terms-of-use.md" },
+  privacy: { text: null, hold: ["a ⟨PLACEHOLDER⟩ is still in the text (line 83)","a PLACEHOLDER / DAMIR TO CONFIRM note is still in the text (line 83)","a session/decision annotation (\"Updated Session …/#…\") is still in the text (line 95)"], source: "docs/legal/privacy-policy.md" },
+};
+
 /* ---- src/components/launch-shell.js ---- */
 /**
  * launch-shell — welcome carousel · create · restore · retry
@@ -23479,6 +23574,7 @@ function createSettingsHowTo({
  *   showTerms · setLaunchAvatar(el, src) ← loadAvatar ·
  *   setLaunchFile(el, name) ← setUploadedFileName.
  */
+
 
 
 
@@ -23908,17 +24004,47 @@ function buildWelcome(st) {
 // entry, so every locale renders this English text by design. Localizing legal copy
 // requires per-jurisdiction legal review and is out of scope for the i18n batch. Their
 // TITLES (termsTitle / privacyTitle) ARE translated.
-const TERMS_DEFAULT = 'Spixi is a decentralised, self-custodial app on the Ixian Platform. You are solely responsible for your wallet, backup file and password. No other way to recover them exists. IXI Labs collects no personal data. You must be at least 16 years old (or the higher minimum age your country requires) to use Spixi.\n\nThe full document is provided in English only.';
-/* ★ Session H gate sweep (OURS-3): the old default claimed "does not collect any
- * personal data" while the policy in the same tree documents OneSignal holding a push
- * token + IP for delivery. The in-app summary now says what the policy says — a privacy
- * app must not undersell its own disclosure. 🟡 Damir: wording pass welcome; the claim
- * boundaries (no phone/email · content stays on device · push token+IP to OneSignal
- * on Android/iOS unless switched off · NO push provider on Windows/Catalyst — the
- * reviewer's oversell catch: pushProviderSupported() is false there and the switch is
- * never rendered, so the copy must not promise it) are the facts and must survive any
- * rewrite. */
-const PRIVACY_DEFAULT = 'No phone number or email is required. Your messages stay on your device, and IXI Labs cannot read your message history or access your wallet keys.\n\nOn Android and iOS, notification delivery uses OneSignal, a push provider: a push token and your IP address reach it. You can turn this off in Settings \u2192 Notifications. The desktop app uses no push provider.\n\nThe full Privacy Policy is provided in English only.';
+//
+// ★ #733 (Session I): THE FULL DOCUMENTS SHIP IN-APP. `LEGAL_DOCS` is generated from
+// docs/legal/*.md by scripts/lib/legal-docs.mjs on every bundle build — what the user
+// accepts on the create/restore commit is what the user can read, offline, in full.
+// The hand-written TERMS summary is RETIRED (it still claimed "IXI Labs collects no
+// personal data" after #730 fixed that claim on the privacy side — a hand copy drifts;
+// a build-step read cannot). The PRIVACY summary below survives ONLY as the held-doc
+// fallback: while docs/legal/privacy-policy.md carries an editorial marker (the §4.3/§11
+// retention placeholder is Damir's to fill; the §4.4 "(Updated Session G/#708…)" note
+// is internal history), the bake HOLDS that document and this summary renders in its
+// place. The day the markers are gone, this constant is dead code — delete it then
+// (a grep for PRIVACY_HELD_SUMMARY finds every consumer).
+//
+// The one-paragraph "dud" of walk row A15 (#731), named: nothing was stale and nothing
+// shadowed the body — the legacy lang dictionary has no privacy/terms body key and
+// extract-strings lists both bodies as no-fallback refs — the sheet rendered exactly the
+// hand-written constant, which at 47d955e8 was ONE paragraph plus the English-only
+// line. The summary was the content. The fix is the full document, not a longer summary.
+//
+// LEAD: one line above every document — the English-only line, kept from the old
+// summaries' tail (Damir #733: "keep the English-only line"); the document's own
+// "Last updated" line follows it from the bake.
+const LEGAL_LEAD_ENGLISH_ONLY = 'This document is provided in English only.';
+/* ★ Session H gate sweep (OURS-3) + #730: the claim boundaries (no phone/email · content
+ * stays on device · push token+IP to OneSignal on Android/iOS unless switched off · NO
+ * push provider on Windows/Catalyst — pushProviderSupported() is false there and the
+ * switch is never rendered) are facts and must survive any rewrite. 🟡 Damir: the #730
+ * wording pass. This text renders ONLY while the full policy is held (see above). */
+const PRIVACY_HELD_SUMMARY = 'No phone number or email is required. Your messages stay on your device, and IXI Labs cannot read your message history or access your wallet keys.\n\nOn Android and iOS, notification delivery uses OneSignal, a push provider: a push token and your IP address reach it. You can turn this off in Settings → Notifications. The desktop app uses no push provider.\n\nThe full Privacy Policy is provided in English only.';
+
+/** The sheet text for a legal document: the baked full document under the lead line,
+ *  or — for a HELD document — the honest summary. Pure; one source for the four callers
+ *  (consent line ×2, openLegalDoc ×2). */
+function legalDocText(doc) {
+  const baked = LEGAL_DOCS[doc];
+  if (baked && baked.text) return LEGAL_LEAD_ENGLISH_ONLY + '\n\n' + baked.text;
+  if (doc === 'privacy') return PRIVACY_HELD_SUMMARY;
+  // terms is never held today (no marker in terms-of-use.md); if it ever is, the bake
+  // prints the hold and the sheet must still open — the English-only line + a pointer.
+  return LEGAL_LEAD_ENGLISH_ONLY + '\n\nThe full document is available at [spixi.io](https://www.spixi.io).';
+}
 
 function openDocSheet(st, title, text) {
   const strings = st.strings;
@@ -23942,30 +24068,57 @@ function openDocSheet(st, title, text) {
     }
     if (last < s.length) el.append(s.slice(last));
   };
-  // "# " = heading, "- " = list item, else a paragraph. Markers are stripped —
-  // the TEXT stays verbatim (text nodes + validated links only, XSS-safe).
-  let list = null;
+  // ★ #733: `**bold**` → <strong>, wrapped around the link pass. Split on the bold
+  // marker pairs first; each fragment then goes through appendRich — still text nodes +
+  // validated https anchors only; the markers themselves never reach the DOM.
+  const appendInline = (el, s) => {
+    const parts = String(s).split(/\*\*([^*\n]+?)\*\*/);   // odd indexes = bold runs
+    parts.forEach((part, k) => {
+      if (!part) return;
+      if (k % 2) { const b = document.createElement('strong'); appendRich(b, part); el.append(b); }
+      else appendRich(el, part);
+    });
+  };
+  // "# " = heading, "## " = sub-heading (#733), "- " = list item, "1. " = numbered item
+  // (#733), else a paragraph. Markers are stripped — the TEXT stays verbatim (text nodes
+  // + validated links only, XSS-safe).
+  let list = null, listKind = '';
+  const openList = (kind) => {
+    if (list && listKind === kind) return list;
+    list = document.createElement(kind); listKind = kind;
+    list.className = 'c-launch__terms-list';
+    bodyEl.append(list);
+    return list;
+  };
   for (const raw of String(text).split('\n')) {
     const line = raw.replace(/\r$/, '');       // CRLF safety only — deliberately not trimmed (passwords are never trimmed; guard-counted)
     if (!line) { list = null; continue; }
-    if (line.startsWith('# ')) {
+    const numbered = /^\d+\. /.exec(line);
+    if (line.startsWith('## ')) {
+      list = null;
+      const h = document.createElement('h5');
+      h.className = 'c-launch__terms-h c-launch__terms-h--sub';
+      h.textContent = line.slice(3);
+      bodyEl.append(h);
+    } else if (line.startsWith('# ')) {
       list = null;
       const h = document.createElement('h4');
       h.className = 'c-launch__terms-h';
       h.textContent = line.slice(2);
       bodyEl.append(h);
-    } else if (line.startsWith('- ')) {
-      if (!list) { list = document.createElement('ul'); list.className = 'c-launch__terms-list'; bodyEl.append(list); }
+    } else if (line.startsWith('- ') || numbered) {
+      const ul = openList(numbered ? 'ol' : 'ul');
       const li = document.createElement('li');
-      appendRich(li, line.slice(2));
-      list.append(li);
+      appendInline(li, numbered ? line.slice(numbered[0].length) : line.slice(2));
+      ul.append(li);
     } else {
       list = null;
       const p = document.createElement('p');
-      appendRich(p, line);
+      appendInline(p, line);
       bodyEl.append(p);
     }
   }
+
   const sheet = createSheet({ content: bodyEl, host: st.docHost || hostEl(st), title, strings });
   // explicit close affordance (scrim tap + Esc still work) — obvious corner tap
   const closeBtn = document.createElement('button');
@@ -23991,9 +24144,9 @@ function openDocSheet(st, title, text) {
 function openLegalDoc({ doc = 'terms', host, strings = getStrings() } = {}) {
   const ctx = { strings, docHost: host, opts: { host }, root: null };
   if (doc === 'privacy') {
-    openDocSheet(ctx, strings.privacyTitle || 'Privacy Policy', strings.privacyBody || PRIVACY_DEFAULT);
+    openDocSheet(ctx, strings.privacyTitle || 'Privacy Policy', legalDocText('privacy'));
   } else {
-    openDocSheet(ctx, strings.termsTitle || 'Terms of Use', strings.termsBody || TERMS_DEFAULT);
+    openDocSheet(ctx, strings.termsTitle || 'Terms of Use', legalDocText('terms'));
   }
 }
 
@@ -24015,14 +24168,14 @@ function consentLine(st, lead) {
   termsLink.type = 'button';
   termsLink.className = 'c-launch__link';
   termsLink.textContent = strings.termsLink || 'Terms of Use';
-  termsLink.addEventListener('click', () => openDocSheet(st, strings.termsTitle || 'Terms of Use', strings.termsBody || TERMS_DEFAULT));
+  termsLink.addEventListener('click', () => openDocSheet(st, strings.termsTitle || 'Terms of Use', legalDocText('terms')));
   fine.append(termsLink);
   fine.append(' ' + (strings.finePrintAck || 'and acknowledge the') + ' ');
   const privacyLink = document.createElement('button');
   privacyLink.type = 'button';
   privacyLink.className = 'c-launch__link';
   privacyLink.textContent = strings.privacyLink || 'Privacy Policy';
-  privacyLink.addEventListener('click', () => openDocSheet(st, strings.privacyTitle || 'Privacy Policy', strings.privacyBody || PRIVACY_DEFAULT));
+  privacyLink.addEventListener('click', () => openDocSheet(st, strings.privacyTitle || 'Privacy Policy', legalDocText('privacy')));
   fine.append(privacyLink, '.');
   return fine;
 }
@@ -25610,5 +25763,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, PATTERN_LEVELS: PATTERN_LEVELS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, PATTERN_LEVELS: PATTERN_LEVELS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

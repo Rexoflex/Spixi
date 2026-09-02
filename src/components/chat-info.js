@@ -462,6 +462,7 @@ export function createChatInfo({
   if (capabilities.notifications && onNotifications) {
     const row = document.createElement('div');
     row.className = 'c-chat-info__row';
+    row.dataset.row = 'switch';   // ★ Session I canon: a switch row is 56, a nav row 48
     const lab = document.createElement('span');
     lab.className = 'c-chat-info__row-label';
     lab.append(infoDisc('bell', 'warning'), document.createTextNode(strings.notifications || 'Notifications'));

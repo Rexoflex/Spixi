@@ -14,11 +14,14 @@
   /* logical props — RTL-correct (audit MAJOR). Block padding split: the composer is
      the chat's bottom-most chrome, so it owns the iOS home-indicator inset
      (edge-to-edge, iOS-1/3/4) — env() = 0 everywhere else. */
-  padding-block-start: var(--spacing-8);
-  padding-block-end: calc(var(--spacing-8) + env(safe-area-inset-bottom, 0px));
-  /* #705: 8 at the start because the leading ⊕ disc supplies the rest of the optical
-     gap — the same reason the trailing edge is 12 beside the send disc. */
-  padding-inline-start: var(--spacing-8);
+  padding-block-start: var(--composer-pad-block);   /* ★ Session I (sheet 5 = B): 6, was spacing-8 */
+  padding-block-end: calc(var(--composer-pad-block) + env(safe-area-inset-bottom, 0px));
+  /* ★ Session I (#735, sheet 5): the ⊕ is INSIDE the pill again — #705's outside-disc is
+     reversed ("more premium", Damir on device), the tray/✕ behaviour is untouched, only the
+     housing moved. So the bar's leading edge is a chrome edge again: 12, like the trailing
+     one beside the send disc. The A2 `data-no-attach` compensation retires with it — the
+     pill's own start padding is what changes when the ⊕ is hidden (below). */
+  padding-inline-start: var(--spacing-12);
   padding-inline-end: var(--spacing-12);
   /* ★ #711 (Damir 2026-08-30): the bar FLOATS. No ground of its own and no hairline —
      the canvas (gradient + pattern) runs on behind it and the pill, the ⊕ and the send
@@ -113,7 +116,9 @@
   box-shadow: var(--elevation-1);                                    /* #711: a soft lift off the pattern */
   border-radius: var(--radius-24);
   padding-block: var(--spacing-4);
-  padding-inline: var(--spacing-12);  /* #705: symmetric — nothing lives inside the pill but the text */
+  padding-inline: var(--spacing-12);
+  padding-inline-start: calc(var(--composer-attach-size) + var(--spacing-8));   /* ★ Session I: room for the ⊕ inside the pill */
+  position: relative;                                                          /* the ⊕ anchors to the pill */
   transition: box-shadow var(--duration-100) var(--easing-standard);
 }
 /* #265 (Damir ⑩, supersedes Q10b): NO focus ring on the composer at all, BOTH
@@ -132,15 +137,27 @@
    the hiding must never be able to disagree, so this rule has no predicate of its
    own — it renders whatever `syncAttachAffordance` decided. A host that always shows
    the disc never sets the attribute and is byte-identical to before. */
-.c-composer[data-no-attach] { padding-inline-start: var(--spacing-16); }
+/* ★ Session I: with the ⊕ inside the pill, hiding it means the PILL's start padding goes
+   back to the symmetric 12 — the bar edge no longer moves. The attribute is still written
+   by syncAttachAffordance; only what it does changed. */
+.c-composer[data-no-attach] .c-composer__field { padding-inline-start: var(--spacing-12); }
 
 .c-composer__attach {
   flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--size-target-min);  /* #705: the same 44 disc as the send action */
-  height: var(--size-target-min);
+  /* ★ Session I (sheet 5): a 36 disc INSIDE the pill, bottom-left, with a 44 hit area from
+     the negative-margin padding trick (the visual stays 36, the target stays the floor). */
+  position: absolute;
+  inset-inline-start: var(--spacing-4);
+  inset-block-end: calc(var(--spacing-4) + (var(--line-height-body-md) + 2 * var(--composer-input-pad) - var(--composer-attach-size)) / 2);
+  width: var(--composer-attach-size);
+  height: var(--composer-attach-size);
+  box-sizing: content-box;
+  padding: calc((var(--size-target-min) - var(--composer-attach-size)) / 2);
+  margin: calc(-1 * (var(--size-target-min) - var(--composer-attach-size)) / 2);
+  background-clip: content-box;
   border: 0;
   border-radius: var(--radius-full);
   background: transparent;
@@ -168,14 +185,14 @@
   border: 0;
   background: transparent;
   resize: none;
-  padding: var(--spacing-8) 0;
+  padding: var(--composer-input-pad) 0;   /* ★ Session I (sheet 5 = B): 6, was spacing-8 — the pill goes 50 → 46 */
   font-family: var(--font-secondary);
   font-size: var(--font-size-body-md);
   line-height: var(--line-height-body-md);
   letter-spacing: var(--tracking-body-md);
   color: var(--text-neutral-01);
   outline: none; /* focus is carried by the field, not the caret area */
-  max-height: 136px; /* 5×24 line-height + 16 block padding (border-box) — matches JS cap */
+  max-height: calc(5 * var(--line-height-body-md) + 2 * var(--composer-input-pad)); /* 5 lines + the block padding (border-box) — the JS cap derives the same numbers from computed style */
   /* ★ Session H (Damir, Windows screenshot): past five lines the textarea scrolls, and
      Chromium painted its CLASSIC scrollbar — arrows, track, a 17px column — inside the
      pill. The .u-scroll grammar (#41) applies, minus the reserved gutter: a gutter would

@@ -67,7 +67,7 @@
         'flat' BEFORE first paint rather than painting an undefined ground. The attribute
         is set in BOTH themes and is simply inert in dark — tokens.css scopes the gradient
         rule out of dark, so there is nothing to branch on here. -->
-<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),p=NaN,t=NaN,s='',g='';try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));s=localStorage.getItem('spixi.chat.patternstyle')||'';g=localStorage.getItem('spixi.chat.ground')||'';}catch(e){}var lv;if(!isFinite(p))lv=de?0:1;else if(p<=0)lv=0;else lv=1;r.setProperty('--chat-pattern-opacity',lv<=0?'0':'var(--chat-pattern-alpha-1)');if(!isNaN(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));if(s==='flow'&&!de)s='doodles';if(s!=='doodles'&&s!=='matrix'&&s!=='flow')s='doodles';document.documentElement.setAttribute('data-chat-pattern',s);if(g!=='flat'&&g!=='gradient')g=de?'flat':'gradient';document.documentElement.setAttribute('data-chat-ground',g);})();</script>
+<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),p=NaN,t=NaN,s='',g='';try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));s=localStorage.getItem('spixi.chat.patternstyle')||'';g=localStorage.getItem('spixi.chat.ground')||'';}catch(e){}var lv;if(!isFinite(p))lv=1;else if(p<=0)lv=0;else lv=1;r.setProperty('--chat-pattern-opacity',lv<=0?'0':'var(--chat-pattern-alpha-1)');if(!isNaN(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));if(s==='flow'&&!de)s='doodles';if(s!=='doodles'&&s!=='matrix'&&s!=='flow')s='doodles';document.documentElement.setAttribute('data-chat-pattern',s);if(g!=='flat'&&g!=='gradient')g='gradient';document.documentElement.setAttribute('data-chat-ground',g);})();</script>
 <style>
   /* Paint the screen surface IMMEDIATELY — before tokens.css/base.css load and
      before the JS bundle parses — so entering a chat doesn't flash an empty
@@ -198,7 +198,7 @@
      the notice rises like a normal bubble. When the log overflows the auto-
      margins collapse to 0 → notice pins to the top of history, log scrolls,
      newest at the bottom (Damir 2026-07-07). */
-  #messages { flex: 1; min-height: 0; padding-bottom: var(--spacing-4); display: flex; flex-direction: column; }
+  #messages { flex: 1; min-height: 0; padding-bottom: calc(var(--composer-h, 0px) + var(--spacing-4)); display: flex; flex-direction: column; }   /* ★ Session I: + the floating composer's height (published by the ResizeObserver) so the log passes UNDER the pill */
   #messages > .c-sysnotice { margin-top: auto; margin-bottom: auto; }
   /* A3 (#302): unread-elsewhere dot on the chat topbar back button. #48 grammar
      (error surface + a 2px ring in the HOST surface so it reads on any background) at
@@ -235,7 +235,21 @@
   /* #43: every hover lives inside the hover-capable guard */
   @media (hover: hover) and (pointer: fine) { .chat-older__btn:not(:disabled):hover { background: var(--surface-interactive-hover, var(--surface-card)); } } /* #334 AND-18 guard */
   .chat-older__btn:disabled { cursor: default; color: var(--text-neutral-02); }
-  #chat-composer { flex: none; }
+  /* ★★ Session I (#731/#735, sheet 5 — Damir: "the composer must TRULY float, messages
+     pass under the pill"; his screenshot: the log ended above it). #711 made the bar
+     paint as three floating shapes but left it IN THE FLOW, so the log still stopped at
+     its top edge. The slot is absolutely positioned at the canvas bottom now (the canvas
+     is position:relative — message-bubble.css), and the log takes the published
+     --composer-h as bottom padding, so the last bubble scrolls up out from under the
+     pill and the pattern runs behind it. Everything that composed with the slot keeps
+     composing: the --kb-inset margin lifts an absolute box exactly as it lifted a flex
+     one; the tray mounts INSIDE the slot after the bar and the ResizeObserver republishes
+     the taller height; the request pane only exists in the 'incoming' lock, where the
+     composer is hidden; the chevron + @ FAB already offset by --composer-h. The 760
+     desktop column centres the slot with max-width + auto margins (align-self cannot
+     reach an absolute box). ⚠ NO stacking-context property on the slot or the canvas —
+     the message-menu row lift rule (message-menu.css) still holds. */
+  #chat-composer { position: absolute; inset-inline: 0; inset-block-end: 0; }   /* the log's matching padding rides the #messages rule above */
   /* ★ #711: the @ FAB sits ABOVE the floating composer — --composer-h is written on the
      canvas by a ResizeObserver over #chat-composer (the chevron reads it in
      scroll-latest.css). Falls back to 0 where nothing writes it. */
@@ -289,7 +303,19 @@
      · The composer slot (and the request pane that docks in the same slot) centres
        at the same 760 so the pill's edge tracks the bubbles' edge. */
   :root[data-desktop] .messages { padding-inline: max(0px, calc((100% - 760px) / 2)); }
-  :root[data-desktop] #chat-composer,
+  /* ★ Session I (Damir 2026-09-02, Windows): "the unread bar is cut off on both sides" —
+     the strip is a #messages child, so it centred INSIDE the 760 column and its two
+     hairlines + tint stopped dead at the gutters. Ruled FULL PANE, edge to edge. The
+     child cannot see the scroller's 100%, but on desktop the scroller IS the pane:
+     body is margin 0 / overflow hidden and .c-chat-canvas fills it, so 100vw == the
+     .messages containing width and this term equals the padding term above to the
+     pixel. The negative margin pulls the strip back over both gutters; the 6px
+     scrollbar gutter (base.css .u-scroll) stays outside, so the strip runs from the
+     pane edge to the scrollbar edge and its text stays centred on the column.
+     Inert below 760px (max floors at 0), phones untouched. Pinned to the .messages
+     term: the two 760 literals must move together. */
+  :root[data-desktop] .c-unread-divider { margin-inline: calc(-1 * max(0px, (100vw - 760px) / 2)); }
+  :root[data-desktop] #chat-composer { max-width: 760px; margin-inline: auto; }   /* ★ Session I: the slot is absolute now — insets 0 + max-width + auto margins centre it */
   :root[data-desktop] .chat-request-pane { width: 100%; max-width: 760px; align-self: center; }
   :root[data-desktop] .c-scroll-latest,
   :root[data-desktop] .chat-mention-fab {
@@ -516,6 +542,10 @@
          registers "devMode" with addCustomString at boot, so it resolves in EVERY
          generated document, not only index.html. Gates the load probe below. -->
     <span id="sl-devmode">*SL{devMode}</span>
+    <!-- ★ Session I: the DEVICE 12/24-hour setting ("h23" / "h12"), registered by HomePage
+         at boot (Utils.deviceHourCycle) — the shell boot below copies it onto <html
+         data-hour-cycle> and every time format (timestamp.js timeOpts) follows it. -->
+    <span id="sl-hourcycle">*SL{hourCycle}</span>
     <span id="sl-payment-received">*SL{chat-payment-received}</span>
     <span id="sl-payment-request-received">*SL{chat-payment-request-received}</span>
     <span id="sl-payment-request-sent">*SL{chat-payment-request-sent}</span>
@@ -530,6 +560,7 @@
     <span id="sl-waiting-response">*SL{chat-waiting-for-response}</span>
     <span id="sl-online">*SL{chat-online}</span>
   </div>
+  <script>(function(){var e=document.getElementById('sl-hourcycle');var t=e?e.textContent.trim():'';if(t==='h23'||t==='h12')document.documentElement.dataset.hourCycle=t;})();</script>
   <div id="chat-topbar"></div>
   <div class="c-chat-canvas">
     <!-- tabindex: keyboard users must be able to scroll text-only history -->
@@ -4697,11 +4728,31 @@
       bursting = false;
       clearTimeout(burstSafety);
       endLoadPhase();                      // A3: the open stream is over — spend the one-shot boundary chance
+      /* ★ Session I ② [CDPERF] — TEMPORARY, the chat-OPEN stutter instrument (#735, Damir on
+         Release: "subtle stutter, like a game on a bad computer"). ONE console.info line per
+         open, read off logcat under the `chromium` tag (Android WebView forwards console
+         messages; nothing crosses the bridge, no verb): n = rows the burst delivered ·
+         burst = clearMessages → this handler (the per-row EvaluateJavaScriptAsync replay,
+         wall time) · paint = renderLogNow (the whole history built + swapped, sync, on the
+         UI thread — Android WebView runs layout on the app's main thread) · glass = to the
+         second rAF after (the log is on screen). C#'s [CDPERF] chat lines (onload → drain →
+         present → frames) sit beside these on the same timeline. Retire the set together
+         once the L10-shape fix is measured (grep CDPERF). Fixed words + integers only. */
+      const cdBurst = loadProbe.cur;
+      const cdT0 = performance.now();
       renderLogNow();
+      const cdPaint = Math.round(performance.now() - cdT0);
       box.scrollTop = box.scrollHeight;
       bootRepin(2000);                     // #334 iOS-62: hold the bottom through late bubble growth (abortable)
       maybeRestoreDraft();                 // fallback if onChatScreenReady didn't carry the address
       focusComposer();
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        try {
+          console.info('[CDPERF] chat-shell n=' + (cdBurst ? cdBurst.n : 0)
+            + ' burst=' + (cdBurst ? Math.round(cdT0 - cdBurst.start) : 0)
+            + 'ms paint=' + cdPaint + 'ms glass=' + Math.round(performance.now() - cdT0) + 'ms');
+        } catch (e) {}
+      }));
       dbg('onChatScreenLoaded');
     },
 
@@ -5724,11 +5775,34 @@
    * keyboard over the fresh conversation; on desktop (physical keyboard, #228
    * flag) the caret is free. Called from onChatScreenLoaded; guarded so a
    * missing input or a non-focusable state (e.g. a modal open) never throws. */
+  /* ★ Session I (#733①, Damir: "caret active on chat entry — caret WITHOUT the keyboard,
+     same as WhatsApp and TG"). Desktop keeps the #252 Q10 autofocus as-is. MOBILE: the
+     field is focused with inputmode=none so the caret shows and NO soft keyboard rises;
+     the first real tap on the field swaps inputmode back to text and refocuses, and the
+     keyboard rises then (once, latched — after that the field behaves as it always did).
+     The #303 --kb-inset levers are untouched: with inputmode=none no keyboard exists, so
+     visualViewport never shrinks and nothing lifts. ⚠ #215: inputmode=none behaves
+     differently per engine (Android WebView honours it; WKWebView honours it since
+     iOS 13) — this is a walk row on BOTH devices before it is called done. */
+  let caretArmed = false;
   function focusComposer() {
-    if (!document.documentElement.hasAttribute('data-desktop')) return;
     try {
       const input = composerEl && composerEl.querySelector('.c-composer__input');
-      if (input) input.focus();
+      if (!input) return;
+      if (document.documentElement.hasAttribute('data-desktop')) { input.focus(); return; }
+      if (caretArmed) return;
+      caretArmed = true;
+      input.setAttribute('inputmode', 'none');
+      const arm = () => {
+        input.setAttribute('inputmode', 'text');
+        input.removeEventListener('pointerdown', arm);
+        input.removeEventListener('touchstart', arm);
+        // re-focus AFTER the attribute flip so the engine re-evaluates the keyboard
+        setTimeout(() => { try { input.blur(); input.focus(); } catch (_) {} }, 0);
+      };
+      input.addEventListener('pointerdown', arm, { passive: true });
+      input.addEventListener('touchstart', arm, { passive: true });
+      input.focus({ preventScroll: true });
     } catch (_) {}
   }
 

@@ -363,8 +363,6 @@
   "notifSenderSub": "Il testo del messaggio non viene mai mostrato nelle notifiche",
   "notifSounds": "Suoni in-app",
   "notifPushProvider": "Consegna immediata tramite OneSignal",
-  "notifPushProviderSubAndroid": "Disattivato: i messaggi arrivano quando Spixi controlla, non subito. Nulla viene inviato a terzi.",
-  "notifPushProviderSubIos": "Disattivato: vedi i nuovi messaggi solo quando apri Spixi. Nulla viene inviato a terzi.",
   "notifPushProviderOn": "Attivo: OneSignal sveglia questo dispositivo appena arriva un messaggio. OneSignal riceve un token di notifica per questo dispositivo e vede il suo indirizzo IP. Non vede mai i tuoi messaggi né i tuoi contatti.",
   "notifPushProviderOffAndroid": "Disattivato: a OneSignal non viene più inviato nulla e questo dispositivo risulta disiscritto. Spixi controlla da solo i nuovi messaggi e ti avvisa quando li trova, quindi possono arrivare un po’ più tardi. Il record che OneSignal ha già non viene cancellato da questa opzione.",
   "notifPushProviderOffIos": "Disattivato: a OneSignal non viene più inviato nulla e questo dispositivo risulta disiscritto. I nuovi messaggi compaiono quando apri Spixi. Il record che OneSignal ha già non viene cancellato da questa opzione.",
@@ -638,5 +636,6 @@
   "yourAddress": "Il tuo indirizzo",
   "chatGround": "Tela",
   "groundFlat": "Tinta unita",
-  "groundGradient": "Sfumatura"
+  "groundGradient": "Sfumatura",
+  "notifPushProviderSub": "Riattiva questo dispositivo non appena arriva un messaggio. Usa OneSignal, un provider di notifiche push."
 }

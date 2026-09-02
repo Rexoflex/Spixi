@@ -51,6 +51,32 @@ namespace SPIXI
         private bool setOnlineStatus = false;
         private string lastGroupCountPushed = null;   // N22: group member-count sub, pushed on change only
 
+        /* ★ Session I ② [CDPERF] — TEMPORARY, THE CHAT-OPEN STUTTER INSTRUMENT (#735, Damir on
+         * a Release build: "subtle stutter, like a game on a bad computer"; the native slide
+         * played as a jump-to-end, so #735① removed the slide — the stutter it exposed is
+         * what these lines measure). Timeline, one clock from the constructor:
+         *   [CDPERF] chat onload  t=…            the shell booted (ixian:onload)
+         *   [CDPERF] chat load    n=… bg=…ms     loadMessages on the Task.Run thread: rows pushed + wall
+         *   [CDPERF] chat drain   t=…            a main-thread marker posted AFTER the last row's
+         *                                        evaluateJavascript — when the UI thread finished
+         *                                        the per-row marshal replay (n × EvaluateJavaScriptAsync)
+         *   [CDPERF] chat present t=…            onPreloadPresented — the stage is on glass
+         *   [CDPERF] chat frames  n=… drop=… max=…ms   (Android) Choreographer frames in the 600 ms
+         *                                        after present: frames seen, frames > 24 ms, the
+         *                                        longest gap — "stutter" as a number
+         * The shell prints its own `[CDPERF] chat-shell n= burst= paint= glass=` line on the
+         * same timeline (chat.html onChatScreenLoaded, via console → logcat `chromium`).
+         * Read: if `paint` (the one-shot build of the whole history) lands between `present`
+         * and the frames line, the L10 shape applies (present → post → chunk, #726's grammar).
+         * Fixed words + integers only (the handover-gate log rule). Retire the whole set with
+         * one grep for CDPERF once the fix is measured (the #663 precedent). */
+        private readonly System.Diagnostics.Stopwatch openClock = System.Diagnostics.Stopwatch.StartNew();
+        private int lastLoadPushed = 0;
+        private static void cdperf(string what, string detail = "")
+        {
+            IXICore.Meta.Logging.info("[CDPERF] chat " + what + (detail.Length > 0 ? " " + detail : ""));
+        }
+
         public SingleChatPage(Friend fr) : this(fr, null)
         {
         }
@@ -86,6 +112,67 @@ namespace SPIXI
             ForceLayout();
         }
 
+        /* ★ Session I [CDPERF]: the present stamp + the Android frame probe (see the docblock at
+         * the field). Empty base; SingleChatPage is the only override today. */
+        protected internal override void onPreloadPresented()
+        {
+            cdperf("present", "t=" + openClock.ElapsedMilliseconds);
+#if ANDROID
+            try
+            {
+                CdperfFrameProbe.start(openClock);
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("[CDPERF] frame probe failed to start: " + ex.Message);
+            }
+#endif
+        }
+
+#if ANDROID
+        /* ★ Session I [CDPERF] — TEMPORARY. Counts Choreographer frames for 600 ms after the
+         * present and reports frames seen, frames whose gap exceeded 24 ms (a dropped 60 Hz
+         * frame plus jitter), and the longest gap. Runs on the UI thread's vsync callback;
+         * removes itself. Retire with the CDPERF set. */
+        private sealed class CdperfFrameProbe : Java.Lang.Object, Android.Views.Choreographer.IFrameCallback
+        {
+            private const long WindowMs = 600;
+            private readonly System.Diagnostics.Stopwatch clock;
+            private readonly long startMs;
+            private long lastNs = 0;
+            private int frames = 0;
+            private int dropped = 0;
+            private double longestMs = 0;
+
+            private CdperfFrameProbe(System.Diagnostics.Stopwatch c) { clock = c; startMs = c.ElapsedMilliseconds; }
+
+            public static void start(System.Diagnostics.Stopwatch clock)
+            {
+                Android.Views.Choreographer.Instance?.PostFrameCallback(new CdperfFrameProbe(clock));
+            }
+
+            public void DoFrame(long frameTimeNanos)
+            {
+                if (lastNs != 0)
+                {
+                    double gapMs = (frameTimeNanos - lastNs) / 1_000_000.0;
+                    frames++;
+                    if (gapMs > 24) dropped++;
+                    if (gapMs > longestMs) longestMs = gapMs;
+                }
+                lastNs = frameTimeNanos;
+                if (clock.ElapsedMilliseconds - startMs < WindowMs)
+                {
+                    Android.Views.Choreographer.Instance?.PostFrameCallback(this);
+                }
+                else
+                {
+                    cdperf("frames", "n=" + frames + " drop=" + dropped + " max=" + (long)Math.Round(longestMs) + "ms");
+                }
+            }
+        }
+#endif
+
         protected override void OnAppearing()
         {
             base.OnAppearing();
@@ -120,6 +207,7 @@ namespace SPIXI
 
             if (current_url.Equals("ixian:onload", StringComparison.Ordinal))
             {
+                cdperf("onload", "t=" + openClock.ElapsedMilliseconds);   // ★ Session I [CDPERF]
                 onLoad();
             }
             else if (current_url.Equals("ixian:back", StringComparison.Ordinal))
@@ -1014,9 +1102,14 @@ namespace SPIXI
                         Utils.sendUiCommand(this, "showCallButton", "");
                     }
 
+                    long cdLoad0 = openClock.ElapsedMilliseconds;   // ★ Session I [CDPERF]
                     loadMessages();
+                    cdperf("load", "n=" + lastLoadPushed + " bg=" + (openClock.ElapsedMilliseconds - cdLoad0) + "ms");
 
                     Utils.sendUiCommand(this, "onChatScreenLoaded");
+                    /* ★ Session I [CDPERF]: posted AFTER the last row's evaluateJavascript, so it
+                     * runs when the main thread has finished the whole marshal replay. */
+                    MainThread.BeginInvokeOnMainThread(() => cdperf("drain", "t=" + openClock.ElapsedMilliseconds));
                 }
                 finally
                 {
@@ -2105,6 +2198,7 @@ namespace SPIXI
                     // "zeroing" push re-asserted the very badge it was meant to clear.
                     UIHelpers.setContactStatus(friend.walletAddress, friend.online, 0, "", 0);
                 }
+                lastLoadPushed = 0;   // ★ Session I [CDPERF]
                 foreach (FriendMessage message in messages)
                 {
                     if (message.type == FriendMessageType.standard
@@ -2121,6 +2215,7 @@ namespace SPIXI
                     try
                     {
                         insertMessage(message, selectedChannel);
+                        lastLoadPushed++;
                     }catch(Exception e)
                     {
                         Logging.error("Error loading message: {0}", e);

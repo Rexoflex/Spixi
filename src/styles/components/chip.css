@@ -11,6 +11,7 @@
   background: var(--surface-neutral-01);
   color: var(--text-neutral-01);
   font-family: var(--font-secondary);
+  font-weight: var(--chip-weight);   /* ★ Session I (#735 P.S. "filter chip text weight UP") */
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;

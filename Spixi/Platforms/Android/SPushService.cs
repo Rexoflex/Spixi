@@ -24,11 +24,15 @@ namespace Spixi
         const string callChannelId = "spixi-incoming-calls";
         const string callChannelName = "Incoming calls";
         const string callChannelDescription = "Spixi incoming call notifications channel.";
-        // AND-13 (#334): brand accent for notification chrome = the logomark fill
-        // (src/assets/icons/logo.svg #3050BD = tokens.css --brand-600, the app's
-        // action blue). The csproj MauiIcon color is #000000 and colors.xml carries
-        // stale template values — the logomark fill is the one true brand source.
-        const int accentColor = unchecked((int)0xFF3050BD);
+        // AND-13 (#334): brand accent for notification chrome — the disc behind the small
+        // icon in the shade and the app name's tint. Was the logomark fill #3050BD.
+        // ★ Session I (Damir 2026-09-02): "the OS notification logo background = the
+        // light-mode splash background" — #175595, the ONE blue the L16 splash (csproj
+        // MauiSplashScreen Color, values-v31 windowSplashScreenBackground, the
+        // splash_screen.xml gradient) already carries. The OneSignal meta-data in
+        // AndroidManifest.xml is the SAME value for the SDK-rendered path; a pin holds the
+        // two equal and equal to the splash.
+        const int accentColor = unchecked((int)0xFF175595);
         const int pendingIntentId = 0;
 
         static bool channelInitialized = false;

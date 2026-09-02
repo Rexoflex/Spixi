@@ -6810,7 +6810,16 @@ function openAttachTray({ composerEl, media = false, apps = true, payments = tru
   const tiles = attachTilesFor({ media, apps, payments, files });
   if (!tiles.length) return null;
   const existing = composerEl.nextElementSibling;
-  if (existing && existing.classList.contains('c-attach-tray')) return existing;   // already open — no-op
+  if (existing && existing.classList.contains('c-attach-tray')) {
+    /* ★ Session H review MINOR-1 (auditor A): a CLOSING tray kept the class for its
+       300 ms exit, so a third ⊕ tap inside that window was handed the dying tray and
+       no-op'd — the user tapped a fourth time. A closing tray is not "already open":
+       drop it now and build fresh, so ⊕ during the exit re-opens in one tap. */
+    const st = trayState.get(existing);
+    if (!st || !st.closing) return existing;   // genuinely open — no-op
+    existing.remove();
+    trayState.delete(existing);
+  }
 
   const tray = document.createElement('div');
   tray.className = 'c-attach-tray';
@@ -6959,6 +6968,153 @@ function attachEdgeBack({ onBack, target = document } = {}) {
     target.removeEventListener('touchend', onEnd);
     target.removeEventListener('touchcancel', onEnd);
   };
+}
+
+/* ---- src/components/subscreen-slide.js ---- */
+/* ★ Session H — THE IN-SHELL SUBSCREEN SLIDE (Damir's walk row 31; DECISIONS #707/#718)
+ *
+ * #707 (L9) slides every NATIVE overlay on mobile: a chat, a settings sub-page C# pushes,
+ * chat info. The views that a SHELL mounts by itself — the Contacts takeover, the wallet
+ * Receive/Send takeovers, the Account sublevels (Chat appearance, Notifications, How to
+ * use, About, Contributors, Delete data) and the Launch create/restore forms — are not
+ * overlays, so they kept appearing instantly beside pages that slide. One grammar, one
+ * component, attached where each shell swaps its view.
+ *
+ * THE MOTION IS THE NATIVE ONE, NOT A SECOND ONE. `SpixiContentPage.revealStage` enters
+ * in 300 ms on `--easing-standard` (cubic-bezier(0.2, 0, 0, 1)) and exits in 220 ms on
+ * `Easing.CubicIn`; the CSS here reads the same token for the entry and
+ * `--easing-accelerate` (the CSS cubic-in) for the exit, and a smoke pin holds the two
+ * durations equal to the C# constants. The work order said 220/220; the C# it mirrors
+ * says 300/220 (#326's asymmetry — "an exit that matches the entry feels slow"), and a
+ * shell view that moves at a different speed from the page beside it would read as a
+ * different kind of screen, which is the very thing this row removes.
+ *
+ * WHERE IT NEVER RUNS: under `:root[data-desktop]` (#704 — desktop only chat info slides)
+ * and under `prefers-reduced-motion: reduce`. Both are decided by the STYLESHEET
+ * (`animation: none`), and the JS reads the computed animation back rather than
+ * re-deriving either rule — so the two can never disagree, and a host with no motion
+ * gets the plain synchronous swap it had before this file existed.
+ *
+ * THE EXIT RUNS OVER THE REVEALED VIEW. A native pop shows the page beneath while the
+ * top one slides away. So the exit is not "animate, then swap": the caller mounts (or
+ * keeps) the destination UNDER the leaving element, the leaving element is lifted to a
+ * fixed (or absolute) layer, and only when the animation ends is it removed. The entry
+ * is the mirror: the new view is lifted over the current one, slides in, and the
+ * current one is detached afterwards — never before, or the user would see the shell's
+ * bare ground during the slide.
+ *
+ * ★ COMPLETES-NEVER (the #326 latch). `animationend` does not fire for an element that
+ * is removed mid-flight, for a document that was hidden while the ticker paused, or
+ * for a WebView that dropped the frame. Every wait carries a backstop timer at twice
+ * the duration; whichever fires first settles, and settling is idempotent.
+ *
+ * ★ RE-ENTRANCY. A host may re-render while a slide is in flight (a C# push landing
+ * inside the 300 ms). `settleSubscreenSlide(host)` finishes the in-flight slide
+ * SYNCHRONOUSLY — the end state is applied, the timers are cleared — so the host's next
+ * swap starts from a settled DOM. Every entry point calls it first.
+ */
+
+const inflight = new WeakMap();   // host → { finish }
+
+const ENTER_MS = 300;             // = SpixiContentPage.ScreenSlideInMs
+const EXIT_MS = 220;              // = the C# exit (Easing.CubicIn, 220)
+
+/** Does the stylesheet grant this element a slide at all? Reads the computed animation
+ *  so desktop / reduced-motion / a missing stylesheet all answer "no" the same way. */
+function grantsMotion(el) {
+  try {
+    const name = getComputedStyle(el).animationName;
+    return !!name && name !== 'none';
+  } catch (e) {
+    return false;
+  }
+}
+
+/** Finish the in-flight slide on `host` synchronously (no-op when there is none). */
+function settleSubscreenSlide(host) {
+  const op = inflight.get(host);
+  if (op) op.finish();
+}
+
+/**
+ * Run one animation on `el` and call `done` exactly once — on `animationend`, on the
+ * backstop, or synchronously when the stylesheet grants no motion.
+ * `cls` is the animating class; `positioned` = 'viewport' | 'host' | false
+ * (false = the element positions itself, e.g. a `position: fixed` takeover).
+ */
+function run(host, el, cls, positioned, ms, done) {
+  settleSubscreenSlide(host);
+  let settled = false;
+  let timer = 0;
+  /* ★ Session H review MINOR-3 (auditor A): the EXIT layer is pointer-events:none while
+     still opaque and barely moved (cubic-in starts slow) — a tap in the first frames
+     passed THROUGH the dying screen onto the view being revealed (contacts row → the
+     chats list under it opened an unrelated conversation). A transparent shield eats
+     taps for the exit's 220 ms, exactly as the native stage does while it slides out;
+     it dies with the animation, and the synchronous no-motion path removes it in the
+     same call. Exit only — an entering layer catches its own taps. */
+  let shield = null;
+  if (cls === 'c-subslide--out' && el.ownerDocument && el.ownerDocument.body) {
+    shield = el.ownerDocument.createElement('div');
+    shield.className = 'c-subslide-shield';
+    el.ownerDocument.body.append(shield);
+  }
+  const finish = () => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    if (shield) { try { shield.remove(); } catch (e) {} shield = null; }
+    el.removeEventListener('animationend', onEnd);
+    el.classList.remove('c-subslide', 'c-subslide--viewport', 'c-subslide--host', cls);
+    if (host && host.classList) host.classList.remove('c-subslide-host');
+    if (inflight.get(host) && inflight.get(host).finish === finish) inflight.delete(host);
+    try { done(); } catch (e) { /* the swap must settle even if the caller throws */ }
+  };
+  const onEnd = (ev) => { if (ev.target === el) finish(); };
+  el.classList.add('c-subslide');
+  if (positioned === 'viewport') el.classList.add('c-subslide--viewport');
+  else if (positioned === 'host') { el.classList.add('c-subslide--host'); if (host && host.classList) host.classList.add('c-subslide-host'); }
+  el.classList.add(cls);
+  if (!grantsMotion(el)) { finish(); return; }
+  inflight.set(host, { finish });
+  el.addEventListener('animationend', onEnd);
+  timer = setTimeout(finish, ms * 2);   // completes-never backstop (#326)
+}
+
+/**
+ * ENTER: `entering` is appended to `host` OVER whatever is mounted there and slides in;
+ * afterwards `swap()` runs (the host detaches the covered view). When the stylesheet
+ * grants no motion the swap runs synchronously and `entering` is simply appended.
+ *   opts.positioned — 'viewport' (fixed inset 0, covers the bars) · 'host' (absolute
+ *                     inside host, which becomes position: relative) · false (the element
+ *                     positions itself). Default 'viewport'.
+ *   opts.append     — false when the caller already put `entering` in the DOM.
+ */
+function slideSubscreenIn(host, entering, swap, opts = {}) {
+  const positioned = opts.positioned === undefined ? 'viewport' : opts.positioned;
+  if (opts.append !== false && entering.parentNode !== host) host.append(entering);
+  run(host, entering, 'c-subslide--in', positioned, ENTER_MS, () => { if (swap) swap(); });
+}
+
+/**
+ * EXIT: `leaving` slides out over the view the caller has already revealed beneath it;
+ * afterwards `remove()` runs (default: `leaving.remove()`). The caller's state changes
+ * (handles nulled, C# told the overlay is gone) belong BEFORE this call — only the
+ * pixels linger. A second exit on the same element while one is in flight settles the
+ * first and returns; the latch is the caller's `closed` flag, this is the belt.
+ */
+function slideSubscreenOut(host, leaving, remove, opts = {}) {
+  const positioned = opts.positioned === undefined ? 'viewport' : opts.positioned;
+  if (leaving.classList.contains('c-subslide--out')) { settleSubscreenSlide(host); return; }
+  const fin = remove || (() => leaving.remove());
+  run(host, leaving, 'c-subslide--out', positioned, EXIT_MS, fin);
+}
+
+/** True while a slide is in flight on `host`. ★ review NIT-1: no host gates on this —
+ *  re-entrancy is handled by `settleSubscreenSlide` (called inside `run` and by the
+ *  hosts' own render paths); this exists for the suite and for future callers. */
+function isSubscreenSliding(host) {
+  return inflight.has(host);
 }
 
 /* ---- src/components/channel-sheet.js ---- */
@@ -17838,24 +17994,47 @@ function createChatInfo({
       renderMembers();
     }
 
+    /* ★ Session H: one skeleton row (A8's shimmer grammar), reused by the boot state
+       and by the incremental fill's tail below. */
+    function skeletonRow(width) {
+      const sk = document.createElement('div');
+      sk.className = 'c-chat-info__member c-chat-info__member--skeleton';
+      sk.setAttribute('aria-hidden', 'true');
+      const av = document.createElement('span'); av.className = 'c-chat-info__skeleton-avatar';
+      const ln = document.createElement('span'); ln.className = 'c-chat-info__skeleton-line';
+      ln.style.width = width;
+      sk.append(av, ln);
+      return sk;
+    }
+
+    /* ★ Session H (Damir, L10's family): THE ROSTER FILLS IN BATCHES, NOT AS ONE PAINT.
+       A bot room carries up to 500 members and the old loop built every row before the
+       list could paint — the "one late paint" he flagged. Now the first 24 rows build
+       synchronously (a phone viewport shows ~12), a short skeleton tail stands in for
+       the rest, and requestAnimationFrame swaps 24 real rows in per frame until done.
+       ⚠ 24 IS A MEASURED NUMBER, NOT A GUESS: building a row costs 0.049 ms and laying
+       one out ~0.03 ms on desktop Chromium (500-row run, 2026-08-31); at a ×8 phone
+       margin a 24-row batch is ~16 ms — inside one 60 Hz frame. Damir's brief said
+       "~20 per frame — measure, then pick"; the measurement says 24 fits.
+       A re-render (search keystroke, kick) bumps fillToken and orphans the in-flight
+       fill; a detached list (panel rebuilt underneath) stops it via isConnected. */
+    const FILL_FIRST = 24, FILL_BATCH = 24;
+    let fillToken = 0;
+
     function renderMembers() {
+      fillToken++;                       // orphan any in-flight fill
+      const token = fillToken;
       listEl.replaceChildren();
       /* ★ A8 (Damir's override of #264-no-skeletons): while the roster pushes land
          (ixian:loadContacts → addContact × N, one EvaluateJavaScriptAsync each) the
-         section shows three skeleton rows, not an empty list or a "no members" lie.
-         aria-busy tells AT the region is loading; the rows are aria-hidden. */
+         section shows skeleton rows, not an empty list or a "no members" lie.
+         aria-busy tells AT the region is loading; the rows are aria-hidden.
+         ★ Session H: count-aware — setGroupInfo lands before the roster burst, so the
+         skeleton can be honest about scale (up to 8 rows, never more than the count). */
       if (loading && !members.length) {
         listEl.setAttribute('aria-busy', 'true');
-        for (let i = 0; i < 3; i++) {
-          const sk = document.createElement('div');
-          sk.className = 'c-chat-info__member c-chat-info__member--skeleton';
-          sk.setAttribute('aria-hidden', 'true');
-          const av = document.createElement('span'); av.className = 'c-chat-info__skeleton-avatar';
-          const ln = document.createElement('span'); ln.className = 'c-chat-info__skeleton-line';
-          ln.style.width = (58 + i * 14) + '%';
-          sk.append(av, ln);
-          listEl.append(sk);
-        }
+        const n = Math.max(3, Math.min(count || 3, 8));
+        for (let i = 0; i < n; i++) listEl.append(skeletonRow((58 + (i % 3) * 14) + '%'));
         return;
       }
       listEl.removeAttribute('aria-busy');
@@ -17865,7 +18044,42 @@ function createChatInfo({
             (!blind && (m.address || '').toLowerCase().includes(query)))   // M3: nameless members stay findable
         : [...members])
         .sort((a, b) => (a.name || a.address || '').localeCompare(b.name || b.address || ''));
-      for (const m of matches) {
+      let fillAt = 0;
+      const buildSome = (limit) => {
+        const frag = document.createDocumentFragment();
+        const end = Math.min(fillAt + limit, matches.length);
+        for (; fillAt < end; fillAt++) frag.append(memberRow(matches[fillAt]));
+        return frag;
+      };
+      listEl.append(buildSome(FILL_FIRST));
+      if (fillAt < matches.length) {
+        listEl.setAttribute('aria-busy', 'true');
+        const tail = document.createElement('div');
+        tail.className = 'c-chat-info__member-fill';
+        tail.setAttribute('aria-hidden', 'true');
+        for (let k = 0; k < Math.min(matches.length - fillAt, 6); k++) tail.append(skeletonRow((58 + (k % 3) * 14) + '%'));
+        listEl.append(tail);
+        const step = () => {
+          if (token !== fillToken || !listEl.isConnected) return;   // superseded or panel rebuilt
+          listEl.insertBefore(buildSome(FILL_BATCH), tail);
+          if (fillAt < matches.length) requestAnimationFrame(step);
+          else { tail.remove(); listEl.removeAttribute('aria-busy'); }
+        };
+        requestAnimationFrame(step);
+      }
+      if (!matches.length) {
+        const none = document.createElement('div');
+        none.className = 'c-chat-info__member-note';
+        // ★ A1: an EMPTY bot roster is a protocol fact (getUsers only for < 500 users,
+        // Ixian-Core frozen) — say what is true, not "no match"
+        none.textContent = (!members.length && kind === 'bot')
+          ? (strings.membersNotSynced || 'Members are not listed for this room yet.')
+          : (strings.noMembers || 'No members match.');
+        listEl.append(none);
+      }
+    }
+
+    function memberRow(m) {
         const row = document.createElement('button');
         row.type = 'button';
         row.className = 'c-chat-info__member';
@@ -17902,18 +18116,7 @@ function createChatInfo({
         }
         row.append(icon('chevron-right', { size: 18 }));
         row.addEventListener('click', () => memberSheetFor(m));
-        listEl.append(row);
-      }
-      if (!matches.length) {
-        const none = document.createElement('div');
-        none.className = 'c-chat-info__member-note';
-        // ★ A1: an EMPTY bot roster is a protocol fact (getUsers only for < 500 users,
-        // Ixian-Core frozen) — say what is true, not "no match"
-        none.textContent = (!members.length && kind === 'bot')
-          ? (strings.membersNotSynced || 'Members are not listed for this room yet.')
-          : (strings.noMembers || 'No members match.');
-        listEl.append(none);
-      }
+        return row;
     }
     renderMembers();
   }
@@ -19412,12 +19615,13 @@ function setGroupAvatar(el, src) {
 
 
 
+
 // local handle so the returned controller can expose its own `setGroupAvatar`
 // method without shadowing the component fn it delegates to.
 const paintGroupAvatar = setGroupAvatar;
 
 function mountContacts({
-  host = document.body, bridge, strings, purpose = 'start', appId = '', getRoster, onClose,
+  host = document.body, bridge, strings, purpose = 'start', appId = '', getRoster, onClose, onExitSettled,
 } = {}) {
   /* ★ #589 (Damir F5 2026-08-26): "a mini app that opens the contacts picker leaves
      a pressed-row rectangle over the new screen." A takeover COVERS the list, it does
@@ -19437,7 +19641,15 @@ function mountContacts({
   const close = (reason) => {
     if (closed) return;
     closed = true;
-    overlay.remove();
+    /* ★ Session H (walk row 31): the user's OWN Back — arrow, hardware back, the edge
+       swipe, all of which arrive here as 'back' — slides the takeover off the list it
+       covered (the native pop grammar, #707). A programmatic close ('auto': a tab tap,
+       an app launch, a chat open) removes it at once, because the thing replacing it
+       brings its own transition and a second one underneath would only fight it.
+       The shell's state changes (onClose: handle nulled, C# told) run NOW, not after
+       the slide — only the pixels linger, and the `closed` latch is the second-exit guard. */
+    if (reason === 'back') slideSubscreenOut(host, overlay, () => { overlay.remove(); if (onExitSettled) { try { onExitSettled(); } catch (e) {} } }, { positioned: false });
+    else overlay.remove();
     if (onClose) onClose(reason === 'back' ? 'back' : 'auto');
   };
 
@@ -19517,6 +19729,7 @@ function mountContacts({
   });
   overlay.append(picker);
   host.append(overlay);
+  slideSubscreenIn(host, overlay, null, { positioned: false, append: false });   // ★ Session H: slides in over the list (instant on desktop / reduced motion — the stylesheet decides)
 
   return {
     el: overlay,
@@ -22302,7 +22515,7 @@ function createNotificationsScreen({
       checked: previews, live, failText, onToggle: onPreviews,
     }));
     if (onSounds) body.append(switchRow({
-      glyph: 'alert-small', hue: 'accent',
+      glyph: 'volume', hue: 'accent',   // ★ Session H: Damir's export; alert-small is the FAILED status glyph (chatlist-item) — one glyph, one meaning (#602)
       label: strings.notifSounds || 'In-app sounds',
       checked: sounds, live, failText, onToggle: onSounds,
     }));
@@ -22321,7 +22534,7 @@ function createNotificationsScreen({
        stub — a switch that changes nothing is a lie). */
     if (capabilities.pushProvider && onPushProvider) {
       body.append(switchRow({
-        glyph: 'topology-star', hue: 'info',   // a relay in the middle — NOT 'world', which is the Language row's glyph (one glyph, one meaning: the #602 rule)
+        glyph: 'cloud-bolt', hue: 'info',   // ★ Session H: a cloud that wakes the device. NOT 'world' (the Language row) and NOT 'topology-star' (the secure notice, Damir 2026-08-30) — one glyph, one meaning (#602). bell-ringing was exported too; 'bell' already means "Allow notifications" one row above, so a second bell would blur it
         label: strings.notifPushProvider || 'Instant delivery via OneSignal',
         sub: platform === 'ios'
           ? (strings.notifPushProviderSubIos || 'Off: you see new messages only when you open Spixi. Nothing is sent to a third party.')
@@ -23221,6 +23434,9 @@ function createSettingsHowTo({
  * Interview #0 (Damir 2026-07-06): ① welcome carousel ② the #160 brand
  * treatment (fixed-dark pin + brand gradient + bare glowing logo) is
  * WELCOME-ONLY — create/restore/retry are normal themed surfaces
+ * ⚠ SUPERSEDED (review NIT-2): N72 pinned the WHOLE flow dark — createLaunchShell
+ * sets dataset.theme='dark' on .c-launch, the root of every view. Read the N72
+ * paragraph above as current; this interview note is a dated record only.
  * ③ [L2] the
  * window-pagehide scrub also lands on createLockScreen (lock-shell.js).
  *
@@ -23263,6 +23479,7 @@ function createSettingsHowTo({
  *   showTerms · setLaunchAvatar(el, src) ← loadAvatar ·
  *   setLaunchFile(el, name) ← setUploadedFileName.
  */
+
 
 
 
@@ -23354,9 +23571,33 @@ function illoSlot(name, src) {
  * must never strand the user on the view they just left. */
 function show(st, view, silent) {
   const changed = st.view !== view;
+  const prev = st.view;
   st.view = view;
   st.root.dataset.view = view;
-  for (const [name, node] of Object.entries(st.views)) node.hidden = name !== view;
+  const reveal = () => { for (const [name, node] of Object.entries(st.views)) node.hidden = name !== view; };
+  /* ★ Session H (walk row 31): create / restore SLIDE over welcome and slide back off it,
+     on the shared in-shell grammar (subscreen-slide.js — desktop and reduced-motion get
+     the plain swap from the stylesheet, not from a check here). The boot view (prev ===
+     null) and any switch on a detached root swap at once. The welcome view stays
+     UNHIDDEN under an entering form and is unhidden BEFORE a leaving one, so the slide
+     always runs over the page it reveals. A switch landing mid-flight settles the
+     previous one first (settle → its reveal → this one). */
+  const prevNode = prev ? st.views[prev] : null;
+  const nextNode = st.views[view];
+  if (changed && prevNode && nextNode && st.root.isConnected) {
+    settleSubscreenSlide(st.root);
+    if (prev === 'welcome') {
+      nextNode.hidden = false;
+      slideSubscreenIn(st.root, nextNode, reveal, { positioned: 'host', append: false });
+    } else if (view === 'welcome') {
+      st.views.welcome.hidden = false;
+      slideSubscreenOut(st.root, prevNode, reveal, { positioned: 'host' });
+    } else {
+      reveal();
+    }
+  } else {
+    reveal();
+  }
   if (changed && !silent && st.opts && st.opts.onViewChange) {
     try { st.opts.onViewChange(view); } catch { /* report only — never block the switch */ }
   }
@@ -23668,7 +23909,16 @@ function buildWelcome(st) {
 // requires per-jurisdiction legal review and is out of scope for the i18n batch. Their
 // TITLES (termsTitle / privacyTitle) ARE translated.
 const TERMS_DEFAULT = 'Spixi is a decentralised, self-custodial app on the Ixian Platform. You are solely responsible for your wallet, backup file and password. No other way to recover them exists. IXI Labs collects no personal data. You must be at least 16 years old (or the higher minimum age your country requires) to use Spixi.\n\nThe full document is provided in English only.';
-const PRIVACY_DEFAULT = 'IXI Labs does not collect any personal data through the Spixi app. No phone number or email is required, your messages stay on your device, and IXI Labs cannot access your message history or wallet keys.\n\nThe full Privacy Policy is provided in English only.';
+/* ★ Session H gate sweep (OURS-3): the old default claimed "does not collect any
+ * personal data" while the policy in the same tree documents OneSignal holding a push
+ * token + IP for delivery. The in-app summary now says what the policy says — a privacy
+ * app must not undersell its own disclosure. 🟡 Damir: wording pass welcome; the claim
+ * boundaries (no phone/email · content stays on device · push token+IP to OneSignal
+ * on Android/iOS unless switched off · NO push provider on Windows/Catalyst — the
+ * reviewer's oversell catch: pushProviderSupported() is false there and the switch is
+ * never rendered, so the copy must not promise it) are the facts and must survive any
+ * rewrite. */
+const PRIVACY_DEFAULT = 'No phone number or email is required. Your messages stay on your device, and IXI Labs cannot read your message history or access your wallet keys.\n\nOn Android and iOS, notification delivery uses OneSignal, a push provider: a push token and your IP address reach it. You can turn this off in Settings \u2192 Notifications. The desktop app uses no push provider.\n\nThe full Privacy Policy is provided in English only.';
 
 function openDocSheet(st, title, text) {
   const strings = st.strings;
@@ -25360,5 +25610,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, PATTERN_LEVELS: PATTERN_LEVELS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, PATTERN_LEVELS: PATTERN_LEVELS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

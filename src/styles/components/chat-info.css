@@ -466,6 +466,9 @@
 /* —— members —— */
 .c-chat-info__members { display: flex; flex-direction: column; gap: var(--spacing-8); }
 .c-chat-info__member-list { display: flex; flex-direction: column; }
+/* ★ Session H: the incremental fill's skeleton tail — a transparent wrapper so its
+   skeleton rows stack exactly like real rows while real batches insert above it. */
+.c-chat-info__member-fill { display: flex; flex-direction: column; }
 .c-chat-info__member {
   display: flex;
   align-items: center;

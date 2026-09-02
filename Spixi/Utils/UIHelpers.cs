@@ -370,9 +370,10 @@ namespace SPIXI
                 try
                 {
                     /* ★ #46 audit MAJOR: not every live page re-themes from a push, and
-                     * the first cut of this method quietly assumed they all do. The 8
-                     * remaining LEGACY pages (hasLegacyPageChrome — the wallet send/receive
-                     * flow, apps, address, the contact-request confirm) have no setTheme
+                     * the first cut of this method quietly assumed they all do. The
+                     * remaining LEGACY pages (hasLegacyPageChrome below is the authoritative
+                     * list — a count here drifted twice, review N-2; L1 deleted the wallet
+                     * send/receive trio after this was written) have no setTheme
                      * global: their theme is a <link href="css/*SL{SpixiThemeMode}"> baked
                      * at generatePage time, so only a regenerate moves it. Pushing at them
                      * did two wrong things at once — it threw an uncaught ReferenceError

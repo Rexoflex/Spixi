@@ -22,6 +22,20 @@
 		<ApplicationTitle>Spixi</ApplicationTitle>
 		<!-- App Identifier -->
 		<ApplicationId>com.ixilabs.spixi</ApplicationId>
+		<!-- ★ #732 DEV-COEXIST (Damir 2026-08-31): ANDROID test builds install BESIDE the
+		     Play-signed legacy Spixi on one phone (same ID + different signing key is
+		     refused by Android, and uninstalling legacy deletes its wallet). Debug defaults
+		     ON; a real-behaviour Release test build opts in with -p:SpixiDevCoexist=true.
+		     RELEASE-SAFE BY CONSTRUCTION: a store Release build never passes the property,
+		     so it ships com.ixilabs.spixi untouched — but LOGGED FOR REMOVAL at release
+		     hardening anyway (DECISIONS #732; grep SpixiDevCoexist, delete the four lines).
+		     Android-only: the Windows MSIX identity and iOS bundle id never move.
+		     ⚠ Known dev-install caveats: separate app = separate wallet (fresh account),
+		     and FCM/OneSignal push may not arrive on the .dev package (FCM config is bound
+		     to the package name) — UI walks unaffected. -->
+		<SpixiDevCoexist Condition="'$(SpixiDevCoexist)' == '' and '$(Configuration)' == 'Debug'">true</SpixiDevCoexist>
+		<ApplicationId Condition="'$(SpixiDevCoexist)' == 'true' and $(TargetFramework.Contains('-android'))">com.ixilabs.spixi.dev</ApplicationId>
+		<ApplicationTitle Condition="'$(SpixiDevCoexist)' == 'true' and $(TargetFramework.Contains('-android'))">Spixi Dev</ApplicationTitle>
 		<!-- Versions -->
 		<ApplicationDisplayVersion>0.9.22</ApplicationDisplayVersion>
 		<ApplicationVersion>160009220</ApplicationVersion>

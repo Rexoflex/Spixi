@@ -82,7 +82,9 @@ namespace SPIXI
 
         /* ★ N71 (#421): does this page re-theme from a `setTheme` PUSH, or only from a
          * regenerate? The redesigned shells swap one data-theme attribute and every
-         * token follows. The 7 remaining legacy pages have no setTheme global at all —
+         * token follows. The remaining legacy pages (hasLegacyPageChrome in UIHelpers is
+         * the authoritative list — no count here, it has drifted twice: review N-2)
+         * have no setTheme global at all —
          * they carry the theme in a `<link href="css/*SL{SpixiThemeMode}">` BAKED at
          * generatePage time, so the only thing that re-themes them is reload().
          *
@@ -1084,6 +1086,11 @@ namespace SPIXI
                     // every exit verb (a frozen Account with no back arrow left).
                     // The reopen push resets the latch + repaints; it lands in the
                     // WebView's queue BEFORE the stage becomes visible/interactive.
+                    // ★ Session H ③ [PAINTDIAG]: the way-back timeline's third stamp —
+                    // backsend=<ms> (shell) → this line → the reveal below. Remove with the set.
+                    // (Stamped BEFORE the onRepresented push: two #46-r1/L9 pins hold that push
+                    // adjacent to the stage flip, and the probe must not sit inside a pinned pair.)
+                    IXICore.Meta.Logging.info("[PAINTDIAG] re-present " + target.GetType().Name + " t=" + Environment.TickCount64);
                     Utils.sendUiCommand(op.target, "onRepresented");
                     op.stage.InputTransparent = false;
                     /* ★ L9 (#707): a re-presented parked overlay (the mobile Account pane,

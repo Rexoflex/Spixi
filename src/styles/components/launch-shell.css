@@ -18,6 +18,10 @@
   min-height: 0;
   background: var(--gradient-launch);
 }
+/* ★ Session H: a form view sliding over welcome (subscreen-slide.css) must carry the
+   launch ground itself — the gradient lives on .c-launch, and a transparent view would
+   show welcome through it for the length of the slide. */
+.c-launch > .c-subslide { --subslide-ground: var(--gradient-launch); }
 /* form chrome dissolves into the gradient: transparent topbar, no hairline */
 .c-launch .c-topbar[data-variant="view"] {
   background: transparent;

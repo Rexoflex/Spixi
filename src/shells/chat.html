@@ -272,6 +272,29 @@
      than the grey-1000 (#111213) the override pointed at — so keeping it would have
      made desktop dark PALER than mobile dark, the exact opposite of its purpose, and
      an undocumented second dark canvas colour on top of that. One dark canvas now. */
+  /* ★★ #722 (Session H, Damir 2026-08-30: "Yes 760") — THE 760 COLUMN.
+     Wide desktop only: the CONVERSATION COLUMN and the COMPOSER cap at 760px and
+     centre; the CANVAS (gradient + doodle pattern) stays full-bleed because nothing
+     here touches .c-chat-canvas — the cap lives on the scroller's PADDING and on the
+     composer slot's width (Telegram Desktop / iMessage / Signal Desktop grammar).
+     · .messages keeps full width, so the SCROLLBAR stays at the window edge; the
+       max(0px, …) term is inert below 760px of pane — a narrow desktop pane and every
+       phone are byte-identical (the calc floors to the rows' own 16px inset).
+     · Bubble rows, date pills, the unread strip and the secure notice are #messages
+       children — they centre with the padding for free; bubbles keep
+       --layout-bubble-max (680 desktop, #337 W4) INSIDE the column and cards hold
+       their 360 rail.
+     · The chevron and the @ FAB keep their 16px inset from the COLUMN's edge, not
+       the window's — the same calc, plus the spacing term.
+     · The composer slot (and the request pane that docks in the same slot) centres
+       at the same 760 so the pill's edge tracks the bubbles' edge. */
+  :root[data-desktop] .messages { padding-inline: max(0px, calc((100% - 760px) / 2)); }
+  :root[data-desktop] #chat-composer,
+  :root[data-desktop] .chat-request-pane { width: 100%; max-width: 760px; align-self: center; }
+  :root[data-desktop] .c-scroll-latest,
+  :root[data-desktop] .chat-mention-fab {
+    inset-inline-end: max(var(--spacing-16), calc((100% - 760px) / 2 + var(--spacing-16)));
+  }
   /* boot spinner — fills the log while the JS bundle parses + C# pushes the
      conversation; the first renderLogNow() clears #messages and removes it. */
   .chat-boot { flex: 1; display: flex; align-items: center; justify-content: center; }

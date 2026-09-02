@@ -247,7 +247,15 @@ namespace SPIXI
         /// W5 — `ixian:signSend:&lt;addr&gt;:&lt;amount&gt;` → native confirm (+ auth) → sign +
         /// broadcast → `signSendResult(status, info)`. status: ok | cancel | fail.
         /// </summary>
-        public static async void handleSignSend(SpixiContentPage page, string payload)
+        /* ★ Session H review (auditor B MINOR-4 / gate sweep): `expectedRecipient` scopes a
+         * PEER-LOCKED surface. contact_details.html and chat.html both compose with
+         * lockedRecipient (the peer is fixed in the UI), so their C# handlers pass the
+         * page's peer and any other address in the payload is refused before parsing —
+         * the same shape handleSendRequest has carried since L1. HomePage (quickscan /
+         * wallet Send) legitimately composes to ANY address and passes null. The native
+         * confirm (recipient shown, amount, fee) still stands behind every path; this is
+         * defence in depth against a compromised chat WebView proposing a swap. */
+        public static async void handleSignSend(SpixiContentPage page, string payload, Address? expectedRecipient = null)
         {
             if (!acquireConfirm())
             {
@@ -262,6 +270,12 @@ namespace SPIXI
                 string amountStr = sep > 0 ? payload.Substring(sep + 1) : "";
                 if (!ExtendedAddress.Validate(addr))
                 {
+                    Utils.sendUiCommand(page, "signSendResult", "fail", SpixiLocalization._SL("global-invalid-address-text"));
+                    return;
+                }
+                if (expectedRecipient != null && !(new ExtendedAddress(addr)).PaymentAddress.SequenceEqual(expectedRecipient))
+                {
+                    // a peer-locked surface proposed a DIFFERENT recipient — refuse, never reinterpret
                     Utils.sendUiCommand(page, "signSendResult", "fail", SpixiLocalization._SL("global-invalid-address-text"));
                     return;
                 }

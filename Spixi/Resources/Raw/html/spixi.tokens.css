@@ -488,6 +488,15 @@
   --surface-bubble-sent: #1956b2;      /* ★ N81 (#422) — matches --gradient-bubble-sent; the fallback must not disagree */
   --surface-bubble-received: #ffffff;   /* ★ N81 (#422) — pure white on the cream canvas (Damir) */
   --surface-input: var(--neutral-50);
+  /* ★ Session H (Damir, Windows dark screenshot): THE FLOATING COMPOSER PILL GETS ITS OWN
+     PAIR. #711 floated the pill on --surface-input + --outline-neutral-01 — in dark both
+     resolve to neutral-800, so the border painted the pill's own colour (invisible) and
+     the pill sat at 1.08:1 on the #10151e canvas. The pill now wears the RECEIVED-BUBBLE
+     ground (the one surface Damir already judged on this canvas) and a hairline one step
+     stronger than the card outline. Light: white on the #f4f6f9 canvas + neutral-200
+     (1.20:1 against the canvas). */
+  --surface-composer-pill: #ffffff;
+  --outline-composer-pill: var(--neutral-200);
   --surface-qr: var(--neutral-10);
   --on-qr: #131415; /* QR module ink — FIXED dark in both themes (scan contrast on the near-white card) */
   --surface-presence-online: var(--success-500);
@@ -752,6 +761,11 @@
      ⚠ Superseded: #1a1d24. */
   --surface-bubble-received: #1e222b;  /* ★ N81 (#422) — Damir */
   --surface-input: var(--neutral-800);
+  /* ★ Session H: the pill on the dark canvas — #1e222b (1.15:1 vs #10151e, the received
+     bubble's own number) + neutral-500 #31343a (1.47:1 vs the canvas, 1.28:1 vs the pill).
+     neutral-800/-700 were measured at 1.06/1.02 against the pill: not an edge. */
+  --surface-composer-pill: #1e222b;
+  --outline-composer-pill: var(--neutral-500);
   --surface-qr: var(--neutral-10); /* stays near-white: QR scan readability */
   --on-qr: #131415; /* module ink stays dark too — the QR pair never theme-flips */
   --surface-presence-online: var(--success-400);

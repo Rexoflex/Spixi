@@ -77,6 +77,7 @@
 <link rel="stylesheet" href="../styles/components/chats-header.css">
 <link rel="stylesheet" href="../styles/components/chats-swipe.css">
 <link rel="stylesheet" href="../styles/components/contacts-shell.css"><!-- contacts picker/directory takeover (FAB + topbar Contacts) -->
+<link rel="stylesheet" href="../styles/components/subscreen-slide.css"><!-- ★ Session H: the in-shell subscreen slide (walk row 31) -->
 <!-- wallet tab (tab2, ARCHITECTURE §5 — home shell internal view) -->
 <link rel="stylesheet" href="../styles/components/txlist-item.css">
 <link rel="stylesheet" href="../styles/components/wallet-hero.css">
@@ -394,6 +395,7 @@
     startTimestampTicker, refreshTimestamps,
     createNativeBridge, installExecuteUiCommand,
     attachEdgeBack,   // ★ L3 (#706): the iOS back signal + the one-level chain
+    slideSubscreenIn, slideSubscreenOut, settleSubscreenSlide,   // ★ Session H: the in-shell subscreen slide (wallet Receive/Send; contacts slides inside mountContacts)
     dismissTopOverlay,                   // AND-29 v2 (#336): hardware back closes a sheet/menu first
     mountContacts,                       // Track D: contacts picker/directory takeover
     // wallet (tab2)
@@ -998,6 +1000,15 @@
    * shipped with hero-coloured glyphs over a screen-surface cover the whole time. */
   function homeOverlayLevel() {
     if (contactsView || walletTakeover) return 2;
+    /* ★ Session H review MAJOR-1 (auditor A): a takeover SLIDING OUT still covers the
+       screen for 220 ms after its handle was nulled. Reporting 0 in that window put
+       homeShellOverlayOpen=false while the cover was on glass — a second hardware back
+       found no route and fell through to base.OnBackButtonPressed(), BACKGROUNDING the
+       app mid-slide (the exact L8 class, SpixiContentPage.cs:1476 wrote it down for the
+       native stage). It also repainted the OS bars 220 ms before the pixel they are
+       aligned to (the wallet-hero strip). The level now counts the dying cover; the
+       slide's remove callback re-syncs, so 0 lands when the cover is actually gone. */
+    if (document.querySelector('.contacts-takeover.c-subslide--out, .wallet-takeover.c-subslide--out')) return 2;
     return document.body.dataset.overlayOpen !== undefined ? 1 : 0;
   }
   function homeOverlayLive() {
@@ -1028,7 +1039,20 @@
   function closeTopHomeTakeover() {
     // sheets/menus sit ABOVE takeovers (z-40 > z-30) — close the top one first.
     if (typeof dismissTopOverlay === 'function' && dismissTopOverlay()) return true;
-    if (walletTakeover && walletTakeoverClose) { walletTakeoverClose(); return true; }
+    /* ★ Session H review MAJOR-1: a second back DURING a takeover's exit slide aborts
+       the slide (instant finish — the native L8 grammar) and is consumed. Without this
+       arm the handles are already null, every route below misses, and C# (which now
+       keeps the flag true for the slide's length) would route a back into a shell with
+       nothing left to close. */
+    if (document.querySelector('.contacts-takeover.c-subslide--out, .wallet-takeover.c-subslide--out')) {
+      // ⚠ reviewer NIT-1: the selector matches ANYWHERE but the settle names document.body
+      // — today every takeover slide runs on document.body (all three call sites). A
+      // future takeover on another host must widen this, or one back press is lost
+      // (self-healed by the 440 ms backstop).
+      settleSubscreenSlide(document.body);
+      return true;
+    }
+    if (walletTakeover && walletTakeoverClose) { walletTakeoverClose('back'); return true; }   // ★ Session H: hardware back IS the user's Back (C4) — it slides
     if (contactsView) { contactsView.close('back'); return true; }   // onClose nulls the handle + syncs · C4: hardware back IS the user's Back
     return false;
   }
@@ -1150,17 +1174,24 @@
     try {
         contactsView = mountContacts({
         host: document.body, bridge, strings, purpose, appId: appId || '',
+        onExitSettled: () => syncHomeOverlay(),   // ★ Session H MAJOR-1: the cover is gone NOW — report the real 0
         getRoster: () => directoryRoster(),               // iOS-26: groups included in BOTH purposes
         onClose: (reason) => {
           contactsView = null; syncHomeOverlay();         // AND-29
           contactsFromAccount = false;                    // ★ L6: the flag dies with the takeover
           if (reason === 'back' && returnTo === 'account') {
+            const pdb0 = performance.now();   // ★ Session H ③ [PAINTDIAG] — remove with the set
             /* Account is coming BACK, so the highlight is written directly rather than
              * asked for: railTarget() would answer `activeNav` in the window between
              * this close and settings.html re-marking its pane flag, and that window is
              * exactly one visible frame of the wrong tab. */
             setNavActive(nav, 'account');
-            deferToPaint(() => bridge.send('ixian:settings'));   // the same deferral the Account tab uses
+            deferToPaint(() => {
+              /* ★ Session H ③ [PAINTDIAG], TEMPORARY: backsend=<ms> — close→the verb leaving.
+                 C#'s [PAINTDIAG re-present] + the reveal complete the way-back timeline. */
+              try { bridge.send('ixian:paintdiag:backsend:' + Math.round(performance.now() - pdb0)); } catch (e) {}
+              bridge.send('ixian:settings');
+            });   // the same deferral the Account tab uses
             return;
           }
           /* ★ Any OTHER close and the rail stops saying Account, because railTarget()
@@ -1403,8 +1434,15 @@
        * mechanism L14 describes, and the two want ONE fix, in C#, not two guesses.
        * activeNav and the visible view are deliberately untouched: they are what the
        * rail falls back to when the directory closes. */
+      const pd0 = performance.now();   // ★ Session H ③ [PAINTDIAG] — remove with the set
       openContacts('directory', '', { returnTo: 'account' });   // ★ C4: Back returns to Account, never Chats
       syncNav();                                                // ★ L6: …and the rail says so
+      /* ★ Session H ③ [PAINTDIAG], TEMPORARY: the takeover is ON GLASS at the second
+         rAF after the mount — cover=<ms> is consume→painted-cover. C#'s
+         [PAINTDIAG account-closed] line to this one is the visible chat-list flash. */
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        try { bridge.send('ixian:paintdiag:cover:' + Math.round(performance.now() - pd0)); } catch (e) {}
+      }));
       return;
     }
     if (id === 'account' || !NAV_TO_TAB[id]) return;
@@ -2572,7 +2610,11 @@
     const over = document.createElement('div');
     over.className = 'wallet-takeover';
     walletTakeover = over;
-    const close = () => { closeAddressSheet(); over.remove(); walletTakeover = null; walletTakeoverClose = null; syncHomeOverlay(); };  // AND-29 · r2 n5: no sheet outlives its screen
+    /* ★ Session H (walk row 31, Damir: "Wallet Send / Receive — yes"): the user's own
+       Back (arrow / hardware / edge → 'back') slides the takeover off the wallet; a
+       programmatic close (tab switch, scan hand-off) removes it at once. State first,
+       pixels after — same contract as the contacts takeover. */
+    const close = (reason) => { closeAddressSheet(); if (reason === 'back') slideSubscreenOut(document.body, over, () => { over.remove(); syncHomeOverlay(); }, { positioned: false }); else over.remove(); walletTakeover = null; walletTakeoverClose = null; syncHomeOverlay(); };  // AND-29 · r2 n5: no sheet outlives its screen · Session H MAJOR-1: the post-remove sync is what finally reports 0
     walletTakeoverClose = close;   // AND-29: hardware back closes this takeover
     syncHomeOverlay();   // AND-29 v2: notify C# the wallet takeover is up
     // walletStrings IS the live dict + the explorer override (slWith) — the old
@@ -2583,7 +2625,7 @@
     // the SAME keys as the hero buttons that open them: receive / send.
     over.append(createTopbar({
       variant: 'view', title: walletStrings.receive || 'Receive',
-      backLabel: walletStrings.back || 'Back', onBack: close,
+      backLabel: walletStrings.back || 'Back', onBack: () => close('back'),
     }));
     const body = document.createElement('div');
     body.className = 'wallet-takeover__body u-scroll';
@@ -2630,12 +2672,13 @@
          Fires only on an ALL-CLEAR run. Close FIRST, then toast onto document.body
          — a toast hosted inside the takeover would be removed with it mid-flight. */
       onRequestsSent: ({ text }) => {
-        if (walletTakeoverClose) walletTakeoverClose();
+        if (walletTakeoverClose) walletTakeoverClose('back');   // ★ Session H: "we return to wallet screen" — the same exit as Back
         showToast({ text, tone: 'success', host: document.body, strings: walletStrings });
       },
     }));
     over.append(body);
     document.body.append(over);
+    slideSubscreenIn(document.body, over, null, { positioned: false, append: false });   // ★ Session H: slides in over the wallet (stylesheet decides desktop / reduced motion)
   }
 
   /* ★ #589 — the wallet zero-state's "Show my address": the ONE address surface
@@ -2717,9 +2760,10 @@
     const over = document.createElement('div');
     over.className = 'wallet-takeover';
     walletTakeover = over;
-    const close = () => {
+    const close = (reason) => {
       if (walletSendView && walletSendView._closeReview) { try { walletSendView._closeReview(); } catch (e) {} }   // loop r1 M4: no orphan sheet
-      over.remove(); walletTakeover = null; walletTakeoverClose = null;
+      if (reason === 'back') slideSubscreenOut(document.body, over, () => { over.remove(); syncHomeOverlay(); }, { positioned: false }); else over.remove();   // ★ Session H: the user's Back slides (see mountWalletReceive) · MAJOR-1: post-remove sync reports the real 0
+      walletTakeover = null; walletTakeoverClose = null;
       walletSendView = null; walletSendCtrl = null;           // stale pushes must find nobody
       clearWalletSendWait();
       syncHomeOverlay();
@@ -2730,7 +2774,7 @@
     // never existed → use the hero button's key (`send`).
     over.append(createTopbar({
       variant: 'view', title: walletStrings.send || 'Send',
-      backLabel: walletStrings.back || 'Back', onBack: close,
+      backLabel: walletStrings.back || 'Back', onBack: () => close('back'),
     }));
     const body = document.createElement('div');
     body.className = 'wallet-takeover__body u-scroll';
@@ -2768,6 +2812,7 @@
     body.append(walletSendView);
     over.append(body);
     document.body.append(over);
+    slideSubscreenIn(document.body, over, null, { positioned: false, append: false });   // ★ Session H: slides in over the wallet (stylesheet decides desktop / reduced motion)
   }
 
   const hero = createWalletHero({

@@ -693,7 +693,7 @@ export function createNotificationsScreen({
       checked: previews, live, failText, onToggle: onPreviews,
     }));
     if (onSounds) body.append(switchRow({
-      glyph: 'alert-small', hue: 'accent',
+      glyph: 'volume', hue: 'accent',   // ★ Session H: Damir's export; alert-small is the FAILED status glyph (chatlist-item) — one glyph, one meaning (#602)
       label: strings.notifSounds || 'In-app sounds',
       checked: sounds, live, failText, onToggle: onSounds,
     }));
@@ -712,7 +712,7 @@ export function createNotificationsScreen({
        stub — a switch that changes nothing is a lie). */
     if (capabilities.pushProvider && onPushProvider) {
       body.append(switchRow({
-        glyph: 'topology-star', hue: 'info',   // a relay in the middle — NOT 'world', which is the Language row's glyph (one glyph, one meaning: the #602 rule)
+        glyph: 'cloud-bolt', hue: 'info',   // ★ Session H: a cloud that wakes the device. NOT 'world' (the Language row) and NOT 'topology-star' (the secure notice, Damir 2026-08-30) — one glyph, one meaning (#602). bell-ringing was exported too; 'bell' already means "Allow notifications" one row above, so a second bell would blur it
         label: strings.notifPushProvider || 'Instant delivery via OneSignal',
         sub: platform === 'ios'
           ? (strings.notifPushProviderSubIos || 'Off: you see new messages only when you open Spixi. Nothing is sent to a third party.')

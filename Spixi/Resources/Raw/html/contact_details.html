@@ -1548,6 +1548,9 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 /* —— members —— */
 .c-chat-info__members { display: flex; flex-direction: column; gap: var(--spacing-8); }
 .c-chat-info__member-list { display: flex; flex-direction: column; }
+/* ★ Session H: the incremental fill's skeleton tail — a transparent wrapper so its
+   skeleton rows stack exactly like real rows while real batches insert above it. */
+.c-chat-info__member-fill { display: flex; flex-direction: column; }
 .c-chat-info__member {
   display: flex;
   align-items: center;
@@ -4285,7 +4288,22 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    * EvaluateJavaScriptAsync frame) into ONE commit + change check, so partial tx
    * lists never paint. 120ms settles comfortably inside the 1s tick. */
   let commitTimer = 0;
-  function scheduleCommit() { clearTimeout(commitTimer); commitTimer = setTimeout(commitAndBuild, 120); }
+  let firstGroupPaint = 0;   // ★ Session H: one-shot leading edge (below)
+  function scheduleCommit() {
+    clearTimeout(commitTimer); commitTimer = setTimeout(commitAndBuild, 120);
+    /* ★ Session H (Damir, L10's family — "paint the info first, skeletons for the roster"):
+       the FIRST paint of a group/bot surface must not wait for the roster burst to go
+       quiet. Every addMember resets the 120 ms timer above, so a big bot room painted
+       ONCE, late, with everything. The leading edge (40 ms after the first push that
+       finds a group) builds the panel from META ONLY — the buffers stay untouched, so
+       the "partial lists never commit" rule holds — and the panel shows hero + count +
+       skeleton rows (membersLanded still false) until the settle commits the roster,
+       which chat-info then fills in 24-row frames. 1:1 keeps its single coalesced first
+       paint: its burst is small and a leading paint would flash an empty tx section. */
+    if (!built && state.isGroup && !firstGroupPaint) {
+      firstGroupPaint = setTimeout(() => { if (!built) buildIfChanged(); }, 40);
+    }
+  }
   function commitAndBuild() {
     if (state.txsBuf !== null) { state.txs = state.txsBuf; state.txsBuf = null; }
     if (state.membersBuf !== null) { state.members = state.membersBuf; state.membersBuf = null; state.membersLanded = true; }   // #248 roster · A8

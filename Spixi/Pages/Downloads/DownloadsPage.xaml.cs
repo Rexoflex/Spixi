@@ -181,6 +181,14 @@ namespace SPIXI
 
         private void onLoad()
         {
+            // ★ Session H review (auditor B MINOR-2, the #337 lesson ContactDetails wrote
+            // down): the shell mirror starts CLOSED on a fresh document — a stale true
+            // from a torn-down document would swallow hardware back for ever.
+            // ⚠ reviewer NIT-3: onLoad also runs MID-SESSION (post-delete refresh,
+            // OnAppearing), not only at boot — safe, because the delete confirm's own
+            // deferred mirror push converges to 0 in the same task, but "fresh document"
+            // is not what every call site means.
+            shellOverlayOpen = false;
             loadFiles();
 
             // Execute timer-related functionality immediately
@@ -214,11 +222,13 @@ namespace SPIXI
             return false;
         }
 
-protected override bool OnBackButtonPressed()
+        protected override bool OnBackButtonPressed()
         {
             // L3: a shell overlay (the three settingsConfirm dialogs this screen can open)
             // consumes back before the page pops — the order every native surface keeps.
-            if (shellOverlayOpen)
+            // ★ review N-3: same predicate as routeShellBack — a not-yet-loaded document
+            // must not swallow back and queue a push at nobody.
+            if (shellOverlayOpen && pageLoaded)
             {
                 Utils.sendUiCommand(this, "downloadsBack");
                 return true;

@@ -108,8 +108,8 @@
   display: flex;
   align-items: flex-end;
   gap: var(--spacing-4);
-  background: var(--surface-input);
-  border: var(--outline-width-1) solid var(--outline-neutral-01);   /* #711: the floating pill's edge */
+  background: var(--surface-composer-pill);                          /* ★ Session H: its own pair (tokens.css) — --surface-input + --outline-neutral-01 were the SAME colour in dark */
+  border: var(--outline-width-1) solid var(--outline-composer-pill); /* #711: the floating pill's edge, now findable in both themes */
   box-shadow: var(--elevation-1);                                    /* #711: a soft lift off the pattern */
   border-radius: var(--radius-24);
   padding-block: var(--spacing-4);
@@ -176,6 +176,28 @@
   color: var(--text-neutral-01);
   outline: none; /* focus is carried by the field, not the caret area */
   max-height: 136px; /* 5×24 line-height + 16 block padding (border-box) — matches JS cap */
+  /* ★ Session H (Damir, Windows screenshot): past five lines the textarea scrolls, and
+     Chromium painted its CLASSIC scrollbar — arrows, track, a 17px column — inside the
+     pill. The .u-scroll grammar (#41) applies, minus the reserved gutter: a gutter would
+     shift the text 6px on every message, so the thin thumb overlays the padding instead.
+     Thumb visible whenever the field can scroll AND has focus (the caret is there, the
+     thumb says "more above"); on touch WebViews the OS overlay indicator is untouched. */
+  overflow-y: auto;
+}
+@media (hover: hover) and (pointer: fine) {
+  .c-composer__input {
+    scrollbar-width: thin;                         /* FF + Chromium 121+ (WebView2) */
+    scrollbar-color: transparent transparent;
+  }
+  .c-composer__input:hover, .c-composer__input:focus {
+    scrollbar-color: var(--outline-composer-pill) transparent;   /* NOT outline-neutral-02: in dark that is ink-700, 1.02:1 against the pill */
+  }
+  .c-composer__input::-webkit-scrollbar { width: 6px; }   /* older WebKit/Blink */
+  .c-composer__input::-webkit-scrollbar-button { display: none; height: 0; }
+  .c-composer__input::-webkit-scrollbar-track { background: transparent; }
+  .c-composer__input::-webkit-scrollbar-thumb { background: transparent; border-radius: var(--radius-full); }
+  .c-composer__input:hover::-webkit-scrollbar-thumb,
+  .c-composer__input:focus::-webkit-scrollbar-thumb { background: var(--outline-composer-pill); }
 }
 .c-composer__input::placeholder { color: var(--text-neutral-02); }
 

@@ -1,0 +1,35 @@
+Session H: subscreen slides, skeleton roster, 760 column, the A-H Opus review
+
+- One shared in-shell slide (native 300/220ms) for Account sublevels, Contacts,
+  Wallet Send/Receive and Launch create/restore, with L8 double-back guards on
+  every surface that gained an exit animation.
+- Bot-room info: 40ms leading paint, skeleton roster filling 24 rows/frame,
+  C# roster marshals chunked (24, generation-countered, snapshot under lock).
+- The 760 desktop conversation column; the composer pill's own token pair +
+  thin no-arrows scrollbar; icon registry 87->90 (volume, cloud-bolt wired).
+- [PAINTDIAG] armed and already measured: the Account->Contacts flash is
+  56/88ms on Android (close-vs-cover race); fix designed for next session.
+- Full Opus adversarial review of Sessions A-H (#642-#722 + this batch):
+  3 MAJORs found and fixed - the L8 class my own slide reintroduced, a stale
+  Raw/html passing the suite green, no icons registry-equality gate. New
+  FATAL gates: build-shells --check (in-suite), registry equality +
+  generate-icons read-back, a real extract-strings --check, NUL/short-write
+  guards on every shell write. signSend peer-scoped on the two locked
+  surfaces. Privacy copy rewritten honest AND platform-scoped; the
+  WebView-supplied transfer id logs length only. Security gate sweep: zero
+  new sinks/fetches across the whole delta.
+- Dev-coexist (#732/#734): Android test builds install beside legacy as
+  "Spixi Dev" (remove-at-release, grep SpixiDevCoexist); FileProvider
+  authority derived from applicationId, never hardcoded.
+- The premium-pass brief is complete and fully ruled (#731-#735): measured
+  reference numbers (our bubble +22% vs WA), 12 screenshots in
+  docs/reference-screens/premium/, every dial answered - chat slide removed,
+  light canvas #EEECEF + #83058E@6%, tails, weights, floating composer,
+  legal docs in-app, notifications regrouped.
+
+Gates: bundle 317 · shells 18 · smoke BASELINE OK 3892 / the 3 known ·
+locales 787 · cs-syntax 140+1 · mutations 8/8 + 4/4, zero survivors.
+DECISIONS #723-#735. Read docs/handoff-2026-09-01.md next.
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01B4xV5UKFWmBHuatvE9mVtn

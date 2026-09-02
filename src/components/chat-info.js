@@ -725,24 +725,47 @@ export function createChatInfo({
       renderMembers();
     }
 
+    /* ★ Session H: one skeleton row (A8's shimmer grammar), reused by the boot state
+       and by the incremental fill's tail below. */
+    function skeletonRow(width) {
+      const sk = document.createElement('div');
+      sk.className = 'c-chat-info__member c-chat-info__member--skeleton';
+      sk.setAttribute('aria-hidden', 'true');
+      const av = document.createElement('span'); av.className = 'c-chat-info__skeleton-avatar';
+      const ln = document.createElement('span'); ln.className = 'c-chat-info__skeleton-line';
+      ln.style.width = width;
+      sk.append(av, ln);
+      return sk;
+    }
+
+    /* ★ Session H (Damir, L10's family): THE ROSTER FILLS IN BATCHES, NOT AS ONE PAINT.
+       A bot room carries up to 500 members and the old loop built every row before the
+       list could paint — the "one late paint" he flagged. Now the first 24 rows build
+       synchronously (a phone viewport shows ~12), a short skeleton tail stands in for
+       the rest, and requestAnimationFrame swaps 24 real rows in per frame until done.
+       ⚠ 24 IS A MEASURED NUMBER, NOT A GUESS: building a row costs 0.049 ms and laying
+       one out ~0.03 ms on desktop Chromium (500-row run, 2026-08-31); at a ×8 phone
+       margin a 24-row batch is ~16 ms — inside one 60 Hz frame. Damir's brief said
+       "~20 per frame — measure, then pick"; the measurement says 24 fits.
+       A re-render (search keystroke, kick) bumps fillToken and orphans the in-flight
+       fill; a detached list (panel rebuilt underneath) stops it via isConnected. */
+    const FILL_FIRST = 24, FILL_BATCH = 24;
+    let fillToken = 0;
+
     function renderMembers() {
+      fillToken++;                       // orphan any in-flight fill
+      const token = fillToken;
       listEl.replaceChildren();
       /* ★ A8 (Damir's override of #264-no-skeletons): while the roster pushes land
          (ixian:loadContacts → addContact × N, one EvaluateJavaScriptAsync each) the
-         section shows three skeleton rows, not an empty list or a "no members" lie.
-         aria-busy tells AT the region is loading; the rows are aria-hidden. */
+         section shows skeleton rows, not an empty list or a "no members" lie.
+         aria-busy tells AT the region is loading; the rows are aria-hidden.
+         ★ Session H: count-aware — setGroupInfo lands before the roster burst, so the
+         skeleton can be honest about scale (up to 8 rows, never more than the count). */
       if (loading && !members.length) {
         listEl.setAttribute('aria-busy', 'true');
-        for (let i = 0; i < 3; i++) {
-          const sk = document.createElement('div');
-          sk.className = 'c-chat-info__member c-chat-info__member--skeleton';
-          sk.setAttribute('aria-hidden', 'true');
-          const av = document.createElement('span'); av.className = 'c-chat-info__skeleton-avatar';
-          const ln = document.createElement('span'); ln.className = 'c-chat-info__skeleton-line';
-          ln.style.width = (58 + i * 14) + '%';
-          sk.append(av, ln);
-          listEl.append(sk);
-        }
+        const n = Math.max(3, Math.min(count || 3, 8));
+        for (let i = 0; i < n; i++) listEl.append(skeletonRow((58 + (i % 3) * 14) + '%'));
         return;
       }
       listEl.removeAttribute('aria-busy');
@@ -752,7 +775,42 @@ export function createChatInfo({
             (!blind && (m.address || '').toLowerCase().includes(query)))   // M3: nameless members stay findable
         : [...members])
         .sort((a, b) => (a.name || a.address || '').localeCompare(b.name || b.address || ''));
-      for (const m of matches) {
+      let fillAt = 0;
+      const buildSome = (limit) => {
+        const frag = document.createDocumentFragment();
+        const end = Math.min(fillAt + limit, matches.length);
+        for (; fillAt < end; fillAt++) frag.append(memberRow(matches[fillAt]));
+        return frag;
+      };
+      listEl.append(buildSome(FILL_FIRST));
+      if (fillAt < matches.length) {
+        listEl.setAttribute('aria-busy', 'true');
+        const tail = document.createElement('div');
+        tail.className = 'c-chat-info__member-fill';
+        tail.setAttribute('aria-hidden', 'true');
+        for (let k = 0; k < Math.min(matches.length - fillAt, 6); k++) tail.append(skeletonRow((58 + (k % 3) * 14) + '%'));
+        listEl.append(tail);
+        const step = () => {
+          if (token !== fillToken || !listEl.isConnected) return;   // superseded or panel rebuilt
+          listEl.insertBefore(buildSome(FILL_BATCH), tail);
+          if (fillAt < matches.length) requestAnimationFrame(step);
+          else { tail.remove(); listEl.removeAttribute('aria-busy'); }
+        };
+        requestAnimationFrame(step);
+      }
+      if (!matches.length) {
+        const none = document.createElement('div');
+        none.className = 'c-chat-info__member-note';
+        // ★ A1: an EMPTY bot roster is a protocol fact (getUsers only for < 500 users,
+        // Ixian-Core frozen) — say what is true, not "no match"
+        none.textContent = (!members.length && kind === 'bot')
+          ? (strings.membersNotSynced || 'Members are not listed for this room yet.')
+          : (strings.noMembers || 'No members match.');
+        listEl.append(none);
+      }
+    }
+
+    function memberRow(m) {
         const row = document.createElement('button');
         row.type = 'button';
         row.className = 'c-chat-info__member';
@@ -789,18 +847,7 @@ export function createChatInfo({
         }
         row.append(icon('chevron-right', { size: 18 }));
         row.addEventListener('click', () => memberSheetFor(m));
-        listEl.append(row);
-      }
-      if (!matches.length) {
-        const none = document.createElement('div');
-        none.className = 'c-chat-info__member-note';
-        // ★ A1: an EMPTY bot roster is a protocol fact (getUsers only for < 500 users,
-        // Ixian-Core frozen) — say what is true, not "no match"
-        none.textContent = (!members.length && kind === 'bot')
-          ? (strings.membersNotSynced || 'Members are not listed for this room yet.')
-          : (strings.noMembers || 'No members match.');
-        listEl.append(none);
-      }
+        return row;
     }
     renderMembers();
   }

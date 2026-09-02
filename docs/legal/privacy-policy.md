@@ -92,12 +92,9 @@ The notification itself is a signal that something is waiting. **The message con
 
 OneSignal processes this data on our instructions as a processor, and is located in the United States; see §10.
 
-**When this starts.** ⚠ Today the answer differs by platform, and we are changing it:
+**Where and when this applies.** OneSignal is used by the **Android and iOS** apps only; the Windows and macOS apps use no push provider. The SDK does not initialise until you have accepted these documents. *(Updated Session G/#708: the earlier draft of this paragraph disclosed that Android initialised OneSignal before the first screen; P1 shipped the fix — Android now arms `ConsentRequired` before initialisation and withholds consent until acceptance, and iOS starts the SDK only with the messaging node, after your wallet exists.)*
 
-- **On Android**, the OneSignal SDK is started from the application's own start-up path, which runs **before the first screen is drawn** — so on a first install it initialises **before you have accepted this Policy**.
-- **On iOS**, it starts later, with the messaging node, after your wallet exists.
-
-We are moving Android to match iOS, so that **nothing is transmitted to OneSignal until you have accepted these documents**. Until that ships, this paragraph is the disclosure.
+**Turning it off.** On Android and iOS, Settings → Notifications → **Instant delivery via OneSignal** is a real opt-out (shipped as P2/#708): off, on iOS the SDK is not initialised at all, and on Android consent is withdrawn and the subscription opted out — nothing more is transmitted to OneSignal from this device. The trade-off is stated on the switch: without the push, messages arrive when Spixi checks (Android) or when you open the app (iOS). The record OneSignal already holds is not deleted by the switch; only their processes can delete it.
 
 ### 4.5 Presence on the network
 

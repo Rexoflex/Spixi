@@ -10929,8 +10929,12 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
 
   /* —— AND-37: settings back over a sheet —— */
   for (const [label, txt] of [['source', setSrcNc], ['built', nc(setBuilt)]]) {
-    ok(/onBack\(\) \{\s*const dismiss = window\.Spixi && window\.Spixi\.dismissTopOverlay;\s*if \(dismiss && dismiss\(\)\) return;\s*if \(currentView !== 'hub'\) showHub\(\); else exitSettings\(\);\s*\}/.test(txt),
-      '★ AND-37 (' + label + '): the Account shell\'s onBack dismisses an open sheet FIRST — back over a theme/language sheet exited the whole page onto Chats (FE-only: back always routes into this shell, both presentations)');
+    /* ★ Session H reviewer MINOR-1 re-base: a settle arm joined the chain between the
+       sheet dismissal and the navigation — back during a sub-level's exit slide aborts
+       the slide instead of running exitSettings() from under a still-visible screen.
+       The AND-37 property (sheet first) is unchanged and still pinned by the ORDER. */
+    ok(/onBack\(\) \{\s*const dismiss = window\.Spixi && window\.Spixi\.dismissTopOverlay;\s*if \(dismiss && dismiss\(\)\) return;\s*if \(root\.querySelector\('\.c-subslide--out'\)\) \{ settleSubscreenSlide\(root\); return; \}\s*if \(currentView !== 'hub'\) showHub\(\); else exitSettings\(\);\s*\}/.test(txt),
+      '★ AND-37 (' + label + ') → Session H: onBack = sheet → abort-an-exit-slide → sub-level → exit, in that order (back over a sheet never exits; back during the 220 ms exit never pops Account from under a live screen)');
   }
 
   /* —— N54: typing scroll gate —— */
@@ -15473,7 +15477,9 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       const homeS2 = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
       ok(/walletSendWait = setTimeout\(\(\) => \{[\s\S]{0,400}?\}, 125000\);/.test(homeS2) && !/\}, 30000\);/.test(homeS2),
         '★ loop r2 R2-1: the wallet compose backstop is 125 s too — at 30 s a slow user still had the native dialog open and the real "ok" landed on nobody');
-      ok(/const close = \(\) => \{ closeAddressSheet\(\);/.test(homeS2), 'loop r2 n5: the Receive takeover closes its address sheet on the way out — no sheet outlives its screen');
+      /* ★ Session H re-base: close() gained the 'back' reason (the slide-out); the property —
+         the address sheet dies FIRST, before any exit path — is unchanged. */
+      ok(/const close = \(reason\) => \{ closeAddressSheet\(\);/.test(homeS2), 'loop r2 n5: the Receive takeover closes its address sheet on the way out — no sheet outlives its screen');
     }
     const spay = readFileSync(join(root, 'Spixi/Utils/SPayments.cs'), 'utf8');
     const scp = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8');
@@ -15931,7 +15937,9 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   /* C4 — the #294 mechanism, named, and the IA move on it */
   {
     const cp = readFileSync(join(root, 'src/bridge/contacts-page.js'), 'utf8');
-    ok(/const close = \(reason\) => \{[\s\S]{0,200}?if \(onClose\) onClose\(reason === 'back' \? 'back' : 'auto'\);/.test(cp) && /onBack: \(\) => close\('back'\),/.test(cp),
+    /* ★ Session H re-base: the close body gained the slide-out (and its docblock) between the
+       latch and onClose — widen the window; the reason contract itself is byte-identical. */
+    ok(/const close = \(reason\) => \{[\s\S]{0,1200}?if \(onClose\) onClose\(reason === 'back' \? 'back' : 'auto'\);/.test(cp) && /onBack: \(\) => close\('back'\),/.test(cp),
       'C4 (#547): the contacts takeover reports WHY it closed — the user\'s own Back vs a programmatic close');
     /* ★ L6 rebase: the Back branch gained a comment between its two statements, and
        the hand-off no longer "lands on Chats" on the way in — that was the defect
@@ -18237,10 +18245,24 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   /* —— L1 · A: the C# half ——————————————————————————————————————————————————— */
   {
     const cds = rdf('Spixi/Pages/Contacts/ContactDetails.xaml.cs');
-    ok(/SPayments\.handleSignSend\(this, current_url\.Substring\("ixian:signSend:"\.Length\)\)/.test(cds)
+    /* ★ Session H review re-base (B MINOR-4): signSend now passes the page's peer as
+       expectedRecipient — this surface composes with lockedRecipient, so any OTHER
+       address in the payload is refused before parsing (handleSendRequest's shape).
+       The reversal is kept as a negative: the unscoped call must not return. */
+    ok(/SPayments\.handleSignSend\(this, current_url\.Substring\("ixian:signSend:"\.Length\), friend\.walletAddress\)/.test(cds)
+       && !/handleSignSend\(this, current_url\.Substring\("ixian:signSend:"\.Length\)\);/.test(cds)
        && /SPayments\.handleFeeQuery\(this, current_url\.Substring\("ixian:feeQuery:"\.Length\)\)/.test(cds)
        && /SPayments\.handleSendRequest\(this, friend, current_url\.Substring\("ixian:sendrequest:"\.Length\)\)/.test(cds),
-      '★★ L1 (#640): ContactDetails answers the three money verbs — the SAME three SingleChatPage answers, so both surfaces share one grammar');
+      '★★ L1 (#640) → Session H: ContactDetails answers the three money verbs, and signSend is PEER-SCOPED (expectedRecipient = friend.walletAddress) like sendrequest always was');
+    {
+      const sps = rdf('Spixi/Utils/SPayments.cs');
+      const scs = rdf('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+      ok(/handleSignSend\(SpixiContentPage page, string payload, Address\? expectedRecipient = null\)/.test(sps)
+         && /if \(expectedRecipient != null && !\(new ExtendedAddress\(addr\)\)\.PaymentAddress\.SequenceEqual\(expectedRecipient\)\)/.test(sps)
+         && /handleSignSend\(this, current_url\.Substring\("ixian:signSend:"\.Length\), friend\.walletAddress\)/.test(scs)
+         && /handleSignSend\(this, current_url\.Substring\("ixian:signSend:"\.Length\)\);/.test(rdf('Spixi/Pages/Home/HomePage.xaml.cs')),
+        '★★ Session H (B MINOR-4): the scope guard lives ONCE in SPayments; the two peer-locked surfaces (chat, contact details) pass the peer, HomePage (quickscan / wallet Send — any recipient is legitimate) stays unscoped');
+    }
     ok(/"setCaps", "composeSend,composeRequest"/.test(cds),
       '★ L1 (#640): ContactDetails DECLARES the caps the shell gates on — without the push both buttons are dead');
     ok(!/new WalletSendPage/.test(cds) && !/new WalletReceivePage/.test(cds),
@@ -21466,8 +21488,23 @@ console.log('#711 / #712: floating composer + the notifications sub-labels');
   ok(/background: transparent;/.test(bar) && /border-top: 0;/.test(bar) && /gap: var\(--spacing-4\);/.test(bar) && !/border-top: var\(--outline-width-1\)/.test(bar),
     '★ #711: the bar has NO ground and no hairline (it floats), and the ⊕→pill gap is spacing-4');
   const field = cc.slice(cc.indexOf('.c-composer__field {'), cc.indexOf('}', cc.indexOf('.c-composer__field {')));
-  ok(/border: var\(--outline-width-1\) solid var\(--outline-neutral-01\);/.test(field) && /box-shadow: var\(--elevation-1\);/.test(field),
-    '★ #711: the floating pill carries a hairline and elevation-1 — a findable edge on the pattern');
+  /* ★ Session H RE-BASE (Damir's Windows screenshot): #711's edge was --outline-neutral-01,
+     which in dark resolves to neutral-800 — the SAME colour as the --surface-input pill
+     it bordered. The pill wears its own pair now; the reversal is kept as a negative. */
+  ok(/background: var\(--surface-composer-pill\);/.test(field) && /border: var\(--outline-width-1\) solid var\(--outline-composer-pill\);/.test(field) && /box-shadow: var\(--elevation-1\);/.test(field)
+     && !/var\(--outline-neutral-01\)/.test(field) && !/var\(--surface-input\)/.test(field),
+    '★ #711 → Session H: the floating pill carries its OWN ground + hairline pair (--surface-composer-pill / --outline-composer-pill) and elevation-1 — not --surface-input / --outline-neutral-01, which were one colour in dark');
+  {
+    const tk = rdF('src/styles/tokens.css');
+    const lightBlk = tk.slice(0, tk.indexOf('--surface-composer-pill: #1e222b'));
+    ok(/--surface-composer-pill: #ffffff;\s*\n\s*--outline-composer-pill: var\(--neutral-200\);/.test(lightBlk) && /--surface-composer-pill: #1e222b;\s*\n\s*--outline-composer-pill: var\(--neutral-500\);/.test(tk),
+      '★ Session H: the pill pair is defined in BOTH themes — light white + neutral-200, dark #1e222b (the received-bubble ground, 1.15:1 on the canvas) + neutral-500 (1.47:1 on the canvas; -800/-700 measured 1.06/1.02 against the pill)');
+    const inp = cc.slice(cc.indexOf('.c-composer__input {'), cc.indexOf('.c-composer__input::placeholder'));
+    ok(/overflow-y: auto;/.test(inp) && /scrollbar-width: thin;/.test(inp) && /scrollbar-color: transparent transparent;/.test(inp)
+       && /::-webkit-scrollbar-button \{ display: none; height: 0; \}/.test(inp) && !/scrollbar-gutter/.test(inp)
+       && /scrollbar-color: var\(--outline-composer-pill\) transparent;/.test(inp) && !/scrollbar-color: var\(--outline-neutral-02\)/.test(inp),
+      '★ Session H (Damir screenshot): the textarea scrolls on the thin .u-scroll grammar — no arrows, no classic track, NO reserved gutter (it would shift the text 6px), thumb in the pill pair (outline-neutral-02 is 1.02:1 against the dark pill)');
+  }
   ok(/inset-block-end: calc\(var\(--composer-h, 0px\) \+ var\(--spacing-16\)\);/.test(rdF('src/styles/components/scroll-latest.css')),
     '★ #711: the scroll-to-latest chevron offsets itself by --composer-h (0 where nothing writes it — the desktop demo keeps its old slot)');
   const ss = rdF('src/styles/components/settings-shell.css');
@@ -21574,6 +21611,400 @@ console.log('#713–#721: the walk fixes');
        && /if \(instant\) \{ tray\.remove\(\); trayState\.delete\(tray\); return true; \}/.test(as) && /tray\.dataset\.instant = '';/.test(as)
        && /\.c-attach-tray\[data-instant\] \{ transition: none; \}/.test(rdF('src/styles/components/attach-sheet.css')),
       '★ #721: a tap in the field HOLDS the tray until the viewport shrinks (the keyboard has the slot) and then drops it in one frame; opening while the keyboard is up takes the slot instantly — no dip-and-rise between the two');
+  }
+}
+
+/* ═══ ★★ SESSION H — the in-shell subscreen slide (walk row 31) + icons + the composer pill ═══ */
+console.log('Session H: the in-shell subscreen slide · the icon wiring');
+{
+  const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
+  const nc = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const comp = rdF('src/components/subscreen-slide.js');
+  const css = stripCssComments(rdF('src/styles/components/subscreen-slide.css'));
+  const scp = rdF('Spixi/Utils/SpixiContentPage.cs');
+  /* the motion IS the native one — both constants read out of the C# */
+  const enterMs = Number((scp.match(/private const uint ScreenSlideInMs = (\d+);/) || [])[1]);
+  const exitMs = Number((scp.match(/await op\.stage\.TranslateTo\(w, 0, (\d+), Easing\.CubicIn\);/) || [])[1]);
+  const tok = stripCssComments(rdF('src/styles/tokens.css'));
+  const d300 = Number((tok.match(/--duration-300: (\d+)ms;/) || [])[1]);
+  ok(enterMs === 300 && exitMs === 220 && d300 === enterMs
+     && /const ENTER_MS = 300;/.test(comp) && /const EXIT_MS = 220;/.test(comp)
+     && /\.c-subslide--in\s*\{ animation: c-subslide-in\s+var\(--duration-300\) var\(--easing-standard\) both; \}/.test(css)
+     && /\.c-subslide--out\s*\{ animation: c-subslide-out 220ms var\(--easing-accelerate\) both; pointer-events: none; \}/.test(css),
+    '★★ Session H: the shell slide runs at the NATIVE numbers — enter ' + enterMs + ' ms on --easing-standard (= ScreenSlideInMs, = --duration-300), exit ' + exitMs + ' ms cubic-in (= the C# TranslateTo). The work order said 220/220; the page beside it moves at 300/220 and a view at a different speed reads as a different kind of screen');
+  ok(/:root\[data-desktop\] \.c-subslide--in,\s*:root\[data-desktop\] \.c-subslide--out \{ animation: none; \}/.test(css)
+     && /@media \(prefers-reduced-motion: reduce\) \{\s*\.c-subslide--in, \.c-subslide--out \{ animation: none; \}\s*\}/.test(css)
+     && /const name = getComputedStyle\(el\)\.animationName;\s*return !!name && name !== 'none';/.test(comp),
+    '★ Session H (#704/#718): desktop and reduced-motion get NO slide — decided by the stylesheet (animation: none) and read back by the JS (grantsMotion), never derived twice');
+  ok(/\.c-subslide--viewport \{ position: fixed; inset: 0; \}/.test(css) && /\.c-subslide--host \{ position: absolute; inset: 0; \}/.test(css)
+     && /\.c-subslide-host \{ position: relative; \}/.test(css) && /background: var\(--subslide-ground, var\(--surface-screen\)\);/.test(css)
+     && /html\[dir="rtl"\] \.c-subslide \{ --subslide-from: -100%; \}/.test(css)
+     && /timer = setTimeout\(finish, ms \* 2\);/.test(comp) && /export function settleSubscreenSlide\(host\)/.test(comp),
+    '★ Session H: the sliding layer is opaque + fixed (settings, over the bars) or absolute-in-host (launch); RTL enters from the left; every wait carries the completes-never backstop (#326) and a host can settle an in-flight slide synchronously');
+  /* EXECUTED — the synchronous path (no motion granted) and the animated path (motion stubbed, animationend fired) */
+  {
+    const { JSDOM: J } = await import('jsdom');
+    const dom = new J('<!doctype html><html><body><div id="h"><div id="a">A</div></div></body></html>', { pretendToBeVisual: true });
+    const w = dom.window;
+    const saved = { gcs: globalThis.getComputedStyle, doc: globalThis.document, win: globalThis.window };
+    globalThis.window = w; globalThis.document = w.document;
+    let granted = '';
+    globalThis.getComputedStyle = () => ({ animationName: granted });
+    try {
+      const mod = await import('file://' + join(root, 'src/components/subscreen-slide.js') + '?t=' + Date.now());
+      const host = w.document.getElementById('h'), a = w.document.getElementById('a');
+      const b = w.document.createElement('div'); b.id = 'b';
+      let swapped = 0;
+      mod.slideSubscreenIn(host, b, () => { swapped++; host.replaceChildren(b); });
+      ok(swapped === 1 && host.childElementCount === 1 && host.firstElementChild === b && !b.classList.contains('c-subslide'),
+        '★ Session H EXECUTED: with no motion granted the ENTER swaps synchronously — the swap ran once, the hub is detached, no slide class lingers');
+      host.replaceChildren(a); host.append(b);
+      let removed = 0;
+      mod.slideSubscreenOut(host, b, () => { removed++; b.remove(); });
+      ok(removed === 1 && host.childElementCount === 1 && host.firstElementChild === a,
+        '★ Session H EXECUTED: with no motion granted the EXIT removes synchronously over the revealed view');
+      /* animated: motion granted → nothing swaps until animationend; the class set is the fixed layer */
+      granted = 'c-subslide-in';
+      let swapped2 = 0;
+      const c = w.document.createElement('div');
+      mod.slideSubscreenIn(host, c, () => { swapped2++; host.replaceChildren(c); });
+      const mid = { kids: host.childElementCount, cls: c.className, inflight: mod.isSubscreenSliding(host) };
+      c.dispatchEvent(new w.Event('animationend', { bubbles: true }));
+      ok(mid.kids === 2 && /c-subslide c-subslide--viewport c-subslide--in/.test(mid.cls) && mid.inflight && swapped2 === 1 && host.childElementCount === 1 && host.firstElementChild === c && !mod.isSubscreenSliding(host) && c.className === '',
+        '★★ Session H EXECUTED: with motion granted the entering view is lifted OVER the still-mounted hub (2 children, fixed layer, in flight) and the swap waits for animationend — then the hub detaches and the classes come off. Got mid=' + JSON.stringify(mid));
+      /* a re-render mid-flight settles first */
+      const d2 = w.document.createElement('div');
+      let sw3 = 0;
+      mod.slideSubscreenIn(host, d2, () => { sw3++; host.replaceChildren(d2); });
+      mod.settleSubscreenSlide(host);
+      ok(sw3 === 1 && host.firstElementChild === d2 && !mod.isSubscreenSliding(host),
+        '★ Session H EXECUTED: settleSubscreenSlide finishes the in-flight slide synchronously (the C#-push-inside-300ms case)');
+      /* the backstop: animationend never fires */
+      const e2 = w.document.createElement('div');
+      let sw4 = 0;
+      mod.slideSubscreenIn(host, e2, () => { sw4++; });
+      await new Promise((r) => setTimeout(r, 700));
+      ok(sw4 === 1 && !mod.isSubscreenSliding(host),
+        '★ Session H EXECUTED: the completes-never backstop (2× the duration) settles a slide whose animationend never came');
+    } finally {
+      // review C NIT-10: saved.win/doc were never defined pre-block — restore by DELETION,
+      // never by assigning undefined (a defined-as-undefined global lies to typeof checks)
+      if (saved.gcs === undefined) delete globalThis.getComputedStyle; else globalThis.getComputedStyle = saved.gcs;
+      if (saved.doc === undefined) delete globalThis.document; else globalThis.document = saved.doc;
+      if (saved.win === undefined) delete globalThis.window; else globalThis.window = saved.win;
+    }
+  }
+  /* the attachment sites */
+  const bb = rdF('scripts/build-demo-bundle.mjs');
+  /* ★ review C NIT-7 re-base: DERIVED, not enumerated — every FILES entry that IMPORTS
+     subscreen-slide.js must sit after it, whoever imports it next year. */
+  {
+    const files = [...bb.matchAll(/'(src\/[^']+\.js)'/g)].map((m) => m[1]);
+    const slideAt = files.indexOf('src/components/subscreen-slide.js');
+    const importers = files.filter((f) => f !== 'src/components/subscreen-slide.js' && existsSync(join(root, f)) && /from '[^']*subscreen-slide\.js'/.test(readFileSync(join(root, f), 'utf8')));
+    ok(slideAt >= 0 && importers.length >= 2 && importers.every((f) => files.indexOf(f) > slideAt),
+      '★ Session H (derived): every FILES entry importing subscreen-slide.js sits AFTER it in the bundle order. Importers found: ' + importers.join(', '));
+  }
+  const set = nc(rdF('src/shells/settings.html'));
+  ok(/settleSubscreenSlide\(root\);/.test(set) && /if \(currentView === 'hub' \|\| paneMode\) document\.body\.toggleAttribute\('data-subview', currentView !== 'hub'\);/.test(set)
+     && /if \(currentView !== 'hub' && leaving === hubEl\) \{\s*slideSubscreenIn\(root, buildScreen\(currentView\), \(\) => \{\s*root\.replaceChildren\(root\.lastElementChild\);\s*document\.body\.toggleAttribute\('data-subview', true\);/.test(set)
+     && /else if \(currentView === 'hub' && leaving && leaving !== hubEl && root\.childElementCount === 1\) \{\s*root\.insertBefore\(hubEl, leaving\);\s*slideSubscreenOut\(root, leaving, \(\) => \{ leaving\.remove\(\); \}\);/.test(set)
+     && /slideSubscreenIn, slideSubscreenOut, settleSubscreenSlide,/.test(set),
+    '★★ Session H [settings]: hub → sublevel lifts the new screen over the STILL-MOUNTED hub and detaches it after the slide (data-subview flips at the end, so the nav does not vanish under a moving screen); sublevel → hub re-mounts the hub UNDER the leaving screen first; every render settles an in-flight slide; the pane branch is untouched');
+  const rl = set.slice(set.indexOf('function renderLayout'), set.indexOf('function buildHub'));
+  /* ★ review C MINOR-5 re-base: the first cut sliced to the FIRST `} else {` — any nested
+     if/else added inside the pane branch would truncate the window and a real slide call
+     after it would be invisible. Brace-match to the branch's OWN closer instead. */
+  const paneStart = rl.indexOf('if (paneMode) {');
+  const paneBranch = (() => {
+    let d = 0, i = rl.indexOf('{', paneStart);
+    for (let j = i; j < rl.length; j++) {
+      if (rl[j] === '{') d++;
+      else if (rl[j] === '}') { d--; if (d === 0) return rl.slice(paneStart, j + 1); }
+    }
+    return '';
+  })();
+  ok(paneBranch.length > 200 && !/slideSubscreen/.test(paneBranch) && /slideSubscreenIn/.test(rl.slice(paneStart + paneBranch.length)),
+    '★ Session H [settings]: the PANE (desktop master-detail) branch calls no slide — #704, desktop only chat info slides');
+  const home = nc(rdF('src/shells/home.html'));
+  ok((home.match(/slideSubscreenIn\(document\.body, over, null, \{ positioned: false, append: false \}\);/g) || []).length === 2
+     /* ★ review MAJOR-1 re-base: the exit's remove callback now ALSO re-syncs the overlay
+        level — the flag stays 2 while the cover slides and reports 0 only when it is gone */
+     && (home.match(/if \(reason === 'back'\) slideSubscreenOut\(document\.body, over, \(\) => \{ over\.remove\(\); syncHomeOverlay\(\); \}, \{ positioned: false \}\); else over\.remove\(\);/g) || []).length === 2
+     && /walletTakeoverClose\('back'\); return true;/.test(home) && (home.match(/onBack: \(\) => close\('back'\),/g) || []).length === 2
+     && /if \(walletTakeoverClose\) walletTakeoverClose\('back'\);/.test(home)
+     && /if \(walletTakeover && walletTakeoverClose\) walletTakeoverClose\(\);\s*\/\/ nulls both handles/.test(rdF('src/shells/home.html')),
+    '★★ Session H [home]: Receive and Send slide in; the user\'s own Back (arrow, hardware back → closeTopHomeTakeover, the all-clear return) slides out; a tab switch removes at once (a programmatic close brings its own transition)');
+  const cp = nc(rdF('src/bridge/contacts-page.js'));
+  ok(/if \(reason === 'back'\) slideSubscreenOut\(host, overlay, \(\) => \{ overlay\.remove\(\); if \(onExitSettled\) \{ try \{ onExitSettled\(\); \} catch \(e\) \{\} \} \}, \{ positioned: false \}\);\s*else overlay\.remove\(\);\s*if \(onClose\) onClose\(reason === 'back' \? 'back' : 'auto'\);/.test(cp)
+     && /host\.append\(overlay\);\s*slideSubscreenIn\(host, overlay, null, \{ positioned: false, append: false \}\);/.test(cp)
+     && /if \(closed\) return;\s*closed = true;/.test(cp),
+    '★★ Session H [contacts]: the takeover slides in on mount and out on Back only; onClose (handle nulled, C# told) fires at the START of the exit — only pixels linger, the closed latch guards a second exit');
+  const ls = nc(rdF('src/components/launch-shell.js'));
+  ok(/import \{ slideSubscreenIn, slideSubscreenOut, settleSubscreenSlide \} from '\.\/subscreen-slide\.js';/.test(ls)
+     && /if \(changed && prevNode && nextNode && st\.root\.isConnected\) \{\s*settleSubscreenSlide\(st\.root\);\s*if \(prev === 'welcome'\) \{\s*nextNode\.hidden = false;\s*slideSubscreenIn\(st\.root, nextNode, reveal, \{ positioned: 'host', append: false \}\);\s*\} else if \(view === 'welcome'\) \{\s*st\.views\.welcome\.hidden = false;\s*slideSubscreenOut\(st\.root, prevNode, reveal, \{ positioned: 'host' \}\);/.test(ls)
+     && /\.c-launch > \.c-subslide \{ --subslide-ground: var\(--gradient-launch\); \}/.test(stripCssComments(rdF('src/styles/components/launch-shell.css'))),
+    '★★ Session H [launch]: create / restore slide over welcome and off it (welcome stays unhidden beneath); the boot view and a detached root swap at once; the form carries the launch gradient so welcome cannot show through');
+  for (const sh of ['settings', 'home', 'launch']) {
+    ok(/href="\.\.\/styles\/components\/subscreen-slide\.css"/.test(rdF('src/shells/' + sh + '.html')),
+      '★ Session H [' + sh + '.html]: links subscreen-slide.css');
+  }
+  for (const built of ['settings.html', 'index.html', 'intro.html']) {
+    const t = rdF('Spixi/Resources/Raw/html/' + built);
+    ok(/@keyframes c-subslide-in/.test(t) && /\.c-subslide--out/.test(t),
+      '★ Session H [built ' + built + ']: the shipped shell carries the slide keyframes');
+  }
+  /* ★ DESTRUCTURE GATE (#423 class): every slide symbol a shell destructures exists in the bundle */
+  const bundleSrc = rdF('src/demo/spixi.iife.js');
+  for (const sym of ['slideSubscreenIn', 'slideSubscreenOut', 'settleSubscreenSlide', 'isSubscreenSliding']) {
+    ok(new RegExp('\\b' + sym + '\\b').test(bundleSrc), '★ Session H: bundle exports ' + sym);
+  }
+  /* the icons (Damir's exports) */
+  const icons = rdF('src/components/icons.js');
+  for (const g of ['volume', 'bell-ringing', 'cloud-bolt']) {
+    ok(new RegExp('"' + g + '":\\{"v"').test(icons) && new RegExp('"' + g + '":\\{"v"').test(rdF('Spixi/Resources/Raw/html/spixi.icons.js')) && new RegExp('"' + g + '":\\{"v"').test(rdF('src/components/icons.iife.js')),
+      '★ Session H: ' + g + ' is in the registry, the IIFE and the shipped icons file (Session G shipped icons.js ahead of icons.iife.js — the #710 pin was red in a clean clone)');
+  }
+  const ss = nc(rdF('src/components/settings-screens.js'));
+  ok(/glyph: 'volume', hue: 'accent',\s*label: strings\.notifSounds/.test(ss) && /glyph: 'cloud-bolt', hue: 'info',\s*label: strings\.notifPushProvider/.test(ss)
+     && !/glyph: 'alert-small'/.test(ss) && !/glyph: 'topology-star'/.test(ss),
+    '★ Session H (#602 one glyph, one meaning): In-app sounds = volume (alert-small stays the FAILED status), the OneSignal row = cloud-bolt (topology-star stays the secure notice, bell stays Allow notifications)');
+}
+
+/* ═══ ★★ SESSION H ② — the skeleton roster: paint first, fill in frames (L10's family) ═══ */
+console.log('Session H ②: the skeleton roster');
+{
+  const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
+  const nc = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const ci = rdF('src/components/chat-info.js');
+  const cd = rdF('src/shells/contact_details.html');
+  const cs = rdF('Spixi/Pages/Contacts/ContactDetails.xaml.cs');
+  /* the three homes agree on the batch — 24, measured (0.049 ms/row build on desktop
+     Chromium, 500-row run; ×8 phone margin ≈ 16 ms ≈ one 60 Hz frame) */
+  ok(/const FILL_FIRST = 24, FILL_BATCH = 24;/.test(ci) && /private const int membersChunk = 24;/.test(cs),
+    '★★ Session H ②: the shell fills 24 rows per frame and C# marshals 24 addMember per Dispatcher post — ONE number, measured (docs say the derivation), in both homes');
+  ok(/fillToken\+\+;/.test(nc(ci)) && /if \(token !== fillToken \|\| !listEl\.isConnected\) return;/.test(nc(ci))
+     && /listEl\.insertBefore\(buildSome\(FILL_BATCH\), tail\);/.test(nc(ci))
+     && /else \{ tail\.remove\(\); listEl\.removeAttribute\('aria-busy'\); \}/.test(nc(ci))
+     && /const n = Math\.max\(3, Math\.min\(count \|\| 3, 8\)\);/.test(nc(ci)),
+    '★ Session H ②: the fill is orphanable (a search keystroke or a rebuild mid-fill bumps the token / isConnected), real batches insert ABOVE the skeleton tail, the tail dies with the last batch, and the boot skeleton is count-aware (≤8, never more than the count)');
+  /* the shell's leading first paint — group meta only, buffers untouched */
+  const sc = nc(cd);
+  ok(/if \(!built && state\.isGroup && !firstGroupPaint\) \{\s*firstGroupPaint = setTimeout\(\(\) => \{ if \(!built\) buildIfChanged\(\); \}, 40\);\s*\}/.test(sc)
+     && /commitTimer = setTimeout\(commitAndBuild, 120\);/.test(sc),
+    '★★ Session H ② [shell]: a group/bot surface paints on a 40 ms LEADING edge (hero + count + skeleton rows) instead of waiting out a roster burst that resets the 120 ms settle on every addMember; the leading build touches NO buffer, so the partial-lists-never-commit rule holds and 1:1 keeps its single coalesced first paint');
+  /* the C# chunk chain */
+  const iClear = cs.indexOf('Utils.sendUiCommand(this, "clearMembers");');
+  const iSeq = cs.indexOf('int seq = ++membersLoadSeq;');
+  const iLock = cs.indexOf('lock (contacts)');
+  const iChunk0 = cs.indexOf('loadMembersChunk(entries, 0, blind, seq, selfAddress);');
+  ok(iClear > 0 && iSeq > iClear && iLock > iSeq && iChunk0 > iLock
+     && /if \(isDisposed \|\| seq != membersLoadSeq\)/.test(cs)
+     && /int end = Math\.Min\(start \+ membersChunk, entries\.Count\);/.test(cs)
+     && /if \(end < entries\.Count\)\s*\{\s*Dispatcher\.Dispatch\(\(\) =>\s*\{\s*loadMembersChunk\(entries, end, blind, seq, selfAddress\);/.test(cs.replace(/\r/g, '')),
+    '★★ Session H ② [C#]: clearMembers → seq++ → snapshot UNDER LOCK (BotUsers\' own convention; the old foreach walked the live OrderedDictionary unlocked) → chunks of 24, each a Dispatcher.Dispatch so a frame composites between them; a disposed page or a superseded seq orphans the chain, so a reload\'s clearMembers can never interleave with the previous chain');
+  ok((cs.match(/Utils\.sendUiCommand\(this, "addMember", address, nick, avatar, contact\.Value\.getPrimaryRole\(\)\.ToString\(\), blind \? "" : contactRelationFor\(contactAddress\)\);/g) || []).length === 1
+     && /var contact = entries\[idx\];/.test(cs),
+    '★ Session H ② [C#]: the per-member body moved VERBATIM (one addMember site, same args) — the roster\'s content and order are untouched, only its pacing changed');
+  /* EXECUTED — the fill, in a live DOM */
+  {
+    const dom = await load('components.html');
+    const w = dom.window, S = w.window.Spixi;
+    const members = Array.from({ length: 60 }, (_, i) => ({ name: 'M' + String(i).padStart(3, '0'), address: '4addr' + i, avatar: null, relation: 'none' }));
+    const el = S.createChatInfo({ kind: 'bot', context: 'chat', name: 'Room', address: '4x', memberCount: 60, members, notifications: true, capabilities: { notifications: true }, strings: {} });
+    w.document.body.append(el);
+    const list = el.querySelector('.c-chat-info__member-list');
+    const mid = { rows: list.querySelectorAll('button.c-chat-info__member').length, tail: !!list.querySelector('.c-chat-info__member-fill'), busy: list.getAttribute('aria-busy') };
+    await new Promise((r) => setTimeout(r, 500));
+    const end = { rows: list.querySelectorAll('button.c-chat-info__member').length, tail: !!list.querySelector('.c-chat-info__member-fill'), busy: list.getAttribute('aria-busy') };
+    ok(mid.rows === 24 && mid.tail && mid.busy === 'true' && end.rows === 60 && !end.tail && end.busy === null,
+      '★★ Session H ② EXECUTED: 60 members → 24 real rows + a skeleton tail + aria-busy on the first paint; the rAF fill lands the other 36 and the tail dies. Got mid=' + JSON.stringify(mid) + ' end=' + JSON.stringify(end));
+    const boot = S.createChatInfo({ kind: 'bot', context: 'chat', name: 'Room', address: '4x', memberCount: 500, members: [], loading: true, notifications: true, capabilities: { notifications: true }, strings: {} });
+    ok(boot.querySelectorAll('.c-chat-info__member--skeleton').length === 8,
+      '★ Session H ② EXECUTED: a 500-member room boots with 8 skeleton rows (count-aware cap), not 3');
+    dom.window.close();
+  }
+}
+
+/* ═══ ★ SESSION H ③ — [PAINTDIAG], the L14-family paint instrument (TEMPORARY) ═══════ */
+console.log('Session H ③: the paint instrument');
+{
+  const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
+  const home = rdF('src/shells/home.html');
+  const hp = rdF('Spixi/Pages/Home/HomePage.xaml.cs');
+  const scp = rdF('Spixi/Utils/SpixiContentPage.cs');
+  const builtHome = rdF('Spixi/Resources/Raw/html/index.html');
+  /* the SET lives and dies together (the [CDPERF]/[LANDTAB] removal grammar): two shell
+     emits, the C# handler, the two C# stamps, this pin. Half a removal = a probe that
+     lies by silence. */
+  const pieces = [
+    /ixian:paintdiag:cover:/.test(home) && /ixian:paintdiag:cover:/.test(builtHome),
+    /ixian:paintdiag:backsend:/.test(home) && /ixian:paintdiag:backsend:/.test(builtHome),
+    /ixian:paintdiag:/.test(hp) && /if \(what != "cover" && what != "backsend"\)/.test(hp),
+    /\[PAINTDIAG\] account-closed t=/.test(hp),
+    /\[PAINTDIAG\] re-present " \+ target\.GetType\(\)\.Name/.test(scp),
+  ];
+  ok(pieces.every(Boolean) || pieces.every((x) => !x),
+    '★ Session H ③ [PAINTDIAG]: ALL FIVE pieces present together (or all gone — remove the set in one batch, this pin included): cover emit, backsend emit, the fixed-vocabulary handler, the account-closed stamp, the re-present stamp. Got ' + JSON.stringify(pieces));
+  ok(pieces[0],
+    '★ Session H ③: the instrument is CURRENTLY ARMED — Damir has not taken the measurement yet. (When it is removed on his word, rewrite this pin as the reversal, never delete it.)');
+  ok(/requestAnimationFrame\(\(\) => requestAnimationFrame\(\(\) => \{\s*try \{ bridge\.send\('ixian:paintdiag:cover:' \+ Math\.round\(performance\.now\(\) - pd0\)\); \} catch \(e\) \{\}\s*\}\)\);/.test(home.replace(/\r/g, '')),
+    '★ Session H ③: cover stamps the SECOND rAF frame after the takeover mount — a frame timestamp, not the swap (#688 falsified the last swap-level trace; the brief demands the paint)');
+}
+
+/* ═══ ★ SESSION H ⑤b — the 760 column (#722, RULED: Damir 2026-08-30 "Yes 760") ═══════ */
+console.log('Session H ⑤b: the 760 column');
+{
+  const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
+  for (const [label, t] of [['source', rdF('src/shells/chat.html')], ['built', rdF('Spixi/Resources/Raw/html/chat.html')]]) {
+    ok(/:root\[data-desktop\] \.messages \{ padding-inline: max\(0px, calc\(\(100% - 760px\) \/ 2\)\); \}/.test(t)
+       && /:root\[data-desktop\] #chat-composer,\s*\n\s*:root\[data-desktop\] \.chat-request-pane \{ width: 100%; max-width: 760px; align-self: center; \}/.test(t.replace(/\r/g, ''))
+       && /:root\[data-desktop\] \.c-scroll-latest,\s*\n\s*:root\[data-desktop\] \.chat-mention-fab \{\s*\n\s*inset-inline-end: max\(var\(--spacing-16\), calc\(\(100% - 760px\) \/ 2 \+ var\(--spacing-16\)\)\);/.test(t.replace(/\r/g, '')),
+      '★★ #722 [' + label + ']: the 760 column — the SCROLLER pads to centre (scrollbar stays at the window edge, max(0px,…) is inert below 760 so phones and narrow panes are byte-identical), the composer slot + request pane centre at the same 760, and the chevron / @ FAB inset from the COLUMN edge, not the window\'s');
+    ok(!/data-desktop\] \.c-chat-canvas \{[^}]*max-width/.test(t),
+      '★ #722 [' + label + ']: the CANVAS is untouched — gradient + pattern stay full-bleed (the cap lives on padding/width, never on .c-chat-canvas)');
+  }
+}
+
+/* ═══ ★★ SESSION H ⑥ — the fixer round over auditor A's findings ═════════════════════ */
+console.log('Session H ⑥: the A-round fixes (back-during-slide · shield · tray · rebuildHub)');
+{
+  const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
+  const nc = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const home = nc(rdF('src/shells/home.html'));
+  /* ★★ A MAJOR-1: the L8 class on the in-shell surfaces. The overlay LEVEL now counts a
+     takeover that is still sliding out, the slide's remove callback re-syncs (so 0 lands
+     when the cover is gone, and the OS-bar repaint stays aligned to the pixel), and a
+     second back DURING the exit settles the slide and is consumed (the native abort
+     grammar) instead of falling through to base.OnBackButtonPressed(). */
+  ok(/if \(document\.querySelector\('\.contacts-takeover\.c-subslide--out, \.wallet-takeover\.c-subslide--out'\)\) return 2;/.test(home),
+    '★★ A MAJOR-1 ①: homeOverlayLevel counts a SLIDING-OUT takeover as level 2 — C# keeps homeShellOverlayOpen true while the cover is on glass');
+  ok(/if \(document\.querySelector\('\.contacts-takeover\.c-subslide--out, \.wallet-takeover\.c-subslide--out'\)\) \{\s*settleSubscreenSlide\(document\.body\);\s*return true;\s*\}/.test(home),
+    '★★ A MAJOR-1 ②: a second hardware back during the exit ABORTS the slide (settle → instant finish → the remove callback re-syncs 0) and is consumed — the double-back can no longer background the app mid-slide');
+  ok((home.match(/\(\) => \{ over\.remove\(\); syncHomeOverlay\(\); \}/g) || []).length === 2
+     && /onExitSettled: \(\) => syncHomeOverlay\(\),/.test(home),
+    '★ A MAJOR-1 ③: all three exit paths re-sync AFTER the cover is removed (two wallet closes + the contacts onExitSettled hook)');
+  const cp = nc(rdF('src/bridge/contacts-page.js'));
+  ok(/onExitSettled\b/.test(cp) && /overlay\.remove\(\); if \(onExitSettled\)/.test(cp),
+    '★ A MAJOR-1 ④: mountContacts fires onExitSettled when the exit actually finishes');
+  /* ★ A MINOR-3: the exit shield */
+  const ss = rdF('src/components/subscreen-slide.js');
+  const ssc = stripCssComments(rdF('src/styles/components/subscreen-slide.css'));
+  ok(/cls === 'c-subslide--out' && el\.ownerDocument && el\.ownerDocument\.body/.test(ss)
+     && /if \(shield\) \{ try \{ shield\.remove\(\); \} catch \(e\) \{\} shield = null; \}/.test(ss)
+     && /\.c-subslide-shield \{ position: fixed; inset: 0; z-index: var\(--z-30\); background: transparent; \}/.test(ssc),
+    '★ A MINOR-3: the EXIT gets a transparent tap shield for its 220 ms (the dying layer is pointer-events:none while still opaque — a first-frame tap used to pass through onto the revealed view); it dies in finish(), so the synchronous path never leaves one behind');
+  /* EXECUTED: motion granted → the shield exists mid-exit and is gone at the end */
+  {
+    const { JSDOM: J } = await import('jsdom');
+    const dom = new J('<!doctype html><html><body><div id="h"><div id="a">A</div><div id="b">B</div></div></body></html>', { pretendToBeVisual: true });
+    const w = dom.window;
+    const saved = { gcs: globalThis.getComputedStyle, doc: globalThis.document, win: globalThis.window };
+    globalThis.window = w; globalThis.document = w.document;
+    globalThis.getComputedStyle = () => ({ animationName: 'c-subslide-out' });
+    try {
+      const mod = await import('file://' + join(root, 'src/components/subscreen-slide.js') + '?shield=' + Date.now());
+      const host = w.document.getElementById('h'), b = w.document.getElementById('b');
+      mod.slideSubscreenOut(host, b, () => b.remove(), { positioned: false });
+      const mid = { shield: w.document.querySelectorAll('.c-subslide-shield').length };
+      b.dispatchEvent(new w.Event('animationend', { bubbles: true }));
+      ok(mid.shield === 1 && w.document.querySelectorAll('.c-subslide-shield').length === 0 && !w.document.getElementById('b'),
+        '★ A MINOR-3 EXECUTED: one shield during the exit, zero after animationend, the leaver removed. Got mid=' + JSON.stringify(mid));
+    } finally {
+      if (saved.gcs === undefined) delete globalThis.getComputedStyle; else globalThis.getComputedStyle = saved.gcs;
+      if (saved.doc === undefined) delete globalThis.document; else globalThis.document = saved.doc;
+      if (saved.win === undefined) delete globalThis.window; else globalThis.window = saved.win;
+    }
+  }
+  /* ★ A MINOR-1: a closing tray is not "already open" */
+  const as = nc(rdF('src/components/attach-sheet.js'));
+  ok(/const st = trayState\.get\(existing\);\s*if \(!st \|\| !st\.closing\) return existing;\s*existing\.remove\(\);\s*trayState\.delete\(existing\);/.test(as),
+    '★ A MINOR-1: ⊕ during the tray\'s 300 ms exit drops the dying tray and opens fresh — the third tap works instead of no-opping');
+  /* ★ A MINOR-2: rebuildHub settles an in-flight slide */
+  const set = nc(rdF('src/shells/settings.html'));
+  const rb = set.slice(set.indexOf('function rebuildHub()'), set.indexOf('function rebuildHub()') + 400);
+  ok(/settleSubscreenSlide\(root\);/.test(rb),
+    '★ A MINOR-2: rebuildHub (reached from ~15 push handlers) settles an in-flight sub-level slide before replacing root\'s children — a backup-stamp poll can no longer vanish a sliding screen');
+}
+
+/* ═══ ★ #734 — provider authorities are DERIVED, never hardcoded ═════════════════════ */
+console.log('#734: no hardcoded provider authority');
+{
+  const man = readFileSync(join(root, 'Spixi/Platforms/Android/AndroidManifest.xml'), 'utf8');
+  const sfo = readFileSync(join(root, 'Spixi/Platforms/Android/SFileOperations.cs'), 'utf8');
+  ok(/android:authorities="\$\{applicationId\}\.provider"/.test(man) && !/authorities="com\.ixilabs/.test(man)
+     && (sfo.match(/GetUriForFile\(context, context\.PackageName \+ "\.provider"/g) || []).length === 2
+     && !/"com\.ixilabs\.spixi\.provider"/.test(sfo),
+    '★ #734: the FileProvider authority rides ${applicationId} in the manifest and PackageName at both C# call sites — a hardcoded authority is a GLOBAL Android name and made the #732 dev-coexist install fail with INSTALL_FAILED_CONFLICTING_PROVIDER (a value that works by coincidence breaks when the coincidence does)');
+}
+
+/* ═══ ★ SESSION H ⑥ — the gate sweep's one load-bearing dispatch property ═══════════ *//* ═══ ★ SESSION H ⑥ — the gate sweep's one load-bearing dispatch property ═══════════ */
+console.log('Session H ⑥: ixian:call stays Equals');
+{
+  const scs = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8');
+  ok(/current_url\.Equals\("ixian:call", StringComparison\.Ordinal\)/.test(scs)
+     && !/StartsWith\("ixian:call"[^b]/.test(scs.replace(/StartsWith\("ixian:callback/g, '')),
+    '★ gate sweep: ixian:call is dispatched with Equals, never StartsWith — that ONE property is what keeps ixian:callback (start-only) out of the ungated hang-up toggle');
+}
+
+/* ═══ ★★ SESSION H ⑥ — the gate layer (auditor C's two MAJORs + the drift class) ═════ */
+console.log('Session H ⑥: the artifact gates');
+{
+  const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
+  const { execSync } = await import('node:child_process');
+  /* ★★ C MAJOR-1: the STALE-SHIPPED-SHELL gate. Before this, a tree where somebody
+     forgot to run build-shells passed BASELINE OK with the feature absent from the
+     artifacts the app loads (mutation A: slide wiring stripped from the BUILT shells,
+     sources intact → 3875 green). build-shells --check rebuilds every DEFAULT shell in
+     memory and exits 1 on any drift — the generalisation of the Session F byte-identity
+     gate to all 18 shells. */
+  {
+    let ok1 = true, tail = '';
+    try {
+      tail = execSync(JSON.stringify(process.execPath) + ' ' + JSON.stringify(join(root, 'scripts/build-shells.mjs')) + ' --check', { encoding: 'utf8' }).trim().split('\n').pop();
+    } catch (e) { ok1 = false; tail = String(e.stdout || e.message).trim().split('\n').slice(-4).join(' · '); }
+    ok(ok1 && /every generated artifact matches a fresh build/.test(tail),
+      '★★ C MAJOR-1 GATE: build-shells --check — every SHIPPED shell matches a fresh in-memory build (a stale Raw/html can no longer pass the suite) — ' + tail);
+  }
+  /* ★★ C MAJOR-2: the icons REGISTRY EQUALITY gate. generate-icons writes icons.js and
+     icons.iife.js from one string; Session G shipped them out of sync (external-link in
+     one, not the other) and only a per-glyph enumeration existed — the open-ended-list
+     shape #658 ruled against. Structural: equal key sets, equal bodies. */
+  {
+    const grab = (t) => { const m = t.match(/\{"([\s\S]*)\};?/); const obj = {}; for (const g of t.matchAll(/"([a-z0-9-]+)":(\{"v":[\s\S]*?\})(?=,\s*"[a-z0-9-]+":\{"v"|[\s\S]{0,4}$|\};)/g)) obj[g[1]] = g[2]; return obj; };
+    const esm = grab(rdF('src/components/icons.js'));
+    const iife = grab(rdF('src/components/icons.iife.js'));
+    const shipped = grab(rdF('Spixi/Resources/Raw/html/spixi.icons.js'));
+    const keys = Object.keys(esm).sort();
+    const same = (a, b) => Object.keys(a).length === Object.keys(b).length && Object.keys(a).every((k) => k in b && a[k] === b[k]);
+    ok(keys.length >= 90 && same(esm, iife) && same(esm, shipped),
+      '★★ C MAJOR-2 GATE: icons.js ≡ icons.iife.js ≡ shipped spixi.icons.js — ' + keys.length + ' glyphs, equal key sets AND equal bodies (Session G shipped the two registries out of sync; a per-glyph enumeration cannot see the next drift)');
+  }
+  /* ★ C MINOR-3: extract-strings --check now MEANS check (dictionary drift exits 1) */
+  {
+    let ok3 = true, tail = '';
+    try {
+      tail = execSync(JSON.stringify(process.execPath) + ' ' + JSON.stringify(join(root, 'scripts/extract-strings.mjs')) + ' --check', { encoding: 'utf8' }).trim().split('\n').pop();
+    } catch (e) { ok3 = false; tail = String(e.stdout || e.message).trim().split('\n').slice(-4).join(' · '); }
+    ok(ok3 && /en-us\.json matches the sweep/.test(tail),
+      '★ C MINOR-3 GATE: extract-strings --check — a new `strings.key || \'English\'` fallback can no longer ship English in 13 locales with every gate green — ' + tail);
+    ok(/if \(CHECK_ONLY\) \{/.test(rdF('scripts/extract-strings.mjs')) && /orphan on disk \(no longer swept\)/.test(rdF('scripts/extract-strings.mjs')),
+      '★ C MINOR-3: the check compares BOTH directions (missing + stale + orphan)');
+  }
+  /* ★ C MINOR-4: the shell writes carry the bundle\'s integrity gate */
+  ok(/generated output contains a NUL byte/.test(rdF('scripts/build-shells.mjs')) && /SHORT WRITE/.test(rdF('scripts/build-shells.mjs')) && /firstLoneSurrogateSh/.test(rdF('scripts/build-shells.mjs')),
+    '★ C MINOR-4: build-shells checks every write for NUL / lone surrogate / short write, in memory AND read back (#255/#262 both shipped NUL debris into Raw/html before this)');
+  /* ★ C MINOR-6: DEFAULT membership DERIVED from the two literals, not enumerated */
+  {
+    const bs = rdF('scripts/build-shells.mjs');
+    const shellsBlock = bs.slice(bs.indexOf('const SHELLS = {'), bs.indexOf('};', bs.indexOf('const SHELLS = {')));
+    const shellKeys = [...shellsBlock.matchAll(/^\s{2}(?:'([a-z_0-9]+)'|([a-z_0-9]+)):\s*\{/gm)].map((m) => m[1] || m[2]);
+    const defBlock = bs.slice(bs.indexOf('const DEFAULT = ['), bs.indexOf('];', bs.indexOf('const DEFAULT = [')));
+    const defKeys = [...defBlock.matchAll(/'([a-z_0-9]+)'/g)].map((m) => m[1]);
+    const legacyOnly = shellKeys.filter((k) => !defKeys.includes(k));
+    ok(shellKeys.length >= 18 && defKeys.length >= 18 && new Set(defKeys).size === defKeys.length
+       && defKeys.every((k) => shellKeys.includes(k)) && legacyOnly.length <= 1,
+      '★ C MINOR-6 (derived): every SHELLS key is in DEFAULT except at most the one legacy-demo key — a shell added to SHELLS but not DEFAULT (the #288 class, hit twice) now fails structurally. SHELLS=' + shellKeys.length + ' DEFAULT=' + defKeys.length + ' legacyOnly=' + JSON.stringify(legacyOnly));
   }
 }
 

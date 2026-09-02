@@ -27,6 +27,15 @@ namespace SPIXI.Network
          * That is not a guess about the future, it is a fact about the past — the message
          * has left this device. It is exactly one check, honestly earned.
          *
+         * ⚠ ONE EXCEPTION, found by the Session H review (auditor B MINOR-1) and it is
+         * CORE's, not ours: `OfflinePushMessages.sendPushMessage` ALSO returns true on
+         * its skip path — `FriendList.getFriend(msg.recipient) == null` returns true to
+         * drop the queue entry WITHOUT posting (OfflinePushMessages.cs:59-61). Reachable
+         * only after removeFriend left a message in the pending queue, i.e. a chat whose
+         * row and history were just deleted, so nobody can see the false check — but the
+         * sentence above is an invariant with one hole, and Core is frozen (BE row
+         * CORE-7 in be-cutover). Do not build anything new on "returned true ⇒ posted".
+         *
          * ⚠ It fires for the OFFLINE-recipient path only. When the peer is online the
          * direct relay reports nothing, so that case still walks clock → double check —
          * and it does not matter there, because the receipt is milliseconds behind.

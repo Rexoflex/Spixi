@@ -163,7 +163,16 @@ export function openAttachTray({ composerEl, media = false, apps = true, payment
   const tiles = attachTilesFor({ media, apps, payments, files });
   if (!tiles.length) return null;
   const existing = composerEl.nextElementSibling;
-  if (existing && existing.classList.contains('c-attach-tray')) return existing;   // already open — no-op
+  if (existing && existing.classList.contains('c-attach-tray')) {
+    /* ★ Session H review MINOR-1 (auditor A): a CLOSING tray kept the class for its
+       300 ms exit, so a third ⊕ tap inside that window was handed the dying tray and
+       no-op'd — the user tapped a fourth time. A closing tray is not "already open":
+       drop it now and build fresh, so ⊕ during the exit re-opens in one tap. */
+    const st = trayState.get(existing);
+    if (!st || !st.closing) return existing;   // genuinely open — no-op
+    existing.remove();
+    trayState.delete(existing);
+  }
 
   const tray = document.createElement('div');
   tray.className = 'c-attach-tray';

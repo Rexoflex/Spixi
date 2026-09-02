@@ -49,6 +49,7 @@
 <link rel="stylesheet" href="../styles/components/badge.css">
 <link rel="stylesheet" href="../styles/components/overlay.css"><!-- c-sheet (theme/language) + c-modal (danger confirm) -->
 <link rel="stylesheet" href="../styles/components/settings-shell.css">
+<link rel="stylesheet" href="../styles/components/subscreen-slide.css"><!-- ★ Session H: the in-shell subscreen slide (walk row 31) -->
 <link rel="stylesheet" href="../styles/components/settings-app.css"><!-- About / How-to takeovers (c-settings-about/-howto/-links) -->
 <link rel="stylesheet" href="../styles/components/search-field.css"><!-- ★ W-h gate find (loop r1 G-2): createSettingsDownloads mounts a c-search-field in the PANE route (downloadsInline) — it rendered as a bare UA input here -->
 <link rel="stylesheet" href="../styles/components/launch-shell.css"><!-- iOS-23 AUDIT MAJOR-2: About -> Terms/Privacy reuse launch-shell's doc sheet (.c-launch__terms-*, __sheet-close, __link) -->
@@ -193,6 +194,7 @@
     createBottomNav, setNavActive, setNavBadge, showToast,
     createNativeBridge, installExecuteUiCommand,
     attachEdgeBack,   // ★ L3 (#706): the iOS back signal + the one-level chain
+    slideSubscreenIn, slideSubscreenOut, settleSubscreenSlide,   // ★ Session H: the in-shell subscreen slide (walk row 31)
     applyPushedTheme,
     readPatternLevel,
     LANGUAGES,                       // ★ L15: the ONE language list, shared with the launch picker
@@ -741,10 +743,17 @@
 
   function renderLayout() {
     if (exiting) return;                           // no re-render once the page is exiting
+    // ★ Session H: a render landing inside a slide (a C# push in the 300 ms) starts
+    // from a SETTLED DOM — the in-flight slide's end state is applied first.
+    settleSubscreenSlide(root);
     // #334 iOS-59: nav visibility keys off the view — hub shows the peer-tab
     // nav, any sublevel hides it (CSS scopes the hide to non-desktop; pane mode
     // already hides the nav wholesale).
-    document.body.toggleAttribute('data-subview', currentView !== 'hub');
+    // ★ Session H: on the way INTO a sublevel the flip is deferred to the end of the
+    // slide (the sliding layer is fixed and covers the nav; hiding the nav under it
+    // early would make the hub beneath reflow mid-slide). On the way OUT it flips now —
+    // the revealed hub shows its nav while the sublevel slides off, as a native pop does.
+    if (currentView === 'hub' || paneMode) document.body.toggleAttribute('data-subview', currentView !== 'hub');
     // Q1 review (#267 loop): every render that isn't the Downloads sublevel drops
     // the mounted screen — the children are about to be replaced (both branches),
     // so keeping downloadsEl/dlBuf/dlTimer alive would retain a detached node and
@@ -796,8 +805,27 @@
       // consume the latch ONE-SHOT so a stale value can never be re-applied.
       if (currentView === 'hub' && hubEl.parentNode === root) {
         // hub already mounted — leave it in place (live scroll preserved)
+        document.body.toggleAttribute('data-subview', false);
       } else {
-        root.replaceChildren(currentView === 'hub' ? hubEl : buildScreen(currentView));
+        /* ★ Session H (walk row 31): the sublevel SLIDES. Into a sublevel: the new screen
+           is lifted over the still-mounted hub (a fixed layer that covers the bars) and
+           slides in; the hub is detached only when it has landed. Back to the hub: the
+           hub is re-mounted UNDER the leaving screen first, then the screen slides off
+           it. Desktop / reduced-motion swap synchronously through the same calls. The
+           scroll latch below restores onto an ATTACHED hub in both cases. */
+        const leaving = root.firstElementChild;
+        if (currentView !== 'hub' && leaving === hubEl) {
+          slideSubscreenIn(root, buildScreen(currentView), () => {
+            root.replaceChildren(root.lastElementChild);        // the screen; the hub detaches now
+            document.body.toggleAttribute('data-subview', true);
+          });
+        } else if (currentView === 'hub' && leaving && leaving !== hubEl && root.childElementCount === 1) {
+          root.insertBefore(hubEl, leaving);
+          slideSubscreenOut(root, leaving, () => { leaving.remove(); });
+        } else {
+          root.replaceChildren(currentView === 'hub' ? hubEl : buildScreen(currentView));
+          document.body.toggleAttribute('data-subview', currentView !== 'hub');
+        }
         if (currentView === 'hub' && hubScrollTop) {
           const t = hubScrollTop; hubScrollTop = 0;   // one-shot (#337)
           const b = hubEl.querySelector('.c-settings__body');
@@ -1080,6 +1108,12 @@
   }
 
   function rebuildHub() {
+    /* ★ Session H review MINOR-2 (auditor A): a rebuild landing inside a sub-level EXIT
+       slide (backup-stamp poll, a picker echo) replaced root's children mid-animation —
+       the leaving screen vanished instead of sliding and a stale in-flight entry hung on
+       the ~440 ms backstop. Settle first; the swap below then starts from a settled DOM
+       (renderLayout already does exactly this). */
+    settleSubscreenSlide(root);
     const prevBody = hubEl && hubEl.querySelector('.c-settings__body');
     const top = prevBody ? prevBody.scrollTop : 0;
     hubEl = buildHub();
@@ -1851,6 +1885,12 @@
       // SettingsPage branch + SettingsPage.OnBackButtonPressed are unconditional).
       const dismiss = window.Spixi && window.Spixi.dismissTopOverlay;
       if (dismiss && dismiss()) return;
+      /* ★ Session H reviewer MINOR-1 (the A MAJOR-1 class, fourth surface): during a
+         sub-level's 220 ms EXIT slide currentView is already 'hub', so a second back
+         inside that window used to run exitSettings() and pop Account from under a
+         screen still on glass. A back during the exit ABORTS the slide (instant
+         finish) and is consumed — the same L8 grammar home.html carries. */
+      if (root.querySelector('.c-subslide--out')) { settleSubscreenSlide(root); return; }
       if (currentView !== 'hub') showHub(); else exitSettings();
     },
 

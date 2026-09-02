@@ -117,4 +117,18 @@ writeFileSync(OUT_IIFE, `${header('Classic script for file:// demos — exposes 
 })();
 `);
 
-console.log('generated', Object.keys(entries).length, 'icons →', OUT_ESM, '+', OUT_IIFE);
+/* ★ Session H review (auditor C, MAJOR-2 belt): READ BOTH FILES BACK and require the
+ * registry to appear byte-identically in each. The two writes come from one string, so
+ * they can only drift when a write LANDS PARTIALLY or one file was stale at commit time
+ * — Session G shipped exactly that (external-link in icons.js, absent from icons.iife.js,
+ * so the #710 pin was red in every clean clone). Fail loud here; the suite carries the
+ * structural equality gate as the second belt. */
+{
+  const backEsm = readFileSync(OUT_ESM, 'utf8');
+  const backIife = readFileSync(OUT_IIFE, 'utf8');
+  if (!backEsm.includes(registry) || !backIife.includes(registry)) {
+    console.error('generate-icons: READ-BACK FAILED — a written registry does not match the generated string (IO/mount corruption class, #175). Re-run from a local terminal.');
+    process.exit(1);
+  }
+}
+console.log('generated', Object.keys(entries).length, 'icons →', OUT_ESM, '+', OUT_IIFE, '· read-back \u2713');

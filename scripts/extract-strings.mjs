@@ -382,3 +382,32 @@ console.log(`  ${mapped} mapped to legacy SL ids · ${keys.length - mapped} new 
 console.log(`  ${conflicts.length} fallback conflicts · ${[...bareRefs.keys()].filter((k) => !dict.has(k)).length} no-fallback refs · ${dynamicSites.length} dynamic sites`);
 if (conflicts.length) { console.log('\nCONFLICTS:'); for (const c of conflicts) console.log(`  ${c.key} @ ${c.file}:${c.line}: "${c.existing}" vs "${c.incoming}"`); }
 if (conflicts.length) process.exitCode = 1;
+
+/* ★ Session H review (auditor C, MINOR-3): --check used to mean "skip the writes and
+ * gate conflicts only" — a NEW `strings.key || 'English'` fallback shipped English in
+ * all thirteen locales with extract --check, i18n-lint AND the suite all green (the
+ * suite even documents the class at its 7.6 pins and then left it to discipline).
+ * --check now means CHECK: the swept dictionary is compared against the en-us.json on
+ * disk and any drift — a missing key, a stale key, a changed fallback — exits 1. */
+if (CHECK_ONLY) {
+  const swept = {}; for (const k of keys) swept[k] = dict.get(k).value;
+  let onDisk = null;
+  try { onDisk = JSON.parse(readFileSync(OUT_JSON, 'utf8')); } catch (e) { onDisk = null; }
+  const drift = [];
+  if (onDisk === null) drift.push('en-us.json missing/unreadable');
+  else {
+    for (const k of Object.keys(swept)) {
+      if (!(k in onDisk)) drift.push('missing on disk: ' + k);
+      else if (onDisk[k] !== swept[k]) drift.push('stale value on disk: ' + k);
+    }
+    for (const k of Object.keys(onDisk)) if (!(k in swept)) drift.push('orphan on disk (no longer swept): ' + k);
+  }
+  if (drift.length) {
+    console.error('\nextract-strings --check: the dictionary is STALE (' + drift.length + ' drift(s)) — run the full pipeline (extract → build-locales → build-strings-iife → bundle → shells):');
+    for (const d of drift.slice(0, 20)) console.error('  ' + d);
+    if (drift.length > 20) console.error('  … +' + (drift.length - 20) + ' more');
+    process.exitCode = 1;
+  } else {
+    console.log('extract-strings --check: en-us.json matches the sweep \u2713');
+  }
+}

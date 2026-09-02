@@ -406,8 +406,6 @@
   "notifSenderSub": "Besedilo sporočila ni nikoli prikazano v obvestilih",
   "notifSounds": "Zvoki v aplikaciji",
   "notifPushProvider": "Takojšnja dostava prek OneSignal",
-  "notifPushProviderSubAndroid": "Izklopljeno: sporočila prispejo, ko Spixi preveri, ne takoj. Tretjim osebam se ne pošlje nič.",
-  "notifPushProviderSubIos": "Izklopljeno: nova sporočila vidite šele, ko odprete Spixi. Tretjim osebam se ne pošlje nič.",
   "notifPushProviderOn": "Vklopljeno: OneSignal zbudi to napravo takoj, ko prispe sporočilo. OneSignal prejme potisni žeton za to napravo in vidi njen naslov IP. Vaših sporočil in stikov nikoli ne vidi.",
   "notifPushProviderOffAndroid": "Izklopljeno: OneSignalu se ne pošlje nič več in ta naprava je tam odjavljena. Spixi sam preverja nova sporočila in vas obvesti, ko jih najde, zato lahko prispejo nekoliko pozneje. Zapisa, ki ga OneSignal že ima, to stikalo ne izbriše.",
   "notifPushProviderOffIos": "Izklopljeno: OneSignalu se ne pošlje nič več in ta naprava je tam odjavljena. Nova sporočila vidite, ko odprete Spixi. Zapisa, ki ga OneSignal že ima, to stikalo ne izbriše.",
@@ -708,5 +706,6 @@
   "yourAddress": "Vaš naslov",
   "chatGround": "Podlaga",
   "groundFlat": "Enobarvno",
-  "groundGradient": "Preliv"
+  "groundGradient": "Preliv",
+  "notifPushProviderSub": "Prebudi to napravo takoj, ko prispe sporočilo. Uporablja OneSignal, ponudnika potisnih obvestil."
 }

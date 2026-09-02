@@ -84,6 +84,28 @@ namespace SPIXI
             }
         }
 
+#if SPIXI_DEV_COEXIST
+        /// <summary>★ Session I ②: `ixian:devseed` / `ixian:devunseed` — no payload; the
+        /// status pushed back is a fixed English sentence (dev-only, #301 precedent).</summary>
+        private bool handleDevSeedVerb(string current_url)
+        {
+            bool seed = current_url.Equals("ixian:devseed", StringComparison.Ordinal);
+            bool unseed = current_url.Equals("ixian:devunseed", StringComparison.Ordinal);
+            if (!seed && !unseed)
+            {
+                return false;
+            }
+            Task.Run(() =>
+            {
+                string status;
+                try { status = seed ? SDevSeed.seed() : SDevSeed.unseed(); }
+                catch (Exception ex) { status = (seed ? "Seed" : "Remove") + " failed: " + ex.Message; Logging.error("[DEVSEED] " + ex); }
+                Utils.sendUiCommand(this, "setDevSeed", status);
+            });
+            return true;
+        }
+#endif
+
         private void onLoad()
         {
             // #334 loop MINOR-1: every ixian:onload = a FRESH document (reloadAllPages
@@ -181,6 +203,11 @@ namespace SPIXI
 
             // S4: app version for the About row (mirrors LaunchPage:33)
             Utils.sendUiCommand(this, "setVersion", Config.version);
+#if SPIXI_DEV_COEXIST
+            // ★ Session I ②: dev builds only — the About screen renders the seed-harness card
+            // once this lands (Utils/SDevSeed.cs; store builds have no symbol and no push).
+            Utils.sendUiCommand(this, "setDevSeed", SDevSeed.status());
+#endif
 
             // S1: own IDENTITY address for the add-me QR/address block — PLAIN form, like
             // the legacy share verb (HomePage:322), NOT the ExtendedAddress payment form
@@ -220,11 +247,23 @@ namespace SPIXI
                 return;
             }
 
+#if SPIXI_DEV_COEXIST
+            /* ★ Session I ② — the seed harness verbs (Utils/SDevSeed.cs). Dev builds only: the
+             * symbol, this dispatch, the About card and the setDevSeed push exist together or
+             * not at all. A separate statement, not a branch of the chain below — tree-sitter
+             * (cs-syntax-check) cannot parse a preprocessor block between else-ifs. */
+            if (handleDevSeedVerb(current_url))
+            {
+                e.Cancel = true;
+                return;
+            }
+#endif
             if (current_url.Equals("ixian:onload", StringComparison.Ordinal))
             {
                 onLoad();
             }
-            else if (current_url.Equals("ixian:back", StringComparison.Ordinal))
+            else if (current_url.Equals("ixian:back", StringComparison.Ordinal)
+                || current_url.Equals("ixian:handoff", StringComparison.Ordinal))
             {
                 var source_file_path = Path.Combine(IxianHandler.localStorage.avatarsPath, "avatar-tmp.jpg");
                 // Delete the temporary avatar image
@@ -234,12 +273,25 @@ namespace SPIXI
                 }
                 resetLanguage();
                 closeSublevelOverlays();   // W7
-                popPageAsync();
+                /* ★ Session I — L14 cover handshake: `ixian:handoff` is the Account → Contacts
+                 * route (settings.html wrote the spixi.landtab hand-off and is leaving). Same
+                 * cleanup as ixian:back, but the pop waits for home.html's painted cover
+                 * (SpixiContentPage.popOnCoverPainted — 400 ms backstop), so the chat list
+                 * never shows through the gap [PAINTDIAG] measured (#731: 56/88 ms). */
+                if (current_url.Equals("ixian:handoff", StringComparison.Ordinal))
+                {
+                    popOnCoverPainted();
+                }
+                else
+                {
+                    popPageAsync();
+                }
             }
             else if (current_url.Equals("ixian:error", StringComparison.Ordinal))
             {
                 displaySpixiAlert(SpixiLocalization._SL("settings-emptynick-title"), SpixiLocalization._SL("settings-emptynick-text"), SpixiLocalization._SL("global-dialog-ok"));
             }
+
             else if (current_url.Equals("ixian:share", StringComparison.Ordinal))
             {
                 /* ★ #455 (G5, Damir on device: "the share icon copies instead of

@@ -126,6 +126,13 @@
 </style>
 </head>
 <body>
+  <div id="sl-carriers" hidden aria-hidden="true">
+    <!-- ★ Session I: the DEVICE 12/24-hour setting ("h23" / "h12"), registered by HomePage
+         at boot (Utils.deviceHourCycle) — the shell boot below copies it onto <html
+         data-hour-cycle> and every time format (timestamp.js timeOpts) follows it. -->
+    <span id="sl-hourcycle">*SL{hourCycle}</span>
+  </div>
+  <script>(function(){var e=document.getElementById('sl-hourcycle');var t=e?e.textContent.trim():'';if(t==='h23'||t==='h12')document.documentElement.dataset.hourCycle=t;})();</script>
   <div id="contact-root">
     <!-- ★ A8 (Batch A 2026-08-24): the boot cover is a SKELETON of the panel (hero disc
          + three rows), not a lone spinner — the shape of what is coming. role=status +
@@ -344,6 +351,36 @@
   let built = false;
   let lastSig = '';
 
+  /* ★ #591: the address row opens the ONE address surface (#527) in its PEER variant —
+     their address, so the copy says "their", and the self-only safety line ("it never
+     gives anyone access to your wallet") is dropped rather than re-worded into a true
+     sentence about the wrong person's money.
+     ⚠ NO onShare: `ixian:share` shares the USER'S OWN primary address (HomePage
+     :635-641), so wiring it here would offer "Share" on a contact's address and send
+     the reader's instead. Copy is the honest affordance until a peer-share verb exists.
+     ★ Session I (#731 "bot-info address is a dud"): ONE handler for BOTH panel
+     branches. The 1:1 branch had it; the group/bot branch never passed it, so a bot's
+     row rendered chat-info's handler-less fallback — a plain div with the truncated
+     address and nothing behind it (no copy, no QR, no full address). A bot address is
+     a real wallet address exactly like a contact's (C# pushes setAddress for every
+     non-group Friend; hidesParticipants() is false for FriendType != Group), so it
+     gets the full contact grammar. Groups never reach this: chat-info suppresses the
+     row for kind 'group' (a group id is a local session id, not an address). */
+  function openPeerAddressSheet({ address }) {
+    openAddressSheet({
+      address, strings, host: document.body, subject: 'peer',
+      /* state.name IS the display name (it already incorporates any user-defined nick
+         — see the state declaration); there is no separate nickname field here.
+         ⚠ AND IT CAN BE THE ADDRESS. `Friend.nickname` falls back to the address for an
+         unnamed contact (the #276/#279 echo class), so an unguarded title would render
+         a full base58 as the sheet's heading and aria-label — directly above the row
+         #591 truncated to 9…6. Same guard the roster ingests use. */
+      title: (state.name && !isAddressShaped(state.name) && !isPseudoAddressNick(state.name))
+        ? state.name
+        : (strings.peerAddressTitle || 'Ixian address'),
+    });
+  }
+
   function buildPanel() {
     // #248 GROUP surface: kind 'group' renders name/avatar + notifications toggle +
     // the full member list (owner chip, admin kick/ban) + Leave — no money, no
@@ -414,6 +451,9 @@
           }
         },
         onLeave: (ctrl) => { bridge.send('ixian:leave'); ctrl.done(); },
+        // ★ Session I: the bot's address row opens the same peer address sheet as a
+        // contact's (chat-info renders the row for kind 'bot' only — never 'group').
+        onAddressSheet: openPeerAddressSheet,
       });
     }
     return createChatInfo({
@@ -519,18 +559,7 @@
          :635-641), so wiring it here would offer "Share" on a contact's address and
          send the reader's instead. Copy is the honest affordance until a peer-share
          verb exists. */
-      onAddressSheet: ({ address }) => openAddressSheet({
-        address, strings, host: document.body, subject: 'peer',
-        /* state.name IS the display name (it already incorporates any user-defined nick
-           — see the state declaration); there is no separate nickname field here.
-           ⚠ AND IT CAN BE THE ADDRESS. `Friend.nickname` falls back to the address for an
-           unnamed contact (the #276/#279 echo class), so an unguarded title would render
-           a full base58 as the sheet's heading and aria-label — directly above the row
-           this batch just truncated to 9…6. Same guard the roster ingests use. */
-        title: (state.name && !isAddressShaped(state.name) && !isPseudoAddressNick(state.name))
-          ? state.name
-          : (strings.peerAddressTitle || 'Ixian address'),
-      }),
+      onAddressSheet: openPeerAddressSheet,
 
       // payment activity row tap → native tx detail (WalletSentPage).
       onTx: (tx) => { if (tx && tx.txid) bridge.send('ixian:txdetails:' + tx.txid); },

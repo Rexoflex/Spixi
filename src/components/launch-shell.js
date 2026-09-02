@@ -72,6 +72,7 @@ import { passwordField, ENC_MIN } from './lock-shell.js';
 import { settingsOptionSheet } from './settings-shell.js';
 import { LANGUAGES, createFlag } from './flags.js';
 import { slideSubscreenIn, slideSubscreenOut, settleSubscreenSlide } from './subscreen-slide.js';
+import { LEGAL_DOCS } from './legal-docs.js';   // ★ #733: GENERATED from docs/legal at build time — the full documents
 
 const launchState = new WeakMap(); // el → st
 
@@ -491,17 +492,47 @@ function buildWelcome(st) {
 // entry, so every locale renders this English text by design. Localizing legal copy
 // requires per-jurisdiction legal review and is out of scope for the i18n batch. Their
 // TITLES (termsTitle / privacyTitle) ARE translated.
-const TERMS_DEFAULT = 'Spixi is a decentralised, self-custodial app on the Ixian Platform. You are solely responsible for your wallet, backup file and password. No other way to recover them exists. IXI Labs collects no personal data. You must be at least 16 years old (or the higher minimum age your country requires) to use Spixi.\n\nThe full document is provided in English only.';
-/* ★ Session H gate sweep (OURS-3): the old default claimed "does not collect any
- * personal data" while the policy in the same tree documents OneSignal holding a push
- * token + IP for delivery. The in-app summary now says what the policy says — a privacy
- * app must not undersell its own disclosure. 🟡 Damir: wording pass welcome; the claim
- * boundaries (no phone/email · content stays on device · push token+IP to OneSignal
- * on Android/iOS unless switched off · NO push provider on Windows/Catalyst — the
- * reviewer's oversell catch: pushProviderSupported() is false there and the switch is
- * never rendered, so the copy must not promise it) are the facts and must survive any
- * rewrite. */
-const PRIVACY_DEFAULT = 'No phone number or email is required. Your messages stay on your device, and IXI Labs cannot read your message history or access your wallet keys.\n\nOn Android and iOS, notification delivery uses OneSignal, a push provider: a push token and your IP address reach it. You can turn this off in Settings \u2192 Notifications. The desktop app uses no push provider.\n\nThe full Privacy Policy is provided in English only.';
+//
+// ★ #733 (Session I): THE FULL DOCUMENTS SHIP IN-APP. `LEGAL_DOCS` is generated from
+// docs/legal/*.md by scripts/lib/legal-docs.mjs on every bundle build — what the user
+// accepts on the create/restore commit is what the user can read, offline, in full.
+// The hand-written TERMS summary is RETIRED (it still claimed "IXI Labs collects no
+// personal data" after #730 fixed that claim on the privacy side — a hand copy drifts;
+// a build-step read cannot). The PRIVACY summary below survives ONLY as the held-doc
+// fallback: while docs/legal/privacy-policy.md carries an editorial marker (the §4.3/§11
+// retention placeholder is Damir's to fill; the §4.4 "(Updated Session G/#708…)" note
+// is internal history), the bake HOLDS that document and this summary renders in its
+// place. The day the markers are gone, this constant is dead code — delete it then
+// (a grep for PRIVACY_HELD_SUMMARY finds every consumer).
+//
+// The one-paragraph "dud" of walk row A15 (#731), named: nothing was stale and nothing
+// shadowed the body — the legacy lang dictionary has no privacy/terms body key and
+// extract-strings lists both bodies as no-fallback refs — the sheet rendered exactly the
+// hand-written constant, which at 47d955e8 was ONE paragraph plus the English-only
+// line. The summary was the content. The fix is the full document, not a longer summary.
+//
+// LEAD: one line above every document — the English-only line, kept from the old
+// summaries' tail (Damir #733: "keep the English-only line"); the document's own
+// "Last updated" line follows it from the bake.
+const LEGAL_LEAD_ENGLISH_ONLY = 'This document is provided in English only.';
+/* ★ Session H gate sweep (OURS-3) + #730: the claim boundaries (no phone/email · content
+ * stays on device · push token+IP to OneSignal on Android/iOS unless switched off · NO
+ * push provider on Windows/Catalyst — pushProviderSupported() is false there and the
+ * switch is never rendered) are facts and must survive any rewrite. 🟡 Damir: the #730
+ * wording pass. This text renders ONLY while the full policy is held (see above). */
+const PRIVACY_HELD_SUMMARY = 'No phone number or email is required. Your messages stay on your device, and IXI Labs cannot read your message history or access your wallet keys.\n\nOn Android and iOS, notification delivery uses OneSignal, a push provider: a push token and your IP address reach it. You can turn this off in Settings → Notifications. The desktop app uses no push provider.\n\nThe full Privacy Policy is provided in English only.';
+
+/** The sheet text for a legal document: the baked full document under the lead line,
+ *  or — for a HELD document — the honest summary. Pure; one source for the four callers
+ *  (consent line ×2, openLegalDoc ×2). */
+function legalDocText(doc) {
+  const baked = LEGAL_DOCS[doc];
+  if (baked && baked.text) return LEGAL_LEAD_ENGLISH_ONLY + '\n\n' + baked.text;
+  if (doc === 'privacy') return PRIVACY_HELD_SUMMARY;
+  // terms is never held today (no marker in terms-of-use.md); if it ever is, the bake
+  // prints the hold and the sheet must still open — the English-only line + a pointer.
+  return LEGAL_LEAD_ENGLISH_ONLY + '\n\nThe full document is available at [spixi.io](https://www.spixi.io).';
+}
 
 function openDocSheet(st, title, text) {
   const strings = st.strings;
@@ -525,30 +556,57 @@ function openDocSheet(st, title, text) {
     }
     if (last < s.length) el.append(s.slice(last));
   };
-  // "# " = heading, "- " = list item, else a paragraph. Markers are stripped —
-  // the TEXT stays verbatim (text nodes + validated links only, XSS-safe).
-  let list = null;
+  // ★ #733: `**bold**` → <strong>, wrapped around the link pass. Split on the bold
+  // marker pairs first; each fragment then goes through appendRich — still text nodes +
+  // validated https anchors only; the markers themselves never reach the DOM.
+  const appendInline = (el, s) => {
+    const parts = String(s).split(/\*\*([^*\n]+?)\*\*/);   // odd indexes = bold runs
+    parts.forEach((part, k) => {
+      if (!part) return;
+      if (k % 2) { const b = document.createElement('strong'); appendRich(b, part); el.append(b); }
+      else appendRich(el, part);
+    });
+  };
+  // "# " = heading, "## " = sub-heading (#733), "- " = list item, "1. " = numbered item
+  // (#733), else a paragraph. Markers are stripped — the TEXT stays verbatim (text nodes
+  // + validated links only, XSS-safe).
+  let list = null, listKind = '';
+  const openList = (kind) => {
+    if (list && listKind === kind) return list;
+    list = document.createElement(kind); listKind = kind;
+    list.className = 'c-launch__terms-list';
+    bodyEl.append(list);
+    return list;
+  };
   for (const raw of String(text).split('\n')) {
     const line = raw.replace(/\r$/, '');       // CRLF safety only — deliberately not trimmed (passwords are never trimmed; guard-counted)
     if (!line) { list = null; continue; }
-    if (line.startsWith('# ')) {
+    const numbered = /^\d+\. /.exec(line);
+    if (line.startsWith('## ')) {
+      list = null;
+      const h = document.createElement('h5');
+      h.className = 'c-launch__terms-h c-launch__terms-h--sub';
+      h.textContent = line.slice(3);
+      bodyEl.append(h);
+    } else if (line.startsWith('# ')) {
       list = null;
       const h = document.createElement('h4');
       h.className = 'c-launch__terms-h';
       h.textContent = line.slice(2);
       bodyEl.append(h);
-    } else if (line.startsWith('- ')) {
-      if (!list) { list = document.createElement('ul'); list.className = 'c-launch__terms-list'; bodyEl.append(list); }
+    } else if (line.startsWith('- ') || numbered) {
+      const ul = openList(numbered ? 'ol' : 'ul');
       const li = document.createElement('li');
-      appendRich(li, line.slice(2));
-      list.append(li);
+      appendInline(li, numbered ? line.slice(numbered[0].length) : line.slice(2));
+      ul.append(li);
     } else {
       list = null;
       const p = document.createElement('p');
-      appendRich(p, line);
+      appendInline(p, line);
       bodyEl.append(p);
     }
   }
+
   const sheet = createSheet({ content: bodyEl, host: st.docHost || hostEl(st), title, strings });
   // explicit close affordance (scrim tap + Esc still work) — obvious corner tap
   const closeBtn = document.createElement('button');
@@ -574,9 +632,9 @@ function openDocSheet(st, title, text) {
 export function openLegalDoc({ doc = 'terms', host, strings = getStrings() } = {}) {
   const ctx = { strings, docHost: host, opts: { host }, root: null };
   if (doc === 'privacy') {
-    openDocSheet(ctx, strings.privacyTitle || 'Privacy Policy', strings.privacyBody || PRIVACY_DEFAULT);
+    openDocSheet(ctx, strings.privacyTitle || 'Privacy Policy', legalDocText('privacy'));
   } else {
-    openDocSheet(ctx, strings.termsTitle || 'Terms of Use', strings.termsBody || TERMS_DEFAULT);
+    openDocSheet(ctx, strings.termsTitle || 'Terms of Use', legalDocText('terms'));
   }
 }
 
@@ -598,14 +656,14 @@ function consentLine(st, lead) {
   termsLink.type = 'button';
   termsLink.className = 'c-launch__link';
   termsLink.textContent = strings.termsLink || 'Terms of Use';
-  termsLink.addEventListener('click', () => openDocSheet(st, strings.termsTitle || 'Terms of Use', strings.termsBody || TERMS_DEFAULT));
+  termsLink.addEventListener('click', () => openDocSheet(st, strings.termsTitle || 'Terms of Use', legalDocText('terms')));
   fine.append(termsLink);
   fine.append(' ' + (strings.finePrintAck || 'and acknowledge the') + ' ');
   const privacyLink = document.createElement('button');
   privacyLink.type = 'button';
   privacyLink.className = 'c-launch__link';
   privacyLink.textContent = strings.privacyLink || 'Privacy Policy';
-  privacyLink.addEventListener('click', () => openDocSheet(st, strings.privacyTitle || 'Privacy Policy', strings.privacyBody || PRIVACY_DEFAULT));
+  privacyLink.addEventListener('click', () => openDocSheet(st, strings.privacyTitle || 'Privacy Policy', legalDocText('privacy')));
   fine.append(privacyLink, '.');
   return fine;
 }

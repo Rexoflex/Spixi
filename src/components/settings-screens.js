@@ -380,6 +380,7 @@ function switchRow({ glyph, hue, label, sub, checked, live, failText, onToggle }
   section.className = 'c-settings__section';
   const row = document.createElement('div');
   row.className = 'c-settings__row c-settings__row--static';
+  row.dataset.row = 'switch';   // ★ Session I canon: switch rows are 56, nav rows 48
   const lab = document.createElement('span');
   lab.className = 'c-settings__row-label' + (sub ? ' c-settings__row-label--stack' : '');
   const disc = document.createElement('span');
@@ -661,8 +662,19 @@ export function createNotificationsScreen({
   onPushProvider,                // (next, ctrl) — ★ P2 (#708): ixian:notifPushProvider:on|off
   strings = getStrings(),
 } = {}) {
-  const { el, body, live } = screenShell('c-settings-notifs', strings.notifications || 'Notifications', onBack);
+  const { el, body: screenBody, live } = screenShell('c-settings-notifs', strings.notifications || 'Notifications', onBack);
   const failText = strings.notifFailed || 'Couldn’t update notifications.';
+  /* ★ Session I (#735 §9, sheet 3b): ONE CARD GRAMMAR. Every switch row used to be its own
+     card with inter-card gaps ("gaps read wrong"), while Account groups related rows in
+     shared cards. The four rows are one "Notifications" group now — switchRow still
+     returns a section, so appending the sections into a .c-settings__group gives the
+     hub's dividers for free; the P2 note stays under the group. */
+  const groupWrap = document.createElement('div');
+  groupWrap.className = 'c-settings__groupwrap';
+  const body = document.createElement('div');
+  body.className = 'c-settings__group';
+  groupWrap.append(body);
+  screenBody.append(groupWrap);
   if (capabilities.globalNotifications) {
     if (onEnabled) body.append(switchRow({
       glyph: 'bell', hue: 'warning',
@@ -714,9 +726,14 @@ export function createNotificationsScreen({
       body.append(switchRow({
         glyph: 'cloud-bolt', hue: 'info',   // ★ Session H: a cloud that wakes the device. NOT 'world' (the Language row) and NOT 'topology-star' (the secure notice, Damir 2026-08-30) — one glyph, one meaning (#602). bell-ringing was exported too; 'bell' already means "Allow notifications" one row above, so a second bell would blur it
         label: strings.notifPushProvider || 'Instant delivery via OneSignal',
-        sub: platform === 'ios'
-          ? (strings.notifPushProviderSubIos || 'Off: you see new messages only when you open Spixi. Nothing is sent to a third party.')
-          : (strings.notifPushProviderSubAndroid || 'Off: messages arrive when Spixi checks, not instantly. Nothing is sent to a third party.'),
+        /* ★ Session I (#735 §9, Damir: "the OneSignal sub-label is confusing"): the SUB is
+           STATE-NEUTRAL now — it says what the switch DOES, in one sentence, on both
+           platforms. #712's intent (sub = the cost of the off state) read as a
+           contradiction under a switch that is ON ("Off: …"). The state-dependent
+           explanation — the #712 claim boundaries: token + IP to OneSignal, the per-platform
+           off cost, the record it keeps — lives in the NOTE below, which follows the switch.
+           The two old per-platform sub keys retire (their locales are rebuilt). */
+        sub: strings.notifPushProviderSub || 'Wakes this device the moment a message arrives. Uses OneSignal, a push provider.',
         checked: pushProvider, live, failText, onToggle: onPushProvider,
       }));
       /* ★ #712 (Damir): THE FEEDBACK IS PROMINENT AND SAYS WHAT HAPPENS IN BOTH STATES.
@@ -729,12 +746,12 @@ export function createNotificationsScreen({
       const note = document.createElement('p');
       note.className = 'c-settings__note c-settings-notifs__push-note';
       note.setAttribute('aria-live', 'polite');
+      screenBody.append(note);   // ★ Session I: under the GROUP, not inside the card
       note.textContent = pushProvider
         ? (strings.notifPushProviderOn || 'On: OneSignal wakes this device the moment a message arrives. OneSignal receives a push token for this device and sees its IP address. It never sees your messages or your contacts.')
         : (platform === 'ios'
           ? (strings.notifPushProviderOffIos || 'Off: nothing more is sent to OneSignal and this device is unsubscribed there. New messages appear when you open Spixi. The record OneSignal already holds is not deleted by this switch.')
           : (strings.notifPushProviderOffAndroid || 'Off: nothing more is sent to OneSignal and this device is unsubscribed there. Spixi checks for new messages itself and notifies you when it finds some, so they can arrive a little later. The record OneSignal already holds is not deleted by this switch.'));
-      body.append(note);
     }
   }
   return el;

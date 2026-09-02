@@ -28,7 +28,7 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-8);
-  min-height: 52px;                 /* settings-row parity (#149②) */
+  min-height: var(--row-h-nav);     /* ★ Session I canon: 48 (was 52, settings-row parity #149②) */
   padding: var(--spacing-4) var(--spacing-8);
   border: 0;
   background: transparent;
@@ -238,7 +238,7 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-8);
-  min-height: 52px;                   /* settings-row parity (#149②) */
+  min-height: var(--row-h-nav);       /* ★ Session I canon: 48 (was 52, settings-row parity #149②) */
   width: 100%;
   padding: var(--spacing-8) var(--spacing-12);
   border: 0;

@@ -36,10 +36,10 @@ import { icon } from './icons.js';
 import { createAvatar, hashHue, truncateAddressMiddle } from './avatar.js';
 import { createStatusIcon } from './chatlist-item.js';
 import { createBadge } from './badge.js';
-import { dayBucketLabel, docLocale } from './timestamp.js';
+import { dayBucketLabel, docLocale, timeOpts } from './timestamp.js';
 
 function bubbleTime(d) {
-  return d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString(docLocale(), timeOpts());   // ★ Session I: follows the device's 12/24-hour setting
 }
 
 /* linkify (Damir 2026-07-03; EXTENDED 2026-07-10 #231c): URLs become BUTTONS
@@ -110,7 +110,13 @@ function REPLY_KIND_LABELS(kind, strings = getStrings()) {
 
 /* emoji-only detection (Damir 2026-07-03): 1–3 emoji and nothing else render
    BIG with the meta dropped below. Covers ZWJ sequences, skin tones, VS16. */
-const EMOJI_ONLY_RE = /^(?:\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})*(?:‍\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})*)*\s*){1,3}$/u;
+/* ★ Session I (#731/#735): FLAGS were missed — a flag is a PAIR of Regional Indicator
+   symbols (🇸🇮 = U+1F1F8 U+1F1EE), which \p{Extended_Pictographic} does not match, so
+   "🇸🇮" rendered as ordinary text in a bubble. One glyph = a pictographic run (with its
+   modifiers / ZWJ chain / an optional tag sequence, the subdivision flags 🏴󠁧󠁢󠁥󠁮󠁧󠁿) OR a regional
+   pair OR a keycap. Same 1–3 cap. */
+const EMOJI_GLYPH = '(?:\\p{Extended_Pictographic}(?:️|\\p{Emoji_Modifier})*(?:‍\\p{Extended_Pictographic}(?:️|\\p{Emoji_Modifier})*)*(?:[\\u{E0020}-\\u{E007F}]+)?|\\p{Regional_Indicator}{2}|[0-9#*]️?⃣)';
+const EMOJI_ONLY_RE = new RegExp('^(?:' + EMOJI_GLYPH + '\\s*){1,3}$', 'u');
 /* @-mention highlighting (Damir 2026-07-09, premium mentions, DECISIONS #210).
    A mention token = "@" + a name; rendered as a styled span (color + bold, theme-
    aware, XSS-safe textContent — never innerHTML). When the shell supplies the known

@@ -258,6 +258,7 @@ namespace SPIXI
             hideBalance = (bool)Preferences.Default.Get("hidebalance", false);
             SpixiLocalization.addCustomString("miniAppsStartNoteHidden", Preferences.Default.Get("miniAppsStartNoteHidden", false) ? "true" : "false");
             SpixiLocalization.addCustomString("devMode", devMode ? "true" : "false");
+            SpixiLocalization.addCustomString("hourCycle", Utils.deviceHourCycle());   // ★ Session I: the device's 12/24-hour setting reaches every generated document
             SpixiLocalization.addCustomString("apps-not-sure-text", string.Format(SpixiLocalization.getLocalizedString("apps-not-sure-text"), Config.spixiAppsUrl));
 
             loadPage(webView, "index.html");
@@ -657,44 +658,6 @@ namespace SPIXI
              * ⚠ REMOVE THIS WITH ITS TWO SIBLINGS the way [CDPERF] went (#663): this
              * handler, home.html's emit in consumeLandTab, and the smoke pin holding the
              * trio — one batch, all three, once Damir has taken the measurement. */
-            /* ★ Session H ③ ([PAINTDIAG], TEMPORARY — the L14-family flashes, walk rows 57/58).
-             * #688 falsified the last traced mechanism, so this round only OBSERVES THE PAINT.
-             * The shell emits two fixed words with one integer each:
-             *   cover:<ms>    — consumeLandTab('contacts') → the SECOND rAF frame after the
-             *                   directory takeover mounted, i.e. the takeover is ON GLASS.
-             *                   [PAINTDIAG account-closed] (onOverlayClosed below) to this
-             *                   line = how long the chat list was actually visible.
-             *   backsend:<ms> — takeover Back closed → the deferred ixian:settings left the
-             *                   shell. This line to [PAINTDIAG re-present] + the reveal =
-             *                   the way-back flash Damir reports as "longer the second time".
-             * Fixed vocabulary, one parsed integer, nothing echoed — the landtabprobe
-             * grammar. ⚠ REMOVE ALL FOUR TOGETHER once measured: this handler, the two
-             * home.html emits, the two Logging.info lines (onOverlayClosed +
-             * representParkedOverlay), and the smoke pin holding the set. */
-            else if (current_url.StartsWith("ixian:paintdiag:", StringComparison.Ordinal))
-            {
-                try
-                {
-                    string[] probe = current_url.Substring("ixian:paintdiag:".Length).Split(':');
-                    string what = probe.Length > 0 ? probe[0] : "";
-                    if (what != "cover" && what != "backsend")
-                    {
-                        what = "other";
-                    }
-                    long ms = 0;
-                    if (probe.Length > 1)
-                    {
-                        long.TryParse(probe[1], out ms);
-                    }
-                    IXICore.Meta.Logging.info("[PAINTDIAG] " + what + "=" + ms + "ms t=" + Environment.TickCount64);
-                }
-                catch (Exception)
-                {
-                    Logging.error("ixian:paintdiag failed (malformed payload)");
-                }
-                e.Cancel = true;
-                return;
-            }
             else if (current_url.StartsWith("ixian:landtabprobe:", StringComparison.Ordinal))
             {
                 try
@@ -702,7 +665,7 @@ namespace SPIXI
                     string[] probe = current_url.Substring("ixian:landtabprobe:".Length).Split(':');
                     string via = probe.Length > 0 ? probe[0] : "";
                     // fixed vocabulary — anything else is logged as "other", never echoed
-                    if (via != "storage" && via != "visibility" && via != "focus" && via != "settingsclosed")
+                    if (via != "storage" && via != "visibility" && via != "focus" && via != "settingsclosed" && via != "handoff")
                     {
                         via = "other";
                     }
@@ -717,6 +680,18 @@ namespace SPIXI
                 {
                     Logging.error("ixian:landtabprobe failed (malformed payload)");
                 }
+                e.Cancel = true;
+                return;
+            }
+            /* ★ Session I — the L14 cover handshake's return leg. home.html sends this at the
+             * second rAF after the directory takeover mounted (= on glass). No payload,
+             * nothing parsed, nothing echoed. Releases the Account pop SettingsPage deferred
+             * on `ixian:handoff`; a no-op when nothing waits. The [PAINTDIAG] handler that
+             * stood here (cover/backsend stamps) is retired with its set — it measured the
+             * flash this closes (#731). */
+            else if (current_url.Equals("ixian:coverpainted", StringComparison.Ordinal))
+            {
+                SpixiContentPage.coverPainted();
                 e.Cancel = true;
                 return;
             }
@@ -3614,6 +3589,15 @@ namespace SPIXI
 
         // #225: overlays never fire OnAppearing on this host (it is never detached) —
         // per-close refreshes live here instead.
+        /* ★ Session I — L14 cover handshake: SettingsPage received `ixian:handoff` and is
+         * holding its pop. Tell the home shell to consume the hand-off NOW (it mounts the
+         * directory cover and answers `ixian:coverpainted`), instead of leaving the
+         * consumer to a storage event that WKWebView may never fire. */
+        protected internal override void onCoverHandoff()
+        {
+            Utils.sendUiCommand(this, "onHandoff");
+        }
+
         public override void onOverlayClosed(SpixiContentPage overlay)
         {
             if (overlay is SettingsPage)
@@ -3622,9 +3606,8 @@ namespace SPIXI
                 Utils.sendUiCommand(this, "setTheme", ThemeManager.getResolvedAppearanceName());
                 Utils.sendUiCommand(this, "loadAvatar", Utils.imageToDataUri(IxianHandler.localStorage.getOwnAvatarPath()));   // X1
                 // #245: drop the rail's Account highlight back to the real in-page tab.
-                // ★ Session H ③ [PAINTDIAG]: from THIS instant the home WebView is what the
-                // user sees — the gap to the shell's cover=<ms> line is the flash.
-                IXICore.Meta.Logging.info("[PAINTDIAG] account-closed t=" + Environment.TickCount64);
+                // (★ Session I: the [PAINTDIAG] account-closed stamp retired with its set; the
+                // flash it measured is closed by the L14 cover handshake — onCoverHandoff below.)
                 Utils.sendUiCommand(this, "onSettingsClosed");
                 UIHelpers.shouldRefreshContacts = true;
                 fromSettings = false;

@@ -200,6 +200,13 @@
   font-weight: var(--font-weight-semibold);
 }
 .c-launch__terms-h:first-child { margin-top: 0; }
+/* ★ #733: the full documents carry sub-sections (4.1 … 4.11) — one step down from the
+   section heading, same face; the section keeps body-md. */
+.c-launch__terms-h--sub {
+  margin-top: var(--spacing-12);
+  font-size: var(--font-size-body-sm);
+}
+.c-launch__terms-body strong { font-weight: var(--font-weight-semibold); }
 .c-launch__terms-list {
   margin: 0 0 var(--spacing-12);
   padding-left: var(--spacing-20);

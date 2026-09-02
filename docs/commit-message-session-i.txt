@@ -1,0 +1,22 @@
+Session I: the premium density pass, legal docs in-app, the L14 handshake, the walk fixes
+
+- Premium pass (#742/#746): 16 render sheets at the Motorola's measured 2.5 dpr,
+  every dial picked, one token batch. Bubble 100->80px (own --bubble-* dials),
+  tails + lift, #2160C2, Roboto tuned, 11px Medium timestamps that follow the
+  device 12/24h setting; list names/chips/tx weights; avatar depth + anchors +
+  hero initials; the 48/56 canon; Notifications one card + neutral OneSignal
+  sub (12 locales); canvas #EEECEF + magenta pattern; composer pill 46 with (+)
+  inside, truly floating, caret w/o keyboard; menus 40; emoji stickers + flags;
+  blue event excerpts; bot sender face; slide+fade hybrid on both slide systems.
+- #733: full legal docs baked at build time (Terms live, Privacy auto-HELD on
+  its two markers); both hand summaries retired.
+- L14: Account->Contacts closes on the painted cover (ixian:handoff /
+  onHandoff / ixian:coverpainted); [PAINTDIAG] retired as a set.
+- #735(1): conversation leaves the mobile slide rule; [CDPERF] chat-open stamps
+  armed; seed harness (50 contacts) under SPIXI_DEV_COEXIST.
+- Walk defects: bot address row, desktop unread strip, notification accent
+  #175595; same-evening walk fixes (#746). Walk results + queue: #747.
+- Gates: smoke 3978 / 3 known; bundle 319; shells 18; locales 786; cs 141+1.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01MW2dfTU4PzQD6vjNMXPf16

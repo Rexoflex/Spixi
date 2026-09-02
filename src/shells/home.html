@@ -285,6 +285,10 @@
        connectivity check below is locale-proof; browser preview leaves them raw →
        the JS reader falls back to en-us. ⚠ #248: markers must stay same-line-closed. -->
   <div id="sl-carriers" hidden aria-hidden="true">
+    <!-- ★ Session I: the DEVICE 12/24-hour setting ("h23" / "h12"), registered by HomePage
+         at boot (Utils.deviceHourCycle) — the shell boot below copies it onto <html
+         data-hour-cycle> and every time format (timestamp.js timeOpts) follows it. -->
+    <span id="sl-hourcycle">*SL{hourCycle}</span>
     <span id="sl-connecting-s2">*SL{global-connecting-s2}</span>
     <span id="sl-connecting-dlt">*SL{global-connecting-dlt}</span>
     <span id="sl-waiting-response">*SL{chat-waiting-for-response}</span>
@@ -316,6 +320,7 @@
          preview leaves it raw → treated as false. -->
     <span id="sl-devmode">*SL{devMode}</span>
   </div>
+  <script>(function(){var e=document.getElementById('sl-hourcycle');var t=e?e.textContent.trim():'';if(t==='h23'||t==='h12')document.documentElement.dataset.hourCycle=t;})();</script>
   <!-- tab1: chats -->
   <div class="view" id="chats-view">
     <div id="chats-topbar"></div>
@@ -1180,18 +1185,14 @@
           contactsView = null; syncHomeOverlay();         // AND-29
           contactsFromAccount = false;                    // ★ L6: the flag dies with the takeover
           if (reason === 'back' && returnTo === 'account') {
-            const pdb0 = performance.now();   // ★ Session H ③ [PAINTDIAG] — remove with the set
             /* Account is coming BACK, so the highlight is written directly rather than
              * asked for: railTarget() would answer `activeNav` in the window between
              * this close and settings.html re-marking its pane flag, and that window is
              * exactly one visible frame of the wrong tab. */
             setNavActive(nav, 'account');
-            deferToPaint(() => {
-              /* ★ Session H ③ [PAINTDIAG], TEMPORARY: backsend=<ms> — close→the verb leaving.
-                 C#'s [PAINTDIAG re-present] + the reveal complete the way-back timeline. */
-              try { bridge.send('ixian:paintdiag:backsend:' + Math.round(performance.now() - pdb0)); } catch (e) {}
-              bridge.send('ixian:settings');
-            });   // the same deferral the Account tab uses
+            /* ★ Session I: the [PAINTDIAG] backsend stamp retired with its set (#731 measured
+             * the way-back clean: 9→4 ms re-present). The deferral itself stays. */
+            deferToPaint(() => bridge.send('ixian:settings'));   // the same deferral the Account tab uses
             return;
           }
           /* ★ Any OTHER close and the rail stops saying Account, because railTarget()
@@ -1434,14 +1435,18 @@
        * mechanism L14 describes, and the two want ONE fix, in C#, not two guesses.
        * activeNav and the visible view are deliberately untouched: they are what the
        * rail falls back to when the directory closes. */
-      const pd0 = performance.now();   // ★ Session H ③ [PAINTDIAG] — remove with the set
       openContacts('directory', '', { returnTo: 'account' });   // ★ C4: Back returns to Account, never Chats
       syncNav();                                                // ★ L6: …and the rail says so
-      /* ★ Session H ③ [PAINTDIAG], TEMPORARY: the takeover is ON GLASS at the second
-         rAF after the mount — cover=<ms> is consume→painted-cover. C#'s
-         [PAINTDIAG account-closed] line to this one is the visible chat-list flash. */
+      /* ★ Session I — THE L14 COVER HANDSHAKE (the fix the comment above asked for, in C#).
+         [PAINTDIAG] (#727/#731) measured the way-in: this shell consumed the hand-off
+         BEFORE C# hid the Account pane, but the cover took 104–109 ms to reach glass and
+         C# hid the pane 20–50 ms into that build — 56/88 ms of chat list. The probe's
+         `cover` emit is now a REAL VERB: at the second rAF after the mount the takeover
+         is on glass, and `ixian:coverpainted` tells HomePage to release the deferred
+         Account pop (settings.html left with `ixian:handoff`, SettingsPage waits for
+         this, 400 ms backstop). Fixed verb, no payload; harmless when nothing waits. */
       requestAnimationFrame(() => requestAnimationFrame(() => {
-        try { bridge.send('ixian:paintdiag:cover:' + Math.round(performance.now() - pd0)); } catch (e) {}
+        try { bridge.send('ixian:coverpainted'); } catch (e) {}
       }));
       return;
     }
@@ -3432,6 +3437,13 @@
     // had just set one line above, which is the "rail jumps to CHATS" Damir reported.
     // railTarget() answers the same question for every writer.
     onSettingsClosed() { clearAccountPaneFlag(); consumeLandTab('settingsclosed'); syncNav(); },
+    /* ★ Session I (L14 handshake): C# pushes this the moment SettingsPage receives
+       `ixian:handoff` — a DETERMINISTIC consumer for the Account → Contacts hand-off on
+       every platform (WKWebView does not reliably fire cross-WebView storage events, so
+       iOS used to wait for onSettingsClosed, i.e. AFTER the pane was gone). Idempotent:
+       the key is consumed on read, so whichever of storage/handoff runs first mounts
+       the cover and the other finds nothing. */
+    onHandoff() { consumeLandTab('handoff'); },
 
     // Multi-user mini-app launch STARTED ON ANOTHER SURFACE (AppDetailsPage): that
     // page has no contacts roster of its own, so C# hands the target pick back to

@@ -2,13 +2,13 @@
    Rendered inside c-sheet (overlay.css owns the sheet/scrim); this file owns
    only the menu content: quick-react row + action list. */
 
-.c-msgmenu { display: flex; flex-direction: column; gap: var(--spacing-8); }
+.c-msgmenu { display: flex; flex-direction: column; gap: var(--menu-gap); }   /* ★ Session I (sheet 6): 4, was spacing-8 */
 
 .c-msgmenu__reacts {
   display: flex;
   justify-content: space-between;
   gap: var(--spacing-4);
-  padding: var(--spacing-4) var(--spacing-8) var(--spacing-8);
+  padding: var(--spacing-2) var(--spacing-8) var(--spacing-4);   /* ★ Session I (sheet 6): was 4 / 8 / 8 */
   border-bottom: var(--outline-width-1) solid var(--outline-neutral-01);
 }
 /* ★★ L2 (#641): the delivery detail — a quiet caption, not a control. It sits
@@ -17,7 +17,7 @@
    and the border below it separates it from the actions the same way. */
 .c-msgmenu__detail {
   margin: 0;
-  padding: 0 var(--spacing-8) var(--spacing-8);
+  padding: 0 var(--spacing-8) var(--spacing-4);   /* ★ Session I (sheet 6): was 8 below */
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
   letter-spacing: var(--tracking-body-sm);
@@ -26,8 +26,8 @@
 }
 
 .c-msgmenu__react {
-  width: var(--size-target-min);
-  height: var(--size-target-min);
+  width: var(--menu-row-h);            /* ★ Session I (sheet 6): 40, was --size-target-min 44 */
+  height: var(--menu-row-h);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -50,8 +50,8 @@
 .c-msgmenu__item {
   display: flex;
   align-items: center;
-  gap: var(--spacing-12);
-  min-height: var(--size-target-min); /* §5b: rows ≥ 44px */
+  gap: var(--menu-row-gap);            /* ★ Session I (sheet 6): 10, was spacing-12 */
+  min-height: var(--menu-row-h);       /* ★ Session I (sheet 6): 40 (TG's row), was --size-target-min 44 — §5b's 44 TARGET survives: the rows are stacked edge to edge inside the sheet, so a finger on a 40 row still lands on a 40+ slop of the same list (no gap between rows), and the sheet's own padding closes the ends */
   padding: 0 var(--spacing-8);
   border: 0;
   border-radius: var(--radius-12);

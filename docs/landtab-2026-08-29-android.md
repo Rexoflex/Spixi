@@ -23,7 +23,7 @@ Damir's device run, nine tab hand-offs out of Account, `adb logcat | Select-Stri
 ## 1 · ★★ What this kills
 
 The row's mechanism — recorded in `launch-worklist-2026-08-29.md`, in
-`handoff-2026-09-01.md`, and confirmed at source in `SpixiContentPage.cs` (the park branch
+`archive/handoff-2026-09-01-session-h-evening.md`, and confirmed at source in `SpixiContentPage.cs` (the park branch
 sets `op.stage.Opacity = 0` at `:1603`; `host?.onOverlayClosed(...)` runs after it at
 `:1729`) — was: **C# reveals the home WebView on the tab it left, and the shell cannot
 switch until the `onSettingsClosed` push arrives, so a frame of the old tab is unavoidable

@@ -67,7 +67,7 @@
         'flat' BEFORE first paint rather than painting an undefined ground. The attribute
         is set in BOTH themes and is simply inert in dark — tokens.css scopes the gradient
         rule out of dark, so there is nothing to branch on here. -->
-<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),p=NaN,t=NaN,s='',g='';try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));s=localStorage.getItem('spixi.chat.patternstyle')||'';g=localStorage.getItem('spixi.chat.ground')||'';}catch(e){}var lv;if(!isFinite(p))lv=de?0:1;else if(p<=0)lv=0;else lv=1;r.setProperty('--chat-pattern-opacity',lv<=0?'0':'var(--chat-pattern-alpha-1)');if(!isNaN(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));if(s==='flow'&&!de)s='doodles';if(s!=='doodles'&&s!=='matrix'&&s!=='flow')s='doodles';document.documentElement.setAttribute('data-chat-pattern',s);if(g!=='flat'&&g!=='gradient')g=de?'flat':'gradient';document.documentElement.setAttribute('data-chat-ground',g);})();</script>
+<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),p=NaN,t=NaN,s='',g='';try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));s=localStorage.getItem('spixi.chat.patternstyle')||'';g=localStorage.getItem('spixi.chat.ground')||'';}catch(e){}var lv;if(!isFinite(p))lv=1;else if(p<=0)lv=0;else lv=1;r.setProperty('--chat-pattern-opacity',lv<=0?'0':'var(--chat-pattern-alpha-1)');if(!isNaN(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));if(s==='flow'&&!de)s='doodles';if(s!=='doodles'&&s!=='matrix'&&s!=='flow')s='doodles';document.documentElement.setAttribute('data-chat-pattern',s);if(g!=='flat'&&g!=='gradient')g='gradient';document.documentElement.setAttribute('data-chat-ground',g);})();</script>
 <style>
   /* Paint the screen surface IMMEDIATELY — before tokens.css/base.css load and
      before the JS bundle parses — so entering a chat doesn't flash an empty
@@ -573,9 +573,14 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    ('accent', 'info', …) and these are indices. */
 
 .c-avatar[data-hue="0"], .c-idhue[data-hue="0"]  { --av-c1: hsl(0, 62%, 52%);   --av-c2: hsl(25, 58%, 42%);  }
-.c-avatar[data-hue="1"], .c-idhue[data-hue="1"]  { --av-c1: hsl(22, 62%, 43%);  --av-c2: hsl(47, 58%, 33%);  }
-.c-avatar[data-hue="2"], .c-idhue[data-hue="2"]  { --av-c1: hsl(40, 62%, 35%);  --av-c2: hsl(65, 58%, 25%);  }
-.c-avatar[data-hue="3"], .c-idhue[data-hue="3"]  { --av-c1: hsl(95, 62%, 31%);  --av-c2: hsl(120, 58%, 21%); }
+/* ★ Session I (sheet 2b = D; Damir #735: "our avatars seem a bit off"): the three MUDDY
+   anchors re-tuned — 1 was olive-brown, 2 brown, 3 a dull green; they now read orange,
+   amber and a lifted green (TG's set has no browns). Every stop still ≥ 4.5:1 under
+   white ink, measured: 1 → #c35118 4.66 / #a5381d 6.60 · 2 → #ae6113 4.65 / #974e17
+   6.14 · 3 → #458226 4.69 / #216327 7.29. Reversal values ride in the trailing comment. */
+.c-avatar[data-hue="1"], .c-idhue[data-hue="1"]  { --av-c1: hsl(20, 78%, 43%);  --av-c2: hsl(12, 70%, 38%);  } /* was hsl(22,62%,43%) / hsl(47,58%,33%) */
+.c-avatar[data-hue="2"], .c-idhue[data-hue="2"]  { --av-c1: hsl(30, 80%, 38%);  --av-c2: hsl(26, 74%, 34%);  } /* was hsl(40,62%,35%) / hsl(65,58%,25%) */
+.c-avatar[data-hue="3"], .c-idhue[data-hue="3"]  { --av-c1: hsl(100, 55%, 33%); --av-c2: hsl(125, 50%, 26%); } /* was hsl(95,62%,31%) / hsl(120,58%,21%) */
 .c-avatar[data-hue="4"], .c-idhue[data-hue="4"]  { --av-c1: hsl(135, 62%, 32%); --av-c2: hsl(160, 58%, 22%); }
 .c-avatar[data-hue="5"], .c-idhue[data-hue="5"]  { --av-c1: hsl(165, 62%, 31%); --av-c2: hsl(190, 58%, 21%); }
 .c-avatar[data-hue="6"], .c-idhue[data-hue="6"]  { --av-c1: hsl(190, 62%, 35%); --av-c2: hsl(215, 58%, 25%); }
@@ -619,13 +624,30 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    Figma mirror); this pins the initials scale and the hero-scale presence dot. */
 .c-avatar[data-size="64"] .c-avatar__initials { font-size: 24px; }
 .c-avatar[data-size="64"] .c-avatar__dot { width: 16px; height: 16px; }
+/* ★ Session I (sheet 2b = D): the HEROES had no initials rule at all — chat info, contact
+   details and Account render at 80, the launch avatar at 96, and every one of them fell
+   through to the base font-size, so a hero disc carried a list-sized letter. That was
+   a visible part of "our avatars seem a bit off". 0.375× (the 48 → 18 ratio). */
+.c-avatar[data-size="80"] .c-avatar__initials { font-size: 30px; }
+.c-avatar[data-size="80"] .c-avatar__dot { width: 18px; height: 18px; }
+.c-avatar[data-size="96"] .c-avatar__initials { font-size: 36px; }
+.c-avatar[data-size="96"] .c-avatar__dot { width: 20px; height: 20px; }
 
 .c-avatar[data-placeholder] {
   /* Fallbacks = anchor 7 (blue): a stale bundle that never stamps data-hue
-     still paints a legible gradient instead of a transparent disc. */
-  background-image: linear-gradient(135deg,
-    var(--av-c1, hsl(215, 62%, 50%)),
-    var(--av-c2, hsl(240, 58%, 40%)));
+     still paints a legible gradient instead of a transparent disc.
+     ★ Session I (sheet 2b = D): TG-like DEPTH — a soft white highlight at the top-left
+     over the pair gradient (160°, was 135°). MEASURED against the #364 floor: the veil
+     is 22% at its centre and gone by half the radius, so at the disc centre — where
+     the initials sit — it is ≈ 5%, and the lightest re-tuned stop (#c35118, 4.66:1)
+     still clears 4.4:1 there under white ink; the 18px+ semibold initials are WCAG
+     large text (3:1 floor). The sheet's 28%/55% draft veiled the centre to ≈ 13% and
+     failed that arithmetic, so it was dialled down before shipping. */
+  background-image:
+    radial-gradient(100% 100% at 28% 18%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 50%),
+    linear-gradient(160deg,
+      var(--av-c1, hsl(215, 62%, 50%)),
+      var(--av-c2, hsl(240, 58%, 40%)));
 }
 
 .c-avatar__img {
@@ -704,8 +726,8 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-bubble-row {
   display: flex;
   align-items: flex-end;
-  padding-inline: var(--spacing-16);
-  margin-top: var(--spacing-12);           /* gap between groups */
+  padding-inline: calc(var(--spacing-16) + var(--bubble-tail));   /* Session I: the tail sits inside the gutter */
+  margin-top: var(--bubble-gap-group);     /* gap between groups (Session I dial; was --spacing-12) */
   /* N36b (#363 candidate, repro gate met 2026-08-17): in select mode the ROW is
      the tap target (N36 made in-bubble controls pointer-dead), and every
      `transparent` in this file sat on SUB-elements — Android painted its native
@@ -717,7 +739,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   -webkit-tap-highlight-color: transparent;
 }
 .c-bubble-row[data-position="middle"],
-.c-bubble-row[data-position="last"] { margin-top: var(--spacing-2); } /* in-group gap */
+.c-bubble-row[data-position="last"] { margin-top: var(--bubble-gap-inner); } /* in-group gap (Session I dial; was --spacing-2) */
 
 .c-bubble-row[data-direction="sent"] { justify-content: flex-end; }
 
@@ -732,16 +754,22 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   position: relative;
   display: flow-root; /* contains the floated __meta (audit: float dropped below the box) */
   max-width: min(var(--bubble-max-pct), var(--layout-bubble-max));
-  padding: var(--spacing-8) var(--spacing-12);
-  border-radius: var(--radius-16);
+  padding: var(--bubble-pad-y) var(--bubble-pad-x);   /* Session I dials (were --spacing-8 / --spacing-12) */
+  border-radius: var(--bubble-radius);                 /* Session I dial (was --radius-16) */
   /* message TEXT scales with the chat-appearance pick (6e.2 closes the #147
      flag): --chat-text-scale (tokens.css, default 1) multiplies the body-md
      role — children that set their own font-size (meta, captions, quotes)
      deliberately do NOT scale, Telegram-style. Line-height rides along so XL
      text doesn't cram. */
   font-size: calc(var(--font-size-body-md) * var(--chat-text-scale, 1));
-  line-height: calc(var(--line-height-body-md) * var(--chat-text-scale, 1));
-  letter-spacing: var(--tracking-body-md);
+  line-height: calc(var(--bubble-line-height) * var(--chat-text-scale, 1));   /* Session I dial (was --line-height-body-md) */
+  letter-spacing: var(--bubble-tracking, var(--tracking-body-md));   /* Session I (sheet 1e a′): Roboto tuned, −0.2px on mobile */
+  /* ★ Session I: the faint lift the references carry (WA/TG ~1px). `none` today; a
+     token flip turns it on. This is a DIFFERENT lever than the #427 hairline (a shadow
+     below vs an outline around) — the hairline rule below stays as its own reversal.
+     The token is a no-op shadow (0 0 0 0 transparent), never `none`: the received rule
+     lists it beside the hairline hook and a list with `none` in it is invalid CSS. */
+  box-shadow: var(--bubble-elevation);
   overflow-wrap: break-word;
   word-break: break-word;
 }
@@ -763,7 +791,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
      pixel read 1.281:1 against the #0f1115 ground versus the bubble's own 1.120, so
      it WAS the edge — Damir chose symmetric removal on the rendered comparison, with
      that number in front of him. One line in tokens.css restores either. */
-  box-shadow: inset 0 0 0 1px var(--border-bubble-received);
+  box-shadow: inset 0 0 0 1px var(--border-bubble-received), var(--bubble-elevation);
 }
 .c-bubble-row[data-direction="sent"] .c-bubble {
   /* premium saturated gradient (Damir 2026-07-07); solid --surface-bubble-sent is
@@ -780,6 +808,56 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble { border-end-end-radius: var(--radius-8); }
 .c-bubble-row[data-direction="sent"][data-position="middle"] .c-bubble { border-start-end-radius: var(--radius-8); border-end-end-radius: var(--radius-8); }
 .c-bubble-row[data-direction="sent"][data-position="last"] .c-bubble { border-start-end-radius: var(--radius-8); }
+
+/* ★ Session I — THE TAIL (sheet 1c; #735④ "bubble tails: YES — WA/TG grammar, tail on the
+   group-start bubble"). A pseudo-element on the FIRST (or single) bubble of a group, at
+   its outer TOP corner, in the bubble's own surface; that corner drops to 4px so the
+   tail reads as part of the shape. `--bubble-tail: 0px` turns the whole thing off (the
+   rule is inert at 0 width). The row inset grows by the tail width so the tail sits
+   INSIDE the 16px gutter rather than pushing the bubble in. The tail carries the
+   elevation as a drop-shadow filter (a box-shadow would paint the clipped box). */
+.c-bubble-row[data-position="first"] .c-bubble,
+.c-bubble-row[data-position="single"] .c-bubble { overflow: visible; }
+.c-bubble-row[data-direction="received"][data-position="first"] .c-bubble,
+.c-bubble-row[data-direction="received"][data-position="single"] .c-bubble { border-start-start-radius: 0; }
+.c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble,
+.c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble { border-start-end-radius: 0; }
+/* ★ Damir's Windows walk (same day): at 4px the corner still curved away from the tail and
+   the tail read as a flag pinned NEXT to a rounded rectangle; the corner is square (0) at
+   the tail now, so the tail's top edge continues the bubble's own edge (WA's junction). */
+.c-bubble-row[data-position="first"] .c-bubble::before,
+.c-bubble-row[data-position="single"] .c-bubble::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: var(--bubble-tail);
+  height: var(--bubble-tail-h);
+  pointer-events: none;
+  filter: drop-shadow(var(--bubble-elevation));
+}
+.c-bubble-row[data-direction="received"][data-position="first"] .c-bubble::before,
+.c-bubble-row[data-direction="received"][data-position="single"] .c-bubble::before {
+  inset-inline-start: calc(-1 * var(--bubble-tail));
+  background: var(--surface-bubble-received);
+  clip-path: path('M8 0 L0 0 Q5 1.5 8 13 Z');
+}
+.c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble::before,
+.c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble::before {
+  inset-inline-end: calc(-1 * var(--bubble-tail));
+  background: var(--surface-bubble-sent);
+  clip-path: path('M0 0 L8 0 Q3 1.5 0 13 Z');
+}
+[dir="rtl"] .c-bubble-row[data-direction="received"][data-position="first"] .c-bubble::before,
+[dir="rtl"] .c-bubble-row[data-direction="received"][data-position="single"] .c-bubble::before { clip-path: path('M0 0 L8 0 Q3 1.5 0 13 Z'); }
+[dir="rtl"] .c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble::before,
+[dir="rtl"] .c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble::before { clip-path: path('M8 0 L0 0 Q5 1.5 8 13 Z'); }
+/* the emoji-only "sticker" carries no bubble and so no tail.
+   ⚠ Specificity, learned on Damir's walk: the first/single tail rules above are
+   (0,3,1) — row class + position attribute + bubble class + pseudo — so a (0,2,1)
+   `.c-bubble[data-emoji-only]::before` LOST and a sent sticker grew a tail. The row
+   class is in the selector now (0,3,1, later in source) and the declaration is
+   !important against the direction rules (0,4,1) for good measure. */
+.c-bubble-row .c-bubble[data-emoji-only]::before { content: none !important; }
 
 /* sender label (group chats, first of group) — identity-hued like the avatar.
    Dedicated S/L (sanctioned, like avatar #37): avatar-gradient lightness failed
@@ -811,9 +889,13 @@ button.c-bubble__sender {
 }
 /* nameless sender = a raw wallet address (middle-truncated): monospace reads it as
    an address; the button hover-underline signals it's copy-pastable (Damir 2026-07-07). */
+/* ★ Session I (#731/#735, Damir on device: "nameless bot-group sender = the SAME type as
+   nicknames, not the mono-ish truncation face"): the address label now wears the nickname
+   face — same family, weight and tracking as a named sender, still middle-truncated, still
+   the copy-pastable button. The monospace face (Damir 2026-07-07) is the reversal below. */
 .c-bubble__sender[data-address] {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  letter-spacing: 0;
+  font-family: var(--font-secondary);   /* was ui-monospace, SFMono-Regular, Menlo, Consolas, monospace */
+  letter-spacing: var(--tracking-label-sm);
 }
 /* N34 (#365): Owner chip — the sender row flips to flex only when a chip is
    present (data-has-role), so the plain label path stays byte-identical. The
@@ -848,19 +930,35 @@ button.c-bubble__sender {
 
 .c-bubble__text { white-space: pre-wrap; }
 
-/* emoji-only messages (Damir 2026-07-03): big glyphs, meta drops BELOW */
+/* emoji-only messages (Damir 2026-07-03): big glyphs, meta drops BELOW.
+   ★ Session I (#731/#735 "emoji-only = sticker grammar"): NO BUBBLE AT ALL — the glyphs
+   sit on the canvas like a sticker (WA/TG), the meta drops into a small canvas chip so
+   the time stays legible over the pattern. Both directions, both themes: the surface,
+   the hairline, the lift and the tail all go; the row grammar (side, grouping) stays. */
+.c-bubble[data-emoji-only] {
+  background: transparent !important;   /* beats the direction surface rules above (same file, higher specificity) */
+  box-shadow: none !important;
+  padding: 0 var(--spacing-4);
+}
 .c-bubble[data-emoji-only] .c-bubble__text {
   display: block;
-  font-size: 40px;  /* sanctioned: emoji display size, no type token this role */
+  font-size: 44px;  /* sanctioned: emoji display size, no type token this role (was 40 — a sticker reads a step bigger without its bubble) */
   line-height: 1.2;
 }
 .c-bubble[data-emoji-only] .c-bubble__meta {
   float: none;
-  display: flex;
-  justify-content: flex-end;
+  display: inline-flex;
   margin-top: var(--spacing-2);
+  margin-inline-start: auto;
   transform: none;
+  padding: 1px var(--spacing-8);
+  border-radius: var(--radius-full);
+  background: var(--surface-chat-chip);
+  color: var(--text-neutral-02) !important;   /* the chip's ink, not the bubble's (the sent-meta ink is white-ish) */
 }
+.c-bubble[data-emoji-only] .c-bubble__meta .c-status-icon[data-tone="neutral"],
+.c-bubble[data-emoji-only] .c-bubble__meta .c-status-icon[data-tone="delivered"] { color: var(--text-neutral-02); }
+.c-bubble-row[data-direction="sent"] .c-bubble[data-emoji-only] { display: flex; flex-direction: column; align-items: flex-end; }
 
 /* —— reply quote (batch 3b, §8-gated #25): identity-hue bar + compact excerpt.
    Received: hue inks (sender-label recipe); sent: hue fails on primary-600 →
@@ -1045,10 +1143,11 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   align-items: center;
   gap: var(--spacing-2);
   margin-inline-start: var(--spacing-8);
-  margin-top: var(--spacing-8);
+  margin-top: var(--bubble-meta-margin-top);   /* Session I dial (was --spacing-8): must stay ≤ line-height − meta line-height, or the tail grows the bubble */
   transform: translateY(2px); /* optical baseline alignment with the text */
-  font-size: var(--font-size-body-xs);
-  line-height: var(--line-height-body-xs);
+  font-size: var(--bubble-meta-size);          /* Session I (Damir: "reduce the timestamp"); was --font-size-body-xs */
+  line-height: var(--bubble-meta-line-height); /* was --line-height-body-xs */
+  font-weight: var(--bubble-meta-weight);      /* Session I (sheet 1e a′): Medium */
   letter-spacing: var(--tracking-body-xs);
 }
 [dir="rtl"] .c-bubble__meta { float: left; }
@@ -1218,11 +1317,14 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   /* logical props — RTL-correct (audit MAJOR). Block padding split: the composer is
      the chat's bottom-most chrome, so it owns the iOS home-indicator inset
      (edge-to-edge, iOS-1/3/4) — env() = 0 everywhere else. */
-  padding-block-start: var(--spacing-8);
-  padding-block-end: calc(var(--spacing-8) + env(safe-area-inset-bottom, 0px));
-  /* #705: 8 at the start because the leading ⊕ disc supplies the rest of the optical
-     gap — the same reason the trailing edge is 12 beside the send disc. */
-  padding-inline-start: var(--spacing-8);
+  padding-block-start: var(--composer-pad-block);   /* ★ Session I (sheet 5 = B): 6, was spacing-8 */
+  padding-block-end: calc(var(--composer-pad-block) + env(safe-area-inset-bottom, 0px));
+  /* ★ Session I (#735, sheet 5): the ⊕ is INSIDE the pill again — #705's outside-disc is
+     reversed ("more premium", Damir on device), the tray/✕ behaviour is untouched, only the
+     housing moved. So the bar's leading edge is a chrome edge again: 12, like the trailing
+     one beside the send disc. The A2 `data-no-attach` compensation retires with it — the
+     pill's own start padding is what changes when the ⊕ is hidden (below). */
+  padding-inline-start: var(--spacing-12);
   padding-inline-end: var(--spacing-12);
   /* ★ #711 (Damir 2026-08-30): the bar FLOATS. No ground of its own and no hairline —
      the canvas (gradient + pattern) runs on behind it and the pill, the ⊕ and the send
@@ -1317,7 +1419,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   box-shadow: var(--elevation-1);                                    /* #711: a soft lift off the pattern */
   border-radius: var(--radius-24);
   padding-block: var(--spacing-4);
-  padding-inline: var(--spacing-12);  /* #705: symmetric — nothing lives inside the pill but the text */
+  padding-inline: var(--spacing-12);
+  padding-inline-start: calc(var(--composer-attach-size) + var(--spacing-8));   /* ★ Session I: room for the ⊕ inside the pill */
+  position: relative;                                                          /* the ⊕ anchors to the pill */
   transition: box-shadow var(--duration-100) var(--easing-standard);
 }
 /* #265 (Damir ⑩, supersedes Q10b): NO focus ring on the composer at all, BOTH
@@ -1336,15 +1440,27 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    the hiding must never be able to disagree, so this rule has no predicate of its
    own — it renders whatever `syncAttachAffordance` decided. A host that always shows
    the disc never sets the attribute and is byte-identical to before. */
-.c-composer[data-no-attach] { padding-inline-start: var(--spacing-16); }
+/* ★ Session I: with the ⊕ inside the pill, hiding it means the PILL's start padding goes
+   back to the symmetric 12 — the bar edge no longer moves. The attribute is still written
+   by syncAttachAffordance; only what it does changed. */
+.c-composer[data-no-attach] .c-composer__field { padding-inline-start: var(--spacing-12); }
 
 .c-composer__attach {
   flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--size-target-min);  /* #705: the same 44 disc as the send action */
-  height: var(--size-target-min);
+  /* ★ Session I (sheet 5): a 36 disc INSIDE the pill, bottom-left, with a 44 hit area from
+     the negative-margin padding trick (the visual stays 36, the target stays the floor). */
+  position: absolute;
+  inset-inline-start: var(--spacing-4);
+  inset-block-end: calc(var(--spacing-4) + (var(--line-height-body-md) + 2 * var(--composer-input-pad) - var(--composer-attach-size)) / 2);
+  width: var(--composer-attach-size);
+  height: var(--composer-attach-size);
+  box-sizing: content-box;
+  padding: calc((var(--size-target-min) - var(--composer-attach-size)) / 2);
+  margin: calc(-1 * (var(--size-target-min) - var(--composer-attach-size)) / 2);
+  background-clip: content-box;
   border: 0;
   border-radius: var(--radius-full);
   background: transparent;
@@ -1372,14 +1488,14 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   border: 0;
   background: transparent;
   resize: none;
-  padding: var(--spacing-8) 0;
+  padding: var(--composer-input-pad) 0;   /* ★ Session I (sheet 5 = B): 6, was spacing-8 — the pill goes 50 → 46 */
   font-family: var(--font-secondary);
   font-size: var(--font-size-body-md);
   line-height: var(--line-height-body-md);
   letter-spacing: var(--tracking-body-md);
   color: var(--text-neutral-01);
   outline: none; /* focus is carried by the field, not the caret area */
-  max-height: 136px; /* 5×24 line-height + 16 block padding (border-box) — matches JS cap */
+  max-height: calc(5 * var(--line-height-body-md) + 2 * var(--composer-input-pad)); /* 5 lines + the block padding (border-box) — the JS cap derives the same numbers from computed style */
   /* ★ Session H (Damir, Windows screenshot): past five lines the textarea scrolls, and
      Chromium painted its CLASSIC scrollbar — arrows, track, a 17px column — inside the
      pill. The .u-scroll grammar (#41) applies, minus the reserved gutter: a gutter would
@@ -2180,7 +2296,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 :root[data-desktop] .c-sheet[data-dt-anchor][data-open] { transform: none; }
 /* right-click context menu: rounded on all corners, source row highlighted */
-:root[data-desktop] .c-sheet[data-dt-anchor="menu"] { border-radius: var(--radius-16); min-width: 260px; }
+:root[data-desktop] .c-sheet[data-dt-anchor="menu"] { border-radius: var(--radius-16); min-width: 220px; padding: var(--spacing-8); }   /* ★ Session I (sheet 6 + Damir's Windows walk: "quite substantial") — was min-width 260, padding 12/16/16 */
 /* ★ Batch E (c) (#557, Damir 2026-08-22): #268 STANDS (no wash) and the source
    highlight is RETUNED — the SELECTED tint read as a selection state on the
    right-clicked row. It now rides the #519 press wash (--surface-press-row-hover,
@@ -2277,6 +2393,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-bubble-row[data-direction="received"] .c-reactions[data-placement="overlap"] { inset-inline-start: var(--spacing-8); }
 .c-bubble-row[data-direction="sent"] .c-reactions[data-placement="overlap"] { inset-inline-end: var(--spacing-8); }
 .c-bubble-row[data-reactions="overlap"] { margin-bottom: var(--spacing-16); } /* overhang reserve */
+/* ★ Session I (Damir's walk): on an emoji-only STICKER the meta sits in a chip at the
+   bottom-right — exactly where the overlap pill lands — so the pill covered the time.
+   On a sticker the pill goes to the OTHER bottom corner (inline-start), both directions;
+   the chip stays where it is. (0,5,0) beats the two direction rules above. */
+.c-bubble-row[data-direction] .c-bubble[data-emoji-only] .c-reactions[data-placement="overlap"] { inset-inline-start: 0; inset-inline-end: auto; }
 /* cards lack the bubble's position:relative — overlap needs the anchor */
 .c-bubble-row[data-reactions="overlap"] .c-tcard,
 .c-bubble-row[data-reactions="overlap"] .c-fbubble { position: relative; }
@@ -2569,13 +2690,13 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    Rendered inside c-sheet (overlay.css owns the sheet/scrim); this file owns
    only the menu content: quick-react row + action list. */
 
-.c-msgmenu { display: flex; flex-direction: column; gap: var(--spacing-8); }
+.c-msgmenu { display: flex; flex-direction: column; gap: var(--menu-gap); }   /* ★ Session I (sheet 6): 4, was spacing-8 */
 
 .c-msgmenu__reacts {
   display: flex;
   justify-content: space-between;
   gap: var(--spacing-4);
-  padding: var(--spacing-4) var(--spacing-8) var(--spacing-8);
+  padding: var(--spacing-2) var(--spacing-8) var(--spacing-4);   /* ★ Session I (sheet 6): was 4 / 8 / 8 */
   border-bottom: var(--outline-width-1) solid var(--outline-neutral-01);
 }
 /* ★★ L2 (#641): the delivery detail — a quiet caption, not a control. It sits
@@ -2584,7 +2705,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    and the border below it separates it from the actions the same way. */
 .c-msgmenu__detail {
   margin: 0;
-  padding: 0 var(--spacing-8) var(--spacing-8);
+  padding: 0 var(--spacing-8) var(--spacing-4);   /* ★ Session I (sheet 6): was 8 below */
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
   letter-spacing: var(--tracking-body-sm);
@@ -2593,8 +2714,8 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 
 .c-msgmenu__react {
-  width: var(--size-target-min);
-  height: var(--size-target-min);
+  width: var(--menu-row-h);            /* ★ Session I (sheet 6): 40, was --size-target-min 44 */
+  height: var(--menu-row-h);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2617,8 +2738,8 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-msgmenu__item {
   display: flex;
   align-items: center;
-  gap: var(--spacing-12);
-  min-height: var(--size-target-min); /* §5b: rows ≥ 44px */
+  gap: var(--menu-row-gap);            /* ★ Session I (sheet 6): 10, was spacing-12 */
+  min-height: var(--menu-row-h);       /* ★ Session I (sheet 6): 40 (TG's row), was --size-target-min 44 — §5b's 44 TARGET survives: the rows are stacked edge to edge inside the sheet, so a finger on a 40 row still lands on a 40+ slop of the same list (no gap between rows), and the sheet's own padding closes the ends */
   padding: 0 var(--spacing-8);
   border: 0;
   border-radius: var(--radius-12);
@@ -3217,7 +3338,13 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      #dfe6ee is hue 260° — the ground's own family.
      ⚠ Superseded: #e4ece0 (same day) ← #e8f3ef (E1c) ← var(--surface-neutral-02) (#264)
      ← #dfe8ff (E1b). */
-  background: #dfe6ee;
+  /* ★ Session I (#735③ / sheet 4 = k2): the ground moved to the warm-neutral #EEECEF, and
+     #dfe6ee (hue 260°, the OLD ground's family) would have read as a blue patch on it —
+     the exact #e4ece0 mistake in the other direction. #E4E1E6 is the new ground's own
+     family (a neutral with the ink's whisper of violet), −3.74 ΔL* against it (AUG's
+     relationship, a slightly DARKER card, kept), and still 1.13:1 short of the white
+     incoming bubble so the two never merge. ⚠ Superseded: #dfe6ee (AUG). */
+  background: #E4E1E6;
   /* ⚠ HISTORY, NOT INSTRUCTION (rewritten by the Session F audit). This surface once
      took the same --border-bubble-received hairline the received bubble carries
      (N81 #422/#46), and that hook was later kept as a paint-nothing reversal hook
@@ -3604,6 +3731,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   background: var(--surface-neutral-01);
   color: var(--text-neutral-01);
   font-family: var(--font-secondary);
+  font-weight: var(--chip-weight);   /* ★ Session I (#735 P.S. "filter chip text weight UP") */
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
@@ -3982,8 +4110,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   min-height: 0;                    /* the flex-column scroll rule (#136①) */
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-16);
-  padding: var(--spacing-16) var(--spacing-16) var(--spacing-32);
+  gap: var(--screen-gap);                      /* ★ Session I canon: 12 (was 16) */
+  padding: var(--screen-pad) var(--spacing-16) var(--spacing-32);   /* ★ Session I canon: 12 top (was 16) */
 }
 /* #150①: children of a SCROLLING flex column are shrinkable — overflow:hidden
    (#149①) dropped the payments section's min-height:auto floor to 0, so it
@@ -4031,8 +4159,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--spacing-12);
-  padding-block: var(--spacing-8) var(--spacing-4);
+  gap: var(--spacing-8);                        /* ★ Session I canon: hero tightened (was 12) */
+  padding-block: var(--spacing-4) 0;            /* was 8 / 4 */
   text-align: center;
 }
 
@@ -4214,10 +4342,9 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-8);
-  min-height: 52px;                 /* sanctioned: 44 target + disc breathing room
-                                       (#149② — the notifications card read squeezed;
-                                       settings-row parity) */
+  min-height: var(--row-h-nav);     /* ★ Session I canon: 48 (was 52 — #149② "44 target + disc breathing room"); a switch row takes 56 below */
 }
+.c-chat-info__row[data-row="switch"] { min-height: var(--row-h-switch); }
 /* ★ #591: the ADDRESS ROW — the card became one row that opens the address sheet.
    Two lines in the label column: the disc + title on top, the truncated address below
    it, aligned with the title's TEXT rather than under the disc (the #575 one-left-edge
@@ -4443,7 +4570,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   display: flex;
   align-items: center;
   gap: var(--spacing-12);
-  min-height: 56px;
+  min-height: var(--row-h-member);  /* ★ Session I canon: 56 */
   padding: var(--spacing-4) var(--spacing-4);
   border: 0;
   border-radius: var(--radius-12);
@@ -4715,9 +4842,10 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      names moved to body-lg (14px), and the always-semibold weight made
      addresses read outsized (Damir F5). body-lg regular; the AMOUNT keeps
      label-lg semibold as the row's money emphasis (dial if too loud). */
-  font-size: var(--font-size-body-lg);
+  font-size: var(--tx-name-size);            /* ★ Session I (sheet 2, #735⑦): 15 mobile / 14 desktop — was body-lg */
   line-height: var(--line-height-body-lg);
   letter-spacing: var(--tracking-body-lg);
+  font-weight: var(--tx-name-weight);        /* ★ Session I: semibold — #277's regular reversed on Damir's ruling */
   color: var(--text-neutral-01);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -5565,7 +5693,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      the notice rises like a normal bubble. When the log overflows the auto-
      margins collapse to 0 → notice pins to the top of history, log scrolls,
      newest at the bottom (Damir 2026-07-07). */
-  #messages { flex: 1; min-height: 0; padding-bottom: var(--spacing-4); display: flex; flex-direction: column; }
+  #messages { flex: 1; min-height: 0; padding-bottom: calc(var(--composer-h, 0px) + var(--spacing-4)); display: flex; flex-direction: column; }   /* ★ Session I: + the floating composer's height (published by the ResizeObserver) so the log passes UNDER the pill */
   #messages > .c-sysnotice { margin-top: auto; margin-bottom: auto; }
   /* A3 (#302): unread-elsewhere dot on the chat topbar back button. #48 grammar
      (error surface + a 2px ring in the HOST surface so it reads on any background) at
@@ -5602,7 +5730,21 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   /* #43: every hover lives inside the hover-capable guard */
   @media (hover: hover) and (pointer: fine) { .chat-older__btn:not(:disabled):hover { background: var(--surface-interactive-hover, var(--surface-card)); } } /* #334 AND-18 guard */
   .chat-older__btn:disabled { cursor: default; color: var(--text-neutral-02); }
-  #chat-composer { flex: none; }
+  /* ★★ Session I (#731/#735, sheet 5 — Damir: "the composer must TRULY float, messages
+     pass under the pill"; his screenshot: the log ended above it). #711 made the bar
+     paint as three floating shapes but left it IN THE FLOW, so the log still stopped at
+     its top edge. The slot is absolutely positioned at the canvas bottom now (the canvas
+     is position:relative — message-bubble.css), and the log takes the published
+     --composer-h as bottom padding, so the last bubble scrolls up out from under the
+     pill and the pattern runs behind it. Everything that composed with the slot keeps
+     composing: the --kb-inset margin lifts an absolute box exactly as it lifted a flex
+     one; the tray mounts INSIDE the slot after the bar and the ResizeObserver republishes
+     the taller height; the request pane only exists in the 'incoming' lock, where the
+     composer is hidden; the chevron + @ FAB already offset by --composer-h. The 760
+     desktop column centres the slot with max-width + auto margins (align-self cannot
+     reach an absolute box). ⚠ NO stacking-context property on the slot or the canvas —
+     the message-menu row lift rule (message-menu.css) still holds. */
+  #chat-composer { position: absolute; inset-inline: 0; inset-block-end: 0; }   /* the log's matching padding rides the #messages rule above */
   /* ★ #711: the @ FAB sits ABOVE the floating composer — --composer-h is written on the
      canvas by a ResizeObserver over #chat-composer (the chevron reads it in
      scroll-latest.css). Falls back to 0 where nothing writes it. */
@@ -5656,7 +5798,19 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      · The composer slot (and the request pane that docks in the same slot) centres
        at the same 760 so the pill's edge tracks the bubbles' edge. */
   :root[data-desktop] .messages { padding-inline: max(0px, calc((100% - 760px) / 2)); }
-  :root[data-desktop] #chat-composer,
+  /* ★ Session I (Damir 2026-09-02, Windows): "the unread bar is cut off on both sides" —
+     the strip is a #messages child, so it centred INSIDE the 760 column and its two
+     hairlines + tint stopped dead at the gutters. Ruled FULL PANE, edge to edge. The
+     child cannot see the scroller's 100%, but on desktop the scroller IS the pane:
+     body is margin 0 / overflow hidden and .c-chat-canvas fills it, so 100vw == the
+     .messages containing width and this term equals the padding term above to the
+     pixel. The negative margin pulls the strip back over both gutters; the 6px
+     scrollbar gutter (base.css .u-scroll) stays outside, so the strip runs from the
+     pane edge to the scrollbar edge and its text stays centred on the column.
+     Inert below 760px (max floors at 0), phones untouched. Pinned to the .messages
+     term: the two 760 literals must move together. */
+  :root[data-desktop] .c-unread-divider { margin-inline: calc(-1 * max(0px, (100vw - 760px) / 2)); }
+  :root[data-desktop] #chat-composer { max-width: 760px; margin-inline: auto; }   /* ★ Session I: the slot is absolute now — insets 0 + max-width + auto margins centre it */
   :root[data-desktop] .chat-request-pane { width: 100%; max-width: 760px; align-self: center; }
   :root[data-desktop] .c-scroll-latest,
   :root[data-desktop] .chat-mention-fab {
@@ -5884,6 +6038,10 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
          registers "devMode" with addCustomString at boot, so it resolves in EVERY
          generated document, not only index.html. Gates the load probe below. -->
     <span id="sl-devmode">*SL{devMode}</span>
+    <!-- ★ Session I: the DEVICE 12/24-hour setting ("h23" / "h12"), registered by HomePage
+         at boot (Utils.deviceHourCycle) — the shell boot below copies it onto <html
+         data-hour-cycle> and every time format (timestamp.js timeOpts) follows it. -->
+    <span id="sl-hourcycle">*SL{hourCycle}</span>
     <span id="sl-payment-received">*SL{chat-payment-received}</span>
     <span id="sl-payment-request-received">*SL{chat-payment-request-received}</span>
     <span id="sl-payment-request-sent">*SL{chat-payment-request-sent}</span>
@@ -5898,6 +6056,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     <span id="sl-waiting-response">*SL{chat-waiting-for-response}</span>
     <span id="sl-online">*SL{chat-online}</span>
   </div>
+  <script>(function(){var e=document.getElementById('sl-hourcycle');var t=e?e.textContent.trim():'';if(t==='h23'||t==='h12')document.documentElement.dataset.hourCycle=t;})();</script>
   <div id="chat-topbar"></div>
   <div class="c-chat-canvas">
     <!-- tabindex: keyboard users must be able to scroll text-only history -->
@@ -10065,11 +10224,31 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       bursting = false;
       clearTimeout(burstSafety);
       endLoadPhase();                      // A3: the open stream is over — spend the one-shot boundary chance
+      /* ★ Session I ② [CDPERF] — TEMPORARY, the chat-OPEN stutter instrument (#735, Damir on
+         Release: "subtle stutter, like a game on a bad computer"). ONE console.info line per
+         open, read off logcat under the `chromium` tag (Android WebView forwards console
+         messages; nothing crosses the bridge, no verb): n = rows the burst delivered ·
+         burst = clearMessages → this handler (the per-row EvaluateJavaScriptAsync replay,
+         wall time) · paint = renderLogNow (the whole history built + swapped, sync, on the
+         UI thread — Android WebView runs layout on the app's main thread) · glass = to the
+         second rAF after (the log is on screen). C#'s [CDPERF] chat lines (onload → drain →
+         present → frames) sit beside these on the same timeline. Retire the set together
+         once the L10-shape fix is measured (grep CDPERF). Fixed words + integers only. */
+      const cdBurst = loadProbe.cur;
+      const cdT0 = performance.now();
       renderLogNow();
+      const cdPaint = Math.round(performance.now() - cdT0);
       box.scrollTop = box.scrollHeight;
       bootRepin(2000);                     // #334 iOS-62: hold the bottom through late bubble growth (abortable)
       maybeRestoreDraft();                 // fallback if onChatScreenReady didn't carry the address
       focusComposer();
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        try {
+          console.info('[CDPERF] chat-shell n=' + (cdBurst ? cdBurst.n : 0)
+            + ' burst=' + (cdBurst ? Math.round(cdT0 - cdBurst.start) : 0)
+            + 'ms paint=' + cdPaint + 'ms glass=' + Math.round(performance.now() - cdT0) + 'ms');
+        } catch (e) {}
+      }));
       dbg('onChatScreenLoaded');
     },
 
@@ -11092,11 +11271,34 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    * keyboard over the fresh conversation; on desktop (physical keyboard, #228
    * flag) the caret is free. Called from onChatScreenLoaded; guarded so a
    * missing input or a non-focusable state (e.g. a modal open) never throws. */
+  /* ★ Session I (#733①, Damir: "caret active on chat entry — caret WITHOUT the keyboard,
+     same as WhatsApp and TG"). Desktop keeps the #252 Q10 autofocus as-is. MOBILE: the
+     field is focused with inputmode=none so the caret shows and NO soft keyboard rises;
+     the first real tap on the field swaps inputmode back to text and refocuses, and the
+     keyboard rises then (once, latched — after that the field behaves as it always did).
+     The #303 --kb-inset levers are untouched: with inputmode=none no keyboard exists, so
+     visualViewport never shrinks and nothing lifts. ⚠ #215: inputmode=none behaves
+     differently per engine (Android WebView honours it; WKWebView honours it since
+     iOS 13) — this is a walk row on BOTH devices before it is called done. */
+  let caretArmed = false;
   function focusComposer() {
-    if (!document.documentElement.hasAttribute('data-desktop')) return;
     try {
       const input = composerEl && composerEl.querySelector('.c-composer__input');
-      if (input) input.focus();
+      if (!input) return;
+      if (document.documentElement.hasAttribute('data-desktop')) { input.focus(); return; }
+      if (caretArmed) return;
+      caretArmed = true;
+      input.setAttribute('inputmode', 'none');
+      const arm = () => {
+        input.setAttribute('inputmode', 'text');
+        input.removeEventListener('pointerdown', arm);
+        input.removeEventListener('touchstart', arm);
+        // re-focus AFTER the attribute flip so the engine re-evaluates the keyboard
+        setTimeout(() => { try { input.blur(); input.focus(); } catch (_) {} }, 0);
+      };
+      input.addEventListener('pointerdown', arm, { passive: true });
+      input.addEventListener('touchstart', arm, { passive: true });
+      input.focus({ preventScroll: true });
     } catch (_) {}
   }
 

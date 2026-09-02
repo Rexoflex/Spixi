@@ -15,8 +15,20 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { bakeLegalDocs, describeLegalDocs } from './lib/legal-docs.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+/* ★ #733 — the legal documents are BAKED before the bundle reads its sources, every
+ * build, so src/components/legal-docs.js can never be stale relative to docs/legal
+ * (the hand-written summaries it replaced drifted from the policy within a month).
+ * A HELD document (editorial marker still in the markdown) is a 🟡 line, not a failure:
+ * launch-shell keeps its honest summary for that document until the marker is gone. */
+{
+  const { docs, source } = bakeLegalDocs(root);
+  writeFileSync(join(root, 'src/components/legal-docs.js'), source);
+  console.log(describeLegalDocs(docs));
+}
 const FILES = [
   'src/components/strings-runtime.js', // Phase 3 #3: getStrings/setStrings — window.SL default source, before every consumer
   'src/components/theme-runtime.js', // ★ N71 (#421): applyPushedTheme — the one live setTheme body, no deps (L5 retired ignorePushedTheme with its last two callers)
@@ -99,6 +111,7 @@ const FILES = [
   'src/components/settings-backup.js',
   'src/components/settings-screens.js', // #147: chat appearance · privacy · notifications · security tiers
   'src/components/settings-app.js',     // §9b: downloads · dev log · contributors (imports settingsConfirm from settings-shell)
+  'src/components/legal-docs.js',       // ★ #733: GENERATED from docs/legal (baked above) — before launch-shell, its one consumer
   'src/components/launch-shell.js',     // Phase 1 #5: welcome/create/restore/retry/tail (imports passwordField + ENC_MIN from lock-shell — must follow it)
   'src/components/backup-nudge.js',     // periodic backup prompt (legacy #backup-prompt parity, Damir 2026-07-06)
   'src/components/rating-nudge.js',     // rate-app prompt (legacy #ratingModal replacement — showRatingPrompt mirror)

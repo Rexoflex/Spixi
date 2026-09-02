@@ -349,6 +349,7 @@
    * showRemoveAvatar(conditional) · loadAvatar · setVersion (S4) · setAddress (S1) ·
    * setLanguage (S3). It does NOT push backup status — that row degrades (BE gap S2). */
   const state = {
+    devSeed: null,               // ★ Session I ②: { status } once setDevSeed lands (dev builds only)
     name: '', savedName: '',
     address: '',                 // S1: setAddress push → QR/address block
     theme: 0,                    // ThemeAppearance: 0 automatic · 1 light · 2 dark (ThemeManager.cs:9)
@@ -480,7 +481,7 @@
     // mobile Default (1). Mirrors chat.html's pre-paint boot read so the
     // Chat-appearance swatch pre-selects what the chat actually shows.
     const desktop = document.documentElement.hasAttribute('data-desktop');
-    let pattern = desktop ? 0 : 1, textScale = 1;   // · scale M
+    let pattern = 1, textScale = 1;   // · scale M  ★ Session I (#735③): pattern default-ON in light on EVERY platform (was desktop ? 0 : 1)
     // E1 (#690): the STYLE default is DOODLES. 'flow' is desktop-only, so a stored
     // 'flow' on mobile reads back as doodles, exactly what chat.html's pre-paint
     // script applies. ⚠ This said "line art" — the pre-E1 default — until the Session F
@@ -491,7 +492,7 @@
        on 'flat'. THIS IS THE THIRD LADDER (#690): chat.html's pre-paint script and its
        live re-resolve are the other two, and all three must agree or the picker shows a
        selection the chat does not have. */
-    let chatGround = desktop ? 'flat' : 'gradient';   // ★ AUG: platform-aware, mirrors chat.html
+    let chatGround = 'gradient';   // ★ Session I (#735③): gradient default-ON on every platform (was desktop ? 'flat' : 'gradient'), mirrors chat.html
     try {
       pattern = readPatternLevel(localStorage.getItem(CHAT_PREFS.pattern), pattern);   // ★ N81 (#422)
       const t = parseFloat(localStorage.getItem(CHAT_PREFS.textScale));
@@ -570,7 +571,17 @@
       syncSave();          // no renderLayout: the next real interaction repaints
     }, EXIT_HEAL_MS);
   }
-  function exitSettings() {
+  /* ★ Session I — L14 COVER HANDSHAKE (#731's measured 56/88 ms way-in flash).
+     `reason === 'handoff'` is the Account → Contacts route: the shell has just written
+     the spixi.landtab hand-off and home.html is about to mount the directory cover.
+     [PAINTDIAG] measured that C# tore this pane down 20–50 ms into a 104–109 ms cover
+     build, so the chat list showed through the gap. This route now leaves with
+     `ixian:handoff` instead of `ixian:back`: SettingsPage runs the identical cleanup
+     but DEFERS the pop until HomePage hears `ixian:coverpainted` from home.html (the
+     cover's second rAF — on glass), with a 400 ms backstop (#326's completes-never
+     grammar). A DIRTY exit still saves-and-pops at once (`ixian:save:` is unchanged):
+     the save is the binding action and the rarer path. */
+  function exitSettings(reason) {
     if (exitSent) return;          // the verb gate — never healed
     exitSent = true;
     exiting = true;
@@ -588,7 +599,7 @@
     // would still be there on the next visit. Safe when nothing is open.
     try { closeAddressSheet(); } catch (e) {}
     const dirty = state.dirtyNick || state.dirtyAvatar || state.dirtyLock;
-    bridge.send(dirty ? 'ixian:save:' + state.name : 'ixian:back');
+    bridge.send(dirty ? 'ixian:save:' + state.name : (reason === 'handoff' ? 'ixian:handoff' : 'ixian:back'));
   }
   // Explicit Save (topbar check): persist + pop, exactly ONCE, with NO success morph —
   // the C# page pop IS the confirmation (a morph would flash before the teardown).
@@ -923,7 +934,7 @@
          The write is a fixed keyword and a timestamp: no user data, no new key. */
       onContacts: () => {
         try { localStorage.setItem('spixi.landtab', 'contacts:' + Date.now()); } catch (e) {}
-        exitSettings();
+        exitSettings('handoff');   // ★ Session I: the pane closes ON the painted cover, not before it
       },
 
       /* ★ #443, refolded by ★ Batch E (d) (#557): "What is this address?" opens the
@@ -1308,6 +1319,13 @@
       case 'about': return createSettingsAbout({
         version: appVersion, host: document.body, strings,
         onOpenLink: openExternal,     // iOS-21
+        /* ★ Session I ②: the DEV-BUILD seed harness card — only after C# pushed setDevSeed
+           (SettingsPage, `#if SPIXI_DEV_COEXIST`). A store build never pushes it. */
+        devSeed: state.devSeed ? {
+          status: state.devSeed.status,
+          onSeed: () => bridge.send('ixian:devseed'),
+          onUnseed: () => bridge.send('ixian:devunseed'),
+        } : undefined,
         onBack: showHub,
       });
       case 'howto': return createSettingsHowTo({
@@ -1629,6 +1647,12 @@
 
     // setNickname(nick) — SettingsPage.onLoad:43
     setNickname(nick) { state.name = nick || ''; state.savedName = state.name; state.dirtyNick = false; scheduleRebuild(); },
+
+    /* ★ Session I ②: setDevSeed(status) — SettingsPage pushes it ONLY under
+       `#if SPIXI_DEV_COEXIST` (onLoad, and again after every seed/unseed with the
+       result). The About screen renders the harness card while this is set. The status
+       is a fixed English sentence from C# (dev-only, #301 precedent), rendered verbatim. */
+    setDevSeed(status) { state.devSeed = { status: String(status || '') }; scheduleRebuild(); },
 
     /* ★ N71 (#421): the live re-theme push. Two jobs, and the second is the one
      * that is easy to miss. (a) apply the swap, shared body (theme-runtime.js).

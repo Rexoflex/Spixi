@@ -770,9 +770,14 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    ('accent', 'info', …) and these are indices. */
 
 .c-avatar[data-hue="0"], .c-idhue[data-hue="0"]  { --av-c1: hsl(0, 62%, 52%);   --av-c2: hsl(25, 58%, 42%);  }
-.c-avatar[data-hue="1"], .c-idhue[data-hue="1"]  { --av-c1: hsl(22, 62%, 43%);  --av-c2: hsl(47, 58%, 33%);  }
-.c-avatar[data-hue="2"], .c-idhue[data-hue="2"]  { --av-c1: hsl(40, 62%, 35%);  --av-c2: hsl(65, 58%, 25%);  }
-.c-avatar[data-hue="3"], .c-idhue[data-hue="3"]  { --av-c1: hsl(95, 62%, 31%);  --av-c2: hsl(120, 58%, 21%); }
+/* ★ Session I (sheet 2b = D; Damir #735: "our avatars seem a bit off"): the three MUDDY
+   anchors re-tuned — 1 was olive-brown, 2 brown, 3 a dull green; they now read orange,
+   amber and a lifted green (TG's set has no browns). Every stop still ≥ 4.5:1 under
+   white ink, measured: 1 → #c35118 4.66 / #a5381d 6.60 · 2 → #ae6113 4.65 / #974e17
+   6.14 · 3 → #458226 4.69 / #216327 7.29. Reversal values ride in the trailing comment. */
+.c-avatar[data-hue="1"], .c-idhue[data-hue="1"]  { --av-c1: hsl(20, 78%, 43%);  --av-c2: hsl(12, 70%, 38%);  } /* was hsl(22,62%,43%) / hsl(47,58%,33%) */
+.c-avatar[data-hue="2"], .c-idhue[data-hue="2"]  { --av-c1: hsl(30, 80%, 38%);  --av-c2: hsl(26, 74%, 34%);  } /* was hsl(40,62%,35%) / hsl(65,58%,25%) */
+.c-avatar[data-hue="3"], .c-idhue[data-hue="3"]  { --av-c1: hsl(100, 55%, 33%); --av-c2: hsl(125, 50%, 26%); } /* was hsl(95,62%,31%) / hsl(120,58%,21%) */
 .c-avatar[data-hue="4"], .c-idhue[data-hue="4"]  { --av-c1: hsl(135, 62%, 32%); --av-c2: hsl(160, 58%, 22%); }
 .c-avatar[data-hue="5"], .c-idhue[data-hue="5"]  { --av-c1: hsl(165, 62%, 31%); --av-c2: hsl(190, 58%, 21%); }
 .c-avatar[data-hue="6"], .c-idhue[data-hue="6"]  { --av-c1: hsl(190, 62%, 35%); --av-c2: hsl(215, 58%, 25%); }
@@ -816,13 +821,30 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    Figma mirror); this pins the initials scale and the hero-scale presence dot. */
 .c-avatar[data-size="64"] .c-avatar__initials { font-size: 24px; }
 .c-avatar[data-size="64"] .c-avatar__dot { width: 16px; height: 16px; }
+/* ★ Session I (sheet 2b = D): the HEROES had no initials rule at all — chat info, contact
+   details and Account render at 80, the launch avatar at 96, and every one of them fell
+   through to the base font-size, so a hero disc carried a list-sized letter. That was
+   a visible part of "our avatars seem a bit off". 0.375× (the 48 → 18 ratio). */
+.c-avatar[data-size="80"] .c-avatar__initials { font-size: 30px; }
+.c-avatar[data-size="80"] .c-avatar__dot { width: 18px; height: 18px; }
+.c-avatar[data-size="96"] .c-avatar__initials { font-size: 36px; }
+.c-avatar[data-size="96"] .c-avatar__dot { width: 20px; height: 20px; }
 
 .c-avatar[data-placeholder] {
   /* Fallbacks = anchor 7 (blue): a stale bundle that never stamps data-hue
-     still paints a legible gradient instead of a transparent disc. */
-  background-image: linear-gradient(135deg,
-    var(--av-c1, hsl(215, 62%, 50%)),
-    var(--av-c2, hsl(240, 58%, 40%)));
+     still paints a legible gradient instead of a transparent disc.
+     ★ Session I (sheet 2b = D): TG-like DEPTH — a soft white highlight at the top-left
+     over the pair gradient (160°, was 135°). MEASURED against the #364 floor: the veil
+     is 22% at its centre and gone by half the radius, so at the disc centre — where
+     the initials sit — it is ≈ 5%, and the lightest re-tuned stop (#c35118, 4.66:1)
+     still clears 4.4:1 there under white ink; the 18px+ semibold initials are WCAG
+     large text (3:1 floor). The sheet's 28%/55% draft veiled the centre to ≈ 13% and
+     failed that arithmetic, so it was dialled down before shipping. */
+  background-image:
+    radial-gradient(100% 100% at 28% 18%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 50%),
+    linear-gradient(160deg,
+      var(--av-c1, hsl(215, 62%, 50%)),
+      var(--av-c2, hsl(240, 58%, 40%)));
 }
 
 .c-avatar__img {
@@ -864,7 +886,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   align-items: center;
   gap: var(--spacing-12);
   width: 100%;
-  padding: var(--spacing-12);
+  padding: var(--row-pad-y) var(--spacing-12);   /* ★ Session I (sheet 2): 11 on mobile, 12 desktop — was spacing-12 all round */
   border: 0;
   background: transparent;
   cursor: pointer;
@@ -920,15 +942,16 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 }
 
 .c-chatlist-item__name {
-  font-size: var(--font-size-body-lg);
-  line-height: var(--line-height-body-lg);
+  font-size: var(--row-name-size);           /* ★ Session I (sheet 2): 17 mobile / 14 desktop — was body-lg */
+  line-height: var(--row-name-line-height);
   letter-spacing: var(--tracking-body-lg);
+  font-weight: var(--row-name-weight);       /* ★ Session I: semibold at rest (#735⑤/⑦ "names +1–2 weights") */
   color: var(--text-neutral-01);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.c-chatlist-item[data-unread] .c-chatlist-item__name { font-weight: var(--font-weight-semibold); }
+.c-chatlist-item[data-unread] .c-chatlist-item__name { font-weight: var(--row-name-weight-unread); }   /* ★ Session I: bold when unread (was semibold) */
 
 .c-chatlist-item__right {
   display: flex;
@@ -1025,9 +1048,20 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 /* ★★ AUG (Damir 2026-08-30): the "you are now connected with X" tail reads in the ACTION
    colour so a brand-new contact stands out in the list. Same treatment the request rows
    already carry — one grammar for "something happened with this contact", not a third. */
-.c-excerpt[data-type="connected"] .c-excerpt__text { color: var(--text-action-default); }
+.c-excerpt[data-type="connected"] .c-excerpt__text,
+/* ★ Session I (#731/#735 "blue event-excerpt canon" — Damir on device): the SPECIFIC
+   excerpts — file sent · reacted · app invite · connected — paint in the action colour
+   like the connected line, ONE list, one tint. Payments keep their own money tint,
+   calls their own (missed = error); plain text stays neutral. "X left the group" joins
+   this list only once #215 has verified on device that a leave emits a message at all. */
+.c-excerpt[data-type="file"] .c-excerpt__text,
+.c-excerpt[data-type="reaction"] .c-excerpt__text,
+.c-excerpt[data-type="app-invite"] .c-excerpt__text { color: var(--text-action-default); }
 .c-excerpt[data-type="request"] svg,
-.c-excerpt[data-type="request-done"] svg { color: var(--icon-action-default); }
+.c-excerpt[data-type="request-done"] svg,
+.c-excerpt[data-type="file"] svg,
+.c-excerpt[data-type="reaction"] svg,
+.c-excerpt[data-type="app-invite"] svg { color: var(--icon-action-default); }
 .c-excerpt[data-type="call-missed"] { color: var(--text-error); }
 .c-excerpt[data-type="call-missed"] svg { color: var(--icon-error); }
 /* ★ #602 (row 16): DECLINED reads in the ordinary excerpt ink, not the missed-call red.
@@ -1066,6 +1100,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   background: var(--surface-neutral-01);
   color: var(--text-neutral-01);
   font-family: var(--font-secondary);
+  font-weight: var(--chip-weight);   /* ★ Session I (#735 P.S. "filter chip text weight UP") */
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
@@ -1563,7 +1598,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 :root[data-desktop] .c-sheet[data-dt-anchor][data-open] { transform: none; }
 /* right-click context menu: rounded on all corners, source row highlighted */
-:root[data-desktop] .c-sheet[data-dt-anchor="menu"] { border-radius: var(--radius-16); min-width: 260px; }
+:root[data-desktop] .c-sheet[data-dt-anchor="menu"] { border-radius: var(--radius-16); min-width: 220px; padding: var(--spacing-8); }   /* ★ Session I (sheet 6 + Damir's Windows walk: "quite substantial") — was min-width 260, padding 12/16/16 */
 /* ★ Batch E (c) (#557, Damir 2026-08-22): #268 STANDS (no wash) and the source
    highlight is RETUNED — the SELECTED tint read as a selection state on the
    right-clicked row. It now rides the #519 press wash (--surface-press-row-hover,
@@ -1711,13 +1746,13 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    Rendered inside c-sheet (overlay.css owns the sheet/scrim); this file owns
    only the menu content: quick-react row + action list. */
 
-.c-msgmenu { display: flex; flex-direction: column; gap: var(--spacing-8); }
+.c-msgmenu { display: flex; flex-direction: column; gap: var(--menu-gap); }   /* ★ Session I (sheet 6): 4, was spacing-8 */
 
 .c-msgmenu__reacts {
   display: flex;
   justify-content: space-between;
   gap: var(--spacing-4);
-  padding: var(--spacing-4) var(--spacing-8) var(--spacing-8);
+  padding: var(--spacing-2) var(--spacing-8) var(--spacing-4);   /* ★ Session I (sheet 6): was 4 / 8 / 8 */
   border-bottom: var(--outline-width-1) solid var(--outline-neutral-01);
 }
 /* ★★ L2 (#641): the delivery detail — a quiet caption, not a control. It sits
@@ -1726,7 +1761,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    and the border below it separates it from the actions the same way. */
 .c-msgmenu__detail {
   margin: 0;
-  padding: 0 var(--spacing-8) var(--spacing-8);
+  padding: 0 var(--spacing-8) var(--spacing-4);   /* ★ Session I (sheet 6): was 8 below */
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
   letter-spacing: var(--tracking-body-sm);
@@ -1735,8 +1770,8 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 
 .c-msgmenu__react {
-  width: var(--size-target-min);
-  height: var(--size-target-min);
+  width: var(--menu-row-h);            /* ★ Session I (sheet 6): 40, was --size-target-min 44 */
+  height: var(--menu-row-h);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1759,8 +1794,8 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-msgmenu__item {
   display: flex;
   align-items: center;
-  gap: var(--spacing-12);
-  min-height: var(--size-target-min); /* §5b: rows ≥ 44px */
+  gap: var(--menu-row-gap);            /* ★ Session I (sheet 6): 10, was spacing-12 */
+  min-height: var(--menu-row-h);       /* ★ Session I (sheet 6): 40 (TG's row), was --size-target-min 44 — §5b's 44 TARGET survives: the rows are stacked edge to edge inside the sheet, so a finger on a 40 row still lands on a 40+ slop of the same list (no gap between rows), and the sheet's own padding closes the ends */
   padding: 0 var(--spacing-8);
   border: 0;
   border-radius: var(--radius-12);
@@ -3146,10 +3181,15 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   background: var(--subslide-ground, var(--surface-screen));   /* opaque: the covered view must not show through */
   display: flex;
   flex-direction: column;
-  will-change: transform;
-  --subslide-from: 100%;                             /* LTR: from the trailing (right) edge */
+  will-change: transform, opacity;
+  /* ★ Session I — THE HYBRID (Damir's A1 note, ruled 2026-09-02): slide + fade. The travel
+     is 40% of the width, not 100%, and opacity rides the same clock — fewer pixels per
+     frame at the same duration reads smoother on a dropped frame. ALL or NONE: the
+     native overlay slide (SpixiContentPage SlideTravel = 0.4, TranslateTo + FadeTo on one
+     clock) carries the same numbers, and a smoke pin holds the two equal. */
+  --subslide-from: 40%;                              /* LTR: from the trailing (right) edge, 40% travel */
 }
-html[dir="rtl"] .c-subslide { --subslide-from: -100%; }
+html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
 .c-subslide--viewport { position: fixed; inset: 0; }        /* covers the whole page, bars included — the settled layout of a sublevel */
 .c-subslide-host { position: relative; }
 .c-subslide--host { position: absolute; inset: 0; }          /* inside one host (the launch views) */
@@ -3161,8 +3201,8 @@ html[dir="rtl"] .c-subslide { --subslide-from: -100%; }
 .c-subslide--in  { animation: c-subslide-in  var(--duration-300) var(--easing-standard) both; }
 .c-subslide--out { animation: c-subslide-out 220ms var(--easing-accelerate) both; pointer-events: none; }
 
-@keyframes c-subslide-in  { from { transform: translateX(var(--subslide-from)); } to { transform: none; } }
-@keyframes c-subslide-out { from { transform: none; } to { transform: translateX(var(--subslide-from)); } }
+@keyframes c-subslide-in  { from { transform: translateX(var(--subslide-from)); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes c-subslide-out { from { transform: none; opacity: 1; } to { transform: translateX(var(--subslide-from)); opacity: 0; } }
 
 /* #704: desktop — only chat info slides (natively). Every in-shell view swaps at once. */
 :root[data-desktop] .c-subslide--in,
@@ -3249,9 +3289,10 @@ html[dir="rtl"] .c-subslide { --subslide-from: -100%; }
      names moved to body-lg (14px), and the always-semibold weight made
      addresses read outsized (Damir F5). body-lg regular; the AMOUNT keeps
      label-lg semibold as the row's money emphasis (dial if too loud). */
-  font-size: var(--font-size-body-lg);
+  font-size: var(--tx-name-size);            /* ★ Session I (sheet 2, #735⑦): 15 mobile / 14 desktop — was body-lg */
   line-height: var(--line-height-body-lg);
   letter-spacing: var(--tracking-body-lg);
+  font-weight: var(--tx-name-weight);        /* ★ Session I: semibold — #277's regular reversed on Damir's ruling */
   color: var(--text-neutral-01);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -5133,6 +5174,10 @@ html[dir="rtl"] .c-subslide { --subslide-from: -100%; }
        connectivity check below is locale-proof; browser preview leaves them raw →
        the JS reader falls back to en-us. ⚠ #248: markers must stay same-line-closed. -->
   <div id="sl-carriers" hidden aria-hidden="true">
+    <!-- ★ Session I: the DEVICE 12/24-hour setting ("h23" / "h12"), registered by HomePage
+         at boot (Utils.deviceHourCycle) — the shell boot below copies it onto <html
+         data-hour-cycle> and every time format (timestamp.js timeOpts) follows it. -->
+    <span id="sl-hourcycle">*SL{hourCycle}</span>
     <span id="sl-connecting-s2">*SL{global-connecting-s2}</span>
     <span id="sl-connecting-dlt">*SL{global-connecting-dlt}</span>
     <span id="sl-waiting-response">*SL{chat-waiting-for-response}</span>
@@ -5164,6 +5209,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -100%; }
          preview leaves it raw → treated as false. -->
     <span id="sl-devmode">*SL{devMode}</span>
   </div>
+  <script>(function(){var e=document.getElementById('sl-hourcycle');var t=e?e.textContent.trim():'';if(t==='h23'||t==='h12')document.documentElement.dataset.hourCycle=t;})();</script>
   <!-- tab1: chats -->
   <div class="view" id="chats-view">
     <div id="chats-topbar"></div>
@@ -6028,18 +6074,14 @@ html[dir="rtl"] .c-subslide { --subslide-from: -100%; }
           contactsView = null; syncHomeOverlay();         // AND-29
           contactsFromAccount = false;                    // ★ L6: the flag dies with the takeover
           if (reason === 'back' && returnTo === 'account') {
-            const pdb0 = performance.now();   // ★ Session H ③ [PAINTDIAG] — remove with the set
             /* Account is coming BACK, so the highlight is written directly rather than
              * asked for: railTarget() would answer `activeNav` in the window between
              * this close and settings.html re-marking its pane flag, and that window is
              * exactly one visible frame of the wrong tab. */
             setNavActive(nav, 'account');
-            deferToPaint(() => {
-              /* ★ Session H ③ [PAINTDIAG], TEMPORARY: backsend=<ms> — close→the verb leaving.
-                 C#'s [PAINTDIAG re-present] + the reveal complete the way-back timeline. */
-              try { bridge.send('ixian:paintdiag:backsend:' + Math.round(performance.now() - pdb0)); } catch (e) {}
-              bridge.send('ixian:settings');
-            });   // the same deferral the Account tab uses
+            /* ★ Session I: the [PAINTDIAG] backsend stamp retired with its set (#731 measured
+             * the way-back clean: 9→4 ms re-present). The deferral itself stays. */
+            deferToPaint(() => bridge.send('ixian:settings'));   // the same deferral the Account tab uses
             return;
           }
           /* ★ Any OTHER close and the rail stops saying Account, because railTarget()
@@ -6282,14 +6324,18 @@ html[dir="rtl"] .c-subslide { --subslide-from: -100%; }
        * mechanism L14 describes, and the two want ONE fix, in C#, not two guesses.
        * activeNav and the visible view are deliberately untouched: they are what the
        * rail falls back to when the directory closes. */
-      const pd0 = performance.now();   // ★ Session H ③ [PAINTDIAG] — remove with the set
       openContacts('directory', '', { returnTo: 'account' });   // ★ C4: Back returns to Account, never Chats
       syncNav();                                                // ★ L6: …and the rail says so
-      /* ★ Session H ③ [PAINTDIAG], TEMPORARY: the takeover is ON GLASS at the second
-         rAF after the mount — cover=<ms> is consume→painted-cover. C#'s
-         [PAINTDIAG account-closed] line to this one is the visible chat-list flash. */
+      /* ★ Session I — THE L14 COVER HANDSHAKE (the fix the comment above asked for, in C#).
+         [PAINTDIAG] (#727/#731) measured the way-in: this shell consumed the hand-off
+         BEFORE C# hid the Account pane, but the cover took 104–109 ms to reach glass and
+         C# hid the pane 20–50 ms into that build — 56/88 ms of chat list. The probe's
+         `cover` emit is now a REAL VERB: at the second rAF after the mount the takeover
+         is on glass, and `ixian:coverpainted` tells HomePage to release the deferred
+         Account pop (settings.html left with `ixian:handoff`, SettingsPage waits for
+         this, 400 ms backstop). Fixed verb, no payload; harmless when nothing waits. */
       requestAnimationFrame(() => requestAnimationFrame(() => {
-        try { bridge.send('ixian:paintdiag:cover:' + Math.round(performance.now() - pd0)); } catch (e) {}
+        try { bridge.send('ixian:coverpainted'); } catch (e) {}
       }));
       return;
     }
@@ -8280,6 +8326,13 @@ html[dir="rtl"] .c-subslide { --subslide-from: -100%; }
     // had just set one line above, which is the "rail jumps to CHATS" Damir reported.
     // railTarget() answers the same question for every writer.
     onSettingsClosed() { clearAccountPaneFlag(); consumeLandTab('settingsclosed'); syncNav(); },
+    /* ★ Session I (L14 handshake): C# pushes this the moment SettingsPage receives
+       `ixian:handoff` — a DETERMINISTIC consumer for the Account → Contacts hand-off on
+       every platform (WKWebView does not reliably fire cross-WebView storage events, so
+       iOS used to wait for onSettingsClosed, i.e. AFTER the pane was gone). Idempotent:
+       the key is consumed on read, so whichever of storage/handoff runs first mounts
+       the cover and the other finds nothing. */
+    onHandoff() { consumeLandTab('handoff'); },
 
     // Multi-user mini-app launch STARTED ON ANOTHER SURFACE (AppDetailsPage): that
     // page has no contacts roster of its own, so C# hands the target pick back to

@@ -12,11 +12,12 @@
 		</provider>
 		<!-- AND-13 (#334): accent for OneSignal SDK-rendered notifications (background
 		     pushes bypass SPushService.showLocalNotification and its SetColor) —
-		     ARGB hex, no '#', per OneSignal convention. FF3050BD = the brand accent
-		     (logomark fill / tokens.css brand-600), same pick as builder.SetColor.
+		     ARGB hex, no '#', per OneSignal convention. ★ Session I (Damir 2026-09-02):
+		     FF175595 = the LIGHT-MODE SPLASH ground (csproj MauiSplashScreen Color #175595),
+		     same pick as SPushService's builder.SetColor — was FF3050BD, the logomark fill.
 		     The small icon for that path is ic_stat_onesignal_default (now supplied
 		     at all 5 densities). -->
-		<meta-data android:name="com.onesignal.NotificationAccentColor.DEFAULT" android:value="FF3050BD" />
+		<meta-data android:name="com.onesignal.NotificationAccentColor.DEFAULT" android:value="FF175595" />
 		<!-- ★★ #503: the ONLY hook OneSignal gives us for a BACKGROUND or killed-app push.
 		     `WillDisplay` (#493) is a foreground lifecycle listener and never fired for the
 		     case it was written for — the mute, the global master and the one-row-per-chat id

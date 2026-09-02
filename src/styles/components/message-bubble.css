@@ -43,8 +43,8 @@
 .c-bubble-row {
   display: flex;
   align-items: flex-end;
-  padding-inline: var(--spacing-16);
-  margin-top: var(--spacing-12);           /* gap between groups */
+  padding-inline: calc(var(--spacing-16) + var(--bubble-tail));   /* Session I: the tail sits inside the gutter */
+  margin-top: var(--bubble-gap-group);     /* gap between groups (Session I dial; was --spacing-12) */
   /* N36b (#363 candidate, repro gate met 2026-08-17): in select mode the ROW is
      the tap target (N36 made in-bubble controls pointer-dead), and every
      `transparent` in this file sat on SUB-elements — Android painted its native
@@ -56,7 +56,7 @@
   -webkit-tap-highlight-color: transparent;
 }
 .c-bubble-row[data-position="middle"],
-.c-bubble-row[data-position="last"] { margin-top: var(--spacing-2); } /* in-group gap */
+.c-bubble-row[data-position="last"] { margin-top: var(--bubble-gap-inner); } /* in-group gap (Session I dial; was --spacing-2) */
 
 .c-bubble-row[data-direction="sent"] { justify-content: flex-end; }
 
@@ -71,16 +71,22 @@
   position: relative;
   display: flow-root; /* contains the floated __meta (audit: float dropped below the box) */
   max-width: min(var(--bubble-max-pct), var(--layout-bubble-max));
-  padding: var(--spacing-8) var(--spacing-12);
-  border-radius: var(--radius-16);
+  padding: var(--bubble-pad-y) var(--bubble-pad-x);   /* Session I dials (were --spacing-8 / --spacing-12) */
+  border-radius: var(--bubble-radius);                 /* Session I dial (was --radius-16) */
   /* message TEXT scales with the chat-appearance pick (6e.2 closes the #147
      flag): --chat-text-scale (tokens.css, default 1) multiplies the body-md
      role — children that set their own font-size (meta, captions, quotes)
      deliberately do NOT scale, Telegram-style. Line-height rides along so XL
      text doesn't cram. */
   font-size: calc(var(--font-size-body-md) * var(--chat-text-scale, 1));
-  line-height: calc(var(--line-height-body-md) * var(--chat-text-scale, 1));
-  letter-spacing: var(--tracking-body-md);
+  line-height: calc(var(--bubble-line-height) * var(--chat-text-scale, 1));   /* Session I dial (was --line-height-body-md) */
+  letter-spacing: var(--bubble-tracking, var(--tracking-body-md));   /* Session I (sheet 1e a′): Roboto tuned, −0.2px on mobile */
+  /* ★ Session I: the faint lift the references carry (WA/TG ~1px). `none` today; a
+     token flip turns it on. This is a DIFFERENT lever than the #427 hairline (a shadow
+     below vs an outline around) — the hairline rule below stays as its own reversal.
+     The token is a no-op shadow (0 0 0 0 transparent), never `none`: the received rule
+     lists it beside the hairline hook and a list with `none` in it is invalid CSS. */
+  box-shadow: var(--bubble-elevation);
   overflow-wrap: break-word;
   word-break: break-word;
 }
@@ -102,7 +108,7 @@
      pixel read 1.281:1 against the #0f1115 ground versus the bubble's own 1.120, so
      it WAS the edge — Damir chose symmetric removal on the rendered comparison, with
      that number in front of him. One line in tokens.css restores either. */
-  box-shadow: inset 0 0 0 1px var(--border-bubble-received);
+  box-shadow: inset 0 0 0 1px var(--border-bubble-received), var(--bubble-elevation);
 }
 .c-bubble-row[data-direction="sent"] .c-bubble {
   /* premium saturated gradient (Damir 2026-07-07); solid --surface-bubble-sent is
@@ -119,6 +125,56 @@
 .c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble { border-end-end-radius: var(--radius-8); }
 .c-bubble-row[data-direction="sent"][data-position="middle"] .c-bubble { border-start-end-radius: var(--radius-8); border-end-end-radius: var(--radius-8); }
 .c-bubble-row[data-direction="sent"][data-position="last"] .c-bubble { border-start-end-radius: var(--radius-8); }
+
+/* ★ Session I — THE TAIL (sheet 1c; #735④ "bubble tails: YES — WA/TG grammar, tail on the
+   group-start bubble"). A pseudo-element on the FIRST (or single) bubble of a group, at
+   its outer TOP corner, in the bubble's own surface; that corner drops to 4px so the
+   tail reads as part of the shape. `--bubble-tail: 0px` turns the whole thing off (the
+   rule is inert at 0 width). The row inset grows by the tail width so the tail sits
+   INSIDE the 16px gutter rather than pushing the bubble in. The tail carries the
+   elevation as a drop-shadow filter (a box-shadow would paint the clipped box). */
+.c-bubble-row[data-position="first"] .c-bubble,
+.c-bubble-row[data-position="single"] .c-bubble { overflow: visible; }
+.c-bubble-row[data-direction="received"][data-position="first"] .c-bubble,
+.c-bubble-row[data-direction="received"][data-position="single"] .c-bubble { border-start-start-radius: 0; }
+.c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble,
+.c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble { border-start-end-radius: 0; }
+/* ★ Damir's Windows walk (same day): at 4px the corner still curved away from the tail and
+   the tail read as a flag pinned NEXT to a rounded rectangle; the corner is square (0) at
+   the tail now, so the tail's top edge continues the bubble's own edge (WA's junction). */
+.c-bubble-row[data-position="first"] .c-bubble::before,
+.c-bubble-row[data-position="single"] .c-bubble::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: var(--bubble-tail);
+  height: var(--bubble-tail-h);
+  pointer-events: none;
+  filter: drop-shadow(var(--bubble-elevation));
+}
+.c-bubble-row[data-direction="received"][data-position="first"] .c-bubble::before,
+.c-bubble-row[data-direction="received"][data-position="single"] .c-bubble::before {
+  inset-inline-start: calc(-1 * var(--bubble-tail));
+  background: var(--surface-bubble-received);
+  clip-path: path('M8 0 L0 0 Q5 1.5 8 13 Z');
+}
+.c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble::before,
+.c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble::before {
+  inset-inline-end: calc(-1 * var(--bubble-tail));
+  background: var(--surface-bubble-sent);
+  clip-path: path('M0 0 L8 0 Q3 1.5 0 13 Z');
+}
+[dir="rtl"] .c-bubble-row[data-direction="received"][data-position="first"] .c-bubble::before,
+[dir="rtl"] .c-bubble-row[data-direction="received"][data-position="single"] .c-bubble::before { clip-path: path('M0 0 L8 0 Q3 1.5 0 13 Z'); }
+[dir="rtl"] .c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble::before,
+[dir="rtl"] .c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble::before { clip-path: path('M8 0 L0 0 Q5 1.5 8 13 Z'); }
+/* the emoji-only "sticker" carries no bubble and so no tail.
+   ⚠ Specificity, learned on Damir's walk: the first/single tail rules above are
+   (0,3,1) — row class + position attribute + bubble class + pseudo — so a (0,2,1)
+   `.c-bubble[data-emoji-only]::before` LOST and a sent sticker grew a tail. The row
+   class is in the selector now (0,3,1, later in source) and the declaration is
+   !important against the direction rules (0,4,1) for good measure. */
+.c-bubble-row .c-bubble[data-emoji-only]::before { content: none !important; }
 
 /* sender label (group chats, first of group) — identity-hued like the avatar.
    Dedicated S/L (sanctioned, like avatar #37): avatar-gradient lightness failed
@@ -150,9 +206,13 @@ button.c-bubble__sender {
 }
 /* nameless sender = a raw wallet address (middle-truncated): monospace reads it as
    an address; the button hover-underline signals it's copy-pastable (Damir 2026-07-07). */
+/* ★ Session I (#731/#735, Damir on device: "nameless bot-group sender = the SAME type as
+   nicknames, not the mono-ish truncation face"): the address label now wears the nickname
+   face — same family, weight and tracking as a named sender, still middle-truncated, still
+   the copy-pastable button. The monospace face (Damir 2026-07-07) is the reversal below. */
 .c-bubble__sender[data-address] {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  letter-spacing: 0;
+  font-family: var(--font-secondary);   /* was ui-monospace, SFMono-Regular, Menlo, Consolas, monospace */
+  letter-spacing: var(--tracking-label-sm);
 }
 /* N34 (#365): Owner chip — the sender row flips to flex only when a chip is
    present (data-has-role), so the plain label path stays byte-identical. The
@@ -187,19 +247,35 @@ button.c-bubble__sender {
 
 .c-bubble__text { white-space: pre-wrap; }
 
-/* emoji-only messages (Damir 2026-07-03): big glyphs, meta drops BELOW */
+/* emoji-only messages (Damir 2026-07-03): big glyphs, meta drops BELOW.
+   ★ Session I (#731/#735 "emoji-only = sticker grammar"): NO BUBBLE AT ALL — the glyphs
+   sit on the canvas like a sticker (WA/TG), the meta drops into a small canvas chip so
+   the time stays legible over the pattern. Both directions, both themes: the surface,
+   the hairline, the lift and the tail all go; the row grammar (side, grouping) stays. */
+.c-bubble[data-emoji-only] {
+  background: transparent !important;   /* beats the direction surface rules above (same file, higher specificity) */
+  box-shadow: none !important;
+  padding: 0 var(--spacing-4);
+}
 .c-bubble[data-emoji-only] .c-bubble__text {
   display: block;
-  font-size: 40px;  /* sanctioned: emoji display size, no type token this role */
+  font-size: 44px;  /* sanctioned: emoji display size, no type token this role (was 40 — a sticker reads a step bigger without its bubble) */
   line-height: 1.2;
 }
 .c-bubble[data-emoji-only] .c-bubble__meta {
   float: none;
-  display: flex;
-  justify-content: flex-end;
+  display: inline-flex;
   margin-top: var(--spacing-2);
+  margin-inline-start: auto;
   transform: none;
+  padding: 1px var(--spacing-8);
+  border-radius: var(--radius-full);
+  background: var(--surface-chat-chip);
+  color: var(--text-neutral-02) !important;   /* the chip's ink, not the bubble's (the sent-meta ink is white-ish) */
 }
+.c-bubble[data-emoji-only] .c-bubble__meta .c-status-icon[data-tone="neutral"],
+.c-bubble[data-emoji-only] .c-bubble__meta .c-status-icon[data-tone="delivered"] { color: var(--text-neutral-02); }
+.c-bubble-row[data-direction="sent"] .c-bubble[data-emoji-only] { display: flex; flex-direction: column; align-items: flex-end; }
 
 /* —— reply quote (batch 3b, §8-gated #25): identity-hue bar + compact excerpt.
    Received: hue inks (sender-label recipe); sent: hue fails on primary-600 →
@@ -384,10 +460,11 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   align-items: center;
   gap: var(--spacing-2);
   margin-inline-start: var(--spacing-8);
-  margin-top: var(--spacing-8);
+  margin-top: var(--bubble-meta-margin-top);   /* Session I dial (was --spacing-8): must stay ≤ line-height − meta line-height, or the tail grows the bubble */
   transform: translateY(2px); /* optical baseline alignment with the text */
-  font-size: var(--font-size-body-xs);
-  line-height: var(--line-height-body-xs);
+  font-size: var(--bubble-meta-size);          /* Session I (Damir: "reduce the timestamp"); was --font-size-body-xs */
+  line-height: var(--bubble-meta-line-height); /* was --line-height-body-xs */
+  font-weight: var(--bubble-meta-weight);      /* Session I (sheet 1e a′): Medium */
   letter-spacing: var(--tracking-body-xs);
 }
 [dir="rtl"] .c-bubble__meta { float: left; }

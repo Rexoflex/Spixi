@@ -242,3 +242,60 @@ weight/size, maybe subtle radial depth like TG's) as its own dial.
   the note below, which already follows the switch. Keep the #712 claim boundaries
   (token+IP disclosure, the off-cost per platform) — they move, they do not vanish;
   12 locales get re-drafts for whichever strings change.
+
+## 10 · ★★ THE PICKS — Session I, 2026-09-02 (the ledger; DECISIONS #742 is the row)
+
+Measured first (#736): Damir's Motorola renders at **devicePixelRatio 2.5** (two independent
+layout reads), chat text scale 1.0. In CSS px: ours single-line bubble **40** (100 px) ·
+WhatsApp **32.8** (82 px) · Telegram **29** (72 px, exact-colour mask). List pitch 72 / 75 /
+76.4 · avatar 48 / 52 / 56 · composer PILL 50 / 46 / 43. The three apps' time digits are the
+SAME 21 px; the " PM" width was the difference (his phone is 24-hour; the app followed the
+en-us locale). §6: the Moto "Default" face is a different FAMILY (his Font-style screenshot);
+unreachable from a WebView.
+
+16 sheets in `docs/reference-screens/premium/sheets/` (real components, 432 CSS px, Roboto):
+
+| dial | sheet | PICK | what moved | reversal |
+|---|---|---|---|---|
+| 1a bubble geometry | bubble-geo-light/dark | **A · TG-tight** | `--bubble-line-height 20 · -pad-y 6 · -pad-x 11 · -radius 18 · -gap-group 10 · -gap-inner 3 · -meta-margin-top 4` → single-line 32 CSS = 80 px | body-md 24 / spacing-8 / spacing-12 / radius-16 / spacing-12 / spacing-2 / spacing-8 (in the token comments) |
+| timestamp | — (Damir's add) | **11/14 Medium + the device hour cycle** | `--bubble-meta-size 11 · -line-height 14 · -weight 500`; `Utils.deviceHourCycle()` → `hourCycle` custom string → `<html data-hour-cycle>` → `timeOpts()` | body-xs 12/16 regular; drop the carrier = locale default |
+| 1c tails + elevation | bubble-tails(-dark) | **tail + elevation** | `--bubble-tail 8 / -tail-h 13`; `--bubble-elevation` light `0 1px 0.5px rgba(0,0,0,.13)`, dark `0 1px 1px rgba(0,0,0,.45)` | `--bubble-tail: 0px`; elevation `0 0 0 0 transparent` (never `none`) |
+| 1d sent blue | bubble-blue | **A · #2160C2** (5.97:1) | both sent tokens, both themes | #1956B2 |
+| 1e typeface | bubble-type | **(a′) Roboto tuned** | `--bubble-tracking −0.2px`, meta Medium | tracking-body-md (0), regular |
+| 2 list + bars | list-light/dark | **current avatar + A** | avatar 48 stays; `--row-name-size 17 · -weight 600 · -weight-unread 700 · --row-pad-y 11 · --tx-name-size 15 · -weight 600 · --chip-weight 600`; desktop keeps 14 / pad 12 | body-lg 18 regular / semibold unread / pad 12 / #277 regular |
+| 2b avatars | avatars-light/dark | **D** | radial depth (22% corner, ≈5% at the initials), anchors 1/2/3 re-tuned, hero initials 80 → 30px / 96 → 36px | the old hsl pairs in the trailing comments; 135° flat pair gradient |
+| 3a chat info | info | **A canon** | `--row-h-nav 48 · --row-h-switch 56 · --row-h-member 56 · --screen-gap 12 · --screen-pad 12` | 52 / 44 / 48 / 56 mixed, gap + pad 16 |
+| 3b notifications | notifs | **A + canon** | one `.c-settings__group`, the P2 note under it; sub = `notifPushProviderSub` (state-neutral) | the two "Off: …" sub keys (gone from 13 locales) |
+| 3c account hub | hub | **A canon** | same tokens as 3a | — |
+| 4 light canvas | canvas | **k2** | `--chat-canvas-base #EEECEF · --chat-pattern-ink #83058E @ .06`; gradient = `289deg #E9EDF4 → #EEECEF → #F2EAF1`; pattern + gradient default-ON everywhere; notice card `#E4E1E6` | #ebf0f5 · #061663 · the five-stop teal wash · desktop pattern-off · #dfe6ee |
+| 5 composer | composer | **B** | ⊕ inside the pill (`--composer-attach-size 36`, 44 hit); `--composer-pad-block 6 · --composer-input-pad 6` → pill 46 = 115 px; the slot is ABSOLUTE and `#messages` pads by `--composer-h`; caret-without-keyboard (#733①) | #705's outside disc · spacing-8 · the in-flow slot · desktop-only autofocus |
+| 6 menus | menu | **A** | `--menu-row-h 40 · --menu-row-gap 10 · --menu-gap 4`; react row + detail a step tighter | 44 / 12 / 8 |
+| A1 entrance | (mid-frame render) | **hybrid** | `SlideTravel 0.4` + FadeTo; `--subslide-from 40%` + opacity keyframes | 100% travel, no fade |
+| §4 riders | — | built | emoji-only = sticker + flag detector · blue event canon (file · reacted · app invite · connected) · nameless bot sender in the nickname face | — |
+| not built | — | — | "X left the group" (#215 device check) · the secure-notice REDESIGN (colour re-tuned only) · the TG-order chat-info rebuild (canon landed; the reorder is the next sheet) | — |
+
+## 11 · THE WALK CHECKLIST (Session I → Damir's device, from the sheets)
+
+Every row is a PASS/FAIL on the Motorola Release (`-p:SpixiDevCoexist=true`) unless marked W (Windows).
+
+1. **Bubble:** a single-line received bubble measures **80 px** tall on a screenshot (was 100); the text is 16, the time 11 Medium; the tail sits on the FIRST bubble of a group only; a faint lift under every bubble in light; dark bubbles separate from the #10151e canvas without mud.
+2. **Timestamps read 24-hour** ("16:42") beside Telegram's on the same phone; Windows follows its own culture.
+3. **Sent blue** reads a step softer, ticks still visible; white text legible.
+4. **Chats list:** names semibold, unread bold, avatar unchanged at 48, row pitch ≈ 190 px on a screenshot; chips semibold; tx-list names semibold.
+5. **Avatars:** the hero letter on chat info / Account is hero-sized; no olive/brown discs; a soft top-left light on every gradient disc.
+6. **Chat info / Account / Notifications:** rows 48 / switch rows 56, tighter section gaps; Notifications is ONE card with the note under it; the OneSignal sub reads neutral under a switch in either state.
+7. **Light canvas:** #EEECEF with the magenta pattern and the soft wash, default on a fresh install (Chat appearance still offers Solid / Gradient, Off / Subtle); the secure notice card reads as a card, not a blue patch.
+8. **Composer:** ⊕ inside the pill, bottom-left; the tray still opens/closes on it (✕ rotation); the pill is shorter; the last message scrolls UNDER the pill; the chevron and @ FAB still float above it; keyboard rise still lifts the bar (Android + iOS).
+9. **Caret-without-keyboard:** open a chat → caret blinks, NO keyboard; first tap on the field → keyboard rises; type; leave; re-open → same again. Both WebViews (#215).
+10. **Menus:** long-press menu and chats-row menu rows tighter; every row still taps cleanly.
+11. **Emoji-only:** "👍" and "🇸🇮" render as stickers (no bubble), time in a small chip; "ok 👍" stays a bubble.
+12. **Chats list excerpts:** a file / a reaction / an app invite tail reads in the action blue.
+13. **Nameless bot sender:** the truncated address above a bot-room bubble is in the nickname face, still copyable.
+14. **Hybrid entrance:** About / Chat appearance / Notifications / the directory slide in over a fade; nothing "yanks"; back slides out + fades.
+15. **Conversation open:** NO slide (instant), and the `[CDPERF]` lines in logcat — paste `chat onload / load / drain / present / frames` + the `chat-shell` line, at 3 contacts and at 50 (About → Seed).
+16. **Account → Contacts:** no chat-list flash on the way in (`[L14] handoff pop released by cover` in logcat, not `backstop`); the way back unchanged.
+17. **Legal:** About → Terms of Use scrolls the full 20-section document; Privacy Policy shows the summary (held) — fill the retention line + remove the "(Updated Session G/#708…)" note and the next build ships it in full.
+18. **Bot info:** the Spixi-bot address row opens the sheet with copy + QR + the full address.
+19. **W · Unread strip** runs pane-edge to scrollbar on the desktop chat.
+20. **W · desktop rows:** names semibold at 14, pad 12 (unchanged sizes, only the weight).
+21. **Notification:** the disc behind the small icon in the shade is the splash blue #175595.

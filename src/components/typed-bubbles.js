@@ -17,11 +17,11 @@ import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createButton } from './button.js';
 import { createBadge } from './badge.js';
-import { docLocale } from './timestamp.js';
+import { docLocale, timeOpts } from './timestamp.js';
 import { formatIxiAmount } from './money.js';   // #143: shared money module (was defined here)
 
 function cardTime(d) {
-  return d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString(docLocale(), timeOpts());   // ★ Session I: the device's 12/24-hour setting
 }
 
 let tcardNoteUid = 0; // aria-describedby ids for insufficient-balance notes (C15)

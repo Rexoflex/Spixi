@@ -6,7 +6,7 @@
   align-items: center;
   gap: var(--spacing-12);
   width: 100%;
-  padding: var(--spacing-12);
+  padding: var(--row-pad-y) var(--spacing-12);   /* ★ Session I (sheet 2): 11 on mobile, 12 desktop — was spacing-12 all round */
   border: 0;
   background: transparent;
   cursor: pointer;
@@ -62,15 +62,16 @@
 }
 
 .c-chatlist-item__name {
-  font-size: var(--font-size-body-lg);
-  line-height: var(--line-height-body-lg);
+  font-size: var(--row-name-size);           /* ★ Session I (sheet 2): 17 mobile / 14 desktop — was body-lg */
+  line-height: var(--row-name-line-height);
   letter-spacing: var(--tracking-body-lg);
+  font-weight: var(--row-name-weight);       /* ★ Session I: semibold at rest (#735⑤/⑦ "names +1–2 weights") */
   color: var(--text-neutral-01);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.c-chatlist-item[data-unread] .c-chatlist-item__name { font-weight: var(--font-weight-semibold); }
+.c-chatlist-item[data-unread] .c-chatlist-item__name { font-weight: var(--row-name-weight-unread); }   /* ★ Session I: bold when unread (was semibold) */
 
 .c-chatlist-item__right {
   display: flex;
@@ -167,9 +168,20 @@
 /* ★★ AUG (Damir 2026-08-30): the "you are now connected with X" tail reads in the ACTION
    colour so a brand-new contact stands out in the list. Same treatment the request rows
    already carry — one grammar for "something happened with this contact", not a third. */
-.c-excerpt[data-type="connected"] .c-excerpt__text { color: var(--text-action-default); }
+.c-excerpt[data-type="connected"] .c-excerpt__text,
+/* ★ Session I (#731/#735 "blue event-excerpt canon" — Damir on device): the SPECIFIC
+   excerpts — file sent · reacted · app invite · connected — paint in the action colour
+   like the connected line, ONE list, one tint. Payments keep their own money tint,
+   calls their own (missed = error); plain text stays neutral. "X left the group" joins
+   this list only once #215 has verified on device that a leave emits a message at all. */
+.c-excerpt[data-type="file"] .c-excerpt__text,
+.c-excerpt[data-type="reaction"] .c-excerpt__text,
+.c-excerpt[data-type="app-invite"] .c-excerpt__text { color: var(--text-action-default); }
 .c-excerpt[data-type="request"] svg,
-.c-excerpt[data-type="request-done"] svg { color: var(--icon-action-default); }
+.c-excerpt[data-type="request-done"] svg,
+.c-excerpt[data-type="file"] svg,
+.c-excerpt[data-type="reaction"] svg,
+.c-excerpt[data-type="app-invite"] svg { color: var(--icon-action-default); }
 .c-excerpt[data-type="call-missed"] { color: var(--text-error); }
 .c-excerpt[data-type="call-missed"] svg { color: var(--icon-error); }
 /* ★ #602 (row 16): DECLINED reads in the ordinary excerpt ink, not the missed-call red.

@@ -1086,11 +1086,8 @@ namespace SPIXI
                     // every exit verb (a frozen Account with no back arrow left).
                     // The reopen push resets the latch + repaints; it lands in the
                     // WebView's queue BEFORE the stage becomes visible/interactive.
-                    // ★ Session H ③ [PAINTDIAG]: the way-back timeline's third stamp —
-                    // backsend=<ms> (shell) → this line → the reveal below. Remove with the set.
-                    // (Stamped BEFORE the onRepresented push: two #46-r1/L9 pins hold that push
-                    // adjacent to the stage flip, and the probe must not sit inside a pinned pair.)
-                    IXICore.Meta.Logging.info("[PAINTDIAG] re-present " + target.GetType().Name + " t=" + Environment.TickCount64);
+                    // (★ Session I: the [PAINTDIAG] re-present stamp that sat here retired with
+                    // its set — #731 measured the way-back clean, 9→4 ms.)
                     Utils.sendUiCommand(op.target, "onRepresented");
                     op.stage.InputTransparent = false;
                     /* ★ L9 (#707): a re-presented parked overlay (the mobile Account pane,
@@ -1700,7 +1697,10 @@ namespace SPIXI
                                  * has no mandate to re-time it. */
                                 if (op.slideIn)
                                 {
-                                    await op.stage.TranslateTo(w, 0, 220, Easing.CubicIn);
+                                    /* ★ Session I hybrid: the mirror — 40% travel + fade to 0, 220 ms CubicIn */
+                                    await Task.WhenAll(
+                                        op.stage.TranslateTo(w * SlideTravel, 0, 220, Easing.CubicIn),
+                                        op.stage.FadeTo(0, 220, Easing.CubicIn));
                                 }
                                 else
                                 {
@@ -1874,6 +1874,102 @@ namespace SPIXI
          * under its open dialog. ONE virtual instead of a fourth and fifth name: an overlay
          * that has a shell overlay open handles the press itself and returns true. */
         public virtual bool routeShellBack() { return false; }
+
+        /* ★★ Session I — THE L14 COVER HANDSHAKE (#731's measured way-in flash, 56/88 ms).
+         *
+         * MECHANISM, measured by [PAINTDIAG] (#727 → #731, Android): on Account → Contacts
+         * the shell consumed the spixi.landtab hand-off BEFORE C# hid the Account pane, but
+         * the directory cover took 104–109 ms to reach glass and closeOverlay hid the pane
+         * 20–50 ms into that build — the chat list showed through the gap. (The way-back was
+         * clean: 9→4 ms. Windows way-in was already clean: the cover preceded the close by
+         * ~90 ms.) So the pane must close ON the painted cover, not on exit — a handshake:
+         *
+         *   settings.html  ── ixian:handoff ──▶ SettingsPage: the ixian:back cleanup, then
+         *                                       popOnCoverPainted() instead of popPageAsync()
+         *   HomePage       ── onHandoff ──────▶ home.html consumeLandTab('handoff') (deterministic
+         *                                       on WKWebView too, which drops storage events)
+         *   home.html      ── ixian:coverpainted ▶ HomePage → coverPainted() → the waiter pops
+         *   backstop: 400 ms (#326's completes-never grammar — ~4× the measured cover build)
+         *
+         * ONE waiter slot: only Account takes this route today. A cover that painted just
+         * before the waiter registered (the storage event won by a wide margin) counts if
+         * it is ≤ 600 ms old, so the pop is never held for a signal that already passed.
+         * The two Logging.info lines carry fixed words only (the handover-gate log rule).
+         * Retired with this batch: the whole [PAINTDIAG] set (two shell emits, the
+         * HomePage handler, two C# stamps) — the smoke pin that held the set now holds
+         * its absence + this handshake. */
+        private static SpixiContentPage? coverWaiter = null;
+        private static int coverWaitSeq = 0;
+        private static long coverPaintedTick = 0;
+        private const int CoverWaitBackstopMs = 400;
+        private const int CoverPaintedFreshMs = 600;
+
+        /// <summary>The overlay host's hook: push the hand-off consumer to the home shell.</summary>
+        protected internal virtual void onCoverHandoff() { }
+
+        /// <summary>
+        /// Pop this overlay when the home shell reports its cover painted (or at the backstop).
+        /// The caller has already run its own exit cleanup; this only defers the pop.
+        /// </summary>
+        protected void popOnCoverPainted()
+        {
+            bool paintedAlready;
+            int seq;
+            SpixiContentPage? host;
+            lock (preloadLock)
+            {
+                paintedAlready = coverPaintedTick != 0 && Environment.TickCount64 - coverPaintedTick <= CoverPaintedFreshMs;
+                coverPaintedTick = 0;
+                seq = ++coverWaitSeq;
+                coverWaiter = paintedAlready ? null : this;
+                host = overlayHost;
+            }
+            if (paintedAlready)
+            {
+                IXICore.Meta.Logging.info("[L14] cover already painted — pop now");
+                popPageAsync();
+                return;
+            }
+            try { host?.onCoverHandoff(); }
+            catch (Exception ex) { Logging.warn("onCoverHandoff failed: " + ex); }
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(CoverWaitBackstopMs);
+                releaseCoverWaiter(seq, "backstop");
+            });
+        }
+
+        /// <summary>The home shell's `ixian:coverpainted` — release the waiter, if any.</summary>
+        public static void coverPainted()
+        {
+            int seq;
+            lock (preloadLock)
+            {
+                coverPaintedTick = Environment.TickCount64;
+                seq = coverWaitSeq;
+            }
+            releaseCoverWaiter(seq, "cover");
+        }
+
+        private static void releaseCoverWaiter(int seq, string why)
+        {
+            SpixiContentPage? waiter;
+            lock (preloadLock)
+            {
+                if (coverWaiter == null || seq != coverWaitSeq)
+                {
+                    return;                       // nothing waiting, or a newer wait owns the slot
+                }
+                waiter = coverWaiter;
+                coverWaiter = null;
+            }
+            IXICore.Meta.Logging.info("[L14] handoff pop released by " + why);
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                try { waiter.popPageAsync(); }
+                catch (Exception ex) { Logging.warn("handoff pop failed: " + ex); }
+            });
+        }
 
         public virtual void onOverlayClosed(SpixiContentPage overlay)
         {
@@ -2291,7 +2387,19 @@ namespace SPIXI
                  * the mobile rule excludes the `settings` tag. Everything pushed FROM Account
                  * (Backup, Downloads, Change password) is a subscreen and still slides. */
                 bool peerTab = tag == "settings";
-                op.slideIn = overlayMode && (slideIn || (mobilePlatform && column < 0 && !peerTab));   // ★★ item 6: only the in-place present can slide · L9: every mobile subscreen does · #718: not a peer tab
+                /* ★ #735① (Damir, Release build on the Motorola, 2026-08-31): THE CONVERSATION
+                 * LEAVES THE MOBILE SLIDE RULE — "it's always yanky", the motion jumps straight
+                 * to the end; a janky slide is worse than none. Amends #707 the way #718 did
+                 * for Account: tag `chat` is excluded; sublevels and takeovers keep theirs
+                 * (walk rows A1–A4 passed). The cause is the chat-open stutter, not the slide:
+                 * the shell's one-shot paint of the whole history lands on the UI thread inside
+                 * the 300 ms window — Session I's [CDPERF] chat-open stamps measure exactly
+                 * that, and the L10-shape fix (present → post → chunk) follows the numbers.
+                 * Consequence (one flag, entry AND exit — L8): the conversation's close is the
+                 * pre-#707 state again — instant on Android/Windows, the #326 250 ms CubicOut
+                 * on an iOS back. A separate exit dial is a one-line change if his eye asks. */
+                bool conversation = tag == "chat";
+                op.slideIn = overlayMode && (slideIn || (mobilePlatform && column < 0 && !peerTab && !conversation));   // ★★ item 6: only the in-place present can slide · L9: every mobile subscreen does · #718: not a peer tab · #735①: not the conversation
                 // loop r2 R2-4: the warm flags clear on EVERY staging outcome — a stuck
                 // warmPending made a later claim return true with no present coming
                 lock (preloadLock)
@@ -2853,6 +2961,16 @@ namespace SPIXI
          * and no transition, so nothing else moves with this. When another screen opts in,
          * it inherits this curve and this duration, which is the point. */
         private const uint ScreenSlideInMs = 300;          // was 220
+        /* ★ Session I — THE HYBRID (Damir's A1 note, ruled "hybrid" 2026-09-02): every slide-in
+         * is now SLIDE + FADE — a shorter travel (40% of the stage width instead of 100%) with
+         * opacity 0 → 1 over the same 300 ms and the same curve, and the mirror exit fades
+         * out over its 220 ms while travelling the same 40%. Shorter travel means fewer
+         * pixels per frame at the same duration — the motion reads smoother on a dropped
+         * frame, which is the whole reason. ALL or NONE: the in-shell subscreen slide
+         * (subscreen-slide.css) carries the same 40% and the same opacity ramp, and a smoke
+         * pin holds the two equal — a view moving differently than the page beside it reads
+         * as a different kind of screen (#725). */
+        private const double SlideTravel = 0.4;
 
         /// <summary>The `--easing-standard` cubic-bezier(0.2, 0, 0, 1), solved for MAUI.</summary>
         private static readonly Easing ScreenSlideEasing = new Easing(x =>
@@ -2895,8 +3013,8 @@ namespace SPIXI
             }
             if (slideFrom > 0)
             {
-                op.stage.TranslationX = slideFrom;
-                op.stage.Opacity = 1;
+                op.stage.TranslationX = slideFrom * SlideTravel;   // ★ Session I hybrid: 40% travel
+                op.stage.Opacity = 0;                              // …and a fade from 0 (slideStageIn ramps it)
                 _ = slideStageIn(op);
             }
             else
@@ -2910,7 +3028,9 @@ namespace SPIXI
             var stage = op.stage;
             try
             {
-                await stage.TranslateTo(0, 0, ScreenSlideInMs, ScreenSlideEasing);
+                await Task.WhenAll(
+                    stage.TranslateTo(0, 0, ScreenSlideInMs, ScreenSlideEasing),
+                    stage.FadeTo(1, ScreenSlideInMs, ScreenSlideEasing));   // ★ Session I hybrid: slide + fade, one clock
             }
             catch (Exception ex)
             {
@@ -2925,7 +3045,7 @@ namespace SPIXI
                  * path resets the translation itself once the teardown completes. */
                 if (!op.closing)
                 {
-                    try { stage.TranslationX = 0; } catch (Exception) { }
+                    try { stage.TranslationX = 0; stage.Opacity = 1; } catch (Exception) { }   // ★ hybrid: the fade settles too
                 }
             }
         }

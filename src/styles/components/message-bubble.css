@@ -56,13 +56,23 @@
      it, do not stack fixes (#363 caveat). */
   -webkit-tap-highlight-color: transparent;
 }
+/* ★ Session K (walk J2 T1, Damir: "the avatars in group chat are too far to the right, they
+   should be left aligned with the left edge of the composer, and maybe a bit bigger"):
+   a row that CARRIES a gutter (stamped `data-gutter` by message-bubble.js — never :has())
+   takes the composer's inset on its start side, so the avatar's left edge and the ⊕ pill's
+   left edge are one line. The token is the ONE home (chat-select's tick follows it too);
+   the end side keeps the plain inset. */
+.c-bubble-row[data-gutter] {
+  --bubble-row-inset: var(--bubble-avatar-inset);
+  padding-inline-end: calc(var(--spacing-16) + var(--bubble-tail));
+}
 .c-bubble-row[data-position="middle"],
 .c-bubble-row[data-position="last"] { margin-top: var(--bubble-gap-inner); } /* in-group gap (Session I dial; was --spacing-2) */
 
 .c-bubble-row[data-direction="sent"] { justify-content: flex-end; }
 
 .c-bubble-row__gutter {
-  width: var(--size-avatar-24);
+  width: var(--bubble-avatar-size);   /* ★ Session K: a token (was --size-avatar-24); the JS sizes the disc from the same token */
   margin-inline-end: var(--spacing-8);
   flex: none;
   align-self: flex-start;   /* ★ Session J (#756, pick D): the avatar sits at the TOP of the first bubble, beside the tail (was flex-end on the last) */

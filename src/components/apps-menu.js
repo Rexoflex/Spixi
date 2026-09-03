@@ -7,14 +7,22 @@
  * NB: uninstalling from the list menu assumes the bridge accepts uninstall-by-id from
  * the apps list (today `ixian:uninstall` is details-page-scoped) — flagged for BE (§8).
  *
- * openAppMenu({ app, host, onAction, strings }) → sheet
+ * openAppMenu({ app, host, onAction, strings, row, anchor }) → sheet
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 import { createModal, openModal } from './modal.js';
+import { anchorSheetToRow, clearScrimFor } from './desktop-anchors.js';
 
-export function openAppMenu({ app = {}, host, onAction, allowInvite = false, strings = getStrings() } = {}) {
+/* ★ Session K (#757 ①, Damir on Apps: "the bottom sheet is below, disconnected, and a very
+   small tap area: Details and Uninstall close together"): on MOBILE the menu is a DROPDOWN
+   anchored to the row it acts on — the chats-row grammar (`anchorSheetToRow`, #557), with
+   the same 40-row `.c-msgmenu` canon. `row` = the app's `.c-app-item`, `anchor` = its ⋮
+   button (the menu's left edge follows the ⋮ and clamps into the host, so it hugs the
+   trailing edge above or below the row). A caller with no row keeps the bottom sheet
+   (fail-soft, unchanged for the demos); desktop is untouched (the helper returns early). */
+export function openAppMenu({ app = {}, host, onAction, allowInvite = false, strings = getStrings(), row = null, anchor = null } = {}) {
   const content = document.createElement('div');
   content.className = 'c-msgmenu';
   const list = document.createElement('div');
@@ -63,5 +71,10 @@ export function openAppMenu({ app = {}, host, onAction, allowInvite = false, str
   content.append(list);
   const sheet = createSheet({ content, host, strings });
   openSheet(sheet);
+  anchorSheetToRow(sheet, row, { host, align: anchor || row });   // ★ Session K: the mobile dropdown
+  /* ★ Session K (Damir: "shouldn't dim at all, just the menu next to the app"): no backdrop wash
+     when the menu is ANCHORED (mobile; the scrim element stays for outside-click + Esc). The
+     bottom-sheet fallback keeps its wash — an unanchored sheet with no dim reads detached. */
+  if (sheet.dataset.mAnchor !== undefined) clearScrimFor(sheet);
   return sheet;
 }

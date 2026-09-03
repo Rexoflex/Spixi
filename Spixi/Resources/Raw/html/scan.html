@@ -915,7 +915,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    tags the sheet's own scrim [data-dt-clear]; the ELEMENT stays (outside-click
    dismissal + the #56 stack/a11y grammar untouched) — it's just invisible.
    Centered sheets-as-dialogs and modals keep their wash. */
-:root[data-desktop] .c-scrim[data-dt-clear] { background: transparent; }
+/* ★ Session K: the rule is no longer desktop-scoped — the apps ⋯ dropdown clears its wash on
+   mobile too (Damir: "shouldn't dim at all"). The tag keeps its name; one grammar. */
+.c-scrim[data-dt-clear],
+:root:not([data-desktop]) .c-scrim[data-dt-clear] { background: transparent; }   /* the second selector out-specifies the mobile deep wash (line 19, (0,3,0)) */
 
 /* ═════════ MOBILE anchored dropdown (Batch E (a), #557, Damir 2026-08-22) ═════════
    The message menu + the chats-row menu present as a DROPDOWN anchored to the

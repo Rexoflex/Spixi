@@ -613,6 +613,14 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    Initials scale ≈ 0.38 × avatar size. */
 .c-avatar[data-size="24"] { width: var(--size-avatar-24); height: var(--size-avatar-24); }
 .c-avatar[data-size="24"] .c-avatar__initials { font-size: 9px; }
+/* ★ Session K (walk J2 T1, the group-sender avatar at --bubble-avatar-size): the three
+   sheet sizes get their initials step — the 0.375 ratio the 48 → 18 pair set. 28 / 32 / 36
+   are sized inline by createAvatar (no --size-avatar token for them, by design: the bubble
+   token is the one home). */
+.c-avatar[data-size="28"] .c-avatar__initials { font-size: 11px; }
+.c-avatar[data-size="32"] { width: var(--size-avatar-32); height: var(--size-avatar-32); }
+.c-avatar[data-size="32"] .c-avatar__initials { font-size: 12px; }
+.c-avatar[data-size="36"] .c-avatar__initials { font-size: 13px; }
 .c-avatar[data-size="40"] { width: var(--size-avatar-40); height: var(--size-avatar-40); }
 .c-avatar[data-size="40"] .c-avatar__initials { font-size: 15px; }
 .c-avatar[data-size="48"] { width: var(--size-avatar-48); height: var(--size-avatar-48); }
@@ -739,13 +747,23 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
      it, do not stack fixes (#363 caveat). */
   -webkit-tap-highlight-color: transparent;
 }
+/* ★ Session K (walk J2 T1, Damir: "the avatars in group chat are too far to the right, they
+   should be left aligned with the left edge of the composer, and maybe a bit bigger"):
+   a row that CARRIES a gutter (stamped `data-gutter` by message-bubble.js — never :has())
+   takes the composer's inset on its start side, so the avatar's left edge and the ⊕ pill's
+   left edge are one line. The token is the ONE home (chat-select's tick follows it too);
+   the end side keeps the plain inset. */
+.c-bubble-row[data-gutter] {
+  --bubble-row-inset: var(--bubble-avatar-inset);
+  padding-inline-end: calc(var(--spacing-16) + var(--bubble-tail));
+}
 .c-bubble-row[data-position="middle"],
 .c-bubble-row[data-position="last"] { margin-top: var(--bubble-gap-inner); } /* in-group gap (Session I dial; was --spacing-2) */
 
 .c-bubble-row[data-direction="sent"] { justify-content: flex-end; }
 
 .c-bubble-row__gutter {
-  width: var(--size-avatar-24);
+  width: var(--bubble-avatar-size);   /* ★ Session K: a token (was --size-avatar-24); the JS sizes the disc from the same token */
   margin-inline-end: var(--spacing-8);
   flex: none;
   align-self: flex-start;   /* ★ Session J (#756, pick D): the avatar sits at the TOP of the first bubble, beside the tail (was flex-end on the last) */
@@ -2347,7 +2365,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    tags the sheet's own scrim [data-dt-clear]; the ELEMENT stays (outside-click
    dismissal + the #56 stack/a11y grammar untouched) — it's just invisible.
    Centered sheets-as-dialogs and modals keep their wash. */
-:root[data-desktop] .c-scrim[data-dt-clear] { background: transparent; }
+/* ★ Session K: the rule is no longer desktop-scoped — the apps ⋯ dropdown clears its wash on
+   mobile too (Damir: "shouldn't dim at all"). The tag keeps its name; one grammar. */
+.c-scrim[data-dt-clear],
+:root:not([data-desktop]) .c-scrim[data-dt-clear] { background: transparent; }   /* the second selector out-specifies the mobile deep wash (line 19, (0,3,0)) */
 
 /* ═════════ MOBILE anchored dropdown (Batch E (a), #557, Damir 2026-08-22) ═════════
    The message menu + the chats-row menu present as a DROPDOWN anchored to the
@@ -2424,6 +2445,12 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    On a sticker the pill goes to the OTHER bottom corner (inline-start), both directions;
    the chip stays where it is. (0,5,0) beats the two direction rules above. */
 .c-bubble-row[data-direction] .c-bubble[data-emoji-only] .c-reactions[data-placement="overlap"] { inset-inline-start: 0; inset-inline-end: auto; }
+/* ★ Session K (#753 ③a, Damir: on a RECEIVED sticker the pill covered the time chip): the
+   rule above was direction-blind, but the chip is not — a sent sticker is a flex column
+   aligned to the end (chip bottom-RIGHT, pill goes left), a received sticker's chip sits
+   at inline-START (block flow, message-bubble.css) — so on received the pill takes the
+   OTHER corner, inline-end. Same specificity as the rule above, later in source, so it wins. */
+.c-bubble-row[data-direction="received"] .c-bubble[data-emoji-only] .c-reactions[data-placement="overlap"] { inset-inline-start: auto; inset-inline-end: 0; }
 /* cards lack the bubble's position:relative — overlap needs the anchor */
 .c-bubble-row[data-reactions="overlap"] .c-tcard,
 .c-bubble-row[data-reactions="overlap"] .c-fbubble { position: relative; }
@@ -6165,7 +6192,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     createAppBubble, createSystemNotice, createUnreadDivider,
     attachMessageMenu, openMessageMenu,   // openMessageMenu = the KEYBOARD path (Shift+F10 / Menu key)
     enterChatSelect, openTipSheet, openMemberSheet, openAttachSheet,
-    openAttachTray, closeAttachTray, isAttachTrayOpen,   // ★ #705: the mobile tray under the composer
+    openAttachTray, closeAttachTray, isAttachTrayOpen, revealAttachTray,   // ★ #705: the mobile tray under the composer · ★ Session K: the K1 hold
     attachEdgeBack,                 // ★ L3 (#706): the iOS back signal, one line per shell
     hasAttachTiles, attachTilesFor, // the ONE attach predicate — see openAttach / syncAttachAffordance
     openRequestSheet,               // #528: attach → Request (the #139 amount sheet, live)
@@ -8791,6 +8818,29 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     return true;
   }
 
+  /* ★ Session K (K1): the keyboard is up and the ⊕ was tapped — mount the tray closed, blur
+     the field (the ⊕ button usually took focus already, #756), and open the tray in the
+     frame the viewport grows back. Returns the tray, or null when no tile survives. */
+  function handKeyboardToTray(trayArgs, input) {
+    const tray = openAttachTray({ ...trayArgs, hold: true });
+    if (!tray) return null;
+    syncChatOverlay();                                   // back must close the tray before it closes the chat
+    try { if (input && document.activeElement === input) input.blur(); } catch (_) {}
+    let done = false;
+    const reveal = (e) => {
+      if (done) return;
+      done = true;
+      window.removeEventListener('resize', reveal);
+      if (window.visualViewport) window.visualViewport.removeEventListener('resize', reveal);
+      try { console.warn('[KBTRAY] reveal by=' + (e && e.type ? e.type : 'backstop') + ' ih=' + window.innerHeight + ' t=' + Math.round(performance.now())); } catch (_) {}   // ★ Session K stamp (temporary, the [KBTRAY] set)
+      revealAttachTray(tray);
+    };
+    window.addEventListener('resize', reveal);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', reveal);
+    setTimeout(reveal, 450);
+    return tray;
+  }
+
   /* The tile → verb routing, ONE function for both presentations (tray and sheet). */
   function onAttachAction(id) {
     if (!attachTilesFor(attachFlags()).some((t) => t.id === id)) return;
@@ -8814,16 +8864,32 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       if (closeAttachTrayIfOpen()) return;
       const input = composerEl && composerEl.querySelector('.c-composer__input');
       try { console.warn('[KBTRAY] open ih=' + window.innerHeight + ' kbUp=' + kbUp + ' focused=' + (!!input && document.activeElement === input) + ' t=' + Math.round(performance.now())); } catch (_) {}   // ★ Session J stamp (temporary)
-      const tray = openAttachTray({
+      const trayArgs = {
         composerEl,
-        /* #721: the keyboard is up → swap, do not rise. ★ #756: `kbUp` (the keyboard's own
-           state) decides — the capture showed focused=false with the keyboard on screen. */
-        instant: kbUp || (!!input && document.activeElement === input),
         ...attachFlags(),
         strings: window.SL || {},
         /* the tile CLOSES the tray inside the component; the mirror must hear about it
            here, or C# keeps routing the next back press into an empty chatBack. */
         onAction: (id) => { syncChatOverlay(); onAttachAction(id); },
+      };
+      /* ★ Session K (walk J2 K1 — Damir's "go" on the mechanism, no capture that day): THE
+         KEYBOARD IS UP → HAND IT TO THE TRAY, the mirror of handTrayToKeyboard. #721's
+         `instant` gave the tray its full slot in the SAME frame as the blur, and Android
+         hides the keyboard 100–300 ms after the blur — so for that window the viewport was
+         still keyboard-shrunk AND the tray sat under the composer: the composer at keyboard
+         + tray, then the drop ("jumps high up and back", a flash). Now the tray mounts
+         CLOSED (no transition) and opens in the frame the viewport GROWS (the keyboard has
+         left); a 450 ms backstop opens it anyway (a keyboard that never resizes). */
+      if (kbUp) {
+        handKeyboardToTray(trayArgs, input);
+        return;
+      }
+      const tray = openAttachTray({
+        ...trayArgs,
+        /* #721: the field is focused but no keyboard is up (hardware keyboard, desktop)
+           → swap, do not rise. ★ #756: `kbUp` (the keyboard's own state) took the soft
+           keyboard out of this test — it is the branch above now. */
+        instant: !!input && document.activeElement === input,
       });
       if (tray) syncChatOverlay();   // back must close the tray before it closes the chat
       return;
@@ -10301,6 +10367,14 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
             + ' burst=' + (cdBurst ? Math.round(cdT0 - cdBurst.start) : 0)
             + 'ms paint=' + cdPaint + 'ms glass=' + Math.round(performance.now() - cdT0) + 'ms');
         } catch (e) {}
+        /* ★★ Session K — THE PRESENT SIGNAL (permanent, unlike the stamp above it). The
+           history is on glass at this frame; C# presents the staged page HERE instead of on
+           its flat 120 ms `revealDelayMs` timer (SingleChatPage.armPresentOnPainted — #754/#756
+           read ~130 ms drain → present against a 21–27 ms paint). A signal only: no argument,
+           no data. Sent on EVERY onChatScreenLoaded (channel switch, re-flush) — C# latches it
+           and ignores it once presented. Never inside the try above: a failing stamp must
+           not swallow the present. */
+        bridge.send('ixian:painted');
       }));
       dbg('onChatScreenLoaded');
     },
@@ -10875,6 +10949,39 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     if (stlUnread && box.scrollHeight - box.scrollTop - box.clientHeight <= 200) setStlUnread(0);
   }, { passive: true });
 
+  /* ★ Session K [SCROLL] — TEMPORARY, the scroll-jank instrument (Damir, walk J2, heavy seed:
+     "a bit janky when going into chats and scrolling"). Nothing stamps SCROLL today — the
+     [CDPERF] frame probe counts the 600 ms after present only. This one runs a rAF loop
+     while the log scrolls and for 250 ms after the last scroll event, then prints ONE line:
+       [SCROLL] frames=N drop=N max=Nms dur=Nms rows=N h=N
+     frames = rAF callbacks seen · drop = frames whose delta exceeded 32 ms (two 60 Hz frames;
+     a 90/120 Hz phone reads harsher, which is the safe direction) · max = the longest gap ·
+     dur = wall time · rows = rendered rows · h = scrollHeight. console.warn → logcat
+     `[WEBVIEW]` (#754). No verb, no bridge, no data. Retire with the [CDPERF] set. */
+  (function scrollJankProbe() {
+    let raf = 0, last = 0, frames = 0, drop = 0, max = 0, t0 = 0, quiet = 0;
+    const tick = (now) => {
+      if (last) { const d = now - last; frames++; if (d > 32) drop++; if (d > max) max = d; }
+      last = now;
+      if (now - quiet > 250) {
+        raf = 0; last = 0;
+        if (frames >= 6) {
+          try {
+            console.warn('[SCROLL] frames=' + frames + ' drop=' + drop + ' max=' + Math.round(max) + 'ms dur=' + Math.round(now - t0)
+              + 'ms rows=' + box.querySelectorAll('.c-bubble-row').length + ' h=' + box.scrollHeight);
+          } catch (e) {}
+        }
+        frames = 0; drop = 0; max = 0;
+        return;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    box.addEventListener('scroll', () => {
+      quiet = performance.now();
+      if (!raf) { t0 = quiet; raf = requestAnimationFrame(tick); }
+    }, { passive: true });
+  })();
+
   /* —— @ jump-to-mention FAB (#8, premium mentions #210) ————————————————————
    * Sits bottom-right, ABOVE the scroll-to-latest chevron. Appears ONLY when a
    * message mentioning the LOCAL user is off-screen; tap smooth-scrolls to the
@@ -11272,7 +11379,24 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      cost line, the tray. Where the API is missing the FABs keep the 0 fallback. */
   try {
     const slot = document.getElementById('chat-composer');
-    const publish = () => { try { chatCanvasEl.style.setProperty('--composer-h', slot.offsetHeight + 'px'); } catch (_) {} };
+    /* ★ Session K (walk K, Damir on K1: "when I'm in sheet mode the chat behind it moves down
+       behind the sheet, and jumps back up when I use the keyboard"): the slot is ABSOLUTE, so
+       a tray that grows it only grows the log's bottom PADDING — scrollTop stays, and the
+       newest bubbles sit hidden under the tray until the keyboard's adjustResize re-pin
+       (AND-16) snaps them back. Judge "was the reader at the bottom" on the geometry BEFORE
+       the padding changes (this callback runs before the var lands), and when the slot
+       GREW re-pin on the next frame — every observer tick of the 200 ms rise, so the log
+       follows the tray up; a scrolled-up reader keeps their place. Shrinks (the tray
+       leaving) need nothing: the keyboard path already re-pins. */
+    let lastSlotH = slot.offsetHeight;
+    const publish = () => {
+      const h = slot.offsetHeight;
+      const grew = h > lastSlotH;
+      lastSlotH = h;
+      const atBottom = nearBottom();
+      try { chatCanvasEl.style.setProperty('--composer-h', h + 'px'); } catch (_) {}
+      if (grew && atBottom) requestAnimationFrame(() => { box.scrollTop = box.scrollHeight; });
+    };
     new ResizeObserver(publish).observe(slot);
     publish();
   } catch (_) {}
@@ -11656,6 +11780,17 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    *    window 'load' event makes C# push setChatMode/setNickname/addMe/addThem at
    *    the right time, so the conversation populates on first open. ———————————— */
   function signalReady() {
+    /* ★ Session K [CDPERF] — TEMPORARY, the boot SPLIT. C#'s constructor → onload gap
+       (140–180 ms, #754) is two things: creating the WebView and loading + parsing this
+       1.2 MB page. Navigation Timing says which: `nav` = navigationStart → this handler,
+       `dcl` = the parse (DOMContentLoaded − navigationStart) — so the WebView's own
+       creation cost is C#'s gap minus `nav`. Fixed words + integers; retire with the set. */
+    try {
+      const e = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+      const t = performance.timing;
+      const dcl = e ? Math.round(e.domContentLoadedEventEnd) : (t ? t.domContentLoadedEventEnd - t.navigationStart : -1);
+      console.warn('[CDPERF] chat-shell boot nav=' + Math.round(performance.now()) + 'ms dcl=' + dcl + 'ms');
+    } catch (e) {}
     bridge.ready();
     // Fallback: if nothing has painted shortly after ready (brand-new empty chat
     // whose C# skips clearMessages, or a missing onChatScreenLoaded), replace the

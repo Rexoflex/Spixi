@@ -320,3 +320,15 @@ Every row is a PASS/FAIL on the Motorola Release (`-p:SpixiDevCoexist=true`) unl
 | ⊕ press | walk A15 | clip after the shorthand; state rules background-color | — |
 | caret | walk A19 ① | shape 2: selection after focus + caret-color; `CARET_WITHOUT_KEYBOARD` | false = drop |
 
+
+## 13 · ★ SESSION K PICKS AND RULINGS (2026-09-03; DECISIONS #761–#763 are the rows)
+
+| dial | ruling | value | reversal |
+|---|---|---|---|
+| group sender avatar size | walk J2 T1 "maybe a bit bigger" → sheet 28/32/36 → **32** | `--bubble-avatar-size 32px` | `var(--size-avatar-24)` |
+| group sender avatar inset | "left aligned with the left edge of the composer" | `--bubble-avatar-inset var(--spacing-12)` on `data-gutter` rows | the plain row inset `calc(var(--spacing-16) + var(--bubble-tail))` |
+| dark on-action ink | "labels on blue buttons and icons should be white" | `--text/--icon-neutral-on-action: var(--neutral-10)` (dark) | `var(--neutral-950)` |
+| dark action surface | his pick on the sheet: **primary-600** (AA 6.68:1) over 500 (3.66:1) | default 600 · hover 700 · pressed 800 | 400 · 300 · 200 |
+| apps ⋯ menu | "shouldn't dim at all, just the menu next to the app" | anchored dropdown + `[data-dt-clear]` scrim when anchored | the bottom sheet with its wash |
+| keyboard → tray | walk J2 K1 FAIL, "go" on the mechanism | `openAttachTray({ hold })` + `revealAttachTray` on the viewport grow, 450 ms backstop | `instant: kbUp \|\| …` (the two-heights flash) |
+| chat present | "opening a chat must be faster" | present on `ixian:painted`, revealDelayMs 0, backstop 150 | `revealDelayMs: 120` + `signalPreloadReady()` in the finally |

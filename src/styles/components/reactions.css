@@ -41,6 +41,12 @@
    On a sticker the pill goes to the OTHER bottom corner (inline-start), both directions;
    the chip stays where it is. (0,5,0) beats the two direction rules above. */
 .c-bubble-row[data-direction] .c-bubble[data-emoji-only] .c-reactions[data-placement="overlap"] { inset-inline-start: 0; inset-inline-end: auto; }
+/* ★ Session K (#753 ③a, Damir: on a RECEIVED sticker the pill covered the time chip): the
+   rule above was direction-blind, but the chip is not — a sent sticker is a flex column
+   aligned to the end (chip bottom-RIGHT, pill goes left), a received sticker's chip sits
+   at inline-START (block flow, message-bubble.css) — so on received the pill takes the
+   OTHER corner, inline-end. Same specificity as the rule above, later in source, so it wins. */
+.c-bubble-row[data-direction="received"] .c-bubble[data-emoji-only] .c-reactions[data-placement="overlap"] { inset-inline-start: auto; inset-inline-end: 0; }
 /* cards lack the bubble's position:relative — overlap needs the anchor */
 .c-bubble-row[data-reactions="overlap"] .c-tcard,
 .c-bubble-row[data-reactions="overlap"] .c-fbubble { position: relative; }

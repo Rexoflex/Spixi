@@ -76,6 +76,62 @@ namespace SPIXI
         {
             IXICore.Meta.Logging.info("[CDPERF] chat " + what + (detail.Length > 0 ? " " + detail : ""));
         }
+        /* ★ Session K [CDPERF] — TEMPORARY, the missing FIRST stamp. openClock starts in the
+         * constructor, so the row tap → constructor gap (HomePage.onChat: the main-thread
+         * marshal + the pane close-audit + the stage) was never on the timeline. HomePage
+         * writes the tap's Stopwatch ticks here right before `new SingleChatPage`; the
+         * constructor logs `[CDPERF] chat ctor tap=…ms` and clears it. Retire with the set. */
+        internal static long pendingTapTicks = 0;
+
+        /* ★★ Session K — PRESENT ON THE SHELL'S PAINT, NOT ON A TIMER (Damir: "takes half a
+         * second to enter a chat"). #754/#756 read: drain → present was ~130 ms on every open,
+         * while the shell's own paint landed 21–27 ms after drain — the rest was
+         * `presentPreload`'s flat `revealDelayMs = 120` hold (SpixiContentPage), a timer
+         * waiting for a paint that had already happened. Now: the shell emits `ixian:painted`
+         * one frame after its burst render (chat.html onChatScreenLoaded, the same rAF that
+         * stamps `glass=`), and the present fires THERE. The two halves can land in either
+         * order (the verb rides the WebView's navigating event; the arming rides onLoad's
+         * finally marshal), so both are latched and whichever comes second presents.
+         * A backstop presents anyway PRESENT_BACKSTOP_MS after arming — a stale built shell
+         * without the verb (#663's class) must never leave the conversation invisible — and
+         * presentPreload's tryFinish makes every path idempotent; pushPageLoaded's 4000 ms
+         * timeout stays as the outer belt. The chat push passes revealDelayMs: 0. */
+        private volatile bool presentArmed = false;
+        private volatile bool paintedSeen = false;
+        /* ★ Walk K capture (open #2 of 4): `backstop t=500` landed BEFORE `painted t=561` — C#'s
+         * drain marker fires when the last eval is DISPATCHED, and on that open the renderer
+         * executed the queue ~100 ms later (burst=60 ms), so a 150 ms backstop presented an
+         * unpainted page: the one flash this design must never make. 400 ms: the worst case is
+         * the old timing, which never flashed; the other three opens presented on the verb. */
+        private const int PRESENT_BACKSTOP_MS = 400;
+
+        private void armPresentOnPainted()
+        {
+            presentArmed = true;
+            if (paintedSeen)
+            {
+                signalPreloadReady();
+                return;
+            }
+            Task.Delay(PRESENT_BACKSTOP_MS).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (!paintedSeen)
+                {
+                    cdperf("backstop", "t=" + openClock.ElapsedMilliseconds);   // ★ Session K [CDPERF]
+                }
+                signalPreloadReady();   // idempotent: no-op once presented
+            }));
+        }
+
+        private void onPainted()
+        {
+            cdperf("painted", "t=" + openClock.ElapsedMilliseconds);   // ★ Session K [CDPERF]
+            paintedSeen = true;
+            if (presentArmed)
+            {
+                signalPreloadReady();
+            }
+        }
 
         public SingleChatPage(Friend fr) : this(fr, null)
         {
@@ -83,6 +139,12 @@ namespace SPIXI
 
         public SingleChatPage(Friend fr, HomePage? home)
         {
+            long tapTicks = pendingTapTicks;   // ★ Session K [CDPERF]
+            pendingTapTicks = 0;
+            if (tapTicks != 0)
+            {
+                cdperf("ctor", "tap=" + (long)System.Diagnostics.Stopwatch.GetElapsedTime(tapTicks).TotalMilliseconds + "ms");
+            }
             InitializeComponent();
             NavigationPage.SetHasNavigationBar(this, false);
             webView.Opacity = 0;
@@ -134,21 +196,24 @@ namespace SPIXI
          * present and reports frames seen, frames whose gap exceeded 24 ms (a dropped 60 Hz
          * frame plus jitter), and the longest gap. Runs on the UI thread's vsync callback;
          * removes itself. Retire with the CDPERF set. */
-        private sealed class CdperfFrameProbe : Java.Lang.Object, Android.Views.Choreographer.IFrameCallback
+        /* ★ Session K: `internal` + a tag — AppNewPage borrows the same probe for the Add-app
+         * open (#757 ②, measure before any fix). Retires with the set. */
+        internal sealed class CdperfFrameProbe : Java.Lang.Object, Android.Views.Choreographer.IFrameCallback
         {
             private const long WindowMs = 600;
             private readonly System.Diagnostics.Stopwatch clock;
             private readonly long startMs;
+            private readonly string tag;
             private long lastNs = 0;
             private int frames = 0;
             private int dropped = 0;
             private double longestMs = 0;
 
-            private CdperfFrameProbe(System.Diagnostics.Stopwatch c) { clock = c; startMs = c.ElapsedMilliseconds; }
+            private CdperfFrameProbe(System.Diagnostics.Stopwatch c, string t) { clock = c; startMs = c.ElapsedMilliseconds; tag = t; }
 
-            public static void start(System.Diagnostics.Stopwatch clock)
+            public static void start(System.Diagnostics.Stopwatch clock, string tag = "chat")
             {
-                Android.Views.Choreographer.Instance?.PostFrameCallback(new CdperfFrameProbe(clock));
+                Android.Views.Choreographer.Instance?.PostFrameCallback(new CdperfFrameProbe(clock, tag));
             }
 
             public void DoFrame(long frameTimeNanos)
@@ -167,7 +232,7 @@ namespace SPIXI
                 }
                 else
                 {
-                    cdperf("frames", "n=" + frames + " drop=" + dropped + " max=" + (long)Math.Round(longestMs) + "ms");
+                    IXICore.Meta.Logging.info("[CDPERF] " + tag + " frames n=" + frames + " drop=" + dropped + " max=" + (long)Math.Round(longestMs) + "ms");
                 }
             }
         }
@@ -209,6 +274,12 @@ namespace SPIXI
             {
                 cdperf("onload", "t=" + openClock.ElapsedMilliseconds);   // ★ Session I [CDPERF]
                 onLoad();
+            }
+            else if (current_url.Equals("ixian:painted", StringComparison.Ordinal))
+            {
+                // ★ Session K: the shell's history is on glass — present now (see armPresentOnPainted).
+                // A signal only: no argument, no data, presentation-lifecycle (security gate: introduced, inert).
+                onPainted();
             }
             else if (current_url.Equals("ixian:back", StringComparison.Ordinal))
             {
@@ -1123,7 +1194,11 @@ namespace SPIXI
                     {
                         try
                         {
-                            webView.FadeTo(1, 90);   // Damir F5 2026-07-29: trimmed from 150 — the hold is loadMessages, the fade shouldn't add to it
+                            /* ★ Session K: no fade. The WebView sits inside an invisible stage until
+                             * presentPreload flips it; a 90 ms opacity animation here could only be
+                             * seen when the present landed mid-fade (a dim-to-full step, #754's class)
+                             * and otherwise ran for nobody. The present is the reveal. */
+                            webView.Opacity = 1;
                             webView.Focus();
                         }
                         catch (Exception ex)
@@ -1134,9 +1209,11 @@ namespace SPIXI
                         {
                             // Load-then-move (deferPreloadReady): the conversation is now
                             // loaded + revealed — if this page was preloaded off-screen,
-                            // present it to the user at this exact point. No-op when the
-                            // page was pushed normally (no active preload for it).
-                            signalPreloadReady();
+                            // present it to the user. No-op when the page was pushed
+                            // normally (no active preload for it).
+                            // ★ Session K: not at THIS point any more — at the shell's own
+                            // `ixian:painted` (or the 150 ms backstop). See armPresentOnPainted.
+                            armPresentOnPainted();
                         }
                     });
                 }

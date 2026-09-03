@@ -2181,6 +2181,7 @@ namespace SPIXI
             }
 
             fromChat = true;
+            SingleChatPage.pendingTapTicks = System.Diagnostics.Stopwatch.GetTimestamp();   // ★ Session K [CDPERF]: the tap → constructor stamp (temporary)
 
             MainThread.BeginInvokeOnMainThread(() =>
             {
@@ -2209,8 +2210,11 @@ namespace SPIXI
                 // the previous one only after it is visible → seamless switching,
                 // nothing detaches, nothing can flicker.
                 bool wide = rightContent.IsVisible;
+                // ★ Session K: revealDelayMs 0 — the conversation presents on its shell's own
+                // `ixian:painted` (SingleChatPage.armPresentOnPainted), not on the 120 ms timer.
                 pushPageLoaded(new SingleChatPage(friend, wide ? this : null), 4000, "chat", wide ? 1 : -1,
-                    navKey: "chat:" + friend.walletAddress);   // ★★ V-19: a second tap on the SAME row lets the load finish; a tap on another row wins
+                    navKey: "chat:" + friend.walletAddress,   // ★★ V-19: a second tap on the SAME row lets the load finish; a tap on another row wins
+                    revealDelayMs: 0);
                 // N49 (#370): the selectChat highlight rides onOverlayPresented now —
                 // the push here was the A-1 fire-and-forget class (#362 logged it): a
                 // staged page can be dropped before present, leaving a highlight on a

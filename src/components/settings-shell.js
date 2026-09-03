@@ -466,12 +466,14 @@ export function createSettingsHub({
   /* nickname edit — chat-info grammar (#141-M1 committing latch); EMPTY nick =
      inline error, no commit (legacy validates non-empty via ixian:error) */
   if (onNickname) {
+    /* ★ Session K (#756 ⑤, the `icon-only button requires ariaLabel` warning): the label
+       is passed AT CREATION — setting it a line later left the warning in every boot log. */
     const pencil = createButton({
       type: 'text', size: 44, icon: icon('pencil', { size: 18 }),
+      ariaLabel: strings.editNickname || 'Edit nickname',
       onClick: startNickEdit,
     });
     pencil.classList.add('c-settings__nick-edit');
-    pencil.setAttribute('aria-label', strings.editNickname || 'Edit nickname');
     nameRow.append(pencil);
 
     const nickErr = document.createElement('span');

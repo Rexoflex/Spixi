@@ -149,6 +149,7 @@ function buildAttachGrid(tiles, strings, onPick) {
  *
  * openAttachTray({ composerEl, media, apps, payments, files, onAction, strings })
  *   → tray element, or null when no tile survives (same rule as the sheet).
+ * revealAttachTray(tray) — opens a tray mounted with `hold` (Session K), one frame.
  * closeAttachTray(tray) — exit transition then removal; idempotent.
  * isAttachTrayOpen(composerEl) — the tray sits directly after the composer. */
 const TRAY_EXIT_MS = 300;   // > --duration-200; covers reduced-motion 0 ms
@@ -158,7 +159,13 @@ const trayState = new WeakMap();   // tray → { composerEl, closing }
    keyboard is up: the input blurs (the keyboard drops) and the tray takes the slot at
    its full height at once — no rise animation stacked on the keyboard's own retreat.
    `instant` is decided by the caller from `document.activeElement`. */
-export function openAttachTray({ composerEl, media = false, apps = true, payments = true, files = true, onAction, strings = getStrings(), instant = false } = {}) {
+/* ★ Session K (walk J2 K1, Damir: "keyboard up → ⊕: a flash, the composer jumps high up and
+   back for a few hundred ms"): `hold` mounts the tray CLOSED with no transition and returns
+   it; the caller opens it with revealAttachTray() in the frame the keyboard has actually
+   LEFT (chat.html handKeyboardToTray — the mirror of #721's handTrayToKeyboard). `instant`
+   gave the tray its full slot in the same frame as the blur, but Android hides the keyboard
+   100–300 ms AFTER the blur, so for that window the composer sat on keyboard + tray. */
+export function openAttachTray({ composerEl, media = false, apps = true, payments = true, files = true, onAction, strings = getStrings(), instant = false, hold = false } = {}) {
   if (!composerEl || !composerEl.parentNode) return null;
   const tiles = attachTilesFor({ media, apps, payments, files });
   if (!tiles.length) return null;
@@ -191,6 +198,10 @@ export function openAttachTray({ composerEl, media = false, apps = true, payment
   if (input && document.activeElement === input) input.blur();   // the tray takes the keyboard's slot
 
   composerEl.after(tray);
+  if (hold) {
+    tray.dataset.instant = '';   // no height transition: it opens in ONE frame when revealed
+    return tray;                 // closed until revealAttachTray(tray)
+  }
   if (instant) {
     tray.dataset.instant = '';   // attach-sheet.css: no height transition on this tray
     tray.dataset.open = '';
@@ -201,6 +212,15 @@ export function openAttachTray({ composerEl, media = false, apps = true, payment
     if (tray.isConnected && !trayState.get(tray).closing) tray.dataset.open = '';
   }));
   return tray;
+}
+
+/* ★ Session K: open a HELD tray (see `hold` above) — one frame, no transition. Idempotent;
+   a tray that closed meanwhile (a back press inside the hold) is left alone. */
+export function revealAttachTray(tray) {
+  const st = tray && trayState.get(tray);
+  if (!st || st.closing || !tray.isConnected) return false;
+  tray.dataset.open = '';
+  return true;
 }
 
 /* ★ #721: `instant` removes the tray with no exit transition — used when the keyboard is

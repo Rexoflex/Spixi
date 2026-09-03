@@ -207,11 +207,30 @@ namespace SPIXI
             }
         }
 
+        /* ★ Session K [WV2] — TEMPORARY, Windows only: the stamp pair for the WebView2 ghosts
+         * (#754 Account ↔ Contacts shows the previous page's HTML for ~½ s; #755 chat-info
+         * opens white for ~½ s). One clock per page from loadPage: `navigated` = the document
+         * committed (WebView2 NavigationCompleted) · `present` = the stage is on glass. A ghost
+         * that lives BETWEEN those two is WebView2 painting nothing yet (the background fix
+         * beside it, applyPageSurfaceColor); a ghost AFTER present is the compositor re-attach
+         * (#248's class). Goes to ixian.log on Windows (console mirror is Android-only, #751).
+         * Fixed words + integers; retire with the [CDPERF] set. */
+#if WINDOWS
+        private readonly System.Diagnostics.Stopwatch wv2Clock = System.Diagnostics.Stopwatch.StartNew();
+        private void wv2Stamp(string what)
+        {
+            IXICore.Meta.Logging.info("[WV2] " + (loadedHtmlFileName ?? "?") + " " + what + " t=" + wv2Clock.ElapsedMilliseconds);
+        }
+#endif
+
         public void loadPage(WebView web_view, string html_file_name)
         {
             pageLoaded = false;
             _webView = web_view;
             loadedHtmlFileName = html_file_name;
+#if WINDOWS
+            wv2Stamp("load");
+#endif
 
             // N1/N3 flicker: paint the surface this page's shell renders, in the CURRENT
             // theme, behind (and on) the WebView so any pre-paint native frame matches the
@@ -280,6 +299,27 @@ namespace SPIXI
                 {
                     // Cosmetic. A flash is better than a crash on the lock surface.
                     Logging.warn("applyPageSurfaceColor: native WebView background not applied: " + ex.Message);
+                }
+#endif
+#if WINDOWS
+                /* ★ Session K (#755, Damir on Windows: chat-info open shows a WHITE pane for ~½ s;
+                 * #754's Account ↔ Contacts ghost is the same family). WebView2 paints its
+                 * DefaultBackgroundColor — white out of the box — until the document's first
+                 * frame. webViewNavigating sets it, but that handler runs on the first NAVIGATION
+                 * event, and a staged overlay's WebView can be composed before then. The same
+                 * shape as the Android F1 block above: apply it HERE, on every surface pass,
+                 * as soon as the platform view exists (null before the handler connects; the
+                 * later passes land it). Idempotent, cosmetic, never throws past the log. */
+                try
+                {
+                    if (_webView.Handler?.PlatformView is Microsoft.Maui.Platform.MauiWebView wv2)
+                    {
+                        wv2.DefaultBackgroundColor = pageSurfaceColor.ToWindowsColor();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("applyPageSurfaceColor: WebView2 DefaultBackgroundColor not applied: " + ex.Message);
                 }
 #endif
             }
@@ -361,6 +401,9 @@ namespace SPIXI
 
         protected async void webViewNavigated(object? sender, WebNavigatedEventArgs e)
         {
+#if WINDOWS
+            wv2Stamp("navigated");
+#endif
             if (pageLoaded = await checkIfPageLoaded())
             {
                 processMessageQueue();
@@ -2786,6 +2829,9 @@ namespace SPIXI
                         // replaced pane's onOverlayClosed sees the new one already open.
                         try
                         {
+#if WINDOWS
+                            op.target.wv2Stamp("present");   // ★ Session K [WV2]
+#endif
                             op.target.onPreloadPresented();
                         }
                         catch (Exception ex)
@@ -3126,23 +3172,54 @@ namespace SPIXI
             }
         }
 
+        /* ★★ Session K — THE LOCALIZED DOCUMENT IS COMPUTED ONCE, NOT ON EVERY OPEN (Damir:
+         * "opening a chat must be faster"). generatePage ran on the UI thread inside every
+         * page constructor: on Android it streamed the 640 KB chat.html line by line
+         * (Trim + Contains per line, 11 700 lines) into a new string; on Windows it re-READ
+         * and re-WROTE `ll_chat.html` to disk. The result is identical every time the
+         * dictionary is identical — so it is cached per (file, SpixiLocalization dictionary
+         * version). A language load or ANY addCustomString bumps the version (the carriers
+         * LaunchBootView / LockAuthPending / devMode / the theme name are all written right
+         * before their page's generatePage, so those pages miss and recompute, correctly).
+         * Windows: the file is rewritten only when its cached version differs — a fresh
+         * process starts empty, so the first open of each page still writes it (#663: the
+         * write is what makes `ll_*.html` exist beside the exe's html folder at all). */
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (int version, string html)> localizedHtmlCache = new();
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> localizedFileVersion = new();
+
         public WebViewSource generatePage(string html_file_name)
         {
+            int version = SpixiLocalization.getDictionaryVersion();
             if (OperatingSystem.IsAndroid())
             {
                 var source = new HtmlWebViewSource();
-                Stream stream = SPlatformUtils.getAsset(Path.Combine("html", html_file_name));
                 source.BaseUrl = SPlatformUtils.getAssetsBaseUrl() + "html/";
-                source.Html = SpixiLocalization.localizeHtml(stream);
+                if (localizedHtmlCache.TryGetValue(html_file_name, out var cached) && cached.version == version)
+                {
+                    source.Html = cached.html;
+                    return source;
+                }
+                Stream stream = SPlatformUtils.getAsset(Path.Combine("html", html_file_name));
+                string html = SpixiLocalization.localizeHtml(stream);
                 stream.Close();
                 stream.Dispose();
+                localizedHtmlCache[html_file_name] = (version, html);
+                source.Html = html;
                 return source;
             }
             else
             {
                 string assets_file_path = Path.Combine(SPlatformUtils.getAssetsPath(), "html", html_file_name);
                 string localized_file_path = Path.Combine(SPlatformUtils.getHtmlPath(), "ll_" + html_file_name);
-                SpixiLocalization.localizeHtml(assets_file_path, localized_file_path);
+                bool fresh = localizedFileVersion.TryGetValue(html_file_name, out int written) && written == version && File.Exists(localized_file_path);
+                if (!fresh)
+                {
+                    SpixiLocalization.localizeHtml(assets_file_path, localized_file_path);
+                    if (File.Exists(localized_file_path))
+                    {
+                        localizedFileVersion[html_file_name] = version;   // only a WRITTEN file is fresh (localizeHtml returns silently on a missing asset, #663)
+                    }
+                }
                 return new UrlWebViewSource
                 {
                     Url = SPlatformUtils.getHtmlBaseUrl() + "ll_" + html_file_name

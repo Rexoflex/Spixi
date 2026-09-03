@@ -285,12 +285,14 @@ export function createChatInfo({
 
   /* 1:1 nickname edit (ixian:userdefinednick — local override, not pushed) */
   if (kind !== 'group' && onNickname) {
+    /* ★ Session K (#756 ⑤, the `icon-only button requires ariaLabel` warning): the label
+       is passed AT CREATION — setting it a line later left the warning in every boot log. */
     const pencil = createButton({
       type: 'text', size: 44, icon: icon('pencil', { size: 18 }),
+      ariaLabel: strings.editNickname || 'Edit nickname',
       onClick: startNickEdit,
     });
     pencil.classList.add('c-chat-info__nick-edit');
-    pencil.setAttribute('aria-label', strings.editNickname || 'Edit nickname');
     nameRow.append(pencil);
 
     var nickErr = document.createElement('span');   // hoisted: cleared on re-edit

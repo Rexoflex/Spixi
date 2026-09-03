@@ -24,6 +24,27 @@ namespace SPIXI
             loadPage(webView, "app_new.html");
         }
 
+        /* ★ Session K [CDPERF] — TEMPORARY, the Add-app OPEN instrument (#757 ②, Damir: "the
+         * Add-app screen stutters on open, as the messages used to", after adding 7 apps).
+         * #757's guess — the Discover feed + recents strip mounting in one frame — is not in
+         * the tree: app_new.html builds with `discover: false` and C#'s onLoad pushes nothing,
+         * so the shell paints one form. MEASURE before any fix (#215): the same three stamps
+         * the chat carries — constructor → onload → present — plus the Android Choreographer
+         * frame probe for the 600 ms after present. Fixed words + integers; retire with the set. */
+        private readonly System.Diagnostics.Stopwatch openClock = System.Diagnostics.Stopwatch.StartNew();
+        private static void cdperf(string what, string detail = "")
+        {
+            IXICore.Meta.Logging.info("[CDPERF] appnew " + what + (detail.Length > 0 ? " " + detail : ""));
+        }
+        protected internal override void onPreloadPresented()
+        {
+            cdperf("present", "t=" + openClock.ElapsedMilliseconds);
+#if ANDROID
+            try { SingleChatPage.CdperfFrameProbe.start(openClock, "appnew"); }
+            catch (Exception ex) { Logging.warn("[CDPERF] appnew frame probe failed to start: " + ex.Message); }
+#endif
+        }
+
         public override void recalculateLayout()
         {
             ForceLayout();
@@ -53,6 +74,7 @@ namespace SPIXI
 
             if (current_url.StartsWith("ixian:onload", StringComparison.Ordinal))
             {
+                cdperf("onload", "t=" + openClock.ElapsedMilliseconds);   // ★ Session K [CDPERF]
                 onLoad();
             }
             else if (current_url.Equals("ixian:back", StringComparison.Ordinal))

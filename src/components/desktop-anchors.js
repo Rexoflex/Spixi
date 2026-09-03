@@ -54,7 +54,12 @@ const CTX_MENU_W = 300;     // demo dropdown width (desktop.html:1150)
  * all untouched): overlay.js mounts it as the sheet's previous sibling, we
  * only TAG it and overlay.css makes it transparent. Centered dialogs/modals
  * keep their wash. */
-function clearScrimFor(sheet) {
+/* ★ Session K (#757 ①, Damir on the rendered apps dropdown: "shouldn't dim at all, just the
+   menu next to the app"): exported, and the overlay.css rule is presentation-INDEPENDENT
+   now — a caller that anchors a menu to its source on mobile can clear the wash the same
+   way. Only the apps ⋯ menu asks today; the message + chats-row menus keep their mobile
+   scrim + row lift (#506②, his earlier ruling). */
+export function clearScrimFor(sheet) {
   const prev = sheet.previousElementSibling;
   if (prev && prev.classList && prev.classList.contains('c-scrim')) prev.dataset.dtClear = '';
 }

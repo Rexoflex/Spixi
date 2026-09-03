@@ -725,9 +725,15 @@
   --surface-error-inverse: var(--error-800);
 
   /* surface/action */
-  --surface-action-default: var(--primary-400);
-  --surface-action-hover: var(--primary-300);
-  --surface-action-pressed: var(--primary-200);
+  /* ★ Session K (Damir 2026-09-03: "on dark mode the button labels on blue buttons and
+     icons should be white" — and his pick on the rendered sheet: primary-600, the AA one):
+     the dark action surface is light mode's blue, #3050bd under #f9fafb = 6.68:1 (AA on a
+     16px label; the 500 alternative he declined reads 3.66:1). The state steps go DARKER,
+     like light mode — a white-ink button must not lighten under the finger (400 = 2.5:1).
+     Reversals: default var(--primary-400) · hover var(--primary-300) · pressed var(--primary-200). */
+  --surface-action-default: var(--primary-600);
+  --surface-action-hover: var(--primary-700);
+  --surface-action-pressed: var(--primary-800);
   --surface-action-disabled: var(--neutral-700);
   --surface-action-tonal-default: var(--primary-800);
   --surface-action-tonal-hover: var(--primary-600);
@@ -813,7 +819,7 @@
   --text-neutral-inverse-01: var(--neutral-900);
   --text-neutral-inverse-02: var(--neutral-800);
   --text-neutral-disabled: var(--neutral-430);
-  --text-neutral-on-action: var(--neutral-950);
+  --text-neutral-on-action: var(--neutral-10);         /* ★ Session K: WHITE on the dark action blue (Damir) — reversal var(--neutral-950), with the surface back at primary-400 */
   --text-neutral-on-disabled: var(--neutral-400);
   --text-action-default: var(--primary-400);
   --text-action-hover: var(--primary-300);
@@ -853,7 +859,7 @@
   --icon-neutral-inverse-01: var(--neutral-900);
   --icon-neutral-inverse-02: var(--neutral-800);
   --icon-neutral-disabled: var(--neutral-500);
-  --icon-neutral-on-action: var(--neutral-950);
+  --icon-neutral-on-action: var(--neutral-10);         /* ★ Session K: white icon on the dark action blue (Damir) — reversal var(--neutral-950) */
   --icon-select-check: var(--neutral-10);              /* ★ Session J: white tick on the dark disc too (was neutral-950 via icon-neutral-on-action) */
   --surface-select-check: var(--primary-500);          /* ★ Session J (Damir: "maybe 1 shade darker background"): 500 = one step under dark's action 400; #507af9 holds a white tick at 3.82:1. Reversal = var(--surface-action-default) */
   --icon-neutral-on-disabled: var(--neutral-400);
@@ -966,6 +972,8 @@
   --bubble-meta-line-height: 14px;                    /* was var(--line-height-body-xs) = 16 */
   --bubble-tail: 8px;                                 /* ★ sheet 1c: the tail on the group-start bubble (WA grammar, #735④); 0 = off */
   --bubble-tail-h: 13px;
+  --bubble-avatar-size: 32px;                         /* ★ Session K (walk J2 T1, Damir: "a bit bigger"): the group sender avatar beside the first bubble — sheet 28 / 32 / 36, 32 ships until he picks; reversal var(--size-avatar-24) */
+  --bubble-avatar-inset: var(--spacing-12);           /* ★ Session K (walk J2 T1: "left aligned with the left edge of the composer"): the avatar row's inline inset = the composer's own (composer.css padding-inline-start); reversal = the plain row inset calc(var(--spacing-16) + var(--bubble-tail)) */
   --bubble-elevation: 0 1px 0.5px rgba(0, 0, 0, 0.13);  /* ★ sheet 1c: the WA/TG faint lift (light); dark re-dials below. Reversal = `0 0 0 0 transparent` (a no-op shadow, never `none`: it sits in a shadow LIST beside the hairline hook) */
   --bubble-tracking: -0.2px;                          /* ★ sheet 1e (a′): Roboto tuned — was var(--tracking-body-md) = 0 on mobile */
   --bubble-meta-weight: var(--font-weight-medium, 500); /* ★ sheet 1e (a′): Medium meta — was inherited regular */

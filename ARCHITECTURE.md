@@ -29,7 +29,7 @@ Headline numbers from the audit:
 
 ### 2.1 Page lifecycle
 
-Each MAUI page calls `loadPage(webView, "file.html")`. `generatePage()` runs the HTML through `SpixiLocalization.localizeHtml` (string-replacing `*SL{key}` tokens), then loads it — in-memory on Android, written to disk as `ll_<file>.html` on iOS/macOS/Windows. The page JS signals readiness by navigating to `ixian:onload` (`intro.html` uses `ixian:introload`); C#-side messages are queued until `document.readyState == "complete"`.
+Each MAUI page calls `loadPage(webView, "file.html")`. `generatePage()` runs the HTML through `SpixiLocalization.localizeHtml` (string-replacing `*SL{key}` tokens), then loads it — in-memory on Android, written to disk as `ll_<file>.html` on iOS/macOS/Windows. Since Session K the localized document is CACHED per (file, dictionary version) — recomputed only after a language load or an `addCustomString`, never on every page constructor. The page JS signals readiness by navigating to `ixian:onload` (`intro.html` uses `ixian:introload`); C#-side messages are queued until `document.readyState == "complete"`.
 
 ### 2.2 JS → C# transport
 
@@ -197,6 +197,7 @@ Mocked in `src/bridge/mock.js`; shells degrade gracefully if unimplemented (feat
 |---|---|---|
 | `setRoute(view, paramsB64)` | C#→JS | Tell a shell which internal view to show. Interim fallback: a `*SL{Route}` custom string injected at generation time, which works today with one `addCustomString` call per page class. |
 | `ixian:ready:<shellId>` | JS→C# | Replaces `ixian:onload`/`ixian:introload` inconsistency for shells (old commands still emitted for compatibility). |
+| `ixian:painted` | JS→C# | **LANDED (Session K, 2026-09-03).** The chat shell's "history is on glass" signal, sent one frame after its burst render; SingleChatPage presents the staged conversation THERE (revealDelayMs 0, 400 ms backstop) instead of on the flat 120 ms `revealDelayMs` timer. No payload; idempotent. |
 | `getStrings(langCode)` → `setStrings(jsonB64)` | JS→C# → C#→JS | Instant language switching without page regeneration. |
 | `patchList(listId, jsonB64)` | C#→JS | Delta updates for chat/contact/activity lists instead of clear-and-rebuild every tick (fixes the 1 s full-list rebuild in ContactDetails and reduces main-thread JS churn everywhere). |
 | `ixian:secure:<command>` + body via `postMessage` | JS→C# | Migration path to stop sending passwords through navigation URLs (see 9.1). Existing commands untouched until BE decides. |

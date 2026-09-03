@@ -580,6 +580,14 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    Initials scale ≈ 0.38 × avatar size. */
 .c-avatar[data-size="24"] { width: var(--size-avatar-24); height: var(--size-avatar-24); }
 .c-avatar[data-size="24"] .c-avatar__initials { font-size: 9px; }
+/* ★ Session K (walk J2 T1, the group-sender avatar at --bubble-avatar-size): the three
+   sheet sizes get their initials step — the 0.375 ratio the 48 → 18 pair set. 28 / 32 / 36
+   are sized inline by createAvatar (no --size-avatar token for them, by design: the bubble
+   token is the one home). */
+.c-avatar[data-size="28"] .c-avatar__initials { font-size: 11px; }
+.c-avatar[data-size="32"] { width: var(--size-avatar-32); height: var(--size-avatar-32); }
+.c-avatar[data-size="32"] .c-avatar__initials { font-size: 12px; }
+.c-avatar[data-size="36"] .c-avatar__initials { font-size: 13px; }
 .c-avatar[data-size="40"] { width: var(--size-avatar-40); height: var(--size-avatar-40); }
 .c-avatar[data-size="40"] .c-avatar__initials { font-size: 15px; }
 .c-avatar[data-size="48"] { width: var(--size-avatar-48); height: var(--size-avatar-48); }
@@ -906,7 +914,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    tags the sheet's own scrim [data-dt-clear]; the ELEMENT stays (outside-click
    dismissal + the #56 stack/a11y grammar untouched) — it's just invisible.
    Centered sheets-as-dialogs and modals keep their wash. */
-:root[data-desktop] .c-scrim[data-dt-clear] { background: transparent; }
+/* ★ Session K: the rule is no longer desktop-scoped — the apps ⋯ dropdown clears its wash on
+   mobile too (Damir: "shouldn't dim at all"). The tag keeps its name; one grammar. */
+.c-scrim[data-dt-clear],
+:root:not([data-desktop]) .c-scrim[data-dt-clear] { background: transparent; }   /* the second selector out-specifies the mobile deep wash (line 19, (0,3,0)) */
 
 /* ═════════ MOBILE anchored dropdown (Batch E (a), #557, Damir 2026-08-22) ═════════
    The message menu + the chats-row menu present as a DROPDOWN anchored to the

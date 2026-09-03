@@ -34,6 +34,19 @@
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createAvatar, hashHue, truncateAddressMiddle } from './avatar.js';
+
+/* ★ Session K (walk J2 T1): the group-sender avatar's size is the `--bubble-avatar-size`
+   token (tokens.css) — read once from :root and cached; 24 when unreadable (jsdom, a stale
+   tokens file), which is exactly the pre-K literal. The gutter's CSS width reads the same
+   token, so the disc and its column cannot drift. */
+let bubbleAvatarSizeCache = 0;
+function bubbleAvatarSize() {
+  if (bubbleAvatarSizeCache) return bubbleAvatarSizeCache;
+  let n = 0;
+  try { n = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bubble-avatar-size'), 10); } catch (e) {}
+  bubbleAvatarSizeCache = (n >= 16 && n <= 64) ? n : 24;
+  return bubbleAvatarSizeCache;
+}
 import { createStatusIcon } from './chatlist-item.js';
 import { createBadge } from './badge.js';
 import { dayBucketLabel, docLocale, timeOpts } from './timestamp.js';
@@ -304,7 +317,7 @@ export function createMessageBubble({
     // tail (WhatsApp's group grammar); it sat bottom-aligned on the LAST bubble while the tail
     // rode the first. Other rows keep the gutter width so bubbles align.
     if (showAvatar && (position === 'first' || position === 'single')) {
-      const av = createAvatar({ src: avatar, name, address, size: 24 });
+      const av = createAvatar({ src: avatar, name, address, size: bubbleAvatarSize() });   // ★ Session K: the --bubble-avatar-size token, not a literal 24
       if (onSenderClick) { // #99: avatar opens the member sheet too
         const b = document.createElement('button');
         b.type = 'button';
@@ -318,6 +331,7 @@ export function createMessageBubble({
       }
     }
     row.append(gutter);
+    row.dataset.gutter = '';   // ★ Session K (walk J2 T1): the row takes the composer's inset — message-bubble.css
   }
 
   const el = document.createElement('div');

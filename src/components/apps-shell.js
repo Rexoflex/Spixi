@@ -201,8 +201,9 @@ export function renderAppsList(listEl, state, opts = {}) {
       // INSTEAD of the ⋮ menu: wired only when the menu is off (appMenu:false) and a
       // details handler exists — so a menu-driven surface (demos) never doubles up.
       onInfo: hasInfo ? () => opts.onOpen(cur()) : undefined,
-      onMenu: !hasMenu ? undefined : () => openAppMenu({
+      onMenu: !hasMenu ? undefined : (_app, btn) => openAppMenu({
         app: cur(), host: opts.host, strings,
+        row: btn && btn.closest ? btn.closest('.c-app-item') : null, anchor: btn || null,   // ★ Session K (#757 ①): anchored dropdown on mobile
         allowInvite: !!opts.onLaunchMulti,   // A9: never render a row that no-ops (#184 class)
         onAction: (action) => applyAppAction(listEl, state, cur(), action, opts),
       }),

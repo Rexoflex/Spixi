@@ -1,0 +1,10 @@
+Session K: chat open on the shell's paint, the localized-document cache, walk J2 fixes, the logged rows, dark white-on-blue
+
+- chat open: present on ixian:painted (revealDelayMs 0, 150 ms backstop); generatePage caches the localized document per (file, dictionary version) — the 640 KB localizeHtml loop ran in every page constructor; no FadeTo; tap→ctor + boot-split stamps (#760)
+- walk J2 12/1: K1 keyboard→tray HOLD (mirror of #721, [KBTRAY] reveal stamp); T1 group avatar 32 at the composer edge (--bubble-avatar-size/-inset, data-gutter rows); [SCROLL] jank probe (#761)
+- logged rows: received-sticker pill → inline-end; nick-edit pencils pass ariaLabel at creation; apps ⋯ = anchored dropdown, no dim (Damir); [CDPERF] appnew stamps; [WV2] stamps + WebView2 DefaultBackgroundColor in applyPageSurfaceColor; group-avatar trace (hash ruled out, device fact parked) (#762)
+- dark: on-action inks white, action surface primary-600 (his pick), states darker (#763)
+- RAM 411 MB peak + the chat-open route logged for the Mac capture (#764)
+- suite: +26 Session K pins, 8 re-based, mutations 12/12; smoke 4038 / 3 known; bundle 321; gate rows in security-handover-gate.md; sheets in docs/reference-screens/premium/sheets/session-k
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>

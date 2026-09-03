@@ -10977,11 +10977,11 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
     '★ #705: the iOS edge swipe closes the attach tray in the SAME order as chatBack (after the stack, before selection) — one gesture grammar, two entry points');
   ok(/if \(chatSelect && box\.dataset\.selecting === undefined\) chatSelect = null;/.test(chatNc),
     '★ N51 (#376 loop A-1, MAJOR): a constructor-auto-exited selection (initial row not selectable) fires onExit BEFORE the handle lands — the dead-handle guard at startChatSelect drops it, or hardware back is WEDGED for the life of the conversation');
-  ok((chatNc.match(/syncChatOverlay\(\);/g) || []).length === 12   // +2 (#523): the money cover's open + close · +3 (#705): the attach tray's open (openAttach), close (closeAttachTrayIfOpen) and the tile-close (the tray's onAction) · +1 (#721): the keyboard hand-off drop
+  ok((chatNc.match(/syncChatOverlay\(\);/g) || []).length === 13   // +2 (#523): the money cover's open + close · +3 (#705): the attach tray's open (openAttach), close (closeAttachTrayIfOpen) and the tile-close (the tray's onAction) · +1 (#721): the keyboard hand-off drop · +1 (Session K, K1): the keyboard → tray hold mounts (handKeyboardToTray)
     && /channelDropdown = overlay;\s*syncChatOverlay\(\);/.test(chatNc)
     && /channelDropdown = null;\s*channelSheetBody = null;\s*syncChatOverlay\(\);/.test(chatNc)
     && /onExit: \(\) => \{ chatSelect = null; syncChatOverlay\(\); \}/.test(chatNc),
-    'N51: the off-stack surfaces sync EXPLICITLY at every open/close site (12 call sites incl. the two A-1 heals, the #523 money cover pair, the #705 tray trio and the #721 hand-off — the MutationObservers only see data-overlay-open)');
+    'N51: the off-stack surfaces sync EXPLICITLY at every open/close site (13 call sites incl. the two A-1 heals, the #523 money cover pair, the #705 tray trio, the #721 hand-off and the Session K keyboard → tray hold — the MutationObservers only see data-overlay-open)');
 
   /* —— AND-37: settings back over a sheet —— */
   for (const [label, txt] of [['source', setSrcNc], ['built', nc(setBuilt)]]) {
@@ -16151,8 +16151,8 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     '★ Batch E (b) (#557): the MOBILE overlay scrim is one level deeper (0.6 → 0.7, same grey-1000 base); desktop dialogs keep 0.6 and desktop anchored menus stay wash-free (#268)');
 
   /* — (c) desktop: #268 stands, the source highlight retuned — */
-  ok(/:root\[data-desktop\] \.c-scrim\[data-dt-clear\] \{ background: transparent; \}/.test(ovCssE),
-    '★ Batch E (c): #268 STANDS — anchored desktop menus carry no backdrop wash (thrice affirmed, not re-litigated)');
+  ok(/\.c-scrim\[data-dt-clear\],\s*:root:not\(\[data-desktop\]\) \.c-scrim\[data-dt-clear\] \{ background: transparent; \}/.test(ovCssE),
+    '★ Batch E (c): #268 STANDS — anchored desktop menus carry no backdrop wash (thrice affirmed, not re-litigated). ★ Session K re-base: the rule dropped its :root[data-desktop] scope so the apps ⋯ dropdown can clear its wash on mobile too (Damir: "shouldn\'t dim at all"); desktop reads the same transparent');
   /* r2 (loop E-4): the :not([aria-current]) escape is part of the retune — without
      it the (0,3,0) wash REPLACES the open conversation's tonal selected paint. */
   ok(/:root\[data-desktop\] \[data-dt-ctx-source\]:not\(\[aria-current\]\) \{ background: var\(--surface-press-row-hover\)/.test(ovCssE)
@@ -21554,7 +21554,7 @@ console.log('#711 / #712: floating composer + the notifications sub-labels');
   for (const [label, t] of [['source', ch], ['built', chB]]) {
     ok(/<div class="messages u-scroll" id="messages"[^\n]*\n[\s\S]{0,700}?<div id="chat-composer"><\/div>\s*\n\s*<\/div>/.test(t) && !/<\/div>\s*\n\s*<div id="chat-composer"><\/div>\s*\n\s*<script/.test(t),
       '★★ #711 [' + label + ']: #chat-composer lives INSIDE .c-chat-canvas (after #messages) — the composer floats over the pattern, still in the flex flow (keyboard margin, tray, request pane unchanged)');
-    ok(/new ResizeObserver\(publish\)\.observe\(slot\);/.test(t) && /setProperty\('--composer-h', slot\.offsetHeight \+ 'px'\)/.test(t)
+    ok(/new ResizeObserver\(publish\)\.observe\(slot\);/.test(t) && /setProperty\('--composer-h', h \+ 'px'\)/.test(t) && /const h = slot\.offsetHeight;/.test(t)   /* ★ Session K re-base: the height is read once into `h` (the tray re-pin reads it too) */
        && /inset-block-end: calc\(var\(--composer-h, 0px\) \+ var\(--spacing-16\)\);\s*\/\* primary bottom slot/.test(t)
        && /inset-block-end: calc\(var\(--composer-h, 0px\) \+ var\(--spacing-16\) \+ var\(--size-target-min\) \+ var\(--spacing-8\)\);/.test(t),
       '★ #711 [' + label + ']: the composer publishes its height (--composer-h, ResizeObserver) and the @ FAB\'s two slots read it — the FABs float ABOVE the composer, never under it');
@@ -21683,10 +21683,10 @@ console.log('#713–#721: the walk fixes');
     const as = nc(rdF('src/components/attach-sheet.js'));
     ok(/function handTrayToKeyboard\(\)/.test(ch) && /window\.addEventListener\('resize', drop\);/.test(ch) && /setTimeout\(drop, 450\);/.test(ch)
        && /closeAttachTray\(tray, \{ instant: true \}\);/.test(ch) && /input\.addEventListener\('focus', \(\) => \{ handTrayToKeyboard\(\); \}\);/.test(ch)
-       && /instant: kbUp \|\| \(!!input && document\.activeElement === input\),/.test(ch)   /* ★ #756 re-base: the keyboard's own state decides; activeElement is the belt */
+       && /instant: !!input && document\.activeElement === input,/.test(ch) && /if \(kbUp\) \{\s*handKeyboardToTray\(trayArgs, input\);/.test(ch)   /* ★ #756 re-base: the keyboard's own state decides · ★ Session K (K1) re-base: kbUp routes to the HOLD (keyboard → tray); `instant` is the no-soft-keyboard focus case only */
        && /if \(instant\) \{ tray\.remove\(\); trayState\.delete\(tray\); return true; \}/.test(as) && /tray\.dataset\.instant = '';/.test(as)
        && /\.c-attach-tray\[data-instant\] \{ transition: none; \}/.test(rdF('src/styles/components/attach-sheet.css')),
-      '★ #721: a tap in the field HOLDS the tray until the viewport shrinks (the keyboard has the slot) and then drops it in one frame; opening while the keyboard is up takes the slot instantly — no dip-and-rise between the two');
+      '★ #721: a tap in the field HOLDS the tray until the viewport shrinks (the keyboard has the slot) and then drops it in one frame; ★ Session K (K1): opening while the keyboard is up is the MIRROR hold — the tray takes the slot in the frame the keyboard leaves (the instant swap flashed: keyboard + tray for the 100–300 ms the keyboard took to go)');
   }
 }
 
@@ -22023,7 +22023,7 @@ console.log('Session I ②: [CDPERF] chat-open instrument · the seed harness');
     /cdperf\("load", "n=" \+ lastLoadPushed \+ " bg=" \+ \(openClock\.ElapsedMilliseconds - cdLoad0\) \+ "ms"\)/.test(scs),
     /MainThread\.BeginInvokeOnMainThread\(\(\) => cdperf\("drain", "t=" \+ openClock\.ElapsedMilliseconds\)\);/.test(scs),
     /cdperf\("present", "t=" \+ openClock\.ElapsedMilliseconds\);/.test(scs) && /protected internal override void onPreloadPresented\(\)/.test(scs),
-    /cdperf\("frames", "n=" \+ frames \+ " drop=" \+ dropped \+ " max="/.test(scs) && /Android\.Views\.Choreographer\.IFrameCallback/.test(scs),
+    /Logging\.info\("\[CDPERF\] " \+ tag \+ " frames n=" \+ frames \+ " drop=" \+ dropped \+ " max="/.test(scs) && /Android\.Views\.Choreographer\.IFrameCallback/.test(scs),   /* ★ Session K: the probe carries a TAG (AppNewPage borrows it for #757 ②) — same line, "[CDPERF] chat frames …" for the chat */
     /console\.warn\('\[CDPERF\] chat-shell n=' \+ \(cdBurst \? cdBurst\.n : 0\)/.test(chat) && /\[CDPERF\] chat-shell n=/.test(builtChat),   /* ★ Session J: WARN, not info — the release WebView drops chromium INFO lines from logcat */
   ];
   ok(pieces.every(Boolean) || pieces.every((x) => !x),
@@ -22594,9 +22594,9 @@ console.log('Session J: the seven walk fixes · Damir\'s evening rulings · the 
        && /\.c-attach-tray\[data-open\] \{ height: var\(--kb-slot-h, 268px\); \}/.test(rdF('src/styles/components/attach-sheet.css')),
       '★ Session J: the attach tray\'s open height is --kb-slot-h — the keyboard\'s own MEASURED height (Android: the adjustResize shrink; iOS: the native inset push), clamped 160–600, persisted per device, 268 until a keyboard has been seen — so the tray ↔ keyboard swap cannot move the bar by the difference');
     const kbtray = (stripCode(ch).match(/\[KBTRAY\]/g) || []).length;   /* code only — the comment names the set once more */
-    ok(kbtray === 4 && /\[KBTRAY\] resize ih=/.test(ch) && /\[KBTRAY\] hold ih=/.test(ch) && /\[KBTRAY\] drop by=/.test(ch) && /\[KBTRAY\] open ih=/.test(ch)
-       && (stripCode(rdF('Spixi/Resources/Raw/html/chat.html')).match(/\[KBTRAY\]/g) || []).length === 4,
-      '★ Session J [KBTRAY] — TEMPORARY, a SET of four stamps (resize · hold · drop · open), console.warn so they reach logcat; retire all four together with this pin (which then becomes the reversal)');
+    ok(kbtray === 5 && /\[KBTRAY\] resize ih=/.test(ch) && /\[KBTRAY\] hold ih=/.test(ch) && /\[KBTRAY\] drop by=/.test(ch) && /\[KBTRAY\] open ih=/.test(ch) && /\[KBTRAY\] reveal by=/.test(ch)
+       && (stripCode(rdF('Spixi/Resources/Raw/html/chat.html')).match(/\[KBTRAY\]/g) || []).length === 5,
+      '★ Session J [KBTRAY] — TEMPORARY, a SET of FIVE stamps (resize · hold · drop · open · ★ Session K reveal), console.warn so they reach logcat; retire all five together with this pin (which then becomes the reversal)');
   }
   /* ★ Session J #754 — the WebView console reaches the log (dev builds), never the mini-app's; the About seed status refreshes in place */
   {
@@ -22620,7 +22620,7 @@ console.log('Session J: the seven walk fixes · Damir\'s evening rulings · the 
   {
     const ch = rdF('src/shells/chat.html');
     ok(/let kbUp = false;/.test(ch) && /if \(shrank\) kbUp = true; else if \(ih > lastIH \+ 60\) kbUp = false;/.test(ch) && /kbUp = px > 60;/.test(ch)
-       && /instant: kbUp \|\| \(!!input && document\.activeElement === input\),/.test(ch),
+       && /if \(kbUp\) \{\s*handKeyboardToTray\(trayArgs, input\);/.test(ch),   /* ★ Session K (K1) re-base: kbUp now routes to the hold instead of `instant` */
       '★ #756 (the [KBTRAY] capture: "open ih=590 focused=false" with the keyboard on screen): whether the keyboard is up is read from the KEYBOARD (the resize shrink / the iOS inset) — tapping the ⊕ button moves focus off the field before its click runs, so activeElement said "no keyboard" and the tray ROSE while the keyboard was still up; that rise-then-drop was the flicker');
     const mb = rdF('src/components/message-bubble.js');
     ok(/if \(showAvatar && \(position === 'first' \|\| position === 'single'\)\) \{/.test(mb) && /nextGutter\.append\(av\)/.test(mb) && !/prevGutter\.append\(av\)/.test(mb)
@@ -22630,6 +22630,157 @@ console.log('Session J: the seven walk fixes · Damir\'s evening rulings · the 
   /* the M1 hold-out gate is environment-conditional — recorded so the closing number is never "wrong" again */
   ok(/no Ixian-Core sibling in this checkout — the hold-out gate is skipped/.test(rdF('scripts/smoke-test.mjs')),
     '★ Session J baseline finding: the M1 (#448) hold-out gate emits TWO oks with an Ixian-Core sibling and ONE without — the closing number is +1 with the sibling (3978 → 3979 at f325d651). Record BOTH, or record which');
+}
+
+console.log('Session K: chat open on the shell\'s paint · the localized-document cache · walk J2 · the logged rows · dark on-action white');
+{
+  const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
+  const scs = rdF('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+  const hp = rdF('Spixi/Pages/Home/HomePage.xaml.cs');
+  const scp = rdF('Spixi/Utils/SpixiContentPage.cs');
+  const loc = rdF('Spixi/Lang/SpixiLocalization.cs');
+  const ch = rdF('src/shells/chat.html');
+  const builtChat = rdF('Spixi/Resources/Raw/html/chat.html');
+  /* ★★ PRESENT ON THE SHELL'S PAINT (Damir: "opening a chat must be faster") — the four halves are ONE mechanism */
+  {
+    const glass = ch.slice(ch.indexOf("console.warn('[CDPERF] chat-shell n='"), ch.indexOf("dbg('onChatScreenLoaded')"));
+    ok(/\} catch \(e\) \{\}\s*\n[\s\S]*?bridge\.send\('ixian:painted'\);\s*\n\s*\}\)\);/.test(glass) && /bridge\.send\('ixian:painted'\)/.test(builtChat),
+      '★★ Session K: chat.html emits ixian:painted in the SAME double-rAF as its glass stamp, AFTER the stamp\'s try/catch closes (a failing stamp must never swallow the present) — source and built shell');
+    ok(/else if \(current_url\.Equals\("ixian:painted", StringComparison\.Ordinal\)\)\s*\{[\s\S]*?onPainted\(\);/.test(scs)
+       && /private void onPainted\(\)\s*\{[\s\S]*?paintedSeen = true;\s*if \(presentArmed\)\s*\{\s*signalPreloadReady\(\);/.test(scs),
+      '★★ Session K: SingleChatPage answers ixian:painted with onPainted → latch + present-if-armed (either order: the verb rides the navigating event, the arm rides the onLoad finally marshal)');
+    ok(/finally\s*\{[^}]*armPresentOnPainted\(\);\s*\}/.test(scs) && !/finally\s*\{[^}]*signalPreloadReady\(\);\s*\}/.test(scs),
+      '★★ Session K: onLoad\'s finally ARMS (armPresentOnPainted) instead of presenting — the present waits for the paint, not for a timer');
+    ok(/private const int PRESENT_BACKSTOP_MS = 400;/.test(scs) && /Task\.Delay\(PRESENT_BACKSTOP_MS\)\.ContinueWith\(_ => MainThread\.BeginInvokeOnMainThread\(\(\) =>[\s\S]*?signalPreloadReady\(\);/.test(scs),
+      '★ Session K: the 400 ms BACKSTOP presents anyway — a stale built shell without the verb (#663\'s class) can never leave the conversation invisible; presentPreload.tryFinish keeps both paths idempotent. (150 on the first cut: walk K open #2 hit it BEFORE the paint — the renderer ran the queue ~100 ms after C#\'s drain marker)');
+    ok(/pushPageLoaded\(new SingleChatPage\(friend, wide \? this : null\), 4000, "chat", wide \? 1 : -1,[\s\S]*?revealDelayMs: 0\);/.test(hp),
+      '★★ Session K: the chat push passes revealDelayMs: 0 — the flat 120 ms hold in presentPreload was ~90 ms of waiting for a paint that had landed (#754/#756: drain → present 130 ms against a 21–27 ms paint)');
+    ok(!/webView\.FadeTo\(/.test(scs) && /webView\.Opacity = 1;\s*\n\s*webView\.Focus\(\);/.test(scs),
+      '★ Session K: no FadeTo on the chat WebView — it fades inside an invisible stage; the present is the reveal (a 90 ms animation could only be SEEN when the present landed mid-fade)');
+  }
+  /* ★★ THE LOCALIZED DOCUMENT IS COMPUTED ONCE — generatePage ran the 640 KB line loop in every constructor */
+  {
+    ok(/private static int dictionaryVersion = 0;/.test(loc) && /public static int getDictionaryVersion\(\)/.test(loc)
+       && /localizedStrings = localized_strings;\s*language = resolved_lang;\s*dictionaryVersion\+\+;/.test(loc)
+       && /localizedStrings\.AddOrReplace\(key, value\);\s*dictionaryVersion\+\+;/.test(loc),
+      '★★ Session K: SpixiLocalization carries a DICTIONARY VERSION bumped by BOTH mutations — a language load and addCustomString (LaunchBootView / LockAuthPending / devMode / the theme name are written right before their page\'s generatePage; a cache that missed either would serve a stale carrier)');
+    ok(/localizedHtmlCache\.TryGetValue\(html_file_name, out var cached\) && cached\.version == version/.test(scp)
+       && /localizedHtmlCache\[html_file_name\] = \(version, html\);/.test(scp)
+       && /int version = SpixiLocalization\.getDictionaryVersion\(\);/.test(scp),
+      '★★ Session K (Android): generatePage serves the cached localized HTML when the dictionary version matches, and only then — the 640 KB Trim/Contains line loop ran on the UI thread inside EVERY chat constructor before this');
+    ok(/bool fresh = localizedFileVersion\.TryGetValue\(html_file_name, out int written\) && written == version && File\.Exists\(localized_file_path\);/.test(scp)
+       && /if \(File\.Exists\(localized_file_path\)\)\s*\{\s*localizedFileVersion\[html_file_name\] = version;/.test(scp),
+      '★ Session K (Windows): ll_*.html is rewritten only on a version change, and a file that was NOT written (localizeHtml returns silently on a missing asset, #663) is never marked fresh — the next open retries, exactly as before');
+  }
+  /* ★ the stamps that complete the timeline (temporary; retire with the [CDPERF] set) */
+  {
+    ok(/internal static long pendingTapTicks = 0;/.test(scs) && /cdperf\("ctor", "tap=" \+/.test(scs)
+       && /SingleChatPage\.pendingTapTicks = System\.Diagnostics\.Stopwatch\.GetTimestamp\(\);/.test(hp),
+      '★ Session K [CDPERF]: the tap → constructor stamp is a PAIR (HomePage writes the ticks, the constructor logs and clears them) — half of it is a stamp that lies by silence');
+    ok(/console\.warn\('\[CDPERF\] chat-shell boot nav='/.test(ch) && /\[CDPERF\] chat-shell boot nav=/.test(builtChat),
+      '★ Session K [CDPERF]: the shell\'s boot split (nav = navigationStart → ready, dcl = the parse) — the number that says whether the 140–180 ms constructor → onload gap is WebView creation or page parse');
+    const appNew = rdF('Spixi/Pages/MiniApps/AppNewPage.xaml.cs');
+    const appPieces = [/cdperf\("onload", "t=" \+ openClock\.ElapsedMilliseconds\);/.test(appNew), /cdperf\("present", "t=" \+ openClock\.ElapsedMilliseconds\);/.test(appNew), /SingleChatPage\.CdperfFrameProbe\.start\(openClock, "appnew"\);/.test(appNew), /internal sealed class CdperfFrameProbe/.test(scs)];
+    ok(appPieces.every(Boolean) || appPieces.every((x) => !x),
+      '★ Session K [CDPERF] appnew (#757 ②, MEASURE before any fix): onload · present · the shared frame probe — a set, retired together. Got ' + JSON.stringify(appPieces));
+    const scrollPieces = [/\[SCROLL\] frames=/.test(ch), /function scrollJankProbe\(\)/.test(ch), /\[SCROLL\] frames=/.test(builtChat)];
+    ok(scrollPieces.every(Boolean) || scrollPieces.every((x) => !x),
+      '★ Session K [SCROLL] (walk J2, heavy seed: "janky when scrolling"): the rAF scroll-jank probe — one console.warn line per scroll, no verb, no data; a set, retired with [CDPERF]. Got ' + JSON.stringify(scrollPieces));
+    const wv2 = [/private void wv2Stamp\(string what\)/.test(scp), /wv2Stamp\("load"\);/.test(scp), /wv2Stamp\("navigated"\);/.test(scp), /op\.target\.wv2Stamp\("present"\);/.test(scp)];
+    ok(wv2.every(Boolean) || wv2.every((x) => !x),
+      '★ Session K [WV2] (#754/#755 Windows ghosts): load · navigated · present, Windows-only, ONE clock per page — a set. Got ' + JSON.stringify(wv2));
+    ok(/#if WINDOWS\s*\n\s*\/\* ★ Session K \(#755[\s\S]*?wv2\.DefaultBackgroundColor = pageSurfaceColor\.ToWindowsColor\(\);/.test(scp),
+      '★ Session K (#755): WebView2\'s DefaultBackgroundColor is applied inside applyPageSurfaceColor (every surface pass, as soon as the platform view exists) — the same shape as the Android F1 block; webViewNavigating alone was the FIRST NAVIGATION, after a staged overlay could already be composed white');
+  }
+  /* ★ walk J2 T1 — the group avatar rides the composer's edge, from ONE token */
+  {
+    const mbc = stripCssComments(rdF('src/styles/components/message-bubble.css'));
+    const mb = rdF('src/components/message-bubble.js');
+    const tok = stripCssComments(rdF('src/styles/tokens.css'));
+    ok(/--bubble-avatar-size: 32px;/.test(tok) && /--bubble-avatar-inset: var\(--spacing-12\);/.test(tok),
+      '★ Session K (walk J2 T1, Damir: "left aligned with the left edge of the composer, and maybe a bit bigger"): the two tokens — size 32 (sheet 28/32/36, his pick pending) and the inset = the composer\'s own spacing-12 (composer.css padding-inline-start)');
+    ok(/\.c-bubble-row\[data-gutter\] \{\s*--bubble-row-inset: var\(--bubble-avatar-inset\);\s*padding-inline-end: calc\(var\(--spacing-16\) \+ var\(--bubble-tail\)\);/.test(mbc)
+       && /\.c-bubble-row__gutter \{\s*width: var\(--bubble-avatar-size\);/.test(mbc),
+      '★ Session K T1: a row that carries a gutter is STAMPED data-gutter (never :has()) and re-homes --bubble-row-inset — so chat-select\'s tick follows the same number; the gutter\'s width is the size token');
+    ok(/row\.dataset\.gutter = '';/.test(mb) && /size: bubbleAvatarSize\(\)/.test(mb) && /getPropertyValue\('--bubble-avatar-size'\)/.test(mb) && !/size: 24 \}\);/.test(mb.slice(mb.indexOf('if (showAvatar && (position'))),
+      '★ Session K T1: message-bubble.js stamps the row and sizes the disc from the SAME token (cached read of :root; 24 when unreadable = the pre-K literal)');
+    ok(/\.c-avatar\[data-size="28"\] \.c-avatar__initials/.test(rdF('src/styles/components/avatar.css')) && /\.c-avatar\[data-size="32"\] \.c-avatar__initials/.test(rdF('src/styles/components/avatar.css')) && /\.c-avatar\[data-size="36"\] \.c-avatar__initials/.test(rdF('src/styles/components/avatar.css')),
+      '★ Session K T1: the three sheet sizes carry their initials step in avatar.css (0.375 ratio)');
+  }
+  /* ★ the logged rows (#753 ③a · #756 ⑤ · #757 ①) */
+  {
+    const rc = stripCssComments(rdF('src/styles/components/reactions.css'));
+    const both = rc.indexOf('.c-bubble-row[data-direction] .c-bubble[data-emoji-only] .c-reactions[data-placement="overlap"] { inset-inline-start: 0; inset-inline-end: auto; }');
+    const recv = rc.indexOf('.c-bubble-row[data-direction="received"] .c-bubble[data-emoji-only] .c-reactions[data-placement="overlap"] { inset-inline-start: auto; inset-inline-end: 0; }');
+    ok(both !== -1 && recv > both,
+      '★ Session K (#753 ③a, Damir: on a RECEIVED sticker the pill covered the time chip): the received-sticker rule takes the OTHER corner (inline-end) and sits AFTER the direction-blind rule at the same specificity, so source order decides');
+    for (const [file, cls] of [['src/components/settings-shell.js', 'c-settings__nick-edit'], ['src/components/chat-info.js', 'c-chat-info__nick-edit']]) {
+      const src = rdF(file);
+      const i = src.indexOf("pencil.classList.add('" + cls + "')");
+      const call = src.slice(src.lastIndexOf('createButton({', i), i);
+      ok(/ariaLabel: strings\.editNickname \|\| 'Edit nickname',/.test(call) && !/pencil\.setAttribute\('aria-label'/.test(src),
+        '★ Session K (#756 ⑤ "icon-only button requires ariaLabel" twice at boot — the WARM settings WebView\'s hub, #546 C3): ' + file + ' passes ariaLabel AT CREATION (the post-hoc setAttribute is gone)');
+    }
+    const am = rdF('src/components/apps-menu.js');
+    const ash = rdF('src/components/apps-shell.js');
+    ok(/import \{ anchorSheetToRow, clearScrimFor \} from '\.\/desktop-anchors\.js';/.test(am) && /anchorSheetToRow\(sheet, row, \{ host, align: anchor \|\| row \}\);/.test(am)
+       && /openAppMenu\(\{ app = \{\}, host, onAction, allowInvite = false, strings = getStrings\(\), row = null, anchor = null \} = \{\}\)/.test(am),
+      '★ Session K (#757 ①, Damir: "the bottom sheet is below, disconnected, and a very small tap area"): the apps ⋯ menu anchors to its row on mobile through the chats-row helper (fail-soft: no row → the sheet; desktop untouched)');
+    ok(/onMenu: !hasMenu \? undefined : \(_app, btn\) => openAppMenu\(\{[\s\S]*?row: btn && btn\.closest \? btn\.closest\('\.c-app-item'\) : null, anchor: btn \|\| null,/.test(ash),
+      '★ Session K (#757 ①): apps-shell hands the ⋯ button and its .c-app-item row to the menu — the half without which the anchor silently stays a sheet');
+  }
+  /* ★★ K1 (walk J2 FAIL, Damir's "go"): keyboard → tray is a HOLD, the mirror of #721 */
+  {
+    const as = rdF('src/components/attach-sheet.js');
+    ok(/instant = false, hold = false \} = \{\}\) \{/.test(as) && /if \(hold\) \{\s*tray\.dataset\.instant = '';[^}]*return tray;/.test(as) && /export function revealAttachTray\(tray\)/.test(as),
+      '★★ K1: openAttachTray({ hold }) mounts the tray CLOSED with no transition and revealAttachTray opens it in one frame — the two halves of the keyboard → tray swap');
+    ok(/if \(kbUp\) \{\s*handKeyboardToTray\(trayArgs, input\);\s*return;\s*\}/.test(ch) && /function handKeyboardToTray\(trayArgs, input\)/.test(ch)
+       && /const tray = openAttachTray\(\{ \.\.\.trayArgs, hold: true \}\);/.test(ch) && /window\.addEventListener\('resize', reveal\);/.test(ch) && /setTimeout\(reveal, 450\);/.test(ch)
+       && /instant: !!input && document\.activeElement === input,/.test(ch) && !/instant: kbUp \|\|/.test(ch),
+      '★★ K1 (chat.html): with the keyboard UP the ⊕ hands the slot to the tray — mount held, open on the viewport GROW (resize / visualViewport, 450 ms backstop); `instant` is left for the no-soft-keyboard focus case only. The old `instant: kbUp ||` (full slot in the blur frame = the two-heights flash) is gone');
+    ok(/revealAttachTray,/.test(ch.slice(0, ch.indexOf('} = window.Spixi'))),
+      '★ K1: revealAttachTray is DESTRUCTURED by the shell (the #421 lesson — a bundle export used but not destructured throws inside the handler)');
+    /* behavioural, on the jsdom bundle window from the demo load above */
+    const Wk = (await load('chat.html')).window;
+    await sleep(200);
+    const compK = Wk.document.querySelector('.c-composer');
+    if (!compK || !Wk.Spixi || !Wk.Spixi.openAttachTray) {
+      ok(false, 'K1 behavioural: the chat demo mounts a composer and the bundle exposes openAttachTray');
+    } else {
+      const held = Wk.Spixi.openAttachTray({ composerEl: compK, hold: true, strings: Wk.SL || {} });
+      await sleep(60);
+      ok(!!held && held.dataset.instant !== undefined && held.dataset.open === undefined && compK.nextElementSibling === held,
+        '★★ K1 behavioural: a HELD tray is mounted after the composer, marked instant, and NOT open — nothing has moved the bar yet');
+      ok(Wk.Spixi.revealAttachTray(held) === true && held.dataset.open !== undefined,
+        '★★ K1 behavioural: revealAttachTray opens the held tray (data-open) — the one frame the keyboard has left');
+      Wk.Spixi.closeAttachTray(held, { instant: true });
+      ok(Wk.Spixi.revealAttachTray(held) === false, '★ K1: revealing a tray that closed inside the hold is a no-op (a back press during the 450 ms window)');
+    }
+  }
+  /* ★ #757 ① addendum (Damir on the rendered sheet: "shouldn't dim at all, just the menu next to the app") */
+  {
+    const am = rdF('src/components/apps-menu.js');
+    const oc = stripCssComments(rdF('src/styles/components/overlay.css'));
+    ok(/import \{ anchorSheetToRow, clearScrimFor \} from '\.\/desktop-anchors\.js';/.test(am) && /if \(sheet\.dataset\.mAnchor !== undefined\) clearScrimFor\(sheet\);/.test(am)
+       && /export function clearScrimFor\(sheet\)/.test(rdF('src/components/desktop-anchors.js')),
+      '★ Session K (#757 ① r2): the apps ⋯ menu clears its scrim ONLY when it anchored (the bottom-sheet fallback keeps its wash — an unanchored sheet with no dim reads detached)');
+    ok(/\.c-scrim\[data-dt-clear\],\s*:root:not\(\[data-desktop\]\) \.c-scrim\[data-dt-clear\] \{ background: transparent; \}/.test(oc),
+      '★ Session K (#757 ① r2): the clear-scrim rule is presentation-independent AND out-specifies the mobile deep wash ((0,3,0) on line 19) — one tag, one grammar');
+  }
+  /* ★ walk K, Damir on K1: "the chat behind it moves down behind the sheet, and jumps back up when I use the keyboard" */
+  ok(/const grew = h > lastSlotH;/.test(ch) && /const atBottom = nearBottom\(\);/.test(ch) && /if \(grew && atBottom\) requestAnimationFrame\(\(\) => \{ box\.scrollTop = box\.scrollHeight; \}\);/.test(ch)
+     && ch.indexOf('const atBottom = nearBottom();') < ch.indexOf("setProperty('--composer-h', h + 'px')"),
+    '★ Session K (walk K K1 note): when the composer slot GROWS (the tray) and the reader was at the bottom — judged BEFORE the padding lands — the log re-pins on the next frame, so the newest bubbles never hide under the tray until the keyboard\'s AND-16 re-pin snaps them back');
+  /* ★ dark on-action WHITE (Damir 2026-09-03) — with the surface one step deeper so the ink can hold */
+  {
+    const tok = stripCssComments(rdF('src/styles/tokens.css'));
+    const dark = tok.slice(tok.indexOf('[data-theme="dark"] {'));
+    const val = (name) => ((dark.match(new RegExp('--' + name + ': ([^;]+);')) || [])[1] || '').trim();
+    ok(val('text-neutral-on-action') === 'var(--neutral-10)' && val('icon-neutral-on-action') === 'var(--neutral-10)',
+      '★ Session K (Damir: "on dark mode the button labels on blue buttons and icons should be white"): both dark on-action inks are neutral-10 (reversal neutral-950, in the token comments)');
+    ok(val('surface-action-default') === 'var(--primary-600)' && val('surface-action-hover') === 'var(--primary-700)' && val('surface-action-pressed') === 'var(--primary-800)',
+      '★ Session K: the dark action surface is primary-600 (#3050bd — white 6.68:1, AA; Damir picked it over 500 on the rendered sheet) and the states go DARKER — a white-ink button must not lighten under the finger (400 = 2.5:1, 300 = 1.94:1)');
+  }
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

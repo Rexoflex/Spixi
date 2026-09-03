@@ -29,6 +29,13 @@ namespace SPIXI.Lang
         private static bool loaded = false;
         private static string language = "en-us";
         private static Dictionary<string, string> localizedStrings = new Dictionary<string, string>();
+        /* ★ Session K — THE DICTIONARY VERSION. Every mutation of what `*SL{}` resolves to
+         * (a language load, a custom string) bumps it. `generatePage` keys its localized-HTML
+         * cache on (file, version): a chat open re-localizes nothing when nothing changed,
+         * and a LaunchBootView / devMode / theme-name write before the next generatePage
+         * invalidates every entry by construction — no per-key bookkeeping, no stale carrier. */
+        private static int dictionaryVersion = 0;
+        public static int getDictionaryVersion() { return dictionaryVersion; }
         /* ★ AND-7 (#401): AndroidInsetTop is SEEDED here, not only registered by
          * MainActivity. Every shell head carries the carrier now, and an unknown *SL{}
          * key is not silently empty — localizeHtml LOGS an error for it (both `Unknown localization key` sites) on
@@ -157,6 +164,7 @@ namespace SPIXI.Lang
             loaded = true;
             localizedStrings = localized_strings;
             language = resolved_lang;
+            dictionaryVersion++;   // ★ Session K: every cached localized document is stale now
 
             return true;
         }
@@ -165,6 +173,7 @@ namespace SPIXI.Lang
         {
             customStrings.AddOrReplace(key, value);
             localizedStrings.AddOrReplace(key, value);
+            dictionaryVersion++;   // ★ Session K: a carrier changed — see getDictionaryVersion
         }
 
         public static string getLocalizedString(string key)

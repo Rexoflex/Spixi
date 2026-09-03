@@ -17,8 +17,8 @@ node scripts/build-shells.mjs
 node scripts/smoke-test.mjs
 ```
 Expect `bundle written: … 321 exports` · `18 shell(s) written` ·
-`BASELINE OK — 4038 / the 3 KNOWN` **with** the Ixian-Core sibling beside the repo
-(4037 without it — the M1 hold-out gate is one ok richer with the sibling, #748).
+`BASELINE OK — 4040 / the 3 KNOWN` **with** the Ixian-Core sibling beside the repo
+(4039 without it — the M1 hold-out gate is one ok richer with the sibling, #748).
 
 C# changed (SingleChatPage · HomePage · AppNewPage · SpixiContentPage · SpixiLocalization) —
 wipe `obj`/`bin` on both targets.

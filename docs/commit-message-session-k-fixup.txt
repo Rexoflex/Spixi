@@ -1,0 +1,7 @@
+Session K fix-up 2: #766 — form pages present at onload (Add app · Add contact · Change password), the I–K review brief
+
+- revealDelayMs: 0 on the three form pages (nothing pushed after onload; walk K P3 measured 0 dropped frames — the 120 ms hold was the felt stutter)
+- docs/opus-review-brief-sessions-i-k.md = Session L item 0 (the owed #46 loop); handoff + prompt updated; DECISIONS #765/#766
+- suite 4040 / 3 known (+2 pins, W7 re-based)
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>

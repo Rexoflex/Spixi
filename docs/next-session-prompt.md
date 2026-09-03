@@ -3,13 +3,13 @@ Branch redesign/frontend, Session K committed. Ixian-Core is a SIBLING clone at
 ..\Ixian-Core, frozen at 097341a.
 READ docs/handoff-2026-09-03b.md FIRST (it supersedes every earlier handoff), then
 docs/fable-build-brief-premium-density.md §10 + §12 + §13 (the picks ledger — every value has
-its reversal in the token comment), then DECISIONS #759–#765. The Opus verdict
+its reversal in the token comment), then DECISIONS #759–#766. The Opus verdict
 (docs/opus-review-verdict-session-h.md) still has the three MAJOR lessons — read them
 before touching the slide, the gates, the present machinery, or anything animated.
 VERIFY THE BASELINE FIRST — clean clone, Linux container (npm i jsdom tree-sitter
 tree-sitter-c-sharp), Ixian-Core sibling at 097341a. If any number differs, say so and STOP:
-bundle 321 · shells 18 · smoke BASELINE OK 4038 / the 3 known (#136 · M5 · B3) WITH the
-sibling (4037 without it — the M1 hold-out gate, #748)
+bundle 321 · shells 18 · smoke BASELINE OK 4040 / the 3 known (#136 · M5 · B3) WITH the
+sibling (4039 without it — the M1 hold-out gate, #748)
 locales ALL CLEAN 786 · i18n-lint OK (6 dev exemptions, 2 sites) · pseudo 9/9
 cs-syntax 141 clean + 1 known gap · extract-strings --check OK · build-shells --check OK
 build-legal-docs --check OK (terms baked · privacy HELD)
@@ -19,6 +19,9 @@ edit. Render on the real shells before I rebuild (the harness is handoff §3) �
 every dial. Measure on device before any fix (#215) — the capture recipe in
 docs/f5-checklist-session-k.md is the one that works (cable fixed).
 Then, in order (handoff §2):
+⓪ THE #46 ADVERSARIAL LOOP over Sessions I·J·K FIRST — work order docs/opus-review-brief-sessions-i-k.md
+(3 disjoint read-only auditors → verify → fix agents → a FRESH break-my-verdict reviewer → round 2
+→ CLEAN; append the verdict to the brief). No build item starts before the verdict.
 ① My walk K result + the capture blocks (chat-open · appnew · [SCROLL] · [KBTRAY] reveal ·
 dumpsys meminfo). The chat-open block DECIDES the route for the remaining ~150 ms — write
 the BE work order on the numbers (warm chat WebView vs batch transport), not before.

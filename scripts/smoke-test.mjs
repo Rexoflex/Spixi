@@ -7146,7 +7146,7 @@ console.log('W7 — Change wallet password covers the Account pane it opens from
   const scpW7 = readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8');
   const spW7 = readFileSync(join(root, 'Spixi/Pages/Settings/SettingsPage.xaml.cs'), 'utf8');
 
-  ok(/pushPageLoaded\(new EncryptionPassword\(\), 4000, null, -1, null,\s*\r?\n?\s*getOverlayStageMargin\(this\)\)/.test(spW7)
+  ok(/pushPageLoaded\(new EncryptionPassword\(\), 4000, null, -1, null,\s*\r?\n?\s*getOverlayStageMargin\(this\)(, revealDelayMs: 0)?\)/.test(spW7)   /* ★ Session K #766: the form presents at onload; the column/inset claim is unchanged */
     && !/pushPageLoaded\(new EncryptionPassword\(\)[^;]*paneMode \? 1 : -1/.test(spW7),
     'W7: ixian:encpass opens full-span (column -1) with the ACCOUNT PANE\'S OWN inset — it covers its opener exactly, never just the detail column (the #265 ② live-but-blind hub)');
   ok(/public Thickness stageMargin = default;/.test(scpW7)
@@ -22771,6 +22771,17 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
   ok(/const grew = h > lastSlotH;/.test(ch) && /const atBottom = nearBottom\(\);/.test(ch) && /if \(grew && atBottom\) requestAnimationFrame\(\(\) => \{ box\.scrollTop = box\.scrollHeight; \}\);/.test(ch)
      && ch.indexOf('const atBottom = nearBottom();') < ch.indexOf("setProperty('--composer-h', h + 'px')"),
     '★ Session K (walk K K1 note): when the composer slot GROWS (the tray) and the reader was at the bottom — judged BEFORE the padding lands — the log re-pins on the next frame, so the newest bubbles never hide under the tray until the keyboard\'s AND-16 re-pin snaps them back');
+  /* ★ #766 (Damir: "everything should open as soon as possible without any delay unless it's unavoidable") */
+  {
+    const hpK = rdF('Spixi/Pages/Home/HomePage.xaml.cs');
+    const spK = rdF('Spixi/Pages/Settings/SettingsPage.xaml.cs');
+    ok(/pushPageLoaded\(new AppNewPage\(\), 4000, "formpane", rightContent\.IsVisible \? 1 : -1, revealDelayMs: 0\);/.test(hpK)
+       && /pushPageLoaded\(new ContactNewPage\(\), 4000, "formpane", rightContent\.IsVisible \? 1 : -1, revealDelayMs: 0\);/.test(hpK)
+       && /pushPageLoaded\(new EncryptionPassword\(\), 4000, null, -1, null,\s*getOverlayStageMargin\(this\), revealDelayMs: 0\);/.test(spK),
+      '★ #766: the three FORM pages (Add app · Add contact · Change password) present at onload — they push nothing after it, so the 120 ms hold was pure waiting (walk K P3: 0 dropped frames after present on both builds). Pages that DO push after onload keep their hold until they get a painted signal (Session L)');
+    ok(!/sendUiCommand\(this, "[^"]+"[^;]*;\s*\n[^}]*\}\s*\n\s*\/\/ Executed every second/.test(rdF('Spixi/Pages/MiniApps/AppNewPage.xaml.cs')) && /private void onLoad\(\)\s*\{\s*\/\/ Execute timer-related functionality immediately\s*updateScreen\(\);\s*\}/.test(rdF('Spixi/Pages/MiniApps/AppNewPage.xaml.cs')),
+      '★ #766 premise: AppNewPage.onLoad still pushes NOTHING (updateScreen is empty) — the day it pushes data after onload, its hold must come back (or a painted signal)');
+  }
   /* ★ dark on-action WHITE (Damir 2026-09-03) — with the surface one step deeper so the ink can hold */
   {
     const tok = stripCssComments(rdF('src/styles/tokens.css'));

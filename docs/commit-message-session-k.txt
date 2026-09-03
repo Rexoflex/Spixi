@@ -4,7 +4,8 @@ Session K: chat open on the shell's paint, the localized-document cache, walk J2
 - walk J2 12/1: K1 keyboard→tray HOLD (mirror of #721, [KBTRAY] reveal stamp); T1 group avatar 32 at the composer edge (--bubble-avatar-size/-inset, data-gutter rows); [SCROLL] jank probe (#761)
 - logged rows: received-sticker pill → inline-end; nick-edit pencils pass ariaLabel at creation; apps ⋯ = anchored dropdown, no dim (Damir); [CDPERF] appnew stamps; [WV2] stamps + WebView2 DefaultBackgroundColor in applyPageSurfaceColor; group-avatar trace (hash ruled out, device fact parked) (#762)
 - dark: on-action inks white, action surface primary-600 (his pick), states darker (#763)
+- #766 his rule (open as soon as possible): revealDelayMs 0 on Add app / Add contact / Change password; the A/B (J vs K, same phone) = no regression, the half second is WebView create + parse (#765)
 - RAM 411 MB peak + the chat-open route logged for the Mac capture (#764)
-- suite: +26 Session K pins, 8 re-based, mutations 12/12; smoke 4038 / 3 known; bundle 321; gate rows in security-handover-gate.md; sheets in docs/reference-screens/premium/sheets/session-k
+- suite: +26 Session K pins, 8 re-based, mutations 12/12; smoke 4040 / 3 known; bundle 321; gate rows in security-handover-gate.md; sheets in docs/reference-screens/premium/sheets/session-k
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>

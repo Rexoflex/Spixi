@@ -810,13 +810,17 @@ namespace SPIXI
                 // takeover. The shared "formpane" tag makes newcontact ↔ newapp
                 // replace each other seamlessly (same-tag swap, like "chat").
                 closeContactDetailsOverlays();   // loop B-MINOR-1: the form takes the detail region — no col-1 stacking
-                pushPageLoaded(new ContactNewPage(), 4000, "formpane", rightContent.IsVisible ? 1 : -1);   // load-then-move (N3)
+                // ★ Session K (#766, Damir: "everything should open as soon as possible without any delay
+                // unless it's unavoidable"): a FORM page pushes nothing after onload (ContactNewPage.onLoad
+                // only pushes setAddress when constructed WITH an address, and this site never is), so the
+                // 120 ms revealDelayMs was pure waiting — measured 126–185 → 252–332 on AppNewPage.
+                pushPageLoaded(new ContactNewPage(), 4000, "formpane", rightContent.IsVisible ? 1 : -1, revealDelayMs: 0);   // load-then-move (N3)
             }
             else if (current_url.Equals("ixian:newapp", StringComparison.Ordinal))
             {
                 // Batch C (#256 M7): same routing as newcontact above.
                 closeContactDetailsOverlays();   // loop B-MINOR-1 (symmetry)
-                pushPageLoaded(new AppNewPage(), 4000, "formpane", rightContent.IsVisible ? 1 : -1);   // load-then-move (N3, round 2)
+                pushPageLoaded(new AppNewPage(), 4000, "formpane", rightContent.IsVisible ? 1 : -1, revealDelayMs: 0);   // load-then-move (N3, round 2) · ★ Session K #766: no data after onload → no hold (walk K P3: 0 dropped frames, the 120 ms was the "stutter")
             }
             else if (current_url.StartsWith("ixian:sendrequest:", StringComparison.Ordinal))
             {

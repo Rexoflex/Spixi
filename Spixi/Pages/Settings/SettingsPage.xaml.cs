@@ -379,7 +379,7 @@ namespace SPIXI
                 // exit sweep below closes this pane with the Account it belongs to.
                 // Mobile (non-pane) is byte-identical: no overlay margin ⇒ Thickness.Zero.
                 pushPageLoaded(new EncryptionPassword(), 4000, null, -1, null,
-                    getOverlayStageMargin(this));   // load-then-move (N3)
+                    getOverlayStageMargin(this), revealDelayMs: 0);   // load-then-move (N3) · ★ Session K #766: a form, nothing pushed after onload → no hold
             }
             else if (current_url.StartsWith("ixian:changepass:", StringComparison.Ordinal))
             {

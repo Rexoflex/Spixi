@@ -945,13 +945,13 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   font-size: var(--row-name-size);           /* ★ Session I (sheet 2): 17 mobile / 14 desktop — was body-lg */
   line-height: var(--row-name-line-height);
   letter-spacing: var(--tracking-body-lg);
-  font-weight: var(--row-name-weight);       /* ★ Session I: semibold at rest (#735⑤/⑦ "names +1–2 weights") */
+  font-weight: var(--row-name-weight);       /* ★ Session I: semibold at rest (#735⑤/⑦ "names +1–2 weights") · ★ Session J: Medium at rest, Damir (tokens.css) */
   color: var(--text-neutral-01);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.c-chatlist-item[data-unread] .c-chatlist-item__name { font-weight: var(--row-name-weight-unread); }   /* ★ Session I: bold when unread (was semibold) */
+.c-chatlist-item[data-unread] .c-chatlist-item__name { font-weight: var(--row-name-weight-unread); }   /* ★ Session I: bold when unread (was semibold) · ★ Session J: semibold (Damir) */
 
 .c-chatlist-item__right {
   display: flex;
@@ -968,8 +968,8 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   color: var(--icon-neutral-03);
 }
 .c-chatlist-item__time {
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-height-body-sm);
+  font-size: var(--row-time-size, var(--font-size-body-sm));             /* ★ Session J (A7): 12 mobile, measured against TG — tokens.css */
+  line-height: var(--row-time-line-height, var(--line-height-body-sm));
   letter-spacing: var(--tracking-body-sm);
   color: var(--text-neutral-02);
 }
@@ -1235,7 +1235,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   padding: var(--spacing-8) var(--spacing-12);
   border: var(--outline-width-1) solid transparent; /* Figma: none; see header */
   border-radius: var(--radius-full);
-  background: var(--surface-neutral-02);
+  background: var(--surface-input, var(--surface-neutral-02));   /* ★ Session J (Damir, members search in chat info: "no white background, hard to distinguish"): on a CARD the host overrides --surface-input to the on-card white (#150③); on a screen --surface-input IS neutral-02, so nothing else moves */
   /* glyph ink shares the placeholder's text token — one resting ink for the
      whole empty field (deliberate; icon-neutral-* would split the pair) */
   color: var(--text-neutral-02);
@@ -4613,7 +4613,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   line-height: var(--line-height-body-sm);
   color: var(--text-error);
 }
-.c-wallet-send__actions { margin-block-start: var(--spacing-8); display: flex; flex-direction: column; }
+.c-wallet-send__actions { display: flex; flex-direction: column; }   /* ★ Session J: the top margin is the shared .c-money-cta's (auto, base.css) — this class carried an 8 that beat it on source order */
 
 /* —— review sheet (#26) —— */
 .c-sendreview { display: flex; flex-direction: column; gap: var(--spacing-16); }
@@ -5087,6 +5087,18 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
        keyboard, so nothing changes anywhere else. */
     padding-bottom: calc(var(--spacing-16) + var(--kb-inset, 0px));
   }
+  /* ★ Session J (Damir's walk, screenshot 2: "the button is not sticky to bottom — it has
+     some air below it showing the background"). A sticky box cannot leave its
+     CONTAINING block: when the form is shorter than the screen there is nothing to
+     scroll, and the bar simply sat where the flow ended — above this body's 16px
+     bottom padding, and higher still on a short form. Two lines: this body is a flex
+     COLUMN whose money child is at least as tall as the scrollport (flex: 1 0 auto), and
+     the shared .c-money-cta takes an auto top margin (base.css) so it rides the bottom
+     edge whether or not the form scrolls. The bottom 16 is gone — the bar carries its
+     own 12 + safe-area — and the --kb-inset reserve stays. */
+  .wallet-takeover__body { display: flex; flex-direction: column; padding-bottom: var(--kb-inset, 0px); }
+  .wallet-takeover__body > .c-wallet-send,
+  .wallet-takeover__body > .c-wallet-receive { flex: 1 0 auto; }
   /* ★ #560 (Damir, screenshots 2026-08-25): the money screens sat at 32px from
      each edge — this body pads 16 AND the component pads 16. The Contacts panel
      sits at 16. One inset owns it: the host keeps its 16, the component's inner

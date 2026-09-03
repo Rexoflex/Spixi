@@ -43,7 +43,8 @@
 .c-bubble-row {
   display: flex;
   align-items: flex-end;
-  padding-inline: calc(var(--spacing-16) + var(--bubble-tail));   /* Session I: the tail sits inside the gutter */
+  --bubble-row-inset: calc(var(--spacing-16) + var(--bubble-tail));   /* ★ Session J: ONE home for the row inset — chat-select.css positions the tick from it */
+  padding-inline: var(--bubble-row-inset);   /* Session I: the tail sits inside the gutter */
   margin-top: var(--bubble-gap-group);     /* gap between groups (Session I dial; was --spacing-12) */
   /* N36b (#363 candidate, repro gate met 2026-08-17): in select mode the ROW is
      the tap target (N36 made in-bubble controls pointer-dead), and every
@@ -64,7 +65,7 @@
   width: var(--size-avatar-24);
   margin-inline-end: var(--spacing-8);
   flex: none;
-  align-self: flex-end;
+  align-self: flex-start;   /* ★ Session J (#756, pick D): the avatar sits at the TOP of the first bubble, beside the tail (was flex-end on the last) */
 }
 
 .c-bubble {
@@ -147,7 +148,7 @@
   content: '';
   position: absolute;
   top: 0;
-  width: var(--bubble-tail);
+  width: calc(var(--bubble-tail) + 1px);   /* ★ Session J: +1 = the overlap column into the bubble (the seam fix) */
   height: var(--bubble-tail-h);
   pointer-events: none;
   filter: drop-shadow(var(--bubble-elevation));
@@ -156,18 +157,22 @@
 .c-bubble-row[data-direction="received"][data-position="single"] .c-bubble::before {
   inset-inline-start: calc(-1 * var(--bubble-tail));
   background: var(--surface-bubble-received);
-  clip-path: path('M8 0 L0 0 Q5 1.5 8 13 Z');
+  /* ★ Session J (#756, Damir: "less sharp and curved, think WhatsApp"): a rounded tip
+     (the Q at x 0–2) and a convex outer sweep back to the bubble edge, instead of the
+     straight-to-a-point wedge; the path still runs 1px INTO the bubble (x 8→9) so the
+     seam Damir saw stays covered. RTL mirror below. */
+  clip-path: path('M9 0 L2.2 0 Q0 0.2 0.5 2.2 Q3.4 8.2 8 13 L9 13 Z');
 }
 .c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble::before,
 .c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble::before {
   inset-inline-end: calc(-1 * var(--bubble-tail));
   background: var(--surface-bubble-sent);
-  clip-path: path('M0 0 L8 0 Q3 1.5 0 13 Z');
+  clip-path: path('M0 0 L6.8 0 Q9 0.2 8.5 2.2 Q5.6 8.2 1 13 L0 13 Z');   /* ★ Session J (#756): the WhatsApp tail, mirrored (see received) */
 }
 [dir="rtl"] .c-bubble-row[data-direction="received"][data-position="first"] .c-bubble::before,
-[dir="rtl"] .c-bubble-row[data-direction="received"][data-position="single"] .c-bubble::before { clip-path: path('M0 0 L8 0 Q3 1.5 0 13 Z'); }
+[dir="rtl"] .c-bubble-row[data-direction="received"][data-position="single"] .c-bubble::before { clip-path: path('M0 0 L6.8 0 Q9 0.2 8.5 2.2 Q5.6 8.2 1 13 L0 13 Z'); }   /* ★ Session J (#756): mirrored, overlap at x 0→1 */
 [dir="rtl"] .c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble::before,
-[dir="rtl"] .c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble::before { clip-path: path('M8 0 L0 0 Q5 1.5 8 13 Z'); }
+[dir="rtl"] .c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble::before { clip-path: path('M9 0 L2.2 0 Q0 0.2 0.5 2.2 Q3.4 8.2 8 13 L9 13 Z'); }   /* ★ Session J (#756): mirrored, overlap at x 8→9 */
 /* the emoji-only "sticker" carries no bubble and so no tail.
    ⚠ Specificity, learned on Damir's walk: the first/single tail rules above are
    (0,3,1) — row class + position attribute + bubble class + pseudo — so a (0,2,1)

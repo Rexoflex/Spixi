@@ -180,7 +180,23 @@ public partial class App : Application
             }
 
             // Init logging
+            /* ★ Session J (#747 "nothing reached logcat" — the mechanism, found in the tree, not
+             * guessed): this `false` is why. Every Logging.info/warn line — the [CDPERF] chat-open
+             * stamps, the [L14] handshake lines — goes to files/Spixi/ixian.log ONLY; Console is
+             * off, so no findstr, no file capture and no buffering fix could ever have shown them.
+             * Under the dev-coexist build (SPIXI_DEV_COEXIST, #740's symbol) ON ANDROID the console
+             * mirror is ON, and .NET Android forwards Console.WriteLine to logcat (tag `mono-stdout`).
+             * ⚠ ANDROID ONLY: the symbol is defined for EVERY Debug build (#732), so without the
+             * platform guard a Windows Debug build would mirror every line to a Console it may not
+             * have — Windows never had the logcat problem (its log is the file + Debug output),
+             * and Damir's first Windows run after this batch hung with the chats pane on
+             * ERR_FILE_NOT_FOUND; the mirror is removed from that suspect list by construction.
+             * The store build is byte-for-byte what it was: console off. */
+#if SPIXI_DEV_COEXIST && ANDROID
+            Logging.setOptions(Config.maxLogSize, Config.maxLogCount, true);
+#else
             Logging.setOptions(Config.maxLogSize, Config.maxLogCount, false);
+#endif
             if (!Logging.start(Config.spixiUserFolder, Config.logVerbosity))
             {
                 Environment.Exit(1);

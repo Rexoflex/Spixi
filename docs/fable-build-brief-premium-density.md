@@ -299,3 +299,24 @@ Every row is a PASS/FAIL on the Motorola Release (`-p:SpixiDevCoexist=true`) unl
 19. **W · Unread strip** runs pane-edge to scrollbar on the desktop chat.
 20. **W · desktop rows:** names semibold at 14, pad 12 (unchanged sizes, only the weight).
 21. **Notification:** the disc behind the small icon in the shade is the splash blue #175595.
+
+## 12 · ★ SESSION J PICKS AND RULINGS (2026-09-02 evening; DECISIONS #749–#750 are the rows)
+
+| dial | ruling | value | reversal |
+|---|---|---|---|
+| light ground | Damir: "light mode background E4EAF3" | `--chat-canvas-base #E4EAF3` | #EEECEF (k2) |
+| light ink | "051C8E at 6% opacity" | `--chat-pattern-ink #051C8E`, alpha-1 0.06 | #83058E (k2) |
+| light gradient | "the gradient that was missing" | `289deg #94D2E3 0% → #ADAEE8 92.62%` + 3 OKLCH stops | the k2 soft wash |
+| secure notice | "no border, white with elevation / dark midnight blue with elevation" | light `#fff` + elevation-2 · dark `#0c1a4a` + elevation-2 | the E1c / N82(c) edges (in the comments) |
+| chats-row names | "medium for read, semibold for unread" | `--row-name-weight 500 · -unread 600` | 600 / 700 (Session I) |
+| chats-row time | walk A7, measured vs TG | `--row-time-size 12 / 16` (desktop 13) | body-sm 14 / 20 |
+| stacked rows | Account "too dense" | `--row-h-stacked 56` — **A 48 · B 56 · C 60 · D 64, his pick pending** | 48 |
+| row titles | "one weight stronger than subtitles, subtly" | `--row-title-weight 500`; subs pinned 400 | 400 |
+| selected tick | "misses the spot; white; one shade darker" | tick at `--bubble-row-inset + 6`; `--icon-select-check #f9fafb`; dark disc primary-500 | icon-neutral-on-action · action-default |
+| input on card | "lightest surface token" | `--surface-input-on-card #ffffff` (light) | neutral-100 |
+| typed-card buttons | "should be full" | actions wrap, labels never ellipsised | min-width 0 + ellipsis |
+| launch/lock logo | "white rather than blueish" | `--icon-brand-logo #ffffff` | icon-accent |
+| money CTA | "not sticky to bottom" | takeover bodies flex columns, `.c-money-cta` margin auto | spacing-8 + the 16 body pad |
+| ⊕ press | walk A15 | clip after the shorthand; state rules background-color | — |
+| caret | walk A19 ① | shape 2: selection after focus + caret-color; `CARET_WITHOUT_KEYBOARD` | false = drop |
+

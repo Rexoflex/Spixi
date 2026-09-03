@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spixi Walk J</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#EEF1F7; --card:#FFFFFF; --ink:#141A26; --ink-2:#5B6478; --ink-3:#8A93A6; --line:#D6DCE8;
+  --accent:#2160C2; --accent-ink:#FFFFFF; --pass:#1E8E5A; --fail:#C8402F; --na:#7A8399;
+  --pass-wash:#E3F3EA; --fail-wash:#FBE6E2; --na-wash:#E9ECF2; --code:#F3F5FA; --shadow:0 1px 2px rgba(20,26,38,.06),0 2px 6px rgba(20,26,38,.06);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ground:#10151E; --card:#1A2030; --ink:#E8ECF4; --ink-2:#A6AFC2; --ink-3:#727C92; --line:#2B3446;
+  --accent:#769DFF; --accent-ink:#0E1424; --pass:#4CC48A; --fail:#F07F6E; --na:#9AA3B8;
+  --pass-wash:#173327; --fail-wash:#3A1F1B; --na-wash:#232A3A; --code:#0F1420; --shadow:0 1px 2px rgba(0,0,0,.4),0 2px 6px rgba(0,0,0,.35);
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --ground:#10151E; --card:#1A2030; --ink:#E8ECF4; --ink-2:#A6AFC2; --ink-3:#727C92; --line:#2B3446;
+  --accent:#769DFF; --accent-ink:#0E1424; --pass:#4CC48A; --fail:#F07F6E; --na:#9AA3B8;
+  --pass-wash:#173327; --fail-wash:#3A1F1B; --na-wash:#232A3A; --code:#0F1420; --shadow:0 1px 2px rgba(0,0,0,.4),0 2px 6px rgba(0,0,0,.35);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font:15px/1.45 Roboto,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-text-size-adjust:100%}
+.wrap{max-width:720px;margin:0 auto;padding:0 14px 96px}
+header{position:sticky;top:0;z-index:5;background:var(--ground);padding:14px 0 10px;border-bottom:1px solid var(--line)}
+.hrow{display:flex;align-items:center;gap:12px}
+h1{margin:0;font-size:19px;font-weight:700;letter-spacing:-.2px;flex:1;text-wrap:balance}
+.sub{margin:4px 0 0;color:var(--ink-2);font-size:13px}
+.count{font:500 13px/1 "Roboto Mono",monospace;color:var(--ink-2);white-space:nowrap}
+.count b{color:var(--ink)}
+.bar{height:4px;border-radius:2px;background:var(--na-wash);margin-top:10px;overflow:hidden;display:flex}
+.bar i{display:block;height:100%}
+.bar .p{background:var(--pass)} .bar .f{background:var(--fail)} .bar .n{background:var(--na)}
+section{margin-top:22px}
+h2{margin:0 0 8px;font-size:12px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+.row{background:var(--card);border-radius:12px;box-shadow:var(--shadow);padding:12px 12px 10px;margin-bottom:8px}
+.row[data-v="P"]{box-shadow:var(--shadow),inset 3px 0 0 var(--pass)}
+.row[data-v="F"]{box-shadow:var(--shadow),inset 3px 0 0 var(--fail)}
+.row[data-v="N"]{box-shadow:var(--shadow),inset 3px 0 0 var(--na)}
+.top{display:flex;gap:10px;align-items:flex-start}
+.id{font:500 12px/1.4 "Roboto Mono",monospace;color:var(--ink-3);min-width:34px;padding-top:2px}
+.t{flex:1;min-width:0}
+.t b{display:block;font-weight:500;font-size:15px}
+.t p{margin:3px 0 0;color:var(--ink-2);font-size:13.5px;line-height:1.45}
+.t code{font:12.5px "Roboto Mono",monospace;background:var(--code);padding:1px 5px;border-radius:4px}
+.ctl{display:flex;gap:8px;margin-top:10px;align-items:center}
+.seg{display:flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;flex:none}
+.seg button{appearance:none;border:0;background:transparent;color:var(--ink-2);font:500 13px/1 Roboto,sans-serif;padding:9px 14px;min-width:44px;cursor:pointer}
+.seg button + button{border-left:1px solid var(--line)}
+.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.seg button[aria-pressed="true"].p{background:var(--pass-wash);color:var(--pass)}
+.seg button[aria-pressed="true"].f{background:var(--fail-wash);color:var(--fail)}
+.seg button[aria-pressed="true"].n{background:var(--na-wash);color:var(--na)}
+.note{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;background:var(--code);color:var(--ink);font:14px Roboto,sans-serif;padding:8px 10px}
+.note:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.pick{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.pick button{appearance:none;border:1px solid var(--line);background:transparent;color:var(--ink-2);border-radius:999px;font:500 13px/1 Roboto,sans-serif;padding:8px 12px;cursor:pointer}
+.pick button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+footer{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px))}
+.frow{max-width:720px;margin:0 auto;display:flex;gap:8px}
+.btn{appearance:none;border:0;border-radius:999px;font:500 15px/1 Roboto,sans-serif;padding:13px 18px;cursor:pointer}
+.btn.primary{flex:1;background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:transparent;color:var(--ink-2);border:1px solid var(--line)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+textarea.out{width:100%;min-height:160px;margin-top:10px;border:1px solid var(--line);border-radius:10px;background:var(--code);color:var(--ink);font:12.5px/1.5 "Roboto Mono",monospace;padding:10px;resize:vertical}
+.toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);background:var(--ink);color:var(--ground);padding:10px 16px;border-radius:999px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+.legend{display:flex;gap:14px;margin-top:10px;font-size:12.5px;color:var(--ink-2)}
+.legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:1px}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+<header>
+  <div class="hrow"><h1>Spixi Walk J — Motorola Release + Windows</h1><span class="count" id="count"><b>0</b> / 0</span></div>
+  <p class="sub">Tap P · F · N per row, add a note where it helps, then <strong>Copy results</strong> at the bottom and paste the text to me. Saved on this device as you go.</p>
+  <div class="bar" id="bar"><i class="p"></i><i class="f"></i><i class="n"></i></div>
+  <div class="legend"><span><i style="background:var(--pass)"></i>pass</span><span><i style="background:var(--fail)"></i>fail</span><span><i style="background:var(--na)"></i>n/a · not walked</span></div>
+</header>
+
+<section data-sec="A · Conversation">
+<h2>A · Conversation</h2>
+<div class="row" data-id="A1"><div class="top"><span class="id">A1</span><div class="t"><b>Typed cards carry the lift</b><p>A call card, a payment card, an app invite and a file bubble each show the same faint shadow the text bubbles have — light and dark. Sent cards too (blue border + lift).</p></div></div></div>
+<div class="row" data-id="A2"><div class="top"><span class="id">A2</span><div class="t"><b>⊕ pressed = the 36 disc</b><p>Hold the ⊕: the tint is a small disc inside the pill, not a big one spilling past its edge. With the tray open the ✕ tint is the same disc.</p></div></div></div>
+<div class="row" data-id="A3"><div class="top"><span class="id">A3</span><div class="t"><b>Caret blinks on entry, no keyboard (Android)</b><p>Open a chat: a blue caret blinks in the field and NO keyboard rises. If it does not blink → F, and the dial is dropped next session (one constant).</p></div></div></div>
+<div class="row" data-id="A4"><div class="top"><span class="id">A4</span><div class="t"><b>First tap on the field: keyboard rises, no dip</b><p>Fresh chat → tap ⊕ (tray) → tap the field. The tray leaves as the keyboard arrives; the bar does NOT drop and rise again. This is the exact order that flickered before.</p></div></div></div>
+<div class="row" data-id="A5"><div class="top"><span class="id">A5</span><div class="t"><b>Keyboard ↔ tray swap: same height, no move</b><p>Keyboard up → ⊕: the tray takes the slot at once and is the SAME height as the keyboard was (after the first keyboard of the session; the bar does not move). Tap the field: keyboard back, tray gone in one frame. Repeat twice — the second time is the one that counts.</p></div></div></div>
+<div class="row" data-id="A6"><div class="top"><span class="id">A6</span><div class="t"><b>Selected message tick</b><p>Long-press → Select: the tick sits centred in the disc, white; in dark the disc is one shade deeper than the action blue.</p></div></div></div>
+<div class="row" data-id="A7"><div class="top"><span class="id">A7</span><div class="t"><b>Light canvas — your values</b><p>Ground <code>#E4EAF3</code>, pattern ink <code>#051C8E</code> at 6%. Account → Chat appearance → Canvas: the two swatches differ; Gradient = your 289° teal → periwinkle wash on the real chat.</p></div></div></div>
+<div class="row" data-id="A8"><div class="top"><span class="id">A8</span><div class="t"><b>Secure notice</b><p>White card with a lift in light, midnight blue with a lift in dark, no border — it no longer melts into the ground.</p></div></div></div>
+<div class="row" data-id="A9"><div class="top"><span class="id">A9</span><div class="t"><b>Card buttons full in German</b><p>Language → Deutsch → an app invite: "Abbrechen" and "App starten" read whole (the pair may take two rows). Back to English after.</p></div></div></div>
+</section>
+
+<section data-sec="B · Chats list">
+<h2>B · Chats list</h2>
+<div class="row" data-id="B1"><div class="top"><span class="id">B1</span><div class="t"><b>Row time smaller</b><p>The chats-row time beside Telegram's on the same phone: same size now (12 CSS, measured).</p></div></div></div>
+<div class="row" data-id="B2"><div class="top"><span class="id">B2</span><div class="t"><b>Names Medium / unread Semibold</b><p>Read rows: the name one notch over the excerpt, not heavy. Unread rows: semibold. Excerpt regular.</p></div></div></div>
+</section>
+
+<section data-sec="C · Account and settings">
+<h2>C · Account and settings</h2>
+<div class="row" data-id="C1"><div class="top"><span class="id">C1</span><div class="t"><b>Notifications: one card, flat rows</b><p>Rows sit flat inside one card with hairline dividers — no card inside the card.</p></div></div></div>
+<div class="row" data-id="C2"><div class="top"><span class="id">C2</span><div class="t"><b>Account rows with a sub-line — pick the height</b><p>Ships at B (56) today. From the sheet: A 48 (was) · B 56 · C 60 · D 64. Your letter:</p><div class="pick" data-pick="C2"><button type="button">A · 48</button><button type="button">B · 56</button><button type="button">C · 60</button><button type="button">D · 64</button></div></div></div></div>
+<div class="row" data-id="C3"><div class="top"><span class="id">C3</span><div class="t"><b>Row titles a notch stronger than subs</b><p>Account and chat info: the title is Medium, the sub regular — subtle, not bold.</p></div></div></div>
+<div class="row" data-id="C4"><div class="top"><span class="id">C4</span><div class="t"><b>Input on a card is white</b><p>Contacts → Add contact, and New group: the address / group-name field stands out white on the grey card (light). Dark keeps its inset field.</p></div></div></div>
+</section>
+
+<section data-sec="D · Wallet, contacts, launch">
+<h2>D · Wallet, contacts, launch</h2>
+<div class="row" data-id="D1"><div class="top"><span class="id">D1</span><div class="t"><b>Wallet → Receive: CTA on the bottom edge</b><p>With 2 contacts (nothing to scroll) AND with a long list: "Send request" sits on the bottom edge, no air below it, and stays put while the list scrolls.</p></div></div></div>
+<div class="row" data-id="D2"><div class="top"><span class="id">D2</span><div class="t"><b>Wallet → Send: Review CTA the same</b><p>Same rule on Send. With the keyboard up the form still scrolls to it.</p></div></div></div>
+<div class="row" data-id="D3"><div class="top"><span class="id">D3</span><div class="t"><b>Contact → Send (from contact details)</b><p>The Review bar rides the bottom edge there too.</p></div></div></div>
+<div class="row" data-id="D4"><div class="top"><span class="id">D4</span><div class="t"><b>Welcome logo white</b><p>Log out / fresh install → the launch screen glyph is white, not blue-tinted (the glow stays).</p></div></div></div>
+<div class="row" data-id="D5"><div class="top"><span class="id">D5</span><div class="t"><b>Lock screen logo white</b><p>App lock on → the lock screen glyph is white.</p></div></div></div>
+</section>
+
+<section data-sec="E · The numbers (walk.log)">
+<h2>E · The numbers — capture to walk.log first (checklist)</h2>
+<div class="row" data-id="E1"><div class="top"><span class="id">E1</span><div class="t"><b>[CDPERF] chat lines are in walk.log</b><p>After opening a chat at 3 contacts: <code>[CDPERF] chat onload / load / drain / present / frames</code> (tag mono-stdout) and <code>[CDPERF] chat-shell</code> (W chromium). Paste them in the note or below.</p></div></div></div>
+<div class="row" data-id="E2"><div class="top"><span class="id">E2</span><div class="t"><b>[L14] handoff line</b><p>Account → Contacts: <code>[L14] handoff pop released by cover</code> (not "backstop").</p></div></div></div>
+<div class="row" data-id="E3"><div class="top"><span class="id">E3</span><div class="t"><b>Seed heavy: the store write</b><p>About → "Seed 50 · heavy (10 × 1000 + 40 × 40)". The status sentence shows "… written in N ms (x ms/msg)". Paste N and the ms/msg. Also the ten <code>[DEVSEED] contact NN</code> lines.</p></div></div></div>
+<div class="row" data-id="E5"><div class="top"><span class="id">E5</span><div class="t"><b>[KBTRAY] stamps</b><p>walk.log has <code>[KBTRAY] open / hold / resize / drop</code> lines around the field ↔ ⊕ swaps (W chromium). Paste them.</p></div></div></div>
+<div class="row" data-id="E4"><div class="top"><span class="id">E4</span><div class="t"><b>Open Seed 01 (1000 messages)</b><p>Your impression: stutter / lag / fine. And the [CDPERF] lines for that open.</p></div></div></div>
+</section>
+
+<section data-sec="W · Windows">
+<h2>W · Windows</h2>
+<div class="row" data-id="W1"><div class="top"><span class="id">W1</span><div class="t"><b>Light canvas + notice on Windows</b><p>Ground, ink, gradient option and the white lifted notice read right on the desktop chat (760 column).</p></div></div></div>
+<div class="row" data-id="W2"><div class="top"><span class="id">W2</span><div class="t"><b>Dark: cards lift, notice midnight</b><p>Windows dark: typed cards show the lift; the notice is midnight blue with a lift and no edge.</p></div></div></div>
+<div class="row" data-id="W3"><div class="top"><span class="id">W3</span><div class="t"><b>German card buttons on Windows</b><p>Same as A9 on the wide pane — the pair fits on one row there.</p></div></div></div>
+</section>
+
+<section>
+<h2>Results</h2>
+<textarea class="out" id="out" readonly aria-label="Results text"></textarea>
+</section>
+</div>
+
+<footer><div class="frow"><button type="button" class="btn ghost" id="reset">Clear</button><button type="button" class="btn primary" id="copy">Copy results</button></div></footer>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+  var KEY='spixi.walk.j.v1';
+  var state={};
+  try{state=JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(e){state={};}
+  var rows=[].slice.call(document.querySelectorAll('.row[data-id]'));
+  function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}
+  function verdictLabel(v){return v==='P'?'PASS':v==='F'?'FAIL':v==='N'?'N/A':'—';}
+  function results(){
+    var lines=['Spixi walk J — '+new Date().toISOString().slice(0,16).replace('T',' ')];
+    var c={P:0,F:0,N:0};
+    document.querySelectorAll('section[data-sec]').forEach(function(sec){
+      lines.push('');lines.push(sec.getAttribute('data-sec'));
+      sec.querySelectorAll('.row[data-id]').forEach(function(r){
+        var id=r.getAttribute('data-id'),s=state[id]||{};
+        if(s.v)c[s.v]++;
+        var title=r.querySelector('.t b').textContent;
+        var line='  '+id+'  '+verdictLabel(s.v)+'  '+title;
+        if(s.pick)line+='  → pick '+s.pick;
+        if(s.note)line+='  — '+s.note;
+        lines.push(line);
+      });
+    });
+    lines.push('');lines.push(c.P+' pass · '+c.F+' fail · '+c.N+' n/a · '+(rows.length-c.P-c.F-c.N)+' not walked');
+    return lines.join('\n');
+  }
+  function paint(){
+    var c={P:0,F:0,N:0};
+    rows.forEach(function(r){
+      var id=r.getAttribute('data-id'),s=state[id]||{};
+      if(s.v){r.setAttribute('data-v',s.v);c[s.v]++;}else r.removeAttribute('data-v');
+      r.querySelectorAll('.seg button').forEach(function(b){b.setAttribute('aria-pressed',String(b.getAttribute('data-v')===s.v));});
+      var n=r.querySelector('.note');if(n&&n.value!==(s.note||''))n.value=s.note||'';
+      var pk=r.querySelector('.pick');if(pk)pk.querySelectorAll('button').forEach(function(b){b.setAttribute('aria-pressed',String(b.textContent.charAt(0)===s.pick));});
+    });
+    var done=c.P+c.F+c.N;
+    document.getElementById('count').innerHTML='<b>'+done+'</b> / '+rows.length;
+    var bar=document.getElementById('bar');
+    bar.querySelector('.p').style.width=(100*c.P/rows.length)+'%';
+    bar.querySelector('.f').style.width=(100*c.F/rows.length)+'%';
+    bar.querySelector('.n').style.width=(100*c.N/rows.length)+'%';
+    document.getElementById('out').value=results();
+  }
+  rows.forEach(function(r){
+    var id=r.getAttribute('data-id');
+    var ctl=document.createElement('div');ctl.className='ctl';
+    var seg=document.createElement('div');seg.className='seg';seg.setAttribute('role','group');seg.setAttribute('aria-label','Verdict for '+id);
+    [['P','p','P'],['F','f','F'],['N','n','N/A']].forEach(function(d){
+      var b=document.createElement('button');b.type='button';b.className=d[1];b.textContent=d[2];b.setAttribute('data-v',d[0]);b.setAttribute('aria-pressed','false');
+      b.addEventListener('click',function(){var s=state[id]||(state[id]={});s.v=(s.v===d[0])?'':d[0];save();paint();});
+      seg.appendChild(b);
+    });
+    var note=document.createElement('input');note.className='note';note.type='text';note.placeholder='note';note.setAttribute('aria-label','Note for '+id);
+    note.addEventListener('input',function(){var s=state[id]||(state[id]={});s.note=note.value;save();document.getElementById('out').value=results();});
+    ctl.appendChild(seg);ctl.appendChild(note);r.appendChild(ctl);
+    var pk=r.querySelector('.pick');
+    if(pk)pk.querySelectorAll('button').forEach(function(b){b.setAttribute('aria-pressed','false');b.addEventListener('click',function(){var s=state[id]||(state[id]={});var l=b.textContent.charAt(0);s.pick=(s.pick===l)?'':l;save();paint();});});
+  });
+  function toast(t){var el=document.getElementById('toast');el.textContent=t;el.classList.add('on');setTimeout(function(){el.classList.remove('on');},1400);}
+  document.getElementById('copy').addEventListener('click',function(){
+    var t=results();var out=document.getElementById('out');out.value=t;
+    function fallback(){out.focus();out.select();try{document.execCommand('copy');toast('Copied');}catch(e){toast('Select the text below and copy');}}
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(function(){toast('Copied');},fallback);}else fallback();
+  });
+  document.getElementById('reset').addEventListener('click',function(){if(!confirm('Clear every verdict and note on this device?'))return;state={};save();paint();});
+  paint();
+})();
+</script>
+
+</body>
+</html>

@@ -3235,11 +3235,13 @@
     if (!composerEl || !isAttachTrayOpen(composerEl)) return false;
     const tray = composerEl.nextElementSibling;
     let done = false;
-    const drop = () => {
+    try { console.warn('[KBTRAY] hold ih=' + window.innerHeight + ' tray=' + tray.offsetHeight + ' t=' + Math.round(performance.now())); } catch (_) {}   // ★ Session J stamp (temporary)
+    const drop = (e) => {
       if (done) return;
       done = true;
       window.removeEventListener('resize', drop);
       if (window.visualViewport) window.visualViewport.removeEventListener('resize', drop);
+      try { console.warn('[KBTRAY] drop by=' + (e && e.type ? e.type : 'backstop') + ' ih=' + window.innerHeight + ' t=' + Math.round(performance.now())); } catch (_) {}   // ★ Session J stamp (temporary)
       closeAttachTray(tray, { instant: true });
       syncChatOverlay();
     };
@@ -3271,9 +3273,12 @@
     if (!document.documentElement.hasAttribute('data-desktop')) {
       if (closeAttachTrayIfOpen()) return;
       const input = composerEl && composerEl.querySelector('.c-composer__input');
+      try { console.warn('[KBTRAY] open ih=' + window.innerHeight + ' kbUp=' + kbUp + ' focused=' + (!!input && document.activeElement === input) + ' t=' + Math.round(performance.now())); } catch (_) {}   // ★ Session J stamp (temporary)
       const tray = openAttachTray({
         composerEl,
-        instant: !!input && document.activeElement === input,   // #721: the keyboard is up → swap, do not rise
+        /* #721: the keyboard is up → swap, do not rise. ★ #756: `kbUp` (the keyboard's own
+           state) decides — the capture showed focused=false with the keyboard on screen. */
+        instant: kbUp || (!!input && document.activeElement === input),
         ...attachFlags(),
         strings: window.SL || {},
         /* the tile CLOSES the tray inside the component; the mirror must hear about it
@@ -4748,7 +4753,11 @@
       focusComposer();
       requestAnimationFrame(() => requestAnimationFrame(() => {
         try {
-          console.info('[CDPERF] chat-shell n=' + (cdBurst ? cdBurst.n : 0)
+          /* ★ Session J: console.WARN, not info — the release WebView drops chromium INFO lines
+             from logcat (Damir's Session I capture has W/E chromium lines and not one I line),
+             so the info-level stamp was never visible on the device. A warning reaches logcat
+             as `W chromium: [WARNING:CONSOLE(…)] "[CDPERF] chat-shell …"`. Temporary, like the set. */
+          console.warn('[CDPERF] chat-shell n=' + (cdBurst ? cdBurst.n : 0)
             + ' burst=' + (cdBurst ? Math.round(cdT0 - cdBurst.start) : 0)
             + 'ms paint=' + cdPaint + 'ms glass=' + Math.round(performance.now() - cdT0) + 'ms');
         } catch (e) {}
@@ -5784,25 +5793,53 @@
      visualViewport never shrinks and nothing lifts. ⚠ #215: inputmode=none behaves
      differently per engine (Android WebView honours it; WKWebView honours it since
      iOS 13) — this is a walk row on BOTH devices before it is called done. */
+  /* ★★ Session J (walk A19, #747) — THE SECOND SHAPE, and the tray flicker it caused.
+     ① Android WebView drew NO caret for the focused inputmode=none field. The one more
+        shape #215 allows before the dial is dropped: the SAME focus, then a programmatic
+        collapsed selection at the end (setSelectionRange) in the next frame — Blink
+        starts the caret blink timer on a selection change, not only on focus — plus an
+        explicit caret-color (never inherit-from-nothing on a transparent field).
+     ② THE FLICKER WAS THIS FUNCTION, NOT THE SLOT. The first-tap `arm` did
+        `blur(); focus()` in a timeout: the tap's own focus had already asked for the
+        keyboard (the viewport shrank → #721 dropped the tray, seamless), then the
+        blur HID that keyboard (the viewport grew → the bar dropped) and the re-focus
+        raised it again (the bar rose) — "closes the tray, drops the bar, rises again",
+        Damir's exact words, and only on the FIRST tap after entry, which is the walk's
+        order. Android adjustResize never writes --kb-inset, so the 280 ms margin
+        transition the handoff suspected cannot run there. The arm flips inputmode on
+        pointerdown and does NOTHING else: a tap on an already-focused editable asks
+        Chromium for the IME with the attribute it reads at that moment. No blur, no
+        second focus, nothing for #721 to lose.
+     REVERSAL (Damir: "else drop it and say so"): CARET_WITHOUT_KEYBOARD = false restores
+     the pre-Session-I mobile behaviour (no entry focus; desktop autofocus untouched). */
+  /* ★ Walk 2026-09-03, A3 FAIL: shape 2 did not blink either on the Motorola. Damir's rule was
+     "one more shape, else drop it and say so" — DROPPED. Mobile has no entry focus again
+     (the pre-Session-I behaviour); the machinery stays behind this constant as the record. */
+  const CARET_WITHOUT_KEYBOARD = false;
   let caretArmed = false;
   function focusComposer() {
     try {
       const input = composerEl && composerEl.querySelector('.c-composer__input');
       if (!input) return;
       if (document.documentElement.hasAttribute('data-desktop')) { input.focus(); return; }
-      if (caretArmed) return;
+      if (!CARET_WITHOUT_KEYBOARD || caretArmed) return;
       caretArmed = true;
       input.setAttribute('inputmode', 'none');
       const arm = () => {
         input.setAttribute('inputmode', 'text');
         input.removeEventListener('pointerdown', arm);
         input.removeEventListener('touchstart', arm);
-        // re-focus AFTER the attribute flip so the engine re-evaluates the keyboard
-        setTimeout(() => { try { input.blur(); input.focus(); } catch (_) {} }, 0);
       };
       input.addEventListener('pointerdown', arm, { passive: true });
       input.addEventListener('touchstart', arm, { passive: true });
       input.focus({ preventScroll: true });
+      requestAnimationFrame(() => {
+        try {
+          if (document.activeElement !== input) return;
+          const n = input.value.length;
+          input.setSelectionRange(n, n);
+        } catch (_) {}
+      });
     } catch (_) {}
   }
 
@@ -5828,6 +5865,28 @@
    * the viewport (Android adjustResize, WebView2 → delta ≈ 0), skipped on
    * desktop, guarded for a missing visualViewport. Threshold 60px separates
    * real keyboards from browser-chrome/jitter resizes. */
+  /* ★ Session J: the keyboard-slot height, learned from the keyboard itself (Android: the
+     adjustResize shrink; iOS: the native inset push) and handed to the attach tray as
+     --kb-slot-h. Stored per device; clamped to a sane band so a rotated tablet or a split
+     keyboard cannot poison it. */
+  const KB_SLOT_KEY = 'spixi.kb.slot';
+  /* ★ Session J (#756, the [KBTRAY] capture): IS THE KEYBOARD UP — from the keyboard itself
+     (Android: the adjustResize shrink; iOS: the native inset), never from document.activeElement.
+     Tapping the ⊕ BUTTON moves focus off the field before its click runs, so the old
+     `activeElement === input` test read "no keyboard" with the keyboard on screen. */
+  let kbUp = false;
+  function rememberKbSlot(px) {
+    px = Math.round(px);
+    if (!(px >= 160 && px <= 600)) return;
+    try { document.documentElement.style.setProperty('--kb-slot-h', px + 'px'); } catch (_) {}
+    try { localStorage.setItem(KB_SLOT_KEY, String(px)); } catch (_) {}
+  }
+  (function bootKbSlot() {
+    if (document.documentElement.hasAttribute('data-desktop')) return;
+    let v = NaN;
+    try { v = parseInt(localStorage.getItem(KB_SLOT_KEY) || '', 10); } catch (_) {}
+    if (v >= 160 && v <= 600) document.documentElement.style.setProperty('--kb-slot-h', v + 'px');
+  })();
   (function keyboardViewport() {
     const vv = window.visualViewport;
     if (document.documentElement.hasAttribute('data-desktop')) return;
@@ -5947,6 +6006,17 @@
       window.addEventListener('resize', () => {
         const ih = window.innerHeight;
         const shrank = ih < lastIH - 60;     // keyboard opening (not chrome jitter)
+        /* ★ Session J (Damir, Android: "the sheet is not the same height as the keyboard, and
+           flickers when switching between keyboard and sheet"): the KEYBOARD'S OWN HEIGHT is
+           the shrink, measured here on adjustResize, and it becomes the tray's height
+           (--kb-slot-h, attach-sheet.css) — a tray that is exactly the keyboard's slot swaps
+           with it without the bar moving by the difference. Persisted, so the first tray of
+           the next session is already right; 268 stays the fallback until a keyboard has
+           been seen. The stamps are TEMPORARY ([KBTRAY], console.warn → logcat W chromium),
+           a set with the ones on focus / tray drop below — the next capture shows the order. */
+        if (shrank) rememberKbSlot(lastIH - ih);
+        if (shrank) kbUp = true; else if (ih > lastIH + 60) kbUp = false;   // ★ #756: the keyboard's own state
+        try { console.warn('[KBTRAY] resize ih=' + ih + ' d=' + (lastIH - ih) + ' t=' + Math.round(performance.now())); } catch (_) {}
         lastIH = ih;
         // re-pin only when the keyboard OPENED and the user was reading the
         // bottom before it did — a scrolled-up reader keeps their position.
@@ -5966,6 +6036,8 @@
       const px = Math.max(0, Math.round(Number(h) || 0));
       nativeKb = true;
       const stick = nearBottom();
+      if (px > 60) rememberKbSlot(px);     // ★ Session J: the iOS keyboard's height is the tray's slot too
+      kbUp = px > 60;                      // ★ #756
       setInset(px > 60 ? px : 0);          // same real-keyboard threshold as the vv path
       if (window.scrollY || (vv && vv.offsetTop)) window.scrollTo(0, 0);
       // #328: change-gated like the vv writer — a re-push of the same height

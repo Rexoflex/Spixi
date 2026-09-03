@@ -23,6 +23,17 @@
  * UNREAD: a third of the contacts end with 1–3 incoming messages stamped AFTER the
  * friend's addedTimestamp, so Core keeps them unread (the unread divider + badge paths
  * are exercised); every older message is stamped before it and Core marks it read.
+ *
+ * ★ Session J — v2, THE COUNT DIAL (Damir, #747: "we must simulate 1000+ … I want a real
+ * load, not 2–40"). Two profiles, one verb with a payload:
+ *   light  — Session I's shape: 2..40 messages per contact ("Seed 12" carries the 40).
+ *   heavy  — Seed 01–10 carry 1000 messages EACH, Seed 11–50 carry 40: 10 000 + 1 600.
+ * The message ids are the same deterministic (i, j) hashes, so heavy over light is a
+ * TOP-UP: a contact that already exists is not skipped any more — its history is filled
+ * to the profile's count (Core refuses the ids already there). THE STORE WRITE IS THE
+ * COST TO MEASURE: the status sentence carries the wall time of the whole seed and the
+ * per-message average, and every 1000-message contact logs its own [DEVSEED] line with
+ * its milliseconds — read them in logcat (the console mirror is on in this build, App.xaml.cs).
  */
 #if SPIXI_DEV_COEXIST
 using IXICore;
@@ -38,6 +49,9 @@ namespace SPIXI
     public static class SDevSeed
     {
         public const int Count = 50;
+        public const int HeavyContacts = 10;      // ★ Session J: Seed 01–10 take the heavy count
+        public const int HeavyMessages = 1000;    // ★ Session J: per heavy contact
+        public const int MediumMessages = 40;     // ★ Session J: Seed 11–50 under the heavy profile
         private const string Salt = "spixi-dev-seed:";
 
         private static readonly string[] Names = {
@@ -89,11 +103,30 @@ namespace SPIXI
             return SHA256.HashData(Encoding.UTF8.GetBytes(Salt + i + ":" + j));
         }
 
-        /// <summary>Seed. Returns a fixed English status sentence for the About card.</summary>
+        /// <summary>★ Session J: the count dial. "light" = Session I's 2..40; "heavy" = 10 × 1000 + 40 × 40.</summary>
+        private static int countFor(string profile, int i)
+        {
+            if (profile == "heavy")
+            {
+                return i < HeavyContacts ? HeavyMessages : MediumMessages;
+            }
+            return 2 + ((i * 7) % 39);            // light: "Seed 12" is the longest (40)
+        }
+
+        /// <summary>Seed (Session I shape). Kept for the old verb; = seed("light").</summary>
         public static string seed()
         {
-            int added = 0, skipped = 0, messages = 0;
+            return seed("light");
+        }
+
+        /// <summary>Seed under a profile. Returns a fixed English status sentence for the About card,
+        /// carrying the store-write cost (wall ms, ms per message).</summary>
+        public static string seed(string profile)
+        {
+            if (profile != "heavy") profile = "light";
+            int added = 0, present = 0, messages = 0, refused = 0;
             long now = Clock.getTimestamp();
+            var clock = System.Diagnostics.Stopwatch.StartNew();
             for (int i = 0; i < Count; i++)
             {
                 Address address = addressFor(i);
@@ -101,16 +134,25 @@ namespace SPIXI
                 Friend? friend = FriendList.addFriend(FriendType.Normal, FriendState.Approved, address, null, nick, null, null, 0, true);
                 if (friend == null)
                 {
-                    skipped++;                // already there — idempotent
-                    continue;
+                    // ★ Session J: already there — TOP UP instead of skipping, so heavy over
+                    // light fills the history in place (the ids are the same hashes; Core
+                    // refuses the ones it already holds and counts as refused below).
+                    friend = FriendList.getFriend(address);
+                    if (friend == null) { refused++; continue; }
+                    present++;
                 }
-                added++;
-                // history: 2..40 messages over the last 30 days, alternating direction,
-                // stamped BEFORE addedTimestamp so Core marks them read
-                int count = 2 + ((i * 7) % 39);
+                else
+                {
+                    added++;
+                }
+                // history over the last 30 days, alternating direction, stamped BEFORE
+                // addedTimestamp so Core marks them read; the profile decides the count
+                int count = countFor(profile, i);
                 long first = now - 30L * 86400 + (i * 3600L) % 86400;
-                long step = Math.Max(60, (now - 3600 - first) / Math.Max(1, count));
+                long step = Math.Max(1, (now - 3600 - first) / Math.Max(1, count));
                 int unreadTail = (i % 3 == 0) ? 1 + (i % 3 + i / 3) % 3 : 0;
+                long contactStart = clock.ElapsedMilliseconds;
+                int contactMessages = 0;
                 for (int j = 0; j < count; j++)
                 {
                     bool local = (i + j) % 2 == 0;
@@ -123,10 +165,12 @@ namespace SPIXI
                         FriendList.addMessageWithType(messageIdFor(i, j), FriendMessageType.standard, address, 0, text,
                             local, null, ts, false, 0);
                         messages++;
+                        contactMessages++;
                     }
                     catch (Exception e)
                     {
-                        Logging.warn("[DEVSEED] message " + i + ":" + j + " skipped: " + e.Message);
+                        refused++;
+                        if (present == 0) Logging.warn("[DEVSEED] message " + i + ":" + j + " skipped: " + e.Message);
                     }
                 }
                 if (unreadTail > 0)
@@ -135,9 +179,19 @@ namespace SPIXI
                     friend.saveMetaData();
                 }
                 friend.save();
+                if (count >= HeavyMessages)
+                {
+                    // ★ Session J: the number Damir asked for — the store write of 1000 messages
+                    Logging.info("[DEVSEED] contact " + (i + 1).ToString("00") + ": " + contactMessages + " messages written in "
+                        + (clock.ElapsedMilliseconds - contactStart) + " ms");
+                }
             }
+            clock.Stop();
             UIHelpers.shouldRefreshContacts = true;
-            string status = "Seeded " + added + " contacts (" + skipped + " already present), " + messages + " messages.";
+            double perMsg = messages > 0 ? (double)clock.ElapsedMilliseconds / messages : 0;
+            string status = "Seeded " + profile + ": " + added + " contacts added, " + present + " topped up, " + messages
+                + " messages written in " + clock.ElapsedMilliseconds + " ms (" + perMsg.ToString("0.00") + " ms/msg"
+                + (refused > 0 ? ", " + refused + " already present" : "") + ").";
             Logging.info("[DEVSEED] " + status);
             return status;
         }

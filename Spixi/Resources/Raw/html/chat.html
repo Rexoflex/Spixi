@@ -726,7 +726,8 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-bubble-row {
   display: flex;
   align-items: flex-end;
-  padding-inline: calc(var(--spacing-16) + var(--bubble-tail));   /* Session I: the tail sits inside the gutter */
+  --bubble-row-inset: calc(var(--spacing-16) + var(--bubble-tail));   /* ★ Session J: ONE home for the row inset — chat-select.css positions the tick from it */
+  padding-inline: var(--bubble-row-inset);   /* Session I: the tail sits inside the gutter */
   margin-top: var(--bubble-gap-group);     /* gap between groups (Session I dial; was --spacing-12) */
   /* N36b (#363 candidate, repro gate met 2026-08-17): in select mode the ROW is
      the tap target (N36 made in-bubble controls pointer-dead), and every
@@ -747,7 +748,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   width: var(--size-avatar-24);
   margin-inline-end: var(--spacing-8);
   flex: none;
-  align-self: flex-end;
+  align-self: flex-start;   /* ★ Session J (#756, pick D): the avatar sits at the TOP of the first bubble, beside the tail (was flex-end on the last) */
 }
 
 .c-bubble {
@@ -830,7 +831,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   content: '';
   position: absolute;
   top: 0;
-  width: var(--bubble-tail);
+  width: calc(var(--bubble-tail) + 1px);   /* ★ Session J: +1 = the overlap column into the bubble (the seam fix) */
   height: var(--bubble-tail-h);
   pointer-events: none;
   filter: drop-shadow(var(--bubble-elevation));
@@ -839,18 +840,22 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-bubble-row[data-direction="received"][data-position="single"] .c-bubble::before {
   inset-inline-start: calc(-1 * var(--bubble-tail));
   background: var(--surface-bubble-received);
-  clip-path: path('M8 0 L0 0 Q5 1.5 8 13 Z');
+  /* ★ Session J (#756, Damir: "less sharp and curved, think WhatsApp"): a rounded tip
+     (the Q at x 0–2) and a convex outer sweep back to the bubble edge, instead of the
+     straight-to-a-point wedge; the path still runs 1px INTO the bubble (x 8→9) so the
+     seam Damir saw stays covered. RTL mirror below. */
+  clip-path: path('M9 0 L2.2 0 Q0 0.2 0.5 2.2 Q3.4 8.2 8 13 L9 13 Z');
 }
 .c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble::before,
 .c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble::before {
   inset-inline-end: calc(-1 * var(--bubble-tail));
   background: var(--surface-bubble-sent);
-  clip-path: path('M0 0 L8 0 Q3 1.5 0 13 Z');
+  clip-path: path('M0 0 L6.8 0 Q9 0.2 8.5 2.2 Q5.6 8.2 1 13 L0 13 Z');   /* ★ Session J (#756): the WhatsApp tail, mirrored (see received) */
 }
 [dir="rtl"] .c-bubble-row[data-direction="received"][data-position="first"] .c-bubble::before,
-[dir="rtl"] .c-bubble-row[data-direction="received"][data-position="single"] .c-bubble::before { clip-path: path('M0 0 L8 0 Q3 1.5 0 13 Z'); }
+[dir="rtl"] .c-bubble-row[data-direction="received"][data-position="single"] .c-bubble::before { clip-path: path('M0 0 L6.8 0 Q9 0.2 8.5 2.2 Q5.6 8.2 1 13 L0 13 Z'); }   /* ★ Session J (#756): mirrored, overlap at x 0→1 */
 [dir="rtl"] .c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble::before,
-[dir="rtl"] .c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble::before { clip-path: path('M8 0 L0 0 Q5 1.5 8 13 Z'); }
+[dir="rtl"] .c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble::before { clip-path: path('M9 0 L2.2 0 Q0 0.2 0.5 2.2 Q3.4 8.2 8 13 L9 13 Z'); }   /* ★ Session J (#756): mirrored, overlap at x 8→9 */
 /* the emoji-only "sticker" carries no bubble and so no tail.
    ⚠ Specificity, learned on Damir's walk: the first/single tail rules above are
    (0,3,1) — row class + position attribute + bubble class + pseudo — so a (0,2,1)
@@ -1460,10 +1465,17 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   box-sizing: content-box;
   padding: calc((var(--size-target-min) - var(--composer-attach-size)) / 2);
   margin: calc(-1 * (var(--size-target-min) - var(--composer-attach-size)) / 2);
-  background-clip: content-box;
   border: 0;
   border-radius: var(--radius-full);
   background: transparent;
+  /* ★ Session J (walk A15, #747 "a big disc that doesn't fit the composer"): the clip
+     sat ABOVE the `background:` shorthand, and a shorthand resets every background
+     longhand it does not name — background-clip went back to border-box, so the pressed
+     and tray-open tints painted the 44 HIT box (and spilled past the pill's edge).
+     Rendered on the harness: getComputedStyle(...).backgroundClip read "border-box".
+     The clip is declared AFTER the shorthand now: the 36 disc paints, the 44 stays the
+     target. Move it back above the shorthand and the box returns — that is the reversal. */
+  background-clip: content-box;
   color: var(--icon-action-default);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -1472,12 +1484,15 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-composer__attach svg { transition: transform var(--duration-200) var(--easing-standard); }
 /* tray open: the ⊕ turns into a ✕ by rotation — the same control closes what it
    opened (WhatsApp/Telegram grammar). aria-expanded is written by the tray. */
-.c-composer__attach[aria-expanded="true"] { background: var(--surface-action-tonal-default); }
+/* ★ Session J (A15): every STATE rule below writes `background-color`, never the
+   shorthand — the shorthand would reset the clip above back to border-box and the
+   44 box would paint again (the exact defect, one rule at a time). */
+.c-composer__attach[aria-expanded="true"] { background-color: var(--surface-action-tonal-default); }
 .c-composer__attach[aria-expanded="true"] svg { transform: rotate(45deg); }
 @media (hover: hover) and (pointer: fine) {
-  .c-composer__attach:hover { background: var(--surface-interactive-hover); color: var(--icon-action-hover); }
+  .c-composer__attach:hover { background-color: var(--surface-interactive-hover); color: var(--icon-action-hover); }
 }
-.c-composer__attach:active { background: var(--surface-interactive-pressed); }
+.c-composer__attach:active { background-color: var(--surface-interactive-pressed); }
 @media (prefers-reduced-motion: reduce) {
   .c-composer__attach svg { transition: none; }
 }
@@ -1494,6 +1509,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   line-height: var(--line-height-body-md);
   letter-spacing: var(--tracking-body-md);
   color: var(--text-neutral-01);
+  caret-color: var(--text-action-default, currentColor);   /* ★ Session J (A19 shape 2): an explicit caret — the action blue, WA/TG grammar — never `auto` on a transparent field */
   outline: none; /* focus is carried by the field, not the caret area */
   max-height: calc(5 * var(--line-height-body-md) + 2 * var(--composer-input-pad)); /* 5 lines + the block padding (border-box) — the JS cap derives the same numbers from computed style */
   /* ★ Session H (Damir, Windows screenshot): past five lines the textarea scrolls, and
@@ -1667,8 +1683,12 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
      if he wants the cards to keep lifting: put var(--elevation-1) back here.
      ★ N82(b) (#427): the token is `transparent` in BOTH themes now, so these cards
      carry the canvas separation alone — white on #f4f6f9 = 1.083 in light, #1a1d24
-     on #0f1115 = 1.120 in dark. Rule kept as the reversal hook. */
-  box-shadow: inset 0 0 0 1px var(--border-bubble-received);
+     on #0f1115 = 1.120 in dark. Rule kept as the reversal hook.
+     ★ Session J (walk A3/A4, #747): the sheet-1c LIFT lands on the typed cards too —
+     the text bubble read --bubble-elevation since Session I and these never did, so a
+     call / payment / app-invite card sat FLAT between lifted bubbles. Same token, same
+     list shape as message-bubble.css; the reversal is the token's (0 0 0 0 transparent). */
+  box-shadow: inset 0 0 0 1px var(--border-bubble-received), var(--bubble-elevation);
 }
 /* #265 (Damir ④): SENT special cards (payment/app/call — and the file bubble
    below) carry the same 2px outgoing-colour border as sent media tiles
@@ -1680,8 +1700,10 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
      inset shadow paints at the padding edge, i.e. INSIDE this 2px border, so a sent
      card was drawing a 2px blue edge with a 1px hairline nested in it — a composite
      that did not exist before (the old elevation-1 sat OUTSIDE the border). The
-     border already says "yours"; the hairline is the incoming affordance. */
-  box-shadow: none;
+     border already says "yours"; the hairline is the incoming affordance.
+     ★ Session J (A3/A4): the LIFT stays on the sent side — `none` dropped the elevation
+     with the hairline; a sent text bubble lifts, so its sent card lifts the same. */
+  box-shadow: var(--bubble-elevation);
 }
 /* #265 (Damir ⑪): call cards HUG their content — a two-line event read
    oversized at full bubble width. */
@@ -1746,17 +1768,20 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 
 .c-tcard__actions {
   display: flex;
+  flex-wrap: wrap;            /* ★ Session J: a button that cannot fit beside its neighbour takes the next row, whole */
   gap: var(--spacing-8);
   margin-top: var(--spacing-12);
 }
 /* r2 backlog B4: flex:1 + nowrap labels overflowed the card at <320px —
-   buttons may shrink, labels ellipsize */
-.c-tcard__actions .c-button { flex: 1; min-width: 0; }
-.c-tcard__actions .c-button .c-button__label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+   buttons may shrink, labels ellipsize.
+   ★ Session J (Damir, de-de screenshot "App star…": "in some languages the buttons in
+   bubbles are not visible completely — should be full"): the ELLIPSIS IS GONE. A button
+   keeps its label's full width as its minimum (no `min-width: 0`), the row WRAPS, so on
+   a card too narrow for "Abbrechen" + "App starten" side by side the second button drops
+   to its own full-width row instead of losing its verb. The B4 overflow cannot return:
+   wrapping is what absorbs it now. Reversal = `min-width: 0` + the ellipsis trio. */
+.c-tcard__actions .c-button { flex: 1 1 auto; }
+.c-tcard__actions .c-button .c-button__label { white-space: nowrap; }
 
 .c-tcard__note {
   margin-top: var(--spacing-8);
@@ -1883,8 +1908,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
      if he wants the cards to keep lifting: put var(--elevation-1) back here.
      ★ N82(b) (#427): the token is `transparent` in BOTH themes now, so these cards
      carry the canvas separation alone — white on #f4f6f9 = 1.083 in light, #1a1d24
-     on #0f1115 = 1.120 in dark. Rule kept as the reversal hook. */
-  box-shadow: inset 0 0 0 1px var(--border-bubble-received);
+     on #0f1115 = 1.120 in dark. Rule kept as the reversal hook.
+     ★ Session J (A3/A4): + the sheet-1c lift, as on .c-tcard above. */
+  box-shadow: inset 0 0 0 1px var(--border-bubble-received), var(--bubble-elevation);
   cursor: pointer;
   text-align: start;
   font-family: var(--font-secondary);
@@ -3184,21 +3210,27 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 [data-selecting] .c-bubble-row[data-direction="sent"][role="checkbox"]::before { margin-inline-end: auto; }
 [data-selecting] .c-bubble-row[data-selected]::before {
-  background: var(--surface-action-default);
-  box-shadow: inset 0 0 0 var(--outline-width-2) var(--surface-action-default);
+  background: var(--surface-select-check, var(--surface-action-default));   /* ★ Session J (Damir's screenshot): dark = one shade deeper than the action blue — tokens.css */
+  box-shadow: inset 0 0 0 var(--outline-width-2) var(--surface-select-check, var(--surface-action-default));
 }
 /* the tick inside it — two borders rotated (no font glyph, no data-URI: crisp at
    any DPI and the ink stays a token). PHYSICAL borders on purpose: a checkmark is
    not mirrored in RTL, only its position is (inset-inline-start). */
+/* ★ Session J (Damir's walk screenshot: "the check mark misses the spot"): the tick was
+   placed at a HARD-CODED 16px + 6px — the row's inline padding as it was before Session I
+   grew it by the tail width (--bubble-tail, message-bubble.css). The disc moved 8px in,
+   the tick did not. The offset now reads the row's own --bubble-row-inset, so the two
+   cannot drift again. The ink is WHITE in both themes (was --icon-neutral-on-action,
+   near-black on the light-blue dark disc), per Damir. */
 [data-selecting] .c-bubble-row[data-selected]::after {
   content: '';
   position: absolute;
-  inset-inline-start: calc(var(--spacing-16) + 6px);
+  inset-inline-start: calc(var(--bubble-row-inset, var(--spacing-16)) + 6px);
   top: 50%;
   width: 10px;
   height: 5px;
-  border-left: var(--outline-width-2) solid var(--icon-neutral-on-action);
-  border-bottom: var(--outline-width-2) solid var(--icon-neutral-on-action);
+  border-left: var(--outline-width-2) solid var(--icon-select-check, var(--icon-neutral-on-action));
+  border-bottom: var(--outline-width-2) solid var(--icon-select-check, var(--icon-neutral-on-action));
   transform: translateY(-70%) rotate(-45deg);
   pointer-events: none;
 }
@@ -3344,7 +3376,15 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      family (a neutral with the ink's whisper of violet), −3.74 ΔL* against it (AUG's
      relationship, a slightly DARKER card, kept), and still 1.13:1 short of the white
      incoming bubble so the two never merge. ⚠ Superseded: #dfe6ee (AUG). */
-  background: #E4E1E6;
+  /* ★★ Session J (Damir 2026-09-02, both screenshots: "notice: no border, white with
+     elevation, or dark midnight blue so it stands out over dark mode, with some elevation
+     as well — because now it looks the same [as the ground]"). The card is WHITE in light
+     and LIFTED by --elevation-2; it no longer follows the ground's family (#E4E1E6 sat
+     −3.74 ΔL* under #EEECEF and, on the new #E4EAF3 ground, read as the ground itself).
+     The E1c inset edge below is GONE — "no border" — the shadow is the whole separation.
+     ⚠ Superseded: #E4E1E6 (Session I k2) ← #dfe6ee (AUG) ← #e4ece0 ← #dfe8ff (E1b). */
+  background: #ffffff;
+  box-shadow: var(--elevation-2);
   /* ⚠ HISTORY, NOT INSTRUCTION (rewritten by the Session F audit). This surface once
      took the same --border-bubble-received hairline the received bubble carries
      (N81 #422/#46), and that hook was later kept as a paint-nothing reversal hook
@@ -3361,12 +3401,8 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      ⚠ Superseded: rgba(48,80,189,0.40) (E1b) → rgba(18,59,71,0.40) (E1c, the teal ground).
      The 2.08 figure above is the E1b measurement against the OLD flat ground and is kept
      as history; the shipping edge measures 1.31 (teal end) / 1.85 (green end). */
-  box-shadow: inset 0 0 0 1px rgba(18, 59, 71, 0.40);
-  /* ★ E1c: a teal edge for the teal ground. ⚠ Stated honestly rather than claimed as parity:
-     it measures 1.31 against the teal end and 1.85 against the green, so unlike dark's flat
-     2.19 its prominence VARIES down the screen. That is inherent to a mid-lightness gradient —
-     a dark edge has less room to separate at the lighter end — and the card is carrying most
-     of the separation itself here, which it was not on the near-white ground. */
+  /* ★ Session J: the E1c teal edge (`inset 0 0 0 1px rgba(18, 59, 71, 0.40)`) is RETIRED —
+     Damir: "no border". Put it back in the box-shadow list above and the edge returns. */
   text-align: center;
 }
 .c-sysnotice__medallion {
@@ -3436,8 +3472,12 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    ⚠ The edge is written here, not via --border-bubble-received: that token is the
    BUBBLE hairline, it is shared with seven other surfaces, and N82(b) retired it. */
 [data-theme="dark"] .c-sysnotice__card {
+  /* ★ Session J (Damir: "dark midnight blue … with some elevation as well", no border):
+     the #0c1a4a midnight stays, the rgba(118,157,255,.35) EDGE goes, and the dark
+     --elevation-2 (0 2px 6px black .5) lifts it off the #10151e canvas. Reversal = the
+     inset edge in this comment. */
   background: #0c1a4a;
-  box-shadow: inset 0 0 0 1px rgba(118, 157, 255, 0.35);
+  box-shadow: var(--elevation-2);
 }
 
 
@@ -3456,7 +3496,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      retired teal→green wash, and it read as a green patch on this blue-periwinkle ramp.
      #eaf0fa is hue 268°, inside the ramp's own 223→293 span, and separates at both ends
      (ΔL* +13.9 teal / +21.7 periwinkle). */
-  background: #eaf0fa;
+  /* ★ Session J: on the wash too the card is WHITE + elevation (Damir, no per-ground
+     family any more — a white card is lighter than any ground it can sit on). The
+     rule stays as the reversal hook for a ground-tinted card (#eaf0fa). */
+  background: #ffffff;
 }
 
 </style>
@@ -3553,7 +3596,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   padding-inline: var(--spacing-16);
   transition: height var(--duration-200) var(--easing-standard);
 }
-.c-attach-tray[data-open] { height: 268px; } /* sanctioned: the keyboard-slot class */
+.c-attach-tray[data-open] { height: var(--kb-slot-h, 268px); } /* sanctioned: the keyboard-slot class · ★ Session J: = the keyboard's MEASURED height once one has been seen (chat.html rememberKbSlot); 268 until then */
 .c-attach-tray[data-instant] { transition: none; } /* #721: swapped with the keyboard, not animated */
 .c-attach-tray .c-attach {
   gap: var(--spacing-12) var(--spacing-8);
@@ -3996,7 +4039,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   padding: var(--spacing-8) var(--spacing-12);
   border: var(--outline-width-1) solid transparent; /* Figma: none; see header */
   border-radius: var(--radius-full);
-  background: var(--surface-neutral-02);
+  background: var(--surface-input, var(--surface-neutral-02));   /* ★ Session J (Damir, members search in chat info: "no white background, hard to distinguish"): on a CARD the host overrides --surface-input to the on-card white (#150③); on a screen --surface-input IS neutral-02, so nothing else moves */
   /* glyph ink shares the placeholder's text token — one resting ink for the
      whole empty field (deliberate; icon-neutral-* would split the pair) */
   color: var(--text-neutral-02);
@@ -4483,6 +4526,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   gap: var(--spacing-8);
   color: var(--text-neutral-01);
   font-size: var(--font-size-body-md);
+  font-weight: var(--row-title-weight);   /* ★ Session J: same notch as the settings rows (tokens.css) */
 }
 .c-chat-info__switch {
   flex: none;
@@ -5591,7 +5635,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   line-height: var(--line-height-body-sm);
   color: var(--text-error);
 }
-.c-wallet-send__actions { margin-block-start: var(--spacing-8); display: flex; flex-direction: column; }
+.c-wallet-send__actions { display: flex; flex-direction: column; }   /* ★ Session J: the top margin is the shared .c-money-cta's (auto, base.css) — this class carried an 8 that beat it on source order */
 
 /* —— review sheet (#26) —— */
 .c-sendreview { display: flex; flex-direction: column; gap: var(--spacing-16); }
@@ -8731,11 +8775,13 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     if (!composerEl || !isAttachTrayOpen(composerEl)) return false;
     const tray = composerEl.nextElementSibling;
     let done = false;
-    const drop = () => {
+    try { console.warn('[KBTRAY] hold ih=' + window.innerHeight + ' tray=' + tray.offsetHeight + ' t=' + Math.round(performance.now())); } catch (_) {}   // ★ Session J stamp (temporary)
+    const drop = (e) => {
       if (done) return;
       done = true;
       window.removeEventListener('resize', drop);
       if (window.visualViewport) window.visualViewport.removeEventListener('resize', drop);
+      try { console.warn('[KBTRAY] drop by=' + (e && e.type ? e.type : 'backstop') + ' ih=' + window.innerHeight + ' t=' + Math.round(performance.now())); } catch (_) {}   // ★ Session J stamp (temporary)
       closeAttachTray(tray, { instant: true });
       syncChatOverlay();
     };
@@ -8767,9 +8813,12 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     if (!document.documentElement.hasAttribute('data-desktop')) {
       if (closeAttachTrayIfOpen()) return;
       const input = composerEl && composerEl.querySelector('.c-composer__input');
+      try { console.warn('[KBTRAY] open ih=' + window.innerHeight + ' kbUp=' + kbUp + ' focused=' + (!!input && document.activeElement === input) + ' t=' + Math.round(performance.now())); } catch (_) {}   // ★ Session J stamp (temporary)
       const tray = openAttachTray({
         composerEl,
-        instant: !!input && document.activeElement === input,   // #721: the keyboard is up → swap, do not rise
+        /* #721: the keyboard is up → swap, do not rise. ★ #756: `kbUp` (the keyboard's own
+           state) decides — the capture showed focused=false with the keyboard on screen. */
+        instant: kbUp || (!!input && document.activeElement === input),
         ...attachFlags(),
         strings: window.SL || {},
         /* the tile CLOSES the tray inside the component; the mirror must hear about it
@@ -10244,7 +10293,11 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       focusComposer();
       requestAnimationFrame(() => requestAnimationFrame(() => {
         try {
-          console.info('[CDPERF] chat-shell n=' + (cdBurst ? cdBurst.n : 0)
+          /* ★ Session J: console.WARN, not info — the release WebView drops chromium INFO lines
+             from logcat (Damir's Session I capture has W/E chromium lines and not one I line),
+             so the info-level stamp was never visible on the device. A warning reaches logcat
+             as `W chromium: [WARNING:CONSOLE(…)] "[CDPERF] chat-shell …"`. Temporary, like the set. */
+          console.warn('[CDPERF] chat-shell n=' + (cdBurst ? cdBurst.n : 0)
             + ' burst=' + (cdBurst ? Math.round(cdT0 - cdBurst.start) : 0)
             + 'ms paint=' + cdPaint + 'ms glass=' + Math.round(performance.now() - cdT0) + 'ms');
         } catch (e) {}
@@ -11280,25 +11333,53 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      visualViewport never shrinks and nothing lifts. ⚠ #215: inputmode=none behaves
      differently per engine (Android WebView honours it; WKWebView honours it since
      iOS 13) — this is a walk row on BOTH devices before it is called done. */
+  /* ★★ Session J (walk A19, #747) — THE SECOND SHAPE, and the tray flicker it caused.
+     ① Android WebView drew NO caret for the focused inputmode=none field. The one more
+        shape #215 allows before the dial is dropped: the SAME focus, then a programmatic
+        collapsed selection at the end (setSelectionRange) in the next frame — Blink
+        starts the caret blink timer on a selection change, not only on focus — plus an
+        explicit caret-color (never inherit-from-nothing on a transparent field).
+     ② THE FLICKER WAS THIS FUNCTION, NOT THE SLOT. The first-tap `arm` did
+        `blur(); focus()` in a timeout: the tap's own focus had already asked for the
+        keyboard (the viewport shrank → #721 dropped the tray, seamless), then the
+        blur HID that keyboard (the viewport grew → the bar dropped) and the re-focus
+        raised it again (the bar rose) — "closes the tray, drops the bar, rises again",
+        Damir's exact words, and only on the FIRST tap after entry, which is the walk's
+        order. Android adjustResize never writes --kb-inset, so the 280 ms margin
+        transition the handoff suspected cannot run there. The arm flips inputmode on
+        pointerdown and does NOTHING else: a tap on an already-focused editable asks
+        Chromium for the IME with the attribute it reads at that moment. No blur, no
+        second focus, nothing for #721 to lose.
+     REVERSAL (Damir: "else drop it and say so"): CARET_WITHOUT_KEYBOARD = false restores
+     the pre-Session-I mobile behaviour (no entry focus; desktop autofocus untouched). */
+  /* ★ Walk 2026-09-03, A3 FAIL: shape 2 did not blink either on the Motorola. Damir's rule was
+     "one more shape, else drop it and say so" — DROPPED. Mobile has no entry focus again
+     (the pre-Session-I behaviour); the machinery stays behind this constant as the record. */
+  const CARET_WITHOUT_KEYBOARD = false;
   let caretArmed = false;
   function focusComposer() {
     try {
       const input = composerEl && composerEl.querySelector('.c-composer__input');
       if (!input) return;
       if (document.documentElement.hasAttribute('data-desktop')) { input.focus(); return; }
-      if (caretArmed) return;
+      if (!CARET_WITHOUT_KEYBOARD || caretArmed) return;
       caretArmed = true;
       input.setAttribute('inputmode', 'none');
       const arm = () => {
         input.setAttribute('inputmode', 'text');
         input.removeEventListener('pointerdown', arm);
         input.removeEventListener('touchstart', arm);
-        // re-focus AFTER the attribute flip so the engine re-evaluates the keyboard
-        setTimeout(() => { try { input.blur(); input.focus(); } catch (_) {} }, 0);
       };
       input.addEventListener('pointerdown', arm, { passive: true });
       input.addEventListener('touchstart', arm, { passive: true });
       input.focus({ preventScroll: true });
+      requestAnimationFrame(() => {
+        try {
+          if (document.activeElement !== input) return;
+          const n = input.value.length;
+          input.setSelectionRange(n, n);
+        } catch (_) {}
+      });
     } catch (_) {}
   }
 
@@ -11324,6 +11405,28 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    * the viewport (Android adjustResize, WebView2 → delta ≈ 0), skipped on
    * desktop, guarded for a missing visualViewport. Threshold 60px separates
    * real keyboards from browser-chrome/jitter resizes. */
+  /* ★ Session J: the keyboard-slot height, learned from the keyboard itself (Android: the
+     adjustResize shrink; iOS: the native inset push) and handed to the attach tray as
+     --kb-slot-h. Stored per device; clamped to a sane band so a rotated tablet or a split
+     keyboard cannot poison it. */
+  const KB_SLOT_KEY = 'spixi.kb.slot';
+  /* ★ Session J (#756, the [KBTRAY] capture): IS THE KEYBOARD UP — from the keyboard itself
+     (Android: the adjustResize shrink; iOS: the native inset), never from document.activeElement.
+     Tapping the ⊕ BUTTON moves focus off the field before its click runs, so the old
+     `activeElement === input` test read "no keyboard" with the keyboard on screen. */
+  let kbUp = false;
+  function rememberKbSlot(px) {
+    px = Math.round(px);
+    if (!(px >= 160 && px <= 600)) return;
+    try { document.documentElement.style.setProperty('--kb-slot-h', px + 'px'); } catch (_) {}
+    try { localStorage.setItem(KB_SLOT_KEY, String(px)); } catch (_) {}
+  }
+  (function bootKbSlot() {
+    if (document.documentElement.hasAttribute('data-desktop')) return;
+    let v = NaN;
+    try { v = parseInt(localStorage.getItem(KB_SLOT_KEY) || '', 10); } catch (_) {}
+    if (v >= 160 && v <= 600) document.documentElement.style.setProperty('--kb-slot-h', v + 'px');
+  })();
   (function keyboardViewport() {
     const vv = window.visualViewport;
     if (document.documentElement.hasAttribute('data-desktop')) return;
@@ -11443,6 +11546,17 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       window.addEventListener('resize', () => {
         const ih = window.innerHeight;
         const shrank = ih < lastIH - 60;     // keyboard opening (not chrome jitter)
+        /* ★ Session J (Damir, Android: "the sheet is not the same height as the keyboard, and
+           flickers when switching between keyboard and sheet"): the KEYBOARD'S OWN HEIGHT is
+           the shrink, measured here on adjustResize, and it becomes the tray's height
+           (--kb-slot-h, attach-sheet.css) — a tray that is exactly the keyboard's slot swaps
+           with it without the bar moving by the difference. Persisted, so the first tray of
+           the next session is already right; 268 stays the fallback until a keyboard has
+           been seen. The stamps are TEMPORARY ([KBTRAY], console.warn → logcat W chromium),
+           a set with the ones on focus / tray drop below — the next capture shows the order. */
+        if (shrank) rememberKbSlot(lastIH - ih);
+        if (shrank) kbUp = true; else if (ih > lastIH + 60) kbUp = false;   // ★ #756: the keyboard's own state
+        try { console.warn('[KBTRAY] resize ih=' + ih + ' d=' + (lastIH - ih) + ' t=' + Math.round(performance.now())); } catch (_) {}
         lastIH = ih;
         // re-pin only when the keyboard OPENED and the user was reading the
         // bottom before it did — a scrolled-up reader keeps their position.
@@ -11462,6 +11576,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       const px = Math.max(0, Math.round(Number(h) || 0));
       nativeKb = true;
       const stick = nearBottom();
+      if (px > 60) rememberKbSlot(px);     // ★ Session J: the iOS keyboard's height is the tray's slot too
+      kbUp = px > 60;                      // ★ #756
       setInset(px > 60 ? px : 0);          // same real-keyboard threshold as the vv path
       if (window.scrollY || (vv && vv.offsetTop)) window.scrollTo(0, 0);
       // #328: change-gated like the vv writer — a re-push of the same height

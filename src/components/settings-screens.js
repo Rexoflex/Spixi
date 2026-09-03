@@ -515,6 +515,10 @@ export function createChatAppearance({
   const isLight = !document.documentElement.getAttribute('data-theme')
     || document.documentElement.getAttribute('data-theme') === 'light';
   let groundCurrent = CHAT_GROUNDS.some((o) => o.id === chatGround) ? chatGround : 'flat';
+  /* ★ Session J (same finding): the live PREVIEW carried data-chat-ground only after a pick —
+     at build it inherited the document's, and settings.html's root never carries one, so the
+     preview painted FLAT under a Gradient swatch. It is stamped from the current value at build. */
+  preview.setAttribute('data-chat-ground', groundCurrent);
   const groundSec = document.createElement('div');
   groundSec.className = 'c-settings__section';
   if (isLight) {

@@ -157,10 +157,17 @@
   box-sizing: content-box;
   padding: calc((var(--size-target-min) - var(--composer-attach-size)) / 2);
   margin: calc(-1 * (var(--size-target-min) - var(--composer-attach-size)) / 2);
-  background-clip: content-box;
   border: 0;
   border-radius: var(--radius-full);
   background: transparent;
+  /* ★ Session J (walk A15, #747 "a big disc that doesn't fit the composer"): the clip
+     sat ABOVE the `background:` shorthand, and a shorthand resets every background
+     longhand it does not name — background-clip went back to border-box, so the pressed
+     and tray-open tints painted the 44 HIT box (and spilled past the pill's edge).
+     Rendered on the harness: getComputedStyle(...).backgroundClip read "border-box".
+     The clip is declared AFTER the shorthand now: the 36 disc paints, the 44 stays the
+     target. Move it back above the shorthand and the box returns — that is the reversal. */
+  background-clip: content-box;
   color: var(--icon-action-default);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -169,12 +176,15 @@
 .c-composer__attach svg { transition: transform var(--duration-200) var(--easing-standard); }
 /* tray open: the ⊕ turns into a ✕ by rotation — the same control closes what it
    opened (WhatsApp/Telegram grammar). aria-expanded is written by the tray. */
-.c-composer__attach[aria-expanded="true"] { background: var(--surface-action-tonal-default); }
+/* ★ Session J (A15): every STATE rule below writes `background-color`, never the
+   shorthand — the shorthand would reset the clip above back to border-box and the
+   44 box would paint again (the exact defect, one rule at a time). */
+.c-composer__attach[aria-expanded="true"] { background-color: var(--surface-action-tonal-default); }
 .c-composer__attach[aria-expanded="true"] svg { transform: rotate(45deg); }
 @media (hover: hover) and (pointer: fine) {
-  .c-composer__attach:hover { background: var(--surface-interactive-hover); color: var(--icon-action-hover); }
+  .c-composer__attach:hover { background-color: var(--surface-interactive-hover); color: var(--icon-action-hover); }
 }
-.c-composer__attach:active { background: var(--surface-interactive-pressed); }
+.c-composer__attach:active { background-color: var(--surface-interactive-pressed); }
 @media (prefers-reduced-motion: reduce) {
   .c-composer__attach svg { transition: none; }
 }
@@ -191,6 +201,7 @@
   line-height: var(--line-height-body-md);
   letter-spacing: var(--tracking-body-md);
   color: var(--text-neutral-01);
+  caret-color: var(--text-action-default, currentColor);   /* ★ Session J (A19 shape 2): an explicit caret — the action blue, WA/TG grammar — never `auto` on a transparent field */
   outline: none; /* focus is carried by the field, not the caret area */
   max-height: calc(5 * var(--line-height-body-md) + 2 * var(--composer-input-pad)); /* 5 lines + the block padding (border-box) — the JS cap derives the same numbers from computed style */
   /* ★ Session H (Damir, Windows screenshot): past five lines the textarea scrolls, and

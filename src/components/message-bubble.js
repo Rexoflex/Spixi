@@ -299,9 +299,11 @@ export function createMessageBubble({
   if (direction === 'received' && (showAvatar || sender !== null)) {
     const gutter = document.createElement('span');
     gutter.className = 'c-bubble-row__gutter';
-    // avatar renders once per group, bottom-aligned on the LAST bubble;
-    // other rows keep the gutter width so bubbles align
-    if (showAvatar && (position === 'last' || position === 'single')) {
+    // avatar renders once per group — ★ Session J (#756, Damir's pick D on the tail sheet:
+    // "avatars are not aligned with the tail"): on the FIRST bubble, TOP-aligned beside the
+    // tail (WhatsApp's group grammar); it sat bottom-aligned on the LAST bubble while the tail
+    // rode the first. Other rows keep the gutter width so bubbles align.
+    if (showAvatar && (position === 'first' || position === 'single')) {
       const av = createAvatar({ src: avatar, name, address, size: 24 });
       if (onSenderClick) { // #99: avatar opens the member sheet too
         const b = document.createElement('button');
@@ -592,16 +594,17 @@ export function removeMessage(row) {
       const label = row.querySelector('.c-bubble__sender');
       const heir = next.querySelector('.c-bubble');
       if (label && heir && !heir.querySelector('.c-bubble__sender')) heir.prepend(label);
+      // ★ Session J (#756): the avatar rides the FIRST bubble now — it moves DOWN to the heir
+      // with the label (firstElementChild: may be the bare avatar OR its #99 button wrap)
+      const av = row.querySelector('.c-bubble-row__gutter')?.firstElementChild;
+      const nextGutter = next.querySelector('.c-bubble-row__gutter');
+      if (av && nextGutter && !nextGutter.childNodes.length) nextGutter.append(av);
     }
   } else if (pos === 'last') {
     const prev = row.previousElementSibling;
     if (isGroupRow(prev, ['first', 'middle'])) {
       prev.dataset.position = prev.dataset.position === 'middle' ? 'last' : 'single';
-      // avatar renders on the last-of-group — it moves up to the new tail
-      // (firstElementChild: may be the bare avatar OR its #99 button wrap)
-      const av = row.querySelector('.c-bubble-row__gutter')?.firstElementChild;
-      const prevGutter = prev.querySelector('.c-bubble-row__gutter');
-      if (av && prevGutter && !prevGutter.childNodes.length) prevGutter.append(av);
+      // (the avatar lives on the group's FIRST row since #756 — nothing to move here)
     }
   }
   // middle: [first, middle*, last] stays contiguous — no repair needed

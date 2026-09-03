@@ -385,6 +385,7 @@
   gap: var(--spacing-8);
   color: var(--text-neutral-01);
   font-size: var(--font-size-body-md);
+  font-weight: var(--row-title-weight);   /* ★ Session J: same notch as the settings rows (tokens.css) */
 }
 .c-chat-info__switch {
   flex: none;

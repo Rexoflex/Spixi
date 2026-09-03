@@ -402,6 +402,8 @@
   /* ★ Session I list dials on desktop: the #227 sizes stay (names 14 = TG), the weights ride */
   --row-name-size: var(--font-size-body-lg);
   --row-pad-y: var(--spacing-12);
+  --row-time-size: var(--font-size-body-sm);          /* ★ Session J (A7): the 12 row time is the MOBILE measurement; desktop keeps its #227 13 */
+  --row-time-line-height: var(--line-height-body-sm);
   --tx-name-size: var(--font-size-body-lg);
   --font-size-display-lg: 56px;  --line-height-display-lg: 64px;  --tracking-display-lg: -2px;
   --font-size-display-md: 44px;  --line-height-display-md: 52px;  --tracking-display-md: -2px;
@@ -630,6 +632,8 @@
   --icon-neutral-inverse-02: var(--neutral-300);
   --icon-neutral-disabled: var(--neutral-400);
   --icon-neutral-on-action: var(--neutral-10);
+  --icon-select-check: var(--neutral-10);              /* ★ Session J: the selected-message tick is WHITE in both themes (Damir) — reversal = var(--icon-neutral-on-action) */
+  --surface-select-check: var(--surface-action-default);   /* ★ Session J: the selected-message disc; light keeps the action blue (600) */
   --icon-neutral-on-disabled: var(--neutral-460);
   --icon-action-default: var(--primary-600);
   --icon-action-hover: var(--primary-700);
@@ -850,6 +854,8 @@
   --icon-neutral-inverse-02: var(--neutral-800);
   --icon-neutral-disabled: var(--neutral-500);
   --icon-neutral-on-action: var(--neutral-950);
+  --icon-select-check: var(--neutral-10);              /* ★ Session J: white tick on the dark disc too (was neutral-950 via icon-neutral-on-action) */
+  --surface-select-check: var(--primary-500);          /* ★ Session J (Damir: "maybe 1 shade darker background"): 500 = one step under dark's action 400; #507af9 holds a white tick at 3.82:1. Reversal = var(--surface-action-default) */
   --icon-neutral-on-disabled: var(--neutral-400);
   --icon-action-default: var(--primary-400);
   --icon-action-hover: var(--primary-300);
@@ -970,9 +976,11 @@
      Desktop keeps its #227 sizes (names 14) and only takes the weights. */
   --row-name-size: 17px;                              /* was var(--font-size-body-lg) = 18 mobile */
   --row-name-line-height: var(--line-height-body-lg);
-  --row-name-weight: var(--font-weight-semibold);     /* was regular (semibold only when unread) */
-  --row-name-weight-unread: var(--font-weight-bold);  /* was semibold */
+  --row-name-weight: var(--font-weight-medium, 500);  /* ★ Session J (Damir, on his Seed-50 screenshot: "semibold is too strong for read … could be used for unread"): Medium at rest — one notch under the excerpt's counterpart. Reversal = var(--font-weight-semibold) (Session I sheet 2); regular = the pre-I state */
+  --row-name-weight-unread: var(--font-weight-semibold);  /* ★ Session J: unread = semibold (was bold, Session I) */
   --row-pad-y: 11px;                                  /* was var(--spacing-12) */
+  --row-time-size: 12px;                              /* ★ Session J (walk A7 "the chats-row timestamp still reads huge"): MEASURED on the reference screenshots — digit height TG 21–22 px · WA 28 · ours 25 at 14 CSS; TG's row time is ≈12 CSS on this phone. Reversal = var(--font-size-body-sm) (14) */
+  --row-time-line-height: 16px;                       /* reversal = var(--line-height-body-sm) (20) */
   --tx-name-size: 15px;                               /* was var(--font-size-body-lg) = 18 mobile */
   --tx-name-weight: var(--font-weight-semibold);      /* was regular (#277) */
   --chip-weight: var(--font-weight-semibold);         /* was inherited regular */
@@ -980,10 +988,15 @@
   /* ★ SESSION I — THE GAP CANON (sheets 3a/3b/3c, "canon everywhere"). Four row heights
      coexisted on the info/settings family (44/48/52/56, brief §2-4); TWO remain: a NAV
      or static row is 48, a row that carries a SWITCH (or a member/contact row with a
-     48 avatar) is 56. Screen body gap 16 → 12 and pad 16 → 12; heroes tightened. */
+     48 avatar) is 56. Screen body gap 16 → 12 and pad 16 → 12; heroes tightened.
+     ★ Session J adds a THIRD: a nav row with a SUB-LINE (--row-h-stacked, Damir's walk
+     "too dense") — 48 was measured on single-line rows. */
   --row-h-nav: 48px;                                  /* was 52 (settings, chat-info) · 48 (members list) · 44 (txs) */
   --row-h-switch: 56px;                               /* was 52 */
   --row-h-member: 56px;                               /* unchanged */
+  --icon-brand-logo: #ffffff;                          /* ★ Session J (Damir 2026-09-02: "make the logo in welcome and lock screens white rather than this blueish"): the bare glyph on the launch / lock gradients. Reversal = var(--icon-accent) (accent-300 on the dark-pinned subtree, #160) */
+  --row-title-weight: var(--font-weight-medium, 500);   /* ★ Session J (Damir 2026-09-02, Account screenshot: "make titles one weight stronger than subtitles, just subtly"): the row LABEL on settings / chat-info rows is Medium; the sub stays regular. Reversal = var(--font-weight-regular, 400) (inherit) */
+  --row-h-stacked: 60px;                              /* ★ Session J (#747 "too dense"): a NAV row with a sub-line (label + sub). Rendered 48/56/60/64 → Damir picked C = 60 (walk 2026-09-03). Reversal = 48px (= --row-h-nav, the Session I two-height canon); 56 was the interim */
   --screen-gap: 12px;                                 /* was var(--spacing-16) */
   --screen-pad: 12px;                                 /* was var(--spacing-16) */
 
@@ -1113,7 +1126,7 @@
      neutral the artwork colour gave.
      ★ It also holds on the GRADIENT option: −3.66 at the teal end, −4.39 at the green end.
      ⚠ Superseded: #231F20 @5% (same day) ← #123b47 @7% (E1c) ← #181a20 (N81). */
-  --chat-pattern-ink: #83058E;   /* ★ Session I (#735③, sheet 4 = k2): the brand magenta, ruled by Damir 2026-08-31 — was #061663 (AUG). At 6% on #EEECEF; render-checked light on the new ground */
+  --chat-pattern-ink: #051C8E;   /* ★ Session J (#744/A14, Damir 2026-09-02: "Light mode pattern: 051C8E at 6% opacity") — a deep brand blue on the #E4EAF3 ground. Reversal = #83058E (Session I k2 magenta); before that #061663 (AUG) */
   /* The per-theme alpha LADDER. The stored preference is a LEVEL (0/1/2), not an
      alpha — so the theme picks the number and the JS does no derivation at all.
      ★ That is the point: the old code multiplied the stored light value by 0.36 for
@@ -1158,7 +1171,7 @@
      as #1956b2 at 287° and #0076E1 at 282°, where #eff5eb sat at 132° green) and it gives
      the BEST white-bubble separation of any flat ground tried: ΔL* +5.44, against +4.15 for
      #eff5eb and +3.19 for the pre-E1c #f4f6f9. Sent bubble 6.07, pattern ink @5% −3.53. */
-  --chat-canvas-base: #EEECEF;   /* ★ Session I (#735③, sheet 4 = k2; Damir: "don't like the background color in light mode") — was #ebf0f5 (AUG). A warm-neutral grey instead of the cool blue-grey; white bubbles measure 1.17:1 against it (was 1.15) */
+  --chat-canvas-base: #E4EAF3;   /* ★ Session J (#744/A14, Damir 2026-09-02: "light mode background: E4EAF3") — a cool blue-grey again, a step deeper than AUG's #ebf0f5; white bubbles measure 1.22:1 against it. Reversal = #EEECEF (Session I k2); before that #ebf0f5 (AUG) */
   /* ★★ AUG (Damir 2026-08-30, ON DEVICE): "the unread messages strip is not very visible,
      and the Today badge also". MEASURED, and it is a direct consequence of the new ground:
      both chips fill with --surface-neutral-02 (#edf0f2), which sat −2.19 ΔL* BELOW the old
@@ -1341,7 +1354,15 @@
      Carded containers REASSIGN --surface-input to this (the #20 contextual
      region-override precedent — no component overrides). Inset reading:
      slightly darker than the card in light, deeper than it in dark. */
-  --surface-input-on-card: var(--neutral-100);
+  /* ★ Session J (Damir 2026-09-02, Add contact + New group screenshots: "the input is not
+     distinguishable, should be the lightest surface token so it stands out from the card
+     background"): the inset reading above never worked in light — neutral-100 #e8ecee on
+     the neutral-50 #edf0f2 card measures 1.02:1, invisible on a phone. The field is now the
+     LIGHTEST surface, pure white (the composer pill's and the received bubble's white),
+     which lifts it OFF the card instead of sinking it in: 1.16:1 against the card, the
+     same reading as a white bubble on the canvas. Dark keeps its inset (neutral-900 on
+     the -800 card, a real step). Reversal = var(--neutral-100). */
+  --surface-input-on-card: #ffffff;
 
   /* elevation — light: shadows */
   --elevation-0: none;
@@ -1400,8 +1421,8 @@
      ★ MEASURED, and this is the reassuring part: white @ .05 reads ΔL* +5.64 against the
      #701 canvas, where #bbd0ff @ .065 read +5.89. So the STRENGTH is unchanged (within 4%)
      and what actually changes is the HUE — a neutral ink instead of a blue-tinted one. */
-  --chat-pattern-ink: #ffffff;
-  --chat-pattern-alpha-1: 0.03;    /* Default — 0.05 → 0.03, Damir 2026-08-30 (#711): "reduce dark by 2%" — the ink stays white */
+  --chat-pattern-ink: #C6CFFD;   /* ★ Session J (#758, Damir 2026-09-03: "pattern colour #C6CFFD, 4%") — a periwinkle ink instead of white. Reversal = #ffffff */
+  --chat-pattern-alpha-1: 0.04;    /* ★ Session J (#758): 4%. Superseded: 0.03 (Damir 2026-08-30 #711 "reduce dark by 2%") ← 0.05 */
   --chat-pattern-alpha-2: 0.1;     /* Strong — the same ceiling in both themes */
   --chat-pattern-opacity: var(--chat-pattern-alpha-1);
   /* ★★★ AUG (Damir 2026-08-30, ON DEVICE, ruled off a render): the dark canvas takes the
@@ -1422,7 +1443,7 @@
      ⚠ Supersedes the #701 ruling "leave the base at #0f1115" — which he made against a
      measurement about neutral01 LIGHTNESS, with no knowledge of the chrome adjacency. New
      information, not a re-opened argument. */
-  --chat-canvas-base: #10151e;
+  --chat-canvas-base: #0D1117;   /* ★ Session J (#758, Damir 2026-09-03: "on dark mode the chat canvas should be #0D1117 and make it a token") — a GitHub-dark neutral, a hair deeper and less blue than the #10151e chrome (ΔL* ≈ −1.3). Reversal = #10151e (= --surface-screen, Session H's three-option pick above) */
   /* ★ AUG: dark's ground did not move, so its chips keep the surface they had. Defined
      here so the token resolves in BOTH themes rather than inheriting light's near-white. */
   --surface-chat-chip: var(--surface-neutral-02);
@@ -1520,11 +1541,15 @@
      ⚠ WHAT IT COSTS: the sent bubble #1956b2 bottoms out at 3.32 against this ramp —
      above the 3:1 non-text floor but tighter than the flat ground's 6.07. White incoming
      bubbles are fine (1.67 min). The pattern ink holds at ΔL* −3.4 to −3.8 across it. */
-  /* ★ Session I (#735③, sheet 4 = k2): the teal → periwinkle wash above is RETIRED as the
-     light gradient — on the #EEECEF ground the option is a SOFT wash at the same 289°:
-     cool #E9EDF4 at the start, the base in the middle, warm #F2EAF1 at the end (a
-     magenta whisper that belongs to the #83058E ink). Reversal: the five-stop line above. */
-  --gradient-chat: linear-gradient(289deg, #E9EDF4 0%, #EEECEF 50%, #F2EAF1 100%), var(--chat-canvas-base);
+  /* ★ Session I (#735③, sheet 4 = k2) replaced the teal → periwinkle wash with a SOFT wash
+     on the #EEECEF ground (#E9EDF4 0% → #EEECEF 50% → #F2EAF1 100%) — and #744 found that
+     wash INVISIBLE: ≤ 0.2 ΔL*, the two Chat-appearance tiles read identical.
+     ★ Session J (#744/A14, Damir 2026-09-02: "background: linear-gradient(289deg, #94D2E3
+     0%, #ADAEE8 92.62%) — the gradient in light mode that was missing"): HIS wash is the
+     light gradient again. His angle, his endpoints, his end position; the three interior
+     stops are the OKLCH hue-arc derivation described above, recomputed for this session
+     (chroma 6.7 → 7.1 → 7.5 → 7.9 → 8.3, no sag). Reversal = the k2 soft wash in this comment. */
+  --gradient-chat: linear-gradient(289deg, #94D2E3 0%, #94CAE9 23.16%, #99C2ED 46.31%, #A2B8EC 69.47%, #ADAEE8 92.62%), var(--chat-canvas-base);
 }
 /* ⚠★ AND THE FLAT TILE HAS TO SAY SO EXPLICITLY. Custom properties INHERIT: once <html>
    carries data-chat-ground='gradient', the wash above cascades into every descendant —

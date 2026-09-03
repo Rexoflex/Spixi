@@ -1207,7 +1207,9 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   min-width: 0;
   color: var(--text-neutral-01);
   font-size: var(--font-size-body-md);
+  font-weight: var(--row-title-weight);   /* ★ Session J: one notch over the sub (tokens.css) */
 }
+.c-settings__row-sub { font-weight: var(--font-weight-regular, 400); }   /* ★ Session J: the sub does NOT inherit the title's Medium */
 .c-settings__row-value {
   margin-inline-start: auto;
   color: var(--text-neutral-02);
@@ -1262,6 +1264,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 .c-settings__row--backup { min-height: var(--row-h-switch); }   /* ★ Session I canon: the two-line backup row shares the 56 */
 .c-settings__row[data-row="switch"] { min-height: var(--row-h-switch); }   /* ★ Session I canon: a row that carries a switch is 56 */
+.c-settings__row[data-row="stacked"] { min-height: var(--row-h-stacked); }   /* ★ Session J: a nav row with a sub-line (the third height; Damir's pick) */
 .c-settings__backup-badge { flex: none; }
 
 /* —— switch (chat-info parity) —— */
@@ -1965,7 +1968,7 @@ button.c-settings-howto__join:disabled {
   padding: var(--spacing-8) var(--spacing-12);
   border: var(--outline-width-1) solid transparent; /* Figma: none; see header */
   border-radius: var(--radius-full);
-  background: var(--surface-neutral-02);
+  background: var(--surface-input, var(--surface-neutral-02));   /* ★ Session J (Damir, members search in chat info: "no white background, hard to distinguish"): on a CARD the host overrides --surface-input to the on-card white (#150③); on a screen --surface-input IS neutral-02, so nothing else moves */
   /* glyph ink shares the placeholder's text token — one resting ink for the
      whole empty field (deliberate; icon-neutral-* would split the pair) */
   color: var(--text-neutral-02);
@@ -2159,7 +2162,7 @@ button.c-settings-howto__join:disabled {
   align-items: center;
   justify-content: center;
   padding: var(--spacing-8) 0 0;
-  color: var(--icon-accent);        /* dark-pinned subtree → accent-300 */
+  color: var(--icon-brand-logo, #ffffff);   /* ★ Session J: WHITE (Damir) — was var(--icon-accent), accent-300 on the dark-pinned subtree; tokens.css holds the reversal */
   filter: drop-shadow(0 0 24px rgba(124, 88, 255, 0.55)); /* sanctioned: glow on the fixed gradient */
 }
 
@@ -2533,10 +2536,15 @@ button.c-settings-howto__join:disabled {
   background: var(--surface-screen);
 }
 
-/* sub-screen sections sit on card surfaces too (#147 group grammar) */
+/* sub-screen sections sit on card surfaces too (#147 group grammar)
+   ★ Session J (walk A13, #747 "cards within a big card"): the NOTIFICATIONS screen left
+   this list. Session I made its four switch rows ONE .c-settings__group (#742 sheet 3b),
+   but switchRow() still returns a .c-settings__section and this rule kept painting each
+   one as a card of its own — a card inside the card, with the group's own 4px padding
+   around it. Inside a group a section is flat, as on the Account hub. Put
+   `.c-settings-notifs .c-settings__section` back in this list and the nesting returns. */
 .c-settings-appearance .c-settings__section,
-.c-settings-privacy .c-settings__section,
-.c-settings-notifs .c-settings__section {
+.c-settings-privacy .c-settings__section {
   background: var(--surface-card);
   border-radius: var(--radius-16);
   padding: var(--spacing-4);
@@ -3093,7 +3101,7 @@ button.c-settings-howto__join:disabled {
   align-items: center;
   justify-content: center;
   margin-bottom: var(--spacing-8);
-  color: var(--icon-accent);        /* dark-pinned subtree → accent-300 */
+  color: var(--icon-brand-logo, #ffffff);   /* ★ Session J: WHITE (Damir) — was var(--icon-accent), accent-300 on the dark-pinned subtree; tokens.css holds the reversal */
   filter: drop-shadow(0 0 28px rgba(123, 92, 255, 0.55)); /* sanctioned: glow on the fixed gradient */
 }
 .c-lock__title {
@@ -3343,7 +3351,8 @@ button.c-settings-howto__join:disabled {
 .c-bubble-row {
   display: flex;
   align-items: flex-end;
-  padding-inline: calc(var(--spacing-16) + var(--bubble-tail));   /* Session I: the tail sits inside the gutter */
+  --bubble-row-inset: calc(var(--spacing-16) + var(--bubble-tail));   /* ★ Session J: ONE home for the row inset — chat-select.css positions the tick from it */
+  padding-inline: var(--bubble-row-inset);   /* Session I: the tail sits inside the gutter */
   margin-top: var(--bubble-gap-group);     /* gap between groups (Session I dial; was --spacing-12) */
   /* N36b (#363 candidate, repro gate met 2026-08-17): in select mode the ROW is
      the tap target (N36 made in-bubble controls pointer-dead), and every
@@ -3364,7 +3373,7 @@ button.c-settings-howto__join:disabled {
   width: var(--size-avatar-24);
   margin-inline-end: var(--spacing-8);
   flex: none;
-  align-self: flex-end;
+  align-self: flex-start;   /* ★ Session J (#756, pick D): the avatar sits at the TOP of the first bubble, beside the tail (was flex-end on the last) */
 }
 
 .c-bubble {
@@ -3447,7 +3456,7 @@ button.c-settings-howto__join:disabled {
   content: '';
   position: absolute;
   top: 0;
-  width: var(--bubble-tail);
+  width: calc(var(--bubble-tail) + 1px);   /* ★ Session J: +1 = the overlap column into the bubble (the seam fix) */
   height: var(--bubble-tail-h);
   pointer-events: none;
   filter: drop-shadow(var(--bubble-elevation));
@@ -3456,18 +3465,22 @@ button.c-settings-howto__join:disabled {
 .c-bubble-row[data-direction="received"][data-position="single"] .c-bubble::before {
   inset-inline-start: calc(-1 * var(--bubble-tail));
   background: var(--surface-bubble-received);
-  clip-path: path('M8 0 L0 0 Q5 1.5 8 13 Z');
+  /* ★ Session J (#756, Damir: "less sharp and curved, think WhatsApp"): a rounded tip
+     (the Q at x 0–2) and a convex outer sweep back to the bubble edge, instead of the
+     straight-to-a-point wedge; the path still runs 1px INTO the bubble (x 8→9) so the
+     seam Damir saw stays covered. RTL mirror below. */
+  clip-path: path('M9 0 L2.2 0 Q0 0.2 0.5 2.2 Q3.4 8.2 8 13 L9 13 Z');
 }
 .c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble::before,
 .c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble::before {
   inset-inline-end: calc(-1 * var(--bubble-tail));
   background: var(--surface-bubble-sent);
-  clip-path: path('M0 0 L8 0 Q3 1.5 0 13 Z');
+  clip-path: path('M0 0 L6.8 0 Q9 0.2 8.5 2.2 Q5.6 8.2 1 13 L0 13 Z');   /* ★ Session J (#756): the WhatsApp tail, mirrored (see received) */
 }
 [dir="rtl"] .c-bubble-row[data-direction="received"][data-position="first"] .c-bubble::before,
-[dir="rtl"] .c-bubble-row[data-direction="received"][data-position="single"] .c-bubble::before { clip-path: path('M0 0 L8 0 Q3 1.5 0 13 Z'); }
+[dir="rtl"] .c-bubble-row[data-direction="received"][data-position="single"] .c-bubble::before { clip-path: path('M0 0 L6.8 0 Q9 0.2 8.5 2.2 Q5.6 8.2 1 13 L0 13 Z'); }   /* ★ Session J (#756): mirrored, overlap at x 0→1 */
 [dir="rtl"] .c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble::before,
-[dir="rtl"] .c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble::before { clip-path: path('M8 0 L0 0 Q5 1.5 8 13 Z'); }
+[dir="rtl"] .c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble::before { clip-path: path('M9 0 L2.2 0 Q0 0.2 0.5 2.2 Q3.4 8.2 8 13 L9 13 Z'); }   /* ★ Session J (#756): mirrored, overlap at x 8→9 */
 /* the emoji-only "sticker" carries no bubble and so no tail.
    ⚠ Specificity, learned on Damir's walk: the first/single tail rules above are
    (0,3,1) — row class + position attribute + bubble class + pseudo — so a (0,2,1)
@@ -5190,7 +5203,11 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       // stored value naming either falls through to the 'doodles' default above.
       if (st === 'matrix' || (st === 'flow' && desktop)) patternStyle = st;
       const gr = localStorage.getItem(CHAT_PREFS.ground);
-      if (gr === 'gradient') chatGround = gr;   // anything else, incl. absent/corrupt → 'flat'
+      /* ★ Session J (Damir, Windows: "sometimes it shows the gradient selected but doesn't have it
+         applied"): this line only ever set 'gradient'. Since Session I the DEFAULT is 'gradient',
+         so a stored 'flat' — the user's pick — fell through and the picker re-opened on Gradient
+         while chat.html's ladder honoured the flat. Both stored values are read now. */
+      if (gr === 'gradient' || gr === 'flat') chatGround = gr;   // anything else, incl. absent/corrupt → the default above
     } catch (e) {}
     return { pattern, textScale, patternStyle, chatGround };
   }
@@ -5851,6 +5868,15 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       root.replaceChildren(buildScreen('language'));
       root.dataset.langBuilt = state.language;
     }
+    /* ★ Session J (#753, Damir: "when I loaded seed heavy the note in About didn't change"):
+       the About sublevel KEEPS its live node across rebuilds (the rule above), so the
+       setDevSeed push that lands after a seed finishes rebuilt the hub and left the mounted
+       card's status stale. The status line is refreshed IN PLACE — one text node, no
+       screen rebuild — in both presentations. */
+    if (state.devSeed) {
+      const ds = (paneMode ? detailWrap : root).querySelector('.c-settings-about__devseed-status');
+      if (ds && ds.textContent !== state.devSeed.status) ds.textContent = state.devSeed.status;
+    }
   }
 
   // Coalesce the onLoad burst (setNickname + setAppearance + setLockEnabled +
@@ -6012,6 +6038,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
         devSeed: state.devSeed ? {
           status: state.devSeed.status,
           onSeed: () => bridge.send('ixian:devseed'),
+          onSeedHeavy: () => bridge.send('ixian:devseed:heavy'),   // ★ Session J: the count dial
           onUnseed: () => bridge.send('ixian:devunseed'),
         } : undefined,
         onBack: showHub,

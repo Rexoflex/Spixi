@@ -510,7 +510,14 @@ html:root .c-app-item[data-pressfade] .c-app-item__open[aria-current]::before {
      the 16px inset and zeroes the component root, contact-details pads the root — so a
      bleed offset that is right on one is doubled on the other. The bar sits inside the
      content column; that is the same on every host. */
-  margin-block-start: var(--spacing-8);
+  /* ★ Session J (Damir: "not sticky to bottom … air below it"): `auto` — in the flex
+     COLUMN both money components are, an auto top margin pushes the bar to the END of
+     the column; where the host stretches that column to the scrollport (home.html /
+     contact_details.html takeovers) the bar rides the bottom edge even when the form is
+     too short to scroll, and in a host that does not (the chat attach-Pay compose) the
+     column is content-height and `auto` resolves to 0, the old 8 lost to the column's
+     own gap. Reversal = var(--spacing-8). */
+  margin-block-start: auto;
   padding-block: var(--spacing-12);
   padding-block-end: calc(var(--spacing-12) + env(safe-area-inset-bottom, 0px));
   background: var(--surface-screen);

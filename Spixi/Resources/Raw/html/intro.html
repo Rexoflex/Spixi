@@ -1063,7 +1063,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   align-items: center;
   justify-content: center;
   margin-bottom: var(--spacing-8);
-  color: var(--icon-accent);        /* dark-pinned subtree → accent-300 */
+  color: var(--icon-brand-logo, #ffffff);   /* ★ Session J: WHITE (Damir) — was var(--icon-accent), accent-300 on the dark-pinned subtree; tokens.css holds the reversal */
   filter: drop-shadow(0 0 28px rgba(123, 92, 255, 0.55)); /* sanctioned: glow on the fixed gradient */
 }
 .c-lock__title {
@@ -1521,7 +1521,9 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   min-width: 0;
   color: var(--text-neutral-01);
   font-size: var(--font-size-body-md);
+  font-weight: var(--row-title-weight);   /* ★ Session J: one notch over the sub (tokens.css) */
 }
+.c-settings__row-sub { font-weight: var(--font-weight-regular, 400); }   /* ★ Session J: the sub does NOT inherit the title's Medium */
 .c-settings__row-value {
   margin-inline-start: auto;
   color: var(--text-neutral-02);
@@ -1576,6 +1578,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 .c-settings__row--backup { min-height: var(--row-h-switch); }   /* ★ Session I canon: the two-line backup row shares the 56 */
 .c-settings__row[data-row="switch"] { min-height: var(--row-h-switch); }   /* ★ Session I canon: a row that carries a switch is 56 */
+.c-settings__row[data-row="stacked"] { min-height: var(--row-h-stacked); }   /* ★ Session J: a nav row with a sub-line (the third height; Damir's pick) */
 .c-settings__backup-badge { flex: none; }
 
 /* —— switch (chat-info parity) —— */
@@ -1916,10 +1919,15 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   background: var(--surface-screen);
 }
 
-/* sub-screen sections sit on card surfaces too (#147 group grammar) */
+/* sub-screen sections sit on card surfaces too (#147 group grammar)
+   ★ Session J (walk A13, #747 "cards within a big card"): the NOTIFICATIONS screen left
+   this list. Session I made its four switch rows ONE .c-settings__group (#742 sheet 3b),
+   but switchRow() still returns a .c-settings__section and this rule kept painting each
+   one as a card of its own — a card inside the card, with the group's own 4px padding
+   around it. Inside a group a section is flat, as on the Account hub. Put
+   `.c-settings-notifs .c-settings__section` back in this list and the nesting returns. */
 .c-settings-appearance .c-settings__section,
-.c-settings-privacy .c-settings__section,
-.c-settings-notifs .c-settings__section {
+.c-settings-privacy .c-settings__section {
   background: var(--surface-card);
   border-radius: var(--radius-16);
   padding: var(--spacing-4);
@@ -2245,7 +2253,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   align-items: center;
   justify-content: center;
   padding: var(--spacing-8) 0 0;
-  color: var(--icon-accent);        /* dark-pinned subtree → accent-300 */
+  color: var(--icon-brand-logo, #ffffff);   /* ★ Session J: WHITE (Damir) — was var(--icon-accent), accent-300 on the dark-pinned subtree; tokens.css holds the reversal */
   filter: drop-shadow(0 0 24px rgba(124, 88, 255, 0.55)); /* sanctioned: glow on the fixed gradient */
 }
 

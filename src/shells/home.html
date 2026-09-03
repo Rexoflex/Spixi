@@ -199,6 +199,18 @@
        keyboard, so nothing changes anywhere else. */
     padding-bottom: calc(var(--spacing-16) + var(--kb-inset, 0px));
   }
+  /* ★ Session J (Damir's walk, screenshot 2: "the button is not sticky to bottom — it has
+     some air below it showing the background"). A sticky box cannot leave its
+     CONTAINING block: when the form is shorter than the screen there is nothing to
+     scroll, and the bar simply sat where the flow ended — above this body's 16px
+     bottom padding, and higher still on a short form. Two lines: this body is a flex
+     COLUMN whose money child is at least as tall as the scrollport (flex: 1 0 auto), and
+     the shared .c-money-cta takes an auto top margin (base.css) so it rides the bottom
+     edge whether or not the form scrolls. The bottom 16 is gone — the bar carries its
+     own 12 + safe-area — and the --kb-inset reserve stays. */
+  .wallet-takeover__body { display: flex; flex-direction: column; padding-bottom: var(--kb-inset, 0px); }
+  .wallet-takeover__body > .c-wallet-send,
+  .wallet-takeover__body > .c-wallet-receive { flex: 1 0 auto; }
   /* ★ #560 (Damir, screenshots 2026-08-25): the money screens sat at 32px from
      each edge — this body pads 16 AND the component pads 16. The Contacts panel
      sits at 16. One inset owns it: the host keeps its 16, the component's inner

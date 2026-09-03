@@ -90,15 +90,17 @@ namespace SPIXI
         private bool handleDevSeedVerb(string current_url)
         {
             bool seed = current_url.Equals("ixian:devseed", StringComparison.Ordinal);
+            // ★ Session J: the count dial — `ixian:devseed:heavy` (10 × 1000 + 40 × 40); the bare verb stays light
+            bool heavy = current_url.Equals("ixian:devseed:heavy", StringComparison.Ordinal);
             bool unseed = current_url.Equals("ixian:devunseed", StringComparison.Ordinal);
-            if (!seed && !unseed)
+            if (!seed && !heavy && !unseed)
             {
                 return false;
             }
             Task.Run(() =>
             {
                 string status;
-                try { status = seed ? SDevSeed.seed() : SDevSeed.unseed(); }
+                try { status = unseed ? SDevSeed.unseed() : SDevSeed.seed(heavy ? "heavy" : "light"); }
                 catch (Exception ex) { status = (seed ? "Seed" : "Remove") + " failed: " + ex.Message; Logging.error("[DEVSEED] " + ex); }
                 Utils.sendUiCommand(this, "setDevSeed", status);
             });

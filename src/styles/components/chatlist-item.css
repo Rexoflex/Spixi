@@ -65,13 +65,13 @@
   font-size: var(--row-name-size);           /* ★ Session I (sheet 2): 17 mobile / 14 desktop — was body-lg */
   line-height: var(--row-name-line-height);
   letter-spacing: var(--tracking-body-lg);
-  font-weight: var(--row-name-weight);       /* ★ Session I: semibold at rest (#735⑤/⑦ "names +1–2 weights") */
+  font-weight: var(--row-name-weight);       /* ★ Session I: semibold at rest (#735⑤/⑦ "names +1–2 weights") · ★ Session J: Medium at rest, Damir (tokens.css) */
   color: var(--text-neutral-01);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.c-chatlist-item[data-unread] .c-chatlist-item__name { font-weight: var(--row-name-weight-unread); }   /* ★ Session I: bold when unread (was semibold) */
+.c-chatlist-item[data-unread] .c-chatlist-item__name { font-weight: var(--row-name-weight-unread); }   /* ★ Session I: bold when unread (was semibold) · ★ Session J: semibold (Damir) */
 
 .c-chatlist-item__right {
   display: flex;
@@ -88,8 +88,8 @@
   color: var(--icon-neutral-03);
 }
 .c-chatlist-item__time {
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-height-body-sm);
+  font-size: var(--row-time-size, var(--font-size-body-sm));             /* ★ Session J (A7): 12 mobile, measured against TG — tokens.css */
+  line-height: var(--row-time-line-height, var(--line-height-body-sm));
   letter-spacing: var(--tracking-body-sm);
   color: var(--text-neutral-02);
 }

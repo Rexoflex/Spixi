@@ -1,0 +1,28 @@
+Session J: walk fixes, rulings, the numbers, seed v2, logcat + WebView mirror
+
+- Seven walk fixes (#749): typed-card lift; (+) press = 36 disc (background-clip
+  after the shorthand); Notifications flat; chats-row time 12/16 (measured vs TG);
+  --row-h-stacked 60 (Damir's pick C); caret-without-keyboard DROPPED (A3 fail).
+- Rulings (#750/#758): light canvas #E4EAF3 / #051C8E@6% / his 289deg wash; dark
+  canvas #0D1117 / #C6CFFD@4%; notice white|midnight + elevation, no border; names
+  Medium/Semibold; selected tick on --bubble-row-inset, white, dark disc 500;
+  money CTA sticky to the edge; input-on-card white; row titles Medium; card
+  buttons wrap; welcome/lock logo white; members search white on its card.
+- The numbers (#751/#754/#756): Logging console mirror under SPIXI_DEV_COEXIST &&
+  ANDROID; WebView console forwarded to Logging in dev builds ([WEBVIEW], never
+  the mini-app's). Chat open ~200 ms to present at 28/40/1000 msgs, paint 21-27 ms
+  before present -> no L10 fix. Seed heavy 0.24-0.34 ms/msg.
+- Tray <-> keyboard (#753/#756): tray height = measured keyboard height
+  (--kb-slot-h, persisted); kbUp (the keyboard's own state) decides `instant` -
+  the (+) button took focus and fooled #721. [KBTRAY] stamps (temporary set).
+- Tails (#756, pick D): avatar on the first bubble beside a WhatsApp-shaped tail;
+  the 1px seam closed.
+- Seed harness v2 (#752): light / heavy (10 x 1000 + 40 x 40), top-up, timed;
+  About status refreshes in place. Chat-appearance ground read-back fixed (#755).
+- Recipe: Windows build names the exe folder (#663 again). Baseline note: the M1
+  hold-out gate is +1 with the Ixian-Core sibling (#748).
+- Gates: smoke 4003 / 3 known (with sibling); bundle 319; shells 18; locales 786;
+  cs 141+1; i18n dev exemptions 6 (2 sites).
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01BkmpQNhAcdf3uUwpabtQ8t

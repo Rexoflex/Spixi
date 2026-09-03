@@ -54,6 +54,36 @@ public class SpixiWebChromeClient : WebChromeClient
     {
         request.Grant(request.GetResources());
     }
+
+#if SPIXI_DEV_COEXIST
+    /* ★ Session J (#753/#754): THE WEBVIEW CONSOLE REACHES THE LOG — dev builds only. Damir's
+     * first working capture carried every C# stamp ([CDPERF] chat …, [DEVSEED], [L14]) and NOT
+     * ONE line from the shells: this WebView build forwards console messages to logcat at no
+     * level, so the shell half of the chat-open instrument ([CDPERF] chat-shell) and the whole
+     * [KBTRAY] set stayed blind. The chrome client hands every console message to Ixian's
+     * Logging (which the dev build mirrors to logcat, App.xaml.cs) under a fixed [WEBVIEW] tag
+     * with the console level and the source line. Store builds have no symbol, no override —
+     * the default client is what it always was.
+     * ⚠ This renderer serves EVERY WebView, the mini-app one included (MiniAppPage.xaml
+     * ClassId="miniapp", third-party code — #265). Its console is NOT forwarded: a publisher's
+     * page must not be able to write lines into the app's log, dev build or not. Only the
+     * shells' own words reach here, and each line is capped. */
+    public override bool OnConsoleMessage(ConsoleMessage? consoleMessage)
+    {
+        try
+        {
+            if (consoleMessage != null && _renderer?.Element?.ClassId != "miniapp")
+            {
+                string msg = consoleMessage.Message() ?? "";
+                if (msg.Length > 400) msg = msg.Substring(0, 400) + "…";
+                IXICore.Meta.Logging.info("[WEBVIEW] " + consoleMessage.InvokeMessageLevel() + " " + msg
+                    + " (" + consoleMessage.SourceId() + ":" + consoleMessage.LineNumber() + ")");
+            }
+        }
+        catch (Exception) { }
+        return base.OnConsoleMessage(consoleMessage);
+    }
+#endif
 }
 
 public class SpixiWebViewClient : WebViewClient

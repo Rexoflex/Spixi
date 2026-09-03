@@ -1490,6 +1490,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   gap: var(--spacing-8);
   color: var(--text-neutral-01);
   font-size: var(--font-size-body-md);
+  font-weight: var(--row-title-weight);   /* ★ Session J: same notch as the settings rows (tokens.css) */
 }
 .c-chat-info__switch {
   flex: none;
@@ -1787,7 +1788,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   padding: var(--spacing-8) var(--spacing-12);
   border: var(--outline-width-1) solid transparent; /* Figma: none; see header */
   border-radius: var(--radius-full);
-  background: var(--surface-neutral-02);
+  background: var(--surface-input, var(--surface-neutral-02));   /* ★ Session J (Damir, members search in chat info: "no white background, hard to distinguish"): on a CARD the host overrides --surface-input to the on-card white (#150③); on a screen --surface-input IS neutral-02, so nothing else moves */
   /* glyph ink shares the placeholder's text token — one resting ink for the
      whole empty field (deliberate; icon-neutral-* would split the pair) */
   color: var(--text-neutral-02);
@@ -3396,7 +3397,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   line-height: var(--line-height-body-sm);
   color: var(--text-error);
 }
-.c-wallet-send__actions { margin-block-start: var(--spacing-8); display: flex; flex-direction: column; }
+.c-wallet-send__actions { display: flex; flex-direction: column; }   /* ★ Session J: the top margin is the shared .c-money-cta's (auto, base.css) — this class carried an 8 that beat it on source order */
 
 /* —— review sheet (#26) —— */
 .c-sendreview { display: flex; flex-direction: column; gap: var(--spacing-16); }
@@ -3736,7 +3737,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     background: var(--surface-screen);
     display: flex; flex-direction: column;
   }
-  .cd-send-takeover__body { flex: 1; min-height: 0; overflow-y: auto; }
+  .cd-send-takeover__body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }   /* ★ Session J: a flex column, so the money CTA can ride the bottom edge (home.html's .wallet-takeover__body, same reason) */
+  .cd-send-takeover__body > .c-wallet-send { flex: 1 0 auto; }
   /* Boot state: shown until the FIRST coalesced commit lands, so we never paint an
      empty panel that flashes to filled ~120ms later (the flicker fix). A lightweight
      centered spinner — replaced wholesale by the real panel on first render. */

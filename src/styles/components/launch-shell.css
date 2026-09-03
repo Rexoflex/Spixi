@@ -92,7 +92,7 @@
   align-items: center;
   justify-content: center;
   padding: var(--spacing-8) 0 0;
-  color: var(--icon-accent);        /* dark-pinned subtree → accent-300 */
+  color: var(--icon-brand-logo, #ffffff);   /* ★ Session J: WHITE (Damir) — was var(--icon-accent), accent-300 on the dark-pinned subtree; tokens.css holds the reversal */
   filter: drop-shadow(0 0 24px rgba(124, 88, 255, 0.55)); /* sanctioned: glow on the fixed gradient */
 }
 

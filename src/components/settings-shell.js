@@ -571,6 +571,12 @@ export function createSettingsHub({
     if (onClick) row.type = 'button';
     row.className = 'c-settings__row' + (onClick ? '' : ' c-settings__row--static') + (cls ? ' ' + cls : '');
     if (key) row.dataset.settingKey = key;
+    /* ★ Session J (Damir's walk, #747 "too tight within sections, too dense"): a nav row
+       that carries a SUB-LINE is the THIRD height of the canon — `data-row="stacked"`
+       → --row-h-stacked (tokens.css). The 48 nav height was measured on single-line
+       rows; two lines of text inside it left ~4px of air. The backup row keeps its own
+       class (it is 56 by --row-h-switch already, and the attribute would be redundant). */
+    if (sub && !cls) row.dataset.row = 'stacked';
     const lab = document.createElement('span');
     lab.className = 'c-settings__row-label' + (sub ? ' c-settings__row-label--stack' : '');
     if (sub) {

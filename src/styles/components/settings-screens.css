@@ -12,10 +12,15 @@
   background: var(--surface-screen);
 }
 
-/* sub-screen sections sit on card surfaces too (#147 group grammar) */
+/* sub-screen sections sit on card surfaces too (#147 group grammar)
+   ★ Session J (walk A13, #747 "cards within a big card"): the NOTIFICATIONS screen left
+   this list. Session I made its four switch rows ONE .c-settings__group (#742 sheet 3b),
+   but switchRow() still returns a .c-settings__section and this rule kept painting each
+   one as a card of its own — a card inside the card, with the group's own 4px padding
+   around it. Inside a group a section is flat, as on the Account hub. Put
+   `.c-settings-notifs .c-settings__section` back in this list and the nesting returns. */
 .c-settings-appearance .c-settings__section,
-.c-settings-privacy .c-settings__section,
-.c-settings-notifs .c-settings__section {
+.c-settings-privacy .c-settings__section {
   background: var(--surface-card);
   border-radius: var(--radius-16);
   padding: var(--spacing-4);

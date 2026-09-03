@@ -4121,9 +4121,11 @@ function createMessageBubble({
   if (direction === 'received' && (showAvatar || sender !== null)) {
     const gutter = document.createElement('span');
     gutter.className = 'c-bubble-row__gutter';
-    // avatar renders once per group, bottom-aligned on the LAST bubble;
-    // other rows keep the gutter width so bubbles align
-    if (showAvatar && (position === 'last' || position === 'single')) {
+    // avatar renders once per group — ★ Session J (#756, Damir's pick D on the tail sheet:
+    // "avatars are not aligned with the tail"): on the FIRST bubble, TOP-aligned beside the
+    // tail (WhatsApp's group grammar); it sat bottom-aligned on the LAST bubble while the tail
+    // rode the first. Other rows keep the gutter width so bubbles align.
+    if (showAvatar && (position === 'first' || position === 'single')) {
       const av = createAvatar({ src: avatar, name, address, size: 24 });
       if (onSenderClick) { // #99: avatar opens the member sheet too
         const b = document.createElement('button');
@@ -4414,16 +4416,17 @@ function removeMessage(row) {
       const label = row.querySelector('.c-bubble__sender');
       const heir = next.querySelector('.c-bubble');
       if (label && heir && !heir.querySelector('.c-bubble__sender')) heir.prepend(label);
+      // ★ Session J (#756): the avatar rides the FIRST bubble now — it moves DOWN to the heir
+      // with the label (firstElementChild: may be the bare avatar OR its #99 button wrap)
+      const av = row.querySelector('.c-bubble-row__gutter')?.firstElementChild;
+      const nextGutter = next.querySelector('.c-bubble-row__gutter');
+      if (av && nextGutter && !nextGutter.childNodes.length) nextGutter.append(av);
     }
   } else if (pos === 'last') {
     const prev = row.previousElementSibling;
     if (isGroupRow(prev, ['first', 'middle'])) {
       prev.dataset.position = prev.dataset.position === 'middle' ? 'last' : 'single';
-      // avatar renders on the last-of-group — it moves up to the new tail
-      // (firstElementChild: may be the bare avatar OR its #99 button wrap)
-      const av = row.querySelector('.c-bubble-row__gutter')?.firstElementChild;
-      const prevGutter = prev.querySelector('.c-bubble-row__gutter');
-      if (av && prevGutter && !prevGutter.childNodes.length) prevGutter.append(av);
+      // (the avatar lives on the group's FIRST row since #756 — nothing to move here)
     }
   }
   // middle: [first, middle*, last] stays contiguous — no repair needed
@@ -21032,6 +21035,12 @@ function createSettingsHub({
     if (onClick) row.type = 'button';
     row.className = 'c-settings__row' + (onClick ? '' : ' c-settings__row--static') + (cls ? ' ' + cls : '');
     if (key) row.dataset.settingKey = key;
+    /* ★ Session J (Damir's walk, #747 "too tight within sections, too dense"): a nav row
+       that carries a SUB-LINE is the THIRD height of the canon — `data-row="stacked"`
+       → --row-h-stacked (tokens.css). The 48 nav height was measured on single-line
+       rows; two lines of text inside it left ~4px of air. The backup row keeps its own
+       class (it is 56 by --row-h-switch already, and the attribute would be redundant). */
+    if (sub && !cls) row.dataset.row = 'stacked';
     const lab = document.createElement('span');
     lab.className = 'c-settings__row-label' + (sub ? ' c-settings__row-label--stack' : '');
     if (sub) {
@@ -22363,6 +22372,10 @@ function createChatAppearance({
   const isLight = !document.documentElement.getAttribute('data-theme')
     || document.documentElement.getAttribute('data-theme') === 'light';
   let groundCurrent = CHAT_GROUNDS.some((o) => o.id === chatGround) ? chatGround : 'flat';
+  /* ★ Session J (same finding): the live PREVIEW carried data-chat-ground only after a pick —
+     at build it inherited the document's, and settings.html's root never carries one, so the
+     preview painted FLAT under a Gradient swatch. It is stamped from the current value at build. */
+  preview.setAttribute('data-chat-ground', groundCurrent);
   const groundSec = document.createElement('div');
   groundSec.className = 'c-settings__section';
   if (isLight) {
@@ -23339,12 +23352,12 @@ function createSettingsAbout({
      [CDPERF] chat-open stamps and the chats-list rows are measured at 50, not at 3.
      English-only by the #301 precedent: an engineering instrument that cannot ship. The
      `i18n-lint-ok:dev` marks are counted by a smoke pin (#420's cap, now two sites). */
-  if (devSeed && (devSeed.onSeed || devSeed.onUnseed)) {
+  if (devSeed && (devSeed.onSeed || devSeed.onSeedHeavy || devSeed.onUnseed)) {
     const wrap = document.createElement('div');
     wrap.className = 'c-settings__groupwrap c-settings-about__devseed';
     const head = document.createElement('p');
     head.className = 'c-settings__note';
-    head.textContent = 'Dev build (SpixiDevCoexist) — seed harness. Fifty test contacts with history, through the real message store. Remove before measuring anything else.';   // i18n-lint-ok:dev — dev-build instrument, compiled out of release (#732)
+    head.textContent = 'Dev build (SpixiDevCoexist) — seed harness. Fifty test contacts with history, through the real message store. Light = 2–40 messages each (Seed 12 has 40). Heavy = Seed 01–10 with 1000 each, the rest 40; heavy tops light up in place. Remove before measuring anything else.';   // i18n-lint-ok:dev — dev-build instrument, compiled out of release (#732)
     wrap.append(head);
     const card = document.createElement('div');
     card.className = 'c-settings__group c-settings-links';
@@ -23359,7 +23372,8 @@ function createSettingsAbout({
       b.addEventListener('click', () => { if (onClick) onClick(); });
       return b;
     };
-    if (devSeed.onSeed) card.append(row('Seed 50 test contacts', devSeed.onSeed));         // i18n-lint-ok:dev — dev-build instrument (#732)
+    if (devSeed.onSeed) card.append(row('Seed 50 · light (2–40 messages)', devSeed.onSeed));         // i18n-lint-ok:dev — dev-build instrument (#732)
+    if (devSeed.onSeedHeavy) card.append(row('Seed 50 · heavy (10 × 1000 + 40 × 40)', devSeed.onSeedHeavy));   // i18n-lint-ok:dev — ★ Session J count dial (#747)
     if (devSeed.onUnseed) card.append(row('Remove seeded contacts', devSeed.onUnseed));   // i18n-lint-ok:dev — dev-build instrument (#732)
     wrap.append(card);
     const status = document.createElement('p');

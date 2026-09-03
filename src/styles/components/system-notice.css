@@ -54,7 +54,15 @@
      family (a neutral with the ink's whisper of violet), −3.74 ΔL* against it (AUG's
      relationship, a slightly DARKER card, kept), and still 1.13:1 short of the white
      incoming bubble so the two never merge. ⚠ Superseded: #dfe6ee (AUG). */
-  background: #E4E1E6;
+  /* ★★ Session J (Damir 2026-09-02, both screenshots: "notice: no border, white with
+     elevation, or dark midnight blue so it stands out over dark mode, with some elevation
+     as well — because now it looks the same [as the ground]"). The card is WHITE in light
+     and LIFTED by --elevation-2; it no longer follows the ground's family (#E4E1E6 sat
+     −3.74 ΔL* under #EEECEF and, on the new #E4EAF3 ground, read as the ground itself).
+     The E1c inset edge below is GONE — "no border" — the shadow is the whole separation.
+     ⚠ Superseded: #E4E1E6 (Session I k2) ← #dfe6ee (AUG) ← #e4ece0 ← #dfe8ff (E1b). */
+  background: #ffffff;
+  box-shadow: var(--elevation-2);
   /* ⚠ HISTORY, NOT INSTRUCTION (rewritten by the Session F audit). This surface once
      took the same --border-bubble-received hairline the received bubble carries
      (N81 #422/#46), and that hook was later kept as a paint-nothing reversal hook
@@ -71,12 +79,8 @@
      ⚠ Superseded: rgba(48,80,189,0.40) (E1b) → rgba(18,59,71,0.40) (E1c, the teal ground).
      The 2.08 figure above is the E1b measurement against the OLD flat ground and is kept
      as history; the shipping edge measures 1.31 (teal end) / 1.85 (green end). */
-  box-shadow: inset 0 0 0 1px rgba(18, 59, 71, 0.40);
-  /* ★ E1c: a teal edge for the teal ground. ⚠ Stated honestly rather than claimed as parity:
-     it measures 1.31 against the teal end and 1.85 against the green, so unlike dark's flat
-     2.19 its prominence VARIES down the screen. That is inherent to a mid-lightness gradient —
-     a dark edge has less room to separate at the lighter end — and the card is carrying most
-     of the separation itself here, which it was not on the near-white ground. */
+  /* ★ Session J: the E1c teal edge (`inset 0 0 0 1px rgba(18, 59, 71, 0.40)`) is RETIRED —
+     Damir: "no border". Put it back in the box-shadow list above and the edge returns. */
   text-align: center;
 }
 .c-sysnotice__medallion {
@@ -146,8 +150,12 @@
    ⚠ The edge is written here, not via --border-bubble-received: that token is the
    BUBBLE hairline, it is shared with seven other surfaces, and N82(b) retired it. */
 [data-theme="dark"] .c-sysnotice__card {
+  /* ★ Session J (Damir: "dark midnight blue … with some elevation as well", no border):
+     the #0c1a4a midnight stays, the rgba(118,157,255,.35) EDGE goes, and the dark
+     --elevation-2 (0 2px 6px black .5) lifts it off the #10151e canvas. Reversal = the
+     inset edge in this comment. */
   background: #0c1a4a;
-  box-shadow: inset 0 0 0 1px rgba(118, 157, 255, 0.35);
+  box-shadow: var(--elevation-2);
 }
 
 
@@ -166,5 +174,8 @@
      retired teal→green wash, and it read as a green patch on this blue-periwinkle ramp.
      #eaf0fa is hue 268°, inside the ramp's own 223→293 span, and separates at both ends
      (ΔL* +13.9 teal / +21.7 periwinkle). */
-  background: #eaf0fa;
+  /* ★ Session J: on the wash too the card is WHITE + elevation (Damir, no per-ground
+     family any more — a white card is lighter than any ground it can sit on). The
+     rule stays as the reversal hook for a ground-tinted card (#eaf0fa). */
+  background: #ffffff;
 }

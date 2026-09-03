@@ -502,7 +502,11 @@
       // stored value naming either falls through to the 'doodles' default above.
       if (st === 'matrix' || (st === 'flow' && desktop)) patternStyle = st;
       const gr = localStorage.getItem(CHAT_PREFS.ground);
-      if (gr === 'gradient') chatGround = gr;   // anything else, incl. absent/corrupt → 'flat'
+      /* ★ Session J (Damir, Windows: "sometimes it shows the gradient selected but doesn't have it
+         applied"): this line only ever set 'gradient'. Since Session I the DEFAULT is 'gradient',
+         so a stored 'flat' — the user's pick — fell through and the picker re-opened on Gradient
+         while chat.html's ladder honoured the flat. Both stored values are read now. */
+      if (gr === 'gradient' || gr === 'flat') chatGround = gr;   // anything else, incl. absent/corrupt → the default above
     } catch (e) {}
     return { pattern, textScale, patternStyle, chatGround };
   }
@@ -1163,6 +1167,15 @@
       root.replaceChildren(buildScreen('language'));
       root.dataset.langBuilt = state.language;
     }
+    /* ★ Session J (#753, Damir: "when I loaded seed heavy the note in About didn't change"):
+       the About sublevel KEEPS its live node across rebuilds (the rule above), so the
+       setDevSeed push that lands after a seed finishes rebuilt the hub and left the mounted
+       card's status stale. The status line is refreshed IN PLACE — one text node, no
+       screen rebuild — in both presentations. */
+    if (state.devSeed) {
+      const ds = (paneMode ? detailWrap : root).querySelector('.c-settings-about__devseed-status');
+      if (ds && ds.textContent !== state.devSeed.status) ds.textContent = state.devSeed.status;
+    }
   }
 
   // Coalesce the onLoad burst (setNickname + setAppearance + setLockEnabled +
@@ -1324,6 +1337,7 @@
         devSeed: state.devSeed ? {
           status: state.devSeed.status,
           onSeed: () => bridge.send('ixian:devseed'),
+          onSeedHeavy: () => bridge.send('ixian:devseed:heavy'),   // ★ Session J: the count dial
           onUnseed: () => bridge.send('ixian:devunseed'),
         } : undefined,
         onBack: showHub,

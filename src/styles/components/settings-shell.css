@@ -251,7 +251,9 @@
   min-width: 0;
   color: var(--text-neutral-01);
   font-size: var(--font-size-body-md);
+  font-weight: var(--row-title-weight);   /* ★ Session J: one notch over the sub (tokens.css) */
 }
+.c-settings__row-sub { font-weight: var(--font-weight-regular, 400); }   /* ★ Session J: the sub does NOT inherit the title's Medium */
 .c-settings__row-value {
   margin-inline-start: auto;
   color: var(--text-neutral-02);
@@ -306,6 +308,7 @@
 }
 .c-settings__row--backup { min-height: var(--row-h-switch); }   /* ★ Session I canon: the two-line backup row shares the 56 */
 .c-settings__row[data-row="switch"] { min-height: var(--row-h-switch); }   /* ★ Session I canon: a row that carries a switch is 56 */
+.c-settings__row[data-row="stacked"] { min-height: var(--row-h-stacked); }   /* ★ Session J: a nav row with a sub-line (the third height; Damir's pick) */
 .c-settings__backup-badge { flex: none; }
 
 /* —— switch (chat-info parity) —— */

@@ -64,7 +64,7 @@
   padding-inline: var(--spacing-16);
   transition: height var(--duration-200) var(--easing-standard);
 }
-.c-attach-tray[data-open] { height: 268px; } /* sanctioned: the keyboard-slot class */
+.c-attach-tray[data-open] { height: var(--kb-slot-h, 268px); } /* sanctioned: the keyboard-slot class · ★ Session J: = the keyboard's MEASURED height once one has been seen (chat.html rememberKbSlot); 268 until then */
 .c-attach-tray[data-instant] { transition: none; } /* #721: swapped with the keyboard, not animated */
 .c-attach-tray .c-attach {
   gap: var(--spacing-12) var(--spacing-8);

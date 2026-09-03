@@ -636,12 +636,12 @@ export function createSettingsAbout({
      [CDPERF] chat-open stamps and the chats-list rows are measured at 50, not at 3.
      English-only by the #301 precedent: an engineering instrument that cannot ship. The
      `i18n-lint-ok:dev` marks are counted by a smoke pin (#420's cap, now two sites). */
-  if (devSeed && (devSeed.onSeed || devSeed.onUnseed)) {
+  if (devSeed && (devSeed.onSeed || devSeed.onSeedHeavy || devSeed.onUnseed)) {
     const wrap = document.createElement('div');
     wrap.className = 'c-settings__groupwrap c-settings-about__devseed';
     const head = document.createElement('p');
     head.className = 'c-settings__note';
-    head.textContent = 'Dev build (SpixiDevCoexist) — seed harness. Fifty test contacts with history, through the real message store. Remove before measuring anything else.';   // i18n-lint-ok:dev — dev-build instrument, compiled out of release (#732)
+    head.textContent = 'Dev build (SpixiDevCoexist) — seed harness. Fifty test contacts with history, through the real message store. Light = 2–40 messages each (Seed 12 has 40). Heavy = Seed 01–10 with 1000 each, the rest 40; heavy tops light up in place. Remove before measuring anything else.';   // i18n-lint-ok:dev — dev-build instrument, compiled out of release (#732)
     wrap.append(head);
     const card = document.createElement('div');
     card.className = 'c-settings__group c-settings-links';
@@ -656,7 +656,8 @@ export function createSettingsAbout({
       b.addEventListener('click', () => { if (onClick) onClick(); });
       return b;
     };
-    if (devSeed.onSeed) card.append(row('Seed 50 test contacts', devSeed.onSeed));         // i18n-lint-ok:dev — dev-build instrument (#732)
+    if (devSeed.onSeed) card.append(row('Seed 50 · light (2–40 messages)', devSeed.onSeed));         // i18n-lint-ok:dev — dev-build instrument (#732)
+    if (devSeed.onSeedHeavy) card.append(row('Seed 50 · heavy (10 × 1000 + 40 × 40)', devSeed.onSeedHeavy));   // i18n-lint-ok:dev — ★ Session J count dial (#747)
     if (devSeed.onUnseed) card.append(row('Remove seeded contacts', devSeed.onUnseed));   // i18n-lint-ok:dev — dev-build instrument (#732)
     wrap.append(card);
     const status = document.createElement('p');

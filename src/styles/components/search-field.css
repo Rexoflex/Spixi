@@ -10,7 +10,7 @@
   padding: var(--spacing-8) var(--spacing-12);
   border: var(--outline-width-1) solid transparent; /* Figma: none; see header */
   border-radius: var(--radius-full);
-  background: var(--surface-neutral-02);
+  background: var(--surface-input, var(--surface-neutral-02));   /* ★ Session J (Damir, members search in chat info: "no white background, hard to distinguish"): on a CARD the host overrides --surface-input to the on-card white (#150③); on a screen --surface-input IS neutral-02, so nothing else moves */
   /* glyph ink shares the placeholder's text token — one resting ink for the
      whole empty field (deliberate; icon-neutral-* would split the pair) */
   color: var(--text-neutral-02);

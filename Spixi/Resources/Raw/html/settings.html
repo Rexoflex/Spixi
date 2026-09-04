@@ -2724,6 +2724,32 @@ button.c-settings-howto__join:disabled {
    that the override looks redundant — it is not. 144px is derived from THIS tile
    (288px ÷ 2 = ~10 cells across); the 140px above is derived from the doodles
    tile. They agree by coincidence and must not be merged. */
+/* W5 — pattern STYLE row. Same tile grammar as the intensity row above; the
+   only differences are per-style mask scaling and (for Live flow) a canvas
+   face instead of a mask.
+   The 288px data-matrix tile crops to a near-empty corner at 64px, so it gets
+   its own scale: 144px puts ~10 cells across the tile, which is what makes it
+   read as a MATRIX rather than as noise. Specificity (0,3,0) clears the shared
+   rule above. ★ E1: that shared value is 140px now, close enough to this 144px
+   that the override looks redundant — it is not. 144px is derived from THIS tile
+   (288px ÷ 2 = ~10 cells across); the 140px above is derived from the doodles
+   tile. They agree by coincidence and must not be merged.
+   ★★ Session M (#774) — RE-CHECKED, NOT CHANGED, and the check is worth recording
+   because it went the other way first. Background absorbed Opacity, so this row holds
+   THREE tiles on mobile and the tile is 120×64 rather than 185×64 — a real change to the
+   thing this value was derived against, so it was re-derived by render, six candidates
+   (144 · 120 · 96 · 80 · 64 · 48) in both themes.
+   ⚠ THE FIRST RENDER WAS WRONG AND ITS ANSWER (96px) WAS SHIPPED FOR ABOUT AN HOUR. It set
+   `mask-size` inline on the FACE element; the mask lives on the face's ::before, so the
+   inline was inert, all six rows were the same tile, and the differences read off them
+   were render noise. A pseudo-element's property can only be moved by a stylesheet, and
+   the corrected strip shows the opposite of what the bad one suggested: a SMALLER
+   mask-size scales the source DOWN, so the matrix dots get smaller and fainter, and 144px
+   is the most legible of the six on the narrower tile.
+   ★ So the value stands at 144px. Fewer cells across a narrower tile (~8.3 rather than
+   ~12.8) is the correct consequence of the tile shrinking, not a defect to compensate
+   for. The strip is on the Session M render sheet if Damir's eye wants it LARGER — that
+   direction is the one this render says is worth trying, and it is his dial, not a fix. */
 .c-settings-swatch .c-settings-swatch__canvas[data-chat-pattern='matrix']::before {
   -webkit-mask-size: 144px 144px;
   mask-size: 144px 144px;
@@ -2800,6 +2826,25 @@ button.c-settings-howto__join:disabled {
 }
 .c-settings-security__tier[aria-checked='true'] .c-settings__opt-check { visibility: visible; }
 .c-settings-security__tier[data-loading] .c-settings__opt-check { display: none; }
+
+/* —— ★ Session M (#774): the Colour card — a single value row, so it takes the HUB's card
+   padding (4) instead of the appearance screen's section padding (12). A 48px row inside a
+   12px section reads as a row floating in a box rather than as a card that IS a row.
+   The rule is written against the section, not the row, so the dark case (an empty div,
+   the control does not exist there) has nothing to pad and nothing to hide.
+   REVERSAL: delete this rule and the row sits 20px in from the card edge. —— */
+.c-settings-appearance .c-settings__section.c-settings-appearance__groundsec {
+  padding: var(--spacing-4);
+}
+/* the row's own label carries the card's word — see the component. `min-width: 0` on the
+   value keeps a long localized ground name ("Prehod barve") ellipsizing instead of pushing
+   the chevron off the card. */
+.c-settings-appearance__ground .c-settings__row-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 </style><!-- Chat appearance takeover (6e.2) -->
 <style data-src="../styles/components/settings-backup.css">
@@ -5917,6 +5962,19 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       const ds = (paneMode ? detailWrap : root).querySelector('.c-settings-about__devseed-status');
       if (ds && ds.textContent !== state.devSeed.status) ds.textContent = state.devSeed.status;
     }
+    /* ★★ Session M — THE PRESENT SIGNAL (the #766 generalisation to the DATA pages).
+       ⚠ HERE, AND NOT IN renderLayout — the distinction is the whole correctness of it.
+       renderLayout runs once at BOOT, before any push, and builds the hub from the default
+       state: no nickname, no avatar, no version, no backup stamp. Signalling there would
+       present exactly the half-empty hub the 120 ms hold was added to hide. rebuildHub only
+       ever runs from scheduleRebuild, and scheduleRebuild only ever runs from a push (the
+       onLoad burst: setNickname + setAppearance + setLockEnabled + showRemoveAvatar +
+       loadAvatar + setVersion + setAddress + setLanguage, coalesced into ONE build) — so
+       reaching this line means real data is on glass.
+       An exe that pushes nothing never gets here and waits the same 120 ms it waits today.
+       Latched inside bridge.painted, so the backup-stamp poll and every later rebuild are
+       free. */
+    bridge.painted();
   }
 
   // Coalesce the onLoad burst (setNickname + setAppearance + setLockEnabled +
@@ -6133,6 +6191,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
           textScale: prefs.textScale,
           isDesktop,
           strings,
+          host: document.body,          // ★ Session M (#774): the Colour option sheet's host
           onBack: showHub,
           onPattern: (v) => { try { localStorage.setItem(CHAT_PREFS.pattern, String(v)); } catch (e) {} },
           onPatternStyle: (v) => { try { localStorage.setItem(CHAT_PREFS.patternStyle, String(v)); } catch (e) {} },
@@ -6434,7 +6493,23 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
        * push flips it back. A visible wrong-theme flash on the picker itself, which is
        * the one screen #242 round 2 cleaned up. */
       if (state.theme === 0) autoTheme = name === 'dark' ? 'dark' : 'light';
-      applyPushedTheme(name);
+      /* ★★ Session M (#774): RE-RENDER THE CHAT-APPEARANCE SCREEN ON A LIVE FLIP.
+         Its Colour row exists in LIGHT ONLY (CHAT_GROUNDS — dark carries the blue radial
+         in both cases, so a chooser there would have one good answer, #257). The component
+         reads `isLight` from the live document, and a comment in it claimed that covered a
+         setTheme landing while the screen is open. It did not: reading live at BUILD time
+         is what makes a REBUILD correct, and this push rebuilds nothing by itself
+         (setAppearance does; setTheme never has). So an OS flip into dark left the row on
+         screen with nothing behind it — the #772 class, a comment asserting an invariant
+         the code did not enforce.
+         Scoped to the one view that derives structure from the theme: every other screen
+         re-themes in CSS and must NOT be torn down (a rebuild would drop an open sheet and
+         any in-flight row state). Runs on onApplied, i.e. after the swap has settled, so
+         the rebuilt screen reads the NEW theme rather than racing the attribute.
+         REVERSAL: drop the onApplied and the light-only row survives into dark. */
+      applyPushedTheme(name, {
+        onApplied: () => { if (currentView === 'chatappearance' && !exiting) renderLayout(); },
+      });
     },
 
     // setAppearance(idx) — onLoad:46; idx = (int)ThemeAppearance

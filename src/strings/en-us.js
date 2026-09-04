@@ -478,7 +478,7 @@ export const enUS = {
   passwordHint: "Use at least {n} characters.",
   pasteLink: "Paste link",
   patternDefault: "Subtle",
-  patternIntensity: "Opacity",
+  patternNone: "None",
   patternOff: "Off",
   patternStyle: "Background",
   patternStyleDoodles: "Doodles",

@@ -475,7 +475,7 @@ export const esco = {
   passwordHint: "Usa al menos {n} caracteres.",
   pasteLink: "Pegar enlace",
   patternDefault: "Sutil",
-  patternIntensity: "Opacidad",
+  patternNone: "Ninguno",
   patternOff: "Desactivado",
   patternStyle: "Fondo",
   patternStyleDoodles: "Garabatos",

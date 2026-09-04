@@ -10135,7 +10135,13 @@ function createAppsList(state, opts = {}) {
 /* update APIs — free functions (#44): mutate state, re-render, return listEl */
 
 function setAppsLayout(listEl, state, layout, opts) {
-  state.layout = layout === 'grid' ? 'grid' : 'list';   // in-memory preference (persistence deferred, §7)
+  /* ★ Session M (#775): this normalisation is now the SINGLE definition of what a layout
+     value may be — the shell persists `state.layout` after this call rather than its own
+     argument, so the stored value can only ever be one of these two words. The comment
+     here used to say "persistence deferred, §7"; the deferral is closed, and it was closed
+     in the HOST, which is where it belongs (a component never touches storage — the
+     settings-screens.js header states that rule for the whole family). */
+  state.layout = layout === 'grid' ? 'grid' : 'list';
   return renderAppsList(listEl, state, opts);
 }
 
@@ -22005,6 +22011,12 @@ function backupCtrl(onDone, onFail) {
 
 
 
+/* ★ Session M (#774): the Colour control is a VALUE ROW that opens the house option sheet,
+   not a third tile pair — see createChatAppearance. The direction is safe and already
+   travelled: build-demo-bundle.mjs orders settings-shell BEFORE settings-screens, and
+   settings-app.js imports settingsConfirm across the same edge. settings-shell.js imports
+   nothing from this file, so there is no cycle to create. */
+
 
 /* W5 (Damir 2026-08-12) — pattern STYLE, orthogonal to the intensity dial below.
  * Style picks the pattern SOURCE; intensity keeps mapping to opacity. "Off"
@@ -22090,25 +22102,50 @@ function patternLevelVar(level, boost) {
     : 'var(' + tok + ')';
 }
 
-/* Swatch-face amplification (see patternLevelVar's `boost`). 6× puts the three
-   tiles at 0 / 0.36 / 0.6 — separable at 56px in both themes, and it keeps the
-   Default:Strong RATIO intact so the tiles still rank the way the chat does.
-   ★ E1 (2026-08-29): re-checked after the ladder moved to 0.06/0.10. The boost is
-   unchanged at 6, but the swatch faces are NOT: Default was 0.042×6 ≈ 0.25 and is
-   now 0.06×6 = 0.36, so Off↔Default separates further than before while
-   Default↔Strong narrows from a 0.42 ratio to 0.60 — which is correct, because 0.60
-   is the ratio the real chat now has and the swatch is meant to rank the way the
-   chat does. Verified by render at 56px in both themes, not by arithmetic alone.
-   ⚠⚠ THE NUMBERS ABOVE ARE PRE-E1c AND THE RENDER VERIFICATION WAS DONE AT THEM.
-   E1c moved LIGHT's Default to 0.07 (dark stayed 0.065), so the SHIPPING figures are:
-     light  0.07 ×6 = 0.42, Default:Strong ratio 0.07/0.10 = 0.70
-     dark   0.065×6 = 0.39, ratio 0.65
-   The boost of 6 is still safe — both stay below 1.0 and the "rank like the chat"
-   property still holds, which is why this is a comment fix and not a code change. But
-   "0.60 is the ratio the real chat now has" is no longer true of either theme, and the
-   render was never repeated at 0.42/0.39. E1c walked tokens.css and system-notice.css
-   and did not walk to this consumer. (Session F audit.) */
+/* Swatch-face amplification (see patternLevelVar's `boost`) — the tiles paint the real
+   chat alpha multiplied, because at true alpha a 64px tile of a 0.07-alpha pattern is a
+   blank rectangle and the control cannot be read even though it is operable.
+   ★ HISTORY, kept because the number outlived its reason: 6× was chosen when this row was
+   the INTENSITY control, to put Off / Default / Strong at 0 / 0.36 / 0.6 — separable at
+   56px while keeping the Default:Strong ratio the chat had, so the tiles ranked the way the
+   chat ranked. #774 retired that control: the tiles pick a PATTERN now, not a level, so
+   "rank like the chat" is not a job any more and 6 was left carrying a justification that
+   no longer described it (#772).
+   ★★ Session M (Damir, on the render sheet: *"make the doodle pattern also fainter on the
+   tiles"*) — AND THE REQUEST NAMES A REAL DEFECT IN THE SHAPE OF THE DIAL, not just a value.
+   ONE multiplier cannot balance TWO artworks with different ink coverage: doodles is dense
+   line art and the data matrix is scattered dots, so at a shared 6× the doodles tile shouts
+   while the matrix tile whispers, side by side, at the same nominal alpha. That imbalance is
+   what he was looking at.
+   So the boost is PER STYLE now: this constant stays the shared default (matrix, live flow —
+   the low-coverage tiles that need the amplification) and a high-coverage style overrides it
+   below. Picked by render, six candidates (6 · 4.5 · 3 · 2 · 1.5 · 1) in both themes, on the
+   real built shell, with the two questions rendered as SEPARATE strips — one moving the
+   shared dial (which shows what the matrix costs) and one moving doodles alone. Both strips
+   are in docs/sheets/session-m/.
+   ⚠ Do NOT "simplify" this back to one number by lowering the shared value: the shared strip
+   is exactly the evidence against it — at ×3 the matrix is already faint and by ×2 it is
+   gone, so a single dial soft enough for doodles erases the tile beside it. */
 const PATTERN_SWATCH_BOOST = 6;
+
+/* Per-style overrides of the boost above. Keyed by PATTERN_STYLES id; anything absent takes
+   the shared default. Deliberately NOT exported — it is an internal dial of this screen, and
+   the shared constant is the one other code has ever needed.
+   REVERSAL: empty this map and every tile returns to the shared 6×, i.e. to the doodles tile
+   Damir asked to quieten. The values ARE the picks, so they are the thing to move: 4.5 is one
+   step louder, 2 one step softer, both rendered on the sheet. */
+const PATTERN_SWATCH_BOOSTS = {
+  /* doodles at ×3 sits at the same visual weight as the matrix tile at ×6 in BOTH themes —
+     which is the point of the whole change, since the two tiles are read side by side. */
+  doodles: 3,
+};
+
+/** The swatch boost for one style id — the override, or the shared default. */
+function swatchBoost(id) {
+  return Object.prototype.hasOwnProperty.call(PATTERN_SWATCH_BOOSTS, id)
+    ? PATTERN_SWATCH_BOOSTS[id]
+    : PATTERN_SWATCH_BOOST;
+}
 
 /**
  * Normalise a STORED pattern preference to a level index.
@@ -22189,78 +22226,26 @@ function segGroup({ options, current, ariaLabel, onPick }) {
   return g;
 }
 
-/* pattern swatch tiles (#334, iOS-60 — Damir-locked dial): the pattern picker
-   renders MINI CHAT CANVASES — the REAL .c-chat-canvas paint (gradient +
-   generated doodle mask, chat-pattern.css) at each level's opacity — instead of
-   text pills: localized level labels overflowed the pills in longer locales
-   (sl-si "Izklopljeno"/"Standardno"). The localized label LIVES ON as the
-   tile's aria-label + title tooltip; only the visual text goes. Radio semantics
-   + keyboard behavior mirror segGroup EXACTLY (native buttons, role=radio,
-   aria-checked, Tab + Enter/Space — the #205 roving-tabindex upgrade stays a
-   shared deferred item for both grammars). Off (value 0) = bare gradient +
-   diagonal slash treatment via [data-off] (settings-screens.css, token ink). */
-function swatchGroup({ options, current, ariaLabel, onPick }) {
-  const g = document.createElement('div');
-  const faces = [];
-  g.className = 'c-settings-swatches';
-  g.setAttribute('role', 'radiogroup');
-  g.setAttribute('aria-label', ariaLabel);
-  const paint = () => {
-    for (const b of g.children) {
-      b.setAttribute('aria-checked', String(Number(b.dataset.value) === current));
-    }
-  };
-  for (const o of options) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'c-settings-swatch';
-    b.setAttribute('role', 'radio');
-    b.dataset.value = String(o.value);
-    b.setAttribute('aria-label', o.label);
-    b.title = o.label;                 // pointer users keep the word as a tooltip
-    if (o.value === 0) b.dataset.off = '';
-    const face = document.createElement('span');
-    face.className = 'c-chat-canvas c-settings-swatch__canvas';
-    face.setAttribute('aria-hidden', 'true');   // the button's aria-label names the tile
-    face.style.setProperty('--chat-pattern-opacity', patternLevelVar(o.value, PATTERN_SWATCH_BOOST));   // ★ N81 (#422): index → per-theme alpha var, amplified for swatch size
-    faces.push(face);
-    b.append(face);
-    b.addEventListener('click', () => {
-      if (o.value === current) return;
-      current = o.value;
-      paint();
-      onPick(o.value);
-    });
-    g.append(b);
-  }
-  paint();
-  /* W5: the intensity tiles must show the pattern the user actually picked —
-     three doodles tiles under a "Data matrix" selection would be showing them a
-     level of something they aren't using. Flow tiles paint ONE still frame each
-     (the Off tile draws nothing, so its diagonal-slash treatment still reads). */
-  let swatchRaf = 0;
-  g.setSwatchStyle = (id) => {
-    // cancel a still-pending mount: a flow→tile flip inside one frame used to
-    // let the deferred mount run AFTER the detach, leaving an orphan canvas under
-    // a tile face until the next style change (#46 audit)
-    if (swatchRaf) { cancelAnimationFrame(swatchRaf); swatchRaf = 0; }
-    for (const f of faces) f.dataset.chatPattern = id;
-    if (id !== 'flow') { for (const f of faces) detachChatFlow(f); return; }
-    swatchRaf = requestAnimationFrame(() => {
-      swatchRaf = 0;
-      for (const f of faces) mountFlowFace(f, FLOW_SWATCH_TUNE);
-    });
-  };
-  g.releaseSwatches = () => {
-    if (swatchRaf) { cancelAnimationFrame(swatchRaf); swatchRaf = 0; }
-    for (const f of faces) detachChatFlow(f);
-  };
-  return g;
-}
+/* ★★ Session M (#774): `swatchGroup` — the INTENSITY row's builder — is DELETED here.
+   It lost its only caller when Background absorbed Opacity, and an unreachable builder for
+   a retired control is the same hazard as the retired card itself: it reads as live code,
+   it keeps its own `setSwatchStyle` / `releaseSwatches` contract alive in the reader's head,
+   and it is one call site from coming back. Its two genuinely shared behaviours already live
+   in the style group below — the [data-off] tile treatment (now the None member) and the
+   flow-face release — so nothing was lost with it.
+   What it was: mini chat canvases at each LEVEL's opacity instead of text pills, because
+   localized level labels overflowed the pills in longer locales (sl-si "Izklopljeno" /
+   "Standardno"). That reasoning is why the STYLE tiles below carry their label as an
+   aria-label + title rather than as visible text, and it is recorded here so the next person
+   to consider putting words back on a swatch knows it was tried. Recover it from git if the
+   intensity axis ever returns — it will need a per-theme value story again (#422). */
 
-/* pattern STYLE swatches (W5) — same grammar as the intensity swatches above
-   (native buttons, role=radio, aria-checked, localized label as aria-label +
-   title), but each face carries its OWN `data-chat-pattern`. That attribute
+/* pattern STYLE swatches (W5) — native buttons, role=radio, aria-checked, the localized
+   label as aria-label + title (never visible text — see the note above on why), and each
+   face carries its OWN `data-chat-pattern`.
+   ⚠ This said "same grammar as the intensity swatches above" until Session M deleted them.
+   The sentence was true when written and became a pointer to nothing (#772); the grammar it
+   named is described here now rather than by reference. That attribute
    drives INHERITED custom properties in the generated chat-pattern.css, which
    is precisely why the styles were not keyed off a descendant selector: three
    different styles have to paint side by side in one list.
@@ -22298,6 +22283,15 @@ function mountFlowFace(face, opts) {
    so it should) and set data-chat-pattern="flat" / "gradient" — values that match no rule
    in chat-pattern.css, so BOTH ground tiles inherited the document's ground and rendered
    IDENTICALLY. Damir: "on windows the canvas tiles look the same". */
+/* ★ Session M (#774): `off` — an option that paints NO pattern. The Background control
+   absorbed the retired Opacity card, so "None" is now a member of THIS list rather than
+   level 0 of a second one, and it has to look like the bare ground the chat will show:
+   opacity 0 (nothing to draw) plus the [data-off] diagonal slash the intensity row's Off
+   tile carried, so it reads as a distinct state and not as a broken tile.
+   ⚠ The face deliberately gets NO faceAttr: a value matching no rule in chat-pattern.css
+   inherits the document's — the exact AUG faceAttr defect — and here that inheritance is
+   harmless only because the opacity is 0. Setting nothing says "this tile draws nothing"
+   in one place instead of relying on two. */
 function styleSwatchGroup({ options, current, ariaLabel, onPick, faceAttr = 'chatPattern' }) {
   const g = document.createElement('div');
   const flowFaces = [];
@@ -22319,20 +22313,24 @@ function styleSwatchGroup({ options, current, ariaLabel, onPick, faceAttr = 'cha
     const face = document.createElement('span');
     face.className = 'c-chat-canvas c-settings-swatch__canvas';
     face.setAttribute('aria-hidden', 'true');
-    face.dataset[faceAttr] = o.id;
-    // the style tiles must show the PATTERN, not the user's current intensity —
-    // a user sitting on "Off" would otherwise be picking between three blanks.
-    // Intensity has its own swatch row directly below.
-    // ★ N81 (#422): this was the literal '0.5' — the old light-mode Standard alpha,
-    // which under the new ladder would paint these tiles ~12× the real pattern and
-    // promise a background the chat never shows. It rode the STRONG step instead.
-    /* ★★ AUG (Damir 2026-08-30, ON DEVICE): STRONG IS RETIRED, so alpha-2 was no longer
-       "the loudest thing the user can actually choose" — it was a step nobody can pick,
-       and at 0.1 against the intensity row's boosted 0.36 these tiles read markedly
-       FAINTER than the row below them in Damir's screenshot. They ride the SAME boosted
-       Subtle alpha the intensity row uses now, so all three swatch rows are painted at one
-       density and the tile is legible at 64px. PATTERN_SWATCH_BOOST is the single dial. */
-    face.style.setProperty('--chat-pattern-opacity', patternLevelVar(1, PATTERN_SWATCH_BOOST));
+    if (o.off) b.dataset.off = '';                     // ★ Session M (#774): the None tile's slash treatment
+    else face.dataset[faceAttr] = o.id;
+    /* Every pattern tile paints at the SAME level (1) — the tile answers "which pattern",
+       never "how much of it", so a user sitting on None must still see three distinguishable
+       pictures rather than three blanks. Only the None member paints nothing, and it says so
+       with an empty face plus the [data-off] slash rather than with a low alpha.
+       ★ N81 (#422): this was the literal '0.5' — the old light-mode Standard alpha — which
+       under the index ladder would paint these tiles ~12× the real pattern and promise a
+       background the chat never shows.
+       ★★ AUG (Damir 2026-08-30, ON DEVICE): and then it rode alpha-2, the retired Strong
+       step, which at 0.1 read markedly FAINTER than the intensity row beside it.
+       ★★ Session M: the amplification is PER STYLE (swatchBoost) — one multiplier cannot
+       balance two artworks with different ink coverage, which is why the dense doodles tile
+       shouted next to the scattered matrix one. ⚠ The sentences above that describe this as
+       "the SAME boosted alpha the intensity row uses" and "PATTERN_SWATCH_BOOST is the single
+       dial" were both true when written and are both false now; they are rewritten rather
+       than left as a pointer to a row that no longer exists (#772). */
+    face.style.setProperty('--chat-pattern-opacity', o.off ? '0' : patternLevelVar(1, swatchBoost(o.id)));
     b.append(face);
     if (o.id === 'flow') {
       // mount after layout — a 0×0 face would size the backing store to 1×1
@@ -22439,6 +22437,7 @@ function createChatAppearance({
   chatGround = 'flat',           // ★ AUG 2026-08-30: 'flat' (default) | 'gradient' — LIGHT only
   textScale = 1,
   isDesktop = typeof document === 'object' && document.documentElement.hasAttribute('data-desktop'),
+  host,                          // ★ Session M (#774): the Colour sheet's host — hubFor grammar below
   onBack,
   onPattern,                     // (level) — shell persists the index; CSS resolves the alpha
   onPatternStyle,                // (id) — shell sets data-chat-pattern + persists (W5)
@@ -22447,6 +22446,9 @@ function createChatAppearance({
   strings = getStrings(),
 } = {}) {
   const { el, body } = screenShell('c-settings-appearance', strings.chatAppearance || 'Chat appearance', onBack);
+  /* the createSettingsHub / createSettingsDanger idiom, verbatim: an explicit host wins,
+     otherwise the demo phone frame, otherwise the sheet's own default (document.body). */
+  const hostFor = () => host || el.closest('.demo-phone') || undefined;
 
   /* live preview — real canvas class: gradient + generated pattern mask */
   const preview = document.createElement('div');
@@ -22463,25 +22465,76 @@ function createChatAppearance({
   preview.append(bubbleIn, bubbleOut);
   body.append(preview);
 
-  /* W5 — STYLE first, then INTENSITY: the user picks what the pattern IS
-     before deciding how loud it is. Live flow is dropped from the list on
-     mobile (desktop-only, Damir 2026-08-12); a mobile user whose stored pref
-     somehow says 'flow' sees Doodles selected, matching what chat.html's
-     pre-paint script actually applies. */
+  /* ★★ Session M (#774) — THE BACKGROUND CONTROL ABSORBED THE OPACITY CARD.
+     Damir, from the device: *"we have 3 which are quite similar and confusing this way…
+     currently we have 3 almost identical rows."* Background, Canvas and Opacity all
+     rendered as the same widget — a pair of ~56px patterned tiles — so three different
+     questions wore one costume, and the costume LIED about two of them: the Canvas tiles
+     showed the doodle pattern rather than the ground they pick, and the Opacity tiles
+     showed a pattern rather than an intensity.
+     So the goal is NOT "one card fewer". It is that each control looks like the question
+     it asks: a pattern choice earns swatches (it is inherently visual), a binary with no
+     texture to preview does not. Background keeps tiles and gains a None member; Colour
+     becomes a value row.
+
+     ★★★ THE STORAGE IS UNCHANGED, AND THAT IS DELIBERATE — it is the safer half of this
+     batch. The spec (docs/chat-appearance-restructure-spec.md §4) assumed the (style,
+     level) PAIR would collapse into one stored value, which would mean a new key, a
+     migration, and that migration repeated in all three pre-paint ladders (the #690 rule).
+     None of it is necessary: with Strong retired the level is already binary, so
+     `level 0` IS "None" and `level 1 + style` IS that style — the collapse is total and
+     LOSSLESS in the direction that matters, and it can be computed at render time from the
+     two keys that already exist. Net: zero migration, zero new key, zero ladder change,
+     and chat.html / settings.html keep reading exactly what they read today.
+     ⚠ Consequence worth stating because it is a FEATURE and not an oversight: picking None
+     leaves the stored STYLE untouched, so a user who goes None → Doodles → None → Matrix
+     never loses the pattern they had. The pair is only ever read as one value here.
+     REVERSAL: this is the whole restructure — restore the separate style/intensity groups
+     from git and the three-identical-rows defect returns with them. */
   const styleOpts = PATTERN_STYLES.filter((o) => isDesktop || !o.desktopOnly);
+  /* the style axis and the level axis, kept apart INSIDE this screen. `styleCurrent` is
+     the style the user last chose (or the default) and survives a None pick; `levelCurrent`
+     is 0 or 1 and is what None actually writes. */
   let styleCurrent = styleOpts.some((o) => o.id === patternStyle) ? patternStyle : 'doodles';
+  let levelCurrent = Number(patternOpacity) > 0 ? 1 : 0;
+  const bgOpts = [
+    /* ★ Session M: a NEW string, and the only one this restructure adds. `patternOff`
+       ("Off") is already translated in all 13 locales and was NOT reused: under a
+       "Background" heading "Off" names the CONTROL rather than the option, which is the
+       same class of lie the tiles were telling. One word, thirteen files, said out loud
+       in the closing numbers (786 → 787). */
+    { id: 'none', label: strings.patternNone || 'None', off: true },
+    ...styleOpts.map((o) => ({ id: o.id, label: strings[o.key] || o.label })),
+  ];
+  const bgValue = () => (levelCurrent > 0 ? styleCurrent : 'none');
   const styleSec = document.createElement('div');
   styleSec.className = 'c-settings__section';
   const stLab = document.createElement('h3');
   stLab.className = 'c-settings__label';
   stLab.textContent = strings.patternStyle || 'Background';
   const styleGroup = styleSwatchGroup({
-    options: styleOpts.map((o) => ({ id: o.id, label: strings[o.key] || o.label })),
-    current: styleCurrent,
+    options: bgOpts,
+    current: bgValue(),
     ariaLabel: strings.patternStyle || 'Background',
     onPick: (id) => {
+      if (id === 'none') {
+        levelCurrent = 0;
+        /* the live preview follows in the same frame — the tile ring is not the only
+           feedback, and this preview is the whole reason the screen has one. */
+        preview.style.setProperty('--chat-pattern-opacity', patternLevelVar(0));
+        if (onPattern) onPattern(0);
+        return;
+      }
       styleCurrent = id;
       applyPreviewStyle(id);
+      /* ★ coming BACK from None has to restore the intensity as well as the style, or the
+         user picks a pattern and nothing appears. The write is CONDITIONAL so a plain
+         style swap does not re-write a value that has not changed. */
+      if (levelCurrent === 0) {
+        levelCurrent = 1;
+        preview.style.setProperty('--chat-pattern-opacity', patternLevelVar(1));
+        if (onPattern) onPattern(1);
+      }
       if (onPatternStyle) onPatternStyle(id);
     },
   });
@@ -22492,7 +22545,13 @@ function createChatAppearance({
   /* ★★ AUG GROUND (Damir 2026-08-30). Rendered only in LIGHT — see CHAT_GROUNDS.
      `isLight` is read from the live document rather than passed in, because this screen
      can be open across a setTheme push (#421) and a row that was correct at build time
-     would then be wrong on screen. */
+     would then be wrong on screen.
+     ⚠ Session M: that sentence was TRUE of the read and FALSE of the outcome (#772) —
+     reading the live document at BUILD time is exactly what makes a rebuild correct, and a
+     setTheme push rebuilds nothing on its own. The row survived an OS flip into dark and
+     sat there with no effect. settings.html now re-renders THIS view from the setTheme
+     handler's onApplied, which is what makes the sentence true; the read stays here
+     because the rebuild depends on it. */
   const isLight = !document.documentElement.getAttribute('data-theme')
     || document.documentElement.getAttribute('data-theme') === 'light';
   let groundCurrent = CHAT_GROUNDS.some((o) => o.id === chatGround) ? chatGround : 'flat';
@@ -22501,43 +22560,57 @@ function createChatAppearance({
      preview painted FLAT under a Gradient swatch. It is stamped from the current value at build. */
   preview.setAttribute('data-chat-ground', groundCurrent);
   const groundSec = document.createElement('div');
-  groundSec.className = 'c-settings__section';
+  /* ★ Session M: the colour card is a SINGLE ROW, so it takes the hub's card padding (4)
+     rather than the appearance screen's section padding (12) — a 48px row inside a 12px
+     section reads as a row floating in a box. The class is applied unconditionally: in
+     dark the div is empty and the CSS rule has nothing to pad. */
+  groundSec.className = 'c-settings__section c-settings-appearance__groundsec';
   if (isLight) {
-    const gLab = document.createElement('h3');
-    gLab.className = 'c-settings__label';
-    gLab.textContent = strings.chatGround || 'Canvas';
-    const groundGroup = styleSwatchGroup({
-      options: CHAT_GROUNDS.map((o) => ({ id: o.id, label: strings[o.key] || o.label })),
-      current: groundCurrent,
-      ariaLabel: strings.chatGround || 'Canvas',
-      /* ★★ the face must carry data-chat-GROUND, not data-chat-pattern — see faceAttr.
-         Without this both tiles preview the document's ground and look identical. */
-      faceAttr: 'chatGround',
-      onPick: (id) => {
-        groundCurrent = id;
-        /* the LIVE preview follows immediately — the swatch is not the only feedback */
-        preview.setAttribute('data-chat-ground', id);
-        if (onChatGround) onChatGround(id);
-      },
+    /* ★★ Session M (#774): A VALUE ROW, NOT A TILE PAIR — and this is the FIX, not a
+       layout preference. Two near-identical coloured rectangles is precisely the confusion
+       being removed; shipping the colour control as another swatch row would delete a card
+       and keep the defect. The shape is the house one for a one-of-N choice that does not
+       deserve a card of its own (settingsOptionSheet), so nothing is invented here.
+       REVERSAL: swap this block for styleSwatchGroup({ faceAttr: 'chatGround' }) and the
+       AUG tiles are back. */
+    /* ★ no h3 here, and that is the point: the other two cards are "heading + control",
+       this one IS the control. A heading above a row that repeats the same word was the
+       first thing the restructure was supposed to stop doing. */
+    const groundLabel = (id) => {
+      const o = CHAT_GROUNDS.find((g) => g.id === id);
+      return o ? (strings[o.key] || o.label) : id;
+    };
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'c-settings__row c-settings-appearance__ground';
+    const lab = document.createElement('span');
+    lab.className = 'c-settings__row-label';
+    lab.textContent = strings.chatGround || 'Canvas';
+    const val = document.createElement('span');
+    val.className = 'c-settings__row-value';
+    val.textContent = groundLabel(groundCurrent);
+    row.append(lab, val, icon('chevron-right', { size: 18 }));
+    row.addEventListener('click', () => {
+      settingsOptionSheet({
+        title: strings.chatGround || 'Canvas',
+        options: CHAT_GROUNDS.map((o) => ({ value: o.id, label: strings[o.key] || o.label })),
+        current: groundCurrent,
+        host: hostFor(),
+        strings,
+        /* FE-only pref: there is nothing to round-trip, so the commit succeeds in the
+           same tick. The sheet's (value, ctrl) contract is honoured rather than
+           side-stepped — ctrl.done() is what closes the sheet and moves the check. */
+        commit: (v, ctrl) => {
+          groundCurrent = v;
+          val.textContent = groundLabel(v);
+          preview.setAttribute('data-chat-ground', v);
+          if (onChatGround) onChatGround(v);
+          ctrl.done();
+        },
+      });
     });
-    groundSec.append(gLab, groundGroup);
+    groundSec.append(row);
   }
-
-  const patternSec = document.createElement('div');
-  patternSec.className = 'c-settings__section';
-  const pLab = document.createElement('h3');
-  pLab.className = 'c-settings__label';
-  pLab.textContent = strings.patternIntensity || 'Opacity';
-  // #334 iOS-60: swatch tiles, not text pills — the tile face IS the preview
-  // mechanism (same .c-chat-canvas paint, per-level --chat-pattern-opacity).
-  // ★ N81 (#422): three levels; ★ AUG (2026-08-30): TWO now — Off / Subtle.
-  const intensityGroup = swatchGroup({
-    options: PATTERN_LEVELS.map((o) => ({ value: o.value, label: strings[o.key] || o.label })),
-    current: patternOpacity,
-    ariaLabel: strings.patternIntensity || 'Opacity',
-    onPick: (v) => { preview.style.setProperty('--chat-pattern-opacity', patternLevelVar(v)); if (onPattern) onPattern(v); },
-  });
-  patternSec.append(pLab, intensityGroup);
 
   const sizeSec = document.createElement('div');
   sizeSec.className = 'c-settings__section';
@@ -22550,16 +22623,14 @@ function createChatAppearance({
     ariaLabel: strings.textSize || 'Message text size',
     onPick: (v) => { preview.style.setProperty('--chat-text-scale', String(v)); if (onTextScale) onTextScale(v); },
   }));
-  // AND-35 (#371, Damir dial): Text size first, then Background (style), then
-  // Opacity (intensity) — the pattern pair reads as one topic under two labels.
-  /* AUG: ground sits with the other canvas dials, after STYLE and before INTENSITY —
-     what the canvas IS, then what is drawn on it, then how loud that is. groundSec is an
-     empty div in dark (see isLight above), so appending it unconditionally is safe and
-     keeps the order stable across a live theme flip. */
-  body.append(sizeSec, styleSec, groundSec, patternSec);
+  // AND-35 (#371, Damir dial): Text size first, then Background.
+  /* ★ Session M: THREE cards — size, background, colour — and the third is absent in dark
+     (groundSec is an empty div there, so the order is stable across a live theme flip and
+     the append stays unconditional). */
+  body.append(sizeSec, styleSec, groundSec);
 
   // preview honors the incoming state
-  preview.style.setProperty('--chat-pattern-opacity', patternLevelVar(patternOpacity));
+  preview.style.setProperty('--chat-pattern-opacity', patternLevelVar(levelCurrent));
   preview.style.setProperty('--chat-text-scale', String(textScale));
   applyPreviewStyle(styleCurrent);
   /* The preview mounts a LIVE engine (rAF + ResizeObserver + a document
@@ -22571,8 +22642,11 @@ function createChatAppearance({
      alongside, releaseDownloads (#267). (#46 audit) */
   el.release = () => {
     detachChatFlow(preview);
+    /* ★ Session M: ONE group now. The intensity group's release went with its card — and
+       it was load-bearing while it existed (a flow face keeps a rAF loop + a
+       visibilitychange listener alive against a detached node), which is why the surviving
+       group's release is still called and not tidied away. */
     if (styleGroup.releaseSwatches) styleGroup.releaseSwatches();
-    if (intensityGroup.releaseSwatches) intensityGroup.releaseSwatches();
   };
   return el;
 
@@ -22586,7 +22660,9 @@ function createChatAppearance({
     preview.dataset.chatPattern = id;
     if (id === 'flow') mountFlowFace(preview);
     else detachChatFlow(preview);
-    if (intensityGroup.setSwatchStyle) intensityGroup.setSwatchStyle(id);
+    /* ★ Session M: the `intensityGroup.setSwatchStyle(id)` call lived here — the intensity
+       tiles had to re-skin to the chosen style, or a user on "Data matrix" was offered
+       levels of doodles. With one control there is no second row to keep honest. */
   }
 }
 
@@ -25091,6 +25167,7 @@ function createNativeBridge({ emit, win } = {}) {
   };
   const sink = emit || queued;
   let readySent = false;
+  let paintedSent = false;   // ★ Session M: the present signal is one-shot — see bridge.painted
 
   const capabilities = (w.SPIXI_ENV && w.SPIXI_ENV.capabilities) || {};
 
@@ -25115,6 +25192,40 @@ function createNativeBridge({ emit, win } = {}) {
       if (readySent) return;
       readySent = true;
       bridge.send('ixian:onload');
+    },
+    /** ★★ Session M — THE PRESENT SIGNAL, one implementation for every shell.
+     *
+     * C# holds a load-then-present navigation for a flat 120 ms (`revealDelayMs`,
+     * SpixiContentPage) so the shell can paint the data its onload burst pushed. That
+     * timer was measured against the CHAT and found to be waiting for a paint that had
+     * already happened (#764: drain → present ~130 ms against a 21–27 ms paint), and
+     * #766 then proved the three FORM pages were waiting for nothing at all. This is the
+     * generalisation to the DATA pages: the shell says when it has painted, and C#
+     * presents THERE instead of at 120 ms.
+     *
+     * ★ It can only ever make a present EARLIER. C# races this signal against the same
+     * 120 ms it uses today, so a shell that never sends it — an old built shell, a page
+     * whose data never lands — behaves exactly as it does now. That asymmetry is the
+     * whole safety argument, and it is why this needed no per-page timer and no backstop
+     * of its own (the chat's 400 ms backstop exists because the chat asks for
+     * `revealDelayMs: 0` and has nothing else to fall back on).
+     *
+     * ⚠ CALL IT WHEN THE DATA IS ON GLASS, NOT WHEN IT ARRIVES. The double rAF is the
+     * point: the first frame runs after the render that queued it, the second after the
+     * browser has committed it. Called before the first real render, this signal presents
+     * an empty page — which is worse than the 120 ms it saves.
+     *
+     * Latched: a shell that re-renders (a re-flush, a channel switch) may call it every
+     * time; C# ignores it once presented, and this latch means the frames are not even
+     * scheduled again.
+     *
+     * REVERSAL: stop calling this and every page returns to the flat 120 ms hold. */
+    painted() {
+      if (paintedSent) return;
+      paintedSent = true;
+      const fire = () => { try { bridge.send('ixian:painted'); } catch (e) {} };
+      if (typeof w.requestAnimationFrame === 'function') w.requestAnimationFrame(() => w.requestAnimationFrame(fire));
+      else fire();
     },
     cap(name) { return !!capabilities[name]; },
     capabilities,

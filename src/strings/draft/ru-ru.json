@@ -429,7 +429,7 @@
   "pasteLink": "Вставить ссылку",
   "patternBold": "Яркий",
   "patternDefault": "Слабый",
-  "patternIntensity": "Непрозрачность",
+  "patternNone": "Нет",
   "patternOff": "Выкл.",
   "patternStandard": "Стандартный",
   "patternStyle": "Фон",

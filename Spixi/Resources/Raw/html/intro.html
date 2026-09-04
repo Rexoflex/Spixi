@@ -2107,6 +2107,32 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    that the override looks redundant — it is not. 144px is derived from THIS tile
    (288px ÷ 2 = ~10 cells across); the 140px above is derived from the doodles
    tile. They agree by coincidence and must not be merged. */
+/* W5 — pattern STYLE row. Same tile grammar as the intensity row above; the
+   only differences are per-style mask scaling and (for Live flow) a canvas
+   face instead of a mask.
+   The 288px data-matrix tile crops to a near-empty corner at 64px, so it gets
+   its own scale: 144px puts ~10 cells across the tile, which is what makes it
+   read as a MATRIX rather than as noise. Specificity (0,3,0) clears the shared
+   rule above. ★ E1: that shared value is 140px now, close enough to this 144px
+   that the override looks redundant — it is not. 144px is derived from THIS tile
+   (288px ÷ 2 = ~10 cells across); the 140px above is derived from the doodles
+   tile. They agree by coincidence and must not be merged.
+   ★★ Session M (#774) — RE-CHECKED, NOT CHANGED, and the check is worth recording
+   because it went the other way first. Background absorbed Opacity, so this row holds
+   THREE tiles on mobile and the tile is 120×64 rather than 185×64 — a real change to the
+   thing this value was derived against, so it was re-derived by render, six candidates
+   (144 · 120 · 96 · 80 · 64 · 48) in both themes.
+   ⚠ THE FIRST RENDER WAS WRONG AND ITS ANSWER (96px) WAS SHIPPED FOR ABOUT AN HOUR. It set
+   `mask-size` inline on the FACE element; the mask lives on the face's ::before, so the
+   inline was inert, all six rows were the same tile, and the differences read off them
+   were render noise. A pseudo-element's property can only be moved by a stylesheet, and
+   the corrected strip shows the opposite of what the bad one suggested: a SMALLER
+   mask-size scales the source DOWN, so the matrix dots get smaller and fainter, and 144px
+   is the most legible of the six on the narrower tile.
+   ★ So the value stands at 144px. Fewer cells across a narrower tile (~8.3 rather than
+   ~12.8) is the correct consequence of the tile shrinking, not a defect to compensate
+   for. The strip is on the Session M render sheet if Damir's eye wants it LARGER — that
+   direction is the one this render says is worth trying, and it is his dial, not a fix. */
 .c-settings-swatch .c-settings-swatch__canvas[data-chat-pattern='matrix']::before {
   -webkit-mask-size: 144px 144px;
   mask-size: 144px 144px;
@@ -2183,6 +2209,25 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 .c-settings-security__tier[aria-checked='true'] .c-settings__opt-check { visibility: visible; }
 .c-settings-security__tier[data-loading] .c-settings__opt-check { display: none; }
+
+/* —— ★ Session M (#774): the Colour card — a single value row, so it takes the HUB's card
+   padding (4) instead of the appearance screen's section padding (12). A 48px row inside a
+   12px section reads as a row floating in a box rather than as a card that IS a row.
+   The rule is written against the section, not the row, so the dark case (an empty div,
+   the control does not exist there) has nothing to pad and nothing to hide.
+   REVERSAL: delete this rule and the row sits 20px in from the card edge. —— */
+.c-settings-appearance .c-settings__section.c-settings-appearance__groundsec {
+  padding: var(--spacing-4);
+}
+/* the row's own label carries the card's word — see the component. `min-width: 0` on the
+   value keeps a long localized ground name ("Prehod barve") ellipsizing instead of pushing
+   the chevron off the card. */
+.c-settings-appearance__ground .c-settings__row-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 </style><!-- #147 theme preview tiles -->
 <style data-src="../styles/components/launch-shell.css">

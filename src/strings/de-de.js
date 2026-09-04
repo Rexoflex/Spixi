@@ -475,7 +475,7 @@ export const dede = {
   passwordHint: "Verwende mindestens {n} Zeichen.",
   pasteLink: "Link einfügen",
   patternDefault: "Dezent",
-  patternIntensity: "Deckkraft",
+  patternNone: "Ohne",
   patternOff: "Aus",
   patternStyle: "Hintergrund",
   patternStyleDoodles: "Kritzeleien",

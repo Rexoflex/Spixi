@@ -3022,7 +3022,33 @@
    * .remove). Discover + direct-launch/recents remain deferred to the standalone
    * apps-shell repoint — see docs/be-cutover-brief.md.
    * ————————————————————————————————————————————————————————————————————————— */
-  const appsState = { apps: [], query: '', layout: 'list' };
+  /* ★★ Session M (#775) — GRID BY DEFAULT, AND THE VIEW SURVIVES A RESTART.
+     Damir, walk L: he set the view, restarted, and it was gone. Both readings of that are
+     true and worth keeping apart — from the code's side it was working as written
+     (`apps-shell.js setAppsLayout`: "in-memory preference, persistence deferred, §7", a
+     deferral nobody closed); from his side a toggle that forgets is worse than no toggle,
+     because he re-sets it every launch and stops trusting the control.
+     ★ THE READ IS AT STATE-SEED TIME, never after first paint — the #690 three-ladder rule
+     in its apps-tab form. A late read flips the tab from a single column to a 2-up grid in
+     front of the user, which is the pattern-intensity flash with different pixels.
+     ★ Fail-soft on an unreadable or unrecognised value, exactly like readPatternLevel and
+     bootKbSlot: DomStorageEnabled can be false (ARCHITECTURE), and a corrupt value must
+     land on the default rather than on nothing.
+     ⚠ THE TWO HALVES INTERACT, and the order below is the whole point: a STORED 'list'
+     still wins. Changing a default may never silently re-skin somebody who chose the other
+     one (E1) — the new default is only what a NEW install sees.
+     Persistence is the HOST's job by the components' own contract (settings-screens.js
+     header: a component never touches storage), so the key lives here, is read here, and
+     is written in onToggleLayout below — one reader, one writer, both in this file. */
+  const APPS_LAYOUT_KEY = 'spixi.apps.layout';
+  const readAppsLayout = () => {
+    try {
+      const v = localStorage.getItem(APPS_LAYOUT_KEY);
+      if (v === 'list' || v === 'grid') return v;    // two fixed words; anything else → the default
+    } catch (e) {}
+    return 'grid';                                   // ★ #775: the NEW-install default (was 'list')
+  };
+  const appsState = { apps: [], query: '', layout: readAppsLayout() };
   const appsOpts = {
     strings, host: document.body,
     // primary tap → LAUNCH. single → ixian:startApp; multi → the IN-SHELL target
@@ -3103,7 +3129,14 @@
     // images/backup.png mechanism — an external asset URL is what file:// refuses.
     exploreImage: 'images/explore-banner.png',
     onQuery: (q) => setAppsQuery(appsList, appsState, q, appsOpts),
-    onToggleLayout: (next) => setAppsLayout(appsList, appsState, next, appsOpts),
+    onToggleLayout: (next) => {
+      setAppsLayout(appsList, appsState, next, appsOpts);
+      /* persist AFTER the component has normalised it — setAppsLayout is the one place
+         that decides what `next` means ('grid' or, for anything else, 'list'), so writing
+         state.layout rather than the argument keeps the stored value inside the same two
+         fixed words the reader above accepts. */
+      try { localStorage.setItem(APPS_LAYOUT_KEY, appsState.layout); } catch (e) {}
+    },
     onExplore: () => bridge.send('ixian:spixiAppsLink'),
   });
   // ★ D-17 (#359): born UNKNOWN — the search/layout row holds its box invisibly

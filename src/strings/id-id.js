@@ -475,7 +475,7 @@ export const idid = {
   passwordHint: "Gunakan minimal {n} karakter.",
   pasteLink: "Tempel tautan",
   patternDefault: "Halus",
-  patternIntensity: "Opasitas",
+  patternNone: "Tidak ada",
   patternOff: "Nonaktif",
   patternStyle: "Latar belakang",
   patternStyleDoodles: "Coretan",

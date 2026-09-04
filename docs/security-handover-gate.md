@@ -856,3 +856,20 @@ settings. One `spixi.*` key CHANGED FORMAT, one new error surface, two log lines
 | **the stage is input-dead through the entry slide** | SpixiContentPage (both reveal paths) | Removes a 1–2 frame window in which the incoming overlay was hit-testable at ~0 opacity over most of the screen — i.e. it CLOSES an input path, it does not open one. Both clears are pinned together: a stage stuck input-dead would be worse than the tap it prevents. | #46 A3 ⑤ |
 | **seven `--*-neutral-on-{error,success,destructive,inverse,accent}` tokens** | tokens.css + 10 consumers | CSS only. No exposure. Restores the pre-Session-K dark ink on every fill that is not the action blue (measured collapse to 1.14:1 at worst); Damir's white-on-blue ruling is unchanged at 6.68:1. | #46 C1 census |
 
+
+## Session M (2026-09-04) — the chat-appearance restructure · the apps layout · present-on-paint
+
+**Zero new `ixian:` verbs, zero new pushes, zero new HTML sinks, zero new network fetches,
+zero new WebView settings. ONE new `spixi.*` key. One new C# reach, and it is a narrowing.**
+
+★ The `spixi.apps.layout` row is written down here **because the answer is easy and that is
+exactly what makes it easy to skip.** Session J added `spixi.kb.slot` with no gate section at
+all and it took an adversarial loop three sessions later to notice (#748 → Session L). The
+rule from #775 is that a new key gets its row **in the same batch**, whatever its size.
+
+| introduced / changed | where | exposure | pin |
+|---|---|---|---|
+| **`spixi.apps.layout`** (new `spixi.*` localStorage key) | `home.html` `readAppsLayout` (seed-time read) + `onToggleLayout` (write) | **#254-clean, and the mildest kind on this list**: the value is one of exactly **two fixed words**, `'list'` or `'grid'`, normalised by `setAppsLayout` before it is written and re-checked against the same two words on read. No user content, no address, no id, no timestamp, no count — it does not even disclose whether the user *has* any apps. It joins the mini-app-readable `file://` partition (`security-review-for-be-engineer.md` MAJOR #4), so the row is stated plainly: **a mini-app can read which of two view modes the apps tab is in.** Accepted — that is a preference about our own chrome, not a fact about the user. | #775 · the seed-time pin |
+| **`patternNone`** (new string key, 13 locales) | `settings-screens.js` `createChatAppearance` | No exposure — a UI label. Recorded because it moves the string surface: `patternIntensity` retired with its card, `patternNone` added, **786 → 786**. | #774 |
+| **the chat-appearance screen re-renders on a live `setTheme`** | `settings.html` `setTheme` → `applyPushedTheme(…, { onApplied })` | No exposure — presentation. Scoped to the ONE view whose STRUCTURE is theme-derived (the Colour row is light-only). It tears down and rebuilds a settings sublevel; it cannot reach another shell, and it runs only when that view is the current one and the page is not exiting. Deliberately NOT a blanket rebuild: dropping an open sheet or in-flight row state on every OS flip would be a regression, not a fix. | #774 · #772 |
+| **`ixian:painted` accepted from five more pages** | `SpixiContentPage` present path (the #766 grammar) | ⚠ **A NARROWING, stated as one.** These pages already presented — on a fixed 120 ms timer. They now present on their own shell's paint signal, with the timer retained as a backstop, so the reach added is one **argument-free** verb from a page that already had the bridge. It cannot carry data, cannot be replayed to any effect (the latch is one-shot per present), and a page that never sends it is exactly as it is today. | #766 generalisation |

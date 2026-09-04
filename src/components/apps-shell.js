@@ -294,7 +294,13 @@ export function createAppsList(state, opts = {}) {
 /* update APIs — free functions (#44): mutate state, re-render, return listEl */
 
 export function setAppsLayout(listEl, state, layout, opts) {
-  state.layout = layout === 'grid' ? 'grid' : 'list';   // in-memory preference (persistence deferred, §7)
+  /* ★ Session M (#775): this normalisation is now the SINGLE definition of what a layout
+     value may be — the shell persists `state.layout` after this call rather than its own
+     argument, so the stored value can only ever be one of these two words. The comment
+     here used to say "persistence deferred, §7"; the deferral is closed, and it was closed
+     in the HOST, which is where it belongs (a component never touches storage — the
+     settings-screens.js header states that rule for the whole family). */
+  state.layout = layout === 'grid' ? 'grid' : 'list';
   return renderAppsList(listEl, state, opts);
 }
 

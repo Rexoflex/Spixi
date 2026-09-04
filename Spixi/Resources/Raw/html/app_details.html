@@ -1658,6 +1658,12 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
       onCopyUrl: (url) => { try { navigator.clipboard && navigator.clipboard.writeText(url); } catch (_) {} },
     }));
     scroll.scrollTop = 0;
+    /* ★★ Session M — THE PRESENT SIGNAL (the #766 generalisation to the DATA pages).
+       This page held for a flat 120 ms so `init(...)` could land and this render could
+       run; it presents HERE now. The guard is the first line of this function — `render`
+       returns early while `app` is null, so the signal cannot fire on an empty page.
+       Latched inside bridge.painted: the install/uninstall re-renders cost nothing. */
+    bridge.painted();
   }
 
   /* —————————————————————————————————————————————————————————————————————————

@@ -684,6 +684,18 @@ namespace SPIXI
              * A page that WANTS its skeleton seen asks for 0. Every other screen keeps the
              * 120 ms it has today — one report does not re-time the whole app. */
             public int revealDelayMs = 120;
+            /* ★★ Session M — THE HOLD IS NOW A RACE, NOT A WAIT (the #766 generalisation).
+             * `revealDelayMs` above is a guess at how long the shell needs; this is the
+             * shell ANSWERING. presentPreload awaits whichever lands first, so the timer
+             * becomes a BACKSTOP and the present fires on the shell's own paint.
+             * ⚠ It can only ever present EARLIER — a shell that never signals waits exactly
+             * the same 120 ms it waits today, which is what makes this safe to apply to
+             * every load-then-present page at once instead of page by page.
+             * RunContinuationsAsynchronously: the completion arrives on the WebView's
+             * navigating callback, and a synchronous continuation would resume the present
+             * on that callback's stack. */
+            public readonly TaskCompletionSource<bool> painted =
+                new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             /* ★★ Item 6: slide in from the trailing edge instead of appearing. The overlay
              * present is an opacity flip today; Damir asked for the slide, and it is also
              * the thing most likely to mask the skeleton-to-content change on its own. */
@@ -704,11 +716,49 @@ namespace SPIXI
                 this.stage = stage;
                 this.targetContent = targetContent;
                 this.hostGrid = hostGrid;
+                /* ★★ Session M: hand the target its own paint gate. The page cannot look the
+                 * op up when its signal arrives — `activePreload` is cleared by tryFinish
+                 * before the reveal await even resumes, and the overlay stack is keyed by
+                 * tag, not by which navigation is still holding. One reference, set at the
+                 * only two places an op is ever built, is the whole wiring.
+                 * NOT cleared afterwards, deliberately: completing a TCS nobody awaits is a
+                 * no-op, and a later push simply replaces the reference. A clear would need
+                 * to happen on every present/abandon/cancel path — five more places to get
+                 * wrong for no behaviour. */
+                target.pendingPaint = painted;
             }
 
             public bool tryFinish()
             {
                 return Interlocked.Exchange(ref done, 1) == 0;
+            }
+        }
+
+        /* ★★ Session M — the paint gate of the navigation that is currently holding for
+         * THIS page, or null when nothing is holding for it. Written only by the PreloadOp
+         * constructor; completed only by onPaintedSignal below. */
+        private volatile TaskCompletionSource<bool>? pendingPaint = null;
+
+        /** ★★ Session M — the shell reports its first committed paint (`ixian:painted`).
+         *
+         *  Base behaviour: end the load-then-present hold for this page early (see
+         *  PreloadOp.painted). A page with nothing holding for it — presented already, or
+         *  never staged — has a null gate and this is a no-op, which is what makes it safe
+         *  to accept from every shell in `onNavigatingGlobal`.
+         *
+         *  ⚠ Mini-apps are structurally excluded and NOT by a flag: `MiniAppPage` is never
+         *  pushed through `pushPageLoaded`, so it has no gate to complete. The verb carries
+         *  no argument and cannot be replayed to any effect (TrySetResult, once).
+         *
+         *  SingleChatPage overrides this — it asks for `revealDelayMs: 0` and drives its own
+         *  arm/latch pair with a 400 ms backstop (#764), a mechanism this one deliberately
+         *  does not have because it never needs one: it can only shorten an existing wait. */
+        protected virtual void onPaintedSignal()
+        {
+            TaskCompletionSource<bool>? gate = pendingPaint;
+            if (gate != null)
+            {
+                gate.TrySetResult(true);
             }
         }
 
@@ -2715,7 +2765,11 @@ namespace SPIXI
                     // the skeleton would never be seen (which is exactly what happened).
                     if (op.revealDelayMs > 0)
                     {
-                        await Task.Delay(op.revealDelayMs);
+                        /* ★★ Session M: the shell's `ixian:painted` (bridge.painted, sent one
+                         * committed frame after its first real render) ends the hold early.
+                         * WhenAny, never WhenAll: the timer must still fire for a shell that
+                         * does not signal, and no page may be held longer than it is today. */
+                        await Task.WhenAny(Task.Delay(op.revealDelayMs), op.painted.Task);
                     }
 
                     if (op.abandoned)
@@ -3787,6 +3841,15 @@ namespace SPIXI
             {
                 var split = url.Split(':');
                 onAppReject(new Address(split[2]), split[3]);
+            }
+            else if (url.Equals("ixian:painted", StringComparison.Ordinal))
+            {
+                /* ★★ Session M — the present signal, accepted for EVERY page (the #766
+                 * generalisation). Ordinal equality, no argument, no data: the whole verb
+                 * is the word. It was handled in SingleChatPage's own onNavigating until
+                 * this batch; that branch is gone, and the chat now overrides
+                 * onPaintedSignal — one inbound path, no second copy to drift (#251/#288). */
+                onPaintedSignal();
             }
             else if (url.StartsWith("ixian:hangUp:"))
             {

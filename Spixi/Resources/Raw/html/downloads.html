@@ -2119,7 +2119,18 @@ button.c-settings-howto__join:disabled {
   let buf = null, timer = 0;
   function settle() {
     clearTimeout(timer);
-    timer = setTimeout(() => { if (buf !== null) { setDownloads(dlEl, buf); buf = null; } }, 80);
+    timer = setTimeout(() => {
+      if (buf !== null) { setDownloads(dlEl, buf); buf = null; }
+      /* ★★ Session M — THE PRESENT SIGNAL (the #766 generalisation to the DATA pages).
+         The settled list is on glass. Inside the settle rather than beside `root
+         .replaceChildren(dlEl)` above, because that call mounts an EMPTY list: the rows
+         arrive as a burst afterwards, and presenting on the mount would show the page
+         empty and then fill it — the flat 120 ms hold exists precisely to prevent that.
+         An account with NO downloads still reaches here (clearFiles alone opens the
+         settle), and an account whose burst never arrives falls back to the same 120 ms
+         it waits today. Latched. */
+      bridge.painted();
+    }, 80);
   }
 
   const handlers = {

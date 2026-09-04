@@ -25,19 +25,17 @@ function under test proves nothing. A comment stating an invariant the code does
 a defect (#772); file:line in a comment is a searchable anchor, never a number.
 Then, in order (handoff §2 — the loop is CLEAN and THE WALK IS ALREADY DONE, so every item
 below is written against measurements, not guesses; walk results: docs/walk-session-l-results.md):
-⓪ THE BE WORK ORDER — first, and blocked on nothing. The chat open is the PARSE, not WebView
-creation: nav = dcl in all six opens, so a ~320 ms warm open is 60 ms create + 125 ms parse +
-30 ms drain + 74 ms render + 30 ms present. A RETAINED WARM CHAT WEBVIEW removes ~185 ms.
-Add the RAM row with its split (rest 329 MB: Native 70 · Unknown 73 · Graphics 68 · Code 50;
-~150 MB over WhatsApp/TG at rest — the FE lever is worth 15-25 MB, the bulk is a BE row).
-The batch transport stays the separate scroll-auto-load unlock.
+⓪ ⛔ WARM CHAT WEBVIEW IS PARKED — DO NOT START (#779). Largest measured win but #777 made it
+an architecture decision with a security trade; it is with the lead engineer. If he says yes:
+close MAJOR #3 first, wipe FAIL-CLOSED, cap the page lifetime, gate row, #46 loop.
 ① #766 generalized: the DATA pages present on their own paint (the chat's ixian:painted grammar,
 per page) + the [CDPERF] chats pair. The three FORM pages are measured and good.
 ② #770's THIRD trigger: at ih=475 (split-screen / small window) the ⊕ gets no viewport grow
 inside 450 ms, so `reveal by=backstop`. Rotation IS fixed; this is not. My sheet said FAILS:none
 and R4 was unscored — the log found it. An unscored row is not a passed row.
-③ RAM: build the FE lever (release the parked Account WebView + tile budget), knowing it is
-15-25 MB of a 150 MB gap.
+③ RAM: the FE lever is DEMOTED (#778, my ruling) — releasing the parked Account WebView
+contradicts #766/#315 for 15-25 MB of a 150 MB gap. Only under real OS memory pressure, if ever.
+The row goes to BE/core with the measured split.
 ④ [SCROLL]: MEASURED CLEAN (drop=0, max 8-25 ms). No fix. Don't spend a session on it.
 ⑤ The group-avatar device fact. ⑥ Alignment: CLOSED, it was #768's stale assets (G1/G2 pass).
 ⑦ Chat appearance restructure (#774) — three rulings resolved, ONE OWED: dark mode, hide the

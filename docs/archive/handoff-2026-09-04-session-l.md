@@ -111,6 +111,19 @@ queue, unchanged except that item 0 is done and ⓪ has moved up.
    If the answer comes back yes, the build order is already fixed by #777: close MAJOR #3 first ·
    wipe FAIL-CLOSED · cap the page's lifetime (recycle on background or after N swaps) · a
    security-gate row · a #46 loop. The numbers half of the work order (§1b) is written and stands.
+①a **★★ BUILD THIS: `docs/perf-lean-workorder.md`** — the buildable work order (levers, an
+   investigation list, and a gate after every step). Background audit: `docs/lean-build-audit.md` (measured 2026-09-04, nothing built).**
+   Every chat open parses **2 413 KB**, of which **987 KB (41 %) is COMMENTS** — the bundle build
+   strips only `import` lines, nothing is minified. Plus all 13 locales ship in every shell
+   (~400 KB) and the chat parses 321 exports to call 83 (~400–600 KB). Stripping + one locale +
+   per-shell bundles takes 2 413 KB → ~700 KB, a parse near 35 ms instead of 125 — **~90 ms off a
+   320 ms open, no architecture change, no security trade.** Comparable to the parked warm WebView
+   and far cheaper, so **do this first.** ⚠ Strip in RELEASE only (the `[WEBVIEW]` mirror's line
+   numbers are how #663 was traced) and check the four pins that read built files raw.
+   §B of the same doc: 15 MB ships, `fonts/` is referenced by NO html file, and 7.4 MB sits in TWO
+   image folders nobody has audited. §C answers the lead dev's "hundreds of thousands of lines":
+   39 % of tracked lines are committed build output, on purpose, so `build-shells --check` can
+   prove what ships is what was reviewed.
 ① **#766's generalization.** The three FORM pages present at onload and are now MEASURED
    (`appnew onload t=75 → present t=75`). The DATA pages (chat-info · App details · tx detail ·
    Settings · Downloads) still carry the 120 ms hold — generalize the chat's `ixian:painted`

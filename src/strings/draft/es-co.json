@@ -429,7 +429,7 @@
   "pasteLink": "Pegar enlace",
   "patternBold": "Marcado",
   "patternDefault": "Sutil",
-  "patternIntensity": "Opacidad",
+  "patternNone": "Ninguno",
   "patternOff": "Desactivado",
   "patternStandard": "Estándar",
   "patternStyle": "Fondo",

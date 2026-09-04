@@ -475,7 +475,7 @@ export const ltlt = {
   passwordHint: "Naudokite bent {n} simbolių.",
   pasteLink: "Įklijuoti nuorodą",
   patternDefault: "Subtilus",
-  patternIntensity: "Intensyvumas",
+  patternNone: "Nėra",
   patternOff: "Išjungta",
   patternStyle: "Fonas",
   patternStyleDoodles: "Keverzonės",

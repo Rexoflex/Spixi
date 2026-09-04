@@ -475,7 +475,7 @@ export const srsp = {
   passwordHint: "Koristite najmanje {n} znakova.",
   pasteLink: "Nalepi link",
   patternDefault: "Suptilno",
-  patternIntensity: "Neprozirnost",
+  patternNone: "Nijedna",
   patternOff: "Isključeno",
   patternStyle: "Pozadina",
   patternStyleDoodles: "Škrabotine",

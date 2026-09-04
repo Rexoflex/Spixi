@@ -85,6 +85,7 @@ export function createNativeBridge({ emit, win } = {}) {
   };
   const sink = emit || queued;
   let readySent = false;
+  let paintedSent = false;   // ★ Session M: the present signal is one-shot — see bridge.painted
 
   const capabilities = (w.SPIXI_ENV && w.SPIXI_ENV.capabilities) || {};
 
@@ -109,6 +110,40 @@ export function createNativeBridge({ emit, win } = {}) {
       if (readySent) return;
       readySent = true;
       bridge.send('ixian:onload');
+    },
+    /** ★★ Session M — THE PRESENT SIGNAL, one implementation for every shell.
+     *
+     * C# holds a load-then-present navigation for a flat 120 ms (`revealDelayMs`,
+     * SpixiContentPage) so the shell can paint the data its onload burst pushed. That
+     * timer was measured against the CHAT and found to be waiting for a paint that had
+     * already happened (#764: drain → present ~130 ms against a 21–27 ms paint), and
+     * #766 then proved the three FORM pages were waiting for nothing at all. This is the
+     * generalisation to the DATA pages: the shell says when it has painted, and C#
+     * presents THERE instead of at 120 ms.
+     *
+     * ★ It can only ever make a present EARLIER. C# races this signal against the same
+     * 120 ms it uses today, so a shell that never sends it — an old built shell, a page
+     * whose data never lands — behaves exactly as it does now. That asymmetry is the
+     * whole safety argument, and it is why this needed no per-page timer and no backstop
+     * of its own (the chat's 400 ms backstop exists because the chat asks for
+     * `revealDelayMs: 0` and has nothing else to fall back on).
+     *
+     * ⚠ CALL IT WHEN THE DATA IS ON GLASS, NOT WHEN IT ARRIVES. The double rAF is the
+     * point: the first frame runs after the render that queued it, the second after the
+     * browser has committed it. Called before the first real render, this signal presents
+     * an empty page — which is worse than the 120 ms it saves.
+     *
+     * Latched: a shell that re-renders (a re-flush, a channel switch) may call it every
+     * time; C# ignores it once presented, and this latch means the frames are not even
+     * scheduled again.
+     *
+     * REVERSAL: stop calling this and every page returns to the flat 120 ms hold. */
+    painted() {
+      if (paintedSent) return;
+      paintedSent = true;
+      const fire = () => { try { bridge.send('ixian:painted'); } catch (e) {} };
+      if (typeof w.requestAnimationFrame === 'function') w.requestAnimationFrame(() => w.requestAnimationFrame(fire));
+      else fire();
     },
     cap(name) { return !!capabilities[name]; },
     capabilities,

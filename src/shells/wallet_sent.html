@@ -374,6 +374,13 @@
       if (next && next.focus) next.focus({ preventScroll: true });
     }
     rendered = true;
+    /* ★★ Session M — THE PRESENT SIGNAL (the #766 generalisation to the DATA pages).
+       The card is on glass; C# presents here instead of on its flat 120 ms hold. This
+       render is only ever reached through `setData`'s commit (#289's staging buffer), so
+       there is no path that signals a card built from an empty buffer — which was exactly
+       the #289 defect, and is the reason this line sits after `rendered = true` rather
+       than anywhere in the push handlers. Latched: the 1 Hz status re-render is free. */
+    bridge.painted();
   }
 
   /* ★ L3 (#706): the iOS back signal. The topbar arrow sends ixian:dismiss, and only

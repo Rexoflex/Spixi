@@ -475,7 +475,7 @@ export const ptbr = {
   passwordHint: "Use pelo menos {n} caracteres.",
   pasteLink: "Colar link",
   patternDefault: "Sutil",
-  patternIntensity: "Opacidade",
+  patternNone: "Nenhum",
   patternOff: "Desativado",
   patternStyle: "Fundo",
   patternStyleDoodles: "Rabiscos",

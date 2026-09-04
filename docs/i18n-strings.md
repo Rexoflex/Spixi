@@ -206,7 +206,7 @@ Summary: **786** keys · **140** map to a legacy id · **646** new · legacy dic
 | `deleteHistory` | Delete chat history | text | short |  | `contact-details-deletehistory` |
 | `deleteHistoryBody` | Messages are removed from this device. The contact keeps their copy. | title | long |  | — |
 | `deleteHistoryTitle` | Delete chat history? | title | short |  | `contact-details-deletehistory` |
-| `editNickname` | Edit nickname | aria | short |  | — |
+| `editNickname` | Edit nickname | text | short |  | — |
 | `groupInfo` | Group info | text/label | short |  | `chat-bot-details-info` |
 | `hiddenMember` | Hidden member | text | short |  | — |
 | `kick` | Kick | label/text | short |  | `chat-context-kick-user` |
@@ -813,7 +813,7 @@ Summary: **786** keys · **140** map to a legacy id · **646** new · legacy dic
 | Key | English | Kind | Len | {…} | Legacy id |
 |---|---|---|---|---|---|
 | `chatAppearance` | Chat appearance | text/label | short |  | — |
-| `chatGround` | Canvas | text/label | short |  | — |
+| `chatGround` | Canvas | label/title | short |  | — |
 | `notifAll` | Allow notifications | label | short |  | — |
 | `notifPushProvider` | Instant delivery via OneSignal | label | medium |  | — |
 | `notifPushProviderOffAndroid` | Off: nothing more is sent to OneSignal and this device is unsubscribed there. Spixi checks for new messages itself and notifies you when it finds some, so they can arrive a little later. The record OneSignal already holds is not deleted by this switch. | text | long |  | — |
@@ -824,9 +824,9 @@ Summary: **786** keys · **140** map to a legacy id · **646** new · legacy dic
 | `notifSenderSub` | Message text is never shown in notifications | label | medium |  | — |
 | `notifSounds` | In-app sounds | error | short |  | — |
 | `patternDefault` | Subtle | label | short |  | — |
-| `patternIntensity` | Opacity | text/label | short |  | — |
+| `patternNone` | None | label | short |  | — |
 | `patternOff` | Off | label | short |  | — |
-| `patternStyle` | Background | text/label | short |  | — |
+| `patternStyle` | Background | text | short |  | — |
 | `patternStyleDoodles` | Doodles | label | short |  | — |
 | `patternStyleFlow` | Live flow | label | short |  | — |
 | `patternStyleMatrix` | Data matrix | label | short |  | — |

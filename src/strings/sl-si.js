@@ -475,7 +475,7 @@ export const slsi = {
   passwordHint: "Uporabite vsaj {n} znakov.",
   pasteLink: "Prilepi povezavo",
   patternDefault: "Subtilno",
-  patternIntensity: "Prekrivnost",
+  patternNone: "Brez",
   patternOff: "Izklopljeno",
   patternStyle: "Ozadje",
   patternStyleDoodles: "Čačke",

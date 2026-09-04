@@ -475,7 +475,7 @@ export const jajp = {
   passwordHint: "{n} 文字以上で入力してください。",
   pasteLink: "リンクを貼り付け",
   patternDefault: "控えめ",
-  patternIntensity: "不透明度",
+  patternNone: "なし",
   patternOff: "オフ",
   patternStyle: "背景",
   patternStyleDoodles: "らくがき",

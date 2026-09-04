@@ -475,7 +475,7 @@ export const itit = {
   passwordHint: "Usa almeno {n} caratteri.",
   pasteLink: "Incolla link",
   patternDefault: "Sottile",
-  patternIntensity: "Opacità",
+  patternNone: "Nessuno",
   patternOff: "Disattivato",
   patternStyle: "Sfondo",
   patternStyleDoodles: "Scarabocchi",

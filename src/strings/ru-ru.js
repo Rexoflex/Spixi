@@ -475,7 +475,7 @@ export const ruru = {
   passwordHint: "Используйте не менее {n} символов.",
   pasteLink: "Вставить ссылку",
   patternDefault: "Слабый",
-  patternIntensity: "Непрозрачность",
+  patternNone: "Нет",
   patternOff: "Выкл.",
   patternStyle: "Фон",
   patternStyleDoodles: "Каракули",

@@ -1,0 +1,92 @@
+Session M: chat appearance 4 cards -> 3, apps grid + persistence, present-on-paint for the DATA pages
+
+Three queue items built (#783 / #784 / #785) and one ruled not-built (#786).
+
+#783 — CHAT APPEARANCE IS THREE CARDS (#774 (7)), AND THE STORAGE DID NOT MOVE.
+Background absorbed Opacity (None + the two shipping styles on mobile, + Live flow on
+desktop), Canvas became a value row, and the Opacity card is gone from the file rather
+than merely unappended. The ruling that made it small: the (style, level) pair stays as
+two keys. With Strong retired the level is already binary, so level 0 IS None and
+level 1 + style IS that style — the collapse is total, lossless and computable at render
+time from the two keys that already exist. Zero migration, zero new spixi.* key, zero
+ladder change. Picking None leaves the stored style untouched, so None -> Doodles -> None
+-> Matrix never loses the pattern the user had.
+
+#774 (3) is answered: offered "hide the control or design a dark gradient" a second time,
+Damir picked hide. Three cards in light, two in dark. And the light-only row now survives
+a live OS flip — the component read isLight from the live document and a comment claimed
+that covered a setTheme landing while the screen is open. It did not; setTheme rebuilt
+nothing. settings.html re-renders that ONE view from applyPushedTheme's onApplied. A
+blanket rebuild was refused: it would drop an open sheet on every flip.
+
+One new string, patternNone. patternOff ("Off") was NOT reused — under a Background
+heading it names the control rather than the option. patternIntensity retired with its
+card, so 786 -> 786.
+
+The data-matrix swatch mask-size was re-checked because the tile changed width, and
+DELIBERATELY LEFT at 144px. Recorded in the CSS comment: the first render of that dial
+was wrong (it set mask-size on the face, not on its ::before, so it photographed six
+identical tiles) and its answer, 96px, was shipped for about an hour before the corrected
+strip reversed it. A smaller mask scales the source down, so the dots get fainter, not
+denser.
+
+#784 — THE APPS TAB OPENS ON GRID AND THE VIEW SURVIVES A RESTART (#775 (8)).
+spixi.apps.layout, two fixed words, read at STATE-SEED TIME — inside the appsState
+literal, before createAppsList and before any push (#690's three-ladder rule in its
+apps-tab form; a late read flips the tab from a column to a 2-up grid in front of the
+user). The default moved to grid and a stored 'list' still wins; the order of the two is
+asserted, because a default that ran first would be the silent re-skin E1 forbids. The
+write takes the value AFTER setAppsLayout normalised it, so the store can only hold one
+of the two words. Its security-handover-gate row landed in the SAME batch, per #775's own
+process rule.
+
+#785 — THE 120 ms PRESENT HOLD IS A RACE NOW, NOT A WAIT (#766 generalised).
+presentPreload awaits Task.WhenAny(Task.Delay(op.revealDelayMs), op.painted.Task). The
+timer became a backstop, so this can only ever present EARLIER — a shell that never
+signals waits exactly what it waits today, which is why it could be applied to every
+load-then-present page at once. WhenAll is the one mutation that turns a strictly-faster
+change into a hang; the pin refuses it by name.
+
+One implementation on both sides: bridge.painted() (latched, double rAF) replaces a
+per-shell one-liner, and the verb has ONE inbound home — onNavigatingGlobal -> a virtual
+onPaintedSignal — with SingleChatPage's own branch deleted and replaced by an override
+that still calls base. A second copy is how #251 and #288 MAJOR-1 both happened.
+Mini-apps are excluded structurally: MiniAppPage is never pushed through pushPageLoaded,
+so it has no gate to complete. The five DATA shells (chat-info, App details, tx detail,
+Settings, Downloads) signal at the line their first real render finishes; settings signals
+from rebuildHub and explicitly NOT from renderLayout, which runs once at boot with no
+data. Placement is the correctness, and each of the five is pinned at its line by name.
+
+Also: a temporary [CDPERF] chats stamp — the dispatcher's view of the ~60-row flush, to
+pair with the shell probe's flush/done marks, bounded to the boot window. Retire with the
+set.
+
+#787 — THE SWATCH BOOST IS PER STYLE (Damir, on the render sheet: "make the doodle pattern
+also fainter on the tiles"). The ask named a defect in the SHAPE of the dial, not just its
+value: one multiplier cannot balance two artworks with different ink coverage, so at a
+shared x6 the dense doodles tile shouts while the scattered matrix tile whispers beside it.
+Doodles is x3; matrix and Live flow keep the shared x6. Picked by render on the real built
+shell, six candidates in both themes, with the two questions rendered as separate strips —
+one moving the shared dial (the evidence against it: at x3 the matrix is already faint, by
+x2 it is gone) and one moving doodles alone. The pin asserts the RELATION, not the number.
+
+It also exposed dead code #783 had left behind: swatchGroup, the intensity row's builder,
+lost its only caller in the restructure and was still in the file. Deleted, along with three
+docblocks that had become pointers to a row that no longer exists — one of them written by
+the restructure an hour earlier.
+
+#786 — #770's THIRD TRIGGER: LOGGED, NOT BUILT, on Damir's explicit ruling. He had also
+ticked it in the scope question; the specific ruling won and that is recorded rather than
+resolved silently.
+
+Gates (container, Ixian-Core sibling at 097341a PRESENT):
+  bundle 321 . shells 18 . smoke BASELINE OK 4090 / the 3 known (#136 . M5 . B3)
+  locales ALL CLEAN 786 . i18n-lint OK (6 dev exemptions) . pseudo 9/9
+  cs-syntax 141 clean + 1 known gap . extract-strings --check OK
+  build-shells --check OK . build-legal-docs --check OK (terms baked, privacy HELD)
+  4067 -> 4090 (+23). 22 mutations run against the new and rebased pins, 22 killed.
+
+Rendered on the real built shells before committing; sheets in docs/sheets/session-m/.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01BegU8gDjVg4qpQAsNykema

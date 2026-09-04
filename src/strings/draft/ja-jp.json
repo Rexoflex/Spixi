@@ -381,7 +381,7 @@
   "pasteLink": "リンクを貼り付け",
   "patternBold": "はっきり",
   "patternDefault": "控えめ",
-  "patternIntensity": "不透明度",
+  "patternNone": "なし",
   "patternOff": "オフ",
   "patternStandard": "標準",
   "patternStyle": "背景",

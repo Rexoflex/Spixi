@@ -1176,6 +1176,19 @@
       const ds = (paneMode ? detailWrap : root).querySelector('.c-settings-about__devseed-status');
       if (ds && ds.textContent !== state.devSeed.status) ds.textContent = state.devSeed.status;
     }
+    /* ★★ Session M — THE PRESENT SIGNAL (the #766 generalisation to the DATA pages).
+       ⚠ HERE, AND NOT IN renderLayout — the distinction is the whole correctness of it.
+       renderLayout runs once at BOOT, before any push, and builds the hub from the default
+       state: no nickname, no avatar, no version, no backup stamp. Signalling there would
+       present exactly the half-empty hub the 120 ms hold was added to hide. rebuildHub only
+       ever runs from scheduleRebuild, and scheduleRebuild only ever runs from a push (the
+       onLoad burst: setNickname + setAppearance + setLockEnabled + showRemoveAvatar +
+       loadAvatar + setVersion + setAddress + setLanguage, coalesced into ONE build) — so
+       reaching this line means real data is on glass.
+       An exe that pushes nothing never gets here and waits the same 120 ms it waits today.
+       Latched inside bridge.painted, so the backup-stamp poll and every later rebuild are
+       free. */
+    bridge.painted();
   }
 
   // Coalesce the onLoad burst (setNickname + setAppearance + setLockEnabled +
@@ -1392,6 +1405,7 @@
           textScale: prefs.textScale,
           isDesktop,
           strings,
+          host: document.body,          // ★ Session M (#774): the Colour option sheet's host
           onBack: showHub,
           onPattern: (v) => { try { localStorage.setItem(CHAT_PREFS.pattern, String(v)); } catch (e) {} },
           onPatternStyle: (v) => { try { localStorage.setItem(CHAT_PREFS.patternStyle, String(v)); } catch (e) {} },
@@ -1693,7 +1707,23 @@
        * push flips it back. A visible wrong-theme flash on the picker itself, which is
        * the one screen #242 round 2 cleaned up. */
       if (state.theme === 0) autoTheme = name === 'dark' ? 'dark' : 'light';
-      applyPushedTheme(name);
+      /* ★★ Session M (#774): RE-RENDER THE CHAT-APPEARANCE SCREEN ON A LIVE FLIP.
+         Its Colour row exists in LIGHT ONLY (CHAT_GROUNDS — dark carries the blue radial
+         in both cases, so a chooser there would have one good answer, #257). The component
+         reads `isLight` from the live document, and a comment in it claimed that covered a
+         setTheme landing while the screen is open. It did not: reading live at BUILD time
+         is what makes a REBUILD correct, and this push rebuilds nothing by itself
+         (setAppearance does; setTheme never has). So an OS flip into dark left the row on
+         screen with nothing behind it — the #772 class, a comment asserting an invariant
+         the code did not enforce.
+         Scoped to the one view that derives structure from the theme: every other screen
+         re-themes in CSS and must NOT be torn down (a rebuild would drop an open sheet and
+         any in-flight row state). Runs on onApplied, i.e. after the swap has settled, so
+         the rebuilt screen reads the NEW theme rather than racing the attribute.
+         REVERSAL: drop the onApplied and the light-only row survives into dark. */
+      applyPushedTheme(name, {
+        onApplied: () => { if (currentView === 'chatappearance' && !exiting) renderLayout(); },
+      });
     },
 
     // setAppearance(idx) — onLoad:46; idx = (int)ThemeAppearance

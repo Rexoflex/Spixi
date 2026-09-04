@@ -474,7 +474,7 @@
   "passwordHint": "请使用至少 {n} 个字符。",
   "pasteLink": "粘贴链接",
   "patternDefault": "淡雅",
-  "patternIntensity": "不透明度",
+  "patternNone": "无",
   "patternOff": "关闭",
   "patternStyle": "背景",
   "patternStyleDoodles": "涂鸦",

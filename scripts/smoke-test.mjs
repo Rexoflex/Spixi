@@ -1772,53 +1772,113 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   /* —— #147 sub-screens (settings-screens.js) —— */
 
   /* chat appearance — FE-only: segmented picks apply instantly to the preview */
-  let patternPick = null, scalePick = null;
+  let patternPick = null, scalePick = null, stylePick = null, groundPick = null;
+  /* ⚠ THE THEME IS SET EXPLICITLY FOR BOTH FIXTURES, and the first version of this block
+     did not do it — it inherited whatever data-theme an earlier pin had left on the
+     document and the light-only Colour row was simply absent. A pin that depends on
+     ambient state asserts a different thing depending on what ran before it, which is a
+     pin that can go green for the wrong reason later. Restored at the end of the block. */
+  const prevAppearTheme = d.documentElement.getAttribute('data-theme');
+  d.documentElement.setAttribute('data-theme', 'light');
   const ahost = d.createElement('div');
   d.body.append(ahost);
   const appear = S.createChatAppearance({
-    patternOpacity: 0.5, textScale: 1,
+    patternOpacity: 1, patternStyle: 'matrix', textScale: 1,
     onBack() {},
     onPattern: (v) => { patternPick = v; },
+    onPatternStyle: (v) => { stylePick = v; },
+    onChatGround: (v) => { groundPick = v; },
     onTextScale: (v) => { scalePick = v; },
   });
   ahost.append(appear);
   ok(appear.querySelector('.c-settings-appearance__preview').classList.contains('c-chat-canvas'),
     'appearance preview rides the REAL chat canvas paint (gradient + pattern mask)');
-  /* #334 iOS-60: pattern picker = SWATCH TILES (kills the label-overflow i18n
-   * class); text size stays a text segGroup. */
   const segs = [...appear.querySelectorAll('.c-settings-seg')];
-  // W5 split the swatches into TWO radiogroups: pattern STYLE then INTENSITY.
-  // Scope the #334 assertion to the intensity row so it keeps meaning what it
-  // meant (4 levels, tiles not pills) instead of counting the whole screen.
-  /* ⚠⚠ THIS SELECTOR WAS EXCLUSION-BY-IDENTITY AND THE AUG GROUND ROW BROKE IT.
-     It used to take the FIRST `.c-settings-swatches--style` as the style group and then
-     `find(g => g !== styleGroup)` for the intensity group. That worked only while there
-     was exactly ONE style-shaped group on the screen. The ground row (Damir 2026-08-30)
-     is also built with styleSwatchGroup — it previews a canvas, so it should be — and
-     `find` then returned the GROUND row, so this pin silently started asserting the wrong
-     control. It went red on the tile COUNT, which is the only reason it was noticed.
-     ★ Selected by CLASS now, the way the other intensity pin in this file already does it:
-     the intensity group is the only swatch group WITHOUT --style. That is a property of
-     what the control IS, not of how many siblings it happens to have. */
-  const intensityGroup = appear.querySelector('.c-settings-swatches:not(.c-settings-swatches--style)');
+  /* ★★★ Session M (#774) — THE RESTRUCTURE, PINNED BY ITS SHAPE AND NOT BY ITS COUNT.
+     Damir's complaint was VISUAL: Background, Canvas and Opacity all rendered as a pair of
+     patterned tiles, so three different questions wore one costume. Background absorbed
+     Opacity ("None" IS the old level 0) and Canvas became a value row.
+     ⚠ WHAT THIS ASSERTS AND WHY: exactly ONE swatch group on the whole screen. A count of
+     tiles would pass if the Opacity row came back with two of them; "one group, and it is
+     the style group" is the property that the defect cannot satisfy. The previous pin here
+     selected the intensity group as "the swatch group WITHOUT --style" — that selector now
+     resolves to null, which is the correct answer to the new question and the reason this
+     block is REWRITTEN rather than deleted (#771: a pin whose subject is gone is rewritten
+     in place, asserting the new property).
+     ⚠ Reads the built DOM, not source text — no stripCode question arises. */
+  const swatchGroups = [...appear.querySelectorAll('.c-settings-swatches')];
   const styleGroup = appear.querySelector('.c-settings-swatches--style');
-  const swatches = [...intensityGroup.querySelectorAll('.c-settings-swatch')];
+  const swatches = [...(styleGroup ? styleGroup.querySelectorAll('.c-settings-swatch') : [])];
+  ok(swatchGroups.length === 1 && !!styleGroup && swatchGroups[0] === styleGroup
+    && !appear.querySelector('.c-settings-swatches:not(.c-settings-swatches--style)'),
+    '★★★ #774: ONE swatch group on the screen, and it is the Background one. The Opacity row is GONE — its two levels are members of Background now (None = the old level 0). A second tile pair reappearing on this screen, under any label, turns this red');
   ok(segs.length === 1
     && segs[0].querySelectorAll('.c-settings-seg__pill').length === 4
-    && swatches.length === 2
-    && swatches.map((s) => s.dataset.value).join() === '0,1'
-    && swatches.every((s) => s.getAttribute('role') === 'radio' && s.getAttribute('aria-label')),
-    '★★ AUG (Damir 2026-08-30): pattern = 2 swatch tiles — Off / Subtle (role=radio + localized aria-label); text size = the one remaining segGroup (4 pills). Superseded: 3 tiles, Off / Default / Strong (N81). Strong is retired; the VALUES are pinned, not just the count, so a third tile reappearing turns this red rather than passing on arity alone');
-  const offTile = appear.querySelector('.c-settings-swatch[data-off]');
-  ok(!!offTile && swatches.every((s) => s.querySelector('.c-settings-swatch__canvas.c-chat-canvas')),
-    '#334 iOS-60: every tile face rides the REAL chat-canvas paint; the Off tile is marked distinct (data-off)');
-  offTile.click();
-  ok(patternPick === 0
+    && swatches.length === 3
+    && swatches.map((t) => t.dataset.value).join() === 'none,doodles,matrix'
+    && swatches.every((t) => t.getAttribute('role') === 'radio' && t.getAttribute('aria-label')),
+    '★★ #774: Background = None + the two shipping styles on mobile (Live flow stays desktopOnly — E1 is not re-litigated by this batch), role=radio + localized aria-label each; text size keeps its 4-pill segGroup. The VALUES are pinned, not the arity: a resurrected "lineart" or a dropped "flow" both turn this red');
+  const noneTile = appear.querySelector('.c-settings-swatch[data-off]');
+  ok(!!noneTile && noneTile.dataset.value === 'none'
+    && noneTile.querySelector('.c-settings-swatch__canvas').style.getPropertyValue('--chat-pattern-opacity') === '0'
+    && !noneTile.querySelector('.c-settings-swatch__canvas').dataset.chatPattern
+    && swatches.every((t) => t.querySelector('.c-settings-swatch__canvas.c-chat-canvas')),
+    '★★ #774: the None tile is an HONEST preview of what it picks — opacity 0 (nothing drawn) and NO data-chat-pattern to inherit a rule from, plus the [data-off] slash so it reads as a state rather than a broken tile. Every tile face still rides the real chat-canvas paint');
+  /* ★★ the (style, level) pair, driven from the ONE control. This is the half a source pin
+     cannot see: the storage did not change, so the screen has to write BOTH keys and write
+     them in the right order. */
+  noneTile.click();
+  ok(patternPick === 0 && stylePick === null
     && appear.querySelector('.c-settings-appearance__preview').style.getPropertyValue('--chat-pattern-opacity') === '0',
-    'pattern pick applies INSTANTLY to the preview + fires the FE-only callback');
+    '★★ #774: picking None writes the LEVEL (0) and leaves the stored STYLE untouched — so None → a style → None never loses the pattern the user had. The preview follows in the same frame');
+  const matrixTile = swatches.find((t) => t.dataset.value === 'matrix');
+  const doodlesTile = swatches.find((t) => t.dataset.value === 'doodles');
+  doodlesTile.click();
+  ok(stylePick === 'doodles' && patternPick === 1
+    && appear.querySelector('.c-settings-appearance__preview').style.getPropertyValue('--chat-pattern-opacity') !== '0',
+    '★★★ #774 THE REGRESSION THIS PIN EXISTS FOR: coming back from None must restore the LEVEL as well as the style, or the user picks a pattern and nothing appears. Both callbacks fire, and the preview stops being blank');
+  patternPick = null;
+  matrixTile.click();
+  ok(stylePick === 'matrix' && patternPick === null,
+    '★ #774: a plain style swap does NOT re-write the level — the restore above is conditional on having been at None, not a blanket write on every pick');
+  /* ★★ the Colour control — a VALUE ROW, and that IS the fix (#774). Two near-identical
+     coloured rectangles is the confusion being removed; shipping it as another swatch pair
+     would delete a card and keep the defect. Pinned as "a row, and not a swatch group". */
+  const groundRow = appear.querySelector('.c-settings-appearance__ground');
+  ok(!!groundRow && groundRow.tagName === 'BUTTON'
+    && !!groundRow.querySelector('.c-settings__row-value')
+    && /Solid|Gradient/.test(groundRow.querySelector('.c-settings__row-value').textContent || ''),
+    '★★ #774: the Colour control is a value ROW (label · current value · chevron), not a third tile pair — the AUG ground swatches are gone. The row carries the CURRENT ground as its value');
+  groundRow.click();
+  const groundOpts = [...d.querySelectorAll('.c-settings__opt')].filter((o) => /Solid|Gradient/.test(o.textContent || ''));
+  ok(groundOpts.length === 2, '★ #774: the row opens the house option sheet (settingsOptionSheet) with the two grounds — the established one-of-N shape, nothing invented');
+  const gradientOpt = groundOpts.find((o) => /Gradient/.test(o.textContent || ''));
+  gradientOpt.click();
+  ok(groundPick === 'gradient'
+    && /Gradient/.test(groundRow.querySelector('.c-settings__row-value').textContent || '')
+    && appear.querySelector('.c-settings-appearance__preview').getAttribute('data-chat-ground') === 'gradient',
+    '★ #774: a pick commits through the sheet contract, updates the row VALUE in place and moves the live preview — the row is not a dead label');
   [...segs[0].querySelectorAll('.c-settings-seg__pill')].pop().click();   // XL (1.25)
   ok(scalePick === 1.25, 'text-size pick fires with the scale value');
   ahost.remove();
+  /* ★★ DARK: the Colour control does not exist at all (Damir's ruling, 2026-09-04 — he was
+     offered "hide it or design a gradient" and picked hide). CHAT_GROUNDS is a LIGHT choice:
+     dark carries the blue radial either way, so a chooser there would have one good answer,
+     which is a dead control (#257). Built as its OWN fixture under data-theme="dark" — a
+     single fixture can pass with the test written backwards, and "is this row present" is
+     exactly the shape that fails silently in one direction. */
+  d.documentElement.setAttribute('data-theme', 'dark');
+  const darkAppearHost = d.createElement('div');
+  d.body.append(darkAppearHost);
+  const dappear = S.createChatAppearance({ patternOpacity: 1, textScale: 1, onBack() {} });
+  darkAppearHost.append(dappear);
+  ok(!dappear.querySelector('.c-settings-appearance__ground')
+    && dappear.querySelectorAll('.c-settings-swatches').length === 1
+    && dappear.querySelectorAll('.c-settings-seg').length === 1,
+    '★★ #774: in DARK the screen is TWO controls — text size + Background. The Colour row is absent, not disabled and not a one-option chooser');
+  darkAppearHost.remove();
+  if (prevAppearTheme === null) d.documentElement.removeAttribute('data-theme');
+  else d.documentElement.setAttribute('data-theme', prevAppearTheme);
 
   /* privacy — §9-gated switches: optimistic + revert-on-fail */
   let rrCtrl = null;
@@ -7028,8 +7088,10 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     const ssCss = readFileSync(join(root, 'src/styles/components/settings-screens.css'), 'utf8');
     ok(/\.c-settings-swatch \.c-settings-swatch__canvas::before \{[\s\S]*?-webkit-mask-size: 110px 191px;\s*mask-size: 110px 191px;/.test(ssCss),
       '★★ AUG TILE (Damir 2026-08-30, ON DEVICE): the swatch mask is 110×191 — the TILE\'S OWN ASPECT, not a square. ⚠ THE OLD VALUE WAS 140px 140px AND IT WAS A LATENT BUG: it only worked because the doodles tile was itself square, and the moment the tile became 320×557 the art letterboxed inside the square cell and the swatch rendered band/gap/band on both desktop and Android. 110px re-picked BY RENDERING at the real 185×64 swatch at the boosted alpha (90 reads as noise, 180/220 read as a crop of one motif) and it is a clean half of the chat\'s painted 220, so the swatch stays a miniature of the chat. The companion pin above asserts the ASPECT against the emitted natural size so this cannot silently break again. Superseded: E1: the swatch mask is re-scaled to 140px for the new tile. 96px was derived from the 314px LINE-ART tile (a 3.3× reduction); the doodles tile is 610px NATURAL, so carrying 96px over would have been 6.4× and shrunk the motifs to noise in a 64px-tall swatch. ⚠ E1b: the CHAT now paints that tile at 366, but this override is an absolute mask-size and is deliberately independent of DOODLES_SCALE — the swatch is an icon for a choice, not a scale model of the canvas. Re-picked by RENDERING the swatch at both themes and the boosted alpha, not by arithmetic — 96px crowded, 187px and 240px too sparse');
-    ok(/\[data-chat-pattern='matrix'\]::before \{\s*-webkit-mask-size: 144px 144px;/.test(ssCss),
-      '★ E1: the matrix override survives at 144px even though the shared rule is now 140px. The two agree by coincidence — 144 is derived from the 288px matrix tile, 140 from the doodles tile at its 610px natural size — and merging them would couple two unrelated tiles to one number');
+    ok(/\[data-chat-pattern='matrix'\]::before \{\s*-webkit-mask-size: 144px 144px;/.test(ssCss)
+      && /-webkit-mask-size: 110px 191px;/.test(ssCss)
+      && /THE FIRST RENDER WAS WRONG/.test(ssCss),
+      '★ E1, RE-CHECKED by #774 and DELIBERATELY UNCHANGED: the matrix override stays 144px and stays its own value, separate from the doodles rule above it — the two never agreed for a reason (144 from the 288px matrix tile, 110×191 from the doodles tile\'s own aspect) and merging them would couple two unrelated tiles to one number. Background absorbed Opacity, so the row holds THREE tiles and the tile is 120×64: re-derived by render, six candidates, both themes, and 144px is the most legible of them. ⚠ The comment recording that the FIRST of those renders was wrong is asserted too — it set mask-size on the face, not on its ::before, so it photographed six identical tiles, and its answer (96px) was shipped for about an hour before the corrected strip reversed it. A value re-derived and returned to its old number is indistinguishable from a value nobody checked, unless the check is written down');
   }
   {
     const snjs = readFileSync(join(root, 'src/components/system-notice.js'), 'utf8');
@@ -7066,12 +7128,14 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   const sg = ap5.querySelector('.c-settings-swatches--style');
   ok(!!sg && sg.getAttribute('role') === 'radiogroup', 'W5: the style picker is its own radiogroup');
   const styleTiles = [...sg.querySelectorAll('.c-settings-swatch')];
-  ok(styleTiles.length === 3 && styleTiles.map((b) => b.dataset.value).join() === 'doodles,matrix,flow',
-    '★ E1: desktop offers THREE styles in spec order — doodles (default, listed first because the first entry is what a new install lands on), data matrix, live flow. Was four; triangles and line art are retired');
+  ok(styleTiles.length === 4 && styleTiles.map((b) => b.dataset.value).join() === 'none,doodles,matrix,flow',
+    '★ E1 + #774: desktop offers None + THREE styles in spec order — doodles (default, listed first because the first entry is what a new install lands on), data matrix, live flow. Was four; triangles and line art are retired');
   ok(styleTiles.every((b) => b.getAttribute('role') === 'radio' && b.getAttribute('aria-label')),
     'W5: style tiles keep the #334 swatch a11y grammar (role=radio + localized label, no visible text to overflow)');
-  ok(styleTiles.every((b) => b.querySelector('.c-settings-swatch__canvas').dataset.chatPattern === b.dataset.value),
-    'W5: each style tile paints ITS OWN style (the inherited-custom-property contract)');
+  ok(styleTiles.every((b) => (b.dataset.value === 'none'
+      ? !b.querySelector('.c-settings-swatch__canvas').dataset.chatPattern
+      : b.querySelector('.c-settings-swatch__canvas').dataset.chatPattern === b.dataset.value)),
+    '★ W5 + #774: each PATTERN tile paints ITS OWN style (the inherited-custom-property contract), and the None tile carries NO attribute at all — deliberately. A value matching no rule in chat-pattern.css inherits the document\'s, which is the AUG faceAttr defect exactly; here the 0 opacity would mask it, and one honest absence beats two facts that have to agree');
   const prev5 = ap5.querySelector('.c-settings-appearance__preview');
   /* ★ REBASED 2026-08-22: addressed BY VALUE, not by index. Adding `triangles` at the
      front shifted every index and turned three pins red at once; a value lookup cannot be
@@ -7079,16 +7143,38 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
      every index again, and the value lookups below needed no edit at all. */
   styleTiles.find((b) => b.dataset.value === 'matrix').click();
   ok(prev5.dataset.chatPattern === 'matrix', 'W5: the live preview reflects the style pick');
-  const intensityFaces = [...ap5.querySelectorAll('.c-settings-swatches:not(.c-settings-swatches--style) .c-settings-swatch__canvas')];
-  ok(intensityFaces.length === 2 && intensityFaces.every((f) => f.dataset.chatPattern === 'matrix'),
-    '★★ AUG (Damir 2026-08-30): the intensity tiles re-skin to the picked style, and there are TWO of them — Off and Subtle. Superseded: three levels since ★ N81; Strong is retired and a stored 2 folds to Subtle in readPatternLevel and in both pre-paint ladders. ⚠ The COUNT is asserted, not just the skin: the old pin indexed intensityFaces[2] and this file CRASHED rather than failed when the third tile went away, which is a worse failure than a red line');
-  /* ★ N81: the tiles must carry the per-theme VAR, not a baked number. This is what
-   * closes the #239 ⓐ flag — the preview used to paint the raw light-scale value
-   * while the real dark chat rendered v × 0.36, so in dark theme it promised a
-   * pattern the chat never showed. Same var(), same theme, same pixels. */
-  ok(intensityFaces[0].style.getPropertyValue('--chat-pattern-opacity') === '0'
-    && /^calc\(var\(--chat-pattern-alpha-1\) \* \d+\)$/.test(intensityFaces[1].style.getPropertyValue('--chat-pattern-opacity')),
-    '★ N81 (closes #239 ⓐ): each intensity tile assigns the per-theme ALPHA VAR, so the preview resolves under its own theme instead of baking one theme\'s number. ★ AUG: alpha-2 is no longer referenced — Strong is retired — but the TOKEN stays defined in tokens.css, one line from returning, the same way --border-bubble-received is kept');
+  /* ★★ Session M (#774): THE INTENSITY ROW IS GONE — its two levels are members of the
+     Background list now, so "the intensity tiles re-skin to the picked style" no longer
+     names anything on this screen. What that pin was PROTECTING survives and is asserted
+     here instead: a tile face must carry the per-theme ALPHA VAR, never a baked number.
+     That is what closed the #239 ⓐ flag — the preview used to paint the raw light-scale
+     value while the real dark chat rendered v × 0.36, so in dark it promised a pattern the
+     chat never showed. Same var(), same theme, same pixels, now on the one surviving row.
+     ⚠ The None tile is the deliberate literal: `0` is not a per-theme value, it is the
+     absence of one, and there is no alpha token for "nothing". */
+  const bgFaces = styleTiles.map((b) => b.querySelector('.c-settings-swatch__canvas'));
+  const boostOf = (f) => {
+    const m = /^calc\(var\(--chat-pattern-alpha-1\) \* ([\d.]+)\)$/.exec(f.style.getPropertyValue('--chat-pattern-opacity'));
+    return m ? parseFloat(m[1]) : NaN;
+  };
+  /* ★★ Session M (Damir, on the render sheet: "make the doodle pattern also fainter on the
+     tiles") — THE BOOST IS PER STYLE, and this is the pin that says WHY rather than WHAT.
+     One multiplier cannot balance two artworks with different ink coverage: doodles is dense
+     line art, the data matrix is scattered dots, so at a shared 6× the doodles tile shouts
+     while the matrix tile whispers side by side at the same nominal alpha.
+     ⚠ Asserted as a RELATION, not as the number 3. A literal would go red on Damir's next
+     one-word dial (4.5 and 2 are both on the sheet) and say nothing about the property that
+     matters; the relation goes red on the thing that would actually be a regression — the two
+     tiles collapsing back to one multiplier. The shared default is pinned separately below,
+     because "doodles is lower" is also satisfied by lowering BOTH, which is the change the
+     shared strip is evidence against (at ×3 the matrix is already faint; by ×2 it is gone). */
+  const dood = boostOf(bgFaces[1]);
+  const mtx = boostOf(bgFaces[2]);
+  ok(dood > 0 && mtx > 0 && dood < mtx && mtx === 6,
+    '★★ Session M: the DOODLES tile is amplified LESS than the data-matrix tile, and the matrix keeps the shared 6× default. A single dial soft enough for the dense doodles art erases the scattered matrix art beside it — the two strips in docs/sheets/session-m/ are that evidence. Pinned as a relation so Damir can move the value without reddening it, and so collapsing the two back to one number cannot pass');
+  ok(bgFaces.length === 4 && bgFaces[0].style.getPropertyValue('--chat-pattern-opacity') === '0'
+    && bgFaces.slice(1).every((f) => /^calc\(var\(--chat-pattern-alpha-1\) \* [\d.]+\)$/.test(f.style.getPropertyValue('--chat-pattern-opacity'))),
+    '★ N81 (closes #239 ⓐ), rebased by #774: every PATTERN tile assigns the per-theme ALPHA VAR so the swatch resolves under the same theme as the chat (the boost is the swatch-legibility dial, PATTERN_SWATCH_BOOST — not a second scale), and the None tile assigns a literal 0, the one honest answer for "no pattern"');
   /* ★★★ AUG GROUND (Damir 2026-08-30) — the light-only canvas toggle, pinned on BOTH
      sides of the theme because "renders in light" and "is absent in dark" are two
      different promises and only one of them is about the happy path.
@@ -7100,14 +7186,20 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     de.setAttribute('data-theme', 'light');
     const apLight = wd.Spixi.createChatAppearance({ isDesktop: false });
     const lightGroups = [...apLight.querySelectorAll('.c-settings-swatches--style')];
-    const groundTiles = lightGroups.length > 1
-      ? [...lightGroups[1].querySelectorAll('.c-settings-swatch')].map((b) => b.dataset.value) : [];
-    ok(lightGroups.length === 2 && groundTiles.join() === 'flat,gradient',
-      '★★★ AUG GROUND: in LIGHT the appearance screen offers the canvas choice — flat (default) and the gradient Damir asked to keep. Two style-shaped groups: the pattern STYLE list and this one');
+    /* ★★ Session M (#774): the ground control is a VALUE ROW now, not a second tile pair —
+       and pinning it as "exactly ONE swatch group in light" is the stronger half of this
+       assertion, because it is the property the three-identical-rows defect cannot have.
+       The row's own shape (button · value · sheet) is pinned in the settings-screens block;
+       here the question is only "does the canvas choice exist in light and not in dark". */
+    const lightGround = apLight.querySelector('.c-settings-appearance__ground');
+    ok(lightGroups.length === 1 && !!lightGround
+      && /Solid|Gradient/.test(lightGround.querySelector('.c-settings__row-value').textContent || ''),
+      '★★★ AUG GROUND, rebased by #774: in LIGHT the appearance screen offers the canvas choice as a VALUE ROW carrying the current ground — and there is exactly ONE swatch group on the screen (Background). Two would mean the AUG tiles came back and the restructure was undone. Superseded: two --style groups, flat/gradient tiles. Original: flat (default) and the gradient Damir asked to keep. Two style-shaped groups: the pattern STYLE list and this one');
     de.setAttribute('data-theme', 'dark');
     const apDark = wd.Spixi.createChatAppearance({ isDesktop: false });
-    ok([...apDark.querySelectorAll('.c-settings-swatches--style')].length === 1,
-      '★★★ AUG GROUND: in DARK the row is ABSENT, not shown with one option. Dark carries the blue radial in both cases, so there is nothing to choose between and a one-option radiogroup reads as a broken control. The stored pref survives the theme flip untouched; it simply has no effect until the user is back in light');
+    ok([...apDark.querySelectorAll('.c-settings-swatches--style')].length === 1
+      && !apDark.querySelector('.c-settings-appearance__ground'),
+      '★★★ AUG GROUND: in DARK the row is ABSENT, not shown with one option — Damir re-ruled it explicitly on 2026-09-04 when offered "hide it or design a gradient" (#774 ③). Dark carries the blue radial in both cases, so there is nothing to choose between and a one-option radiogroup reads as a broken control. The stored pref survives the theme flip untouched; it simply has no effect until the user is back in light');
     if (prevTheme === null) de.removeAttribute('data-theme'); else de.setAttribute('data-theme', prevTheme);
   }
 
@@ -7123,10 +7215,11 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
      the harness document happens to carry data-theme="dark", where the ground row does not
      render — i.e. it was passing by accident, not by construction. Indexed explicitly now. */
   const mobileTiles = [...apMobile.querySelectorAll('.c-settings-swatches--style')[0].querySelectorAll('.c-settings-swatch')];
-  ok(mobileTiles.length === 2 && mobileTiles.map((b) => b.dataset.value).join() === 'doodles,matrix',
-    '★ E1: mobile shows TWO styles — doodles and the data matrix ("keep that tech thingy on mobile", Damir 2026-08-29). Live flow stays desktop-only');
-  ok(mobileTiles[0].getAttribute('aria-checked') === 'true' && mobileTiles[0].dataset.value === 'doodles',
-    'W5 (★ E1): a stored desktop-only style falls back to a SELECTED doodles on mobile (never an empty radiogroup)');
+  ok(mobileTiles.length === 3 && mobileTiles.map((b) => b.dataset.value).join() === 'none,doodles,matrix',
+    '★ E1 + #774: mobile shows None and TWO styles — doodles and the data matrix ("keep that tech thingy on mobile", Damir 2026-08-29). Live flow stays desktop-only');
+  const mobileChecked = mobileTiles.filter((b) => b.getAttribute('aria-checked') === 'true');
+  ok(mobileChecked.length === 1 && mobileChecked[0].dataset.value === 'doodles',
+    '★ W5 (E1) + #774: a stored desktop-only style falls back to a SELECTED doodles on mobile (never an empty radiogroup) — and it is still the STYLE that is checked, not None. The fixture stores flow at level 1, so a Background control that resolved its selection from the level alone would check the wrong tile here');
 }
 
 /* —— Contact-details PREMIUM pass (Damir 2026-08-12) ——————————————————————
@@ -10954,11 +11047,13 @@ console.log('#370/#371 — D-19b reverse-resolve · N48 amOwner · N49/N50 · R2
   ok(JSON.parse(read('src/strings/draft/sl-si.json')).appsEmptyBody === 'Igre, orodja in AI, ki delujejo neposredno v klepetu.',
     'N3 (#371, loop C-3): the sl-si draft carries Damir\'s EXACT supplied empty-state text');
   const ss370 = njs(read('src/components/settings-screens.js'));
-  ok(/body\.append\(sizeSec, styleSec, groundSec, patternSec\);/.test(ss370)
+  ok(/body\.append\(sizeSec, styleSec, groundSec\);/.test(ss370)
     && ss370.includes("strings.patternStyle || 'Background'")
-    && ss370.includes("strings.patternIntensity || 'Opacity'")
+    && ss370.includes("strings.chatGround || 'Canvas'")
+    && !/patternSec/.test(ss370)
+    && !ss370.includes("strings.patternIntensity")
     && !ss370.includes("|| 'Pattern style'") && !ss370.includes("|| 'Background pattern'"),
-    '★ AUG (Damir 2026-08-30): Chat appearance = Text size, Background (style), CANVAS (ground), then Opacity — what the canvas IS, then what is drawn on it, then how loud. Superseded: AND-35 (#371, Damir dial) had Text size / Background / Opacity. ⚠ groundSec is appended UNCONDITIONALLY and is an empty div in dark (there is no wash to choose between there), so the order cannot shift under a live setTheme push');
+    '★★ #774 (Damir 2026-09-04), rebasing AUG: Chat appearance is THREE cards — Text size, Background (which absorbed Opacity: its None IS the old level 0), then the Colour row. `patternSec` is gone from the file entirely, not merely unappended, and `patternIntensity` with it — a retired card that still builds is a card one line away from returning. Superseded: sizeSec/styleSec/groundSec/patternSec (AUG), and AND-35 before that. ⚠ groundSec is STILL appended unconditionally and is an empty div in dark, so the order cannot shift under a live setTheme push. ⚠ Reads the file with comments STRIPPED (njs) — the retired words appear in the docblocks that explain the retirement, and a raw read would fail on the explanation rather than on the code');
   {
     const compDir = join(root, 'src/components');
     const shellDir = join(root, 'src/shells');
@@ -11616,8 +11711,9 @@ console.log('#383 — N12 restore-nudge + N40 connectivity/update');
     ok(/let autoTheme = document\.documentElement\.dataset\.theme \|\| '';/.test(setShell421)
       && !/const bootTheme =/.test(setShell421),
       '★ N71 (#421) + ★ #410: the Auto resolution is MUTABLE. It was a const captured at document boot, which was only safe while a flip RELOADED the document; with a push nothing rebuilds it, and a later applyTheme(0) would snap the page back to the boot theme and silently undo the push');
-    ok(/if \(state\.theme === 0\) autoTheme = name === 'dark' \? 'dark' : 'light';\s*\n\s*applyPushedTheme\(name\);/.test(setShell421),
-      '★ N71 (#421, #46 audit — BOTH auditors found this independently): settings.html trusts a pushed name as the SYSTEM answer ONLY while System is selected, and refreshes it BEFORE applying. The pushed value is getResolvedAppearanceName(), which returns the PICK when the pick is explicit — unguarded it poisoned the Auto cache with a value the OS never reported, and the next "System" pick painted the Account from it');
+    ok(/if \(state\.theme === 0\) autoTheme = name === 'dark' \? 'dark' : 'light';[\s\S]{0,1400}?applyPushedTheme\(name, \{/.test(setShell421)
+      && /onApplied: \(\) => \{ if \(currentView === 'chatappearance' && !exiting\) renderLayout\(\); \},/.test(setShell421),
+      '★ N71 (#421, #46 audit — BOTH auditors found this independently) + ★ #774: settings.html trusts a pushed name as the SYSTEM answer ONLY while System is selected, and refreshes it BEFORE applying — the ORDER is what this pin protects and it is unchanged. Session M added the onApplied hook (the chat-appearance screen re-renders on a live flip, because its Colour row is light-only and nothing else rebuilt it), so the two statements are no longer adjacent; the guard-then-apply order is still asserted, and the hook is asserted with it so a silent removal of either turns this red. The pushed value is getResolvedAppearanceName(), which returns the PICK when the pick is explicit — unguarded it poisoned the Auto cache with a value the OS never reported, and the next "System" pick painted the Account from it');
     ok(!/setTheme\(name\)[\s\S]{0,300}?spixi\.appearance/.test(setShell421),
       '★ N71 (#421): the push does NOT write spixi.appearance. An OS flip does not change the user\'s PICK (still System) — writing an idx here would silently convert their Auto choice into a hard Light/Dark one');
 
@@ -16064,8 +16160,8 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   ok(/public bool parkOnLoad = false;/.test(scpC) && /public bool warmParkedOverlay\(SpixiContentPage target, int timeoutMs = 6000\)/.test(scpC)
     && /else if \(op\.overlayMode && parkOnLoadNow\(op\)\)[\s\S]{0,900}?if \(reason != "timeout" && op\.target\.pageLoaded && parkedOverlay == null && modalOverlayOp == null\)[\s\S]{0,120}?parkedOverlay = op;/.test(scpC),
     '★★ C3 (#546, #533 ②): a load-then-PARK path on the existing staging machinery — loaded pages go straight into the #315 parked slot (never presented); a timeout-presented or wedged page is DISPOSED, not parked; a lock up or a slot already taken → nothing');
-  ok(/Utils\.sendUiCommand\(this, "clearChatsDone"\);\s*warmAccountAfterFirstPaint\(\);/.test(hpC) && /await Task\.Delay\(900\);/.test(hpC) && /if \(railPane\)\s*\{\s*return;\s*\}/.test(hpC.slice(hpC.indexOf('private void warmAccountAfterFirstPaint()'))),
-    '★ C3 (#546): HomePage warms the Account AFTER the first chats flush (clearChatsDone), a beat later, ONCE, narrow mode only — never at boot, never for the rail pane');
+  ok(/Utils\.sendUiCommand\(this, "clearChatsDone"\);[\s\S]{0,900}?warmAccountAfterFirstPaint\(\);/.test(hpC) && /await Task\.Delay\(900\);/.test(hpC) && /if \(railPane\)\s*\{\s*return;\s*\}/.test(hpC.slice(hpC.indexOf('private void warmAccountAfterFirstPaint()'))),
+    '★ C3 (#546): HomePage warms the Account AFTER the first chats flush (clearChatsDone), a beat later, ONCE, narrow mode only — never at boot, never for the rail pane. ⚠ The two calls were adjacent until Session M put the temporary [CDPERF] chats stamp between them; the ORDER is what C3 is about, so the pin spans rather than demanding adjacency — and it still fails if the warm call moves above the flush');
   ok(/SPIXI\.SpixiContentPage\.disposeParkedOverlay\(\);/.test(readFileSync(join(root, 'Spixi/Meta/Node.cs'), 'utf8')),
     'C3 (#546): Node.onLowMemory still disposes the parked page (#315 kept)');
   ok(/SpixiContentPage\? parked = SpixiContentPage\.getParkedOverlay\(\);[\s\S]{0,300}?representParkedOverlay\(parkedSettings\)/.test(hpC),
@@ -17469,9 +17565,10 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ok(/int revealDelayMs = 120, bool slideIn = false/.test(scp6)
        && /public int revealDelayMs = 120;/.test(scp6),
       '★★ ITEM 6 THE PAIRED POSITIVE, and it is the one that matters: the DEFAULT is still 120 ms, in the parameter and on the op. One report about one screen must not silently re-time every load-then-present navigation in the app');
-    ok(/if \(op\.revealDelayMs > 0\)\s*\n\s*\{\s*\n\s*await Task\.Delay\(op\.revealDelayMs\);/.test(scp6)
-       && !/await Task\.Delay\(120\);/.test(scp6),
-      '★★ ITEM 6: presentPreload honours the PER-OP delay and the flat 120 is gone. A page that asks for 0 is presented the moment its document loads, which is the only way its boot skeleton can ever be on screen');
+    ok(/if \(op\.revealDelayMs > 0\)\s*\n\s*\{[\s\S]{0,600}?await Task\.WhenAny\(Task\.Delay\(op\.revealDelayMs\), op\.painted\.Task\);/.test(scp6)
+       && !/await Task\.Delay\(120\);/.test(scp6)
+       && !/Task\.WhenAll\(Task\.Delay\(op\.revealDelayMs\)/.test(scp6),
+      '★★ ITEM 6 + ★★ Session M (#766 generalisation): presentPreload honours the PER-OP delay, the flat 120 is gone, and the delay is now RACED against the shell\'s own paint signal instead of awaited outright. WhenAny is asserted and WhenAll explicitly refused: WhenAll would hold every page until BOTH landed, which for a shell that never signals is forever — the one mutation that turns a strictly-faster change into a hang. A page that asks for 0 still skips the block entirely, which is the only way its boot skeleton can be seen');
     ok((hp6.match(/revealDelayMs: 0, slideIn: true/g) || []).length === 3
        && /revealDelayMs: 0, slideIn: true/.test(cd6) === false
        && /revealDelayMs: 0, slideIn: true/.test(rdf('Spixi/Pages/Chat/SingleChatPage.xaml.cs')),
@@ -22768,9 +22865,12 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
     const glass = ch.slice(ch.indexOf("console.warn('[CDPERF] chat-shell n='"), ch.indexOf("dbg('onChatScreenLoaded')"));
     ok(/\} catch \(e\) \{\}\s*\n[\s\S]*?bridge\.send\('ixian:painted'\);\s*\n\s*\}\)\);/.test(glass) && /bridge\.send\('ixian:painted'\)/.test(builtChat),
       '★★ Session K: chat.html emits ixian:painted in the SAME double-rAF as its glass stamp, AFTER the stamp\'s try/catch closes (a failing stamp must never swallow the present) — source and built shell');
-    ok(/else if \(current_url\.Equals\("ixian:painted", StringComparison\.Ordinal\)\)\s*\{[\s\S]*?onPainted\(\);/.test(scs)
+    ok(/else if \(url\.Equals\("ixian:painted", StringComparison\.Ordinal\)\)\s*\{[\s\S]{0,900}?onPaintedSignal\(\);/.test(scp)
+       && /protected virtual void onPaintedSignal\(\)[\s\S]{0,600}?gate\.TrySetResult\(true\);/.test(scp)
+       && !/current_url\.Equals\("ixian:painted"/.test(scs)
+       && /protected override void onPaintedSignal\(\)\s*\{\s*base\.onPaintedSignal\(\);\s*onPainted\(\);/.test(scs)
        && /private void onPainted\(\)\s*\{[\s\S]*?paintedSeen = true;\s*if \(presentArmed\)\s*\{\s*signalPreloadReady\(\);/.test(scs),
-      '★★ Session K: SingleChatPage answers ixian:painted with onPainted → latch + present-if-armed (either order: the verb rides the navigating event, the arm rides the onLoad finally marshal)');
+      '★★ Session K + ★★ Session M: the ixian:painted verb has ONE inbound home now (onNavigatingGlobal → the virtual onPaintedSignal), because four more shells send it — and SingleChatPage\'s own branch is asserted GONE, not merely superseded. A second copy is how #251 and #288 MAJOR-1 both happened. The chat OVERRIDES the hook and still calls base: its mechanism is a different one (revealDelayMs 0 + the arm/latch pair with a 400 ms backstop, pinned on the next line), and the base gate is wired so the day the chat stops asking for 0 it is already correct rather than silently absent');
     ok(/finally\s*\{[^}]*armPresentOnPainted\(\);\s*\}/.test(scs) && !/finally\s*\{[^}]*signalPreloadReady\(\);\s*\}/.test(scs),
       '★★ Session K: onLoad\'s finally ARMS (armPresentOnPainted) instead of presenting — the present waits for the paint, not for a timer');
     ok(/private const int PRESENT_BACKSTOP_MS = 400;/.test(scs) && /Task\.Delay\(PRESENT_BACKSTOP_MS\)\.ContinueWith\(_ => MainThread\.BeginInvokeOnMainThread\(\(\) =>[\s\S]*?signalPreloadReady\(\);/.test(scs),
@@ -23994,6 +24094,101 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
        && /sanctioned: same literal, same reasoning as the base card rule above/.test(notice5),
       '★★ #46 r2 C1 (⑤) THE COMMENT-BLINDNESS TRAP: the two SANCTIONED #ffffff literals in system-notice.css (the base notice card and the gradient-ground card, both marked "sanctioned" in the file) survive the light-slice derivation even when a docblock in that file spells out `[data-theme="dark"]` — which fix agent C did, for the honest reason that a comment explaining theme coverage has to name the theme, and two GREEN pins went red against correct code. Asserted DIFFERENTIALLY: the comment-aware derivation keeps ' + poisonNew5 + '/2 on the poisoned copy and the old comment-blind one keeps ' + poisonOld5 + '/2, so this pin cannot pass by both being broken. ⚠ It reads RAW and strips nothing — the trap is the comment');
   }
+}
+
+console.log('Session M: the apps layout · the present signal on the DATA pages');
+{
+  const rdM = (pth) => readFileSync(join(root, pth), 'utf8');
+  const njsM = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/[^\n]*/gm, '');
+  const homeM = rdM('src/shells/home.html');
+  const homeBuiltM = rdM('Spixi/Resources/Raw/html/index.html');
+  const appsShellM = njsM(rdM('src/components/apps-shell.js'));
+
+  /* ═══ ⑧ #775 — the apps layout: grid by default, and the view survives a restart ═══ */
+
+  /* ★★ THE SEED-TIME READ. #690's three-ladder rule in its apps-tab form: a preference
+     resolved AFTER first paint flips the tab from a single column to a 2-up grid in front
+     of the user. The pin asserts the CALL SITE, not the presence of a reader — a
+     readAppsLayout() that exists but is called from a push handler would satisfy any pin
+     that only grepped for the function.
+     ⚠ Reads with comments STRIPPED (njsM): the docblock explaining the seed-time rule
+     contains the words a raw sweep would match, which is the #771 trap. */
+  const homeMc = njsM(homeM);
+  ok(/const appsState = \{ apps: \[\], query: '', layout: readAppsLayout\(\) \};/.test(homeMc),
+    '★★ #775: the stored apps layout is read AT STATE-SEED TIME — inside the appsState literal, before createAppsList and before any push. A late read is the pattern-intensity flash with different pixels (#690)');
+  ok(/return 'grid';/.test(homeMc)
+    && /if \(v === 'list' \|\| v === 'grid'\) return v;/.test(homeMc)
+    && homeMc.indexOf("if (v === 'list' || v === 'grid') return v;") < homeMc.indexOf("return 'grid';"),
+    '★★ #775: a STORED value wins and the default is only the fallback BELOW it — grid is what a NEW install sees, never a re-skin of somebody who chose list (the E1 rule). The order is asserted, because a default that ran first would be exactly the silent re-skin');
+  ok(/const APPS_LAYOUT_KEY = 'spixi\.apps\.layout';/.test(homeMc)
+    && /try \{\s*localStorage\.setItem\(APPS_LAYOUT_KEY, appsState\.layout\); \} catch \(e\) \{\}/.test(homeMc)
+    && /try \{[\s\S]{0,80}?localStorage\.getItem\(APPS_LAYOUT_KEY\)/.test(homeMc),
+    '★ #775: one key, one reader, one writer, both in the host — and BOTH in try/catch, because DomStorageEnabled can be false (ARCHITECTURE). The write takes appsState.layout, i.e. the value AFTER setAppsLayout normalised it, so the store can only ever hold one of the two fixed words');
+  ok(!/persistence deferred/.test(appsShellM) && /state\.layout = layout === 'grid' \? 'grid' : 'list';/.test(appsShellM),
+    '★ #775: the component still owns the NORMALISATION and no longer claims the persistence is deferred — it is closed, in the host, where the components\' own contract puts it (a component never touches storage). A comment asserting an invariant the code no longer has is a defect (#772)');
+  ok(/localStorage\.setItem\(APPS_LAYOUT_KEY, appsState\.layout\)/.test(homeBuiltM)
+    && /layout: readAppsLayout\(\)/.test(homeBuiltM),
+    '★ #775: and it is in the BUILT shell — src can be right while the artifact the device loads is a build behind (the #768 class, and Session H\'s stale-Raw finding)');
+
+  /* ═══ ① the present signal, generalised from #766 to the DATA pages ═══ */
+
+  const nbM = njsM(rdM('src/bridge/native.js'));
+  ok(/painted\(\) \{\s*if \(paintedSent\) return;\s*paintedSent = true;/.test(nbM)
+    && /w\.requestAnimationFrame\(\(\) => w\.requestAnimationFrame\(fire\)\)/.test(nbM)
+    && /let paintedSent = false;/.test(nbM),
+    '★★ Session M: ONE implementation of the present signal, on the bridge — latched, and fired from a DOUBLE rAF. The second frame is the point: the first runs after the render that queued it, the second after the browser has committed it, so "painted" means on glass and not "queued". A single rAF would present a frame early, which on this path is an empty page');
+
+  /* ★★ THE PLACEMENT IS THE CORRECTNESS, and it is per shell. Signalling from a push
+     handler presents the page before its data — worse than the 120 ms it saves. Each of
+     the five is pinned at the line it must follow, by NAME, so moving the call earlier
+     turns the pin red rather than passing on the presence of the word. */
+  const paintedSites = [
+    ['src/shells/contact_details.html', /built = true;\s*bridge\.painted\(\);/, 'contact_details signals after `built = true` — the boot spinner is on screen until that line'],
+    ['src/shells/app_details.html', /scroll\.scrollTop = 0;\s*bridge\.painted\(\);/, 'app_details signals at the end of render(), which returns early while `app` is null'],
+    ['src/shells/wallet_sent.html', /rendered = true;\s*bridge\.painted\(\);/, 'wallet_sent signals after `rendered = true` — only ever reached through setData\'s commit (#289\'s staging buffer)'],
+    ['src/shells/downloads.html', /if \(buf !== null\) \{ setDownloads\(dlEl, buf\); buf = null; \}\s*bridge\.painted\(\);/, 'downloads signals INSIDE the settle, never beside the empty mount above it'],
+    ['src/shells/settings.html', /if \(ds && ds\.textContent !== state\.devSeed\.status\) ds\.textContent = state\.devSeed\.status;\s*\}\s*bridge\.painted\(\);/, 'settings signals at the end of rebuildHub, which only ever runs from a push — never from renderLayout, which runs once at boot with no data'],
+  ];
+  for (const [pth, re, why] of paintedSites) {
+    ok(re.test(njsM(rdM(pth))), '★★ Session M (#766 generalisation): ' + why + '. Placement, not presence: a signal before the first real render presents an empty page, which is worse than the 120 ms hold it replaces');
+  }
+  ok(!njsM(rdM('src/shells/settings.html')).includes('function renderLayout() {\n    if (exiting) return;\n    settleSubscreenSlide(root);\n    bridge.painted();'),
+    '★ Session M: and settings does NOT signal from renderLayout — the boot render builds the hub from the default state (no nickname, no avatar, no version), which is exactly the half-empty screen the 120 ms hold was added to hide');
+
+  /* ★★ Session M — the SOURCE half of the per-style boost, and the retirement it exposed.
+     The relation is pinned behaviourally in the settings-screens block (doodles amplified
+     less than matrix); these two assert the things a DOM read cannot see: that the routing
+     goes through the per-style lookup rather than the shared constant, and that the retired
+     intensity builder is GONE rather than merely uncalled.
+     ⚠ Reads with comments STRIPPED (njsM) — every retired word below appears in the
+     docblocks that explain the retirement, and a raw sweep would fail on the explanation
+     instead of on the code (#771). */
+  const ssM = njsM(rdM('src/components/settings-screens.js'));
+  ok(/const PATTERN_SWATCH_BOOSTS = \{[\s\S]{0,200}?doodles: \d/.test(ssM)
+    && /function swatchBoost\(id\)/.test(ssM)
+    && /patternLevelVar\(1, swatchBoost\(o\.id\)\)/.test(ssM)
+    && !/patternLevelVar\(1, PATTERN_SWATCH_BOOST\)/.test(ssM)
+    && /export const PATTERN_SWATCH_BOOST = 6;/.test(ssM),
+    '★★ Session M: the style tiles take swatchBoost(o.id) — the per-style lookup — and the shared constant is no longer called directly at the tile. Both halves are asserted: a lookup that exists but is bypassed would leave every tile back at 6×, which is the state Damir asked to change');
+  ok(!/function swatchGroup\(/.test(ssM) && /function styleSwatchGroup\(/.test(ssM),
+    '★★ Session M (#774): the INTENSITY row\'s builder is DELETED, not merely uncalled. It lost its only caller when Background absorbed Opacity, and an unreachable builder for a retired control reads as live code and is one call site from returning — the same hazard as the retired card, which is why the card was removed from the file too. Recover it from git if the intensity axis ever comes back');
+
+  /* the C# half — the hold is a RACE, and the verb has ONE inbound home. Both are pinned
+     in their own blocks above (ITEM 6 · Session K); what is pinned HERE is the property
+     those two together are FOR: no page was made slower. */
+  const scpM = rdM('Spixi/Utils/SpixiContentPage.cs');
+  ok(/public int revealDelayMs = 120;/.test(scpM)
+    && /public readonly TaskCompletionSource<bool> painted =/.test(scpM)
+    && /new TaskCompletionSource<bool>\(TaskCreationOptions\.RunContinuationsAsynchronously\);/.test(scpM)
+    && /target\.pendingPaint = painted;/.test(scpM),
+    '★★ Session M: the 120 ms default is UNCHANGED and the paint gate is handed to the target in the PreloadOp constructor — the only two places an op is ever built. A shell that never signals waits exactly what it waits today, which is the whole safety argument for applying this to every load-then-present page at once. RunContinuationsAsynchronously because the completion arrives on the WebView\'s navigating callback');
+
+  /* the [CDPERF] chats pair — temporary, and bounded so a 1 Hz updateScreen cannot bury it */
+  const hpM = rdM('Spixi/Pages/Home/HomePage.xaml.cs');
+  ok(/long cdFlushTicks = System\.Diagnostics\.Stopwatch\.GetTimestamp\(\);/.test(hpM)
+    && /\[CDPERF\] chats flush rows=/.test(hpM)
+    && /if \(cdChatsRuns < 4\)/.test(hpM),
+    '★ Session M [CDPERF] chats (TEMPORARY — retire with the set, handoff ⑬): the DISPATCHER\'s view of the ~60-row flush, to pair with the shell probe\'s flush/done marks. Bounded to the boot window for the same reason [RESTOREDIAG] is: a per-second line buries its own evidence. Fixed words + integers only (the handover-gate log rule)');
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

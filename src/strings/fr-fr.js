@@ -475,7 +475,7 @@ export const frfr = {
   passwordHint: "Utilisez au moins {n} caractères.",
   pasteLink: "Coller le lien",
   patternDefault: "Discret",
-  patternIntensity: "Opacité",
+  patternNone: "Aucun",
   patternOff: "Désactivé",
   patternStyle: "Arrière-plan",
   patternStyleDoodles: "Gribouillis",

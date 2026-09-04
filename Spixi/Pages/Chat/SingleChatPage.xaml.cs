@@ -123,6 +123,20 @@ namespace SPIXI
             }));
         }
 
+        /* ★★ Session M: the verb now arrives through the ONE shared inbound path
+         * (`SpixiContentPage.onNavigatingGlobal` → `onPaintedSignal`), because four more
+         * shells send it. This page's branch in `onNavigating` is gone; the override keeps
+         * the chat's own mechanism, which is a DIFFERENT one and must not be folded in:
+         * the chat asks for `revealDelayMs: 0`, so there is no hold for the base gate to
+         * shorten, and its present is driven by the arm/latch pair below with a 400 ms
+         * backstop. `base` is still called — the day the chat stops asking for 0, the gate
+         * is already wired rather than silently absent. */
+        protected override void onPaintedSignal()
+        {
+            base.onPaintedSignal();
+            onPainted();
+        }
+
         private void onPainted()
         {
             cdperf("painted", "t=" + openClock.ElapsedMilliseconds);   // ★ Session K [CDPERF]
@@ -274,12 +288,6 @@ namespace SPIXI
             {
                 cdperf("onload", "t=" + openClock.ElapsedMilliseconds);   // ★ Session I [CDPERF]
                 onLoad();
-            }
-            else if (current_url.Equals("ixian:painted", StringComparison.Ordinal))
-            {
-                // ★ Session K: the shell's history is on glass — present now (see armPresentOnPainted).
-                // A signal only: no argument, no data, presentation-lifecycle (security gate: introduced, inert).
-                onPainted();
             }
             else if (current_url.Equals("ixian:back", StringComparison.Ordinal))
             {

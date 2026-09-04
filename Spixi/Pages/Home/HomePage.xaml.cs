@@ -2659,6 +2659,20 @@ namespace SPIXI
             }
         }
 
+        /* ★ Session M [CDPERF] — TEMPORARY, and it answers ONE question the chat-open
+         * numbers left open (#764): the chats list flushes ~60 rows as ~60 separate
+         * EvaluateJavaScriptAsync calls, and nobody has measured what that costs on the C#
+         * side. The shell's own probe already stamps `flush` and `done` (home.html
+         * probeMark) — those are when the FIRST push is executed and when the done verb
+         * lands, i.e. the renderer's view. This is the DISPATCHER's view of the same
+         * window, and the pair is what separates "C# is slow to emit" from "the renderer is
+         * slow to execute" — the exact split that decided the chat-open route.
+         * Fixed words + integers only (the handover-gate log rule). One line per flush, and
+         * only for the boot window: a 1 Hz updateScreen would otherwise bury the evidence,
+         * which is the mistake [RESTOREDIAG] above was written to avoid.
+         * ⚠ RETIRE WITH THE [CDPERF] SET (handoff §2 ⑬) — one grep for CDPERF. */
+        private int cdChatsRuns = 0;
+
         private void loadChats()
         {
             List<Friend> friends;
@@ -2702,6 +2716,7 @@ namespace SPIXI
                     Utils.sendUiCommand(this, "setUnreadIndicator", "0");
                 }
 
+                long cdFlushTicks = System.Diagnostics.Stopwatch.GetTimestamp();   // ★ Session M [CDPERF] (temporary)
                 Utils.sendUiCommand(this, "clearChats");
                 // CH2: incoming contact requests are their OWN feed (not chat rows) — clear it
                 // within the same flush so clearChatsDone renders chats + requests together.
@@ -2779,6 +2794,15 @@ namespace SPIXI
                     Logging.info("[RESTOREDIAG] loadChats flushed: chats={0} requests={1} unread={2}", chatRowsPushed, requestRowsPushed, unread);
                 }
                 Utils.sendUiCommand(this, "clearChatsDone");
+                if (cdChatsRuns < 4)
+                {
+                    cdChatsRuns++;
+                    /* Elapsed from the top of the flush block, so it covers every row push
+                     * AND the done verb — the same window the shell's flush→done pair
+                     * covers, measured from the other end. */
+                    Logging.info("[CDPERF] chats flush rows=" + chatRowsPushed + " reqs=" + requestRowsPushed
+                        + " dispatch=" + (long)System.Diagnostics.Stopwatch.GetElapsedTime(cdFlushTicks).TotalMilliseconds + "ms");
+                }
                 warmAccountAfterFirstPaint();
             }
         }

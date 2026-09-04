@@ -552,6 +552,47 @@
   --text-neutral-inverse-02: var(--neutral-300);
   --text-neutral-disabled: var(--neutral-460);
   --text-neutral-on-action: var(--neutral-10);
+  /* ★ #46 r2 (auditor C, FIX C1) — INK FOR THE SOLID FILLS THAT ARE NOT THE ACTION BLUE.
+     Session K flipped --text/--icon-neutral-on-action to white in BOTH themes on Damir's
+     ruling: "on dark mode the button labels on blue buttons and icons should be white".
+     That ruling is about the BLUE button and it STANDS, untouched — #f9fafb on
+     --surface-action-default #3050bd measures 6.68:1 in both themes, on all eight of its
+     action consumers (button fill, composer send, contacts/contact-row/settings FABs,
+     message-menu, home.html pill, the swipe PIN action).
+     But the same token was being read by ten surfaces that are NOT the action blue, and in
+     dark those fills are the LIGHT 300/400 ramp steps, so the white ink collapsed. MEASURED
+     (ink #f9fafb): 1.14:1 on --surface-neutral-inverse-01 #e8ecee · 1.87:1 on
+     --surface-success #91c69b · 1.94:1 on --surface-accent #98b5fc · 2.01:1 on
+     --surface-destructive-default #f49c92 · 2.63:1 on --surface-error #f1786e.
+     Those surfaces get their OWN role here, so one token can never again be asked two
+     questions. ⚠ NO FILL MOVED — every fill below is Damir's rendered pick; only the ink.
+     ⚠ LIGHT IS BYTE-IDENTICAL TO WHAT SHIPPED: every role in this block is --neutral-10,
+     exactly the value --text-neutral-on-action already carried. Only the dark overrides
+     move, and they move BACK to --neutral-950, the pre-Session-K ink.
+     Sibling convention worth knowing before adding another: badge.css:23-27 already inks
+     the solid semantic badges with --text-neutral-inverse-01 (dark = --neutral-900 #10151e
+     = 6.67:1 on the error fill) — the same answer to within 0.05, reached independently,
+     and left alone. These are separate per-fill roles because a per-fill role can carry a
+     per-fill MEASUREMENT in its own comment; a shared --*-inverse-01 cannot.
+     REVERSAL, all of them: point the consumer back at --text-neutral-on-action and delete
+     the role — dark returns to the 1.14-2.63:1 numbers above; light does not move. */
+  /* on --surface-error — light --error-600 #b12525 = 6.36:1 · dark --error-400 #f1786e = 6.72:1.
+     Consumers: bottomnav unread badge (11px bold), scroll-latest badge, chat.html mention FAB. */
+  --text-neutral-on-error: var(--neutral-10);
+  /* on --surface-success — light --success-600 #007030 = 5.98:1 · dark --success-300 #91c69b = 9.45:1.
+     Consumers: callbar label, .c-button[data-success] label (the #29 success morph). */
+  --text-neutral-on-success: var(--neutral-10);
+  /* on --surface-destructive-default — light --error-600 #b12525 = 6.36:1 · dark --error-300
+     #f49c92 = 8.80:1. The state steps stay legible on the same ink: light hover #781918
+     10.30:1 / pressed #4c1714 13.96:1; dark hover #f1786e 6.72:1 / pressed #e34540 4.56:1.
+     ⚠ This one was NOT in the #46 census and is the WORST of the set — white ink on the
+     dark destructive fill measured 2.01:1. Consumer:
+     .c-button[data-intent="destructive"][data-type="fill"] (Delete / Uninstall / Leave & remove). */
+  --text-neutral-on-destructive: var(--neutral-10);
+  /* on --surface-neutral-inverse-01 — light --neutral-900 #13171b = 17.23:1 · dark
+     --neutral-100 #e8ecee = 15.51:1. Consumer: the chats-swipe MUTE action label
+     (12px semibold — white ink on it measured 1.14:1, i.e. not readable at all). */
+  --text-neutral-on-inverse: var(--neutral-10);
   --text-neutral-on-disabled: var(--neutral-460);
   --text-action-default: var(--primary-600);
   --text-action-hover: var(--primary-700);
@@ -632,6 +673,21 @@
   --icon-neutral-inverse-02: var(--neutral-300);
   --icon-neutral-disabled: var(--neutral-400);
   --icon-neutral-on-action: var(--neutral-10);
+  /* ★ #46 r2 (auditor C, FIX C1) — glyph counterparts of the --text-neutral-on-* roles
+     above; the full reasoning, the measured collapse and the reversal rule live there.
+     Only the three that have a real consumer exist. */
+  /* on --surface-error — light --error-600 #b12525 = 6.36:1 · dark --error-400 #f1786e = 6.72:1.
+     Consumer: the call-overlay DECLINE glyph. */
+  --icon-neutral-on-error: var(--neutral-10);
+  /* on --surface-success — light --success-600 #007030 = 5.98:1 · dark --success-300 #91c69b = 9.45:1.
+     Consumer: the call-overlay ACCEPT glyph. */
+  --icon-neutral-on-success: var(--neutral-10);
+  /* on --surface-accent — light --accent-600 #3050bd = 6.68:1 · dark --accent-300 #98b5fc = 9.09:1.
+     Consumer: the system-notice medallion glyph (the #54 badge solid-ink convention).
+     ⚠ There is deliberately NO --text-neutral-on-accent twin: --surface-accent has exactly
+     one ink consumer in the whole delta and it is a glyph. Add the text role the day a
+     LABEL lands on the accent fill, and measure it then — do not add it speculatively. */
+  --icon-neutral-on-accent: var(--neutral-10);
   --icon-select-check: var(--neutral-10);              /* ★ Session J: the selected-message tick is WHITE in both themes (Damir) — reversal = var(--icon-neutral-on-action) */
   --surface-select-check: var(--surface-action-default);   /* ★ Session J: the selected-message disc; light keeps the action blue (600) */
   --icon-neutral-on-disabled: var(--neutral-460);
@@ -819,7 +875,14 @@
   --text-neutral-inverse-01: var(--neutral-900);
   --text-neutral-inverse-02: var(--neutral-800);
   --text-neutral-disabled: var(--neutral-430);
-  --text-neutral-on-action: var(--neutral-10);         /* ★ Session K: WHITE on the dark action blue (Damir) — reversal var(--neutral-950), with the surface back at primary-400 */
+  --text-neutral-on-action: var(--neutral-10);         /* ★ Session K: WHITE on the dark action blue (Damir) — #f9fafb on --surface-action-default #3050bd = 6.68:1. Reversal var(--neutral-950), with the surface back at primary-400 */
+  /* ★ #46 r2 C1 dark — the ink Session K took away from the non-action fills, given back.
+     All four are --neutral-950 #131415, the exact pre-Session-K value, so this is a
+     restoration and not a new pick. Light (:root) stays white; see the note there. */
+  --text-neutral-on-error: var(--neutral-950);         /* #131415 on --surface-error --error-400 #f1786e = 6.72:1 (light: #f9fafb on --error-600 #b12525 = 6.36:1). Reversal var(--neutral-10) → 2.63:1, the shipped defect */
+  --text-neutral-on-success: var(--neutral-950);       /* #131415 on --surface-success --success-300 #91c69b = 9.45:1 (light: #f9fafb on --success-600 #007030 = 5.98:1). Reversal var(--neutral-10) → 1.87:1 */
+  --text-neutral-on-destructive: var(--neutral-950);   /* #131415 on --surface-destructive-default --error-300 #f49c92 = 8.80:1 (light: #f9fafb on --error-600 #b12525 = 6.36:1). Reversal var(--neutral-10) → 2.01:1, the worst reading in the audit */
+  --text-neutral-on-inverse: var(--neutral-950);       /* #131415 on --surface-neutral-inverse-01 --neutral-100 #e8ecee = 15.51:1 (light: #f9fafb on --neutral-900 #13171b = 17.23:1). Reversal var(--neutral-10) → 1.14:1 */
   --text-neutral-on-disabled: var(--neutral-400);
   --text-action-default: var(--primary-400);
   --text-action-hover: var(--primary-300);
@@ -859,9 +922,13 @@
   --icon-neutral-inverse-01: var(--neutral-900);
   --icon-neutral-inverse-02: var(--neutral-800);
   --icon-neutral-disabled: var(--neutral-500);
-  --icon-neutral-on-action: var(--neutral-10);         /* ★ Session K: white icon on the dark action blue (Damir) — reversal var(--neutral-950) */
+  --icon-neutral-on-action: var(--neutral-10);         /* ★ Session K: white icon on the dark action blue (Damir) — #f9fafb on --surface-action-default #3050bd = 6.68:1. Reversal var(--neutral-950) */
+  /* ★ #46 r2 C1 dark — glyph counterparts; --neutral-950 #131415, the pre-Session-K ink. */
+  --icon-neutral-on-error: var(--neutral-950);         /* #131415 on --surface-error --error-400 #f1786e = 6.72:1 (light: #f9fafb on --error-600 #b12525 = 6.36:1). Reversal var(--neutral-10) → 2.63:1 */
+  --icon-neutral-on-success: var(--neutral-950);       /* #131415 on --surface-success --success-300 #91c69b = 9.45:1 (light: #f9fafb on --success-600 #007030 = 5.98:1). Reversal var(--neutral-10) → 1.87:1 */
+  --icon-neutral-on-accent: var(--neutral-950);        /* #131415 on --surface-accent --accent-300 #98b5fc = 9.09:1 (light: #f9fafb on --accent-600 #3050bd = 6.68:1). Reversal var(--neutral-10) → 1.94:1 */
   --icon-select-check: var(--neutral-10);              /* ★ Session J: white tick on the dark disc too (was neutral-950 via icon-neutral-on-action) */
-  --surface-select-check: var(--primary-500);          /* ★ Session J (Damir: "maybe 1 shade darker background"): 500 = one step under dark's action 400; #507af9 holds a white tick at 3.82:1. Reversal = var(--surface-action-default) */
+  --surface-select-check: var(--primary-500);          /* ★ Session J (Damir: "maybe 1 shade darker background"): 500 = one step under dark's action 400. (#46 audit NIT: the recorded 3.82:1 was measured against pure #ffffff; the ink that actually paints is --icon-select-check = --neutral-10 #f9fafb, which measures 3.66:1 — over the 3:1 non-text floor, and the number is corrected here so the next reader does not trust the wrong one. Light: #f9fafb on --surface-action-default #3050bd = 6.68:1.) Reversal = var(--surface-action-default) */
   --icon-neutral-on-disabled: var(--neutral-400);
   --icon-action-default: var(--primary-400);
   --icon-action-hover: var(--primary-300);

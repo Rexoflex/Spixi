@@ -13,7 +13,9 @@
   align-items: stretch;
   min-height: var(--size-target-min);
   background: var(--surface-success);
-  color: var(--text-neutral-on-action);
+  /* ★ #46 r2 C1: green fill, not the action blue — dark --success-300 #91c69b took the
+     on-action white at 1.87:1. --text-neutral-on-success = 9.45:1 dark / 5.98:1 light. */
+  color: var(--text-neutral-on-success);
   box-shadow: var(--elevation-2);
   transform: translateY(-100%);
   transition: transform var(--duration-200) var(--easing-standard);

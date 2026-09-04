@@ -193,15 +193,17 @@ export function openAttachTray({ composerEl, media = false, apps = true, payment
 
   const btn = composerEl.querySelector('.c-composer__attach');
   if (btn) btn.setAttribute('aria-expanded', 'true');
-  composerEl.setAttribute('data-tray-open', '');   // the composer drops its safe-area pad; the tray carries it
   const input = composerEl.querySelector('.c-composer__input');
   if (input && document.activeElement === input) input.blur();   // the tray takes the keyboard's slot
 
   composerEl.after(tray);
   if (hold) {
     tray.dataset.instant = '';   // no height transition: it opens in ONE frame when revealed
-    return tray;                 // closed until revealAttachTray(tray)
+    return tray;                 // closed until revealAttachTray(tray) — which hands over the inset (B1)
   }
+  /* ★ B1: the non-hold paths open in THIS frame, so the hand-off happens in this frame too —
+     byte-identical to what the mount used to do. Only the held path defers it. */
+  markComposerTrayOpen(composerEl);
   if (instant) {
     tray.dataset.instant = '';   // attach-sheet.css: no height transition on this tray
     tray.dataset.open = '';
@@ -214,11 +216,37 @@ export function openAttachTray({ composerEl, media = false, apps = true, payment
   return tray;
 }
 
+/* ★★ B1 (#46 loop, MAJOR on iPhone X-class) — WHO CARRIES THE HOME-INDICATOR INSET.
+ * The contract: composer.css pads the bar by `--composer-pad-block + env(safe-area-inset-bottom)`;
+ * attach-sheet.css `.c-composer[data-tray-open]` drops that to a flat `--spacing-8` because the
+ * TRAY is bottom-most chrome then and carries the inset itself (`.c-attach-tray .c-attach` pads
+ * `--spacing-16 + env(safe-area-inset-bottom)`).
+ * THE DEFECT: the attribute was written at MOUNT. On the Session-K `hold` path the mount is up
+ * to 450 ms before the tray gets a height, and a held tray is `height:0; overflow:hidden` — its
+ * env() padding is CLIPPED, so for that whole window nobody carried the inset. Measured on an
+ * iPhone with a home indicator, portrait: the bar's bottom pad went 6+34=40 → 8, i.e. the pill
+ * AND (through --composer-h → #messages) the whole bottom of the conversation dropped 32 px at
+ * the instant of the ⊕ tap, sat there for the keyboard-hide window, then the tray arrived.
+ * (Android is 6 → 8 and no defect: env(safe-area-inset-bottom) is 0 there — the root view is
+ * padded by the insets listener instead.) Before K1 the `instant` path set both attributes in
+ * one frame, so the change was swallowed inside the ~268 px swap.
+ * THE RULE: THE COMPOSER SURRENDERS THE INSET ONLY IN THE FRAME SOMETHING ELSE TAKES IT — the
+ * non-hold paths above (which open in that same frame), and revealAttachTray for a held tray.
+ * It is NOT taken back on reveal: staying set is the intended END state, and closeAttachTray is
+ * the one place it comes off — a hold cancelled inside the window therefore leaves the composer
+ * exactly as it was found (removeAttribute on an attribute never written is a no-op).
+ * REVERSAL: write this at mount again (above `composerEl.after(tray)`, unconditional) and the
+ * 32 px lurch returns on every notched iPhone whose keyboard is up when ⊕ is tapped. */
+function markComposerTrayOpen(composerEl) {
+  if (composerEl) composerEl.setAttribute('data-tray-open', '');
+}
+
 /* ★ Session K: open a HELD tray (see `hold` above) — one frame, no transition. Idempotent;
    a tray that closed meanwhile (a back press inside the hold) is left alone. */
 export function revealAttachTray(tray) {
   const st = tray && trayState.get(tray);
   if (!st || st.closing || !tray.isConnected) return false;
+  markComposerTrayOpen(st.composerEl);   // ★ B1: the inset hand-off, in the frame the tray gets its height
   tray.dataset.open = '';
   return true;
 }

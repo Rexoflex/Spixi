@@ -21,6 +21,10 @@
   justify-content: center;
   gap: var(--spacing-2);
   cursor: pointer;
+  /* ★ #46 r2 C1: this base ink is for the PIN action, which is --surface-action-default
+     (#f9fafb on #3050bd = 6.68:1 in both themes — Damir's Session K ruling). The MUTE
+     variant below is a DIFFERENT fill and overrides it; do not "simplify" the two back
+     into one declaration. */
   color: var(--text-neutral-on-action);
   font-family: var(--font-secondary);
   font-size: var(--font-size-label-xs);
@@ -31,7 +35,11 @@
 .c-swipe__action--left { left: 0; }
 .c-swipe__action--right { right: 0; }
 .c-swipe__action[data-action="pin"] { background: var(--surface-action-default); }
-.c-swipe__action[data-action="mute"] { background: var(--surface-neutral-inverse-01); }
+/* ★ #46 r2 C1: the mute action is on the INVERSE neutral, not the action blue — in dark
+   that fill is --neutral-100 #e8ecee and the inherited white label measured 1.14:1
+   (invisible). --text-neutral-on-inverse = 15.51:1 dark / 17.23:1 light. Fill unchanged.
+   Reversal: drop the color declaration and the 1.14:1 label comes back. */
+.c-swipe__action[data-action="mute"] { background: var(--surface-neutral-inverse-01); color: var(--text-neutral-on-inverse); }
 .c-swipe__action:active { filter: brightness(0.92); }
 .c-swipe__label { pointer-events: none; }
 

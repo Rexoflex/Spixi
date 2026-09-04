@@ -1,0 +1,66 @@
+﻿Applications Memory Usage (in Kilobytes):
+Uptime: 31044676 Realtime: 72272840
+
+** MEMINFO in pid 26620 [com.ixilabs.spixi.dev] **
+                   Pss  Private  Private  SwapPss      Rss     Heap     Heap     Heap
+                 Total    Dirty    Clean    Dirty    Total     Size    Alloc     Free
+                ------   ------   ------   ------   ------   ------   ------   ------
+  Native Heap    77109    75116     1960    14790    78404   122120    83765    33263
+  Dalvik Heap     7684     2732     4748       21     8792    28988     4412    24576
+ Dalvik Other     1554     1424       48       17     1996                           
+        Stack     2400     2392        8      368     2408                           
+       Ashmem      705      200        0        0     1708                           
+      Gfx dev    16924    16924        0        0    16928                           
+    Other dev      154        0       20        0      848                           
+     .so mmap    40073     1160    34232      752    77152                           
+    .jar mmap      934        0       48        0    34184                           
+    .apk mmap    15697      264     2988      432    50544                           
+    .ttf mmap       37        0        0        0      412                           
+    .dex mmap    11624       24    11560        0    12408                           
+    .oat mmap      298        0        0        0    14616                           
+    .art mmap     6199     3320     1804      118    18468                           
+   Other mmap      926      188      264        0     3332                           
+   EGL mtrack    41104    41104        0        0    41104                           
+    GL mtrack    18592    18592        0        0    18592                           
+      Unknown    90106    87848     2240    19285    90556                           
+        TOTAL   367903   251288    59920    35783   472452   151108    88177    57839
+ 
+ App Summary
+                       Pss(KB)                        Rss(KB)
+                        ------                         ------
+           Java Heap:     7856                          27260
+         Native Heap:    75116                          78404
+                Code:    50276                         189468
+               Stack:     2392                           2408
+            Graphics:    76620                          76624
+       Private Other:    98948
+              System:    56695
+             Unknown:                                   98288
+ 
+           TOTAL PSS:   367903            TOTAL RSS:   472452       TOTAL SWAP PSS:    35783
+ 
+ Objects
+               Views:       44         ViewRootImpl:        1
+         AppContexts:        9           Activities:        1
+              Assets:       54        AssetManagers:        0
+       Local Binders:       59        Proxy Binders:       45
+       Parcel memory:       21         Parcel count:       83
+    Death Recipients:        4             WebViews:        4
+ 
+ SQL
+         MEMORY_USED:      585
+  PAGECACHE_OVERFLOW:      202          MALLOC_SIZE:       46
+ 
+ DATABASES
+      pgsz     dbsz   Lookaside(b) cache hits cache misses cache size  Dbname
+PER CONNECTION STATS
+         4       96            111    45    80    25  /data/user/0/com.ixilabs.spixi.dev/no_backup/androidx.work.workdb
+         4        8                    0     0     0    (attached) temp
+         4       96             52     4    20     5  /data/user/0/com.ixilabs.spixi.dev/no_backup/androidx.work.workdb (2)
+         4       56             32     1    24     2  /data/user/0/com.ixilabs.spixi.dev/databases/com.google.android.datatransport.events
+         4       76            110  1534   800    11  /data/user/0/com.ixilabs.spixi.dev/databases/OneSignal.db
+POOL STATS
+     cache hits  cache misses    cache size  Dbname
+             51           121           172  /data/user/0/com.ixilabs.spixi.dev/no_backup/androidx.work.workdb
+              1            25            26  /data/user/0/com.ixilabs.spixi.dev/databases/com.google.android.datatransport.events
+           1534           801          2335  /data/user/0/com.ixilabs.spixi.dev/databases/OneSignal.db

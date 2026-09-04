@@ -1132,7 +1132,26 @@ namespace SPIXI
                     // (★ Session I: the [PAINTDIAG] re-present stamp that sat here retired with
                     // its set — #731 measured the way-back clean, 9→4 ms.)
                     Utils.sendUiCommand(op.target, "onRepresented");
-                    op.stage.InputTransparent = false;
+                    /* ★ #46 A3: input-DEAD through the reveal on this path too — `revealStage`
+                     * clears it when the animation settles (or immediately, when there is no
+                     * animation). The parked Account pane does not slide today (`peerTab`
+                     * excludes tag "settings"), so it takes revealStage's no-slide branch and
+                     * is input-live in the same frame it becomes visible — but the flag is set
+                     * here so a future parked surface that DOES opt into the slide inherits the
+                     * guard for free, exactly as L8/L9 arranged for the translation reset.
+                     * REVERSAL: setting this back to `false` before `revealStage` (what it was)
+                     * re-opens the 1-2 frame window in which the incoming stage is hit-testable
+                     * at ~0 opacity over most of the screen. The fresh-present path carries the
+                     * same flag; the two must move together, and ALL THREE clears must survive
+                     * or the stage goes permanently input-dead — a worse bug than the tap this
+                     * prevents. ⚠ r3 R3-6: THREE, not two. This used to name "revealStage's
+                     * no-slide branch, slideStageIn's finally", which was the whole set until
+                     * r2 R2-2 added `liftStageInput` — and that one is now the clear that
+                     * MATTERS on the sliding path (SlideInputDeadMs = 32 ms), with the
+                     * `finally` demoted to the belt behind it. The set is: revealStage's
+                     * no-slide branch (immediate), liftStageInput (32 ms), slideStageIn's
+                     * `finally` (on completion AND on abort). */
+                    op.stage.InputTransparent = true;
                     /* ★ L9 (#707): a re-presented parked overlay (the mobile Account pane,
                      * #315) is a subscreen like any other — it takes the same slide the
                      * fresh present takes, through the same helper, so the two paths cannot
@@ -1673,14 +1692,16 @@ namespace SPIXI
                         // WinUI keeps the #229b instant flip (flash class), Android keeps
                         // its native transitions; non-back closes (close-audits, tab
                         // switches, removePage) pass slideOut=false and stay instant.
-                        // #328 loop fixes: (1) the stage goes INPUT-DEAD before the first
-                        // animation frame — the op left overlayStack synchronously, so a
-                        // second back-tap during the slide would fall through popPageAsync
-                        // onto the native stack (the #272 pop-the-top class, audit MAJOR),
-                        // and any button in the closing page could still fire verbs on a
-                        // page mid-teardown; (2) COLUMN-PINNED stages (wide/iPad split,
-                        // op.column >= 0) never slide — phone pop-grammar across a split
-                        // layout dragged the pane over its neighbour (audit MINOR).
+                        // #328 loop fixes:
+                        // (1) the stage goes INPUT-DEAD before the first animation frame —
+                        //     the op left overlayStack synchronously, so a second back-tap
+                        //     during the slide would fall through popPageAsync onto the
+                        //     native stack (the #272 pop-the-top class, audit MAJOR), and
+                        //     any button in the closing page could still fire verbs on a
+                        //     page mid-teardown;
+                        // (2) COLUMN-PINNED stages (wide/iPad split, op.column >= 0) never
+                        //     slide — phone pop-grammar across a split layout dragged the
+                        //     pane over its neighbour (audit MINOR).
                         /* ═══ ★★ L8 (#641 batch) — THE SLIDE-OUT IS THE MIRROR OF THE SLIDE-IN ═══
                          *
                          * Damir, 2026-08-29: *"I like the slide in effect it's great makes it
@@ -2814,9 +2835,86 @@ namespace SPIXI
                         // OVERLAY present (#225): the view is already attached + painted —
                         // showing it is a property flip, nothing re-attaches, nothing can
                         // repaint blank. Content stays hosted in the stage until close.
-                        op.stage.InputTransparent = false;
+                        /* ★★ #46 A3 (MINOR), RE-SCOPED BY r2 R2-2 — THE STAGE IS INPUT-DEAD
+                         * FOR THE FIRST 32 ms OF THE ENTRY. NOT FOR THE WHOLE 300 ms.
+                         *
+                         * DEFECT: this line used to CLEAR InputTransparent right before
+                         * `revealStage`. Session I's hybrid entry (grep
+                         * `Session I hybrid: 40% travel`) starts the stage at 40% travel with
+                         * `Opacity = 0`, and this file's own easing puts opacity below 3 %
+                         * until 15.3 ms — one frame at 60 Hz. A tap in that window is
+                         * delivered to a page the user cannot see at all.
+                         *
+                         * PREVENTS: exactly that mis-delivered tap, and NOTHING WIDER. The
+                         * window blocked is SlideInputDeadMs = 32 ms (two frames; the full
+                         * measured curve is tabulated on that constant), after which
+                         * `liftStageInput` makes the stage live again with ~89 % of the
+                         * animation still to run. Round 1 put the only clear in
+                         * `slideStageIn`'s `finally` and so blocked the entire 300 ms — a tap
+                         * at 250 ms, when the stage is at 99.0 % opacity and 0.41 % of its
+                         * travel from home, was discarded; before round 1 it was delivered.
+                         * That `finally` clear is still there, as the BELT (see it).
+                         *
+                         * ⚠ r3 R3-6 — SEARCHABLE ANCHORS, NOT LINE NUMBERS. The `file:line`
+                         * citations here were HEAD offsets in a file this loop has since grown
+                         * by hundreds of lines, so they pointed at the wrong place
+                         * (:1706-1708 → :1689, :1728 → :1718, :2375 → :2388, :2573 → :2586).
+                         * ⚠ r4 R4-1: FIVE, not four. That sweep wrote "every" and missed the
+                         * one in the DEFECT paragraph above it: `:3060-3064` was Session I's
+                         * hybrid entry at HEAD and lands in unrelated code in this tree —
+                         * ⚠ r5: and it has ALREADY MOVED AGAIN since r4 named it, which is the
+                         * whole argument: r4 wrote what that offset pointed at, r4's own
+                         * insertions in this docblock pushed it 21 lines, and the description
+                         * rotted inside the round that wrote it. So this says only that it
+                         * rots, never what it currently hits. Where the entry moved to is
+                         * deliberately NOT a number here either, it is the anchor above. So the paragraph retiring rotted citations shipped one,
+                         * and the universal claim is what hid it: "all of them" reads as a
+                         * completed sweep, so nobody re-counts. Five, all anchors now.
+                         * A number rots on the next edit and nothing reports it; a quoted
+                         * string is found by grep and, when it stops matching, the grep returns
+                         * NOTHING BUT THIS INSTRUCTION instead of pointing somewhere plausible.
+                         * (An anchor quoted here matches itself — so every count below includes
+                         * the instruction that states it.)
+                         *
+                         * The EXIT path has always guarded this and says so in as many words
+                         * (grep "stage goes INPUT-DEAD before the first animation frame" —
+                         * THREE lines: this instruction and the two exit sites); this closes
+                         * the entry/exit asymmetry with the same rule, scoped to the frames
+                         * that actually justify it. ⚠ r4 R4-4: that grep used to carry a
+                         * leading "the" and claim two sites. It returned ONE line — itself.
+                         * The slide-out site opens "⚠ The stage goes" (capital, so the article
+                         * excluded it) and the #328 loop-fixes site wrapped the sentence across
+                         * two comment lines, out of reach of any single-line grep. That site is
+                         * reflowed and the article is out of the anchor; run it and see three.
+                         *
+                         * Both reveal paths (fresh present here, and the parked re-present —
+                         * grep "a re-presented parked overlay") route through `revealStage`,
+                         * so both end input-live: the no-slide branch immediately (it is fully
+                         * visible in that same frame), the slide branch at SlideInputDeadMs
+                         * through `liftStageInput`, with the `finally` as the belt behind it.
+                         *
+                         * The assignment to TRUE is explicit rather than assumed: the stage is
+                         * constructed input-transparent (both stage constructions — grep
+                         * `InputTransparent = true,` WITH the trailing comma, the object-
+                         * initialiser form; ⚠ r4 R4-4: that grep returns FIVE lines, not two —
+                         * the two constructions, the `CascadeInputTransparent` that follows
+                         * each of them and matches as a substring, and this instruction) and
+                         * every exit path
+                         * sets it back, but a reveal that depends on someone else's leftover
+                         * state is the class of bug this row is about.
+                         *
+                         * REVERSAL: put `op.stage.InputTransparent = false;` back here and drop
+                         * the clears; the incoming page is tappable again while it is still
+                         * fully transparent and 40 % off-screen. ⚠ If you revert only HALF —
+                         * the clear here without removing the later clears — nothing breaks; if
+                         * you remove ALL THE LATER CLEARS without restoring one here, the
+                         * overlay is permanently input-DEAD, which is a worse bug than the one
+                         * this fixes. (r3 R3-6: "BOTH later clears" was the count before r2
+                         * R2-2 added `liftStageInput`; there are three now.) */
+                        op.stage.InputTransparent = true;
                         /* ★★ Item 6 (Damir): SLIDE IN from the trailing edge — revealStage
-                         * (shared with the parked re-present since L9, #707). */
+                         * (shared with the parked re-present since L9, #707) — which is now
+                         * also what makes the stage input-live again. */
                         revealStage(op);
                         lock (preloadLock)
                         {
@@ -3002,10 +3100,20 @@ namespace SPIXI
          * because the user has already decided to leave. Enter 300 / exit 220 is the
          * asymmetry, and it is a choice, not an oversight. Damir asked about the slide IN.
          *
-         * ⚠ Today `slideIn: true` has exactly ONE caller — chat info, from the chat header
-         * (`SingleChatPage.xaml.cs:563`). Every other screen presents with an opacity flip
-         * and no transition, so nothing else moves with this. When another screen opts in,
-         * it inherits this curve and this duration, which is the point. */
+         * ⚠ #46 A6 — CORRECTED. This used to claim `slideIn: true` "has exactly ONE caller …
+         * so nothing else moves with this". That was true when it was written and is FALSE
+         * today: the per-op flag is `op.slideIn = overlayMode && (slideIn || (mobilePlatform
+         * && column < 0 && !peerTab && !conversation))` (grep `op.slideIn = ` — one
+         * assignment; r3 R3-6 replaced a rotted `:2445`), so on a PHONE the platform
+         * half of that OR catches every full-screen overlay whose tag is neither `settings`
+         * nor `chat` — ContactNew, AppNew, AppDetails, Backup, EncryptionPassword and
+         * Downloads all slide, none of which passes `slideIn: true` at its call site.
+         * What is still true, and is the point: `slideIn: true` as an EXPLICIT argument has
+         * one caller (chat info, from the chat header — grep `slideIn: true` in
+         * SingleChatPage.xaml.cs, exactly one hit; r3 R3-6 replaced a rotted `:563`, which is
+         * `:726` today — and it is the only one that slides on DESKTOP); and every screen
+         * that slides — by flag or
+         * by platform rule — rides this curve and this duration, so they cannot drift. */
         private const uint ScreenSlideInMs = 300;          // was 220
         /* ★ Session I — THE HYBRID (Damir's A1 note, ruled "hybrid" 2026-09-02): every slide-in
          * is now SLIDE + FADE — a shorter travel (40% of the stage width instead of 100%) with
@@ -3017,6 +3125,47 @@ namespace SPIXI
          * pin holds the two equal — a view moving differently than the page beside it reads
          * as a different kind of screen (#725). */
         private const double SlideTravel = 0.4;
+
+        /* ★★ #46 r2 R2-2 (MINOR) — HOW LONG THE ENTERING STAGE IS INPUT-DEAD, IN MILLISECONDS.
+         *
+         * DEFECT (round 1's own fix): A3 made the stage input-dead before the first entry
+         * frame and put the ONLY clear in slideStageIn's `finally` — i.e. after the whole
+         * 300 ms translate+fade. Its docblock justified that with "fully hit-testable while
+         * effectively invisible for the first ~1-2 frames" and then made the page dead for ten
+         * to twenty times that. Concrete regression: contacts FAB → Add contact (one of the
+         * seven sliding phone overlays), tap the name field at ~250 ms — before this constant
+         * that tap was discarded, no focus, no keyboard. It used to be delivered.
+         *
+         * THE MEASURED CURVE, from this file's own easing (`ScreenSlideEasing`, the
+         * cubic-bezier(0.2, 0, 0, 1) solved above) over ScreenSlideInMs = 300:
+         *      8 ms → opacity  0.7 %      33 ms → 19.5 %      150 ms → 87.8 %
+         *     16 ms →          3.3 %      50 ms → 40.6 %      250 ms → 99.0 %
+         *     25 ms →         10.0 %      60 ms → 50.0 %      300 ms → 100 %
+         * Opacity crosses 0.03 at 15.3 ms — ONE frame at 60 Hz. At 250 ms the stage is at
+         * 99.0 % opacity with 0.41 % of the stage width left to travel: plainly there, plainly
+         * readable, and under round 1 it ate the tap. (The round-2 review estimated ~83 %
+         * opacity / ~17 % travel at that instant; the real curve is steeper still, so the
+         * finding was understated, not overstated.)
+         *
+         * SO THE BLOCK IS 32 ms — two frames at 60 Hz — which covers the ≤ 3 % window with a
+         * full frame of margin and hands the remaining ~89 % of the animation back to the
+         * user. At the moment it lifts the stage is at 18.2 % opacity and 32.7 % of the stage
+         * width from home. That is deliberate: taps from there on are NOT mis-delivered,
+         * because the platform hit-tests a translated view where it is DRAWN, so the tap lands
+         * on what the user sees. ⚠ That last sentence is platform behaviour READ, not measured
+         * in this tree; if it is ever falsified the honest response is a larger number here,
+         * not a return to blocking the whole animation.
+         *
+         * ⚠ THE `finally` CLEAR STAYS, AS THE BELT, and the pin asserts both halves together.
+         * This timer can be starved, and MainThread.BeginInvokeOnMainThread can be dropped on
+         * a tearing-down window; a stage that ends input-DEAD is a permanently untappable
+         * page, which is far worse than the tap this fixes. Belt and timer both clear the same
+         * flag to the same value, so they cannot disagree.
+         *
+         * REVERSAL: delete SlideInputDeadMs and liftStageInput and the only clear is the
+         * `finally` again — every sliding overlay is input-dead for its full 300 ms, and the
+         * tap at 250 ms on a page at 99 % opacity is discarded again. */
+        private const int SlideInputDeadMs = 32;
 
         /// <summary>The `--easing-standard` cubic-bezier(0.2, 0, 0, 1), solved for MAUI.</summary>
         private static readonly Easing ScreenSlideEasing = new Easing(x =>
@@ -3066,12 +3215,42 @@ namespace SPIXI
             else
             {
                 op.stage.Opacity = 1;
+                /* ★ #46 A3: NO animation on this path — the stage is fully visible in this
+                 * same frame, so it becomes input-live in this same frame. Every reveal ends
+                 * input-live: this branch immediately, the slide branch at SlideInputDeadMs
+                 * through `liftStageInput`, with slideStageIn's `finally` as the belt behind it
+                 * (r3 R3-6: this used to name the `finally` as the slide branch's clear, which
+                 * r2 R2-2 retired to a belt). REVERSAL: drop this line and every non-sliding
+                 * overlay (all desktop presents, the parked Account re-present) is permanently
+                 * untappable. */
+                op.stage.InputTransparent = false;
             }
+        }
+
+        /* ★ #46 r2 R2-2: the SHORT half of the input block — see SlideInputDeadMs. Runs beside
+         * the animation, never awaited by it. Marshalled explicitly rather than trusting the
+         * captured context, because the value being written is a UI property and this
+         * continuation is the one place in the entry path that is not already on the UI
+         * thread by construction. `op.closing` is re-read INSIDE the marshalled body: an exit
+         * that started during the 32 ms owns the stage's flags, exactly as the `finally`
+         * below assumes. */
+        private static async Task liftStageInput(PreloadOp op)
+        {
+            try
+            {
+                await Task.Delay(SlideInputDeadMs);
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    try { if (!op.closing) { op.stage.InputTransparent = false; } } catch (Exception) { }
+                });
+            }
+            catch (Exception) { }
         }
 
         private static async Task slideStageIn(PreloadOp op)
         {
             var stage = op.stage;
+            _ = liftStageInput(op);   // ★ #46 r2 R2-2: input-live ~2 frames in, not 300 ms in
             try
             {
                 await Task.WhenAll(
@@ -3092,6 +3271,20 @@ namespace SPIXI
                 if (!op.closing)
                 {
                     try { stage.TranslationX = 0; stage.Opacity = 1; } catch (Exception) { }   // ★ hybrid: the fade settles too
+                    /* ★ #46 A3 + r2 R2-2 — THE BELT, NOT THE CLEAR THAT MATTERS.
+                     * liftStageInput has normally already cleared this at SlideInputDeadMs
+                     * (32 ms), which is where the fix actually lives; round 1 had ONLY this
+                     * line, and that made every sliding overlay input-dead for the full 300 ms.
+                     * This stays because it runs on completion AND on abort (it is in the
+                     * `finally`), so a slide that faults, a starved timer or a dropped
+                     * main-thread post still leaves a tappable page — the one outcome worse
+                     * than a mis-delivered tap is a stage nobody can touch. Both writes set the
+                     * same flag to the same value, so they cannot disagree. `!op.closing`
+                     * guards it for the same reason it guards the translation reset: an op
+                     * aborted BY the exit is about to be torn down and the exit owns its flags.
+                     * REVERSAL: delete this line and a faulted or starved entry leaves the
+                     * overlay input-dead for ever. */
+                    try { stage.InputTransparent = false; } catch (Exception) { }
                 }
             }
         }
@@ -3178,9 +3371,23 @@ namespace SPIXI
          * (Trim + Contains per line, 11 700 lines) into a new string; on Windows it re-READ
          * and re-WROTE `ll_chat.html` to disk. The result is identical every time the
          * dictionary is identical — so it is cached per (file, SpixiLocalization dictionary
-         * version). A language load or ANY addCustomString bumps the version (the carriers
-         * LaunchBootView / LockAuthPending / devMode / the theme name are all written right
-         * before their page's generatePage, so those pages miss and recompute, correctly).
+         * version).
+         *
+         * ★★ #46 A6 — WHY THIS CACHE IS SAFE, STATED CORRECTLY. The previous wording claimed
+         * the carriers (LaunchBootView / LockAuthPending / devMode / the theme name) "are all
+         * written right before their page's generatePage". THAT IS FALSE for three of them:
+         * SettingsPage writes SpixiThemeName/SpixiThemeMode and deliberately does NOT reload
+         * settings.html; the devMode toggle is flipped at runtime on a document that is
+         * already live; and AndroidInsetTop's authoritative write arrives from the insets
+         * listener, long after the shell was generated. The argument that IS true, and the
+         * only one this cache needs: EVERY mutation of the dictionary bumps the version
+         * (`SpixiLocalization.addCustomString` / `loadLanguage`), and a bump invalidates the
+         * WHOLE map by construction — so no CACHED document can outlive a carrier change.
+         * The three late carriers are pre-existing LIVE-document staleness, owned by the
+         * shells' own push paths (a `setTheme` / `setDevMode` / `setInsetTop` verb over the
+         * bridge), not by this cache. Adding the cache did not create them and removing it
+         * would not fix them.
+         *
          * Windows: the file is rewritten only when its cached version differs — a fresh
          * process starts empty, so the first open of each page still writes it (#663: the
          * write is what makes `ll_*.html` exist beside the exe's html folder at all). */
@@ -3203,7 +3410,37 @@ namespace SPIXI
                 string html = SpixiLocalization.localizeHtml(stream);
                 stream.Close();
                 stream.Dispose();
-                localizedHtmlCache[html_file_name] = (version, html);
+                /* ★ #46 A5 — STORE ONLY IF THE DICTIONARY DID NOT MOVE UNDER US.
+                 *
+                 * ⚠ r2 R2-3 — THIS DOCBLOCK USED TO STATE A FALSE HISTORY, and that is itself
+                 * a defect by this project's rule. It claimed the pre-fix store "filed a
+                 * document built from the OLD dictionary under a key that claims the NEW one,
+                 * and would then be served to every later open until the next bump". Check
+                 * `git show HEAD:Spixi/Utils/SpixiContentPage.cs:3206`: the old line was
+                 * `localizedHtmlCache[html_file_name] = (version, html);` where `version` is
+                 * the value READ AT ENTRY (`:3192`). A mid-compute bump therefore tagged the
+                 * entry with the OLD version — conservatively STALE, not falsely fresh — and
+                 * the reader's `cached.version == version` above rejected it on every later
+                 * open. It could never be served. There was no mislabelled-forever entry.
+                 *
+                 * WHAT THIS GATE ACTUALLY BUYS, which is real but smaller: two threads can
+                 * reach this line for the same file across a bump. Without the gate the SLOW
+                 * one (entered at V) can store (V, htmlOld) OVER the fast one's (V+1,
+                 * htmlNew) — and the cost of that is a WASTED RECOMPUTE on the next open,
+                 * because the stale tag is what the reader checks. With the gate the loser
+                 * simply does not write. So this is a cache-efficiency guard, not a
+                 * correctness one; the correctness was already in the version TAG.
+                 *
+                 * The freshly computed `html` is still handed to THIS WebView either way — it
+                 * is at worst one carrier behind, which is the pre-existing live-document
+                 * staleness the shells' push paths own (see the docblock above).
+                 * REVERSAL: store unconditionally; a bump that races one localize can then
+                 * displace a newer cached document with an older one and the next open pays
+                 * for a localize it should not have needed. */
+                if (SpixiLocalization.getDictionaryVersion() == version)
+                {
+                    localizedHtmlCache[html_file_name] = (version, html);
+                }
                 source.Html = html;
                 return source;
             }
@@ -3214,10 +3451,54 @@ namespace SPIXI
                 bool fresh = localizedFileVersion.TryGetValue(html_file_name, out int written) && written == version && File.Exists(localized_file_path);
                 if (!fresh)
                 {
-                    SpixiLocalization.localizeHtml(assets_file_path, localized_file_path);
-                    if (File.Exists(localized_file_path))
+                    /* ★★ #46 A1 (MAJOR) — FRESHNESS IS GATED ON THE WRITE, NOT ON File.Exists.
+                     *
+                     * DEFECT: this used to call the void `localizeHtml` and then trust
+                     * `File.Exists(localized_file_path)`. On Windows `getAssetsPath()` is
+                     * `AppDomain.CurrentDomain.BaseDirectory`, so when `<exe>\html\<file>` is
+                     * missing the localize logs and returns WITHOUT WRITING — but
+                     * `ll_<file>.html` from a PREVIOUS build is still sitting in
+                     * `Documents\Spixi\html`, a folder that survives every wipe. File.Exists
+                     * said "fresh", the map cached that verdict for the whole process, and the
+                     * WebView was handed a STALE document that looks completely normal (the
+                     * observed symptom: a LIGHT Account pane under a dark system theme).
+                     *
+                     * PREVENTS: a stale document being certified fresh, and a
+                     * never-deployed page being served as `ERR_FILE_NOT_FOUND` with one
+                     * quiet log line. The two cases are now told apart IN THE LOG, because
+                     * they have completely different fixes.
+                     *
+                     * ⚠ DEGRADE, NEVER THROW. generatePage runs on the UI thread inside page
+                     * constructors — including LaunchPage's. A throw here makes the app
+                     * unlaunchable on any machine missing one shell, which is strictly worse
+                     * than the bug being fixed. Every fallback below is wrapped.
+                     *
+                     * REVERSAL: gate on `File.Exists(localized_file_path)` again and delete
+                     * the fallback; Windows returns to certifying a previous build's document
+                     * as this build's, silently, once per process. */
+                    bool wrote = SpixiLocalization.localizeHtml(assets_file_path, localized_file_path);
+                    if (wrote && SpixiLocalization.getDictionaryVersion() == version)
                     {
-                        localizedFileVersion[html_file_name] = version;   // only a WRITTEN file is fresh (localizeHtml returns silently on a missing asset, #663)
+                        localizedFileVersion[html_file_name] = version;   // ★ #46 A5: only a document still matching the LIVE dictionary is fresh
+                    }
+                    else if (!wrote)
+                    {
+                        // Never let a failed write leave a previous verdict standing.
+                        localizedFileVersion.TryRemove(html_file_name, out _);
+                        bool stalePresent = false;
+                        try { stalePresent = File.Exists(localized_file_path); } catch (Exception) { }
+                        Logging.error("generatePage: localization DID NOT WRITE " + localized_file_path
+                            + " — the source " + assets_file_path + " is missing or unwritable. "
+                            + (stalePresent
+                                ? "A ll_ file from a PREVIOUS BUILD is present at that path and would be served STALE; it will not be trusted."
+                                : "No ll_ file exists at that path at all; a URL source would be ERR_FILE_NOT_FOUND.")
+                            + " The html assets were most likely not staged next to the executable — build/run through Visual Studio (F5 / Deploy) rather than `dotnet build`."
+                            + " Entering the fallback ladder; the NEXT generatePage line says which rung actually served.");
+                        WebViewSource? fallback = generateFallbackPage(html_file_name, assets_file_path, stalePresent);   // ★ r3 R3-6: rung ② returns null by contract
+                        if (fallback != null)
+                        {
+                            return fallback;
+                        }
                     }
                 }
                 return new UrlWebViewSource
@@ -3225,6 +3506,110 @@ namespace SPIXI
                     Url = SPlatformUtils.getHtmlBaseUrl() + "ll_" + html_file_name
                 };
             }
+        }
+
+        /* ★★ #46 A1 (③ degrade, do not throw) — THE FALLBACK LADDER for a page whose
+         * localized file could not be written.
+         *
+         * ① The STREAM overload that already exists in generatePage's Android branch:
+         *    `SPlatformUtils.getAsset` + `SpixiLocalization.localizeHtml(Stream)` into an
+         *    `HtmlWebViewSource`, with `BaseUrl = getHtmlBaseUrl()` so css/js/img
+         *    subresources are meant to resolve out of the user's html folder. This produces a
+         *    CORRECT, freshly localized document with no disk write at all.
+         *    ⚠ r2 R2-5 — WHICH CASE THIS RUNG IS ACTUALLY LIVE FOR. `getAsset` on Windows is
+         *    `FileSystem.Current.OpenAppPackageFileAsync`, which resolves under the SAME
+         *    `BaseDirectory` that `getAssetsPath()` returns (Platforms/Windows/
+         *    SPlatformUtils.cs:19-33). So in the HEADLINE case this ladder exists for —
+         *    `<exe>\html` never staged — rung ① re-opens the file that just came back
+         *    missing and can only throw. It stays because it IS live for the other case the
+         *    error line above names: the source is present and the TARGET (Documents\Spixi\
+         *    html) is unwritable — a locked, read-only or roaming-profile folder.
+         *    ⚠ RESIDUAL, stated rather than asserted: `getHtmlBaseUrl()` returns
+         *    `Config.spixiUserFolder + "/html/"`, a bare `C:\…\html/` filesystem path and
+         *    not a `file:///` URI. Whether WebView2 resolves subresources from a BaseUrl in
+         *    that form is UNVERIFIED IN-TREE. If it does not, this rung still renders the
+         *    document's markup and text — which is what makes it worth keeping — but its
+         *    css/js may not load. Verify before claiming otherwise.
+         * ② If the asset cannot be opened either and a previous build's `ll_` file exists,
+         *    return null so the caller serves that URL — stale beats nothing, and the error
+         *    line above already named it as stale.
+         * ③ Otherwise a small BUILT-IN error page naming the missing file. A visible,
+         *    self-explaining page beats `ERR_FILE_NOT_FOUND` and beats a stale one.
+         *
+         * ⚠ THE ERROR PAGE IS THEME-NEUTRAL AND LOCALIZATION-FREE ON PURPOSE. It is the page
+         * you get when localization is what failed, so `*SL{}` cannot be trusted; and the
+         * theme carriers travel through the same substitution, so it cannot be themed either.
+         * White text on a mid-grey ground reads on both a light and a dark device.
+         *
+         * REVERSAL: return null unconditionally and generatePage hands the WebView the URL
+         * regardless — the never-deployed page is `ERR_FILE_NOT_FOUND` again and the
+         * previously-deployed one silently serves the last build's document. */
+        /* ★ r3 R3-6: `WebViewSource?`, because rung ② RETURNS NULL by contract ("serve the
+         * previous build's URL instead") and Spixi.csproj:20 turns `<Nullable>enable</Nullable>`
+         * on. The `?` puts the ladder's "null means serve the URL" rule in the SIGNATURE, where
+         * a caller reads it, instead of only in the docblock above (CS8603 at the two `return
+         * null`s and CS8600 at the caller's local, otherwise). */
+        private static WebViewSource? generateFallbackPage(string html_file_name, string assets_file_path, bool stalePresent)
+        {
+            try
+            {
+                Stream stream = SPlatformUtils.getAsset(Path.Combine("html", html_file_name));
+                if (stream != null)
+                {
+                    string html;
+                    try
+                    {
+                        html = SpixiLocalization.localizeHtml(stream);
+                    }
+                    finally
+                    {
+                        try { stream.Close(); stream.Dispose(); } catch (Exception) { }
+                    }
+                    if (html != null && html.Length > 0)
+                    {
+                        Logging.info("generatePage: served " + html_file_name + " from the in-memory stream fallback (no ll_ file was written).");
+                        return new HtmlWebViewSource
+                        {
+                            Html = html,
+                            BaseUrl = SPlatformUtils.getHtmlBaseUrl()   // subresources still resolve
+                        };
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.error("generatePage: the stream fallback for " + html_file_name + " also failed: " + ex);
+            }
+            if (stalePresent)
+            {
+                // ② stale beats nothing — the caller's URL source is the last resort that still renders.
+                Logging.error("generatePage: falling back to the PREVIOUS BUILD's ll_" + html_file_name + " — it may be out of date.");
+                return null;
+            }
+            // ③ a page that explains itself.
+            /* ★ #46 r2 R2-5: every rung names itself in the log. ① logs "served … from the
+             * in-memory stream fallback", ② logs "falling back to the PREVIOUS BUILD's ll_",
+             * and this is ③. Before this, the line ABOVE the ladder ended with "Falling back
+             * to in-memory localization." for every outcome including this one — ixian.log
+             * asserted a rung that, in the headline case, structurally cannot have served. */
+            Logging.error("generatePage: serving the BUILT-IN error page for " + html_file_name
+                + " — the stream fallback did not produce a document and no ll_ file exists to fall back on.");
+            string safe_name = System.Net.WebUtility.HtmlEncode(html_file_name ?? "");
+            string safe_path = System.Net.WebUtility.HtmlEncode(assets_file_path ?? "");
+            return new HtmlWebViewSource
+            {
+                Html = "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
+                    + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+                    + "<style>html,body{margin:0;padding:24px;background:#6b6b6b;color:#ffffff;"
+                    + "font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:15px;line-height:1.5}"
+                    + "h1{font-size:19px;margin:0 0 12px 0}code{word-break:break-all;font-size:13px}</style>"
+                    + "</head><body><h1>This screen could not be prepared</h1>"
+                    + "<p>Spixi could not build <code>" + safe_name + "</code>.</p>"
+                    + "<p>Expected source file:<br><code>" + safe_path + "</code></p>"
+                    + "<p>The html assets were not staged next to the application. Build and run through "
+                    + "Visual Studio (F5 / Deploy) rather than <code>dotnet build</code>, then restart Spixi.</p>"
+                    + "</body></html>"
+            };
         }
 
 

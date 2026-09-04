@@ -1,0 +1,88 @@
+Session L: the #46 adversarial loop over Sessions I-J-K — CLEAN in five rounds
+
+The loop the Session K handoff put first, before any build item (#512: the author
+does not adjudicate his own present machinery). Three disjoint read-only auditors →
+two verifiers → three fix agents on disjoint files → a central pin pass → FOUR fresh
+break-my-verdict reviewers, each over the previous round's fixes. Verdicts: r1 NOT
+CLEAN (2) · r2 NOT CLEAN (5) · r3 NOT CLEAN (4) · r4 NOT CLEAN (1 prose) · r5 CLEAN.
+The verdict is appended to docs/opus-review-brief-sessions-i-k.md, which ordered it.
+
+Three MAJORs no self-review had found (#768 · #769 · #770):
+
+1. Windows: a missing asset folder rendered as a normal-looking STALE page.
+   Measured on the device, not reasoned — two reports the same morning (Add app
+   ERR_FILE_NOT_FOUND, and a LIGHT Account pane under a dark system theme) were one
+   cause. localizeHtml returned void; generatePage gated freshness on File.Exists,
+   true for an ll_*.html a PREVIOUS BUILD left in Documents\Spixi\html, and handed
+   back that URL regardless. Session K's version map cut the only diagnostic from
+   once-per-open to once-per-process — quieting the failure that fails silently.
+   localizeHtml now returns bool (true only after flush+close; it deletes a file it
+   truncated), the map is gated on the WRITE and TryRemoves a standing verdict on
+   failure, and a degrade ladder (stream overload → a previous build's ll_ → a
+   built-in page NAMING the missing file) replaces the 404. copyResources(), which
+   was uncaught in the App() constructor and would have hard-crashed on the same
+   folder, logs the folder and the fix and continues — its diagnostics are recorded
+   and flushed after Logging.start, because the 097341a sibling DROPS pre-start
+   calls (Meta/Logging.cs:196) and a Windows GUI app has no console.
+
+2. Damir's white-on-blue ruling was applied to a token TEN surfaces read. His pick
+   is unchanged at 6.68:1; the ten that are not on --surface-action-default had
+   collapsed to 1.14 (mute label), 1.87, 1.94, 2.01, 2.63. Seven new
+   --*-neutral-on-{error,success,destructive,inverse,accent} roles; light is
+   byte-identical to the white it replaced, dark restored to the pre-K neutral-950.
+   NO FILL CHANGED — every fill is a rendered pick. The old pin checked the token's
+   value and never asked who consumed it; the new one enumerates consumers from
+   both directions across every sheet and every shell <style> block.
+
+3. A rotation persisted a keyboard height that fills the screen (~386 px, inside the
+   160-600 band the docblock claimed protects it), and latched kbUp so the next ⊕
+   waited out the 450 ms backstop. Two gestures on a stock phone. THE FIX TOOK THREE
+   ROUNDS AND THE FIRST TWO WERE WRONG: a width tag fixed replay but not measurement;
+   a shape guard then suppressed the kbUp CLEAR as collateral; and that guard could
+   not see a portrait split-screen at all, whose divider is horizontal. Geometry
+   cannot separate a keyboard from a window resize under adjustResize — the
+   discriminator is semantic: a soft keyboard cannot exist without a focused editable.
+
+Also fixed: the K1 hold surrendered the composer's safe-area inset while the tray was
+still 0 px tall — a 32 px lurch of the pill and the log at every ⊕ tap on a notched
+iPhone (Android +2 px, no defect), the exact flash class K1 was built to remove; the
+slide entry left the incoming stage hit-testable at ~0 opacity (now input-dead for a
+measured 32 ms, not the 300 ms round 2 shipped by mistake); anchorSheetToRow's resize
+listeners detach when the sheet goes, not on the next resize.
+
+Two loop-level findings, promoted to rules:
+
+  #771 — a sweep over RAW TEXT is satisfied, or defeated, by the comment that explains
+  it. Found four times, starting with a [SCROLL] set pin that its own DOCBLOCK
+  satisfied: green when the emit was renamed away, red on the sanctioned retirement.
+  Every pin now declares stripCode or raw explicitly; a pin whose subject IS the prose
+  runs on a prose() normaliser and asserts by count-and-quote.
+
+  #772 — a comment stating an invariant the code does not enforce is itself a defect.
+  Nine instances: four in the delta, THREE introduced by the loop's own fixes, one
+  inside a pin, and one inside the paragraph that retired rotted citations — which
+  shipped a fifth, and whose correction then rotted again when the next round's
+  insertions moved the target. file:line in a comment is now a searchable anchor.
+
+Numbers (clean clone, Linux container, Ixian-Core sibling at 097341a PRESENT):
+
+  bundle 321 · shells 18
+  smoke BASELINE OK 4067 / the 3 known (#136 · M5 · B3)   [4040 -> 4067, +27 pins]
+  locales ALL CLEAN 786 · i18n-lint OK (6 dev exemptions, 2 sites) · pseudo 9/9
+  cs-syntax 141 clean + 1 known gap
+  extract-strings --check OK · build-shells --check OK
+  build-legal-docs --check OK (terms baked · privacy HELD)
+  Ixian-Core 097341a untouched
+
+Every pin added or repaired was killed by its own mutation in a full tar copy, with
+bundle and shells rebuilt inside the copy where a component or shell moved. The final
+reviewer ran 15 mutations across all four rounds and all four owners; none passed.
+
+Recorded residuals are DECISIONS #773 — including built chat.html at 674,177 B against
+the 660 KB pin ceiling: 1,663 B of headroom, so the next prose edit budgets a raise in
+the same commit.
+
+Session J's missing security-handover-gate section is filed retroactively (it added a
+spixi.* key, a verb and a log set with no gate read), and Session L has its own.
+
+DECISIONS #767-#773.

@@ -43,6 +43,13 @@
   --_ink-hover: var(--text-action-hover);
   --_ink-pressed: var(--text-action-pressed);
   --_outline: var(--outline-action-default);
+  /* ★ #46 r2 C1: the ink that rides ON --_fill, intent-switched like every other member of
+     this private palette. It used to be --text-neutral-on-action hard-coded at the
+     [data-type="fill"] rule, which was right for the default intent and wrong for
+     destructive: in dark --surface-destructive-default is --error-300 #f49c92 and the white
+     label measured 2.01:1 — the worst reading anywhere in the #46 audit, and the one row
+     the census missed. Default intent is unchanged at 6.68:1 on #3050bd (Damir, Session K). */
+  --_on-fill: var(--text-neutral-on-action);
 
   display: inline-flex;
   align-items: center;
@@ -79,6 +86,12 @@
 }
 
 .c-button[data-intent="destructive"] {
+  /* ★ #46 r2 C1: dark #131415 on --error-300 #f49c92 = 8.80:1 (was #f9fafb at 2.01:1);
+     light #f9fafb on --error-600 #b12525 = 6.36:1, unchanged. State steps hold on the same
+     ink: dark hover #f1786e 6.72:1 / pressed #e34540 4.56:1.
+     Reversal: delete the --_on-fill declaration below and the destructive fill falls back
+     to the base palette (--text-neutral-on-action), i.e. back to 2.01:1 in dark. */
+  --_on-fill: var(--text-neutral-on-destructive);
   --_fill: var(--surface-destructive-default);
   --_fill-hover: var(--surface-destructive-hover);
   --_fill-pressed: var(--surface-destructive-pressed);
@@ -100,7 +113,7 @@
 .c-button[data-width="full"] { display: flex; width: 100%; }
 
 /* types */
-.c-button[data-type="fill"] { background: var(--_fill); color: var(--text-neutral-on-action); }
+.c-button[data-type="fill"] { background: var(--_fill); color: var(--_on-fill); }
 
 .c-button[data-type="tonal"] { background: var(--_tonal); color: var(--_ink); }
 
@@ -153,7 +166,10 @@
 /* success morph (DECISIONS.md #29) — overrides any type while active */
 .c-button[data-success] {
   background: var(--surface-success) !important;
-  color: var(--text-neutral-on-action) !important;
+  /* ★ #46 r2 C1: the morph fill is GREEN, never the action blue — in dark --success-300
+     #91c69b took the on-action white at 1.87:1. --text-neutral-on-success = 9.45:1 dark /
+     5.98:1 light. The !important is the morph overriding any intent, and stays. */
+  color: var(--text-neutral-on-success) !important;
   border-color: transparent !important;
   pointer-events: none;
 }
@@ -702,6 +718,8 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   justify-content: center;
   border: 0;
   border-radius: var(--radius-full);
+  /* ★ #46 r2 C1: a fallback only — every kind below sets its own ink, because none of the
+     three circles is --surface-action-default. Kept so a new kind is never inkless. */
   color: var(--icon-neutral-on-action);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -714,8 +732,12 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-callin__circle:active { transform: scale(0.96); }
 /* freeze audit: on-scrim focus ring (see media-viewer note) */
 .c-callin__circle:focus-visible { outline-color: var(--icon-on-scrim); }
-.c-callin__circle[data-kind="accept"] { background: var(--surface-success); }
-.c-callin__circle[data-kind="decline"] { background: var(--surface-error); }
+/* ★ #46 r2 C1: green and red fills, not the action blue. In dark the inherited on-action
+   white glyph measured 1.87:1 on --success-300 #91c69b and 2.63:1 on --error-400 #f1786e.
+   The role inks give 9.45:1 / 6.72:1 dark and 5.98:1 / 6.36:1 light. Fills unchanged.
+   Reversal: delete the two color declarations and the glyphs fall back to the 1.87/2.63 white. */
+.c-callin__circle[data-kind="accept"] { background: var(--surface-success); color: var(--icon-neutral-on-success); }
+.c-callin__circle[data-kind="decline"] { background: var(--surface-error); color: var(--icon-neutral-on-error); }
 .c-callin__circle[data-kind="ignore"] {
   background: var(--surface-wash-on-hero-pressed); /* quiet, tertiary */
   color: var(--icon-on-scrim);
@@ -744,7 +766,9 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   align-items: stretch;
   min-height: var(--size-target-min);
   background: var(--surface-success);
-  color: var(--text-neutral-on-action);
+  /* ★ #46 r2 C1: green fill, not the action blue — dark --success-300 #91c69b took the
+     on-action white at 1.87:1. --text-neutral-on-success = 9.45:1 dark / 5.98:1 light. */
+  color: var(--text-neutral-on-success);
   box-shadow: var(--elevation-2);
   transform: translateY(-100%);
   transition: transform var(--duration-200) var(--easing-standard);

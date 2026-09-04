@@ -2185,7 +2185,6 @@ namespace SPIXI
             }
 
             fromChat = true;
-            SingleChatPage.pendingTapTicks = System.Diagnostics.Stopwatch.GetTimestamp();   // ★ Session K [CDPERF]: the tap → constructor stamp (temporary)
 
             MainThread.BeginInvokeOnMainThread(() =>
             {
@@ -2214,6 +2213,19 @@ namespace SPIXI
                 // the previous one only after it is visible → seamless switching,
                 // nothing detaches, nothing can flicker.
                 bool wide = rightContent.IsVisible;
+                /* ★ #46 A4 (NIT) — THE TAP STAMP IS WRITTEN WHERE IT IS MEASURED.
+                 * DEFECT: this write used to sit before `MainThread.BeginInvokeOnMainThread`,
+                 * whose body returns early above when the chat is already open (and on the
+                 * double-click it exists to swallow). The stamp then STRANDED — no
+                 * SingleChatPage constructor consumed it — and stood until the NEXT
+                 * construction, which read it as that open's tap→ctor latency and logged a
+                 * wildly large, entirely false number.
+                 * PREVENTS: a poisoned [CDPERF] tap number in the instrument the chat-open perf
+                 * work reads. It is a measurement bug, not a user-visible one, which is exactly
+                 * why it is dangerous: it is the number the fixes are steered by.
+                 * REVERSAL: move it back above the marshal; every swallowed double-click then
+                 * plants a stamp that the next real open reports as its own latency. */
+                SingleChatPage.pendingTapTicks = System.Diagnostics.Stopwatch.GetTimestamp();   // ★ Session K [CDPERF]: the tap → constructor stamp (temporary)
                 // ★ Session K: revealDelayMs 0 — the conversation presents on its shell's own
                 // `ixian:painted` (SingleChatPage.armPresentOnPainted), not on the 120 ms timer.
                 pushPageLoaded(new SingleChatPage(friend, wide ? this : null), 4000, "chat", wide ? 1 : -1,

@@ -101,6 +101,8 @@
   justify-content: center;
   border: 0;
   border-radius: var(--radius-full);
+  /* ★ #46 r2 C1: a fallback only — every kind below sets its own ink, because none of the
+     three circles is --surface-action-default. Kept so a new kind is never inkless. */
   color: var(--icon-neutral-on-action);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -113,8 +115,12 @@
 .c-callin__circle:active { transform: scale(0.96); }
 /* freeze audit: on-scrim focus ring (see media-viewer note) */
 .c-callin__circle:focus-visible { outline-color: var(--icon-on-scrim); }
-.c-callin__circle[data-kind="accept"] { background: var(--surface-success); }
-.c-callin__circle[data-kind="decline"] { background: var(--surface-error); }
+/* ★ #46 r2 C1: green and red fills, not the action blue. In dark the inherited on-action
+   white glyph measured 1.87:1 on --success-300 #91c69b and 2.63:1 on --error-400 #f1786e.
+   The role inks give 9.45:1 / 6.72:1 dark and 5.98:1 / 6.36:1 light. Fills unchanged.
+   Reversal: delete the two color declarations and the glyphs fall back to the 1.87/2.63 white. */
+.c-callin__circle[data-kind="accept"] { background: var(--surface-success); color: var(--icon-neutral-on-success); }
+.c-callin__circle[data-kind="decline"] { background: var(--surface-error); color: var(--icon-neutral-on-error); }
 .c-callin__circle[data-kind="ignore"] {
   background: var(--surface-wash-on-hero-pressed); /* quiet, tertiary */
   color: var(--icon-on-scrim);

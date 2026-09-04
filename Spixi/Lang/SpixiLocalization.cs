@@ -32,10 +32,32 @@ namespace SPIXI.Lang
         /* ★ Session K — THE DICTIONARY VERSION. Every mutation of what `*SL{}` resolves to
          * (a language load, a custom string) bumps it. `generatePage` keys its localized-HTML
          * cache on (file, version): a chat open re-localizes nothing when nothing changed,
-         * and a LaunchBootView / devMode / theme-name write before the next generatePage
-         * invalidates every entry by construction — no per-key bookkeeping, no stale carrier. */
+         * and any carrier write invalidates EVERY entry by construction — no per-key
+         * bookkeeping.
+         *
+         * ⚠ #46 A6 — WHAT THIS DOES NOT CLAIM. The old wording here ended "no stale carrier",
+         * which overclaims: the version guarantees only that no CACHED DOCUMENT survives a
+         * carrier change. A carrier written AFTER a live document was generated (SettingsPage
+         * writing SpixiThemeName/SpixiThemeMode without reloading settings.html, the runtime
+         * devMode toggle, the authoritative AndroidInsetTop from the insets listener) is
+         * pre-existing live-document staleness that the shells' own push paths fix — this
+         * cache neither causes it nor repairs it. See generatePage's docblock.
+         *
+         * ★ #46 A5 — MEMORY MODEL. DEFECT: a plain `int` bumped with `++` (a non-atomic
+         * read-modify-write) and read with a plain load, while the readers are page
+         * constructors on whichever thread builds them. PREVENTS: two concurrent bumps
+         * collapsing into one — a version that never changes for the second mutation leaves
+         * every cached document keyed to a dictionary that no longer exists — and a reader
+         * parked on a register-cached version that never observes the bump at all.
+         * REVERSAL: change `Interlocked.Increment(ref dictionaryVersion)` back to
+         * `dictionaryVersion++` and `Volatile.Read` back to a bare field read; the cache then
+         * has no ordering guarantee between the mutation and the readers that key on it, and
+         * a lost bump serves stale localized HTML for the rest of the process. The field is
+         * deliberately NOT declared `volatile` — that would make every `ref` pass here
+         * CS0420 ("a reference to a volatile field will not be treated as volatile"), which
+         * is precisely the guarantee Interlocked already provides. */
         private static int dictionaryVersion = 0;
-        public static int getDictionaryVersion() { return dictionaryVersion; }
+        public static int getDictionaryVersion() { return System.Threading.Volatile.Read(ref dictionaryVersion); }
         /* ★ AND-7 (#401): AndroidInsetTop is SEEDED here, not only registered by
          * MainActivity. Every shell head carries the carrier now, and an unknown *SL{}
          * key is not silently empty — localizeHtml LOGS an error for it (both `Unknown localization key` sites) on
@@ -164,7 +186,7 @@ namespace SPIXI.Lang
             loaded = true;
             localizedStrings = localized_strings;
             language = resolved_lang;
-            dictionaryVersion++;   // ★ Session K: every cached localized document is stale now
+            System.Threading.Interlocked.Increment(ref dictionaryVersion);   // ★ Session K: every cached localized document is stale now · #46 A5: atomic
 
             return true;
         }
@@ -173,7 +195,7 @@ namespace SPIXI.Lang
         {
             customStrings.AddOrReplace(key, value);
             localizedStrings.AddOrReplace(key, value);
-            dictionaryVersion++;   // ★ Session K: a carrier changed — see getDictionaryVersion
+            System.Threading.Interlocked.Increment(ref dictionaryVersion);   // ★ Session K: a carrier changed — see getDictionaryVersion · #46 A5: atomic
         }
 
         public static string getLocalizedString(string key)
@@ -199,44 +221,132 @@ namespace SPIXI.Lang
             return language;
         }
 
-        public static void localizeHtml(string html_file_path, string localized_file_path)
+        /* ★★ #46 A1 (MAJOR, measured on Windows 2026-09-03) — THE WRITE IS NOW REPORTABLE.
+         *
+         * DEFECT: this returned `void`. A missing source logged `Logging.error` and returned
+         * WITHOUT WRITING; a throw part-way through the copy left a HALF-WRITTEN file behind
+         * and propagated out of a page constructor. `generatePage` therefore had no way to
+         * distinguish "wrote it" from "did not", and fell back to
+         * `File.Exists(localized_file_path)` — which is TRUE for an `ll_*.html` that a
+         * PREVIOUS build left in `Documents\Spixi\html`, a folder that survives every wipe.
+         *
+         * PREVENTS, precisely: (a) marking a stale previous-build document "fresh" for the
+         * rest of the process, which serves a completely normal-LOOKING but wrong page — the
+         * observed symptom was a LIGHT Account pane under a dark system theme; and (b) a
+         * never-deployed page yielding a bare `ERR_FILE_NOT_FOUND`. Session K's version map
+         * made this worse, not better: it cut the error line from once per open to once per
+         * (file, dictionary version) per process, quieting exactly the failure that fails
+         * silently.
+         *
+         * CONTRACT: `true` ONLY after the writer has flushed and closed — i.e. only when a
+         * complete document is on disk. `false` after the existing missing-source
+         * `Logging.error`, and `false` from the catch, because a HALF-WRITTEN file must never
+         * count as written. Existing callers that ignore the return value stay valid.
+         *
+         * REVERSAL: change the return type back to `void`, delete the try/catch, and delete
+         * the three `return` values. Every caller still compiles (they discard the value),
+         * and `generatePage` is forced back onto `File.Exists` — i.e. straight back to
+         * serving a previous build's document as if it were this build's, and back to
+         * throwing an IO exception out of a page constructor on the UI thread. */
+        public static bool localizeHtml(string html_file_path, string localized_file_path)
         {
             if(!File.Exists(html_file_path))
             {
                 Logging.error("HTML File doesn't exist: " + html_file_path);
-                return;
+                return false;
             }
-            StreamReader sr = File.OpenText(html_file_path);
-            StreamWriter sw = File.CreateText(localized_file_path);
-
-            while (!sr.EndOfStream)
+            /* ★ r3 R3-6: `?` because null is the DECLARED state on both — the finally below
+             * and the `sr = null` / `sw = null` hand-offs after a successful close both depend
+             * on it (Spixi.csproj:20 is <Nullable>enable</Nullable>; CS8600 otherwise). */
+            StreamReader? sr = null;
+            StreamWriter? sw = null;
+            /* ★ #46 r2 R2-7: did THIS CALL truncate the target? Only then may the catch delete
+             * it. See the catch. */
+            bool truncatedTarget = false;
+            try
             {
-                string line = sr.ReadLine().Trim();
-                if(line == "")
+                sr = File.OpenText(html_file_path);
+                sw = File.CreateText(localized_file_path);
+                truncatedTarget = true;   // CreateText returned: the target is now this call's, and empty
+
+                while (!sr.EndOfStream)
                 {
-                    continue;
-                }
-                while (line.Contains("*SL{"))
-                {
-                    string key = line.Substring(line.IndexOf("*SL{") + 4);
-                    key = key.Substring(0, key.IndexOf("}"));
-                    string value = _SL(key);
-                    if (value == null)
+                    string line = sr.ReadLine().Trim();
+                    if(line == "")
                     {
-                        Logging.error("Unknown localization key; " + key);
-                        value = "";
+                        continue;
                     }
-                    line = line.Replace("*SL{" + key + "}", value);
+                    while (line.Contains("*SL{"))
+                    {
+                        string key = line.Substring(line.IndexOf("*SL{") + 4);
+                        key = key.Substring(0, key.IndexOf("}"));
+                        string value = _SL(key);
+                        if (value == null)
+                        {
+                            Logging.error("Unknown localization key; " + key);
+                            value = "";
+                        }
+                        line = line.Replace("*SL{" + key + "}", value);
+                    }
+                    sw.WriteLine(line);
                 }
-                sw.WriteLine(line);
+
+                sr.Close();
+                sr.Dispose();
+                sr = null;
+
+                sw.Flush();
+                sw.Close();
+                sw.Dispose();
+                sw = null;
+
+                return true;   // ⚠ the ONLY true: the writer has flushed and closed
             }
-
-            sr.Close();
-            sr.Dispose();
-
-            sw.Flush();
-            sw.Close();
-            sw.Dispose();
+            catch (Exception ex)
+            {
+                Logging.error("localizeHtml failed writing " + localized_file_path + " from " + html_file_path + ": " + ex);
+                /* ★ #46 r2 (pin pass): DELETE the partial file — BUT ONLY THE ONE THIS CALL
+                 * TRUNCATED (r2 R2-7). A throw part-way through the copy leaves a TRUNCATED
+                 * ll_*.html behind, and the finally below closes it — so it exists.
+                 * generatePage then reads `stalePresent = File.Exists(...)` as true and, if the
+                 * stream fallback also fails, serves that URL on the "a previous build's
+                 * complete document beats a blank app" argument. That argument does NOT cover a
+                 * half-written document: it is not a previous build's, it is this run's garbage,
+                 * and the two are indistinguishable on disk. Removing it collapses the case to
+                 * "nothing there", which the fallback ladder already handles honestly with a
+                 * page that names the file.
+                 * ⚠ R2-7 — THE GUARD IS `truncatedTarget`, NOT `File.Exists`. Exactly one throw
+                 * in this try happens BEFORE `File.CreateText` returns: `File.OpenText(
+                 * html_file_path)`, taken after `File.Exists` above already said the source is
+                 * there — a sharing violation, an AV lock, a TOCTOU delete. In that case the
+                 * writer was never opened and the target is untouched; deleting on File.Exists
+                 * alone destroyed a STANDING, COMPLETE previous-build `ll_` file. generatePage
+                 * would then read `stalePresent` false and serve the built-in error page
+                 * instead of the working document rung ② exists to serve — this catch turning a
+                 * transient read failure into a permanent one. `File.CreateText` either returns
+                 * with the target created/truncated or throws without touching it, so the flag
+                 * is set on the line after it and means exactly what it says.
+                 * REVERSAL: drop the delete and a mid-copy failure can render half a screen —
+                 * the worst outcome in the ladder, because it looks like a layout bug rather
+                 * than a build one. Drop the `truncatedTarget` guard and a locked SOURCE file
+                 * deletes a good target. */
+                try
+                {
+                    if (sw != null) { try { sw.Close(); sw.Dispose(); } catch (Exception) { } sw = null; }
+                    if (truncatedTarget && File.Exists(localized_file_path)) { File.Delete(localized_file_path); }
+                }
+                catch (Exception delEx)
+                {
+                    Logging.error("localizeHtml could not remove the partial file " + localized_file_path + ": " + delEx);
+                }
+                return false;
+            }
+            finally
+            {
+                // The success path nulled both out already; this closes whatever a throw left open.
+                try { sr?.Close(); sr?.Dispose(); } catch (Exception) { }
+                try { sw?.Close(); sw?.Dispose(); } catch (Exception) { }
+            }
         }
 
         public static string localizeHtml(Stream stream)

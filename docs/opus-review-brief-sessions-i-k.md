@@ -135,6 +135,91 @@ Questions to break:
 - RAM: 3–4 WebViews + the runtime; the FE lever (release the parked Account under pressure) is
   a Session L+ build, not a review finding.
 
-## Verdict (append here)
+## Verdict (appended — Session L, 2026-09-04)
 
-_(pending — Session L)_
+# ★★ CLEAN — after FIVE rounds. Closing suite 4067 / the 3 known.
+
+**Protocol run as ordered.** 3 disjoint read-only auditors (C# · JS · CSS+pins) → 2 verifiers
+(which REFUTED four findings and ELEVATED one nobody had) → 3 fix agents on disjoint files →
+a central pin pass → **four** fresh break-my-verdict reviewers, each over the *previous round's
+fixes*, never over the delta. Verdicts in order: **r1 NOT CLEAN** (2) · **r2 NOT CLEAN** (5) ·
+**r3 NOT CLEAN** (4) · **r4 NOT CLEAN** (1, prose) · **r5 CLEAN**.
+
+Numbers: smoke **4040 → 4067** (+27 pins) / the 3 known (#136 · M5 · B3), WITH the Ixian-Core
+sibling present · bundle 321 · shells 18 · cs-syntax 141 + 1 known gap · locales ALL CLEAN 786 ·
+i18n-lint ✓ · pseudo 9/9 · extract-strings / build-shells / build-legal-docs `--check` ✓
+(terms baked · privacy HELD 🟡) · Ixian-Core **097341a untouched** (`git status` empty).
+Mutation: every pin added or repaired was killed by its own mutation in a full `cp -r` copy
+(bundle + shells rebuilt inside the copy where a component or shell moved). The final reviewer
+ran 15 mutations across all four rounds and all four owners; none passed.
+
+## The three MAJORs (DECISIONS #768 · #769 · #770)
+
+1. **The Windows freshness map certified a previous build's document as fresh.** Not reasoned —
+   MEASURED on Damir's machine the same morning, from two reports that turned out to be one
+   cause: Add app 404, and a light Account pane under a dark system theme. `localizeHtml`
+   returned void; `generatePage` gated freshness on `File.Exists` and handed back the URL
+   regardless. Session K's version map cut the only diagnostic from once-per-open to
+   once-per-process — it quieted the failure that fails *silently*. And `copyResources()`,
+   uncaught in the `App()` constructor, would have hard-crashed the app on the same folder.
+2. **Damir's white-on-blue ruling was applied to a token ten surfaces read** — mute label
+   **1.14:1**, six more between 1.87 and 2.63. The existing pin checked the token's value and
+   never asked who consumed it. No fill changed; only the ink, by role.
+3. **A rotation persisted a keyboard height that fills the screen**, and latched `kbUp` so ⊕
+   waited out the 450 ms backstop. Two gestures on a stock phone.
+
+## What the loop proved about itself
+
+★ **Two of the three MAJOR fixes were broken by the next reviewer.** The round-2 shape guard
+suppressed the `kbUp` CLEAR as collateral; round 3's width/orientation discriminator could not
+see a portrait split-screen, whose divider is horizontal. Geometry cannot separate a keyboard
+from a window resize under `adjustResize` — the discriminator had to become semantic (a soft
+keyboard cannot exist without a focused editable). **#512 is not a formality.** A self-reviewed
+batch would have shipped every one of those five rounds.
+
+★ **The governing defect (#771): a sweep over raw text is satisfied — or defeated — by the
+comment that explains it.** Found four times, starting with a `[SCROLL]` set pin that a
+**docblock** satisfied: green when the emit was renamed away, red on the sanctioned retirement.
+Wrong in both directions, one pin below the `stripCode` docblock naming that exact hazard.
+
+★ **Nine false invariants (#772)** — four in the delta, **three introduced by the fixes**, one
+inside a pin, and one inside the paragraph that retired rotted citations, which shipped a fifth
+rotted citation and whose correction then rotted again when the next round's insertions moved
+the target. `file:line` in a comment is now a searchable quoted anchor.
+
+## Answers to the brief's questions
+
+**Auditor A (C#):** present machinery **HOLDS** — every path funnels through `PreloadOp.tryFinish`
+(`Interlocked.Exchange`); five call sites enumerated, every escape probed and closed.
+`revealDelayMs: 0` **HOLDS** on content (none of the three form pages pushes after onload).
+The cache **BREAKS** on Windows → #768. Log lines hold except `[WEBVIEW]`, which forwards
+page-authored text (dev builds only; the mini-app `ClassId` test cannot be spoofed, but fails
+**open** on a disposed renderer — unreachable because `Control.Destroy()` precedes the client's
+dispose). Security lens **HOLDS**: no new payload verb, no new sink, no new fetch; money, the
+lock/call exclusion (#272) and the #221 pane boundary untouched by all 37 files.
+
+**Auditor B (JS):** K1 hold **BREAKS** → a 32 px lurch of the composer and the log on every
+notched iPhone (Android +2 px, no defect). `ixian:painted` **HOLDS** — and by causality, not
+FIFO: C# queues every push until `ixian:onload`, so `onChatScreenLoaded` cannot precede
+`ready()`. Apps ⋯ / `clearScrimFor` **HOLDS** — three callers, exhaustively; no mobile sheet
+loses its wash. `--bubble-avatar-size` **HOLDS** (one declaration, bare `:root`, nothing writes
+it at runtime). The destructure gate covers 17/18 shells; `empty_detail.html` is deliberately
+bundle-less and passes anyway when included.
+
+**Auditor C (pins):** `[SCROLL]` **VACUOUS** → #771. The other three set pins forbid a
+half-removal, proven by mutation. Cascade **HOLDS** (§0 helper over `.c-bubble-row`: 14 rules,
+4 files, one deliberate specificity override). The received-sticker index pin **HOLDS** (the
+reorder mutation reddens it). `build-shells --check` catches a same-length substitution in a
+built shell; the NUL gate fires. On-action ink **BREAKS** → #769.
+
+## Ledger for whoever runs the next loop
+
+- A behavioural pin that **stubs the function under test proves nothing.** `kbEditableFocused`
+  had a source pin and a stubbed harness; a one-token mutation reverted two MAJOR fixes with
+  the suite fully green. It now compiles the shipped function and calls it against 13 states.
+- **Never let the fixer raise a limit his own prose crossed** without saying so. The `#345`
+  ceiling moved 640 → 660 KB in this loop; it was priced (0.08 ms/KB, three measured in-tree
+  points) and stated. Headroom is now **1 663 B** — residual #773 ④.
+- Recorded residuals live in **DECISIONS #773**, not in an agent's tail message.
+
+_(Loop closed 2026-09-04. Next: the Session L build queue, which this verdict unblocks.)_

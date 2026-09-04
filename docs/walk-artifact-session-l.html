@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spixi — Walk L</title>
+<style>
+:root{
+  --bg:#0b0e11; --card:#151a20; --card2:#1b222a; --line:#242c36;
+  --ink:#f9fafb; --ink2:#9fb0c0; --ink3:#6b7c8c;
+  --p:#2fa36b; --f:#d4564a; --n:#6b7c8c; --acc:#3f6fe0;
+  --r:12px;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#f4f6f8; --card:#ffffff; --card2:#f0f3f6; --line:#dde3ea;
+    --ink:#13171b; --ink2:#4b5b6b; --ink3:#7b8b9b;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  padding:0 0 96px;-webkit-text-size-adjust:100%}
+header{position:sticky;top:0;z-index:5;background:var(--bg);
+  border-bottom:1px solid var(--line);padding:14px 16px 10px}
+h1{margin:0;font-size:18px;letter-spacing:-.01em}
+.sub{color:var(--ink2);font-size:13px;margin-top:3px}
+.counts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.pill{font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;
+  background:var(--card2);color:var(--ink2);border:1px solid var(--line)}
+.pill b{color:var(--ink)}
+main{padding:16px}
+section{margin:0 0 22px}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);
+  margin:0 0 10px;font-weight:700}
+.row{background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+  padding:13px 14px;margin-bottom:10px}
+.row[data-v="P"]{border-color:color-mix(in srgb,var(--p) 55%,var(--line))}
+.row[data-v="F"]{border-color:color-mix(in srgb,var(--f) 65%,var(--line))}
+.id{font-weight:700;font-size:13px;color:var(--acc);letter-spacing:.02em}
+.q{margin:5px 0 0;font-size:14.5px}
+.exp{margin:7px 0 0;font-size:13px;color:var(--ink2)}
+.exp b{color:var(--ink);font-weight:600}
+.btns{display:flex;gap:8px;margin-top:11px}
+button.v{flex:1;padding:9px 0;font:inherit;font-weight:700;font-size:14px;
+  border-radius:9px;border:1px solid var(--line);background:var(--card2);
+  color:var(--ink2);cursor:pointer;-webkit-tap-highlight-color:transparent}
+button.v:active{transform:scale(.98)}
+.row[data-v="P"] button[data-val="P"]{background:var(--p);border-color:var(--p);color:#fff}
+.row[data-v="F"] button[data-val="F"]{background:var(--f);border-color:var(--f);color:#fff}
+.row[data-v="N"] button[data-val="N"]{background:var(--n);border-color:var(--n);color:#fff}
+textarea{width:100%;margin-top:9px;padding:9px 10px;border-radius:9px;
+  border:1px solid var(--line);background:var(--bg);color:var(--ink);
+  font:inherit;font-size:13.5px;resize:vertical;min-height:38px}
+textarea::placeholder{color:var(--ink3)}
+.paste textarea{min-height:120px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+footer{position:fixed;left:0;right:0;bottom:0;z-index:6;display:flex;gap:10px;
+  padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+  background:linear-gradient(to top,var(--bg) 72%,transparent);}
+footer button{flex:1;padding:13px 0;font:inherit;font-weight:700;font-size:15px;
+  border-radius:11px;border:0;background:var(--acc);color:#fff;cursor:pointer}
+footer button.ghost{background:var(--card2);color:var(--ink2);border:1px solid var(--line);flex:0 0 40%}
+.note{font-size:12.5px;color:var(--ink3);margin:-4px 0 14px}
+.warn{background:color-mix(in srgb,var(--f) 12%,var(--card));
+  border:1px solid color-mix(in srgb,var(--f) 40%,var(--line));
+  border-radius:var(--r);padding:11px 13px;font-size:13.5px;margin-bottom:14px}
+.warn b{color:var(--ink)}
+#out{position:fixed;inset:0;z-index:10;background:var(--bg);padding:16px;display:none;overflow:auto}
+#out textarea{height:calc(100vh - 150px);font-family:ui-monospace,Menlo,monospace;font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Walk L — after the #46 loop</h1>
+  <div class="sub">Tap P / F / N. Notes optional. <b>Copy results</b> at the bottom, paste back in chat.</div>
+  <div class="counts">
+    <span class="pill">P <b id="cP">0</b></span>
+    <span class="pill">F <b id="cF">0</b></span>
+    <span class="pill">N <b id="cN">0</b></span>
+    <span class="pill">left <b id="cL">0</b></span>
+  </div>
+</header>
+<main>
+
+<div class="warn">
+  <b>Build with F5 / Deploy, or run the <code>Copy-Item</code> line in the checklist.</b>
+  Session L made a missing asset folder <i>say so</i> instead of rendering a stale page — it does
+  not stage the assets for you. A bare <code>dotnet build</code> + <code>Spixi.exe</code> is what
+  produced yesterday's Add-app 404 and the light Account pane.
+</div>
+
+<section id="s-W"><h2>W · Windows — first, and two of these are the #768 regression test</h2>
+<p class="note">Do W0 before the <code>Copy-Item</code>. If you skip it, mark N.</p></section>
+
+<section id="s-G"><h2>G · The alignment row you reported</h2></section>
+
+<section id="s-A"><h2>A · Chat open — the block that decides the route</h2></section>
+
+<section id="s-R"><h2>R · Rotation &amp; split-screen — new, this is #770</h2>
+<p class="note">The fix took three rounds and two reviewers broke the first two. This is the row that proves it.</p></section>
+
+<section id="s-K"><h2>K · Keyboard → tray</h2></section>
+
+<section id="s-F"><h2>F · The three form pages — committed untested in Session K</h2></section>
+
+<section id="s-S"><h2>S · Scroll &amp; memory</h2></section>
+
+<section class="paste"><h2>Paste blocks</h2>
+  <div class="row"><div class="id">LOG-1</div>
+    <p class="q">The <code>Select-String</code> output (CDPERF / SCROLL / KBTRAY / L14 / WEBVIEW)</p>
+    <textarea data-paste="logcat" placeholder="paste here"></textarea></div>
+  <div class="row"><div class="id">LOG-2</div>
+    <p class="q"><code>dumpsys meminfo</code> — chats list, then inside Seed 01</p>
+    <textarea data-paste="meminfo" placeholder="paste both tables"></textarea></div>
+  <div class="row"><div class="id">LOG-3</div>
+    <p class="q">Windows <code>ixian.log</code> tail (WV2 / copyResources / localizeHtml)</p>
+    <textarea data-paste="winlog" placeholder="paste here"></textarea></div>
+</section>
+</main>
+
+<footer>
+  <button class="ghost" id="reset">Reset</button>
+  <button id="copy">Copy results</button>
+</footer>
+
+<div id="out">
+  <p class="sub" style="margin:0 0 10px">Select all and copy, then paste in chat.</p>
+  <textarea id="outText" readonly></textarea>
+  <footer style="position:static;background:none;padding:12px 0 0">
+    <button id="back">Back</button>
+  </footer>
+</div>
+
+<script>
+var ROWS = [
+ ['W','W0','Run Spixi.exe from a build with NO html\\ folder (before the Copy-Item).',
+   'App <b>starts</b> (it used to die in the App() constructor with no window and no message) and shows a page <b>naming the missing file</b>. ixian.log carries "copyResources: the html asset folder is MISSING at …".'],
+ ['W','W1','After the full F5 / Copy-Item build: open <b>Apps → Add app</b>.',
+   'The form opens. No <b>ERR_FILE_NOT_FOUND</b>. It should also appear ~120 ms sooner than you remember (#766).'],
+ ['W','W2','Set the system theme to <b>dark</b>, open <b>Account</b>.',
+   'The Account pane is <b>dark</b>. A light pane here after a clean build is a NEW finding, not #768.'],
+ ['W','W3','Any white pane / flash on window resize or first paint?',
+   'None. If one survives, paste the <b>[WV2]</b> lines — with DefaultBackgroundColor applied at every pass the ghost is the compositor re-attach (#248), and the measurement says so.'],
+ ['W','W4','Paste into a chat from the clipboard (text, then an image).',
+   'Both land in the composer.'],
+
+ ['G','G1','In a group, look at a run of two or more messages from the <b>same</b> person.',
+   'Every bubble in the run lines up on the same left edge — the rows without an avatar keep an empty gutter of exactly the avatar\'s width. <b>If it still hangs left after a clean build, mark F</b> and say whether the row above it carried a reaction.'],
+ ['G','G2','Same run, but with a <b>reaction</b> on the first bubble.',
+   'No difference — the reaction must not change the alignment of the row below it. This is the suspect if G1 fails.'],
+
+ ['A','A1','Open a chat with <b>3 contacts</b>, back out, open it again.',
+   'Opens with no white flash and no visible wait. <b>Paste the CDPERF block</b> — present ≈ painted, ~90–120 ms off the open.'],
+ ['A','A2','Open <b>Seed 01</b> (1000 messages).',
+   'Same shape, slower. Note anything that stutters.'],
+ ['A','A3','Any <code>backstop t=</code> line in the log for any open?',
+   '<b>None.</b> A backstop line means the ixian:painted verb did not arrive — the #663 class, and it gets traced before anything else.'],
+
+ ['R','R1','In a chat, keyboard <b>down</b>: rotate to landscape, tap ⊕.',
+   'The tray is the height of a <b>real landscape keyboard</b> and appears <b>immediately</b>. Before the fix it filled ~99% of the screen, ~450 ms late.'],
+ ['R','R2','Rotate back to portrait, tap ⊕ (without touching the field first).',
+   'A normal portrait-height tray. Nothing was remembered from landscape.'],
+ ['R','R3','Now with the keyboard <b>up</b>: rotate, then tap ⊕.',
+   'No two-heights state — the tray never sits on top of a live keyboard.'],
+ ['R','R4','Portrait, enter <b>split-screen</b> with any app, tap ⊕.',
+   'A sane tray, immediately. <b>This is the case that broke two rounds of the fix</b> — a portrait split has a horizontal divider, so the width never changes and geometry alone cannot see it.'],
+ ['R','R5','Leave split-screen, tap ⊕ again.',
+   'Still sane. Nothing poisoned was persisted.'],
+
+ ['K','K1','Keyboard up → tap <b>⊕</b>.',
+   'The composer swaps the keyboard for the tray in one move. <b>Nothing jumps down and back.</b> (On a notched iPhone this used to lurch 32 px.)'],
+ ['K','K2','Tray open → tap the <b>field</b>.',
+   'The keyboard takes the slot back, one move, no flash.'],
+ ['K','K3','⊕ then immediately tap the field again (inside ~half a second).',
+   'One clean end state. The tray must not flash in and out.'],
+ ['K','K4','⊕, then <b>back</b> before the tray appears.',
+   'Nothing opens, and the composer sits exactly where it started.'],
+
+ ['F','F1','Apps → <b>Add app</b>.',   'Appears fully drawn, no 120 ms wait, nothing lands late.'],
+ ['F','F2','Contacts → <b>Add contact</b>.', 'Same.'],
+ ['F','F3','Account → <b>Change Spixi password</b>.', 'Same.'],
+
+ ['S','S1','In Seed 01, scroll hard up and down for ten seconds.',
+   'Paste the <b>[SCROLL]</b> lines. We want drop/max before any fix is proposed — no fix without the number.'],
+ ['S','S2','Pull older history to the top repeatedly.',
+   'The pill keeps loading; no dead end.'],
+ ['S','S3','Memory: <code>dumpsys meminfo</code> on the chats list, then in Seed 01.',
+   'Paste both. The <b>Graphics+WebView vs Native</b> split names the lever (#764).'],
+ ['S','S4','Anything else your eye catches — the rest of the app.',
+   'Every value has its reversal in the token comment; say what looks wrong and it can be dialled.']
+];
+
+var KEY='spixi.walk.L';
+var state={};
+try{ state=JSON.parse(localStorage.getItem(KEY)||'{}')||{}; }catch(e){ state={}; }
+function save(){ try{ localStorage.setItem(KEY,JSON.stringify(state)); }catch(e){} }
+
+ROWS.forEach(function(r){
+  var sec=document.getElementById('s-'+r[0]); if(!sec) return;
+  var st=state[r[1]]||{};
+  var d=document.createElement('div');
+  d.className='row'; d.id='row-'+r[1];
+  if(st.v) d.setAttribute('data-v',st.v);
+  d.innerHTML='<div class="id">'+r[1]+'</div><p class="q">'+r[2]+'</p>'+
+    '<p class="exp">Expect: '+r[3]+'</p>'+
+    '<div class="btns">'+
+      '<button class="v" data-val="P">Pass</button>'+
+      '<button class="v" data-val="F">Fail</button>'+
+      '<button class="v" data-val="N">n/a</button>'+
+    '</div><textarea placeholder="note (optional)"></textarea>';
+  var ta=d.querySelector('textarea'); ta.value=st.n||'';
+  ta.addEventListener('input',function(){
+    (state[r[1]]=state[r[1]]||{}).n=ta.value; save();
+  });
+  d.querySelectorAll('button.v').forEach(function(b){
+    b.addEventListener('click',function(){
+      var v=b.getAttribute('data-val');
+      var cur=(state[r[1]]||{}).v;
+      (state[r[1]]=state[r[1]]||{}).v = (cur===v ? '' : v);
+      if(state[r[1]].v) d.setAttribute('data-v',state[r[1]].v); else d.removeAttribute('data-v');
+      save(); counts();
+    });
+  });
+  sec.appendChild(d);
+});
+
+document.querySelectorAll('textarea[data-paste]').forEach(function(t){
+  var k='paste:'+t.getAttribute('data-paste');
+  t.value=(state[k]||{}).n||'';
+  t.addEventListener('input',function(){ (state[k]=state[k]||{}).n=t.value; save(); });
+});
+
+function counts(){
+  var p=0,f=0,n=0;
+  ROWS.forEach(function(r){ var v=(state[r[1]]||{}).v; if(v==='P')p++; else if(v==='F')f++; else if(v==='N')n++; });
+  document.getElementById('cP').textContent=p;
+  document.getElementById('cF').textContent=f;
+  document.getElementById('cN').textContent=n;
+  document.getElementById('cL').textContent=(ROWS.length-p-f-n);
+}
+counts();
+
+document.getElementById('copy').addEventListener('click',function(){
+  var L=['WALK L — results','date: '+new Date().toISOString().slice(0,16).replace('T',' '),''];
+  var group='';
+  ROWS.forEach(function(r){
+    if(r[0]!==group){ group=r[0]; L.push('['+group+']'); }
+    var st=state[r[1]]||{};
+    L.push('  '+r[1]+' '+(st.v||'-')+(st.n?'  — '+st.n:''));
+  });
+  var f=ROWS.filter(function(r){return (state[r[1]]||{}).v==='F';});
+  L.push('');
+  L.push('FAILS: '+(f.length? f.map(function(r){return r[1];}).join(', ') : 'none'));
+  ['logcat','meminfo','winlog'].forEach(function(k){
+    var v=((state['paste:'+k])||{}).n||'';
+    if(v.trim()){ L.push('','--- '+k+' ---',v.trim()); }
+  });
+  var txt=L.join('\n');
+  var o=document.getElementById('out'), t=document.getElementById('outText');
+  t.value=txt; o.style.display='block'; t.focus(); t.select();
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).catch(function(){});
+  }
+});
+document.getElementById('back').addEventListener('click',function(){
+  document.getElementById('out').style.display='none';
+});
+document.getElementById('reset').addEventListener('click',function(){
+  if(!confirm('Clear every answer and note?')) return;
+  state={}; save(); location.reload();
+});
+</script>
+</body>
+</html>

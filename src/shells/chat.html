@@ -508,7 +508,13 @@
     min-width: 18px; height: 18px; padding: 0 var(--spacing-4);
     display: flex; align-items: center; justify-content: center;
     border-radius: var(--radius-full);
-    background: var(--surface-error); color: var(--text-neutral-on-action);
+    /* ★ #46 r2 C1 (cross-file contract from the token census): the ink is the ERROR role,
+       not the action role. Session K made --text-neutral-on-action white in BOTH themes for
+       Damir's blue button (6.68:1, correct and unchanged) — and this badge, which sits on
+       --surface-error (dark #f1786e), inherited that white and collapsed to 2.63:1. The
+       error role restores 6.72:1 in dark; light is 6.36:1 either way, so nothing moves there.
+       REVERSAL: back to --text-neutral-on-action and the count goes unreadable in dark. */
+    background: var(--surface-error); color: var(--text-neutral-on-error);
     box-shadow: 0 0 0 2px var(--surface-menu);
     font-size: var(--font-size-label-xs); line-height: 1; font-weight: var(--font-weight-bold);
   }
@@ -3227,27 +3233,72 @@
     syncChatOverlay();
     return true;
   }
+  /* ★★ R3-5 (#46 loop ROUND 3): THE TWO HAND-OFFS ARE MUTUALLY EXCLUSIVE, AND NOTHING USED TO
+     SAY SO. handKeyboardToTray (keyboard → tray) and handTrayToKeyboard (tray → keyboard) both
+     arm a 450 ms listener on 'resize', and `isAttachTrayOpen` is true for a HELD tray — so a
+     re-focus inside the reveal's window armed `drop` while `reveal` was still armed, and both
+     stood on the same event.
+     Before R2-8 that was covered by accident: one grow satisfied BOTH, reveal was registered
+     first, and drop's synchronous `closeAttachTray(tray, { instant: true })` removed the node
+     in the same dispatch, so nothing painted. R2-8 gave drop a SHRINK test, which un-cancelled
+     the pair: the grow now satisfies only reveal, the tray paints at its full slot, and drop
+     removes it on the keyboard's return shrink 100–300 ms later — ⊕ with the keyboard up, then
+     a tap in the composer inside 450 ms, and the tray flashes in and out. That is the
+     two-heights flash both hand-offs exist to prevent, assembled out of the two of them.
+     So arming one DISARMS the other, explicitly. Listener registration order is not a
+     mechanism: it is what silently covered this for one round, and it stopped covering it the
+     moment the two tests stopped agreeing on which resize they wanted.
+     `disarm` only unbinds — it never runs the action — and it is idempotent through `done`,
+     which every path already checks first.
+     REVERSAL: drop cancelKbHandoff() from the two arm sites and the pair can be armed together
+     again; with R2-8's direction guards in place that is a visible flash, not a silent no-op. */
+  let kbHandoffCancel = null;
+  function cancelKbHandoff() { const c = kbHandoffCancel; kbHandoffCancel = null; if (c) c(); }
   /* ★ #721 (Damir): the field was tapped while the tray is up — the keyboard is coming.
      Hold the tray in place until the viewport shrinks (the keyboard has the slot), then
      remove it in one frame; a 450 ms backstop covers an engine that never resizes (a
-     hardware keyboard, desktop). The bar never dips and rises between the two. */
+     hardware keyboard, desktop). The bar never dips and rises between the two.
+     ★★ R2-8 (#46 loop ROUND 2): DROP ON A VIEWPORT SHRINK, NOT ON ANY RESIZE — the exact
+     mirror of the test B3 put on handKeyboardToTray's reveal, and it was missing here. B3's
+     own docblock calls this function "the mirror" while leaving in it the defect B3 had just
+     removed: any resize inside the 450 ms dropped the tray, so a chrome-bar jitter or a
+     rotation removed it BEFORE the keyboard arrived and the composer dipped to the bottom and
+     rose again — the two-heights flash, in the other direction. The keyboard arriving is a
+     SHRINK of kbViewportH() (reveal wants a GROW of the same number, through the same reader).
+     The 450 ms backstop below stays UNCONDITIONAL — it calls drop with NO event, so `if (e &&
+     …)` cannot gate it and a tray can never be stuck up on an engine that never resizes (a
+     hardware keyboard, desktop). Making the backstop conditional swaps a flash for a hang.
+     ★★ R3-5: and arming this one DISARMS handKeyboardToTray's reveal — see cancelKbHandoff
+     above. `isAttachTrayOpen` is true for a HELD tray, so this function is reachable while
+     that reveal is still armed, and the two want opposite resizes.
+     REVERSAL: drop the direction test and any jitter inside the window drops the tray again. */
   function handTrayToKeyboard() {
     if (!composerEl || !isAttachTrayOpen(composerEl)) return false;
+    cancelKbHandoff();                                   // ★★ R3-5: one hand-off at a time
     const tray = composerEl.nextElementSibling;
     let done = false;
     try { console.warn('[KBTRAY] hold ih=' + window.innerHeight + ' tray=' + tray.offsetHeight + ' t=' + Math.round(performance.now())); } catch (_) {}   // ★ Session J stamp (temporary)
-    const drop = (e) => {
-      if (done) return;
+    const baseH = kbViewportH();
+    let backstop = 0;
+    const disarm = () => {                              // ★★ R3-5: unbind only — never the action
       done = true;
+      clearTimeout(backstop);
       window.removeEventListener('resize', drop);
       if (window.visualViewport) window.visualViewport.removeEventListener('resize', drop);
+      if (kbHandoffCancel === disarm) kbHandoffCancel = null;
+    };
+    const drop = (e) => {
+      if (done) return;
+      if (e && !(kbViewportH() < baseH - 60)) return;   // a resize, but not the keyboard arriving — keep holding
+      disarm();
       try { console.warn('[KBTRAY] drop by=' + (e && e.type ? e.type : 'backstop') + ' ih=' + window.innerHeight + ' t=' + Math.round(performance.now())); } catch (_) {}   // ★ Session J stamp (temporary)
       closeAttachTray(tray, { instant: true });
       syncChatOverlay();
     };
     window.addEventListener('resize', drop);
     if (window.visualViewport) window.visualViewport.addEventListener('resize', drop);
-    setTimeout(drop, 450);
+    backstop = setTimeout(drop, 450);
+    kbHandoffCancel = disarm;
     return true;
   }
 
@@ -3255,22 +3306,51 @@
      the field (the ⊕ button usually took focus already, #756), and open the tray in the
      frame the viewport grows back. Returns the tray, or null when no tile survives. */
   function handKeyboardToTray(trayArgs, input) {
+    cancelKbHandoff();                                   // ★★ R3-5: one hand-off at a time
     const tray = openAttachTray({ ...trayArgs, hold: true });
     if (!tray) return null;
     syncChatOverlay();                                   // back must close the tray before it closes the chat
     try { if (input && document.activeElement === input) input.blur(); } catch (_) {}
     let done = false;
-    const reveal = (e) => {
-      if (done) return;
+    /* ★★ B3 (#46 loop): REVEAL ON A VIEWPORT GROW, NOT ON ANY RESIZE. The whole point of the
+       hold is to open the tray in the frame the KEYBOARD HAS LEFT, and the keyboard leaving is
+       a GROW — the mirror test at the Android resize handler below already requires
+       `ih > lastIH + 60` before it clears kbUp, and this one had no direction and no magnitude
+       test at all. So any resize inside the window revealed the tray: a chrome-bar jitter, a
+       further SHRINK (a keyboard swapping to a taller IME / an emoji panel), a rotation — i.e.
+       exactly the frames where the keyboard is still on screen, which is the two-heights flash
+       K1 was built to remove. Measured through kbViewportH() — visualViewport where there is
+       one, because that is the surface that moves on iOS (innerHeight is constant under its
+       keyboard, #303) while on Android adjustResize vv.height tracks innerHeight 1:1 (AND-16):
+       one test, both engines, and ONE reader, shared with handTrayToKeyboard's mirrored SHRINK
+       test (R2-8) so the two hand-offs cannot come to measure different surfaces.
+       The 450 ms backstop below stays UNCONDITIONAL (it calls reveal with no event), so a tray
+       can never be stuck unrevealed on an engine that never resizes; this only decides which
+       resizes are allowed to beat it.
+       ★★ R3-5: "mirror" does NOT mean "cannot both be armed" — they can, and were. Arming this
+       one disarms handTrayToKeyboard's drop, and vice versa; see cancelKbHandoff above.
+       REVERSAL: drop the guard and the tray can again open on top of a keyboard that has not
+       left — the flash. Do NOT instead make the backstop conditional: that is the belt. */
+    const baseH = kbViewportH();
+    let backstop = 0;
+    const disarm = () => {                              // ★★ R3-5: unbind only — never the action
       done = true;
+      clearTimeout(backstop);
       window.removeEventListener('resize', reveal);
       if (window.visualViewport) window.visualViewport.removeEventListener('resize', reveal);
+      if (kbHandoffCancel === disarm) kbHandoffCancel = null;
+    };
+    const reveal = (e) => {
+      if (done) return;
+      if (e && !(kbViewportH() > baseH + 60)) return;   // a resize, but not the keyboard leaving — keep holding
+      disarm();
       try { console.warn('[KBTRAY] reveal by=' + (e && e.type ? e.type : 'backstop') + ' ih=' + window.innerHeight + ' t=' + Math.round(performance.now())); } catch (_) {}   // ★ Session K stamp (temporary, the [KBTRAY] set)
       revealAttachTray(tray);
     };
     window.addEventListener('resize', reveal);
     if (window.visualViewport) window.visualViewport.addEventListener('resize', reveal);
-    setTimeout(reveal, 450);
+    backstop = setTimeout(reveal, 450);
+    kbHandoffCancel = disarm;
     return tray;
   }
 
@@ -5964,25 +6044,152 @@
    * real keyboards from browser-chrome/jitter resizes. */
   /* ★ Session J: the keyboard-slot height, learned from the keyboard itself (Android: the
      adjustResize shrink; iOS: the native inset push) and handed to the attach tray as
-     --kb-slot-h. Stored per device; clamped to a sane band so a rotated tablet or a split
-     keyboard cannot poison it. */
+     --kb-slot-h. Stored per device; clamped to a sane band (160–600) against a nonsense read.
+     ★★ B2 (#46 loop, MAJOR) — THIS DOCBLOCK USED TO CLAIM THE BAND EXISTS "so a rotated tablet
+     or a split keyboard cannot poison it". IT DOES NOT, AND THAT SENTENCE IS THE DEFECT. A
+     portrait→landscape rotation IS a >60 px shrink and its delta is LARGER than any keyboard:
+     with this file's own on-device numbers (AND-16 below — portrait innerHeight 774, keyboard
+     delta 323) a rotation writes ≈386 px, which sits comfortably INSIDE the band, is persisted
+     to localStorage and survives relaunch. Symptom: ⊕ in landscape opened a tray ~99 % of the
+     viewport (composer pushed off the top, log fully covered), and the first portrait tray
+     after that was 386 against a 323 keyboard. No band can separate the two — only the
+     VIEWPORT SHAPE can: a rotation moves the width (and the orientation angle), a keyboard
+     never does. Hence, in two places:
+       · the sample is REJECTED AT THE SOURCE — the Android resize handler below re-baselines
+         the shape and forces `shrank` false, so a rotation neither measures a slot nor latches
+         kbUp. It does NOT stand every write down: the kbUp CLEAR still runs on a shape change,
+         for the reason R2-1 gives at that handler — suppressing it stranded a `true` latch with
+         no keyboard on screen, and on Android nothing else writes kbUp;
+       · what is kept is TAGGED WITH THE WIDTH it was measured at and applied only while the
+         viewport still has that width, so a landscape slot can never be replayed into portrait
+         (a landscape keyboard genuinely is shorter — a slot memory is per shape or it lies).
+     FAIL-SOFT ON EVERY LEG: no memory, an unreadable value, an untagged legacy value, or a
+     value for the other width → the property is simply not set and attach-sheet.css's
+     `var(--kb-slot-h, 268px)` fallback stands. Never 0, never a stale shape.
+     ★★ R3-KB (ROUND 3): THE SHAPE IS ONLY HALF THE ANSWER, AND THE WIDTH TAG IS NOT A SECOND
+     HALF. A portrait split-screen divider is HORIZONTAL — same width, same angle, only the
+     height moves — so the shape guard sees nothing and the sample is tagged with the PORTRAIT
+     width, i.e. the exact shape it is replayed into. The tag confines a LANDSCAPE number to
+     landscape; it can do nothing about a wrong number measured in the shape it will be used
+     in. The discriminator that does work is semantic and lives at the sample site: a soft
+     keyboard cannot be up unless an EDITABLE IS FOCUSED (kbEditableFocused). See the resize
+     handler's R3-KB paragraph.
+     RESIDUAL, stated because the code does NOT enforce it: an engine that fires a height-only
+     resize partway through a rotation, before width and angle land, is indistinguishable from a
+     keyboard at that instant WHEN THE FIELD IS FOCUSED. The width tag then confines that sample
+     to the shape it was taken in, and the next real keyboard overwrites it.
+     REVERSAL: drop the width tag or the shape guard and the persisted ~386 px tray comes back —
+     first in landscape at ~99 % of the viewport, then replayed into portrait. */
   const KB_SLOT_KEY = 'spixi.kb.slot';
-  /* ★ Session J (#756, the [KBTRAY] capture): IS THE KEYBOARD UP — from the keyboard itself
-     (Android: the adjustResize shrink; iOS: the native inset), never from document.activeElement.
-     Tapping the ⊕ BUTTON moves focus off the field before its click runs, so the old
-     `activeElement === input` test read "no keyboard" with the keyboard on screen. */
+  /* ★ Session J (#756, the [KBTRAY] capture): IS THE KEYBOARD UP — MEASURED from the keyboard
+     itself (Android: the adjustResize shrink; iOS: the native inset), never from
+     `document.activeElement === input`. Tapping the ⊕ BUTTON moves focus off the field before
+     its click runs, so that old test read "no keyboard" with the keyboard on screen.
+     ⚠ R3-KB (ROUND 3) NARROWS THIS, and the old wording — "never from document.activeElement" —
+     is no longer true of the file, so it is gone. Focus is now a GATE on the geometry, not a
+     substitute for it: the Android handler samples and latches only while SOME editable holds
+     focus, because under adjustResize a keyboard shrink and a window shrink are the same event
+     and only focus tells them apart. What #756 retired is the identity test against the
+     composer field, which the ⊕'s focus steal falsifies; "is anything editable focused" is
+     false for the ⊕ button too, and that is the correct answer there — see kbEditableFocused. */
   let kbUp = false;
+  /* ★ B2: the viewport SHAPE — the width the slot is valid for, and the angle that corroborates
+     a rotation the width alone might miss. A soft keyboard changes neither. */
+  function kbSlotWidth() { return Math.round(window.innerWidth) || 0; }
+  function kbOrientationAngle() {
+    try { return Math.round((screen.orientation && screen.orientation.angle) || window.orientation || 0); } catch (_) { return 0; }
+  }
+  /* ★★ R3-KB (#46 loop ROUND 3, MAJOR): IS AN EDITABLE FOCUSED — the SEMANTIC half of "is the
+     keyboard up", and the only half that can separate a KEYBOARD from a WINDOW RESIZE.
+     ⚠ MARKER, r4 N2 — RENAME RECORD, and the only RECORD left in this shell saying "R3-1" (r5: it spans three lines — a grep returns 3, not 1; "line" was a count a grep contradicts, which is the class r4 R4-4 fixed twice).
+     The round-3 review numbered this finding R3-1; in the suite `r3 R3-1` was ALREADY the
+     batch-W sheet-dismissal pin (smoke-test.mjs + overlay.js, both at HEAD), and this tree is
+     grepped by marker, so the NEWCOMER moves: the gate is R3-KB in this shell and the suite,
+     `R3-1` is the sheet-dismissal pin again in both. ⚠ Per FILE, not tree-wide — `R3-1` also
+     names a third, unrelated finding in docs/opus-review-verdict-session-b.md.
+     A soft keyboard cannot exist without a focused editable: the IME is summoned by focus and
+     dismissed when focus leaves. ⚠ That is PLATFORM BEHAVIOUR READ, not measured in this tree;
+     if an engine is ever found that keeps an IME up with nothing editable focused, the honest
+     response is to name it here, not to quietly widen the test. Geometry cannot do this job —
+     under Android `adjustResize` a
+     keyboard shrink and a window shrink are literally the same event shape — so the resize
+     handler below gates its two keyboard reads on this instead of on height alone.
+     ⚠ ANY editable, not "the composer textarea". The ⊕ STEALS FOCUS before its click runs
+     (#756), so at the instant a ⊕-driven resize lands `document.activeElement` is the BUTTON —
+     a test written as `activeElement === input` would read "no keyboard" exactly where the
+     old activeElement test already failed once. Asking "is anything editable focused" answers
+     both: the button is not editable, and that resize is the keyboard LEAVING (the ⊕ blurred
+     the field), which is the answer we want there.
+     ⚠ It is read at RESIZE TIME, not latched on focusin/focusout. A tracked pair goes false
+     between the focusout and the focusin that replaces it — a window in which the keyboard is
+     still up and the flag says otherwise. Reading activeElement when the resize actually
+     lands cannot fall in that window: the two focus events straddle a synchronous gap, and a
+     resize is a separate task.
+     Fail-soft: anything unreadable answers false, which stands the SAMPLE down (never a wrong
+     slot) and CLEARS kbUp (never a latch that lies for the rest of the session) — both
+     failures in the direction that costs one 450 ms ⊕ rather than a poisoned tray height. */
+  function kbEditableFocused() {
+    try {
+      const el = document.activeElement;
+      if (!el) return false;
+      if (el.isContentEditable) return true;
+      const tag = (el.tagName || '').toUpperCase();
+      if (tag === 'TEXTAREA') return true;
+      if (tag !== 'INPUT') return false;
+      return !/^(button|submit|reset|checkbox|radio|file|image|range|color|hidden)$/i.test(el.type || 'text');
+    } catch (_) { return false; }
+  }
+  /* ★★ B3 / R2-8: THE SURFACE A KEYBOARD MOVES, read in ONE place for both hand-offs.
+     visualViewport where there is one — that is what moves on iOS (innerHeight is constant
+     under its keyboard, #303) — and innerHeight otherwise, which on Android adjustResize
+     tracks vv.height 1:1 (AND-16). handKeyboardToTray wants a GROW of this number (the
+     keyboard has left) and handTrayToKeyboard wants a SHRINK (the keyboard has arrived);
+     they are mirrors, so they read through the same function or they start disagreeing. */
+  function kbViewportH() {
+    try { return (window.visualViewport && window.visualViewport.height) || window.innerHeight; } catch (_) { return window.innerHeight; }
+  }
+  let kbSlot = null;                     // ★ B2: { px, w } — the measured height AND the width it was measured at
+  let kbSlotPublished = 0;               // what --kb-slot-h currently says (0 = not set); change-gated like the vv writer
+  /* ★ B2: publish the slot ONLY for the shape that produced it; any other shape falls back to
+     attach-sheet.css's 268px literal rather than to a wrong number (and never to 0). */
+  function applyKbSlot() {
+    const px = kbSlot && kbSlot.w === kbSlotWidth() ? kbSlot.px : 0;
+    if (px === kbSlotPublished) return;
+    kbSlotPublished = px;
+    try {
+      if (px) document.documentElement.style.setProperty('--kb-slot-h', px + 'px');
+      else document.documentElement.style.removeProperty('--kb-slot-h');
+    } catch (_) {}
+  }
   function rememberKbSlot(px) {
     px = Math.round(px);
     if (!(px >= 160 && px <= 600)) return;
-    try { document.documentElement.style.setProperty('--kb-slot-h', px + 'px'); } catch (_) {}
-    try { localStorage.setItem(KB_SLOT_KEY, String(px)); } catch (_) {}
+    kbSlot = { px: px, w: kbSlotWidth() };
+    applyKbSlot();
+    try { localStorage.setItem(KB_SLOT_KEY, px + '@' + kbSlot.w); } catch (_) {}
   }
   (function bootKbSlot() {
     if (document.documentElement.hasAttribute('data-desktop')) return;
-    let v = NaN;
-    try { v = parseInt(localStorage.getItem(KB_SLOT_KEY) || '', 10); } catch (_) {}
-    if (v >= 160 && v <= 600) document.documentElement.style.setProperty('--kb-slot-h', v + 'px');
+    /* ★ B2: the ONE place the published slot is re-scoped to the live shape. It cannot live in
+       the Android resize handler below: that handler is UA-gated, and iOS never resizes for its
+       keyboard at all (#303) — so an iOS rotation would otherwise leave a PORTRAIT slot
+       published in landscape, which is the same lie in the other direction. Change-gated inside
+       applyKbSlot, so the cost is one innerWidth read per resize. */
+    try {
+      window.addEventListener('resize', applyKbSlot);
+      window.addEventListener('orientationchange', applyKbSlot);
+    } catch (_) {}
+    let raw = '';
+    try { raw = localStorage.getItem(KB_SLOT_KEY) || ''; } catch (_) {}
+    /* ★ B2: an UNTAGGED legacy value is dropped, not adopted — it may be exactly the
+       rotation-poisoned number this fix exists to stop, and there is no way to tell. One
+       keyboard re-measures it. */
+    const m = /^(\d+)@(\d+)$/.exec(raw);
+    if (!m) return;
+    const px = parseInt(m[1], 10), w = parseInt(m[2], 10);
+    if (!(px >= 160 && px <= 600) || !(w > 0)) return;
+    kbSlot = { px: px, w: w };
+    applyKbSlot();
   })();
   (function keyboardViewport() {
     const vv = window.visualViewport;
@@ -6100,9 +6307,111 @@
       let wasAtBottom = nearBottom();
       box.addEventListener('scroll', () => { wasAtBottom = nearBottom(); }, { passive: true });
       let lastIH = window.innerHeight;
+      let lastIW = kbSlotWidth();            // ★ B2: the shape this baseline was taken in
+      let lastAng = kbOrientationAngle();
       window.addEventListener('resize', () => {
         const ih = window.innerHeight;
-        const shrank = ih < lastIH - 60;     // keyboard opening (not chrome jitter)
+        /* ★★ B2 (#46 loop, MAJOR — see the rememberKbSlot docblock): A ROTATION IS NOT A
+           KEYBOARD, and every line below this point assumes it is one. Portrait→landscape is a
+           >60 px shrink whose delta (≈386 on the reference device) is bigger than any keyboard,
+           so without this guard it (a) wrote that delta into --kb-slot-h and persisted it — a
+           tray at ~99 % of the landscape viewport, replayed into portrait on the next launch —
+           and (b) latched kbUp, which sends the ⊕ down handKeyboardToTray's HOLD path with no
+           keyboard to leave and no further resize coming, so the tray appeared only on the
+           450 ms backstop: visible latency on a primary control, two gestures from a cold start.
+           A rotation moves the width (or, on an engine that reports it first, the orientation
+           angle); a soft keyboard moves neither. So a shape change re-baselines the SHAPE and
+           stands the two KEYBOARD READS down: no slot sample, no kbUp latch (`shrank` is false
+           whenever the shape moved, and both hang off `shrank`). Re-scoping the PUBLISHED slot
+           is not done here — the shape-change listener registered in bootKbSlot owns that for
+           every platform, and one rule with two copies is how the two start disagreeing.
+           ★★ R3-KB (#46 loop ROUND 3, MAJOR) — AND A WINDOW RESIZE IS NOT A KEYBOARD EITHER,
+           WHICH THE SHAPE GUARD ABOVE CANNOT SEE. It separates ROTATIONS from keyboards, and
+           the paragraph below used to claim it separated the whole class of window resizes,
+           naming "entering or leaving split-screen with the field focused" among resizes that
+           "carry a width change". ON A PORTRAIT PHONE THE SPLIT-SCREEN DIVIDER IS HORIZONTAL:
+           innerWidth and screen.orientation.angle are both UNCHANGED and only innerHeight
+           moves, and MainActivity.cs delivers it as one resize, not a recreate
+           (ResizeableActivity = true, SupportsPictureInPicture = true, and ConfigurationChanges
+           INCLUDES ScreenSize and SmallestScreenSize — the two that would otherwise recreate). Reference device: 774 → ≈390. shapeChanged false ⇒ shrank true ⇒
+           rememberKbSlot(≈384) — inside the 160-600 band, published, and persisted as
+           "384@1080", tagged with the PORTRAIT width, i.e. the very shape it will be replayed
+           into on every later launch; and kbUp latched true in the same statement with no
+           keyboard on screen. That is verbatim the symptom the rememberKbSlot docblock says
+           the width tag makes impossible.
+           GEOMETRY CANNOT SOLVE IT. Under Android adjustResize a keyboard shrink and a window
+           shrink are the same event: same surface, same direction, overlapping magnitudes. So
+           the discriminator is SEMANTIC — a soft keyboard cannot be up unless an editable is
+           focused (kbEditableFocused, above). Both keyboard reads now hang off `editable`;
+           the shape guard STAYS as an additional suppressor for the sample, because a rotation
+           WITH the field focused is still not a keyboard measurement.
+           ⚠ RESIDUAL, stated because the code does NOT enforce it: one shape is left — a
+           resize that dismisses the IME while the field KEEPS focus and shrinks the window by
+           MORE than the IME gave back, so there is no >60 px grow either (entering split-screen
+           on an engine that leaves the editable focused). Nothing observable separates that
+           from a keyboard. The sample it takes is tagged with the live width and the next real
+           keyboard in that shape overwrites it; kbUp stands true until the next grow or the
+           next focus change. Bounded and self-correcting, unlike the unconditional version.
+           ★★ R2-1 (#46 loop ROUND 2, MAJOR) — THE THREE ARE NOT SYMMETRICAL, AND THIS IS WHY.
+           Round 1 wrote this guard as an early `return`, which suppressed the kbUp CLEAR along
+           with the sample and the latch. That third suppression was collateral, and it put
+           symptom (b) above back through a different door. MainActivity.cs:53 declares
+           `ResizeableActivity = true` and :55-60 lists ConfigChanges ScreenSize | Orientation |
+           UiMode | ScreenLayout | SmallestScreenSize | Density, so the activity is RESIZED,
+           never recreated: ONE resize can carry a width change AND the keyboard's departure
+           together — entering or leaving split-screen with the field focused, a fold with the
+           IME up, a rotation where the IME switches to fullscreen/extract mode. With the early
+           return kbUp then stood `true` with no keyboard on screen, and on Android nothing else
+           writes it (the init above, this line, and `__setKbInset` — which the r2 docblock
+           below records as never firing on Android WebView, where C# pushes nothing). The next
+           ⊕ took handKeyboardToTray's hold path, no resize was coming, B3's grow guard
+           correctly refused every jitter, and the tray appeared only on the 450 ms backstop:
+           symptom (b), verbatim, until the user opened and closed a keyboard once.
+           So the sample and the latch stay suppressed — they read a shrink AS a keyboard, and a
+           rotation's shrink is larger than any keyboard — while the CLEAR runs, because a stale
+           `true` is unbounded in time.
+           ★★ R3-2 (#46 loop ROUND 3) — AND THE CLEAR IS NO LONGER ONE-SIDED. R2-1 left it as
+           `else if (ih > lastIH + 60)`, i.e. a GROW only, and then justified that with the
+           R2-1 list — which contains at least two SHRINKS that carry the keyboard away:
+           entering split-screen with the field focused (the transition dismisses the IME while
+           the window shrinks by more than the IME added), and portrait+IME (451) → landscape
+           with the IME dropped (≈388). In both, `shrank` is false (the shape moved, or no
+           editable is focused) so nothing re-latches, and the grow test is false so nothing
+           clears — kbUp stood `true` with no keyboard and the next ⊕ waited out the 450 ms
+           backstop. Symptom (b) again, from a third direction.
+           The complement of R3-KB's gate is the fix and it falls out of the same signal: NO
+           EDITABLE FOCUSED ⇒ NO KEYBOARD ⇒ CLEAR, in either direction, at any magnitude. The
+           >60 px GROW clause STAYS beside it, because it is the one dismissal that leaves the
+           editable focused: the system Back key hides the IME without moving focus, and with
+           only the focus test kbUp would stand true for the rest of the session.
+           ⚠ RESIDUAL, stated because the code does NOT enforce it: a landscape→portrait
+           rotation with the keyboard STILL up is also a >60 px grow (reference device: ≈188 in
+           landscape+IME → 451 in portrait+IME), so it clears kbUp with a keyboard on screen.
+           Bounded cost: the next ⊕ takes the non-hold path and the tray rises beside a keyboard
+           that the ⊕'s own focus steal (#756) is already dismissing — the K1 two-heights flash,
+           for one open, until the next real shrink re-latches. Weighed against a latch that
+           lies for the rest of the session, that is a choice, not an oversight.
+           ⚠ SECOND RESIDUAL, same shape (round 4): an IME that changes its OWN height IN PLACE
+           with the field still focused — Gboard's floating/one-handed toggle, the voice-input
+           panel — grows the window by well over 60 px while an editable keeps focus, so the
+           grow clause clears kbUp with the keyboard on screen. Same bounded cost: the next ⊕
+           takes the non-hold path with `instant: true` and flashes the two heights once, until
+           the next shrink re-latches. Recorded, not fixed — telling that grow from a real
+           dismissal needs a signal this tree does not have.
+           REVERSAL: delete this block and the poisoned slot and the latched kbUp both return.
+           Put `return;` back inside the shape branch and the CLEAR goes down with them — a
+           450 ms ⊕ on every tap after one shape-changing resize carried the keyboard away.
+           NOTE what it also costs, deliberately: the bottom re-pin below does not run for a
+           rotation — `shrank` is false on a shape change, and stickDuring tracks an IME settle
+           animation, which a rotation is not. ★★ R3-KB adds the same to the ledger for a WINDOW
+           RESIZE with no editable focused (split-screen in or out with nobody typing): `shrank`
+           is false there too, so the log is not re-pinned. Same reasoning — there is no IME
+           settle to track — and the same cost, a reader at the bottom who must scroll. */
+        const iw = kbSlotWidth(), ang = kbOrientationAngle();
+        const shapeChanged = (iw !== lastIW || ang !== lastAng);
+        if (shapeChanged) { lastIW = iw; lastAng = ang; }
+        const editable = kbEditableFocused();                 // ★★ R3-KB: no editable, no keyboard
+        const shrank = editable && !shapeChanged && ih < lastIH - 60;     // keyboard opening (not chrome jitter, not a window resize)
         /* ★ Session J (Damir, Android: "the sheet is not the same height as the keyboard, and
            flickers when switching between keyboard and sheet"): the KEYBOARD'S OWN HEIGHT is
            the shrink, measured here on adjustResize, and it becomes the tray's height
@@ -6112,7 +6421,7 @@
            been seen. The stamps are TEMPORARY ([KBTRAY], console.warn → logcat W chromium),
            a set with the ones on focus / tray drop below — the next capture shows the order. */
         if (shrank) rememberKbSlot(lastIH - ih);
-        if (shrank) kbUp = true; else if (ih > lastIH + 60) kbUp = false;   // ★ #756: the keyboard's own state
+        if (shrank) kbUp = true; else if (!editable || ih > lastIH + 60) kbUp = false;   // ★ #756: the keyboard's own state; ★★ R2-1: the CLEAR is NOT shape-gated; ★★ R3-2: and NOT grow-only
         try { console.warn('[KBTRAY] resize ih=' + ih + ' d=' + (lastIH - ih) + ' t=' + Math.round(performance.now())); } catch (_) {}
         lastIH = ih;
         // re-pin only when the keyboard OPENED and the user was reading the

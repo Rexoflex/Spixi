@@ -71,6 +71,13 @@
   --_ink-hover: var(--text-action-hover);
   --_ink-pressed: var(--text-action-pressed);
   --_outline: var(--outline-action-default);
+  /* ★ #46 r2 C1: the ink that rides ON --_fill, intent-switched like every other member of
+     this private palette. It used to be --text-neutral-on-action hard-coded at the
+     [data-type="fill"] rule, which was right for the default intent and wrong for
+     destructive: in dark --surface-destructive-default is --error-300 #f49c92 and the white
+     label measured 2.01:1 — the worst reading anywhere in the #46 audit, and the one row
+     the census missed. Default intent is unchanged at 6.68:1 on #3050bd (Damir, Session K). */
+  --_on-fill: var(--text-neutral-on-action);
 
   display: inline-flex;
   align-items: center;
@@ -107,6 +114,12 @@
 }
 
 .c-button[data-intent="destructive"] {
+  /* ★ #46 r2 C1: dark #131415 on --error-300 #f49c92 = 8.80:1 (was #f9fafb at 2.01:1);
+     light #f9fafb on --error-600 #b12525 = 6.36:1, unchanged. State steps hold on the same
+     ink: dark hover #f1786e 6.72:1 / pressed #e34540 4.56:1.
+     Reversal: delete the --_on-fill declaration below and the destructive fill falls back
+     to the base palette (--text-neutral-on-action), i.e. back to 2.01:1 in dark. */
+  --_on-fill: var(--text-neutral-on-destructive);
   --_fill: var(--surface-destructive-default);
   --_fill-hover: var(--surface-destructive-hover);
   --_fill-pressed: var(--surface-destructive-pressed);
@@ -128,7 +141,7 @@
 .c-button[data-width="full"] { display: flex; width: 100%; }
 
 /* types */
-.c-button[data-type="fill"] { background: var(--_fill); color: var(--text-neutral-on-action); }
+.c-button[data-type="fill"] { background: var(--_fill); color: var(--_on-fill); }
 
 .c-button[data-type="tonal"] { background: var(--_tonal); color: var(--_ink); }
 
@@ -181,7 +194,10 @@
 /* success morph (DECISIONS.md #29) — overrides any type while active */
 .c-button[data-success] {
   background: var(--surface-success) !important;
-  color: var(--text-neutral-on-action) !important;
+  /* ★ #46 r2 C1: the morph fill is GREEN, never the action blue — in dark --success-300
+     #91c69b took the on-action white at 1.87:1. --text-neutral-on-success = 9.45:1 dark /
+     5.98:1 light. The !important is the morph overriding any intent, and stays. */
+  color: var(--text-neutral-on-success) !important;
   border-color: transparent !important;
   pointer-events: none;
 }
@@ -658,7 +674,10 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   padding-inline: var(--spacing-4);
   border-radius: var(--radius-full);
   background: var(--surface-error);
-  color: var(--text-neutral-on-action);
+  /* ★ #46 r2 C1: error fill, not the action blue (the comment above says so) — dark
+     --error-400 #f1786e took the on-action white at 2.63:1 on an 11px BOLD count, the
+     smallest type in the census. --text-neutral-on-error = 6.72:1 dark / 6.36:1 light. */
+  color: var(--text-neutral-on-error);
   box-shadow: 0 0 0 2px var(--surface-bottombar);
   font-size: var(--font-size-label-xs);
   line-height: 18px;
@@ -2679,6 +2698,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   justify-content: center;
   gap: var(--spacing-2);
   cursor: pointer;
+  /* ★ #46 r2 C1: this base ink is for the PIN action, which is --surface-action-default
+     (#f9fafb on #3050bd = 6.68:1 in both themes — Damir's Session K ruling). The MUTE
+     variant below is a DIFFERENT fill and overrides it; do not "simplify" the two back
+     into one declaration. */
   color: var(--text-neutral-on-action);
   font-family: var(--font-secondary);
   font-size: var(--font-size-label-xs);
@@ -2689,7 +2712,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-swipe__action--left { left: 0; }
 .c-swipe__action--right { right: 0; }
 .c-swipe__action[data-action="pin"] { background: var(--surface-action-default); }
-.c-swipe__action[data-action="mute"] { background: var(--surface-neutral-inverse-01); }
+/* ★ #46 r2 C1: the mute action is on the INVERSE neutral, not the action blue — in dark
+   that fill is --neutral-100 #e8ecee and the inherited white label measured 1.14:1
+   (invisible). --text-neutral-on-inverse = 15.51:1 dark / 17.23:1 light. Fill unchanged.
+   Reversal: drop the color declaration and the 1.14:1 label comes back. */
+.c-swipe__action[data-action="mute"] { background: var(--surface-neutral-inverse-01); color: var(--text-neutral-on-inverse); }
 .c-swipe__action:active { filter: brightness(0.92); }
 .c-swipe__label { pointer-events: none; }
 

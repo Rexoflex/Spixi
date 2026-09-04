@@ -61,6 +61,23 @@
      −3.74 ΔL* under #EEECEF and, on the new #E4EAF3 ground, read as the ground itself).
      The E1c inset edge below is GONE — "no border" — the shadow is the whole separation.
      ⚠ Superseded: #E4E1E6 (Session I k2) ← #dfe6ee (AUG) ← #e4ece0 ← #dfe8ff (E1b). */
+  /* sanctioned: PURE #ffffff, not a token. No semantic role resolves to it in light —
+     --surface-neutral-01 is --neutral-10 #f9fafb, a different pixel, and pointing here at
+     it would quietly re-open the report this rule exists to close ("now it looks the same
+     [as the ground]"). The three tokens that ARE #ffffff in light
+     (--surface-bubble-received, --surface-composer-pill, --surface-input-on-card) are the
+     wrong roles by design: the notice card's whole point is to NOT read as one more bubble
+     in the thread, so aliasing the bubble would couple exactly what must stay apart. The
+     rule is theme-covered — the dark-theme .c-sysnotice__card rule below repaints it
+     #0c1a4a — so the literal never leaks into dark. Precedent: base.css:161,
+     scan-shell.css. (#46 audit NIT C3.)
+     ⚠ HISTORY (#46 r2, kept because it explains a repaired trap, NOT a live rule): naming
+     the dark-theme selector in this comment USED to break two green pins — the suite stripped
+     dark blocks from this file with a comment-blind regex, so the mention here made the
+     stripper swallow the rule below. That helper now strips comments BEFORE slicing and a
+     dedicated differential pin holds it that way, so writing the selector here is safe again.
+     The general lesson survives and is the governing one of this loop: a sweep over raw text
+     can be satisfied — or defeated — by the very comment explaining it. */
   background: #ffffff;
   box-shadow: var(--elevation-2);
   /* ⚠ HISTORY, NOT INSTRUCTION (rewritten by the Session F audit). This surface once
@@ -91,7 +108,10 @@
   align-items: center;
   justify-content: center;
   background: var(--surface-accent);
-  color: var(--icon-neutral-on-action); /* badge solid-ink convention (#54) */
+  /* badge solid-ink convention (#54). ★ #46 r2 C1: the fill is --surface-accent, NOT the
+     action blue — in dark it is --accent-300 #98b5fc, where the old on-action white glyph
+     measured 1.94:1. --icon-neutral-on-accent = 9.09:1 dark / 6.68:1 light. Fill unchanged. */
+  color: var(--icon-neutral-on-accent);
   margin-bottom: var(--spacing-4);
 }
 .c-sysnotice__title {
@@ -177,5 +197,5 @@
   /* ★ Session J: on the wash too the card is WHITE + elevation (Damir, no per-ground
      family any more — a white card is lighter than any ground it can sit on). The
      rule stays as the reversal hook for a ground-tinted card (#eaf0fa). */
-  background: #ffffff;
+  background: #ffffff; /* sanctioned: same literal, same reasoning as the base card rule above (#46 C3) */
 }

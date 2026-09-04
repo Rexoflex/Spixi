@@ -190,8 +190,9 @@ export function anchorSheetToRow(sheet, row, { host = document.body, align = nul
    * generalised into a platform-independent excuse.
    *
    * The whole placement is a function now, re-run whenever the viewport changes while the
-   * menu is on screen. It detaches itself the first time it fires on a removed sheet, so
-   * a dismissed menu leaves no listener behind. */
+   * menu is on screen. It detaches when the sheet goes away — see the B4 block below for how,
+   * and for why "it detaches itself the first time it fires on a removed sheet" (what this
+   * comment used to say) was a promise the code did not keep. */
   const w = Math.min(width, fr.width - 2 * M_GAP);
   sheet.style.width = w + 'px';
 
@@ -246,16 +247,54 @@ export function anchorSheetToRow(sheet, row, { host = document.body, align = nul
   };
 
   place();
+  /* ★★ B4 (#46 loop, NIT — but it leaks on the hottest path in the Apps tab): THE LISTENERS
+   * MUST DETACH WHEN THE SHEET GOES, NOT ON THE NEXT RESIZE. The isConnected test lives INSIDE
+   * the handler, so it can only run when a resize runs — and an open→close with no resize in
+   * between (the overwhelmingly common case: open a menu, pick or dismiss) left both listeners
+   * bound for the life of the page, each retaining the removed sheet subtree, the target row
+   * and the host through `place`. Three callers do this (message-menu.js, chats-row-menu.js,
+   * and apps-menu.js, which is tapped repeatedly), so it is fixed HERE, once.
+   * The observer watches the sheet's own parent for the childList mutation that removes it —
+   * that is what overlay.js's dismiss does after the exit transition — and detaches then,
+   * deterministically. The in-handler isConnected check STAYS as the belt: it is what covers
+   * the case the observer cannot see, an ANCESTOR removed wholesale (the sheet's parent link is
+   * untouched, so no mutation fires on it). Neither is redundant; both are cheap.
+   * REVERSAL: delete the observer and every anchored menu opened in a session leaves two live
+   * resize listeners and one retained DOM subtree behind, until some resize happens to sweep
+   * them. Delete the isConnected check instead and a removed-with-its-ancestor sheet re-places
+   * itself forever on every resize. */
+  let detached = false;
+  let goneObs = null;
+  const detach = () => {
+    if (detached) return;
+    detached = true;
+    try { window.removeEventListener('resize', reflow); } catch (e) {}
+    try { if (window.visualViewport) window.visualViewport.removeEventListener('resize', reflow); } catch (e) {}
+    try { if (goneObs) goneObs.disconnect(); } catch (e) {}
+    goneObs = null;
+  };
   const reflow = () => {
     if (!sheet.isConnected) {
-      try { window.removeEventListener('resize', reflow); } catch (e) {}
-      try { if (window.visualViewport) window.visualViewport.removeEventListener('resize', reflow); } catch (e) {}
+      detach();
       return;
     }
     place();
   };
   try { window.addEventListener('resize', reflow); } catch (e) {}
   try { if (window.visualViewport) window.visualViewport.addEventListener('resize', reflow); } catch (e) {}
+  try {
+    goneObs = new MutationObserver(() => { if (!sheet.isConnected) detach(); });
+    goneObs.observe(sheet.parentNode, { childList: true });
+  } catch (e) { goneObs = null; }   // no MutationObserver / no parent → the isConnected belt alone, as before
+  /* ⚠ Stated residual (#46 r2 pin pass): the observer watches the parent CAPTURED AT ANCHOR
+     TIME. If a caller ever RE-PARENTS the sheet and removes it from its new home, the observed
+     node sees a mutation while `sheet.isConnected` is still true (no detach), and the later
+     removal from the new parent fires nothing — the listeners leak exactly as they did before
+     this fix. No caller re-parents an anchored sheet today (message-menu, chats-row-menu and
+     apps-menu all mount and remove in place), so this is recorded rather than coded around:
+     re-observing on every mutation would cost more than the leak it closes. The `isConnected`
+     belt in `reflow` still drains it on the first subsequent resize, as it always did.
+     REVERSAL: if a caller starts re-parenting, move the observe() into a small re-arm. */
   /* ⚠ Stated residual (loop E-6): the anchored menu keeps its measured position across a
      LIST RE-RENDER — the action model is captured, only the affordance can go stale, and
      the overlay dismisses on every route out. Accepted.

@@ -63,7 +63,9 @@
   justify-content: center;
   border-radius: var(--radius-full);
   background: var(--surface-error);
-  color: var(--text-neutral-on-action);
+  /* ★ #46 r2 C1: same recipe as the bottomnav badge, same fix — dark #f1786e read 2.63:1
+     under the on-action white; --text-neutral-on-error = 6.72:1 dark / 6.36:1 light. */
+  color: var(--text-neutral-on-error);
   box-shadow: 0 0 0 2px var(--surface-menu); /* ring vs the button surface */
   font-size: var(--font-size-label-xs);
   line-height: 1;

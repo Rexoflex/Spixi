@@ -57,6 +57,30 @@ const stripCode = (t) => t
   .replace(/^\s*\/\/.*$/gm, '')
   .replace(/(^|[^:])\/\/.*$/gm, '$1');
 
+/* ★★ prose — THE MIRROR OF stripCode, FOR THE PINS WHOSE SUBJECT *IS* THE COMMENT.
+ *
+ * #46 r2 R2-6. A comment-correctness pin must read the prose (stripCode would delete the
+ * very thing it asserts). But raw prose is WRAPPED prose, and a reflow is a sanctioned
+ * edit: the A6 pin required the sentence "are all written right before their page's
+ * generatePage" to be ABSENT, and it was absent only because the docblock happens to break
+ * that quote across two lines (`"are all\n         * written right before …"`). Collapse
+ * those continuations — reflow the paragraph, re-indent it, let an editor rewrap it — and
+ * `includes()` returns true and the pin goes RED against a correct file. Its positive
+ * clauses were coupled to the same wraps in the other direction (they matched `\s*\n\s*\*`
+ * literally), so the same reflow would have falsified those too. One edit, both directions
+ * wrong, and the file was never touched.
+ *
+ * So: strip the comment LEADERS (the block open, the `*` continuations, the block close and
+ * `//`) and collapse every run of whitespace to one space. What survives is the sentence,
+ * which is what these pins are about; how it is wrapped is not. Use it for BOTH directions
+ * of a comment pin, never one. */
+const prose = (t) => t
+  .replace(/\r/g, '')
+  .replace(/^[ \t]*(?:\/\*+|\*\/|\*|\/\/+)[ \t]?/gm, ' ')
+  .replace(/\*\//g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
 const load = (file) => new Promise((resolve) => {
   const vc = new VirtualConsole();
   vc.on('jsdomError', (e) => failures.push(file + ' PAGE ERROR: ' + e.message));
@@ -98,6 +122,23 @@ const load = (file) => new Promise((resolve) => {
  * SUBJECT (the last compound in the selector) carries the wanted simple selector.
  * A "must not" pin uses .every(). A "must exist" pin uses .some(). */
 const stripCssComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
+
+/* ★★ #46 r2 (auditor finding, MINOR — and a fix agent walked straight into it):
+ * SLICING A THEME BLOCK OUT OF A STYLESHEET IS COMMENT-BLIND UNLESS YOU STRIP FIRST.
+ *
+ * The old inline form at the system-notice block was
+ *     notice.replace(/\[data-theme="dark"\][^{]*\{[^}]*\}/g, '')
+ * run on RAW text. `[^{]*` happily crosses newlines and comment terminators, so the
+ * FIRST `[data-theme="dark"]` in a COMMENT started the match and the eraser ran on to
+ * the next `{ … }` — a real rule. Fix agent C wrote `[data-theme="dark"]` into a
+ * system-notice.css docblock explaining why the literal is theme-covered, and two GREEN
+ * pins went red against a correct file. It is the stripCode lesson in CSS clothing: a
+ * comment that explains a theme necessarily NAMES that theme.
+ *
+ * This is the one derivation, comments first, used by every pin that needs "what light
+ * actually gets". Callers that want to prove the comment-blindness is gone feed it
+ * poisoned text (see the #46 C5 trap pin). */
+const withoutDarkBlocks = (css) => stripCssComments(css).replace(/\[data-theme="dark"\][^{]*\{[^}]*\}/g, '');
 
 let cssFileCache = null;
 /* Every stylesheet the app ships, not a nominated one. Sorted, so a pin message that
@@ -6290,8 +6331,20 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   ok(/onBack: undefined,/.test(settingsSh) && !/onBack: isDesktop \? undefined : exitSettings/.test(settingsSh),
     'iOS-46: the hub topbar has NO back arrow on any form factor — Account is a TAB (exits: peer-nav taps / rail / hardware back via handlers.onBack, all through exitSettings so held edits still save)');
 
-  /* —— #46 r1 loop fixes over the park machinery —— */
-  ok(/Utils\.sendUiCommand\(op\.target, "onRepresented"\);[\s\S]{0,200}?op\.stage\.InputTransparent = false;/.test(scp)
+  /* —— #46 r1 loop fixes over the park machinery ——
+   * ★ #46 r2 REBASE (fix A3). The adjacency below used to be `op.stage.InputTransparent =
+   * false;` — the parked re-present made the stage interactive right there, before
+   * revealStage. A3 flipped it to TRUE (input-DEAD through the entry animation) and moved
+   * the clear to where the reveal SETTLES. The claim this pin makes is unchanged and is
+   * about ORDER: onRepresented reaches the shell BEFORE the stage's input state is decided.
+   * ⚠ READS stripCode(scp). A3's docblock on this exact line quotes BOTH literals — the new
+   * `op.stage.InputTransparent = true;` and, in its REVERSAL clause, the old `= false;`. A
+   * raw sweep here would be satisfied by the comment in either direction, which is the
+   * vacuity this loop retired the [SCROLL] pin for. Stripped, the {0,200} window also stops
+   * being a measure of how long the docblock is. */
+  const scpNCr2 = stripCode(scp);
+  ok(/Utils\.sendUiCommand\(op\.target, "onRepresented"\);\s*op\.stage\.InputTransparent = true;\s*revealStage\(op\);/.test(scpNCr2)
+    && !/Utils\.sendUiCommand\(op\.target, "onRepresented"\);[\s\S]{0,200}?op\.stage\.InputTransparent = false;/.test(scpNCr2)
     && /onRepresented\(\) \{[\s\S]{0,300}?exiting = false;/.test(settingsSh)
     && /onRepresented\(\) \{[\s\S]{0,1600}?renderLayout\(\);/.test(settingsSh)
     && /onRepresented\(\) \{[\s\S]{0,1600}?state\.savedName = state\.name;[\s\S]{0,200}?state\.dirtyNick = state\.dirtyAvatar = state\.dirtyLock = false;/.test(settingsSh),
@@ -6411,9 +6464,14 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   ok(!/__kbProbe|\[kb-probe\]|kbProbeAndroid/.test(chat328),
     '#336: both kb-probes are retired from the shell (measurement done)');
   ok(/AND-16 v2 \(#336\)/.test(chat328)
-    && /const shrank = ih < lastIH - 60/.test(chat328)
+    /* ★ r2 R2-1: the shrink test is `!shapeChanged && …` now — the shape guard suppresses it
+       by construction rather than by an early return, so that the kbUp CLEAR below it is not
+       suppressed with it. ★★ r3 R3-KB: and it leads with `editable &&`, because the shape guard
+       cannot see a portrait split-screen (horizontal divider: same width, same angle). See the
+       B3/R2-1/R3-KB pins. */
+    && /const shrank = editable && !shapeChanged && ih < lastIH - 60/.test(chat328)
     && /if \(shrank && wasAtBottom\) stickDuring\(500\)/.test(chat328),
-    '#336/AND-16 v2: Android innerHeight-shrink re-pins the log via settle-tracked stickDuring, near-bottom judged pre-shrink');
+    '#336/AND-16 v2: Android innerHeight-shrink re-pins the log via settle-tracked stickDuring, near-bottom judged pre-shrink (shrink gated on an unchanged viewport shape, r2 R2-1)');
   // #326: iOS slide-out on back-initiated overlay closes
   // ★★ L8 re-based: popToRootAsync now also requires the top to be the ONLY overlay —
   // sliding it over a stack being torn down showed the panel gliding across a bare list.
@@ -6824,20 +6882,29 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
    * the token itself never moved. Pinned from both ends, as before. */
   {
     const notice = readFileSync(join(root, 'src/styles/components/system-notice.css'), 'utf8');
-    ok(/\[data-theme="dark"\] \.c-sysnotice__card \{[^}]*background: #0c1a4a;[^}]*\}/.test(notice),
+    /* ★ #46 r2: the DARK positives read the comment-stripped text too. They are positive
+       sweeps, so the raw form was not wrong today — but the whole point of this block is
+       that a docblock in this very file can spell a rule out, and a positive satisfied by
+       prose is exactly the vacuity the [SCROLL] pin was retired for. */
+    const noticeNC = stripCssComments(notice);
+    ok(/\[data-theme="dark"\] \.c-sysnotice__card \{[^}]*background: #0c1a4a;[^}]*\}/.test(noticeNC),
       '★ N82(c): the dark notice card is the deepened #0c1a4a (84% saturation, and still DARKER than the grey-800 it replaces) — Damir asked to go further after seeing the first #141c33 render');
     /* ★ Session J REVERSES the edge pin, on Damir's ruling (2026-09-02, both screenshots: "notice
        no border, white with elevation or dark midnight blue … with some elevation as well —
        because now it looks the same"). The EDGE is gone in both themes; --elevation-2 carries
        the separation. N82(c)'s reasoning below is kept as the superseded ruling. */
-    ok(/\[data-theme="dark"\] \.c-sysnotice__card \{[^}]*box-shadow: var\(--elevation-2\);[^}]*\}/.test(notice)
-      && !/rgba\(118, 157, 255, 0\.35\)\s*;/.test(notice.replace(/\/\*[\s\S]*?\*\//g, '')),
+    ok(/\[data-theme="dark"\] \.c-sysnotice__card \{[^}]*box-shadow: var\(--elevation-2\);[^}]*\}/.test(noticeNC)
+      && !/rgba\(118, 157, 255, 0\.35\)\s*;/.test(noticeNC),
       '★ Session J: the dark notice is #0c1a4a + --elevation-2 and NO edge (Damir: "no border … midnight blue … with some elevation"). Superseded: N82(c): the saturated edge is what makes the notice STAND OUT — 2.19:1 against the ground, where the retired bubble hairline was 1.281. "Darker" and "stands out" pull opposite ways on luminance, so the card went darker and the edge carries the prominence');
     /* ⚠ the dark rule is REMOVED before this test: its own `background: #0c1a4a` is
      * the thing being allowed, and an unanchored `.c-sysnotice__card {` matches
      * inside the dark selector too — which is how the first version of this pin
-     * failed against a correct file. What is left must be light-only. */
-    const noticeLight = notice.replace(/\[data-theme="dark"\][^{]*\{[^}]*\}/g, '');
+     * failed against a correct file. What is left must be light-only.
+     * ★ #46 r2: through withoutDarkBlocks, which STRIPS COMMENTS FIRST. The inline
+     * comment-blind form that used to sit on this line ate the real dark rule the day a
+     * docblock in this file named `[data-theme="dark"]` — two green pins red, no code
+     * change behind them. The C5 trap pin at the end of the C1 census proves it is gone. */
+    const noticeLight = withoutDarkBlocks(notice);
     /* ⚠⚠ E1b REVERSES THIS PIN, ON DAMIR'S RULING ("the notice in light mode sucks",
        2026-08-29). N82(c) said in as many words "LIGHT KEEPS ITS NOTICE EXACTLY AS IT IS",
        and this pin held him to it. That was correct under the ground light had THEN — flat
@@ -7221,9 +7288,17 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
   ok(!/window\.Spixi = \{ getStrings: getStrings/.test(chatBuilt),
     '★ #345: the 858 KB bundle is no longer INSIDE chat.html. That inlining is what made generatePage cost 172 ms, and the cost is linear in bytes');
   /* ★ Session I re-base: chat.html grew ~16 KB (the tail/composer/canon CSS + their docblocks) to 623 KB —
-     ~1.3 ms at the measured 0.08 ms/KB; the ceiling moves 600 → 640 with that number, not silently. */
-  ok(chatBuilt.length < 640 * 1024 && indexBuilt.length < 500 * 1024,
-    '★ #345 THE POINT: chat.html is under 600 KB (was 2019 KB) and index.html under 500 KB (was 1625 KB). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~30 ms');
+     ~1.3 ms at the measured 0.08 ms/KB; the ceiling moves 600 → 640 with that number, not silently.
+     ★★ #46 r3: and again — the keyboard-slot work of this loop (B2/B3/R2-1/R2-8 and round 3's
+     R3-KB/R3-2/R3-5 docblocks) took it to ~648 KB. The 640 KB ceiling was already close enough
+     that round 3's prose alone crossed it. Ceiling 640 → 660 KB, stated with the number:
+     ~0.7 ms more parse at the measured 0.08 ms/KB. ⚠ AND THE MESSAGE BELOW USED TO SAY "under
+     600 KB" while the code said 640 — a pin whose own sentence disagreed with its own
+     assertion, which is this loop's governing defect class sitting inside the size pin. Both
+     numbers are now written once, from the constants. */
+  const CHAT_KB_CEIL = 660, INDEX_KB_CEIL = 500;
+  ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
+    '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
      probe. #345 gated the whole block on the bundle, which meant the one shell that
      never carries it could render completely unstyled with no message: the desktop
@@ -7907,7 +7982,12 @@ console.log('#348b — F5 follow-up fixes');
       /* ★ #353 (Damir, F5 video): a SELECTED row has NO hover tint. This SUPERSEDES
          fix B and the row half of fix C — the tonal-hover paint was the filled
          BUTTON surface in dark, and Damir cut the state rather than re-dial it. */
-      const noLegit = css.replace(/:not\(\[aria-current\]\)/g, '');
+      /* ★ #46 r2 (same class as the system-notice stripper): the NEGATIVE half below sweeps
+         this text for a selector shape that must not exist. Comments out FIRST — the #353
+         docblock immediately above names the very compound it forbids, and this file's own
+         history is a pin going red for prose. The positive half keeps reading raw `css`:
+         its subject is the shipped rule and nothing in this file quotes it. */
+      const noLegit = stripCssComments(css).replace(/:not\(\[aria-current\]\)/g, '');
       /* N56 rebase: the chatlist hover ALSO excludes pinned rows (the pinned wash
          must survive the cursor — the same #353 grammar extended); txlist has no
          pinned state and keeps the plain compound. */
@@ -17381,6 +17461,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
    * ⚠ cs-syntax-check PARSES, it does not COMPILE (#593) — the C# needs a real build. */
   {
     const scp6 = rdf('Spixi/Utils/SpixiContentPage.cs');
+    const scp6NC = stripCode(scp6);   /* ★ #46 r2: the A3 docblocks quote every literal this block sweeps for */
     const hp6 = rdf('Spixi/Pages/Home/HomePage.xaml.cs');
     const cd6 = rdf('Spixi/Pages/Contacts/ContactDetails.xaml.cs');
     const cdShell6 = rdf('Spixi/Resources/Raw/html/contact_details.html');
@@ -17402,7 +17483,14 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        fresh present and the parked re-present. The property is unchanged — fire-and-forget,
        before the stack registration — it is read through the helper now. */
     const presentBody6 = scp6.slice(presentAt6, scp6.indexOf('private static void revealStage'));
-    const revealBody7 = scp6.slice(scp6.indexOf('private static void revealStage'), scp6.indexOf('private static async Task slideStageIn'));
+    /* ★ r2 R2-2 — TWO REPAIRS, both forced by liftStageInput landing between revealStage and
+       slideStageIn. ① the slice ends at liftStageInput, not at slideStageIn, because that
+       helper awaits a 32 ms timer BY DESIGN and swallowing it would turn the `!/await/` clause
+       red for the wrong reason. ② the slice is taken from the COMMENT-STRIPPED text: the
+       clause below is about revealStage not awaiting the ANIMATION, and any docblock that
+       explains a fire-and-forget necessarily writes the word "await" — this pin went red
+       against correct code the moment liftStageInput's docblock said "never awaited by it". */
+    const revealBody7 = scp6NC.slice(scp6NC.indexOf('private static void revealStage'), scp6NC.indexOf('private static async Task liftStageInput'));
     ok(presentAt6 > 0 && presentBody6.length > 2000
        && /revealStage\(op\);/.test(presentBody6)
        && /_ = slideStageIn\(op\);/.test(revealBody7)
@@ -17415,9 +17503,14 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        keep #328. The parked re-present (mobile Account) takes the SAME reveal. */
     ok(/op\.slideIn = overlayMode && \(slideIn \|\| \(mobilePlatform && column < 0 && !peerTab && !conversation\)\);/.test(scp6)   // #718 re-based: Account is a peer tab · #735① re-based: the conversation is out
        && /bool mobilePlatform = Microsoft\.Maui\.Devices\.DeviceInfo\.Platform == Microsoft\.Maui\.Devices\.DevicePlatform\.Android\s*\r?\n\s*\|\| Microsoft\.Maui\.Devices\.DeviceInfo\.Platform == Microsoft\.Maui\.Devices\.DevicePlatform\.iOS;/.test(scp6)
-       && (scp6.match(/revealStage\(op\);/g) || []).length === 2
-       && /Utils\.sendUiCommand\(op\.target, "onRepresented"\);\s*\r?\n\s*op\.stage\.InputTransparent = false;[\s\S]{0,600}?revealStage\(op\);/.test(scp6),
-      '★★ L9 (#707): every MOBILE full-screen overlay slides (Android + iOS, column < 0), desktop keeps the flip unless the caller asks, and the parked Account re-present reveals through the SAME helper as the fresh present — two call sites, one reveal, so the two paths cannot drift');
+       && (scp6NC.match(/revealStage\(op\);/g) || []).length === 2
+       /* ★ #46 r2 REBASE (fix A3): the adjacency is `= true` now — the parked re-present goes
+          input-DEAD before the reveal, exactly like the fresh present, and revealStage owns
+          the clear. ⚠ ON stripCode: A3's docblock right here quotes `op.stage.InputTransparent
+          = true;` AND the reverted `= false;`, and both the {0,600} window and the two-call
+          count would be measuring comment text otherwise. */
+       && /Utils\.sendUiCommand\(op\.target, "onRepresented"\);\s*op\.stage\.InputTransparent = true;[\s\S]{0,120}?revealStage\(op\);/.test(scp6NC),
+      '★★ L9 (#707): every MOBILE full-screen overlay slides (Android + iOS, column < 0), desktop keeps the flip unless the caller asks, and the parked Account re-present reveals through the SAME helper as the fresh present — two call sites, one reveal, so the two paths cannot drift. #46 r2: rebased onto A3\'s input-dead entry (the stage is handed to revealStage input-DEAD on this path too), comments stripped');
     /* ★★ L8 re-based, and this pin EARNED its rebase: it went red on my own fix and was
        right to. The slide-IN's finally now SKIPS a closing stage (so it cannot snap one back
        mid-exit), which moved the "always reset" guarantee onto the exit paths — and the
@@ -22558,7 +22651,7 @@ console.log('Session J: the seven walk fixes · Damir\'s evening rulings · the 
        && /background: var\(--surface-select-check, var\(--surface-action-default\)\);/.test(sel)
        && val('icon-select-check', light) === 'var(--neutral-10)' && val('icon-select-check', dark) === 'var(--neutral-10)'
        && val('surface-select-check', light) === 'var(--surface-action-default)' && val('surface-select-check', dark) === 'var(--primary-500)',
-      '★ Damir\'s walk (screenshot: "the check mark misses the spot"): the tick reads --bubble-row-inset — the row inset Session I grew by the tail and the hard-coded 16px+6px did not follow; the ink is WHITE in both themes and the dark disc is primary-500 (one shade under the action 400; 3.82:1 under a white tick)');
+      '★ Damir\'s walk (screenshot: "the check mark misses the spot"): the tick reads --bubble-row-inset — the row inset Session I grew by the tail and the hard-coded 16px+6px did not follow; the ink is WHITE in both themes and the dark disc is primary-500 (one shade under the action 400; the tick reads 3.66:1 on it — over the 3:1 non-text floor). ⚠ #46 r2 CORRECTION: this message said 3.82:1, which was measured against pure #ffffff. The ink that actually paints is --icon-select-check = --neutral-10 = #f9fafb, and on #507af9 that is 3.66:1. The token comment in tokens.css carries the same corrected number; the C4 pin below holds the two together so they cannot drift apart again');
   }
   /* the money CTA rides the bottom edge whether or not the form scrolls */
   ok(/\.wallet-takeover__body \{ display: flex; flex-direction: column; padding-bottom: var\(--kb-inset, 0px\); \}/.test(rdF('src/shells/home.html'))
@@ -22619,17 +22712,46 @@ console.log('Session J: the seven walk fixes · Damir\'s evening rulings · the 
   /* ★ Session J #756 — the [KBTRAY] verdict built; pick D on the tails */
   {
     const ch = rdF('src/shells/chat.html');
-    ok(/let kbUp = false;/.test(ch) && /if \(shrank\) kbUp = true; else if \(ih > lastIH \+ 60\) kbUp = false;/.test(ch) && /kbUp = px > 60;/.test(ch)
+    ok(/let kbUp = false;/.test(ch) && /if \(shrank\) kbUp = true; else if \(!editable \|\| ih > lastIH \+ 60\) kbUp = false;/.test(ch) && /kbUp = px > 60;/.test(ch)
+       /* ★★ r3 R3-KB: focus is a GATE on the geometry, never the measurement. The retired test
+          is the IDENTITY one against the composer field — that spelling must not come back. */
+       && !/kbUp = [^;\n]*activeElement/.test(ch)
        && /if \(kbUp\) \{\s*handKeyboardToTray\(trayArgs, input\);/.test(ch),   /* ★ Session K (K1) re-base: kbUp now routes to the hold instead of `instant` */
-      '★ #756 (the [KBTRAY] capture: "open ih=590 focused=false" with the keyboard on screen): whether the keyboard is up is read from the KEYBOARD (the resize shrink / the iOS inset) — tapping the ⊕ button moves focus off the field before its click runs, so activeElement said "no keyboard" and the tray ROSE while the keyboard was still up; that rise-then-drop was the flicker');
+      '★ #756 (the [KBTRAY] capture: "open ih=590 focused=false" with the keyboard on screen): whether the keyboard is up is read from the KEYBOARD (the resize shrink / the iOS inset) — tapping the ⊕ button moves focus off the field before its click runs, so activeElement said "no keyboard" and the tray ROSE while the keyboard was still up; that rise-then-drop was the flicker. \u2605\u2605 r3 R3-KB narrows the rule rather than reversing it: kbUp is still MEASURED from the viewport, but the measurement is GATED on some editable holding focus, because under Android adjustResize a keyboard shrink and a window shrink are the same event and nothing else separates them. The ⊕ button is not editable, so the steal that broke the old `activeElement === input` test answers "no keyboard" here too — which is right, because the ⊕ blurred the field and that resize is the keyboard leaving');
     const mb = rdF('src/components/message-bubble.js');
     ok(/if \(showAvatar && \(position === 'first' \|\| position === 'single'\)\) \{/.test(mb) && /nextGutter\.append\(av\)/.test(mb) && !/prevGutter\.append\(av\)/.test(mb)
        && /\.c-bubble-row__gutter \{[^}]*align-self: flex-start;/.test(stripCssComments(rdF('src/styles/components/message-bubble.css'))),
       '★ #756 (Damir\'s pick D on the tail sheet): the group avatar rides the FIRST bubble, top-aligned beside the tail — and removeMessage passes it DOWN to the heir with the sender label (the old "moves up to the new tail" leg is gone)');
   }
-  /* the M1 hold-out gate is environment-conditional — recorded so the closing number is never "wrong" again */
-  ok(/no Ixian-Core sibling in this checkout — the hold-out gate is skipped/.test(rdF('scripts/smoke-test.mjs')),
-    '★ Session J baseline finding: the M1 (#448) hold-out gate emits TWO oks with an Ixian-Core sibling and ONE without — the closing number is +1 with the sibling (3978 → 3979 at f325d651). Record BOTH, or record which');
+  /* ★★ #46 r2 REPAIR (the M1 hold-out gate is environment-conditional — recorded so the
+     closing number is never "wrong" again).
+     THE OLD PIN WAS VACUOUS. It asserted that the string
+       'no Ixian-Core sibling in this checkout — the hold-out gate is skipped'
+     appears in scripts/smoke-test.mjs — but that string IS the message of an `ok(true, …)`
+     inside this very file. So (a) it could only ever fail by someone editing a
+     comment-grade string, and (b) — the failure that matters — DELETING THE WHOLE M1 GATE
+     is not enough to turn it red, because the pin also matches its own quotation of the
+     sentence. It asserted the existence of its own text.
+     Re-pointed at the BRANCH STRUCTURE that produces the ±1: read this file, slice the
+     gate, and count the `ok(` calls on each side of the `else`. Two in the sibling branch,
+     one in the skip branch, is the entire claim — and it goes red the moment either branch
+     gains, loses or merges an assertion, which is exactly when the closing number moves.
+     ⚠ Reads RAW on purpose: the SUBJECT of this pin is this file's own source text. The
+     needles are located by the FIRST occurrence, which is the real code at ~:11620 — far
+     above this pin — so this block's own prose cannot be what is measured; the assertion
+     below re-checks that ordering rather than assuming it. */
+  {
+    const suite = rdF('scripts/smoke-test.mjs');
+    const gateAt = suite.indexOf("const coreDir = join(root, '..', 'Ixian-Core');");
+    const endAt = suite.indexOf('const cutover448 =', gateAt + 1);
+    const gate = gateAt >= 0 && endAt > gateAt ? suite.slice(gateAt, endAt) : '';
+    const elseAt = gate.indexOf('\n  } else {');
+    const ifOks = elseAt > 0 ? (gate.slice(0, elseAt).match(/\n\s*ok\(/g) || []).length : -1;
+    const elseOks = elseAt > 0 ? (gate.slice(elseAt).match(/\n\s*ok\(/g) || []).length : -1;
+    ok(gateAt >= 0 && gateAt < suite.indexOf('#46 r2 REPAIR (the M1 hold-out gate')
+       && /if \(existsSync\(coreDir\)\) \{/.test(gate) && elseAt > 0 && ifOks === 2 && elseOks === 1,
+      '★ Session J baseline finding, #46 r2 re-pointed at the STRUCTURE: the M1 (#448) hold-out gate is `if (existsSync(coreDir))` with TWO oks and an `else` with ONE, so the closing number is +1 with an Ixian-Core sibling beside this checkout (3978 → 3979 at f325d651). Record BOTH, or record which. Got if=' + ifOks + ' else=' + elseOks);
+  }
 }
 
 console.log('Session K: chat open on the shell\'s paint · the localized-document cache · walk J2 · the logged rows · dark on-action white');
@@ -22658,20 +22780,387 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
     ok(!/webView\.FadeTo\(/.test(scs) && /webView\.Opacity = 1;\s*\n\s*webView\.Focus\(\);/.test(scs),
       '★ Session K: no FadeTo on the chat WebView — it fades inside an invisible stage; the present is the reveal (a 90 ms animation could only be SEEN when the present landed mid-fade)');
   }
-  /* ★★ THE LOCALIZED DOCUMENT IS COMPUTED ONCE — generatePage ran the 640 KB line loop in every constructor */
+  /* ★★ THE LOCALIZED DOCUMENT IS COMPUTED ONCE — generatePage ran the 640 KB line loop in
+     every constructor. ★ #46 r2: rebased onto fix A's A1/A5, and the two pins that read the
+     old text are GONE rather than widened — see each site.
+     ⚠ EVERY sweep in this block reads stripCode(...). The A1/A5/A6 docblocks are long and
+     they quote, verbatim and in full, both the code they installed AND the code they
+     replaced (that is what a REVERSAL clause is). Raw text here is unusable in either
+     direction: a positive would be satisfied by the reversal note, a negative would fail on
+     the defect description. */
+  const locNC = stripCode(loc), scpNC = stripCode(scp);
   {
-    ok(/private static int dictionaryVersion = 0;/.test(loc) && /public static int getDictionaryVersion\(\)/.test(loc)
-       && /localizedStrings = localized_strings;\s*language = resolved_lang;\s*dictionaryVersion\+\+;/.test(loc)
-       && /localizedStrings\.AddOrReplace\(key, value\);\s*dictionaryVersion\+\+;/.test(loc),
-      '★★ Session K: SpixiLocalization carries a DICTIONARY VERSION bumped by BOTH mutations — a language load and addCustomString (LaunchBootView / LockAuthPending / devMode / the theme name are written right before their page\'s generatePage; a cache that missed either would serve a stale carrier)');
-    ok(/localizedHtmlCache\.TryGetValue\(html_file_name, out var cached\) && cached\.version == version/.test(scp)
-       && /localizedHtmlCache\[html_file_name\] = \(version, html\);/.test(scp)
-       && /int version = SpixiLocalization\.getDictionaryVersion\(\);/.test(scp),
-      '★★ Session K (Android): generatePage serves the cached localized HTML when the dictionary version matches, and only then — the 640 KB Trim/Contains line loop ran on the UI thread inside EVERY chat constructor before this');
-    ok(/bool fresh = localizedFileVersion\.TryGetValue\(html_file_name, out int written\) && written == version && File\.Exists\(localized_file_path\);/.test(scp)
-       && /if \(File\.Exists\(localized_file_path\)\)\s*\{\s*localizedFileVersion\[html_file_name\] = version;/.test(scp),
-      '★ Session K (Windows): ll_*.html is rewritten only on a version change, and a file that was NOT written (localizeHtml returns silently on a missing asset, #663) is never marked fresh — the next open retries, exactly as before');
+    /* ★ #46 A5/A7 REPLACES the old dictionary-version pin, which asserted `dictionaryVersion++`
+       at both mutation sites — a non-atomic read-modify-write — and whose MESSAGE repeated the
+       false invariant A6 removed ("the carriers … are written right before their page's
+       generatePage"). Both are gone; nothing of that pin survives. */
+    const bumps = (locNC.match(/System\.Threading\.Interlocked\.Increment\(ref dictionaryVersion\);/g) || []).length;
+    ok(/private static int dictionaryVersion = 0;/.test(locNC)
+       && !/\bvolatile\b[^\n]*dictionaryVersion/.test(locNC)
+       && bumps === 2
+       && !/dictionaryVersion\+\+/.test(locNC)
+       && /public static int getDictionaryVersion\(\) \{ return System\.Threading\.Volatile\.Read\(ref dictionaryVersion\); \}/.test(locNC)
+       && /localizedStrings = localized_strings;\s*language = resolved_lang;\s*System\.Threading\.Interlocked\.Increment\(ref dictionaryVersion\);/.test(locNC)
+       && /localizedStrings\.AddOrReplace\(key, value\);\s*System\.Threading\.Interlocked\.Increment\(ref dictionaryVersion\);/.test(locNC),
+      '★★ #46 A5 (⑦): the dictionary version is a MEMORY-MODEL object, not an int. BOTH mutations (loadLanguage, addCustomString) bump it with Interlocked.Increment and the getter is a Volatile.Read — `++` is a non-atomic read-modify-write, so two concurrent carrier writes could collapse into ONE bump and leave every cached document keyed to a dictionary that no longer exists; a plain read lets a page constructor on another thread never observe the bump at all. The field is deliberately NOT `volatile` (that is CS0420 on every `ref` pass here, and Interlocked already gives the ordering). Got ' + bumps + ' Interlocked bump(s)');
+    /* ★ #46 A5 (⑦, second half): the version is RE-READ after the localize and the store is
+       skipped when it moved. Order matters and is asserted as order. */
+    const androidStore = scpNC.indexOf('localizedHtmlCache[html_file_name] = (version, html);');
+    const androidGuard = scpNC.indexOf('if (SpixiLocalization.getDictionaryVersion() == version)');
+    ok(/localizedHtmlCache\.TryGetValue\(html_file_name, out var cached\) && cached\.version == version/.test(scpNC)
+       && /int version = SpixiLocalization\.getDictionaryVersion\(\);/.test(scpNC)
+       && androidGuard > 0 && androidStore > androidGuard && androidStore - androidGuard < 120
+       && /if \(SpixiLocalization\.getDictionaryVersion\(\) == version\)\s*\{\s*localizedHtmlCache\[html_file_name\] = \(version, html\);\s*\}/.test(scpNC),
+      '★★ Session K (Android) + #46 A5 (⑦): generatePage serves the cached localized HTML only when the dictionary version matches — AND stores only under the version the document was actually built from. The version is read at entry, the 640 KB line loop runs, and the version is RE-READ before the store: an addCustomString landing mid-compute (the insets listener, a devMode flip) used to file an OLD-dictionary document under the NEW key, mislabelled for the rest of that version. The freshly built html still goes to THIS WebView; only the cache store is dropped');
+    /* ★★ #46 A1 (②) REPLACES the old Windows-freshness pin OUTRIGHT. That pin asserted
+       `if (File.Exists(localized_file_path)) { localizedFileVersion[...] = version; }` and its
+       message stated the NOW-FIXED DEFECT as intended behaviour ("a file that was NOT written
+       … is never marked fresh" — File.Exists is true for a PREVIOUS BUILD's ll_ file, which is
+       precisely how a stale document got certified fresh for a whole process). It must not
+       survive in any form, so it is deleted, not rebased. */
+    const winStore = scpNC.indexOf('localizedFileVersion[html_file_name] = version;');
+    const winGate = scpNC.indexOf('bool wrote = SpixiLocalization.localizeHtml(assets_file_path, localized_file_path);');
+    ok(/bool fresh = localizedFileVersion\.TryGetValue\(html_file_name, out int written\) && written == version && File\.Exists\(localized_file_path\);/.test(scpNC)
+       && winGate > 0 && winStore > winGate
+       && /bool wrote = SpixiLocalization\.localizeHtml\(assets_file_path, localized_file_path\);\s*if \(wrote && SpixiLocalization\.getDictionaryVersion\(\) == version\)\s*\{\s*localizedFileVersion\[html_file_name\] = version;\s*\}/.test(scpNC)
+       && !/if \(File\.Exists\(localized_file_path\)\)\s*\{\s*localizedFileVersion\[html_file_name\] = version;/.test(scpNC)
+       && (scpNC.match(/localizedFileVersion\[html_file_name\] = version;/g) || []).length === 1
+       && /else if \(!wrote\)\s*\{[\s\S]{0,200}?localizedFileVersion\.TryRemove\(html_file_name, out _\);/.test(scpNC),
+      '★★ #46 A1 (②, MAJOR — measured on Windows 2026-09-03): the Windows freshness map is gated on the WRITE and never on File.Exists. `localizeHtml` returns bool now, and the ONE store site is guarded by `wrote && the version still matches`; a failed write TryRemoves any standing verdict instead of leaving one. File.Exists is true for an `ll_*.html` that a PREVIOUS BUILD left in Documents\\Spixi\\html — a folder that survives every wipe — so the old gate certified a stale document as this build\'s, once per process, and the observed symptom was a LIGHT Account pane under a dark system theme. (It still appears in `bool fresh` as a READ-side existence check, which is correct: a verdict for a file that has since been deleted must not be trusted either)');
+    /* ★★ #46 A1 (①): localizeHtml(file → file) is REPORTABLE. Sliced to the function body,
+       because "a `return true;` exists somewhere in this file" is not a claim. */
+    const lhAt = locNC.indexOf('public static bool localizeHtml(string html_file_path, string localized_file_path)');
+    const lhEnd = locNC.indexOf('public static string localizeHtml(Stream stream)', lhAt + 1);
+    const lh = lhAt >= 0 && lhEnd > lhAt ? locNC.slice(lhAt, lhEnd) : '';
+    const trues = (lh.match(/return true;/g) || []).length, falses = (lh.match(/return false;/g) || []).length;
+    const flushAt = lh.indexOf('sw.Flush();'), trueAt = lh.indexOf('return true;');
+    ok(lh.length > 400 && trues === 1 && falses === 2
+       && flushAt > 0 && trueAt > flushAt
+       && /sw\.Flush\(\);\s*sw\.Close\(\);\s*sw\.Dispose\(\);\s*sw = null;\s*return true;/.test(lh)
+       && /Logging\.error\("HTML File doesn't exist: " \+ html_file_path\);\s*return false;/.test(lh)
+       && /catch \(Exception ex\)\s*\{\s*Logging\.error\("localizeHtml failed writing "[\s\S]{0,600}?return false;/.test(lh)
+       /* ★★ r2 R2-7: the delete is guarded by `truncatedTarget`, NOT by File.Exists alone.
+          The flag is set on the line AFTER File.CreateText returns, and the ONE throw that
+          can precede it is File.OpenText(html_file_path) — after File.Exists already said the
+          source is there, i.e. a sharing violation, an AV lock, a TOCTOU. On File.Exists
+          alone that deleted a STANDING, COMPLETE previous-build ll_ file, generatePage then
+          read stalePresent false, and rung ② served the built-in error page instead of the
+          working document. Pinned as ORDER too: a flag set before CreateText means nothing. */
+       && /bool truncatedTarget = false;/.test(lh)
+       && /sw = File\.CreateText\(localized_file_path\);\s*truncatedTarget = true;/.test(lh)
+       && (lh.match(/truncatedTarget = true;/g) || []).length === 1
+       && /if \(truncatedTarget && File\.Exists\(localized_file_path\)\) \{ File\.Delete\(localized_file_path\); \}/.test(lh)
+       && !/if \(File\.Exists\(localized_file_path\)\) \{ File\.Delete\(localized_file_path\); \}/.test(lh)
+       && /catch \(Exception delEx\)[\s\S]{0,200}?could not remove the partial file/.test(lh)
+       && /finally\s*\{[\s\S]{0,300}?sr\?\.Close\(\)[\s\S]{0,200}?sw\?\.Close\(\)/.test(lh),
+      '★★ #46 A1 (①, MAJOR): localizeHtml(file → file) returns bool, and the ONLY `true` is after the writer has flushed AND closed — a half-written file must never count as written. `false` twice: after the existing missing-source Logging.error, and from the catch (which also names the file). The finally closes whatever a throw left open. Without a return value generatePage had nothing to gate on and fell back to File.Exists, i.e. to trusting a previous build\'s document. Existing callers that discard the value stay valid. \u2605 #46 r2: the catch also DELETES the partial file \u2014 a throw mid-copy leaves a TRUNCATED ll_*.html that File.Exists reports as present, and generatePage would then serve it on the \'a previous build\'s complete document beats a blank app\' argument, which does not cover this run\'s garbage. \u2605 #46 r2 R2-7: and it deletes ONLY what THIS call truncated \u2014 `truncatedTarget` is set on the line after File.CreateText returns, so the one pre-create throw (File.OpenText of the SOURCE, after File.Exists said yes: a sharing violation, an AV lock, a TOCTOU) no longer destroys a standing COMPLETE previous-build ll_ file and turn a transient read failure into the built-in error page. Got ' + trues + ' true / ' + falses + ' false in a ' + lh.length + '-char body');
+    /* ★★ #46 A1 (③): generatePage DEGRADES, never throws. */
+    /* ★ r3 R3-6: the signature is `WebViewSource?` — rung ② returns null BY CONTRACT, and
+       with <Nullable>enable</Nullable> (Spixi.csproj:20) that contract belongs in the type,
+       not only in the docblock. Pinned WITH the `?` so the annotation cannot be dropped back. */
+    const fbAt = scpNC.indexOf('private static WebViewSource? generateFallbackPage(');
+    const fbEnd = scpNC.indexOf('public virtual void recalculateLayout()', fbAt + 1);
+    const fb = fbAt >= 0 && fbEnd > fbAt ? scpNC.slice(fbAt, fbEnd) : '';
+    ok(fb.length > 800
+       && /Stream stream = SPlatformUtils\.getAsset\(Path\.Combine\("html", html_file_name\)\);/.test(fb)
+       && /Html = html,\s*BaseUrl = SPlatformUtils\.getHtmlBaseUrl\(\)/.test(fb)
+       && /if \(stalePresent\)\s*\{[\s\S]{0,400}?return null;\s*\}/.test(fb)
+       && /System\.Net\.WebUtility\.HtmlEncode\(html_file_name \?\? ""\)/.test(fb) && /System\.Net\.WebUtility\.HtmlEncode\(assets_file_path \?\? ""\)/.test(fb)
+       && /safe_name/.test(fb) && /safe_path/.test(fb)
+       && !/\bthrow\b/.test(fb)
+       && /catch \(Exception ex\)\s*\{\s*Logging\.error\("generatePage: the stream fallback for "/.test(fb)
+       && /WebViewSource\? fallback = generateFallbackPage\(html_file_name, assets_file_path, stalePresent\);\s*if \(fallback != null\)\s*\{\s*return fallback;\s*\}/.test(scpNC)
+       /* ★ r3 R3-6: both halves annotated — a nullable return assigned to a non-nullable local
+          is CS8600 and reads as "this never returns null", which is the opposite of rung ②. */
+       && /private static WebViewSource\? generateFallbackPage\(/.test(scpNC),
+      '★★ #46 A1 (③): the fallback LADDER degrades and never throws — ① the stream overload with BaseUrl = getHtmlBaseUrl() so css/js/img subresources still resolve (a correct, freshly localized document, no disk write); ② `return null` when a previous build\'s ll_ file is present, so the caller\'s URL source still renders something (stale beats nothing, and the log already named it stale); ③ otherwise a built-in page that NAMES the missing file and its expected source path, both HtmlEncoded. generatePage runs on the UI thread inside page constructors including LaunchPage\'s: a throw here is an unlaunchable app, strictly worse than the bug being fixed');
+    /* ★★ r2 R2-5: AND THE LOG NAMES THE RUNG THAT ACTUALLY SERVED. The ladder-entry line used
+       to end "Falling back to in-memory localization." for EVERY outcome, including rung ③ —
+       and in the headline case the ladder exists for (`<exe>\\html` not staged) rung ① cannot
+       have served at all: getAsset is OpenAppPackageFileAsync, which resolves under the SAME
+       BaseDirectory getAssetsPath() returns, so it re-opens the file that just came back
+       missing and can only throw. ixian.log is the evidence artifact this project steers by;
+       a line asserting a rung that structurally cannot have fired is worse than no line.
+       Each rung now logs itself and the entry line promises only that the NEXT line will say.
+       Comments stripped: the R2-5 docblock quotes the retired sentence in order to name it. */
+    ok(/\+ \(stalePresent\s*\?\s*"A ll_ file from a PREVIOUS BUILD is present at that path and would be served STALE; it will not be trusted\."\s*:\s*"No ll_ file exists at that path at all; a URL source would be ERR_FILE_NOT_FOUND\."\)/.test(scpNC)
+       && /Logging\.error\("generatePage: localization DID NOT WRITE "/.test(scpNC)
+       && /Visual Studio \(F5 \/ Deploy\) rather than `dotnet build`/.test(scpNC)
+       && !/Falling back to in-memory localization\./.test(scpNC)
+       && /Entering the fallback ladder; the NEXT generatePage line says which rung actually served\./.test(scpNC)
+       && /Logging\.info\("generatePage: served " \+ html_file_name \+ " from the in-memory stream fallback/.test(scpNC)
+       && /Logging\.error\("generatePage: falling back to the PREVIOUS BUILD's ll_"/.test(scpNC)
+       && /Logging\.error\("generatePage: serving the BUILT-IN error page for " \+ html_file_name/.test(scpNC),
+      '★★ #46 A1 (③, the log half): the failure line TELLS THE TWO CASES APART — "a ll_ from a PREVIOUS BUILD is present and would be served STALE" vs "no ll_ exists at all, a URL source would be ERR_FILE_NOT_FOUND". They have completely different fixes, and ixian.log is the only place a user can tell them apart; a single "could not localize" line would send both down the wrong one. The line also names the fix (build/run through Visual Studio, not `dotnet build`). \u2605\u2605 r2 R2-5: it no longer ends with "Falling back to in-memory localization." on every outcome \u2014 all THREE rungs log which one served (\u2460 the in-memory stream, \u2461 the previous build\'s ll_, \u2462 the built-in error page), and the entry line promises only that the next line will say. Rung \u2460 opens the source through OpenAppPackageFileAsync, which resolves under the same BaseDirectory getAssetsPath() returns, so on the not-staged case it can only throw: the old line asserted a rung that could not have fired');
   }
+  /* ══ ★★ #46 r2 — THE C# FIXES THAT HAVE NO PIN YET (fix agent A, ④ ⑤ ⑥ ⑧) ═══════════ */
+  {
+    /* ★★ A2 (④): copyResources() MUST NOT KILL THE APP. Sliced to the method, because a
+       `Directory.Exists` anywhere in App.xaml.cs is not this guard. Comments out: the A2
+       docblock immediately above quotes `copyContents(sourceDirectory, targetDirectory)`,
+       the bare call this fix replaced, in its REVERSAL clause. */
+    const app = rdF('Spixi/App.xaml.cs');
+    const appNC = stripCode(app);
+    const crAt = appNC.indexOf('public void copyResources()');
+    const crEnd = appNC.indexOf('private void copyContents(', crAt + 1);
+    const cr = crAt >= 0 && crEnd > crAt ? appNC.slice(crAt, crEnd) : '';
+    const crErrors = (cr.match(/recordStartupDiagnostic\(/g) || []).length;
+    /* ★★ r2 R2-4: BOTH FLUSH SITES, AND WHICH SIDE OF Logging.start EACH IS ON. Round 1 had
+       one flush, inside `if (Node.Instance == null)`, and an A2 docblock arguing that the
+       copy stays above Logging.start precisely BECAUSE of the second App() construction —
+       the one case on which the diagnostic was then recorded and never emitted. This pin
+       reads the FIRST and the LAST occurrence separately, so a single flush can satisfy
+       neither half: one must sit before the start behind `Node.Instance != null`, one after
+       it inside the `== null` branch. Comments out — the docblock quotes both. */
+    const flushCount = (appNC.match(/flushStartupDiagnostics\(\);/g) || []).length;
+    const flushAtA = appNC.lastIndexOf('flushStartupDiagnostics();'), startAtA = appNC.indexOf('Logging.start(Config.spixiUserFolder');
+    const flushEarlyA = appNC.indexOf('flushStartupDiagnostics();');
+    ok(cr.length > 300 && crErrors === 2 && !/\bthrow\b/.test(cr)
+       && (cr.match(/Logging\.error\(/g) || []).length === 0
+       && flushCount === 2
+       && flushAtA > 0 && startAtA > 0 && flushAtA > startAtA
+       && flushEarlyA > 0 && flushEarlyA < startAtA
+       && /if \(IXICore\.Platform\.onWindows\(\)\)\s*\{\s*copyResources\(\);\s*\}\s*if \(Node\.Instance != null\)\s*\{\s*flushStartupDiagnostics\(\);\s*\}\s*if \(Node\.Instance == null\)/.test(appNC)
+       && /private static void flushStartupDiagnostics\(\)\s*\{[\s\S]{0,300}?Logging\.error\(startupDiagnostic\);/.test(appNC)
+       && /if \(!Directory\.Exists\(sourceDirectory\)\)\s*\{\s*recordStartupDiagnostic\("copyResources: the html asset folder is MISSING at " \+ sourceDirectory/.test(cr)
+       && /\+ " — nothing was copied to " \+ targetDirectory/.test(cr)
+       && /return;\s*\}\s*try\s*\{\s*copyContents\(sourceDirectory, targetDirectory\);\s*\}\s*catch \(Exception ex\)\s*\{\s*recordStartupDiagnostic\("copyResources: copying " \+ sourceDirectory \+ " to " \+ targetDirectory/.test(cr)
+       && (cr.match(/Visual Studio \(F5 \/ Deploy\) rather than `dotnet build`/g) || []).length === 1
+       && /The app continues;/.test(cr)
+       && /the app continues with whatever was already in place;/.test(cr)
+       && /if \(IXICore\.Platform\.onWindows\(\)\)\s*\{\s*copyResources\(\);\s*\}/.test(appNC),
+      '★★ #46 A2 (④, MAJOR — same root cause as A1): copyResources() checks the folder exists and wraps the copy, so it CONTINUES instead of throwing out of the App() constructor. It is called UNCAUGHT from `App()` on every Windows launch and `copyContents` opens with `Directory.GetFiles(sourceDirectory)`: when `<exe>\\html` was not staged — the normal state after a plain `dotnet build` — that threw DirectoryNotFoundException before MAUI has any handler, and the process died with no window, no dialog and no log line. It does NOT swallow: BOTH branches log at ERROR and BOTH name the folder AND the fix, because "the assets were never staged" and "the copy failed half-way" need different fixes and ixian.log is the only place to tell them apart. \u2605\u2605 #46 r2, CONFIRMED against the Ixian-Core sibling at 097341a: those two lines were being DROPPED. copyResources runs from App() ~30 lines ABOVE Logging.start, and Core\'s Logging does not buffer \u2014 Meta/Logging.cs:196 is `if (running == false) { if (consoleOutput) Console.WriteLine(...); return; }`, and a Windows GUI app has no console. So the diagnostic is RECORDED here and FLUSHED after Logging.start succeeds; the ORDER is pinned, because a flush above the start is the same silent guard. The call site is deliberately not moved below Logging.start: that sits inside `if (Node.Instance == null)` and moving it would skip the copy on a second App(). \u2605\u2605 r2 R2-4: and THAT second construction is now SERVED. Round 1 made the argument and left the only flush inside `if (Node.Instance == null)`, so on exactly the case it names the diagnostic was recorded and never emitted \u2014 with Logging running by then, and Console.WriteLine a no-op in a Windows GUI app, which is this whole fix\'s premise. There are TWO flush sites now: `Node.Instance != null` immediately after copyResources (the logger is already up, because the first construction could not have got past Logging.start otherwise), and the original one after Logging.start. flushStartupDiagnostics clears the buffer, so whichever runs, the other is a no-op. Got ' + crErrors + ' recordStartupDiagnostic in a ' + cr.length + '-char method');
+
+    /* ★★ A3 (⑤) + r2 R2-2: THE STAGE IS INPUT-DEAD FOR TWO FRAMES OF THE ENTRY, NOT FOR ALL
+       OF IT — AND IT ALWAYS ENDS INPUT-LIVE.
+       ⚠ PINNED AS ONE ASSERTION, all three halves, deliberately. Any one of them alone is
+       worse than none: keep the `= true` and drop the clears and every overlay is
+       PERMANENTLY untappable (far worse than the mis-delivered tap being fixed); keep the
+       clears and drop the `= true` and the fix is gone; keep only the `finally` clear — which
+       is what round 1 shipped — and every sliding overlay is input-dead for its whole 300 ms.
+       A pin per half would let each of those be green on one line and red on another; this
+       one cannot be satisfied by any subset.
+       ★★ r2 R2-2 — THE NUMBER IS PARSED, NOT PATTERN-MATCHED, and it is bounded on both
+       sides. A block of 0 is no fix; a block of ScreenSlideInMs is round 1's defect written
+       as a constant. The measured curve is on the constant's own docblock: opacity crosses
+       3 % at 15.3 ms and 99 % at 250 ms, so the honest window is a small multiple of a frame.
+       ⚠ stripCode: the A3 docblocks are the longest in the file and they quote every literal
+       here — `op.stage.InputTransparent = false;` (the reversal), `= true;` (the fix), the
+       exit path's own guard, and now `liftStageInput`, `SlideInputDeadMs` and the 300 ms it
+       replaces. Raw, this pin would assert the docblock. */
+    const revealAt = scpNC.indexOf('private static void revealStage(PreloadOp op)');
+    const revealEnd = scpNC.indexOf('private static async Task liftStageInput(PreloadOp op)', revealAt + 1);
+    const reveal = revealAt >= 0 && revealEnd > revealAt ? scpNC.slice(revealAt, revealEnd) : '';
+    const liftAt = scpNC.indexOf('private static async Task liftStageInput(PreloadOp op)');
+    const slideAt = scpNC.indexOf('private static async Task slideStageIn(PreloadOp op)');
+    const slideEnd = scpNC.indexOf('private static void cancelPreload(PreloadOp op)', slideAt + 1);
+    const slide = slideAt >= 0 && slideEnd > slideAt ? scpNC.slice(slideAt, slideEnd) : '';
+    const lift = liftAt >= 0 && slideAt > liftAt ? scpNC.slice(liftAt, slideAt) : '';
+    const deadThenReveal = (scpNC.match(/op\.stage\.InputTransparent = true;\s*revealStage\(op\);/g) || []).length;
+    const deadM = /private const int SlideInputDeadMs = (\d+);/.exec(scpNC);
+    const slideMsM = /private const uint ScreenSlideInMs = (\d+);/.exec(scpNC);
+    const deadMs = deadM ? Number(deadM[1]) : -1, slideMs = slideMsM ? Number(slideMsM[1]) : -1;
+    ok(reveal.length > 200 && slide.length > 200 && lift.length > 100
+       /* ① input-DEAD on BOTH reveal paths — the fresh present and the parked re-present */
+       && deadThenReveal === 2
+       && !/op\.stage\.InputTransparent = false;\s*revealStage\(op\);/.test(scpNC)
+       /* ② input-LIVE where the no-slide reveal settles: the same frame it is fully visible */
+       && /else\s*\{\s*op\.stage\.Opacity = 1;\s*op\.stage\.InputTransparent = false;\s*\}/.test(reveal)
+       /* ③ THE SLIDE GOES LIVE TWO FRAMES IN. The lift is STARTED, not awaited, before the
+             animation, and the number is real: above zero, and far below the animation it
+             runs beside. */
+       && deadMs > 0 && slideMs > 0 && deadMs < slideMs / 4
+       && /var stage = op\.stage;\s*_ = liftStageInput\(op\);\s*try/.test(slide)
+       && (scpNC.match(/_ = liftStageInput\(op\);/g) || []).length === 1
+       && /await Task\.Delay\(SlideInputDeadMs\);\s*MainThread\.BeginInvokeOnMainThread\(\(\) =>\s*\{\s*try \{ if \(!op\.closing\) \{ op\.stage\.InputTransparent = false; \} \} catch \(Exception\) \{ \}\s*\}\);/.test(lift)
+       /* ④ AND THE BELT STAYS: the `finally`, so an aborted or faulted animation — or a
+             starved timer — still leaves a tappable page, behind !op.closing so the exit
+             owns a stage it is tearing down */
+       && /if \(!op\.closing\)\s*\{\s*try \{ stage\.TranslationX = 0; stage\.Opacity = 1; \} catch \(Exception\) \{ \}\s*try \{ stage\.InputTransparent = false; \} catch \(Exception\) \{ \}\s*\}/.test(slide)
+       && /finally[\s\S]{0,400}?try \{ stage\.InputTransparent = false; \} catch \(Exception\) \{ \}/.test(slide),
+      '★★ #46 A3 (⑤) + r2 R2-2: the stage is input-DEAD before the first entry frame on BOTH reveal paths (fresh present + parked re-present, ' + deadThenReveal + '/2) and input-LIVE again after SlideInputDeadMs = ' + deadMs + ' ms — not after the ' + slideMs + ' ms animation. Session I\'s hybrid entry starts the stage at 40% travel with Opacity 0, and this file\'s own easing keeps opacity under 3% for only 15.3 ms; round 1 cleared the block in slideStageIn\'s `finally` instead, i.e. ten to twenty times later, so a tap on the Add-contact name field at ~250 ms — stage at 99.0% opacity, 0.41% of its travel from home — was discarded when it used to be delivered. ALL FOUR IN ONE PIN: the `= true`, the no-slide branch\'s immediate clear, the ' + deadMs + ' ms lift, and the `finally` BELT behind it. The belt is not redundant — a starved timer or a dropped main-thread post would otherwise leave a permanently untappable page, which is strictly worse than the tap this prevents');
+
+    /* ★ A4 (⑥): the [CDPERF] tap stamp sits after the already-open early return. ORDER pin —
+       "the write exists" was always true; where it sits is the whole fix. */
+    const hpNC = stripCode(hp);
+    const openAt = hpNC.indexOf('fromChat = true;');
+    const marshalAt = hpNC.indexOf('MainThread.BeginInvokeOnMainThread(() =>', openAt);
+    const earlyRetAt = hpNC.indexOf('Logging.warn("Chat page for {0} already open."', marshalAt);
+    const stampAt = hpNC.indexOf('SingleChatPage.pendingTapTicks = System.Diagnostics.Stopwatch.GetTimestamp();', marshalAt);
+    const ctorAt = hpNC.indexOf('pushPageLoaded(new SingleChatPage(friend, wide ? this : null)', marshalAt);
+    ok(openAt > 0 && marshalAt > openAt && earlyRetAt > marshalAt && stampAt > earlyRetAt && ctorAt > stampAt
+       && (hpNC.match(/SingleChatPage\.pendingTapTicks = /g) || []).length === 1
+       && /SingleChatPage\.pendingTapTicks = System\.Diagnostics\.Stopwatch\.GetTimestamp\(\);\s*pushPageLoaded\(new SingleChatPage\(friend, wide \? this : null\)/.test(hpNC)
+       && !/fromChat = true;\s*SingleChatPage\.pendingTapTicks/.test(hpNC),
+      '★ #46 A4 (⑥): the [CDPERF] tap stamp is written INSIDE the marshalled body, AFTER the already-open early return and IMMEDIATELY before the SingleChatPage construction it measures. It used to sit above `MainThread.BeginInvokeOnMainThread`, whose body returns early when the chat is already open (and on the double-click it exists to swallow) — the stamp then STRANDED, no constructor consumed it, and it stood until the NEXT construction, which reported it as that open\'s tap→ctor latency: a wildly large, entirely false number in the instrument the whole chat-open perf effort is steered by. Exactly one write exists, so the stamp cannot be planted twice');
+
+    /* ★★ A6 (⑧): THE FALSE-INVARIANT COMMENTS ARE GONE AND THEIR CORRECTIONS ARE THERE.
+       ⚠⚠ THIS PIN READS THE PROSE, AND IT IS THE ONE PIN IN THIS BLOCK THAT MUST. Its SUBJECT
+       IS THE PROSE. stripCode here would delete the entire thing being asserted and leave a
+       pin that passes against any file — the exact vacuity this loop retired the [SCROLL] pin
+       for, arrived at from the opposite direction. A comment-correctness pin reads prose;
+       every other pin around it does not.
+
+       ★★ #46 r2 R2-6 — REPAIRED IN BOTH DIRECTIONS, BECAUSE IT WAS WRONG IN BOTH.
+       ① IT WAS ONE REFLOW FROM RED. Round 1 matched the file RAW. Its third needle,
+          `are all written right before their page's generatePage`, is quoted VERBATIM by the
+          correction that replaced it (SpixiContentPage: `the carriers (…) "are all\n * written
+          right before their page's generatePage". THAT IS FALSE`) — so the needle was absent
+          only because the docblock happens to WRAP that quote mid-sentence. Re-wrap the
+          paragraph and `includes()` returns true and the pin goes RED against a correct file.
+          Its positive clauses were coupled to the same wraps in the other direction: two of
+          them matched `\s*\n\s*\*` literally, so the same reflow would have falsified those
+          too. Everything now goes through `prose(...)`, which strips comment leaders and
+          collapses whitespace — the sentence is the subject, the wrapping is not.
+       ② AND THE NEEDLE WAS SATISFIABLE BY THE COMMENT THAT EXPLAINS IT. A correction has to
+          NAME the claim it retires, so "the retired sentence is absent" can only ever be true
+          by accident of punctuation. Every needle below is now the claim in its ASSERTED form
+          — with the consequent the correction has no reason to quote (`…, so those pages miss
+          and recompute`, `Today \`slideIn: true\` has exactly ONE caller`). The positive
+          clauses hold the other half: delete a correction and the pin still goes red.
+
+       ★★ #46 r3 R3-3 — WHAT THE ROUND-2 DOCBLOCK CLAIMED THAT IT COULD NOT HAVE.
+       ⓐ IT SAID EVERY NEEDLE "was verified PRESENT in `git show HEAD:` of its own file and
+          ABSENT now". FIVE were. The SIXTH could not be: the sentence it named was written by
+          ROUND 1 of this loop, in the uncommitted tree, and retired by round 2 — HEAD never
+          carried it, so no `git show` can witness it. The claim is narrowed to the five, and
+          the sixth is handled by a different mechanism, below. This is the A6 defect class
+          (a comment asserting what the thing it describes does not do) inside the A6 pin.
+       ⓑ AND THE SIXTH NEEDLE WAS VACUOUS. A negative needle CANNOT work for that one: the
+          retired sentence's only surviving record anywhere in the tree is the correction that
+          quotes it in full — consequent included — so R2-6 ②'s trick (needle the asserted form
+          with a tail the correction has no reason to repeat) has no tail left to use. Round 2
+          reached for a RE-ORDERED PARAPHRASE instead ("meant a document built from the OLD
+          dictionary WAS FILED under a key…" vs the correction's "FILED a document built from
+          the OLD dictionary under a key…"), which matches nothing and can never go red — the
+          reviewer's mutation m10 re-inserted the correction's own quoted sentence as a LIVE
+          claim and this pin stayed green. And this suite's own docblock quoted it a THIRD way,
+          so two in-tree records of one sentence disagreed: the A6 defect class again, twice.
+          SO IT IS ASSERTED POSITIVELY AND BY COUNT: the retired sentence has ONE canonical
+          wording (`retiredA5History` below, which is also the only copy of it in this file —
+          this docblock deliberately does not re-quote it, which is how the third wording is
+          retired), it must appear in SpixiContentPage EXACTLY ONCE, and that one occurrence
+          must be inside the correction's quotation marks. Re-insert it as a live claim and the
+          count is 2 → RED. Delete the correction and the count is 0 → RED. The two in-tree
+          records now agree VERBATIM because the pin fails unless they do.
+       ⓒ NEEDLE 1 WAS BYTE-EXACT AND SAID SO NOWHERE. It read `invalidates every entry by
+          construction — no per-key bookkeeping, no stale carrier`, so re-adding ", no stale
+          carrier" to the CORRECTED sentence (which capitalises "EVERY") left it green. It is
+          now a case-insensitive regex on the overclaiming TAIL alone — `no per-key
+          bookkeeping, no stale carrier` — which the correction quotes only as "no stale
+          carrier" and which no re-casing of the sentence can dodge. Needles may be strings or
+          regexes; a literal needle that cannot be strengthened must say so in its own row. */
+    const scpP = prose(scp), locP = prose(loc);
+    /* ★★ r3 R3-3: THE ONE CANONICAL WORDING of the A5 false history, and the only copy of it
+       in this file. The assertion below requires SpixiContentPage's correction to quote it
+       character for character, which is what keeps the two in-tree records from drifting. */
+    const retiredA5History = 'filed a document built from the OLD dictionary under a key that claims the NEW one, and would then be served to every later open until the next bump';
+    const retiredA5Count = scpP.split(retiredA5History).length - 1;
+    /* ★★ r3 R3-4: the same COUNT-AND-QUOTE mechanism, reused on App.xaml.cs. The R2-4 docblock
+       said copyResources() "runs unconditionally above" while the call four lines up sits
+       inside `if (IXICore.Platform.onWindows())` — which the A2 pin's own regex encodes, so
+       the tree contained a comment and a pin that disagreed. Its correction quotes the retired
+       phrase, so a negative needle would be satisfied by the correction; the phrase must
+       therefore appear EXACTLY ONCE and inside the correction's quotation marks. */
+    const appP = prose(rdF('Spixi/App.xaml.cs'));
+    const retiredR24 = 'copyResources() runs unconditionally above';
+    const retiredR24Count = appP.split(retiredR24).length - 1;
+    const falseInvariants = [
+      [/no per-key bookkeeping,\s*no stale carrier/i, locP, 'SpixiLocalization: the version claimed no LIVE carrier could go stale'],
+      ['a LaunchBootView / devMode / theme-name write before the next generatePage', locP, 'SpixiLocalization: the "written right before generatePage" claim'],
+      ['are all written right before their page\'s generatePage, so those pages miss and recompute', scpP, 'generatePage: the same claim, restated where the cache lives'],
+      ['Today `slideIn: true` has exactly ONE caller', scpP, 'ScreenSlideInMs: "one caller, so nothing else moves with this"'],
+      ['only a WRITTEN file is fresh (localizeHtml returns silently on a missing asset, #663)', scpP, 'the Windows freshness store: the File.Exists verdict described as a write check'],
+      /* ★★ r3 R3-6: the two STALE ENUMERATIONS. r2 R2-2 added `liftStageInput` as a third
+         clear of the entering stage's InputTransparent — and made it the one that matters,
+         demoting slideStageIn's `finally` to a belt — while these two paragraphs went on
+         naming the pre-R2-2 pair. Each needle carries the lead-in its correction has no
+         reason to reproduce (`BOTH clears (`, `you remove `), so the correction cannot
+         satisfy it: R2-6 ②'s rule, applied to a count instead of an invariant. */
+      ['BOTH clears (revealStage', scpP, 'the parked re-present: "BOTH clears", written after r2 R2-2 made them three'],
+      ['you remove BOTH later clears', scpP, 'the fresh present\'s REVERSAL: the same stale count'],
+      /* ★★ r3 R3-6: and the HEAD-offset citations, all four of which pointed at the wrong
+         line by the time round 3 read them. Replaced by searchable quoted anchors, which come
+         back EMPTY when they rot instead of pointing somewhere plausible. The corrections
+         record the old numbers with `→`, never in the punctuation these needles carry. */
+      ['`:1706-1708` / `:1728`', scpP, 'the exit input-dead citation (it is :1689/:1718)'],
+      ['constructed input-transparent (:2375, :2573)', scpP, 'the stage-construction citation (it is :2388/:2586)'],
+      ['!conversation))` (`:2445`)', scpP, 'the op.slideIn citation (it is :2458)'],
+      ['`SingleChatPage.xaml.cs:563`', scpP, 'the re-endorsed chat-info call site (it is :726)'],
+      /* ★★ r4 R4-1: THE FIFTH ONE — in the DEFECT paragraph of the very docblock the R3-6
+         sweep rewrote, above the sweep's own "all of them". At HEAD `:3060-3064` was
+         Session I's hybrid entry; in this tree it lands in unrelated code, so a maintainer
+         following it landed somewhere plausible and wrong — the exact failure that paragraph
+         claims to have eliminated. The needle carries the live-citation punctuation
+         (`hybrid entry (`) that the correction has no reason to reproduce; the COUNT below
+         carries the rest, because a needle alone cannot see a re-citation in a new wording.
+         ★★ r5: this comment used to name WHAT that offset hits here (the #685 easing
+         docblock). It had already stopped being true — r4's own insertions in the C#
+         docblock pushed the target 21 lines — so the description of a rotted citation
+         rotted, in the round that wrote it, in four places at once. Nothing here says what
+         `:3060-3064` currently points at any more, in this file or in the C#: a claim that
+         needs re-verifying on every edit is the thing this whole block exists to retire. */
+      ['hybrid entry (`:3060-3064`)', scpP, 'the Session I hybrid-entry citation (a HEAD offset that lands in unrelated code here)'],
+      /* ★★ r2 R2-3: round 1's OWN A5 comment stated a false history about the pre-fix store —
+         the sentence held verbatim in `retiredA5History` above, which this docblock does not
+         re-quote (r3 R3-3 ⓑ: a third wording of one sentence is how the two in-tree records
+         came to disagree). `git show HEAD:Spixi/Utils/SpixiContentPage.cs:3206` is
+         `localizedHtmlCache[html_file_name] = (version, html);` with `version` read at ENTRY
+         (`:3192`), so a mid-compute bump tagged the entry with the OLD version —
+         conservatively STALE — and the reader's `cached.version == version` rejected it on
+         every later open. It could never be served. Six occurrences of this class in six
+         rounds; this one was introduced BY a fix, which is why it is asserted by COUNT below
+         rather than by a needle it can never fail. */
+    ];
+    const stillThere = falseInvariants
+      .filter(([needle, txt]) => (needle instanceof RegExp ? needle.test(txt) : txt.includes(needle)))
+      .map((x) => x[2]);
+    ok(stillThere.length === 0
+       && /⚠ #46 A6 — WHAT THIS DOES NOT CLAIM\. The old wording here ended "no stale carrier", which overclaims/.test(locP)
+       && /★★ #46 A6 — WHY THIS CACHE IS SAFE, STATED CORRECTLY/.test(scpP)
+       && /EVERY mutation of the dictionary bumps the version/.test(scpP)
+       && /⚠ #46 A6 — CORRECTED\. This used to claim `slideIn: true` "has exactly ONE caller/.test(scpP)
+       && /is FALSE today/.test(scpP)
+       && /★ #46 A5: only a document still matching the LIVE dictionary is fresh/.test(scpP)
+       /* ★ r2 R2-3: and the A5 Android gate now states what it actually buys */
+       && /⚠ r2 R2-3 — THIS DOCBLOCK USED TO STATE A FALSE HISTORY/.test(scpP)
+       && /conservatively STALE, not falsely fresh/.test(scpP)
+       && /cache-efficiency guard, not a correctness one/.test(scpP)
+       /* ★★ r3 R3-3 ⓑ: the retired A5 history exists EXACTLY ONCE in SpixiContentPage, inside
+          the correction's quotation. A live re-insertion makes it 2; deleting the correction
+          makes it 0; a reworded correction breaks the `includes`. This is the clause the
+          reviewer's m10 mutation walked through untouched. */
+       && retiredA5Count === 1
+       && scpP.includes('It claimed the pre-fix store "' + retiredA5History + '".')
+       /* ★★ r3 R3-4: same rule, App.xaml.cs — the retired phrase exists once, quoted, and the
+          correction states what IS true of that call (platform-gated, never once-per-process,
+          so it runs on every construction — which is the property the paragraph needs). */
+       && retiredR24Count === 1
+       && appP.includes('⚠ r3 R3-4: "' + retiredR24 + '" is what this line used to say')
+       && /the copy is gated by PLATFORM only, never by a once-per-process test, so it runs on EVERY App\(\) construction on Windows/.test(appP)
+       /* ★★ r3 R3-6: and the corrections that replaced the two stale counts and the rotted
+          citations are PRESENT — a needle list alone goes green on a deleted paragraph. */
+       && /⚠ r3 R3-6: THREE, not two\./.test(scpP)
+       && /⚠ r3 R3-6 — SEARCHABLE ANCHORS, NOT LINE NUMBERS/.test(scpP)
+       && /the slide branch at SlideInputDeadMs through `liftStageInput`/.test(scpP)
+       /* ★★ r4 R4-1: and the fifth citation is asserted BY COUNT — `:3060-3064` may appear
+          EXACTLY ONCE in this file, inside the correction that records what it used to point
+          at. Re-cite it live in any wording → 2 → RED; delete the correction → 0 → RED. The
+          suite was green with a FALSE UNIVERSAL ("Every file:line … all of them") standing
+          over a live rotted citation in the same comment block, which is why the universal is
+          gone and the number is stated. */
+       && (scpP.match(/:3060-3064/g) || []).length === 1
+       && /⚠ r4 R4-1: FIVE, not four./.test(scpP)
+       /* ★★ r4 R4-4: and the anchor R3-6 offered as its own evidence of correctness now
+          RESOLVES. `grep "the stage goes INPUT-DEAD before the first animation frame"`
+          returned ONE line — the instruction itself: the slide-out site capitalises "The"
+          and the #328 site wrapped the sentence across two comment lines. Asserted on the RAW
+          file, by line, because that is what a maintainer's grep does: THREE lines, the two
+          exit sites and the instruction that quotes them. Re-wrap either site → 2 → RED. */
+       && scp.split('\n').filter((l) => l.includes('stage goes INPUT-DEAD before the first animation frame')).length === 3,
+      '★★ #46 A6 (⑧) + r2 R2-3/R2-6: the FALSE INVARIANTS this loop found in the C# comments are gone and each has a stated correction in its place — (1) SpixiLocalization\'s "no stale carrier", which the version never promised (it promises only that no CACHED DOCUMENT survives a carrier change); (2)+(3) "the carriers are all written right before their page\'s generatePage", false for three of the four (SettingsPage writes the theme name without reloading settings.html, devMode flips on a live document, AndroidInsetTop arrives from the insets listener); (4) "`slideIn: true` has exactly ONE caller … so nothing else moves with this", false since the platform half of the OR landed — six phone overlays slide without passing the flag; (5) the Windows freshness store described as a write check; (6) r2 R2-3, introduced BY round 1: the A5 Android gate claimed the old store served a mislabelled document, when the old store tagged it with the ENTRY version and the reader therefore always rejected it — what the gate buys is a saved recompute, not a correct document. ⚠ PINNED ON `prose(...)`, alone in this block: comment-stripped it would assert nothing; RAW it was one reflow from red, and its needles were quoted verbatim by the corrections. \u2605\u2605 r3 R3-3: needle (6) is GONE, because it could not go red \u2014 the sentence it named was written by round 1 in the uncommitted tree (HEAD never carried it, so the docblock\'s \u0060git show HEAD:\u0060 verification claim is now narrowed to the five that were), and its only surviving record anywhere is the correction that quotes it IN FULL, so no asserted-form needle has a tail left to hang on. It is asserted POSITIVELY AND BY COUNT instead: exactly ONE occurrence in SpixiContentPage, inside the correction\'s quotation marks, matched against the one canonical wording held here \u2014 which also reconciles the two in-tree records that had drifted into three different wordings of one sentence. Re-insert it as a live claim \u2192 count 2 \u2192 RED. \u2605\u2605 r3 R3-4 puts App.xaml.cs under the same count-and-quote rule (the R2-4 docblock said copyResources() "runs unconditionally above" while the call four lines up sits inside if (IXICore.Platform.onWindows()) \u2014 a comment disagreeing with the A2 pin\'s own regex), and \u2605\u2605 r3 R3-6 adds six more needles: the TWO stale clear-counts left by r2 R2-2 (which made them three and demoted the finally to a belt) and the FOUR rotted HEAD-offset citations IT FOUND, now searchable quoted anchors. \u2605\u2605 r4 R4-1: THERE WERE FIVE. That sweep quantified over "every file:line in this docblock" and missed one in the same comment block \u2014 `:3060-3064`, Session I\'s hybrid entry at HEAD and unrelated code in this tree \u2014 so the paragraph retiring rotted citations shipped one, under a universal claim that made re-counting look unnecessary. It is an anchor now, the universal is a count, and `:3060-3064` must appear EXACTLY ONCE in the file: inside the correction that records what it used to point at. \u2605\u2605 r4 R4-4: and a rotted anchor does NOT "come back empty" \u2014 the instruction quoting it matches itself. R3-6\'s own exit anchor returned exactly that one line and nothing else, because one site capitalises the sentence and the other wrapped it across two comment lines; that site is reflowed, the article is out of the anchor, and the count a maintainer\'s grep really returns (three: the two exit sites and the instruction) is stated in the comment AND asserted here, by line, on the raw file. And needle (1) is a case-insensitive regex on the overclaiming tail now, not a byte-exact string: re-adding ", no stale carrier" to the CORRECTED sentence used to leave it green. Still present: ' + (stillThere.join(' \u00b7 ') || 'none'));
+  }
+
   /* ★ the stamps that complete the timeline (temporary; retire with the [CDPERF] set) */
   {
     ok(/internal static long pendingTapTicks = 0;/.test(scs) && /cdperf\("ctor", "tap=" \+/.test(scs)
@@ -22683,9 +23172,27 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
     const appPieces = [/cdperf\("onload", "t=" \+ openClock\.ElapsedMilliseconds\);/.test(appNew), /cdperf\("present", "t=" \+ openClock\.ElapsedMilliseconds\);/.test(appNew), /SingleChatPage\.CdperfFrameProbe\.start\(openClock, "appnew"\);/.test(appNew), /internal sealed class CdperfFrameProbe/.test(scs)];
     ok(appPieces.every(Boolean) || appPieces.every((x) => !x),
       '★ Session K [CDPERF] appnew (#757 ②, MEASURE before any fix): onload · present · the shared frame probe — a set, retired together. Got ' + JSON.stringify(appPieces));
-    const scrollPieces = [/\[SCROLL\] frames=/.test(ch), /function scrollJankProbe\(\)/.test(ch), /\[SCROLL\] frames=/.test(builtChat)];
+    /* ★★ #46 r2 REPAIR (MAJOR — THE GOVERNING DEFECT OF THIS LOOP). This set pin used to
+       sweep RAW `ch` / `builtChat` for `[SCROLL] frames=`. That string is written TWICE in
+       chat.html: once by the console.warn that emits it, and once by the probe's own
+       docblock, which documents the output format as
+           [SCROLL] frames=N drop=N max=Nms dur=Nms rows=N h=N
+       — because a comment that explains an instrument necessarily QUOTES it. So the pin was
+       SATISFIED BY ITS OWN DOCBLOCK, in both directions of its own contract:
+         · rename or delete the console.warn alone → the docblock still matched → GREEN, and
+           the set pin reported a live probe that no longer exists;
+         · retire the set the SANCTIONED way (function + emit out, docblock kept as the
+           record) → two of three pieces false, one true → the all-or-none test FAILED on a
+           correct retirement.
+       Both wrong, which is the signature of a vacuous pin: it did not read the code at all.
+       The [KBTRAY] counter twenty lines up already had the answer and said why in one clause.
+       Now both positive sweeps read stripCode(...) — the emit is code, the format line is
+       prose, and only the emit can satisfy this. `function scrollJankProbe()` is code either
+       way and is stripped with them for one rule, one derivation. */
+    const chNC = stripCode(ch), builtChatNC = stripCode(builtChat);
+    const scrollPieces = [/\[SCROLL\] frames=/.test(chNC), /function scrollJankProbe\(\)/.test(chNC), /\[SCROLL\] frames=/.test(builtChatNC)];
     ok(scrollPieces.every(Boolean) || scrollPieces.every((x) => !x),
-      '★ Session K [SCROLL] (walk J2, heavy seed: "janky when scrolling"): the rAF scroll-jank probe — one console.warn line per scroll, no verb, no data; a set, retired with [CDPERF]. Got ' + JSON.stringify(scrollPieces));
+      '★ Session K [SCROLL] (walk J2, heavy seed: "janky when scrolling"): the rAF scroll-jank probe — one console.warn line per scroll, no verb, no data; a set, retired with [CDPERF]. Comments stripped (#46 r2): the probe\'s own docblock prints the format line, and reading raw made this pin green for a renamed emit and red for a sanctioned retirement. Got ' + JSON.stringify(scrollPieces));
     const wv2 = [/private void wv2Stamp\(string what\)/.test(scp), /wv2Stamp\("load"\);/.test(scp), /wv2Stamp\("navigated"\);/.test(scp), /op\.target\.wv2Stamp\("present"\);/.test(scp)];
     ok(wv2.every(Boolean) || wv2.every((x) => !x),
       '★ Session K [WV2] (#754/#755 Windows ghosts): load · navigated · present, Windows-only, ONE clock per page — a set. Got ' + JSON.stringify(wv2));
@@ -22736,8 +23243,8 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
       '★★ K1: openAttachTray({ hold }) mounts the tray CLOSED with no transition and revealAttachTray opens it in one frame — the two halves of the keyboard → tray swap');
     ok(/if \(kbUp\) \{\s*handKeyboardToTray\(trayArgs, input\);\s*return;\s*\}/.test(ch) && /function handKeyboardToTray\(trayArgs, input\)/.test(ch)
        && /const tray = openAttachTray\(\{ \.\.\.trayArgs, hold: true \}\);/.test(ch) && /window\.addEventListener\('resize', reveal\);/.test(ch) && /setTimeout\(reveal, 450\);/.test(ch)
-       && /instant: !!input && document\.activeElement === input,/.test(ch) && !/instant: kbUp \|\|/.test(ch),
-      '★★ K1 (chat.html): with the keyboard UP the ⊕ hands the slot to the tray — mount held, open on the viewport GROW (resize / visualViewport, 450 ms backstop); `instant` is left for the no-soft-keyboard focus case only. The old `instant: kbUp ||` (full slot in the blur frame = the two-heights flash) is gone');
+       && /instant: !!input && document\.activeElement === input,/.test(ch) && !/instant: kbUp \|\|/.test(stripCode(ch)),
+      '★★ K1 (chat.html): with the keyboard UP the ⊕ hands the slot to the tray — mount held, open on the viewport GROW (resize / visualViewport, 450 ms backstop); `instant` is left for the no-soft-keyboard focus case only. The old `instant: kbUp ||` (full slot in the blur frame = the two-heights flash) is gone. ⚠ #46 r2: that NEGATIVE clause reads stripCode(ch) — this very message quotes the retired literal, so the day someone records it in a chat.html comment (exactly what the K1 docblock is for) a raw sweep would fail against a correct file');
     ok(/revealAttachTray,/.test(ch.slice(0, ch.indexOf('} = window.Spixi'))),
       '★ K1: revealAttachTray is DESTRUCTURED by the shell (the #421 lesson — a bundle export used but not destructured throws inside the handler)');
     /* behavioural, on the jsdom bundle window from the demo load above */
@@ -22757,6 +23264,510 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
       ok(Wk.Spixi.revealAttachTray(held) === false, '★ K1: revealing a tray that closed inside the hold is a no-op (a back press during the 450 ms window)');
     }
   }
+  /* ══ ★★ #46 r2 — THE JS FIXES (fix agent B, ① … ⑥) ═════════════════════════════════
+   * ⚠ Every SOURCE sweep here reads stripCode(...). B1-B4's docblocks are long, and each of
+   * them quotes the code it replaced verbatim in its REVERSAL clause — `data-tray-open` at
+   * mount, the untagged `localStorage.setItem(KB_SLOT_KEY, String(px))`, "it detaches itself
+   * the first time it fires on a removed sheet". Raw, half of these pins would be reading
+   * their own subject's obituary. The BEHAVIOURAL pins below are the ones that cannot be
+   * satisfied by any text at all, which is why the two that matter most are behavioural. */
+  {
+    const asNC = stripCode(rdF('src/components/attach-sheet.js'));
+    const chNC2 = stripCode(ch);
+    const daNC = stripCode(rdF('src/components/desktop-anchors.js'));
+
+    /* ★★ B1 (①): WHO CARRIES THE HOME-INDICATOR INSET — source half. */
+    const markAt = asNC.indexOf("function markComposerTrayOpen(composerEl)");
+    const mountAt = asNC.indexOf('composerEl.after(tray);');
+    const holdAt = asNC.indexOf('if (hold) {', mountAt);
+    const nonHoldMarkAt = asNC.indexOf('markComposerTrayOpen(composerEl);');
+    const instantAt = asNC.indexOf('if (instant) {', mountAt);
+    ok(markAt > 0
+       && (asNC.match(/setAttribute\('data-tray-open'/g) || []).length === 1
+       && /function markComposerTrayOpen\(composerEl\) \{\s*if \(composerEl\) composerEl\.setAttribute\('data-tray-open', ''\);\s*\}/.test(asNC)
+       /* the held path mounts and RETURNS without the hand-off */
+       && mountAt > 0 && holdAt > mountAt && nonHoldMarkAt > holdAt && instantAt > nonHoldMarkAt
+       && /if \(hold\) \{\s*tray\.dataset\.instant = '';[^}]*\}\s*markComposerTrayOpen\(composerEl\);/.test(asNC)
+       /* the hand-off for a held tray happens in revealAttachTray, in the frame it gets height */
+       && /markComposerTrayOpen\(st\.composerEl\);\s*tray\.dataset\.open = '';/.test(asNC)
+       /* and it comes off in exactly one place */
+       && (asNC.match(/removeAttribute\('data-tray-open'\)/g) || []).length === 1
+       && /st\.composerEl\.removeAttribute\('data-tray-open'\);/.test(asNC),
+      '★★ #46 B1 (①, MAJOR on iPhone X-class): `data-tray-open` is written in the frame something else TAKES the inset — the non-hold paths (which open in that same frame) and revealAttachTray for a held one — never at mount. attach-sheet.css drops the composer\'s `env(safe-area-inset-bottom)` pad the moment that attribute lands, on the promise that the TRAY carries the inset instead; but a held tray is `height:0; overflow:hidden` for up to 450 ms and its env() padding is CLIPPED, so nobody carried it and the bar (and through --composer-h the whole bottom of the conversation) dropped 32 px at the instant of the ⊕ tap. ONE setAttribute site and ONE removeAttribute site, so the two cannot drift apart');
+
+    /* ★★ B2 (②): THE SLOT IS TAGGED WITH THE WIDTH IT WAS MEASURED AT. */
+    ok(/function kbSlotWidth\(\) \{ return Math\.round\(window\.innerWidth\) \|\| 0; \}/.test(chNC2)
+       && /let kbSlot = null;/.test(chNC2) && /let kbSlotPublished = 0;/.test(chNC2)
+       /* stored tagged */
+       && /kbSlot = \{ px: px, w: kbSlotWidth\(\) \};\s*applyKbSlot\(\);\s*try \{ localStorage\.setItem\(KB_SLOT_KEY, px \+ '@' \+ kbSlot\.w\); \} catch \(_\) \{\}/.test(chNC2)
+       && !/localStorage\.setItem\(KB_SLOT_KEY, String\(px\)\)/.test(chNC2)
+       /* published only while that width holds — and NEVER as 0: the property is REMOVED */
+       && /const px = kbSlot && kbSlot\.w === kbSlotWidth\(\) \? kbSlot\.px : 0;/.test(chNC2)
+       && /if \(px\) document\.documentElement\.style\.setProperty\('--kb-slot-h', px \+ 'px'\);\s*else document\.documentElement\.style\.removeProperty\('--kb-slot-h'\);/.test(chNC2)
+       && (chNC2.match(/setProperty\('--kb-slot-h'/g) || []).length === 1
+       /* an UNTAGGED legacy value is dropped, not adopted */
+       && /const m = \/\^\(\\d\+\)@\(\\d\+\)\$\/\.exec\(raw\);\s*if \(!m\) return;/.test(chNC2)
+       && /if \(!\(px >= 160 && px <= 600\) \|\| !\(w > 0\)\) return;/.test(chNC2)
+       /* the fallback the mismatch lands on is the CSS literal, not 0 */
+       && /\.c-attach-tray\[data-open\] \{ height: var\(--kb-slot-h, 268px\); \}/.test(stripCssComments(rdF('src/styles/components/attach-sheet.css'))),
+      '★★ #46 B2 (②, MAJOR): the keyboard slot is stored TAGGED with the viewport width it was measured at (`px@w`) and published only while that width still holds; an untagged legacy value is DROPPED rather than adopted, because it may be exactly the rotation-poisoned number this fix exists to stop. A mismatch REMOVES the property so attach-sheet.css\'s `var(--kb-slot-h, 268px)` fallback stands — never 0, never another shape\'s number. The 160-600 band cannot separate the two on its own: a portrait→landscape rotation on the reference device writes ≈386 px, comfortably inside the band and LARGER than the 323 px keyboard, which is how ⊕ in landscape opened a tray at ~99 % of the viewport and then replayed 386 into portrait after a relaunch');
+
+    /* ★★ B3 (③) + r2 R2-1: THE SHAPE GUARD SUPPRESSES THE SAMPLE AND THE LATCH — AND NOT THE
+       CLEAR. Two pins: the ORDER, and then the TRUTH TABLE, which is evaluated.
+
+       Round 1 wrote the guard as an early `return`, and that also suppressed `kbUp = false`.
+       MainActivity.cs:53 declares `ResizeableActivity = true` with ConfigChanges ScreenSize |
+       Orientation | UiMode | ScreenLayout | SmallestScreenSize | Density (:55-60), so the
+       activity is RESIZED, never recreated: ONE resize can carry a width change AND the
+       keyboard's departure (split-screen in or out with the field focused, a fold with the
+       IME up, a rotation where the IME goes fullscreen/extract). kbUp then stood true with no
+       keyboard, and on Android nothing else writes it — the init, this line, and
+       `__setKbInset`, which the shell records as never firing on Android WebView. The next ⊕
+       took the hold path, no resize was coming, B3's own grow guard correctly refused every
+       jitter, and the tray appeared only on the 450 ms backstop: symptom (b) from the B2
+       docblock, reintroduced by the fix that claims to remove it.
+
+       ⚠ THE SECOND PIN EVALUATES THE SHIPPED HANDLER, it does not read it. A source sweep can
+       say `!shapeChanged &&` is present; it cannot say what the handler DOES with a resize
+       that changed the width and grew the height at once, and that single case is the whole
+       finding. So the handler's body is sliced out of the (comment-stripped) shell and run as
+       a function against stub collaborators, ELEVEN times, and the answers are asserted. That
+       is also why no text mutation can satisfy it: the assertions are about values.
+       ⚠ stripCode on the slice AND on the sweeps: the B2/R2-1 docblock directly above the
+       handler quotes `return;` and the whole reverted form in its REVERSAL clause. */
+    const androidAt = chNC2.indexOf("if (/Android/i.test(navigator.userAgent || ''))");
+    const handlerAt = chNC2.indexOf("window.addEventListener('resize', () => {", androidAt);
+    const guardAt = chNC2.indexOf('const shapeChanged = (iw !== lastIW || ang !== lastAng);', handlerAt);
+    const rebaseAt = chNC2.indexOf('if (shapeChanged) { lastIW = iw; lastAng = ang; }', guardAt);
+    const editableAt = chNC2.indexOf('const editable = kbEditableFocused();', handlerAt);
+    const shrankAt = chNC2.indexOf('const shrank = editable && !shapeChanged && ih < lastIH - 60;', handlerAt);
+    const rememberAt = chNC2.indexOf('if (shrank) rememberKbSlot(lastIH - ih);', handlerAt);
+    const kbUpAt = chNC2.indexOf('if (shrank) kbUp = true;', handlerAt);
+    const handlerBody = handlerAt > 0 ? chNC2.slice(handlerAt, chNC2.indexOf('if (shrank && wasAtBottom) stickDuring(500);', handlerAt)) : '';
+    ok(androidAt > 0 && handlerAt > androidAt && guardAt > handlerAt && rebaseAt > guardAt
+       && editableAt > rebaseAt && shrankAt > editableAt && rememberAt > shrankAt && kbUpAt > shrankAt
+       && /const iw = kbSlotWidth\(\), ang = kbOrientationAngle\(\);\s*const shapeChanged = \(iw !== lastIW \|\| ang !== lastAng\);\s*if \(shapeChanged\) \{ lastIW = iw; lastAng = ang; \}\s*const editable = kbEditableFocused\(\);\s*const shrank = editable && !shapeChanged && ih < lastIH - 60;/.test(chNC2)
+       /* ★★ r3 R3-KB (r4 N2: the round-3 review called this finding R3-1; `r3 R3-1` was
+          already the batch-W sheet-dismissal pin EARLIER in this same file, and the file's
+          grammar is grep-by-marker, so this one was renamed — see the bridge in chat.html):
+          the semantic reader exists, is defined ONCE beside the other shape
+          readers, and asks "is ANYTHING editable focused" — not "is activeElement the composer
+          textarea", which the ⊕'s own focus steal (#756) makes false exactly where it matters. */
+       && (chNC2.match(/function kbEditableFocused\(\)/g) || []).length === 1
+       && /if \(el\.isContentEditable\) return true;/.test(chNC2)
+       && /if \(tag === 'TEXTAREA'\) return true;/.test(chNC2)
+       /* ★★ r3 R3-2: the CLEAR is the complement of that gate PLUS the grow — not grow alone.
+          The grow clause stays for the one dismissal that keeps focus: the system Back key. */
+       && /if \(shrank\) kbUp = true; else if \(!editable \|\| ih > lastIH \+ 60\) kbUp = false;/.test(chNC2)
+       /* ★★ R2-1: NO early return in this handler. That single statement is what took the
+          clear down with the sample and the latch. */
+       && !/\breturn;/.test(handlerBody)
+       && /let lastIW = kbSlotWidth\(\);/.test(chNC2) && /let lastAng = kbOrientationAngle\(\);/.test(chNC2),
+      '★★ #46 B3 (③, MAJOR) + r2 R2-1 — ORDER: the shape is read and re-baselined BEFORE `const shrank`, and `shrank` is `!shapeChanged && …` so both keyboard reads (rememberKbSlot and the kbUp latch) are suppressed by construction rather than by a jump. Pinned as ORDER because that is the fix: a rotation is a >60 px shrink whose delta is bigger than any keyboard, so without it that delta went into --kb-slot-h and latched kbUp. ★★ R2-1: and there is NO `return;` in the handler — round 1\'s early return also suppressed the kbUp CLEAR, which is collateral: the activity is resized rather than recreated (MainActivity.cs:53/:55-60), so one resize can carry a shape change and the keyboard\'s departure together, and kbUp then stood true with no keyboard for the rest of the session. \u2605\u2605 r3 R3-KB/R3-2: the two keyboard reads now lead with `editable &&` and the CLEAR is `!editable || grow`. The shape guard separates ROTATIONS from keyboards; it cannot separate WINDOW RESIZES from them, because on a portrait phone the split-screen divider is HORIZONTAL — innerWidth and screen.orientation.angle both unchanged, only innerHeight moves, delivered as ONE resize by a ResizeableActivity — so 774 \u2192 \u2248390 wrote \u2248384 into --kb-slot-h and persisted it as "384@1080", TAGGED WITH THE PORTRAIT WIDTH it will be replayed into, and latched kbUp with no keyboard on screen. Under adjustResize no geometry can separate the two; a focused editable can, because a soft keyboard cannot exist without one');
+
+    /* ★★ r4 R4-2 (BEHAVIOURAL — kbEditableFocused ITSELF, EVALUATED, not read).
+       The source pin above asserts only that the function exists ONCE and contains two of its
+       lines, and the R2-1 harness below STUBS it (`kbEditableFocused: () => !!o.focused`), so
+       until this pin nothing in the suite ever ran the discriminator the whole R3-KB finding
+       rests on. Proof it mattered: change `if (tag !== 'INPUT') return false;` to
+       `return true;` — both needled lines survive, the function answers TRUE for `<body>`
+       (nothing focused) and for the ⊕ button, a portrait split-screen samples rememberKbSlot
+       again and latches kbUp (R3-KB's symptom verbatim), the ⊕ focus-steal grow stops clearing
+       through `!editable` (R3-2 reverted), and the suite stayed green.
+       So the SHIPPED function is sliced out of the comment-stripped shell and CALLED. The
+       slice is byte-for-byte the shipped text: cut from chNC2 with no rewrite, opening at the
+       signature, closing on the function's own `}`, braces balanced (a slice that stopped
+       early or ran on could not balance) and — asserted below — present VERBATIM in the raw
+       shell, so no strip artefact can be what is being evaluated.
+       The stubs are element RECORDS, not DOM nodes, deliberately: jsdom does not implement
+       `isContentEditable` (it returns undefined there), so a real jsdom document could not
+       express the contenteditable case at all. */
+    {
+      const fnStart = chNC2.indexOf('function kbEditableFocused() {');
+      const fnEndMark = '} catch (_) { return false; }\n  }';
+      const fnEnd = fnStart >= 0 ? chNC2.indexOf(fnEndMark, fnStart) : -1;
+      const fnSrc = fnEnd > fnStart ? chNC2.slice(fnStart, fnEnd + fnEndMark.length) : '';
+      const balanced = fnSrc.length > 0
+        && (fnSrc.match(/\{/g) || []).length === (fnSrc.match(/\}/g) || []).length
+        && ch.includes(fnSrc);
+      let ask = null;
+      try {
+        const make = new Function('document', fnSrc + '\nreturn kbEditableFocused;');
+        ask = (doc) => make(doc)();
+      } catch (e) { ask = null; }
+      if (!balanced || !ask) {
+        ok(false, '★★ #46 r4 R4-2 BEHAVIOURAL: kbEditableFocused could not be sliced out of chat.html verbatim and evaluated (slice ' + fnSrc.length + ' chars, balanced=' + balanced + ')');
+      } else {
+        const on = (el) => ask({ activeElement: el });
+        /* [focused element, expected answer, why] */
+        const cases = [
+          [null, false, 'activeElement null'],
+          [undefined, false, 'activeElement missing'],
+          [{ tagName: 'BODY' }, false, '<body> — what a browser reports with NOTHING focused'],
+          [{ tagName: 'BUTTON' }, false, 'a <button> — the ⊕ steals focus before its click (#756)'],
+          [{ tagName: 'TEXTAREA' }, true, 'the composer <textarea>'],
+          [{ tagName: 'INPUT', type: 'text' }, true, 'input[type=text]'],
+          [{ tagName: 'input' }, true, 'a lower-cased tagName with no type (the IDL default is text)'],
+          [{ tagName: 'INPUT', type: 'checkbox' }, false, 'input[type=checkbox] — summons NO keyboard'],
+          [{ tagName: 'INPUT', type: 'button' }, false, 'input[type=button]'],
+          [{ tagName: 'INPUT', type: 'submit' }, false, 'input[type=submit]'],
+          [{ tagName: 'INPUT', type: 'range' }, false, 'input[type=range]'],
+          [{ tagName: 'DIV', isContentEditable: true }, true, 'a contenteditable <div>'],
+          [{ tagName: 'A', href: '#' }, false, 'a link'],
+        ];
+        const wrong = cases.filter(([el, want]) => on(el) !== want).map((c) => c[2] + ' → ' + on(c[0]));
+        /* fail-soft: an activeElement accessor that THROWS answers false, which stands the
+           sample down and CLEARS kbUp — never a wrong slot, never a latch that lies */
+        let threwSoft = false;
+        try { threwSoft = ask({ get activeElement() { throw new Error('detached'); } }) === false; } catch (e) { threwSoft = false; }
+        ok(wrong.length === 0 && threwSoft,
+          '★★ #46 r4 R4-2 BEHAVIOURAL — kbEditableFocused, THE SHIPPED FUNCTION, EVALUATED. Sliced verbatim out of chat.html (comments stripped) and called against thirteen focus states plus a throwing accessor. Nothing focused (null, undefined and <body>) and a <button> answer FALSE — the ⊕\'s own focus steal must read as "no keyboard", and a portrait split-screen with nobody typing must not sample a slot or latch kbUp; a <textarea>, input[type=text], a typeless <input> and a contenteditable <div> answer TRUE; the input types that summon no keyboard (checkbox, button, submit, range) answer FALSE, so tabbing to a checkbox mid-session cannot make a window resize look like a keyboard; and an accessor that throws answers FALSE, the fail-soft direction that costs one 450 ms ⊕ rather than a poisoned --kb-slot-h. This is the discriminator R3-KB and R3-2 both rest on and the R2-1 harness necessarily STUBS, so without this pin `if (tag !== \'INPUT\') return false;` → `return true;` reverted both fixes with the suite fully green. Wrong answers: ' + (wrong.join(' · ') || 'none') + '; fail-soft ' + threwSoft);
+      }
+    }
+
+    /* ★★ r2 R2-1 (BEHAVIOURAL — the shipped handler, EVALUATED). */
+    {
+      const bodyStart = chNC2.indexOf('const ih = window.innerHeight;', handlerAt);
+      const endMark = 'if (shrank && wasAtBottom) stickDuring(500);';
+      const bodyEnd = chNC2.indexOf(endMark, bodyStart);
+      const body = bodyStart > 0 && bodyEnd > bodyStart ? chNC2.slice(bodyStart, bodyEnd + endMark.length) : '';
+      let drive = null;
+      try {
+        const runResize = new Function('env',
+          'let { kbUp, lastIH, lastIW, lastAng, wasAtBottom, window, console, performance, kbSlotWidth, kbOrientationAngle, kbEditableFocused, rememberKbSlot, stickDuring } = env;\n'
+          + body + '\nreturn { kbUp, lastIH, lastIW, lastAng };');
+        drive = (o) => {
+          const slot = [], stick = [];
+          const r = runResize({
+            kbUp: !!o.kbUp, lastIH: o.lastIH, lastIW: o.lastIW, lastAng: o.lastAng, wasAtBottom: true,
+            window: { innerHeight: o.ih }, console: { warn() {} }, performance: { now: () => 0 },
+            kbSlotWidth: () => o.iw, kbOrientationAngle: () => o.ang,
+            kbEditableFocused: () => !!o.focused,   /* ★★ r3 R3-KB: the semantic half — STUBBED
+               here, because this harness is about the HANDLER; the shipped function itself is
+               evaluated by the r4 R4-2 pin above, which is what makes the stub honest */
+            rememberKbSlot: (px) => slot.push(px), stickDuring: (ms) => stick.push(ms),
+          });
+          return { ...r, slot, stick };
+        };
+      } catch (e) { drive = null; }
+      if (!drive) {
+        ok(false, '★★ #46 r2 R2-1 BEHAVIOURAL: the Android resize handler body could not be sliced out of chat.html and evaluated (body ' + body.length + ' chars)');
+      } else {
+        const P = { lastIH: 774, lastIW: 1080, lastAng: 0 };
+        /* ★★ r3 R3-KB/R3-2: every case now also carries `focused` — whether an EDITABLE holds
+           focus at the instant the resize lands. That is the only signal that separates a
+           keyboard from a window resize under Android adjustResize, where the two are the
+           same event shape. */
+        const kbOpen = drive({ ...P, kbUp: false, ih: 451, iw: 1080, ang: 0, focused: true });
+        const kbShut = drive({ lastIH: 451, lastIW: 1080, lastAng: 0, kbUp: true, ih: 774, iw: 1080, ang: 0, focused: false });
+        /* the system Back key hides the IME WITHOUT moving focus: only the grow says so */
+        const kbShutBackKey = drive({ lastIH: 451, lastIW: 1080, lastAng: 0, kbUp: true, ih: 774, iw: 1080, ang: 0, focused: true });
+        const rotShrink = drive({ ...P, kbUp: false, ih: 388, iw: 2340, ang: 90, focused: false });
+        const rotHoldsKb = drive({ ...P, kbUp: true, ih: 388, iw: 2340, ang: 90, focused: true });
+        /* ★★ R3-2 case B: portrait+IME (451) → landscape with the IME DROPPED (≈388). A SHRINK
+           that carries the keyboard away: shrank is false (the shape moved) and the grow test
+           is false, so under R2-1 nothing cleared and kbUp stood true with no keyboard. */
+        const rotDropsKb = drive({ lastIH: 451, lastIW: 1080, lastAng: 0, kbUp: true, ih: 388, iw: 2340, ang: 90, focused: false });
+        const rotGrew = drive({ lastIH: 451, lastIW: 1080, lastAng: 0, kbUp: true, ih: 1000, iw: 2340, ang: 90, focused: false });
+        /* ★★ R3-KB THE FINDING: a PORTRAIT split-screen. The divider is HORIZONTAL, so width and
+           angle are both unchanged and the shape guard sees nothing — 774 → 390 with no field
+           focused. Under R2-1 that sampled ≈384 into --kb-slot-h and persisted "384@1080". */
+        const splitPortrait = drive({ ...P, kbUp: false, ih: 390, iw: 1080, ang: 0, focused: false });
+        /* ★★ R3-2 case A: the same shrink taking the keyboard with it (451 → 390, same shape,
+           focus gone). A shrink, so the grow clear could never fire. */
+        const splitTakesKb = drive({ lastIH: 451, lastIW: 1080, lastAng: 0, kbUp: true, ih: 390, iw: 1080, ang: 0, focused: false });
+        const jitter = drive({ ...P, kbUp: false, ih: 754, iw: 1080, ang: 0, focused: false });
+        /* a chrome-bar jitter UNDER a live keyboard must not clear it: the field is focused and
+           the move is below both thresholds */
+        const jitterKbUp = drive({ lastIH: 451, lastIW: 1080, lastAng: 0, kbUp: true, ih: 431, iw: 1080, ang: 0, focused: true });
+        ok(/* the keyboard, unchanged shape, an editable focused: latch, sample its exact
+              height, hold the bottom */
+           kbOpen.kbUp === true && kbOpen.slot.join() === '323' && kbOpen.stick.join() === '500'
+           /* the keyboard leaving, unchanged shape: clear, no sample — by focus AND by grow */
+           && kbShut.kbUp === false && kbShut.slot.length === 0
+           && kbShutBackKey.kbUp === false && kbShutBackKey.slot.length === 0
+           /* a rotation that SHRINKS: no sample (the 386-class poison), no latch, no re-pin,
+              and the shape re-baselined so the next resize is judged against the new one */
+           && rotShrink.kbUp === false && rotShrink.slot.length === 0 && rotShrink.stick.length === 0
+           && rotShrink.lastIW === 2340 && rotShrink.lastAng === 90 && rotShrink.lastIH === 388
+           /* the same rotation with the IME still up KEEPS the latch — a shrink under a
+              changed shape says nothing about the keyboard in either direction */
+           && rotHoldsKb.kbUp === true && rotHoldsKb.slot.length === 0
+           /* ★★ THE R2-1 CASE: one resize carries a width change AND the keyboard's
+              departure. The sample and the latch stay suppressed; the CLEAR runs. */
+           && rotGrew.kbUp === false && rotGrew.slot.length === 0 && rotGrew.stick.length === 0
+           /* ★★ R3-2 case B: the same rotation with the IME DROPPED — no editable focused, so
+              the CLEAR runs on a SHRINK, which the grow-only clear could never reach */
+           && rotDropsKb.kbUp === false && rotDropsKb.slot.length === 0
+           /* ★★ R3-KB THE FINDING: a PORTRAIT split-screen carries NO width and NO angle change.
+              Nothing sampled, nothing latched, the baseline re-taken — and the shape guard is
+              NOT what did it, because the shape did not move: lastIW is still 1080. */
+           && splitPortrait.kbUp === false && splitPortrait.slot.length === 0
+           && splitPortrait.stick.length === 0 && splitPortrait.lastIH === 390
+           && splitPortrait.lastIW === 1080 && splitPortrait.lastAng === 0
+           /* ★★ R3-2 case A: that shrink taking a live keyboard with it — cleared */
+           && splitTakesKb.kbUp === false && splitTakesKb.slot.length === 0
+           /* chrome-bar jitter: below both thresholds, nothing moves but the baseline */
+           && jitter.kbUp === false && jitter.slot.length === 0 && jitter.lastIH === 754
+           /* the same jitter UNDER a live keyboard leaves the latch alone */
+           && jitterKbUp.kbUp === true && jitterKbUp.slot.length === 0 && jitterKbUp.lastIH === 431,
+          '★★ #46 r2 R2-1 BEHAVIOURAL — THE SHIPPED HANDLER, EVALUATED, not read. Its body is sliced out of chat.html (comments stripped) and run against stubs ELEVEN times — six from rounds 1–2, five added by round 3: keyboard open on an unchanged shape latches kbUp and samples 323 px and re-pins the bottom; keyboard close clears it; a rotation that shrinks samples NOTHING and latches NOTHING and re-baselines the shape; the same rotation with the IME still up KEEPS a standing latch; a chrome-bar jitter moves only the baseline; and — the finding — a resize that changes the WIDTH and GROWS the height (split-screen out, a fold, an IME going fullscreen: the activity is resized, never recreated) still CLEARS kbUp, sampling nothing and re-pinning nothing. Round 1\'s early `return` suppressed that clear as collateral and stranded kbUp true with no keyboard, which sends every later ⊕ down the hold path to its 450 ms backstop until a keyboard is opened and closed once. \u2605\u2605 r3 R3-KB/R3-2 ADD FIVE MORE, and they are the ones geometry cannot answer: a PORTRAIT SPLIT-SCREEN (774 \u2192 390 at an UNCHANGED width and angle, no editable focused) samples NOTHING and latches NOTHING — under R2-1 it wrote \u2248384 into --kb-slot-h and persisted "384@1080" tagged with the portrait width it would be replayed into; the same shrink carrying a live keyboard away, and a rotation that drops the IME, both CLEAR kbUp on a SHRINK, which a grow-only clear could never reach; a Back-key dismissal that keeps the field focused still clears, by the grow; and a chrome-bar jitter under a live keyboard leaves the latch standing. Got open=' + JSON.stringify(kbOpen) + ' split=' + JSON.stringify(splitPortrait) + ' rotDrops=' + JSON.stringify(rotDropsKb) + ' rotGrew=' + JSON.stringify(rotGrew));
+      }
+    }
+
+    /* ★ B2 (④): the PUBLISHED slot is re-scoped on every shape change on EVERY platform. */
+    const bootAt = chNC2.indexOf('(function bootKbSlot() {');
+    const bootEnd = chNC2.indexOf('(function keyboardViewport() {', bootAt);
+    const boot = bootAt >= 0 && bootEnd > bootAt ? chNC2.slice(bootAt, bootEnd) : '';
+    const readAt = boot.indexOf("localStorage.getItem(KB_SLOT_KEY)");
+    const listenAt = boot.indexOf("window.addEventListener('resize', applyKbSlot);");
+    ok(boot.length > 200 && listenAt > 0 && readAt > listenAt
+       && /window\.addEventListener\('resize', applyKbSlot\);\s*window\.addEventListener\('orientationchange', applyKbSlot\);/.test(boot)
+       && bootAt < androidAt   /* registered outside — and before — the UA-gated Android handler */
+       && !/Android/i.test(boot)
+       && (chNC2.match(/addEventListener\('orientationchange', applyKbSlot\)/g) || []).length === 1,
+      '★ #46 B2 (④): the published slot is re-scoped by a resize/orientationchange listener registered in bootKbSlot — outside the UA-gated Android handler, and BEFORE the stored value is read, so a device with no memory yet still tracks its shape. It cannot live in the Android handler: iOS never resizes for its keyboard at all (#303), so an iOS rotation would leave a PORTRAIT slot published in landscape — the same lie in the other direction. One rule, one registration');
+
+    /* ★★ B3 (⑤): the held tray reveals on a viewport GROW, and the backstop stays unconditional. */
+    const hktAt = chNC2.indexOf('function handKeyboardToTray(trayArgs, input)');
+    const hktEnd = chNC2.indexOf('setTimeout(reveal, 450);', hktAt);
+    /* ★★ r3 R3-5: the slice runs PAST the backstop, because `kbHandoffCancel = disarm;` — the
+       half of the exclusion that registers this hand-off as the armed one — sits below it. */
+    const hkt = hktAt >= 0 && hktEnd > hktAt ? chNC2.slice(hktAt, hktEnd + 90) : '';
+    ok(hkt.length > 300
+       /* ★ r2 R2-8: ONE reader for both hand-offs, defined once beside the other shape
+          readers — reveal wants a GROW of it, drop wants a SHRINK of it. Two copies of this
+          lambda is how the two mirrors come to measure different surfaces. */
+       && /function kbViewportH\(\) \{\s*try \{ return \(window\.visualViewport && window\.visualViewport\.height\) \|\| window\.innerHeight; \} catch \(_\) \{ return window\.innerHeight; \}\s*\}/.test(chNC2)
+       && (chNC2.match(/function kbViewportH\(\)/g) || []).length === 1
+       && (chNC2.match(/window\.visualViewport\.height\) \|\| window\.innerHeight/g) || []).length === 1
+       && /const baseH = kbViewportH\(\);/.test(hkt)
+       && /const reveal = \(e\) => \{\s*if \(done\) return;\s*if \(e && !\(kbViewportH\(\) > baseH \+ 60\)\) return;\s*disarm\(\);/.test(hkt)
+       /* the backstop calls reveal with NO event, so the guard cannot gate it */
+       && /backstop = setTimeout\(reveal, 450\);/.test(hkt)
+       && !/setTimeout\(\(\) => reveal\(/.test(hkt) && !/setTimeout\(reveal\.bind/.test(hkt)
+       /* ★★ r3 R3-5: arming this hand-off DISARMS the other one, and this one registers
+          itself as the armed one. Both halves, or the exclusion is one-directional. */
+       && /function handKeyboardToTray\(trayArgs, input\) \{\s*cancelKbHandoff\(\);/.test(hkt)
+       && /kbHandoffCancel = disarm;\s*return tray;/.test(hkt),
+      '★★ #46 B3 (⑤): the held tray reveals only on a viewport GROW of more than 60 px, measured through visualViewport where there is one — that is the surface that moves on iOS (innerHeight is constant under its keyboard, #303) while on Android adjustResize vv.height tracks innerHeight 1:1 (AND-16), so one test covers both engines. Without it ANY resize inside the hold window revealed the tray — a chrome-bar jitter, a further SHRINK (a taller IME, an emoji panel), a rotation — i.e. exactly the frames where the keyboard is still on screen, which is the two-heights flash K1 exists to remove. The 450 ms backstop stays UNCONDITIONAL: it calls reveal with no event, so `if (e && …)` cannot gate it and a tray can never be stuck unrevealed on an engine that never resizes. Making the backstop conditional would swap a flash for a hang');
+
+    /* ★★ r2 R2-8 (③'s MIRROR, WHICH B3 LEFT ALONE): handTrayToKeyboard's `drop` gets the same
+       direction and magnitude test, inverted. B3's own docblock calls this function "the
+       mirror" while leaving in it the exact defect B3 had just removed from the other side —
+       any resize inside the 450 ms dropped the tray, so a chrome-bar jitter or a rotation
+       removed it BEFORE the keyboard arrived and the composer dipped to the bottom and rose
+       again: the two-heights flash, in the other direction. The keyboard ARRIVING is a shrink
+       of the same number the reveal wants a grow of, read through the same kbViewportH().
+       ⚠ AND THE BACKSTOP STAYS UNCONDITIONAL on both sides — `setTimeout(drop, 450)` passes no
+       event, so `if (e && …)` cannot gate it and a tray can never be stuck up on an engine
+       that never resizes. Pinned here as well as on reveal, because a conditional backstop is
+       the tempting "fix" that swaps a flash for a hang.
+       ⚠ stripCode: the R2-8 docblock quotes the resize listeners and the backstop it explains. */
+    const htkAt = chNC2.indexOf('function handTrayToKeyboard()');
+    const htkEnd = chNC2.indexOf('setTimeout(drop, 450);', htkAt);
+    /* ★★ r3 R3-5: past the backstop, for `kbHandoffCancel = disarm;` — see the reveal side. */
+    const htk = htkAt >= 0 && htkEnd > htkAt ? chNC2.slice(htkAt, htkEnd + 90) : '';
+    ok(htk.length > 200
+       && /const baseH = kbViewportH\(\);/.test(htk)
+       && /const drop = \(e\) => \{\s*if \(done\) return;\s*if \(e && !\(kbViewportH\(\) < baseH - 60\)\) return;\s*disarm\(\);/.test(htk)
+       && /window\.addEventListener\('resize', drop\);/.test(htk)
+       && /backstop = setTimeout\(drop, 450\);/.test(htk)
+       && !/setTimeout\(\(\) => drop\(/.test(htk) && !/setTimeout\(drop\.bind/.test(htk)
+       /* the two mirrors are opposite tests on ONE reader — not two spellings of one idea */
+       && (chNC2.match(/kbViewportH\(\) < baseH - 60/g) || []).length === 1
+       && (chNC2.match(/kbViewportH\(\) > baseH \+ 60/g) || []).length === 1
+       /* ★★ r3 R3-5: THE TWO HAND-OFFS CANNOT BE ARMED TOGETHER. One token, one canceller,
+          cancelled at BOTH arm sites; `disarm` unbinds the listeners AND clears the backstop
+          AND drops the token, and it never runs the action. */
+       && /function handTrayToKeyboard\(\) \{\s*if \(!composerEl \|\| !isAttachTrayOpen\(composerEl\)\) return false;\s*cancelKbHandoff\(\);/.test(htk)
+       && /kbHandoffCancel = disarm;\s*return true;/.test(htk)
+       && /let kbHandoffCancel = null;\s*function cancelKbHandoff\(\) \{ const c = kbHandoffCancel; kbHandoffCancel = null; if \(c\) c\(\); \}/.test(chNC2)
+       && (chNC2.match(/cancelKbHandoff\(\);/g) || []).length === 2
+       && (chNC2.match(/const disarm = \(\) => \{\s*done = true;\s*clearTimeout\(backstop\);/g) || []).length === 2
+       && (chNC2.match(/if \(kbHandoffCancel === disarm\) kbHandoffCancel = null;/g) || []).length === 2
+       /* neither disarm calls the other's action: closeAttachTray / revealAttachTray stay in
+          the two `(e) =>` bodies, which is what makes "cancel" mean cancel */
+       && !/const disarm = \(\) => \{[^}]*closeAttachTray/.test(chNC2)
+       && !/const disarm = \(\) => \{[^}]*revealAttachTray/.test(chNC2),
+      '★★ #46 r2 R2-8: handTrayToKeyboard\'s `drop` now requires a viewport SHRINK of more than 60 px — the keyboard ARRIVING — exactly mirroring the GROW that B3 put on handKeyboardToTray\'s reveal, through the one shared kbViewportH(). B3 fixed one mirror and left the other: `drop` had no direction and no magnitude test at all, so any resize inside its 450 ms window dropped the tray — a chrome-bar jitter or a rotation removed it before the keyboard arrived, and the composer dipped to the bottom and rose again as the keyboard then opened, which is the two-heights flash this hand-off exists to prevent, running backwards. The 450 ms backstop stays UNCONDITIONAL on both sides (it calls drop/reveal with no event), so a tray can never be stuck on an engine that never resizes; making it conditional swaps a flash for a hang. \u2605\u2605 r3 R3-5 \u2014 AND ARMING ONE HAND-OFF NOW DISARMS THE OTHER, EXPLICITLY. `isAttachTrayOpen` is true for a HELD tray, so a re-focus inside the reveal\'s 450 ms armed `drop` while `reveal` was still armed. Before R2-8 that was covered by accident \u2014 one grow satisfied BOTH, reveal was registered first, and drop\'s synchronous instant close removed the node in the same dispatch, so nothing painted. R2-8\'s direction guards un-cancelled the pair: the grow now satisfies only reveal, the tray paints at its FULL slot, and drop removes it on the keyboard\'s return shrink 100\u2013300 ms later \u2014 the two-heights flash both hand-offs exist to prevent, assembled out of the two of them. Listener registration order is not a mechanism, which is exactly why this went unnoticed for a round');
+
+    /* ★★ r3 R3-5 (BEHAVIOURAL — the two hand-offs, ARMED TOGETHER AND EVALUATED).
+       The source pin above can say cancelKbHandoff() is CALLED at both arm sites. It cannot
+       say what happens when the two are armed inside one 450 ms window and a resize then
+       arrives — which is the entire finding, and which is exactly how R2-8's direction guards
+       un-cancelled a hand-off pair that listener registration order had been covering by
+       accident. So the token, cancelKbHandoff and BOTH hand-offs are sliced out of the
+       (comment-stripped) shell and run as functions against stub collaborators.
+       ⚠ The stubs are deliberately dumb: a resize listener list, a fake viewport height, a
+       fake timer table. The assertions are about WHICH ACTION RAN, not about text. */
+    {
+      const tokAt = chNC2.indexOf('let kbHandoffCancel = null;');
+      const retAt = chNC2.indexOf('return tray;', chNC2.indexOf('function handKeyboardToTray(trayArgs, input)'));
+      const braceAt = chNC2.indexOf('}', retAt);
+      const slice = tokAt > 0 && retAt > tokAt && braceAt > retAt ? chNC2.slice(tokAt, braceAt + 1) : '';
+      let run = null;
+      try {
+        const build = new Function('env',
+          'let { composerEl, document, window, console, performance, setTimeout, clearTimeout, isAttachTrayOpen,'
+          + ' openAttachTray, closeAttachTray, revealAttachTray, syncChatOverlay, kbViewportH } = env;\n'
+          + slice + '\nreturn { handTrayToKeyboard, handKeyboardToTray, armed: () => kbHandoffCancel !== null };');
+        run = (order) => {
+          const listeners = [], timers = new Map(), calls = [];
+          let seq = 0, h = 451;                       // start keyboard-up
+          const tray = { offsetHeight: 0, dataset: {} };
+          const env = {
+            composerEl: { nextElementSibling: tray },
+            document: { activeElement: null },
+            window: {
+              get innerHeight() { return h; },
+              visualViewport: null,
+              addEventListener: (t, f) => { if (t === 'resize') listeners.push(f); },
+              removeEventListener: (t, f) => { const i = listeners.indexOf(f); if (i >= 0) listeners.splice(i, 1); },
+            },
+            console: { warn() {} }, performance: { now: () => 0 },
+            setTimeout: (fn) => { const id = ++seq; timers.set(id, fn); return id; },
+            clearTimeout: (id) => { timers.delete(id); },
+            kbViewportH: () => h,                 /* the ONE surface both mirrors read */
+            isAttachTrayOpen: () => true,
+            openAttachTray: () => tray,
+            closeAttachTray: () => calls.push('close'),
+            revealAttachTray: () => calls.push('reveal'),
+            syncChatOverlay: () => {},
+          };
+          const api = build(env);
+          /* arm both inside one window, in the order under test */
+          if (order === 'revealFirst') { api.handKeyboardToTray({}, null); api.handTrayToKeyboard(); }
+          else { api.handTrayToKeyboard(); api.handKeyboardToTray({}, null); }
+          const armedCount = listeners.length;
+          /* the keyboard LEAVES: a grow — reveal's event, not drop's */
+          h = 774; listeners.slice().forEach((f) => f({ type: 'resize' }));
+          const afterGrow = calls.join();
+          /* the keyboard RETURNS: a shrink — drop's event, not reveal's */
+          h = 451; listeners.slice().forEach((f) => f({ type: 'resize' }));
+          const afterShrink = calls.join();
+          /* and every backstop that is still pending fires */
+          [...timers.values()].forEach((fn) => { try { fn(); } catch (_) {} });
+          return { armedCount, afterGrow, afterShrink, final: calls.join(), pending: timers.size };
+        };
+      } catch (e) { run = null; }
+      if (!run) {
+        ok(false, '★★ #46 r3 R3-5 BEHAVIOURAL: the hand-off pair could not be sliced out of chat.html and evaluated (slice ' + slice.length + ' chars)');
+      } else {
+        const revealFirst = run('revealFirst');   // ⊕ with the keyboard up, then a tap in the field
+        const dropFirst = run('dropFirst');       // the mirror order
+        ok(/* ONE listener bound at a time — arming the second unbound the first */
+           revealFirst.armedCount === 1 && dropFirst.armedCount === 1
+           /* ⊕ then a re-focus: DROP owns the tray. The grow must not paint it, and the
+              keyboard's return shrink removes it exactly once. */
+           && revealFirst.afterGrow === '' && revealFirst.final === 'close'
+           /* the mirror order: REVEAL owns it, and the grow is what it wanted */
+           && dropFirst.afterGrow === 'reveal' && dropFirst.final === 'reveal'
+           /* ⚠ `final` is taken AFTER every still-pending backstop has been fired by hand, so
+              the two equalities prove that the CANCELLED hand-off's ACTION never ran — that is
+              the whole of what they carry.
+              ★★ r4 R4-3: they were also offered as the proof that the cancelled hand-off's
+              450 ms TIMER was cleared. They are not. `disarm()` sets `done = true` as well,
+              and both `reveal` and `drop` open with `if (done) return;`, so a SURVIVING
+              backstop appends NOTHING and every string above is unchanged: delete
+              `clearTimeout(backstop);` from either disarm and this pin stayed GREEN while its
+              own reported value read `"pending":1`. Only the R2-8 source regex went red — a
+              text sweep standing in for the behaviour the behavioural pin claimed to have.
+              The timer is a separate claim, so it is asserted separately, off the stub timer
+              table the harness already reports: a disarm that unbinds without clearing leaves
+              an entry behind and pending is 1. */
+           && revealFirst.pending === 0 && dropFirst.pending === 0,
+          '★★ #46 r3 R3-5 BEHAVIOURAL — THE TWO HAND-OFFS, ARMED TOGETHER, EVALUATED. Sliced out of chat.html (comments stripped) and run against stub collaborators in both arm orders. Exactly ONE resize listener is bound after both are armed, and only the SURVIVING hand-off acts: ⊕-with-the-keyboard-up followed by a tap in the composer inside 450 ms ends in ONE instant close and NO reveal (the tray never paints), and the mirror order ends in ONE reveal and no close. Before this, `isAttachTrayOpen` being true for a HELD tray let both arm at once; R2-8\'s direction guards then split them — the grow satisfied reveal alone, the tray painted at its FULL slot, and drop removed it on the keyboard\'s return shrink 100–300 ms later: the two-heights flash, assembled out of the two hand-offs that exist to prevent it. No source sweep can make this claim; registration order is what silently covered it, and registration order is not a mechanism. \u2605\u2605 r4 R4-3: and the CANCELLED hand-off\'s 450 ms backstop is asserted GONE from the timer table, rather than inferred from the two final strings \u2014 disarm() sets done as well, so a leaked timer fires into an early return, appends nothing, and left both strings (and this pin) unchanged. Got revealFirst=' + JSON.stringify(revealFirst) + ' dropFirst=' + JSON.stringify(dropFirst));
+      }
+    }
+
+    /* ★ B4 (⑥): ONE detach(), reached from the observer AND the isConnected belt — source half. */
+    ok(/const detach = \(\) => \{\s*if \(detached\) return;\s*detached = true;\s*try \{ window\.removeEventListener\('resize', reflow\); \} catch \(e\) \{\}\s*try \{ if \(window\.visualViewport\) window\.visualViewport\.removeEventListener\('resize', reflow\); \} catch \(e\) \{\}\s*try \{ if \(goneObs\) goneObs\.disconnect\(\); \} catch \(e\) \{\}\s*goneObs = null;\s*\};/.test(daNC)
+       && /const reflow = \(\) => \{\s*if \(!sheet\.isConnected\) \{\s*detach\(\);\s*return;\s*\}\s*place\(\);\s*\};/.test(daNC)
+       && /goneObs = new MutationObserver\(\(\) => \{ if \(!sheet\.isConnected\) detach\(\); \}\);\s*goneObs\.observe\(sheet\.parentNode, \{ childList: true \}\);/.test(daNC)
+       && /\} catch \(e\) \{ goneObs = null; \}/.test(daNC)
+       && (daNC.match(/window\.removeEventListener\('resize', reflow\)/g) || []).length === 1
+       && (daNC.match(/window\.visualViewport\.removeEventListener\('resize', reflow\)/g) || []).length === 1,
+      '★ #46 B4 (⑥): anchorSheetToRow has ONE detach(), idempotent, reached from BOTH the MutationObserver on the sheet\'s parent and the in-handler isConnected belt — and the resize teardown is written once, so the two routes cannot unbind different things. Neither is redundant: the observer sees the childList removal overlay.js performs after the exit transition; the belt covers an ANCESTOR removed wholesale, where the sheet\'s own parent link is untouched and no mutation fires. Three callers anchor menus this way (message-menu, chats-row-menu and apps-menu, which is tapped repeatedly), so it is fixed here once. Fail-soft: no MutationObserver or no parent leaves the belt alone, exactly as before');
+
+    /* ── BEHAVIOURAL: the two claims no source sweep can make ────────────────────────── */
+    const Wb = (await load('chat.html')).window;
+    await sleep(200);
+    const compB = Wb.document.querySelector('.c-composer');
+    if (!compB || !Wb.Spixi || !Wb.Spixi.openAttachTray || !Wb.Spixi.anchorSheetToRow) {
+      ok(false, '#46 B behavioural: the chat demo mounts a composer and the bundle exposes openAttachTray + anchorSheetToRow');
+    } else {
+      /* ★★ B1 (①) BEHAVIOURAL — the whole claim is about an ATTRIBUTE AT A MOMENT IN TIME,
+         which no amount of reading attach-sheet.js can establish. */
+      const heldB = Wb.Spixi.openAttachTray({ composerEl: compB, hold: true, strings: Wb.SL || {} });
+      await sleep(30);
+      const atMount = compB.hasAttribute('data-tray-open');
+      Wb.Spixi.revealAttachTray(heldB);
+      const atReveal = compB.hasAttribute('data-tray-open') && heldB.dataset.open !== undefined;
+      Wb.Spixi.closeAttachTray(heldB, { instant: true });
+      await sleep(20);
+      const afterClose = compB.hasAttribute('data-tray-open');
+      ok(atMount === false && atReveal === true && afterClose === false,
+        '★★ #46 B1 (①) BEHAVIOURAL: a HELD tray does NOT take the composer\'s data-tray-open at mount (atMount=' + atMount + '), the hand-off lands in the same call that gives the tray its height (atReveal=' + atReveal + '), and close takes it back (afterClose=' + afterClose + '). This is the pin the source sweep cannot be: "the setAttribute moved" is a text fact, "the composer never surrendered the inset while nothing was carrying it" is the fix');
+      /* A hold CANCELLED inside the window leaves the composer exactly as found.
+         ⚠ "as found" means the attribute was NEVER WRITTEN — not "written and then taken
+         back". Reading the attribute after the close cannot tell those apart (close removes
+         it either way), so this WATCHES for the mutation instead. Without the observer this
+         pin stays green for the mount-time write it exists to forbid; verified by mutation. */
+      const seenC = [];
+      const obsC = new Wb.MutationObserver((recs) => { for (const r of recs) seenC.push(r.attributeName); });
+      obsC.observe(compB, { attributes: true, attributeFilter: ['data-tray-open'] });
+      const heldC = Wb.Spixi.openAttachTray({ composerEl: compB, hold: true, strings: Wb.SL || {} });
+      await sleep(30);
+      Wb.Spixi.closeAttachTray(heldC, { instant: true });
+      await sleep(20);
+      obsC.disconnect();
+      ok(seenC.length === 0 && compB.hasAttribute('data-tray-open') === false && Wb.Spixi.revealAttachTray(heldC) === false,
+        '★★ #46 B1 (①) BEHAVIOURAL: a hold CANCELLED inside the window (a back press during the 450 ms) leaves the composer EXACTLY as it was found — a MutationObserver on data-tray-open saw ' + seenC.length + ' write(s), so the attribute was never touched and the bar never moved. ⚠ The observer is the pin: after the close the attribute is absent whether it was never written or written and taken back, so reading it afterwards would be green for the mount-time write this forbids. The failure mode excluded is the mirror of the bug — surrendering the inset for a tray that then never arrives');
+      /* the non-hold paths are unchanged: instant and rise both hand over in the mount frame */
+      const instB = Wb.Spixi.openAttachTray({ composerEl: compB, instant: true, strings: Wb.SL || {} });
+      const instAt = compB.hasAttribute('data-tray-open') && instB.dataset.open !== undefined;
+      Wb.Spixi.closeAttachTray(instB, { instant: true });
+      await sleep(20);
+      const riseB = Wb.Spixi.openAttachTray({ composerEl: compB, strings: Wb.SL || {} });
+      const riseAt = compB.hasAttribute('data-tray-open');
+      Wb.Spixi.closeAttachTray(riseB, { instant: true });
+      await sleep(20);
+      ok(instAt === true && riseAt === true,
+        '★★ #46 B1 (①) BEHAVIOURAL: the NON-hold paths are byte-unchanged — `instant` (instant=' + instAt + ') and the two-rAF rise (rise=' + riseAt + ') both take data-tray-open in the mount frame, exactly as before B1. A fix to the held path that quietly re-timed the other two would have moved the bar on every Android ⊕ tap, where there was no defect at all');
+
+      /* ★★ B4 (⑥) BEHAVIOURAL — asserted with NO RESIZE EVER DISPATCHED, which is the whole
+         point: the old code could only unbind from inside a resize handler, so an open→close
+         with no resize between (the overwhelmingly common case) leaked both listeners and
+         retained the removed sheet subtree, its row and its host through `place`. */
+      const d = Wb.document;
+      const origRect = Wb.Element.prototype.getBoundingClientRect;
+      const removed = [];
+      const origRemove = Wb.removeEventListener;
+      try {
+        /* jsdom lays nothing out, and anchorSheetToRow correctly FAILS SOFT on an
+           unmeasurable rect (it keeps the bottom sheet) — so give it a measurable one, or
+           this "behavioural" pin would be testing the early return. */
+        Wb.Element.prototype.getBoundingClientRect = function () {
+          return { x: 0, y: 0, top: 20, left: 0, right: 320, bottom: 80, width: 320, height: 60, toJSON() {} };
+        };
+        Wb.removeEventListener = function (t, f, o) { removed.push(t); return origRemove.call(Wb, t, f, o); };
+        const rowB = d.createElement('div'); rowB.className = 'c-chatlist-item'; d.body.append(rowB);
+        const sheetB = d.createElement('div'); sheetB.className = 'c-sheet'; d.body.append(sheetB);
+        Wb.Spixi.anchorSheetToRow(sheetB, rowB, { host: d.body });
+        const anchored = sheetB.dataset.mAnchor !== undefined;
+        removed.length = 0;
+        sheetB.remove();                       // ⚠ and NOT ONE resize event is dispatched
+        await sleep(80);
+        ok(anchored && removed.includes('resize'),
+          '★★ #46 B4 (⑥) BEHAVIOURAL: the anchored sheet\'s listeners come off WHEN THE SHEET GOES — proven with no resize event ever dispatched (anchored=' + anchored + ', removeEventListener saw ' + JSON.stringify(removed) + '). The isConnected test lives INSIDE the resize handler, so it can only fire when a resize fires: open a menu, pick or dismiss, and both listeners stayed bound for the life of the page, each retaining the removed sheet subtree, the target row and the host through the `place` closure. Only a behavioural pin with NO resize can tell the observer from the belt');
+      } finally {
+        Wb.removeEventListener = origRemove;
+        Wb.Element.prototype.getBoundingClientRect = origRect;
+      }
+    }
+  }
+
   /* ★ #757 ① addendum (Damir on the rendered sheet: "shouldn't dim at all, just the menu next to the app") */
   {
     const am = rdF('src/components/apps-menu.js');
@@ -22791,6 +23802,197 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
       '★ Session K (Damir: "on dark mode the button labels on blue buttons and icons should be white"): both dark on-action inks are neutral-10 (reversal neutral-950, in the token comments)');
     ok(val('surface-action-default') === 'var(--primary-600)' && val('surface-action-hover') === 'var(--primary-700)' && val('surface-action-pressed') === 'var(--primary-800)',
       '★ Session K: the dark action surface is primary-600 (#3050bd — white 6.68:1, AA; Damir picked it over 500 on the rendered sheet) and the states go DARKER — a white-ink button must not lighten under the finger (400 = 2.5:1, 300 = 1.94:1)');
+  }
+
+  /* ══ ★★ #46 r2 C1 — INK FOR THE SOLID FILLS THAT ARE NOT THE ACTION BLUE ═══════════
+   * Session K flipped --text/--icon-neutral-on-action to WHITE in both themes on Damir's
+   * ruling about the blue button. That ruling stands and is untouched (#f9fafb on
+   * --surface-action-default #3050bd = 6.68:1 in both themes). But TEN surfaces that are
+   * NOT the action blue were reading the same token, and in dark those fills are the LIGHT
+   * 300/400 ramp steps, so the white ink collapsed: 1.14:1 on --surface-neutral-inverse-01,
+   * 1.87:1 on --surface-success, 1.94:1 on --surface-accent, 2.01:1 on
+   * --surface-destructive-default, 2.63:1 on --surface-error.
+   *
+   * ⚠⚠ THE EXISTING PIN AT THE TOP OF THIS BLOCK CHECKS THE TOKEN AND NEVER ASKS WHO READS
+   * IT. That is exactly why C1 shipped: `val('text-neutral-on-action') === 'var(--neutral-10)'`
+   * is GREEN for the defect and GREEN for the fix. A one-token pin cannot see a
+   * one-token-two-questions bug. So the census below is written from the CONSUMER side, over
+   * the whole corpus (every *.css under src/styles PLUS every shell <style> block, which is
+   * where the chat.html mention-FAB badge lives), and it is computed rather than listed. */
+  {
+    const tok5 = rdF('src/styles/tokens.css');
+
+    /* ── the token-definition parser, shared by C2, C3 and C4 ──────────────────────────
+       Returns every `--name: value;` in a stylesheet WITH the selector that declares it and
+       whether it sits inside an at-rule. Comments are stripped first — the token file's own
+       docblocks quote both the value being installed and the value being reversed to, so a
+       text sweep would find whichever it looked for. */
+    const CSS_AT_NEST = /^@(media|supports|layer|container|scope|document|-moz-document)\b/i;
+    const tokenDefs = (css) => {
+      const src = stripCssComments(css);
+      const out = [];
+      const walk = (from, to, atDepth) => {
+        let start = from, k = from;
+        while (k < to) {
+          const ch = src[k];
+          if (ch === '{') {
+            const prelude = src.slice(start, k).trim();
+            let depth = 1, j = k + 1;
+            while (j < to && depth > 0) { if (src[j] === '{') depth++; else if (src[j] === '}') depth--; j++; }
+            const bodyEnd = depth === 0 ? j - 1 : to;
+            if (prelude.startsWith('@')) { if (CSS_AT_NEST.test(prelude)) walk(k + 1, bodyEnd, atDepth + 1); }
+            else if (prelude) {
+              for (const m of src.slice(k + 1, bodyEnd).matchAll(/(?:^|[;\s])(--[A-Za-z0-9_-]+)\s*:\s*([^;]+);/g)) {
+                out.push({ name: m[1], value: m[2].trim(), prelude: prelude.replace(/\s+/g, ' '), inAt: atDepth > 0 });
+              }
+            }
+            k = j; start = k;
+          } else if (ch === '}' || ch === ';') { k++; start = k; } else k++;
+        }
+      };
+      walk(0, src.length, 0);
+      return out;
+    };
+    const defs5 = tokenDefs(tok5);
+    const isThemed = (d) => d.inAt || /\[data-theme/.test(d.prelude);
+    const bareDefs = (n) => defs5.filter((d) => d.name === n && d.prelude === ':root' && !d.inAt);
+    const darkDefs = (n) => defs5.filter((d) => d.name === n && /^\[data-theme="dark"\]$/.test(d.prelude) && !d.inAt);
+
+    /* ★★ C1 (①) — THE CONSUMER CENSUS. Computed over every rule the app ships. */
+    const allRules5 = cssRulesWhere(() => true);
+    const ON_ACTION_INK = /var\(--(?:text|icon)-neutral-on-action\)/;
+    const ACTION_FILL = /var\(--surface-action-(?:default|hover|pressed)\)/;
+    /* Two rules ink with the on-action token and declare NO fill of their own. Both are
+       BASES whose variants carry the fill, and both are correct — listed here by name so a
+       THIRD one cannot appear silently. */
+    const INKLESS_BASE = ['.c-callin__circle', '.c-swipe__action'];
+    /* The solid semantic fills that are NOT the action blue, and the inks each may carry.
+       --text-neutral-inverse-01 is the sanctioned SIBLING convention (badge.css:23-27 reached
+       the same answer to within 0.05 independently and is deliberately left alone). */
+    const FILL_INK = {
+      '--surface-error': ['--text-neutral-on-error', '--icon-neutral-on-error', '--text-neutral-inverse-01'],
+      '--surface-success': ['--text-neutral-on-success', '--icon-neutral-on-success', '--text-neutral-inverse-01'],
+      '--surface-accent': ['--icon-neutral-on-accent', '--text-neutral-inverse-01'],
+      '--surface-destructive-default': ['--text-neutral-on-destructive'],
+      '--surface-neutral-inverse-01': ['--text-neutral-on-inverse'],
+    };
+    /* A fill with no glyph and no label needs no ink. One rule qualifies: the topbar unread
+       DOT, which is a 6px ::after with no content. */
+    const GLYPHLESS_FILL = ['#chat-topbar .c-button[data-unread-dot]::after'];
+    const inkOffenders = [], fillRows = [], fillOffenders = [];
+    for (const r of allRules5) {
+      const decls = cssDecls(r.body);
+      const colors = decls.filter((d) => d.prop === 'color');
+      const fills = decls.filter((d) => d.prop === 'background' || d.prop === 'background-color');
+      const where = r.file + ' ' + r.selector;
+      /* DIRECTION A — from the ink: an on-action ink may only ride the action fill. */
+      if (colors.some((d) => ON_ACTION_INK.test(d.value))) {
+        if (!fills.length) { if (!INKLESS_BASE.includes(r.selector)) inkOffenders.push(where + ' (on-action ink, no fill declared)'); }
+        else if (!fills.every((d) => ACTION_FILL.test(d.value))) inkOffenders.push(where + ' (on-action ink on ' + fills.map((d) => d.value).join('/') + ')');
+      }
+      /* DIRECTION B — from the fill: a non-action solid fill must ink from its own role,
+         and inheriting is the defect, not an exemption. */
+      for (const [fill, allowed] of Object.entries(FILL_INK)) {
+        if (!fills.some((d) => d.value.includes('var(' + fill + ')'))) continue;
+        fillRows.push(where + ' → ' + fill);
+        if (GLYPHLESS_FILL.includes(r.selector)) continue;
+        if (!colors.length) { fillOffenders.push(where + ' (fills ' + fill + ' and INHERITS its ink)'); continue; }
+        if (!colors.every((d) => allowed.some((a) => d.value.includes('var(' + a + ')')))) {
+          fillOffenders.push(where + ' (fills ' + fill + ' but inks ' + colors.map((d) => d.value).join('/') + ')');
+        }
+      }
+    }
+    /* ⚠ A census over an empty corpus passes trivially. These nine rows are the ones C1
+       actually moved; every one must be FOUND, or the walk broke rather than the code. */
+    const CENSUS_EXPECT = [
+      'src/styles/components/bottomnav.css .c-bottomnav__badge → --surface-error',
+      'src/styles/components/scroll-latest.css .c-scroll-latest__badge → --surface-error',
+      'src/shells/chat.html <style> .chat-mention-fab__badge → --surface-error',
+      'src/styles/components/call-overlay.css .c-callin__circle[data-kind="decline"] → --surface-error',
+      'src/styles/components/call-overlay.css .c-callin__circle[data-kind="accept"] → --surface-success',
+      'src/styles/components/callbar.css .c-callbar → --surface-success',
+      'src/styles/components/button.css .c-button[data-success] → --surface-success',
+      'src/styles/components/system-notice.css .c-sysnotice__medallion → --surface-accent',
+      'src/styles/components/chats-swipe.css .c-swipe__action[data-action="mute"] → --surface-neutral-inverse-01',
+    ];
+    const censusMissing = CENSUS_EXPECT.filter((e) => !fillRows.includes(e));
+    ok(inkOffenders.length === 0 && fillOffenders.length === 0 && censusMissing.length === 0 && fillRows.length >= 12,
+      '★★★ #46 r2 C1 (①) THE CONSUMER CENSUS — every solid fill that is NOT --surface-action-default inks from its OWN role, computed over every stylesheet AND every shell <style> block, from BOTH directions: no rule puts an on-action ink on a non-action fill (except the two inkless bases whose variants carry both), and no rule fills with --surface-error/success/accent/destructive-default/neutral-inverse-01 while INHERITING its ink. Inheriting is how the defect got in: `.c-swipe__action[data-action="mute"]` set only a background and took the base white, 1.14:1 in dark. THIS is the pin that would have caught C1; the token pin above it is green for the defect and green for the fix, because it never asks who reads the token. Census rows found: ' + fillRows.length + '. Ink offenders: ' + (inkOffenders.join(' · ') || 'none') + '. Fill offenders: ' + (fillOffenders.join(' · ') || 'none') + '. Expected rows missing: ' + (censusMissing.join(' · ') || 'none'));
+
+    /* ★ C1 (①b): the private button palette, which the census cannot see — .c-button inks
+       from --_on-fill, an intent-switched custom property, not from `color` directly. */
+    const btn5 = stripCssComments(rdF('src/styles/components/button.css'));
+    ok(/\.c-button\[data-type="fill"\] \{ background: var\(--_fill\); color: var\(--_on-fill\); \}/.test(btn5)
+       && /--_on-fill: var\(--text-neutral-on-action\);/.test(btn5)
+       && /\.c-button\[data-intent="destructive"\] \{[^}]*--_on-fill: var\(--text-neutral-on-destructive\);/.test(btn5)
+       && !/\.c-button\[data-type="fill"\][^}]*color: var\(--text-neutral-on-action\)/.test(btn5),
+      '★★ #46 r2 C1 (①b): the fill button\'s ink is --_on-fill, intent-switched like every other member of that private palette — base = --text-neutral-on-action (6.68:1 on the blue, Damir\'s ruling, unchanged), destructive = --text-neutral-on-destructive. It was hard-coded to on-action at the [data-type="fill"] rule, which is right for the default intent and was the WORST reading in the whole audit for the other one: white on dark --surface-destructive-default #f49c92 measured 2.01:1 on Delete / Uninstall / Leave & remove. The census cannot see this row — the ink arrives through a custom property — which is precisely why it is pinned separately');
+
+    /* ★★ C1 (②): the seven role tokens, light byte-identical, dark restored to --neutral-950. */
+    const ROLE_TOKENS = ['text-neutral-on-error', 'text-neutral-on-success', 'text-neutral-on-destructive',
+      'text-neutral-on-inverse', 'icon-neutral-on-error', 'icon-neutral-on-success', 'icon-neutral-on-accent'];
+    const roleReport = ROLE_TOKENS.map((n) => {
+      const b = bareDefs('--' + n), dk = darkDefs('--' + n);
+      return { n, ok: b.length === 1 && dk.length === 1 && b[0].value === 'var(--neutral-10)' && dk[0].value === 'var(--neutral-950)',
+        light: (b[0] || {}).value, dark: (dk[0] || {}).value };
+    });
+    const roleBad = roleReport.filter((r) => !r.ok).map((r) => r.n + '{light:' + r.light + ' dark:' + r.dark + '}');
+    const onActionLight = bareDefs('--text-neutral-on-action').concat(bareDefs('--icon-neutral-on-action'));
+    const onActionDark = darkDefs('--text-neutral-on-action').concat(darkDefs('--icon-neutral-on-action'));
+    ok(roleBad.length === 0 && roleReport.length === 7
+       && onActionLight.length === 2 && onActionDark.length === 2
+       && onActionLight.every((d) => d.value === 'var(--neutral-10)') && onActionDark.every((d) => d.value === 'var(--neutral-10)'),
+      '★★ #46 r2 C1 (②): the SEVEN new role tokens are declared on bare `:root` with light = --neutral-10 — BYTE-IDENTICAL to the white --text-neutral-on-action already carried, so nothing in light moves at all — and overridden to --neutral-950 in dark, which is the exact PRE-Session-K ink, i.e. a restoration and not a new pick. And --text/--icon-neutral-on-action stay white in BOTH themes: Damir\'s ruling is about the BLUE button and it is untouched by this whole fix. Bad roles: ' + (roleBad.join(' · ') || 'none'));
+
+    /* ★★ C1 (③) — MECHANISE THE HOUSE RULE. "A token is never defined only inside a
+       [data-theme] / @media block" was written down and enforced by eye. Compute it. */
+    const definedBare = new Set(defs5.filter((d) => !isThemed(d)).map((d) => d.name));
+    const orphanTokens = [...new Set(defs5.filter(isThemed).map((d) => d.name))].filter((n) => !definedBare.has(n));
+    /* ⚠ SELF-CHECK. An orphan detector that finds nothing is indistinguishable from an
+       orphan detector that IS nothing — this suite has shipped five pins in that state. Feed
+       it a token that exists only in the dark block and require it to be caught. */
+    const probeCss = ':root { --a-real-token: 1px; }\n[data-theme="dark"] { --a-real-token: 2px; --a-dark-only-token: 3px; }\n@media (prefers-reduced-motion: reduce) { :root { --a-media-only-token: 0ms; } }';
+    const probeDefs = tokenDefs(probeCss);
+    const probeBare = new Set(probeDefs.filter((d) => !isThemed(d)).map((d) => d.name));
+    const probeOrphans = [...new Set(probeDefs.filter(isThemed).map((d) => d.name))].filter((n) => !probeBare.has(n)).sort();
+    ok(orphanTokens.length === 0 && definedBare.size > 400
+       && probeOrphans.length === 2 && probeOrphans[0] === '--a-dark-only-token' && probeOrphans[1] === '--a-media-only-token',
+      '★★ #46 r2 C1 (③): NO token in tokens.css is defined ONLY inside a [data-theme] or @media block — computed as a set difference over ' + definedBare.size + ' bare declarations, not read. A theme-only token has no value at all in the other theme: it falls through to the var() fallback if the consumer wrote one and to `unset` if not, and the failure is invisible in the theme you happen to be looking at. The detector is SELF-CHECKED against a synthetic sheet carrying one dark-only and one media-only token (it must find exactly those two), because an orphan finder that always returns [] passes forever. Orphans: ' + (orphanTokens.join(' · ') || 'none'));
+
+    /* ★ C1 (④): the --surface-select-check ratio and the token PAIR, in one assertion so the
+       number and the pixels it describes cannot drift apart again — which is how 3.82:1
+       survived: the pair moved to --primary-500/--neutral-10 and the number kept describing
+       a white that no longer paints. ⚠ The RATIO half reads RAW: its subject is the recorded
+       measurement, which lives only in a comment. The PAIR half reads the parsed defs. */
+    const selDark = darkDefs('--surface-select-check'), selLight = bareDefs('--surface-select-check');
+    const tickDark = darkDefs('--icon-select-check'), tickLight = bareDefs('--icon-select-check');
+    ok(selDark.length === 1 && selDark[0].value === 'var(--primary-500)'
+       && selLight.length === 1 && selLight[0].value === 'var(--surface-action-default)'
+       && tickDark.length === 1 && tickDark[0].value === 'var(--neutral-10)'
+       && tickLight.length === 1 && tickLight[0].value === 'var(--neutral-10)'
+       && /the recorded 3\.82:1 was measured against pure #ffffff/.test(tok5)
+       && /--icon-select-check = --neutral-10 #f9fafb, which measures 3\.66:1/.test(tok5)
+       && !/#507af9 holds a white tick at 3\.82:1/.test(tok5),
+      '★ #46 r2 C1 (④): the selected-message disc and its tick are pinned TOGETHER WITH THEIR MEASUREMENT — dark --surface-select-check = --primary-500 (#507af9) under --icon-select-check = --neutral-10 (#f9fafb) = 3.66:1, over the 3:1 non-text floor. The recorded 3.82:1 was measured against pure #ffffff, an ink that does not paint here; the corrected number is in the token comment and in this suite\'s tick pin, and both are asserted here so the next drift cannot leave one of the three behind. Light is the action blue under the same white, 6.68:1');
+
+    /* ★★ C1 (⑤) — THE TRAP. The two sanctioned #ffffff literals in system-notice.css must
+       survive the dark-block stripper EVEN WHEN A COMMENT IN THAT FILE NAMES THE DARK
+       SELECTOR. ⚠⚠ THIS PIN DOES NOT STRIP ANYTHING BEFORE IT STARTS: the trap IS the comment
+       text. It poisons a COPY of the real file exactly the way fix agent C poisoned the real
+       one, runs both strippers over it, and requires the new one to survive and the old one
+       to fail — an assertion that the two behave DIFFERENTLY, so it cannot go green by both
+       being broken. */
+    const notice5 = rdF('src/styles/components/system-notice.css');
+    const POISON5 = '/* a docblock explaining the theme coverage necessarily names it: the\n     [data-theme="dark"] .c-sysnotice__card rule below repaints this literal. */\n';
+    const poisoned5 = notice5.replace('.c-sysnotice__card {', POISON5 + '.c-sysnotice__card {');
+    const commentBlind5 = (css) => css.replace(/\[data-theme="dark"\][^{]*\{[^}]*\}/g, '');
+    const cleanNew5 = (withoutDarkBlocks(notice5).match(/background: #ffffff;/g) || []).length;
+    const poisonNew5 = (withoutDarkBlocks(poisoned5).match(/background: #ffffff;/g) || []).length;
+    const poisonOld5 = (commentBlind5(poisoned5).match(/background: #ffffff;/g) || []).length;
+    ok(poisoned5 !== notice5 && cleanNew5 === 2 && poisonNew5 === 2 && poisonOld5 < 2
+       && /sanctioned: PURE #ffffff, not a token/.test(notice5)
+       && /sanctioned: same literal, same reasoning as the base card rule above/.test(notice5),
+      '★★ #46 r2 C1 (⑤) THE COMMENT-BLINDNESS TRAP: the two SANCTIONED #ffffff literals in system-notice.css (the base notice card and the gradient-ground card, both marked "sanctioned" in the file) survive the light-slice derivation even when a docblock in that file spells out `[data-theme="dark"]` — which fix agent C did, for the honest reason that a comment explaining theme coverage has to name the theme, and two GREEN pins went red against correct code. Asserted DIFFERENTIALLY: the comment-aware derivation keeps ' + poisonNew5 + '/2 on the poisoned copy and the old comment-blind one keeps ' + poisonOld5 + '/2, so this pin cannot pass by both being broken. ⚠ It reads RAW and strips nothing — the trap is the comment');
   }
 }
 

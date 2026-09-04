@@ -170,6 +170,28 @@ public partial class App : Application
             copyResources();
         }
 
+        /* ★★ #46 r2 R2-4: THE SECOND CONSTRUCTION, WHICH IS THE CASE THE COPY IS PLACED HERE
+         * FOR. ⚠ r3 R3-4: "copyResources() runs unconditionally above" is what this line used
+         * to say, and it is not what the four lines above do — the call sits inside
+         * `if (IXICore.Platform.onWindows())`, which the A2 pin's own regex encodes. The
+         * property that matters here is a different one and is true: the copy is gated by
+         * PLATFORM only, never by a once-per-process test, so it runs on EVERY App()
+         * construction on Windows. The flush below Logging.start sits
+         * inside `if (Node.Instance == null)`, so on a SECOND App() — exactly the construction
+         * the A2 docblock names as the reason the copy is not moved down — the diagnostic was
+         * recorded and never emitted, even though Logging has been running since the first
+         * one. `Console.WriteLine` in recordStartupDiagnostic is a no-op in a Windows GUI app,
+         * which is the premise of the whole fix, so nothing else carried it.
+         * `Node.Instance != null` is precisely "the logger is already up": it is set by the
+         * first construction, which cannot reach it without Logging.start returning true.
+         * The two flushes are not redundant — they are the two branches. flushStartupDiagnostics
+         * clears the buffer, so whichever runs, the other is a no-op.
+         * REVERSAL: delete this and a second App() logs nothing at all about a failed copy. */
+        if (Node.Instance != null)
+        {
+            flushStartupDiagnostics();
+        }
+
         // Check if already started
         if (Node.Instance == null)
         {
@@ -202,6 +224,8 @@ public partial class App : Application
                 Environment.Exit(1);
                 return;
             }
+            // ★ #46 r2: anything copyResources recorded before the logger existed lands NOW.
+            flushStartupDiagnostics();
             Logging.info("Starting Spixi {0} ({1})", Config.version, CoreConfig.version);
             Logging.info("Operating System is {0}", IXICore.Platform.getOSNameAndVersion());
 
@@ -1454,12 +1478,93 @@ public partial class App : Application
     }
 
 
+    /* ★★ #46 A2 (MAJOR, same root cause as A1) — copyResources() MUST NOT KILL THE APP.
+     *
+     * DEFECT: this is called UNCAUGHT from the `App()` constructor on every Windows launch,
+     * and `copyContents` opens with `Directory.GetFiles(sourceDirectory)`. When
+     * `<exe>\html` was not staged — the normal state after a plain `dotnet build`, which
+     * does not copy the MAUI asset folder — `GetFiles` throws `DirectoryNotFoundException`
+     * straight out of the constructor. MAUI has no handler that early: the process dies with
+     * no window, no dialog and no log line the user can point at.
+     *
+     * PREVENTS: a silent hard crash at launch on any machine where the assets are missing.
+     * With this guard the app CONTINUES, and A1's fail-loud page inside generatePage is what
+     * the user actually sees — a screen that names the missing file and how to stage it.
+     *
+     * ⚠ THIS DOES NOT SWALLOW. The missing-folder branch and the catch both log at ERROR and
+     * both NAME the folder, because "the assets were not staged" and "the copy failed
+     * half-way" need different fixes and ixian.log is the only place the user can tell them
+     * apart.
+     *
+     * REVERSAL: delete the Directory.Exists check and the try/catch, restoring the bare
+     * `copyContents(sourceDirectory, targetDirectory)`. Windows then returns to dying in the
+     * App constructor, with nothing on screen and nothing in the log, whenever `<exe>\html`
+     * is absent or the copy hits a locked/read-only file. */
+    /* ★ #46 r2 (pin pass, CONFIRMED against the Ixian-Core sibling at 097341a): copyResources()
+     * runs from the App() constructor at line ~170, and Logging.start is ~30 lines BELOW it.
+     * Ixian-Core's Logging does NOT buffer pre-start calls — Meta/Logging.cs:196 is
+     * `if (running == false) { if (consoleOutput) Console.WriteLine(...); return; }`, and a
+     * Windows GUI app has no console — so an error logged from copyResources was DROPPED
+     * ENTIRELY. A2's whole value is that ixian.log tells the two failure cases apart (a stale
+     * document from a previous build vs nothing staged at all), because they have different
+     * fixes; a diagnostic that never lands is a silent guard.
+     *
+     * So the diagnostic is RECORDED here and FLUSHED by flushStartupDiagnostics() on BOTH
+     * paths out of the constructor: immediately after Logging.start succeeds on a FIRST
+     * construction, and immediately after copyResources() on a second one, where
+     * `Node.Instance != null` proves the logger is already up. The call site is deliberately
+     * NOT moved below Logging.start: that call sits inside `if (Node.Instance == null)`, so
+     * moving it would skip the copy entirely on a second App() construction.
+     * ⚠ r2 R2-4 — ROUND 1 ARGUED THAT SECOND CONSTRUCTION AND THEN DID NOT SERVE IT. The only
+     * flush was inside `if (Node.Instance == null)`, so on the very case the argument names
+     * the diagnostic was recorded and never emitted. A comment stating an invariant the code
+     * does not enforce is itself a defect; the second flush is what makes this paragraph true.
+     *
+     * REVERSAL: call Logging.error directly here again and the line is dropped on exactly the
+     * broken machine it was written for — the one where nothing was staged. Delete the
+     * `Node.Instance != null` flush and it is dropped on every construction after the first. */
+    private static string? startupDiagnostic = null;   // ★ r3 R3-6: <Nullable>enable</Nullable> — null IS the empty state
+
+    private static void recordStartupDiagnostic(string message)
+    {
+        startupDiagnostic = message;
+        // A belt for a console build (dev/CI); harmless where there is no console.
+        Console.WriteLine(message);
+    }
+
+    private static void flushStartupDiagnostics()
+    {
+        if (startupDiagnostic != null)
+        {
+            Logging.error(startupDiagnostic);
+            startupDiagnostic = null;
+        }
+    }
+
     public void copyResources()
     {
         string sourceDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "html");
         string targetDirectory = Path.Combine(Config.spixiUserFolder, "html");
 
-        copyContents(sourceDirectory, targetDirectory);
+        if (!Directory.Exists(sourceDirectory))
+        {
+            recordStartupDiagnostic("copyResources: the html asset folder is MISSING at " + sourceDirectory
+                + " — nothing was copied to " + targetDirectory + ". The assets were not staged next to the"
+                + " executable; build and run through Visual Studio (F5 / Deploy) rather than `dotnet build`."
+                + " The app continues; screens will render the localization error page until this is fixed.");
+            return;
+        }
+
+        try
+        {
+            copyContents(sourceDirectory, targetDirectory);
+        }
+        catch (Exception ex)
+        {
+            recordStartupDiagnostic("copyResources: copying " + sourceDirectory + " to " + targetDirectory
+                + " FAILED part-way: " + ex + " — the app continues with whatever was already in place;"
+                + " screens whose file did not copy will render the localization error page.");
+        }
     }
 
     private void copyContents(string sourceDirectory, string targetDirectory)

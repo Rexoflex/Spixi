@@ -1,36 +1,56 @@
 Spixi frontend redesign. Repo: C:\Users\Damir\Claude\Projects\Spixi Rework Of Frontend\Spixi
-Branch redesign/frontend, Session K committed. Ixian-Core is a SIBLING clone at
+Branch redesign/frontend, Session L committed. Ixian-Core is a SIBLING clone at
 ..\Ixian-Core, frozen at 097341a.
-READ docs/handoff-2026-09-03b.md FIRST (it supersedes every earlier handoff), then
+READ docs/handoff-2026-09-04.md FIRST (it supersedes every earlier handoff), then
 docs/fable-build-brief-premium-density.md §10 + §12 + §13 (the picks ledger — every value has
-its reversal in the token comment), then DECISIONS #759–#766. The Opus verdict
-(docs/opus-review-verdict-session-h.md) still has the three MAJOR lessons — read them
-before touching the slide, the gates, the present machinery, or anything animated.
+its reversal in the token comment), then DECISIONS #767–#773. The Sessions I–K verdict is
+written into the brief that ordered it: docs/opus-review-brief-sessions-i-k.md (§Verdict) —
+read it before touching the present machinery, the gates, the pins, or anything animated.
 VERIFY THE BASELINE FIRST — clean clone, Linux container (npm i jsdom tree-sitter
 tree-sitter-c-sharp), Ixian-Core sibling at 097341a. If any number differs, say so and STOP:
-bundle 321 · shells 18 · smoke BASELINE OK 4040 / the 3 known (#136 · M5 · B3) WITH the
-sibling (4039 without it — the M1 hold-out gate, #748)
+bundle 321 · shells 18 · smoke BASELINE OK 4067 / the 3 known (#136 · M5 · B3) WITH the
+sibling (one assertion fewer without it — the M1 hold-out gate, #748; record which)
 locales ALL CLEAN 786 · i18n-lint OK (6 dev exemptions, 2 sites) · pseudo 9/9
 cs-syntax 141 clean + 1 known gap · extract-strings --check OK · build-shells --check OK
 build-legal-docs --check OK (terms baked · privacy HELD)
 Mutate in FULL tar copies (rebuild bundle + shells inside the copy when a component moves),
 never cp -al. Bundle BEFORE shells, always. Measure the closing number AFTER the last suite
 edit. Render on the real shells before I rebuild (the harness is handoff §3) — my eye rules
-every dial. Measure on device before any fix (#215) — the capture recipe in
-docs/f5-checklist-session-k.md is the one that works (cable fixed).
-Then, in order (handoff §2):
-⓪ THE #46 ADVERSARIAL LOOP over Sessions I·J·K FIRST — work order docs/opus-review-brief-sessions-i-k.md
-(3 disjoint read-only auditors → verify → fix agents → a FRESH break-my-verdict reviewer → round 2
-→ CLEAN; append the verdict to the brief). No build item starts before the verdict.
-① My walk K result + the capture blocks (chat-open · appnew · [SCROLL] · [KBTRAY] reveal ·
-dumpsys meminfo). The chat-open block DECIDES the route for the remaining ~150 ms — write
-the BE work order on the numbers (warm chat WebView vs batch transport), not before.
-② A `backstop t=` line anywhere = the #663 class — trace first.
-③ RAM: the meminfo split names the lever. ④ [SCROLL]: the number before any fix.
-⑤ The group-avatar device fact (walk L6). ⑥ Windows [WV2] paste + W1.
-⑦ Walk fallout from my eye on the rest. ⑧ The TG-order chat-info rebuild (render round).
-⑨ My pending rulings (URL previews · privacy wording · "left the group").
-⑩ The iOS rows when I say Mac. ⑪ Release hardening last (the retire list is in the handoff).
+every dial. Measure on device before any fix (#215) — the capture recipe is
+docs/f5-checklist-session-l.md.
+⚠ Built chat.html is 1,663 B under the #345 pin ceiling — any prose edit to that shell budgets
+a raise IN THE SAME COMMIT, priced the way the pin's docblock prices it. Don't raise it quietly.
+⚠ Every pin declares stripCode or raw EXPLICITLY (#771), and a behavioural pin that stubs the
+function under test proves nothing. A comment stating an invariant the code does not enforce is
+a defect (#772); file:line in a comment is a searchable anchor, never a number.
+Then, in order (handoff §2 — the loop is CLEAN and THE WALK IS ALREADY DONE, so every item
+below is written against measurements, not guesses; walk results: docs/walk-session-l-results.md):
+⓪ THE BE WORK ORDER — first, and blocked on nothing. The chat open is the PARSE, not WebView
+creation: nav = dcl in all six opens, so a ~320 ms warm open is 60 ms create + 125 ms parse +
+30 ms drain + 74 ms render + 30 ms present. A RETAINED WARM CHAT WEBVIEW removes ~185 ms.
+Add the RAM row with its split (rest 329 MB: Native 70 · Unknown 73 · Graphics 68 · Code 50;
+~150 MB over WhatsApp/TG at rest — the FE lever is worth 15-25 MB, the bulk is a BE row).
+The batch transport stays the separate scroll-auto-load unlock.
+① #766 generalized: the DATA pages present on their own paint (the chat's ixian:painted grammar,
+per page) + the [CDPERF] chats pair. The three FORM pages are measured and good.
+② #770's THIRD trigger: at ih=475 (split-screen / small window) the ⊕ gets no viewport grow
+inside 450 ms, so `reveal by=backstop`. Rotation IS fixed; this is not. My sheet said FAILS:none
+and R4 was unscored — the log found it. An unscored row is not a passed row.
+③ RAM: build the FE lever (release the parked Account WebView + tile budget), knowing it is
+15-25 MB of a 150 MB gap.
+④ [SCROLL]: MEASURED CLEAN (drop=0, max 8-25 ms). No fix. Don't spend a session on it.
+⑤ The group-avatar device fact. ⑥ Alignment: CLOSED, it was #768's stale assets (G1/G2 pass).
+⑦ Chat appearance restructure (#774) — three rulings resolved, ONE OWED: dark mode, hide the
+colour selector or design a gradient. Render both grounds and show me; don't answer it in prose.
+⑧ Apps list (#775): default GRID + the view must survive a restart (spixi.apps.layout, read at
+seed time). The new key gets its security-gate row IN THE SAME BATCH.
+⑨ W4: image paste is unimplemented on Windows (no clipboard handling in Platforms/Windows at
+all) — a feature row, not a regression.
+⑩ Walk fallout from my eye on the rest. ⑪ The TG-order chat-info rebuild (render round).
+⑫ My pending rulings (URL previews · privacy wording · "left the group").
+⑬ The pre-launch security batch (docs/batch-security-close-spec.md) — S-2 traversal, S-1 link
+spoof, S-3 drafts, S-4 wallet password. All ours, no BE engineer, no core change.
+⑭ The iOS rows when I say Mac. ⑮ Release hardening last.
 Commit is mine, in GitHub Desktop; write the message file, the handoff, and the walk
 artifact (clickable, P/F/N per row, copyable results) — plus the PowerShell build blocks.
 Archive consumed handoffs/checklists into docs/archive; docs/ ends with ONE handoff and ONE

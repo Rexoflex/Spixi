@@ -1,0 +1,72 @@
+Session L: the #46 adversarial loop over Sessions I-J-K - CLEAN in five rounds
+
+Item 0 only, as the handoff ordered: no build item starts before a CLEAN verdict.
+Three disjoint auditors -> two verifiers -> three fix agents -> a central pin pass
+-> four fresh break-my-verdict reviewers, each over the previous round's fixes.
+r1/r2/r3/r4 NOT CLEAN, r5 CLEAN. Verdict appended to the brief that ordered it.
+
+Three MAJORs no self-review had found:
+
+  #768 Windows: a missing asset folder rendered as a normal-looking STALE page.
+       Measured on device - Add app's ERR_FILE_NOT_FOUND and a light Account pane
+       under a dark system theme were ONE cause. localizeHtml returned void and
+       generatePage gated freshness on File.Exists, true for an ll_*.html a
+       PREVIOUS BUILD left behind. Now: bool return, write-gated map, a degrade
+       ladder ending in a page that NAMES the missing file, and copyResources no
+       longer hard-crashes the App() constructor.
+
+  #769 The dark white-on-blue ruling reached a token TEN surfaces read - the mute
+       swipe label measured 1.14:1. Seven role tokens; light unmoved; no fill changed.
+
+  #770 A rotation persisted a keyboard height that fills the screen and latched
+       kbUp. The fix took three rounds; the first two were wrong. Geometry cannot
+       separate a keyboard from a window resize under adjustResize - the
+       discriminator is semantic (a keyboard needs a focused editable).
+
+Also: the K1 hold's 32px lurch on notched iPhones, the slide entry's input-dead
+window (32ms measured, not the 300ms round 2 shipped by mistake), the anchored-menu
+listener leak, and Session J's missing security-gate section, filed retroactively.
+
+Two rules promoted: #771 a raw-text sweep is satisfied OR defeated by the comment
+that explains it (a [SCROLL] set pin its own docblock satisfied); #772 a comment
+stating an invariant the code does not enforce is a defect - nine found, three
+written BY the fixes.
+
+  bundle 321 - shells 18 - smoke BASELINE OK 4067 / the 3 known (with sibling)
+  locales 786 - i18n-lint OK - pseudo 9/9 - cs-syntax 141+1
+  extract-strings / build-shells / build-legal-docs --check OK
+  Ixian-Core 097341a untouched
+
+Every pin added or repaired was killed by its own mutation. Residuals: #773.
+
+Walked on device and on Windows the same day (#776, docs/walk-session-l-results.md):
+13 P / 0 F on the sheet, one failure found in the log.
+
+  W0-W4 pass - the app now STARTS with no html\ folder and NAMES the missing
+  file instead of dying in the App() constructor. Add app opens. The Account
+  pane is dark under a dark system theme.
+
+  G1/G2 pass, which closes the alignment report: on a clean build a grouped run
+  lines up. The misaligned bubble of 09-03 was #768's stale asset set - one
+  build, three faces. No component defect existed.
+
+  THE CHAT-OPEN ROUTE IS DECIDED: it is the PARSE. nav = dcl in all six opens,
+  so a ~320ms warm open is 60ms WebView creation + 125ms parse + 30ms drain +
+  74ms render + 30ms present. A retained warm chat WebView removes ~185ms.
+  The BE work order is Session M's first item, written on numbers (#764).
+
+  RAM measured: 329 MB at rest, 368 MB in Seed 01. Native 70 / Unknown 73 /
+  Graphics 68 / Code 50. ~150 MB over WhatsApp/TG at rest. The FE lever is
+  worth 15-25 MB; the bulk is a BE row.
+
+  [SCROLL] measured clean (drop=0, max 8-25ms) - no fix needed.
+  #766 confirmed: appnew onload t=75 -> present t=75, 0 dropped frames.
+
+  ONE FAILURE, in the log and not on the sheet: at ih=475 (split-screen) the
+  tray reveals by backstop, 453ms. #770's third trigger. Rotation IS fixed.
+  An unscored row is not a passed row.
+
+Also logged, not built: #774 chat-appearance restructure, #775 apps list
+(grid default + the view must survive a restart).
+
+DECISIONS #767-#776.

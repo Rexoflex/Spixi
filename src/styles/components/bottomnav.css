@@ -136,7 +136,10 @@
   padding-inline: var(--spacing-4);
   border-radius: var(--radius-full);
   background: var(--surface-error);
-  color: var(--text-neutral-on-action);
+  /* ★ #46 r2 C1: error fill, not the action blue (the comment above says so) — dark
+     --error-400 #f1786e took the on-action white at 2.63:1 on an 11px BOLD count, the
+     smallest type in the census. --text-neutral-on-error = 6.72:1 dark / 6.36:1 light. */
+  color: var(--text-neutral-on-error);
   box-shadow: 0 0 0 2px var(--surface-bottombar);
   font-size: var(--font-size-label-xs);
   line-height: 18px;

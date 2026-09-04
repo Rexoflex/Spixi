@@ -811,6 +811,24 @@ fetches, zero new WebView settings, zero new `spixi.*` keys.**
 | **notification accent #175595** | SPushService.SetColor + the OneSignal manifest accent | A colour. No exposure. | notification accent ≡ splash |
 | **`--bubble-*` / row / canon / composer / menu tokens** | tokens.css + the component sheets | CSS only. No exposure. The shipped shells are byte-checked by `build-shells --check`. | ③ (≈40 pins) |
 
+## Session J (2026-09-03) — the walk fixes, the rulings, seed v2, the logcat + WebView mirror
+
+★ **Filed retroactively in the #46 loop over Sessions I–K.** Session J shipped without a gate
+section, and `CLAUDE.md` requires one *before* any batch that adds a verb, a `spixi.*` key, a
+WebView setting, an HTML sink, a network fetch, or a log line. Session J added **three of those
+six** and the omission read, in the document as a whole, as though Session K's "zero new
+`spixi.*` keys" covered the whole delta. The process failure is the finding; the rows below are
+the audit that should have accompanied the batch.
+
+| introduced | where | exposure | pin |
+|---|---|---|---|
+| **`spixi.kb.slot`** (new `spixi.*` localStorage key) | chat.html `rememberKbSlot` / `bootKbSlot` | **#254-clean**: one clamped integer (the measured keyboard height), no message text, no address, no id, no timestamp. It joins the mini-app-readable `file://` partition (`security-review-for-be-engineer.md` MAJOR #4), which is the judgement this table exists to record — a mini-app can read that a keyboard is ~323 px tall on this device. Accepted: it is a device-shape fact the page could measure itself. ⚠ #46 r2 changed the FORMAT to `"<px>@<width>"` (a rotation was poisoning it); still one integer pair, same exposure. | Session J slot · #46 r2 B2 |
+| **`ixian:devseed:heavy`** (shell → C#) | SettingsPage, `#if SPIXI_DEV_COEXIST` only | No payload; a third fixed verb beside `ixian:devseed` / `ixian:devunseed`, seeding the 10×1000 load case. **Absent from every store build by construction** (the SpixiDevCoexist symbol, #732) — same argument as the Session I seed rows, which is why it was easy to miss. | Seed harness v2 |
+| **`[KBTRAY]` log set (5 stamps)** | chat.html (`arm` · `drop by=` · `reveal` · `resize` · the ⊕ branch) | Fixed words + integers (px, ms). No address, no text, no id. `[KBTRAY] resize` fires on **every** Android window resize (each keyboard show/hide, each rotation) — volume, not exposure. TEMPORARY, retired as a set at release hardening. | `[KBTRAY]` counter (5) |
+| **the logcat console mirror** (`Logging.setOptions(..., true)`) | App.xaml.cs, `#if SPIXI_DEV_COEXIST && ANDROID` | Turns Console output on so .NET Android forwards it to logcat. **Android + dev only, by construction**; the store build is byte-for-byte what it was (console off). Everything already in `ixian.log` becomes visible to any app holding READ_LOGS on that device — a dev-build exposure, accepted and retired at hardening. | Session J mirror |
+| **`OnConsoleMessage` forwarding** (`WebViewRenderer.cs`) | `#if SPIXI_DEV_COEXIST`, mini-app WebView excluded by a XAML-set `ClassId` | Moves **WebView-originated text** into the persisted `ixian.log`, capped at 400 chars. This is the one genuinely new data path in Sessions I–K: the text is whatever the document printed, including uncaught-exception messages, so it is NOT the fixed vocabulary the log-line rule asks for. Dev-build only; the `ClassId` test cannot be spoofed by page content (it is a MAUI bindable set once in XAML, unreachable from JS). ⚠ #46 r1 MINOR: the guard `_renderer?.Element?.ClassId != "miniapp"` fails **open** on a disposed renderer (`null != "miniapp"`); unreachable in practice because `Control.Destroy()` precedes the chrome client's dispose. Retired at hardening. | Session J mirror |
+| **`hourCycle` seeding gap** | SpixiLocalization `customStrings` | `AndroidInsetTop` is seeded into `customStrings` precisely so an unregistered carrier cannot resolve empty and log `Unknown localization key` (#401). `hourCycle` is registered only in HomePage's constructor and is not seeded. Inert today (its three carrier documents are all generated after HomePage exists) — recorded because it breaks a rule #401 wrote down. | ③ hourCycle pins |
+
 ## Session K (2026-09-03) — the chat open on the shell's paint, the localized-document cache, the walk J2 rows
 
 **One new verb, zero new pushes, zero new HTML sinks, zero new fetches, zero new WebView
@@ -823,3 +841,18 @@ settings, zero new `spixi.*` keys, one new in-process cache, four temporary log 
 | **`[CDPERF] chat ctor tap=` · `[CDPERF] chat-shell boot nav= dcl=` · `[CDPERF] appnew …` · `[SCROLL] …` · `[WV2] …`** | SingleChatPage / HomePage / AppNewPage / chat.html / SpixiContentPage (Windows-only) | Fixed words + integers (ms, frame counts, row counts, scrollHeight, a page file name). No address, no text, no id. TEMPORARY — each is a pinned SET, retired with the [CDPERF] family at release hardening. The shell lines go to the WebView console (logcat `[WEBVIEW]` in dev builds only, #754), never across the bridge. `[WV2]` goes to `ixian.log` on Windows. | Session K stamp sets ×5 |
 | **WebView2 `DefaultBackgroundColor` in applyPageSurfaceColor** | SpixiContentPage, `#if WINDOWS` | A colour on the control, the same value webViewNavigating already set one event later. No exposure. | Session K #755 |
 | **dark on-action inks / dark action surface · `--bubble-avatar-*` · reactions received-sticker rule · apps ⋯ anchor · the two `ariaLabel` moves** | tokens.css + component sheets/JS | CSS/DOM-attribute only. `anchorSheetToRow` is the existing #557 helper (no new positioning code). No exposure. The shipped shells are byte-checked by `build-shells --check`. | Session K rows ×10 |
+
+## Session L (2026-09-03) — the #46 adversarial loop over Sessions I·J·K
+
+**Zero new verbs, zero new pushes, zero new HTML sinks, zero new fetches, zero new WebView
+settings. One `spixi.*` key CHANGED FORMAT, one new error surface, two log lines relocated.**
+
+| introduced / changed | where | exposure | pin |
+|---|---|---|---|
+| **the built-in localization error page** | `SpixiContentPage.generateFallbackPage` (non-Android leg) | A fixed, theme-neutral `HtmlWebViewSource` that NAMES the missing shell file and its expected path. It is the last rung of a degrade ladder that replaces an `ERR_FILE_NOT_FOUND` (or, worse, a silently STALE document from a previous build). **The file name is a literal from the 26 `loadPage(...)` call sites, never user-influenced**; no `*SL{}`, no bundle, no script, no network. It renders only where localization already failed, so it must not itself depend on localization. | #46 A1 ③ |
+| **`spixi.kb.slot` format** `"<px>"` → `"<px>@<width>"` | chat.html `rememberKbSlot` / `applyKbSlot` / `bootKbSlot` | Same class of datum as Session J (device shape, no user content) — one integer became two. Untagged legacy values are DROPPED on read, so the poisoned rotation value from earlier builds does not survive an upgrade. Mismatch falls back to the CSS default, never to 0. | #46 B2 ② |
+| **`copyResources` diagnostics** (2 × `Logging.error`) | App.xaml.cs, recorded at constructor time, flushed after `Logging.start` | Fixed English sentences naming two **local filesystem paths** (the exe's html folder and the user folder) — the same class of path already in `ixian.log` throughout. Deferred because Ixian-Core's Logging DROPS pre-start calls (`Meta/Logging.cs:196`, verified against the 097341a sibling): a diagnostic that never lands is a silent guard. | #46 A2 ④ |
+| **`localizeHtml` now deletes a partial file** | SpixiLocalization catch path | Deletes only the path it was itself given and had just opened for writing, under `Config.spixiUserFolder`. Prevents a truncated document being served as "a previous build's complete one". | #46 r2 |
+| **the stage is input-dead through the entry slide** | SpixiContentPage (both reveal paths) | Removes a 1–2 frame window in which the incoming overlay was hit-testable at ~0 opacity over most of the screen — i.e. it CLOSES an input path, it does not open one. Both clears are pinned together: a stage stuck input-dead would be worse than the tap it prevents. | #46 A3 ⑤ |
+| **seven `--*-neutral-on-{error,success,destructive,inverse,accent}` tokens** | tokens.css + 10 consumers | CSS only. No exposure. Restores the pre-Session-K dark ink on every fill that is not the action blue (measured collapse to 1.14:1 at worst); Damir's white-on-blue ruling is unchanged at 6.68:1. | #46 C1 census |
+

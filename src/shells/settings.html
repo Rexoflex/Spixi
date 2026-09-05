@@ -190,6 +190,7 @@
     createEncPassScreen, ENC_DELIM,
     attachPressFeedback,
     settingsThemeSheet, settingsOptionSheet, createTopbar,
+    dismissOverlay,   // ★ review MINOR-4: tear an open sheet down before a theme-flip rebuild
     openAddressSheet, closeAddressSheet,   // ★ Batch E (d) (#557): the ONE address surface — createSheet/openSheet left with the hand-built #443 explainer; close rides exitSettings (C-8, this document PARKS)
     createBottomNav, setNavActive, setNavBadge, showToast,
     createNativeBridge, installExecuteUiCommand,
@@ -1133,9 +1134,14 @@
     const top = prevBody ? prevBody.scrollTop : 0;
     hubEl = buildHub();
     syncSave();
+    /* ★ review MINOR-6: the present signal below fires only when this call actually put
+       something on screen. Every branch that mounts sets this; the fall-through (a mounted
+       sublevel this rebuild does not refresh) mounts nothing and must not claim a paint. */
+    let mounted = false;
     if (paneMode) {
       // the hub column is always mounted; keep the open sublevel + its selection
       masterWrap.replaceChildren(hubEl);
+      mounted = true;
       markSelected(currentView === 'hub' ? null : currentView);
       // #274: the language picker is a STATELESS state-keyed builder — refresh
       // it when the pushed current differs from the one it was built with (the
@@ -1155,17 +1161,20 @@
       if (nb) nb.scrollTop = top;
     } else if (currentView === 'hub') {
       root.replaceChildren(hubEl);
+      mounted = true;
       const nb = hubEl.querySelector('.c-settings__body');
       if (nb) nb.scrollTop = top;
     } else if (currentView === 'notifications' && root.dataset.notifSig !== notifSig()) {
       // ★ AUDIT MAJOR (see notifSig) — the mobile/takeover mode of the same fix.
       root.replaceChildren(buildScreen('notifications'));
       root.dataset.notifSig = notifSig();
+      mounted = true;
     } else if (currentView === 'language' && root.dataset.langBuilt !== state.language) {
       // #274 review MINOR-2: refresh a mounted NON-pane language picker when the
       // pushed current differs from the one it was built with (stale check).
       root.replaceChildren(buildScreen('language'));
       root.dataset.langBuilt = state.language;
+      mounted = true;
     }
     /* ★ Session J (#753, Damir: "when I loaded seed heavy the note in About didn't change"):
        the About sublevel KEEPS its live node across rebuilds (the rule above), so the
@@ -1184,11 +1193,14 @@
        ever runs from scheduleRebuild, and scheduleRebuild only ever runs from a push (the
        onLoad burst: setNickname + setAppearance + setLockEnabled + showRemoveAvatar +
        loadAvatar + setVersion + setAddress + setLanguage, coalesced into ONE build) — so
-       reaching this line means real data is on glass.
+       reaching this line means the push data is built.
+       ⚠ The `mounted` guard is what makes it "on glass": a rebuild that refreshes nothing
+       (a mounted sublevel this rebuild does not touch) leaves the previous frame on screen,
+       so it signals nothing and the next mounting rebuild signals instead.
        An exe that pushes nothing never gets here and waits the same 120 ms it waits today.
        Latched inside bridge.painted, so the backup-stamp poll and every later rebuild are
        free. */
-    bridge.painted();
+    if (mounted) bridge.painted();
   }
 
   // Coalesce the onLoad burst (setNickname + setAppearance + setLockEnabled +
@@ -1717,12 +1729,21 @@
          screen with nothing behind it — the #772 class, a comment asserting an invariant
          the code did not enforce.
          Scoped to the one view that derives structure from the theme: every other screen
-         re-themes in CSS and must NOT be torn down (a rebuild would drop an open sheet and
-         any in-flight row state). Runs on onApplied, i.e. after the swap has settled, so
+         re-themes in CSS and must NOT be torn down (a rebuild would orphan an open sheet and
+         drop any in-flight row state). Runs on onApplied, i.e. after the swap has settled, so
          the rebuilt screen reads the NEW theme rather than racing the attribute.
+         ⚠ THE SHEET IS DISMISSED FIRST. This screen's Canvas sheet mounts on document.body,
+         not inside the view, so renderLayout replaces the view under it and leaves a live
+         sheet over a screen that no longer owns it. `dismissOverlay()` (not
+         dismissTopOverlay) is used deliberately: the tear-down must not be refused by an
+         escDismiss:false overlay, and this loop must not spin on one. The count is a belt.
          REVERSAL: drop the onApplied and the light-only row survives into dark. */
       applyPushedTheme(name, {
-        onApplied: () => { if (currentView === 'chatappearance' && !exiting) renderLayout(); },
+        onApplied: () => {
+          if (currentView !== 'chatappearance' || exiting) return;
+          try { for (let i = 0; i < 8 && dismissOverlay(); i++); } catch (e) { /* a stuck sheet must not block the rebuild */ }
+          renderLayout();
+        },
       });
     },
 

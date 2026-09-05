@@ -171,9 +171,9 @@ namespace SPIXI
                     Logging.error("viewcontact failed: " + ex.Message);
                 }
             }
-            else
+            else if (current_url.Trim().StartsWith("file:", StringComparison.OrdinalIgnoreCase))
             {
-                // Otherwise it's just normal navigation
+                // allow normal navigation only for local files
                 e.Cancel = false;
                 return;
             }

@@ -32,6 +32,8 @@ namespace SPIXI
         private void onNavigating(object sender, WebNavigatingEventArgs e)
         {
             string current_url = HttpUtility.UrlDecode(e.Url);
+            // #797: cancel first. A throw in a branch must not leave an ixian: navigation for the WebView to load.
+            e.Cancel = true;
 
             if (onNavigatingGlobal(current_url))
             {
@@ -56,9 +58,10 @@ namespace SPIXI
                 // #341 audit: this is the MOBILE route. The desktop pane runs the same
                 // verb inside SettingsPage. Both legs carry the same two defects, fixed
                 // here in the same shape — keep them in step if you touch either.
-                //  · ★ MAJOR-1: an unguarded throw escapes onNavigating, so e.Cancel is
-                //    never set, and iOSWebViewHandler.cs:116 then logs the WHOLE URL into
-                //    ixian.log — a shareable file with both passwords in cleartext.
+                //  · ★ MAJOR-1: an unguarded throw escapes onNavigating. It used to leave
+                //    e.Cancel unset, and iOSWebViewHandler then logged the WHOLE URL into
+                //    ixian.log — a shareable file with both passwords in cleartext. #797
+                //    cancels first, so the try/catch now keeps this branch answering.
                 //  · ★ MAJOR-2: Node.loadWallet reads the cached "walletpass" preference
                 //    at every cold start (Node.cs:248-256), and BackupPage.xaml.cs:144
                 //    encrypts the backup archive with it. Re-encrypting the wallet without
@@ -106,9 +109,9 @@ namespace SPIXI
                     displaySpixiAlert(SpixiLocalization._SL("settings-encryption-invalidpassword-title"), SpixiLocalization._SL("settings-encryption-invalidpassword-current-text"), SpixiLocalization._SL("global-dialog-ok"));
                 }
             }
-            else
+            else if (current_url.Trim().StartsWith("file:", StringComparison.OrdinalIgnoreCase))
             {
-                // Otherwise it's just normal navigation
+                // allow normal navigation only for local files
                 e.Cancel = false;
                 return;
             }

@@ -2714,19 +2714,9 @@ button.c-settings-howto__join:disabled {
   -webkit-mask-size: 110px 191px;
   mask-size: 110px 191px;
 }
-/* W5 — pattern STYLE row. Same tile grammar as the intensity row above; the
-   only differences are per-style mask scaling and (for Live flow) a canvas
-   face instead of a mask.
-   The 288px data-matrix tile crops to a near-empty corner at 64px, so it gets
-   its own scale: 144px puts ~10 cells across the tile, which is what makes it
-   read as a MATRIX rather than as noise. Specificity (0,3,0) clears the shared
-   rule above. ★ E1: that shared value is 140px now, close enough to this 144px
-   that the override looks redundant — it is not. 144px is derived from THIS tile
-   (288px ÷ 2 = ~10 cells across); the 140px above is derived from the doodles
-   tile. They agree by coincidence and must not be merged. */
-/* W5 — pattern STYLE row. Same tile grammar as the intensity row above; the
-   only differences are per-style mask scaling and (for Live flow) a canvas
-   face instead of a mask.
+/* W5 — pattern STYLE row. It keeps the tile grammar the separate intensity row used
+   before Session M (#783) retired that control; the only differences are per-style
+   mask scaling and (for Live flow) a canvas face instead of a mask.
    The 288px data-matrix tile crops to a near-empty corner at 64px, so it gets
    its own scale: 144px puts ~10 cells across the tile, which is what makes it
    read as a MATRIX rather than as noise. Specificity (0,3,0) clears the shared
@@ -2830,16 +2820,19 @@ button.c-settings-howto__join:disabled {
 /* —— ★ Session M (#774): the Colour card — a single value row, so it takes the HUB's card
    padding (4) instead of the appearance screen's section padding (12). A 48px row inside a
    12px section reads as a row floating in a box rather than as a card that IS a row.
-   The rule is written against the section, not the row, so the dark case (an empty div,
-   the control does not exist there) has nothing to pad and nothing to hide.
+   The rule is written against the section, not the row. In dark the section is never
+   built, so this rule matches nothing there.
    REVERSAL: delete this rule and the row sits 20px in from the card edge. —— */
 .c-settings-appearance .c-settings__section.c-settings-appearance__groundsec {
   padding: var(--spacing-4);
 }
 /* the row's own label carries the card's word — see the component. `min-width: 0` on the
    value keeps a long localized ground name ("Prehod barve") ellipsizing instead of pushing
-   the chevron off the card. */
+   the chevron off the card.
+   ⚠ `flex` is restated because the base rule sets `flex: none`, and a non-shrinking item
+   never reaches its ellipsis — the four properties below cannot work without this line. */
 .c-settings-appearance__ground .c-settings__row-value {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4976,6 +4969,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     createEncPassScreen, ENC_DELIM,
     attachPressFeedback,
     settingsThemeSheet, settingsOptionSheet, createTopbar,
+    dismissOverlay,   // ★ review MINOR-4: tear an open sheet down before a theme-flip rebuild
     openAddressSheet, closeAddressSheet,   // ★ Batch E (d) (#557): the ONE address surface — createSheet/openSheet left with the hand-built #443 explainer; close rides exitSettings (C-8, this document PARKS)
     createBottomNav, setNavActive, setNavBadge, showToast,
     createNativeBridge, installExecuteUiCommand,
@@ -5919,9 +5913,14 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     const top = prevBody ? prevBody.scrollTop : 0;
     hubEl = buildHub();
     syncSave();
+    /* ★ review MINOR-6: the present signal below fires only when this call actually put
+       something on screen. Every branch that mounts sets this; the fall-through (a mounted
+       sublevel this rebuild does not refresh) mounts nothing and must not claim a paint. */
+    let mounted = false;
     if (paneMode) {
       // the hub column is always mounted; keep the open sublevel + its selection
       masterWrap.replaceChildren(hubEl);
+      mounted = true;
       markSelected(currentView === 'hub' ? null : currentView);
       // #274: the language picker is a STATELESS state-keyed builder — refresh
       // it when the pushed current differs from the one it was built with (the
@@ -5941,17 +5940,20 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       if (nb) nb.scrollTop = top;
     } else if (currentView === 'hub') {
       root.replaceChildren(hubEl);
+      mounted = true;
       const nb = hubEl.querySelector('.c-settings__body');
       if (nb) nb.scrollTop = top;
     } else if (currentView === 'notifications' && root.dataset.notifSig !== notifSig()) {
       // ★ AUDIT MAJOR (see notifSig) — the mobile/takeover mode of the same fix.
       root.replaceChildren(buildScreen('notifications'));
       root.dataset.notifSig = notifSig();
+      mounted = true;
     } else if (currentView === 'language' && root.dataset.langBuilt !== state.language) {
       // #274 review MINOR-2: refresh a mounted NON-pane language picker when the
       // pushed current differs from the one it was built with (stale check).
       root.replaceChildren(buildScreen('language'));
       root.dataset.langBuilt = state.language;
+      mounted = true;
     }
     /* ★ Session J (#753, Damir: "when I loaded seed heavy the note in About didn't change"):
        the About sublevel KEEPS its live node across rebuilds (the rule above), so the
@@ -5970,11 +5972,14 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
        ever runs from scheduleRebuild, and scheduleRebuild only ever runs from a push (the
        onLoad burst: setNickname + setAppearance + setLockEnabled + showRemoveAvatar +
        loadAvatar + setVersion + setAddress + setLanguage, coalesced into ONE build) — so
-       reaching this line means real data is on glass.
+       reaching this line means the push data is built.
+       ⚠ The `mounted` guard is what makes it "on glass": a rebuild that refreshes nothing
+       (a mounted sublevel this rebuild does not touch) leaves the previous frame on screen,
+       so it signals nothing and the next mounting rebuild signals instead.
        An exe that pushes nothing never gets here and waits the same 120 ms it waits today.
        Latched inside bridge.painted, so the backup-stamp poll and every later rebuild are
        free. */
-    bridge.painted();
+    if (mounted) bridge.painted();
   }
 
   // Coalesce the onLoad burst (setNickname + setAppearance + setLockEnabled +
@@ -6503,12 +6508,21 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
          screen with nothing behind it — the #772 class, a comment asserting an invariant
          the code did not enforce.
          Scoped to the one view that derives structure from the theme: every other screen
-         re-themes in CSS and must NOT be torn down (a rebuild would drop an open sheet and
-         any in-flight row state). Runs on onApplied, i.e. after the swap has settled, so
+         re-themes in CSS and must NOT be torn down (a rebuild would orphan an open sheet and
+         drop any in-flight row state). Runs on onApplied, i.e. after the swap has settled, so
          the rebuilt screen reads the NEW theme rather than racing the attribute.
+         ⚠ THE SHEET IS DISMISSED FIRST. This screen's Canvas sheet mounts on document.body,
+         not inside the view, so renderLayout replaces the view under it and leaves a live
+         sheet over a screen that no longer owns it. `dismissOverlay()` (not
+         dismissTopOverlay) is used deliberately: the tear-down must not be refused by an
+         escDismiss:false overlay, and this loop must not spin on one. The count is a belt.
          REVERSAL: drop the onApplied and the light-only row survives into dark. */
       applyPushedTheme(name, {
-        onApplied: () => { if (currentView === 'chatappearance' && !exiting) renderLayout(); },
+        onApplied: () => {
+          if (currentView !== 'chatappearance' || exiting) return;
+          try { for (let i = 0; i < 8 && dismissOverlay(); i++); } catch (e) { /* a stuck sheet must not block the rebuild */ }
+          renderLayout();
+        },
       });
     },
 

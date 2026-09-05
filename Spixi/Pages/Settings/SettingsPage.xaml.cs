@@ -242,6 +242,8 @@ namespace SPIXI
         private void onNavigating(object sender, WebNavigatingEventArgs e)
         {
             string current_url = HttpUtility.UrlDecode(e.Url);
+            // #797: cancel first. A throw in a branch must not leave an ixian: navigation for the WebView to load.
+            e.Cancel = true;
 
             if (onNavigatingGlobal(current_url))
             {
@@ -393,20 +395,22 @@ namespace SPIXI
                 // ★ SECURITY — read before you touch this branch:
                 //  · split_url[1] and [2] are PLAINTEXT wallet-password material. Never log
                 //    them, never echo them back to the WebView, never widen this verb.
-                //  · The navigation is cancelled at the end of onNavigating, so the URL
-                //    never becomes a session-history entry.
+                //  · onNavigating cancels the navigation before any branch runs (#797), so
+                //    the URL never becomes a session-history entry.
                 //  · The shell scrubs its three fields on every leave path. This document
                 //    outlives the screen, so an unscrubbed form keeps the values (#341).
                 //  · Length must be EXACTLY 3. The shell already refuses a password that
                 //    contains the delimiter, but a longer split would mean the delimiter
                 //    got through, and writing split_url[2] then re-encrypts the wallet with
                 //    a TRUNCATED password the user can never reproduce. Refuse instead.
-                //  · ★ The try/catch is NOT optional (#341 audit MAJOR-1). Without it a
-                //    throw from writeWallet escapes onNavigating, e.Cancel is never set at
-                //    the end of this chain, and the iOS handler logs the WHOLE URL —
-                //    iOSWebViewHandler.cs:116 writes navigationAction.Request.Url into
-                //    ixian.log, which DevPage renders and offers through the share sheet.
-                //    That would put both passwords in cleartext in a shareable file.
+                //  · ★ The try/catch is NOT optional (#341 audit MAJOR-1). It keeps a throw
+                //    from writeWallet inside this branch, so the user still gets an answer
+                //    and the page stays usable. It was also the ONLY thing that stopped a
+                //    throw from leaving e.Cancel unset: the iOS handler then logged the
+                //    WHOLE URL — iOSWebViewHandler writes navigationAction.Request.Url into
+                //    ixian.log, which DevPage renders and offers through the share sheet,
+                //    putting both passwords in cleartext in a shareable file. #797 closes
+                //    that second leg for every branch by cancelling first.
                 string[] split_url = current_url.Split(new string[] { "--1ec4ce59e0535704d4--" }, StringSplitOptions.None);
                 // "1" = changed · "0" = wrong current password · "2" = the request itself was
                 // not usable. Separating "2" keeps the diagnosis honest: without it a payload
@@ -791,7 +795,14 @@ namespace SPIXI
             else if (current_url.StartsWith("ixian:appearance:", StringComparison.Ordinal))
             {
                 string appearanceString = current_url.Substring("ixian:appearance:".Length);
-                selectedAppearance = (ThemeAppearance)Convert.ToInt32(appearanceString);
+                // The value comes from the WebView. Parse it, never Convert — a bad value
+                // must not throw out of the handler.
+                if (!int.TryParse(appearanceString, out var appearanceInt))
+                {
+                    Logging.warn("SettingsPage: appearance verb carried a non-integer value — ignored");
+                    return;
+                }
+                selectedAppearance = (ThemeAppearance)appearanceInt;
 
                 if (ThemeManager.changeAppearance(selectedAppearance))
                 {
@@ -828,9 +839,9 @@ namespace SPIXI
                     UIHelpers.pushThemeToAllPages();
                 }
             }
-            else
+            else if (current_url.Trim().StartsWith("file:", StringComparison.OrdinalIgnoreCase))
             {
-                // Otherwise it's just normal navigation
+                // allow normal navigation only for local files
                 e.Cancel = false;
                 return;
             }

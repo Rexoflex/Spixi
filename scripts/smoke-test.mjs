@@ -57,6 +57,17 @@ const stripCode = (t) => t
   .replace(/^\s*\/\/.*$/gm, '')
   .replace(/(^|[^:])\/\/.*$/gm, '$1');
 
+/* ★★ BRANCH — "does control flow open here", for the #797 CANCEL-FIRST pins.
+ *
+ * ★ #46 r2 MINOR-1. Those pins asserted that no branch stands in a window of C#, and they
+ * spelled that as `!/if \(/.test(window)`. That literal misses `if(` with no space, and it
+ * misses `switch(`, `while(`, `for(`, `foreach(` and `try {` entirely — every one of which
+ * can throw or return before `e.Cancel = true;` and so re-open the exact #797 hole the pins
+ * exist to close. ONE constant, used at every site, so the vocabulary cannot drift between
+ * them (the #658 lesson). Deliberately NOT global: `.test()` on a /g regex carries
+ * lastIndex between calls, and these pins call it in a loop over nineteen files. */
+const BRANCH = /\b(?:if|switch|while|for|foreach|try)\s*[({]/;
+
 /* ★★ prose — THE MIRROR OF stripCode, FOR THE PINS WHOSE SUBJECT *IS* THE COMMENT.
  *
  * #46 r2 R2-6. A comment-correctness pin must read the prose (stripCode would delete the
@@ -7167,7 +7178,15 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
      ⚠ The None tile is the deliberate literal: `0` is not a per-theme value, it is the
      absence of one, and there is no alpha token for "nothing". */
   const bgFaces = styleTiles.map((b) => b.querySelector('.c-settings-swatch__canvas'));
+  /* ★ Session O NIT: addressed BY VALUE, like the tile lookups above — the docblock at
+     `prev5` forbids index addressing for exactly the reason it was re-broken here twice
+     (adding `triangles` at the front, then REMOVING two styles, moved every index). */
+  const faceOf = (v) => {
+    const b = styleTiles.find((x) => x.dataset.value === v);
+    return b ? b.querySelector('.c-settings-swatch__canvas') : null;
+  };
   const boostOf = (f) => {
+    if (!f) return NaN;
     const m = /^calc\(var\(--chat-pattern-alpha-1\) \* ([\d.]+)\)$/.exec(f.style.getPropertyValue('--chat-pattern-opacity'));
     return m ? parseFloat(m[1]) : NaN;
   };
@@ -7182,12 +7201,13 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
      tiles collapsing back to one multiplier. The shared default is pinned separately below,
      because "doodles is lower" is also satisfied by lowering BOTH, which is the change the
      shared strip is evidence against (at ×3 the matrix is already faint; by ×2 it is gone). */
-  const dood = boostOf(bgFaces[1]);
-  const mtx = boostOf(bgFaces[2]);
+  const dood = boostOf(faceOf('doodles'));
+  const mtx = boostOf(faceOf('matrix'));
   ok(dood > 0 && mtx > 0 && dood < mtx && mtx === 6,
     '★★ Session M: the DOODLES tile is amplified LESS than the data-matrix tile, and the matrix keeps the shared 6× default. A single dial soft enough for the dense doodles art erases the scattered matrix art beside it — the two strips in docs/sheets/session-m/ are that evidence. Pinned as a relation so Damir can move the value without reddening it, and so collapsing the two back to one number cannot pass');
-  ok(bgFaces.length === 4 && bgFaces[0].style.getPropertyValue('--chat-pattern-opacity') === '0'
-    && bgFaces.slice(1).every((f) => /^calc\(var\(--chat-pattern-alpha-1\) \* [\d.]+\)$/.test(f.style.getPropertyValue('--chat-pattern-opacity'))),
+  ok(bgFaces.length === 4 && !!faceOf('none') && faceOf('none').style.getPropertyValue('--chat-pattern-opacity') === '0'
+    && styleTiles.filter((b) => b.dataset.value !== 'none')
+      .every((b) => /^calc\(var\(--chat-pattern-alpha-1\) \* [\d.]+\)$/.test(b.querySelector('.c-settings-swatch__canvas').style.getPropertyValue('--chat-pattern-opacity'))),
     '★ N81 (closes #239 ⓐ), rebased by #774: every PATTERN tile assigns the per-theme ALPHA VAR so the swatch resolves under the same theme as the chat (the boost is the swatch-legibility dial, PATTERN_SWATCH_BOOST — not a second scale), and the None tile assigns a literal 0, the one honest answer for "no pattern"');
   /* ★★★ AUG GROUND (Damir 2026-08-30) — the light-only canvas toggle, pinned on BOTH
      sides of the theme because "renders in light" and "is absent in dark" are two
@@ -8320,7 +8340,7 @@ console.log('#341 — Change password renders inside the Account pane');
   const extractSrc = readFileSync(join(root, 'scripts/extract-strings.mjs'), 'utf8');
   ok(/patternStyleDoodles: 'Doodles',[\s\S]{0,400}?patternStyleMatrix:[\s\S]{0,120}?patternStyleFlow:/.test(extractSrc)
     && !/patternStyle(Triangles|LineArt):/.test(extractSrc.replace(/\/\/[^\n]*/g, '')),
-    '★ #341 review MINOR-4: PATTERN_STYLES is in the extractor DYNAMIC table. It is read as strings[o.key] exactly like PATTERN_LEVELS, so it is unextractable — and while it was missing, the FIRST extract run silently deleted every translation of the three style names from all seven locales. Both i18n gates were blind, because they compare locales against each other and a key dropped from all of them still looks consistent');
+    '★ #341 review MINOR-4 (★ Session O reword — the old message named PATTERN_LEVELS, an array Session M retired): PATTERN_STYLES is in the extractor DYNAMIC table. It is read as strings[o.key] — a key composed at runtime, which the static extractor cannot see — and while it was missing, the FIRST extract run silently deleted every translation of the three style names from all seven locales. Both i18n gates were blind, because they compare locales against each other and a key dropped from all of them still looks consistent');
   ok(/strings\.encpassRejected \|\|/.test(shEnc) && !/strings\.badPassword \|\|/.test(shEnc),
     '★ #341 review MINOR-2: the "2" result uses its OWN key. Re-using badPassword collided with the component value for the same key, and extract-strings sets exitCode 1 on a fallback conflict — Damir\'s documented build chain would have stopped at step 1 and rebuilt nothing');
   ok(/if \(!c \|\| c\.seq !== encpassSeq\) \{[\s\S]{0,900}?String\(ok\) === '1'[\s\S]{0,300}?showToast\(/.test(shEnc),
@@ -9471,6 +9491,27 @@ console.log('multi-user app launch — new picker end to end');
     && /Logging\.error\("onStartAppMulti: no live home shell/.test(stripCode(adMulti))
     && !/HandlePickAppMultiUserSucceeded/.test(stripCode(ad)),
     '★ Session N: the app-details launch uses the shell picker; the legacy WalletRecipientPage fallback is GONE (loud log, no silent drop) and its dead helper HandlePickAppMultiUserSucceeded with it');
+  /* ★ #46 r2 NIT-5: the log line prints the app id, but ONLY through a bounded safe-charset
+     gate — the id is WebView-supplied text and ixian.log is offered through the share sheet.
+     The property is "raw unbounded text never reaches the log", so BOTH halves are asserted:
+     the gate exists and bounds the length, and the id is interpolated only under it. The
+     previous `.Length + " chars"` form is banned by name — it satisfied the log rule and
+     diagnosed nothing. stripCode: the docblock beside the fix quotes the retired form. */
+  {
+    const iSafe = adMulti.indexOf('bool idIsSafe = appId != null && appId.Length > 0 && appId.Length <= 64;');
+    const iLog = adMulti.indexOf('Logging.error("onStartAppMulti: no live home shell');
+    /* ★ #46 r3 MINOR-1: the length bound alone let arbitrary ≤64-char text through —
+       the CHARSET walk is the gate, so it is asserted by its own shape (a foreach over the
+       id, the a–z test, and the `idIsSafe = false` it flips). Deleting the walk goes red. */
+    const iWalk = adMulti.indexOf('foreach (char ch in appId)');
+    const walkBody = iWalk > 0 ? adMulti.slice(iWalk, iLog) : '';
+    ok(iSafe > 0 && iLog > iSafe && iWalk > iSafe
+      && /ch >= 'a' && ch <= 'z'/.test(walkBody) && /ch >= '0' && ch <= '9'/.test(walkBody)
+      && /idIsSafe = false;/.test(walkBody)
+      && /idIsSafe \? appId :/.test(adMulti)
+      && !/for an app id of " \+ appId\.Length/.test(adMulti),
+      '★ #46 r2 NIT-5 (+ r3 MINOR-1): the no-home-shell log names the app id only behind a bounded SAFE-CHARSET gate (`idIsSafe`: ≤64 AND a foreach that refuses anything outside [A-Za-z0-9._-], declared BEFORE the call and read as the ternary condition), and falls back to the length otherwise — WebView-supplied text cannot reach a shareable log unbounded, and the old length-only line that named no app is gone');
+  }
   /* ★ W9-③: HAND OFF FIRST, TEAR DOWN SECOND. popPageAsync() is not a plain call —
      for an overlay-mode page (#225, which is how HomePage.onAppDetails presents this
      one) it enters closeOverlay, which QUEUES a main-thread teardown that hides the
@@ -11091,13 +11132,24 @@ console.log('#370/#371 — D-19b reverse-resolve · N48 amOwner · N49/N50 · R2
   ok(JSON.parse(read('src/strings/draft/sl-si.json')).appsEmptyBody === 'Igre, orodja in AI, ki delujejo neposredno v klepetu.',
     'N3 (#371, loop C-3): the sl-si draft carries Damir\'s EXACT supplied empty-state text');
   const ss370 = njs(read('src/components/settings-screens.js'));
-  ok(/body\.append\(sizeSec, styleSec, groundSec\);/.test(ss370)
+  /* ★ Session O REBASE, in place: the ORDER clause used to read the unconditional
+     `body.append(sizeSec, styleSec, groundSec)` — and the message argued that appending an
+     empty div in dark is what keeps the order stable under a live setTheme push. The #46
+     loop reversed that call: an empty `.c-settings__section` is a visible 8 px card with a
+     border, so the section is now BUILT ONLY IN LIGHT, and the order is kept by the fact
+     that a live flip RE-RENDERS this whole screen (settings.html onApplied). The card
+     inventory this pin is really about — three cards in light, Text size then Background
+     then Colour, with `patternSec` and `patternIntensity` deleted — is unchanged and still
+     asserted; the append shape is asserted in its new form. ⚠ njs (comments stripped) for
+     the same reason as before: the retired words live in the docblocks. */
+  ok(/body\.append\(sizeSec, styleSec\);\s*if \(groundSec\) body\.append\(groundSec\);/.test(ss370)
+    && !/body\.append\(sizeSec, styleSec, groundSec\)/.test(ss370)
     && ss370.includes("strings.patternStyle || 'Background'")
     && ss370.includes("strings.chatGround || 'Canvas'")
     && !/patternSec/.test(ss370)
     && !ss370.includes("strings.patternIntensity")
     && !ss370.includes("|| 'Pattern style'") && !ss370.includes("|| 'Background pattern'"),
-    '★★ #774 (Damir 2026-09-04), rebasing AUG: Chat appearance is THREE cards — Text size, Background (which absorbed Opacity: its None IS the old level 0), then the Colour row. `patternSec` is gone from the file entirely, not merely unappended, and `patternIntensity` with it — a retired card that still builds is a card one line away from returning. Superseded: sizeSec/styleSec/groundSec/patternSec (AUG), and AND-35 before that. ⚠ groundSec is STILL appended unconditionally and is an empty div in dark, so the order cannot shift under a live setTheme push. ⚠ Reads the file with comments STRIPPED (njs) — the retired words appear in the docblocks that explain the retirement, and a raw read would fail on the explanation rather than on the code');
+    '★★ #774 (Damir 2026-09-04), rebasing AUG — REBASED AGAIN by Session O: Chat appearance is THREE cards in LIGHT — Text size, Background (which absorbed Opacity: its None IS the old level 0), then the Colour row — and TWO in dark, because the Colour section is not built there at all. `patternSec` is gone from the file entirely, not merely unappended, and `patternIntensity` with it — a retired card that still builds is a card one line away from returning. Superseded: the unconditional `append(sizeSec, styleSec, groundSec)` and its empty-div-in-dark reasoning; also sizeSec/styleSec/groundSec/patternSec (AUG), and AND-35 before that. ⚠ Reads the file with comments STRIPPED (njs) — the retired words appear in the docblocks that explain the retirement, and a raw read would fail on the explanation rather than on the code');
   {
     const compDir = join(root, 'src/components');
     const shellDir = join(root, 'src/shells');
@@ -11765,9 +11817,22 @@ console.log('#383 — N12 restore-nudge + N40 connectivity/update');
     ok(/let autoTheme = document\.documentElement\.dataset\.theme \|\| '';/.test(setShell421)
       && !/const bootTheme =/.test(setShell421),
       '★ N71 (#421) + ★ #410: the Auto resolution is MUTABLE. It was a const captured at document boot, which was only safe while a flip RELOADED the document; with a push nothing rebuilds it, and a later applyTheme(0) would snap the page back to the boot theme and silently undo the push');
-    ok(/if \(state\.theme === 0\) autoTheme = name === 'dark' \? 'dark' : 'light';[\s\S]{0,1400}?applyPushedTheme\(name, \{/.test(setShell421)
-      && /onApplied: \(\) => \{ if \(currentView === 'chatappearance' && !exiting\) renderLayout\(\); \},/.test(setShell421),
-      '★ N71 (#421, #46 audit — BOTH auditors found this independently) + ★ #774: settings.html trusts a pushed name as the SYSTEM answer ONLY while System is selected, and refreshes it BEFORE applying — the ORDER is what this pin protects and it is unchanged. Session M added the onApplied hook (the chat-appearance screen re-renders on a live flip, because its Colour row is light-only and nothing else rebuilt it), so the two statements are no longer adjacent; the guard-then-apply order is still asserted, and the hook is asserted with it so a silent removal of either turns this red. The pushed value is getResolvedAppearanceName(), which returns the PICK when the pick is explicit — unguarded it poisoned the Auto cache with a value the OS never reported, and the next "System" pick painted the Account from it');
+    /* ★ Session O REBASE, in place: the hook clause matched the ONE-LINE arrow body Session M
+       wrote. The #46 loop grew that body — a sheet mounted on document.body must be dismissed
+       BEFORE the view under it is replaced — so the pin is rebased onto the property rather
+       than the line: the handler still guards on the view and on `exiting`, and it still ends
+       in renderLayout(). The dismissal ORDER inside it is pinned in the Session O block. */
+    /* ⚠ The order clause was a BOUNDED LOOKAHEAD ({0,1400}) and this loop's docblock pushed
+       the two statements 1 712 chars apart — a pin that goes red because a COMMENT grew is
+       the #340 brittleness class. Sliced to the setTheme handler and compared by INDEX now:
+       the order is the property, and prose between the two statements cannot break it. */
+    const iSetTheme = setShell421.indexOf('setTheme(name) {');
+    const setThemeFn = iSetTheme < 0 ? '' : setShell421.slice(iSetTheme, setShell421.indexOf('setAppearance(idx)', iSetTheme));
+    const iGuard = setThemeFn.indexOf("if (state.theme === 0) autoTheme = name === 'dark' ? 'dark' : 'light';");
+    const iApply = setThemeFn.indexOf('applyPushedTheme(name, {');
+    ok(iSetTheme > 0 && iGuard > 0 && iApply > iGuard
+      && /onApplied: \(\) => \{[\s\S]{0,600}?currentView !== 'chatappearance' \|\| exiting[\s\S]{0,600}?renderLayout\(\);/.test(setThemeFn),
+      '★ N71 (#421, #46 audit — BOTH auditors found this independently) + ★ #774: settings.html trusts a pushed name as the SYSTEM answer ONLY while System is selected, and refreshes it BEFORE applying — the ORDER is what this pin protects and it is unchanged. Session M added the onApplied hook (the chat-appearance screen re-renders on a live flip, because its Colour row is light-only and nothing else rebuilt it), so the two statements are no longer adjacent; the guard-then-apply order is still asserted, and the hook is asserted with it — now by its PROPERTY (view + exiting guard, ending in renderLayout) rather than by its one-line shape, which Session O\'s overlay tear-down replaced. The pushed value is getResolvedAppearanceName(), which returns the PICK when the pick is explicit — unguarded it poisoned the Auto cache with a value the OS never reported, and the next "System" pick painted the Account from it');
     ok(!/setTheme\(name\)[\s\S]{0,300}?spixi\.appearance/.test(setShell421),
       '★ N71 (#421): the push does NOT write spixi.appearance. An OS flip does not change the user\'s PICK (still System) — writing an idx here would silently convert their Auto choice into a hard Light/Dark one');
 
@@ -15819,14 +15884,26 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     '★★ A6 SHELL: the chats-list delete emits ixian:removehistory:<addr>, and delete-contact emits ixian:removecontact:<addr>:<leave> — the "intent only" tombstone that left the contact on disk is GONE');
   ok(/StartsWith\("ixian:removehistory:", StringComparison\.Ordinal\)/.test(hpA) && /StartsWith\("ixian:removecontact:", StringComparison\.Ordinal\)/.test(hpA) && /StartsWith\("ixian:sharedGroups:", StringComparison\.Ordinal\)/.test(hpA),
     '★★ A6 C#: HomePage dispatches the three address-scoped verbs (StartsWith + Ordinal + colon)');
-  ok(hpA.indexOf('StartsWith("ixian:removecontact:"') < hpA.indexOf('current_url.Contains("ixian:qrresult:")'),
-    'A6 C# (#216/#393): the destructive verbs sit ABOVE the legacy Contains() branches — a crafted payload cannot hijack them');
+  /* ★ #46 r2 NIT-4 REBASE: the end anchor was `current_url.Contains("ixian:qrresult:")`, and
+     that branch is ANCHORED now (StartsWith + Ordinal + one Substring, like its ScanPage
+     twin) — so naming it would have pinned this ordering to a branch that is no longer a
+     legacy one. The PROPERTY is unchanged and is now asserted directly: the destructive verb
+     sits above the FIRST loose `Contains("ixian:…")` branch, whichever verb that happens to
+     be. Anchoring more of them shrinks the loose set; it must never re-order these two. */
+  const hpAs = stripCode(hpA);   // both offsets on the SAME stripped text (its hp13 twin's form) — a comment naming the literal must not move the anchor
+  const hpFirstLoose = hpAs.search(/current_url\.Contains\("ixian:/);
+  ok((hpFirstLoose < 0 || hpAs.indexOf('StartsWith("ixian:removecontact:"') < hpFirstLoose),
+    'A6 C# (#216/#393): the destructive verbs sit ABOVE the first loose Contains("ixian:…") branch — a crafted payload cannot hijack them');
   /* #797 rebase, rewritten in place: the leave notice now sits inside a try (a no-route
-     throw must not skip the removal) — the grammar is still sendLeave THEN removeFriend */
+     throw must not skip the removal) — the grammar is still sendLeave THEN removeFriend.
+     ★ Session O re-rebase: the catch names its exception (`catch (Exception ex)`, so the
+     TYPE can be logged without the address Core puts in the Message) and the removal is
+     CAPTURED (`bool removed = …`, because leaveGroup must report what actually happened —
+     see the Session O ④ pins). The grammar this pin is about is unchanged. */
   ok(/FriendList\.removeFriend\(friend\)/.test(scA) && /friend\.deleteHistory\(\)/.test(scA)
-    && /try\s*\{\s*CoreStreamProcessor\.sendLeave\(group, null\);\s*\}\s*catch \(Exception\)\s*\{[^}]*\}\s*FriendList\.removeFriend\(group\);/.test(stripCode(scA))
+    && /try\s*\{\s*CoreStreamProcessor\.sendLeave\(group, null\);\s*\}\s*catch \(Exception ex\)\s*\{[^}]*\}\s*bool removed = FriendList\.removeFriend\(group\);/.test(stripCode(scA))
     && !/pendingDeletion = true/.test(scA),
-    '★ A6 C# (#567 rebase · #797): SContacts runs the SAME bodies ContactDetails runs — removeFriend / deleteHistory / ONE leave grammar (sendLeave then immediate removeFriend, the send inside a try; the bot pendingDeletion wait is RETIRED — it crashed in frozen-core getClient, BE §1e-6)');
+    '★ A6 C# (#567 rebase · #797 · Session O): SContacts runs the SAME bodies ContactDetails runs — removeFriend / deleteHistory / ONE leave grammar (sendLeave inside a try, then the removal, whose result the method returns; the bot pendingDeletion wait is RETIRED — it crashed in frozen-core getClient, BE §1e-6)');
   ok(/"removeContactResult", args\.ToArray\(\)/.test(hpA) && /"removeHistoryResult", addr, status/.test(hpA) && /"setSharedGroups", args\.ToArray\(\)/.test(hpA),
     'A6 C#: every outcome is PUSHED (removeContactResult / removeHistoryResult / setSharedGroups) — the shell can un-tombstone a refusal');
   {
@@ -16597,18 +16674,33 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
      SContacts.leaveGroup, and both page copies CALL it instead of inlining the pair.
      stripCode: the docblocks name sendLeave and removeFriend. */
   const sc567c = stripCode(sc567), cd567c = stripCode(cd567), scp567c = stripCode(scp567);
-  const leaveShape = /try\s*\{\s*CoreStreamProcessor\.sendLeave\(group, null\);\s*\}\s*catch \(Exception\)\s*\{[^}]*\}\s*FriendList\.removeFriend\(group\);\s*UIHelpers\.shouldRefreshContacts = true;/;
-  ok(leaveShape.test(sc567c) && !/pendingDeletion = true/.test(sc567),
-    '★ #567 ① (#797): SContacts.leaveGroup = sendLeave (in a try) → immediate removeFriend for group AND bot; pendingDeletion is never set');
+  /* ★ Session O re-rebase: the shape gained `ex` on the catch and a captured `removed`, and
+     a refused removal now logs between the removal and the refresh flag — the ORDER this pin
+     is about (send, then catch, then remove, then the refresh flag) is asserted by index
+     rather than by one literal run, so a log line between two of them cannot fail it. */
+  const iSend567 = sc567c.indexOf('CoreStreamProcessor.sendLeave(group, null);');
+  const iCatch567 = sc567c.indexOf('catch (Exception ex)', iSend567 + 1);
+  const iRem567 = sc567c.indexOf('bool removed = FriendList.removeFriend(group);', iCatch567 + 1);
+  const iFlag567 = sc567c.indexOf('UIHelpers.shouldRefreshContacts = true;', iRem567 + 1);
+  ok(/try\s*\{\s*CoreStreamProcessor\.sendLeave\(group, null\);\s*\}\s*catch \(Exception ex\)/.test(sc567c)
+    && iSend567 > 0 && iCatch567 > iSend567 && iRem567 > iCatch567 && iFlag567 > iRem567
+    && !/pendingDeletion = true/.test(sc567),
+    '★ #567 ① (#797 · Session O): SContacts.leaveGroup = sendLeave (in a try) → catch → immediate removeFriend for group AND bot → the refresh flag; pendingDeletion is never set');
   const cdLeave = cd567c.slice(cd567c.indexOf('current_url.Equals("ixian:leave"'), cd567c.indexOf('current_url.StartsWith("ixian:enableNotifications"'));
   ok(cdLeave.length > 0 && /SContacts\.leaveGroup\(friend\)/.test(cdLeave) && !/sendLeave\(/.test(cdLeave) && !/FriendList\.removeFriend\(/.test(cdLeave)
      && !/pendingDeletion = true/.test(cd567)
      && /SContacts\.removeContact\(friend, leaveShared, out removeBlockers\)/.test(cd567),
     '★ #567 ②③ (rebased by SPEC §4 · #797): ContactDetails ixian:leave CALLS SContacts.leaveGroup and inlines neither sendLeave nor removeFriend — the copy that threw out of onNavigating is gone; the BOT remove branch routes through SContacts.removeContact → leaveGroup. pendingDeletion is never set');
-  const scpLeave = scp567c.slice(scp567c.indexOf('current_url.StartsWith("ixian:leave")'), scp567c.indexOf('current_url.StartsWith("ixian:openLink:"'));
+  /* ★ Session O re-rebase: SingleChatPage dispatches the verb by EXACT match now
+     (`Equals("ixian:leave", StringComparison.Ordinal)`, as ContactDetails always did) — the
+     bare-name StartsWith would have swallowed any future `ixian:leave*` verb from this
+     shell. The slice anchor moves with it; the property asserted is unchanged. */
+  const iScpLeave = scp567c.indexOf('current_url.Equals("ixian:leave", StringComparison.Ordinal)');
+  const scpLeave = iScpLeave < 0 ? '' : scp567c.slice(iScpLeave, scp567c.indexOf('current_url.StartsWith("ixian:openLink:"', iScpLeave));
   ok(scpLeave.length > 0 && /SContacts\.leaveGroup\(friend\)/.test(scpLeave) && !/sendLeave\(/.test(scpLeave) && !/FriendList\.removeFriend\(/.test(scpLeave)
-     && !/pendingDeletion = true/.test(scp567),
-    '★ #567 ④ (#797): SingleChatPage ixian:leave (the third path) CALLS the one home too; pendingDeletion is never set');
+     && !/pendingDeletion = true/.test(scp567)
+     && !/StartsWith\("ixian:leave"\)/.test(scp567c),
+    '★ #567 ④ (#797 · Session O): SingleChatPage ixian:leave (the third path) is dispatched by EXACT match and CALLS the one home too; pendingDeletion is never set, and the bare-name StartsWith that would swallow a future ixian:leave* verb is gone');
   ok(/§1e-6/.test(sc567) && /getClient/.test(sc567),
     '★ #567: the mechanism comment cites BE §1e-6 (the core one-line fix that may restore the acknowledged grammar later) — the mitigation is not silent');
 }
@@ -21360,9 +21452,13 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   const bundle13 = rdL13('src/demo/spixi.iife.js');
 
   /* —— C#, at source ———————————————————————————————————————————————————————— */
+  /* ★ #46 r2 NIT-4 REBASE, the twin of the A6 one: `Contains("ixian:qrresult:")` was the end
+     anchor and that branch is anchored now, so the ordering is asserted against the FIRST
+     loose Contains("ixian:…") branch instead of against one named verb. Same property. */
+  const hp13Loose = hp13c.search(/current_url\.Contains\("ixian:/);
   ok(/StartsWith\("ixian:leavegroup:", StringComparison\.Ordinal\)/.test(hp13c)
-    && hp13c.indexOf('StartsWith("ixian:leavegroup:"') < hp13c.indexOf('current_url.Contains("ixian:qrresult:")'),
-    '★★ L13 C#: the verb is StartsWith + Ordinal + a trailing colon and it sits ABOVE the legacy Contains() branches — the #216/#393 rule every destructive verb added since has followed, so a crafted payload that merely CONTAINS the literal cannot reach it');
+    && (hp13Loose < 0 || hp13c.indexOf('StartsWith("ixian:leavegroup:"') < hp13Loose),
+    '★★ L13 C#: the verb is StartsWith + Ordinal + a trailing colon and it sits ABOVE the first loose Contains("ixian:…") branch — the #216/#393 rule every destructive verb added since has followed, so a crafted payload that merely CONTAINS the literal cannot reach it');
 
   {
     /* the handler body, isolated — indexOf on the STRIPPED text, so the docblock above it
@@ -24414,6 +24510,9 @@ console.log('Session M: the apps layout · the present signal on the DATA pages'
     '★ #775: one key, one reader, one writer, both in the host — and BOTH in try/catch, because DomStorageEnabled can be false (ARCHITECTURE). The write takes appsState.layout, i.e. the value AFTER setAppsLayout normalised it, so the store can only ever hold one of the two fixed words');
   ok(!/persistence deferred/.test(appsShellM) && /state\.layout = layout === 'grid' \? 'grid' : 'list';/.test(appsShellM),
     '★ #775: the component still owns the NORMALISATION and no longer claims the persistence is deferred — it is closed, in the host, where the components\' own contract puts it (a component never touches storage). A comment asserting an invariant the code no longer has is a defect (#772)');
+  /* ⚠ RAW read of the BUILT shell (★ Session O NIT: declared). Both clauses are POSITIVE and
+     the subject is that this CODE ships, so stripping would only remove text that cannot
+     satisfy them — and the built artifact is what the device loads. */
   ok(/localStorage\.setItem\(APPS_LAYOUT_KEY, appsState\.layout\)/.test(homeBuiltM)
     && /layout: readAppsLayout\(\)/.test(homeBuiltM),
     '★ #775: and it is in the BUILT shell — src can be right while the artifact the device loads is a build behind (the #768 class, and Session H\'s stale-Raw finding)');
@@ -24430,18 +24529,65 @@ console.log('Session M: the apps layout · the present signal on the DATA pages'
      handler presents the page before its data — worse than the 120 ms it saves. Each of
      the five is pinned at the line it must follow, by NAME, so moving the call earlier
      turns the pin red rather than passing on the presence of the word. */
+  /* ★ Session O #46 (auditor C MAJOR-2) — THE PLACEMENT PIN NEEDED ITS NEGATIVE HALF.
+     `bridge.painted()` is LATCHED (one-shot, native.js), so an EARLIER call WINS and the
+     pinned late one becomes dead code that still satisfies a positive regex. Each site now
+     carries the enclosing function's own start/end anchors, and the slice must hold EXACTLY
+     ONE call — plus exactly one in the whole stripped shell, which is what makes "the only
+     signal is this one" a fact rather than "a signal exists here too".
+     ⚠ Reads with comments STRIPPED (njsM) at every site: five of these six docblocks say
+     the words `bridge.painted()` while explaining the placement (#771).
+     The `end` anchor is the next declaration at the same nesting, quoted by name; the guard
+     below refuses to slice when either anchor is missing. */
   const paintedSites = [
-    ['src/shells/contact_details.html', /built = true;\s*bridge\.painted\(\);/, 'contact_details signals after `built = true` — the boot spinner is on screen until that line'],
-    ['src/shells/app_details.html', /scroll\.scrollTop = 0;\s*bridge\.painted\(\);/, 'app_details signals at the end of render(), which returns early while `app` is null'],
-    ['src/shells/wallet_sent.html', /rendered = true;\s*bridge\.painted\(\);/, 'wallet_sent signals after `rendered = true` — only ever reached through setData\'s commit (#289\'s staging buffer)'],
-    ['src/shells/downloads.html', /if \(buf !== null\) \{ setDownloads\(dlEl, buf\); buf = null; \}\s*bridge\.painted\(\);/, 'downloads signals INSIDE the settle, never beside the empty mount above it'],
-    ['src/shells/settings.html', /if \(ds && ds\.textContent !== state\.devSeed\.status\) ds\.textContent = state\.devSeed\.status;\s*\}\s*bridge\.painted\(\);/, 'settings signals at the end of rebuildHub, which only ever runs from a push — never from renderLayout, which runs once at boot with no data'],
+    ['src/shells/contact_details.html', 'function rebuildPanel() {', 'function stateSig() {', /built = true;\s*bridge\.painted\(\);/, 'contact_details signals inside rebuildPanel, after `built = true` — the boot spinner is on screen until that line'],
+    ['src/shells/app_details.html', 'function render() {', 'const handlers = {', /scroll\.scrollTop = 0;\s*bridge\.painted\(\);/, 'app_details signals at the end of render(), which returns early while `app` is null'],
+    ['src/shells/wallet_sent.html', 'function render() {', 'let sentHasBack = true;', /rendered = true;\s*bridge\.painted\(\);/, 'wallet_sent signals inside render(), after `rendered = true` — only ever reached through setData\'s commit (#289\'s staging buffer)'],
+    ['src/shells/downloads.html', 'function settle() {', 'const handlers = {', /if \(buf !== null\) \{ setDownloads\(dlEl, buf\); buf = null; \}\s*bridge\.painted\(\);/, 'downloads signals INSIDE the settle, never beside the empty mount above it'],
+    ['src/shells/settings.html', 'function rebuildHub() {', 'let rebuildQueued = false;', /state\.devSeed\.status;\s*\}\s*if \(mounted\) bridge\.painted\(\);/, 'settings signals at the end of rebuildHub — which only ever runs from a push — and only when that rebuild actually MOUNTED something (the #46 MINOR-6 guard)'],
   ];
-  for (const [pth, re, why] of paintedSites) {
-    ok(re.test(njsM(rdM(pth))), '★★ Session M (#766 generalisation): ' + why + '. Placement, not presence: a signal before the first real render presents an empty page, which is worse than the 120 ms hold it replaces');
+  for (const [pth, startAnchor, endAnchor, re, why] of paintedSites) {
+    const src = njsM(rdM(pth));
+    const a = src.indexOf(startAnchor);
+    const b = src.indexOf(endAnchor, a + startAnchor.length);
+    ok(a >= 0 && b > a, '★★ Session O: the enclosing-function anchors for ' + pth + ' resolve (`' + startAnchor + '` … `' + endAnchor + '`) — a slice pin whose anchors have moved asserts nothing at all');
+    const slice = a >= 0 && b > a ? src.slice(a, b) : '';
+    const inSlice = (slice.match(/bridge\.painted\(/g) || []).length;
+    const inFile = (src.match(/bridge\.painted\(/g) || []).length;
+    ok(re.test(src) && inSlice === 1 && inFile === 1,
+      '★★ Session M (#766 generalisation) + ★ Session O: ' + why + '. Placement, not presence: a signal before the first real render presents an empty page, which is worse than the 120 ms hold it replaces — and because the signal is LATCHED, this asserts it is the ONLY one in the enclosing function (' + inSlice + ') and in the whole shell (' + inFile + '), so an earlier call cannot win while the pinned one still reads correct');
   }
-  ok(!njsM(rdM('src/shells/settings.html')).includes('function renderLayout() {\n    if (exiting) return;\n    settleSubscreenSlide(root);\n    bridge.painted();'),
-    '★ Session M: and settings does NOT signal from renderLayout — the boot render builds the hub from the default state (no nickname, no avatar, no version), which is exactly the half-empty screen the 120 ms hold was added to hide');
+  /* ★ Session O (auditor C MAJOR-2, the set half): WHICH shells signal is itself the
+     contract. chat.html sends `ixian:painted` through bridge.send directly (Session K, its
+     own arm/latch pair with a 400 ms backstop) and must NOT gain a bridge.painted() call;
+     any other shell gaining one is a page presenting on a signal nobody reviewed.
+     ⚠ Comments STRIPPED — the shells that do NOT signal still discuss the verb. */
+  {
+    const signalling = readdirSync(join(root, 'src/shells'))
+      .filter((f) => f.endsWith('.html'))
+      .filter((f) => /bridge\.painted\(/.test(njsM(rdM('src/shells/' + f))))
+      .sort();
+    const want = ['app_details.html', 'contact_details.html', 'downloads.html', 'settings.html', 'wallet_sent.html'];
+    ok(signalling.join(',') === want.join(','),
+      '★★ Session O: EXACTLY the five #766-generalisation shells call bridge.painted() — got ' + (signalling.join(',') || 'none'));
+    ok(!/bridge\.painted\(/.test(njsM(rdM('src/shells/chat.html'))) && /bridge\.send\('ixian:painted'\)/.test(njsM(rdM('src/shells/chat.html'))),
+      '★ Session O pair: chat.html signals through `bridge.send(\'ixian:painted\')` and NOT through bridge.painted() — its present is the Session K arm/latch pair, deliberately not the shared double-rAF helper (the negative reads a real signalling shell)');
+  }
+  /* ★ Session O #46 (auditor C MAJOR-1) — THIS PIN USED TO MATCH NOTHING. It was an exact
+     `includes()` of a four-line literal with hard-coded indentation; that string is absent
+     from HEAD, so the pin was green for the wrong reason and stayed green when
+     `bridge.painted();` was injected into renderLayout. Rewritten as a SLICE of renderLayout
+     with a real end anchor, asserting the property: renderLayout does not signal.
+     ⚠ Comments STRIPPED (njsM) — the docblock in that function names the call (#771). */
+  {
+    const setSrc = njsM(rdM('src/shells/settings.html'));
+    const a = setSrc.indexOf('function renderLayout() {');
+    const b = setSrc.indexOf('function buildHub() {', a + 1);
+    ok(a >= 0 && b > a, '★ Session O: the renderLayout slice anchors resolve in settings.html (`function renderLayout() {` … `function buildHub() {`)');
+    const rl = a >= 0 && b > a ? setSrc.slice(a, b) : 'bridge.painted();';   // missing anchors → fail, never pass vacuously
+    ok(!/bridge\.painted\(\)/.test(rl),
+      '★ Session M: and settings does NOT signal from renderLayout — the boot render builds the hub from the default state (no nickname, no avatar, no version), which is exactly the half-empty screen the 120 ms hold was added to hide. Asserted over the FUNCTION BODY, because the signal is latched: a call here would win the latch and the correct one at the end of rebuildHub would never fire');
+  }
 
   /* ★★ Session M — the SOURCE half of the per-style boost, and the retirement it exposed.
      The relation is pinned behaviourally in the settings-screens block (doodles amplified
@@ -24492,10 +24638,24 @@ console.log('Session M: the apps layout · the present signal on the DATA pages'
       && chatN.indexOf("st.push(['inline'") < chatN.indexOf('bridge.ready();')
       && /window\.addEventListener\('load', signalReady, \{ once: true \}\)/.test(chatN),
       '★ Session N [CDPERF] parse: the shell\'s own inline script is the tenth stamp, the absolute (`pre=`) prints FIRST so it cannot be read as a delta, and the line prints from signalReady — registered on `load` with { once: true } (that is the once-ness), BEFORE bridge.ready(), after the last byte of the document has been compiled and before the first push can land');
+    /* ★ Session O #46 (auditor C MINOR-2): the message claimed FOUR properties the pin did
+       not assert — "five serial pings", "a 1.5 s timer", and "inside the try". The index
+       comparisons only proved the CALL sits between two other lines, which a call outside
+       the try satisfies just as well. The delay, the serial count and the try BOUNDARY are
+       asserted now. The slice is bounded by the glass stamp's own `try {` … `} catch (e) {}`
+       and guarded, so a reshape fails loudly instead of passing on an empty string. */
+    const gStamp = chatN.indexOf("console.warn('[CDPERF] chat-shell n='");
+    const tOpen = gStamp < 0 ? -1 : chatN.lastIndexOf('try {', gStamp);
+    const tClose = gStamp < 0 ? -1 : chatN.indexOf('} catch (e) {}', gStamp);
+    ok(gStamp > 0 && tOpen > 0 && tClose > gStamp,
+      '★ Session O: the glass stamp\'s try/catch boundary resolves in the built chat.html (`try {` before the [CDPERF] chat-shell stamp, `} catch (e) {}` after it)');
+    const glassTry = tOpen > 0 && tClose > gStamp ? chatN.slice(tOpen, tClose) : '';
     ok(/cdpong\(token\) \{/.test(chatN) && /ixian:cdping:' \+ Math\.round\(performance\.now\(\) \* 1000\)/.test(chatN)
-      && chatN.indexOf('cdRttProbe();') < chatN.indexOf("bridge.send('ixian:painted');") && chatN.indexOf('cdRttProbe();') > chatN.indexOf("console.warn('[CDPERF] chat-shell n='")
+      && chatN.indexOf('cdRttProbe();') < chatN.indexOf("bridge.send('ixian:painted');")
+      && glassTry.includes('cdRttProbe();')
+      && /cdPing\(\); \}, 1500\);/.test(chatN) && /samples\.length < 5/.test(chatN)
       && /if \(cdRtt\.done\) return;/.test(chatN) && /\[CDPERF\] chat-shell rtt n=/.test(chatN),
-      '★ Session N [CDPERF] rtt (TEMPORARY): five serial pings, ARMED from inside the glass stamp\'s try (a 1.5 s timer — never inside the open it measures, and a throw there cannot reach the present send that follows the catch), one-shot per document, one line');
+      '★ Session N [CDPERF] rtt (TEMPORARY): FIVE serial pings (`samples.length < 5` re-pings), armed on a 1.5 s timer (`cdPing(); }, 1500);` — never inside the open it measures), fired from INSIDE the glass stamp\'s try (asserted as containment, not as line order: a throw there must not reach the present send that follows the catch), one-shot per document (`cdRtt.done`), one line');
     const scpN2 = stripCode(readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8'));
     ok(/url\.StartsWith\("ixian:cdping:", StringComparison\.Ordinal\)/.test(scpN2)
       && /hasGeneratedContent && token\.Length > 0 && token\.Length <= 16 && token\.All\(c => c >= '0' && c <= '9'\)/.test(scpN2)
@@ -24513,7 +24673,11 @@ console.log('Session M: the apps layout · the present signal on the DATA pages'
      removeFriend. Delete every contact and the group you shared with them can never
      be left. (2) ContactDetails.onNavigating set e.Cancel only at the END of its
      chain, so the same throw left the navigation uncancelled and Android loaded
-     `ixian:leave` as a page. Pins read stripCode: every docblock names the pair. */
+     `ixian:leave` as a page. Pins read stripCode: every docblock names the pair.
+     ⚠ ONE clause reads RAW on purpose (★ Session O NIT): the `Otherwise it's just normal
+     navigation` negative asserts that a COMMENT is gone, and stripCode would delete the very
+     text it is about (the #771 mirror — a comment pin reads the prose, never the stripped
+     code). It is marked at its own line. */
   {
     console.log('\n— #797: the undeletable group —');
     const sc797 = stripCode(readFileSync(join(root, 'Spixi/Utils/SContacts.cs'), 'utf8'));
@@ -24521,32 +24685,552 @@ console.log('Session M: the apps layout · the present signal on the DATA pages'
     const scp797 = stripCode(readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8'));
     const lgAt = sc797.indexOf('public static bool leaveGroup(Friend group)');
     const lg = lgAt < 0 ? '' : sc797.slice(lgAt, sc797.indexOf('public static string removeContact(', lgAt));
-    const iTry = lg.indexOf('try'), iSend = lg.indexOf('CoreStreamProcessor.sendLeave(group, null);'), iCatch = lg.indexOf('catch (Exception)'), iRemove = lg.indexOf('FriendList.removeFriend(group);');
+    /* ★ Session O re-rebase: the catch NAMES its exception now (`catch (Exception ex)`), so
+       the log can carry the TYPE — which is what let the address-free line stay honest — and
+       the removal is CAPTURED (`bool removed = …`) because the method reports it. Both
+       anchors move; the ORDER (send in a try → catch → removal after it) is the property and
+       is unchanged. A missing anchor makes the guard below fail rather than slice from -1. */
+    const iTry = lg.indexOf('try'), iSend = lg.indexOf('CoreStreamProcessor.sendLeave(group, null);');
+    const iCatch = lg.indexOf('catch (Exception ex)'), iRemove = lg.indexOf('bool removed = FriendList.removeFriend(group);');
+    const catchBody = iCatch > 0 && iRemove > iCatch ? lg.slice(iCatch, iRemove) : '';
     ok(lgAt > 0 && iTry > 0 && iSend > iTry && iCatch > iSend && iRemove > iCatch
-      && /Logging\.warn\("leaveGroup: the leave notice has no route/.test(lg.slice(iCatch, iRemove)),
+      && /Logging\.warn\("leaveGroup: the leave notice could not be sent/.test(catchBody),
       '★★ #797 ① ONE HOME SURVIVES A NO-ROUTE LEAVE: in SContacts.leaveGroup the send sits inside a try, the catch LOGS (no address — the handover-gate log rule), and FriendList.removeFriend runs AFTER the catch — a group whose owner or roster is not in contacts is removed locally instead of never');
-    ok(!/ex\.Message/.test(lg) && !/walletAddress/.test(lg.slice(iCatch, iRemove)),
-      '★ #797 ①: the no-route line carries neither ex.Message (Core formats the base58 token into its text) nor the address');
+    ok(catchBody.length > 0 && !/ex\.Message/.test(lg) && !/walletAddress/.test(catchBody),
+      '★ #797 ①: the no-route line carries neither ex.Message (Core formats the base58 token into its text) nor the address — it names the exception TYPE instead');
     const onNavAt = cd797.indexOf('private void onNavigating(object sender, WebNavigatingEventArgs e)');
     const onNav = onNavAt < 0 ? '' : cd797.slice(onNavAt, cd797.indexOf('private void ', onNavAt + 40) < 0 ? undefined : cd797.indexOf('private void ', onNavAt + 40));
     const iDecode = onNav.indexOf('HttpUtility.UrlDecode(e.Url)'), iCancel = onNav.indexOf('e.Cancel = true;'), iGlobal = onNav.indexOf('onNavigatingGlobal(current_url)');
-    ok(onNavAt > 0 && iDecode > 0 && iCancel > iDecode && iCancel < iGlobal,
-      '★★ #797 ② CANCEL FIRST: ContactDetails.onNavigating sets e.Cancel = true right after the decode and BEFORE the first branch (HomePage:594 / SingleChatPage:280 grammar) — a branch that throws can no longer leave an ixian: navigation uncancelled for Android to load as a page');
+    /* ★ Session O #46 (auditor C MINOR-3): "BEFORE the first branch" was not asserted —
+       `iCancel < iGlobal` only put the cancel before ONE named branch, so a new `if` slipped
+       in between the decode and the cancel would keep this green while re-opening exactly
+       the #797 hole. The window between them must contain no branch at all.
+       ★ #46 r2 MINOR-1: through the shared BRANCH constant now — the hand-written `if \(`
+       it replaces was blind to `if(`, `switch(`, `while(`, `for(` and `try {`. */
+    const preCancel = iDecode >= 0 && iCancel > iDecode ? onNav.slice(iDecode, iCancel) : 'if (';
+    ok(onNavAt > 0 && iDecode > 0 && iCancel > iDecode && iCancel < iGlobal && !BRANCH.test(preCancel),
+      '★★ #797 ② CANCEL FIRST: ContactDetails.onNavigating sets e.Cancel = true right after the decode and BEFORE the first branch — asserted as "no branch stands between the decode and the cancel" (HomePage:594 / SingleChatPage:280 grammar). A branch that throws can no longer leave an ixian: navigation uncancelled for Android to load as a page');
     ok(/else if \(current_url\.Trim\(\)\.StartsWith\("file:", StringComparison\.OrdinalIgnoreCase\)\)\s*\{\s*e\.Cancel = false;\s*return;\s*\}\s*e\.Cancel = true;/.test(onNav)
+      /* ⚠ RAW read, deliberately (see the block docblock): this asserts a COMMENT is gone. */
       && !/Otherwise it's just normal navigation/.test(readFileSync(join(root, 'Spixi/Pages/Contacts/ContactDetails.xaml.cs'), 'utf8')),
       '★ #797 ②: the tail re-allows ONLY a file: navigation (the shell\'s own load); an unknown ixian: verb stays on the page (the #335 OnboardPage rule) — the open "anything unmatched" else is gone');
     const cdLeaveAt = cd797.indexOf('current_url.Equals("ixian:leave", StringComparison.Ordinal)');
     const cdLeave = cdLeaveAt < 0 ? '' : cd797.slice(cdLeaveAt, cd797.indexOf('ixian:enableNotifications', cdLeaveAt));
-    ok(cdLeaveAt > 0 && /try\s*\{\s*SContacts\.leaveGroup\(friend\);\s*\}\s*catch \(Exception\)\s*\{\s*Logging\.error\("ixian:leave failed"\);\s*\}/.test(cdLeave),
-      '★★ #797 ③: the ContactDetails ixian:leave branch calls SContacts.leaveGroup inside its own try (the A-4 belt: never throw in onNavigating) — the inlined sendLeave + removeFriend pair that threw is gone from this page');
-    const scpLeaveAt = scp797.indexOf('current_url.StartsWith("ixian:leave")');
+    /* ★ #46 r1 RE-REBASE — THIS PIN WENT RED AND IT WAS RIGHT TO. Round 1 made
+       SContacts.leaveGroup REPORT the local removal (Session O ④), so both call sites now
+       capture the answer (`bool left = false; try { left = … }`) and act on a refusal. The
+       pin still matched the discarded-result shape, which is exactly the code the fix
+       removed. Rebased on the PROPERTY, in three parts, because the result-capture is now
+       load-bearing: the call is inside a try, its answer is CAPTURED, and the catch logs
+       without ex.Message. Written as ordered anchors rather than one whitespace-sensitive
+       regex, so a reflow of the branch cannot fail it while the property holds. */
+    const iLeft = cdLeave.indexOf('bool left = false;');
+    const iCall = cdLeave.indexOf('left = SContacts.leaveGroup(friend);');
+    const iCdTry = cdLeave.indexOf('try', iLeft < 0 ? 0 : iLeft);
+    const iCdCatch = cdLeave.indexOf('catch (Exception)', iCall < 0 ? 0 : iCall);
+    ok(cdLeaveAt > 0 && iLeft >= 0 && iCdTry > iLeft && iCall > iCdTry && iCdCatch > iCall
+      && /Logging\.error\("ixian:leave failed"\);/.test(cdLeave) && !/ex\.Message/.test(cdLeave)
+      && /if \(!left\)/.test(cdLeave),
+      '★★ #797 ③: the ContactDetails ixian:leave branch calls SContacts.leaveGroup inside its own try (the A-4 belt: never throw in onNavigating), CAPTURES what the one home reported, and branches on `if (!left)` — the inlined sendLeave + removeFriend pair that threw is gone from this page, and a refused removal no longer reads as a completed leave');
+    /* ★ Session O re-rebase: the anchor is the EXACT-match dispatch now (see #567 ④). */
+    const scpLeaveAt = scp797.indexOf('current_url.Equals("ixian:leave", StringComparison.Ordinal)');
     const scpLeave = scpLeaveAt < 0 ? '' : scp797.slice(scpLeaveAt, scp797.indexOf('ixian:openLink:', scpLeaveAt));
-    ok(scpLeaveAt > 0 && /try\s*\{\s*SContacts\.leaveGroup\(friend\);\s*\}\s*catch \(Exception\)/.test(scpLeave) && !/sendLeave\(/.test(scpLeave),
-      '★ #797 ③: SingleChatPage\'s ixian:leave (the third path) calls the one home inside a try too');
-    ok((sc797.match(/sendLeave\(/g) || []).length === 1
-      && !/sendLeave\(/.test(cd797) && !/sendLeave\(/.test(scp797)
-      && !/sendLeave\(/.test(stripCode(readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8'))),
-      '★★ #797 ④ ONE SEND SITE: sendLeave is called from exactly one place in the app (SContacts.leaveGroup) — ContactDetails, SingleChatPage and HomePage all route through it, so the no-route survival cannot drift out of one copy (the #658 lesson: a rule in four homes drifts)');
+    /* ★ #46 r1 RE-REBASE, the same repair as its ContactDetails twin one clause up: round 1
+       gave leaveGroup a return value, both call sites capture it, and the discarded-result
+       shape this matched is the code that fix removed. Same three-part property. */
+    const iScpLeft = scpLeave.indexOf('bool left = false;');
+    const iScpCall = scpLeave.indexOf('left = SContacts.leaveGroup(friend);');
+    const iScpTry = scpLeave.indexOf('try', iScpLeft < 0 ? 0 : iScpLeft);
+    const iScpCatch = scpLeave.indexOf('catch (Exception)', iScpCall < 0 ? 0 : iScpCall);
+    ok(scpLeaveAt > 0 && iScpLeft >= 0 && iScpTry > iScpLeft && iScpCall > iScpTry && iScpCatch > iScpCall
+      && /if \(!left\)/.test(scpLeave) && !/ex\.Message/.test(scpLeave) && !/sendLeave\(/.test(scpLeave),
+      '★ #797 ③: SingleChatPage\'s ixian:leave (the third path) is dispatched by exact match, calls the one home inside a try too, and CAPTURES its answer — a refusal keeps the page open instead of reading as a completed leave');
+    /* ★ Session O #46 (auditor C MINOR-4): "exactly one place IN THE APP" was asserted over
+       FOUR NAMED FILES. A fifth caller anywhere else — a new page, a helper, a platform
+       folder — was invisible to it, which is the #658 drift this pin exists to prevent.
+       Counted over EVERY .cs under Spixi/ now, nothing excluded, through stripCode (a
+       docblock explaining the one-home rule necessarily names the method — #771). */
+    /* ★ #46 r2 NIT-6: obj/ and bin/ are excluded, exactly as the ① walk excludes them. They
+       hold generated and COPIED sources — an intermediate copy of a page that still inlines
+       sendLeave would fail this pin for a tree whose real sources conform, and a stale
+       build output is not a call site anybody can drift. */
+    const csFiles = [];
+    (function walkCs(d) {
+      for (const nme of readdirSync(d)) {
+        const q = join(d, nme);
+        if (statSync(q).isDirectory()) { if (nme !== 'obj' && nme !== 'bin') walkCs(q); }
+        else if (nme.endsWith('.cs')) csFiles.push(q);
+      }
+    })(join(root, 'Spixi'));
+    const leaveCallers = csFiles.filter((f) => /sendLeave\(/.test(stripCode(readFileSync(f, 'utf8'))))
+      .map((f) => f.slice(root.length + 1).replace(/\\/g, '/'));
+    const leaveCalls = csFiles.reduce((n, f) => n + (stripCode(readFileSync(f, 'utf8')).match(/sendLeave\(/g) || []).length, 0);
+    ok(csFiles.length > 50 && leaveCalls === 1 && leaveCallers.join(',') === 'Spixi/Utils/SContacts.cs',
+      '★★ #797 ④ ONE SEND SITE: sendLeave is called EXACTLY ONCE across all ' + csFiles.length + ' C# files under Spixi/ (SContacts.leaveGroup) — ContactDetails, SingleChatPage and HomePage all route through it, so the no-route survival cannot drift out of one copy (the #658 lesson: a rule in four homes drifts). Got ' + leaveCalls + ' call(s) in: ' + (leaveCallers.join(' · ') || 'none'));
+    ok(!/sendLeave\(/.test(cd797) && !/sendLeave\(/.test(scp797),
+      '★ #797 ④ pair: the two pages that used to inline the send hold none (the sweep above reads a real corpus)');
+  }
+}
+
+console.log('★★ Session O — the #46 loop over Sessions M + N');
+{
+  const rdO = (pth) => readFileSync(join(root, pth), 'utf8');
+  const njsO = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/[^\n]*/gm, '');
+
+  /* ═══ ① #797 GENERALISED — CANCEL FIRST ON EVERY PAGE THAT OWNS AN onNavigating ═══
+     #797 fixed ONE page. The same shape — set `e.Cancel` only at the END of the chain —
+     was live on the others, and on each of them a branch that throws leaves an `ixian:`
+     navigation uncancelled for the WebView to LOAD AS A PAGE (Android: "Webpage not
+     available"; iOS: the whole URL into ixian.log, which is why the EncryptionPassword and
+     SettingsPage password branches carry their own try/catch — those two are the reason
+     this is a security property and not a cosmetic one).
+     The second half is the TAIL: `else { e.Cancel = false; }` re-allowed ANY unmatched
+     navigation, so an unknown `ixian:` verb was loaded as a document. Each page now
+     re-allows exactly one thing — its own `file:` load.
+
+     ★ #46 r1 MINOR-4 — THE HAND LIST IS GONE. It named nine pages while nineteen files
+     own the handler, so the ten it omitted could keep the defective shape and the suite
+     would stay green. This WALKS every .cs file under Spixi/ instead: every file containing the
+     signature is asserted, with NO exception list, and the count is pinned as a floor so
+     deleting a page cannot silently shrink the sweep. If a page ever needs to re-allow
+     something other than `file:` (a third-party mini-app allowing http, say), encode that
+     exception HERE with its reason — do not skip the file. MiniAppPage is deliberately in
+     the sweep and conforms today: it re-allows `file:` only, like the rest.
+
+     ★ #46 r1 MINOR-2 — the tail clause used to read a 200-char window BEFORE the
+     `e.Cancel = false;` for the `StartsWith("file:"…)` literal. `!current_url.Trim()
+     .StartsWith("file:", …)` satisfies that window while INVERTING the branch, which
+     restores the #797 symptom exactly, and the mutation stayed green. The clause now
+     asserts the branch HEAD verbatim — `else if (current_url.Trim().StartsWith("file:",
+     StringComparison.OrdinalIgnoreCase))`, whose `(current_url` cannot be reached by a
+     negation — and that nothing but the opening brace stands between that head and the
+     one `e.Cancel = false;`.
+     ⚠ Reads through stripCode: every one of these pages explains the rule in a comment
+     that names `e.Cancel` (#771). Slices are guarded; a moved anchor fails loudly. */
+  /* ★ #46 r2 NIT-2 — THE END ANCHOR IS THE METHOD'S OWN CLOSING BRACE, NOT THE NEXT
+     ACCESS MODIFIER. `\n[ \t]*(private|public|protected|internal)[ \t]` over-ran into the
+     following member whenever that member declared none — a `static`, an `async`, an
+     attribute line, a nested type, a field with no modifier — and the body then carried
+     code the pins below attribute to onNavigating (the tail pin COUNTS `e.Cancel = false;`
+     occurrences, so a neighbour holding one made a conforming page fail). It failed CLOSED
+     rather than open, so this is brittleness, not unsoundness — but a pin that goes red for
+     an unrelated edit is a pin people learn to ignore.
+     Brace-matched from the signature's first `{` instead. stripCode removes comments but
+     NOT string literals, and a `{` inside one would derail the count, so the count runs
+     over an OFFSET-PRESERVING MASK (literals blanked to spaces of equal length) while the
+     slice is taken from the original text. The caller asserts the slice ends with `}`.
+     ⚠ Known gap, fails CLOSED: a C# 8 nested-quote interpolation (`$"{d["a}b"]}"`) masks
+     only up to the inner quote, so a `}` inside the nested string stays visible to the
+     count and the slice truncates early — the `body.includes('e.Cancel')` guard then goes
+     red. No handler holds one today: the only INTERPOLATED string inside a handler is
+     SingleChatPage's `$"…{ex.Message}"`; HomePage's `+$"` is a regex end-anchor inside an
+     ordinary literal, which the mask consumes whole. */
+  const maskCsLiterals = (t) => t.replace(
+    /@"(?:[^"]|"")*"|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'/g,
+    (m) => ' '.repeat(m.length),
+  );
+  const csSlice = (src, startAnchor) => {
+    const a = src.indexOf(startAnchor);
+    if (a < 0) return { a: -1, b: -1, body: '' };
+    const mask = maskCsLiterals(src);
+    const open = mask.indexOf('{', a + startAnchor.length);
+    if (open < 0) return { a, b: -1, body: '' };
+    let depth = 0, b = -1;
+    for (let i = open; i < mask.length; i++) {
+      if (mask[i] === '{') depth++;
+      else if (mask[i] === '}' && --depth === 0) { b = i + 1; break; }
+    }
+    return { a, b, body: b > a ? src.slice(a, b) : '' };
+  };
+  const NAV_SIG = 'void onNavigating(object sender, WebNavigatingEventArgs e)';
+  const FILE_HEAD = 'else if (current_url.Trim().StartsWith("file:", StringComparison.OrdinalIgnoreCase))';
+  const csFilesO = [];
+  (function walkCsO(dir) {
+    for (const ent of readdirSync(dir, { withFileTypes: true }).sort((x, y) => (x.name < y.name ? -1 : 1))) {
+      if (ent.isDirectory()) { if (ent.name !== 'obj' && ent.name !== 'bin') walkCsO(join(dir, ent.name)); }
+      else if (ent.name.endsWith('.cs')) csFilesO.push(join(dir, ent.name));
+    }
+  })(join(root, 'Spixi'));
+  const NAV_PAGES = csFilesO
+    .map((f) => f.slice(root.length).replace(/\\/g, '/').replace(/^\//, ''))
+    .filter((rel) => rdO(rel).includes(NAV_SIG));
+  ok(NAV_PAGES.length >= 19,
+    '★★ Session O ① THE SWEEP IS A WALK, NOT A LIST (#46 r1 MINOR-4): every .cs file under Spixi/ that owns an onNavigating handler is asserted below — found ' + NAV_PAGES.length + ', floor 19. The nine-name hand list this replaces left TEN handlers unasserted, so the pages the C# fix had not reached yet could not fail the suite');
+  for (const pth of NAV_PAGES) {
+    const name = pth.split('/').pop().replace('.xaml.cs', '').replace('.cs', '');
+    const { a, b, body } = csSlice(stripCode(rdO(pth)), NAV_SIG);
+    /* ★ #46 r2 NIT-2: the slice is brace-matched, so its own end is checkable — a body that
+       does not close at a `}` means the count ran off (an unmasked literal, a truncated
+       file) and every pin below it would be reading a window nobody chose. `e.Cancel` is
+       asserted with it because a slice that holds none is not this handler at all. */
+    ok(a >= 0 && b > a && body.trimEnd().endsWith('}') && body.includes('e.Cancel'),
+      '★ Session O: ' + name + '.onNavigating resolves as a brace-matched slice that closes at its own `}` and holds `e.Cancel` — the two pins below assert nothing without it');
+    const iDec = body.indexOf('HttpUtility.UrlDecode(e.Url)');
+    const iCan = body.indexOf('e.Cancel = true;');
+    const window = iDec >= 0 && iCan > iDec ? body.slice(iDec, iCan) : 'if (';   // missing → fail, never pass vacuously
+    ok(iDec > 0 && iCan > iDec && !BRANCH.test(window),
+      '★★ Session O ① CANCEL FIRST (#797 generalised): ' + name + '.onNavigating sets `e.Cancel = true` immediately after the decode and BEFORE any branch — no branch stands between them (BRANCH: if / switch / while / for / foreach / try, with or without the space the old `if \(` literal required). A branch that throws can no longer leave an ixian: navigation for the WebView to load as a page (and on iOS the handler would log the WHOLE URL, passwords included)');
+    const falses = (body.match(/e\.Cancel = false;/g) || []).length;
+    const iFalse = body.indexOf('e.Cancel = false;');
+    const iHead = body.indexOf(FILE_HEAD);
+    /* the gap is the branch's own opening brace and nothing else — a second branch would
+       mean the re-allow sits in a NESTED condition the head no longer describes, and a `!`
+       would mean the head above it was negated between here and there.
+       ★ #46 r2 MINOR-1: BRANCH, not `if \(` — `if(` alone used to satisfy this. */
+    const gap = iHead >= 0 && iFalse > iHead ? body.slice(iHead + FILE_HEAD.length, iFalse) : 'if (!';
+    ok(falses === 1 && iHead >= 0 && iFalse > iHead && !BRANCH.test(gap) && !gap.includes('!'),
+      '★★ Session O ① THE PERMISSIVE TAIL IS GONE: ' + name + '.onNavigating re-allows navigation EXACTLY ONCE (got ' + falses + '), and that one `e.Cancel = false` is the body of the VERBATIM head `' + FILE_HEAD + '` with nothing but its brace between them — an unknown ixian: verb now stays on the page (the #335 OnboardPage rule) instead of being loaded as a document. Asserting the head verbatim is the point: a negated test satisfies a mere "the literal appears nearby" window while restoring the exact defect');
+  }
+
+  /* ═══ ② LockPage: the unlock verb is ANCHORED ═══
+     `Contains("ixian:unlock:")` matched the verb ANYWHERE in the URL, and the password was
+     then taken from `Split(…)[1]` — a password containing the delimiter silently unlocked
+     with a TRUNCATED value the user can never reproduce. Substring after the FIRST prefix
+     is the only reading that survives a password shaped like the verb. stripCode: the
+     comment beside the fix quotes the old form. */
+  {
+    const lock = stripCode(rdO('Spixi/Pages/Launch/LockPage.xaml.cs'));
+    ok(/current_url\.StartsWith\("ixian:unlock:", StringComparison\.Ordinal\)/.test(lock)
+      && !/Contains\("ixian:unlock:"\)/.test(lock)
+      && /current_url\.Substring\("ixian:unlock:"\.Length\)/.test(lock)
+      && !/Split\(new string\[\] \{ "ixian:unlock:" \}/.test(lock),
+      '★★ Session O ②: LockPage dispatches the unlock verb ANCHORED at the start (StartsWith + Ordinal, never Contains) and reads the password as ONE Substring after the first prefix — a Split took index [1], so a password containing the verb text unlocked with a truncated value');
+  }
+
+  /* ═══ ⑰ ScanPage: the qrresult verb is ANCHORED too — and it had NO PIN ═══
+     ★ #46 r2 MINOR-2. ② fixed the same shape on LockPage and pinned it; the identical
+     repair on ScanPage shipped unpinned, so the branch that carries DECODED QR TEXT —
+     attacker-chosen bytes, by definition — was the one with no gate. `Contains` matched the
+     literal anywhere in the URL and `Split(…)[1]` then took the segment before the SECOND
+     occurrence, so a QR encoding its own `ixian:qrresult:` prefix truncated the payload at a
+     point the scanner chose. The shell drops such a payload (scan-shell.js) but that is a
+     belt: the anchoring is the property, because the shell is not the only thing that can
+     put a URL on this WebView. Asserted with its catch, which reaches the exception ONLY as
+     `ex.GetType().Name` — the same log rule pin ④ enforces on leaveGroup, and for the same
+     reason: ixian.log is offered through the share sheet and a Message can carry the payload.
+     stripCode: the comment beside the fix quotes the old form. */
+  {
+    const scan = stripCode(rdO('Spixi/Pages/Scan/ScanPage.xaml.cs'));
+    const iQr = scan.indexOf('current_url.StartsWith("ixian:qrresult:", StringComparison.Ordinal)');
+    const iFile = scan.indexOf('StartsWith("file:"', iQr < 0 ? 0 : iQr);
+    const qrBranch = iQr >= 0 && iFile > iQr ? scan.slice(iQr, iFile) : '';
+    ok(iQr >= 0 && iFile > iQr
+      && !/Contains\("ixian:qrresult:"\)/.test(scan)
+      && !/Split\(new string\[\] \{ "ixian:qrresult:" \}/.test(scan)
+      && qrBranch.includes('processQRResult(current_url.Substring("ixian:qrresult:".Length));'),
+      '★★ Session O ⑰: ScanPage dispatches `ixian:qrresult:` ANCHORED at the start (StartsWith + Ordinal, never Contains) and hands processQRResult ONE Substring after the first prefix — a Split took index [1], so a QR code encoding the verb text truncated its own payload at a point the scanner chose');
+    const strayQrEx = qrBranch.replace(/ex\.GetType\(\)\.Name/g, '').replace('catch (Exception ex)', '').match(/\bex\b/g);
+    ok(qrBranch.length > 0 && /catch \(Exception ex\)/.test(qrBranch) && /ex\.GetType\(\)\.Name/.test(qrBranch) && strayQrEx === null,
+      '★ Session O ⑰ pair: the qrresult catch reaches the exception ONLY as `ex.GetType().Name` — after removing that call and the declaration the branch holds no `ex` token at all (' + (strayQrEx ? strayQrEx.length + ' stray)' : '0 stray)') + '. `"…" + ex` calls ToString(), which carries the Message, and the Message of a parse failure over DECODED QR TEXT is the payload itself — straight into a log the share sheet offers');
+  }
+
+  /* ═══ ⑱ THE PRE-WARM's BEFORE INSTRUMENT (prewarm-chat-spec §4 row 1, TEMPORARY) ═══
+     #780's one warning is jank moved onto the chats list, and the spec's measurement plan
+     needs the SAME probe before and after the pre-warm lands. It starts where warm() will
+     be scheduled — HomePage.onOverlayClosed's SingleChatPage branch — and only when NO
+     conversation remains (a tag-replace close would measure the new chat, not the list).
+     stripCode (a docblock names the tag). Retires with the [CDPERF] set: when that sweep
+     runs, this pin is rewritten to assert ABSENCE, never deleted. */
+  {
+    const hpO = stripCode(rdO('Spixi/Pages/Home/HomePage.xaml.cs'));
+    const iBranch = hpO.indexOf('else if (overlay is SingleChatPage)');
+    const iNext = hpO.indexOf('else if (overlay is AppDetailsPage)', iBranch);
+    ok(iBranch > 0 && iNext > iBranch, '★ Session O ⑱: HomePage.onOverlayClosed resolves as a slice (the SingleChatPage branch, then the AppDetailsPage branch) — the pin below asserts nothing without it');
+    const branch = iBranch > 0 && iNext > iBranch ? hpO.slice(iBranch, iNext) : '';
+    const iGuard = branch.indexOf('if (!SpixiContentPage.getOverlayPages().Exists(p => p is SingleChatPage))', branch.indexOf('checkForRating();'));
+    const iProbe = branch.indexOf('SingleChatPage.CdperfFrameProbe.start(System.Diagnostics.Stopwatch.StartNew(), "chats-after-close");');
+    ok(iGuard > 0 && iProbe > iGuard && /#if ANDROID[\s\S]*?chats-after-close[\s\S]*?#endif/.test(branch)
+      && (branch.match(/CdperfFrameProbe\.start\(/g) || []).length === 1,
+      '★★ Session O ⑱: the chats-after-close frame probe starts in HomePage.onOverlayClosed\'s SingleChatPage branch, Android-only, ONLY when no conversation remains, ONCE, with the fixed tag "chats-after-close" — the pre-warm\'s BEFORE number (and its AFTER, from the same line)');
+  }
+
+  /* ═══ ③ SettingsPage: the appearance value is PARSED, never Converted ═══
+     `Convert.ToInt32` throws on any non-integer, and the value comes from the WebView. With
+     ① in place a throw no longer leaks the URL, but it still kills the rest of the handler
+     — the branch must answer instead. */
+  {
+    const set = stripCode(rdO('Spixi/Pages/Settings/SettingsPage.xaml.cs'));
+    ok(/if \(!int\.TryParse\(appearanceString, out var appearanceInt\)\)/.test(set)
+      && !/Convert\.ToInt32\(appearanceString\)/.test(set),
+      '★★ Session O ③: the appearance verb is int.TryParse-d and a non-integer is logged and IGNORED — `Convert.ToInt32` on WebView-supplied text threw out of onNavigating');
+  }
+
+  /* ═══ ④ SContacts.leaveGroup REPORTS THE LOCAL REMOVAL ═══
+     #797 made the send best-effort. It also made the method return `true` unconditionally,
+     so a REFUSED FriendList.removeFriend read as a completed leave — and removeContact maps
+     false to "fail", i.e. the caller's only signal. The catch must name the exception TYPE
+     and not its Message: Core formats the group's base58 address into the text, and the log
+     file is shareable (the handover-gate log rule). */
+  {
+    const sc = stripCode(rdO('Spixi/Utils/SContacts.cs'));
+    const { a, b, body } = csSlice(sc, 'public static bool leaveGroup(Friend group)');
+    ok(a >= 0 && b > a, '★ Session O: SContacts.leaveGroup resolves as a slice');
+    const iRemoved = body.indexOf('bool removed = FriendList.removeFriend(group);');
+    ok(iRemoved > 0 && /return removed;/.test(body) && !/return true;/.test(body.slice(iRemoved)),
+      '★★ Session O ④: leaveGroup RETURNS what FriendList.removeFriend reported — a refused local removal can no longer read as a completed leave (removeContact maps false to "fail", and that is the caller\'s only signal)');
+    /* ★ #46 r1 MINOR-3: banning the literal `ex.Message` is not the property. `Logging
+       .warn("… " + ex)` calls ToString(), which CARRIES the message — the group's base58
+       address right back into a shareable log — and the mutation stayed green. So slice
+       the catch body and assert that after removing every `ex.GetType().Name`, no `ex`
+       token survives at all: the exception is reachable ONLY through its type name.
+       `catch (Exception ex)` is dropped from the slice first, since the declaration is
+       the one `ex` that must be there. */
+    const iCatch = body.indexOf('catch (Exception ex)');
+    const iEndCatch = iCatch >= 0 ? body.indexOf('\n            }', iCatch) : -1;
+    const catchBody = iCatch >= 0 && iEndCatch > iCatch
+      ? body.slice(iCatch, iEndCatch).replace('catch (Exception ex)', '')
+      : 'ex.Message';                                  // missing → fail, never pass vacuously
+    const strayEx = catchBody.replace(/ex\.GetType\(\)\.Name/g, '').match(/\bex\b/g);
+    ok(iCatch >= 0 && iEndCatch > iCatch && /ex\.GetType\(\)\.Name/.test(catchBody) && strayEx === null,
+      '★★ Session O ④: the no-route catch reaches the exception ONLY as `ex.GetType().Name` — after removing that call the slice holds no `ex` token at all (' + (strayEx ? strayEx.length + ' stray) — ' : '0 stray) — ') + 'Core formats the group address into the Message, and `"…" + ex` would put it there through ToString() just as surely as ex.Message. ixian.log is offered through the share sheet (the handover-gate log rule)');
+  }
+
+  /* ═══ ⑤ `ixian:painted` is gated on hasGeneratedContent ═══
+     The verb's mini-app exclusion used to rest on a FACT ABOUT ANOTHER FILE (MiniAppPage is
+     never staged, so it holds no gate). The `ixian:cdping:` sibling one line below already
+     tested `hasGeneratedContent`; the present verb does now too, so the exclusion is
+     enforced where it is read. stripCode — the docblock above it says the word. */
+  {
+    const scp = stripCode(rdO('Spixi/Utils/SpixiContentPage.cs'));
+    const iPainted = scp.indexOf('url.Equals("ixian:painted", StringComparison.Ordinal)');
+    const iPing = scp.indexOf('url.StartsWith("ixian:cdping:", StringComparison.Ordinal)');
+    const branch = iPainted > 0 && iPing > iPainted ? scp.slice(iPainted, iPing) : '';
+    ok(iPainted > 0 && iPing > iPainted && /if \(hasGeneratedContent\)\s*\{\s*onPaintedSignal\(\);\s*\}/.test(branch),
+      '★★ Session O ⑤: the `ixian:painted` branch calls onPaintedSignal() only when hasGeneratedContent — the same test its `ixian:cdping:` sibling uses. A mini-app WebView is a third-party document; its exclusion is enforced at the dispatcher now instead of resting on MiniAppPage holding no paint gate');
+  }
+
+  /* ═══ ⑥ THE COLOUR CARD IS BUILT ONLY IN LIGHT ═══
+     It used to be created and appended unconditionally, which painted an EMPTY 8 px card
+     under the Background card in dark. Pinned on both sides: the source shape, and the DOM
+     in both themes — a source pin alone cannot see an empty node, which is the whole defect.
+     ⚠ Source clauses read with comments STRIPPED (njsO): the docblock records the old
+     unconditional append (#771). */
+  {
+    const ss = njsO(rdO('src/components/settings-screens.js'));
+    ok(/let groundSec = null;/.test(ss)
+      && /if \(isLight\) \{\s*groundSec = document\.createElement\('div'\);/.test(ss)
+      && /body\.append\(sizeSec, styleSec\);\s*if \(groundSec\) body\.append\(groundSec\);/.test(ss)
+      && !/body\.append\(sizeSec, styleSec, groundSec\)/.test(ss),
+      '★★ Session O ⑥: the Colour section is CREATED inside `if (isLight)` and appended only when it exists — the unconditional create+append shipped an empty section element into dark, and CSS cannot hide a card it has no way to distinguish');
+  }
+
+  const domO = await load('settings.html');
+  {
+    const WO = domO.window, deO = WO.document.documentElement;
+    const prev = deO.getAttribute('data-theme');
+    deO.setAttribute('data-theme', 'light');
+    const apL = WO.Spixi.createChatAppearance({ isDesktop: false });
+    deO.setAttribute('data-theme', 'dark');
+    const apD = WO.Spixi.createChatAppearance({ isDesktop: false });
+    if (prev === null) deO.removeAttribute('data-theme'); else deO.setAttribute('data-theme', prev);
+    ok(apL.querySelectorAll('.c-settings-appearance__groundsec').length === 1
+      && apD.querySelectorAll('.c-settings-appearance__groundsec').length === 0,
+      '★★ Session O ⑥ (the DOM half): the Colour SECTION NODE exists in light and does not exist in dark — got ' + apL.querySelectorAll('.c-settings-appearance__groundsec').length + ' / ' + apD.querySelectorAll('.c-settings-appearance__groundsec').length + '. A source pin cannot see an empty element; this is the pin that fails if the create moves back outside the guard');
+
+    /* ═══ ⑬ THE PRESENT SIGNAL, BEHAVIOURALLY (auditor C NIT-1) ═══
+       Every other painted pin reads text. This one drives the real bundle export: latched
+       (two calls, one emission) and DOUBLE-rAF (nothing is emitted until TWO frame callbacks
+       have run). The window is a stub whose requestAnimationFrame COLLECTS callbacks — the
+       function under test is bridge.painted itself and is never stubbed (#771). */
+    const frames = [];
+    const emitted = [];
+    const stubWin = { requestAnimationFrame: (cb) => frames.push(cb) };
+    const brO = WO.Spixi.createNativeBridge({ emit: (c) => emitted.push(c), win: stubWin });
+    brO.painted();
+    brO.painted();
+    const queuedAfterTwoCalls = frames.length;
+    const atStart = emitted.filter((c) => c === 'ixian:painted').length;
+    frames.splice(0).forEach((cb) => cb());          // frame 1: schedules frame 2, emits nothing
+    const afterFrame1 = emitted.filter((c) => c === 'ixian:painted').length;
+    frames.splice(0).forEach((cb) => cb());          // frame 2: the page is on glass
+    const afterFrame2 = emitted.filter((c) => c === 'ixian:painted').length;
+    ok(queuedAfterTwoCalls === 1 && atStart === 0 && afterFrame1 === 0 && afterFrame2 === 1,
+      '★★ Session O ⑬ (behavioural): bridge.painted() is LATCHED — two calls queue ONE frame (' + queuedAfterTwoCalls + ') — and emits `ixian:painted` only after TWO rAF callbacks have run (' + atStart + ' → ' + afterFrame1 + ' → ' + afterFrame2 + '). The second frame is the whole point: the first runs after the render that queued it, the second after the browser committed it, so a single rAF would present a frame early — on this path, an empty page');
+  }
+
+  /* ═══ ⑦ the Colour row's value can ELLIPSIZE ═══
+     ⚠ RAW CSS read, declared: the assertion is that a DECLARATION is present, and the rule's
+     own comment explains why — stripping it would remove nothing a positive can match.
+     `flex` is restated because the base row-value rule sets `flex: none`, and a
+     non-shrinking flex item never reaches its ellipsis: the four properties beside it are
+     inert without this line, which is exactly the "comment asserting what the code does not
+     do" class (#772). */
+  {
+    const ssc = rdO('src/styles/components/settings-screens.css');
+    const i = ssc.indexOf('.c-settings-appearance__ground .c-settings__row-value {');
+    const rule = i >= 0 ? ssc.slice(i, ssc.indexOf('}', i)) : '';
+    ok(i >= 0 && /flex: 0 1 auto;/.test(rule) && /min-width: 0;/.test(rule) && /text-overflow: ellipsis;/.test(rule),
+      '★★ Session O ⑦: the Colour row value declares `flex: 0 1 auto` beside min-width/overflow/ellipsis — the base rule sets `flex: none`, and a non-shrinking item never ellipsizes, so a long localized ground name ("Prehod barve") pushed the chevron off the card');
+  }
+
+  /* ═══ ⑧ the live theme flip TEARS THE SHEET DOWN BEFORE IT REBUILDS ═══
+     The Canvas sheet mounts on document.body, not inside the view, so renderLayout replaces
+     the view UNDER it and leaves a live sheet over a screen that no longer owns it.
+     `dismissOverlay` (not dismissTopOverlay) is deliberate — the tear-down must not be
+     refused by an escDismiss:false overlay — and the destructure is asserted with it,
+     because the shells destructure the bundle and a missing symbol is a boot-time throw
+     (the #421 class, which is why build-shells preflights the destructure). */
+  {
+    const set = njsO(rdO('src/shells/settings.html'));
+    const iDismiss = set.indexOf('for (let i = 0; i < 8 && dismissOverlay(); i++);');
+    const iRender = set.indexOf('renderLayout();', iDismiss < 0 ? 0 : iDismiss);
+    ok(/^\s*dismissOverlay,/m.test(set)
+      && iDismiss > 0 && iRender > iDismiss
+      && /onApplied: \(\) => \{[\s\S]{0,400}?dismissOverlay\(\); i\+\+\);[\s\S]{0,200}?renderLayout\(\);/.test(set),
+      '★★ Session O ⑧: settings.html destructures `dismissOverlay` from the bundle and the theme handler\'s onApplied dismisses every open overlay BEFORE renderLayout() rebuilds the chat-appearance view — a sheet mounted on document.body outlives the view it belongs to, and the ORDER is the fix');
+  }
+
+  /* ═══ ⑨ the present signal fires only when the rebuild MOUNTED something ═══
+     rebuildHub also runs for a mounted sublevel it does not refresh; that pass leaves the
+     PREVIOUS frame on screen, so signalling there presents whatever was already there. The
+     branch count is asserted as a floor, not a number, so adding a mounting branch does not
+     turn this red — dropping the guard does. ⚠ njsO: the docblock names `mounted`. */
+  {
+    const set = njsO(rdO('src/shells/settings.html'));
+    const a = set.indexOf('function rebuildHub() {');
+    const b = set.indexOf('let rebuildQueued = false;', a + 1);
+    ok(a >= 0 && b > a, '★ Session O: the rebuildHub slice anchors resolve in settings.html');
+    const fn = a >= 0 && b > a ? set.slice(a, b) : '';
+    const mounts = (fn.match(/mounted = true;/g) || []).length;
+    ok(/let mounted = false;/.test(fn) && mounts >= 3 && /if \(mounted\) bridge\.painted\(\);/.test(fn)
+      && !/^\s*bridge\.painted\(\);/m.test(fn),
+      '★★ Session O ⑨: rebuildHub signals through `if (mounted) bridge.painted();` and every mounting branch sets the flag (' + mounts + ' of them) — a rebuild that refreshes nothing must not claim a paint, and because the signal is latched an unguarded call here would spend the one-shot on a frame nobody changed');
+  }
+
+  /* ═══ ⑩ PATTERN_LEVELS IS RETIRED, EVERYWHERE ═══
+     Session M folded the intensity control into the Background row, deleting `swatchGroup`,
+     the array's only reader. An exported array describing a control that no longer exists
+     reads as live code and is one call site from returning (the #774 lesson, applied to the
+     retired card). Its two labels leave the extractor table with it, so they must be gone
+     from the canonical dictionary too — a key nothing renders is a translator's wasted work.
+     ⚠ Source and BUNDLE read through stripCode: the docblock that RECORDS the retirement
+     names the array, in both files (#771 — this is the trap in its purest form). */
+  {
+    const ssSrc = stripCode(rdO('src/components/settings-screens.js'));
+    const bundleO = stripCode(rdO('src/demo/spixi.iife.js'));
+    const en = rdO('src/strings/en-us.json');
+    ok(!/PATTERN_LEVELS/.test(ssSrc) && !/PATTERN_LEVELS/.test(bundleO),
+      '★★ Session O ⑩: PATTERN_LEVELS is gone from settings-screens.js AND from the bundle export map — deleted, not merely uncalled (both files still NAME it in the comment that records the retirement, which is why both clauses read stripCode)');
+    ok(!/"patternOff"/.test(en) && !/"patternDefault"/.test(en) && /"patternNone"/.test(en),
+      '★★ Session O ⑩ pair: the retired labels `patternOff` / `patternDefault` left en-us.json with the control, and `patternNone` — the Background list\'s own "None" — is still there (the positive makes the two negatives read a real dictionary)');
+    /* ★ #46 r1 NIT-4: en-us.json was the only dictionary this asserted, and TWELVE
+       draft files still carried translations of both retired labels. A draft key is not
+       inert — build-locales reads these files, and a translator asked to review a value
+       for a control that does not exist is doing work nobody can use. The sweep is now
+       every locale JSON on both sides of `draft/`, named individually so a failure says
+       WHICH file, with the same `patternNone` positive per file so no clause can pass
+       against an empty or missing dictionary. */
+    const localeJsonO = [];
+    for (const d of ['src/strings', 'src/strings/draft']) {
+      for (const f of readdirSync(join(root, d)).filter((x) => /^[a-z]{2}-[a-z]{2}\.json$/.test(x))) {
+        localeJsonO.push(d + '/' + f);
+      }
+    }
+    const retiredIn = localeJsonO.filter((p) => /"pattern(Off|Default)"/.test(rdO(p)));
+    const haveNone = localeJsonO.filter((p) => /"patternNone"/.test(rdO(p)));
+    ok(localeJsonO.length >= 20 && retiredIn.length === 0 && haveNone.length === localeJsonO.length,
+      '★★ Session O ⑩ (every dictionary, not just en-us): `patternOff` / `patternDefault` are absent from all ' + localeJsonO.length + ' locale JSONs under src/strings and src/strings/draft, and every one of them still declares `patternNone` (' + haveNone.length + ') so the negatives read real files. Still carrying a retired label: ' + (retiredIn.join(', ') || 'none'));
+  }
+
+  /* ═══ ⑪ the "no icon" sentinel is matched after a leading ./ or / ═══
+     C# pushes the WebView-relative `img/…` sentinel, whose file no longer ships (Session N),
+     so it must resolve to null and the card draws its rocket. The sentinel has been written
+     BOTH ways; a raw prefix test let `./img/…` through as a loadable src, and the card then
+     rendered a broken image. Source + BUILT shell, because src can be right while the
+     artifact the device loads is a build behind (#768). */
+  {
+    const chatSrc = njsO(rdO('src/shells/chat.html'));
+    const chatBuiltO = rdO('Spixi/Resources/Raw/html/chat.html');
+    const shape = /const bare = p\.replace\(\/\^\\\.\?\\\/\/, ''\);\s*if \(bare\.indexOf\('img\/'\) === 0\) return null;/;
+    ok(shape.test(chatSrc) && !/if \(p\.indexOf\('img\/'\) === 0\) return null;/.test(chatSrc),
+      '★★ Session O ⑪: resolveAppIcon strips ONE leading `./` or `/` before testing the `img/` sentinel, and the raw prefix test is gone — `./img/spixi-app-noicon.png` was reaching the <img> as a loadable src');
+    ok(shape.test(chatBuiltO),
+      '★ Session O ⑪ (the BUILT shell): and it ships — the artifact the device loads carries the same guard');
+  }
+
+  /* ═══ ⑫ the staged page is TRANSPARENT, never INVISIBLE ═══
+     Both PreloadOp stages are built with `Opacity = 0`. `IsVisible = false` would look
+     equivalent and is not: an invisible view is skipped by layout, so the staged page never
+     measures at its real size and the WebView inside it boots against a zero-sized viewport
+     — the page then presents and re-lays-out in front of the user, which is the flash the
+     whole load-then-present grammar exists to remove (B N5). */
+  {
+    const scp = stripCode(rdO('Spixi/Utils/SpixiContentPage.cs'));
+    const inits = [...scp.matchAll(/ContentView stage = new ContentView\s*\{([\s\S]{0,600}?)\};/g)].map((m) => m[1]);
+    ok(inits.length === 2 && inits.every((s) => /^\s*Opacity = 0,/.test(s)) && !/\bstage\.IsVisible\b/.test(scp),
+      '★★ Session O ⑫: both preload stages (the page path and the modal path) open with `Opacity = 0` and NOTHING sets IsVisible on a stage — an invisible view is skipped by layout, so the staged WebView would boot against a zero-sized viewport and re-lay-out in front of the user at present. Got ' + inits.length + ' stage initializer(s)');
+  }
+
+  /* ═══ ⑭ the packaging strip FAILS THE BUILD instead of shipping an empty stylesheet ═══
+     The ItemGroup REMOVES the committed spixi.tokens.css and includes the stripped one. If
+     the strip produced nothing, that swap packages a build with no tokens at all — every
+     shell unstyled, and no gate between there and the store. The Error must sit BETWEEN the
+     Exec and the swap: after it, the file is already gone from the item list.
+     ⚠ stripCode strips XML comments too, so the comment above the Error cannot satisfy it. */
+  {
+    const csproj = stripCode(rdO('Spixi/Spixi.csproj'));
+    const t0 = csproj.indexOf('<Target Name="SpixiStripReleaseHtml"');
+    const t1 = csproj.indexOf('</Target>', t0 + 1);
+    ok(t0 >= 0 && t1 > t0, '★ Session O: the SpixiStripReleaseHtml target resolves as a slice in Spixi.csproj');
+    const target = t0 >= 0 && t1 > t0 ? csproj.slice(t0, t1) : '';
+    const iExec = target.indexOf('<Exec Command=');
+    const iErr = target.indexOf('<Error Condition="!Exists(\'$(SpixiStripHtmlDir)spixi.tokens.css\')"');
+    const iItems = target.indexOf('<ItemGroup>');
+    ok(iExec > 0 && iErr > iExec && iItems > iErr,
+      '★★ Session O ⑭: inside SpixiStripReleaseHtml the existence Error stands AFTER the strip Exec and BEFORE the ItemGroup that swaps the asset — the swap removes the committed spixi.tokens.css, so a strip that produced nothing would package every shell unstyled with no gate left between there and the store');
+  }
+
+  /* ═══ ⑮ the #797 row is FINDABLE BY KEY ═══
+     It shipped with the id and date collapsed into one cell (`| 797 | **THE …`), so the row
+     had four columns where every other row has five, and no `#797` to search for. A decision
+     nobody can find is a decision nobody applies — the #660 lesson in its smallest form. */
+  {
+    const dec = rdO('DECISIONS.md');
+    ok(/^\| #797 \| 2026-09-05 \|/m.test(dec) && !/^\| 797 \| \*\*/m.test(dec),
+      '★★ Session O ⑮: the #797 DECISIONS row carries its key and date in their own columns — it shipped as `| 797 | **THE …`, a four-column row with no `#797` anywhere to grep for');
+  }
+
+  /* ═══ ⑯ the strip's POST-CONDITION VIEW does not throw on an unquoted url() that holds a comment opener ═══
+     #46 r1 MINOR-1. `stripped()` cross-checks src against out through `view`, an independent
+     regex masker. It had no url() branch, so an unquoted `url(x/*y)` opened a comment scan
+     in the VIEW: the scanner copies that url verbatim and removes the real comment after it,
+     so `out` no longer holds the comment TERMINATOR the runaway match needed — no comment matched at all,
+     `/*` survived into `vo`, and the "a /* survived the strip" Error fired on CORRECT input.
+     A packaging step that throws on valid CSS fails the Release build.
+     Pinned on BOTH sides, because neither alone is enough:
+       · BEHAVIOURAL — the real exported stripCssComments over the reviewer's exact input,
+         and the properties either side of the comment must survive (#771: the function
+         under test is never stubbed). This proves the transform, not the view.
+       · SOURCE — the view's alternation must NAME a `url(` branch at all. The view is not
+         exported, so no behavioural pin can reach it, and its absence IS the defect this
+         whole item is about.
+         ★ #46 r2 MINOR-5: this clause used to also require `iCom > iUrl` and its message
+         called that ordering "the fix". It was INERT and the mechanism was FALSE. JS
+         alternation is tried left-to-right AT EACH POSITION, and the regex engine advances
+         one position at a time, so the branch that wins is the one whose match STARTS
+         earliest in the input — order in the pattern only breaks a tie at the SAME offset,
+         and `url(` and `/*` cannot both start at one offset. Writing the url branch second
+         would work identically; the clause could never go red for any real edit. Dropped,
+         and the alternation is left in its readable order.
+     ⚠ RAW read of strip-release.mjs, declared: the docblock beside the alternation quotes
+     the defective input, so a stripCode read would delete the very lines the negative needs
+     to be honest about — and every clause here is POSITIVE (#771). */
+  {
+    const stripModO = await import(new URL('../scripts/strip-release.mjs', import.meta.url));
+    const inputO = '.zz { background: url(x/*y); }\n/* real */\n.zz2 { --zz-k4: 1; }\n';
+    let outO = '', threwO = '';
+    try { outO = stripModO.stripCssComments(inputO); } catch (e) { threwO = String(e && e.message); }
+    ok(threwO === '' && outO.includes('url(x/*y)') && outO.includes('--zz-k4: 1')
+      && !outO.includes('/* real */'),
+      '★★ Session O ⑯ (behavioural): stripCssComments keeps an unquoted `url(x/*y)` byte-for-byte, drops the real comment after it, and keeps the declaration on the far side — got ' + JSON.stringify(outO.replace(/\n+/g, ' ')) + (threwO ? ' · threw: ' + threwO : ''));
+
+    const srcO = rdO('scripts/strip-release.mjs');
+    const iView = srcO.indexOf('const view = (t) => t.replace(');
+    const alt = iView >= 0 ? srcO.slice(iView, srcO.indexOf(');', iView)) : '';
+    const iUrl = alt.indexOf('url\\(');
+    const iCom = alt.indexOf('\\/\\*');
+    ok(iView >= 0 && iUrl >= 0 && iCom >= 0,
+      '★★ Session O ⑯ (source): the post-condition view\'s alternation names an unquoted `url\\(` branch (offset ' + iUrl + ') beside its comment branch `\\/\\*` (offset ' + iCom + ') — WHETHER it names one at all is the property, because the view is not exported and no behavioural pin can reach it. Their ORDER is inert: the alternation is tried left-to-right at each position but the engine advances a position at a time, so the branch that STARTS earliest wins regardless of how the pattern is written');
   }
 }
 

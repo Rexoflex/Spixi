@@ -6628,11 +6628,14 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   /** App-invite icon: C# pushes a data-URI (X1), an http(s) publisher URL, or the
    *  `img/…` WebView-relative "no icon" sentinel. Only the first two are loadable —
    *  the sentinel's file no longer ships (Session N), so it resolves to null and the
-   *  card draws its rocket. Any other `img/…` value is the same class. */
+   *  card draws its rocket. Any other `img/…` value is the same class.
+   *  ⚠ A leading `./` or `/` is stripped BEFORE the test. The sentinel has been written
+   *  both ways, and a raw prefix test let `./img/…` through as a loadable src. */
   function resolveAppIcon(path) {
     if (!path) return null;
     const p = String(path).replace(/\\/g, '/');
-    if (p.indexOf('img/') === 0) return null;
+    const bare = p.replace(/^\.?\//, '');
+    if (bare.indexOf('img/') === 0) return null;
     return p;
   }
   let callVisible = false;   // showCallButton reveals the topbar phone action (1:1, peer reachable)

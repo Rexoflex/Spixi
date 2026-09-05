@@ -569,7 +569,9 @@ namespace SPIXI
             {
                 StreamProcessor.sendTyping(friend);
             }
-            else if(current_url.StartsWith("ixian:leave"))
+            // Exact match, as on ContactDetails: a bare-name prefix test would swallow any
+            // future ixian:leave* verb from this shell.
+            else if(current_url.Equals("ixian:leave", StringComparison.Ordinal))
             {
                 if(friend.bot
                    || friend.type == FriendType.Group)
@@ -582,20 +584,34 @@ namespace SPIXI
                     // ★ #567: one grammar for group AND bot (the pendingDeletion wait
                     // fed the BE §1e-6 core crash). ★ #797: ONE HOME — SContacts.leaveGroup
                     // (it survives a leave notice with no route; this inline copy did not).
+                    /* ★ #797 loop r2: report the LOCAL removal, as on ContactDetails.
+                     * A false result or a throw leaves the record in place, so the
+                     * page must not pop and the user must not read "Contact deleted." */
+                    bool left = false;
                     try
                     {
-                        SContacts.leaveGroup(friend);
+                        left = SContacts.leaveGroup(friend);
                     }
                     catch (Exception)
                     {
                         Logging.error("ixian:leave failed");   // no ex.Message — Core formats the address into its text
                     }
-                    IXICore.Meta.Logging.info("[CRASHDIAG] chatleave: sent, presenting the alert");
-                    IXICore.Meta.Logging.flush();
-                    displaySpixiAlert(SpixiLocalization._SL("contact-details-removedcontact-title"), SpixiLocalization._SL("contact-details-removedcontact-text"), SpixiLocalization._SL("global-dialog-ok"));
-                    popPageAsync();
-                    homePage?.removeDetailContent();
-                    IXICore.Meta.Logging.info("[CRASHDIAG] chatleave: teardown dispatched");
+                    if (!left)
+                    {
+                        IXICore.Meta.Logging.info("[CRASHDIAG] chatleave: refused, staying on the page");
+                        IXICore.Meta.Logging.flush();
+                        // Generic strings: the dictionary has no leave-failure text.
+                        displaySpixiAlert(SpixiLocalization._SL("global-dialog-error"), SpixiLocalization._SL("settings-deleted-error-text"), SpixiLocalization._SL("global-dialog-ok"));
+                    }
+                    else
+                    {
+                        IXICore.Meta.Logging.info("[CRASHDIAG] chatleave: sent, presenting the alert");
+                        IXICore.Meta.Logging.flush();
+                        displaySpixiAlert(SpixiLocalization._SL("contact-details-removedcontact-title"), SpixiLocalization._SL("contact-details-removedcontact-text"), SpixiLocalization._SL("global-dialog-ok"));
+                        popPageAsync();
+                        homePage?.removeDetailContent();
+                        IXICore.Meta.Logging.info("[CRASHDIAG] chatleave: teardown dispatched");
+                    }
                 }
             }
             else if (current_url.StartsWith("ixian:openLink:", StringComparison.Ordinal))

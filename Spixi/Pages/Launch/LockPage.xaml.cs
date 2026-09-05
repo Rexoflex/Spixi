@@ -426,6 +426,8 @@ namespace SPIXI
         private void onNavigating(object sender, WebNavigatingEventArgs e)
         {
             string current_url = HttpUtility.UrlDecode(e.Url);
+            // #797: cancel first. A throw in a branch must not leave an ixian: navigation for the WebView to load.
+            e.Cancel = true;
 
             if (current_url.Equals("ixian:onload", StringComparison.Ordinal))
             {
@@ -435,13 +437,14 @@ namespace SPIXI
             {
                 // No back button for this screen
             }
-            else if (current_url.Contains("ixian:unlock:"))
+            else if (current_url.StartsWith("ixian:unlock:", StringComparison.Ordinal))
             {
-                // Retrieve the password and unlock
-                string[] split = current_url.Split(new string[] { "ixian:unlock:" }, StringSplitOptions.None);
-                string pass = split[1];
-                if (pass != null)
-                    doUnlock(pass);
+                // Retrieve the password and unlock. The password can contain the verb
+                // prefix, so take everything after the first prefix, never a split part.
+                // An empty password reaches doUnlock, which fails verifyWallet and
+                // shows the invalid-password alert.
+                string pass = current_url.Substring("ixian:unlock:".Length);
+                doUnlock(pass);
             }
             else if (current_url.Equals("ixian:change", StringComparison.Ordinal))
             {
@@ -468,9 +471,9 @@ namespace SPIXI
                     removePage(this);
                 }
             }
-            else
+            else if (current_url.Trim().StartsWith("file:", StringComparison.OrdinalIgnoreCase))
             {
-                // Otherwise it's just normal navigation
+                // allow normal navigation only for local files
                 e.Cancel = false;
                 return;
             }

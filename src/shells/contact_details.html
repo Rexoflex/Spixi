@@ -617,10 +617,12 @@
     if (nb) nb.scrollTop = top;
     built = true;
     /* ★★ Session M — THE PRESENT SIGNAL (the #766 generalisation to the DATA pages).
-       C# held this page for a flat 120 ms so this render could happen; it now presents
-       HERE instead. Placed after `built = true` and nowhere earlier: the boot spinner is
-       still on screen until this call, so signalling from a push handler would present
-       the spinner. Latched inside bridge.painted, so the per-second updateScreen rebuilds
+       ⚠ ONE of the five push sites still waits on it: only ContactNewPage keeps the 120 ms
+       reveal default. The four chat-info and row-menu routes pass revealDelayMs: 0, so they
+       are already on screen when this runs and show the skeleton by design.
+       Placed after `built = true` and nowhere earlier: signalling from a push handler would
+       present a panel that is not built yet.
+       Latched inside bridge.painted, so the per-second updateScreen rebuilds
        cost nothing. A GROUP surface reaches this first through the 40 ms leading edge
        (hero + count + skeleton rows, Session H) — which is the frame Damir asked to see,
        so presenting on it is the intent and not a leak. */

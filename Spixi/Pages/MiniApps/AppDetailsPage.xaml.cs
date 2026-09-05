@@ -140,9 +140,9 @@ namespace SPIXI
                 string appId = current_url.Substring("ixian:startAppMulti:".Length);
                 onStartAppMulti(appId);
             }
-            else
+            else if (current_url.Trim().StartsWith("file:", StringComparison.OrdinalIgnoreCase))
             {
-                // Otherwise it's just normal navigation
+                // allow normal navigation only for local files
                 e.Cancel = false;
                 return;
             }
@@ -389,11 +389,33 @@ namespace SPIXI
              * legacy WalletRecipientPage picker here is DELETED with that page (it was
              * the last construction site, and it kept bootstrap + jQuery + FontAwesome +
              * the Inter fonts shipping for a screen nobody could reach). LOGGED, NOT
-             * SURFACED: Logging.error names the app, the details page stays where it is
-             * and the tap does nothing visible — the user can back out. Reversal: git restore
+             * SURFACED: the details page stays where it is and the tap does nothing visible —
+             * the user can back out. Reversal: git restore
              * Pages/Wallet/WalletRecipientPage.* + Raw/html/wallet_recipient.html and
-             * re-add the push here. */
-            Logging.error("onStartAppMulti: no live home shell to pick app targets for " + appId + " — launch not started.");
+             * re-add the push here.
+             * ★ #46 r2 NIT-5: the line used to report the id LENGTH only, and a character
+             * count diagnoses nothing — "an app id of 12 chars" names no app, so the log
+             * entry could not be acted on. The id is WebView-supplied text and ixian.log is
+             * offered through the share sheet, so it is printed ONLY when it matches a
+             * bounded safe shape (1–64 chars of A–Z a–z 0–9 . _ -, which is what an
+             * appinfo.spixi id legitimately looks like); anything else falls back to the
+             * length. Raw unbounded text therefore never reaches the log. */
+            bool idIsSafe = appId != null && appId.Length > 0 && appId.Length <= 64;
+            if (idIsSafe)
+            {
+                foreach (char ch in appId)
+                {
+                    if (!((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9')
+                        || ch == '.' || ch == '_' || ch == '-'))
+                    {
+                        idIsSafe = false;
+                        break;
+                    }
+                }
+            }
+            Logging.error("onStartAppMulti: no live home shell to pick app targets for app "
+                + (idIsSafe ? appId : "(unprintable id of " + (appId == null ? 0 : appId.Length) + " chars)")
+                + " — launch not started.");
         }
 
         public byte[] onJoinApp(string appId, Friend friendOrGroup)

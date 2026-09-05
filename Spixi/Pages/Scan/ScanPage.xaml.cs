@@ -33,6 +33,8 @@ public partial class ScanPage : SpixiContentPage
     private void onNavigating(object sender, WebNavigatingEventArgs e)
     {
         string current_url = HttpUtility.UrlDecode(e.Url);
+        // #797: cancel first. A throw in a branch must not leave an ixian: navigation for the WebView to load.
+        e.Cancel = true;
 
         if (onNavigatingGlobal(current_url))
         {
@@ -52,23 +54,25 @@ public partial class ScanPage : SpixiContentPage
         {
             displaySpixiAlert(SpixiLocalization._SL("global-invalid-address-title"), SpixiLocalization._SL("global-invalid-address-text"), SpixiLocalization._SL("global-dialog-ok"));
         }
-        else if (current_url.Contains("ixian:qrresult:"))
+        else if (current_url.StartsWith("ixian:qrresult:", StringComparison.Ordinal))
         {
+            // Anchored, and everything after the first prefix is the payload. A URL that
+            // merely CONTAINS the verb no longer matches; a URL that IS the prefix yields an
+            // empty payload, which processQRResult receives as before.
             try
             {
-                string[] split = current_url.Split(new string[] { "ixian:qrresult:" }, StringSplitOptions.None);
-                processQRResult(split[1]);
+                processQRResult(current_url.Substring("ixian:qrresult:".Length));
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-
+                IXICore.Meta.Logging.warn("Exception while processing a scan result: " + ex.GetType().Name);
             }
             e.Cancel = true;
             return;
         }
-        else
+        else if (current_url.Trim().StartsWith("file:", StringComparison.OrdinalIgnoreCase))
         {
-            // Otherwise it's just normal navigation
+            // allow normal navigation only for local files
             e.Cancel = false;
             return;
         }

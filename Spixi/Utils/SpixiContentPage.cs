@@ -695,8 +695,9 @@ namespace SPIXI
                 this.targetContent = targetContent;
                 this.hostGrid = hostGrid;
                 /* ★★ Session M: hand the target its own paint gate. The page cannot look the
-                 * op up when its signal arrives — `activePreload` is cleared by tryFinish
-                 * before the reveal await even resumes, and the overlay stack is keyed by
+                 * op up when its signal arrives — `activePreload` may already hold a
+                 * DIFFERENT navigation by then (`signalPreloadReady` tests `op.target == this`
+                 * for the same reason), and the overlay stack is keyed by
                  * tag, not by which navigation is still holding. One reference, set at the
                  * only two places an op is ever built, is the whole wiring.
                  * NOT cleared afterwards, deliberately: completing a TCS nobody awaits is a
@@ -724,9 +725,10 @@ namespace SPIXI
          *  never staged — has a null gate and this is a no-op, which is what makes it safe
          *  to accept from every shell in `onNavigatingGlobal`.
          *
-         *  ⚠ Mini-apps are structurally excluded and NOT by a flag: `MiniAppPage` is never
-         *  pushed through `pushPageLoaded`, so it has no gate to complete. The verb carries
-         *  no argument and cannot be replayed to any effect (TrySetResult, once).
+         *  ⚠ Mini-apps are excluded TWICE. The caller in `onNavigatingGlobal` tests
+         *  `hasGeneratedContent`, and `MiniAppPage` is also never pushed through
+         *  `pushPageLoaded`, so it holds no gate to complete. The verb carries no argument
+         *  and cannot be replayed to any effect (TrySetResult, once).
          *
          *  SingleChatPage overrides this — it asks for `revealDelayMs: 0` and drives its own
          *  arm/latch pair with a 400 ms backstop (#764), a mechanism this one deliberately
@@ -3826,8 +3828,14 @@ namespace SPIXI
                  * generalisation). Ordinal equality, no argument, no data: the whole verb
                  * is the word. It was handled in SingleChatPage's own onNavigating until
                  * this batch; that branch is gone, and the chat now overrides
-                 * onPaintedSignal — one inbound path, no second copy to drift (#251/#288). */
-                onPaintedSignal();
+                 * onPaintedSignal — one inbound path, no second copy to drift (#251/#288).
+                 * Gated on hasGeneratedContent like the `ixian:cdping:` sibling: a mini-app
+                 * WebView is a third-party document, so the exclusion is now ENFORCED here
+                 * and not left to the fact that MiniAppPage holds no paint gate. */
+                if (hasGeneratedContent)
+                {
+                    onPaintedSignal();
+                }
             }
             else if (url.StartsWith("ixian:cdping:", StringComparison.Ordinal))
             {

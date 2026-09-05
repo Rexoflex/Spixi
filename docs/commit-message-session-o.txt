@@ -1,0 +1,32 @@
+Session O — the #46 loop over Session M + Session N's C# and #797: cancel-first on all 19 handlers (#798)
+
+The owed adversarial loop, CLEAN in five rounds (DECISIONS #798; verdict in
+docs/opus-review-brief-sessions-m-n.md §Verdict). Two MAJORs, neither in Session M's own delta:
+
+* The #797 rule held on ONE page. Nine onNavigating handlers cancelled only at the tail and six
+  more kept a permissive `else`. A throw inside a branch left the navigation uncancelled and
+  Android loaded the verb as a page — on LockPage that URL is ixian:unlock:<plaintext password>,
+  on LaunchPage the create/restore passwords. All 19 handlers now cancel after the decode and
+  re-allow only file: (the grammar five pages already shipped); the pin WALKS every handler.
+  One unverified leg (the #768 fallback ladder on WinUI/iOS) is a device row, A15.
+* The dark Chat-appearance screen shipped an empty card (groundSec built unconditionally).
+
+Also (#799): the pre-warm's BEFORE instrument — a chats-after-close frame probe where warm() will be
+scheduled; the spare itself waits for the phone.
+
+Also: leaveGroup returns removeFriend's result and all four callers honour it (a bot in a group
+no longer reads "Contact removed"); ixian:painted gated on hasGeneratedContent; LockPage /
+ScanPage / HomePage verb parses anchored (Contains+Split[1] → StartsWith+Substring); the strip
+post-condition masker no longer throws on correct CSS (apostrophe inside a comment) and handles
+unquoted url(); PATTERN_LEVELS retired with its two keys (786 → 784); a theme flip closes an open
+Colour sheet; the Colour value ellipsizes; the settings renderLayout negative pin matched
+nothing on HEAD and the painted placement pins were positive-only against a latched signal —
+both repaired; four Session O pins were themselves found vacuous by the next reviewer and
+repaired (#771 in its own loop). csproj: the strip target errors if it produces no output.
+Docs: #791 stale ceiling sentence, #797 row key, prewarm-spec anchors, gate rows for Session O.
+
+Pipeline: bundle 320 · shells 18 · smoke 4229 / the 3 known (sibling present; 4227 after the loop + 2 for the #799 probe) · locales 784 ·
+lint ✓ · pseudo 9/9 · cs-syntax 138 + 1 · three --checks ✓ · gate 1 ✓ · gate 2 4228.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QmjcjjFfBhmqNcFQnoWCwm

@@ -39,6 +39,8 @@ namespace SPIXI
         private void onNavigating(object sender, WebNavigatingEventArgs e)
         {
             string current_url = HttpUtility.UrlDecode(e.Url);
+            // #797: cancel first. A throw in a branch must not leave an ixian: navigation for the WebView to load.
+            e.Cancel = true;
 
             if (onNavigatingGlobal(current_url))
             {
@@ -66,9 +68,9 @@ namespace SPIXI
             {
                 onBackupWallet();
             }
-            else
+            else if (current_url.Trim().StartsWith("file:", StringComparison.OrdinalIgnoreCase))
             {
-                // Otherwise it's just normal navigation
+                // allow normal navigation only for local files
                 e.Cancel = false;
                 return;
             }

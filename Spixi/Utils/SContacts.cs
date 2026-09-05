@@ -96,13 +96,20 @@ namespace SPIXI
             {
                 CoreStreamProcessor.sendLeave(group, null);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                Logging.warn("leaveGroup: the leave notice has no route (owner or roster not in contacts) — removing the group locally");
+                // The exception TYPE only. Core formats the group address into the message.
+                Logging.warn("leaveGroup: the leave notice could not be sent (" + ex.GetType().Name + ") — removing the group locally");
             }
-            FriendList.removeFriend(group);
+            // Report the LOCAL removal. removeContact maps false to "fail", so a refused
+            // removal must not read as a completed leave.
+            bool removed = FriendList.removeFriend(group);
+            if (!removed)
+            {
+                Logging.warn("leaveGroup: the local removal was refused");
+            }
             UIHelpers.shouldRefreshContacts = true;
-            return true;
+            return removed;
         }
 
         /// <summary>

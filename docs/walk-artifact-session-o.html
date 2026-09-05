@@ -1,0 +1,210 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Walk — Session O</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{--bg:#f4f6f9;--card:#fff;--ink:#141b23;--sub:#5b6672;--line:#dfe5ec;
+        --p:#1a7f4b;--f:#b12525;--n:#8b95a1;--act:#1956b2}
+  @media (prefers-color-scheme:dark){:root{--bg:#0d1117;--card:#161b22;--ink:#e6edf3;
+        --sub:#9aa7b4;--line:#252c36;--p:#3fb27a;--f:#f08a80;--n:#7d8794;--act:#5a8dee}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.55 -apple-system,Segoe UI,Roboto,sans-serif;padding:24px}
+  header{max-width:980px;margin:0 auto 20px}
+  h1{font-size:24px;margin:0 0 6px}
+  h2{font-size:18px;margin:30px 0 10px}
+  p.lede{color:var(--sub);margin:0 0 4px}
+  main{max-width:980px;margin:0 auto}
+  section{background:var(--card);border:1px solid var(--line);border-radius:14px;
+          padding:16px 18px;margin:0 0 16px}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--sub)}
+  td.id{width:52px;font-weight:600;white-space:nowrap}
+  td.v{width:150px;white-space:nowrap}
+  .btn{border:1px solid var(--line);background:transparent;color:var(--sub);
+       border-radius:8px;padding:5px 11px;margin-right:5px;cursor:pointer;font:inherit;font-size:13px}
+  .btn[aria-pressed=true][data-v=P]{background:var(--p);border-color:var(--p);color:#fff}
+  .btn[aria-pressed=true][data-v=F]{background:var(--f);border-color:var(--f);color:#fff}
+  .btn[aria-pressed=true][data-v=N]{background:var(--n);border-color:var(--n);color:#fff}
+  .note{width:100%;margin-top:6px;border:1px solid var(--line);border-radius:8px;
+        padding:6px 8px;font:inherit;font-size:13px;background:transparent;color:var(--ink);display:none}
+  tr[data-open] .note{display:block}
+  .tally{position:sticky;top:0;background:var(--bg);padding:10px 0;z-index:2;
+         display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .tally b{font-size:18px}
+  pre{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;
+      overflow:auto;font-size:13px;white-space:pre-wrap}
+  img{max-width:100%;border:1px solid var(--line);border-radius:10px;display:block;margin:10px 0}
+  .warn{border-inline-start:3px solid var(--f);padding-inline-start:12px}
+  .dial{border-inline-start:3px solid var(--act);padding-inline-start:12px}
+  code{background:var(--bg);padding:1px 5px;border-radius:5px}
+</style>
+<header>
+  <h1>Walk — Session O</h1>
+  <p class="lede">The #46 adversarial loop over Session M (#774–#788) and Session N's C# + #797 → CLEAN in five
+     rounds (DECISIONS #798). Two MAJORs fixed: <b>all 19 <code>onNavigating</code> handlers cancel first and re-allow
+     only <code>file:</code></b> (the lock and launch pages leaked a plaintext password on the uncancelled URL), and the dark
+     Chat-appearance screen shipped an empty card.</p>
+  <p class="lede">Tap P / F / N per row. Nothing is stored anywhere — hit <b>Copy results</b> at the bottom and paste them
+     back to me. <b>A15 is the one row that decides a code change.</b></p>
+</header>
+<main>
+  <div class="tally">
+    <span><b id="tp">0</b> pass</span><span><b id="tf">0</b> fail</span>
+    <span><b id="tn">0</b> n/a</span><span><b id="tr">0</b> not scored</span>
+    <button class="btn" onclick="copyAll()">Copy results</button>
+    <span id="copied" style="color:var(--p);display:none">copied</span>
+  </div>
+
+  <section>
+    <h2 style="margin-top:0">Before you start</h2>
+    <p class="warn"><b>Wipe <code>obj</code> and <code>bin</code>, then build with F5</b>, never a bare
+      <code>dotnet build</code> (#663). <b>Not</b> Rebuild Solution. C# changed in 22 files.</p>
+    <p>The generators ran in the container and every gate is green. Full block in
+      <code>docs/f5-checklist-session-o.md</code> §0. Expected:</p>
+    <pre>bundle 320 · shells 18 · smoke BASELINE OK 4229 / the 3 known (#136 · M5 · B3)
+locales ALL CLEAN 784 · i18n-lint OK · pseudo 9/9 · cs-syntax 138 + 1 known gap
+extract-strings --check OK · build-shells --check OK · build-legal-docs --check OK</pre>
+  </section>
+
+  <section>
+    <h2 style="margin-top:0">A · Cancel-first on 19 pages (#798 MAJOR-1) — walked, not assumed</h2>
+    <p class="lede">Nothing here should LOOK different. A fail is "Webpage not available", a blank page, or a verb that
+      stopped working. A15 is the one unverified leg (the #768 fallback ladder on WinUI/iOS).</p>
+    <table id="A"><thead><tr><th>#</th><th>Do</th><th>Expect</th><th>Verdict</th></tr></thead><tbody>
+    </tbody></table>
+  </section>
+
+  <section>
+    <h2 style="margin-top:0">B · The leave that lied (#798 ④)</h2>
+    <table id="B"><thead><tr><th>#</th><th>Do</th><th>Expect</th><th>Verdict</th></tr></thead><tbody>
+    </tbody></table>
+  </section>
+
+  <section>
+    <h2 style="margin-top:0">C · Chat appearance in dark (#798 MAJOR-2)</h2>
+    <table id="C"><thead><tr><th>#</th><th>Do</th><th>Expect</th><th>Verdict</th></tr></thead><tbody>
+    </tbody></table>
+  </section>
+
+  <section>
+    <h2 style="margin-top:0">D · The strip gates, re-run · E · two riders · F · the pre-warm's BEFORE capture (#799)</h2>
+    <table id="D"><thead><tr><th>#</th><th>Do</th><th>Expect</th><th>Verdict</th></tr></thead><tbody>
+    </tbody></table>
+  </section>
+
+  <section>
+    <h2 style="margin-top:0">Still yours — nothing landed</h2>
+    <p class="dial"><b>D1–D4</b> from Session N are still <code>?</code>: doodle SVGO land/keep · lossy PNGs render/no ·
+      contacts-es convert/keep · the four Session M dials. One word each.</p>
+    <p class="dial"><b>The pre-warm (#794)</b> is the next build item — its BEFORE instrument shipped here (#799, rows F1/F2);
+      the spare itself lands in the session with the phone in the room. <b>The batch transport (#298)</b> follows it.</p>
+  </section>
+
+  <section>
+    <h2 style="margin-top:0">Results</h2>
+    <pre id="out"></pre>
+  </section>
+</main>
+<script>
+const ROWS = {
+  A: [
+    ['A1','Lock the app → unlock with the RIGHT password','Unlocks (LockPage)'],
+    ['A2','Lock → WRONG password → then the right one','Wrong = the error, stays on the lock; right = unlocks. No "Webpage not available"'],
+    ['A3','A password that CONTAINS the text ixian:unlock: (throwaway account)','The whole string is the password now; wrong/right as A2'],
+    ['A4','Fresh install / deleted account: Create → nick + password','Lands in the app (LaunchPage)'],
+    ['A5','Restore → file → wrong password → right password','Wrong = error on the restore view; right = the app'],
+    ['A6','Account → Change password → old + new','Changes; a wrong old password errors and stays'],
+    ['A7','Account → every sublevel (Theme · Language · Notifications · Backup · Downloads · Dev · Contributors · About · Delete history)','Each opens and works'],
+    ['A8','Language → Deutsch → back to English','Both reloads render (a file: load, never cancelled)'],
+    ['A9','Wallet → a tx → detail → View in explorer','The browser opens; the page stays'],
+    ['A10','Scan a contact QR','Decodes and fills the address'],
+    ['A11','Receive a call → Accept / Decline · Hang up from the bar','All three work'],
+    ['A12','FAB → Add contact → paste an address → Add','The request goes out'],
+    ['A13','Apps → + add by URL · an app → App details → Open / Uninstall','All work'],
+    ['A14','Desktop: back out of a conversation to the welcome pane','The pane renders'],
+    ['A15','★ WINDOWS: app lock ON, close, DELETE the html folder beside Spixi.exe (Release output, NOT Documents\\Spixi\\html), start','The lock renders the #768 page naming the missing file. A BLANK lock = FAIL → one about:blank clause in the shared tail'],
+    ['A16','Android: A15 setup not reachable (assets in the APK)','N/A — immune in code (LoadHtml never raises Navigating)'],
+  ],
+  B: [
+    ['B1','Contacts → a group whose owner is NOT your contact → Leave group','Gone, no "Webpage not available"'],
+    ['B2','A bot that is a MEMBER of one of your groups → Leave / remove','An ERROR alert, the page STAYS, the bot still listed (honest dead end; BE row). It used to say "Contact removed" and pop'],
+    ['B3','ixian.0.log after B1','leaveGroup: the leave notice could not be sent (Exception) — removing the group locally — a TYPE name, no address'],
+  ],
+  C: [
+    ['C1','Dark → Account → Chat appearance','TWO cards (Text size · Background). No empty third card'],
+    ['C2','Light → same screen; Deutsch or Slovenščina','THREE cards; the Colour value ellipsizes instead of pushing the chevron off'],
+    ['C3','Light → open the Colour sheet → flip the OS theme to dark with it open','The sheet CLOSES and the screen rebuilds with two cards'],
+    ['C4','Background: None → Doodles → None → Matrix; leave, re-enter','Each pick shows; re-enter shows the last pick'],
+  ],
+  D: [
+    ['D1','node scripts\\smoke-packaged.mjs','smoke-packaged: GATE 2 OK (4228 without the sibling)'],
+    ['D2','Release build log','Spixi: Release packaging strip applied (…)'],
+    ['E1','Apps → an app → Open (single-user)','Launches'],
+    ['E2','Open a mini-app','Unchanged (ixian:painted from a mini-app is ignored, now enforced)'],
+    ['F1','Motorola, Release + dev-coexist: open a chat and back out, 8 times (adb logcat | CDPERF)','Eight [CDPERF] chats-after-close frames n= drop= max= lines — PASTE them (the pre-warm\'s BEFORE number, #799)'],
+    ['F2','Desktop: switch chat A → chat B (tag-replace)','NO chats-after-close line for the switch'],
+  ],
+};
+const state = {};
+for (const [sec, rows] of Object.entries(ROWS)) {
+  const tb = document.querySelector('#' + sec + ' tbody');
+  for (const [id, doo, exp] of rows) {
+    state[id] = { v: '', note: '' };
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td class="id">' + id + '</td><td>' + doo + '</td><td>' + exp + '</td>'
+      + '<td class="v">' + ['P','F','N'].map((v) =>
+        '<button class="btn" data-v="' + v + '" data-id="' + id + '" aria-pressed="false">' + v + '</button>').join('')
+      + '<input class="note" placeholder="note (optional)" data-id="' + id + '"></td>';
+    tb.append(tr);
+  }
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('.btn[data-v]');
+  if (!b) return;
+  const id = b.dataset.id;
+  state[id].v = state[id].v === b.dataset.v ? '' : b.dataset.v;
+  for (const o of document.querySelectorAll('.btn[data-id="' + id + '"]')) {
+    o.setAttribute('aria-pressed', String(o.dataset.v === state[id].v));
+  }
+  b.closest('tr').toggleAttribute('data-open', state[id].v === 'F' || state[id].v === 'N');
+  render();
+});
+document.addEventListener('input', (e) => {
+  if (!e.target.classList.contains('note')) return;
+  state[e.target.dataset.id].note = e.target.value;
+  render();
+});
+function render() {
+  const vals = Object.values(state);
+  document.getElementById('tp').textContent = vals.filter((s) => s.v === 'P').length;
+  document.getElementById('tf').textContent = vals.filter((s) => s.v === 'F').length;
+  document.getElementById('tn').textContent = vals.filter((s) => s.v === 'N').length;
+  document.getElementById('tr').textContent = vals.filter((s) => !s.v).length;
+  const lines = Object.entries(state).map(([id, s]) =>
+    id + ': ' + (s.v || '-') + (s.note ? '  — ' + s.note : ''));
+  const f = Object.entries(state).filter(([, s]) => s.v === 'F').map(([id]) => id);
+  document.getElementById('out').textContent =
+    'WALK O — ' + document.getElementById('tp').textContent + ' P · '
+    + document.getElementById('tf').textContent + ' F · '
+    + document.getElementById('tn').textContent + ' N/A · '
+    + document.getElementById('tr').textContent + ' not scored\n'
+    + 'FAILS: ' + (f.length ? f.join(', ') : 'none')
+    + '\n\n' + lines.join('\n')
+    + '\n\nA15 (Windows, no html folder, lock ON): the lock rendered = ?   Dials still open: D1 doodle SVGO land/keep = ?   D2 lossy PNGs render/no = ?   D3 contacts-es convert/keep = ?   D4 Session M dials = ?';
+}
+function copyAll() {
+  const t = document.getElementById('out').textContent;
+  const done = () => { const c = document.getElementById('copied');
+    c.style.display = 'inline'; setTimeout(() => { c.style.display = 'none'; }, 1400); };
+  if (navigator.clipboard) navigator.clipboard.writeText(t).then(done, sel);
+  else sel();
+  function sel() {
+    const r = document.createRange(); r.selectNodeContents(document.getElementById('out'));
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    try { document.execCommand('copy'); done(); } catch (e) {}
+  }
+}
+render();
+</script>

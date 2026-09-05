@@ -60,29 +60,22 @@ const DYNAMIC = {
   themeSystem: 'System',
   themeLight: 'Light',
   themeDark: 'Dark',
-  patternOff: 'Off',
-  /* ★ N81 (#422): three levels now — Off / Default / Strong. The old Subtle /
-   * Standard / Bold are REMOVED, which is safe here and only here: this table is
-   * the sole definition site, so dropping a row genuinely retires the key.
-   * ⚠ I walked straight into the trap the note below records. PATTERN_LEVELS is
-   * read as strings[o.key], so renaming the levels in settings-screens.js changed
-   * nothing until this table changed too — extract-strings reported "0 fallback
-   * conflicts", build-locales reported every locale clean, and the three tiles
-   * would still have shipped in English in all 12 languages. Both i18n gates are
-   * blind by construction: they compare locales against EACH OTHER, so a key that
-   * is missing from all of them is perfectly "consistent". */
-  /* ★★ AUG (Damir 2026-08-30): Strong RETIRED — two levels, Off and Subtle. The key is
-     deleted here, which is what removes it from en-us.json and therefore from every
-     locale on the next build-locales run. 'Default' was a poor label with only two
-     options; the KEY is kept so no locale loses its entry, only the English value moves. */
-  patternDefault: 'Subtle',
+  /* ★ Session M (#783): `patternOff` and `patternDefault` were HERE, and they are gone.
+   * They labelled the pattern-intensity picker, and Session M folded that control into the
+   * Background row. Deleting a row from this table is what removes the key from en-us.json
+   * and therefore from every locale on the next build-locales run.
+   * ⚠ THE TRAP THIS PAIR RECORDS, kept because it is about the table and not about them:
+   * a dynamic key is read as strings[o.key], so renaming or retiring one in a component
+   * changes NOTHING until this table changes too. Both i18n gates are blind by
+   * construction — they compare locales against EACH OTHER, so a key missing from all of
+   * them stays perfectly "consistent". */
   /* ★★ AUG GROUND (Damir 2026-08-30): the light canvas choice. These two are dynamic
-     (`strings[o.key]` off CHAT_GROUNDS) so the sweep cannot see them — same reason the
-     pattern levels are listed here. */
+     (`strings[o.key]` off CHAT_GROUNDS) so the sweep cannot see them — the same reason
+     every other key in this table is listed here. */
   groundFlat: 'Solid',
   groundGradient: 'Gradient',
-  // #341 review MINOR-4: PATTERN_STYLES is read as strings[o.key] exactly like
-  // PATTERN_LEVELS, so it is unextractable and MUST live here. It did not, so the
+  // #341 review MINOR-4: PATTERN_STYLES is read as strings[o.key], so it is
+  // unextractable and MUST live here. It did not, so the
   // three style names existed in the locale files only until the next extract run —
   // and that run silently deleted every translation of them. Both i18n gates were
   // blind to it: they compare locales against each other, and a key dropped from
@@ -137,7 +130,10 @@ const DYNAMIC_SOURCES = {
   'status-': 'message-bubble.js (status glyph aria-label)',
   chatsFilter_: 'chats-header.js (CHATS_FILTERS)',
   theme: 'settings-shell.js (THEME_OPTIONS)',
-  pattern: 'settings-screens.js (PATTERN_LEVELS)',
+  /* ★ Session M (#783): this row named PATTERN_LEVELS, which no longer exists. The prefix
+     still has readers — patternNone and the three patternStyle* names — so the row is
+     retargeted rather than deleted; deleting it would drop those four to "dynamic". */
+  pattern: 'settings-screens.js (PATTERN_STYLES, bgOpts)',
   text: 'settings-screens.js (TEXT_SIZES)',
   tier: 'settings-screens.js (TIERS)',
   sd: 'chat-info.js (disappearing-message options)',

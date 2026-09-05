@@ -41,7 +41,7 @@ the perf brief distrusts (perf-chat-open-brief §4). Re-measure with the same st
 ```
 (none) ──warm()──▶ WARMING ──ixian:onload──▶ READY ──attach(friend)──▶ IN USE ──close──▶ disposed
    ▲                  │                        │                                       │
-   │              drop()◀──── OnTrimMemory · theme/language flip · delete account ◀────┘
+   │         drop()◀──── Node.onLowMemory · theme/language flip · delete account ◀────┘
    └──────────── after close settles (idle) · once at app start ─────────────────────────
 ```
 - `warm()` — only when no spare exists, no chat is open, and the home shell is live.
@@ -53,7 +53,7 @@ the perf brief distrusts (perf-chat-open-brief §4). Re-measure with the same st
   HomePage.xaml.cs `pushPageLoaded(new SingleChatPage(friend, …), 4000, "chat", …)`), and
   only when the spare is READY. Otherwise the tap takes today's path unchanged and the
   spare is dropped (never two chat WebViews for one tap).
-- `drop()` — dispose the spare's WebView. Called on `OnTrimMemory`/`onLowMemory` (the
+- `drop()` — dispose the spare's WebView. Called from `Node.onLowMemory()`, which `MauiProgram`'s `OnApplicationTrimMemory` / `OnApplicationLowMemory` handlers call (the
   spare costs nothing to drop but the speed-up — #778's argument in reverse), on every
   theme or language flip (a parked document is one theme behind: the #315 lesson), on
   delete-account, and whenever `HomePage.stop()` runs.
@@ -69,8 +69,8 @@ the perf brief distrusts (perf-chat-open-brief §4). Re-measure with the same st
 | `HomePage.onChat` | `var spare = SingleChatPage.takeSpare(); if (spare != null) { spare.attach(friend, wide ? this : null); pushParkedPage(spare, "chat", …); } else { today's pushPageLoaded(new SingleChatPage(…)) }` |
 | `HomePage` close path (`closeOverlay` completion, tag `"chat"`) | schedule `warm()` on idle |
 | `HomePage` after the first `clearChatsDone` | `warm()` once |
-| `App.OnTrimMemory` / `onLowMemory`, `SettingsPage` theme + language flips, `onDeleteAccount`, `HomePage.stop()` | `SingleChatPage.dropSpare()` |
-| `UIHelpers.getChatPages()` / `getLiveShellPages()` | the spare must be in NEITHER: a `reloadScreen()` / `clearMessages` sweep at a page with `friend == null` is an NRE, and a theme push at it is wasted (it is dropped on flips instead). The park slot is already in no collection (#315) — keep the spare in the same kind of slot |
+| `Node.onLowMemory()` (reached from `MauiProgram`'s `OnApplicationTrimMemory` / `OnApplicationLowMemory`), `SettingsPage` theme + language flips, `onDeleteAccount`, `HomePage.stop()` | `SingleChatPage.dropSpare()` |
+| `Utils.getChatPages()` / `UIHelpers.getLiveShellPages()` | the spare must be in NEITHER: a `reloadScreen()` / `clearMessages` sweep at a page with `friend == null` is an NRE, and a theme push at it is wasted (it is dropped on flips instead). The park slot is already in no collection (#315) — keep the spare in the same kind of slot |
 
 ## 4 · What can go wrong, and the answer to each
 
@@ -80,7 +80,7 @@ the perf brief distrusts (perf-chat-open-brief §4). Re-measure with the same st
 | Tap lands while WARMING | fallback to today's path; drop the spare (two chat WebViews at once is the #221-adjacent thing to avoid — one conversation surface, always) |
 | A push reaches the spare before attach | structurally impossible if the spare is in no enumerator (§3 last row) — **pin it** |
 | Spare one theme/language behind | dropped on every flip (#315); the next warm builds it fresh |
-| Memory | one extra WebView (~15–25 MB) while idle on the chats list; dropped on `OnTrimMemory`; Damir already ruled that class acceptable for the Account (#778) |
+| Memory | one extra WebView (~15–25 MB) while idle on the chats list; dropped on `Node.onLowMemory()`; Damir already ruled that class acceptable for the Account (#778) |
 | `[CDPERF]` clocks | `openClock` restarts at `attach`, so `tap → ctor` becomes `tap → attach` and `onload` is not stamped (already happened); add `[CDPERF] chat attach spare=1` so a capture says which path an open took |
 | Blind-group safety (#777's sharpest case) | not applicable — the spare has never rendered any sender; `mode.blind` is set by the FIRST `setChatMode` it ever receives |
 
@@ -89,7 +89,7 @@ the perf brief distrusts (perf-chat-open-brief §4). Re-measure with the same st
 1. the blank ctor never calls `fetchFriendsPresence` and never reads `friend` (stripCode)
 2. `ixian:onload` with `friend == null` returns before `onLoad()` (order pinned)
 3. `attach` runs `onLoad()` exactly once and only after `shellBooted`
-4. the spare is in no enumerator: `getChatPages`/`getLiveShellPages` skip `friend == null`
+4. the spare is in no enumerator: `Utils.getChatPages`/`UIHelpers.getLiveShellPages` skip `friend == null`
 5. `dropSpare()` is called from every site in §3's last-but-one row
 6. `HomePage.onChat` falls back to `new SingleChatPage(friend, …)` when `takeSpare()` is null — the pre-warm can never be the ONLY way to open a chat
 7. a used chat is never re-parked: the `"chat"` overlay op never has `parkOnClose`

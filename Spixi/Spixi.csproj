@@ -406,6 +406,9 @@
 		     ESCAPED quote — node gets `…\html"`, mkdirSync throws EINVAL, every Windows Release build
 		     fails. The trailing "." keeps the quote a quote and resolves to the same directory. -->
 		<Exec Command="node &quot;$(SpixiStripScript)&quot; --out &quot;$(SpixiStripHtmlDir).&quot;" />
+		<!-- The ItemGroup below REMOVES the source file and includes the stripped one. If the
+		     strip produced nothing, that swap ships a build with no spixi.tokens.css. Fail here. -->
+		<Error Condition="!Exists('$(SpixiStripHtmlDir)spixi.tokens.css')" Text="Spixi: the release strip produced no spixi.tokens.css — refusing to package" />
 		<ItemGroup>
 			<MauiAsset Remove="Resources\Raw\html\spixi.tokens.css" />
 			<MauiAsset Include="$(SpixiStripHtmlDir)spixi.tokens.css" LogicalName="html$([System.IO.Path]::DirectorySeparatorChar)spixi.tokens.css" />

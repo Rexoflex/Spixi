@@ -148,9 +148,54 @@ function stripped(file) {
   // to a scanner desync is a property-name or brace difference the masker DOES see. Checked:
   // no comment opener survives, braces balance, every custom-property name declared in the
   // source is declared in the output. Names use the CSS ident shape (--[\w-]+, not [a-z0-9-]).
-  const view = (t) => t
-    .replace(/"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'/g, (m) => ' '.repeat(m.length))
-    .replace(/\/\*[\s\S]*?\*\//g, '');
+  //
+  // ★ Session O #46 (auditor C NIT-2, re-graded up by the verifier): THE ORDER WAS WRONG AND
+  // IT THREW ON CORRECT INPUT. The masker used to blank strings FIRST and remove comments
+  // second, so an apostrophe inside a comment opened a "string" that ran to the next
+  // apostrophe in the NEXT comment and swallowed the code between them:
+  //     /* Damir's */ .a { /* Bob's */ --k: 1; }
+  // masked `'s */ .a { /* Bob'` to spaces, taking the `{` with it, and the brace check then
+  // failed a file the scanner had stripped perfectly. Comments now win, because in CSS they
+  // do: a `/*` outside a string starts a comment, and a quote inside a comment is text.
+  // ONE left-to-right pass keeps that precedence honest — the regex engine advances a
+  // position at a time, so whichever construct STARTS first consumes the other, whatever
+  // order the alternation happens to be written in — and it is still a SECOND
+  // implementation (a regex scanner, never a call into stripCssComments), which is the whole
+  // point of the post-condition. Comments are removed; strings are blanked to equal-length
+  // spaces so offsets and brace counts stay comparable between src and out.
+  // ★ #46 r1 MINOR-1: THE PREVIOUS NOTE HERE WAS WRONG, AND IT WAS THE #772 CLASS — a
+  // comment asserting a property the code did not have. It said an UNQUOTED `url(…)`
+  // holding a literal `/*` was "harmless because src and out are viewed identically".
+  // They are not. The scanner copies that url() verbatim to `out` and removes the REAL
+  // comment after it, so `out` no longer holds the `*/` this view needs to close the
+  // runaway match — the alternation then finds no comment at all, `/*` survives into `vo`,
+  // and `stripped()` THROWS on correct input:
+  //     .zz { background: url(x/*y); }   /* real */   .zz2 { --zz-k4: 1; }
+  // So the view now HAS the scanner's own unquoted-url branch: an unquoted `url( … )` is
+  // consumed as one unit (blanked to equal-length spaces, like a string) before any `/*`
+  // inside it can open a comment. It is written first for readability only — its position
+  // in the alternation is inert, because the url() starts earlier in the input than the
+  // `/*` it contains and the earliest START wins. A url whose first non-space character is
+  // a quote is deliberately NOT taken here — that is the string branch's job, as in the scanner.
+  // ⚠ What this view still cannot do, stated honestly — two gaps, both of which FAIL LOUD
+  // (a thrown post-condition on valid CSS), never silently:
+  //   1. An unquoted `url(` with NO closing paren is not matched. The scanner copies it to
+  //      end-of-file; the view falls through to the comment/string alternation.
+  //   2. The view's string branches EXCLUDE newlines (`[^"\\\n]`) and the scanner's do not:
+  //      it runs `while (j < n && css[j] !== c)` straight across line breaks. So a MULTI-LINE
+  //      string containing a `/*` is one literal to the scanner (copied verbatim) and is not
+  //      a string to the view at all — the `/*` inside it then opens a comment match in the
+  //      view that reaches a `*/` in `src` and finds none in `out` (the real comment after it
+  //      having been stripped), and the "a /* survived the strip" Error fires on correct CSS.
+  //      Not fixed: the input is pathological, no stylesheet here has one, and the failure
+  //      names itself. Fixing it means teaching the view multi-line strings — which is the
+  //      third step toward being the CSS parser this deliberately is not.
+  // The view is a REGEX CROSS-CHECK, not a CSS parser — it exists to catch a scanner desync
+  // as a brace or property-name difference, not to be a second correct tokenizer.
+  const view = (t) => t.replace(
+    /url\(\s*(?!["'])[^)]*\)|\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'/g,
+    (m) => (m.startsWith('/*') ? '' : ' '.repeat(m.length)),
+  );
   const vs = view(src), vo = view(out);
   const props = (t) => new Set([...t.matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]));
   const lost = [...props(vs)].filter((k) => !props(vo).has(k));

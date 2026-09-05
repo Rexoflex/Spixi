@@ -605,7 +605,10 @@ export function mountScanPage({ host, bridge, strings, camera } = {}) {
       if (finished) return;
       finished = true;
       stopCamera();
-      br.send('ixian:qrresult:' + text);         // raw legacy composition — C# splits on the literal
+      // ★ #46 r2 NIT-1: the composition is unchanged, but C# no longer splits on the
+      // literal — it matches the prefix with StartsWith + Ordinal and takes ONE Substring
+      // after it, so everything past the first prefix is the payload verbatim.
+      br.send('ixian:qrresult:' + text);
     },
     onCancel() {
       if (finished) return;

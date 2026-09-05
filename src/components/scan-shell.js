@@ -23,8 +23,12 @@
  *
  * deliverScanResult gates (never emitted): not in 'scanning' · already
  * delivered · empty/whitespace payload · payload containing the literal
- * 'ixian:qrresult:' (C# Splits on it — a hostile QR could truncate itself
- * into a different payload; spec §1 + §9 ask for a C#-side guard).
+ * 'ixian:qrresult:'. ★ #46 r2 NIT-1: C# no longer Splits on that literal — ScanPage
+ * (and HomePage's second copy) now match it with StartsWith + Ordinal and take ONE
+ * Substring after the first prefix, so a self-prefixed QR can no longer truncate
+ * itself into a different payload. THIS GATE STAYS: only the reason changed. A
+ * payload that carries the verb text is hostile whatever the parser does, and the
+ * shell is not the only thing that can put a URL on that WebView.
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';

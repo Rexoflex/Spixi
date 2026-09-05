@@ -2097,19 +2097,9 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   -webkit-mask-size: 110px 191px;
   mask-size: 110px 191px;
 }
-/* W5 — pattern STYLE row. Same tile grammar as the intensity row above; the
-   only differences are per-style mask scaling and (for Live flow) a canvas
-   face instead of a mask.
-   The 288px data-matrix tile crops to a near-empty corner at 64px, so it gets
-   its own scale: 144px puts ~10 cells across the tile, which is what makes it
-   read as a MATRIX rather than as noise. Specificity (0,3,0) clears the shared
-   rule above. ★ E1: that shared value is 140px now, close enough to this 144px
-   that the override looks redundant — it is not. 144px is derived from THIS tile
-   (288px ÷ 2 = ~10 cells across); the 140px above is derived from the doodles
-   tile. They agree by coincidence and must not be merged. */
-/* W5 — pattern STYLE row. Same tile grammar as the intensity row above; the
-   only differences are per-style mask scaling and (for Live flow) a canvas
-   face instead of a mask.
+/* W5 — pattern STYLE row. It keeps the tile grammar the separate intensity row used
+   before Session M (#783) retired that control; the only differences are per-style
+   mask scaling and (for Live flow) a canvas face instead of a mask.
    The 288px data-matrix tile crops to a near-empty corner at 64px, so it gets
    its own scale: 144px puts ~10 cells across the tile, which is what makes it
    read as a MATRIX rather than as noise. Specificity (0,3,0) clears the shared
@@ -2213,16 +2203,19 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 /* —— ★ Session M (#774): the Colour card — a single value row, so it takes the HUB's card
    padding (4) instead of the appearance screen's section padding (12). A 48px row inside a
    12px section reads as a row floating in a box rather than as a card that IS a row.
-   The rule is written against the section, not the row, so the dark case (an empty div,
-   the control does not exist there) has nothing to pad and nothing to hide.
+   The rule is written against the section, not the row. In dark the section is never
+   built, so this rule matches nothing there.
    REVERSAL: delete this rule and the row sits 20px in from the card edge. —— */
 .c-settings-appearance .c-settings__section.c-settings-appearance__groundsec {
   padding: var(--spacing-4);
 }
 /* the row's own label carries the card's word — see the component. `min-width: 0` on the
    value keeps a long localized ground name ("Prehod barve") ellipsizing instead of pushing
-   the chevron off the card. */
+   the chevron off the card.
+   ⚠ `flex` is restated because the base rule sets `flex: none`, and a non-shrinking item
+   never reaches its ellipsis — the four properties below cannot work without this line. */
 .c-settings-appearance__ground .c-settings__row-value {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

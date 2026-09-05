@@ -249,11 +249,12 @@ namespace SPIXI
                  * handler is. This tree knows it — SpixiContentPage.cs writes
                  * `if (MainThread.IsMainThread) drop(); else MainThread.BeginInvoke…`,
                  * treating the two arms as equivalent. So the present below completes
-                 * SYNCHRONOUSLY (every ContactDetails push site passes revealDelayMs 0
-                 * — except ContactNewPage:166, which passes 4000: there the reveal AWAITS
-                 * first and the burst can run ahead of it, so the L10 win simply does not
-                 * apply on that one entry (review B MINOR-3); four of five sites hold —
-                 * so presentPreload has no await before its opacity flip), and a second
+                 * SYNCHRONOUSLY (four of the five ContactDetails push sites pass
+                 * revealDelayMs: 0. The fifth, in ContactNewPage, passes only the 4000 ms
+                 * TIMEOUT and leaves revealDelayMs at its 120 ms default: there the reveal
+                 * AWAITS first and the burst can run ahead of it, so the L10 win simply does
+                 * not apply on that one entry (review B MINOR-3); on the four that hold
+                 * presentPreload has no await before its opacity flip), and a second
                  * BeginInvokeOnMainThread for the burst would have run inline too —
                  * leaving the roster exactly where it started and the fix measuring zero.
                  *
@@ -663,26 +664,41 @@ namespace SPIXI
                     // survives a leave notice with no route (the group whose members
                     // are not in contacts); this page inlined the pair and was the copy
                     // that threw out of onNavigating. The try is the A-4 belt.
+                    /* ★ #797 loop r2: report the LOCAL removal. leaveGroup returns the
+                     * removeFriend result, and a throw here means we never learned it.
+                     * Both cases leave the record in place, so the page must not pop
+                     * and the user must not read "Contact deleted." */
+                    bool left = false;
                     try
                     {
-                        SContacts.leaveGroup(friend);
+                        left = SContacts.leaveGroup(friend);
                     }
                     catch (Exception)
                     {
                         Logging.error("ixian:leave failed");   // no ex.Message — Core formats the address into its text
                     }
-                    IXICore.Meta.Logging.info("[CRASHDIAG] leave: sent, presenting the alert");
-                    displaySpixiAlert(SpixiLocalization._SL("contact-details-removedcontact-title"), SpixiLocalization._SL("contact-details-removedcontact-text"), SpixiLocalization._SL("global-dialog-ok"));
-                    IXICore.Meta.Logging.info("[CRASHDIAG] leave: popping to root");
-                    IXICore.Meta.Logging.flush();
-                    popToRootAsync();
-                    HomePage.Instance()?.removeDetailContent();
-                    IXICore.Meta.Logging.info("[CRASHDIAG] leave: teardown dispatched");
-                    MainThread.BeginInvokeOnMainThread(() =>
+                    if (!left)
                     {
-                        IXICore.Meta.Logging.info("[CRASHDIAG] leave: first async nav turn drained");
+                        IXICore.Meta.Logging.info("[CRASHDIAG] leave: refused, staying on the page");
                         IXICore.Meta.Logging.flush();
-                    });
+                        // Generic strings: the dictionary has no leave-failure text.
+                        displaySpixiAlert(SpixiLocalization._SL("global-dialog-error"), SpixiLocalization._SL("settings-deleted-error-text"), SpixiLocalization._SL("global-dialog-ok"));
+                    }
+                    else
+                    {
+                        IXICore.Meta.Logging.info("[CRASHDIAG] leave: sent, presenting the alert");
+                        displaySpixiAlert(SpixiLocalization._SL("contact-details-removedcontact-title"), SpixiLocalization._SL("contact-details-removedcontact-text"), SpixiLocalization._SL("global-dialog-ok"));
+                        IXICore.Meta.Logging.info("[CRASHDIAG] leave: popping to root");
+                        IXICore.Meta.Logging.flush();
+                        popToRootAsync();
+                        HomePage.Instance()?.removeDetailContent();
+                        IXICore.Meta.Logging.info("[CRASHDIAG] leave: teardown dispatched");
+                        MainThread.BeginInvokeOnMainThread(() =>
+                        {
+                            IXICore.Meta.Logging.info("[CRASHDIAG] leave: first async nav turn drained");
+                            IXICore.Meta.Logging.flush();
+                        });
+                    }
                 }
             }
             else if (current_url.StartsWith("ixian:enableNotifications"))

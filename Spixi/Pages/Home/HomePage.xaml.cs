@@ -704,11 +704,18 @@ namespace SPIXI
             {
                 onLeaveGroupFor(current_url.Substring("ixian:leavegroup:".Length));
             }
-            else if (current_url.Contains("ixian:qrresult:"))
+            // ★ #46 r2 NIT-4: ANCHORED, like the ScanPage copy. This branch is dead today —
+            // only scan.html emits the verb and ScanPage owns that WebView — but a second
+            // copy of a dispatch is a copy that drifts (the #658 lesson), and this one held
+            // the exact shape the ScanPage fix removed: Contains() matched the literal
+            // ANYWHERE in the URL, and Split(…)[1] then took the segment before the SECOND
+            // occurrence, so a QR encoding its own `ixian:qrresult:` prefix truncated its
+            // payload at a point the scanner chose. Everything after the FIRST prefix is the
+            // payload; a URL that is only the prefix yields "" (as it did — Contains
+            // guaranteed one occurrence, so split[1] never threw). Otherwise unchanged.
+            else if (current_url.StartsWith("ixian:qrresult:", StringComparison.Ordinal))
             {
-                string[] split = current_url.Split(new string[] { "ixian:qrresult:" }, StringSplitOptions.None);
-                string result = split[1];
-                processQRResult(result);
+                processQRResult(current_url.Substring("ixian:qrresult:".Length));
                 e.Cancel = true;
                 return;
             }
@@ -3657,6 +3664,26 @@ namespace SPIXI
                 // flush (~10s+). Same one-liner the SettingsPage branch above ships.
                 UIHelpers.shouldRefreshContacts = true;
                 checkForRating();
+#if ANDROID
+                /* ★ Session O [CDPERF] — TEMPORARY. The pre-warm's BEFORE number (prewarm-chat-spec
+                 * §4 row 1, #780's one warning): the 600 ms after a conversation closes is when the
+                 * user scrolls the chats list, and it is where warm() will be scheduled. The same
+                 * probe the present uses, started HERE, reports the list's frame drops before the
+                 * pre-warm exists — and again after it lands, from the same line. Only when no
+                 * conversation remains (a tag-replace close would measure the NEW chat instead).
+                 * Fixed words + integers. Retire with the [CDPERF] set. */
+                if (!SpixiContentPage.getOverlayPages().Exists(p => p is SingleChatPage))
+                {
+                    try
+                    {
+                        SingleChatPage.CdperfFrameProbe.start(System.Diagnostics.Stopwatch.StartNew(), "chats-after-close");
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.warn("[CDPERF] chats-after-close probe failed to start: " + ex.GetType().Name);
+                    }
+                }
+#endif
             }
             else if (overlay is AppDetailsPage)
             {

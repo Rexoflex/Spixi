@@ -4032,10 +4032,16 @@
       try { showToast({ text: s.revokeRequestFailed || 'The request could not be revoked.', tone: 'error', host: document.body, strings: s }); } catch (e) {}
     },
     /* ★ L13 (#676) — the leave's own answer. Its vocabulary is "left" | "fail", NOT
-       removeContactResult's ok/left/blocked+pairs: a room cannot be "blocked" (removeFriend
-       refuses a contact who is in a group, never a group itself) and there are no pairs to
-       carry. A refusal un-tombstones the row, because a row that vanished while you are
-       still in the group is exactly the lie this row was built to end. */
+       removeContactResult's ok/left/blocked+pairs, and the reason is the CALLER, not the
+       subject: HomePage's ixian:leavegroup emitter sets exactly those two words from
+       SContacts.leaveGroup's bool. "blocked" and its pairs are computed only inside
+       removeContact, which this path never runs.
+       ⚠ #46 r1 NIT-2 corrected an earlier claim here — it said "a room cannot be blocked".
+       leaveGroup serves BOTS as well as groups (the #567 grammar), and a bot can itself be
+       a group member, so a blocking enumeration IS reachable for a room; it simply is not
+       reachable through THIS verb (#772: the comment must state what the code enforces).
+       A refusal un-tombstones the row, because a row that vanished while you are still in
+       the group is exactly the lie this row was built to end. */
     leaveGroupResult(address, status) {
       const addr = String(address || '');
       const s = window.SL || {};

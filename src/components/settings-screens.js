@@ -77,18 +77,16 @@ export const CHAT_GROUNDS = [
   { id: 'gradient', key: 'groundGradient', label: 'Gradient' },
 ];
 
-/* ★★★ AUG (Damir 2026-08-30): STRONG IS RETIRED — two levels, Off and Subtle.
-   ⚠ THIS IS A RETIREMENT, SO IT CARRIES A MIGRATION, not just a shorter array. A user
-   who chose Strong has `2` in localStorage; readPatternLevel below folds 2 → 1 so they
-   land on Subtle rather than on a level that no longer exists. The same fold is repeated
-   in the two pre-paint ladders (chat.html, settings.html), because a level resolved after
-   first paint flashes the wrong intensity — the #690 three-ladder rule.
-   ★ 'Default' was a poor label once there are only two options; it is 'Subtle' now, which
-   is also the word Damir used. The KEY is unchanged so no locale loses its entry. */
-export const PATTERN_LEVELS = [
-  { value: 0, key: 'patternOff', label: 'Off' },
-  { value: 1, key: 'patternDefault', label: 'Subtle' },
-];
+/* ★ Session M (#783): THE PATTERN_LEVELS ARRAY IS GONE. Session M folded the intensity
+   control into the Background row, which deleted `swatchGroup` — the array's only reader.
+   What remained described a control that no longer exists, so it is retired here, and its
+   two labels (`patternOff`, `patternDefault`) leave the extractor table with it and so
+   leave every locale.
+   ⚠ THE LEVEL ITSELF IS STILL REAL: 0 and 1 are still the stored values, and
+   readPatternLevel below still folds a stored 2 — the retired Strong step — to 1. Only the
+   labelled picker is retired. That fold is repeated in the two pre-paint ladders
+   (chat.html, settings.html), because a level resolved after first paint flashes the wrong
+   intensity — the #690 three-ladder rule. */
 
 /**
  * Level index → the value to assign to --chat-pattern-opacity.
@@ -142,8 +140,8 @@ export function patternLevelVar(level, boost) {
 export const PATTERN_SWATCH_BOOST = 6;
 
 /* Per-style overrides of the boost above. Keyed by PATTERN_STYLES id; anything absent takes
-   the shared default. Deliberately NOT exported — it is an internal dial of this screen, and
-   the shared constant is the one other code has ever needed.
+   the shared default. Deliberately NOT exported — it is an internal dial of this screen.
+   (The shared constant is exported, but nothing outside this file reads that either.)
    REVERSAL: empty this map and every tile returns to the shared 6×, i.e. to the doodles tile
    Damir asked to quieten. The values ARE the picks, so they are the thing to move: 4.5 is one
    step louder, 2 one step softer, both rendered on the sheet. */
@@ -511,11 +509,10 @@ export function createChatAppearance({
   let styleCurrent = styleOpts.some((o) => o.id === patternStyle) ? patternStyle : 'doodles';
   let levelCurrent = Number(patternOpacity) > 0 ? 1 : 0;
   const bgOpts = [
-    /* ★ Session M: a NEW string, and the only one this restructure adds. `patternOff`
-       ("Off") is already translated in all 13 locales and was NOT reused: under a
-       "Background" heading "Off" names the CONTROL rather than the option, which is the
-       same class of lie the tiles were telling. One word, thirteen files, said out loud
-       in the closing numbers (786 → 787). */
+    /* ★ Session M: a NEW string, and the only one this restructure adds. The retired
+       `patternOff` ("Off") was translated in every locale and was still NOT reused: under
+       a "Background" heading "Off" names the CONTROL rather than the option, which is the
+       same class of lie the tiles were telling. */
     { id: 'none', label: strings.patternNone || 'None', off: true },
     ...styleOpts.map((o) => ({ id: o.id, label: strings[o.key] || o.label })),
   ];
@@ -572,13 +569,15 @@ export function createChatAppearance({
      at build it inherited the document's, and settings.html's root never carries one, so the
      preview painted FLAT under a Gradient swatch. It is stamped from the current value at build. */
   preview.setAttribute('data-chat-ground', groundCurrent);
-  const groundSec = document.createElement('div');
   /* ★ Session M: the colour card is a SINGLE ROW, so it takes the hub's card padding (4)
      rather than the appearance screen's section padding (12) — a 48px row inside a 12px
-     section reads as a row floating in a box. The class is applied unconditionally: in
-     dark the div is empty and the CSS rule has nothing to pad. */
-  groundSec.className = 'c-settings__section c-settings-appearance__groundsec';
+     section reads as a row floating in a box.
+     ⚠ The section is built ONLY in light. It used to be created and appended
+     unconditionally, which painted an empty 8px card in dark. */
+  let groundSec = null;
   if (isLight) {
+    groundSec = document.createElement('div');
+    groundSec.className = 'c-settings__section c-settings-appearance__groundsec';
     /* ★★ Session M (#774): A VALUE ROW, NOT A TILE PAIR — and this is the FIX, not a
        layout preference. Two near-identical coloured rectangles is precisely the confusion
        being removed; shipping the colour control as another swatch row would delete a card
@@ -637,10 +636,11 @@ export function createChatAppearance({
     onPick: (v) => { preview.style.setProperty('--chat-text-scale', String(v)); if (onTextScale) onTextScale(v); },
   }));
   // AND-35 (#371, Damir dial): Text size first, then Background.
-  /* ★ Session M: THREE cards — size, background, colour — and the third is absent in dark
-     (groundSec is an empty div there, so the order is stable across a live theme flip and
-     the append stays unconditional). */
-  body.append(sizeSec, styleSec, groundSec);
+  /* ★ Session M: THREE cards in light — size, background, colour. In dark the colour card
+     does not exist, so only two are appended. A live theme flip re-renders this whole
+     screen (settings.html onApplied), which is what keeps the order correct. */
+  body.append(sizeSec, styleSec);
+  if (groundSec) body.append(groundSec);
 
   // preview honors the incoming state
   preview.style.setProperty('--chat-pattern-opacity', patternLevelVar(levelCurrent));

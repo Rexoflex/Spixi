@@ -138,6 +138,8 @@ namespace SPIXI
         private void onNavigating(object sender, WebNavigatingEventArgs e)
         {
             string current_url = HttpUtility.UrlDecode(e.Url);
+            // #797: cancel first. A throw in a branch must not leave an ixian: navigation for the WebView to load.
+            e.Cancel = true;
 
             /* ★ review MAJOR-2: DISPATCH on the verb anchored at its start, never on a
              * Contains() over the whole URL. Four pages used to own one verb set each, so
@@ -271,7 +273,8 @@ namespace SPIXI
             else if (verb.StartsWith("ixian:restore:", StringComparison.Ordinal))
             {
                 string[] split = current_url.Split(new string[] { "ixian:restore:" }, StringSplitOptions.None);
-                if (split.Count() < 1)
+                // The guard must match the split[1] read below.
+                if (split.Count() < 2)
                 {
                     e.Cancel = true;
                     Utils.sendUiCommand(this, "removeLoadingOverlay");
@@ -311,7 +314,8 @@ namespace SPIXI
             else if (verb.StartsWith("ixian:proceed:", StringComparison.Ordinal))
             {
                 string[] split = current_url.Split(new string[] { "ixian:proceed:" }, StringSplitOptions.None);
-                if(split.Count() < 1)
+                // The guard must match the split[1] read below.
+                if(split.Count() < 2)
                 {
                     e.Cancel = true;
                     return;
@@ -320,9 +324,9 @@ namespace SPIXI
                 string password = split[1]; // Todo: secure this
                 proceed(password);
             }
-            else
+            else if (current_url.Trim().StartsWith("file:", StringComparison.OrdinalIgnoreCase))
             {
-                // Otherwise it's just normal navigation
+                // allow normal navigation only for local files
                 e.Cancel = false;
                 return;
             }

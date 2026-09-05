@@ -134,6 +134,8 @@ namespace SPIXI
         private void onNavigating(object sender, WebNavigatingEventArgs e)
         {
             string current_url = HttpUtility.UrlDecode(e.Url);
+            // #797: cancel first. A throw in a branch must not leave an ixian: navigation for the WebView to load.
+            e.Cancel = true;
 
             // appAccept / appReject / hangUp — the existing global call verbs
             // (VoIPManager routes them; acceptsCallPushes gates stay intact).

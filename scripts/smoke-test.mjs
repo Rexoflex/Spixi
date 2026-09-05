@@ -15821,9 +15821,12 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     '★★ A6 C#: HomePage dispatches the three address-scoped verbs (StartsWith + Ordinal + colon)');
   ok(hpA.indexOf('StartsWith("ixian:removecontact:"') < hpA.indexOf('current_url.Contains("ixian:qrresult:")'),
     'A6 C# (#216/#393): the destructive verbs sit ABOVE the legacy Contains() branches — a crafted payload cannot hijack them');
-  ok(/FriendList\.removeFriend\(friend\)/.test(scA) && /friend\.deleteHistory\(\)/.test(scA) && /CoreStreamProcessor\.sendLeave\(group, null\);\s*FriendList\.removeFriend\(group\);/.test(scA)
+  /* #797 rebase, rewritten in place: the leave notice now sits inside a try (a no-route
+     throw must not skip the removal) — the grammar is still sendLeave THEN removeFriend */
+  ok(/FriendList\.removeFriend\(friend\)/.test(scA) && /friend\.deleteHistory\(\)/.test(scA)
+    && /try\s*\{\s*CoreStreamProcessor\.sendLeave\(group, null\);\s*\}\s*catch \(Exception\)\s*\{[^}]*\}\s*FriendList\.removeFriend\(group\);/.test(stripCode(scA))
     && !/pendingDeletion = true/.test(scA),
-    '★ A6 C# (#567 rebase): SContacts runs the SAME bodies ContactDetails runs — removeFriend / deleteHistory / ONE leave grammar (sendLeave then immediate removeFriend; the bot pendingDeletion wait is RETIRED — it crashed in frozen-core getClient, BE §1e-6)');
+    '★ A6 C# (#567 rebase · #797): SContacts runs the SAME bodies ContactDetails runs — removeFriend / deleteHistory / ONE leave grammar (sendLeave then immediate removeFriend, the send inside a try; the bot pendingDeletion wait is RETIRED — it crashed in frozen-core getClient, BE §1e-6)');
   ok(/"removeContactResult", args\.ToArray\(\)/.test(hpA) && /"removeHistoryResult", addr, status/.test(hpA) && /"setSharedGroups", args\.ToArray\(\)/.test(hpA),
     'A6 C#: every outcome is PUSHED (removeContactResult / removeHistoryResult / setSharedGroups) — the shell can un-tombstone a refusal');
   {
@@ -16525,15 +16528,17 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       for (const p of pairs) { const i = src.indexOf(p, last + 1); if (i < 0) return false; last = i; }
       return true;
     };
-    ok(orderOk(cdF5, ['[CRASHDIAG] leave: start', 'sendLeave(friend, null)', '[CRASHDIAG] leave: sent', 'displaySpixiAlert', '[CRASHDIAG] leave: popping to root', 'Logging.flush();', 'popToRootAsync();', '[CRASHDIAG] leave: teardown dispatched', '[CRASHDIAG] leave: first async nav turn drained']),
-      '★★ F5-2 r2 (C-5): the ContactDetails leave crumbs INTERLEAVE the teardown steps in order — start → sendLeave → sent → alert → pop-crumb → flush → pop → dispatched → the POSTED drained marker (A-4: the async turn is bracketed too)');
+    /* #797 rebase, rewritten in place: the step between the crumbs is SContacts.leaveGroup
+       now (one home), not the inlined sendLeave — the ORDER claim is unchanged */
+    ok(orderOk(cdF5, ['[CRASHDIAG] leave: start', 'SContacts.leaveGroup(friend)', '[CRASHDIAG] leave: sent', 'displaySpixiAlert', '[CRASHDIAG] leave: popping to root', 'Logging.flush();', 'popToRootAsync();', '[CRASHDIAG] leave: teardown dispatched', '[CRASHDIAG] leave: first async nav turn drained']),
+      '★★ F5-2 r2 (C-5 · #797): the ContactDetails leave crumbs INTERLEAVE the teardown steps in order — start → leaveGroup → sent → alert → pop-crumb → flush → pop → dispatched → the POSTED drained marker (A-4: the async turn is bracketed too)');
     {
       const hpF5 = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
       ok(orderOk(hpF5, ['[CRASHDIAG] removecontact: start', 'SContacts.removeContact(f, leave, out blockers)', '[CRASHDIAG] removecontact: status=', 'Logging.flush();', 'popPageAsync', '[CRASHDIAG] removecontact: teardown dispatched']),
         '★★ F5-2 r2 (C-5): the HomePage crumbs interleave the removal steps in order — and say "dispatched", not "done" (A-4)');
       const scpF5c = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8');
-      ok(orderOk(scpF5c, ['[CRASHDIAG] chatleave: start', 'sendLeave(friend, null)', '[CRASHDIAG] chatleave: sent', '[CRASHDIAG] chatleave: teardown dispatched']),
-        '★ F5-2 r2 (A-6): the THIRD leave path (SingleChatPage — one shell edit from live) is bracketed too, so the diagnostic cannot exonerate a path it never watched');
+      ok(orderOk(scpF5c, ['[CRASHDIAG] chatleave: start', 'SContacts.leaveGroup(friend)', '[CRASHDIAG] chatleave: sent', '[CRASHDIAG] chatleave: teardown dispatched']),
+        '★ F5-2 r2 (A-6 · #797): the THIRD leave path (SingleChatPage — one shell edit from live) is bracketed too, so the diagnostic cannot exonerate a path it never watched');
     }
   }
 }
@@ -16587,14 +16592,23 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   const sc567 = readFileSync(join(root, 'Spixi/Utils/SContacts.cs'), 'utf8');
   const cd567 = readFileSync(join(root, 'Spixi/Pages/Contacts/ContactDetails.xaml.cs'), 'utf8');
   const scp567 = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8');
-  const leaveShape = /sendLeave\((?:friend|group), null\);\s*(?:\/\/[^\n]*\n\s*)*FriendList\.removeFriend\((?:friend|group)\);\s*(?:\/\/[^\n]*\n\s*)*UIHelpers\.shouldRefreshContacts = true;/;
-  ok(leaveShape.test(sc567) && !/pendingDeletion = true/.test(sc567),
-    '★ #567 ①: SContacts.leaveGroup = sendLeave → immediate removeFriend for group AND bot; pendingDeletion is never set');
-  ok((cd567.match(new RegExp(leaveShape.source, 'g')) || []).length >= 1 && !/pendingDeletion = true/.test(cd567)
+  /* #797 rebase, rewritten in place: the grammar is unchanged (sendLeave → immediate
+     removeFriend) but it has ONE home now — the send sits in a try inside
+     SContacts.leaveGroup, and both page copies CALL it instead of inlining the pair.
+     stripCode: the docblocks name sendLeave and removeFriend. */
+  const sc567c = stripCode(sc567), cd567c = stripCode(cd567), scp567c = stripCode(scp567);
+  const leaveShape = /try\s*\{\s*CoreStreamProcessor\.sendLeave\(group, null\);\s*\}\s*catch \(Exception\)\s*\{[^}]*\}\s*FriendList\.removeFriend\(group\);\s*UIHelpers\.shouldRefreshContacts = true;/;
+  ok(leaveShape.test(sc567c) && !/pendingDeletion = true/.test(sc567),
+    '★ #567 ① (#797): SContacts.leaveGroup = sendLeave (in a try) → immediate removeFriend for group AND bot; pendingDeletion is never set');
+  const cdLeave = cd567c.slice(cd567c.indexOf('current_url.Equals("ixian:leave"'), cd567c.indexOf('current_url.StartsWith("ixian:enableNotifications"'));
+  ok(cdLeave.length > 0 && /SContacts\.leaveGroup\(friend\)/.test(cdLeave) && !/sendLeave\(/.test(cdLeave) && !/FriendList\.removeFriend\(/.test(cdLeave)
+     && !/pendingDeletion = true/.test(cd567)
      && /SContacts\.removeContact\(friend, leaveShared, out removeBlockers\)/.test(cd567),
-    '★ #567 ②③ (rebased by SPEC §4): ContactDetails ixian:leave still uses the one grammar, and the second copy it carried for the BOT remove branch is gone — that path routes through SContacts.removeContact → leaveGroup now, the same sendLeave → immediate removeFriend, in ONE place. pendingDeletion is never set');
-  ok(/StreamProcessor\.sendLeave\(friend, null\);\s*(?:\/\/[^\n]*\n\s*)*FriendList\.removeFriend\(friend\);/.test(scp567) && !/pendingDeletion = true/.test(scp567),
-    '★ #567 ④: SingleChatPage ixian:leave (the third path) uses the one grammar; pendingDeletion is never set');
+    '★ #567 ②③ (rebased by SPEC §4 · #797): ContactDetails ixian:leave CALLS SContacts.leaveGroup and inlines neither sendLeave nor removeFriend — the copy that threw out of onNavigating is gone; the BOT remove branch routes through SContacts.removeContact → leaveGroup. pendingDeletion is never set');
+  const scpLeave = scp567c.slice(scp567c.indexOf('current_url.StartsWith("ixian:leave")'), scp567c.indexOf('current_url.StartsWith("ixian:openLink:"'));
+  ok(scpLeave.length > 0 && /SContacts\.leaveGroup\(friend\)/.test(scpLeave) && !/sendLeave\(/.test(scpLeave) && !/FriendList\.removeFriend\(/.test(scpLeave)
+     && !/pendingDeletion = true/.test(scp567),
+    '★ #567 ④ (#797): SingleChatPage ixian:leave (the third path) CALLS the one home too; pendingDeletion is never set');
   ok(/§1e-6/.test(sc567) && /getClient/.test(sc567),
     '★ #567: the mechanism comment cites BE §1e-6 (the core one-line fix that may restore the acknowledged grammar later) — the mitigation is not silent');
 }
@@ -21357,7 +21371,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     const body = at < 0 ? '' : hp13c.slice(at, hp13c.indexOf('private void', at + 40));
     ok(at > 0 && /SContacts\.leaveGroup\(f\)/.test(body)
       && !/CoreStreamProcessor\.sendLeave/.test(body) && !/FriendList\.removeFriend/.test(body),
-      '★★ L13 C#, ONE HOME: the handler CALLS SContacts.leaveGroup and does not re-inline sendLeave + removeFriend. ContactDetails still inlines that pair, so this would have been the THIRD copy of one grammar — and the #567 rebase had to find every copy once already');
+      '★★ L13 C#, ONE HOME: the handler CALLS SContacts.leaveGroup and does not re-inline sendLeave + removeFriend. (ContactDetails inlined that pair until #797 made it the copy that threw; every leave site calls the one home now — and the #567 rebase had to find every copy once already)');
     ok(/var chat_page = Utils\.getChatPage\(f\);[\s\S]{0,200}?if \(SContacts\.leaveGroup\(f\)\)/.test(body)
       && /chat_page\.popPageAsync\(\)/.test(body),
       '★★ L13 C#: the open conversation is resolved BEFORE the leave and popped after. getChatPage matches on the Friend REFERENCE, which leaveGroup removes — resolving it afterwards finds nothing, and on a wide window that leaves a live chat page for a room you are no longer in (loop r1 A-3, one surface over)');
@@ -24488,6 +24502,51 @@ console.log('Session M: the apps layout · the present signal on the DATA pages'
       && /Utils\.sendUiCommand\(this, "cdpong", token\);/.test(scpN2)
       && scpN2.indexOf('ixian:cdping:') > scpN2.indexOf('url.Equals("ixian:painted", StringComparison.Ordinal)'),
       '★ Session N [CDPERF] rtt: the C# echo lives in onNavigatingGlobal beside ixian:painted (the verb it measures), answers ONLY a page that loaded one of our shells (hasGeneratedContent — a mini-app document has no cdpong global and a bare undefined global throws before the dispatcher, #258), accepts ASCII DIGITS ONLY (≤16 — that filter is what keeps the echo out of the raw data-URI passthrough), and answers through sendUiCommand — the same main-thread → EvaluateJavaScript path every push takes, so the loop it times is the real one');
+  }
+
+  /* ★★ #797 — THE UNDELETABLE GROUP (Damir, Android walk N: "Webpage not available",
+     the group still there after a restart AND after a restore). Two defects, one
+     symptom. (1) Core's sendGroupSpixiMessage THROWS when the leave notice has no
+     route — the owner is not a contact ("primary contact missing",
+     CoreStreamProcessor.cs:349/402), BotUsers.getOwner on an empty roster
+     (contacts.First()), a null botInfo — and SContacts.leaveGroup let the throw skip
+     removeFriend. Delete every contact and the group you shared with them can never
+     be left. (2) ContactDetails.onNavigating set e.Cancel only at the END of its
+     chain, so the same throw left the navigation uncancelled and Android loaded
+     `ixian:leave` as a page. Pins read stripCode: every docblock names the pair. */
+  {
+    console.log('\n— #797: the undeletable group —');
+    const sc797 = stripCode(readFileSync(join(root, 'Spixi/Utils/SContacts.cs'), 'utf8'));
+    const cd797 = stripCode(readFileSync(join(root, 'Spixi/Pages/Contacts/ContactDetails.xaml.cs'), 'utf8'));
+    const scp797 = stripCode(readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8'));
+    const lgAt = sc797.indexOf('public static bool leaveGroup(Friend group)');
+    const lg = lgAt < 0 ? '' : sc797.slice(lgAt, sc797.indexOf('public static string removeContact(', lgAt));
+    const iTry = lg.indexOf('try'), iSend = lg.indexOf('CoreStreamProcessor.sendLeave(group, null);'), iCatch = lg.indexOf('catch (Exception)'), iRemove = lg.indexOf('FriendList.removeFriend(group);');
+    ok(lgAt > 0 && iTry > 0 && iSend > iTry && iCatch > iSend && iRemove > iCatch
+      && /Logging\.warn\("leaveGroup: the leave notice has no route/.test(lg.slice(iCatch, iRemove)),
+      '★★ #797 ① ONE HOME SURVIVES A NO-ROUTE LEAVE: in SContacts.leaveGroup the send sits inside a try, the catch LOGS (no address — the handover-gate log rule), and FriendList.removeFriend runs AFTER the catch — a group whose owner or roster is not in contacts is removed locally instead of never');
+    ok(!/ex\.Message/.test(lg) && !/walletAddress/.test(lg.slice(iCatch, iRemove)),
+      '★ #797 ①: the no-route line carries neither ex.Message (Core formats the base58 token into its text) nor the address');
+    const onNavAt = cd797.indexOf('private void onNavigating(object sender, WebNavigatingEventArgs e)');
+    const onNav = onNavAt < 0 ? '' : cd797.slice(onNavAt, cd797.indexOf('private void ', onNavAt + 40) < 0 ? undefined : cd797.indexOf('private void ', onNavAt + 40));
+    const iDecode = onNav.indexOf('HttpUtility.UrlDecode(e.Url)'), iCancel = onNav.indexOf('e.Cancel = true;'), iGlobal = onNav.indexOf('onNavigatingGlobal(current_url)');
+    ok(onNavAt > 0 && iDecode > 0 && iCancel > iDecode && iCancel < iGlobal,
+      '★★ #797 ② CANCEL FIRST: ContactDetails.onNavigating sets e.Cancel = true right after the decode and BEFORE the first branch (HomePage:594 / SingleChatPage:280 grammar) — a branch that throws can no longer leave an ixian: navigation uncancelled for Android to load as a page');
+    ok(/else if \(current_url\.Trim\(\)\.StartsWith\("file:", StringComparison\.OrdinalIgnoreCase\)\)\s*\{\s*e\.Cancel = false;\s*return;\s*\}\s*e\.Cancel = true;/.test(onNav)
+      && !/Otherwise it's just normal navigation/.test(readFileSync(join(root, 'Spixi/Pages/Contacts/ContactDetails.xaml.cs'), 'utf8')),
+      '★ #797 ②: the tail re-allows ONLY a file: navigation (the shell\'s own load); an unknown ixian: verb stays on the page (the #335 OnboardPage rule) — the open "anything unmatched" else is gone');
+    const cdLeaveAt = cd797.indexOf('current_url.Equals("ixian:leave", StringComparison.Ordinal)');
+    const cdLeave = cdLeaveAt < 0 ? '' : cd797.slice(cdLeaveAt, cd797.indexOf('ixian:enableNotifications', cdLeaveAt));
+    ok(cdLeaveAt > 0 && /try\s*\{\s*SContacts\.leaveGroup\(friend\);\s*\}\s*catch \(Exception\)\s*\{\s*Logging\.error\("ixian:leave failed"\);\s*\}/.test(cdLeave),
+      '★★ #797 ③: the ContactDetails ixian:leave branch calls SContacts.leaveGroup inside its own try (the A-4 belt: never throw in onNavigating) — the inlined sendLeave + removeFriend pair that threw is gone from this page');
+    const scpLeaveAt = scp797.indexOf('current_url.StartsWith("ixian:leave")');
+    const scpLeave = scpLeaveAt < 0 ? '' : scp797.slice(scpLeaveAt, scp797.indexOf('ixian:openLink:', scpLeaveAt));
+    ok(scpLeaveAt > 0 && /try\s*\{\s*SContacts\.leaveGroup\(friend\);\s*\}\s*catch \(Exception\)/.test(scpLeave) && !/sendLeave\(/.test(scpLeave),
+      '★ #797 ③: SingleChatPage\'s ixian:leave (the third path) calls the one home inside a try too');
+    ok((sc797.match(/sendLeave\(/g) || []).length === 1
+      && !/sendLeave\(/.test(cd797) && !/sendLeave\(/.test(scp797)
+      && !/sendLeave\(/.test(stripCode(readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8'))),
+      '★★ #797 ④ ONE SEND SITE: sendLeave is called from exactly one place in the app (SContacts.leaveGroup) — ContactDetails, SingleChatPage and HomePage all route through it, so the no-route survival cannot drift out of one copy (the #658 lesson: a rule in four homes drifts)');
   }
 }
 

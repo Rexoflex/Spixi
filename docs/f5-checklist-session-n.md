@@ -67,7 +67,7 @@ node scripts\smoke-test.mjs
 Expected (seen green in the container, Ixian-Core sibling PRESENT):
 
 ```
-bundle 321 · shells 18 · smoke BASELINE OK 4125 / the 3 known (#136 · M5 · B3)
+bundle 321 · shells 18 · smoke BASELINE OK 4132 / the 3 known (#136 · M5 · B3)   ← 4132 after #797
 locales ALL CLEAN 786 · i18n-lint OK (6 dev) · pseudo 9/9 · cs-syntax 138 clean + 1 known gap
 extract-strings --check OK · build-shells --check OK · build-legal-docs --check OK
 ```
@@ -185,6 +185,18 @@ Gate 2:
 ```powershell
 node scripts\smoke-packaged.mjs
 ```
+
+### E · The undeletable group (#797) — C# only, after the walk
+
+Rebuild (C# changed: `SContacts.cs` · `ContactDetails.xaml.cs` · `SingleChatPage.xaml.cs`; no
+bundle, no shells).
+
+| # | Do | Expect |
+|---|---|---|
+| E1 | Android: Contacts → the group nobody else in it is your contact → **Leave group** | The alert, the details page closes, the group is GONE from Contacts and Chats. No "Webpage not available" |
+| E2 | Kill the app; reopen | The group stays gone |
+| E3 | `ixian.0.log` | One line `leaveGroup: the leave notice has no route (owner or roster not in contacts) — removing the group locally` — no address in it |
+| E4 | A group whose owner IS your contact → Leave group | Unchanged: the leave notice is sent, the group is gone |
 
 ### D · Your eye (nothing landed)
 

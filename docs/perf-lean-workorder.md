@@ -1,5 +1,8 @@
 # WORK ORDER — LEANING THE CHAT OPEN (build me, then measure me)
 
+> ⚠ **NUMBERS SUPERSEDED — read `docs/perf-chat-open-brief.md` first.** That file re-measured this work order in a clean clone and corrects four headline figures: the parsed payload is 2 917 KB (the three stylesheets, 422 KB, were omitted), `spixi.strings.js` is 498 KB not 444, the comment share is 33 % not 41 % and is distributed differently per file, and **55 pin sources read built artifacts, not 4** — which changes what the comment strip costs. The levers and the risk ranking below stand; the figures do not.
+
+
 **For Session M+. Point the session at this file.** Everything here was measured in the tree at
 `f174801e` on 2026-09-04. Nothing has been built. Companion docs: `lean-build-audit.md` (the
 wider audit incl. install size), `walk-session-l-results.md` (where the 320 ms came from),

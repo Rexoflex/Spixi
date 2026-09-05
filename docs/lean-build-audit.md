@@ -1,5 +1,8 @@
 # LEAN BUILD AUDIT — where the bytes go, and what can be cut (2026-09-04)
 
+> ⚠ **NUMBERS SUPERSEDED — read `docs/perf-chat-open-brief.md` first.** That file re-measured this audit in a clean clone and corrects four headline figures: the parsed payload is 2 917 KB (the three stylesheets, 422 KB, were omitted), `spixi.strings.js` is 498 KB not 444, the comment share is 33 % not 41 % and is distributed differently per file, and **55 pin sources read built artifacts, not 4** — which changes what the comment strip costs. The levers and the risk ranking below stand; the figures do not.
+
+
 **Status: MEASURED, NOTHING BUILT.** Written for Session M+ after Damir asked "where else can we
 save, we need to be super lean", and after the lead dev's observation that git shows hundreds of
 thousands of lines. Every number below was measured in the tree at `f174801e`; none is estimated.
@@ -96,6 +99,14 @@ WebView (#779, ~185 ms) and carries none of its risk, so **it should probably go
 | `fonts/` | 344 KB | 3 | **0 of 26** |
 
 ### B1 · ★ `fonts/` is referenced by NO html file — 344 KB
+
+> ✅ **CONFIRMED, and a later "correction" of this row was itself wrong.** Round 1 of
+> `docs/perf-chat-open-brief.md` claimed `fonts/` was reached through FontAwesome's CSS;
+> that was a grep for `fonts/` matching `../webfonts/`. `fonts/` is referenced only by
+> `css/spixiui-*.css`, which **nothing loads** — so it is dead, exactly as written here.
+> Brief §3 has the verified table: ≈579 KB is free today. ⚠ `libs/fontawesome` is a
+> different matter — two live legacy screens still render its glyphs.
+
 
 `build-shells --check` states it: *"fonts are EMBEDDED in the compared css"*. So the loose font
 files appear to be shipping for nothing. **Verify against the C# side before deleting** (a native

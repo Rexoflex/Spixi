@@ -44,6 +44,10 @@
 		<!-- Versions -->
 		<ApplicationDisplayVersion>0.9.22</ApplicationDisplayVersion>
 		<ApplicationVersion>160009220</ApplicationVersion>
+		<!-- NU1105 (Session N, first restore from an empty obj on this SDK): NuGet requires ONE
+		     PackageVersion across all TFMs. MAUI derives it from ApplicationDisplayVersion on the
+		     mobile TFMs while the Windows TFM fell back to 1.0.0 — pin it to the display version. -->
+		<PackageVersion>$(ApplicationDisplayVersion)</PackageVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">23.0</SupportedOSPlatformVersion>

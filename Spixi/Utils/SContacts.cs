@@ -79,7 +79,27 @@ namespace SPIXI
              * the confirm on its unknown-sender path — no crash, and the row
              * disappears at once (the perception Damir wants). The core one-line
              * fix may restore the acknowledged grammar later (BE row). */
-            CoreStreamProcessor.sendLeave(group, null);
+            /* ★★ #797 (Damir, Android walk N): a group whose members are NOT in contacts
+             * could never be left. Core's sendGroupSpixiMessage THROWS when the notice
+             * has no route — "primary contact missing" when the owner is not a contact
+             * (CoreStreamProcessor.cs:349/402 at 097341a), BotUsers.getOwner on an empty
+             * roster (contacts.First()), a null botInfo. The throw left this method BEFORE
+             * removeFriend ran, so the record stayed; on ContactDetails it also left
+             * onNavigating before e.Cancel was set, and Android loaded `ixian:leave` as a
+             * page — "Webpage not available". Delete every contact, and the group you
+             * shared with them becomes undeletable; a restore brings it back the same way.
+             * These are STRUCTURAL states of this record (sendMessage itself is async and
+             * never throws here), so nobody can be told and the local removal is the whole
+             * of what "leave" can still mean — the half that never ran. No address in the
+             * log line (the handover-gate log rule). */
+            try
+            {
+                CoreStreamProcessor.sendLeave(group, null);
+            }
+            catch (Exception)
+            {
+                Logging.warn("leaveGroup: the leave notice has no route (owner or roster not in contacts) — removing the group locally");
+            }
             FriendList.removeFriend(group);
             UIHelpers.shouldRefreshContacts = true;
             return true;

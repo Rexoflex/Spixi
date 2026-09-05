@@ -1,4 +1,4 @@
-Session N — the legacy purge · the perf instruments · the strip fork (#789–#795)
+Session N — the legacy purge · the perf instruments · the strip fork (#789–#797)
 
 GOAL 1 — nothing that is not part of the redesign survives (#789/#790):
 - DELETE the last four legacy documents (apps · address · settings_lock · wallet_recipient)
@@ -27,8 +27,15 @@ GOAL 2 — measure first (#791–#795):
 (csproj property evaluated too early · the strip's silent truncation · an unneeded ceiling
 raise · a Windows argv trap in the Exec quoting); every fix pinned, 10 mutations killed.
 
+AFTER THE WALK (#797) — the undeletable group (Android walk N; C# only): Core throws when a
+leave notice has no route (the group's owner is not a contact), SContacts.leaveGroup ran the
+send BEFORE the removal with no try, and ContactDetails cancelled the navigation only at the
+END of its chain ("Webpage not available"). The send in a try, the removal after it;
+ContactDetails cancels first, re-allows only file:; every leave site calls the one home.
+Walk N Android 15 P · 0 F · 9 N/A; gate 1 verified against the Signed APK.
+
 Gates (container, Ixian-Core sibling present): bundle 321 · shells 18 · smoke BASELINE OK
-4125 / the 3 known · locales 786 · lint ✓ · pseudo 9/9 · cs-syntax 138+1 · three
+4132 / the 3 known · locales 786 · lint ✓ · pseudo 9/9 · cs-syntax 138+1 · three
 --checks ✓ · strip-release --check ✓ · smoke-packaged ✓ (4124 without the sibling).
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>

@@ -434,6 +434,14 @@ namespace SPIXI
         private void onNavigating(object sender, WebNavigatingEventArgs e)
         {
             string current_url = HttpUtility.UrlDecode(e.Url);
+            /* ★★ #797: CANCEL FIRST, like HomePage:594 and SingleChatPage:280. This page
+             * set e.Cancel only at the END of the chain, so a branch that threw left the
+             * navigation UNcancelled — Android's ShouldOverrideUrlLoading catches the
+             * throw, reads Cancel == false, and lets the WebView load `ixian:leave` as a
+             * page: "Webpage not available", the whole details surface gone. The one
+             * legitimate navigation (the shell's own file: load) is re-allowed at the
+             * tail. An unknown ixian: verb now stays on the page too (the #335 rule). */
+            e.Cancel = true;
 
             if (onNavigatingGlobal(current_url))
             {
@@ -651,10 +659,18 @@ namespace SPIXI
                     IXICore.Meta.Logging.info("[CRASHDIAG] leave: start (bot=" + friend.bot + ")");
                     // ★ #567: ONE grammar for group AND bot — sendLeave + immediate
                     // removeFriend (the pendingDeletion wait fed the BE §1e-6 core
-                    // crash; see SContacts.leaveGroup for the whole mechanism).
-                    CoreStreamProcessor.sendLeave(friend, null);
-                    FriendList.removeFriend(friend);
-                    UIHelpers.shouldRefreshContacts = true;
+                    // crash). ★ #797: ONE HOME too — SContacts.leaveGroup, which now
+                    // survives a leave notice with no route (the group whose members
+                    // are not in contacts); this page inlined the pair and was the copy
+                    // that threw out of onNavigating. The try is the A-4 belt.
+                    try
+                    {
+                        SContacts.leaveGroup(friend);
+                    }
+                    catch (Exception)
+                    {
+                        Logging.error("ixian:leave failed");   // no ex.Message — Core formats the address into its text
+                    }
                     IXICore.Meta.Logging.info("[CRASHDIAG] leave: sent, presenting the alert");
                     displaySpixiAlert(SpixiLocalization._SL("contact-details-removedcontact-title"), SpixiLocalization._SL("contact-details-removedcontact-text"), SpixiLocalization._SL("global-dialog-ok"));
                     IXICore.Meta.Logging.info("[CRASHDIAG] leave: popping to root");
@@ -768,9 +784,10 @@ namespace SPIXI
                 string nick = split[1];
                 friend.setUserDefinedNick(nick);
             }
-            else
+            else if (current_url.Trim().StartsWith("file:", StringComparison.OrdinalIgnoreCase))
             {
-                // Otherwise it's just normal navigation
+                // allow normal navigation only for local files (#797: was "anything
+                // unmatched", which let an unknown ixian: verb replace the page)
                 e.Cancel = false;
                 return;
             }

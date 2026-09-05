@@ -90,8 +90,17 @@
   }
 </style>
 <link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<!-- ★ Session N [CDPERF] parse — TEMPORARY (retire with the set, handoff ⑬): per-file
+     cost of the shared payload ON THE CRITICAL PATH. A <script> after a <link rel=stylesheet>
+     does not run until that sheet is fetched + parsed (script-blocking stylesheets), and a
+     <script src> is fetched + compiled + run before the next tag — so the delta between two
+     consecutive stamps is that file's honest cost, not a byte-share estimate. Printed ONCE
+     by signalReady as `[CDPERF] chat-shell parse …`. Fixed words + integers only. -->
+<script>window.__cdParse=[['head',performance.now()]];</script>
 <link rel="stylesheet" href="../styles/tokens.css">
+<script>window.__cdParse&&window.__cdParse.push(['tokens',performance.now()]);</script>
 <link rel="stylesheet" href="../styles/base.css">
+<script>window.__cdParse&&window.__cdParse.push(['base',performance.now()]);</script>
 <link rel="stylesheet" href="../styles/components/button.css">
 <link rel="stylesheet" href="../styles/components/topbar.css">
 <link rel="stylesheet" href="../styles/components/avatar.css">
@@ -133,7 +142,9 @@
 <link rel="stylesheet" href="../styles/components/contact-row.css"><!-- W-j: wallet-send's row atom (companion stylesheet) -->
 <link rel="stylesheet" href="../styles/components/wallet-send.css">
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
+<script>window.__cdParse&&window.__cdParse.push(['styles',performance.now()]);</script>
 <link rel="stylesheet" href="../styles/chat-pattern.css"><!-- theme-ink pattern mask (loads after message-bubble.css) -->
+<script>window.__cdParse&&window.__cdParse.push(['pattern',performance.now()]);</script>
 <style>
   /* Production chat shell: fill the WebView (no demo phone frame). The chat
      topbar pins, the message log (c-chat-canvas → .messages) scrolls, the
@@ -579,8 +590,11 @@
     <div id="chat-composer"></div>
   </div>
 
+<script>window.__cdParse&&window.__cdParse.push(['body',performance.now()]);</script>
 <script src="../components/icons.iife.js"></script>
+<script>window.__cdParse&&window.__cdParse.push(['icons',performance.now()]);</script>
 <script src="../demo/strings.iife.js"></script>
+<script>window.__cdParse&&window.__cdParse.push(['strings',performance.now()]);</script>
 <!-- A4: the SL carrier below is C#-substituted with the ACTIVE locale on every page
      load (SpixiLocalization.localizeHtml — every lang file carries the key), so the
      dictionary follows the Settings language pick. Before this, production resolved
@@ -588,6 +602,7 @@
      preview the marker stays un-substituted → SpixiStrings.get() falls back to en-us. -->
 <script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || '*SL{language-code}');</script>
 <script src="../demo/spixi.iife.js"></script>
+<script>window.__cdParse&&window.__cdParse.push(['bundle',performance.now()]);</script>
 <script>
   /* —————————————————————————————————————————————————————————————————————————
    * Production chat shell — the redesigned single-chat surface wired to the REAL
@@ -1003,6 +1018,16 @@
     if (!path) return null;
     const p = String(path).replace(/\\/g, '/');
     if (p === 'img/spixiavatar.png' || p === 'img/spixi-group-avatar.png') return null;
+    return p;
+  }
+  /** App-invite icon: C# pushes a data-URI (X1), an http(s) publisher URL, or the
+   *  `img/…` WebView-relative "no icon" sentinel. Only the first two are loadable —
+   *  the sentinel's file no longer ships (Session N), so it resolves to null and the
+   *  card draws its rocket. Any other `img/…` value is the same class. */
+  function resolveAppIcon(path) {
+    if (!path) return null;
+    const p = String(path).replace(/\\/g, '/');
+    if (p.indexOf('img/') === 0) return null;
     return p;
   }
   let callVisible = false;   // showCallButton reveals the topbar phone action (1:1, peer reachable)
@@ -3986,6 +4011,14 @@
    * and only then is a "loading" affordance the right thing to build.
    *
    * Dev-mode gated, no storage, no bridge verb, nothing rendered when dev mode is off. */
+  /* ★ Session N [CDPERF] rtt — TEMPORARY state (retire with the set). */
+  const cdRtt = { active: false, done: false, samples: [] };
+  function cdPing() { try { bridge.send('ixian:cdping:' + Math.round(performance.now() * 1000)); } catch (e) {} }
+  function cdRttProbe() {
+    if (cdRtt.done) return;
+    cdRtt.done = true;
+    setTimeout(() => { cdRtt.active = true; cdRtt.samples.length = 0; cdPing(); }, 1500);
+  }
   const loadProbe = { bursts: [], cur: null, t0: 0 };
   let loadProbeEl = null;
   function loadProbeDev() {
@@ -4879,6 +4912,7 @@
           console.warn('[CDPERF] chat-shell n=' + (cdBurst ? cdBurst.n : 0)
             + ' burst=' + (cdBurst ? Math.round(cdT0 - cdBurst.start) : 0)
             + 'ms paint=' + cdPaint + 'ms glass=' + Math.round(performance.now() - cdT0) + 'ms');
+          cdRttProbe();   // ★ Session N [CDPERF] rtt — TEMPORARY, one-shot, armed 1.5 s after this frame (inside the try: it must never touch the present below)
         } catch (e) {}
         /* ★★ Session K — THE PRESENT SIGNAL (permanent, unlike the stamp above it). The
            history is on glass at this frame; C# presents the staged page HERE instead of on
@@ -4890,6 +4924,22 @@
         bridge.send('ixian:painted');
       }));
       dbg('onChatScreenLoaded');
+    },
+
+    /* ★ Session N [CDPERF] rtt — TEMPORARY. C# echoes each `ixian:cdping:<token>` as
+       cdpong(token); the token is our own performance.now() (integer µs), so the delta
+       is one full JS → C# → JS loop over the cancelled-navigation transport (#781).
+       Five in series (the outbox serialises sends anyway), then ONE line. */
+    cdpong(token) {
+      const sent = Number(token) / 1000;
+      if (!cdRtt.active || !isFinite(sent)) return;
+      cdRtt.samples.push(performance.now() - sent);
+      if (cdRtt.samples.length < 5) { cdPing(); return; }
+      cdRtt.active = false;
+      const r = cdRtt.samples.slice().sort((a, b) => a - b);
+      try {
+        console.warn('[CDPERF] chat-shell rtt n=' + r.length + ' med=' + Math.round(r[2]) + 'ms min=' + Math.round(r[0]) + 'ms max=' + Math.round(r[r.length - 1]) + 'ms');
+      } catch (e) {}
     },
 
     hideBackButton() { dbg('hideBackButton'); },     // 2-pane: back owned by host chrome
@@ -5202,7 +5252,12 @@
     addAppRequest(id, appid, appname, appimage, address, nick, avatar, time, localSender, confirmed, read, appStatus, appInstallURL) {
       if (arguments.length <= 4) { dbg('addAppRequest: 4-arg mini-app session request — ignored (legacy parity)'); return; }
       upsertApp(id, toMs(time), asBool(localSender) ? 'sent' : 'received', {
-        appid: appid, name: appname, iconUrl: appimage || null,
+        // ★ Session N (legacy purge): `img/app-noicon.jpg` is C#'s "no icon" SENTINEL
+        // (SingleChatPage's default app_image); the legacy JPG behind it is deleted, so
+        // the sentinel maps to the card's own rocket glyph up front — the same rule the
+        // avatar sentinels get in resolveAvatar — instead of an <img> that 404s into
+        // the onerror fallback (a wasted request + a console error per invite card).
+        appid: appid, name: appname, iconUrl: resolveAppIcon(appimage),
         astate: appStateFrom(localSender, appStatus),
         appInstallURL: appInstallURL || '',
         senderNick: resolveNick(address, nick), senderAddress: address || '',
@@ -6532,6 +6587,17 @@
       const t = performance.timing;
       const dcl = e ? Math.round(e.domContentLoadedEventEnd) : (t ? t.domContentLoadedEventEnd - t.navigationStart : -1);
       console.warn('[CDPERF] chat-shell boot nav=' + Math.round(performance.now()) + 'ms dcl=' + dcl + 'ms');
+      /* ★ Session N [CDPERF] parse — TEMPORARY: the per-file split (stamps in <head>/<body>).
+         `inline` = bundle stamp → the window `load` event that runs signalReady: this shell's
+         own script (compile + run — nothing else sits between the bundle tag and it) plus
+         whatever `load` still waited for (in the BUILT shell nothing; in the source shell the
+         font preload). `pre` = navigationStart → the first stamp, printed FIRST because it is
+         an absolute, not a delta. Deltas are consecutive. Once per document ({ once: true }). */
+      const st = window.__cdParse || [];
+      st.push(['inline', performance.now()]);
+      let line = '[CDPERF] chat-shell parse pre=' + Math.round(st.length ? st[0][1] : 0) + 'ms';
+      for (let i = 1; i < st.length; i++) line += ' ' + st[i][0] + '=' + Math.round(st[i][1] - st[i - 1][1]) + 'ms';
+      console.warn(line);
     } catch (e) {}
     bridge.ready();
     // Fallback: if nothing has painted shortly after ready (brand-new empty chat

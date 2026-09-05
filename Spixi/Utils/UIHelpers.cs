@@ -369,41 +369,17 @@ namespace SPIXI
             {
                 try
                 {
-                    /* ★ #46 audit MAJOR: not every live page re-themes from a push, and
-                     * the first cut of this method quietly assumed they all do. The
-                     * remaining LEGACY pages (hasLegacyPageChrome below is the authoritative
-                     * list — a count here drifted twice, review N-2; L1 deleted the wallet
-                     * send/receive trio after this was written) have no setTheme
-                     * global: their theme is a <link href="css/*SL{SpixiThemeMode}"> baked
-                     * at generatePage time, so only a regenerate moves it. Pushing at them
-                     * did two wrong things at once — it threw an uncaught ReferenceError
-                     * into the WebView (bare identifier, evaluated before the dispatcher
-                     * is entered, #258) and it left the page in yesterday's theme, ON THE
-                     * MONEY PATH.
-                     *
-                     * So they keep reload(), which is EXACTLY what they got before this
-                     * batch. That is the deliberate choice: the security handover gate
-                     * says the redesign must INTRODUCE nothing, and "a theme flip reloads
-                     * the legacy send screen" is inherited behaviour, not ours. It does
-                     * carry the #385 MINOR-3 cost (a half-typed amount is discarded) — but
-                     * that cost exists at the baseline too, and quietly changing money-path
-                     * behaviour inside a theming batch is how a regression gets attributed
-                     * to the wrong change. Logged for Damir instead. */
-                    if (!page.rethemesByPush)
-                    {
-                        /* break-my-verdict NIT (forward guard, not a live bug): a page in
-                         * the STAGING slot must never be reloaded — that destroys the
-                         * ixian:onload the present is waiting for and the page never
-                         * appears. Unreachable today because every staged page loads a
-                         * redesigned shell, so this can only fire if a legacy page is
-                         * ever staged. Skip it rather than break the present. */
-                        if (page == SpixiContentPage.getStagingPage())
-                        {
-                            continue;
-                        }
-                        page.reload();
-                        continue;
-                    }
+                    /* ★ Session N (legacy purge): the branch that reload()ed pages which
+                     * could not re-theme from a push (`!page.rethemesByPush`) is GONE with
+                     * the four legacy documents that were its only members — their theme
+                     * was a <link href="css/*SL{SpixiThemeMode}"> baked at generatePage
+                     * time. Every page this sweep enumerates now loaded a redesigned
+                     * shell, which defines the setTheme global (17 via theme-runtime.js, #421;
+                     * empty_detail.html — the one bundle-less shell — defines its own
+                     * window.setTheme by hand), so the push below is the whole sweep. The staging-slot guard that
+                     * lived inside that branch went with it: a staged page is never
+                     * reloaded here because nothing here reloads any more. Reversal: git
+                     * restore this branch + SpixiContentPage.rethemesByPush. */
                     Utils.sendUiCommand(page, "setTheme", themeName);
                     /* ★ #46 audit: the NATIVE backing has to move with the shell. reload()
                      * ran applyPageSurfaceColor on the way through; a push does not, and
@@ -438,10 +414,10 @@ namespace SPIXI
              * (Account re-presents in yesterday's theme, forever). */
             SpixiContentPage.disposeParkedOverlay();
             /* ★ break-my-verdict MAJOR-1, belt: give the VISIBLE page the last word on
-             * the system bars. The legacy branch above calls reload(), whose own chrome
-             * pass lands ASYNCHRONOUSLY once the page finishes loading — and that pass
-             * does repaint the global bars from whichever page it belongs to. Re-asserting
-             * here is cheap, idempotent, and it encodes the ★ #410 rule directly: the
+             * the system bars. (Written against the legacy reload() branch above, whose
+             * async chrome pass repainted the bars from whichever page it belonged to;
+             * that branch is gone — Session N — the belt stays: cheap, idempotent, and
+             * it encodes the ★ #410 rule directly: the
              * bars are read from the surface that is actually on screen, never from
              * whatever happened to be last in a list. */
             MainThread.BeginInvokeOnMainThread(() =>

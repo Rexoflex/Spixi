@@ -138,6 +138,12 @@ namespace SPIXI
         {
             if (string.IsNullOrEmpty(path)) return path;
             if (path.StartsWith("http", StringComparison.OrdinalIgnoreCase)) return path;   // remote URL — leave as-is
+            // The three "img/…" SENTINELS (spixiavatar.png · spixi-group-avatar.png ·
+            // app-noicon.jpg) are pure MARKERS now — Session N deleted the placeholder files
+            // behind them and every shell maps them to its gradient/rocket fallback without a
+            // request. (img/flags/*.png are real shipped files the language picker loads,
+            // but they never arrive here: this helper only sees avatar/app-icon paths.)
+            // A marker must pass through untouched, never be read as a file.
             if (path.StartsWith("img/", StringComparison.OrdinalIgnoreCase)) return path;   // WebView asset sentinel
 
             try
@@ -274,13 +280,10 @@ namespace SPIXI
         //
         // #340 audit (A-MAJOR-1/2) — THE WHITELIST IS NOT ENOUGH ON ITS OWN. The passthrough
         // is only correct where the RECEIVER was taught it, and "round-trip identical" above
-        // silently assumed every receiver runs src/bridge/native.js. Two do not:
-        //   · the 7 remaining legacy Raw/html pages (hasLegacyPageChrome) still decode with
-        //     js/spixi.js `base64ToBytes` → an unguarded atob. A peer-chosen nickname of
-        //     "data:;base64,x" passes the whitelist, is emitted verbatim, and atob THROWS on
-        //     the ':' — dropping the whole push. (The example that prompted this was
-        //     wallet_contact_request's setData; that page is REMOVED, decision 4, but the
-        //     seven remaining legacy pages decode exactly the same way.)
+        // silently assumed every receiver runs src/bridge/native.js. One still does not
+        // (a second class — the legacy Raw/html pages decoding with js/spixi.js's unguarded
+        // atob, where a peer-chosen nickname of "data:;base64,x" THREW on the ':' and
+        // dropped the whole push — is gone: Session N deleted the last four of them):
         //   · MiniAppPage points its WebView at the app's own entry point; its SDK decoder
         //     ships inside third-party app packages and can never be re-generated. The
         //     documented contract there is base64-per-argument, frozen.
@@ -316,8 +319,8 @@ namespace SPIXI
                 string cmd_str = "executeUiCommand(" + command;
                 StringBuilder sb = new StringBuilder(cmd_str);
 
-                // #340: receiver gate FIRST — see isTransportSafeDataUri's header. Legacy
-                // pages and mini-app WebViews keep the base64 contract unconditionally.
+                // #340: receiver gate FIRST — see isTransportSafeDataUri's header. Mini-app
+                // WebViews (never loadPage'd) keep the base64 contract unconditionally.
                 bool raw_data_uri_ok = contentPage != null && contentPage.supportsRawDataUriArgs;
 
                 foreach (string arg in arguments)

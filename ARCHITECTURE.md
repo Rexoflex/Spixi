@@ -17,7 +17,7 @@ Headline numbers from the audit:
 
 | Metric | Current |
 |---|---|
-| HTML pages | 29 (1 orphaned: `address.html`) |
+| HTML pages | 29 at the fork (1 orphaned: `address.html`) → **18 shipped documents since Session N (2026-09-05): every legacy page and its js/css/libs/fonts are deleted; `js/` holds only `html5-qrcode.min.js`** |
 | JS→C# `ixian:` command handlers | ~204 page-level + 3 global |
 | C#→JS functions invoked | ~125 (several names reused with different arity per page) |
 | Inline JS across pages | ~2,400 lines, heavily copy-pasted |
@@ -69,7 +69,7 @@ Condensed reference; exact parsing rules, behaviors, and edge cases per command 
 - `wallet_send_2.html`: `onload` · `back` · `send:<amount>` · `getMaxAmount`
 - `wallet_sent.html`: `onload` · `dismiss` · `viewexplorer`
 - `wallet_request.html`: `onload` · `back` · `pick` · `error` · `sendrequest:<addr>:<amt>|...` · `addrecipient:<addr>`
-- `wallet_recipient.html`: `onload` · `back` · `newcontact` · `select:<flags+name>:|<addr>|...` · `avatar`
+- `wallet_recipient.html`: `onload` · `back` · `newcontact` · `select:<flags+name>:|<addr>|...` · `avatar` — **DELETED Session N** (WalletRecipientPage: its three push sites were re-proved unreachable; the `select:` grammar lives on as `ixian:creategroup:` in the home shell)
 - `wallet_contact_request.html`: `onload` · `back` · `decline` · `send`
 
 ### Contacts (2 pages)
@@ -96,11 +96,11 @@ verbs below are the union the one page now handles — none were added or remove
 - `settings.html`: `onload` · `back` · `error` · `delete` · `deletea` · `deleteh` · `deleted` · `backup` · `save:<nick>` · `avatar` · `remove` · `language:<code>` · `lock:<on|off>` · `appearance:<int>`
 - `settings_backup.html`: `onload` · `back` · `error` · `backupAccount` · `backupWallet`
 - `settings_encryption.html`: `onload` · `back` · `error` · `changepass:<old>--1ec4ce59e0535704d4--<new>` (magic-delimiter format)
-- `settings_lock.html`: `onload` · `back` · `unlock`
+- `settings_lock.html`: `onload` · `back` · `unlock` — **DELETED Session N** (SetLockPage hung off an EXACT-match bare `ixian:lock` no shell emits; the Account hub drives `ixian:lock:on|off` on SettingsPage)
 
 ### Mini-apps (4 pages)
 
-- `apps.html`: `onload` · `back` · `details:<appId>` · `newapp`
+- `apps.html`: `onload` · `back` · `details:<appId>` · `newapp` — **DELETED Session N** (AppsPage was never constructed; the Apps tab lives in the home shell)
 - `app_new.html`: `onload` · `back` · `quickscan` · `qrresult:<data>` · `fetch:<url>` · `selectAppFile`
 - `app_details.html`: `onload` · `back` · `install` · `uninstall` · `details` · `startApp:<appId>` · `startAppMulti:<appId>`
 - `MiniAppPage` (mini-app runtime, loads the app's own HTML — **out of redesign scope**): `onload[:<sdkVer>]` · `back` · `data:<payload>` · `protocolData<id>=<data>` · `getStorageData<key>` · `setStorageData<key>=<val>` · `action<json>` · `xa:<b64 json>`
@@ -152,7 +152,7 @@ Each shell is one HTML file with internal client-side views ("routes"). **The MA
 | 8 | `settings.html` | settings, settings_backup, downloads, dev, contributors | hub · backup · downloads · log viewer · credits |
 | 9 | `scan.html` | scan | camera view (kept separate: html5-qrcode is a 375 KB payload only this shell needs) |
 
-Deleted: `address.html` (orphaned — no C# page loads it). Untouched: `MiniAppPage` runtime (loads mini-apps' own HTML; not part of the Spixi UI surface).
+Deleted: `address.html` (orphaned — no C# page loads it). ★ Session N (2026-09-05): the LAST legacy documents (`apps.html` · `settings_lock.html` · `wallet_recipient.html` · `address.html`) and everything only they loaded (`css/` · `libs/` · `fonts/` · `js/*` but `html5-qrcode.min.js`) are gone — see DECISIONS Session N and the `★★ Session N` block in `scripts/smoke-test.mjs` (the reachability gate). Untouched: `MiniAppPage` runtime (loads mini-apps' own HTML; not part of the Spixi UI surface).
 
 Why this grouping holds up against the audit:
 
@@ -244,7 +244,7 @@ Not blocking the redesign; listed for awareness and future hardening. Sources: a
 
 ### 9.4 Dead code
 
-- `address.html` — orphaned, no C# page loads it.
+- `address.html` — orphaned, no C# page loads it (upstream `a50c7334` removed the My Address page). **DELETED Session N.**
 - `quickScanJS()` in `spixi.js` references the removed Instascan library.
 - `ixian:wallet`, `ixian:avatar` (Home), `ixian:activity`, `ixian:copy` — deprecated/no-op handlers.
 

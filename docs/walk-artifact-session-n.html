@@ -1,0 +1,219 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Walk — Session N</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{--bg:#f4f6f9;--card:#fff;--ink:#141b23;--sub:#5b6672;--line:#dfe5ec;
+        --p:#1a7f4b;--f:#b12525;--n:#8b95a1;--act:#1956b2}
+  @media (prefers-color-scheme:dark){:root{--bg:#0d1117;--card:#161b22;--ink:#e6edf3;
+        --sub:#9aa7b4;--line:#252c36;--p:#3fb27a;--f:#f08a80;--n:#7d8794;--act:#5a8dee}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.55 -apple-system,Segoe UI,Roboto,sans-serif;padding:24px}
+  header{max-width:980px;margin:0 auto 20px}
+  h1{font-size:24px;margin:0 0 6px}
+  h2{font-size:18px;margin:30px 0 10px}
+  p.lede{color:var(--sub);margin:0 0 4px}
+  main{max-width:980px;margin:0 auto}
+  section{background:var(--card);border:1px solid var(--line);border-radius:14px;
+          padding:16px 18px;margin:0 0 16px}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--sub)}
+  td.id{width:52px;font-weight:600;white-space:nowrap}
+  td.v{width:150px;white-space:nowrap}
+  .btn{border:1px solid var(--line);background:transparent;color:var(--sub);
+       border-radius:8px;padding:5px 11px;margin-right:5px;cursor:pointer;font:inherit;font-size:13px}
+  .btn[aria-pressed=true][data-v=P]{background:var(--p);border-color:var(--p);color:#fff}
+  .btn[aria-pressed=true][data-v=F]{background:var(--f);border-color:var(--f);color:#fff}
+  .btn[aria-pressed=true][data-v=N]{background:var(--n);border-color:var(--n);color:#fff}
+  .note{width:100%;margin-top:6px;border:1px solid var(--line);border-radius:8px;
+        padding:6px 8px;font:inherit;font-size:13px;background:transparent;color:var(--ink);display:none}
+  tr[data-open] .note{display:block}
+  .tally{position:sticky;top:0;background:var(--bg);padding:10px 0;z-index:2;
+         display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .tally b{font-size:18px}
+  pre{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;
+      overflow:auto;font-size:13px;white-space:pre-wrap}
+  img{max-width:100%;border:1px solid var(--line);border-radius:10px;display:block;margin:10px 0}
+  .warn{border-inline-start:3px solid var(--f);padding-inline-start:12px}
+  .dial{border-inline-start:3px solid var(--act);padding-inline-start:12px}
+  code{background:var(--bg);padding:1px 5px;border-radius:5px}
+</style>
+<header>
+  <h1>Walk — Session N</h1>
+  <p class="lede">Goal 1 — the legacy purge (#789/#790) · Goal 2 — the two perf instruments (#791),
+     the comment-strip fork with its two gates (#792), the SVGO doodle for your eye (#793), the pre-warm
+     designed (#794), the image set measured (#795).</p>
+  <p class="lede">Tap P / F / N per row. Nothing is stored anywhere — hit <b>Copy results</b>
+     at the bottom and paste them back to me. Section B wants the LOG LINES pasted, not a verdict.</p>
+</header>
+<main>
+  <div class="tally">
+    <span><b id="tp">0</b> pass</span><span><b id="tf">0</b> fail</span>
+    <span><b id="tn">0</b> n/a</span><span><b id="tr">0</b> not scored</span>
+    <button class="btn" onclick="copyAll()">Copy results</button>
+    <span id="copied" style="color:var(--p);display:none">copied</span>
+  </div>
+
+  <section>
+    <h2 style="margin-top:0">Before you start</h2>
+    <p class="warn"><b>Wipe <code>obj</code> and <code>bin</code>, then build with F5</b>, never a bare
+      <code>dotnet build</code> (#663). Three xaml pages LEFT the project this batch — a stale
+      <code>obj</code> keeps their generated <code>.g.cs</code>. <b>Not</b> Rebuild Solution.</p>
+    <p class="warn"><b>Release builds now run the strip target.</b> The log must say
+      <code>Spixi: Release packaging strip applied</code>; a machine without <code>node</code> on the
+      PATH fails LOUD there, by design (<code>-p:SpixiStripHtml=false</code> opts out).</p>
+    <p>The generators ran in the container and every gate is green. Full block in
+      <code>docs/f5-checklist-session-n.md</code> §0. Expected:</p>
+    <pre>bundle 321 · shells 18 · smoke BASELINE OK 4125 / the 3 known (#136 · M5 · B3)
+locales ALL CLEAN 786 · i18n-lint OK · pseudo 9/9 · cs-syntax 138 + 1 known gap
+extract-strings --check OK · build-shells --check OK · build-legal-docs --check OK</pre>
+  </section>
+
+  <section>
+    <h2 style="margin-top:0">A · The legacy purge (#789) — every surface that could have lost a route</h2>
+    <p class="lede">Nothing here should LOOK different. A fail is a route that is gone: a legacy
+      page that used to appear, an icon that used to load, a flow that no longer opens.</p>
+    <table id="A"><thead><tr><th>#</th><th>Do</th><th>Expect</th><th>Verdict</th></tr></thead><tbody>
+    </tbody></table>
+  </section>
+
+  <section>
+    <h2 style="margin-top:0">B · The instruments (#791) — paste the lines</h2>
+    <p class="lede">Release + dev-coexist on the Motorola. <code>adb logcat -v time | Select-String CDPERF</code>
+      into a file (<code>Out-File -Encoding utf8</code>). Three chat opens.</p>
+    <table id="B"><thead><tr><th>#</th><th>Do</th><th>Expect</th><th>Verdict</th></tr></thead><tbody>
+    </tbody></table>
+  </section>
+
+  <section>
+    <h2 style="margin-top:0">C · The strip fork (#792) — Release only</h2>
+    <p class="lede">Gate 1 proves the package is a faithful transform of what was reviewed; gate 2 proves
+      the suite passes over it. Commands in the checklist §2C, one per block.</p>
+    <table id="C"><thead><tr><th>#</th><th>Do</th><th>Expect</th><th>Verdict</th></tr></thead><tbody>
+    </tbody></table>
+  </section>
+
+  <section>
+    <h2 style="margin-top:0">D · Your eye — nothing landed</h2>
+    <p class="dial"><b>D1 · The doodle tile under SVGO (#793).</b> 231 → 97 KB per chat open. Rendered
+      on the real built shell, both themes; the canvas differs by at most 6/255 on fewer than 0.001 % of
+      pixels. The 4× crops are at the worst pixel. <b>land / keep</b> — one word.</p>
+    <img src="sheets/session-n/doodle-svgo-sheet.png" alt="Doodle tile: original vs SVGO, light and dark, with 4× crops">
+    <p class="dial"><b>D2 · The lossy PNG set.</b> pngquant q80–98 takes the ten surviving PNGs 1.33 → 0.74 MB.
+      A palette quantisation is a visual change — <b>render it first / no</b>.</p>
+    <p class="dial"><b>D3 · contacts-es.svg</b> is a 325 KB base64 PNG wrapped in an SVG; its siblings are
+      640-px PNGs of ~40–190 KB. <b>convert / keep</b>.</p>
+    <p class="dial"><b>D4 · The four Session M dials</b> are still <code>?</code> on the walk-M sheet:
+      Canvas-vs-Colour · None-vs-Off · doodles boost ×3 (×4.5 / ×2) · matrix swatch larger.</p>
+  </section>
+
+  <section>
+    <h2 style="margin-top:0">Designed, not built</h2>
+    <p><b>The pre-warm (#794) — <code>docs/prewarm-chat-spec.md</code>.</b> Tier 3 in your own ranking (#782),
+      C# lifecycle inside the overlay machinery, and the one thing #780 says to measure (chats-list frame
+      drops) needs the phone. The spec is the build minus the typing; one session with the phone in the room.
+      ⛔ #779 stays parked.</p>
+  </section>
+
+  <section>
+    <h2 style="margin-top:0">Results</h2>
+    <pre id="out"></pre>
+  </section>
+</main>
+<script>
+const ROWS = {
+  A: [
+    ['A1','Cold start; Chats · Wallet · Apps · Account','All four render, themed. Nothing legacy loads at boot'],
+    ['A2','Account → App lock ON; kill; reopen; then OFF, same','The toggle persists both ways (ixian:lock:on|off → SettingsPage)'],
+    ['A3','Apps → an app → App details → Open','The app launches'],
+    ['A4','Apps → a MULTI-user app → Invite a contact','The IN-SHELL contacts picker — never a legacy list. Pick → invite lands in that chat'],
+    ['A5','Chats → FAB (new chat)','The in-shell contacts picker'],
+    ['A6','FAB → create a GROUP with a photo','Group created WITH its photo'],
+    ['A7','Scan a contact QR (Account → QR / add contact)','Preview + decode work — html5-qrcode.min.js survived on purpose'],
+    ['A8','Account → Language','13 flags render'],
+    ['A9','Empty Apps · empty Chats · empty contacts picker','Each shows its illustration'],
+    ['A10','Receive an app invite from an app with NO icon','The ROCKET glyph — no broken-image square'],
+    ['A11','Flip the OS theme on Wallet; check every open surface incl. the desktop welcome pane','Everything re-themes by push, no reload, no flash'],
+    ['A12','Open a mini-app','Its content still sits BELOW the status bar'],
+    ['A13','Android/iOS: walk all 18 screens','Nothing under the notch anywhere'],
+    ['A14','Package size','Raw/html 15 → ~7.7 MB; the APK smaller by about that'],
+    ['A15','Fresh install: welcome carousel + Restore art','Four slides + the restore hero show their art (N/A if no fresh install)'],
+  ],
+  B: [
+    ['B1','Open a chat ×3','ONE `[CDPERF] chat-shell parse pre= tokens= base= styles= pattern= body= icons= strings= bundle= inline=` line per open — PASTE the three'],
+    ['B2','~1.5 s after each open','ONE `[CDPERF] chat-shell rtt n=5 med= min= max=` line — PASTE them. ≤3 ms → drop the direct-channel idea; ≥15 ms → it is the route below ~120 ms'],
+    ['B3','Two devices: anything odd while the probe runs?','Nothing — it starts 1.5 s after the open and never touches the composer'],
+    ['B4','`[CDPERF] present <page> by=paint|timer` (owed since #788)','NOT built — phone-only. N/A'],
+  ],
+  C: [
+    ['C1','Release build log','"Spixi: Release packaging strip applied (spixi.tokens.css from …obj…)"'],
+    ['C2','GATE 1 against the DEPLOYED html folder (beside Spixi.exe, or the APK assets\\html)','strip-release --check: GATE 1 OK'],
+    ['C3','The Release app, light AND dark, every tab','Themed exactly as before'],
+    ['C4','GATE 2 (node scripts\\smoke-packaged.mjs, ~5 min)','smoke-packaged: GATE 2 OK'],
+    ['C5','A Debug build','No strip line; tokens.css ships unstripped'],
+  ],
+};
+const state = {};
+for (const [sec, rows] of Object.entries(ROWS)) {
+  const tb = document.querySelector('#' + sec + ' tbody');
+  for (const [id, doo, exp] of rows) {
+    state[id] = { v: '', note: '' };
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td class="id">' + id + '</td><td>' + doo + '</td><td>' + exp + '</td>'
+      + '<td class="v">' + ['P','F','N'].map((v) =>
+        '<button class="btn" data-v="' + v + '" data-id="' + id + '" aria-pressed="false">' + v + '</button>').join('')
+      + '<input class="note" placeholder="note (optional)" data-id="' + id + '"></td>';
+    tb.append(tr);
+  }
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('.btn[data-v]');
+  if (!b) return;
+  const id = b.dataset.id;
+  state[id].v = state[id].v === b.dataset.v ? '' : b.dataset.v;
+  for (const o of document.querySelectorAll('.btn[data-id="' + id + '"]')) {
+    o.setAttribute('aria-pressed', String(o.dataset.v === state[id].v));
+  }
+  b.closest('tr').toggleAttribute('data-open', state[id].v === 'F' || state[id].v === 'N');
+  render();
+});
+document.addEventListener('input', (e) => {
+  if (!e.target.classList.contains('note')) return;
+  state[e.target.dataset.id].note = e.target.value;
+  render();
+});
+function render() {
+  const vals = Object.values(state);
+  document.getElementById('tp').textContent = vals.filter((s) => s.v === 'P').length;
+  document.getElementById('tf').textContent = vals.filter((s) => s.v === 'F').length;
+  document.getElementById('tn').textContent = vals.filter((s) => s.v === 'N').length;
+  document.getElementById('tr').textContent = vals.filter((s) => !s.v).length;
+  const lines = Object.entries(state).map(([id, s]) =>
+    id + ': ' + (s.v || '-') + (s.note ? '  — ' + s.note : ''));
+  const f = Object.entries(state).filter(([, s]) => s.v === 'F').map(([id]) => id);
+  document.getElementById('out').textContent =
+    'WALK N — ' + document.getElementById('tp').textContent + ' P · '
+    + document.getElementById('tf').textContent + ' F · '
+    + document.getElementById('tn').textContent + ' N/A · '
+    + document.getElementById('tr').textContent + ' not scored\n'
+    + 'FAILS: ' + (f.length ? f.join(', ') : 'none')
+    + '\n\n' + lines.join('\n')
+    + '\n\nDials: D1 doodle SVGO land/keep = ?   D2 lossy PNGs render/no = ?   D3 contacts-es convert/keep = ?   D4 (Canvas/Colour · None/Off · boost x3/x4.5/x2 · matrix larger) = ?'
+    + '\n\nB1 parse lines:\n(paste)\n\nB2 rtt lines:\n(paste)';
+}
+function copyAll() {
+  const t = document.getElementById('out').textContent;
+  const done = () => { const c = document.getElementById('copied');
+    c.style.display = 'inline'; setTimeout(() => { c.style.display = 'none'; }, 1400); };
+  if (navigator.clipboard) navigator.clipboard.writeText(t).then(done, sel);
+  else sel();
+  function sel() {
+    const r = document.createRange(); r.selectNodeContents(document.getElementById('out'));
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    try { document.execCommand('copy'); done(); } catch (e) {}
+  }
+}
+render();
+</script>

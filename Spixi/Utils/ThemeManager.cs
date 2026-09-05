@@ -46,7 +46,10 @@ namespace SPIXI
 
             Preferences.Default.Set("appearance", (int)activeAppearance);
             SpixiLocalization.addCustomString("SpixiThemeName", appearance_name);
-            SpixiLocalization.addCustomString("SpixiThemeMode", name + "-" + appearance_name + ".css");
+            // ★ Session N (legacy purge): the second carrier, SpixiThemeMode
+            // ("<theme>-<appearance>.css"), is GONE. Its only consumers were the four
+            // legacy documents' `<link href="css/*SL{SpixiThemeMode}">`, deleted with
+            // css/. SpixiThemeName stays — ten redesigned shells read it.
 
             return true;
         }

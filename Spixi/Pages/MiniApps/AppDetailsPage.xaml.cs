@@ -351,7 +351,8 @@ namespace SPIXI
             // #340 audit (C-MINOR-6) CORRECTS THIS RATIONALE — the previous wording claimed
             // "the old order called popPageAsync() before the hand-off". It did not: at
             // 40f74cf4 onStartAppMulti pushed WalletRecipientPage and contained no pop at
-            // all; the pop lived in HandlePickAppMultiUserSucceeded, i.e. it ran AFTER the
+            // all; the pop lived in its HandlePickAppMultiUserSucceeded (deleted with the
+            // legacy picker, Session N), i.e. it ran AFTER the
             // user picked. There was no order to reverse. What Damir saw is that closing
             // this overlay (tagged formpane, column 1) drops the detail column back to the
             // conversation behind it — and that still happens, because we still pop. What
@@ -379,44 +380,20 @@ namespace SPIXI
                 return;
             }
 
-            // No live home shell (should not happen — this page is opened from it):
-            // fall back to the legacy native picker rather than dropping the launch.
-            var recipientPage = new WalletRecipientPage(false, false);
-            recipientPage.pickSucceeded += (sender, e) =>
-            {
-                HandlePickAppMultiUserSucceeded(sender, e.Value.Item1, appId);
-            };
-
-            MainThread.BeginInvokeOnMainThread(() =>
-            {
-                hostNav.PushAsync(recipientPage, Config.defaultXamarinAnimations);   // #225: root nav
-            });
-        }
-
-        private async void HandlePickAppMultiUserSucceeded(object? sender, List<ExtendedAddress> e, string appId)
-        {
-            Address address = e.First().RoutingAddress;
-            Friend? friend = FriendList.getFriend(address);
-
-            if (friend == null)
-            {
-                return;
-            }
-
-            try
-            {
-                popPageAsync();
-
-                byte[] session_id = onJoinApp(appId, friend);
-
-                var app_info = Node.MiniAppManager.getAppInfo(appId);
-                var msg_id = StreamProcessor.sendAppRequest(friend, appId, session_id, null, app_info);
-                FriendList.addMessageWithType(msg_id, FriendMessageType.appSession, friend.walletAddress, 0, app_info, true, null, 0, false);
-            }
-            catch (Exception ex)
-            {
-                Logging.error("Navigation failed: " + ex.Message);
-            }
+            /* No live home shell. HomePage._singletonInstance is cleared only by
+             * HomePage.stop() (Node.stop / delete account / force-new), and stop() does NOT
+             * tear overlays down — so this branch is reachable in principle (a Node.stop()
+             * while an app-details overlay is open, from any of its four construction
+             * sites: home shell, chat, app-new, this page's own replace) and never in a
+             * normal session. ★ Session N (legacy purge): the fallback that pushed the
+             * legacy WalletRecipientPage picker here is DELETED with that page (it was
+             * the last construction site, and it kept bootstrap + jQuery + FontAwesome +
+             * the Inter fonts shipping for a screen nobody could reach). LOGGED, NOT
+             * SURFACED: Logging.error names the app, the details page stays where it is
+             * and the tap does nothing visible — the user can back out. Reversal: git restore
+             * Pages/Wallet/WalletRecipientPage.* + Raw/html/wallet_recipient.html and
+             * re-add the push here. */
+            Logging.error("onStartAppMulti: no live home shell to pick app targets for " + appId + " — launch not started.");
         }
 
         public byte[] onJoinApp(string appId, Friend friendOrGroup)

@@ -6580,10 +6580,11 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     loadAvatar(path) {
       let p = (path || '').replace(/&bsol;/g, '/');
       // DEFAULT sentinel: SettingsPage pushes 'img/spixiavatar.png' when no custom
-      // avatar exists (xaml:461). It RESOLVES on WinUI → rendered the LEGACY avatar
-      // image instead of the redesign gradient (Damir F5 2026-07-08). Map the default
-      // sentinels to null so createAvatar draws the deterministic gradient — same as
-      // contact_details' resolveAvatar.
+      // avatar exists (xaml:461). It used to RESOLVE on WinUI → rendered the LEGACY
+      // avatar image instead of the redesign gradient (Damir F5 2026-07-08); the file
+      // behind it is deleted (Session N) and the name is a pure marker now. Map the
+      // default sentinels to null so createAvatar draws the deterministic gradient —
+      // same as contact_details' resolveAvatar.
       if (p === 'img/spixiavatar.png' || p === 'img/spixi-group-avatar.png') p = '';
       state.avatarSrc = p || null;
       // Dirty = a fresh pick pending promotion. #242: since X1 this push is a DATA

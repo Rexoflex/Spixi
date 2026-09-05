@@ -1,0 +1,35 @@
+Session N — the legacy purge · the perf instruments · the strip fork (#789–#795)
+
+GOAL 1 — nothing that is not part of the redesign survives (#789/#790):
+- DELETE the last four legacy documents (apps · address · settings_lock · wallet_recipient)
+  and their C# pages (AppsPage · SetLockPage · WalletRecipientPage), css/ libs/ fonts/,
+  js/* except html5-qrcode.min.js (scan injects it), hasLegacyPageChrome + rethemesByPush
+  and every branch that read them, HomePage's bare ixian:lock / ixian:newchat /
+  ixian:startAppMulti branches, the SpixiThemeMode carrier, three MauiXaml rows,
+  ~60 unreferenced images (img/ keeps 13 flags). Every route re-proved by exact reference
+  search; the AppDetailsPage fallback is a logged no-op, not a legacy page.
+- The smoke suite gains the REACHABILITY GATE (images/ + img/ both directions, 18 docs
+  viewport-fit=cover, no css/libs/fonts loader, js/ ≡ html5-qrcode, every shell runs
+  native.js except the named bundle-less one, no C# reader of the roster); 14 legacy pins
+  rewritten in place. Surviving PNGs re-encoded losslessly (pixel identity asserted).
+
+GOAL 2 — measure first (#791–#795):
+- TEMPORARY [CDPERF] instruments: per-file parse stamps in chat.html + a JS→C#→JS
+  round-trip probe (ixian:cdping → cdpong, digits only, hasGeneratedContent-gated).
+- The comment-strip fork settled as a RELEASE PACKAGING STEP: scripts/strip-release.mjs
+  (CSS only, allowlist = spixi.tokens.css, 103 → 31 KB) + GATE 1 (--check, both
+  directions) + GATE 2 (scripts/smoke-packaged.mjs — the suite over the packaged tree).
+  csproj target SpixiStripReleaseHtml (Release only; -p:SpixiStripHtml=false opts out).
+- The SVGO doodle tile rendered for Damir's eye (docs/sheets/session-n), not landed.
+- The pre-warm (#780) designed, not built: docs/prewarm-chat-spec.md.
+
+#46 loop in-session: 2 auditors + a break-my-verdict reviewer; 4 MAJOR-class fixed
+(csproj property evaluated too early · the strip's silent truncation · an unneeded ceiling
+raise · a Windows argv trap in the Exec quoting); every fix pinned, 10 mutations killed.
+
+Gates (container, Ixian-Core sibling present): bundle 321 · shells 18 · smoke BASELINE OK
+4125 / the 3 known · locales 786 · lint ✓ · pseudo 9/9 · cs-syntax 138+1 · three
+--checks ✓ · strip-release --check ✓ · smoke-packaged ✓ (4124 without the sibling).
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_011c6rgDKCpr9CaVoWMsTsfM

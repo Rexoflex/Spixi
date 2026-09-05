@@ -87,8 +87,8 @@ function launchCtrl(onDone, onFail) {            // one-shot (lockCtrl grammar)
 }
 
 /* —— illustration slots ————————————————————————————————————
-   Welcome slides reuse the SHIPPED legacy art verbatim (img/dark/onboarding/
-   step1–4.svg, copied to src/demo/images/onboarding/ — Damir premium rework;
+   Welcome slides reuse the legacy art verbatim (originally img/dark/onboarding/
+   step1–4.svg — that folder is deleted, Session N — now src/demo/images/onboarding/*.png — Damir premium rework;
    the welcome is pinned dark so only the dark set rides). The backup nudge
    keeps its placeholder (nano-banana asset #6 pending, illustrations-plan §2
    palette; data-placeholder = the swap stays deliberate). Static strings

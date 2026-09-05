@@ -746,24 +746,25 @@ namespace SPIXI
                 e.Cancel = true;
                 return;
             }
-            else if (current_url.Equals("ixian:newchat", StringComparison.Ordinal))
-            {
-                newChat();
-            }
+            /* ★ Session N (legacy purge): the `ixian:newchat` branch (→ newChat() → the
+             * legacy WalletRecipientPage picker) is DELETED. No shipping shell emits the
+             * verb — the home shell starts chats through the in-shell contacts picker
+             * (`openContacts('start')`). Reversal: git restore WalletRecipientPage.* +
+             * Raw/html/wallet_recipient.html + this branch + newChat(). */
             else if (current_url.Equals("ixian:groupreset", StringComparison.Ordinal))
             {
                 // #265 (Opus MAJOR-3): the in-shell group SETUP opened — drop any
                 // abandoned temp photo from a previous, cancelled attempt so it can
                 // never be promoted onto this group (and shipped to its members).
-                // Mirrors the legacy picker's delete-on-load (WalletRecipientPage:47).
+                // Mirrors the delete-on-load the legacy picker had (deleted, Session N).
                 clearGroupAvatarTemp();
             }
             else if (current_url.Equals("ixian:groupavatar", StringComparison.Ordinal))
             {
                 // #265 (Damir ⑤): the IN-SHELL group setup's avatar picker. Writes the
                 // SAME temp file HandlePickSucceeded promotes onto the new group
-                // (WalletRecipientPage.temporaryImagePath) — one convention, no new
-                // filesystem surface (C# names the path; the WebView never does).
+                // (groupAvatarTempPath) — one convention, no new filesystem surface
+                // (C# names the path; the WebView never does).
 #pragma warning disable CS4014
                 onGroupAvatarAsync();
 #pragma warning restore CS4014
@@ -772,7 +773,7 @@ namespace SPIXI
             {
                 // #265 (Damir ⑤): create the group from the REDESIGNED in-shell flow
                 // (contacts picker multi-select → setup sheet). Payload mirrors the
-                // legacy WalletRecipientPage `ixian:select:` grammar 1:1 —
+                // `ixian:select:` grammar of the (deleted) legacy picker 1:1 —
                 //   ixian:creategroup:<'1'|'0' blind><name>:|<addr>|<addr>…
                 // — and feeds the SAME HandlePickSucceeded core (GroupChat.CreateGroup
                 // + avatar promotion + createGroup message). No money picker involved.
@@ -852,11 +853,12 @@ namespace SPIXI
             {
                 onSettings(sender, e);
             }
-            else if (current_url.Equals("ixian:lock", StringComparison.Ordinal))
-            {
-                //   prepBackground();
-                Navigation.PushAsync(new SetLockPage(), Config.defaultXamarinAnimations);
-            }
+            /* ★ Session N (legacy purge): the bare `ixian:lock` branch that pushed the
+             * legacy SetLockPage is DELETED with that page. It matched the bare verb
+             * with .Equals; the redesigned Account hub sends `ixian:lock:on|off`, which
+             * SettingsPage handles (StartsWith), and no shipping shell has ever emitted
+             * the bare verb — the branch was unreachable. Reversal: git restore
+             * Pages/Settings/SetLockPage.* + Raw/html/settings_lock.html + this branch. */
             else if (current_url.Equals("ixian:activity", StringComparison.Ordinal))
             {
                 // TODO show wallet activity screen
@@ -1144,15 +1146,17 @@ namespace SPIXI
                 // contacts list selector, it should be new one same as for group
                 // creation"): the shell picked the targets in the REDESIGNED in-shell
                 // picker and hands them over here — no WalletRecipientPage push.
-                // Checked BEFORE the startAppMulti branch below only for clarity; the
-                // two prefixes cannot collide (different literals, Ordinal).
+                // (The legacy `ixian:startAppMulti` branch that followed this one is gone —
+                // Session N; the two prefixes never collided: different literals, Ordinal.)
                 onStartAppWith(current_url.Substring("ixian:startappwith:".Length));
             }
-            else if (current_url.StartsWith("ixian:startAppMulti", StringComparison.Ordinal))
-            {
-                string appId = current_url.Substring("ixian:startAppMulti:".Length);
-                onStartAppMulti(appId);
-            }
+            /* ★ Session N (legacy purge): the `ixian:startAppMulti` branch (→ the legacy
+             * WalletRecipientPage picker) is DELETED with that page. The only shell that
+             * emits the verb is app_details.html, whose OWN WebView routes it to
+             * AppDetailsPage (→ HomePage.pickAppTargets, the redesigned picker); the home
+             * shell never emitted it, so this branch had no caller. Reversal: git restore
+             * WalletRecipientPage.* + this branch + onStartAppMulti/HandlePickAppMultiUser-
+             * Succeeded below. */
             else if (current_url.StartsWith("ixian:appDetails:"))   // Q1 review (#266/#267 loop): the colon was missing — a colon-less "ixian:appDetails" threw ArgumentOutOfRangeException on the Substring below
             {
                 string appId = current_url.Substring("ixian:appDetails:".Length);
@@ -1688,26 +1692,14 @@ namespace SPIXI
             return;
         }
 
-        // Show the recipient page
-        public void newChat()
-        {
-            var recipientPage = new WalletRecipientPage(true, false);
-            recipientPage.pickSucceeded += (sender, e) =>
-            {
-                HandlePickSucceeded(sender, e);
-            };
-            Navigation.PushAsync(recipientPage, Config.defaultXamarinAnimations);
-        }
-
-        // #265 (Damir ⑤): the in-shell group setup's avatar pick — same temp-file
+        // #265 (Damir ⑤): the in-shell group setup's avatar pick — the temp-file
         // convention the legacy picker used, so HandlePickSucceeded promotes it onto
         // the created group unchanged. C# owns the path; the WebView only says "pick".
-        // ★ Opus review MAJOR-2: WalletRecipientPage.temporaryImagePath is only made
-        // ABSOLUTE inside that page's ctor (it initializes to the bare relative
-        // "avatar-tmp.jpg"). The in-shell flow never constructs that page, so writing
-        // to it would hit the process CWD — silently failing on a packaged build (and
-        // "working" only on an unpackaged dev run). Resolve the real path ourselves,
-        // through the same storage root, every time.
+        // ★ Session N (legacy purge): this is now the ONE home of the temp path. The
+        // legacy WalletRecipientPage carried a static `temporaryImagePath` that was only
+        // made absolute inside its ctor (Opus review MAJOR-2 — the in-shell flow never
+        // constructed that page, so the static's default was a bare relative name); the
+        // page is deleted and every reader resolves through this helper instead.
         private static string groupAvatarTempPath()
         {
             return Path.Combine(IxianHandler.localStorage.avatarsPath, "avatar-tmp.jpg");
@@ -1759,8 +1751,6 @@ namespace SPIXI
                 }
                 string path = groupAvatarTempPath();
                 File.WriteAllBytes(path, image_bytes);
-                // keep the legacy static in sync — HandlePickSucceeded promotes from it
-                WalletRecipientPage.temporaryImagePath = path;
                 Utils.sendUiCommand(this, "loadGroupAvatar", Utils.imageToDataUri(path));   // X1
             }
             catch (Exception ex)
@@ -1768,11 +1758,6 @@ namespace SPIXI
                 Logging.error("onGroupAvatarAsync: " + ex);
                 Utils.sendUiCommand(this, "loadGroupAvatar", "");   // release the latch
             }
-        }
-
-        private async void HandlePickSucceeded(object? sender, EventArgs<(List<ExtendedAddress>, string?, bool)> e)
-        {
-            HandlePickSucceeded(sender, e.Value.Item1, e.Value.Item2, e.Value.Item3);
         }
 
         // popFirst=false: the in-shell create-group flow (#265) has NO pushed page to
@@ -1801,14 +1786,9 @@ namespace SPIXI
                 var g = GroupChat.CreateGroup(new Address(IxianHandler.getWalletStorage().getPrimaryPublicKey()), contacts, groupName, hideParticipantAddresses);
                 if (g != null)
                 {
-                    // MAJOR-2: never trust the legacy static's default (a RELATIVE
-                    // "avatar-tmp.jpg" until WalletRecipientPage's ctor runs) — resolve
-                    // the real storage path when it isn't absolute.
-                    string avatarPath = WalletRecipientPage.temporaryImagePath;
-                    if (!Path.IsPathRooted(avatarPath))
-                    {
-                        avatarPath = groupAvatarTempPath();
-                    }
+                    // Session N: one resolver (groupAvatarTempPath, always rooted) — the
+                    // legacy static this used to read is gone with WalletRecipientPage.
+                    string avatarPath = groupAvatarTempPath();
                     if (File.Exists(avatarPath))
                     {
                         var avatar = File.ReadAllBytes(avatarPath);
@@ -4286,29 +4266,16 @@ namespace SPIXI
             });
         }
 
-        private void onStartAppMulti(string appId)
-        {
-            var recipientPage = new WalletRecipientPage(false, false);
-            recipientPage.pickSucceeded += (sender, e) =>
-            {
-                HandlePickAppMultiUserSucceeded(sender, e.Value.Item1, appId);
-            };
-
-            MainThread.BeginInvokeOnMainThread(() =>
-            {
-                Navigation.PushAsync(recipientPage, Config.defaultXamarinAnimations);
-            });
-        }
-
         /* `ixian:startappwith:<appId>:|<addr>` — the REDESIGNED multi-user app
          * launch (Damir 2026-08-13). The shipped `ixian:startAppMulti:` verb carries
          * NO target, so it answered by pushing the legacy WalletRecipientPage — the
          * selector Damir is complaining about. The home shell now picks targets in
          * the SAME in-shell picker group creation uses (contacts-shell purpose 'app')
          * and hands the result here. Payload grammar mirrors `ixian:creategroup:`
-         * (above) minus the blind+name prefix; the CORE is HandlePickAppMultiUser-
-         * Succeeded's, minus its popPageAsync (there is no pushed page to pop — the
-         * picker is a WebView takeover the shell closed itself before sending).
+         * (above) minus the blind+name prefix; the CORE was lifted from the legacy
+         * HandlePickAppMultiUserSucceeded (deleted with WalletRecipientPage, Session N)
+         * minus its popPageAsync (there is no pushed page to pop — the picker is a
+         * WebView takeover the shell closed itself before sending).
          * ★ SECURITY.md: WebView-supplied ADDRESSES only. Every one is resolved
          * against FriendList and dropped if it is not an existing friend/group;
          * nothing is signed or broadcast, no key/password/path crosses the bridge,
@@ -4400,32 +4367,6 @@ namespace SPIXI
                 return;
             }
             Utils.sendUiCommand(this, "pickAppTargets", appId);
-        }
-
-        private async void HandlePickAppMultiUserSucceeded(object sender, List<ExtendedAddress> addresses, string appId)
-        {
-            Address address = new Address(addresses.First().RoutingAddress);
-            Friend? friend = FriendList.getFriend(address);
-
-            if (friend == null)
-            {
-                return;
-            }
-
-            try
-            {
-                popPageAsync();
-
-                byte[] session_id = onJoinApp(appId, friend);
-
-                var app_info = Node.MiniAppManager.getAppInfo(appId);
-                var msg_id = StreamProcessor.sendAppRequest(friend, appId, session_id, null, app_info);
-                Node.addMessageWithType(msg_id, FriendMessageType.appSession, friend.walletAddress, 0, app_info, true, null, 0, false);
-            }
-            catch (Exception ex)
-            {
-                Logging.error("Navigation failed: " + ex.Message);
-            }
         }
 
         public byte[] onJoinApp(string appId, Friend friendOrGroup)

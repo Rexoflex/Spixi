@@ -3484,7 +3484,7 @@ console.log('chats.html — periodic backup nudge (legacy #backup-prompt parity)
 
   // illustration slot: art leads, decorative; img error → disc fallback
   // (file-drop upgrade path — illustrations-plan #6, shared with the launch tail)
-  const sheet3 = W.Spixi.showBackupNudge({ host: phone, illustration: 'images/onboarding/backup.png' });
+  const sheet3 = W.Spixi.showBackupNudge({ host: phone, illustration: 'images/backup.png' });
   const art3 = sheet3.querySelector('.c-backup-nudge__illo');
   const disc3 = sheet3.querySelector('.c-backup-nudge__disc');
   ok(!!art3 && art3.getAttribute('alt') === '' && disc3.hidden,
@@ -4425,21 +4425,23 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   ok(/settingsOptionSheet/.test(ljs) && /from '\.\/settings-shell\.js'/.test(ljs)
     && !/settingsThemeSheet/.test(ljs),
     '★ N72: the LANGUAGE picker reuses the settings sheet (one picker grammar app-wide); the theme sheet import left with the appearance pill');
-  /* N45: the SHIPPED onboarding art is now PNG (smaller by 2.5-4x per asset);
-     join-community stays SVG (no PNG export exists). PNG integrity = magic bytes
-     + IEND tail, the same truncation class the old <svg check caught. */
-  for (const n of ['step1', 'step2', 'step3', 'step4', 'restore', 'backup', 'rate']) {
+  /* N45: the SHIPPED onboarding art is now PNG (smaller by 2.5-4x per asset). PNG
+     integrity = magic bytes + IEND tail, the same truncation class the old <svg check
+     caught. ★ Session N (legacy purge): the set is exactly what the launch shell and the
+     nudges LOAD — step1–4 + restore (launch-shell.js, `base + '<name>.png'`), rate
+     (rating-nudge, home.html) and the ONE backup illustration at images/backup.png (the
+     onboarding/backup.png twin was byte-identical and nothing loaded it; join-community
+     .svg lost its last loader when N76 retired the onboarding tail — the join CTA lives
+     in the empty state with no illustration). Both are deleted; the reachability gate
+     further down (★ Session N) is what keeps a future orphan from returning. RAW reads. */
+  for (const n of ['onboarding/step1', 'onboarding/step2', 'onboarding/step3', 'onboarding/step4', 'onboarding/restore', 'onboarding/rate', 'backup']) {
     let png = null;
-    try { png = readFileSync(join(root, 'src/demo/images/onboarding/' + n + '.png')); } catch (e) { /* missing → the pin fails, the run survives */ }
+    try { png = readFileSync(join(root, 'src/demo/images/' + n + '.png')); } catch (e) { /* missing → the pin fails, the run survives */ }
     ok(!!png && png.length > 8 && png[0] === 0x89 && png[1] === 0x50 && png.subarray(-8, -4).toString('latin1') === 'IEND',
       'N45: onboarding art ' + n + '.png ships complete (PNG magic + IEND tail — truncated or MISSING copies fail)');
   }
-  {
-    let svg = '';
-    try { svg = readFileSync(join(root, 'src/demo/images/onboarding/join-community.svg'), 'utf8'); } catch (e) { /* missing → fail below */ }
-    ok(svg.includes('<svg') && svg.trimEnd().endsWith('</svg>'),
-      'onboarding art join-community.svg (SVG-only asset) is present AND complete');
-  }
+  ok(!existsSync(join(root, 'src/demo/images/onboarding/join-community.svg')) && !existsSync(join(root, 'src/demo/images/onboarding/backup.png')),
+    '★ Session N: the two orphaned onboarding assets (join-community.svg · the backup.png twin) are DELETED at the source — build-shells copies src/demo/images verbatim, so a file here ships');
   ok(/touch-action: pan-y/.test(lcss), 'carousel owns horizontal swipe only — vertical scroll stays native');
   ok(/isConnected/.test(ljs) && /isConnected/.test(lockjs2),
     'both window-pagehide listeners are self-cleaning (launch shell + [L2] lock screen)');
@@ -5049,9 +5051,13 @@ console.log('native call surface (Q4-③/#270) — call.html contract + the call
   ok(/launch:   \{ in: 'src\/shells\/launch\.html', out: 'intro\.html'/.test(buildShellsSrc)
     && !/intro_new\.html'|intro_restore\.html'|intro_retry\.html'|onboarding\.html'/.test(buildShellsSrc),
     '★ N75: the three extra launch outputs and the N76 tail output are gone from the shell map');
-  ok(/const LEGACY_DEMO_KEYS = \['apps'\]/.test(buildShellsSrc)
-    && /filter\(\(k\) => !LEGACY_DEMO_KEYS\.includes\(k\)\)/.test(buildShellsSrc),
-    "#288: build-shells 'all' no longer overwrites the legacy apps.html drop-in");
+  /* ★ Session N (legacy purge) supersedes #288's exclusion: the `apps` target and
+     LEGACY_DEMO_KEYS are DELETED with AppsPage + apps.html (never constructed, never
+     loaded). stripCode first — the docblock that records the deletion names both. */
+  ok(!/LEGACY_DEMO_KEYS/.test(stripCode(buildShellsSrc))
+    && !/^\s*apps:\s*\{ in:/m.test(stripCode(buildShellsSrc))
+    && !/apps\.html['"]/.test(stripCode(buildShellsSrc)),
+    "★ Session N: the `apps` shell target and LEGACY_DEMO_KEYS are gone from build-shells — `all` is every key, and no key writes apps.html");
   /* ★★ SESSION D (#678) — and the `payments` TARGET IS DELETED, not just excluded.
      ⚠ stripCode first: the comment that records the removal necessarily NAMES wallet_send. */
   ok(!/payments:/.test(stripCode(buildShellsSrc))
@@ -5234,13 +5240,21 @@ console.log('missing-bits Batch B — B2 pattern default · B3 tx-details shell 
       ok(/\{ "AndroidInsetTop", "0" \}/.test(rd('Spixi/Lang/SpixiLocalization.cs')),
         '★ AND-7: the key is SEEDED for every platform — an unknown *SL{} key is not silently empty, localizeHtml logs an error for it on every page load (SpixiLocalization:207), and ixian.log is a file the user shares');
       /* the C# page-chrome half */
-      const chromeA = scp.slice(scp.indexOf('#if ANDROID', scp.indexOf('internal void applyPlatformPageChrome()')));
-      ok(/hasLegacyPageChrome\(loadedHtmlFileName \?\? ""\) \|\| !hasGeneratedContent/.test(chromeA),
-        '★ AND-7: only the 8 legacy Raw/html pages and MINI-APP pages keep native top padding. Mini-app content is third-party and cannot be assumed inset-aware — hasGeneratedContent is false exactly there (it never calls loadPage)');
+      /* ★ Session N #46 (auditor B): an END anchor, or the slice was 88 % of the file and any
+         later `if (!hasGeneratedContent)` would satisfy it. The Android branch closes at the
+         first `#endif` after its `#if ANDROID`; a missing anchor makes the slice EMPTY (loud). */
+      const chromeA = (() => { const t = stripCode(scp); const a = t.indexOf('#if ANDROID', t.indexOf('internal void applyPlatformPageChrome()')); const b = a < 0 ? -1 : t.indexOf('#endif', a); return (a < 0 || b < 0) ? '' : t.slice(a, b); })();   // reviewer D6: anchored on CODE — a comment naming `#if ANDROID` above the method must not retarget the window
+      /* ★ Session N (legacy purge): hasLegacyPageChrome is DELETED with the last four
+         legacy documents, so the classification is ONE token. stripCode first — the
+         tombstone docblock that records the deletion names the old expression. */
+      ok(/if \(!hasGeneratedContent\)/.test(stripCode(chromeA))
+        && !/hasLegacyPageChrome/.test(stripCode(scp)),
+        '★ AND-7 (Session N): ONLY mini-app pages keep native top padding — `!hasGeneratedContent` alone, no legacy-page roster left in the file. Mini-app content is third-party and cannot be assumed inset-aware — hasGeneratedContent is false exactly there (it never calls loadPage)');
       /* ★ break-my-verdict MINOR-4: the push is only safe INSIDE the redesigned-shell
-       * branch. Utils.sendUiCommand emits the command as a BARE GLOBAL IDENTIFIER, and the
-       * 8 legacy Raw/html pages and every mini-app WebView do not define window.setInsetTop
-       * — an undefined global there throws BEFORE executeUiCommand is entered, so its own
+       * branch. Utils.sendUiCommand emits the command as a BARE GLOBAL IDENTIFIER, and a
+       * mini-app WebView does not define window.setInsetTop (the legacy documents that
+       * also did not are deleted — Session N) — an undefined global there throws BEFORE
+       * executeUiCommand is entered, so its own
        * try/catch cannot fail soft. That is the #258 addAppRequest class, already shipped
        * once. Pin the containment, not only the branch condition. */
       {
@@ -5318,10 +5332,10 @@ console.log('missing-bits Batch B — B2 pattern default · B3 tx-details shell 
       }
       ok(!/MainActivity\.Insets\.Value\.Top \/ 3/.test(scp.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')),
         '★ AND-7: the Android-15 modal `Insets.Top / 3` hack is GONE — it existed because the root padding did not reach a modal container; with no root top padding every page is unpadded the same way and the lock/call/scan shells pad themselves');
-      ok(/hasLegacyPageChrome\(loadedHtmlFileName \?\? ""\) \|\| !hasGeneratedContent/.test(
+      ok(/if \(!hasGeneratedContent\)\s*\{\s*var insets = this\.On<iOS>\(\)\.SafeAreaInsets\(\);/.test(stripCode(
         scp.slice(scp.indexOf('#if IOS || MACCATALYST', scp.indexOf('internal void applyPlatformPageChrome()')),
-          scp.indexOf('#if ANDROID', scp.indexOf('internal void applyPlatformPageChrome()')))),
-        '★ security-review MAJOR #6(b), fixed with its Android twin: mini-app pages lost their iOS safe-area inset at #282 and have been rendering under the notch since — same one-token classification');
+          scp.indexOf('#if ANDROID', scp.indexOf('internal void applyPlatformPageChrome()'))))),
+        '★ security-review MAJOR #6(b), fixed with its Android twin: mini-app pages lost their iOS safe-area inset at #282 and have been rendering under the notch since — same one-token classification (Session N: `!hasGeneratedContent` alone gates the native inset; the legacy roster is gone)');
     }
     {
       /* the CSS half */
@@ -7388,7 +7402,15 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      ~0.7 ms more parse at the measured 0.08 ms/KB. ⚠ AND THE MESSAGE BELOW USED TO SAY "under
      600 KB" while the code said 640 — a pin whose own sentence disagreed with its own
      assertion, which is this loop's governing defect class sitting inside the size pin. Both
-     numbers are now written once, from the constants. */
+     numbers are now written once, from the constants.
+     ★ Session N (#46 auditor B MAJOR-2 — a raise this session shipped for an hour and was
+     NOT needed): the ceiling is compared against `chatBuilt.length`, i.e. CRLF-NORMALIZED
+     CHARS (the #340 rule at the top of this file), NOT the file's raw bytes. Session L's
+     "1 663 B of headroom" was raw bytes (675 840 − 674 177); in the pin's own unit HEAD had
+     9 703 chars of headroom, and Session N's +4.3 KB (the app-noicon sentinel mapping, ~1 KB
+     permanent, + the TEMPORARY [CDPERF] parse/rtt stamps, ~3 KB, retire with the set) leaves
+     5 376. The ceiling STAYS at 660. When a raise is ever needed, state the delta in chars
+     and price THAT delta (0.08 ms/KB), not the size of the raise. */
   const CHAT_KB_CEIL = 660, INDEX_KB_CEIL = 500;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
@@ -9435,10 +9457,20 @@ console.log('multi-user app launch — new picker end to end');
   ok(!/foreach\s*\(Friend/.test(saw),
     'C# (static): the launch does NOT fan out over the target list — one session, one invite, until MiniAppPage can host more');
   const ad = readFileSync(join(root, 'Spixi/Pages/MiniApps/AppDetailsPage.xaml.cs'), 'utf8');
-  const adMulti = ad.slice(ad.indexOf('private void onStartAppMulti'), ad.indexOf('private async void HandlePickAppMultiUserSucceeded'));
+  // ★ Session N #46 (auditor B): guarded anchors — slice(a, -1) is "up to the last char", so a
+  // renamed end anchor would silently widen this to the whole file instead of going red.
+  const adMulti = (() => { const t = stripCode(ad); const a = t.indexOf('private void onStartAppMulti'); const b = a < 0 ? -1 : t.indexOf('public byte[] onJoinApp', a); return (a < 0 || b < 0) ? '' : t.slice(a, b); })();   // reviewer D6: code-anchored, end searched FROM the start
+  /* ★ Session N (legacy purge): the no-home-shell FALLBACK that pushed the legacy
+     WalletRecipientPage picker is DELETED with that page — it was unreachable
+     (HomePage._singletonInstance is cleared only by stop(), which tears this page down
+     too) and it was the last construction site keeping bootstrap/jQuery/FontAwesome
+     alive. The branch now fails LOUD (Logging.error names the app) and leaves the
+     details page in place. stripCode first: the tombstone names the deleted page. */
   ok(adMulti.indexOf('home.pickAppTargets(appId)') > -1
-    && adMulti.indexOf('home.pickAppTargets(appId)') < adMulti.indexOf('new WalletRecipientPage'),
-    'C# (static): the app-details launch prefers the shell picker; WalletRecipientPage survives only as the no-home-shell fallback');
+    && !/WalletRecipientPage/.test(stripCode(adMulti))
+    && /Logging\.error\("onStartAppMulti: no live home shell/.test(stripCode(adMulti))
+    && !/HandlePickAppMultiUserSucceeded/.test(stripCode(ad)),
+    '★ Session N: the app-details launch uses the shell picker; the legacy WalletRecipientPage fallback is GONE (loud log, no silent drop) and its dead helper HandlePickAppMultiUserSucceeded with it');
   /* ★ W9-③: HAND OFF FIRST, TEAR DOWN SECOND. popPageAsync() is not a plain call —
      for an overlay-mode page (#225, which is how HomePage.onAppDetails presents this
      one) it enters closeOverlay, which QUEUES a main-thread teardown that hides the
@@ -9910,8 +9942,16 @@ console.log('BUG-2 — apps push cost (static)');
   ok(/bool raw_data_uri_ok = contentPage != null && contentPage\.supportsRawDataUriArgs;/.test(utils),
     '★ #340 (A-MAJOR-1/2): the fast path is gated on the RECEIVER, not on the shape of the value. The whitelist alone assumed every receiver runs native.js — two do not');
   const scpRaw = readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8');
-  ok(/public bool supportsRawDataUriArgs[\s\S]{0,900}?return loadedHtmlFileName != null && !hasLegacyPageChrome\(loadedHtmlFileName\);/.test(scpRaw),
-    '★ #340 (A-MAJOR-1): the gate FAILS CLOSED — the 7 remaining legacy Raw/html pages still decode with js/spixi.js\'s unguarded atob, so a peer nickname of "data:;base64,x" would pass the whitelist, throw on the \':\', and drop the whole push. (The worked example was wallet_contact_request.setData blanking the payment-confirm screen; that page is REMOVED by decision 4, and the gate matters just as much for the seven left.)');
+  /* ★ Session N (legacy purge): the legacy half of this gate is retired WITH its
+     members — the last four Raw/html documents that decoded through js/spixi.js's
+     unguarded atob are deleted, and js/spixi.js with them. The gate keeps its OTHER
+     fail-closed leg (the null loadedHtmlFileName of a mini-app page, pinned just below)
+     and must not grow a third condition back silently: the body is pinned to exactly
+     the null test. stripCode first — the docblock quotes the retired expression. */
+  ok(/public bool supportsRawDataUriArgs\s*\{\s*get\s*\{\s*return loadedHtmlFileName != null;\s*\}\s*\}/.test(stripCode(scpRaw))
+    && !/hasLegacyPageChrome/.test(stripCode(scpRaw))
+    && !existsSync(join(root, 'Spixi/Resources/Raw/html/js/spixi.js')),
+    '★ #340 (A-MAJOR-1) after Session N: the gate is `loadedHtmlFileName != null` and nothing else — every loadPage-able document now runs native.js, the legacy atob decoders (js/spixi.js) are deleted, and the mini-app leg below still fails closed');
   /* #340 r2 (reviewer catch): this pin used to grep SpixiContentPage.cs for the COMMENT
    * saying MiniAppPage never calls loadPage — mutation-dead, it could not fail for any
    * code change. The invariant lives in MiniAppPage.xaml.cs, so assert it THERE. It is
@@ -10464,8 +10504,12 @@ console.log('N-batch — static pins (N5 · N22 · N24 · N36 · N38 · N2a · N
   }
 
   // —— N45: the PNG art really ships where devices load it ——
-  for (const rel of ['images/apps-es.png', 'images/chats-es.png', 'images/wallet-es.png',
-    'images/explore-banner.png', 'images/backup.png', 'images/onboarding/backup.png',
+  // ★ Session N (legacy purge): wallet-es.png and onboarding/backup.png LEFT this list —
+  // nothing loaded either (the wallet empty state draws its own glyph; the backup twin
+  // was byte-identical to images/backup.png). The reachability gate (★ Session N,
+  // further down) is the structural version of this list.
+  for (const rel of ['images/apps-es.png', 'images/chats-es.png',
+    'images/explore-banner.png', 'images/backup.png',
     'images/onboarding/rate.png', 'images/onboarding/restore.png', 'images/onboarding/step1.png',
     'images/onboarding/step2.png', 'images/onboarding/step3.png', 'images/onboarding/step4.png']) {
     ok(existsSync(join(root, 'Spixi/Resources/Raw/html', rel)) && existsSync(join(root, 'src/demo', rel)),
@@ -11562,16 +11606,26 @@ console.log('#383 — N12 restore-nudge + N40 connectivity/update');
     ok(/public static void pushThemeToAllPages\(\)/.test(uh)
       && !/if \(page == except\)/.test(uh) && !/pushThemeToAllPages\(this\)/.test(settingsPage421),
       '★ N71(a) (Damir F5): the sweep has NO exclusion, and the picker calls it with no argument. An unused exclusion hook on a sweep is an invitation to re-add this exact bug, so the parameter is gone rather than defaulted');
-    ok(/if \(!page\.rethemesByPush\)[\s\S]{0,1400}?page\.reload\(\);/.test(uh)
-      && /public bool rethemesByPush/.test(read('Spixi/Utils/SpixiContentPage.cs')),
-      '★ N71 (#421, #46 audit MAJOR): the sweep is HYBRID — push where the document has a setTheme, RELOAD where the theme is baked. The 7 legacy pages carry the theme in a <link href="css/*SL{SpixiThemeMode}"> and have no setTheme global at all, so a push both threw a bare-global ReferenceError into them AND left them in yesterday\'s theme, on the MONEY path. reload() is exactly what they got before this batch — the security gate says introduce nothing');
+    /* ★ Session N (legacy purge) supersedes the HYBRID pin: the reload() branch and
+       `rethemesByPush` are DELETED with the last four legacy documents — every page the
+       enumerator yields loaded a redesigned shell, which defines the setTheme global
+       (theme-runtime.js), so the sweep is push-only. The ORIGINAL hazard is re-pinned
+       from the other side: a page with NO setTheme global must never be enumerated
+       (a bare-global push throws before the dispatcher, #258) — and that is guaranteed
+       by hasGeneratedContent + every shell defining the global, both pinned elsewhere
+       (the 18-shell setTheme sweep). stripCode first: the tombstone quotes the branch. */
+    const sweepN = (() => { const t = stripCode(uh); const a = t.indexOf('public static void pushThemeToAllPages()'); const b = a < 0 ? -1 : t.indexOf('public static void reloadAllPages()', a); return (a < 0 || b < 0) ? '' : t.slice(a, b); })();   // reviewer D6: code-anchored, end searched FROM the start
+    ok(sweepN.length > 0 && !/rethemesByPush/.test(stripCode(uh)) && !/page\.reload\(\);/.test(sweepN)
+      && !/public bool rethemesByPush/.test(stripCode(read('Spixi/Utils/SpixiContentPage.cs')))
+      && /Utils\.sendUiCommand\(page, "setTheme", themeName\);/.test(sweepN),
+      '★ N71 after Session N: the theme sweep is PUSH-ONLY — no reload() branch, no rethemesByPush; every enumerated page runs a redesigned shell with a setTheme global, so a push is the whole sweep');
     ok(/add\(SpixiContentPage\.getStagingPage\(\)\);/.test(uh) && /add\(CallPage\.getLiveSurface\(\)\);/.test(uh)
       && uh.indexOf('getStagingPage') > uh.indexOf('if (includeModal)'),
       '★ N71 (#421, #46 audit): the STAGING slot and the in-place CALL surface are swept, PUSH-ONLY. Both are live WebViews in none of the standard collections; neither may be RELOADED — a reload mid-stage destroys the ixian:onload the present waits for, and reloading during a live call is what kept the modal stack out of the reload sweep');
     ok(/try \{ page\.applyPageSurfaceColor\(\); \}/.test(uh) && !/page\.applyPlatformPageChrome\(\)/.test(uh),
       '★ N71 (#421, break-my-verdict MAJOR-1): the per-page refresh is applyPageSurfaceColor and NEVER applyPlatformPageChrome. The latter looks page-local and is not — on Android it calls setEdgeToEdge, which paints the ONE activity root view and the ONE window insets controller, so running it per page let the LAST page in the list pick the system-bar glyph colour and overwrote the repaintSystemBarsFor(null) both callers run from the VISIBLE page. That is the whole #407–#410 bar round undone, on the wallet hero');
     ok(/SpixiContentPage\.disposeParkedOverlay\(\);[\s\S]{0,700}?repaintSystemBarsFor\(null\)/.test(uh),
-      '★ N71 (#421, break-my-verdict MAJOR-1 belt): the sweep ENDS by re-asserting the bars from the VISIBLE page. The legacy reload() branch repaints them asynchronously from whatever page it belongs to, and ★ #410 says the bars are read from the surface actually on screen — never from whatever happened to be last in a list');
+      '★ N71 (#421, break-my-verdict MAJOR-1 belt): the sweep ENDS by re-asserting the bars from the VISIBLE page. (When written, the legacy reload() branch repainted them asynchronously from whatever page it belonged to; that branch is gone — Session N — and the belt stays because ★ #410 says the bars are read from the surface actually on screen — never from whatever happened to be last in a list)');
 
     /* ★ N71 1.5 (Damir F5 2026-08-19): the bars must find a LOCK shown in place. */
     const scp421 = read('Spixi/Utils/SpixiContentPage.cs');
@@ -18537,19 +18591,25 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
                   'Spixi/Resources/Raw/html/wallet_request.html'];
     ok(gone.every((f) => !existsSync(join(root, f))),
       '★★ L1 (#640) decision 4: every legacy money page and its HTML is gone — Damir: "Nothing legacy was supposed to exist in this app anymore"');
-    // PAIR — and this is the one that matters: WalletRecipientPage STAYS.
-    ok(existsSync(join(root, 'Spixi/Pages/Wallet/WalletRecipientPage.xaml.cs'))
-       && existsSync(join(root, 'Spixi/Resources/Raw/html/wallet_recipient.html'))
+    /* PAIR, re-based by ★ Session N (legacy purge): L1 kept WalletRecipientPage because
+       "AppDetailsPage and HomePage still push the picker". Session N re-proved every
+       one of those sites and none was reachable — `ixian:newchat` has no emitter,
+       HomePage's `ixian:startAppMulti` branch had no caller in its own WebView, and the
+       AppDetailsPage fallback needed a HomePage that only stop() clears — so the picker
+       page went with the rest of the legacy set (the Session N block below pins the
+       whole set). The tx-detail page is the surviving half of the pair. */
+    ok(!existsSync(join(root, 'Spixi/Pages/Wallet/WalletRecipientPage.xaml.cs'))
+       && !existsSync(join(root, 'Spixi/Resources/Raw/html/wallet_recipient.html'))
        && existsSync(join(root, 'Spixi/Resources/Raw/html/wallet_sent.html')),
-      '★★ L1 pair: WalletRecipientPage and the tx-detail page STAY — AppDetailsPage and HomePage still push the picker, and deleting it is the way this row goes wrong');
-    const csproj = rdf('Spixi/Spixi.csproj');
+      '★★ L1 pair after Session N: WalletRecipientPage is GONE (its three push sites were re-proved unreachable) and the tx-detail page STAYS');
+    const csproj = stripCode(rdf('Spixi/Spixi.csproj'));   // ★ Session N #46: stripCode — an XML-commented row would satisfy a raw positive (the L17 class)
     ok(!/WalletSendPage\.xaml/.test(csproj) && !/WalletSend2Page\.xaml/.test(csproj) && !/WalletReceivePage\.xaml/.test(csproj)
-       && /WalletRecipientPage\.xaml/.test(csproj) && /WalletSentPage\.xaml/.test(csproj),
-      '★ L1 (#640): the .csproj MauiXaml rows went with the pages, and the two that stay are still listed');
-    const scp2 = rdf('Spixi/Utils/SpixiContentPage.cs');
+       && !/WalletRecipientPage\.xaml/.test(csproj) && /WalletSentPage\.xaml/.test(csproj),
+      '★ L1 (#640) + Session N: the .csproj MauiXaml rows went with the pages — all four Wallet legacy pages — and WalletSentPage is still listed');
+    const scp2 = stripCode(rdf('Spixi/Utils/SpixiContentPage.cs'));
     ok(!/case "wallet_send\.html"/.test(scp2) && !/case "wallet_send_2\.html"/.test(scp2) && !/case "wallet_request\.html"/.test(scp2)
-       && /case "wallet_recipient\.html"/.test(scp2),
-      '★ L1 (#640): the legacy-chrome and page-surface case labels went with them; wallet_recipient.html keeps both');
+       && !/case "wallet_recipient\.html"/.test(scp2) && /case "intro\.html"/.test(scp2),
+      '★ L1 (#640) + Session N: the legacy-chrome and page-surface case labels went with their pages, wallet_recipient.html included; the launch case is still there (the negative read a real switch)');
     const hp = rdf('Spixi/Pages/Home/HomePage.xaml.cs');
     ok(!/ixian:sendixi/.test(hp) && !/ixian:receiveixi/.test(hp) && !/public void onSendIxi/.test(hp) && !/public void onReceiveIxi/.test(hp),
       '★★ L1 (#640): HomePage no longer carries the verbs or the methods that reached the deleted pages');
@@ -18564,6 +18624,195 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     }
     ok(/ixian:quickscan/.test(built('index.html')),
       '★ L1 pair: the shipped home shell still emits its other verbs — the sweep above read real files');
+  }
+
+  /* ═══ ★★ SESSION N · THE LEGACY PURGE — "nothing that is not part of the redesign
+   * survives" (Damir, 2026-09-05). Resources/Raw/** is included WHOLESALE by the csproj
+   * (pinned below), so nothing there prunes by reachability: a page nobody can open
+   * still ships, and its assets with it. This block is the pruner. Every removal was
+   * re-proved with a REAL reference search — exact verb / exact URL / exact call, never
+   * a word grep, because that grep was wrong three times in one week (ixian:lock matched
+   * as a PREFIX where the C# demands .Equals · fonts/ looked absent because the
+   * reference is transitive through css/*SL{SpixiThemeMode} · `grep -l Inter` matched
+   * "Interactive"). Reads: RAW for the built artifacts (what ships), stripCode for the
+   * C# negatives (the tombstones name what they deleted). ═══════════════════════════ */
+  {
+    const RAW = 'Spixi/Resources/Raw/html';
+    const rawDir = join(root, RAW);
+    const stripMod2 = await import(new URL('../scripts/strip-release.mjs', import.meta.url));
+    const listFiles = (dir) => {
+      const out = [];
+      const walk = (d) => { for (const n of readdirSync(d)) { const q = join(d, n); if (statSync(q).isDirectory()) walk(q); else out.push(q); } };
+      if (existsSync(dir)) walk(dir);
+      return out.map((q) => q.slice(rawDir.length + 1).replace(/\\/g, '/')).sort();
+    };
+    /* A · the four documents, their C# pages and the legacy asset folders are GONE */
+    const goneDocs = ['apps.html', 'address.html', 'settings_lock.html', 'wallet_recipient.html'];
+    ok(goneDocs.every((f) => !existsSync(join(rawDir, f))),
+      '★★ Session N: the four legacy documents are deleted — apps.html (AppsPage was never constructed) · settings_lock.html (SetLockPage hung off an EXACT-match `ixian:lock` no shell emits) · wallet_recipient.html (three push sites, all re-proved unreachable) · address.html (orphaned upstream at a50c7334)');
+    ok(['Spixi/Pages/MiniApps/AppsPage.xaml', 'Spixi/Pages/MiniApps/AppsPage.xaml.cs',
+        'Spixi/Pages/Settings/SetLockPage.xaml', 'Spixi/Pages/Settings/SetLockPage.xaml.cs',
+        'Spixi/Pages/Wallet/WalletRecipientPage.xaml', 'Spixi/Pages/Wallet/WalletRecipientPage.xaml.cs']
+        .every((f) => !existsSync(join(root, f))),
+      '★★ Session N: AppsPage · SetLockPage · WalletRecipientPage are deleted (xaml + code-behind)');
+    ok(['css', 'libs', 'fonts'].every((d) => !existsSync(join(rawDir, d))),
+      '★★ Session N: css/ (bootstrap · normalize · spixiui-* · spixi-login · empty-spixiui-*) · libs/ (FontAwesome) · fonts/ (Inter — loaded ONLY through the deleted css/spixiui-*.css; the redesign\'s --font-ui is a system stack and the one embedded face is Sora) are gone');
+    /* B · the ONE legacy-folder file that is LIVE stays — and it is the only one */
+    const jsFiles = listFiles(join(rawDir, 'js'));
+    ok(jsFiles.length === 1 && jsFiles[0] === 'js/html5-qrcode.min.js',
+      '★★ Session N: js/ holds exactly html5-qrcode.min.js — scan.html injects it at runtime (#203); bootstrap/jquery/qrcode/clipboard/spixi/home/chat.js were loaded only by the deleted documents. Got: ' + jsFiles.join(','));
+    ok(/['"]js\/html5-qrcode\.min\.js['"]/.test(built('scan.html')),
+      '★ Session N pair: the shipped scan shell still names js/html5-qrcode.min.js (the positive that makes the js/ negative above read a real file)');
+    /* C · the hasLegacyPageChrome detector, pinned to EMPTY: every shipped document is
+       inset-aware. This is the loop the deleted C# roster's comment used to prescribe. */
+    const htmlFiles = listFiles(rawDir).filter((f) => f.endsWith('.html'));
+    const noViewportFit = htmlFiles.filter((f) => !/viewport-fit=cover/.test(stripCode(built(f))));   // stripCode: an HTML comment must not satisfy it
+    ok(htmlFiles.length === 18 && noViewportFit.length === 0,
+      '★★ Session N: all 18 shipped documents carry viewport-fit=cover — the legacy-chrome roster is structurally empty (hasLegacyPageChrome is gone with its last four members). Missing: ' + (noViewportFit.join(',') || 'none'));
+    /* D · nothing shipped LOADS css/, libs/ or fonts/ — attribute + url() matches, not words */
+    {
+      const loaders = [];
+      for (const f of listFiles(rawDir).filter((x) => /\.(html|css|js)$/.test(x))) {
+        const t = built(f);
+        for (const m of t.matchAll(/(?:src|href)\s*=\s*["']([^"']+)["']|url\(\s*["']?([^"')]+)["']?\s*\)/g)) {
+          const ref = (m[1] || m[2] || '').trim();
+          if (/^(?:\.\.\/)?(?:css|libs|fonts)\//.test(ref)) loaders.push(f + ' → ' + ref);
+        }
+      }
+      ok(loaders.length === 0,
+        '★★ Session N: no shipped html/css/js loads anything under css/, libs/ or fonts/ (exact src/href/url() matches). Got: ' + (loaders.join(' · ') || 'none'));
+    }
+    /* E · the C# side: every reader of the deleted roster is gone, and the dead verbs with it */
+    const scpN = stripCode(rdf('Spixi/Utils/SpixiContentPage.cs'));
+    const uhN = stripCode(rdf('Spixi/Utils/UIHelpers.cs'));
+    const hpN = stripCode(rdf('Spixi/Pages/Home/HomePage.xaml.cs'));
+    const csN = [...readdirSync(join(root, 'Spixi/Pages'), { recursive: true })]
+      .filter((f) => String(f).endsWith('.cs')).map((f) => stripCode(rdf('Spixi/Pages/' + f))).join('\n')
+      + '\n' + scpN + '\n' + uhN + '\n' + stripCode(rdf('Spixi/Utils/Utils.cs')) + '\n' + stripCode(rdf('Spixi/Utils/ThemeManager.cs'));
+    ok(!/hasLegacyPageChrome|rethemesByPush/.test(csN),
+      '★★ Session N: hasLegacyPageChrome and rethemesByPush have NO reader left in C# (code, not comments)');
+    ok(!/new (?:WalletRecipientPage|SetLockPage|AppsPage)\b/.test(csN) && !/WalletRecipientPage\.temporaryImagePath/.test(csN),
+      '★★ Session N: no construction site for any of the three deleted pages, and the picker\'s static temp path has no reader (groupAvatarTempPath is the one resolver)');
+    ok(/private static string groupAvatarTempPath\(\)/.test(hpN) && (hpN.match(/groupAvatarTempPath\(\)/g) || []).length >= 3,
+      '★ Session N pair: HomePage resolves the group-avatar temp file through groupAvatarTempPath() at every reader (clear · write · promote)');
+    ok(!/current_url\.Equals\("ixian:lock", StringComparison\.Ordinal\)/.test(hpN)
+       && !/current_url\.Equals\("ixian:newchat", StringComparison\.Ordinal\)/.test(hpN)
+       && !/current_url\.StartsWith\("ixian:startAppMulti", StringComparison\.Ordinal\)/.test(hpN)
+       && !/void newChat\(\)|void onStartAppMulti\(|HandlePickAppMultiUserSucceeded/.test(hpN),
+      '★★ Session N: HomePage\'s three dead branches are gone — the EXACT-match bare `ixian:lock` (→ SetLockPage), `ixian:newchat` (no emitter) and `ixian:startAppMulti` (only app_details.html emits it, into its OWN WebView) — with newChat/onStartAppMulti/HandlePickAppMultiUserSucceeded');
+    ok(/current_url\.StartsWith\("ixian:startappwith:", StringComparison\.Ordinal\)/.test(hpN) && /current_url\.Equals\("ixian:settings", StringComparison\.Ordinal\)/.test(hpN),
+      '★ Session N pair: HomePage still dispatches its live neighbours (startappwith · settings) — the negatives above read a real dispatcher');
+    ok(!/addCustomString\("SpixiThemeMode"/.test(csN) && /addCustomString\("SpixiThemeName", appearance_name\)/.test(stripCode(rdf('Spixi/Utils/ThemeManager.cs'))),
+      '★ Session N: the SpixiThemeMode carrier (the `css/*SL{SpixiThemeMode}` link only the legacy documents read) is no longer written; SpixiThemeName (ten shells read it) still is');
+    {
+      const emit = [];
+      for (const f of htmlFiles) for (const m of built(f).matchAll(/ixian:lock[a-z:]*/g)) emit.push(m[0]);
+      ok(emit.length > 0 && emit.every((v) => v === 'ixian:lock:' || v === 'ixian:lock:on' || v === 'ixian:lock:off'),
+        '★★ Session N: the ONLY shipped emitters of the lock verb are `ixian:lock:on|off` (StartsWith on SettingsPage) — no document emits the bare `ixian:lock` the deleted HomePage branch .Equals-matched. Got: ' + [...new Set(emit)].join(','));
+      const hasSettingsLock = /StartsWith\("ixian:lock:"/.test(stripCode(rdf('Spixi/Pages/Settings/SettingsPage.xaml.cs')));
+      ok(hasSettingsLock, '★ Session N pair: SettingsPage still handles `ixian:lock:` (the live toggle the settings shell drives)');
+    }
+    /* F · THE REACHABILITY GATE over images/ + img/ — the structural version of "build
+       the referenced set from everything shipped and delete the remainder". A shipped
+       file that nothing references is a FAILURE here, and so is a reference to a file
+       that does not ship. The three `img/…` SENTINELS (spixiavatar · spixi-group-avatar
+       · app-noicon) are C# MARKER strings every shell maps to its own fallback and never
+       requests, so they are excluded from the reference set and asserted ABSENT. */
+    {
+      const shipped = listFiles(rawDir).filter((f) => /^(images|img)\//.test(f));
+      // stripCode: a comment cannot LOAD a file. The raw corpus names `img/flags/zz.png` (a
+      // flags.js docblock example) and `src/assets/images/chat-bg-doodles.svg` (the pattern
+      // generator's source note) — both would read as dangling references. #771 in reverse.
+      const corpus = listFiles(rawDir).filter((f) => /\.(html|css|js)$/.test(f)).map((f) => stripCode(built(f))).join('\n');
+      const refs = new Set();
+      for (const m of corpus.matchAll(/(?:images|img)\/[A-Za-z0-9_./-]+\.(?:png|svg|jpg|jpeg|gif|webp)/g)) refs.add(m[0]);
+      // the launch shell COMPOSES its art paths: base + '<name>.png' over the 'images/onboarding/' default
+      const bundle = built('spixi.bundle.js');
+      ok(/illustrationBase \|\| 'images\/onboarding\/'/.test(bundle), '★ Session N gate premise: the launch shell still composes its art from the images/onboarding/ base');
+      for (const m of bundle.matchAll(/base \+ '([A-Za-z0-9_-]+\.png)'/g)) refs.add('images/onboarding/' + m[1]);
+      // the flag files are composed from the LANGUAGES list (flags.js FLAG_BASE + code + .png)
+      const flagCodes = [...bundle.matchAll(/flag:\s*'([a-z]{2})'/g)].map((m) => m[1]);
+      ok(flagCodes.length === 13, '★ Session N gate premise: LANGUAGES declares 13 flag codes (got ' + flagCodes.length + ')');
+      for (const c of flagCodes) refs.add('img/flags/' + c + '.png');
+      const SENTINELS = ['img/spixiavatar.png', 'img/spixi-group-avatar.png', 'img/app-noicon.jpg'];
+      for (const sn of SENTINELS) refs.delete(sn);
+      const orphans = shipped.filter((f) => !refs.has(f));
+      const dangling = [...refs].filter((r) => !shipped.includes(r));
+      ok(shipped.length >= 20 && refs.size >= 20, '★ Session N gate premise: the shipped image set and the reference set are both non-trivial (' + shipped.length + ' shipped · ' + refs.size + ' referenced)');
+      ok(orphans.length === 0,
+        '★★ Session N REACHABILITY GATE: every shipped file under images/ and img/ is referenced by exact path from a shipped html/css/js (or composed by the launch shell / the flag list). Orphans: ' + (orphans.join(',') || 'none'));
+      ok(dangling.length === 0,
+        '★★ Session N REACHABILITY GATE (the other direction): every referenced images/ or img/ path SHIPS. Dangling: ' + (dangling.join(',') || 'none'));
+      ok(SENTINELS.every((sn) => !existsSync(join(rawDir, sn))),
+        '★ Session N: the three `img/…` sentinels are MARKER strings, not files — the legacy placeholders behind them are deleted and every consumer maps the marker to its own fallback');
+      ok(/StartsWith\("img\/", StringComparison\.OrdinalIgnoreCase\)\) return path;/.test(stripCode(rdf('Spixi/Utils/Utils.cs'))),
+        '★ Session N pair: Utils.imageToDataUri still passes the `img/` marker through untouched (never reads it as a file)');
+      // the source of truth for images/ is src/demo/images (build-shells copies it verbatim)
+      const srcImgs = [];
+      const walkSrc = (d, pre) => { for (const n of readdirSync(d)) { const q = join(d, n); if (statSync(q).isDirectory()) walkSrc(q, pre + n + '/'); else srcImgs.push(pre + n); } };
+      walkSrc(join(root, 'src/demo/images'), 'images/');
+      ok(srcImgs.sort().join(',') === shipped.filter((f) => f.startsWith('images/')).sort().join(','),
+        '★ Session N: src/demo/images ≡ Raw/html/images (build-shells copies verbatim — an orphan deleted only in Raw/html would come back on the next build)');
+    }
+    /* G · the app-noicon sentinel is mapped BEFORE it reaches an <img> */
+    {
+      const chatSrc = stripCode(rdf('src/shells/chat.html'));
+      ok(/function resolveAppIcon\(path\)[\s\S]{0,300}?indexOf\('img\/'\) === 0\) return null;/.test(chatSrc)
+         && /iconUrl: resolveAppIcon\(appimage\)/.test(chatSrc)
+         && /iconUrl: resolveAppIcon\(appimage\)/.test(stripCode(built('chat.html'))),
+        '★ Session N: chat.html maps C#\'s `img/app-noicon.jpg` (and any `img/…` marker) to null at the addAppRequest boundary, so the card draws its rocket instead of requesting a file that no longer ships — source and built');
+    }
+    /* F2 · the gate's THIRD premise (#46 auditor B): 13 of the 24 shipped images are reached
+       only through flags.js's composed `FLAG_BASE + code + '.png'`, so the base itself is
+       pinned — change it and neither direction of the gate would notice. */
+    ok(/let FLAG_BASE = 'img\/flags\/';/.test(built('spixi.bundle.js')),
+      '★ Session N gate premise: flags.js composes its files from FLAG_BASE = img/flags/ (the gate derives the 13 flag references from this base + the LANGUAGES codes)');
+    /* E2 · every loadPage-able document runs the real dispatcher (#46 auditor A): the widened
+       supportsRawDataUriArgs and the push-only theme sweep both rest on "every shipped
+       document is a redesigned shell" — pinned as a name-level allowlist of the one
+       bundle-less exception, which defines its own setTheme by hand. */
+    {
+      const BUNDLELESS = ['empty_detail.html'];
+      const noBridge = htmlFiles.filter((f) => !/createNativeBridge/.test(stripCode(built(f))));   // reviewer D7: a comment naming it must not satisfy it
+      ok(noBridge.join(',') === BUNDLELESS.join(','),
+        '★ Session N: every shipped document runs src/bridge/native.js (createNativeBridge) except the ONE named bundle-less shell — got: ' + (noBridge.join(',') || 'none'));
+      ok(BUNDLELESS.every((f) => /window\.setTheme\s*=/.test(built(f))),
+        '★ Session N pair: the bundle-less shell still defines window.setTheme by hand, so the push-only theme sweep reaches it without a bare-global throw');
+    }
+    /* H · the csproj still includes Raw/** wholesale — which is WHY this block prunes */
+    ok(/<MauiAsset Include="Resources\\Raw\\\*\*"/.test(rdf('Spixi/Spixi.csproj')),
+      '★ Session N premise: Resources/Raw/** is included wholesale (no per-file MauiAsset list) — every file under Raw/html ships, so the reachability gate above is the only pruner');
+    /* J · the Release packaging strip target (#46 auditor A MINOR-4: it had no pin). Pinned:
+       Release-only default, the target's condition, the two properties evaluated INSIDE the
+       target (auditor A MAJOR-1: in the body $(IntermediateOutputPath) is still empty), the
+       Remove+Include pair with the wholesale include's LogicalName shape, and BeforeTargets. */
+    {
+      const cs = stripCode(rdf('Spixi/Spixi.csproj'));
+      const tgt = (() => { const a = cs.indexOf('<Target Name="SpixiStripReleaseHtml"'); const b = a < 0 ? -1 : cs.indexOf('</Target>', a); return (a < 0 || b < 0) ? '' : cs.slice(a, b); })();
+      ok(/<SpixiStripHtml Condition="'\$\(SpixiStripHtml\)' == '' and '\$\(Configuration\)' == 'Release'">true<\/SpixiStripHtml>/.test(cs)
+        && /<Target Name="SpixiStripReleaseHtml" BeforeTargets="PrepareForBuild" Condition="'\$\(SpixiStripHtml\)' == 'true'">/.test(cs),
+        '★ Session N strip target: defaults ON only for Release (Debug never runs node), gated on SpixiStripHtml (opt-out = -p:SpixiStripHtml=false), hooked BeforeTargets=PrepareForBuild');
+      ok(tgt.length > 0 && /<PropertyGroup>\s*<SpixiStripHtmlDir>\$\(\[MSBuild\]::NormalizeDirectory\('\$\(MSBuildProjectDirectory\)', '\$\(IntermediateOutputPath\)', 'spixi-strip', 'html'\)\)<\/SpixiStripHtmlDir>/.test(tgt)
+        && /<SpixiStripScript>\$\(\[MSBuild\]::NormalizePath\('\$\(MSBuildProjectDirectory\)', '\.\.', 'scripts', 'strip-release\.mjs'\)\)<\/SpixiStripScript>/.test(tgt)
+        && !/<SpixiStripHtmlDir>/.test(cs.slice(0, cs.indexOf('<Target Name="SpixiStripReleaseHtml"'))),
+        '★★ Session N strip target: SpixiStripHtmlDir/SpixiStripScript are evaluated INSIDE the target (target time — the TFM-suffixed obj dir), never in the project body where IntermediateOutputPath is still empty and the strip would land in the working tree, one dir for four TFMs');
+      ok(/<Exec Command="node &quot;\$\(SpixiStripScript\)&quot; --out &quot;\$\(SpixiStripHtmlDir\)\.&quot;" \/>/.test(tgt)   // the trailing "." — a dir ending in "\" before the closing quote is an ESCAPED quote to CommandLineToArgvW (reviewer MAJOR-1)
+        && /<MauiAsset Remove="Resources\\Raw\\html\\spixi\.tokens\.css" \/>/.test(tgt)
+        && /<MauiAsset Include="\$\(SpixiStripHtmlDir\)spixi\.tokens\.css" LogicalName="html\$\(\[System\.IO\.Path\]::DirectorySeparatorChar\)spixi\.tokens\.css" \/>/.test(tgt)
+        && /<MauiAsset Include="Resources\\Raw\\\*\*" LogicalName="%\(RecursiveDir\)%\(Filename\)%\(Extension\)" \/>/.test(cs),
+        '★ Session N strip target: Exec runs the allowlist script into the obj dir; the ONE asset is Removed then re-Included from there with the LogicalName the wholesale include would have produced (html + native separator + file) — no duplicate LogicalName, no second copy');
+      const swapped = [...tgt.matchAll(/<MauiAsset (Remove|Include)="[^"]*?([a-z.-]+\.css)"/g)].map((m) => m[1] + ':' + m[2]).sort().join(',');
+      ok(stripMod2.STRIP_ALLOWLIST.length === 1 && swapped === stripMod2.STRIP_ALLOWLIST.map((f) => 'Include:' + f + ',Remove:' + f).join(','),
+        '★ Session N: the csproj Remove+Include pairs are EXACTLY the allowlist — an allowlist entry without its csproj pair would strip nothing that ships, and a csproj swap off the list would ship a file gate 1 never checks. Got: ' + swapped);
+    }
+    /* I · build-shells: every key builds by default (the #288 stale-artifact class) */
+    {
+      const bs = stripCode(rdf('scripts/build-shells.mjs'));
+      const keys = [...bs.matchAll(/^  ([a-z_]+):\s*\{ in:/gm)].map((m) => m[1]).sort();
+      const def = (bs.match(/const DEFAULT = \[([\s\S]*?)\];/) || ['', ''])[1].match(/'([a-z_]+)'/g).map((x) => x.replace(/'/g, '')).sort();
+      ok(keys.length === 18 && keys.join(',') === def.join(','),
+        '★★ Session N: build-shells SHELLS ≡ DEFAULT (18 keys) — no excluded/legacy target left, so `all`, the default and the --check gate all cover exactly what ships. SHELLS: ' + keys.length + ' DEFAULT: ' + def.length);
+    }
   }
 
   /* —— L2 · the group delivery ticks ————————————————————————————————————————— */
@@ -21305,10 +21554,18 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ['src/demo/spixi.iife.js',             'Spixi/Resources/Raw/html/spixi.bundle.js'],
     ['src/demo/strings.iife.js',           'Spixi/Resources/Raw/html/spixi.strings.js'],
   ];
+  /* ★ Session N — the comment-strip fork's GATE 2 reaches this pin. Over a PACKAGED tree
+     (scripts/smoke-packaged.mjs, SPIXI_PACKAGED_FROM set) an allowlisted stylesheet is
+     strip(src) by design, so the honest identity there is built ≡ stripCssComments(src)
+     — the same transform, imported from the script that ships it, not re-implemented.
+     Every non-allowlisted copy stays byte-identical in BOTH runs, which is the point. */
+  const stripMod = await import(new URL('../scripts/strip-release.mjs', import.meta.url));
+  const packagedRunF = !!process.env.SPIXI_PACKAGED_FROM;
   for (const [src, built] of COPIES) {
     let same = false;
-    try { same = rdF(src) === rdF(built); } catch (_) { same = false; }
-    ok(same, '★★ SESSION F: the BUILT ' + built.split('/').pop() + ' is byte-identical to ' + src.split('/').pop()
+    const onList = stripMod.STRIP_ALLOWLIST.includes(built.split('/').pop());
+    try { same = (packagedRunF && onList) ? stripMod.stripCssComments(rdF(src)) === rdF(built) : rdF(src) === rdF(built); } catch (_) { same = false; }
+    ok(same, '★★ SESSION F: the BUILT ' + built.split('/').pop() + ' is ' + ((packagedRunF && onList) ? 'strip(' + src.split('/').pop() + ') — the packaged form (Session N gate 2)' : 'byte-identical to ' + src.split('/').pop())
       + ' — the app loads the built copy, so a value pinned only in src/ proves nothing about what ships (mutations M10/M11/M12/M13 each survived on exactly this gap)');
   }
 
@@ -22362,11 +22619,28 @@ console.log('Session H ⑥: the artifact gates');
      gate to all 18 shells. */
   {
     let ok1 = true, tail = '';
-    try {
-      tail = execSync(JSON.stringify(process.execPath) + ' ' + JSON.stringify(join(root, 'scripts/build-shells.mjs')) + ' --check', { encoding: 'utf8' }).trim().split('\n').pop();
-    } catch (e) { ok1 = false; tail = String(e.stdout || e.message).trim().split('\n').slice(-4).join(' · '); }
-    ok(ok1 && /every generated artifact matches a fresh build/.test(tail),
-      '★★ C MAJOR-1 GATE: build-shells --check — every SHIPPED shell matches a fresh in-memory build (a stale Raw/html can no longer pass the suite) — ' + tail);
+    /* ★ Session N — GATE 2 of the comment-strip fork (strip-release.mjs). When this suite
+       runs over a PACKAGED tree (scripts/smoke-packaged.mjs sets SPIXI_PACKAGED_FROM to the
+       committed Raw/html the package was derived from), the allowlisted stylesheet is
+       stripped by design and can no longer equal a fresh build — so the artifact gate is
+       GATE 1 instead: packaged ≡ strip(committed), run by the COMMITTED tree's own
+       strip-release.mjs against THIS tree. Both gates ask the same question of a different
+       stage: "is what is here a faithful transform of what was reviewed?" The normal run
+       (no env) is unchanged. */
+    const packagedFrom = process.env.SPIXI_PACKAGED_FROM;
+    if (packagedFrom) {
+      try {
+        tail = execSync(JSON.stringify(process.execPath) + ' ' + JSON.stringify(join(packagedFrom, '..', '..', '..', '..', 'scripts/strip-release.mjs')) + ' --check ' + JSON.stringify(join(root, 'Spixi/Resources/Raw/html')), { encoding: 'utf8' }).trim().split('\n').pop();
+      } catch (e) { ok1 = false; tail = String(e.stdout || e.stderr || e.message).trim().split('\n').slice(-4).join(' · '); }
+      ok(ok1 && /GATE 1 OK/.test(tail),
+        '★★ Session N GATE 1 (packaged run): strip-release --check — the packaged tree ≡ strip(committed) and nothing else moved — ' + tail);
+    } else {
+      try {
+        tail = execSync(JSON.stringify(process.execPath) + ' ' + JSON.stringify(join(root, 'scripts/build-shells.mjs')) + ' --check', { encoding: 'utf8' }).trim().split('\n').pop();
+      } catch (e) { ok1 = false; tail = String(e.stdout || e.message).trim().split('\n').slice(-4).join(' · '); }
+      ok(ok1 && /every generated artifact matches a fresh build/.test(tail),
+        '★★ C MAJOR-1 GATE: build-shells --check — every SHIPPED shell matches a fresh in-memory build (a stale Raw/html can no longer pass the suite) — ' + tail);
+    }
   }
   /* ★★ C MAJOR-2: the icons REGISTRY EQUALITY gate. generate-icons writes icons.js and
      icons.iife.js from one string; Session G shipped them out of sync (external-link in
@@ -24189,6 +24463,32 @@ console.log('Session M: the apps layout · the present signal on the DATA pages'
     && /\[CDPERF\] chats flush rows=/.test(hpM)
     && /if \(cdChatsRuns < 4\)/.test(hpM),
     '★ Session M [CDPERF] chats (TEMPORARY — retire with the set, handoff ⑬): the DISPATCHER\'s view of the ~60-row flush, to pair with the shell probe\'s flush/done marks. Bounded to the boot window for the same reason [RESTOREDIAG] is: a per-second line buries its own evidence. Fixed words + integers only (the handover-gate log rule)');
+
+  /* ★ Session N [CDPERF] parse + rtt — TEMPORARY (retire with the set). The two
+     investigations the perf brief ordered BEFORE any lever: (a) per-file cost of the
+     shared payload on the critical path, (b) one JS→C#→JS round trip on the
+     cancelled-navigation transport (#781). RAW reads of the BUILT shell — the stamps are
+     inline <script> tags and the point is that they SHIP; stripCode on the C# guard. */
+  {
+    const chatN = readFileSync(join(root, 'Spixi/Resources/Raw/html/chat.html'), 'utf8');
+    const order = [...chatN.matchAll(/__cdParse(?:=\[\['(head)'|&&window\.__cdParse\.push\(\['([a-z]+)')/g)].map((m) => m[1] || m[2]);
+    ok(order.join(',') === 'head,tokens,base,styles,pattern,body,icons,strings,bundle',
+      '★ Session N [CDPERF] parse (TEMPORARY): the built chat.html carries the nine stamps IN DOCUMENT ORDER — head · tokens.css · base.css · the inlined component styles · chat-pattern.css · body · icons · strings · bundle — so each consecutive delta is one file\'s fetch+parse on the critical path. Got: ' + order.join(','));
+    ok(/\[CDPERF\] chat-shell parse pre=/.test(chatN) && /st\.push\(\['inline', performance\.now\(\)\]\);/.test(chatN)
+      && chatN.indexOf("st.push(['inline'") < chatN.indexOf('bridge.ready();')
+      && /window\.addEventListener\('load', signalReady, \{ once: true \}\)/.test(chatN),
+      '★ Session N [CDPERF] parse: the shell\'s own inline script is the tenth stamp, the absolute (`pre=`) prints FIRST so it cannot be read as a delta, and the line prints from signalReady — registered on `load` with { once: true } (that is the once-ness), BEFORE bridge.ready(), after the last byte of the document has been compiled and before the first push can land');
+    ok(/cdpong\(token\) \{/.test(chatN) && /ixian:cdping:' \+ Math\.round\(performance\.now\(\) \* 1000\)/.test(chatN)
+      && chatN.indexOf('cdRttProbe();') < chatN.indexOf("bridge.send('ixian:painted');") && chatN.indexOf('cdRttProbe();') > chatN.indexOf("console.warn('[CDPERF] chat-shell n='")
+      && /if \(cdRtt\.done\) return;/.test(chatN) && /\[CDPERF\] chat-shell rtt n=/.test(chatN),
+      '★ Session N [CDPERF] rtt (TEMPORARY): five serial pings, ARMED from inside the glass stamp\'s try (a 1.5 s timer — never inside the open it measures, and a throw there cannot reach the present send that follows the catch), one-shot per document, one line');
+    const scpN2 = stripCode(readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8'));
+    ok(/url\.StartsWith\("ixian:cdping:", StringComparison\.Ordinal\)/.test(scpN2)
+      && /hasGeneratedContent && token\.Length > 0 && token\.Length <= 16 && token\.All\(c => c >= '0' && c <= '9'\)/.test(scpN2)
+      && /Utils\.sendUiCommand\(this, "cdpong", token\);/.test(scpN2)
+      && scpN2.indexOf('ixian:cdping:') > scpN2.indexOf('url.Equals("ixian:painted", StringComparison.Ordinal)'),
+      '★ Session N [CDPERF] rtt: the C# echo lives in onNavigatingGlobal beside ixian:painted (the verb it measures), answers ONLY a page that loaded one of our shells (hasGeneratedContent — a mini-app document has no cdpong global and a bare undefined global throws before the dispatcher, #258), accepts ASCII DIGITS ONLY (≤16 — that filter is what keeps the echo out of the raw data-URI passthrough), and answers through sendUiCommand — the same main-thread → EvaluateJavaScript path every push takes, so the loop it times is the real one');
+  }
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

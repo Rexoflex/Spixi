@@ -60,46 +60,36 @@ namespace SPIXI
         private string? loadedHtmlFileName = null;
 
         // #340 audit (A-MAJOR-1/2): may Utils.sendUiCommand hand this page a "data:…;base64,…"
-        // argument VERBATIM instead of base64-encoding it for transport? True only for the
-        // redesigned shells, which decode through src/bridge/native.js and pass a leading
-        // "data:" straight through. FAILS CLOSED, deliberately, in both directions:
-        //   · the remaining legacy Raw/html pages (hasLegacyPageChrome) decode with
-        //     js/spixi.js's unguarded atob and would THROW on the ':' — see Utils.cs.
-        //   · MiniAppPage never calls loadPage (it points the WebView at the mini-app's own
-        //     entry point), so loadedHtmlFileName stays null here and the frozen
-        //     base64-per-argument SDK contract is preserved without MiniAppPage having to
-        //     know this rule exists. A page that is pushed to before loadPage runs is also
-        //     null → encoded, which is the pre-#339 behaviour.
-        // Keep in sync with hasLegacyPageChrome (same list, same reason: those files were
-        // never regenerated onto the new bridge).
+        // argument VERBATIM instead of base64-encoding it for transport? True for every
+        // page that loaded a Raw/html document — since Session N (legacy purge) every such
+        // document is a redesigned shell: 17 decode through src/bridge/native.js and pass a
+        // leading "data:" straight through, and the ONE bundle-less shell (empty_detail.html,
+        // its own hand-rolled dispatcher) keeps a non-base64 value verbatim from its atob
+        // catch — receives no data-URI today, and the smoke suite pins that exception by
+        // name. Still FAILS CLOSED for the one case
+        // left: MiniAppPage never calls loadPage (it points the WebView at the mini-app's
+        // own entry point), so loadedHtmlFileName stays null here and the frozen
+        // base64-per-argument SDK contract is preserved without MiniAppPage having to know
+        // this rule exists. A page that is pushed to before loadPage runs is also null →
+        // encoded, which is the pre-#339 behaviour.
+        // (The legacy branch — "js/spixi.js's unguarded atob would THROW on the ':'" —
+        // left with the four legacy pages and hasLegacyPageChrome.)
         public bool supportsRawDataUriArgs
         {
             get
             {
-                return loadedHtmlFileName != null && !hasLegacyPageChrome(loadedHtmlFileName);
+                return loadedHtmlFileName != null;
             }
         }
 
-        /* ★ N71 (#421): does this page re-theme from a `setTheme` PUSH, or only from a
-         * regenerate? The redesigned shells swap one data-theme attribute and every
-         * token follows. The remaining legacy pages (hasLegacyPageChrome in UIHelpers is
-         * the authoritative list — no count here, it has drifted twice: review N-2)
-         * have no setTheme global at all —
-         * they carry the theme in a `<link href="css/*SL{SpixiThemeMode}">` BAKED at
-         * generatePage time, so the only thing that re-themes them is reload().
-         *
-         * The expression is identical to supportsRawDataUriArgs above, and that is not
-         * an accident — it is the same "was this file regenerated onto the new bridge"
-         * question. It gets its own name because the REASON differs, and a reader who
-         * finds a theme sweep branching on a data-URI transport flag would rightly
-         * distrust it. Keep all three in sync with hasLegacyPageChrome. */
-        public bool rethemesByPush
-        {
-            get
-            {
-                return loadedHtmlFileName != null && !hasLegacyPageChrome(loadedHtmlFileName);
-            }
-        }
+        /* ★ Session N (legacy purge): `rethemesByPush` (N71, #421) is GONE. It answered
+         * "does this page re-theme from a `setTheme` push, or only from a regenerate?",
+         * and the only pages that answered "regenerate" were the four legacy documents
+         * whose theme was a `<link href="css/*SL{SpixiThemeMode}">` baked at generatePage
+         * time. Those documents are deleted, so every page the theme sweep enumerates
+         * (getLiveShellPages filters on hasGeneratedContent) re-themes by push, and the
+         * sweep's reload() branch went with the property. Reversal: git restore this
+         * property + the UIHelpers.pushThemeToAllPages branch that read it. */
 
         /* ★ N66 (#385, review MAJOR-1): does this page hold content WE generated?
          * reload() can only help such a page — it re-runs generatePage, which is where
@@ -194,11 +184,9 @@ namespace SPIXI
                     return "#1b163c";
                 // ★★ L1 (#640): wallet_request.html and wallet_send_2.html left this list
                 // with the pages that loaded them (WalletReceivePage / WalletSend2Page,
-                // both deleted). wallet_recipient.html STAYS — WalletRecipientPage is
-                // still pushed by AppDetailsPage and HomePage and is not a money screen.
-                case "wallet_recipient.html":
-                case "address.html":
-                    return ThemeManager.getBackgroundColorString();
+                // both deleted). ★ Session N (legacy purge): wallet_recipient.html and
+                // address.html left it too — the last two legacy documents, deleted with
+                // WalletRecipientPage (address.html had no loader since upstream a50c7334).
                 // wallet_sent.html left this list at #259 (B3 redesigned shell,
                 // instant-bg = --surface-screen) — stale legacy-blue entry fixed with
                 // the edge-to-edge batch (pre-paint frame now matches the shell).
@@ -452,27 +440,17 @@ namespace SPIXI
             }
         }
 
-        // The REMAINING legacy pages (Raw/html files with NO viewport-fit=cover meta and
-        // no env(safe-area-inset-*) CSS). These keep the historical native inset padding
-        // on iOS — dropping it would slide their content under the notch. Every
-        // redesigned shell handles the insets itself (edge-to-edge, iOS-1/3/4).
-        // Keep this list in sync with the viewport-fit=cover detector:
-        //   for f in Spixi/Resources/Raw/html/*.html; do grep -L 'viewport-fit=cover' $f; done
-        private static bool hasLegacyPageChrome(string html_file_name)
-        {
-            switch (html_file_name)
-            {
-                // ★★ L1 (#640): the three wallet_send*/wallet_request entries left this
-                // list with their pages. wallet_recipient.html STAYS.
-                case "address.html":
-                case "apps.html":
-                case "settings_lock.html":
-                case "wallet_recipient.html":
-                    return true;
-                default:
-                    return false;
-            }
-        }
+        /* ★ Session N (legacy purge): `hasLegacyPageChrome` is GONE. It was the roster
+         * of Raw/html documents with NO viewport-fit=cover meta (address.html · apps.html
+         * · settings_lock.html · wallet_recipient.html), which kept the historical native
+         * inset padding on iOS/Android and were re-themed by reload() instead of a push.
+         * All four are deleted (none was reachable — see DECISIONS Session N), so every
+         * document loadPage can load is a redesigned shell that pads itself in CSS. The
+         * only page that still takes the native inset is the one that never calls
+         * loadPage: MiniAppPage (`!hasGeneratedContent`, third-party HTML). Detector for a
+         * regression, if a no-viewport-fit document is ever added again:
+         *   for f in Spixi/Resources/Raw/html/*.html; do grep -L 'viewport-fit=cover' $f; done
+         * — the smoke suite pins that loop's output to empty. */
 
         // Platform page chrome (safe-area padding + themed page background). Called at
         // the historical point (webViewNavigated → checkIfPageLoaded) AND re-applied
@@ -495,7 +473,8 @@ namespace SPIXI
             // via env(safe-area-inset-*), which WKWebView populates live per WebView —
             // including after a load-then-move present, with no M2-style re-read race).
             // The themed page background stays: it is the pre-paint frame (N1/N3) and
-            // the transition/keyboard backing. Legacy pages keep the native inset.
+            // the transition/keyboard backing. Only the mini-app page keeps the native
+            // inset (Session N: the legacy documents that also did are deleted).
             /* ★ AND-7 sibling (#401), and the fix security-review MAJOR #6(b) asks for:
              * `!hasGeneratedContent` is TRUE exactly for MiniAppPage, which never calls
              * loadPage (it points its WebView at the publisher's own entry point). That
@@ -505,7 +484,7 @@ namespace SPIXI
              * notch and the home indicator since. Same one-token classification the
              * Android branch below uses; MAJOR #6(a), the link-handoff trust tier, is a
              * separate and still-open ask. */
-            if (hasLegacyPageChrome(loadedHtmlFileName ?? "") || !hasGeneratedContent)
+            if (!hasGeneratedContent)
             {
                 var insets = this.On<iOS>().SafeAreaInsets();
                 this.Padding = new Thickness(0, insets.Top, 0, 10);
@@ -549,21 +528,20 @@ namespace SPIXI
              * grows by the inset and keeps its surface). The inset reaches the shells as
              * the *SL{AndroidInsetTop} carrier, in CSS px, on the first frame.
              *
-             * Two kinds of page CANNOT do that and keep the native padding instead —
-             * both were already enumerated for the same reason on iOS:
-             *   · the 8 remaining LEGACY Raw/html pages (no viewport-fit=cover, no
-             *     env() chrome) — hasLegacyPageChrome;
-             *   · MINI-APP pages, which never call loadPage, so loadedHtmlFileName is
-             *     null. That is third-party content: it must never be asked to handle
-             *     an inset it was not told about (the standing rule that our sweeps
-             *     structurally exclude mini-app WebViews).
+             * One kind of page CANNOT do that and keeps the native padding instead
+             * (the same case iOS enumerates above): MINI-APP pages, which never call
+             * loadPage, so loadedHtmlFileName is null. That is third-party content: it
+             * must never be asked to handle an inset it was not told about (the standing
+             * rule that our sweeps structurally exclude mini-app WebViews). The legacy
+             * Raw/html documents that used to share this branch (no viewport-fit=cover,
+             * no env() chrome) are deleted — Session N.
              *
              * This REPLACES the Android-15 modal branch that padded every modal by
              * `MainActivity.Insets.Value.Top / 3` — a hardcoded density divide that only
              * existed because the root padding did not reach a modal container. With no
              * root top padding, every page is unpadded the same way and the lock, the
              * call surface and scan pad themselves in CSS like every other shell. */
-            if (hasLegacyPageChrome(loadedHtmlFileName ?? "") || !hasGeneratedContent)
+            if (!hasGeneratedContent)
             {
                 this.Padding = new Thickness(0, MainActivity.TopInsetDip, 0, 0);
             }
@@ -576,9 +554,9 @@ namespace SPIXI
                  * ConfigurationChanges), so nothing re-generates. Re-push the current value
                  * on every page-chrome pass — page load, re-present, and OnAppearing — which
                  * heals a stale inset on the next visit to any screen.
-                 * Gated to REDESIGNED shells: they define window.setInsetTop in their head
-                 * script; the 7 legacy pages and mini-app WebViews do not, and they keep
-                 * native padding anyway (the branch above).
+                 * Reaches only pages that loaded a redesigned shell — every one defines
+                 * window.setInsetTop in its head script; mini-app WebViews do not, and
+                 * they keep native padding anyway (the branch above).
                  * ⚠ RESIDUAL, logged not hidden: a rotation while a page is on screen is
                  * not covered — see docs/android-findings.md. */
                 Utils.sendUiCommand(this, "setInsetTop",
@@ -3430,7 +3408,7 @@ namespace SPIXI
          * ★★ #46 A6 — WHY THIS CACHE IS SAFE, STATED CORRECTLY. The previous wording claimed
          * the carriers (LaunchBootView / LockAuthPending / devMode / the theme name) "are all
          * written right before their page's generatePage". THAT IS FALSE for three of them:
-         * SettingsPage writes SpixiThemeName/SpixiThemeMode and deliberately does NOT reload
+         * SettingsPage writes SpixiThemeName and deliberately does NOT reload
          * settings.html; the devMode toggle is flipped at runtime on a document that is
          * already live; and AndroidInsetTop's authoritative write arrives from the insets
          * listener, long after the shell was generated. The argument that IS true, and the
@@ -3850,6 +3828,28 @@ namespace SPIXI
                  * this batch; that branch is gone, and the chat now overrides
                  * onPaintedSignal — one inbound path, no second copy to drift (#251/#288). */
                 onPaintedSignal();
+            }
+            else if (url.StartsWith("ixian:cdping:", StringComparison.Ordinal))
+            {
+                /* ★ Session N [CDPERF] rtt — TEMPORARY (retire with the set, handoff ⑬):
+                 * investigation 7 / #781. The JS→C# bridge is a CANCELLED NAVIGATION
+                 * (src/bridge/native.js) and nothing had ever timed one round trip — the
+                 * signal that gates the present (`ixian:painted`) rides it. The shell sends
+                 * its own performance.now() as an integer token; this echoes it back through
+                 * the normal push path (main thread → EvaluateJavaScript) and the shell
+                 * measures the full loop. ASCII digits only, ≤16 of them — THAT filter is the
+                 * whole guarantee: a digit string can never begin with "data:", so it can never
+                 * take sendUiCommand's raw data-URI passthrough and always travels
+                 * base64-encoded, never as shell text in a JS literal. Gated on
+                 * hasGeneratedContent like every other inbound global verb: a mini-app WebView
+                 * (third-party document, no `cdpong` global) must not be answered — a bare
+                 * undefined global there throws before the dispatcher (#258). No state, no
+                 * data, no effect on any page. */
+                string token = url.Substring("ixian:cdping:".Length);
+                if (hasGeneratedContent && token.Length > 0 && token.Length <= 16 && token.All(c => c >= '0' && c <= '9'))
+                {
+                    Utils.sendUiCommand(this, "cdpong", token);
+                }
             }
             else if (url.StartsWith("ixian:hangUp:"))
             {

@@ -102,7 +102,6 @@ const SHELLS = {
   contact_details: { in: 'src/shells/contact_details.html', out: 'contact_details.html', page: 'ContactDetails' },
   contact_new: { in: 'src/shells/contact_new.html', out: 'contact_new.html', page: 'ContactNewPage' },
   home:     { in: 'src/shells/home.html',   out: 'index.html',       page: 'HomePage (chats tab)' },
-  apps:     { in: 'src/demo/apps.html',     out: 'apps.html',        page: 'AppsPage' },
   app_details: { in: 'src/shells/app_details.html', out: 'app_details.html', page: 'AppDetailsPage' },
   app_new:  { in: 'src/shells/app_new.html', out: 'app_new.html',    page: 'AppNewPage' },
   settings: { in: 'src/shells/settings.html', out: 'settings.html',   page: 'SettingsPage' },
@@ -145,7 +144,7 @@ const DEFAULT = ['chat', 'contact_details', 'contact_new', 'home', 'settings', '
 const arg = process.argv.slice(2).filter((x) => x !== '--check');   // ★ the flag is not a shell key (see the wrapper docblock)
 // #288 review: `all` used to include the two still-LEGACY demo drop-ins — apps.html and
 // wallet_send.html, the MONEY page — silently overwriting them with demo markup (#284 had
-// to restore both from HEAD). They stay buildable when named explicitly; `all` skips them.
+// to restore both from HEAD). Both targets are gone now (see below) — `all` = every key.
 /* ★★ SESSION D (#678): the `payments` TARGET IS GONE, not merely excluded. It pointed at
  * src/demo/wallet.html → Resources/Raw/html/wallet_send.html for `WalletSendPage` — and
  * session A deleted BOTH the page and that HTML on Damir's "delete all legacy pages" ruling
@@ -153,10 +152,14 @@ const arg = process.argv.slice(2).filter((x) => x !== '--check');   // ★ the f
  * live destination; with the destination deleted, `build-shells payments` would have
  * RE-CREATED a money-page file under the legacy filename, out of demo markup, in the
  * shipped folder — the exact artifact L1 removed. An excluded target is still a loaded gun.
- * ⚠ apps STAYS: apps.html is a real, still-legacy drop-in that #288's rule protects. */
-const LEGACY_DEMO_KEYS = ['apps'];
+ * ★ SESSION N (legacy purge): the `apps` TARGET IS GONE the same way. It pointed at
+ * src/demo/apps.html → Resources/Raw/html/apps.html for `AppsPage` — a page NOTHING ever
+ * constructed (the Apps tab lives in the home shell). AppsPage + the legacy apps.html
+ * (the last document loading bootstrap/jQuery/FontAwesome/css/spixiui-*) are deleted, so
+ * an `apps` target here would re-create a file under a filename no page loads. With it
+ * went LEGACY_DEMO_KEYS: every remaining key is a bridge-wired shell, `all` = every key. */
 let keys = arg.length === 0 ? DEFAULT
-  : arg.includes('all') ? Object.keys(SHELLS).filter((k) => !LEGACY_DEMO_KEYS.includes(k))
+  : arg.includes('all') ? Object.keys(SHELLS)
   : arg;
 keys = [...new Set(keys)];
 

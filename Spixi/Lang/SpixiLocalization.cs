@@ -38,7 +38,7 @@ namespace SPIXI.Lang
          * ⚠ #46 A6 — WHAT THIS DOES NOT CLAIM. The old wording here ended "no stale carrier",
          * which overclaims: the version guarantees only that no CACHED DOCUMENT survives a
          * carrier change. A carrier written AFTER a live document was generated (SettingsPage
-         * writing SpixiThemeName/SpixiThemeMode without reloading settings.html, the runtime
+         * writing SpixiThemeName without reloading settings.html, the runtime
          * devMode toggle, the authoritative AndroidInsetTop from the insets listener) is
          * pre-existing live-document staleness that the shells' own push paths fix — this
          * cache neither causes it nor repairs it. See generatePage's docblock.

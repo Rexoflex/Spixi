@@ -161,7 +161,7 @@ a forward flow; flag ③).
    **Later** (text, quiet) → step 2. Integration note (§9): "Back up now"
    routes via onboarding-complete + the settings Backup screen — no new verb.
 2. **Join the community**: illustration
-   `src/demo/images/onboarding/join-community.svg` (shipped legacy art,
+   `src/demo/images/onboarding/join-community.svg` (shipped legacy art — ⚠ DELETED in Session N, 2026-09-05: N76 retired the tail and nothing loaded it,
    dark set — §6⑨ RESOLVED by the shell-wide pin), copy for the official
    Spixi bot group, **Join** (fill) → `onJoinBot()` (`ixian:joinbot`) ·
    **Not now** (text) → both then `onFinish()` (`ixian:finish` /

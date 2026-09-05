@@ -282,9 +282,6 @@
 		<MauiXaml Update="Pages\MiniApps\AppNewPage.xaml">
 			<Generator>MSBuild:Compile</Generator>
 		</MauiXaml>
-		<MauiXaml Update="Pages\MiniApps\AppsPage.xaml">
-			<Generator>MSBuild:Compile</Generator>
-		</MauiXaml>
 		<MauiXaml Update="Pages\MiniApps\MiniAppPage.xaml">
 			<Generator>MSBuild:Compile</Generator>
 		</MauiXaml>
@@ -312,13 +309,7 @@
 		<MauiXaml Update="Pages\Settings\EncryptionPassword.xaml">
 			<Generator>MSBuild:Compile</Generator>
 		</MauiXaml>
-		<MauiXaml Update="Pages\Settings\SetLockPage.xaml">
-			<Generator>MSBuild:Compile</Generator>
-		</MauiXaml>
 		<MauiXaml Update="Pages\Settings\SettingsPage.xaml">
-			<Generator>MSBuild:Compile</Generator>
-		</MauiXaml>
-		<MauiXaml Update="Pages\Wallet\WalletRecipientPage.xaml">
 			<Generator>MSBuild:Compile</Generator>
 		</MauiXaml>
 		<MauiXaml Update="Pages\Wallet\WalletSentPage.xaml">
@@ -381,6 +372,42 @@
 		</VisualStudio>
 	</ProjectExtensions>
 	<!-- Fix for https://github.com/microsoft/WindowsAppSDK/issues/3843 -->
+	<!-- ★ Session N — THE RELEASE PACKAGING STRIP (scripts/strip-release.mjs; DECISIONS: the
+	     comment-strip fork). Release only. The committed Raw/html stays readable and every
+	     smoke pin keeps reading it; what SHIPS is the committed tree with the allowlisted
+	     stylesheet(s) comment-stripped (tokens.css: 103 KB → 31 KB). The strip is verified
+	     TWICE per release, or it does not count: GATE 1 `strip-release.mjs` in check mode
+	     (packaged ≡ strip(committed), byte-compare) and GATE 2 `smoke-packaged.mjs` (the
+	     whole suite over the packaged tree). Opt out with -p:SpixiStripHtml=false.
+	     ⚠ Runs BEFORE PrepareForBuild so the item swap precedes MAUI's asset collection;
+	     the swap keeps the LogicalName the wholesale Include above would have produced
+	     (html + native separator + file), so the asset lands at the same path in the app. Fails LOUD if node
+	     or the script is missing — a silent no-strip would still pass gate 1 only because
+	     gate 1 would then also fail, which is the right shape. -->
+	<PropertyGroup>
+		<SpixiStripHtml Condition="'$(SpixiStripHtml)' == '' and '$(Configuration)' == 'Release'">true</SpixiStripHtml>
+	</PropertyGroup>
+	<Target Name="SpixiStripReleaseHtml" BeforeTargets="PrepareForBuild" Condition="'$(SpixiStripHtml)' == 'true'">
+		<!-- ★ #46 auditor A MAJOR-1: these two are evaluated INSIDE the target, at target time.
+		     In the project body $(IntermediateOutputPath) is still EMPTY (the SDK sets it in the
+		     bottom-imported targets, TFM-suffixed), so a body-level property would have resolved
+		     to Spixi/spixi-strip/html/ — in the working tree, and ONE directory shared by four
+		     TFMs writing the same file. Here it is obj/Release/net10.0-<tfm>/spixi-strip/html/. -->
+		<PropertyGroup>
+			<SpixiStripHtmlDir>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'spixi-strip', 'html'))</SpixiStripHtmlDir>
+			<SpixiStripScript>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '..', 'scripts', 'strip-release.mjs'))</SpixiStripScript>
+		</PropertyGroup>
+		<!-- ★ break-my-verdict MAJOR-1: NormalizeDirectory always ends in a separator, so on Windows
+		     "…\html\" puts a backslash before the closing quote and CommandLineToArgvW reads it as an
+		     ESCAPED quote — node gets `…\html"`, mkdirSync throws EINVAL, every Windows Release build
+		     fails. The trailing "." keeps the quote a quote and resolves to the same directory. -->
+		<Exec Command="node &quot;$(SpixiStripScript)&quot; --out &quot;$(SpixiStripHtmlDir).&quot;" />
+		<ItemGroup>
+			<MauiAsset Remove="Resources\Raw\html\spixi.tokens.css" />
+			<MauiAsset Include="$(SpixiStripHtmlDir)spixi.tokens.css" LogicalName="html$([System.IO.Path]::DirectorySeparatorChar)spixi.tokens.css" />
+		</ItemGroup>
+		<Message Importance="high" Text="Spixi: Release packaging strip applied (spixi.tokens.css from $(SpixiStripHtmlDir)) — GATE 1: node scripts/strip-release.mjs --check &lt;the DEPLOYED html folder&gt; (never this obj dir, which holds only the allowlist); GATE 2: node scripts/smoke-packaged.mjs" />
+	</Target>
 	<Target Name="WindowsAppSdk_Issue_3843_Workaround_MsixContent" AfterTargets="AddMicrosoftWindowsAppSDKPayloadFiles">
 		<ItemGroup>
 			<None Remove="$(MicrosoftWindowsAppSDKMsixContent)\DeploymentAgent.exe" />

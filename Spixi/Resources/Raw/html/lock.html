@@ -741,12 +741,17 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   flex: 0 1 auto;
   padding-block-end: var(--spacing-16);
 }
-/* #341: the centring rail belongs to the STANDALONE page only. In the Account pane
-   (settings.html) the detail region already caps this element at
-   --layout-pane-content-max, and `box-sizing: border-box` makes a second rail eat
-   that capped width — the fields measured ~380px on a 900px detail region and got
-   NARROWER as the window widened. Scoped by :not([data-pane]) so the standalone
-   EncryptionPassword page, which really is full-window, keeps its rail. */
+/* #341: the centring rail belongs to a FULL-WINDOW desktop surface. In the Account
+   pane the detail region already caps this element at --layout-pane-content-max, and
+   `box-sizing: border-box` makes a second rail eat that capped width — the fields
+   measured ~380px on a 900px detail region and got NARROWER as the window widened.
+   Hence the :not([data-pane]) scope.
+   ★ #804, auditor A: that scope is wider than "the standalone page" now, and this
+   comment used to claim otherwise (#772). A desktop window BELOW the pane breakpoint
+   runs settings.html with data-desktop set and no data-pane, so the INLINE c-encpass
+   matches here too — which is right, because that surface really is full-window and
+   really does need the rail. The selector was correct all along; only its description
+   was too narrow. */
 :root[data-desktop] body:not([data-pane]) .c-encpass__body {
   padding-inline: max(var(--spacing-16), calc((100% - var(--layout-pane-content-max)) / 2));
 }

@@ -8306,16 +8306,40 @@ console.log('#341 — Change password renders inside the Account pane');
 
   ok(/string caps = "[^"]*\bencpassInline\b/.test(spEnc),   // W-g (2026-08-24): the literal moved into `caps` (paymentAuth is a gated append)
     '#341: SettingsPage declares encpassInline — an old exe never pushes it, so a new shell falls back to the pushed EncryptionPassword page instead of emitting a verb nobody dispatches');
-  ok(/if \(paneMode && bridge\.cap\('encpassInline'\)\) \{ showEncpass\(\); return; \}[\s\S]{0,80}?bridge\.send\('ixian:encpass'\)/.test(shEnc),
-    '#341: the inline route is gated on BOTH paneMode and the cap, and falls through to ixian:encpass — mobile keeps the pushed page, so the #340 closeSublevelOverlays sweep still has a page to sweep');
+  /* ★ Session Q (#804) REBASES this pin, and it went RED first, which is correct. It
+     asserted `paneMode && cap`, and its message ended "mobile keeps the pushed page" —
+     the exact property this batch removed on purpose. What survives is the half that
+     still matters: the guard reads the CAP, and it still falls THROUGH to the verb, so
+     an exe that pushes no cap keeps the page it has always had.
+     ⚠ The negative clause reads stripCode. The shell now carries a comment block that
+     explains the removal, and a comment explaining an absence necessarily NAMES the
+     thing that is absent (the rule at the top of this file, paid for five times). */
+  ok(/if \(bridge\.cap\('encpassInline'\)\) \{ showEncpass\(\); return; \}[\s\S]{0,140}?bridge\.send\('ixian:encpass'\)/.test(shEnc)
+    && !/paneMode && bridge\.cap\('encpassInline'\)/.test(stripCode(shEnc)),
+    '★ #341 → #804: the inline route is gated on the CAP ALONE, on every form factor, and still falls through to ixian:encpass for an exe that pushes no cap. The paneMode half is what made mobile push EncryptionPassword and pay a cold Chromium boot on the main thread for it (#803: 12.19 % janky frames on an account with no data at all)');
   ok(/case 'encpass': \{[\s\S]{0,3000}?bridge\.send\('ixian:changepass:' \+ ENC_DELIM \+ oldPass \+ ENC_DELIM \+ newPass\)/.test(shEnc),
     '#341: the sublevel composes the SAME frozen verb and the SAME delimiter as src/bridge/lock-page.js — one truth, no second password grammar');
 
   /* ★ The security pins. Both must FAIL if the guard is removed. */
   ok(/if \(currentView !== 'encpass'\) releaseEncpass\(\);/.test(shEnc),
     '★ #341 SECURITY: every render that is not the password sublevel releases it. This document is long-lived and PARKED on close (#315), unlike the standalone settings_encryption.html page which DIES on pop — so an unreleased screen keeps three plaintext passwords in live inputs for the life of the process');
-  ok(/exiting = true;[\s\S]{0,600}?releaseEncpass\(\);/.test(shEnc),
-    '★ #341 SECURITY: exitSettings scrubs too. `exiting` makes renderLayout bail, so the release above never runs on the rail-tab-switch / peer-nav / hardware-back routes — the exact routes a user takes to leave the form without touching its back button');
+  /* ★ #804 REBASES this pin, and it went RED first, correctly. It asserted the scrub by
+     CHARACTER DISTANCE — `exiting = true;` within 600 chars of `releaseEncpass()` — and
+     this batch's own comment between them is longer than that. A distance pin over raw
+     text is defeated by prose (#771), which is the same lesson in a new costume: the
+     property is "exitSettings releases before it sends", so the function body is sliced
+     and the ORDER inside it is what is asserted. It also now covers the two releases
+     #804 added for the same reason — a parked document keeps whatever a sublevel holds.
+     ⚠ stripCode, so no comment can satisfy any of these on its own. */
+  {
+    const exitCode = stripCode(shEnc);
+    const exitFn = exitCode.slice(exitCode.indexOf('function exitSettings(reason) {'), exitCode.indexOf('function commitSave()'));
+    const relAt = exitFn.indexOf('releaseEncpass();');
+    const sendAt = exitFn.indexOf('bridge.send(');
+    ok(exitFn.length > 200 && /exiting = true;/.test(exitFn) && relAt > 0 && sendAt > relAt
+      && /releaseDownloads\(\);/.test(exitFn) && /releaseChatAppearance\(\);/.test(exitFn),
+      '★ #341 → #804 SECURITY: exitSettings releases the password form — and, since #804, the Downloads list and the Chat-appearance engine too — BEFORE it sends its exit verb. `exiting` makes renderLayout bail, so this is the only chance any of them gets on the rail-tab-switch / peer-nav / hardware-back-from-hub routes, and this document PARKS rather than dying');
+  }
   ok(/if \(split_url\.Length == 3 && /.test(spEnc)
     && !/split_url\.Length >= 3/.test(spEnc),
     '★ #341: the C# split must be EXACTLY 3. The shell refuses a password containing the delimiter, but a longer split means one got through, and writing split_url[2] would re-encrypt the wallet with a TRUNCATED password the user can never reproduce — an unrecoverable wallet');
@@ -8338,6 +8362,20 @@ console.log('#341 — Change password renders inside the Account pane');
     '#341: no native alert on the inline route — the screen renders its own success morph and its own error, so an alert would be a second confirmation of the same event');
   ok(FENCED.test(spBranch) && FENCED.test(epBranch),
     '★ #341 audit MAJOR-1 (BOTH routes): the wallet write is fenced. An unguarded throw escapes onNavigating, e.Cancel never runs, and iOSWebViewHandler.cs:116 logs the WHOLE URL into ixian.log — which DevPage renders and offers through the OS share sheet. That is both passwords in cleartext in a shareable file');
+  /* ★ #804, the loop's auditor B: the two changepass legs are supposed to be kept in
+     step (EncryptionPassword.xaml.cs says so in its own words), and they were not —
+     SettingsPage's Split sat OUTSIDE the try, EncryptionPassword's inside it. A
+     statement outside that guard is a statement whose throw reaches
+     iOSWebViewHandler's catch, which logs the whole URL, which is both passwords in a
+     file DevPage offers through the share sheet. Both are inside now, and this asserts
+     the ORDER — try, then Split — on each leg independently.
+     ⚠ Reads the branch slices already cut above, which come from raw source; the
+     assertion is about statement order, which stripCode would not change but would
+     renumber. */
+  const TRY_THEN_SPLIT = /try\s*\{[^}]{0,400}?string\[\] split_url = current_url\.Split\(/;
+  ok(TRY_THEN_SPLIT.test(spBranch) && TRY_THEN_SPLIT.test(epBranch),
+    '★★ #804: on BOTH changepass legs the try opens BEFORE the password Split. Anything outside that guard throws into iOSWebViewHandler\'s catch, which writes the whole ixian:changepass: URL — both plaintext passwords — into a log DevPage shares');
+
   ok(!/Logging\.error\([^)]*current_url/.test(spEnc) && !/Logging\.error\([^)]*current_url/.test(encPage),
     '★ #341: neither catch logs the URL — only the exception object (the create-path shape in LaunchPage)');
   ok(/Preferences\.Default\.Set\("walletpass", split_url\[2\]\);/.test(spBranch)
@@ -8360,8 +8398,25 @@ console.log('#341 — Change password renders inside the Account pane');
     '★ #341 review MINOR-4 (★ Session O reword — the old message named PATTERN_LEVELS, an array Session M retired): PATTERN_STYLES is in the extractor DYNAMIC table. It is read as strings[o.key] — a key composed at runtime, which the static extractor cannot see — and while it was missing, the FIRST extract run silently deleted every translation of the three style names from all seven locales. Both i18n gates were blind, because they compare locales against each other and a key dropped from all of them still looks consistent');
   ok(/strings\.encpassRejected \|\|/.test(shEnc) && !/strings\.badPassword \|\|/.test(shEnc),
     '★ #341 review MINOR-2: the "2" result uses its OWN key. Re-using badPassword collided with the component value for the same key, and extract-strings sets exitCode 1 on a fallback conflict — Damir\'s documented build chain would have stopped at step 1 and rebuilt nothing');
-  ok(/if \(!c \|\| c\.seq !== encpassSeq\) \{[\s\S]{0,900}?String\(ok\) === '1'[\s\S]{0,300}?showToast\(/.test(shEnc),
-    '#341 review MINOR-7: a SUCCESS whose form is already gone still tells the user. The inline route suppresses the native alerts, so leaving the screen while C# validates would change the wallet password with no confirmation on any surface');
+  /* ★ #804 REBASES this one too, and for the same reason — a `{0,900}` window that this
+     batch's comment overran. Sliced to the dropped-answer arm, and widened to the
+     property that actually matters now: EVERY outcome speaks, not only the success.
+     Before #804 the failure half was unreachable (mobile got a native alert from the
+     pushed page); a phone now takes the inline route AND parks this document, so a
+     re-present mid-validation used to swallow a rejected password in silence. */
+  {
+    const encCode = stripCode(shEnc);
+    /* ⚠ The end anchor is searched FROM the start anchor. `encpassCtrl = null;` also
+       appears inside releaseEncpass, which is EARLIER in the file — a bare indexOf for
+       it returns that one and the slice comes out backwards, i.e. empty, i.e. a pin
+       that reports 0 toasts on correct code. It did exactly that on the first run. */
+    const dropAt = encCode.indexOf('if (!c || c.seq !== encpassSeq) {');
+    const dropped = dropAt < 0 ? '' : encCode.slice(dropAt, encCode.indexOf('encpassCtrl = null;', dropAt));
+    const toasts = (dropped.match(/showToast\(/g) || []).length;
+    ok(dropped.length > 100 && toasts === 3 && /=== '1'/.test(dropped) && /=== '2'/.test(dropped)
+      && /passwordChanged/.test(dropped) && /encpassRejected/.test(dropped) && /wrongCurrent/.test(dropped),
+      '★ #341 review MINOR-7 → #804: an answer whose form is already gone still tells the user, on ALL THREE outcomes. The inline route suppresses the native alerts, so a success would change the wallet password with no confirmation anywhere — and a rejection would look exactly like nothing having happened. Toasts in the dropped arm: ' + toasts);
+  }
   ok(/:root\[data-desktop\] body:not\(\[data-pane\]\) \.c-encpass__footer \{[\s\S]{0,200}?padding-inline: max\(/.test(encCss)
     && !/:root\[data-desktop\] \.c-encpass__footer \{[\s\S]{0,260}?padding-inline: max\(/.test(encCss),
     '#341 review MINOR-5: the FOOTER carries the same rail as the body, so it needed the same scoping. Fixing only the body left the CTA row with a content box of about 152px on a 1128px detail region');
@@ -26097,6 +26152,332 @@ console.log('★★ Session P — the pre-warm + the batch transport');
       const refErrsP = bootErrs.filter((e) => /ReferenceError|is not defined/.test(e));
       ok(refErrsP.length === 0, '★ Session P L2·15: the built shell raised no ReferenceError through any of the pushes above — ' + (refErrsP[0] || 'none'));
       domP.window.close();
+    }
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+ * ★★ Session Q (#804) — THE THREE ACCOUNT SUBLEVELS NO LONGER BOOT A WEBVIEW
+ *
+ * Backup, Downloads and Change password were the only Account rows that pushed a new
+ * C# page, and every one of those pages carries its own WebView. #803 measured the
+ * cost on Android: one minute of Account → Backup/Password/Download on a BRAND-NEW
+ * account with zero chats read 12.19 % janky frames, 99th 48 ms, with the GPU idle at
+ * 11 ms throughout.
+ * ⚠ The internal control is a SEPARATE profile and this docblock used to say otherwise.
+ * On the HEAVY SEED — 50 contacts, ~11 600 messages — the same Account minute read
+ * 21.66 % while scrolling 50 conversations and opening three read 4.09 %: a five-fold
+ * gap inside one profile at one temperature, which is what makes it a control at all.
+ * The zero-chat profile has no chats to scroll, so no such pairing exists there
+ * (#803, restated in DECISIONS #804; the loop's auditor C).
+ * The fix is the routing, not a pre-warmed spare: the screens, the caps and the verbs
+ * already existed.
+ *
+ * These pins assert the PROPERTY, not the diff. Two of them RUN the shell.
+ * ══════════════════════════════════════════════════════════════════════════════ */
+console.log('★★ Session Q (#804) — the Account sublevels render in the settings WebView');
+{
+  const shQ = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
+  const spQ = readFileSync(join(root, 'Spixi/Pages/Settings/SettingsPage.xaml.cs'), 'utf8');
+
+  /* ── PIN 1 · a WALK, never a list (#798). ────────────────────────────────────
+   * The batch changed three guards in one shell. A pin that names those three guards
+   * proves nothing about the fourth one somebody adds next month, and a pin built from
+   * a FILE LIST is what let a dropSpareChat site in an unlisted file put a wallet
+   * address into ixian.log (#802 r13). So this walks src/shells and asserts the
+   * property over every document that ships: no inline-capable route may be gated on
+   * the form factor. `paneMode` itself stays legal — it decides LAYOUT, which is what
+   * it is for; only its use as a gate on a `bridge.cap(...)` route is refused.
+   * ⚠ stripCode, as POLICY rather than as a rescue. The shell's new comments do name
+   * the removed token, but they write it as "the `paneMode &&` half of this gate is
+   * GONE" — never followed by `bridge.cap(`, so a raw read would pass today. Auditor C
+   * checked that and was right to; the earlier version of this note claimed the raw
+   * read would go red, which was false (#772, in the docblock whose subject is #771).
+   * The policy stays because the next comment need not be so lucky. */
+  {
+    const shellDir = join(root, 'src/shells');
+    const shellFiles = readdirSync(shellDir).filter((f) => f.endsWith('.html'));
+    const gated = shellFiles.filter((f) =>
+      /paneMode\s*&&\s*bridge\.cap\(/.test(stripCode(readFileSync(join(shellDir, f), 'utf8'))));
+    /* 18 is the shipped count and `build-shells --check` is what fixes it. The bound
+       is here so that deleting shells cannot shrink the walk into a green pass — the
+       loop's own auditor found the old `>= 15` and it was three shells of slack. */
+    ok(shellFiles.length >= 18 && gated.length === 0,
+      '★★ #804 PIN 1 (a walk over ' + shellFiles.length + ' shells, not a list of three guards): no shell gates a bridge.cap() route on paneMode. A cap says "this exe dispatches the verb"; the form factor is not part of that question, and treating it as one is what cost mobile three cold WebView boots per Account visit. Gated: ' + (gated.join(', ') || 'none'));
+  }
+
+  /* ── PIN 2 · the C# half, asserted STRUCTURALLY. ─────────────────────────────
+   * The whole fix rests on one fact about onLoad: a phone is told the three verbs
+   * exist. Nothing in this batch changed that line — which is exactly why it needs a
+   * pin. Put it behind the form factor for any reason and every mobile Account row
+   * silently reverts to pushing a page, with no error anywhere.
+   * ★ THE FIRST DRAFT OF THIS PIN WAS VACUOUS and the loop's auditor C named the
+   * mutation: it located the `string caps = …` DECLARATION and never the
+   * `sendUiCommand(…, "setCaps", caps)` PUSH, so wrapping the push in
+   * `if (paneMode) { … }` killed the feature on every phone and left this pin, PIN 4
+   * (which pushes its own caps string) and both older caps pins GREEN. It is the
+   * PUSH that is asserted now, and the declaration only as its input.
+   * Everything is sliced to onLoad's own body first — `indexOf` over the whole file
+   * takes a FIRST match, so an `if (paneMode)` elsewhere in the class would have
+   * decided the answer.
+   * Brace-counted rather than regexed: a pane block holds a nested `if`, so a lazy
+   * `[\s\S]*?\}` finds the wrong closing brace.
+   * ⚠ Reads stripCode. The offsets it reports are into the STRIPPED body, so they are
+   * for diagnosis, not for citation — and a commented-out `if (paneMode)` must not
+   * invent a block that swallows the push. */
+  {
+    const loadAt = spQ.indexOf('        private void onLoad()');
+    const loadEnd = loadAt >= 0 ? spQ.indexOf('\n        }\n', loadAt) : -1;
+    const body = loadEnd > loadAt ? stripCode(spQ.slice(loadAt, loadEnd)) : '';
+    const capsAt = body.indexOf('string caps = "settingsApply,');
+    const pushAt = body.indexOf('Utils.sendUiCommand(this, "setCaps", caps);');
+    /* ★★ ROUND 2 of the loop, on my own repair. The first fix asserted the PUSH's
+       POSITION — after the pane block — and the auditor's mutation still walked past it,
+       because `if (paneMode) { Utils.sendUiCommand(…); }` is ALSO after that block.
+       Position was never the property. The property is that the push is not gated at all,
+       so this WALKS every `if (paneMode)` in the body, brace-matches each, and requires
+       both the declaration and the push to be outside EVERY one of them. Written as a
+       walk rather than as "the first one", for the reason #798 keeps costing us. */
+    const paneBlocks = [];
+    for (let i = body.indexOf('if (paneMode)'); i >= 0; i = body.indexOf('if (paneMode)', i + 1)) {
+      const open = body.indexOf('{', i);
+      if (open < 0) { paneBlocks.push([i, body.length]); continue; }   // a braceless `if` — refuse it too
+      let depth = 0, end = body.length;
+      for (let j = open; j < body.length; j++) {
+        if (body[j] === '{') depth++;
+        else if (body[j] === '}') { depth--; if (depth === 0) { end = j; break; } }
+      }
+      paneBlocks.push([i, end]);
+    }
+    const inside = (at) => paneBlocks.some(([a, b]) => at > a && at < b);
+    /* The three names are asserted HERE too. The old message enumerated them while the
+       regex matched only the `settingsApply,` prefix — an invariant the pin did not
+       enforce (#772), even though a second pin elsewhere happens to cover the literal. */
+    const named = /string caps = "[^"]*\bbackupInline\b[^"]*\bdownloadsInline\b[^"]*\bencpassInline\b[^"]*"/.test(body);
+    ok(body.length > 500 && paneBlocks.length >= 1 && capsAt > 0 && pushAt > 0
+      && !inside(capsAt) && !inside(pushAt) && named,
+      '★★ #804 PIN 2: inside onLoad, neither the caps DECLARATION nor the setCaps PUSH is inside ANY `if (paneMode)`, and the literal names all three inline caps — so a phone is told about them. This is the fact the whole batch rests on. Gate the push and every Account row silently reverts to pushing a page, with no error anywhere. onLoad body ' + body.length + ' chars, ' + paneBlocks.length + ' pane block(s), decl ' + capsAt + (inside(capsAt) ? ' INSIDE' : ' outside') + ', push ' + pushAt + (inside(pushAt) ? ' INSIDE' : ' outside') + ', named=' + named);
+  }
+
+  /* ── PIN 3 · the fallback is still REACHABLE. ────────────────────────────────
+   * Removing the gate must not turn the pushed pages into dead code by stealth. Two
+   * callers keep them alive and they are different callers: SettingsPage answers a
+   * shell that pushes no cap, and HomePage answers the backup NUDGE, which has always
+   * gone straight to BackupPage and never through the Account at all.
+   * ⚠ Reads stripCode. These are POSITIVE sweeps, so a comment could only make them
+   * pass — which is precisely the risk here: every one of these strings appears in
+   * prose somewhere in this batch's own comments (#771). 3b's shell half is anchored
+   * inside `showBackupNudge`'s handler for the same reason; unanchored, a comment of
+   * that shape anywhere in a 6 000-line document satisfied it. */
+  {
+    const homeQ = stripCode(readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8'));
+    const homeShell = stripCode(readFileSync(join(root, 'src/shells/home.html'), 'utf8'));
+    const spCode = stripCode(spQ);
+    ok(/pushPageLoaded\(new BackupPage\(\)/.test(spCode)
+      && /pushPageLoaded\(new DownloadsPage\(\)\)/.test(spCode)
+      && /pushPageLoaded\(new EncryptionPassword\(\)/.test(spCode),
+      '★ #804 PIN 3a: all three pushed pages survive in SettingsPage as the no-cap fallback. A new shell paired with an old exe would otherwise tap a row that does nothing at all');
+    /* The nudge's own handler, not the file. `showBackupNudge({` … `onBackup:` … the
+       send … `onDismiss:` — the slice is the callback, so the emit has to be IN it. */
+    const nudge = homeShell.slice(homeShell.indexOf('showBackupNudge({'), homeShell.indexOf('onDismiss: closeNudge'));
+    ok(/pushPageLoaded\(new BackupPage\(\)\);/.test(homeQ)
+      && nudge.length > 100 && /onBackup:[\s\S]*bridge\.send\('ixian:backup'\);/.test(nudge),
+      '★ #804 PIN 3b: BackupPage is NOT dead code — the backup NUDGE\'s own onBackup handler emits ixian:backup to HomePage\'s own branch, a caller the Account never touches. Retiring the class on the strength of the Account change alone would delete a live route');
+    ok(/if \(p is EncryptionPassword \|\| p is BackupPage \|\| p is DownloadsPage\)/.test(spCode),
+      '★ #804 PIN 3c: closeSublevelOverlays still sweeps all three types. It is mostly idle now, and it is the ONLY thing that closes those pages for a shell that still pushes them — an empty overlay stack costs nothing to walk');
+  }
+
+  /* ── PIN 6 · a REFUSAL, written from a walk of the file (#798). ──────────────
+   * PIN 3 proves the three fallbacks still exist. This proves nothing ELSE does. It
+   * walks every `pushPageLoaded(new X())` in SettingsPage and requires each type to be
+   * one of the three the Account already accounts for. A fourth one is not forbidden —
+   * it is stopped here so that whoever adds it has to read #803 first and decide, on
+   * purpose, that this row is worth a cold Chromium boot on the main thread.
+   * ⚠ `pushModalLoaded` is deliberately OUT of scope, and the exclusion is the point
+   * rather than an oversight: its three call sites are all LockPage, an authentication
+   * gate the user reaches by turning app-lock off, deleting the account or confirming a
+   * payment. Those are rare, they are security gates, and none of them is in the routine
+   * #803 measured. Widening this pin to cover them would fail on correct code.
+   * ⚠ stripCode: the comments this batch added NAME the three page classes. */
+  {
+    const pushed = Array.from(stripCode(spQ).matchAll(/pushPageLoaded\(new ([A-Za-z_][A-Za-z0-9_]*)\(/g)).map((m) => m[1]);
+    const allowed = ['BackupPage', 'DownloadsPage', 'EncryptionPassword'];
+    const stray = pushed.filter((t) => allowed.indexOf(t) < 0);
+    ok(pushed.length >= 3 && stray.length === 0,
+      '★★ #804 PIN 6 (a refusal from a walk, not a list): every page SettingsPage pushes is one of the three the Account already accounts for. Whether each is still REACHED is PIN 3\'s question, not this one. A fourth type would be a fourth cold WebView boot on the main thread and must be argued for, not merged. Pushed: ' + pushed.join(', ') + (stray.length ? ' — STRAY: ' + stray.join(', ') : ''));
+  }
+
+  /* ── PIN 4 · BEHAVIOURAL. Run the built shell as a phone and tap the rows. ───
+   * Source pins cannot see this. The property is "the row renders a sublevel and
+   * attempts NO navigation", and only executing the artifact shows both halves at once.
+   * jsdom cannot be made to report the URL of a blocked navigation (window.location is
+   * unforgeable and its href descriptor is non-configurable — both were tried), so the
+   * navigation ATTEMPT is counted through the virtual console instead, and the DOM says
+   * which screen appeared. Together they refuse a mutation that renders AND sends. */
+  {
+    const setShellQ = join(root, 'Spixi/Resources/Raw/html/settings.html');
+    if (!existsSync(setShellQ)) {
+      ok(false, '#804: built settings shell exists (run build-shells.mjs before the smoke suite)');
+    } else {
+      /* TWO lists, and the split is the point. `navs` counts blocked navigations —
+         the traffic PIN 4b reads. `errsQ` collects everything else the document threw.
+         ★ The first draft had ONE list and then filtered it for /ReferenceError/, which
+         by construction it could never contain: the loop's auditor C ran jsdom 30 and
+         showed the two message shapes are disjoint ("Not implemented: navigation to
+         another Document" vs "Uncaught [ReferenceError: … is not defined]"). That pin
+         was green against every possible mutation and its message claimed a property it
+         did not check (#772). */
+      const navs = [];
+      const errsQ = [];
+      const vcQ = new VirtualConsole();
+      vcQ.on('jsdomError', (e) => {
+        const m = String(e.message) + ' :: ' + ((e.detail && e.detail.message) || '');
+        if (/navigation/i.test(m)) navs.push(m); else errsQ.push(m);
+      });
+      const domQ = new JSDOM(readFileSync(setShellQ, 'utf8'), {
+        runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true,
+        url: 'file://' + setShellQ, virtualConsole: vcQ,
+        /* A REAL phone UA. The shell decides `data-desktop` from the user agent before
+           first paint, and jsdom's default UA carries no Mobile token — so without this
+           the whole block ran as a DESKTOP and proved nothing about the device that
+           janks. The first draft of these pins found that out by failing its own setup
+           assertion, which is what that assertion is for.
+           ⚠ Set in beforeParse, NOT through the top-level `userAgent` option. That
+           option is honoured by jsdom 29 (the version in Damir's node_modules) and
+           SILENTLY IGNORED by jsdom 30 (the version in the container) — a setup that
+           works on one machine and not the other is the worst kind. defineProperty on
+           navigator works on both, and it runs before the boot script reads it. */
+        userAgent: 'Mozilla/5.0 (Linux; Android 15; motorola edge 50) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Mobile Safari/537.36',
+        beforeParse(w) {
+          try {
+            Object.defineProperty(w.navigator, 'userAgent', { configurable: true,
+              get: () => 'Mozilla/5.0 (Linux; Android 15; motorola edge 50) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Mobile Safari/537.36' });
+          } catch (e) { /* the setup pin below reports it */ }
+          w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+          try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
+        },
+      });
+      await sleep(1500);
+      const WQ = domQ.window;
+      const b64q = (v) => Buffer.from(String(v), 'utf8').toString('base64');
+      /* The real onLoad burst for a PHONE: no setPaneMode, and the caps line verbatim
+         from SettingsPage.onLoad. The document itself never learns the form factor —
+         that is the point of the batch. */
+      WQ.executeUiCommand(WQ.setCaps, b64q('settingsApply,backupInline,downloadsInline,encpass,encpassInline,globalNotifications'));
+      WQ.executeUiCommand(WQ.setNickname, b64q('Damir'));
+      await sleep(250);
+
+      const rootQ = () => WQ.document.getElementById('settings-root');
+      const viewClass = () => (rootQ().firstElementChild || {}).className || '';
+      const tapRow = (key) => {
+        const r = WQ.document.querySelector('[data-setting-key="' + key + '"]');
+        if (!r) return false;
+        r.click();
+        return true;
+      };
+
+      ok(!WQ.document.documentElement.hasAttribute('data-desktop') && !WQ.document.body.dataset.pane,
+        '★ #804 PIN 4 setup: this run IS a phone. No data-desktop, because the boot script read the Android user agent above; and no data-pane, because nothing pushed setPaneMode. Both halves matter — a desktop run would pass every pin below while proving nothing about the device that janks');
+
+      const rows = [
+        ['backup', 'c-settings-backup'],
+        ['downloads', 'c-settings-dl'],
+        ['encpass', 'c-encpass'],
+      ];
+      let opened = 0, backOk = 0;
+      const navPerRow = {};
+      let backNavs = 0;
+      for (const [key, cls] of rows) {
+        const before = navs.length;
+        if (!tapRow(key)) continue;
+        await sleep(400);
+        if (viewClass().indexOf(cls) >= 0) opened++;
+        navPerRow[key] = navs.length - before;
+        /* hardware back — the SAME router Android and the iOS edge gesture use */
+        const beforeBack = navs.length;
+        WQ.onBack();
+        await sleep(400);
+        backNavs += navs.length - beforeBack;
+        /* ★ The loop's auditor C broke the first version of this check twice.
+           (a) It sampled navigations BEFORE the back, so a back that ALSO emitted
+               ixian:back — i.e. left the Account entirely — scored a pass.
+           (b) renderLayout re-mounts the hub UNDER the leaving screen with
+               insertBefore and only then slides it off (settings.html), so
+               firstElementChild is the hub the instant back is pressed: a slide that
+               never removed the leaving node also scored a pass.
+           So the hub must be the ONLY child, and the back leg must be silent. */
+        if (rootQ().childElementCount === 1
+          && viewClass().indexOf('c-settings') === 0 && viewClass().indexOf('c-settings-') !== 0) backOk++;
+      }
+      ok(opened === 3,
+        '★★ #804 PIN 4a BEHAVIOURAL: on a phone, with the caps pushed, all three Account rows render their sublevel INSIDE this document. Before this batch every one of them pushed a C# page with its own WebView instead — 130–230 ms of cold Chromium on the main thread, each. Opened: ' + opened + '/3');
+      /* ⚠ NOT "zero navigations". The first draft asserted that and went red against
+         correct code, because the Downloads sublevel legitimately asks C# for the file
+         list. jsdom reports that a navigation was attempted but never WHICH url — its
+         window.location is unforgeable and the href descriptor is non-configurable, both
+         verified — so the traffic SHAPE is asserted here and the companion pin below
+         names the one send that is allowed to produce it. A guard that rendered the
+         sublevel and ALSO pushed its page would show 1 where this expects 0. */
+      ok(navPerRow.backup === 0 && navPerRow.encpass === 0 && navPerRow.downloads === 1,
+        '★★ #804 PIN 4b BEHAVIOURAL (the half a source pin cannot see): Backup and Change password emit NOTHING at all, and Downloads emits exactly one thing — its list request. Before this batch each of these taps put an ixian: verb on the wire that made C# construct a page and boot a WebView. Got backup=' + navPerRow.backup + ' encpass=' + navPerRow.encpass + ' downloads=' + navPerRow.downloads);
+      /* The companion to 4b: WHICH sends the Downloads sublevel is allowed to make.
+         The slice is the case body itself, because an unanchored sweep over the shell
+         would happily match a send from a screen three cases away (the #341 lesson,
+         mutation-proved: an unanchored /try\s*\{/ matched a branch two screens up).
+         ⚠ stripCode, and it is load-bearing here rather than decorative: the slice runs
+         up to `case 'encpass'` and so SPANS that case's own security docblock, which
+         writes `ixian:changepass:` in prose. Read raw, one future comment of that shape
+         turns a correct tree red — the #771 failure mode inside the pin that argues
+         for anchoring. Auditor C found it. */
+      {
+        const shCode = stripCode(shQ);
+        const dlCase = shCode.slice(shCode.indexOf("case 'downloads': {"), shCode.indexOf("case 'encpass': {"));
+        const sends = Array.from(new Set((dlCase.match(/bridge\.send\('ixian:[a-zA-Z]+/g) || [])
+          .map((m) => m.replace("bridge.send('", '')))).sort();
+        ok(dlCase.length > 200 && sends.join(' ') === 'ixian:deleteDownload ixian:loadDownloads ixian:openDownload',
+          '★ #804 PIN 4b(ii): the Downloads sublevel emits exactly three verbs and every one of them is DATA — request the list, open a file, delete a file. None of them constructs a page. This is what makes the single navigation counted in 4b provably the list request and not a DownloadsPage push. Got: ' + (sends.join(', ') || 'none'));
+      }
+      ok(backOk === 3 && backNavs === 0,
+        '★ #804 PIN 4c BEHAVIOURAL: hardware back leaves each sublevel with the hub as the ONLY child of #settings-root, and emits NOTHING — so it returned to the hub and did not exit the Account. The three views ride the generic `currentView !== \'hub\' ? showHub() : exitSettings()` router, so this is inherited rather than added, which is precisely why it needs proving once. Returned: ' + backOk + '/3, back-leg navigations: ' + backNavs);
+
+      /* ── PIN 5 · SECURITY, BEHAVIOURAL. ───────────────────────────────────────
+       * Change password now composes a PLAINTEXT wallet password inside a document
+       * that PARKS (#315) rather than a page that is disposed on pop. The two guards
+       * that make that safe already ship on desktop (#341); this batch extends their
+       * reach to every phone, so the reach is what gets proven — with the fields
+       * FILLED and left through the route a user actually takes. */
+      if (tapRow('encpass')) {
+        await sleep(400);
+        const fields = Array.from(WQ.document.querySelectorAll('.c-encpass input'));
+        fields.forEach((f, i) => { f.value = 'PlaintextSecret' + i; });
+        const filled = fields.length >= 3 && fields.every((f) => f.value.length > 0);
+        WQ.onBack();                       // leave by hardware back
+        await sleep(400);
+        const scrubbed = fields.every((f) => f.value === '');
+        ok(filled && scrubbed,
+          '★★ #804 PIN 5 SECURITY BEHAVIOURAL: leaving the password sublevel by hardware back SCRUBS all three inputs. This document outlives the screen — it is parked and re-presented, not destroyed — so an unscrubbed form would hold three plaintext wallet passwords in live inputs for the rest of the process. Filled ' + fields.length + ' fields, scrubbed=' + scrubbed);
+
+        /* And the other leave route: parking the Account from the peer nav or the rail
+           never renders again (`exiting` makes renderLayout bail), so exitSettings has
+           to scrub by itself. That path is the one a user takes without ever touching
+           the form's own back button. */
+        tapRow('encpass');
+        await sleep(400);
+        const f2 = Array.from(WQ.document.querySelectorAll('.c-encpass input'));
+        f2.forEach((f, i) => { f.value = 'SecondSecret' + i; });
+        const filled2 = f2.length >= 3 && f2.every((f) => f.value.length > 0);
+        WQ.onExitRequest();                // the rail / peer-nav park route
+        await sleep(300);
+        ok(filled2 && f2.every((f) => f.value === ''),
+          '★★ #804 PIN 5b SECURITY BEHAVIOURAL: parking the Account from the peer nav scrubs the form too. renderLayout bails once `exiting` latches, so this is the one route where the ordinary release can never run — exitSettings calls releaseEncpass itself, and this proves the call is reached and effective, not merely present');
+      } else {
+        ok(false, '#804 PIN 5: the encpass row exists to be tapped');
+      }
+
+      ok(errsQ.length === 0,
+        '★ #804: the built shell threw NOTHING through the boot, the caps push and every tap above — not a ReferenceError, not anything else. This is the net that catches a destructured export the bundle no longer has (#421 MAJOR-2, which booted every conversation to a permanent spinner). Errors: ' + (errsQ.slice(0, 2).join(' | ') || 'none'));
+      domQ.window.close();
     }
   }
 }

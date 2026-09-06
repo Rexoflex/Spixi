@@ -950,3 +950,33 @@ first cut's log-line row wrong (it said four and listed seven).
 `updateReactions` paths are one-line delegates with `batch = null` and push the same bytes as
 before. B2 (prepend from C#) and B4 (the window) were NOT built — decisions, not omissions
 (DECISIONS #801).
+
+## Session Q (2026-09-06) — the Account sublevels stop booting a WebView (#804)
+
+**Zero new verbs, zero new pushes, zero new HTML sinks, zero new fetches, zero new `spixi.*`
+keys, zero new WebView settings, zero new log lines. THREE routes changed host.**
+
+★ Nothing in this batch is new surface. Every screen, every capability and every verb already
+existed and already shipped. What changed is WHICH WebView renders three Account sublevels on a
+phone — and one of those three composes a plaintext wallet password, so the change is written
+down here rather than left as a routing detail.
+
+The gate question, asked of the delta from the fork point `0e85a4b8`: *does this exposure exist
+at the baseline?* The password-over-URL pattern is INHERITED (the legacy `settings_encryption`
+page carried it). The long-lived host is OURS — introduced in #341, reviewed there, and shipped
+on desktop since. This batch does not create it; it gives it a second form factor. So the row
+below states the reach honestly, and the two guards that bound it are proven by BEHAVIOUR, not
+by their presence in the source.
+
+| introduced / changed | where | exposure | pin |
+|---|---|---|---|
+| **Backup · Downloads · Change password render INSIDE `settings.html` on every form factor** (the `paneMode &&` half of three cap guards removed) | `src/shells/settings.html` — `onBackup` · `onDownloads` · `onChangePassword` | REDUCED reach on the C# side: a current shell no longer emits `ixian:backup`, `ixian:downloads` or `ixian:encpass` at `SettingsPage` at all, so three page constructions and three WebView boots stop happening per Account visit. The three branches stay as the no-cap fallback (an old exe with a new shell) and `closeSublevelOverlays` still sweeps their types. No verb was added, removed or widened; `setCaps` is byte-identical and always was pushed outside the `if (paneMode)` block | `#804` PIN 1 (a WALK over all 18 shells) · PIN 2 (the caps line is outside the pane block, brace-counted) · PIN 3a–c (the fallback is still reachable) · PIN 4a/4b/4b(ii)/4c (behavioural, phone UA, built shell) |
+| **`ixian:changepass:<DELIM>old<DELIM>new` now composed on a phone from a document that PARKS** | `settings.html` `case 'encpass'` (unchanged code, new reach) | The transport is untouched: same frozen verb, same delimiter, same `e.Cancel = true` before any branch (#797), same `split_url.Length == 3` refusal, and neither catch logs the URL. What is new on mobile is the HOST: `settings.html` is parked and re-presented (#315) instead of disposed on pop, so an unscrubbed form would hold three plaintext passwords in live inputs for the life of the process. Two guards bound that, both already shipping on desktop since #341 — `renderLayout` releases the screen on every view change, and `exitSettings` releases it on every park route (the routes where `exiting` makes `renderLayout` bail). ⚠ STATED, not hidden: scrubbing an input clears the DOM value; the JS strings themselves die with garbage collection, which is weaker than destroying the page. That property is inherited from #341 and is unchanged — this batch extends its reach, it does not alter it | `#804` PIN 5 (fill three fields, leave by hardware back, assert every value is empty) · PIN 5b (the same through the peer-nav park, the one route where no render can scrub) · the existing `★ #341 SECURITY` pair |
+| **Downloads' file list now lands in the settings WebView on a phone too** | `SettingsPage.loadDownloads` → `clearFiles`/`addFile` | File names are PEER-SUPPLIED (`TransferManager` writes `transfer.fileName` verbatim). Unchanged handling: the component renders `textContent` only, and the open/delete verbs `encodeURIComponent` the name so `%25` round-trips exactly through C#'s single unescape. BOTH hosts already ran `TransferManager.resolveDownloadPath`, the `..` traversal guard landed in #267/Q1-② — this batch adds no host that lacks it, it removes one that had it | `#804` PIN 4b(ii) (the sublevel's only verbs are the three DATA verbs) · the existing `#267` traversal pins |
+
+**Not introduced (checked):** no page class was deleted — `BackupPage`, `DownloadsPage` and
+`EncryptionPassword` all stay constructible, and `BackupPage` in particular is still reached by
+the backup NUDGE through `HomePage`'s own `ixian:backup` branch, a caller that never touches the
+Account. No `spixi.*` key was added. No new string reaches a DOM sink. The `#800` pre-warm was
+considered for these three pages and REJECTED: it would have left three resident WebViews at a
+measured ~15 MB each while this change removes the boots entirely.

@@ -1,0 +1,91 @@
+Session Q (#804) — the Account sublevels stop booting a WebView
+
+Backup, Downloads and Change password were the only Account rows that pushed a
+new C# page, and every one of those pages carries its own WebView. #803 measured
+the cost on Android: one minute of Account -> Backup/Password/Download on a
+BRAND-NEW account with zero chats read 12.19 % janky frames, 99th 48 ms, with the
+GPU idle at 11 ms throughout. On the heavy-seed profile, at one temperature, the
+same minute read 21.66 % while scrolling 50 conversations and opening three read
+4.09 %. The data was never the problem; three cold Chromium boots on the main
+thread were.
+
+The fix is `paneMode && ` deleted from three guards in src/shells/settings.html.
+Nothing else changed behaviour. The screens, the capabilities and the verbs all
+already existed and already shipped on desktop since #243 / #267 / #341; the
+capability flags were being pushed to the phone the whole time
+(SettingsPage.onLoad builds and pushes `caps` outside its `if (paneMode)` block,
+and always has). Only the shell refused to use them.
+
+One thing the first draft claimed and the review disproved: desktop is NOT
+unchanged. A WinUI or Mac window below the pane breakpoint has no data-pane, so
+it pushed the pages too and now renders them inline — one fewer WebView boot
+there as well, in the grammar About and How-to-use already use. Rendered,
+checked, and walked (rows C3b / C3c).
+
+Verified before it was built (#215), six questions, six answers in the tree:
+  1. the three screens render correctly at mobile width — booted from file:// in
+     Chromium at 432x900 @2.5 with an Android UA, driven through the real
+     executeUiCommand wire, rendered beside the standalone shells they replace
+     (docs/sheets/session-q/)
+  2. renderLayout's non-pane branch builds any view generically
+  3. back — hardware back included — is view-agnostic and returns to the hub
+  4. all three caps are pushed on every form factor
+  5. security: cancel-first navigation, no URL in any log, the shell scrubs its
+     password fields on every leave path incl. the park route
+  6. nothing is retired — BackupPage is still reached by the backup nudge through
+     HomePage's own branch
+
+The #800 pre-warm was considered for these three pages and rejected: it is priced
+at ~15 MB PSS per resident spare, so three would have been ~45 MB to make a boot
+the app still pays for happen earlier. This removes the boot.
+
+Everything else in the diff is comments the change made untrue — in the shell, in
+two components, in lock-shell.css and across four C# files (#772). Two of those
+components are inlined by the bundle, so the bundle and the three shells that
+inline it move with them.
+
+Six pins in the Session Q block plus one new pin and one rebased pair in the #341
+block; twenty-four mutations across two rounds, one survivor — the auditor's own
+mutation against my first repair of PIN 2, repaired and then killed. PIN 1 is a walk over
+all 18 shells rather than a list of three guards (#798); PIN 2 asserts the C#
+side; PINs 4 and 5 run the built shell with a phone user agent and tap the rows,
+including the two password-scrub routes.
+
+The #46 loop ran on Opus — three disjoint auditors and a break-my-verdict
+reviewer — and found four MAJORs self-review had not. Two were in the pins: PIN 2
+located the caps DECLARATION and never the PUSH, so gating the push on paneMode
+would have killed the feature on every phone with the whole suite green; and the
+block's error net filtered the navigation list for ReferenceError, which by
+construction it could never contain. Two were in prose that read as a licence to
+delete live code: "exactly one caller" (the backup nudge is a second one), and
+"#797 closes that second leg by cancelling first" (it does not — only the
+branch's try keeps both plaintext passwords out of a shareable log). See
+DECISIONS #804 (7).
+
+Security gate: docs/security-handover-gate.md, Session Q. No new verb, no new
+push, no new sink, no new spixi.* key, no new log line.
+
+This batch also carries docs/release-readiness.md, written from the tree rather
+than from the docs, because several of the docs it draws on are stale. Its
+answer: nothing architectural is left. What remains is verification, one BE
+engagement, and a freeze nobody has scheduled. Its load-bearing correction is
+that "wallet-send LAST" is a fossil - send shipped at #523, the legacy pages
+went at #640, and composeSend is pushed unconditionally at
+HomePage.xaml.cs:1965; the live constraint is the #232/#523 review gate, and
+that money delta is enabled in every build today. It also records that the
+introduced-vs-inherited sweep from 0e85a4b8 has never run, that three rows sit
+unfixed in the handover gate's own "ours" column, and that Sessions I to Q have
+never been on an iPhone.
+
+docs/security-review-for-be-engineer.md gains MAJOR #8: HttpUtility.UrlDecode
+turns a '+' in the wallet password into a space. Inherited, on the wallet path,
+and the naive fix locks out anyone who already set a '+' password - so it goes
+to the BE engineer with its migration shape, not into a batch.
+
+smoke BASELINE OK 4377 / the 3 known (#136 · M5 · B3) with the Ixian-Core sibling
+smoke-packaged BASELINE OK 4376 · strip-release --check GATE 1 OK · GATE 2 OK
+bundle 320 · shells 18 · locales 784 ALL CLEAN · lint OK · pseudo 9/9
+cs-syntax 138 + 1 · the three --check gates OK
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01XrmrmCuoPVkf481tJrbq4C

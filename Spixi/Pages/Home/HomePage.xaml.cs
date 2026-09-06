@@ -2908,13 +2908,23 @@ namespace SPIXI
          * trade Damir took (#802). Flip to `false` to un-take it in one token.
          *
          * ⚠ This flag does NOT touch the batch transport (#801), which has no resident cost.
-         * ⚠ It is also NOT the cure for the Account -> Password/Backup/Download stutter: those
-         *   three are the only Account entries that `pushPageLoaded` a NEW page with its OWN
-         *   WebView (SettingsPage:383/489/501), so each pays a cold 130-230 ms Chromium boot
-         *   on the main thread — in-process, this device has no renderer processes. How-to-use
-         *   and About are in-hub sublevels in the already-open settings WebView and are smooth.
-         *   That jank PREDATES this branch (proven on a stashed baseline build, same seed) and
-         *   is the next session's target: point this same pre-warm at those three shells. */
+         * ⚠ It is also NOT the cure for the Account -> Password/Backup/Download stutter, and
+         *   ★ Session Q (#804) is what cured it — by DELETING those three page pushes, not by
+         *   pre-warming them. Backup, Downloads and Change password now render as sublevels
+         *   inside the already-open settings WebView, exactly like How-to-use and About, which
+         *   were always smooth. A current shell no longer opens any of the three pages, so the
+         *   plan this paragraph used to record — "point this same pre-warm at those three
+         *   shells" — would now cost about 45 MB of resident WebView for surfaces nothing can
+         *   reach. It is deleted rather than annotated, because a stale plan in a docblock is
+         *   an instruction (#772).
+         *   The jank itself PREDATED this branch (proven on a stashed baseline build, same
+         *   seed) and its mechanism is recorded in DECISIONS #803: three cold 130-230 ms
+         *   Chromium boots on the main thread, in-process, with no renderer processes on this
+         *   device. The three `pushPageLoaded` sites survive as the no-cap fallback, in
+         *   SettingsPage.onNavigating's `ixian:encpass`, `ixian:backup` and `ixian:downloads`
+         *   branches. Cited by BRANCH, not by line: the older `SettingsPage:383/489/501` was
+         *   exact when written, and #804's own comment insertions moved it twice inside one
+         *   session. A line number is an anchor only while nothing above it grows (#773). */
         private const bool CHAT_SPARE_ENABLED = true;
 
         private void scheduleChatSpareWarm(int delayMs)

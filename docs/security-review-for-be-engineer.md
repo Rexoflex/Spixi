@@ -416,3 +416,64 @@ Move `walletpass` to `SecureStorage` (Keychain / Android Keystore-backed), with:
 
 ⚠ Every site above is on the auth path and one is on the backup path. This wants its own
 security-gate row and the #46 loop, not a drive-by.
+
+---
+
+# MAJOR #8 — a changed wallet password is FORM-DECODED before it is stored, so `+` becomes a space
+
+Found by the #46 loop over Session Q (#804), auditor B. **INHERITED, not introduced** — both
+hosts of the verb have always done this, so by the handover gate's own rule it goes to you
+untouched. It is written down here because it is on the wallet path and because the batch
+that found it moved the phone route onto one of the two hosts.
+
+## The mechanism
+
+The change-password verb carries the password **unencoded**:
+
+```js
+bridge.send('ixian:changepass:' + ENC_DELIM + oldPass + ENC_DELIM + newPass);
+```
+
+(one emitter in `src/shells/settings.html`'s `case 'encpass'`, one in
+`src/bridge/lock-page.js` — they are the same string.)
+
+Both C# hosts then decode the whole URL with `HttpUtility.UrlDecode`, which is **form**
+decoding, not path decoding:
+
+* `SettingsPage.onNavigating` — `HttpUtility.UrlDecode(e.Url)`, first statement.
+* `EncryptionPassword.onNavigating` — the same.
+
+`HttpUtility.UrlDecode` turns a literal `+` into a **space** and `%41` into `A`. The value
+that reaches `writeWallet(...)` and `Preferences.Default.Set("walletpass", ...)` is therefore
+a *transformed* string, not the one the user typed.
+
+Note the contrast inside the same file: the download-name path goes to real trouble to encode
+exactly once (`encodeURIComponent` in the shell, one `UnescapeDataString` in C#, with a
+comment explaining why `%25` has to round-trip). The password path does neither.
+
+## Why nobody has noticed
+
+It is self-consistent in the app. Unlock, restore and retry all read the password through the
+same decode, so a user who sets `my+pass123` and types `my+pass123` gets in every time.
+
+## Where it bites
+
+* **`ixian:backupWallet` shares the raw `wallet.ixi`.** The password that actually encrypts it
+  is `my pass123`. The user believes it is `my+pass123`. Any other Ixian tool, or a restore on
+  a machine where they type it literally, will refuse the file.
+* Anything that ever compares the stored value with a freshly typed one outside this decode.
+
+## ⚠ Read this before "fixing" it
+
+**Do not simply stop decoding.** Users who already changed their password to something
+containing a `+` have a wallet encrypted with the TRANSFORMED string. Tightening the decode
+would lock exactly those people out, permanently, with no recovery — the failure mode this
+project already calls "my account is gone" (#341 MAJOR-2).
+
+A safe shape is: encode the password at the emitter (`encodeURIComponent`), decode it once in
+C# with `Uri.UnescapeDataString` (which does not touch `+`), and on an unlock failure retry
+once with the legacy form-decoded value before declaring the password wrong. That retry is the
+migration. It needs an on-device test with a `+` password created on an OLD build (#215).
+
+Not fixed in #804: it is a wallet-path change, it is inherited, and the naive fix is worse than
+the defect.

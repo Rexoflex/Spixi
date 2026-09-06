@@ -20580,11 +20580,13 @@ function createEncPassScreen({
 
   /* #341: release hook, same convention as createChatAppearance's `release`.
    * The standalone settings_encryption.html shell DIES on pop, so scrub-on-back
-   * plus the window `pagehide` listener were sufficient there. The Account pane
-   * mounts this screen INSIDE the long-lived settings.html document, and that
-   * document is PARKED on close (#315). renderLayout() replaces the children on
+   * plus the window `pagehide` listener were sufficient there. The Account mounts
+   * this screen INSIDE the long-lived settings.html document — on EVERY form factor
+   * since #804, and a phone is the form factor where that document is PARKED on
+   * close (#315) rather than destroyed. renderLayout() replaces the children on
    * many paths that never touch the back button — hardware back, setPaneMode,
-   * setLocale, onRepresented, the language reload. Without this hook the screen
+   * setLocale, onRepresented (routine on a phone: it fires on every return from a
+   * peer tab), the language reload. Without this hook the screen
    * becomes a DETACHED node that the window listener still holds, with the three
    * password values live in it for the life of the process.
    * Idempotent: scrub() and removeEventListener both tolerate a repeat call. */
@@ -20912,7 +20914,7 @@ function createSettingsHub({
   onLanguageNav,                 // (#242) same for the Language row
   onLock,                        // (next, ctrl) — ON optimistic; OFF pending (auth)
   onPaymentAuth,                 // (next, ctrl) — #150⑤ §9; same ON/OFF asymmetry as lock
-  onChangePassword,              // nav → change-encryption-password takeover (lock shell, ixian:encpass nav — bridge-audit-A:258)
+  onChangePassword,              // nav → the encpass screen (#804: a sublevel in the shell; ixian:encpass is the no-cap fallback — bridge-audit-A:258)
   onChatAppearance,              // nav → chat-appearance screen (FE-only, #147)
   onNotifications,               // nav → notifications screen (§9-gated)
   onSecurity,                    // nav → security-level screen (§9-gated, #147 tiers)
@@ -21427,8 +21429,9 @@ function createSettingsHub({
   /* Change Spixi password — the lock-shell encpass screen (Phase 1 #4, docs/lock-spec.md).
      Still CAPABILITY-GATED on `capabilities.changePassword`, but the capability is LIVE
      now: S7 landed in #283 (SettingsPage dispatches ixian:encpass → EncryptionPassword),
-     and #341 added the in-pane sublevel route beside it. The gate now only hides the row
-     on an old exe that pushes no caps. */
+     #341 added the in-shell sublevel route beside it, and #804 made that route the one
+     every form factor takes. The gate now only hides the row on an old exe that pushes
+     no caps, and the pushed page is what such an exe still gets. */
   // #341: `key` lets the pane mark this row as the current one (aria-current + the
   // tonal tint) while its sublevel is open, exactly like backup/downloads/theme/
   // language. Without it the row was the only sublevel opener that announced nothing.

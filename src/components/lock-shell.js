@@ -436,11 +436,13 @@ export function createEncPassScreen({
 
   /* #341: release hook, same convention as createChatAppearance's `release`.
    * The standalone settings_encryption.html shell DIES on pop, so scrub-on-back
-   * plus the window `pagehide` listener were sufficient there. The Account pane
-   * mounts this screen INSIDE the long-lived settings.html document, and that
-   * document is PARKED on close (#315). renderLayout() replaces the children on
+   * plus the window `pagehide` listener were sufficient there. The Account mounts
+   * this screen INSIDE the long-lived settings.html document — on EVERY form factor
+   * since #804, and a phone is the form factor where that document is PARKED on
+   * close (#315) rather than destroyed. renderLayout() replaces the children on
    * many paths that never touch the back button — hardware back, setPaneMode,
-   * setLocale, onRepresented, the language reload. Without this hook the screen
+   * setLocale, onRepresented (routine on a phone: it fires on every return from a
+   * peer tab), the language reload. Without this hook the screen
    * becomes a DETACHED node that the window listener still holds, with the three
    * password values live in it for the life of the process.
    * Idempotent: scrub() and removeEventListener both tolerate a repeat call. */

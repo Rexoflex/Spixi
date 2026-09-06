@@ -148,6 +148,15 @@ namespace SPIXI
             return surfaceColorStringFor(loadedHtmlFileName ?? "");
         }
 
+        /* ★ Session P: may THIS page paint the Android system-bar strip on its chrome pass?
+         * True for every page but the blank chat spare (SingleChatPage overrides: `friend !=
+         * null`). Read in applyPlatformPageChrome only; repaintSystemBars resolves the
+         * VISIBLE page itself and never reaches a hidden stage. */
+        protected virtual bool ownsSystemBarStrip
+        {
+            get { return true; }
+        }
+
         protected virtual string systemBarSurfaceColorString()
         {
             /* ★ AND-7c (#408, Damir F5 2026-08-19): resolve LIVE, never from the cached
@@ -517,9 +526,17 @@ namespace SPIXI
              * a FALSE "never repainted" verdict, pointing the next round at a fix that
              * cannot work. That is exactly how F3 got two wrong fixes; this batch exists
              * so F2 does not repeat it. Source-tagged so the two paths are told apart. */
-            SPIXI.Meta.SLockDiag.barsRepainted("pageChrome:" + GetType().Name,
-                liveSurfaceColorString(), systemBarSurfaceColorString());
-            SPlatformUtils.setEdgeToEdge(liveSurfaceColorString(), systemBarSurfaceColorString());
+            /* ★ Session P: the strip is PROCESS-WIDE (the header above), so a page that does
+             * not yet own a conversation must not paint it — the blank chat spare loads while
+             * the user may be looking at the Wallet hero. Everything below this gate is
+             * page-local and still runs for it. `attach` re-runs this pass once the page owns
+             * its conversation. */
+            if (ownsSystemBarStrip)
+            {
+                SPIXI.Meta.SLockDiag.barsRepainted("pageChrome:" + GetType().Name,
+                    liveSurfaceColorString(), systemBarSurfaceColorString());
+                SPlatformUtils.setEdgeToEdge(liveSurfaceColorString(), systemBarSurfaceColorString());
+            }
 
             /* ★ AND-7 (#396/#401) FULL BLEED — the Android half of the iOS-#282 rule.
              * MainActivity no longer pads the root content view at the top, so the page
@@ -698,8 +715,9 @@ namespace SPIXI
                  * op up when its signal arrives — `activePreload` may already hold a
                  * DIFFERENT navigation by then (`signalPreloadReady` tests `op.target == this`
                  * for the same reason), and the overlay stack is keyed by
-                 * tag, not by which navigation is still holding. One reference, set at the
-                 * only two places an op is ever built, is the whole wiring.
+                 * tag, not by which navigation is still holding. One reference, set HERE in
+                 * the constructor — so every place an op is built (the page path, the modal
+                 * path, Session P's pre-warm spare) inherits it — is the whole wiring.
                  * NOT cleared afterwards, deliberately: completing a TCS nobody awaits is a
                  * no-op, and a later push simply replaces the reference. A clear would need
                  * to happen on every present/abandon/cancel path — five more places to get
@@ -1235,6 +1253,368 @@ namespace SPIXI
             return true;
         }
 
+        /* ═══ ★★ THE PRE-WARMED BLANK CHAT — Session P (#780, docs/prewarm-chat-spec.md) ═══
+         *
+         * WHAT IT IS. A SingleChatPage with NO friend, its WebView staged hidden in the host
+         * grid and its shell booted, waiting for a tap. #796 measured the open on the phone:
+         * WebView creation (72–79 ms) + document parse (102–109 ms) = ~180 ms of a ~315 ms
+         * median, and both happen BEFORE any conversation data exists. The spare does that
+         * work while the user is still on the chats list. On tap, HomePage.onChat attaches
+         * the friend (`SingleChatPage.attach`) and this class presents the SAME stage through
+         * the SAME overlay path a fresh chat takes (`presentPreload`, tag "chat").
+         *
+         * WHAT IT IS NOT. Not the retained warm WebView (#779, parked with the lead): the
+         * spare has never held a conversation, is used ONCE, and closes exactly like every
+         * chat today (`closeOverlay` disposes it — the "chat" op never carries parkOnClose).
+         * Not the Account park slot either: `parkedOverlay` is the narrow-mode Account, and
+         * the two must never compete, so the spare has its own slot below.
+         *
+         * WHERE IT IS ENUMERATED: NOWHERE. While it warms and while it waits, the spare is in
+         * no collection — not `activePreload` (so it never blocks a user navigation, a lock
+         * stage or the Account warm), not `overlayStack` (so back, the UI tick, the tag
+         * sweep and `getOverlayPages` never see it), not `parkedOverlay`. It becomes
+         * `activePreload` only inside `pushSpareChat`, in the take just BEFORE the friend is
+         * attached (a null friend matches no lookup in that gap), so `Utils.getChatPage(friend)`
+         * routes live messages to it for the ~100 ms push window exactly as it does for a
+         * fresh staged chat. The belts behind that structure:
+         * `Utils.getChatPages` and `UIHelpers.getLiveShellPages` both skip a SingleChatPage
+         * whose friend is null (spec §3, last row), so a sweep that reaches one anyway
+         * cannot NRE on `p.friend.walletAddress`.
+         *
+         * WHEN IT IS DROPPED. `dropSpareChat` runs on every theme and language flip and on
+         * reloadAllPages (a parked document is one theme behind — the #315 lesson), on a
+         * dev-mode toggle (a baked carrier), on Node.onLowMemory, on App.OnSleep on mobile,
+         * on HomePage.stop (delete account, shutdown), on a host re-registration, after 6 s
+         * without a boot, and when a tap refuses it for one of the five words `pushSpareChat`
+         * can decide (warming · lock · staging · host · order). An attach that THREW takes a
+         * different route to the same end: the slot was already emptied by the take, so
+         * `cancelPreload` disposes the page. The drop costs nothing but the speed-up.
+         *
+         * STATE. (none) → WARMING (stage added, WebView loading) → READY (the page reports
+         * `spareShellBooted`: its `ixian:onload` arrived with friend == null) → taken by
+         * `pushSpareChat` → IN USE (activePreload, then overlayStack) → closed → disposed.
+         * A 6 s warm timeout drops a spare whose shell never boots.
+         *
+         * Z-ORDER. The stage is added to the host grid at WARM time. Anything added AFTER it
+         * paints above it. `pushSpareChat` therefore refuses (falls back to today's path)
+         * when any OPEN overlay stage sits after the spare's stage in the grid's Children —
+         * presenting under a newer stage would layer the conversation invisibly (generalised
+         * from `representParkedOverlay`, which refuses on ANY open overlay). Hidden stages
+         * (the parked Account) do not count: they are invisible and input-transparent.
+         *
+         * SECURITY (SECURITY.md §1 / #221): the spare is its own WebView with its own JS
+         * context, exactly like every staged chat; no JS is shared, coordination is C#.
+         * The blank document receives no push until attach (nothing enumerates it) except
+         * `setInsetTop` from its own base class on Android (a number, page-local), and
+         * `SingleChatPage.onNavigating` drops every verb but `ixian:onload` while blank. */
+        private static PreloadOp? spareChatOp = null;
+        private const int SPARE_CHAT_WARM_TIMEOUT_MS = 6000;
+
+        /** Fixed-word reasons for `[CDPERF] chat attach spare=0 why=…` (temporary stamp). */
+        public const string SPARE_WHY_NONE = "none";
+        public const string SPARE_WHY_WARMING = "warming";
+        public const string SPARE_WHY_LOCK = "lock";
+        public const string SPARE_WHY_STAGING = "staging";
+        public const string SPARE_WHY_HOST = "host";
+        public const string SPARE_WHY_ORDER = "order";
+        public const string SPARE_WHY_ATTACH = "attach";
+
+        /** True while a spare exists (WARMING or READY). Read-only; HomePage's warm trigger
+         *  asks it before constructing a page it would only have to dispose. */
+        public static bool hasSpareChat()
+        {
+            lock (preloadLock) { return spareChatOp != null; }
+        }
+
+        /** Stage a BLANK SingleChatPage hidden in THIS host's grid and let its shell boot.
+         *  Main thread only (the page is constructed here). `column` is the column a chat
+         *  would take NOW (wide → 1, narrow → -1), so the spare is staged where it will
+         *  present and the attach does not resize the WebView (the mode is re-checked at
+         *  attach and re-homed only if it changed). Fail-closed guards, all of which return
+         *  false with nothing warmed and ONE fixed-word `[CDPERF] chat warm refused why=`
+         *  line (a capture must be able to say why no spare existed). BEFORE construction:
+         *  a spare already exists (`exists`) · a lock is shown in place (`lock`) · overlay
+         *  mode does not hold — this page is not the registered host at the top of the
+         *  native stack (`host`) · a reservation is in its one-turn window (`staging`,
+         *  `preloadPending` — a chat, a lock or a pane before its op exists) · a conversation
+         *  is open or staging (`chat`) · no host grid (`grid`). AFTER construction, the page
+         *  is Disposed and refused: no content (`content`) · a second warm claimed the slot
+         *  first (`race`). */
+        public bool warmSpareChat(Func<SingleChatPage> make, int column)
+        {
+            string? refused = null;
+            lock (preloadLock)
+            {
+                if (spareChatOp != null) refused = "exists";
+                else if (modalOverlayOp != null) refused = "lock";
+                else if (!(overlayHost == this
+                    && (Application.Current?.MainPage as NavigationPage)?.Navigation.NavigationStack.LastOrDefault() == this)) refused = "host";
+                else if (preloadPending) refused = "staging";   // a reservation (chat, lock, pane) in its one-turn window
+                else if (overlayStack.Exists(o => o.target is SingleChatPage)
+                    || (activePreload != null && activePreload.target is SingleChatPage)) refused = "chat";
+            }
+            Grid? hostGrid = this.Content as Grid;
+            if (refused == null && hostGrid == null)
+            {
+                refused = "grid";
+            }
+            if (refused != null || hostGrid == null)   // the second test is for the compiler's flow: hostGrid is non-null below
+            {
+                Logging.info("[CDPERF] chat warm refused why=" + refused);   // ★ Session P [CDPERF] — TEMPORARY
+                return false;
+            }
+            SingleChatPage target;
+            try
+            {
+                target = make();
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("warmSpareChat: construction failed: " + ex.GetType().Name);
+                return false;
+            }
+            View? targetContent = target.Content;
+            if (targetContent == null)
+            {
+                try { target.Dispose(); } catch { }
+                Logging.info("[CDPERF] chat warm refused why=content");   // ★ Session P [CDPERF] — TEMPORARY
+                return false;
+            }
+            ContentView stage = new ContentView
+            {
+                Opacity = 0,
+                InputTransparent = true,
+                CascadeInputTransparent = true,
+                BackgroundColor = target.pageSurfaceColor,   // #248: themed resize backing, like every stage
+            };
+            PreloadOp op = new PreloadOp(this, target, stage, targetContent, hostGrid);
+            op.overlayMode = true;          // the SAME presentation a fresh chat takes (presentPreload's overlay branch)
+            op.tag = "chat";                // the same tag → the same-tag sweep, the same close-audit
+            op.column = column;             // staged where it will present; re-homed at attach only if the mode changed
+            op.revealDelayMs = 0;           // the chat presents on its own painted signal (Session K)
+            op.slideIn = false;             // #735①: the conversation never slides
+            try
+            {
+                target.Content = null;
+                stage.Content = targetContent;
+                placeStage(stage, hostGrid, column);
+                if (hostGrid.RowDefinitions.Count > 1)
+                {
+                    Grid.SetRowSpan(stage, hostGrid.RowDefinitions.Count);
+                }
+                lock (preloadLock)
+                {
+                    if (spareChatOp != null)
+                    {
+                        // A second warm raced this one between the guard and here. One spare.
+                        target.Content = targetContent;
+                        stage.Content = null;
+                        try { target.Dispose(); } catch { }
+                        Logging.info("[CDPERF] chat warm refused why=race");   // ★ Session P [CDPERF] — TEMPORARY
+                        return false;
+                    }
+                    spareChatOp = op;
+                }
+                hostGrid.Children.Add(stage);   // WebView gets a handler → starts loading
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("warmSpareChat: staging failed: " + ex.GetType().Name);
+                lock (preloadLock) { if (spareChatOp == op) spareChatOp = null; }
+                try { hostGrid.Children.Remove(stage); stage.Content = null; } catch { }
+                try { target.Content = targetContent; } catch { }
+                try { target.Dispose(); } catch { }
+                return false;
+            }
+            Logging.info("[CDPERF] chat warm start");   // ★ Session P [CDPERF] — TEMPORARY, retire with the set
+            Task.Delay(SPARE_CHAT_WARM_TIMEOUT_MS).ContinueWith(_ =>
+            {
+                bool stillWarming;
+                lock (preloadLock)
+                {
+                    stillWarming = spareChatOp == op && !(op.target is SingleChatPage s && s.spareShellBooted);
+                }
+                if (stillWarming)
+                {
+                    dropSpareChat("timeout");
+                }
+            });
+            return true;
+        }
+
+        /** The column rule pushPageLoaded applies at stage time, as ONE home for the spare's
+         *  two placements (warm, and the re-home at attach when the window mode changed). */
+        private static void placeStage(ContentView stage, Grid hostGrid, int column)
+        {
+            if (column >= 0 && hostGrid.ColumnDefinitions.Count > column)
+            {
+                Grid.SetColumnSpan(stage, 1);
+                Grid.SetColumn(stage, column);
+            }
+            else
+            {
+                Grid.SetColumn(stage, 0);
+                if (hostGrid.ColumnDefinitions.Count > 1)
+                {
+                    Grid.SetColumnSpan(stage, hostGrid.ColumnDefinitions.Count);
+                }
+            }
+        }
+
+        /** Dispose the spare (WARMING or READY). Safe when none. `why` is a fixed word for
+         *  the log; it never carries user data. */
+        public static void dropSpareChat(string why)
+        {
+            PreloadOp? op;
+            lock (preloadLock)
+            {
+                op = spareChatOp;
+                spareChatOp = null;
+            }
+            if (op == null)
+            {
+                return;
+            }
+            Logging.info("[CDPERF] chat warm drop why=" + why);   // ★ Session P [CDPERF] — TEMPORARY
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                try
+                {
+                    op.hostGrid.Children.Remove(op.stage);
+                    op.stage.Content = null;
+                    op.target.Content = op.targetContent;   // reattach for a clean Dispose
+                    op.target.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("dropSpareChat: " + ex.GetType().Name);
+                }
+            });
+        }
+
+        /** Take the spare for a conversation and present it. Main thread only (the caller
+         *  is HomePage.onChat's marshalled body). Returns null when the spare was attached
+         *  and its present is armed; otherwise a fixed-word refusal (see SPARE_WHY_*) and
+         *  the caller takes today's `pushPageLoaded(new SingleChatPage(...))` path. Every
+         *  refusal that HAD a spare drops it (an empty slot answers `none` and returns), so
+         *  there are never two chat WebViews for one tap.
+         *
+         *  Order of checks, all under the preload lock: a spare exists · it is READY · no
+         *  lock is shown in place · nothing else is staging — EXCEPT the Account's background
+         *  warm-park (`parkOnLoad`), which always yields to a user navigation (pushPageLoaded's
+         *  own rule) and is cancelled here the same way; a user navigation in flight keeps its
+         *  slot and pushPageLoaded then applies its supersede/dedupe rules to the fresh page ·
+         *  overlay mode still holds · no OPEN overlay stage sits above the spare's stage (the
+         *  comparison is `>`: a stage ADDED LATER paints ABOVE). The take, still inside the
+         *  lock: the re-home (only if the window mode changed since the warm), the column and
+         *  navKey memory, `activePreload = op`. Then, outside the lock: the Account warm's
+         *  cancel if it yielded, `attach` (the friend, onLoad's pushes, the present arming),
+         *  the 4 s outer timeout. If `attach` throws,
+         *  `activePreload` is cleared SYNCHRONOUSLY under the lock before the caller's
+         *  fallback runs — a deferred clear would let pushPageLoaded dedupe the fresh page
+         *  against this dead op (same navKey) and dispose it, costing the user the tap. */
+        public string? pushSpareChat(Action<SingleChatPage> attach, int column, string navKey, int timeoutMs = 4000)
+        {
+            PreloadOp? op;
+            PreloadOp? yieldingWarm = null;
+            string? why = null;
+            lock (preloadLock)
+            {
+                op = spareChatOp;
+                if (op == null)
+                {
+                    return SPARE_WHY_NONE;
+                }
+                if (!(op.target is SingleChatPage scp) || !scp.spareShellBooted)
+                {
+                    why = SPARE_WHY_WARMING;
+                }
+                else if (modalOverlayOp != null)
+                {
+                    why = SPARE_WHY_LOCK;
+                }
+                else if (preloadPending || (activePreload != null && !activePreload.parkOnLoad))
+                {
+                    why = SPARE_WHY_STAGING;
+                }
+                else if (overlayHost != this || op.host != this
+                    || (Application.Current?.MainPage as NavigationPage)?.Navigation.NavigationStack.LastOrDefault() != this)
+                {
+                    why = SPARE_WHY_HOST;
+                }
+                else
+                {
+                    // Z-order: no OPEN overlay stage may sit after the spare's stage.
+                    int mine = op.hostGrid.Children.IndexOf(op.stage);
+                    if (mine < 0)
+                    {
+                        why = SPARE_WHY_ORDER;
+                    }
+                    else
+                    {
+                        foreach (PreloadOp open in overlayStack)
+                        {
+                            if (open.hostGrid == op.hostGrid && op.hostGrid.Children.IndexOf(open.stage) > mine)
+                            {
+                                why = SPARE_WHY_ORDER;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (why == null)
+                {
+                    spareChatOp = null;
+                    if (activePreload != null && activePreload.parkOnLoad)
+                    {
+                        // The Account warm-park yields to the tap (pushPageLoaded's rule, mirrored).
+                        yieldingWarm = activePreload;
+                        warmPending = false;
+                        warmClaimRequested = false;
+                    }
+                    if (op.column != column)
+                    {
+                        placeStage(op.stage, op.hostGrid, column);   // the window mode changed since the warm
+                    }
+                    op.column = column;
+                    op.navKey = navKey;
+                    activePreload = op;   // from here: getStagingPage routes live pushes to it; a user tap elsewhere supersedes it
+                }
+            }
+            if (why != null)
+            {
+                dropSpareChat(why);
+                return why;
+            }
+            if (yieldingWarm != null)
+            {
+                cancelPreload(yieldingWarm);
+            }
+            try
+            {
+                attach((SingleChatPage)op.target);
+            }
+            catch (Exception ex)
+            {
+                Logging.error("pushSpareChat: attach failed: " + ex.GetType().Name);
+                lock (preloadLock)
+                {
+                    if (activePreload == op)
+                    {
+                        activePreload = null;   // synchronously — the caller's fallback must not dedupe against this op
+                    }
+                }
+                cancelPreload(op);   // disposes the page (its own clear is then a no-op)
+                return SPARE_WHY_ATTACH;
+            }
+            // Failsafe: never leave the user waiting on a shell that won't signal.
+            Task.Delay(timeoutMs).ContinueWith(_ =>
+            {
+                presentPreload(op, "timeout");
+            });
+            return null;
+        }
+
         /** In-place present hook (#230): fired instead of OnAppearing when a modal-mode
          *  page is shown in place. Default no-op; LockPage arms biometrics off it. */
         public virtual void onPresentedInPlace()
@@ -1428,6 +1808,8 @@ namespace SPIXI
             // #315: a parked overlay is parented to the OLD host's grid — same orphan
             // class as the stale list above; tear it down with them.
             disposeParkedOverlay();
+            // ★ Session P: the chat spare is parented to the old host's grid too.
+            dropSpareChat("host");
         }
 
         public static SpixiContentPage? getTopOverlay()
@@ -2928,12 +3310,13 @@ namespace SPIXI
                          * through `liftStageInput`, with the `finally` as the belt behind it.
                          *
                          * The assignment to TRUE is explicit rather than assumed: the stage is
-                         * constructed input-transparent (both stage constructions — grep
+                         * constructed input-transparent (all THREE stage constructions — the
+                         * page path, the modal path and Session P's pre-warm spare — grep
                          * `InputTransparent = true,` WITH the trailing comma, the object-
-                         * initialiser form; ⚠ r4 R4-4: that grep returns FIVE lines, not two —
-                         * the two constructions, the `CascadeInputTransparent` that follows
-                         * each of them and matches as a substring, and this instruction) and
-                         * every exit path
+                         * initialiser form; ⚠ r4 R4-4 / Session P: in THIS file that grep
+                         * returns SEVEN lines, not three — the three constructions, the
+                         * `CascadeInputTransparent` that follows each of them and matches as
+                         * a substring, and this instruction) and every exit path
                          * sets it back, but a reveal that depends on someone else's leftover
                          * state is the class of bug this row is about.
                          *

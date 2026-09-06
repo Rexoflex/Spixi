@@ -456,6 +456,20 @@ while the friend is a group participant, so no amplification. Ask: a distinct re
 removeFriend. The Spixi-side comment at `SpixiPendingMessageProcessor.cs` now names the
 hole so nothing new is built on the invariant.
 
+**CORE-8 (Session P #802 r7) · `Friend.getMessages(channel, msg_count)` REPLACES the channel
+list whenever `msg_count != 100`** (`messages[channel] = readLastMessages(…)`, `Friend.cs`
+`getMessages`) — and Spixi's `SingleChatPage.loadMessages` calls it with `messagesToShow`,
+which is `Config.messagesToLoad` (50) on an open and 150, 200, … on load-more (the N52 step
+skips 100), so EVERY open and load-more replaces the list. A message that arrives while that
+read runs (`FriendList.addMessageWithType` fetched the list first, then `lock (messages)` +
+`messages.Add`) lands in the ORPHANED old list: `writePendingMessages` later writes
+`friend.getMessages(channel)` = the new list, so the arrival **never reaches disk** and is gone
+on the next re-open; on the wire its live push is unordered against the load burst. Inherited
+(baseline identical); Session P's batch transport serializes the SAME-list case (the pushes
+run inside the list lock) but cannot reach the pre-read holder — the dictionary is private.
+Ask: do not replace the list on a re-read (merge the read into the existing list under the
+dictionary lock, or hand the loader a COPY), and take the write from the live list.
+
 **CORE-7b (nicety, same review) · `BotUsers` mutators serialise the WHOLE roster to disk
 while holding `lock(contacts)`** (`writeContactsToFile` inside the lock, every setter).
 Any UI-thread reader taking that lock (ContactDetails' roster snapshot) can block behind

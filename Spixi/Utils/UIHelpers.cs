@@ -253,6 +253,15 @@ namespace SPIXI
 
             void add(Page? p)
             {
+                /* ★ Session P: the blank chat spare (SingleChatPage, friend == null) is in
+                 * no collection this method walks, and this is the belt (prewarm-chat-spec
+                 * §3, last row): a theme push at it is wasted work — it is DROPPED on every
+                 * flip and rebuilt in the new theme — and a reload() of it would destroy
+                 * the boot signal its warm is waiting for. */
+                if (p is SingleChatPage blankChat && blankChat.friend == null)
+                {
+                    return;
+                }
                 if (p is SpixiContentPage sp && sp.hasGeneratedContent && !pages.Contains(sp))
                 {
                     pages.Add(sp);
@@ -365,6 +374,11 @@ namespace SPIXI
         public static void pushThemeToAllPages()
         {
             string themeName = ThemeManager.getResolvedAppearanceName();
+            /* ★ Session P (prewarm-chat-spec §2): the blank chat spare's document was
+             * generated in the OLD theme and it receives no push (it is in no enumerator).
+             * Drop it here — the ONE home both theme paths share — and the next warm
+             * rebuilds it in the new theme. The #315 lesson, applied before it can recur. */
+            SpixiContentPage.dropSpareChat("theme");
             foreach (SpixiContentPage page in getLiveShellPages(true))
             {
                 try
@@ -462,6 +476,7 @@ namespace SPIXI
             // re-present it in yesterday's strings, forever (the #251 class, new
             // instance). Drop the warm instance; the next open rebuilds it correct.
             SpixiContentPage.disposeParkedOverlay();
+            SpixiContentPage.dropSpareChat("reload");   // ★ Session P: same class as the parked overlay
         }
 
         public static void updateMessage(Friend friend, int channel, FriendMessage msg)

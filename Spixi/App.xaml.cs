@@ -1331,6 +1331,16 @@ public partial class App : Application
             SpixiContentPage.showPrivacyShield();
         }
 #endif
+        /* ★ Session P: the blank chat spare is an opacity-0 WebView with no owner watching
+         * it — the jetsam / content-process-death class Node.onLowMemory names for the parked
+         * Account, with a larger window (it lives whenever the user is on the chats list). A
+         * dead renderer would surface as a BLANK conversation at the 400 ms backstop on the
+         * next open. Drop it on the way out; the next chat close warms a fresh one. Mobile
+         * only: on WinUI OnSleep fires on window DEACTIVATION (#507) and WebView2 has no
+         * jetsam, so a drop there would only cost the speed-up. */
+#if !WINDOWS
+        SpixiContentPage.dropSpareChat("sleep");
+#endif
         // ★ #496: no-op on Android when lockOnPause already stamped this cycle; the real
         // stamp for every platform that has no pause hook.
         markBackgrounded();

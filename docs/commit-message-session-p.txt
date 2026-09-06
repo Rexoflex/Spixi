@@ -1,0 +1,68 @@
+Session P — the pre-warmed chat WebView (#780) and the batch transport (#298 B1+B3)
+
+Two levers against the same half second, in one build, with separable stamps.
+
+THE PRE-WARM (#800). A SingleChatPage with no friend is staged hidden in
+HomePage's grid and its shell booted while the user is still on the chats
+list. On tap, pushSpareChat hands it the friend and the same overlay path
+presents the stage it already holds. #796 measured what that moves off the
+critical path: WebView creation (72-79 ms) plus parse (102-109 ms) of a
+~315 ms median open. Every refusal falls back to today's construct-and-stage
+push, so the spare is never the only way into a conversation.
+
+THE BATCH TRANSPORT (#801). loadMessages collects the whole load burst into
+one UiBatch and crosses the bridge once as addMessages(json, "append"),
+then messagesDone ends the shell's render burst by signal instead of by its
+250 ms timer. #796 measured that too: drain to painted was 96-126 ms, of
+which the shell's own work is 26-38 ms; the rest was about twelve serial
+EvaluateJavaScriptAsync calls queued on the Android WebView. Both transports
+stay live on both ends: an old exe still paints on the timer.
+
+THE #46 LOOP (#802). Thirteen rounds, 306 mutations, zero survivors that did
+not become a pin. The loop found seven defects the author did not: a tap lost
+to a navKey dedupe when attach threw, a live message wiped by its own load
+burst, the just-cleared log painted on a long load-more, "one paint" named by
+two pins and asserted by none, the chat text size baked into a document that
+boots before the tap, an empty conversation for every history whose first row
+is a contact request, and a wallet address that could reach a log line
+through a pin built from a file list instead of a walk. The last round ran on
+Opus; the rest ran on the session's own model, and the row says so.
+
+ON THE PHONE (#803). Motorola, Release plus dev-coexist, heavy seed. Both
+levers work: attach spare=1 tap=0ms on 10 of 10 opens, batch=1 on every open,
+present t= 300/409 ms down to 67-262 ms, drain to painted 122/178 ms down to
+15-133 ms. The batch build peaked at 181 ms, under the shell's 500 ms
+first-paint fallback, so that race is closed by measurement.
+
+The pre-warm is priced at about 15 MB. Four dumpsys meminfo readings paired
+inside one process, because the same build drifted 58 MB between two reads
+and a cross-build comparison would have been noise: WebViews 3 gives
+TOTAL PSS 292 844 and 305 522 KB, WebViews 4 gives 312 588 and 316 496 KB.
+The paired cost is +19.7 and +11.0 MB, about 5 percent. CHAT_SPARE_ENABLED
+in HomePage.xaml.cs is the one-token reversal; its docblock carries both
+sides of the trade and a pin asserts the exact figures.
+
+#799's chats-after-close frame probe is RETIRED as unfit. Three captures of
+the same build read drop= 11,9,9,1,7,9,10,9,3,1 then 3,6,8,4,2 then
+6,7,7,6,6. The spread between identical builds is as wide as the effect the
+probe exists to detect, so it convicts nobody. What replaced it: a git stash
+build of this branch's own parent, on the same phone with the same seed. It
+stutters identically. Both levers are exonerated.
+
+That stutter has a cause, and it is not this branch. Exactly three Account
+entries pushPageLoaded a new page with its own WebView -- SettingsPage.xaml.cs
+lines 383, 489 and 501, which are Password, Backup and Download. How-to-use
+and About are in-hub sublevels in the already-open settings WebView, and they
+are smooth. Each of the three pays a cold 130-230 ms Chromium boot and parse
+on the main thread, and dumpsys reports WebViews: 3 in one pid with no
+sandboxed_process rows, so WebView runs in-process on this device and every
+shell boot competes with the UI it is animating. That is #800's disease on
+three more pages, and it is the next session's target.
+
+Not compiled here. cs-syntax-check parses all 138 files clean.
+The numbers are in docs/f5-checklist-session-p.md section 3.
+
+DECISIONS #800, #801, #802, #803.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01K7GM6LJngg5ABraaonnHVL

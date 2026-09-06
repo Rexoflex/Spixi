@@ -7077,7 +7077,15 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   ok(/function readPatternPrefs\(\)/.test(chatW5) && /function applyPatternPrefs\(/.test(chatW5)
     && /function refreshPatternPrefsIfChanged\(\)/.test(chatW5),
     'W5 live-apply: the chat can re-resolve BOTH pattern prefs after boot, not only in the pre-paint script');
-  ok(/window\.addEventListener\('storage', \(e\) => \{\s*if \(!e\.key \|\| e\.key === PATTERN_PREF_KEYS\.level \|\| e\.key === PATTERN_PREF_KEYS\.style\) refreshPatternPrefsIfChanged\(\);/.test(chatW5)
+  /* ★ Session P re-base (#802 loop, reviewer MAJOR-1): the storage listener names FOUR keys now —
+     the ground (AUG) and the TEXT SIZE joined the stamp gate. The pre-warmed blank chat (#800)
+     boots before the tap, so a pref read only in the head script is one pick behind for the
+     whole conversation; every field readPatternPrefs returns must be in the stamp AND in this
+     listener. Pinned as the exact list so a fifth key cannot be added to one and not the other. */
+  ok(/window\.addEventListener\('storage', \(e\) => \{\s*if \(!e\.key \|\| e\.key === PATTERN_PREF_KEYS\.level \|\| e\.key === PATTERN_PREF_KEYS\.style \|\| e\.key === PATTERN_PREF_KEYS\.ground \|\| e\.key === PATTERN_PREF_KEYS\.text\) refreshPatternPrefsIfChanged\(\);/.test(chatW5)
+    && /const patternStamp = \(p\) => p\.level \+ '\|' \+ p\.style \+ '\|' \+ p\.ground \+ '\|' \+ p\.text;/.test(chatW5)
+    && /return \{ level: p, style: s, ground: gr, text: t \};/.test(chatW5)
+    && /text: 'spixi\.chat\.textscale' \}/.test(chatW5)
     && /window\.addEventListener\('focus', refreshPatternPrefsIfChanged\);/.test(chatW5)
     && /if \(document\.visibilityState === 'visible'\) refreshPatternPrefsIfChanged\(\);/.test(chatW5)
     && /setInterval\(\(\) => \{ if \(!document\.hidden\) refreshPatternPrefsIfChanged\(\); \}, 2000\);/.test(chatW5),
@@ -7089,7 +7097,7 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   ok(/if \(s !== 'doodles' && s !== 'matrix' && s !== 'flow'\) s = 'doodles';/.test(chatW5)
     && !/'triangles'|'lineart'/.test(chatW5.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')),
     '★★ E1 MIGRATION (live re-apply): the SECOND ladder carries the same allowlist, and neither retired id survives anywhere in chat.html once comments are stripped. Two ladders that must agree is exactly the shape the W5 F5 bug had — pin BOTH or the live path keeps re-resolving to a style the sheet no longer defines');
-  ok(/r\.setAttribute\('data-chat-pattern', prefs\.style\);[\s\S]{0,220}?applyChatPatternStyle\(\);/.test(chatW5)
+  ok(/r\.setAttribute\('data-chat-pattern', prefs\.style\);[\s\S]{0,700}?applyChatPatternStyle\(\);/.test(chatW5)   // window widened 220 → 700 in Session P: the text-size pair sits between them now (order still asserted below)
     && chatW5.indexOf("r.setAttribute('data-chat-pattern', prefs.style);") < chatW5.indexOf('applyChatPatternStyle();     // mount / detach'),
     'W5 live-apply: the attribute moves and THEN the canvas mounts/detaches — a style switch can never leave a tile and a canvas painting at once. ★ AUG: the ORDER is what this pin is about, so it is asserted as an order rather than as adjacency — the ground attribute is set between the two now (it is a sibling display-state write, not part of the mount), and a strict "next line" match made an unrelated insertion look like a regression');
   /* ★ N81 (#422): this used to pin that the ×0.36 dark derivation was RE-RUN on
@@ -7430,8 +7438,17 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      9 703 chars of headroom, and Session N's +4.3 KB (the app-noicon sentinel mapping, ~1 KB
      permanent, + the TEMPORARY [CDPERF] parse/rtt stamps, ~3 KB, retire with the set) leaves
      5 376. The ceiling STAYS at 660. When a raise is ever needed, state the delta in chars
-     and price THAT delta (0.08 ms/KB), not the size of the raise. */
-  const CHAT_KB_CEIL = 660, INDEX_KB_CEIL = 500;
+     and price THAT delta (0.08 ms/KB), not the size of the raise.
+     ★ Session P (the batch transport, #298 B1+B3, + the #802 loop's shell fixes): chat.html
+     gained the addMessages / messagesDone handlers, the burst flags, the rAF guard, the
+     text-size stamp and the gated first-paint fallback — +8 651 normalized chars over HEAD's
+     670 950, against 4 890 of headroom → 3 761 OVER 660. Permanent transport code (the
+     docblocks were already cut to the mechanism), so the ceiling moves 660 → 670 with the
+     delta stated: +8 651 chars ≈ 8.4 KB ≈ 0.7 ms of parse at the measured 0.08 ms/KB, against
+     the ~50–70 ms the eval-queue collapse buys (#796). Headroom after: 6 479 chars in the
+     pin's unit (re-measured at the loop's END, #802 r8 — the first statement was the pre-loop
+     number); retiring the TEMPORARY [CDPERF] set gives ~3 KB of it back. */
+  const CHAT_KB_CEIL = 670, INDEX_KB_CEIL = 500;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -22589,8 +22606,14 @@ console.log('Session I ②: [CDPERF] chat-open instrument · the seed harness');
     '★ Session I ②: the instrument is CURRENTLY ARMED — Damir reads the Release logcat before the L10-shape fix is built (#294). (When it is removed on his word, rewrite this pin as the reversal, never delete it.)');
   ok(scs.indexOf('loadMessages();\n                    cdperf("load"') !== -1 && scs.indexOf('Utils.sendUiCommand(this, "onChatScreenLoaded");') < scs.indexOf('MainThread.BeginInvokeOnMainThread(() => cdperf("drain"'),
     '★ Session I ② [CDPERF]: the drain marker is posted AFTER onChatScreenLoaded — it runs once the main thread has executed every queued per-row EvaluateJavaScriptAsync (the replay), which is the number the fix shape hangs on');
-  ok(/const cdPaint = Math\.round\(performance\.now\(\) - cdT0\);/.test(chat) && chat.indexOf('const cdT0 = performance.now();\n      renderLogNow();') !== -1,
-    '★ Session I ② [CDPERF] shell: paint = renderLogNow alone (the whole-history build + swap), glass = the second rAF after — the two numbers that separate "the replay starves the thread" from "the one-shot paint does"');
+  /* ★ Session P re-base, in place: the burst-ending render moved to `messagesDone` on the batch
+     transport, so `paint=` now reports `lastPaintMs` — the wall time of whichever renderLogNow
+     ended the burst (messagesDone's, or onChatScreenLoaded's own on the old transport). Both
+     writers time renderLogNow ALONE, which is the property. */
+  ok(/const cdPaint = lastPaintMs;/.test(chat)
+    && /if \(logDirty\) \{\s*renderLogNow\(\);\s*lastPaintMs = Math\.round\(performance\.now\(\) - cdT0\);/.test(chat)
+    && /const t0 = performance\.now\(\);\s*renderLogNow\(\);\s*lastPaintMs = Math\.round\(performance\.now\(\) - t0\);/.test(chat),
+    '★ Session I ② [CDPERF] shell (+ Session P): paint = renderLogNow alone (the whole-history build + swap) at BOTH writers of lastPaintMs — messagesDone and onChatScreenLoaded — glass = the second rAF after; the two numbers that separate "the replay starves the thread" from "the one-shot paint does"');
   /* the seed harness — compiled out of every store build by construction */
   const seed = rdF('Spixi/Utils/SDevSeed.cs');
   const sp = rdF('Spixi/Pages/Settings/SettingsPage.xaml.cs');
@@ -23465,7 +23488,11 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
       '★★ #46 A3 (⑤) + r2 R2-2: the stage is input-DEAD before the first entry frame on BOTH reveal paths (fresh present + parked re-present, ' + deadThenReveal + '/2) and input-LIVE again after SlideInputDeadMs = ' + deadMs + ' ms — not after the ' + slideMs + ' ms animation. Session I\'s hybrid entry starts the stage at 40% travel with Opacity 0, and this file\'s own easing keeps opacity under 3% for only 15.3 ms; round 1 cleared the block in slideStageIn\'s `finally` instead, i.e. ten to twenty times later, so a tap on the Add-contact name field at ~250 ms — stage at 99.0% opacity, 0.41% of its travel from home — was discarded when it used to be delivered. ALL FOUR IN ONE PIN: the `= true`, the no-slide branch\'s immediate clear, the ' + deadMs + ' ms lift, and the `finally` BELT behind it. The belt is not redundant — a starved timer or a dropped main-thread post would otherwise leave a permanently untappable page, which is strictly worse than the tap this prevents');
 
     /* ★ A4 (⑥): the [CDPERF] tap stamp sits after the already-open early return. ORDER pin —
-       "the write exists" was always true; where it sits is the whole fix. */
+       "the write exists" was always true; where it sits is the whole fix.
+       ★ Session P re-base, in place: the stamp now has TWO consumers — `SingleChatPage.attach`
+       (the pre-warm spare, tried FIRST) and the constructor (the fallback). The adjacency
+       asserted is stamp → the spare attempt; the construction follows on refusal. Both
+       consumers clear the stamp, so a swallowed double-click still cannot plant one. */
     const hpNC = stripCode(hp);
     const openAt = hpNC.indexOf('fromChat = true;');
     const marshalAt = hpNC.indexOf('MainThread.BeginInvokeOnMainThread(() =>', openAt);
@@ -23474,9 +23501,17 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
     const ctorAt = hpNC.indexOf('pushPageLoaded(new SingleChatPage(friend, wide ? this : null)', marshalAt);
     ok(openAt > 0 && marshalAt > openAt && earlyRetAt > marshalAt && stampAt > earlyRetAt && ctorAt > stampAt
        && (hpNC.match(/SingleChatPage\.pendingTapTicks = /g) || []).length === 1
-       && /SingleChatPage\.pendingTapTicks = System\.Diagnostics\.Stopwatch\.GetTimestamp\(\);\s*pushPageLoaded\(new SingleChatPage\(friend, wide \? this : null\)/.test(hpNC)
-       && !/fromChat = true;\s*SingleChatPage\.pendingTapTicks/.test(hpNC),
-      '★ #46 A4 (⑥): the [CDPERF] tap stamp is written INSIDE the marshalled body, AFTER the already-open early return and IMMEDIATELY before the SingleChatPage construction it measures. It used to sit above `MainThread.BeginInvokeOnMainThread`, whose body returns early when the chat is already open (and on the double-click it exists to swallow) — the stamp then STRANDED, no constructor consumed it, and it stood until the NEXT construction, which reported it as that open\'s tap→ctor latency: a wildly large, entirely false number in the instrument the whole chat-open perf effort is steered by. Exactly one write exists, so the stamp cannot be planted twice');
+       && /SingleChatPage\.pendingTapTicks = System\.Diagnostics\.Stopwatch\.GetTimestamp\(\);\s*string navKey = "chat:" \+ friend\.walletAddress;\s*string\? spareRefusal = pushSpareChat\(/.test(hpNC)
+       && !/fromChat = true;\s*SingleChatPage\.pendingTapTicks/.test(hpNC)
+       && (() => {
+            /* clause 3 is BOUNDED (auditor C): the slice runs from attach's signature to the NEXT
+               member (`cdperfAttach`), not to EOF — the consumer must be inside attach itself */
+            const scsNC = stripCode(readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8'));
+            const a0 = scsNC.indexOf('internal void attach(Friend fr, HomePage? home)');
+            const a1 = scsNC.indexOf('internal static void cdperfAttach(', a0);
+            return a0 >= 0 && a1 > a0 && /pendingTapTicks = 0;/.test(scsNC.slice(a0, a1));
+          })(),
+      '★ #46 A4 (⑥) + ★ Session P re-base: the [CDPERF] tap stamp is written INSIDE the marshalled body, AFTER the already-open early return and IMMEDIATELY before the FIRST consumer — the pre-warm spare attempt (SingleChatPage.attach clears it); the construction it used to precede directly is the fallback that follows a refusal, and it clears it too. It used to sit above `MainThread.BeginInvokeOnMainThread`, whose body returns early when the chat is already open (and on the double-click it exists to swallow) — the stamp then STRANDED, no constructor consumed it, and it stood until the NEXT construction, which reported it as that open\'s tap→ctor latency: a wildly large, entirely false number in the instrument the whole chat-open perf effort is steered by. Exactly one write exists, so the stamp cannot be planted twice');
 
     /* ★★ A6 (⑧): THE FALSE-INVARIANT COMMENTS ARE GONE AND THEIR CORRECTIONS ARE THERE.
        ⚠⚠ THIS PIN READS THE PROSE, AND IT IS THE ONE PIN IN THIS BLOCK THAT MUST. Its SUBJECT
@@ -24615,7 +24650,7 @@ console.log('Session M: the apps layout · the present signal on the DATA pages'
     && /public readonly TaskCompletionSource<bool> painted =/.test(scpM)
     && /new TaskCompletionSource<bool>\(TaskCreationOptions\.RunContinuationsAsynchronously\);/.test(scpM)
     && /target\.pendingPaint = painted;/.test(scpM),
-    '★★ Session M: the 120 ms default is UNCHANGED and the paint gate is handed to the target in the PreloadOp constructor — the only two places an op is ever built. A shell that never signals waits exactly what it waits today, which is the whole safety argument for applying this to every load-then-present page at once. RunContinuationsAsynchronously because the completion arrives on the WebView\'s navigating callback');
+    '★★ Session M: the 120 ms default is UNCHANGED and the paint gate is handed to the target in the PreloadOp constructor — every place an op is built (three since Session P\'s pre-warm spare). A shell that never signals waits exactly what it waits today, which is the whole safety argument for applying this to every load-then-present page at once. RunContinuationsAsynchronously because the completion arrives on the WebView\'s navigating callback');
 
   /* the [CDPERF] chats pair — temporary, and bounded so a 1 Hz updateScreen cannot bury it */
   const hpM = rdM('Spixi/Pages/Home/HomePage.xaml.cs');
@@ -25157,8 +25192,12 @@ console.log('★★ Session O — the #46 loop over Sessions M + N');
   {
     const scp = stripCode(rdO('Spixi/Utils/SpixiContentPage.cs'));
     const inits = [...scp.matchAll(/ContentView stage = new ContentView\s*\{([\s\S]{0,600}?)\};/g)].map((m) => m[1]);
-    ok(inits.length === 2 && inits.every((s) => /^\s*Opacity = 0,/.test(s)) && !/\bstage\.IsVisible\b/.test(scp),
-      '★★ Session O ⑫: both preload stages (the page path and the modal path) open with `Opacity = 0` and NOTHING sets IsVisible on a stage — an invisible view is skipped by layout, so the staged WebView would boot against a zero-sized viewport and re-lay-out in front of the user at present. Got ' + inits.length + ' stage initializer(s)');
+    /* ★ Session P re-base, in place: THREE stages now — the page path, the modal path and the
+       pre-warm spare (warmSpareChat). The property is per stage (every one opens transparent,
+       none is ever made invisible), so the count is EXACTLY three and the sweep is `every` —
+       a fourth stage needs its own row here, not a silent pass. */
+    ok(inits.length === 3 && inits.every((s) => /^\s*Opacity = 0,/.test(s)) && !/\bstage\.IsVisible\b/.test(scp),
+      '★★ Session O ⑫ (+ Session P): all three preload stages (the page path, the modal path and the pre-warm spare) open with `Opacity = 0` and NOTHING sets IsVisible on a stage — an invisible view is skipped by layout, so the staged WebView would boot against a zero-sized viewport and re-lay-out in front of the user at present. Got ' + inits.length + ' stage initializer(s)');
   }
 
   /* ═══ ⑭ the packaging strip FAILS THE BUILD instead of shipping an empty stylesheet ═══
@@ -25231,6 +25270,834 @@ console.log('★★ Session O — the #46 loop over Sessions M + N');
     const iCom = alt.indexOf('\\/\\*');
     ok(iView >= 0 && iUrl >= 0 && iCom >= 0,
       '★★ Session O ⑯ (source): the post-condition view\'s alternation names an unquoted `url\\(` branch (offset ' + iUrl + ') beside its comment branch `\\/\\*` (offset ' + iCom + ') — WHETHER it names one at all is the property, because the view is not exported and no behavioural pin can reach it. Their ORDER is inert: the alternation is tried left-to-right at each position but the engine advances a position at a time, so the branch that STARTS earliest wins regardless of how the pattern is written');
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════
+ * ★★ SESSION P — THE TWO LEVERS: the pre-warmed blank chat (#780) + the batch transport (#298)
+ * ═══════════════════════════════════════════════════════════════════════════════════
+ * Every pin declares its read (stripCode or RAW) and asserts a PROPERTY (#771). Slices are
+ * brace-matched from a searchable anchor and guarded (#773). Behavioural pins run the REAL
+ * built shell through the REAL dispatcher (never a stub of the function under test). */
+console.log('★★ Session P — the pre-warm + the batch transport');
+{
+  const rdP = (pth) => readFileSync(join(root, pth), 'utf8');
+  /* brace-matched C# slice over an offset-preserving literal mask — the Session O ① shape,
+     re-declared here because that helper is scoped to its own block */
+  const maskCsP = (t) => t.replace(/@"(?:[^"]|"")*"|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'/g, (m) => ' '.repeat(m.length));
+  const csSliceP = (src, startAnchor, from = 0) => {
+    const a = src.indexOf(startAnchor, from);
+    if (a < 0) return { a: -1, b: -1, body: '' };
+    const mask = maskCsP(src);
+    const open = mask.indexOf('{', a + startAnchor.length);
+    if (open < 0) return { a, b: -1, body: '' };
+    let depth = 0, b = -1;
+    for (let i = open; i < mask.length; i++) {
+      if (mask[i] === '{') depth++;
+      else if (mask[i] === '}' && --depth === 0) { b = i + 1; break; }
+    }
+    return { a, b, body: b > a ? src.slice(a, b) : '' };
+  };
+  const sliceOk = (s, name) => ok(s.a >= 0 && s.b > s.a && s.body.trimEnd().endsWith('}'),
+    '★ Session P: the slice `' + name + '` resolves as a brace-matched body — the pins below assert nothing without it');
+  const count = (t, re) => (t.match(re) || []).length;
+
+  const scpP = stripCode(rdP('Spixi/Utils/SpixiContentPage.cs'));
+  const scsP = stripCode(rdP('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
+  const hpP = stripCode(rdP('Spixi/Pages/Home/HomePage.xaml.cs'));
+  const utP = stripCode(rdP('Spixi/Utils/Utils.cs'));
+  const uhP = stripCode(rdP('Spixi/Utils/UIHelpers.cs'));
+  const nodeP = stripCode(rdP('Spixi/Meta/Node.cs'));
+  const setP = stripCode(rdP('Spixi/Pages/Settings/SettingsPage.xaml.cs'));
+
+  /* ═══ LEVER 1 · pin 1 — the blank ctor never reads `friend`, never fetches presence, never onLoads (stripCode) ═══ */
+  {
+    const s = csSliceP(scsP, 'private SingleChatPage()');
+    sliceOk(s, 'SingleChatPage() (the blank ctor)');
+    ok(s.body.length > 0 && !/\bfriend\b/.test(s.body) && !/fetchFriendsPresence/.test(s.body) && !/\bonLoad\(\)/.test(s.body)
+      && /InitializeComponent\(\);/.test(s.body) && s.body.indexOf('InitializeComponent();') < s.body.indexOf('loadPage(webView, "chat.html");')
+      && /loadPage\(webView, "chat\.html"\);/.test(s.body) && /deferPreloadReady = true;/.test(s.body) && /webView\.Opacity = 0;/.test(s.body),
+      '★★ Session P L1·1 (spec §5.1): the blank ctor loads chat.html hidden with the deferred present and reads NO `friend`, fetches NO presence, runs NO onLoad — the whole point is a page that has no conversation yet');
+    ok(/internal static SingleChatPage createSpare\(\)/.test(scsP) && count(scsP, /new SingleChatPage\(\)/g) === 1,
+      '★ Session P L1·1 pair: the blank ctor is PRIVATE and `createSpare()` is its ONE caller (`new SingleChatPage()` appears exactly once) — the blank state cannot be reached by accident from another site');
+  }
+
+  /* ═══ LEVER 1 · pin 2 — `ixian:onload` with friend == null returns BEFORE onLoad(); no other verb reaches a blank page ═══ */
+  {
+    const nav = csSliceP(scsP, 'void onNavigating(object sender, WebNavigatingEventArgs e)');
+    sliceOk(nav, 'SingleChatPage.onNavigating');
+    const iOnload = nav.body.indexOf('if (current_url.Equals("ixian:onload", StringComparison.Ordinal))');
+    const iBack = nav.body.indexOf('else if (current_url.Equals("ixian:back", StringComparison.Ordinal))');
+    const onloadBranch = iOnload >= 0 && iBack > iOnload ? nav.body.slice(iOnload, iBack) : '';
+    const iGuard = onloadBranch.indexOf('if (friend == null)');
+    const iBooted = onloadBranch.indexOf('spareShellBooted = true;');
+    const iRet = onloadBranch.indexOf('return;');
+    const iLoad = onloadBranch.indexOf('onLoad();');
+    ok(/internal volatile bool spareShellBooted = false;/.test(scsP) && count(scsP, /\bspareShellBooted = true;/g) === 1,
+      '★★ Session P L1·2 (#802 r5): `spareShellBooted` starts FALSE and flips true at exactly ONE site (the blank onload branch) — a true initializer would let a tap attach into an UNBOOTED document and the real onload then runs onLoad a second time');
+    ok(iGuard >= 0 && iBooted > iGuard && iRet > iBooted && iLoad > iRet && count(onloadBranch, /onLoad\(\);/g) === 1,
+      '★★ Session P L1·2 (spec §5.2): inside the `ixian:onload` branch the order is guard (`friend == null`) → `spareShellBooted = true` → `return` → `onLoad()`, and onLoad appears once — a blank shell marks READY and never runs the load whose second statement reads `friend`');
+    /* the SHARED dispatch (ixian:painted · cdping · the call trio) runs only for a page that holds a
+       conversation — the #46 auditor found the first cut claimed "no other verb" and let five through */
+    const iCancelP = nav.body.indexOf('e.Cancel = true;');
+    const iGlobalP = nav.body.indexOf('if (friend != null && onNavigatingGlobal(current_url))');
+    ok(iCancelP >= 0 && iGlobalP > iCancelP && iGlobalP < iOnload && count(nav.body, /onNavigatingGlobal\(current_url\)/g) === 1,
+      '★★ Session P L1·2 (auditor A): the ONE call to onNavigatingGlobal in SingleChatPage.onNavigating is gated on `friend != null`, after the cancel and before the onload branch — the blank spare answers no shared verb either (painted, cdping\'s echo push, the call trio), not only none of this class\'s own');
+    /* the blank-verb guard: sits right after the onload branch, before the first verb, lets ONLY the document's own file: load through */
+    const iBlank = nav.body.indexOf('else if (friend == null && !current_url.Trim().StartsWith("file:", StringComparison.OrdinalIgnoreCase))');
+    const iFirstElse = nav.body.indexOf('else if (', iOnload);
+    ok(iBlank > iOnload && iBlank < iBack && iFirstElse === iBlank,
+      '★★ Session P L1·2 pair: the blank-page guard is the FIRST `else if` after the onload branch (before `ixian:back` and every other verb) and it excepts only the document\'s own `file:` load — a hidden, input-transparent page dispatches nothing, and the shared `file:` tail below still re-allows the shell to load');
+    const blank = csSliceP(nav.body, 'else if (friend == null && !current_url.Trim().StartsWith("file:"');
+    ok(blank.body.length > 0 && !/current_url/.test(blank.body.slice(blank.body.indexOf('{'))) && /Logging\.warn\("SingleChatPage: a verb reached the blank spare and was dropped"\);/.test(blank.body),
+      '★ Session P L1·2: the blank-verb branch body logs ONE fixed line and never touches `current_url` — the verb is untrusted text and the log is offered through the share sheet (the Session O ⑰ rule)');
+  }
+
+  /* ═══ LEVER 1 · pin 3 — attach: the friend first, the latches reset, the chrome pass, then ONE onLoad ═══ */
+  {
+    const s = csSliceP(scsP, 'internal void attach(Friend fr, HomePage? home)');
+    sliceOk(s, 'SingleChatPage.attach');
+    const b = s.body;
+    const iThrow = b.indexOf('if (friend != null)');
+    const iArm = b.indexOf('presentArmed = false;');
+    const iPaint = b.indexOf('paintedSeen = false;');
+    const iFriend = b.indexOf('friend = fr;');
+    const iChrome = b.indexOf('applyPlatformPageChrome();');
+    const iLoad = b.indexOf('onLoad();');
+    ok(iThrow >= 0 && iArm > iThrow && iPaint > iArm && iFriend > iPaint && iChrome > iFriend && iLoad > iChrome
+      && count(b, /onLoad\(\);/g) === 1 && /throw new InvalidOperationException/.test(b.slice(iThrow, iArm))
+      && /StreamProcessor\.fetchFriendsPresence\(friend, true\);/.test(b) && /openClock\.Restart\(\);/.test(b),
+      '★★ Session P L1·3 (spec §5.3): attach refuses a page that already holds a conversation (throws → the caller cancels the op), resets BOTH paint latches before the friend lands (a stale `paintedSeen` would present an unpainted conversation — the one flash this design must never make), sets the friend, fetches presence, runs the chrome pass the blank load skipped, restarts the open clock and runs onLoad EXACTLY ONCE, last');
+    /* PARITY, derived from the public constructor (auditor C): every friend-dependent statement the
+       ctor makes must appear in attach BEFORE onLoad() — onLoad reads homePage (hideBackButton) and
+       selectedChannel (which channel to load); a missing one is a desktop back arrow or channel 0 */
+    const ctor = csSliceP(scsP, 'public SingleChatPage(Friend fr, HomePage? home)');
+    sliceOk(ctor, 'SingleChatPage(Friend, HomePage?) (the public ctor)');
+    /* #802 r3: DERIVED, not listed — every ctor statement that names `friend` or `home` (the two
+       inputs attach receives), minus the statements the blank ctor already ran (InitializeComponent,
+       the nav bar, the opacity, deferPreloadReady, loadPage) and the [CDPERF] stamp. */
+    const ctorStmts = (ctor.body.match(/^[ \t]*[^\n;{}]*\b(friend|fr|home)\b[^\n]*;[ \t]*$/gm) || []).map((x) => x.trim())
+      .filter((st) => !/^cdperf\(|^long tapTicks|^pendingTapTicks/.test(st));
+    const iFriendSet = b.indexOf('friend = fr;');
+    const missing = ctorStmts.filter((st) => { const i = b.indexOf(st); return i < 0 || i > iLoad || (st !== 'friend = fr;' && /\bfriend\b/.test(st) && i < iFriendSet); });
+    ok(ctorStmts.length >= 5 && ctorStmts.includes('friend = fr;') && ctorStmts.includes('homePage = home;') && iFriendSet >= 0 && missing.length === 0,
+      '★★ Session P L1·3 parity (auditor C, derived per #802 r3): all ' + ctorStmts.length + ' statements of the public ctor that name `friend`, `fr` or `home` (' + ctorStmts.join(' ') + ') appear in attach BEFORE onLoad(), and every one that NAMES `friend` (a read, or a pass to a call) sits AFTER `friend = fr;` (#802 r6: a read above the assignment NREs on every tap and disposes the READY spare) — missing/late/early: ' + (missing.join(' ') || 'none'));
+  }
+
+  /* ═══ LEVER 1 · pin 4 — the spare is in NO enumerator (structure) + the two belts (spec §3 last row) ═══ */
+  {
+    const w = csSliceP(scpP, 'public bool warmSpareChat(Func<SingleChatPage> make, int column)');
+    sliceOk(w, 'SpixiContentPage.warmSpareChat');
+    ok(w.body.length > 0 && !/activePreload = /.test(w.body) && !/overlayStack\.Add/.test(w.body) && !/parkedOverlay = /.test(w.body)
+      && !/preloadPending = true/.test(w.body) && /spareChatOp = op;/.test(w.body) && !/parkOnClose = true/.test(w.body) && /op\.tag = "chat";/.test(w.body),
+      '★★ Session P L1·4 (spec §5.4, structural): warmSpareChat writes ONLY the spare slot — never activePreload, never overlayStack, never parkedOverlay, never the preloadPending reservation — so while it warms and waits the spare blocks no navigation, no lock stage, no Account warm, receives no theme push and no UI tick; and the op is tagged "chat" with parkOnClose left false (a used spare closes like every chat: disposed, never re-parked — spec §5.7)');
+    /* the op's PRESENTATION fields (auditor C: #800 claims them, nothing asserted them) */
+    ok(/op\.overlayMode = true;/.test(w.body) && /op\.column = column;/.test(w.body) && /op\.revealDelayMs = 0;/.test(w.body) && /op\.slideIn = false;/.test(w.body)
+      && /placeStage\(stage, hostGrid, column\);/.test(w.body) && !/parkOnLoad/.test(w.body) && !/modalMode/.test(w.body) && !/parkOnClose/.test(w.body)
+      && count(w.body, /\bop\.\w+ = /g) === 5 && count(w.body, /PreloadOp op = new PreloadOp\(this, target, stage, targetContent, hostGrid\);/g) === 1,
+      '★★ Session P L1·4 presentation (auditor C + #802 reviewer): the spare op is built for the SAME present a fresh chat takes — overlayMode true (never the PushAsync fallback), the caller\'s column, revealDelayMs 0 (the chat presents on its own painted signal), slideIn false (#735①), it is placed in its column at WARM time so the attach does not resize the WebView, the op is built as `new PreloadOp(this, target, stage, targetContent, hostGrid)` (#802 r10: `host` = THIS page, the value pushSpareChat\'s host clause compares — a swapped argument refused every tap `why=host`) and those are the ONLY five `op.<field> =` writes — never parkOnLoad / modalMode / parkOnClose / replaces / abandoned / stageMargin (a parkOnLoad spare would be PARKED into the Account slot at present, a `replaces` would close an unrelated pane, `abandoned` disposes the page — the tap shows nothing; #802 r3 enumerated the PreloadOp fields)');
+    /* the warm-side GUARDS + the timeout (auditor C: the docblock was their only record) */
+    const gate = w.body.slice(0, w.body.indexOf('SingleChatPage target;'));
+    ok(gate.length > 0 && /spareChatOp != null\) refused = "exists";/.test(gate) && /modalOverlayOp != null\) refused = "lock";/.test(gate)
+      && /else if \(preloadPending\) refused = "staging";/.test(gate)
+      && /else if \(overlayStack\.Exists\(o => o\.target is SingleChatPage\)\s*\|\|\s*\(activePreload != null && activePreload\.target is SingleChatPage\)\) refused = "chat";/.test(gate)
+      && /else if \(!\(overlayHost == this\s*&& \(Application\.Current\?\.MainPage as NavigationPage\)\?\.Navigation\.NavigationStack\.LastOrDefault\(\) == this\)\) refused = "host";/.test(gate)
+      && /Logging\.info\("\[CDPERF\] chat warm refused why=" \+ refused\);/.test(gate) && /return false;/.test(gate),
+      '★★ Session P L1·4 guards (auditor C + A + #802 r4): BEFORE the page is constructed, warmSpareChat refuses a second spare, a lock shown in place, a host that is not the overlay host AT THE TOP of the navigation stack (the clause is pinned literally — an inverted test refused every warm silently), a reservation in its one-turn window (`preloadPending` → "staging": a chat, a lock or a pane before its op exists — #802 r5 split it from "chat" so a capture reads the right word) and a conversation that is open or staging ("chat") — each refusal logged as one fixed word');
+    /* the two post-construction refusals (#802 r5 MAJOR-2: an inverted `grid`/`content` test killed the lever with the block green) */
+    ok(/if \(refused == null && hostGrid == null\)\s*\{\s*refused = "grid";/.test(w.body) && /if \(targetContent == null\)\s*\{[\s\S]{0,200}?refused why=content/.test(w.body)
+      && /Grid\? hostGrid = this\.Content as Grid;/.test(w.body) && /View\? targetContent = target\.Content;\s*if \(targetContent == null\)/.test(w.body),
+      '★★ Session P L1·4 guards (#802 r5): the `grid` and `content` refusals test for ABSENCE (`hostGrid == null` · `targetContent == null`) of the values READ from `this.Content as Grid` and `target.Content` (#802 r8: a `null` literal in the read refused every warm with the block green) — inverted, every warm would be refused or disposed at birth with a green pin block');
+    /* the spare\'s stage is INPUT-TRANSPARENT as well as invisible (#802 r5 MAJOR-2): it spans every row of the
+       home grid for MINUTES; an Opacity-0 view still receives input in MAUI, so without these two flags the chats
+       list, the wallet and the apps tab would go dead from the first warm */
+    const spareStage = w.body.match(/ContentView stage = new ContentView\s*\{([\s\S]{0,400}?)\};/);
+    ok(!!spareStage && /Opacity = 0,/.test(spareStage[1]) && /InputTransparent = true,/.test(spareStage[1]) && /CascadeInputTransparent = true,/.test(spareStage[1]) && /BackgroundColor = target\.pageSurfaceColor,/.test(spareStage[1]),
+      '★★ Session P L1·4 stage (#802 r5): the spare\'s stage initializer sets Opacity 0 AND InputTransparent AND CascadeInputTransparent AND the #248 themed BackgroundColor — invisible, input-transparent, and no resize sliver on a divider drag, the invariant the class header states (a stage that swallowed input would kill every tap on the home screen while a spare waits)');
+    ok(/Task\.Delay\(SPARE_CHAT_WARM_TIMEOUT_MS\)\.ContinueWith\(/.test(w.body) && /dropSpareChat\("timeout"\);/.test(w.body) && /private const int SPARE_CHAT_WARM_TIMEOUT_MS = 6000;/.test(scpP)
+      && /stillWarming = spareChatOp == op && !\(op\.target is SingleChatPage s && s\.spareShellBooted\);/.test(w.body) && /if \(stillWarming\)\s*\{\s*dropSpareChat\("timeout"\);/.test(w.body),
+      '★ Session P L1·4 timeout (auditor C + #802 r4): a spare whose shell has NOT booted is dropped after 6 s — and ONLY that one: the continuation tests `spareShellBooted` under the lock, so a READY spare is kept for the tap (without that test every spare died 6 s after every close and the lever served only fast taps)');
+    /* the ACCEPTANCE path (#802 r4 MAJOR-3): the staging that makes a spare exist at all */
+    const stagingTry = csSliceP(w.body, 'try', w.body.indexOf('ContentView stage = new ContentView'));
+    const iNullC = stagingTry.body.indexOf('target.Content = null;');
+    const iStageC = stagingTry.body.indexOf('stage.Content = targetContent;');
+    const iPlace = stagingTry.body.indexOf('placeStage(stage, hostGrid, column);');
+    const iClaim = stagingTry.body.indexOf('spareChatOp = op;');
+    const iAddS = stagingTry.body.indexOf('hostGrid.Children.Add(stage);');
+    const raceBranch = csSliceP(stagingTry.body, 'if (spareChatOp != null)');
+    const claimAfterRace = raceBranch.b > raceBranch.a && iClaim > raceBranch.b && count(w.body, /spareChatOp = op;/g) === 1 && /refused why=race/.test(raceBranch.body);
+    const raceOk = raceBranch.body.length > 0 && /target\.Content = targetContent;\s*stage\.Content = null;\s*try \{ target\.Dispose\(\); \} catch \{ \}/.test(raceBranch.body) && /refused why=race/.test(raceBranch.body) && /return false;/.test(raceBranch.body);
+    ok(stagingTry.b > stagingTry.a && iNullC >= 0 && iStageC > iNullC && iPlace > iStageC && iClaim > iPlace && iAddS > iClaim && count(w.body, /hostGrid\.Children\.Add\(stage\);/g) === 1 && raceOk && claimAfterRace,
+      '★★ Session P L1·4 staging (#802 r4): inside warmSpareChat\'s staging try the order is detach the page content → give it to the stage → place the stage → CLAIM the slot → ADD the stage to the host grid (the Add is what hands the WebView a handler and starts the load; without it every warm dies at the 6 s timeout with the whole pin block green) — and the ONE claim sits AFTER the race branch (#802 r11: a claim before the check took the race branch on every warm and left the slot holding a DISPOSED page — `hasSpareChat` true forever, no re-warm), which reattaches the content, Disposes the page and refuses `race`');
+    const hasS = csSliceP(scpP, 'public static bool hasSpareChat()');
+    ok(/lock \(preloadLock\) \{ return spareChatOp != null; \}/.test(hasS.body),
+      '★ Session P L1·4 (#802 r4): hasSpareChat answers `spareChatOp != null` under the lock — HomePage asks it before every warm, and an inverted answer would mean no spare is ever warmed');
+    const g = csSliceP(utP, 'public static List<SingleChatPage> getChatPages()');
+    sliceOk(g, 'Utils.getChatPages');
+    const isCount = count(g.body, /is SingleChatPage \w+/g);
+    const guardCount = count(g.body, /\w+\.friend != null/g);
+    ok(isCount >= 4 && guardCount === isCount,
+      '★★ Session P L1·4 belt A: EVERY `is SingleChatPage` test in Utils.getChatPages (' + isCount + ') is paired with a `.friend != null` guard (' + guardCount + ') — every consumer of that list dereferences `p.friend` (Node.onLowMemory, the language sweep, delete-all), so a friend-less page reaching it would NRE the whole sweep');
+    const add = csSliceP(uhP, 'void add(Page? p)');
+    sliceOk(add, 'UIHelpers.getLiveShellPages.add');
+    const iSkip = add.body.indexOf('if (p is SingleChatPage blankChat && blankChat.friend == null)');
+    const iAdd = add.body.indexOf('pages.Add(sp);');
+    ok(iSkip >= 0 && iAdd > iSkip && /return;/.test(add.body.slice(iSkip, iAdd)),
+      '★★ Session P L1·4 belt B: UIHelpers.getLiveShellPages skips a friend-less SingleChatPage BEFORE it can be added — a theme push at the spare is wasted (it is dropped on every flip instead) and a reload() of it would kill the boot signal its warm waits for');
+  }
+
+  /* ═══ LEVER 1 · pin 5 — dropSpareChat at every site the spec names (stripCode; each inside its OWN method slice) ═══ */
+  {
+    const sites = [
+      ['UIHelpers.pushThemeToAllPages', csSliceP(uhP, 'public static void pushThemeToAllPages()'), /SpixiContentPage\.dropSpareChat\("theme"\);/],
+      ['UIHelpers.reloadAllPages', csSliceP(uhP, 'public static void reloadAllPages()'), /SpixiContentPage\.dropSpareChat\("reload"\);/],
+      ['Node.onLowMemory', csSliceP(nodeP, 'public static void onLowMemory()'), /SpixiContentPage\.dropSpareChat\("lowmem"\);/],
+      ['HomePage.stop', csSliceP(hpP, 'public void stop()'), /SpixiContentPage\.dropSpareChat\("stop"\);/],
+      ['SpixiContentPage.setOverlayHost', csSliceP(scpP, 'public static void setOverlayHost('), /dropSpareChat\("host"\);/],
+    ];
+    for (const [name, s, re] of sites) {
+      ok(s.a >= 0 && s.b > s.a && re.test(s.body),
+        '★★ Session P L1·5 (spec §5.5): ' + name + ' drops the spare (' + String(re).replace(/\\/g, '') + ') — a parked document is one theme / one language / one host behind (#315), and under memory pressure it is the first thing to give back');
+    }
+    /* the language pick has no method of its own — it is the setLocale block; the drop sits beside the shell re-localize */
+    const iLoc = setP.indexOf('Utils.sendUiCommand(this, "setLocale", lang);');
+    const iRel = setP.indexOf('HomePage.Instance()?.reloadShell();', iLoc);
+    const iDrop = setP.indexOf('SpixiContentPage.dropSpareChat("language");', iRel);
+    const iSweep = setP.indexOf('foreach (var chat_page in Utils.getChatPages())', iRel);
+    ok(iLoc >= 0 && iRel > iLoc && iDrop > iRel && iSweep > iDrop,
+      '★★ Session P L1·5 (language): the drop sits inside the language-pick block, after the home shell re-localize and before the live-chat reload sweep — a blank document whose strings are baked at generatePage time is regenerated by the next warm, not re-localized');
+    /* the BODY (auditor C MAJOR: six call-site pins and not one asserted a drop happens) */
+    const d = csSliceP(scpP, 'public static void dropSpareChat(string why)');
+    sliceOk(d, 'SpixiContentPage.dropSpareChat');
+    const iLockD = d.body.indexOf('lock (preloadLock)');
+    const lockD = csSliceP(d.body, 'lock (preloadLock)');
+    const iNullD = d.body.indexOf('spareChatOp = null;', iLockD);
+    const iMarsh = d.body.indexOf('MainThread.BeginInvokeOnMainThread(', iNullD);
+    const iRem = d.body.indexOf('op.hostGrid.Children.Remove(op.stage);', iMarsh);
+    const iDisp = d.body.indexOf('op.target.Dispose();', iRem);
+    const iNoop = d.body.indexOf('if (op == null)', lockD.b);
+    const iLog = d.body.indexOf('Logging.info("[CDPERF] chat warm drop why=" + why);');
+    ok(count(scpP, /public static void dropSpareChat\(string why\)/g) === 1 && iLockD >= 0 && lockD.b > lockD.a && iNullD > lockD.a && iNullD < lockD.b && /op = spareChatOp;/.test(d.body.slice(lockD.a, iNullD)) && iMarsh > lockD.b && iRem > iMarsh && iDisp > iRem
+      && iNoop > lockD.b && /if \(op == null\)\s*\{\s*return;\s*\}/.test(d.body) && iLog > iNoop && iMarsh > iLog
+      && /op\.target\.Content = op\.targetContent;/.test(d.body.slice(iRem, iDisp)),
+      '★★ Session P L1·5 body (auditor C): ONE dropSpareChat, and it DROPS — the slot is read and nulled INSIDE the preload lock body FIRST (contained, #802 r3 — a concurrent pushSpareChat reads "none"), then on the main thread the stage leaves the grid, the content is reattached and the page is Disposed (the WebView torn down). A body that only logged would leave a one-theme-behind spare in the slot forever and `hasSpareChat` true — no re-warm, ever. And with NO spare it returns BEFORE the log (#802 r7: the capture would otherwise read a phantom drop on every theme flip)');
+    /* every Session P exception log carries the exception's TYPE NAME and never its message (#802 r8: the gate row
+       claimed this and cited pins that did not assert it — the Session O class "an ex.Message ban `+ ex` walked past") */
+    const exLogs = [
+      [scpP, 'warmSpareChat: construction failed: '], [scpP, 'warmSpareChat: staging failed: '], [scpP, 'dropSpareChat: '], [scpP, 'pushSpareChat: attach failed: '],
+      [hpP, 'chat spare warm failed: '], [scsP, 'loadMessages: the batch could not be serialized ('],
+      [scsP, 'loadMessages: reactions for one row were dropped ('],
+    ];
+    const exBad = exLogs.filter(([src, lit]) => !new RegExp('Logging\\.(warn|error)\\("' + lit.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '" \\+ \\w+\\.GetType\\(\\)\\.Name( \\+ "\\)")?\\);').test(src));
+    const sessionPBodies = [csSliceP(scpP, 'public bool warmSpareChat(Func<SingleChatPage> make, int column)').body, csSliceP(scpP, 'public static void dropSpareChat(string why)').body,
+      csSliceP(scpP, 'public string? pushSpareChat(Action<SingleChatPage> attach, int column, string navKey, int timeoutMs = 4000)').body, csSliceP(hpP, 'private void warmChatSpareNow()').body,
+      (() => { const lm = csSliceP(scsP, 'public void loadMessages()').body; return lm.slice(lm.indexOf('string? json = null;')); })()];   // loadMessages: the Session P tail only (the per-row `{0}` catch above it is baseline code)
+    ok(exBad.length === 0 && sessionPBodies.every((t) => t.length > 0 && !/\.Message\b/.test(t) && !/\+ \w*[eE]x\b(?!\.GetType)/.test(t) && !/\{0\}/.test(t)),
+      '★★ Session P L1·5 / L2·12 (#802 r8): all seven exception logs of Session P log `ex.GetType().Name` (bad: ' + exBad.map((x) => x[1]).join(' | ') + ') and no Session P body concatenates an exception object, its .Message or a {0} format — a type name is a fixed word; a message can carry a path or a JSON fragment');
+    /* every drop site passes a FIXED WORD (#802 r5 NIT-2): the `why` reaches a log line, and a computed word could carry an address */
+    /* A WALK over EVERY C# file, never an author's list (#798, and the Session O rule this loop
+       quotes): `dropSpareChat` is `public static`, its argument reaches a log line verbatim, and the
+       natural next callers (SingleChatPage on close, ContactDetails, CallPage, a platform file) all sit
+       outside any list a reviewer would think to write. The final Opus round proved it: a twelfth site
+       in an UNLISTED file, passing `"chat:" + fr.walletAddress`, put a WALLET ADDRESS in ixian.log on
+       every conversation open and passed 131/131. */
+    const walkCs = (dir) => readdirSync(join(root, dir), { withFileTypes: true }).flatMap((e) =>
+      e.name === 'obj' || e.name === 'bin' ? [] : e.isDirectory() ? walkCs(join(dir, e.name)) : (e.name.endsWith('.cs') ? [join(dir, e.name)] : []));
+    const dropFiles = walkCs('Spixi');
+    let dropCalls = 0, dropLiteral = 0;
+    for (const f of dropFiles) { const t = stripCode(rdP(f)); dropCalls += count(t, /dropSpareChat\((?!string why)/g); dropLiteral += count(t, /dropSpareChat\("[a-z]+"\)/g); }
+    const pushS = csSliceP(scpP, 'public string? pushSpareChat(Action<SingleChatPage> attach, int column, string navKey, int timeoutMs = 4000)');
+    const whyAssigns = pushS.body.match(/(?<!string\? )\bwhy = [^;]+;/g) || [];   // the `string? why = null;` declaration excluded
+    const whyConst = whyAssigns.filter((a) => /^why = SPARE_WHY_[A-Z]+;$/.test(a));
+    ok(dropCalls === 11 && dropCalls === dropLiteral + 1 && count(pushS.body, /dropSpareChat\(why\);/g) === 1 && whyAssigns.length >= 5 && whyConst.length === whyAssigns.length
+      && count(scpP, /public const string SPARE_WHY_[A-Z]+ = "[a-z]+";/g) === 7,
+      '★★ Session P L1·5 (#802 r5/r12/final): EXACTLY eleven dropSpareChat call sites across ALL ' + dropFiles.length + ' C# files (got ' + dropCalls + ' — a deleted site used to pass a `>=` bound, and a site in an unlisted file used to pass anything at all), each passing a fixed word — ' + dropLiteral + ' lowercase literals + the ONE `dropSpareChat(why)` in pushSpareChat, whose every `why =` (' + whyAssigns.length + ') is a SPARE_WHY_* constant and every constant a lowercase literal — the word is logged, and a computed one could carry data');
+    /* the sleep drop (auditor A: a parked opacity-0 WebView is a jetsam target; a dead renderer would present blank at the backstop) */
+    const appP = stripCode(rdP('Spixi/App.xaml.cs'));
+    const sleepP = csSliceP(appP, 'protected override void OnSleep()');
+    sliceOk(sleepP, 'App.OnSleep');
+    ok(/#if !WINDOWS\s*SpixiContentPage\.dropSpareChat\("sleep"\);\s*#endif/.test(sleepP.body),
+      '★ Session P L1·5 (sleep, auditor A): App.OnSleep drops the spare on MOBILE (a backgrounded opacity-0 WebView is the content-process-death class Node.onLowMemory names) and NOT on Windows, where OnSleep fires on window deactivation (#507) — the next chat close warms a fresh one');
+  }
+
+  /* ═══ LEVER 1 · pin 6 — HomePage.onChat falls back to today's path; the pre-warm is never the only way in ═══ */
+  {
+    const s = csSliceP(hpP, 'public void onChat(Address friend_address, WebNavigatingEventArgs? ev)');
+    sliceOk(s, 'HomePage.onChat');
+    const b = s.body;
+    const iTap = b.indexOf('SingleChatPage.pendingTapTicks = System.Diagnostics.Stopwatch.GetTimestamp();');
+    const iSpare = b.indexOf('string? spareRefusal = pushSpareChat(spare => spare.attach(friend, wide ? this : null), wide ? 1 : -1, navKey);');
+    const iNull = b.indexOf('if (spareRefusal == null)', iSpare);
+    const iStamp = b.indexOf('SingleChatPage.cdperfAttach(false, "why=" + spareRefusal);', iNull);
+    const iPush = b.indexOf('pushPageLoaded(new SingleChatPage(friend, wide ? this : null), 4000, "chat", wide ? 1 : -1,', iStamp);
+    ok(iTap >= 0 && iSpare > iTap && iNull > iSpare && iStamp > iNull && iPush > iStamp
+      && /if \(spareRefusal == null\)\s*\{\s*return;\s*\}/.test(b) && /navKey: navKey,/.test(b.slice(iPush)) && /revealDelayMs: 0\);/.test(b.slice(iPush)),
+      '★★ Session P L1·6 (spec §5.6): onChat stamps the tap, tries the spare, RETURNS only on success, and otherwise stamps the refusal and runs the unchanged construct-and-stage push (same tag, same column rule, same navKey, revealDelayMs 0) — a refused spare can never cost the user the conversation');
+    ok(count(b, /new SingleChatPage\(friend, wide \? this : null\)/g) === 1 && count(b, /pushSpareChat\(/g) === 1,
+      '★ Session P L1·6 pair: exactly one construct site and one spare site in onChat — two chat WebViews for one tap is the #221-adjacent thing this design forbids (spec §4)');
+    ok(!/parkOnClose/.test(b),
+      '★★ Session P L1·7 (spec §5.7, auditor C): the whole onChat body carries NO `parkOnClose` token — the chat push takes the default (false) on any line it is spread across, so closeOverlay DISPOSES a used conversation; a single-line regex used to let a `parkOnClose: true,` on its own line through');
+  }
+
+  /* ═══ LEVER 1 · pin 7 — a used spare is never re-parked: no "chat" op ever carries parkOnClose ═══ */
+  {
+    ok(count(scpP, /parkOnClose = parkOnClose && overlayMode;/g) === 1
+      && !/parkOnClose/.test(csSliceP(scpP, 'public bool warmSpareChat(Func<SingleChatPage> make, int column)').body),
+      '★ Session P L1·7 pair (spec §5.7): the only place an op\'s parkOnClose is DERIVED is pushPageLoaded, and warmSpareChat never mentions the field (the PreloadOp default is false) — the retained warm WebView (#779) stays parked with the lead');
+  }
+
+  /* ═══ LEVER 1 · pin 8 — pushSpareChat: every refusal drops, the op becomes activePreload only when nothing refused, before attach ═══ */
+  {
+    const s = csSliceP(scpP, 'public string? pushSpareChat(Action<SingleChatPage> attach, int column, string navKey, int timeoutMs = 4000)');
+    sliceOk(s, 'SpixiContentPage.pushSpareChat');
+    const b = s.body;
+    const iLock = b.indexOf('lock (preloadLock)');
+    const iReady = b.indexOf('scp.spareShellBooted', iLock);
+    const iLockUp = b.indexOf('modalOverlayOp != null', iLock);
+    const iStaging = b.indexOf('preloadPending || (activePreload != null && !activePreload.parkOnLoad)', iLock);
+    const iHost = b.indexOf('overlayHost != this', iLock);
+    const hostClauseOk = /else if \(overlayHost != this \|\| op\.host != this\s*\|\| \(Application\.Current\?\.MainPage as NavigationPage\)\?\.Navigation\.NavigationStack\.LastOrDefault\(\) != this\)\s*\{\s*why = SPARE_WHY_HOST;/.test(b);
+    const iOrder = b.indexOf('op.hostGrid.Children.IndexOf(op.stage)', iLock);
+    const iTake = b.indexOf('if (why == null)', iLock);
+    const iClear = b.indexOf('spareChatOp = null;', iTake);
+    const iNavKey = b.indexOf('op.navKey = navKey;', iTake);
+    const iColMem = b.indexOf('op.column = column;', iTake);
+    const iActive = b.indexOf('activePreload = op;', iTake);
+    /* CONTAINMENT, not ordering (#802 reviewer MAJOR-2): the take must sit INSIDE `if (why == null)` —
+       one brace out, every refusal would leave activePreload = the op dropSpareChat is about to
+       dispose, carrying the tap's navKey, and the fallback pushPageLoaded (same navKey) would DEDUPE
+       the fresh page against it: the tap lost with a clean log. And the z-order walk must run
+       INSIDE the first lock body (overlayStack races closeOverlay's synchronous Remove otherwise). */
+    const takeBlock = csSliceP(b, 'if (why == null)', iLock);
+    const lockBlock = csSliceP(b, 'lock (preloadLock)');
+    const noneOk = /if \(op == null\)\s*\{\s*return SPARE_WHY_NONE;\s*\}/.test(lockBlock.body);
+    const takeWrites = (b.match(/\bop\.\w+ = /g) || []).map((m) => m.replace(/^op\.| = $/g, '')).sort();
+    const takeWritesOk = JSON.stringify(takeWrites) === JSON.stringify(['column', 'navKey']);
+    const inTake = (i) => i > takeBlock.a && i < takeBlock.b;
+    const inLock = (i) => i > lockBlock.a && i < lockBlock.b;
+    /* #802 r3 MAJOR: `iOrder` is the `int mine = …` line; the WALK (`foreach … overlayStack`) is what
+       must sit inside the lock AND before the take — a walk moved after the lock passed every pin
+       while the take ran before the order refusal (a stranded activePreload with the tap's navKey). */
+    const walk = csSliceP(b, 'foreach (PreloadOp open in overlayStack)');
+    const iDrop = b.indexOf('dropSpareChat(why);', iActive);
+    const iAttach = b.indexOf('attach((SingleChatPage)op.target);', iDrop);
+    const iCancel = b.indexOf('cancelPreload(op);', iAttach);
+    const iTimeout = b.indexOf('presentPreload(op, "timeout");', iCancel);
+    const timeoutArmed = /Task\.Delay\(timeoutMs\)\.ContinueWith\(_ =>\s*\{\s*presentPreload\(op, "timeout"\);\s*\}\);\s*return null;/.test(b) && count(b, /Task\.Delay\(/g) === 1;
+    ok(iLock >= 0 && iReady > iLock && iLockUp > iReady && iStaging > iLockUp && iHost > iStaging && iOrder > iHost
+      && iTake > iOrder && iClear > iTake && iNavKey > iClear && iActive > iNavKey && iDrop > iActive && iAttach > iDrop && iCancel > iAttach && iTimeout > iCancel
+      && takeBlock.b > takeBlock.a && inTake(iClear) && inTake(iNavKey) && inTake(iActive) && count(b, /op\.navKey = navKey;/g) === 1
+      && inTake(iColMem) && iColMem < iActive && count(b, /op\.column = column;/g) === 1
+      && lockBlock.b > lockBlock.a && inLock(iReady) && inLock(iLockUp) && inLock(iStaging) && inLock(iHost) && inLock(iOrder) && inLock(takeBlock.b - 1)
+      && walk.b > walk.a && inLock(walk.a) && inLock(walk.b - 1) && walk.b < takeBlock.a && count(b, /foreach \(PreloadOp open in overlayStack\)/g) === 1
+      && hostClauseOk && noneOk && takeWritesOk && timeoutArmed && count(b, /activePreload = op;/g) === 1 && /if \(why != null\)\s*\{\s*dropSpareChat\(why\);\s*return why;\s*\}/.test(b),
+      '★★ Session P L1·8: pushSpareChat answers `none` for an empty slot (inside the lock; #802 r10: the word the capture reads as "the trigger never fired"), then checks READY → lock → staging → host → z-order under the lock, takes the slot, carries the tap\'s navKey (V-19 dedupe) and its column (`op.column = column` — the ONLY two `op.<field> =` writes in the method are column and navKey, got [' + takeWrites.join(' ') + '] — #802 r11: a `parkOnLoad`/`abandoned` write in the take turned the tap into a black hole with `spare=1` stamped; #802 r8: without the memory a narrow-warmed spare taken wide is invisible to relayoutPinnedOverlays and strands in the zero-width column when the window narrows again) and becomes activePreload ONLY when nothing refused — the three writes are CONTAINED in the `if (why == null)` body and every check, the ONE z-order WALK (`foreach … overlayStack`, before the take) and the take are CONTAINED in the one lock body (brace-matched, not ordered), the host clause is the literal three-way test (`overlayHost != this || op.host != this || top-of-stack != this`, #802 r4: a flipped `==` refused every tap AND disposed the loaded spare on the tap\'s critical path) — drops the spare on EVERY refusal (never two chat WebViews for one tap), attaches OUTSIDE the lock, cancels the op if attach throws, and arms the same outer timeout pushPageLoaded arms — `Task.Delay(timeoutMs)` (the 4000 default in the signature) with presentPreload(op, "timeout") INSIDE the continuation, the ONE Task.Delay in the method (#802 r6: a `Task.Delay(0)` presented every spare-borne conversation UNPAINTED)');
+    ok(/if \(!\(op\.target is SingleChatPage scp\) \|\| !scp\.spareShellBooted\)/.test(b),
+      '★ Session P L1·8 pair (spec §5.3 "only after shellBooted"): a spare whose shell has not reported `ixian:onload` is refused as WARMING — attach can never run onLoad into a document that has not booted');
+    const loop = csSliceP(b, 'foreach (PreloadOp open in overlayStack)');
+    ok(loop.body.length > 0 && /op\.hostGrid\.Children\.IndexOf\(open\.stage\) > mine/.test(loop.body) && !/< mine/.test(loop.body) && /why = SPARE_WHY_ORDER;/.test(loop.body),
+      '★★ Session P L1·8 z-order (auditor C MAJOR): the refusal fires when an OPEN stage\'s index is GREATER than the spare\'s (`> mine` — a stage added LATER paints ABOVE); the inverse comparison refuses on older stages and presents UNDER newer ones, the exact invisible-conversation hazard #800 deviation (2) exists to prevent');
+    ok(/else if \(preloadPending \|\| \(activePreload != null && !activePreload\.parkOnLoad\)\)/.test(b) && /yieldingWarm = activePreload;\s*warmPending = false;\s*warmClaimRequested = false;/.test(b) && /cancelPreload\(yieldingWarm\);/.test(b)
+      && b.indexOf('cancelPreload(yieldingWarm);') < b.indexOf('attach((SingleChatPage)op.target);'),
+      '★★ Session P L1·8 yield (auditor A #798): the Account\'s background warm-park (`activePreload.parkOnLoad`) does not refuse the spare — it YIELDS and is cancelled before attach, pushPageLoaded\'s own rule mirrored, INCLUDING its two flag resets (`warmPending`/`warmClaimRequested` — #802 r12: a stuck warmPending makes a later claimWarmingOverlay answer true with no present coming); a user navigation in flight (not parkOnLoad) still refuses. Without this the first tap of a session on a slow phone lost BOTH pre-warms');
+    const iCatch = b.indexOf('catch (Exception ex)', b.indexOf('attach((SingleChatPage)op.target);'));
+    const catchBody = iCatch >= 0 ? csSliceP(b, 'catch (Exception ex)', iCatch).body : '';
+    const iSync = catchBody.indexOf('activePreload = null;');
+    const iCancelP = catchBody.indexOf('cancelPreload(op);');
+    const catchLock = csSliceP(catchBody, 'lock (preloadLock)');
+    ok(catchBody.length > 0 && iSync >= 0 && iCancelP > iSync && catchLock.b > catchLock.a && iSync > catchLock.a && iSync < catchLock.b && iCancelP > catchLock.b && /return SPARE_WHY_ATTACH;/.test(catchBody),
+      '★★ Session P L1·8 attach-throws (auditor A MAJOR): when attach throws, activePreload is cleared SYNCHRONOUSLY INSIDE the lock body (contained, #802 r3) BEFORE cancelPreload — cancelPreload\'s own clear rides a marshalled body, and the caller\'s fallback pushPageLoaded (same navKey) would otherwise DEDUPE the fresh page against this dead op and dispose it: the tap lost with a clean log');
+    const ps = csSliceP(scpP, 'private static void placeStage(ContentView stage, Grid hostGrid, int column)');
+    const psOk = ps.body.length > 0 && /if \(column >= 0 && hostGrid\.ColumnDefinitions\.Count > column\)\s*\{\s*Grid\.SetColumnSpan\(stage, 1\);\s*Grid\.SetColumn\(stage, column\);\s*\}\s*else\s*\{\s*Grid\.SetColumn\(stage, 0\);\s*if \(hostGrid\.ColumnDefinitions\.Count > 1\)\s*\{\s*Grid\.SetColumnSpan\(stage, hostGrid\.ColumnDefinitions\.Count\);/.test(ps.body);
+    ok(/if \(op\.column != column\)\s*\{\s*placeStage\(op\.stage, op\.hostGrid, column\);/.test(b) && count(scpP, /private static void placeStage\(ContentView stage, Grid hostGrid, int column\)/g) === 1 && psOk,
+      '★ Session P L1·8 column (auditor B): the spare is re-homed at attach ONLY when the window mode changed since the warm — one placeStage home for both placements, so a READY spare attaches without a WebView resize on the common path — and its BODY is pushPageLoaded\'s column rule, equivalent plus the span/column RESETS a re-home needs (`column >= 0 && Count > column` → span 1 at `column`, else column 0 spanning every column; #802 r6: an inverted branch calls Grid.SetColumn(stage, −1), which THROWS, so every mobile warm failed at staging with the block green)');
+  }
+
+  /* ═══ LEVER 1 · pin 9 — the system-bar strip: a blank page paints none; the chat owns it once it has a friend ═══ */
+  {
+    const chrome = csSliceP(scpP, 'internal void applyPlatformPageChrome()');
+    sliceOk(chrome, 'SpixiContentPage.applyPlatformPageChrome');
+    const edge = count(chrome.body, /SPlatformUtils\.setEdgeToEdge\(liveSurfaceColorString\(\), systemBarSurfaceColorString\(\)\);/g);
+    const iGate = chrome.body.indexOf('if (ownsSystemBarStrip)');
+    const iEdge = chrome.body.indexOf('SPlatformUtils.setEdgeToEdge(liveSurfaceColorString(), systemBarSurfaceColorString());');
+    const gateBlock = iGate >= 0 ? csSliceP(chrome.body, 'if (ownsSystemBarStrip)') : { body: '' };
+    ok(edge === 1 && iGate >= 0 && iEdge > iGate && gateBlock.body.includes('setEdgeToEdge('),
+      '★★ Session P L1·9: the ONE process-wide strip repaint in applyPlatformPageChrome sits inside `if (ownsSystemBarStrip)` — the blank spare\'s hidden load can no longer repaint the status-bar strip with the CHAT surface while the user looks at the Wallet hero (#421 MAJOR-4\'s class, pre-empted)');
+    ok(/protected virtual bool ownsSystemBarStrip\s*\{\s*get \{ return true; \}\s*\}/.test(scpP)
+      && /protected override bool ownsSystemBarStrip\s*\{\s*get \{ return friend != null; \}\s*\}/.test(scsP),
+      '★ Session P L1·9 pair: the base answers true for every page; SingleChatPage answers `friend != null` — so the SAME chat page repaints the strip at attach (spec: the moment a fresh staged chat repaints it), not before');
+  }
+
+  /* ═══ LEVER 1 · pin 10 — the two triggers (spec §2): after the close settles · once after the first flush, after the Account warm ═══ */
+  {
+    const iMethod = hpP.indexOf('public override void onOverlayClosed(SpixiContentPage overlay)');
+    const iBranch = hpP.indexOf('else if (overlay is SingleChatPage)', iMethod);
+    const iNext = hpP.indexOf('else if (overlay is AppDetailsPage)', iBranch);
+    const branch = iBranch > 0 && iNext > iBranch ? hpP.slice(iBranch, iNext) : '';
+    const iGuard = branch.indexOf('if (!SpixiContentPage.getOverlayPages().Exists(p => p is SingleChatPage))', branch.indexOf('checkForRating();'));
+    const guard = iGuard >= 0 ? csSliceP(branch, 'if (!SpixiContentPage.getOverlayPages().Exists(p => p is SingleChatPage))', branch.indexOf('checkForRating();')) : { body: '' };
+    const iEndif = guard.body.indexOf('#endif');
+    const iSched = guard.body.indexOf('scheduleChatSpareWarm(CHAT_SPARE_WARM_AFTER_CLOSE_MS);');
+    const methodHead = hpP.slice(Math.max(0, iMethod - 200), iMethod);
+    ok(iMethod > 0 && iGuard > 0 && iSched >= 0 && count(branch, /scheduleChatSpareWarm\(/g) === 1 && !/#if /.test(methodHead)
+      && count(guard.body, /#if /g) === 1 && count(guard.body, /#endif/g) === 1 && iEndif >= 0 && iEndif < iSched,
+      '★★ Session P L1·10 trigger A (spec §2): HomePage.onOverlayClosed schedules the warm INSIDE the "no conversation remains" guard and OUTSIDE the guard\'s one `#if ANDROID` probe block (after its `#endif` — the warm is every platform\'s; #802 reviewer: iOS/Windows would silently lose the only re-arm after a sleep drop) the chats-after-close probe shares, once — a tag-replace close (a new chat presenting) never warms, and the probe measures the exact window the warm lands in');
+    /* ⚠ 2026-09-06: the delay is a MEASUREMENT EXPERIMENT at 1200 (was 350) — the after-close
+       frame probe read drop=9/max=124ms and the capture could not separate this warm from a
+       53-row list flush in the same window. The pin asserts the value is ONE OF the two under
+       test and that the post is still a delayed main-thread post, so neither number can drift
+       silently while the experiment runs. It collapses back to a single literal on the verdict. */
+    const closeDelay = parseInt((hpP.match(/private const int CHAT_SPARE_WARM_AFTER_CLOSE_MS = (\d+);/) || [])[1] || '0', 10);
+    ok((closeDelay === 350 || closeDelay === 1200)
+      && /Task\.Delay\(delayMs\)\.ContinueWith\(_ => MainThread\.BeginInvokeOnMainThread\(warmChatSpareNow\)\);/.test(hpP),
+      '★ Session P L1·10: the warm is POSTED to the main thread after a delay of ' + closeDelay + ' ms (350 shipped, 1200 = the 2026-09-06 experiment) — "idle after the close settles", never synchronously on the close (#780\'s one warning is jank moved onto the chats list)');
+    /* ★ reads BOTH forms on purpose (#771): the CODE claims are asserted against the
+       stripCode'd `hpP`, so a comment can never satisfy them, and the PRICE claims against
+       the RAW file, because the price lives in a comment and stripCode deletes it. */
+    const hpRawP = rdP('Spixi/Pages/Home/HomePage.xaml.cs');
+    const spareFlag = (hpP.match(/private const bool CHAT_SPARE_ENABLED = (true|false);/) || [])[1];
+    const dialDoc = hpRawP.slice(Math.max(0, hpRawP.indexOf('★★ DIAL')), hpRawP.indexOf('private const bool CHAT_SPARE_ENABLED'));
+    const schedP = csSliceP(hpP, 'private void scheduleChatSpareWarm(int delayMs)');
+    sliceOk(schedP, 'HomePage.scheduleChatSpareWarm');
+    ok((spareFlag === 'true' || spareFlag === 'false')
+      && /^\s*if \(!CHAT_SPARE_ENABLED\)\s*\{\s*return;\s*\}\s*Task\.Delay\(delayMs\)\.ContinueWith\(_ => MainThread\.BeginInvokeOnMainThread\(warmChatSpareNow\)\);\s*$/.test(schedP.body.slice(schedP.body.indexOf('{') + 1, schedP.body.lastIndexOf('}')))
+      && count(hpP, /CHAT_SPARE_ENABLED/g) === 2
+      && hpRawP.indexOf('★★ DIAL') > 0
+      && /TOTAL PSS 292 844 \/ 305 522 KB/.test(dialDoc) && /TOTAL PSS 312 588 \/ 316 496 KB/.test(dialDoc)
+      && /\+19\.7 MB and \+11\.0 MB PSS/.test(dialDoc) && /tap=0ms` on 10\/10 opens/.test(dialDoc)
+      && /present t=` 300\/409 ms -> 113\/152 ms/.test(dialDoc),
+      '★★ Session P L1·10 THE DIAL (#802, 2026-09-06): CHAT_SPARE_ENABLED = ' + spareFlag + ' is the FIRST statement of the one method both triggers funnel through — the whole body is that gate plus the post, so `false` stops all of #800 without touching a guard, a log or another pin — and the RAW docblock carries BOTH sides of the trade as measured numbers, not adjectives (paired dumpsys inside one process: WebViews 3 -> 4 costs +19.7 / +11.0 MB PSS; buys tap=0ms on 10/10 opens and present 300/409 -> 113/152 ms). A dial whose price is not written beside it gets flipped on a feeling (#294); the exact figures are pinned so a later edit cannot quietly restate them, and the identifier appears EXACTLY twice in code (declaration + gate) so no second, unpinned read can drift in');
+    const firstPaint = parseInt((hpP.match(/private const int CHAT_SPARE_WARM_AFTER_FIRST_PAINT_MS = (\d+);/) || [])[1] || '0', 10);
+    const accountDelay = parseInt((hpP.match(/await Task\.Delay\((\d+)\);\s*\n\s*bool wide = rightContent\.IsVisible;/) || [])[1] || '0', 10);
+    ok(firstPaint > accountDelay && accountDelay > 0
+      && /Utils\.sendUiCommand\(this, "clearChatsDone"\);[\s\S]{0,1200}?warmAccountAfterFirstPaint\(\);\s*\n\s*warmChatSpareAfterFirstPaint\(\);/.test(hpP),
+      '★★ Session P L1·10 trigger B (spec §2): once after the first clearChatsDone, scheduled AFTER the Account warm-boot call and delayed LONGER than the Account\'s own delay (' + firstPaint + ' ms > ' + accountDelay + ' ms) — two WebViews never boot on top of the first list paint');
+    const now = csSliceP(hpP, 'private void warmChatSpareNow()');
+    sliceOk(now, 'HomePage.warmChatSpareNow');
+    const nowTry = csSliceP(now.body, 'try');
+    const nowStmts = nowTry.body.slice(nowTry.body.indexOf('{') + 1, nowTry.body.lastIndexOf('}')).trim();
+    ok(/^if \(SpixiContentPage\.hasSpareChat\(\)\)\s*\{\s*return;\s*\}\s*if \(!running \|\| !App\.isInForeground\)\s*\{\s*chatSpareFirstWarmScheduled = false;\s*Logging\.info\("\[CDPERF\] chat warm refused why=background"\);\s*return;\s*\}\s*warmSpareChat\(\(\) => SingleChatPage\.createSpare\(\), rightContent\.IsVisible \? 1 : -1\);$/.test(nowStmts)
+      && count(now.body, /return;/g) === 2,
+      '★ Session P L1·10: warmChatSpareNow\'s try body is EXACTLY: ask `hasSpareChat` (silent, by design) → refuse a stopped or backgrounded app, RE-ARMING trigger B and stamping a fixed word (`why=background`, #802 r11: a warm that silently did not happen read as "the trigger never fired") → warm through the one factory with the column a chat takes NOW (wide → 1) — nothing else can return before the gate');
+    const once = csSliceP(hpP, 'private void warmChatSpareAfterFirstPaint()');
+    sliceOk(once, 'HomePage.warmChatSpareAfterFirstPaint');
+    ok(/if \(chatSpareFirstWarmScheduled\)\s*\{\s*return;\s*\}\s*chatSpareFirstWarmScheduled = true;/.test(once.body)
+      && /private bool chatSpareFirstWarmScheduled = false;/.test(hpP) && count(hpP, /chatSpareFirstWarmScheduled = true;/g) === 1
+      && count(hpP, /chatSpareFirstWarmScheduled = false;/g) === 2,
+      '★★ Session P L1·10 once (auditor C + #802 r12): trigger B is one-shot — the flag STARTS false (a `= true` initializer killed the first-paint warm of every session with the whole block green), is tested and set at exactly one site, and is cleared at exactly two: its own declaration and the background refusal that RE-ARMS it');
+    ok(/chatSpareFirstWarmScheduled = false;\s*Logging\.info\("\[CDPERF\] chat warm refused why=background"\);/.test(now.body),
+      '★★ Session P L1·10 (#802 r12): a stopped-or-backgrounded refusal RE-ARMS trigger B before it logs — on WinUI OnSleep fires on window DEACTIVATION (#507), so an alt-tab during the first 1.8 s would otherwise spend the one-shot on a refusal and leave the session with no spare until a conversation closed');
+  }
+
+  /* ═══ LEVER 1 · pin 11 — the Session P [CDPERF] SET lives and dies together (auditor C: only `attach` was a set) ═══ */
+  {
+    const chatRaw = stripCode(rdP('src/shells/chat.html'));   // stripCode: the docblocks NAME the token, only code may satisfy the pin (#771)
+    const setP = [
+      /cdperfAttach\(true, /.test(scsP),                                                        // attach spare=1 (SingleChatPage.attach)
+      /SingleChatPage\.cdperfAttach\(false, "why=" \+ spareRefusal\);/.test(hpP),              // attach spare=0 why= (HomePage.onChat)
+      /cdperf\("attach", "spare=" \+ \(spare \? "1" : "0"\)/.test(scsP),                       // the ONE formatter
+      /cdperf\("warm onload", "t=" \+ openClock\.ElapsedMilliseconds\);/.test(scsP),           // the blank shell booted
+      /Stopwatch buildClock = System\.Diagnostics\.Stopwatch\.StartNew\(\);/.test(scsP)
+        && /cdperf\("batch", "n=" \+ batch\.items\.Count \+ " json=" \+ json\.Length \+ " t=" \+ buildClock\.ElapsedMilliseconds\);/.test(scsP), // the batch size AND the build duration, from a STARTED clock (a `new Stopwatch()` prints t=0 forever)
+      /Logging\.info\("\[CDPERF\] chat warm start"\);/.test(scpP),                              // warm start
+      count(scpP, /Logging\.info\("\[CDPERF\] chat warm refused why=/g) === 3 && count(hpP, /Logging\.info\("\[CDPERF\] chat warm refused why=background"\);/g) === 1,   // warm refused why= — FOUR sites (the guard word, content, race + background in HomePage); a half-retirement is red
+      /Logging\.info\("\[CDPERF\] chat warm drop why=" \+ why\);/.test(scpP),                  // warm drop why=
+      /\+ ' batch=' \+ \(batchSeen \? 1 : 0\)/.test(chatRaw),                                  // the shell's batch= token
+    ];
+    ok(setP.every(Boolean) || setP.every((x) => !x),
+      '★ Session P L1·11 [CDPERF] (TEMPORARY, retire with the set): ALL NINE Session P pieces present together (or all gone — retire in one batch, this pin included): attach spare=1 · attach spare=0 why= · the formatter · warm onload · batch n=/json= · warm start · warm refused why= · warm drop why= · the shell\'s batch= token. Got ' + JSON.stringify(setP));
+    ok(setP[0], '★ Session P L1·11: the instrument is CURRENTLY ARMED — Damir\'s AFTER capture reads it (8 opens spare=1 + 3 spare=0, the batch= token on every chat-shell line; rewrite as the reversal when the set retires, never delete)');
+  }
+
+  /* ═══ LEVER 1 · pin 12 — a pre-warmed document is NEVER one pick behind on the appearance prefs ═══
+     #802 reviewer MAJOR-1: the spare boots before the tap, so a pref read only in the head
+     script (the text size was one) is stale for the whole conversation after a pick in
+     Account → Chat appearance. Every boot-read pref must ride the stamp gate, and an attach
+     must refresh it explicitly. Structural on the source and the shipped shell; behavioural
+     on the BUILT shell with a localStorage shim (jsdom's file: origin has none). */
+  for (const [label, pth] of [['source', 'src/shells/chat.html'], ['shipped', 'Spixi/Resources/Raw/html/chat.html']]) {
+    const ch = stripCode(rdP(pth));
+    const headScript = ch.slice(0, ch.indexOf('</head>'));   // the pre-paint head script only
+    const headKeys = [...headScript.matchAll(/localStorage\.getItem\(\s*(['"])(spixi\.chat\.[^'"]+)\1\s*\)/g)].map((m) => m[2]).filter((k, i, a) => a.indexOf(k) === i).sort();   // the theme key (spixi.appearance) is covered by the theme DROP, not the stamp
+    const stampKeys = [...(ch.match(/const PATTERN_PREF_KEYS = \{([^}]*)\}/) || ['', ''])[1].matchAll(/'(spixi\.[^']+)'/g)].map((m) => m[1]).sort();
+    const headReadsVar = /localStorage\.getItem\(\s*[^'")]/.test(headScript);
+    ok(headKeys.length === 4 && JSON.stringify(headKeys) === JSON.stringify(stampKeys) && !headReadsVar,
+      '★★ Session P L1·12 (' + label + '): EVERY `spixi.chat.*` key the pre-paint head script reads (' + headKeys.join(' · ') + ') is in PATTERN_PREF_KEYS, i.e. under the live stamp gate, and the head script reads no key through a variable (#802 r8: the charset is any `spixi.*` literal now) — a key read at boot only is a key a pre-warmed document shows one pick behind; got stamp keys ' + stampKeys.join(' · '));
+    const ocr = ch.slice(ch.indexOf('    onChatScreenReady(address) {'), ch.indexOf('\n    },', ch.indexOf('    onChatScreenReady(address) {')));
+    ok(/onChatScreenReady\(address\) \{\s*refreshPatternPrefsIfChanged\(\);/.test(ocr),
+      '★★ Session P L1·12 (' + label + '): onChatScreenReady re-reads the appearance prefs as its FIRST statement — the attach of a spare is the one moment the poll (2 s) may not have caught yet');
+    ok(/function armFirstPaintFallback\(\) \{\s*setTimeout\(\(\) => \{ if \(!firstRenderDone && !bursting && identity\.address\) renderLogNow\(\); \}, 500\);/.test(ch)
+      && count(ch, /armFirstPaintFallback\(\);/g) === 2 && /if \(!firstRenderDone\) armFirstPaintFallback\(\);/.test(ocr) && !/if \(!firstRenderDone && !bursting\) renderLogNow\(\);/.test(ch),
+      '★★ Session P L1·12 (' + label + '): the boot-spinner fallback paints only when the peer is known (identity.address), is armed at load and re-armed in onChatScreenReady, and the ungated form is gone — a blank spare keeps its spinner, an attached one never sticks on it');
+    const apply = ch.slice(ch.indexOf('function applyPatternPrefs(prefs) {'), ch.indexOf('\n  }', ch.indexOf('function applyPatternPrefs(prefs) {')));
+    ok(/if \(isFinite\(prefs\.text\)\) r\.style\.setProperty\('--chat-text-scale', String\(prefs\.text\)\);/.test(apply) && /else r\.style\.removeProperty\('--chat-text-scale'\);/.test(apply)
+      && /if \(isFinite\(t\)\) t = Math\.min\(1\.5, Math\.max\(0\.8, t\)\); else t = NaN;/.test(ch),
+      '★★ Session P L1·12 (' + label + '): the live apply writes --chat-text-scale from the stored value (clamped) and REMOVES it when unset — a cleared pref returns to the token default instead of freezing the last size');
+    /* #802 r3: the clamp has THREE homes in this document (the pre-paint head script, the live
+       re-read, the pinch constants) — derive the numbers from each and require agreement */
+    const headClamp = ch.match(/if\(isFinite\(t\)\)r\.setProperty\('--chat-text-scale',String\(Math\.min\(([\d.]+),Math\.max\(([\d.]+),t\)\)\)\)/);
+    const liveClamp = ch.match(/if \(isFinite\(t\)\) t = Math\.min\(([\d.]+), Math\.max\(([\d.]+), t\)\); else t = NaN;/);
+    const pinchClamp = ch.match(/const TEXT_SCALE_MIN = ([\d.]+), TEXT_SCALE_MAX = ([\d.]+);/);
+    ok(!!headClamp && !!liveClamp && !!pinchClamp && headClamp[1] === liveClamp[1] && headClamp[2] === liveClamp[2] && pinchClamp[2] === liveClamp[1] && pinchClamp[1] === liveClamp[2],
+      '★ Session P L1·12 (' + label + '): the text-scale clamp\'s three homes agree (head ' + (headClamp ? headClamp[2] + '–' + headClamp[1] : '?') + ' · live ' + (liveClamp ? liveClamp[2] + '–' + liveClamp[1] : '?') + ' · pinch ' + (pinchClamp ? pinchClamp[1] + '–' + pinchClamp[2] : '?') + ') and the head reads `isFinite`, as the live path does — a stored Infinity paints nothing at boot and nothing at attach');
+  }
+  {
+    const chatShellPathT = join(root, 'Spixi/Resources/Raw/html/chat.html');
+    if (existsSync(chatShellPathT)) {
+      const store = new Map();
+      const vcT = new VirtualConsole();
+      const domT = new JSDOM(readFileSync(chatShellPathT, 'utf8'), {
+        runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true,
+        url: 'file://' + chatShellPathT, virtualConsole: vcT,
+        beforeParse(w) {
+          w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+          try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
+          /* a localStorage SHIM — jsdom's file: origin throws SecurityError; the shell wraps every read in try/catch, so
+             without this the pin could only prove the try/catch. The shim is NOT the function under test (#771). */
+          Object.defineProperty(w, 'localStorage', { configurable: true, value: {
+            getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => { store.set(k, String(v)); },
+            removeItem: (k) => { store.delete(k); }, clear: () => store.clear(), key: (i) => [...store.keys()][i] ?? null, get length() { return store.size; },
+          } });
+        },
+      });
+      await sleep(1500);
+      const W = domT.window;
+      const b64 = (s) => Buffer.from(s, 'utf8').toString('base64');
+      const push = (name, ...args) => W.executeUiCommand(W[name], ...args.map((a) => (a == null ? null : b64(String(a)))));
+      /* #802 r3 MINOR: the blank document (no onChatScreenReady for 1.5 s) must still show the BOOT SPINNER,
+         not the empty-log notice — the 500 ms fallback is gated on the peer being known. Then, once the
+         peer lands with no burst behind it (an old exe that skips clearMessages), the re-armed fallback
+         paints so the spinner never sticks. */
+      const blankHasSpinner = !!W.document.querySelector('#messages .chat-boot');
+      const blankHasNotice = !!W.document.querySelector('#messages .c-sysnotice');
+      ok(blankHasSpinner && !blankHasNotice,
+        '★★ Session P L1·12 BEHAVIOURAL (#802 r3): 1.5 s after boot with NO peer, the blank document still shows the boot spinner (' + blankHasSpinner + ') and NOT the empty-log notice (' + blankHasNotice + ') — a spare that presents on the backstop shows the neutral cover, never a false empty conversation');
+      const scale = () => W.document.documentElement.style.getPropertyValue('--chat-text-scale');
+      const bootScale = scale();
+      store.set('spixi.chat.textscale', '1.3');       // the pick lands AFTER the blank boot (the spare's whole hazard)
+      push('onChatScreenReady', 'ADDR-T');
+      const atAttach = scale();
+      store.delete('spixi.chat.textscale');
+      push('onChatScreenReady', 'ADDR-T2');
+      const afterClear = scale();
+      await sleep(700);                         // the re-armed fallback: peer known, no burst → the spinner goes
+      ok(!W.document.querySelector('#messages .chat-boot'),
+        '★★ Session P L1·12 BEHAVIOURAL (#802 r3): once the peer is known and no burst follows within 500 ms, the re-armed fallback replaces the boot spinner — the gate above never turns into a stuck spinner');
+      ok(bootScale === '' && atAttach === '1.3' && afterClear === '',
+        '★★ Session P L1·12 BEHAVIOURAL (built shell, real dispatcher): a text-size pick stored AFTER the document booted is applied at the next onChatScreenReady (boot "' + bootScale + '" → attach "' + atAttach + '"), and a cleared pref returns to the default ("' + afterClear + '") — the pre-warmed conversation is never one pick behind');
+      domT.window.close();
+    } else {
+      ok(false, 'Session P L1·12: built chat shell exists (run build-shells.mjs before the smoke suite)');
+    }
+  }
+
+  /* ═══ LEVER 2 · pin 12 — C#: the load burst crosses ONCE; clearMessages · addMessages · messagesDone are ADJACENT, after the build; live paths unchanged ═══
+     #802 r4 MAJOR-1: the shell arms its 250 ms safety timer at clearMessages. When that push preceded the
+     whole loop, the timer measured the BUILD and fired inside a long history — one paint of the wiped log,
+     and on load-more the reading anchor disarmed and the view jumped to the bottom. The three pushes must
+     be adjacent: nothing between them but the cdperf stamp and the `json != null` test. */
+  {
+    const lm = csSliceP(scsP, 'public void loadMessages()');
+    sliceOk(lm, 'SingleChatPage.loadMessages');
+    const b = lm.body;
+    const iClearEmpty = b.indexOf('Utils.sendUiCommand(this, "clearMessages", "false");');
+    const iDoneEmpty = b.indexOf('Utils.sendUiCommand(this, "messagesDone");', iClearEmpty);
+    const iBatch = b.indexOf('UiBatch batch = new UiBatch();', iDoneEmpty);
+    const iIns = b.indexOf('insertMessage(message, selectedChannel, batch);', iBatch);
+    const iRx = b.indexOf('updateReactions(message, batch);', iIns);
+    /* TWO trys, one per half (#802 r12): a throw in insertMessage AFTER its push (the read receipt
+       throws for a group with no route, #797) must not also cost that row its reactions, and a throw
+       in updateReactions must not cost the whole history and the signal (r11). */
+    const insTry = csSliceP(b, 'try', iBatch);
+    const rxTry = csSliceP(b, 'try', insTry.b);
+    const rxInRowTry = insTry.b > insTry.a && iIns > insTry.a && iIns < insTry.b && !(iRx > insTry.a && iRx < insTry.b)
+      && rxTry.b > rxTry.a && iRx > rxTry.a && iRx < rxTry.b
+      && /catch\s*\(Exception e\)/.test(b.slice(insTry.b, insTry.b + 60))
+      && /catch \(Exception rxEx\)\s*\{\s*Logging\.error\("loadMessages: reactions for one row were dropped \(" \+ rxEx\.GetType\(\)\.Name/.test(b);
+    const iJson = b.indexOf('json = batch.toJson();', iRx);
+    const iCatchB = b.indexOf('catch (Exception batchEx)', iJson);
+    const iClear = b.indexOf('Utils.sendUiCommand(this, "clearMessages", show_more);', iCatchB);
+    const iAdd = b.indexOf('Utils.sendUiCommand(this, "addMessages", json, "append");', iClear);
+    const iDone = b.indexOf('Utils.sendUiCommand(this, "messagesDone");', iAdd);
+    const between = iClear >= 0 && iDone > iClear ? b.slice(iClear, iDone) : 'X';
+    const firstClearAfterEmpty = b.indexOf('"clearMessages"', iDoneEmpty);
+    const msgLock = csSliceP(b, 'lock (messages)');
+    const inMsgLock = (i) => i > msgLock.a && i < msgLock.b;
+    ok(iClearEmpty >= 0 && iDoneEmpty > iClearEmpty && iBatch > iDoneEmpty && iIns > iBatch && iRx > iIns && iJson > iRx && iCatchB > iJson && iClear > iCatchB && iAdd > iClear && iDone > iAdd
+      && count(b, /Utils\.sendUiCommand\(this, "clearMessages", show_more\);/g) === 1 && count(b, /"clearMessages"/g) === 2
+      && firstClearAfterEmpty >= 0 && b.indexOf('Utils.sendUiCommand(this, "clearMessages"', iDoneEmpty + 1) === iClear
+      && msgLock.b > msgLock.a && inMsgLock(iIns) && inMsgLock(iJson) && inMsgLock(iClear) && inMsgLock(iDone) && count(b, /lock \(messages\)/g) === 1
+      && count(b, /if \(batch\.items\.Count > 0\)\s*\{\s*json = batch\.toJson\(\);\s*\}/g) === 1 && rxInRowTry
+      && count(b.slice(iDoneEmpty, iClear), /sendUiCommand\(this|sendMessage\(|evaluateJavascript\(|executeUiCommand/g) === 1
+      && count(between, /Utils\.sendUiCommand\(/g) === 2 && !/lock \(|foreach|toJson|insertMessage|updateReactions/.test(between)
+      && /if \(json != null\)\s*\{\s*cdperf\("batch"[^\n]*\n\s*Utils\.sendUiCommand\(this, "addMessages", json, "append"\);\s*\}\s*Utils\.sendUiCommand\(this, "messagesDone"\);/.test(b)
+      && count(b, /Utils\.sendUiCommand\(this, "addMessages"/g) === 1 && count(b, /Utils\.sendUiCommand\(this, "messagesDone"\);/g) === 2
+      && !/insertMessage\(message, selectedChannel\);/.test(b) && !/updateReactions\(message\);/.test(b),
+      '★★ Session P L2·12 (#298 B1+B3, #802 r4): loadMessages collects every row and its reactions into ONE UiBatch — `insertMessage` and `updateReactions` in TWO SEPARATE per-row trys, so a throw costs only its own half: never the history and the signal (r11), and never that row\'s reactions when the row itself already landed (r12) — serializes it inside a try when it holds ANY item (`items.Count > 0` — #802 r10: a `> 1` opened every one-message conversation EMPTY with the block green), and THEN pushes clearMessages(show_more) · addMessages(json, "append") · messagesDone ADJACENTLY (nothing between them but the null test and the stamp; the ONLY clearMessages push after the empty-history block, and NO push to this page of any spelling between the empty-history block\'s return and the adjacent clear (the one match in that region is the empty-history path\'s own messagesDone, where the region starts) — #802 r5/r6: a second clear before the loop, literal or obfuscated, re-opened the r4 MAJOR with the pin green) and INSIDE the one `lock (messages)` (#802 r5 MAJOR-1: a live arrival takes that lock in Ixian-Core before its push, so it lands AFTER messagesDone — outside the lock it raced the triple, landed before the wipe, and vanished) — the shell\'s 250 ms safety timer, armed at clearMessages, can never fire between the wipe and the signal; the signal goes out even when the serialization throws; the empty-history path pushes clearMessages("false") + messagesDone too');
+    const ins3 = csSliceP(scsP, 'private void insertMessage(FriendMessage message, int channel, UiBatch? batch)');
+    sliceOk(ins3, 'SingleChatPage.insertMessage(…, batch)');
+    ok(!/Utils\.sendUiCommand\(this,/.test(ins3.body) && count(ins3.body, /push\(batch, /g) >= 8 && /updateMessageReadStatus\(message, channel\);/.test(ins3.body),
+      '★★ Session P L2·12: the batch-aware insertMessage issues NO direct sendUiCommand — every row push (' + count(ins3.body, /push\(batch, /g) + ') goes through `push(batch, …)`, so the batch cannot drift from the live wire — and the read-status side effect still runs per row');
+    const ins2 = csSliceP(scsP, 'public void insertMessage(FriendMessage message, int channel)');
+    ok(ins2.body.length > 0 && /insertMessage\(message, channel, null\);/.test(ins2.body) && count(ins2.body, /;/g) === 1,
+      '★ Session P L2·12: the public 2-arg insertMessage (the LIVE path StreamProcessor calls) is a one-line delegate with batch = null — one push per row, byte-identical to before');
+    const pushFn = csSliceP(scsP, 'private void push(UiBatch? batch, string cmd, params string?[] args)');
+    const pushIf = csSliceP(pushFn.body, 'if (batch != null)');
+    ok(pushFn.body.length > 0 && /batch\.add\(cmd, args\);/.test(pushFn.body) && /Utils\.sendUiCommand\(this, cmd, args\);/.test(pushFn.body)
+      && pushIf.b > pushIf.a && /^\s*if \(batch != null\)\s*\{\s*batch\.add\(cmd, args\);\s*return;\s*\}\s*Utils\.sendUiCommand\(this, cmd, args\);\s*\}$/.test(pushFn.body.slice(pushFn.body.indexOf('{') + 1)),
+      '★★ Session P L2·12: `push` is the ONE fork — into the batch when the loader handed one AND RETURNS, else the live wire with the SAME command and the SAME argument array (exclusive: #802 r8 — a deleted `return` sent every row twice, per-row THEN batched, and the capture still read batch=1)');
+    const rx1 = csSliceP(scsP, 'private void updateReactions(FriendMessage fm)');
+    const rx2 = csSliceP(scsP, 'private void updateReactions(FriendMessage fm, UiBatch? batch)');
+    ok(/updateReactions\(fm, null\);/.test(rx1.body) && /batch\.addReactions\(Crypto\.hashToString\(fm\.id\), reactions_str, own_reactions_str\);/.test(rx2.body)
+      && /if \(batch != null\)\s*\{\s*batch\.addReactions\(Crypto\.hashToString\(fm\.id\), reactions_str, own_reactions_str\);\s*return;\s*\}\s*Utils\.sendUiCommand\(this, "addReactions", Crypto\.hashToString\(fm\.id\), reactions_str, own_reactions_str\);/.test(rx2.body)
+      && /Utils\.sendUiCommand\(this, "addReactions", Crypto\.hashToString\(fm\.id\), reactions_str, own_reactions_str\);/.test(rx2.body),
+      '★ Session P L2·12: updateReactions folds into the batch when given one and pushes the live `addReactions` otherwise — the live reaction path (a like arriving) is unchanged');
+  }
+
+  /* ═══ LEVER 2 · pin 13 — C#: the wire shape (strs first · ints intern only long data: URIs · r folded onto the row's own item · never the raw fast path) ═══ */
+  {
+    const ub = csSliceP(scsP, 'private sealed class UiBatch');
+    sliceOk(ub, 'SingleChatPage.UiBatch');
+    const b = ub.body;
+    ok(/new Dictionary<string, object> \{ \["strs"\] = strs, \["items"\] = items \}/.test(b),
+      '★★ Session P L2·13: the batch JSON is an OBJECT whose first key is "strs" — it can never start with `data:`, so Utils.sendUiCommand\'s raw data-URI fast path (isTransportSafeDataUri) is structurally unreachable for it and the argument always rides the ordinary base64 path (JSON carries quotes and backslashes; the fast path\'s whitelist would reject it anyway — two gates, and this is the one that does not depend on the value)');
+    ok(/s\.Length >= INTERN_MIN_LENGTH && s\.StartsWith\("data:", StringComparison\.Ordinal\)/.test(b) && /private const int INTERN_MIN_LENGTH = 256;/.test(b)
+      && /return idx;/.test(b) && /return s;/.test(b),
+      '★ Session P L2·13: ONLY a data: URI of ≥ 256 chars is interned (an integer index into strs); every other arg — ids, text, nicks, flags — stays an inline string, so a message body can never be mistaken for an index');
+    ok(/object\?\[\] a = new object\?\[args\.Length\];/.test(b) && /for \(int i = 0; i < args\.Length; i\+\+\)\s*\{\s*a\[i\] = intern\(args\[i\]\);\s*\}/.test(b)
+      && /\["f"\] = cmd, \["a"\] = a/.test(b)
+      && /if \(!strIndex\.TryGetValue\(s, out int idx\)\)\s*\{\s*idx = strs\.Count;\s*strs\.Add\(s\);\s*strIndex\[s\] = idx;\s*\}\s*return idx;/.test(b),
+      '★★ Session P L2·13 args (auditor C): UiBatch.add copies EVERY argument, in order, through intern() only — the wire\'s "same argument strings, same order" is asserted, not assumed (C# is not compiled here; this is the structural half) — and intern() DEDUPES through `strIndex` (#802 r10: without the lookup a 1:1 history repeats its avatar once per received row and the single eval grows with it)');
+    ok(/a\[0\] is string lastId && lastId == id/.test(b) && /f != "showContactRequest"/.test(b) && /!last\.ContainsKey\("r"\)/.test(b)
+      && /add\("addReactions", new string\?\[\] \{ id, reactions, own \}\);/.test(b)
+      && /last\["r"\] = new string\[\] \{ reactions, own \};/.test(b)
+      && /public void addReactions\(string id, string reactions, string own\)\s*\{\s*if \(items\.Count > 0\)\s*\{\s*var last = items\[items\.Count - 1\];/.test(b),
+      '★ Session P L2·13: reactions fold onto the LAST item only when it is this message\'s own ROW (same id, not the showContactRequest marker, no `r` yet); otherwise a standalone addReactions item — the shell\'s per-row state is byte-identical to the per-row transport — and the folded pair is `{ reactions, own }` in THAT order, the order the shell reads `item.r[0]`/`item.r[1]` in, and the fold reads `items[Count - 1]` only under `items.Count > 0` (#802 r11: the first row of most histories is a requestAdd that pushes nothing — an unguarded read threw out of loadMessages before the triple and every such conversation opened EMPTY) (#802 r4: a swap rendered own-keys as reactions on every open while the live path stayed right)');
+  }
+
+  /* ═══ LEVER 2 · pin 14 — SHELL source AND built: the handlers, the allowlist, the dispatch, the signal, both transports live ═══ */
+  for (const [label, pth] of [['source', 'src/shells/chat.html'], ['shipped', 'Spixi/Resources/Raw/html/chat.html']]) {
+    const raw = rdP(pth);
+    const ch = stripCode(raw);
+    const iH = ch.indexOf('const handlers = {');
+    const iAdd = ch.indexOf('    addMessages(json, position) {', iH);
+    const iDone = ch.indexOf('    messagesDone() {', iAdd);
+    const iEnd = ch.indexOf('\n    },', iDone);
+    const addBody = iAdd >= 0 && iDone > iAdd ? ch.slice(iAdd, iDone) : '';
+    const doneBody = iDone >= 0 && iEnd > iDone ? ch.slice(iDone, iEnd) : '';
+    ok(iH >= 0 && iAdd > iH && iDone > iAdd && iEnd > iDone,
+      '★ Session P L2·14 (' + label + '): addMessages and messagesDone are handlers INSIDE the `handlers` table (so bridge.exposeAll makes them the bare page globals C# calls) — the slices below assert nothing without them');
+    const allow = addBody.match(/const BATCH_ALLOW = new Set\(\[([^\]]*)\]\);/);
+    const names = allow ? allow[1].split(',').map((x) => x.trim().replace(/^'|'$/g, '')).sort() : [];
+    /* the eight names = exactly what SingleChatPage.insertMessage / updateReactions push per row — derived from the C#, not typed */
+    const insBody = csSliceP(scsP, 'private void insertMessage(FriendMessage message, int channel, UiBatch? batch)').body;
+    const literalNames = [...new Set((insBody.match(/push\(batch, "([A-Za-z]+)"/g) || []).map((m) => m.replace(/push\(batch, "|"/g, '')))];
+    const prefixNames = [...new Set((insBody.match(/prefix = "([A-Za-z]+)";/g) || []).map((m) => m.replace(/prefix = "|";/g, '')))];
+    const csPushNames = [...new Set(literalNames.concat(prefixNames, ['addReactions']))].sort();
+    ok(literalNames.length === 5 && prefixNames.length === 2 && /push\(batch, prefix, /.test(insBody) && names.length === 8 && JSON.stringify(names) === JSON.stringify(csPushNames),
+      '★★ Session P L2·14 (' + label + '): the batch dispatches EXACTLY the names the C# loop can emit — DERIVED from insertMessage: the five literal push names + the two `prefix` values (addMe/addThem) + addReactions = eight (' + JSON.stringify(names) + ') — an allowlist, so a batch can never reach clearMessages, setChatMode or any non-row handler');
+    /* the allowlist is USED as the gate, and an empty argument list is refused (auditor C MAJOR: a declared Set is not a consulted one) */
+    ok(/if \(!item \|\| typeof item\.f !== 'string' \|\| !BATCH_ALLOW\.has\(item\.f\) \|\| !Array\.isArray\(item\.a\) \|\| item\.a\.length === 0\) \{ dropped \+= 1; continue; \}/.test(addBody),
+      '★★ Session P L2·14 (' + label + '): `BATCH_ALLOW.has(item.f)` is the guard that skips an item — a Set that is declared and never consulted would let a smuggled `setChatMode` flip the room — and an item with NO arguments is skipped too (it would create a row whose id is the string "undefined")');
+    ok(/if \(dropped > 0\) console\.warn\('\[chat-shell\] addMessages dropped=' \+ dropped\);/.test(addBody) && /console\.warn\('\[chat-shell\] addMessages dropped=all'\);/.test(addBody) && !/dbg\('addMessages: item dropped'\)/.test(addBody),
+      '★ Session P L2·14 (' + label + ') (auditor B #798): a refusal leaves a trace where the capture is read — console.WARN (the release WebView drops debug and info from logcat, Session J) with fixed words + ONE integer');
+    ok(/handlers\[item\.f\]\.apply\(null, args\);/.test(addBody) && /handlers\.addReactions\(args\[0\]/.test(addBody)
+      && /typeof x === 'number' \? String\(strs\[x\] == null \? '' : strs\[x\]\)/.test(addBody) && /x == null \? ''/.test(addBody),
+      '★★ Session P L2·14 (' + label + '): each item runs the SAME handler the per-row transport called (the RAW table, so the ⊕ re-derive runs once per batch, not per row), an integer arg resolves through `strs`, a null arg becomes \'\' exactly as the dispatcher does, and `r` applies addReactions to that row\'s id right after it');
+    ok(/if \(!bursting\) beginBurst\(\);/.test(addBody) && /prependBatch = pos === 'prepend';/.test(addBody) && /finally \{\s*prependBatch = false;\s*\}/.test(addBody)
+      && /String\(position\) === 'prepend' \? 'prepend' : 'append'/.test(addBody),
+      '★ Session P L2·14 (' + label + '): a batch always runs inside the burst (ONE paint at messagesDone), `position` is validated to append|prepend with append the default, and the prepend flag is scoped to the dispatch by a finally');
+    ok(/clearTimeout\(burstSafety\);/.test(doneBody) && /bursting = false;/.test(doneBody) && /endLoadPhase\(\);/.test(doneBody) && /batchSeen = true;/.test(doneBody)
+      && /if \(wasBursting \|\| logDirty\) \{[\s\S]*?renderLogNow\(\);/.test(doneBody) && count(doneBody, /renderLogNow\(\);/g) === 1 && /lastPaintMs = Math\.round\(performance\.now\(\) - t0\);/.test(doneBody),
+      '★★ Session P L2·14 (' + label + ') (#298 B3): messagesDone clears the 250 ms safety timer, marks the new transport seen, ends the burst AND the A3 load phase, and paints the history ONCE — exactly one renderLogNow in its body (auditor C), by signal, not by timer');
+    /* auditor B: a wipe is a model change; a rAF queued by a live row must not paint the cleared model mid-burst; the timer-ended paint is timed too */
+    const clearBody = ch.slice(ch.indexOf('    clearMessages(showMore) {'), ch.indexOf('\n    },', ch.indexOf('    clearMessages(showMore) {')));
+    ok(/logDirty = true;/.test(clearBody) && /batchSeen = false;/.test(clearBody),
+      '★★ Session P L2·14 (' + label + ') (auditor B): clearMessages marks the model DIRTY — an EMPTY re-flush on the OLD transport (clearMessages("false") → onChatScreenLoaded, no messagesDone) must still repaint, or a wiped history stays on glass (the iOS-24/25 #283 MAJOR-1 shape, re-opened)');
+    ok(/requestAnimationFrame\(\(\) => \{ renderQueued = false; if \(bursting\) return; renderLogNow\(\); \}\);/.test(ch),
+      '★ Session P L2·14 (' + label + ') (auditor B): the coalesced rAF render bails while a burst is open — a live row queued a frame before clearMessages used to paint the just-cleared model (one blank frame at every re-flush that lands within a frame of a live arrival)');
+    const ebr = ch.slice(ch.indexOf('function endBurstAndRender() {'), ch.indexOf('\n  }', ch.indexOf('function endBurstAndRender() {')));
+    ok(/const t0 = performance\.now\(\);\s*renderLogNow\(\);\s*lastPaintMs = Math\.round\(performance\.now\(\) - t0\);/.test(ebr),
+      '★ Session P L2·14 (' + label + ') (auditor B): the timer-ended paint (the old transport\'s load-more / OnAppearing path) writes lastPaintMs too, so the stamp\'s `paint=` never reports a stale burst');
+    ok(/burstSafety = setTimeout\(endBurstAndRender, 250\);/.test(ch),
+      '★★ Session P L2·14 (' + label + '): the 250 ms burst safety timer STILL EXISTS — an old exe pushes addThem × N with no messagesDone, and the shell must stay idempotent on BOTH transports (the timer is cleared on the messagesDone path, never deleted)');
+    const iRL = ch.indexOf('function renderLog() {');
+    const iRLN = ch.indexOf('function renderLogNow() {');
+    const rl = ch.slice(iRL, ch.indexOf('\n  }', iRL));
+    ok(iRL >= 0 && /function renderLog\(\) \{\s*logDirty = true;/.test(rl) && /logDirty = false;/.test(ch.slice(iRLN, ch.indexOf('\n  }\n', iRLN))),
+      '★★ Session P L2·14 (' + label + '): renderLog marks the model dirty as its FIRST statement and renderLogNow clears it once the log is on glass — the flag onChatScreenLoaded reads to skip a second paint of the same history');
+    const iOCL = ch.indexOf('    onChatScreenLoaded() {');
+    const ocl = ch.slice(iOCL, ch.indexOf('\n    },', iOCL));
+    ok(/if \(logDirty\) \{\s*renderLogNow\(\);\s*lastPaintMs = /.test(ocl) && count(ocl, /renderLogNow\(\);/g) === 1 && /const cdPaint = lastPaintMs;/.test(ocl)
+      && /bridge\.send\('ixian:painted'\);/.test(ocl) && /\+ ' batch=' \+ \(batchSeen \? 1 : 0\)/.test(ch.slice(iOCL)),
+      '★★ Session P L2·14 (' + label + '): onChatScreenLoaded paints ONLY when something is dirty (the old transport reaches it dirty; the batch transport reaches it clean), still scrolls/focuses/signals the present, and its [CDPERF] chat-shell line carries `batch=1|0` so a capture names the transport — stripCode read (#771; the first cut read RAW with a false reason)');
+    ok(/if \(loadPhase && bursting && !prependBatch && !boundaryLatched && unreadBoundaryId === null && read === 'False'\)/.test(ch),
+      '★ Session P L2·14 (' + label + '): the A3 unread boundary is never derived from a PREPEND batch — older history is not "unread since you left"');
+  }
+
+  /* ═══ LEVER 2 · pin 15 — BEHAVIOURAL, on the BUILT shell through the REAL dispatcher ═══
+     A jsdom boot of Spixi/Resources/Raw/html/chat.html; every push is a base64 argument
+     through executeUiCommand exactly as C# emits it. Nothing under test is stubbed (#771). */
+  {
+    const chatShellPathP = join(root, 'Spixi/Resources/Raw/html/chat.html');
+    if (!existsSync(chatShellPathP)) {
+      ok(false, 'Session P L2·15: built chat shell exists (run build-shells.mjs before the smoke suite)');
+    } else {
+      const vcP = new VirtualConsole();
+      const bootErrs = [];
+      vcP.on('jsdomError', (e) => bootErrs.push(String(e.message)));
+      const domP = new JSDOM(readFileSync(chatShellPathP, 'utf8'), {
+        runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true,
+        url: 'file://' + chatShellPathP, virtualConsole: vcP,
+        beforeParse(w) {
+          w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+          try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
+        },
+      });
+      await sleep(1500);
+      const W = domP.window;
+      const b64 = (s) => Buffer.from(s, 'utf8').toString('base64');
+      const push = (name, ...args) => W.executeUiCommand(W[name], ...args.map((a) => (a == null ? null : b64(String(a)))));
+      const rows = () => W.document.querySelectorAll('#messages [data-msgid]').length;
+      ok(typeof W.addMessages === 'function' && typeof W.messagesDone === 'function',
+        '★★ Session P L2·15: addMessages and messagesDone are REAL page globals on the BUILT shell — the exact lookup the WebView performs for `executeUiCommand(addMessages, …)`');
+      const avatar = 'data:image/png;base64,' + 'A'.repeat(400);
+      const t0 = 1700000000;
+      const batch = {
+        strs: [avatar],
+        items: [
+          { f: 'addThem', a: ['id-p1', 'ADDR1', 'Ana', 0, 'first', String(t0), 'True', 'True', 'True', 'False', 'False', 'contact', ''], r: ['like:1;', ''] },
+          { f: 'addThem', a: ['id-p2', 'ADDR1', 'Ana', 0, 'second', String(t0 + 60), 'True', 'True', 'True', 'False', 'False', 'contact', ''], r: ['', ''] },
+          { f: 'addMe', a: ['id-p3', 'ME', 'Me', '', 'third', String(t0 + 120), 'True', 'True', 'False', 'False', 'False', '', ''], r: ['', ''] },
+          { f: 'setChatMode', a: ['3'] },   // NOT on the allowlist — must be dropped, not dispatched
+          { f: 'addThem', a: null },        // malformed — must be skipped, the rest must land
+        ],
+      };
+      /* a PAINT COUNTER (auditor B MAJOR: "one paint" was named by two pins and asserted by none) —
+         childList additions on #messages during the burst must be zero, and the row node one frame
+         after messagesDone must be the same object (a second paint replaces every node) */
+      const boxEl = W.document.getElementById('messages');
+      let paintsDuringBurst = 0;
+      const mo = new W.MutationObserver((recs) => { for (const r of recs) if (r.addedNodes.length) paintsDuringBurst += 1; });
+      mo.observe(boxEl, { childList: true });
+      push('onChatScreenReady', 'ADDR1');
+      push('clearMessages', 'true');
+      push('addMessages', JSON.stringify(batch), 'append');
+      await sleep(40);                          // let any stray rAF fire
+      mo.disconnect();
+      const beforeDone = rows();
+      push('messagesDone');
+      const afterDone = rows();
+      ok(beforeDone === 0 && afterDone === 3 && paintsDuringBurst === 0,
+        '★★ Session P L2·15 BEHAVIOURAL: three rows arrive in ONE addMessages push and paint at messagesDone, SYNCHRONOUSLY (0 rows before the signal, 3 after, no 250 ms wait) and NOTHING was added to the log during the burst (' + paintsDuringBurst + ' childList additions observed) — got ' + beforeDone + ' → ' + afterDone);
+      const nodeAtDone = W.document.querySelector('#messages [data-msgid="id-p1"]');
+      await sleep(40);
+      ok(nodeAtDone !== null && W.document.querySelector('#messages [data-msgid="id-p1"]') === nodeAtDone,
+        '★★ Session P L2·15 BEHAVIOURAL: one frame after messagesDone the first row is the SAME node — the batch painted ONCE (a suppression that leaks paints on a rAF would have replaced it)');
+      ok(W.document.querySelectorAll('#messages .c-bubble__sender').length === 0,
+        '★★ Session P L2·15 BEHAVIOURAL (auditor C MAJOR): the smuggled `setChatMode(\'3\')` item did NOTHING — the room is still 1:1 (no per-row sender labels), so the allowlist is CONSULTED, not merely declared');
+      await sleep(60);                          // the topbar identity paints on a coalesced rAF
+      const firstRow = W.document.querySelector('#messages [data-msgid="id-p1"]');
+      /* a 1:1 room shows no per-row avatar; addThem scavenges the peer's first-message avatar
+         into the TOPBAR identity (the #217b fallback) — so the interned string surfaces there */
+      const img = W.document.querySelector('img[src^="data:image/png;base64,AAAA"]');
+      ok(!!firstRow && !!img && img.getAttribute('src') === avatar,
+        '★ Session P L2·15 BEHAVIOURAL: the interned avatar (an INTEGER arg indexing strs) resolved to the data: URI and reached the DOM (the 1:1 topbar identity, scavenged from the first received row) — got ' + (img ? String(img.getAttribute('src')).slice(0, 40) : 'no img'));
+      ok(!!firstRow && !!firstRow.querySelector('.c-reactions, .c-reaction, [class*="reaction"]'),
+        '★ Session P L2·15 BEHAVIOURAL: the folded `r` pair applied — the first row carries its reaction pill');
+      ok(W.document.querySelector('.c-unread-divider') === null,
+        '★ Session P L2·15 BEHAVIOURAL: no unread divider — every batched row arrived read=True (the A3 derivation still keys on the flag, through the batch)');
+      const rowNodeBefore = W.document.querySelector('#messages [data-msgid="id-p1"]');
+      push('onChatScreenLoaded');
+      const rowNodeAfter = W.document.querySelector('#messages [data-msgid="id-p1"]');
+      ok(rowNodeBefore !== null && rowNodeBefore === rowNodeAfter && rows() === 3,
+        '★★ Session P L2·15 BEHAVIOURAL: onChatScreenLoaded after messagesDone does NOT rebuild the log (the row node is the same object) — the batch transport paints the open once, not twice');
+      /* the rAF bail (#802 r3, behavioural): a LIVE row queues a coalesced rAF; a clearMessages that lands
+         before that frame must NOT let the rAF paint the just-cleared model (one blank frame) — the previous
+         log stays on glass until the burst's own paint */
+      push('addThem', 'id-live1', 'ADDR1', 'Ana', '', 'live', String(t0 + 150), 'True', 'True', 'True', 'False', 'False', 'contact', '');
+      push('clearMessages', 'true');
+      await sleep(60);                          // a frame or two: the queued rAF fires, and must bail
+      const duringBurstRows = rows();
+      push('messagesDone');                     // an emptied model paints on the signal
+      const afterEmptyDone = rows();
+      ok(duringBurstRows === 3 && afterEmptyDone === 0,
+        '★★ Session P L2·15 BEHAVIOURAL (#802 r3): a rAF queued by a live row does not paint the cleared model mid-burst (' + duringBurstRows + ' rows still on glass one frame after clearMessages) and the emptied log paints at messagesDone (' + afterEmptyDone + ')');
+      /* restore a painted history for the old-transport check below */
+      push('clearMessages', 'true');
+      push('addMessages', JSON.stringify({ strs: [], items: [
+        { f: 'addThem', a: ['id-p1', 'ADDR1', 'Ana', '', 'first', String(t0), 'True', 'True', 'True', 'False', 'False', 'contact', ''], r: ['', ''] },
+        { f: 'addThem', a: ['id-p2', 'ADDR1', 'Ana', '', 'second', String(t0 + 60), 'True', 'True', 'True', 'False', 'False', 'contact', ''], r: ['', ''] },
+        { f: 'addMe', a: ['id-p3', 'ME', 'Me', '', 'third', String(t0 + 120), 'True', 'True', 'False', 'False', 'False', '', ''], r: ['', ''] },
+      ] }), 'append');
+      push('messagesDone');
+      /* the OLD transport on the SAME shell: addThem × N, no messagesDone → the 250 ms safety ends the burst */
+      push('clearMessages', 'true');
+      push('addThem', 'id-o1', 'ADDR1', 'Ana', '', 'old one', String(t0 + 200), 'True', 'True', 'True', 'False', 'False', 'contact', '');
+      push('addThem', 'id-o2', 'ADDR1', 'Ana', '', 'old two', String(t0 + 260), 'True', 'True', 'True', 'False', 'False', 'contact', '');
+      const oldImmediate = rows();            // the PREVIOUS log stays on glass through the burst (no blank frame) — 3 (the prepend below has not run yet)
+      const oldImmediateIds = [...W.document.querySelectorAll('#messages [data-msgid]')].map((r) => r.getAttribute('data-msgid')).join(',');
+      await sleep(400);
+      const oldAfterIds = [...W.document.querySelectorAll('#messages [data-msgid]')].map((r) => r.getAttribute('data-msgid')).join(',');
+      ok(oldImmediate === 3 && oldImmediateIds === 'id-p1,id-p2,id-p3' && oldAfterIds === 'id-o1,id-o2',
+        '★★ Session P L2·15 BEHAVIOURAL (both transports live): per-row addThem pushes with NO messagesDone leave the previous log on glass (no blank frame) and paint the new history after the 250 ms safety timer — an old exe against this shell renders exactly as before; got [' + oldImmediateIds + '] → [' + oldAfterIds + ']');
+      /* the OLD transport's EMPTY re-flush (auditor B): clearMessages("false") → onChatScreenLoaded with no
+         messagesDone must repaint the emptied log — a wipe is a model change */
+      push('clearMessages', 'false');
+      push('onChatScreenLoaded');
+      ok(rows() === 0,
+        '★★ Session P L2·15 BEHAVIOURAL (auditor B): on the OLD transport an empty re-flush (clearMessages → onChatScreenLoaded, no rows, no messagesDone) repaints to ZERO rows at once — a wiped history no longer stays on glass; got ' + rows());
+      /* a batch carrying the request-pane marker and a row with NULL args (auditor B) */
+      push('onChatScreenReady', 'ADDR9');
+      push('clearMessages', 'true');
+      push('addMessages', JSON.stringify({ strs: [], items: [
+        { f: 'showContactRequest', a: ['1'] },
+        { f: 'addThem', a: ['id-n1', 'ADDR9', null, null, 'null slots', String(t0), null, null, 'True', null, null, null, null], r: ['', ''] },
+      ] }), 'append');
+      push('messagesDone');
+      const n1 = W.document.querySelector('#messages [data-msgid="id-n1"]');
+      ok(!!W.document.querySelector('.chat-request-pane') && !!n1 && !/undefined/.test(n1.textContent || ''),
+        '★★ Session P L2·15 BEHAVIOURAL (auditor B): a batched showContactRequest marker raises the request pane, and a row whose args are JSON null renders with empty strings — never the text "undefined"');
+      push('onChatScreenReady', 'ADDR1');
+      push('clearMessages', 'true');
+      push('addMessages', JSON.stringify({ strs: [], items: [
+        { f: 'addThem', a: ['id-p1', 'ADDR1', 'Ana', '', 'first', String(t0), 'True', 'True', 'True', 'False', 'False', 'contact', ''], r: ['', ''] },
+        { f: 'addThem', a: ['id-p2', 'ADDR1', 'Ana', '', 'second', String(t0 + 60), 'True', 'True', 'True', 'False', 'False', 'contact', ''], r: ['', ''] },
+      ] }), 'append');
+      push('messagesDone');
+      /* a PREPEND batch: older rows join above, one paint at its messagesDone */
+      const older = { strs: [], items: [
+        { f: 'addThem', a: ['id-pre', 'ADDR1', 'Ana', '', 'older', String(t0 - 600), 'True', 'True', 'True', 'False', 'False', 'contact', ''], r: ['', ''] },
+      ] };
+      push('addMessages', JSON.stringify(older), 'prepend');
+      const preBefore = rows();
+      push('messagesDone');
+      const first = W.document.querySelector('#messages [data-msgid]');
+      ok(preBefore === 2 && rows() === 3 && first && first.getAttribute('data-msgid') === 'id-pre',
+        '★★ Session P L2·15 BEHAVIOURAL (prepend contract, spec §2 B2): a prepend batch with no clearMessages paints ONCE at its own messagesDone and the older row lands FIRST (timestamp order) — got ' + preBefore + ' → ' + rows());
+      /* the A3 boundary through the batch — a FRESH peer each time, because the one-shot latch is per peer:
+         an APPEND open with an unread row derives the divider (the derivation survives the transport);
+         a PREPEND with the same unread row derives NONE (older history is never "unread since you left") */
+      push('onChatScreenReady', 'ADDR2');
+      push('clearMessages', 'true');
+      push('addMessages', JSON.stringify({ strs: [], items: [
+        { f: 'addThem', a: ['id-u1', 'ADDR2', 'Bo', '', 'unread', String(t0), 'True', 'True', 'False', 'False', 'False', 'contact', ''], r: ['', ''] },
+      ] }), 'append');
+      push('messagesDone');
+      const dividerOnAppend = W.document.querySelector('.c-unread-divider') !== null;
+      push('onChatScreenReady', 'ADDR3');
+      push('clearMessages', 'true');
+      push('addMessages', JSON.stringify({ strs: [], items: [
+        { f: 'addThem', a: ['id-u2', 'ADDR3', 'Cy', '', 'unread older', String(t0), 'True', 'True', 'False', 'False', 'False', 'contact', ''], r: ['', ''] },
+      ] }), 'prepend');
+      push('messagesDone');
+      const dividerOnPrepend = W.document.querySelector('.c-unread-divider') !== null;
+      ok(dividerOnAppend && !dividerOnPrepend,
+        '★★ Session P L2·15 BEHAVIOURAL (A3 through the batch): an APPEND open carrying a read=False row draws the one-shot unread divider (' + dividerOnAppend + '), and the SAME row arriving as a PREPEND on a fresh peer draws none (' + dividerOnPrepend + ')');
+      const refErrsP = bootErrs.filter((e) => /ReferenceError|is not defined/.test(e));
+      ok(refErrsP.length === 0, '★ Session P L2·15: the built shell raised no ReferenceError through any of the pushes above — ' + (refErrsP[0] || 'none'));
+      domP.window.close();
+    }
   }
 }
 

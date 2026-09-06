@@ -1,69 +1,63 @@
-Spixi frontend redesign. Repo: C:\Users\Damir\Claude\Projects\Spixi Rework Of Frontend\Spixi
-Branch redesign/frontend, HEAD = the Session O commit (docs/commit-message-session-o.txt).
-Ixian-Core is a SIBLING clone at ..\Ixian-Core, frozen at 097341a.
-READ docs/handoff-2026-09-05e.md FIRST (it supersedes every earlier handoff), then DECISIONS
-#798 (the #46 loop over Sessions M + N's C# + #797 → CLEAN in five rounds; cancel-first on all
-19 onNavigating handlers) and #799 (the pre-warm's BEFORE instrument), then the verdict in
-docs/opus-review-brief-sessions-m-n.md §Verdict, then docs/prewarm-chat-spec.md (the build) and
-docs/cdperf-2026-09-05-session-n-capture.md (its before-number), and docs/chat-transport-spec.md
-for item 2.
-VERIFY THE BASELINE FIRST — clean clone of HEAD, Linux container (npm i jsdom tree-sitter
-tree-sitter-c-sharp playwright-core), Ixian-Core sibling at 097341a. If any number differs, say
-so and STOP:
-bundle 320 · shells 18 · smoke BASELINE OK 4229 / the 3 known (#136 · M5 · B3) WITH the
-sibling (one fewer without it — the M1 hold-out gate, #748)
-locales ALL CLEAN 784 · i18n-lint OK (6 dev exemptions, 2 sites) · pseudo 9/9
-cs-syntax 138 clean + 1 known gap
-extract-strings --check OK · build-shells --check OK · build-legal-docs --check OK
-strip-release --check OK (gate 1) · smoke-packaged OK (gate 2, 4228)
-Mutate in FULL tar copies, never cp -al (and run the COPY's scripts — smoke-test resolves its
-root from its own path). Bundle BEFORE shells, always. Measure the closing number AFTER the last
-suite edit. Render on the real shells before Damir rebuilds. Measure on device before any fix
-(#215). A size pin's headroom is quoted in the pin's OWN unit (normalized chars).
-⚠ Every pin declares stripCode or raw (#771) and asserts a PROPERTY, not a line (Session O: four
-pins written to close #771 findings were themselves vacuous); a behavioural pin that STUBS the
-function under test proves nothing; a comment stating an invariant the code does not enforce is
-a defect (#772); file:line is a searchable anchor, never a number (#773); a slice needs an END
-anchor and a guard; a reference graph is built from what LOADS, never from what MENTIONS; an
-onNavigating handler cancels FIRST and re-allows only file: (#797, now all 19); a refusal is
-documented from the cases you did not think of, never from the author's list (#798).
-════════════════════════════════════════════════════════════════════════
-THE NEXT SESSION — the order (Damir, 2026-09-05: BUILD BOTH LEVERS in this session; the
-Session O walk may NOT have run yet — do not wait for A15 or F1, both captures are his and
-happen on the Session O build BEFORE this batch lands on the phone):
-1. THE PRE-WARM BUILD per docs/prewarm-chat-spec.md §3 — the blank SingleChatPage ctor, the
-   deferred ixian:onload, attach(friend), pushParkedPage, HomePage.onChat takeSpare + fallback,
-   warm() on idle after the close (350 ms) and once after the first clearChatsDone, dropSpare
-   on trim/theme/language/delete/stop, the spare in NO enumerator (Utils.getChatPages ·
-   UIHelpers.getLiveShellPages), never re-parked. The seven pins (§5), mutated. The
-   `[CDPERF] chat attach spare=1|0` stamp so a capture says which path an open took.
-   ⛔ #779 (the retained warm WebView) stays parked with the lead.
-2. THE BATCH TRANSPORT (#298, docs/chat-transport-spec.md §1–§4) IN THE SAME SESSION:
-   addMessages (one base64 JSON array, append|prepend, reactions folded in) + messagesDone for
-   the load burst; the shell (src/shells/chat.html) stays idempotent on BOTH transports (an old
-   exe still pushes addThem×N); the 250 ms burst timer is deleted only on the messagesDone
-   path; insertMessage stays for live arrivals. Small C# in SingleChatPage.loadMessages.
-   Bridge freeze: additive verbs, logged in ARCHITECTURE §4 + the security gate (a new push
-   carrying message text = a sink, same argument-escaping path as today).
-   ⚠ The two levers land as ONE build, so the phone reads ONE number — Damir's call. Keep the
-   stamps separable anyway: `attach spare=` on the open, `burst=` on the drain.
-3. A #46 loop AFTER both (auditors → verifiers → fixers → break-my-verdict, CLEAN), then the
-   deliverables. Expected: an open in the ~70–90 ms band from ~315 (#796), spare READY.
-4. Damir's rulings when given: A15 (a blank Windows lock without the html folder → one
-   about:blank clause in the shared tail, 19 places) · D1 doodle SVGO land/keep (land = cp the
-   candidate over src/assets/images/chat-bg-doodles.svg → generate-chat-pattern → build-shells)
-   · D2 lossy PNGs render/no · D3 contacts-es.svg convert/keep · D4 the four Session M dials.
-5. Then: the #788 `[CDPERF] present <page> by=paint|timer` line · the BE row for the
-   bot-in-a-group leave · gate 2 per release (spixi.base.css only after a content pin; JS OFF
-   the list) · the M tail · release hardening LAST (retire every [CDPERF] line incl. the
-   Session N pair, chats-after-close and attach spare=, the probes, maxLogCount=5,
-   SpixiDevCoexist, the keystore).
-The measurement plan for Damir's phone, in the checklist: (a) on the SESSION O build first:
-eight chat opens (#796 stamps) + eight chats-after-close lines = BEFORE; (b) on THIS build:
-8 opens with `attach spare=1` + 3 with `spare=0`, the same chats-after-close lines, memory at
-rest; frame drops after a close must not rise — if they do, delay the warm or gate it on the
-list being idle (no scroll for 300 ms), a tuning step.
-Deliverables as always: a commit-message file, the handoff (ONE live handoff in docs/), a
-clickable walk artifact (P/F/N, copyable), a checklist with PowerShell blocks (ONE command per
-block), consumed docs archived. The commit is Damir's in GitHub Desktop; never git add -A;
-nothing pushes from the container. Ask questions if needed.
+# Next session — paste this
+
+Repo: `C:\Users\Damir\Claude\Projects\Spixi Rework Of Frontend\Spixi`, branch
+`redesign/frontend`. Ixian-Core sibling frozen at `097341a`, read-only.
+
+**Read `docs/handoff-2026-09-06.md` FIRST.** Then DECISIONS #800, #801, #802, #803.
+
+**Item 0 — verify the baseline in a clean clone before touching anything.** Expect exactly:
+bundle 320 · shells 18 · smoke **BASELINE OK 4362 / the 3 known (#136 · M5 · B3)** WITH the
+sibling (4361 without) · locales **784 ALL CLEAN** · i18n-lint ✓ (6 dev exemptions) · pseudo
+9/9 · cs-syntax 138 + 1 · `extract-strings`/`build-shells`/`build-legal-docs` `--check` all ✓ ·
+`strip-release --check` OK (gate 1) · `smoke-packaged` OK (gate 2, 4359). Any difference → STOP
+and say so before building.
+
+**Item 1 — the numbers are IN. Do not re-take them.** Session P's levers were measured on the
+phone on 2026-09-06: `attach spare=1 tap=0ms` on 10/10 · `present t=` 300/409 → 67–262 ms ·
+`batch=1` on every open · the pre-warm costs ~15 MB PSS and ships ENABLED. Read
+`docs/f5-checklist-session-p.md` §3 and DECISIONS #803 before proposing any change to either
+lever. ⚠ #799's `chats-after-close` frame probe is **RETIRED as unfit** — three captures of the
+same build spanned `drop=` 1..11. Do not use it as an acceptance test; build the counterfactual
+(a `git stash` build of the parent, same phone, same seed) instead.
+
+**Item 2 — the real target: the Account WebView-boot jank (#803).** Damir's own discrimination
+named it: *"backup and password stutter, how-to-use and about open just nicely."* Exactly three
+Account entries `pushPageLoaded` a NEW page with its OWN WebView —
+`Spixi/Pages/Settings/SettingsPage.xaml.cs:383` (EncryptionPassword), `:489` (BackupPage),
+`:501` (DownloadsPage). How-to-use and About are in-hub sublevels in the already-open settings
+WebView and are smooth. Each of the three pays a cold **130–230 ms** Chromium boot + parse on the
+main thread, and `dumpsys meminfo` reports `WebViews: 3` in ONE pid with **no `:sandboxed_process`
+rows** — WebView is **in-process** on this device, so every shell boot competes with the UI it is
+animating. #800's pre-warm is the cure, already built, pinned and priced; this is pointing it at
+three more shells (`settings_encryption.html`, `settings_backup.html`, `downloads.html`) and
+paying the memory for however many spares are held at once. **Measure that memory the same way:
+paired A/B inside one process, never across builds.** Ask Damir for the ranking before building —
+one shared spare, three, or a cheaper answer (a warmed WebView pool) are different products.
+
+**Item 3 — two open rows from Walk P, both needing a measurement before any code.** (a) **B7**: a
+BOT group shows no reactions ON THE PHONE — and ★ the SAME build passes it on WINDOWS. One binary,
+two devices, two answers: this is room/account state, not code, and not the batch (B6 passed on the
+phone). Discriminator first, on the phone: react in a NORMAL group. ⚠ `case "like"` drops the tap
+silently when `friend.addReaction` returns false; if this is investigated, give it a stamp before
+giving it a fix. (b) **the sporadic stutter**: run `adb shell dumpsys gfxinfo
+com.ixilabs.spixi.dev` on the heavy seed. Janky-frame percentage plus the 50/90/95/99 shape says
+whether it is GC or one long main-thread stall. ⚠ Memory is NOT the mechanism — `TOTAL SWAP PSS`
+was 224 KB, so the device is not swapping; the app-info "maximum" is a high-water mark that only
+grows.
+
+**Then, in Damir's order:** whatever he ranks next. Candidates already designed or deferred:
+B2 (prepend on load-more — the shell contract is complete, the C# half is not), B4 (the load
+window, his dial), ⛔ #779 (parked with the lead), the `[CDPERF]` retirement (one batch, nine
+pieces, pinned as a set).
+
+**Rules that bind the work:** mutate in FULL tar copies, never `cp -al`, and run the COPY's
+scripts · bundle BEFORE shells · the closing number is measured AFTER the last suite edit ·
+every pin declares `stripCode` or raw and asserts a PROPERTY (#771) · a behavioural pin that
+stubs the function under test proves nothing · a comment stating an invariant the code does not
+enforce is a defect (#772) · file:line is a searchable anchor (#773) · `onNavigating` cancels
+FIRST and re-allows only `file:` (#797) · **a refusal, an enumeration or a sweep written from
+the author's list is not yet a pin (#798, and the rule that closed the #802 loop)** · the commit
+is Damir's in GitHub Desktop, never `git add -A`, nothing pushes from the container.
+
+**If a #46 loop runs: run it on Opus.** Session P's rounds 1–12 ran on the session's own model
+and the thirteenth round, on Opus, still found a MAJOR the other twelve had walked past.

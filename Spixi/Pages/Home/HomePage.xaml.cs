@@ -586,6 +586,7 @@ namespace SPIXI
             running = false;
             _singletonInstance = null;
             removeDetailContent(false);
+            SpixiContentPage.dropSpareChat("stop");   // ★ Session P: delete-account / shutdown tear the spare down too
         }
 
         private void onNavigating(object sender, WebNavigatingEventArgs e)
@@ -1273,12 +1274,14 @@ namespace SPIXI
                 Preferences.Default.Set("devMode", true);
                 devMode = true;
                 SpixiLocalization.addCustomString("devMode", "true");
+                SpixiContentPage.dropSpareChat("devmode");   // ★ Session P: the `*SL{devMode}` carrier is baked into a document at load
             }
             else if (current_url.StartsWith("ixian:disableDevMode", StringComparison.Ordinal))
             {
                 Preferences.Default.Set("devMode", false);
                 devMode = false;
                 SpixiLocalization.addCustomString("devMode", "false");
+                SpixiContentPage.dropSpareChat("devmode");   // ★ Session P: same
             }
             else if (current_url.StartsWith("ixian:dev", StringComparison.Ordinal))
             {
@@ -2213,10 +2216,25 @@ namespace SPIXI
                  * REVERSAL: move it back above the marshal; every swallowed double-click then
                  * plants a stamp that the next real open reports as its own latency. */
                 SingleChatPage.pendingTapTicks = System.Diagnostics.Stopwatch.GetTimestamp();   // ★ Session K [CDPERF]: the tap → constructor stamp (temporary)
+                /* ★★ Session P — THE PRE-WARM (#780, docs/prewarm-chat-spec.md §3). A READY
+                 * spare takes the tap: `attach` gives it the friend and runs onLoad, and
+                 * SpixiContentPage presents the stage it already holds through the same
+                 * overlay path (tag "chat", the same column rule, the same navKey). Any
+                 * refusal falls through to today's construct-and-stage path UNCHANGED — the
+                 * spare can never be the only way to open a conversation (spec §5 pin 6).
+                 * The refusal word rides the `[CDPERF] chat attach spare=0 why=` stamp so a
+                 * capture says which path each open took. */
+                string navKey = "chat:" + friend.walletAddress;
+                string? spareRefusal = pushSpareChat(spare => spare.attach(friend, wide ? this : null), wide ? 1 : -1, navKey);
+                if (spareRefusal == null)
+                {
+                    return;
+                }
+                SingleChatPage.cdperfAttach(false, "why=" + spareRefusal);
                 // ★ Session K: revealDelayMs 0 — the conversation presents on its shell's own
                 // `ixian:painted` (SingleChatPage.armPresentOnPainted), not on the 120 ms timer.
                 pushPageLoaded(new SingleChatPage(friend, wide ? this : null), 4000, "chat", wide ? 1 : -1,
-                    navKey: "chat:" + friend.walletAddress,   // ★★ V-19: a second tap on the SAME row lets the load finish; a tap on another row wins
+                    navKey: navKey,   // ★★ V-19: a second tap on the SAME row lets the load finish; a tap on another row wins
                     revealDelayMs: 0);
                 // N49 (#370): the selectChat highlight rides onOverlayPresented now —
                 // the push here was the A-1 fire-and-forget class (#362 logged it): a
@@ -2791,6 +2809,7 @@ namespace SPIXI
                         + " dispatch=" + (long)System.Diagnostics.Stopwatch.GetElapsedTime(cdFlushTicks).TotalMilliseconds + "ms");
                 }
                 warmAccountAfterFirstPaint();
+                warmChatSpareAfterFirstPaint();
             }
         }
 
@@ -2834,6 +2853,111 @@ namespace SPIXI
                     Logging.warn("account warm-boot failed: " + ex.Message);
                 }
             });
+        }
+
+        /* ═══ ★★ Session P — THE PRE-WARM's TWO TRIGGERS (#780, docs/prewarm-chat-spec.md §2) ═══
+         *
+         * A: after a conversation closes and none remains (onOverlayClosed, above) — posted
+         *    350 ms later, on the main thread: "idle after the close settles", never
+         *    synchronously on the close. The `chats-after-close` frame probe (#799) measures
+         *    the same 600 ms window; if its drop count rises with the spare, this delay is
+         *    the dial (or gate the warm on the list being idle — spec §4 row 1).
+         * B: once, after the chats list has flushed for the first time (clearChatsDone) —
+         *    1800 ms later, AFTER the Account warm (900 ms) has had its load, so two WebViews
+         *    never boot on top of the first list paint.
+         * Both run through ONE gate, `warmSpareChat` (SpixiContentPage), which refuses when
+         * a spare exists, a lock is up, a conversation is open or staging, or this page is
+         * not the host at the top of the stack. A refused warm costs nothing; the next close
+         * asks again. `hasSpareChat` is asked first so a page is never constructed for a
+         * spare that already exists (warmSpareChat's post-construction refusals — no content,
+         * a lost race — do construct and Dispose; both are logged). */
+        /* ⚠ 2026-09-06: this is the SHIPPED value. The 1200 ms probe experiment is superseded —
+         * moving the warm does not remove the resident hidden WebView, and that is what the app
+         * now feels (Account -> Backup, chat info, list scrolling). See CHAT_SPARE_ENABLED. */
+        private const int CHAT_SPARE_WARM_AFTER_CLOSE_MS = 350;
+        private const int CHAT_SPARE_WARM_AFTER_FIRST_PAINT_MS = 1800;
+        private bool chatSpareFirstWarmScheduled = false;
+
+        private void warmChatSpareAfterFirstPaint()
+        {
+            if (chatSpareFirstWarmScheduled)
+            {
+                return;
+            }
+            chatSpareFirstWarmScheduled = true;
+            scheduleChatSpareWarm(CHAT_SPARE_WARM_AFTER_FIRST_PAINT_MS);
+        }
+
+        /* ★★ DIAL — the pre-warm's on/off switch, and the ONE place either trigger can be
+         * stopped. BOTH triggers funnel through this method, so the flag disables the whole
+         * of #800 without touching a guard, a log line or a pin. It is deliberately SILENT:
+         * a new `why=` stamp would break the log-set pin and the security gate's line count.
+         * The signal is the ABSENCE of `chat warm start` and of `attach spare=1`.
+         *
+         * MEASURED, 2026-09-06, Motorola, Release + dev-coexist, heavy seed (53 chats),
+         * four `dumpsys meminfo` readings PAIRED inside one process — the cross-build
+         * comparison was discarded because the same build drifted 58 MB between two reads:
+         *     WebViews 3 (no spare) : TOTAL PSS 292 844 / 305 522 KB
+         *     WebViews 4 (spare)    : TOTAL PSS 312 588 / 316 496 KB
+         *   paired cost  = +19.7 MB and +11.0 MB PSS  ->  ~15 MB, about 5% of the app.
+         * The ordering tracks the WebView count, not elapsed time: the second no-spare read
+         * came AFTER the first spare read and was lower. Within-condition spread 12.7 MB, so
+         * the effect is at the edge of the noise and the honest figure is a RANGE.
+         * Buys, same device, same day: `attach spare=1 tap=0ms` on 10/10 opens, and
+         * `chat present t=` 300/409 ms -> 113/152 ms (67 ms best). 15 MB for that is the
+         * trade Damir took (#802). Flip to `false` to un-take it in one token.
+         *
+         * ⚠ This flag does NOT touch the batch transport (#801), which has no resident cost.
+         * ⚠ It is also NOT the cure for the Account -> Password/Backup/Download stutter: those
+         *   three are the only Account entries that `pushPageLoaded` a NEW page with its OWN
+         *   WebView (SettingsPage:383/489/501), so each pays a cold 130-230 ms Chromium boot
+         *   on the main thread — in-process, this device has no renderer processes. How-to-use
+         *   and About are in-hub sublevels in the already-open settings WebView and are smooth.
+         *   That jank PREDATES this branch (proven on a stashed baseline build, same seed) and
+         *   is the next session's target: point this same pre-warm at those three shells. */
+        private const bool CHAT_SPARE_ENABLED = true;
+
+        private void scheduleChatSpareWarm(int delayMs)
+        {
+            if (!CHAT_SPARE_ENABLED)
+            {
+                return;
+            }
+            Task.Delay(delayMs).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(warmChatSpareNow));
+        }
+
+        private void warmChatSpareNow()
+        {
+            try
+            {
+                if (SpixiContentPage.hasSpareChat())
+                {
+                    return;   // silent by design: a spare is READY or warming, nothing to do
+                }
+                if (!running || !App.isInForeground)
+                {
+                    /* ★ Session P (#802 r12): RE-ARM trigger B. On WinUI OnSleep fires on window
+                     * DEACTIVATION (#507), so a user who alt-tabs during the first 1.8 s would
+                     * otherwise spend the one-shot on a refusal and never get a spare until a
+                     * conversation closed. THIS refusal re-arms; the next clearChatsDone then
+                     * schedules again. Bounded: one Task.Delay + one log per flush while
+                     * backgrounded, no page constructed, and `stop()` clears `running` BEFORE its
+                     * drop, so nothing is scheduled after shutdown. A backgrounded capture carries
+                     * repeated `why=background` lines — that is the instrument, not a fault.
+                     * Trigger A is unaffected. */
+                    chatSpareFirstWarmScheduled = false;
+                    Logging.info("[CDPERF] chat warm refused why=background");   // ★ Session P [CDPERF] — TEMPORARY (#802 r11: a warm that silently did not happen reads as "the trigger never fired")
+                    return;
+                }
+                // The column a chat would take NOW — the spare is staged where it will present,
+                // so a READY spare attaches without a WebView resize (re-homed only if the
+                // window mode changes in between). The gate logs every other refusal itself.
+                warmSpareChat(() => SingleChatPage.createSpare(), rightContent.IsVisible ? 1 : -1);
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("chat spare warm failed: " + ex.GetType().Name);
+            }
         }
 
         public static IxiNumber calculateReceivedAmount(Transaction tx)
@@ -3664,16 +3788,16 @@ namespace SPIXI
                 // flush (~10s+). Same one-liner the SettingsPage branch above ships.
                 UIHelpers.shouldRefreshContacts = true;
                 checkForRating();
-#if ANDROID
                 /* ★ Session O [CDPERF] — TEMPORARY. The pre-warm's BEFORE number (prewarm-chat-spec
                  * §4 row 1, #780's one warning): the 600 ms after a conversation closes is when the
-                 * user scrolls the chats list, and it is where warm() will be scheduled. The same
-                 * probe the present uses, started HERE, reports the list's frame drops before the
-                 * pre-warm exists — and again after it lands, from the same line. Only when no
-                 * conversation remains (a tag-replace close would measure the NEW chat instead).
-                 * Fixed words + integers. Retire with the [CDPERF] set. */
+                 * user scrolls the chats list, and it is where warm() is scheduled (Session P, below
+                 * in the same guard). The same probe the present uses, started HERE, reports the
+                 * list's frame drops before the pre-warm existed — and now after it, from the same
+                 * line. Only when no conversation remains (a tag-replace close would measure the
+                 * NEW chat instead). Fixed words + integers. Retire with the [CDPERF] set. */
                 if (!SpixiContentPage.getOverlayPages().Exists(p => p is SingleChatPage))
                 {
+#if ANDROID
                     try
                     {
                         SingleChatPage.CdperfFrameProbe.start(System.Diagnostics.Stopwatch.StartNew(), "chats-after-close");
@@ -3682,8 +3806,15 @@ namespace SPIXI
                     {
                         Logging.warn("[CDPERF] chats-after-close probe failed to start: " + ex.GetType().Name);
                     }
-                }
 #endif
+                    /* ★★ Session P — TRIGGER A of the pre-warm (prewarm-chat-spec §2): the
+                     * conversation closed and none remains → warm the next spare on IDLE, after
+                     * the close animation, never synchronously on the close (#780's one warning
+                     * is jank moved onto the chats list; the probe above measures exactly that
+                     * window, before and after). Same guard as the probe on purpose: a
+                     * tag-replace close would warm while the NEW chat is presenting. */
+                    scheduleChatSpareWarm(CHAT_SPARE_WARM_AFTER_CLOSE_MS);
+                }
             }
             else if (overlay is AppDetailsPage)
             {

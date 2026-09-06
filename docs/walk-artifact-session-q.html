@@ -1,0 +1,208 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Walk — Session Q</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{--bg:#f4f6f9;--card:#fff;--ink:#141b23;--sub:#5b6672;--line:#dfe5ec;
+        --p:#1a7f4b;--f:#b12525;--n:#8b95a1;--act:#1956b2}
+  @media (prefers-color-scheme:dark){:root{--bg:#0d1117;--card:#161b22;--ink:#e6edf3;
+        --sub:#9aa7b4;--line:#252c36;--p:#3fb27a;--f:#f08a80;--n:#7d8794;--act:#5a8dee}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.55 -apple-system,Segoe UI,Roboto,sans-serif;padding:24px}
+  header{max-width:980px;margin:0 auto 20px}
+  h1{font-size:24px;margin:0 0 6px}
+  h2{font-size:18px;margin:30px 0 10px}
+  p.lede{color:var(--sub);margin:0 0 4px}
+  main{max-width:980px;margin:0 auto}
+  section{background:var(--card);border:1px solid var(--line);border-radius:14px;
+          padding:16px 18px;margin:0 0 16px}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--sub)}
+  td.id{width:52px;font-weight:600;white-space:nowrap}
+  td.v{width:150px;white-space:nowrap}
+  .btn{border:1px solid var(--line);background:transparent;color:var(--sub);
+       border-radius:8px;padding:5px 11px;margin-right:5px;cursor:pointer;font:inherit;font-size:13px}
+  .btn[aria-pressed=true][data-v=P]{background:var(--p);border-color:var(--p);color:#fff}
+  .btn[aria-pressed=true][data-v=F]{background:var(--f);border-color:var(--f);color:#fff}
+  .btn[aria-pressed=true][data-v=N]{background:var(--n);border-color:var(--n);color:#fff}
+  .note{width:100%;margin-top:6px;border:1px solid var(--line);border-radius:8px;
+        padding:6px 8px;font:inherit;font-size:13px;background:transparent;color:var(--ink);display:none}
+  tr[data-open] .note{display:block}
+  .tally{position:sticky;top:0;background:var(--bg);padding:10px 0;z-index:2;
+         display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .tally b{font-size:18px}
+  pre{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;
+      overflow:auto;font-size:13px;white-space:pre-wrap}
+  img{max-width:100%;border:1px solid var(--line);border-radius:10px;display:block;margin:10px 0}
+  .warn{border-inline-start:3px solid var(--f);padding-inline-start:12px}
+  .dial{border-inline-start:3px solid var(--act);padding-inline-start:12px}
+  code{background:var(--bg);padding:1px 5px;border-radius:5px}
+</style>
+<header>
+  <h1>Walk — Session Q</h1>
+  <p class="lede">One change, three deleted tokens: <b>Backup, Downloads and Change password now render
+     inside the Account's own WebView on a phone</b>, the way About and How-to-use always have (#804).
+     Those three rows were the only ones that pushed a new C# page, and every one of those pages boots
+     its own Chromium — 130–230&nbsp;ms on the main thread, three times per visit. #803 measured what it
+     cost: <b>12.19&nbsp;% janky frames on an account with no data in it at all</b>, GPU idle throughout.</p>
+  <p class="lede warn"><b>§3 of the checklist matters more than this page.</b> Rows M1–M3 want NUMBERS —
+     a before arm and an after arm, on this phone, with the battery temperature read at the start and the
+     end of every capture. Session P's ladder was confounded because the phone warmed 6&nbsp;°C mid-run and
+     nobody noticed until afterwards. The checklist has the rule that makes that impossible to repeat.</p>
+  <p class="lede">Tap P / F / N per row. Nothing is stored — hit <b>Copy results</b> at the bottom and paste
+     it back to me.</p>
+</header>
+<main>
+  <div class="tally">
+    <span><b id="tp">0</b> pass</span><span><b id="tf">0</b> fail</span>
+    <span><b id="tn">0</b> n/a</span><span><b id="tr">0</b> not scored</span>
+    <button class="btn" onclick="copyAll()">Copy results</button>
+    <span id="copied" style="color:var(--p);display:none">copied</span>
+  </div>
+
+  <section>
+    <h2>What changed, in one paragraph</h2>
+    <p class="lede">Nothing was added. The screens, the capabilities and the verbs all already existed and
+       already shipped — on <b>desktop</b>, since #243 / #267 / #341. Each of those batches wrote
+       “mobile keeps the push”, and each wrote it for conservatism rather than for a reason about phones.
+       The capability flags were being sent to the phone the whole time
+       (<code>SettingsPage.onLoad</code> pushes the caps outside its <code>if (paneMode)</code> block, and always
+       has). Only the shell refused to use them. So the fix is <code>paneMode&nbsp;&amp;&amp;</code> deleted
+       from three guards, and the pushed pages stay as the fallback for an exe that sends no capability.</p>
+    <p class="lede dial"><b>The pre-warm was considered for these three pages and rejected.</b> #800's spare
+       is priced at ~15&nbsp;MB each (#803), so three would have been ~45&nbsp;MB — to make a boot the app
+       still pays for happen earlier. This removes the boot.</p>
+  </section>
+
+  <section id="M"><h2>The measurement — numbers, not ticks</h2>
+    <table><thead><tr><th>#</th><th>do</th><th>expect</th><th>verdict</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section id="A"><h2>A · The three sublevels, on the phone</h2>
+    <table><thead><tr><th>#</th><th>do</th><th>expect</th><th>verdict</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section id="B"><h2>B · The three still do their job</h2>
+    <table><thead><tr><th>#</th><th>do</th><th>expect</th><th>verdict</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section id="C"><h2>C · Nothing else moved</h2>
+    <table><thead><tr><th>#</th><th>do</th><th>expect</th><th>verdict</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section id="D"><h2>D · The two surfaces this batch did NOT fix (Damir, mid-session)</h2>
+    <p class="lede dial">Add contact and Add app are the last two hot rows that push a page with its
+       own WebView. Score them as they feel — a FAIL here is not a defect in this batch, it is the
+       measurement that decides whether the next one is worth its C#.</p>
+    <table><thead><tr><th>#</th><th>do</th><th>expect</th><th>verdict</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section>
+    <h2>Results</h2>
+    <pre id="out"></pre>
+  </section>
+</main>
+<script>
+const ROWS = {
+  M: [
+    ['M1','BEFORE arm — git stash push, build, install, then the Account minute (Backup → back → Password → back → Download → back, ×3)','PASTE: battery temp START/END, Total frames, Janky %, 90th/95th/99th. Checklist §3c is the block-by-block version'],
+    ['M2','AFTER arm — this build, the SAME profile, the SAME routine, start temperature within 1 °C of M1','PASTE the same six numbers. ★ Janky % and 99th should FALL. If they do not, the mechanism was not the whole cause and the next step is a systrace, not another guess'],
+    ['M3','The A → B → B → A order, and the void rule','Say whether any capture was VOID (end − start > 3 °C) and whether the two start temperatures were within 1 °C. A run that breaks the rule is not a result'],
+    ['M4','Which profile did you use','empty account (preferred — #803 showed the Account jank needs no data) or the heavy seed. Either is fine; say which'],
+  ],
+  A: [
+    ['A1','Account → Backup','Opens as a SUBLEVEL with a slide, exactly like How-to-use. No full-screen page swap, no white flash, no pause before anything happens'],
+    ['A2','Back from Backup','Returns to the hub, on the row you left, bottom nav back'],
+    ['A3','Account → Change Spixi password','A sublevel. Title, three fields, sticky CTA'],
+    ['A4','Back from Change password, then open it again','Returns to the hub — and the three fields are EMPTY on re-entry'],
+    ['A5','Account → Downloads','A sublevel, and the file list fills (or the empty state shows)'],
+    ['A6','Back from Downloads','Returns to the hub'],
+    ['A7','Hardware back from each of the three','Returns to the hub. It must NOT leave the Account'],
+    ['A8','The whole routine, felt','Smooth. This is the subjective half of M1/M2 — say what it feels like in your own words'],
+  ],
+  B: [
+    ['B1','Backup → Back up now','The OS share sheet appears with the archive, as before'],
+    ['B2','Backup → Advanced → export wallet','As before'],
+    ['B3','Change password with a WRONG current password','The inline error on the screen. No native alert'],
+    ['B4','Change password with a correct one, then RESTART the app','Morph → back to the hub → the app opens with the NEW password. ★ This is the #341 MAJOR-2 test and it has to keep passing on this route'],
+    ['B5','Downloads → tap a file','Opens it'],
+    ['B6','Downloads → delete a file','The row goes and the list re-pushes'],
+  ],
+  D: [
+    ['D1','Chats → the + / Add contact','★ NOT fixed by this batch, and the row exists to characterise it. Does it stutter the way Backup and Password used to? Same mechanism (its own WebView boot), different cost to fix — see the handoff'],
+    ['D2','Apps → + / Add app','Same question. If these two still stutter while the three Account rows are smooth, that IS the evidence that the same fix is worth the C# it costs here'],
+  ],
+  C: [
+    ['C1','Account → About · How-to-use · Chat appearance · Contributors · Theme · Language','All unchanged'],
+    ['C2','Account → edit the nickname → tap Chats → come back','The edit is still saved (auto-save + park, #315)'],
+    ['C3','DESKTOP, WIDE window: the Account pane → the same three rows','Unchanged. This is the route that already shipped'],
+    ['C4','DESKTOP, wide: the hub column stays live beside an open sublevel','Unchanged'],
+    ['C3b','★ DESKTOP, NARROW window (below the pane breakpoint — the Account is full-window): the same three rows','This DID change and the batch is not claiming otherwise. A narrow desktop window has no data-pane, so it pushed the pages too and now renders sublevels. Expect the Account\'s own left rail still beside a centred form — the same grammar About and How-to-use already use there. Sheet: docs/sheets/session-q/inline-encpass-narrow-desktop.png'],
+    ['C3c','DESKTOP, narrow: back from each of the three','Returns to the hub, rail intact'],
+    ['C5','The backup NUDGE on home → Back up now','Still opens the full BackupPage. That route is HomePage\'s, not the Account\'s, and it is deliberately untouched'],
+    ['C6','Delete account · turn app lock off · confirm a payment','Still raise the LockPage auth. Untouched — they are modals, not Account rows'],
+  ],
+};
+const state = {};
+for (const [sec, rows] of Object.entries(ROWS)) {
+  const tb = document.querySelector('#' + sec + ' tbody');
+  for (const [id, doo, exp] of rows) {
+    state[id] = { v: '', note: '' };
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td class="id">' + id + '</td><td>' + doo + '</td><td>' + exp + '</td>'
+      + '<td class="v">' + ['P','F','N'].map((v) =>
+        '<button class="btn" data-v="' + v + '" data-id="' + id + '" aria-pressed="false">' + v + '</button>').join('')
+      + '<input class="note" placeholder="note (optional)" data-id="' + id + '"></td>';
+    tb.append(tr);
+  }
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('.btn[data-v]');
+  if (!b) return;
+  const id = b.dataset.id;
+  state[id].v = state[id].v === b.dataset.v ? '' : b.dataset.v;
+  for (const o of document.querySelectorAll('.btn[data-id="' + id + '"]')) {
+    o.setAttribute('aria-pressed', String(o.dataset.v === state[id].v));
+  }
+  b.closest('tr').toggleAttribute('data-open', state[id].v === 'F' || state[id].v === 'N');
+  render();
+});
+document.addEventListener('input', (e) => {
+  if (!e.target.classList.contains('note')) return;
+  state[e.target.dataset.id].note = e.target.value;
+  render();
+});
+function render() {
+  const vals = Object.values(state);
+  document.getElementById('tp').textContent = vals.filter((s) => s.v === 'P').length;
+  document.getElementById('tf').textContent = vals.filter((s) => s.v === 'F').length;
+  document.getElementById('tn').textContent = vals.filter((s) => s.v === 'N').length;
+  document.getElementById('tr').textContent = vals.filter((s) => !s.v).length;
+  const lines = Object.entries(state).map(([id, s]) =>
+    id + ': ' + (s.v || '-') + (s.note ? '  — ' + s.note : ''));
+  const f = Object.entries(state).filter(([, s]) => s.v === 'F').map(([id]) => id);
+  document.getElementById('out').textContent =
+    'WALK Q — ' + document.getElementById('tp').textContent + ' P · '
+    + document.getElementById('tf').textContent + ' F · '
+    + document.getElementById('tn').textContent + ' N/A · '
+    + document.getElementById('tr').textContent + ' not scored\n'
+    + 'FAILS: ' + (f.length ? f.join(', ') : 'none')
+    + '\n\n' + lines.join('\n')
+    + '\n\nM1 and M2 want NUMBERS, not ticks — paste the two capture tables under this block, temperatures included.';
+}
+function copyAll() {
+  const t = document.getElementById('out').textContent;
+  const done = () => { const c = document.getElementById('copied');
+    c.style.display = 'inline'; setTimeout(() => { c.style.display = 'none'; }, 1400); };
+  if (navigator.clipboard) navigator.clipboard.writeText(t).then(done, sel);
+  else sel();
+  function sel() {
+    const r = document.createRange(); r.selectNodeContents(document.getElementById('out'));
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    try { document.execCommand('copy'); done(); } catch (e) {}
+  }
+}
+render();
+</script>

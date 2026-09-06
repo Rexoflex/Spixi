@@ -2093,7 +2093,7 @@ button.c-settings-howto__join:disabled {
 /* pressed after hover (source-order rule) */
 .c-search-field__clear:active { color: var(--text-action-pressed); }
 
-</style><!-- ★ W-h gate find (loop r1 G-2): createSettingsDownloads mounts a c-search-field in the PANE route (downloadsInline) — it rendered as a bare UA input here -->
+</style><!-- ★ W-h gate find (loop r1 G-2): createSettingsDownloads mounts a c-search-field in the inline route (downloadsInline; #804: every form factor) — it rendered as a bare UA input here -->
 <style data-src="../styles/components/launch-shell.css">
 /* c-launch — welcome carousel · create · restore · retry (★ N76 removed the
    onboarding tail: the backup nudge moved to the first-asset trigger and the
@@ -3337,12 +3337,17 @@ button.c-settings-howto__join:disabled {
   flex: 0 1 auto;
   padding-block-end: var(--spacing-16);
 }
-/* #341: the centring rail belongs to the STANDALONE page only. In the Account pane
-   (settings.html) the detail region already caps this element at
-   --layout-pane-content-max, and `box-sizing: border-box` makes a second rail eat
-   that capped width — the fields measured ~380px on a 900px detail region and got
-   NARROWER as the window widened. Scoped by :not([data-pane]) so the standalone
-   EncryptionPassword page, which really is full-window, keeps its rail. */
+/* #341: the centring rail belongs to a FULL-WINDOW desktop surface. In the Account
+   pane the detail region already caps this element at --layout-pane-content-max, and
+   `box-sizing: border-box` makes a second rail eat that capped width — the fields
+   measured ~380px on a 900px detail region and got NARROWER as the window widened.
+   Hence the :not([data-pane]) scope.
+   ★ #804, auditor A: that scope is wider than "the standalone page" now, and this
+   comment used to claim otherwise (#772). A desktop window BELOW the pane breakpoint
+   runs settings.html with data-desktop set and no data-pane, so the INLINE c-encpass
+   matches here too — which is right, because that surface really is full-window and
+   really does need the rail. The selector was correct all along; only its description
+   was too narrow. */
 :root[data-desktop] body:not([data-pane]) .c-encpass__body {
   padding-inline: max(var(--spacing-16), calc((100% - var(--layout-pane-content-max)) / 2));
 }
@@ -3369,7 +3374,7 @@ button.c-settings-howto__join:disabled {
   min-width: 240px;
 }
 
-</style><!-- #341: c-encpass + password fields for the in-pane Change-password sublevel -->
+</style><!-- #341: c-encpass + password fields for the Change-password sublevel (#804: every form factor) -->
 <style data-src="../styles/components/message-bubble.css">
 /* c-bubble — chat message bubble (Figma 11288:4442 · DECISIONS #63 grouping,
    #14 width). Region tokens only. No tails — grouping = inner-corner
@@ -5047,7 +5052,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
      real-boolean forms too so a future caller cannot silently read every value as false
      — the failure mode that would look exactly like "the toggle does nothing". */
   function boolPush(v) { return (v === 'True' || v === 'true' || v === true || v === '1'); }
-  // Q1-② (#267): the mounted Downloads sublevel (pane-only; null otherwise).
+  // Q1-② (#267): the mounted Downloads sublevel (#804: any form factor; null when not mounted).
   // clearFiles/addFile bursts land on whichever instance is current.
   let downloadsEl = null;
   let dlBuf = null, dlTimer = 0;
@@ -5068,9 +5073,22 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    * plus a pending settle timer for a screen the user is no longer on. Called on
    * every render that isn't 'downloads' (incl. showHub); re-entry is IDENTICAL —
    * buildScreen('downloads') re-assigns downloadsEl and re-emits ixian:loadDownloads,
-   * whose clearFiles re-seeds the buffer. No verb changes. */
+   * whose clearFiles re-seeds the buffer. No verb changes.
+   * ★ Session Q (#804): ALSO called from exitSettings, because `exiting` stops
+   * renderLayout and this document parks rather than dying. See the block there. */
   function releaseDownloads() {
     clearTimeout(dlTimer); dlTimer = 0;
+    /* ★ Session Q (#804), the loop's auditor A: this screen's delete confirms mount on
+       document.body (settings-app.js `hostFor()` → the shell passes `host: document.body`),
+       NOT inside the view — so replacing the view leaves a live "Delete this file?" over a
+       list that no longer owns it, and confirming then fires ixian:deleteDownload: for a
+       name the refreshed list may not even contain. Exactly the class the Chat-appearance
+       Colour sheet already guards against on the theme push; same bounded `dismissOverlay`
+       loop, same reasoning about escDismiss:false. Guarded on a screen having been mounted,
+       so a release that runs from an unrelated view cannot close somebody else's sheet. */
+    if (downloadsEl) {
+      try { for (let i = 0; i < 8 && dismissOverlay(); i++); } catch (e) { /* a stuck sheet must not block the release */ }
+    }
     downloadsEl = null; dlBuf = null;
   }
   /* Same contract for Chat appearance (#46 audit): its live preview owns a
@@ -5084,7 +5102,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     if (appearanceEl && appearanceEl.release) appearanceEl.release();
     appearanceEl = null;
   }
-  /* #341: same contract for the in-pane Change-password sublevel, and here it is
+  /* #341: same contract for the Change-password sublevel (#804: every form factor), and here it is
    * a SECURITY requirement, not only a leak guard. The screen holds three plaintext
    * password values in live inputs. This document is long-lived and PARKED on close
    * (#315), so a detached screen would keep them for the life of the process.
@@ -5372,12 +5390,27 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     markPaneOpen(false);           // #589: the rail must not keep claiming Account
 
     armExitHeal();
-    // #341 SECURITY: scrub the password sublevel HERE too. `exiting` makes
-    // renderLayout bail, so the usual release path never runs on this route — and
-    // this document is PARKED, not destroyed (#315), so unscrubbed fields would
-    // survive in a live DOM until the next visit. Reached by a rail tab switch
-    // (onExitRequest), the peer nav and hardware back.
+    /* SECURITY + leak: release EVERY sublevel that owns something. `exiting` makes
+       renderLayout bail, so the ordinary release path cannot run on this route — and
+       this document is PARKED, not destroyed (#315), so whatever the screen holds
+       survives in a live DOM until the next visit.
+       · #341 encpass: three plaintext wallet passwords in live inputs. The reason
+         this line exists.
+       · ★ Session Q (#804), found by the loop's auditor A: downloads and chat
+         appearance were NOT released here, and until this batch that did not matter
+         on a phone — Downloads was a separate PAGE, so parking the Account could
+         never leave one mounted. Now it can: the file list (peer-supplied names) and
+         an armed 80 ms settle timer would sit in the parked document, and a late
+         `addFile` burst would repaint a screen nobody can see.
+       Reached by: `onExitRequest` (the desktop rail), the peer bottom nav, and
+       hardware back FROM THE HUB. Hardware back from a sublevel does NOT come here —
+       it runs showHub(), where renderLayout releases in the ordinary way; and
+       commitSave's legacy pop path scrubs on its own line, because it latches
+       `exiting` itself. Those are the four park routes; add a fifth and it must
+       release too, because nothing downstream of `exiting` will. */
     releaseEncpass();
+    releaseDownloads();
+    releaseChatAppearance();
     // ★ Batch E (d) r2 (loop C-8): the address sheet must not outlive its screen
     // (the wallet-receive rule) — and THIS document parks, so a stranded sheet
     // would still be there on the next visit. Safe when nothing is open.
@@ -5656,13 +5689,14 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       // Contributors UN-GATED (#240): the screen is STATIC component data — the
       // S10 open-verb was only ever needed to reach the separate ContributorsPage,
       // which an in-shell view doesn't touch.
-      // Downloads UN-GATED (#264, S8 LANDED): SettingsPage now dispatches
-      // ixian:downloads → the redesigned DownloadsPage/downloads.html shell,
-      // presented like Backup (pane: pinned to the detail column; else takeover).
-      // Change password UN-GATED behind the C# cap (iOS-20 #283, S7 LANDED):
-      // SettingsPage pushes setCaps(...'encpass') + dispatches ixian:encpass →
-      // EncryptionPassword (the redesigned lock shell). Old exe: cap absent →
-      // row hidden, exactly as before.
+      // Downloads UN-GATED (#264, S8 LANDED). Change password UN-GATED behind the
+      // C# cap (iOS-20 #283, S7 LANDED): SettingsPage pushes setCaps(…'encpass').
+      // Old exe: cap absent → row hidden, exactly as before.
+      // ★ #804: both rows open a SUBLEVEL in this document now. The verbs
+      // ixian:downloads and ixian:encpass — and the DownloadsPage /
+      // EncryptionPassword pages they push — are the no-cap fallback, not the route
+      // this shell takes. The earlier text here described the push as the live
+      // behaviour and is deleted rather than annotated (#772).
       /* ★ NOTIF-2 (Damir's 2026-08-21 block): globalNotifications is no longer a dark
          gate — SettingsPage pushes the cap and dispatches the three verbs. Read from
          the cap rather than hardcoded to true so an OLD exe (which pushes no such cap)
@@ -5683,14 +5717,18 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
         if (next) state.paymentAuth = true;   // OFF waits for the post-auth echo
       },
       onNotifications: showNotifications,
-      // Q1-② (#267, S16 option a): in the PANE, Downloads is a true in-hub
-      // SUBLEVEL — the list/open/delete verbs are routed through SettingsPage
-      // (cap 'downloadsInline'), no second WebView, no pane-stacking (the #264
-      // col-1 pin left the hub tappable underneath — the bug Damir reported).
-      // Mobile (and an old exe) keeps the DownloadsPage takeover via the verb.
+      /* Q1-② (#267, S16 option a): Downloads is a true in-hub SUBLEVEL. The
+         list/open/delete verbs are routed through SettingsPage (cap
+         'downloadsInline'). No second WebView, and no pane-stacking — the #264
+         col-1 pin left the hub tappable underneath, which is the bug Damir
+         reported.
+         ★ Session Q (#804): the `paneMode &&` half of this gate is GONE. See the
+         block above showBackup for the measurement that removed it. The verb
+         below now has exactly ONE caller: an exe that pushes no
+         'downloadsInline' cap. */
       onDownloads: () => {
-        if (paneMode && bridge.cap('downloadsInline')) { showDownloads(); return; }
-        bridge.send('ixian:downloads');
+        if (bridge.cap('downloadsInline')) { showDownloads(); return; }
+        bridge.send('ixian:downloads');   // old exe only (no cap ⇒ no inline screen)
       },
       host: document.body,
       strings,
@@ -5834,12 +5872,14 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
          The save is driven by C#'s CONFIRMATION instead — see setLockEnabled below. */
       onLock: (next, ctrl) => { bridge.send('ixian:lock:' + (next ? 'on' : 'off')); ctrl.done(); state.dirtyLock = true; syncSave(); },
 
-      // backup — #243: in the pane it opens as a SUBLEVEL (the same c-settings-backup
-      // screen, verbs forwarded by SettingsPage — cap 'backupInline'); mobile keeps
-      // the BackupPage push. The cap also keeps an old exe on the safe push path.
+      /* backup — #243: it opens as a SUBLEVEL (the same c-settings-backup screen,
+         verbs forwarded by SettingsPage — cap 'backupInline'). The cap keeps an
+         old exe on the push path.
+         ★ Session Q (#804): the `paneMode &&` half of this gate is GONE — see the
+         block above showBackup. */
       onBackup: () => {
-        if (paneMode && bridge.cap('backupInline')) { showBackup(); return; }
-        bridge.send('ixian:backup');
+        if (bridge.cap('backupInline')) { showBackup(); return; }
+        bridge.send('ixian:backup');   // old exe only (no cap ⇒ no inline screen)
       },
 
       // Change Spixi password. This row is LIVE (S7 landed in #283): SettingsPage
@@ -5853,10 +5893,20 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       // ⚠ Do NOT "fix" this by pinning EncryptionPassword to grid column 1. The hub
       // then stays visible AND live underneath, every hub row opens a sublevel below
       // the password pane, and the surface reads as frozen. That is the W7 bug.
-      // Mobile keeps the pushed page: no pane, or an old exe without the cap.
+      /* ★ Session Q (#804): the `paneMode &&` half of this gate is GONE — see the
+         block above showBackup. Only an exe without the 'encpassInline' cap still
+         gets the pushed EncryptionPassword page.
+         ★ SECURITY — this row moved a PLAINTEXT wallet password onto a second host
+         on MOBILE. Nothing about the transport changed: the same frozen verb, the
+         same delimiter, the same cancel-first navigation. What changed is that the
+         form now lives in a document that PARKS (#315) instead of a page that is
+         disposed on pop. Two guards carry that, and both already ship on desktop
+         (#341): renderLayout calls releaseEncpass on every view change, and
+         exitSettings calls it on every park route. Read the case block for
+         'encpass' in buildScreen before you touch either one. */
       onChangePassword: () => {
-        if (paneMode && bridge.cap('encpassInline')) { showEncpass(); return; }
-        bridge.send('ixian:encpass');
+        if (bridge.cap('encpassInline')) { showEncpass(); return; }
+        bridge.send('ixian:encpass');   // old exe only (no cap ⇒ no inline screen)
       },
 
       onDanger: showDanger,
@@ -6013,8 +6063,39 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   function showContributors() { currentView = 'contributors'; renderLayout(); }
   function showTheme() { currentView = 'theme'; renderLayout(); }          // #242/#243: pane-mode sublevels (hub routes them)
   function showLanguage() { currentView = 'language'; renderLayout(); }
-  function showBackup() { currentView = 'backup'; renderLayout(); }        // #243: pane + backupInline cap only
-  function showDownloads() { currentView = 'downloads'; renderLayout(); }  // Q1-② (#267): pane + downloadsInline cap only
+  /* ★★ Session Q (#804) — THE THREE SUBLEVELS THAT USED TO BE PAGES.
+     Backup, Downloads and Change password were the ONLY Account rows that pushed a
+     new C# page, and every one of those pages carries its OWN WebView. #803
+     measured what that costs on Android: a cold Chromium boot of 130–230 ms on the
+     MAIN thread, three of them per routine, on a device where `dumpsys` reports
+     `WebViews: 3` in ONE pid and no `:sandboxed_process` rows — so each boot
+     competes with the UI it is animating. One minute of Account →
+     Backup/Password/Download on a BRAND-NEW account with zero chats read
+     **12.19 % janky frames, 99th 48 ms, with the GPU idle at 11 ms**. On the heavy
+     seed, at one temperature, the same minute read 21.66 % while scrolling 50 chats
+     and opening 3 conversations read 4.09 % — a five-fold gap in one profile, which
+     is the control. (The zero-chat profile has no chats to scroll; an earlier draft
+     of this block attributed the 4.09 % to it, which is impossible as written.)
+     The data was never the problem; the WebView boots were.
+     Damir's own discrimination named it before any instrument did: "backup and
+     password stutter, how-to-use and about open just nicely". How-to-use and About
+     are in-hub sublevels in THIS document. So are these three now.
+     The screens themselves needed no work — all three cases already existed in
+     buildScreen, all three caps were already pushed on every form factor
+     (SettingsPage.onLoad builds and PUSHES `caps` outside its `if (paneMode)` block,
+     and always has — cited by method rather than by line, because this batch's own
+     comments moved that line twice in one session, #773), and
+     renderLayout's non-pane branch builds any view generically. Only the routing
+     was pane-only. Removing `paneMode &&` from the three guards is the whole fix:
+     no new WebView, no pre-warmed spare, and no memory cost (#800's spare is
+     ~15 MB EACH — three of them would have been ~45 MB for the same result).
+     The pushed pages stay for the exe/shell pair that has no cap — and BackupPage
+     for one more caller besides: the backup NUDGE in home.html emits ixian:backup to
+     HomePage's own branch, which never goes through the Account at all. An earlier
+     draft of this block said "exactly one caller", which was false and would have
+     read as a licence to delete a live route (#772; the loop's auditor A). */
+  function showBackup() { currentView = 'backup'; renderLayout(); }        // #243 · #804: backupInline cap, any form factor
+  function showDownloads() { currentView = 'downloads'; renderLayout(); }  // Q1-② (#267) · #804: downloadsInline cap, any form factor
   function showNotifications() { currentView = 'notifications'; renderLayout(); }  // ★ NOTIF-2
 
   /* ★ NOTIF-2 — the optimistic-switch resolver.
@@ -6086,7 +6167,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       : 'ixian:notifSounds:';
     bridge.send(verb + (next ? 'on' : 'off'));
   }
-  function showEncpass() { currentView = 'encpass'; renderLayout(); }      // #341: pane + encpassInline cap only
+  function showEncpass() { currentView = 'encpass'; renderLayout(); }      // #341 · #804: encpassInline cap, any form factor
 
   // #242: detail-screen chrome for the inline pickers — same view topbar + body
   // grammar as the component screens; back = showHub (split: empties the detail).
@@ -6226,7 +6307,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
           // rebuildHub's picker refresh) instead of the empty Account detail.
           commit: (code, ctrl) => { state.language = code; stashViewForReload(); bridge.send('ixian:language:' + code); ctrl.done(); },
         }));
-      // #243: Backup as a pane sublevel — the SAME c-settings-backup screen the
+      // #243 · #804: Backup as a SUBLEVEL on every form factor — the SAME c-settings-backup screen the
       // standalone settings_backup.html shell mounts, with SettingsPage now
       // forwarding the two verbs (cap 'backupInline'; the flow is fire-and-forget,
       // C# owns file paths + the share sheet — S12/S2 notes apply unchanged).
@@ -6242,7 +6323,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
         onExportWallet: (ctrl) => { stampBackup(); bridge.send('ixian:backupWallet'); ctrl.done(); },
         strings,
       });
-      // Q1-② (#267, S16a): Downloads as a pane sublevel — the SAME
+      // Q1-② (#267, S16a) · #804: Downloads as a SUBLEVEL on every form factor — the SAME
       // c-settings-downloads screen the standalone downloads.html shell mounts,
       // fed by SettingsPage's OWN clearFiles/addFile pushes (verb ixian:loadDownloads;
       // per-file open/delete = ixian:openDownload:/deleteDownload: — renamed from
@@ -6250,6 +6331,13 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       // delete-account family; BOTH hosts now run the C# traversal guard).
       // File names are UNTRUSTED → the component renders textContent only.
       case 'downloads': {
+        /* Release the PREVIOUS screen before building a new one — the same step the
+           'chatappearance' and 'encpass' cases take, and for the same reason. A render
+           while the user is ON this view does not run releaseDownloads (renderLayout
+           skips it), but it DOES replace the children: onRepresented after a park,
+           setLocale, setPaneMode. Without this the old screen's settle timer and its
+           document.body confirm outlive the node (#804, auditor A). */
+        releaseDownloads();
         downloadsEl = createSettingsDownloads({
           files: [], host: document.body, strings,
           onBack: showHub,
@@ -6267,11 +6355,12 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
         bridge.send('ixian:loadDownloads');   // request the list into THIS WebView
         return downloadsEl;
       }
-      // #341 (Damir F5 item (a)): Change password as a pane SUBLEVEL — the SAME
+      // #341 (Damir F5 item (a)): Change password as a SUBLEVEL — the SAME
       // c-encpass screen the standalone settings_encryption.html shell mounts, with
       // SettingsPage now dispatching ixian:changepass: itself (cap 'encpassInline').
-      // Mobile (and an old exe) keeps the pushed EncryptionPassword page via
-      // ixian:encpass, so the #340 closeSublevelOverlays sweep still applies there.
+      // ★ Session Q (#804): every form factor takes this route. Only an exe/shell
+      // pair without the cap still pushes EncryptionPassword, and the #340
+      // closeSublevelOverlays sweep is what closes it in that case.
       //
       // ★ TRANSPORT NOTE (SECURITY, read before you change this): the password rides
       // the SAME frozen `ixian:changepass:<DELIM>old<DELIM>new` verb as the standalone
@@ -6722,13 +6811,24 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       // #341 audit MINOR-2: the seq test drops an answer that belongs to a submit the
       // user already walked away from, so it can never resolve a later form.
       if (!c || c.seq !== encpassSeq) {
-        // #341 review MINOR-7: but a DROPPED SUCCESS must still be told. The inline
-        // route suppresses the native alerts, so a user who leaves the screen while
-        // C# is validating would get no confirmation on any surface — and the wallet
-        // password HAS changed. The mobile route cannot reach this state: C# alerts
-        // and pops there.
+        /* #341 review MINOR-7: a DROPPED answer must still be told. The inline route
+           suppresses the native alerts, so a user who left the screen while C# was
+           validating would otherwise get no word on any surface — and on a success the
+           wallet password HAS changed.
+           ★ Session Q (#804), the loop's auditor A: the FAILURE half is new, and the
+           old comment here — "the mobile route cannot reach this state: C# alerts and
+           pops there" — is exactly what this batch made false. A phone now takes the
+           inline route, and a phone is the form factor that PARKS this document, so
+           `onRepresented` rebuilds the form mid-validation on a routine tab switch.
+           Without this arm the user came back to three blank fields and silence, which
+           reads identically to "nothing happened" — and their current password had in
+           fact been rejected. Every outcome speaks now. */
         if (String(ok) === '1') {
           showToast({ text: strings.passwordChanged || 'Password changed', tone: 'success', host: document.body, strings });
+        } else if (String(ok) === '2') {
+          showToast({ text: strings.encpassRejected || 'That password can’t be used. Pick a different one.', tone: 'error', host: document.body, strings });
+        } else {
+          showToast({ text: strings.wrongCurrent || 'That current password isn’t right.', tone: 'error', host: document.body, strings });
         }
         return;
       }
@@ -6798,8 +6898,14 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
        * deliberately leaves an already-mounted hub in place (#337/iOS-66, so a language
        * change cannot snap the page to a stale offset), which is precisely why the live
        * scrollTop survives here — so the reset is explicit, and only here.
-       * ⚠ Only when the user parked ON the hub. Parking on a sublevel restores that
-       * sublevel intact, which is the subscreen contract, not this one. */
+       * ⚠ Only when the user parked ON the hub. Parking on a sublevel comes back to
+       * that sublevel, which is the subscreen contract, not this one.
+       * ★ #804, auditor A: "restores it INTACT" is what this used to say, and it was
+       * never true — renderLayout REBUILDS the screen from `buildScreen`. For About or
+       * Contributors nobody notices. It matters now that three more views can be
+       * parked on from a phone: Change password comes back with three blank fields
+       * (correct, and required — the release scrubs them), and Downloads re-requests
+       * its list. The view is restored; its contents are rebuilt. */
       if (currentView === 'hub') {
         hubScrollTop = 0;
         try {

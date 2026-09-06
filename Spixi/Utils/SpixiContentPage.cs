@@ -3525,6 +3525,10 @@ namespace SPIXI
          * half of that OR catches every full-screen overlay whose tag is neither `settings`
          * nor `chat` — ContactNew, AppNew, AppDetails, Backup, EncryptionPassword and
          * Downloads all slide, none of which passes `slideIn: true` at its call site.
+         * ⚠ #804: the last three of those six are now the Account's NO-CAP FALLBACK, so a
+         * current shell never opens them on a phone. The structural claim above is
+         * unaffected — a page that is pushed still slides — but do not read the list as
+         * six reachable surfaces (the loop's auditor B; #772).
          * What is still true, and is the point: `slideIn: true` as an EXPLICIT argument has
          * one caller (chat info, from the chat header — grep `slideIn: true` in
          * SingleChatPage.xaml.cs, exactly one hit; r3 R3-6 replaced a rotted `:563`, which is

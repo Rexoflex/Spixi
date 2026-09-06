@@ -133,21 +133,40 @@ namespace SPIXI
             // declare it so the shell's Save stays on the page + toasts instead of
             // falling back to the frozen persist-and-pop.
             // #243: + backupInline — ixian:backupAccount/backupWallet are forwarded
-            // below, so the pane renders Backup as a SUBLEVEL instead of pushing
+            // below, so the shell renders Backup as a SUBLEVEL instead of pushing
             // BackupPage over itself.
             // Q1-② (#267, S16a): + downloadsInline — the downloads list/open/delete
             // verbs are dispatched HERE (loadDownloads/openDownload/deleteDownload),
-            // so the pane renders Downloads as a true hub SUBLEVEL instead of the
-            // #265 full-window DownloadsPage takeover. Mobile keeps the takeover.
+            // so the shell renders Downloads as a true hub SUBLEVEL instead of the
+            // #265 full-window DownloadsPage takeover.
+            // ★★ Session Q (#804): these three caps were ALWAYS pushed on every form
+            // factor — this line sits outside the `if (paneMode)` block above, and
+            // always has. Only the SHELL gated the inline route on paneMode, so
+            // mobile pushed three pages and paid three cold WebView boots for them
+            // (#803: 12.19 % janky frames on an account with no data at all). The
+            // shell now routes inline wherever the cap is present. Nothing changed
+            // here; the comments did, because they described a pane-only route that
+            // no longer exists.
             // iOS-20 (#283, S7 LANDED): + encpass — ixian:encpass is dispatched below
             // (→ EncryptionPassword, the redesigned settings_encryption.html lock
             // shell), so the hub shows the Change-wallet-password row. An old exe
             // never pushes the cap → the row stays hidden (no dead tap).
             // #341 (Damir F5 item (a)): + encpassInline — ixian:changepass: is dispatched
-            // below, so the PANE renders Change password as a true hub SUBLEVEL instead of
-            // the EncryptionPassword page covering the whole Account. Mobile keeps the
-            // pushed page (the shell gates the inline route on paneMode too). An old exe
+            // below, so the shell renders Change password as a true hub SUBLEVEL instead of
+            // the EncryptionPassword page covering the whole Account. An old exe
             // never pushes this cap, so a new shell falls back to ixian:encpass.
+            // ★ Session Q (#804): mobile takes the inline route too. The password
+            // transport is unchanged — same frozen verb, same delimiter, same
+            // cancel-first navigation — but the form now lives in a document that
+            // PARKS instead of a page that is popped and disposed.
+            // ⚠ SAY THE COST OUT LOUD (the loop's auditor B): closing the Account used
+            // to destroy that WebView, so closeSublevelOverlays was a C#-side BELT
+            // under the shell's own scrub. On the phone route there is no belt left —
+            // the shell's releaseEncpass IS the guarantee, on every leave path, and
+            // this file cannot enforce it. Two smoke pins run the built shell and
+            // assert the scrub behaviourally (#804 PIN 5 / 5b) precisely because a
+            // comment here could not. Desktop has shipped this same property since
+            // #341; the phone is new.
             // ★ NOTIF-2 (Damir's 2026-08-21 block): + globalNotifications. The
             // Notifications SCREEN and its hub row have been built since #147 and gated on
             // this exact capability, which the production shell has never set — a screen
@@ -380,6 +399,15 @@ namespace SPIXI
                 // rail keeps its #245 strip, so Account/Chats/… stay reachable, and the
                 // exit sweep below closes this pane with the Account it belongs to.
                 // Mobile (non-pane) is byte-identical: no overlay margin ⇒ Thickness.Zero.
+                /* ★ Session Q (#804): a FALLBACK branch. The inline encpass sublevel
+                   now serves every form factor, so a current shell never emits this
+                   verb — only a shell/exe pair without the 'encpassInline' cap does.
+                   ⚠ Do not delete it on the strength of "no shell emits it": that is
+                   true and it is not the reason. The reason is the cap-less pair, and
+                   it is the ONLY reason. An earlier draft of this comment also cited
+                   HomePage's own ixian:encpass branch as a second caller — the loop's
+                   auditor B checked and NO shell emits that one either, so it would
+                   have justified this branch with a dead one (#772). */
                 pushPageLoaded(new EncryptionPassword(), 4000, null, -1, null,
                     getOverlayStageMargin(this), revealDelayMs: 0);   // load-then-move (N3) · ★ Session K #766: a form, nothing pushed after onload → no hold
             }
@@ -405,13 +433,20 @@ namespace SPIXI
                 //    a TRUNCATED password the user can never reproduce. Refuse instead.
                 //  · ★ The try/catch is NOT optional (#341 audit MAJOR-1). It keeps a throw
                 //    from writeWallet inside this branch, so the user still gets an answer
-                //    and the page stays usable. It was also the ONLY thing that stopped a
-                //    throw from leaving e.Cancel unset: the iOS handler then logged the
-                //    WHOLE URL — iOSWebViewHandler writes navigationAction.Request.Url into
-                //    ixian.log, which DevPage renders and offers through the share sheet,
-                //    putting both passwords in cleartext in a shareable file. #797 closes
-                //    that second leg for every branch by cancelling first.
-                string[] split_url = current_url.Split(new string[] { "--1ec4ce59e0535704d4--" }, StringSplitOptions.None);
+                //    and the page stays usable. ★★ AND IT IS THE ONLY THING THAT KEEPS
+                //    BOTH PASSWORDS OUT OF ixian.log. iOSWebViewHandler's own catch logs
+                //    navigationAction.Request.Url — the WHOLE URL — and DevPage renders
+                //    that file and offers it through the share sheet. A managed exception
+                //    raised in this branch unwinds through the Navigating subscriber into
+                //    that catch REGARDLESS of e.Cancel, so cancelling first does not close
+                //    this leg. (#804, the loop's auditor B: the sentence that stood here —
+                //    "#797 closes that second leg for every branch by cancelling first" —
+                //    was false, and it read as a licence to delete this try as redundant.
+                //    #797 stops the WebView LOADING the URL; only the try stops the LOG.)
+                //  · Everything that touches split_url lives INSIDE the try, so that the
+                //    guard cannot be walked past by a statement added later.
+                //    EncryptionPassword.xaml.cs states these two legs are kept in step;
+                //    the Split used to sit outside the try here and inside it there.
                 // "1" = changed · "0" = wrong current password · "2" = the request itself was
                 // not usable. Separating "2" keeps the diagnosis honest: without it a payload
                 // the shell should never send is reported as "wrong current password", and no
@@ -419,6 +454,7 @@ namespace SPIXI
                 string encResult = "2";
                 try
                 {
+                    string[] split_url = current_url.Split(new string[] { "--1ec4ce59e0535704d4--" }, StringSplitOptions.None);
                     // ENC_MIN mirror (src/components/lock-shell.js:46). The shell gates this
                     // already, but the inline route removed the separate EncryptionPassword
                     // page, so C# must be able to refuse an empty or short password on its
@@ -451,7 +487,7 @@ namespace SPIXI
                             // (Node.cs:248-256). Re-encrypting the wallet without updating it
                             // means the next launch opens the wallet with the OLD password,
                             // fails, and drops the user on the retry view — "my account is
-                            // gone". BackupPage.xaml.cs:144 encrypts the backup archive with
+                            // gone". BackupPage.xaml.cs:153 encrypts the backup archive with
                             // the same preference, so a backup taken before the next restart
                             // needs one password for the archive and another for the wallet
                             // inside it: unrestorable. Create/restore/retry all set it
@@ -481,31 +517,38 @@ namespace SPIXI
             }
             else if (current_url.Equals("ixian:backup", StringComparison.Ordinal))
             {
-                // #242 (Damir F5 issue 4): while the Account is a detail-column PANE,
-                // Backup opens PINNED to the same column (covers the pane; its back
-                // reveals the Account again) instead of a full-window takeover. A
-                // true in-detail backup needs the BackupPage verbs routed through
-                // SettingsPage — logged as be-cutover S15.
+                /* ★ Session Q (#804): a FALLBACK branch. S15 landed in #243 and the
+                   inline Backup sublevel now serves every form factor, so a current
+                   shell never emits this verb — only a shell/exe pair without the
+                   'backupInline' cap does. The presentation below is left exactly as
+                   it was for that case: #242 (Damir F5 issue 4) pinned it to the
+                   detail column while the Account is a pane, so its back reveals the
+                   Account again instead of a full-window takeover.
+                   ⚠ Do not delete this branch. HomePage carries its OWN ixian:backup
+                   branch for the backup NUDGE (HomePage.xaml.cs:884), which is a
+                   different caller on a different page — BackupPage stays alive. */
                 pushPageLoaded(new BackupPage(), 4000, null, paneMode ? 1 : -1);   // load-then-move (N3)
             }
             else if (current_url.Equals("ixian:downloads", StringComparison.Ordinal))
             {
-                // S8 LANDED (#264) · #265 Damir F5 fix: the col-1 pin covered only the
-                // DETAIL region — the hub stayed tappable and its sublevels rendered
-                // UNDERNEATH the downloads pane ("account unresponsive"). Downloads is
-                // a SEPARATE page (own WebView, data pushed by DownloadsPage), so it
-                // presents as a FULL-WINDOW takeover in both modes — its back reveals
-                // the Account exactly where it was. A true in-pane sublevel needs the
-                // list/open/delete verbs routed through SettingsPage (be-cutover S16,
-                // WITH the traversal guard — the filesystem side stays a BE item).
+                /* ★ Session Q (#804): a FALLBACK branch. S16a landed in #267 (the
+                   loadDownloads/openDownload/deleteDownload trio directly below) and
+                   the inline Downloads sublevel now serves every form factor, so a
+                   current shell never emits this verb — only a shell/exe pair without
+                   the 'downloadsInline' cap does.
+                   The presentation is left as it was for that case: DownloadsPage is a
+                   SEPARATE page with its own WebView, so it takes the FULL window in
+                   both modes. #265 is why it is not pinned to column 1 — that pin
+                   covered only the DETAIL region, the hub stayed tappable, and its
+                   sublevels rendered UNDERNEATH ("account unresponsive"). */
                 pushPageLoaded(new DownloadsPage());
             }
             else if (current_url.Equals("ixian:loadDownloads", StringComparison.Ordinal))
             {
-                // Q1-② (#267, S16a): the pane's Downloads SUBLEVEL requests the list
-                // into THIS WebView (clearFiles + addFile per file, DownloadsPage
-                // parity). Re-pushed after every deleteDownload so the shell list
-                // converges on the filesystem truth.
+                // Q1-② (#267, S16a): the Downloads SUBLEVEL requests the list into
+                // THIS WebView (clearFiles + addFile per file, DownloadsPage parity).
+                // Re-pushed after every deleteDownload so the shell list converges on
+                // the filesystem truth. #804: every form factor takes this route now.
                 loadDownloads();
             }
             else if (current_url.StartsWith("ixian:openDownload:", StringComparison.Ordinal))
@@ -888,11 +931,15 @@ namespace SPIXI
          *
          * #340 round 2 (both reviewers, independently): the test was `is EncryptionPassword`,
          * but the Account stages THREE sublevels through this same pushPageLoaded path —
-         * ixian:encpass, ixian:backup and ixian:downloads. The other two are cap-gated to
-         * NON-pane mode (settings.html returns early on paneMode && cap), so on desktop they
-         * never fire — but on mobile they are ordinary overlays with the identical
-         * load-then-present window, so "tap Downloads, nothing appears to happen, tap back"
-         * strands the Downloads page over the home shell exactly like the encpass case.
+         * ixian:encpass, ixian:backup and ixian:downloads. All three used to be reachable:
+         * the pane took the inline route and mobile pushed the page, so "tap Downloads,
+         * nothing appears to happen, tap back" stranded the Downloads page over the home
+         * shell exactly like the encpass case.
+         * ★ Session Q (#804): a CURRENT shell no longer emits any of the three verbs — the
+         * inline route now applies on every form factor, and the verbs survive only for an
+         * exe/shell pair where the caps are missing. This sweep is therefore mostly idle,
+         * and it MUST STAY: it is the only thing that closes those pages for a shell that
+         * still pushes them, and getOverlayPages/getStagingPage cost nothing when empty.
          * The list stays EXPLICIT and type-scoped rather than sweeping everything staged:
          * pushModalLoaded shares activePreload, so a `!= null` sweep here would cancel the
          * resume LOCK. Add a type when the Account learns to open another sublevel. */

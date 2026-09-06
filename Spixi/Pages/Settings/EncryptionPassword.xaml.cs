@@ -63,7 +63,7 @@ namespace SPIXI
                 //    ixian.log — a shareable file with both passwords in cleartext. #797
                 //    cancels first, so the try/catch now keeps this branch answering.
                 //  · ★ MAJOR-2: Node.loadWallet reads the cached "walletpass" preference
-                //    at every cold start (Node.cs:248-256), and BackupPage.xaml.cs:144
+                //    at every cold start (Node.cs:248-256), and BackupPage.xaml.cs:153
                 //    encrypts the backup archive with it. Re-encrypting the wallet without
                 //    updating it means the next launch cannot open the wallet, and a
                 //    backup taken in between cannot be restored.

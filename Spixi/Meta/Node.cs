@@ -972,6 +972,9 @@ namespace SPIXI.Meta
             // content-process death would re-present a dead blank page; disposing
             // here shrinks that window to presented-only, the pre-#315 world).
             SPIXI.SpixiContentPage.disposeParkedOverlay();
+            // ★ Session P: the blank chat spare is the same class of memory dial (#778 in
+            // reverse) — one hidden WebView that costs nothing but the speed-up to drop.
+            SPIXI.SpixiContentPage.dropSpareChat("lowmem");
         }
 
         public override Block? getBlockHeader(ulong blockNum)

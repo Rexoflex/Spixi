@@ -1,6 +1,27 @@
 # THE PRE-WARMED BLANK CHAT WEBVIEW — design + work order (#780; Session N, 2026-09-05)
 
-**Status: DESIGNED, NOT BUILT.** Session N built Goal 1 (the legacy purge) and Goal 2's
+**Status: BUILT — Session P, 2026-09-05 (DECISIONS #800); the phone's AFTER capture is owed
+(`docs/f5-checklist-session-p.md` §3).** What landed vs this design, row by row: §3 every site
+as written, with five deviations recorded in #800 — (1) the spare has its OWN slot
+(`SpixiContentPage.spareChatOp`), not the `parkedOverlay` slot the Account uses, so the two
+never compete; (2) `pushParkedPage` is named `pushSpareChat` and refuses (falls back to today's
+path) when any OPEN overlay stage sits above the spare's stage in the host grid — a spare
+presented under a newer stage would be invisible; (3) a blank page paints NO Android system-bar
+strip (`ownsSystemBarStrip`), because that repaint is process-wide and the spare loads while the
+user may be on the Wallet hero; (4) §3's "nothing else is staging" is read with ONE exception —
+the Account's background warm-park (`parkOnLoad`) YIELDS to the tap instead of refusing it, the
+rule `pushPageLoaded` already applies, so the first tap of a session does not lose both
+pre-warms (#802 loop, auditor A); (5) the spare is placed in its column at WARM time and
+re-homed at attach only if the window mode changed (no WebView resize on the common path).
+Five more sites than §3 lists drop the spare: `App.OnSleep` on mobile (a hidden WebView is a
+content-process-death candidate), a dev-mode toggle (the `*SL{devMode}` carrier is baked at
+load), `reloadAllPages`, a host re-registration (`setOverlayHost`), and a 6 s boot timeout; a
+tap that finds the spare not READY drops it too (a dial). §5's seven pins are the `★★ Session P L1·1`–`L1·7` block in
+`scripts/smoke-test.mjs` (+ L1·8–L1·12), every one killed by its mutation (#802: 306
+mutations over both levers, zero survivors). §6 is the checklist.
+The rest of this file is the design as written in Session N.
+
+**Status at writing (Session N): DESIGNED, NOT BUILT.** Session N built Goal 1 (the legacy purge) and Goal 2's
 investigations, the strip fork and its two gates. The pre-warm is Tier 3 in Damir's own
 risk ranking (#782: *"C# lifecycle + a race + it can move jank onto the chats list"*) and
 the container cannot compile C# or measure chats-list frame drops — the one thing #780 says
@@ -63,7 +84,7 @@ the perf brief distrusts (perf-chat-open-brief §4). Re-measure with the same st
 | Where | Change |
 |---|---|
 | `SingleChatPage` ctor | a new `SingleChatPage(HomePage? home)` "blank" ctor: `InitializeComponent`, `webView.Opacity = 0`, `deferPreloadReady = true`, `loadPage(webView, "chat.html")`, **no friend, no Title, no fetchFriendsPresence** |
-| `SingleChatPage.onNavigating` `ixian:onload` branch | `if (friend == null) { shellBooted = true; return; }` — the shell's own 500 ms fallback then renders an EMPTY log off-screen (harmless: staged at opacity 0, never presented) |
+| `SingleChatPage.onNavigating` `ixian:onload` branch | `if (friend == null) { shellBooted = true; return; }` — ⚠ superseded by #802 r3: the shell's 500 ms fallback is GATED on the peer being known, so the blank document keeps its boot spinner (the design here said it would render an empty log off-screen) |
 | `SingleChatPage.attach(Friend fr, HomePage? home)` | sets `friend`, `Title`, `selectedChannel`, `homePage`; `fetchFriendsPresence`; restarts `openClock`; runs `onLoad()` (the same pushes a fresh page gets: `onChatScreenReady` → `setChatMode` → history burst → `onChatScreenLoaded`); the shell handles a late first `onChatScreenReady` because it already handles re-entry and channel switches (per-peer reset in `onChatScreenReady`) |
 | `SpixiContentPage` | `pushParkedPage(target, tag, column, navKey, revealDelayMs: 0)` — the `representParkedOverlay` path generalised to a page in the SPARE slot: build the `PreloadOp` (which hands the page its paint gate), skip the load wait, present on `ixian:painted` / the 400 ms backstop (`armPresentOnPainted` unchanged) |
 | `HomePage.onChat` | `var spare = SingleChatPage.takeSpare(); if (spare != null) { spare.attach(friend, wide ? this : null); pushParkedPage(spare, "chat", …); } else { today's pushPageLoaded(new SingleChatPage(…)) }` |

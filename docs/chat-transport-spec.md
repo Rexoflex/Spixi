@@ -1,6 +1,20 @@
 # Chat message transport — BE work order (batching + prepend)
 
-**Status:** proposed, not started. **Owner:** BE engineer. **Blocks:** scroll-triggered chat
+**Status (Session P, 2026-09-05, DECISIONS #801): B1 + B3 BUILT** — `addMessages(base64JSON,
+position)` + `messagesDone`, C# in `SingleChatPage.loadMessages` (the `UiBatch` collector), the
+shell handlers in `src/shells/chat.html`, both transports live on both ends; the shell's 250 ms
+safety timer is CLEARED on the signal path, not deleted (an old exe still pushes per row). The
+#802 loop hardened the shell side beyond §2: an eight-name ALLOWLIST is the dispatch guard
+(asserted as the guard and proven inert on a smuggled `setChatMode` item), items with no
+arguments are refused, refusals are counted at WARN, `clearMessages` marks the model dirty so
+an EMPTY old-transport re-flush repaints, a rAF from a live row bails mid-burst, and the "one
+paint" claim is measured by a MutationObserver over the log.
+**B2 (prepend from C# on load-more) and B4 (the window) NOT built** — Damir's decisions, see
+#801: the shell accepts `position: "prepend"` and never derives the unread boundary from it, so
+the contract is complete; this exe sends only `append`. The design below is as written on
+2026-07-30; line numbers cite `71634557`.
+
+**Status at writing:** proposed, not started. **Owner:** BE engineer. **Blocks:** scroll-triggered chat
 history; chat-entry latency; deletion of the shell's burst gate.
 **Written:** 2026-07-30, during parity batch A preflight. Evidence is file:line at
 `71634557`.

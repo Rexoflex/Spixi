@@ -10,6 +10,7 @@ using SPIXI.MiniApps;
 using SPIXI.VoIP;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -22,6 +23,7 @@ using Microsoft.Maui.Storage;
 using Microsoft.Maui.ApplicationModel;
 using System.Text;
 using System.Web;
+using Newtonsoft.Json;
 
 namespace SPIXI
 {
@@ -149,6 +151,95 @@ namespace SPIXI
 
         public SingleChatPage(Friend fr) : this(fr, null)
         {
+        }
+
+        /* ═══ ★★ THE SPARE — Session P (#780, docs/prewarm-chat-spec.md §3) ═══
+         *
+         * A BLANK page: InitializeComponent, the hidden WebView, the shell loading — and NO
+         * friend, NO Title, NO presence fetch, NO onLoad. It sits in SpixiContentPage's spare
+         * slot until HomePage.onChat calls `attach`, which gives it the friend and runs the
+         * exact onLoad a fresh page runs from its `ixian:onload`. The shell handles the late
+         * first `onChatScreenReady` because it already handles re-entry and channel switches
+         * (per-peer reset in onChatScreenReady).
+         *
+         * ⚠ `friend == null` IS the blank state, and every reader of `friend` in this class
+         * runs only after attach: onLoad (attach calls it), updateScreen (onLoad calls it),
+         * the UI tick (the spare is in no enumerator), OnAppearing (overlays never get it),
+         * the verb handlers (`onNavigating` drops every verb but `ixian:onload` while blank —
+         * a hidden, input-transparent page emits nothing else, and the guard makes that a
+         * property rather than an observation). The two enumerators the spec names skip a
+         * friend-less page as a belt. Private: `createSpare` is the one way to build one, so
+         * the blank state cannot be reached by accident from another site. */
+        private SingleChatPage()
+        {
+            InitializeComponent();
+            NavigationPage.SetHasNavigationBar(this, false);
+            webView.Opacity = 0;
+            deferPreloadReady = true;
+            loadPage(webView, "chat.html");
+        }
+
+        internal static SingleChatPage createSpare()
+        {
+            return new SingleChatPage();
+        }
+
+        /** READY marker: the blank shell's `ixian:onload` arrived. Volatile — written on the
+         *  WebView's navigating callback, read under SpixiContentPage's preload lock. */
+        internal volatile bool spareShellBooted = false;
+
+        /* ★ Session P: the Android system-bar strip is PROCESS-WIDE (applyPlatformPageChrome's
+         * own header, #421 MAJOR-4). The blank spare's load would otherwise repaint the strip
+         * with the CHAT surface while the user is looking at the Wallet hero. A blank page
+         * paints no strip; `attach` runs the chrome pass once it owns a conversation — the
+         * same moment a fresh staged chat repaints it (its own load, ~100–200 ms before
+         * present). */
+        protected override bool ownsSystemBarStrip
+        {
+            get { return friend != null; }
+        }
+
+        /** Give the spare its conversation and run the load a fresh page runs at its
+         *  `ixian:onload`. Main thread (called from HomePage.onChat's marshalled body,
+         *  inside SpixiContentPage.pushSpareChat). A second attach on a page that already
+         *  has a friend THROWS (the caller cancels the op and takes today's path) — one
+         *  conversation per WebView, always. Every friend-dependent assignment the public
+         *  constructor makes is made here, BEFORE onLoad reads them (Title · selectedChannel
+         *  · homePage · the presence fetch). */
+        internal void attach(Friend fr, HomePage? home)
+        {
+            if (friend != null)
+            {
+                throw new InvalidOperationException("attach: the page already holds a conversation");
+            }
+            long tapTicks = pendingTapTicks;   // ★ Session K/P [CDPERF]: tap → attach replaces tap → ctor on this path
+            pendingTapTicks = 0;
+            openClock.Restart();
+            cdperfAttach(true, tapTicks != 0
+                ? "tap=" + (long)System.Diagnostics.Stopwatch.GetElapsedTime(tapTicks).TotalMilliseconds + "ms"
+                : "");
+            // The blank document may have signalled nothing; if a future shell ever does,
+            // a stale latch would present an UNPAINTED conversation (the one flash this
+            // design must never make — PRESENT_BACKSTOP_MS header). Reset both halves.
+            presentArmed = false;
+            paintedSeen = false;
+            friend = fr;
+            Title = friend.nickname;
+            selectedChannel = friend.metaData.lastMessageChannel;
+            homePage = home;
+            StreamProcessor.fetchFriendsPresence(friend, true);
+            applyPlatformPageChrome();   // the strip + inset pass the blank load skipped (ownsSystemBarStrip)
+            onLoad();
+        }
+
+        /* ★ Session P [CDPERF] — TEMPORARY, retire with the set. ONE line per open that says
+         * which path the open took: `[CDPERF] chat attach spare=1 tap=…ms` (the spare was
+         * READY and this open rode it) or `[CDPERF] chat attach spare=0 why=<word>` (today's
+         * path; `why` is one of SpixiContentPage.SPARE_WHY_*). A capture without this line
+         * cannot attribute its numbers. Fixed words + integers only. */
+        internal static void cdperfAttach(bool spare, string detail)
+        {
+            cdperf("attach", "spare=" + (spare ? "1" : "0") + (detail.Length > 0 ? " " + detail : ""));
         }
 
         public SingleChatPage(Friend fr, HomePage? home)
@@ -279,15 +370,43 @@ namespace SPIXI
             string current_url = HttpUtility.UrlDecode(e.Url);
             e.Cancel = true;
 
-            if (onNavigatingGlobal(current_url))
+            /* ★ Session P: the shared verbs (`ixian:painted` · `ixian:cdping:` · the call
+             * accept/reject/hang-up trio) are dispatched only for a page that HOLDS a
+             * conversation. The blank spare answers nothing but its own `ixian:onload` and its
+             * document's `file:` load (the guard below) — the #46 auditor found the first cut
+             * claimed that and enforced it only for this class's own verbs. */
+            if (friend != null && onNavigatingGlobal(current_url))
             {
                 return;
             }
 
             if (current_url.Equals("ixian:onload", StringComparison.Ordinal))
             {
+                /* ★ Session P (spec §3 row 2): the SPARE's shell booted. No friend yet, so
+                 * onLoad() must not run — its second statement reads `friend`. Mark READY and
+                 * stop; `attach` runs onLoad when the tap arrives. The shell keeps its boot
+                 * spinner meanwhile: its 500 ms first-paint fallback is gated on the peer
+                 * being known (#802 r3), so no empty log is ever painted into a blank document.
+                 * Its own stamp (`warm onload`, the boot cost paid off the critical path) — the
+                 * conversation's `onload` stamp below is not written on this path. */
+                if (friend == null)
+                {
+                    cdperf("warm onload", "t=" + openClock.ElapsedMilliseconds);   // ★ Session P [CDPERF] — TEMPORARY
+                    spareShellBooted = true;
+                    return;
+                }
                 cdperf("onload", "t=" + openClock.ElapsedMilliseconds);   // ★ Session I [CDPERF]
                 onLoad();
+            }
+            else if (friend == null && !current_url.Trim().StartsWith("file:", StringComparison.OrdinalIgnoreCase))
+            {
+                /* ★ Session P: a blank page dispatches NOTHING else. Every branch below reads
+                 * `friend`; the page is hidden and input-transparent, so nothing legitimate
+                 * arrives here — and if something did, staying on the page (e.Cancel is
+                 * already true) is the #335 rule. Fixed word, no URL: the verb is untrusted.
+                 * The document's own `file:` load is NOT a verb: it falls through to the
+                 * shared tail below, which re-allows exactly that and nothing else. */
+                Logging.warn("SingleChatPage: a verb reached the blank spare and was dropped");
             }
             else if (current_url.Equals("ixian:back", StringComparison.Ordinal))
             {
@@ -2261,6 +2380,122 @@ namespace SPIXI
             }
         }
 
+        /* ═══ ★★ Session P — THE BATCH TRANSPORT (#298, docs/chat-transport-spec.md §2 B1 + B3) ═══
+         *
+         * WHAT IT REPLACES. Every row of a history load was its own `sendUiCommand` — its own
+         * main-thread marshal and its own EvaluateJavaScriptAsync — plus one more for the row's
+         * reactions. #796 measured the cost on the phone: `drain → painted` 96–126 ms of which
+         * the shell's own work is 26–38 ms; the rest is ~12 serial evals queued on the Android
+         * WebView. So the load burst now crosses ONCE: `addMessages(<base64 JSON>, "append")`
+         * carrying every row the loop below would have pushed, in the SAME ORDER, with the SAME
+         * command names and the SAME argument strings, and each row's reactions folded into its
+         * own item. Then `messagesDone`, the end-of-batch signal the shell never had — it ends
+         * the render burst by SIGNAL instead of by its 250 ms safety timer (spec §1c).
+         *
+         * WHAT DOES NOT CHANGE. `insertMessage` and `updateReactions` keep their public shapes
+         * for LIVE arrivals and still push one command each there — the batch is a sink they
+         * write into ONLY when the loader hands them one. `clearMessages(show_more)` still opens
+         * the burst and still carries the end-of-history flag. `onChatScreenLoaded` still follows
+         * on the open path. An OLD shell that lacks `addMessages` never reaches the dispatcher:
+         * the bare global is undefined and throws inside evaluateJavascript's `try{…}catch(e){}`
+         * wrapper (#258), so the push is silently dropped and that shell's 250 ms timer paints
+         * an empty log — the shell and the exe ship together, so this is the version-skew
+         * class #768's ladder exists for, not a live case. The other direction (an OLD exe
+         * against this shell) IS live and is pinned behaviourally.
+         *
+         * THE WIRE. The one argument is base64 (escapeHtmlParameter, the ordinary path — JSON
+         * carries quotes and backslashes, so it may never ride the raw data-URI fast path) of
+         *   { "strs": [ …interned long strings… ], "items": [ { "f": "<command>", "a": [ …args… ], "r": [reactions, own] }, … ] }
+         * An arg is a string, `null` (the dispatcher's rule: null → ""), or an INTEGER that
+         * indexes `strs` — avatars are data: URIs of 5–50 KB and a 1:1 history repeats the same
+         * one on every received row; interning keeps the single eval small, which is the point.
+         * `r` is present exactly when the loop would have pushed `addReactions` for that row
+         * (always, except a row whose reaction read threw — that row carries no `r`, exactly as
+         * the per-row transport pushed no `addReactions` for it), so the shell's per-row state is
+         * byte-identical to the old transport;
+         * a row whose insertMessage pushed nothing (an approved friend's requestAdd) yields a
+         * standalone `addReactions` item, which the shell's allowlist admits (the eighth name)
+         * and which is the same no-op on an unknown id the old transport performed.
+         *
+         * SECURITY (docs/security-handover-gate.md): a new push that carries message text is a
+         * SINK. The shell dispatches each item to the SAME handler the old transport called, by
+         * an allowlist of the seven row commands + addReactions (eight names), and those handlers are
+         * textContent-only — no new escaping path, no innerHTML, no eval of item content. Not
+         * B2 (prepend) and not B4 (the window) — those are separate decisions (DECISIONS,
+         * Session P): the verb accepts "prepend" so the shell contract is complete, but this
+         * exe sends only "append". */
+        private sealed class UiBatch
+        {
+            public readonly List<Dictionary<string, object?>> items = new();
+            public readonly List<string> strs = new();
+            private readonly Dictionary<string, int> strIndex = new();
+            /** Only a long data: URI is interned — everything else stays inline. */
+            private const int INTERN_MIN_LENGTH = 256;
+
+            public void add(string cmd, string?[] args)
+            {
+                object?[] a = new object?[args.Length];
+                for (int i = 0; i < args.Length; i++)
+                {
+                    a[i] = intern(args[i]);
+                }
+                items.Add(new Dictionary<string, object?> { ["f"] = cmd, ["a"] = a });
+            }
+
+            private object? intern(string? s)
+            {
+                if (s == null)
+                {
+                    return null;
+                }
+                if (s.Length >= INTERN_MIN_LENGTH && s.StartsWith("data:", StringComparison.Ordinal))
+                {
+                    if (!strIndex.TryGetValue(s, out int idx))
+                    {
+                        idx = strs.Count;
+                        strs.Add(s);
+                        strIndex[s] = idx;
+                    }
+                    return idx;
+                }
+                return s;
+            }
+
+            /** Fold the reactions into the LAST item when it is this message's own row;
+             *  otherwise a standalone addReactions item (a row insertMessage skipped — the shell
+             *  admits it and no-ops on the unknown id, exactly as the per-row push did). */
+            public void addReactions(string id, string reactions, string own)
+            {
+                if (items.Count > 0)
+                {
+                    var last = items[items.Count - 1];
+                    if (!last.ContainsKey("r") && last["a"] is object[] a && a.Length > 0 && a[0] is string lastId && lastId == id
+                        && last["f"] is string f && f != "showContactRequest")
+                    {
+                        last["r"] = new string[] { reactions, own };
+                        return;
+                    }
+                }
+                add("addReactions", new string?[] { id, reactions, own });
+            }
+
+            public string toJson()
+            {
+                return JsonConvert.SerializeObject(new Dictionary<string, object> { ["strs"] = strs, ["items"] = items });
+            }
+        }
+
+        /** One row push: into the batch when the loader handed one, else the live wire. */
+        private void push(UiBatch? batch, string cmd, params string?[] args)
+        {
+            if (batch != null)
+            {
+                batch.add(cmd, args);
+                return;
+            }
+            Utils.sendUiCommand(this, cmd, args);
+        }
+
         public void loadMessages()
         {
             var messages = friend.getMessages(selectedChannel, (int)messagesToShow);
@@ -2270,16 +2505,31 @@ namespace SPIXI
                 // iOS-24/25 (#283 review MAJOR-1): a just-wiped history IS this empty state —
                 // returning before the clearMessages push left an open conversation rendering
                 // deleted messages until re-entered. Tell the WebView to clear first (no
-                // load-more); the shell's 250 ms burst fallback paints the emptied log.
+                // load-more). ★ Session P: `messagesDone` ends the burst at once — the emptied
+                // log paints on the signal, not on the shell's 250 ms safety timer.
                 Utils.sendUiCommand(this, "clearMessages", "false");
+                Utils.sendUiCommand(this, "messagesDone");
                 return;
             }
 
             string show_more = "true";
             if (messages.Count < messagesToShow)
                 show_more = "false";
-            Utils.sendUiCommand(this, "clearMessages", show_more);
-            
+            /* ★ Session P (#802 r4 MAJOR-1): clearMessages is pushed AFTER the batch is built,
+             * adjacent to addMessages and messagesDone, still inside the lock — see the three
+             * pushes below. The shell arms a 250 ms safety timer at clearMessages; when that push
+             * preceded the whole loop the timer measured the BUILD, fired inside it on a long
+             * history, and painted the just-wiped log once (a blank frame on load-more, the
+             * reading position lost). Nothing in the loop needs the shell cleared first. */
+
+            UiBatch batch = new UiBatch();   // ★ Session P: the load burst crosses ONCE (header above)
+            /* ★ Session P [CDPERF] — TEMPORARY (#802 r12): the BUILD is the window in which the shell's
+             * 500 ms first-paint fallback could still fire (it is gated on the peer, and the peer landed
+             * at onChatScreenReady, at the top of onLoad). The clock starts BEFORE `lock (messages)`, so
+             * `t=` also covers the lock wait and the metadata save inside it — it OVER-measures, which is
+             * the safe direction for bounding that window. Read a large `t=` as "the window was wide",
+             * not as "serialization is slow". Measure before anyone dials the timeout (#294). */
+            System.Diagnostics.Stopwatch buildClock = System.Diagnostics.Stopwatch.StartNew();
             lock (messages)
             {
                 int skip_messages = 0;
@@ -2319,16 +2569,70 @@ namespace SPIXI
                         skip_messages--;
                         continue;
                     }
+                    /* ★ Session P (#802 r11/r12): TWO per-row trys, not one and not none. A throw in
+                     * either half must cost only ITSELF — outside any try it escaped loadMessages
+                     * before the three pushes and opened the conversation EMPTY (r11); inside ONE
+                     * shared try, a throw in insertMessage AFTER its push (updateMessageReadStatus
+                     * sends a read receipt, which throws for a group with no route — the #797 state)
+                     * silently dropped that row's reactions, which the per-row transport delivered (r12). */
                     try
                     {
-                        insertMessage(message, selectedChannel);
+                        insertMessage(message, selectedChannel, batch);
                         lastLoadPushed++;
                     }catch(Exception e)
                     {
                         Logging.error("Error loading message: {0}", e);
                     }
-                    updateReactions(message);
+                    try
+                    {
+                        updateReactions(message, batch);
+                    }
+                    catch (Exception rxEx)
+                    {
+                        Logging.error("loadMessages: reactions for one row were dropped (" + rxEx.GetType().Name + ")");
+                    }
                 }
+                /* ★ Session P: the JSON is built BEFORE any push; then THREE ADJACENT pushes —
+                 * clearMessages · addMessages · messagesDone — so the shell's 250 ms safety timer
+                 * (armed at clearMessages) can never fire between the wipe and the signal. Both
+                 * happen INSIDE `lock (messages)` (#802 r5 MAJOR-1): a LIVE arrival whose
+                 * `friend.getMessages(channel)` ran AFTER the re-read above holds THIS list and
+                 * takes this lock in Ixian-Core before it is pushed, so it is serialized AFTER
+                 * messagesDone — outside the lock its push raced ours, landed before the wipe,
+                 * and the message vanished until the next re-open. SCOPE (#802 r7): the re-read
+                 * above (`msg_count != 100`) REPLACES the channel list in Core, so an arrival that
+                 * fetched the OLD list first is not serialized by this lock at all; that arrival
+                 * is already lost from storage at the baseline (Core writes the NEW list, the
+                 * orphaned add never reaches disk — be-cutover CORE-8) and its live push is
+                 * unordered against this burst on both transports. The eval is asynchronous on
+                 * every platform (the call returns before the script runs; sendMessage is a FIFO
+                 * on this page), so holding the lock across the CALL blocks nothing — no
+                 * Ixian-Core holder of this LIST lock marshals to the UI thread while it holds
+                 * it (Friend.cs locks the dictionary, a different object).
+                 * An empty batch (every row skipped) and a batch whose
+                 * SERIALIZATION threw both still send clearMessages + messagesDone (the per-row
+                 * path lost one row to a throw; the batch path must not lose the history AND the
+                 * signal to one). */
+                string? json = null;
+                try
+                {
+                    if (batch.items.Count > 0)
+                    {
+                        json = batch.toJson();
+                    }
+                }
+                catch (Exception batchEx)
+                {
+                    Logging.error("loadMessages: the batch could not be serialized (" + batchEx.GetType().Name + ")");
+                    json = null;
+                }
+                Utils.sendUiCommand(this, "clearMessages", show_more);
+                if (json != null)
+                {
+                    cdperf("batch", "n=" + batch.items.Count + " json=" + json.Length + " t=" + buildClock.ElapsedMilliseconds);   // ★ Session P [CDPERF] — TEMPORARY
+                    Utils.sendUiCommand(this, "addMessages", json, "append");
+                }
+                Utils.sendUiCommand(this, "messagesDone");
             }
         }
 
@@ -2454,6 +2758,14 @@ namespace SPIXI
 
         public void insertMessage(FriendMessage message, int channel)
         {
+            insertMessage(message, channel, null);   // ★ Session P: the LIVE path — one push per row, unchanged
+        }
+
+        /** ★ Session P: `batch` != null → every row push lands in the batch instead of the
+         *  wire (the load burst). The read-status side effect and the setContactStatus push
+         *  to HOME are untouched either way. */
+        private void insertMessage(FriendMessage message, int channel, UiBatch? batch)
+        {
             if(channel != selectedChannel)
             {
                 return;
@@ -2465,7 +2777,7 @@ namespace SPIXI
 
                     // Call webview methods on the main UI thread only
                     friend.state = FriendState.RequestReceived;
-                    Utils.sendUiCommand(this, "showContactRequest", "1");
+                    push(batch, "showContactRequest", "1");
                     return;
                 }
             }
@@ -2641,11 +2953,11 @@ namespace SPIXI
 
                 if (message.localSender)
                 {
-                    Utils.sendUiCommand(this, "addPaymentRequest", Crypto.hashToString(message.id), txid, address, nick, avatar, SpixiLocalization._SL("chat-payment-request-sent"), amount, status, status_icon, message.timestamp.ToString(), message.localSender.ToString(), message.confirmed.ToString(), message.read.ToString(), enableView.ToString());
+                    push(batch, "addPaymentRequest", Crypto.hashToString(message.id), txid, address, nick, avatar, SpixiLocalization._SL("chat-payment-request-sent"), amount, status, status_icon, message.timestamp.ToString(), message.localSender.ToString(), message.confirmed.ToString(), message.read.ToString(), enableView.ToString());
                 }
                 else
                 {
-                    Utils.sendUiCommand(this, "addPaymentRequest", Crypto.hashToString(message.id), txid, address, nick, avatar, SpixiLocalization._SL("chat-payment-request-received"), amount, status, status_icon, message.timestamp.ToString(), "", message.confirmed.ToString(), message.read.ToString(), enableView.ToString());
+                    push(batch, "addPaymentRequest", Crypto.hashToString(message.id), txid, address, nick, avatar, SpixiLocalization._SL("chat-payment-request-received"), amount, status, status_icon, message.timestamp.ToString(), "", message.confirmed.ToString(), message.read.ToString(), enableView.ToString());
                 }
             }
 
@@ -2692,11 +3004,11 @@ namespace SPIXI
                 // Call webview methods on the main UI thread only
                 if (message.localSender)
                 {
-                    Utils.sendUiCommand(this, "addPaymentRequest", Crypto.hashToString(message.id), message.message, address, nick, avatar, SpixiLocalization._SL("chat-payment-sent"), amount, status, status_icon, message.timestamp.ToString(), message.localSender.ToString(), message.confirmed.ToString(), message.read.ToString(), "True");
+                    push(batch, "addPaymentRequest", Crypto.hashToString(message.id), message.message, address, nick, avatar, SpixiLocalization._SL("chat-payment-sent"), amount, status, status_icon, message.timestamp.ToString(), message.localSender.ToString(), message.confirmed.ToString(), message.read.ToString(), "True");
                 }
                 else
                 {
-                    Utils.sendUiCommand(this, "addPaymentRequest", Crypto.hashToString(message.id), message.message, address, nick, avatar, SpixiLocalization._SL("chat-payment-received"), amount, status, status_icon, message.timestamp.ToString(), "", message.confirmed.ToString(), message.read.ToString(), "True");
+                    push(batch, "addPaymentRequest", Crypto.hashToString(message.id), message.message, address, nick, avatar, SpixiLocalization._SL("chat-payment-received"), amount, status, status_icon, message.timestamp.ToString(), "", message.confirmed.ToString(), message.read.ToString(), "True");
                 }
             }
 
@@ -2742,7 +3054,7 @@ namespace SPIXI
                      * ★ THE REAL GAP, logged not faked: a file card in a group shows no
                      * delivery state at all. Same for the app card and the payment cards.
                      * That is its own row — it needs a shell change, not a C# one. */
-                    Utils.sendUiCommand(this, "addFile", Crypto.hashToString(message.id), address, nick, avatar, uid, name, message.timestamp.ToString(), message.localSender.ToString(), message.confirmed.ToString(), message.read.ToString(), progress, message.completed.ToString(), paid.ToString());
+                    push(batch, "addFile", Crypto.hashToString(message.id), address, nick, avatar, uid, name, message.timestamp.ToString(), message.localSender.ToString(), message.confirmed.ToString(), message.read.ToString(), progress, message.completed.ToString(), paid.ToString());
                 }
             }
 
@@ -2820,7 +3132,7 @@ namespace SPIXI
 
                 // ⚠ NO deliveryTicks — the shell's addAppRequest handler discards these two
                 // as well, and says so in its own comment. See the addFile note above.
-                Utils.sendUiCommand(this, "addAppRequest", Crypto.hashToString(message.id), app_id, app_name, app_image, address, nick, avatar, message.timestamp.ToString(), message.localSender.ToString(), message.confirmed.ToString(), message.read.ToString(), app_state, app_install_url);
+                push(batch, "addAppRequest", Crypto.hashToString(message.id), app_id, app_name, app_image, address, nick, avatar, message.timestamp.ToString(), message.localSender.ToString(), message.confirmed.ToString(), message.read.ToString(), app_state, app_install_url);
             }
 
             if (message.type == FriendMessageType.standard)
@@ -2843,7 +3155,7 @@ namespace SPIXI
                 string reply_to = "";
                 // ★★ L2 (#641): the group answer is DERIVED — see deliveryTicks.
                 deliveryTicks(message, out bool sSent, out bool sConfirmed, out bool sRead);
-                Utils.sendUiCommand(this, prefix, Crypto.hashToString(message.id), address, nick, avatar, message.message, message.timestamp.ToString(), sSent.ToString(), sConfirmed.ToString(), sRead.ToString(), paid.ToString(), message.errorSending.ToString(), relation, reply_to);
+                push(batch, prefix, Crypto.hashToString(message.id), address, nick, avatar, message.message, message.timestamp.ToString(), sSent.ToString(), sConfirmed.ToString(), sRead.ToString(), paid.ToString(), message.errorSending.ToString(), relation, reply_to);
             }
 
             if(message.type == FriendMessageType.voiceCall || message.type == FriendMessageType.voiceCallEnd)
@@ -2901,7 +3213,7 @@ namespace SPIXI
                  * an OLDER shell reading only 7 args must keep its present behaviour;
                  * the new shell prefers the 8th and renders the declined card
                  * (phone-x, no call-back nudge — the #87⑦ grammar). */
-                Utils.sendUiCommand(this, "addCall", Crypto.hashToString(message.id), text, declined.ToString(), message.timestamp.ToString(), message.localSender.ToString(), (declined && !message.localSender).ToString(), duration_secs, declinedLocally.ToString());
+                push(batch, "addCall", Crypto.hashToString(message.id), text, declined.ToString(), message.timestamp.ToString(), message.localSender.ToString(), (declined && !message.localSender).ToString(), duration_secs, declinedLocally.ToString());
             }
 
             updateMessageReadStatus(message, channel);
@@ -3028,6 +3340,11 @@ namespace SPIXI
 
         private void updateReactions(FriendMessage fm)
         {
+            updateReactions(fm, null);   // ★ Session P: the LIVE path — one push, unchanged
+        }
+
+        private void updateReactions(FriendMessage fm, UiBatch? batch)
+        {
             // C5: own reaction address — blind groups react under a derived address (see the like case above)
             var own_address = IxianHandler.getWalletStorage().getPrimaryAddress();
             /* ★★ ROUND 3 (review3-cs MINOR-1) — THE RAW CHAIN THREW ON A GROUP WITH NO
@@ -3090,6 +3407,11 @@ namespace SPIXI
             catch (Exception reactionEx)
             {
                 Logging.warn("updateReactions: the reaction set changed while it was read. The push is skipped. " + reactionEx);
+                return;
+            }
+            if (batch != null)
+            {
+                batch.addReactions(Crypto.hashToString(fm.id), reactions_str, own_reactions_str);   // ★ Session P: folded into the row's item
                 return;
             }
             Utils.sendUiCommand(this, "addReactions", Crypto.hashToString(fm.id), reactions_str, own_reactions_str);

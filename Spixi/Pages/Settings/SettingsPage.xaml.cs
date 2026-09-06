@@ -677,6 +677,11 @@ namespace SPIXI
                     // enumeration as the #284 delete-all leg). Other detail pages
                     // (tx details, downloads) regenerate localized on next open.
                     HomePage.Instance()?.reloadShell();
+                    /* ★ Session P (prewarm-chat-spec §2): the blank chat spare's strings are
+                     * BAKED at generatePage time and it is in no reload collection — drop it
+                     * here, where every other live surface is re-localized; the next warm
+                     * regenerates it in the new language. */
+                    SpixiContentPage.dropSpareChat("language");
                     // #288 review: the resting desktop welcome pane (EmptyDetail) is in
                     // NEITHER collection — reloadShell deliberately skips removeDetailContent
                     // and getChatPages only yields conversations — so it kept the OLD language

@@ -141,7 +141,7 @@ namespace SPIXI
             // The three "img/…" SENTINELS (spixiavatar.png · spixi-group-avatar.png ·
             // app-noicon.jpg) are pure MARKERS now — Session N deleted the placeholder files
             // behind them and every shell maps them to its gradient/rocket fallback without a
-            // request. (img/flags/*.png are real shipped files the language picker loads,
+            // request. (the img/flags/<code>.png files are real shipped files the language picker loads,
             // but they never arrive here: this helper only sees avatar/app-icon paths.)
             // A marker must pass through untouched, never be read as a file.
             if (path.StartsWith("img/", StringComparison.OrdinalIgnoreCase)) return path;   // WebView asset sentinel
@@ -397,14 +397,20 @@ namespace SPIXI
             return null;
         }
 
+        /* ★ Session P (prewarm-chat-spec §3, last row): a SingleChatPage with NO friend is
+         * the blank pre-warm spare. It is in none of the collections below by construction,
+         * and this filter is the BELT: every consumer of this list dereferences
+         * `p.friend` (Node.onLowMemory's exclude list, the language reload sweep, the
+         * delete-all re-render), so a spare that reached one anyway would NRE the whole
+         * sweep. The spare is dropped on flips instead (SpixiContentPage.dropSpareChat). */
         public static List<SingleChatPage> getChatPages()
         {
             List<SingleChatPage> chatPages = new();
             foreach (var item in App.Current.MainPage.Navigation.NavigationStack)
             {
-                if (item is SingleChatPage)
+                if (item is SingleChatPage stackChat && stackChat.friend != null)
                 {
-                    chatPages.Add((SingleChatPage)item);
+                    chatPages.Add(stackChat);
                 }
             }
             // Desktop split-pane: the open conversation lives as HomePage DETAIL CONTENT,
@@ -414,18 +420,20 @@ namespace SPIXI
             var homeLive = HomePage.InstanceOrNull();     // AND-1 (#329): read-only sweep
             if (homeLive != null
                 && homeLive.getDetailContent() is SingleChatPage detailChat
+                && detailChat.friend != null
                 && !chatPages.Contains(detailChat))
             {
                 chatPages.Add(detailChat);
             }
             foreach (var overlay in SpixiContentPage.getOverlayPages())   // #225
             {
-                if (overlay is SingleChatPage overlayChat && !chatPages.Contains(overlayChat))
+                if (overlay is SingleChatPage overlayChat && overlayChat.friend != null && !chatPages.Contains(overlayChat))
                 {
                     chatPages.Add(overlayChat);
                 }
             }
             if (SpixiContentPage.getStagingPage() is SingleChatPage stagingChat
+                && stagingChat.friend != null
                 && !chatPages.Contains(stagingChat))
             {
                 chatPages.Add(stagingChat);

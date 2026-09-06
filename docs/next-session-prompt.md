@@ -20,7 +20,11 @@ lever. ⚠ #799's `chats-after-close` frame probe is **RETIRED as unfit** — th
 same build spanned `drop=` 1..11. Do not use it as an acceptance test; build the counterfactual
 (a `git stash` build of the parent, same phone, same seed) instead.
 
-**Item 2 — the real target: the Account WebView-boot jank (#803).** Damir's own discrimination
+**Item 2 — the real target: the Account WebView-boot jank (#803). ★ CONFIRMED BY MEASUREMENT on a
+fresh, EMPTY account (2026-09-06 evening): 12.19 % janky frames over one minute of Account sublevel
+opens, against a 2.00 % baseline on the same profile, with the GPU idle (99th 11 ms) — zero
+contacts, zero chats, zero messages, phone cool. The data, the memory and this branch are all ruled
+OUT on evidence. Beat 12.19 % / 99th 48 ms empty, and 21.66 % / 99th 150 ms on a heavy seed. ★ The chats list is EXONERATED — scrolling 50 rows and opening 3 chats reads 4.09 % janky / 90th 8 ms on the same profile, so row count is NOT what made Damir's real account scroll badly; that is a separate, narrower question about live network activity. Full ladder in the handoff.** Damir's own discrimination
 named it: *"backup and password stutter, how-to-use and about open just nicely."* Exactly three
 Account entries `pushPageLoaded` a NEW page with its OWN WebView —
 `Spixi/Pages/Settings/SettingsPage.xaml.cs:383` (EncryptionPassword), `:489` (BackupPage),
@@ -33,6 +37,15 @@ three more shells (`settings_encryption.html`, `settings_backup.html`, `download
 paying the memory for however many spares are held at once. **Measure that memory the same way:
 paired A/B inside one process, never across builds.** Ask Damir for the ranking before building —
 one shared spare, three, or a cheaper answer (a warmed WebView pool) are different products.
+
+**Item 2b — ⚠ THE PHONE WAS HOT during every capture in Session P, and it was never controlled
+for.** Read `docs/handoff-2026-09-06.md` §"Two things found at the END" before trusting any absolute
+number in the checklist §3. Also there: a no-backoff retry loop (`missing encryption keys`, nine at
+a time every ~2.5 s, forever) in Damir's own Windows log — a candidate for heat and battery,
+predating this branch. ⚠ Its first hypothesis was TESTED AND REFUTED the same evening: a fresh
+account seeded with 50 KEYLESS contacts and ~11 600 messages produced ZERO such lines. Keyless
+contacts are not the trigger; do not start there. Read `dumpsys battery | temperature` at the start and end of every
+future perf capture.
 
 **Item 3 — two open rows from Walk P, both needing a measurement before any code.** (a) **B7**: a
 BOT group shows no reactions ON THE PHONE — and ★ the SAME build passes it on WINDOWS. One binary,

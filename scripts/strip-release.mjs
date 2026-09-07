@@ -46,7 +46,7 @@
  * SpixiStripReleaseHtml). Set the MSBuild property SpixiStripHtml=false to ship the
  * committed files unchanged.
  */
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, realpathSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -113,8 +113,38 @@ export function stripCssComments(css) {
     .replace(/^\n+/, '');
 }
 
-/** CLI — only when run directly; the suite imports stripCssComments + STRIP_ALLOWLIST. */
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+/** CLI — only when run directly; the suite imports stripCssComments + STRIP_ALLOWLIST.
+ *
+ * ★★ 2026-09-07 (Damir, iOS walk R) — THIS GUARD SILENTLY DISABLED GATE 2 ON EVERY MAC,
+ * AND IT HAD DONE SO SINCE THE FORK LANDED. The old form compared two strings:
+ *     import.meta.url === pathToFileURL(process.argv[1]).href
+ * Node resolves an ESM module to its REALPATH, but `process.argv[1]` is the path exactly
+ * as the caller typed it. On macOS `/var` is a symlink to `/private/var`, and
+ * `smoke-packaged.mjs` copies the tree into `tmpdir()` — which on macOS is always under
+ * `/var/folders/…`. So the copy's script saw
+ *     import.meta.url  = file:///private/var/folders/…/strip-release.mjs
+ *     process.argv[1]  =         /var/folders/…/strip-release.mjs
+ * the two never matched, THE ENTIRE CLI BLOCK BELOW WAS SKIPPED, and the process exited
+ * 0 with no output and nothing written. Gate 2 then failed at its own gate-1 step with
+ * "packaged ≠ strip(committed) (101683 vs 30688)" — the packaged file was simply never
+ * stripped. Measured, not reasoned: status 0, stdout "", stderr "", file unchanged.
+ * The Linux container never saw it because its tmpdir is a real path.
+ * ⚠ It fails LOUD here only because gate 1 runs inside gate 2. A guard of this shape in
+ * a script whose absence is not separately gated would fail SILENTLY. The MSBuild leg is
+ * safe by luck and by one belt: it invokes an unsymlinked repo path, and Spixi.csproj
+ * raises <Error> when the strip writes no file.
+ * ★ THE FIX COMPARES REALPATHS ON BOTH SIDES, so a symlinked invocation — /var, /tmp, a
+ * symlinked home, a worktree — resolves to the same file. try/catch because argv[1] may
+ * name something unstatable, and a main-module test must never throw.
+ * ⚠ OWED: a pin. The property is "the CLI runs when this file is invoked through a
+ * SYMLINKED path", and no pin in the suite asserts it — which is exactly why a broken
+ * gate went unnoticed. Build it with the batch, not as a comment. */
+const isMainModule = (() => {
+  if (!process.argv[1]) return false;
+  try { return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1]); }
+  catch (_) { return false; }
+})();
+if (isMainModule) {
 const args = process.argv.slice(2);
 const flag = (name) => { const k = args.indexOf(name); return k >= 0 ? (args[k + 1] ?? '') : null; };
 

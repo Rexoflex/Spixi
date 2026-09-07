@@ -211,7 +211,14 @@
 		     rasterise the file, and #689 settled THAT value by measurement (the icon was
 		     under-saturated, not too dark). It matters on Android/iOS, which have no ground of
 		     their own; the Windows file carries its own. -->
-		<MauiIcon Condition="!$(TargetFramework.Contains('-windows'))" Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#0076E1" />
+		<MauiIcon Condition="!$(TargetFramework.Contains('-windows')) and !$(TargetFramework.Contains('-ios'))" Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#0076E1" />
+		<!-- ★ E1c (2026-09-07): iOS takes its OWN file, for the reason E1b split Windows off —
+		     it neither masks-with-headroom nor zooms the foreground, so the Android adaptive
+		     padding renders the mark about two thirds size. See appicon_ios.svg for the whole
+		     argument and the 1.6x number. NO Color: that file carries its own ground.
+		     ⚠ MacCatalyst deliberately stays on the line above — it has never run (RocksDB
+		     slice), so moving it would be an unverifiable change. -->
+		<MauiIcon Condition="$(TargetFramework.Contains('-ios'))" Include="Resources\AppIcon\appicon_ios.svg" />
 		<!-- ⚠⚠ NO Color ON THE WINDOWS LINE, AND THIS IS NOT AN OVERSIGHT. Damir on the first
 		     build: "the logo is bigger, but the rectangle is sharp". MEASURED at the artifact
 		     rather than guessed from the taskbar — every corner pixel of the generated

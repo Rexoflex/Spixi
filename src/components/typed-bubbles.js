@@ -15,6 +15,7 @@
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
+import { safeImageSrc } from './avatar.js';
 import { createButton } from './button.js';
 import { createBadge } from './badge.js';
 import { docLocale, timeOpts } from './timestamp.js';
@@ -268,7 +269,15 @@ export function createAppBubble({
   id.className = 'c-tcard__app';
   const ic = document.createElement('span');
   ic.className = 'c-tcard__app-icon';
-  if (iconUrl) {
+  /* ★ Gate row O-13 (#46 loop B, MINOR-5) — the app-invite icon is composed by the INVITING
+   * PEER. `chat.html` already asks the same question at the caller and keeps the media-autoload
+   * decision there, which is where it belongs. The shape test moves INTO the component so the
+   * two cannot drift: a second caller cannot light this sink up without the rule.
+   * This is a strict narrowing of what reaches the tag today — `chat.html` passes only a
+   * `data:image/` URI or a well-formed http(s) URL — so it cannot break a working icon. It
+   * refuses a relative path, a protocol-relative '//host/x', 'javascript:' and 'blob:'. */
+  const iconSrc = safeImageSrc(iconUrl, { allowRemote: true });
+  if (iconSrc) {
     const img = document.createElement('img');
     img.alt = '';
     // Graceful fallback (matches c-avatar / c-app-icon): a C# icon path that doesn't
@@ -276,7 +285,7 @@ export function createAppBubble({
     // <img> and fall back to the rocket. Wire the handler BEFORE src so a synchronously
     // cached error still fires.
     img.addEventListener('error', () => { img.remove(); ic.append(icon('rocket', { size: 24 })); }, { once: true });
-    img.src = iconUrl;
+    img.src = iconSrc;
     ic.append(img);
   } else {
     ic.append(icon('rocket', { size: 24 }));

@@ -743,8 +743,14 @@ export function createAddContact({
     } else {
       knownAddress = info.address || '';
       const who = (info.nick || '').trim();
+      /* ★ Gate row O-12. `who` is the PEER's nickname, and it was the REPLACEMENT
+         argument of String.prototype.replace. In that position "$&" and its family are
+         substitution syntax, so a nickname that holds one splices other parts of the
+         sentence into the sentence. A FUNCTION replacement returns its value literally,
+         so the nickname can only ever be the nickname. The product goes to textContent,
+         so the damage was a mangled line, never a script. */
       knownText.textContent = who
-        ? ((strings.alreadyContactNamed || '{name} is already in your contacts.').replace('{name}', who))
+        ? ((strings.alreadyContactNamed || '{name} is already in your contacts.').replace('{name}', () => who))
         : (strings.alreadyContact || 'This address is already in your contacts.');
       knownBtn.hidden = !knownAddress || !onViewContact;
     }

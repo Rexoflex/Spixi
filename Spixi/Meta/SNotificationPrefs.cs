@@ -79,7 +79,12 @@ namespace SPIXI.Meta
             }
             catch (Exception e)
             {
-                Logging.error("SNotificationPrefs.getBool(" + key + ") failed: " + e);
+                /* ★ Handover sweep O-26 (second pass): the KEY carries a peer wallet
+                  * address for the mute family (muteKey below), and the exception text can
+                  * repeat it. ixian.log is rendered by DevPage and shared in one tap.
+                  * Utils.logSafe redacts a long base58 run and leaves a type name readable. */
+                Logging.error("SNotificationPrefs.getBool(" + SPIXI.Utils.logSafe(key) + ") failed: "
+                    + e.GetType().Name + ": " + SPIXI.Utils.logSafe(e.Message));
                 return fallback;
             }
         }
@@ -92,7 +97,9 @@ namespace SPIXI.Meta
             }
             catch (Exception e)
             {
-                Logging.error("SNotificationPrefs.setBool(" + key + ") failed: " + e);
+                // ★ Sweep O-26 (second pass): same key and same exception rule as getBool.
+                Logging.error("SNotificationPrefs.setBool(" + SPIXI.Utils.logSafe(key) + ") failed: "
+                    + e.GetType().Name + ": " + SPIXI.Utils.logSafe(e.Message));
             }
         }
 
@@ -197,7 +204,15 @@ namespace SPIXI.Meta
             }
             catch (Exception e)
             {
-                Logging.error("SNotificationPrefs.isContactMuted failed: " + e);
+                /* ★ handover sweep O-26: the KEY READ HERE EMBEDS THE PEER ADDRESS
+                 * (`muteKey` = KEY_MUTE_PREFIX + address). A platform `Preferences` failure
+                 * whose message names the key would put that address into `ixian.log`. The
+                 * sibling helpers `getBool`/`setBool` log their key too, and those are only
+                 * ever called with compile-time constants; this is the one site that breaks
+                 * that discipline. Log the TYPE and a sanitised message —
+                 * `SPIXI.Utils.logSafe` redacts an address-shaped token. */
+                Logging.error("SNotificationPrefs.isContactMuted failed: "
+                    + e.GetType().Name + ": " + SPIXI.Utils.logSafe(e.Message));
                 return false;
             }
         }
@@ -224,7 +239,9 @@ namespace SPIXI.Meta
             }
             catch (Exception e)
             {
-                Logging.error("SNotificationPrefs.setContactMuted failed: " + e);
+                // ★ Sweep O-26 (second pass): this method composes muteKey(address).
+                Logging.error("SNotificationPrefs.setContactMuted failed: "
+                    + e.GetType().Name + ": " + SPIXI.Utils.logSafe(e.Message));
             }
         }
 
@@ -400,7 +417,9 @@ namespace SPIXI.Meta
             }
             catch (Exception e)
             {
-                Logging.error("shouldDisplayRawPush failed: " + e);
+                // ★ Sweep O-26 (second pass): this path reads a per-address preference.
+                Logging.error("shouldDisplayRawPush failed: "
+                    + e.GetType().Name + ": " + SPIXI.Utils.logSafe(e.Message));
                 return true;   // fail OPEN: a lost message is worse than an unwanted buzz
             }
         }

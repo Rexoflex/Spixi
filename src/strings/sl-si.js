@@ -385,6 +385,8 @@ export const slsi = {
   leaveGroupsConfirmTitle: "Zapustim {n} skupin in odstranim {name}?",
   leaveTitle: "Zapustim to skupino?",
   leftGroupToast: "Zapustil si skupino",
+  loadMedia: "Naloži slike in GIF-e",
+  loadMediaSub: "Nalaganje pošiljateljevemu strežniku pove, da ste odprli klepet",
   loading: "Nalaganje",
   loadingHistory: "Nalaganje starejših sporočil",
   lockCopy: "Za odklep vnesite geslo svoje denarnice.",

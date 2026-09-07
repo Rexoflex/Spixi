@@ -503,75 +503,12 @@ function scheduleScanProbe(el, feedEl, isDone) {
   }, 1200);
 }
 
-/* ————————————————————————————————————————————————————————————————————————————
- * D2 (#308) — C-9 STORAGE PROBE, self-serve (no Mac tether). Diagnostics only.
- *
- * The #305 grant flag did not survive a ScanPage relaunch (#306). Repo facts
- * pinned first (#215): the generated page name is the LITERAL prefix "ll_" +
- * page — `ll_scan.html`, STABLE per page (SpixiContentPage.generatePage), so
- * the per-VISIT-origin hedge is dead; cross-page keys DO live on different
- * files (ll_settings.html vs ll_scan.html → the per-FILE-origin theory stays
- * live for those); no custom WKWebsiteDataStore anywhere (MAUI default). What
- * only the device can answer is whether file:// localStorage persists AT ALL —
- * so every mount runs this probe and, exactly when the consent card gates
- * (= the symptom moment), paints one aria-hidden line:
- *
- *   storage probe — ll_scan.html · grant:0 · probe:N · appearance:X
- *
- *   · probe INCREMENTS across scan entries → same-page localStorage persists →
- *     the storage theory is DEAD and the grant clearing is a logic path
- *     (remember: an iOS-Settings revoke legitimately clears it — ask Damir).
- *   · probe stuck at 0 (write ok) → reads are session-ephemeral → C-9 CONFIRMED:
- *     every spixi.* localStorage feature is dead on iOS → be-cutover row
- *     (C# preference push / capability grammar), NOT a scan patch. Log it big.
- *   · write:ERR(name) → localStorage structurally dead on file:// → same
- *     escalation, with the exception name as evidence.
- *   · appearance:1 (written by ll_settings.html on a theme pick) → cross-FILE
- *     visibility works too → the per-file-origin theory is dead as well.
- *     appearance:0 alone is ambiguous (dead storage kills it identically) —
- *     the runsheet's Inspector variant stays the tie-breaker for that leg.
- *
- * Healthy platforms: the line renders only under the consent card (first-ever
- * visit or post-revoke), never over a working scanner; SRs skip it entirely.
- * English-only diagnostics — the #301 probe-line precedent. Retire/gate with
- * the consent fix once C-9 has its verdict.
- * ———————————————————————————————————————————————————————————————————————————— */
-const SCAN_PROBE_KEY = 'spixi.probe.scan';
-
-function probeScanStorage() {
-  const r = { page: '?', grant: '0', probe: '0', appearance: '0', write: 'ok' };
-  try { r.page = String(location.pathname || '').split('/').pop() || '?'; } catch (e) { /* opaque env */ }
-  try { r.grant = localStorage.getItem(SCAN_GRANT_KEY) ? '1' : '0'; } catch (e) { r.grant = 'ERR:' + (e && e.name); }
-  let n = 0;
-  try { n = parseInt(localStorage.getItem(SCAN_PROBE_KEY) || '0', 10) || 0; r.probe = String(n); } catch (e) { r.probe = 'ERR:' + (e && e.name); }
-  try { localStorage.setItem(SCAN_PROBE_KEY, String(n + 1)); } catch (e) { r.write = 'ERR:' + (e && e.name); }
-  try { r.appearance = localStorage.getItem('spixi.appearance') != null ? '1' : '0'; } catch (e) { r.appearance = 'ERR:' + (e && e.name); }
-  return r;
-}
-
-function paintStorageProbe(el, storage) {
-  try {
-    const d = document.createElement('p');
-    d.setAttribute('aria-hidden', 'true');       // diagnostics never reach screen readers
-    d.style.cssText = 'position:absolute;left:12px;right:12px;bottom:calc(8px + env(safe-area-inset-bottom,0px));'
-      + 'z-index:3;margin:0;text-align:center;font:11px/1.4 -apple-system,sans-serif;'
-      + 'color:rgba(255,255,255,0.55);pointer-events:none;';
-    d.textContent = 'storage probe — ' + storage.page + ' · grant:' + storage.grant
-      + ' · probe:' + storage.probe + ' · appearance:' + storage.appearance
-      + (storage.write !== 'ok' ? ' · write:' + storage.write : '');
-    el.appendChild(d);
-    return d;                                    // #46 r1 MINOR-1: caller removes it when scanning starts
-  } catch (e) { /* fail soft — the console line above already carries the verdict */ }
-  return null;
-}
-
 export function mountScanPage({ host, bridge, strings, camera } = {}) {
   const br = bridge || createNativeBridge();
   const sl = strings || (typeof window !== 'undefined' && window.SL) || {};
   const cam = camera !== undefined ? camera : html5QrcodeCamera();
   let el = null;
   let finished = false;                          // decode/cancel are terminal (C# pops the page)
-  let storageProbeLine = null;                   // #308 line — lives only while consent gates (#46 r1 MINOR-1)
 
   const stopCamera = () => { if (cam) { try { cam.stop(); } catch { /* fail soft */ } } };
 
@@ -588,10 +525,6 @@ export function mountScanPage({ host, bridge, strings, camera } = {}) {
         done: (payload) => {
           ctrl.done(payload);
           try { localStorage.setItem(SCAN_GRANT_KEY, '1'); } catch (e) { /* private mode */ }
-          // #46 r1 MINOR-1: the storage line is consent-card evidence — a successful
-          // start enters 'scanning', so it must not linger over the live camera (it
-          // sat above the success flash, z3 > z2). Denied keeps it: still the symptom.
-          if (storageProbeLine) { try { storageProbeLine.remove(); } catch (e) { /* gone */ } storageProbeLine = null; }
           scheduleScanProbe(el, feed, () => finished);
         },
         fail: (msg) => {
@@ -622,11 +555,15 @@ export function mountScanPage({ host, bridge, strings, camera } = {}) {
 
   (host || document.body).append(el);
   br.ready();                                    // ixian:onload — C# flushes queued pushes
-  // #308: the C-9 storage probe runs on EVERY mount (console) and paints its line
-  // only when the consent card is about to gate — the exact symptom moment.
-  const storage = probeScanStorage();
-  try { console.error('[scan-probe] storage', JSON.stringify(storage)); } catch (e) { /* console gone */ }
-  if (storage.grant !== '1') storageProbeLine = paintStorageProbe(el, storage);
+  /* #308 STORAGE PROBE RETIRED — gate row O-07. Its own docblock set the condition:
+   * "Retire/gate with the consent fix once C-9 has its verdict". #311 recorded that
+   * verdict from the device — grant:1 · probe:23 · appearance:1 — so file:// localStorage
+   * persists AND it crosses ll_* files. Both C-9 legs are closed. The probe, its paint and
+   * its key are gone. A device that already ran the probe still holds the counter, so the
+   * key is removed here. The removal is the last reference to that key in the tree.
+   * ⚠ Do not add a user-visible diagnostic to this surface again. It painted an English
+   * line over the consent card on every shipping build, with no build symbol. */
+  try { localStorage.removeItem('spixi.probe.scan'); } catch (e) { /* private mode — nothing to clear */ }
   // #305: a previously granted camera skips the consent-card tap — auto-enter the
   // SAME request path (latched, honest: failure lands on the denied card and clears
   // the flag). First-ever visit still shows the card; nothing is captured unbidden.

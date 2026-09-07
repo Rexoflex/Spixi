@@ -1,6 +1,7 @@
 ﻿using IXICore;
 using IXICore.Meta;
 using IXICore.Streaming;
+using Microsoft.Maui.ApplicationModel;   // the ONE external-open sink lives in this file (openExternal)
 using Spixi;
 using System;
 using System.Collections.Concurrent;
@@ -439,6 +440,336 @@ namespace SPIXI
                 chatPages.Add(stagingChat);
             }
             return chatPages;
+        }
+
+        /* ★ m8 AND item 6 (#46 loop, ROUND 2) · handover sweep O-25 — ONE SANITISER FOR
+         * EVERY WIRE-DERIVED VALUE THAT REACHES THE LOG.
+         *
+         * `Logging.log` writes the message verbatim and adds the line prefix itself. Nothing
+         * escapes it. So any value that came off the wire can carry a newline and write forged
+         * LINES into `ixian.log` — the address inside an `IXICore.Address` exception message,
+         * the OneSignal notification id, the message of a failed JSON read. That file is
+         * shareable from DevPage and `maxLogCount` is 5, so it is the artifact this project
+         * uses as evidence.
+         *
+         * ★ O-25 MOVED IT HERE, AND THE MOVE IS THE POINT. It was `internal static` inside
+         * `Platforms/Android/SPushService.cs`, so it compiled into the Android build only and
+         * no shared-code site could call it. Every shared site that logs a wire-derived value
+         * had no sanitiser available, even where the author wanted one. `Spixi/Utils/Utils.cs`
+         * compiles on every platform, so the rule is now available everywhere it is needed.
+         *
+         * ★ O-24 / O-26 STRENGTHENED IT, BECAUSE THE OLD RULE WAS TOO WEAK FOR ITS CALLERS.
+         * Flattening and a 160-character clamp close LINE FORGERY. They do not remove a wallet
+         * address: an Ixian address is about 45 base58 characters (Utils/SPayments.cs states
+         * the same figure), so an address fits inside the clamp intact. The push-path catches
+         * this now guards wrap code that handles the sender address `fa`, and
+         * `SNotificationPrefs.isContactMuted` reads a `Preferences` key that EMBEDS the peer
+         * address. The sanitiser therefore also redacts address-shaped tokens.
+         *
+         * The detection rule is the tree's own, and it is deliberately blunt: a run of
+         * LOG_SAFE_TOKEN_MIN or more ASCII letters and digits with no separator inside it.
+         * `SNotificationPrefs.truncateMiddle` already treats "longer than 24 and no space" as
+         * address-shaped. No ordinary word in an exception message is that long. A type name
+         * carries dots, a GUID carries dashes and a path carries separators, so none of them
+         * is redacted. FAIL CLOSED: a run is redacted for its SHAPE, so a token this code
+         * cannot identify is removed and not admitted. The length is kept, so the line still
+         * says that something was there.
+         *
+         * ⚠ SCOPE, STATED HONESTLY. This closes CR and LF. It does not close U+2028 or
+         * U+2029, because the log writer is a .NET StreamWriter and does not treat them as
+         * line breaks. It does not make the value safe for a viewer that does. And it is not a
+         * privacy classifier: it removes long opaque tokens, not a nickname or a file name. */
+        private const int LOG_SAFE_MAX = 160;
+        private const int LOG_SAFE_TOKEN_MIN = 26;
+
+        public static string logSafe(string? value)
+        {
+            return logSafe(value, LOG_SAFE_MAX);
+        }
+
+        /// <summary>The same rule with a caller-chosen clamp. `max` of 0 or less means no
+        /// clamp; the flattening and the redaction always run.</summary>
+        public static string logSafe(string? value, int max)
+        {
+            string safe = (value ?? string.Empty).Replace('\r', ' ').Replace('\n', ' ');
+            safe = redactLongTokens(safe);
+            if (max > 0 && safe.Length > max)
+            {
+                safe = safe.Substring(0, max);
+            }
+            return safe;
+        }
+
+        // The redaction itself. Hand-written rather than a Regex, because this runs on a log
+        // path that a hostile push can drive: a linear scan cannot backtrack.
+        private static string redactLongTokens(string value)
+        {
+            StringBuilder sb = new StringBuilder(value.Length);
+            int start = 0;                       // where the current letters-and-digits run began
+            for (int i = 0; i <= value.Length; i++)
+            {
+                if (i < value.Length && isLogTokenChar(value[i]))
+                {
+                    continue;                    // still inside the run
+                }
+                int run = i - start;
+                if (run >= LOG_SAFE_TOKEN_MIN)
+                {
+                    sb.Append("<redacted:").Append(run).Append('>');
+                }
+                else if (run > 0)
+                {
+                    sb.Append(value, start, run);
+                }
+                if (i < value.Length)
+                {
+                    sb.Append(value[i]);
+                }
+                start = i + 1;
+            }
+            return sb.ToString();
+        }
+
+        // ASCII only, on purpose: base58, base64 and hex are ASCII, and a non-ASCII word is
+        // not address-shaped.
+        private static bool isLogTokenChar(char c)
+        {
+            return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9');
+        }
+
+        /* ★ handover sweep O-14 — THE TAIL OF A SCANNED QR PAYLOAD, BOUNDED.
+         *
+         * A scanned QR is decoded by the WebView and handed back to C#, which validates only
+         * the part BEFORE the first ':' with `ExtendedAddress.Validate` and then pushes the
+         * WHOLE string to the wallet document as `quickScanResult`. The shell parses it into
+         * the send compose, so the tail pre-fills an AMOUNT. The grammar the shell accepts is
+         * small and closed: `addr` · `addr:ixi` · `addr:send:<amount>`.
+         *
+         * This method bounds what is FORWARDED. It changes nothing that is parsed, signed or
+         * broadcast: the native confirm still re-reads recipient, amount and fee, and it is
+         * still the only thing that signs (SECURITY.md, Utils/SPayments.confirmAndAuth).
+         *
+         * FAIL CLOSED, and the direction is stated: a tail this method does not recognise is
+         * DROPPED and the validated address alone is forwarded. Nothing unrecognised crosses
+         * the bridge, and a scan of a well-formed address still fills in the recipient. The
+         * amount is accepted only as digits with at most one decimal point, so no sign, no
+         * exponent, no separator and no culture-dependent parse can reach the compose; it is
+         * forwarded verbatim, so this method can never change a number.
+         *
+         * ⚠ THE ADDRESS IS NOT VALIDATED HERE. `ExtendedAddress.Validate` at the call site is
+         * that gate, and the leading substring this method returns is character-for-character
+         * the substring the caller validated.
+         *
+         * CALLERS: `quickScanForSend` and `processQRResult` in
+         * `Spixi/Pages/Home/HomePage.xaml.cs`. Both wrap their `quickScanResult` argument in
+         * this call. A smoke pin WALKS every `quickScanResult` push and refuses one that does
+         * not, so a third site cannot be added without the guard. */
+        private const int SCAN_AMOUNT_MAX = 32;
+
+        public static string safeScanPayload(string payload)
+        {
+            if (string.IsNullOrEmpty(payload))
+            {
+                return "";
+            }
+            int sep = payload.IndexOf(':');
+            if (sep < 0)
+            {
+                return payload;                                  // a bare address: no tail to bound
+            }
+            string addr = payload.Substring(0, sep);
+            string tail = payload.Substring(sep + 1);
+            if (tail.Equals("ixi", StringComparison.Ordinal))
+            {
+                return addr + ":ixi";
+            }
+            if (tail.StartsWith("send:", StringComparison.Ordinal))
+            {
+                string amount = tail.Substring("send:".Length);
+                if (isPlainAmount(amount))
+                {
+                    return addr + ":send:" + amount;
+                }
+            }
+            return addr;                                         // unrecognised tail: dropped
+        }
+
+        // An amount is a number. Digits, at most one decimal point, at least one digit, and
+        // short. Everything else — a sign, an exponent, a separator, a second colon, an empty
+        // string — is refused, so the refusal is the default branch.
+        private static bool isPlainAmount(string amount)
+        {
+            if (string.IsNullOrEmpty(amount) || amount.Length > SCAN_AMOUNT_MAX)
+            {
+                return false;
+            }
+            bool digit = false;
+            bool point = false;
+            foreach (char c in amount)
+            {
+                if (c >= '0' && c <= '9')
+                {
+                    digit = true;
+                    continue;
+                }
+                if (c == '.' && !point)
+                {
+                    point = true;
+                    continue;
+                }
+                return false;
+            }
+            return digit;
+        }
+
+        /* ★★ THE ONE EXTERNAL-OPEN SINK, and the claim is narrowed to what is PROVEN.
+         * Every link the two `ixian:openLink:` branches and the iOS http(s) hand-off give
+         * to the OS goes through this method - that much is proven positively, per branch
+         * (gate 16 ①). Across the rest of the tree what is proven is narrower: no other
+         * file in the shipped C# projects calls an `OpenAsync` sink, and four named
+         * platform primitives appear only in the local-file and exec homes gate 16 names.
+         * Gate 16's walk reads the METHOD NAME, so how the receiver was obtained - a local,
+         * a private helper, a `using static`, a fully-qualified name - changes nothing.
+         *
+         * ⚠ AN EARLIER VERSION OF THIS PARAGRAPH SAID "Every link this app hands to the OS
+         * goes through this method" (#772). That was false, and a reviewer proved it twice
+         * with the whole suite green: `UIApplication.SharedApplication.OpenUrl(...)` in the
+         * iOS branch re-opened security MAJOR #6(a), and `SFileOperations.open(link)` in the
+         * chat branch re-opened MAJOR #3 - on Windows that helper is
+         * `Process.Start(UseShellExecute = true)`, i.e. the browser, and SingleChatPage
+         * already calls it twice in the same file. Neither is spelled `OpenAsync`.
+         *
+         * ⚠ WHAT THE WALK CANNOT SEE, said plainly (#798), because a text walk has edges:
+         *   · ANY OS-OPEN API THAT IS NOT SPELLED `OpenAsync`. This is the ordinary case and
+         *     the list above used to miss it while naming the two exotic ones. Gate 16
+         *     sweeps four such primitives by name, and that sweep is a list too, so it can
+         *     only refuse the spellings on it;
+         *   · a call reached through REFLECTION. `typeof(IBrowser).GetMethod("OpenAsync")`
+         *     never writes the call, so no text pin can find it;
+         *   · a helper compiled from ANOTHER ASSEMBLY, outside the walked projects.
+         * None of the three is closed by the walk. What closes them INSIDE the three sink
+         * branches is gate 16 ①, which enumerates every invocation in each branch and
+         * refuses anything that is not this gate - so an unlisted spelling, and reflection,
+         * fail there by being a call. Outside those branches the edges above stand, and they
+         * are recorded so the next reader does not read the walk as more than it is.
+         * (`Ixian-Core` is a sibling repo whose sources compile into this assembly; it IS
+         * walked when the checkout has it, and it has no sink today.)
+         *
+         * ⚠ WHY IT IS ONE METHOD AND NOT A GUARD PER PAGE. The rule below was written twice,
+         * once in SingleChatPage and once in SettingsPage, and a #46 loop defeated the pin
+         * that proved it THREE ROUNDS RUNNING: a character window was satisfied by a
+         * neighbouring `return;`, a position test was satisfied by a hand-off moved INSIDE
+         * the guard's own body, and the walk that found the guards could not see a branch
+         * written `if(` with no space. The property was true and it was not provable,
+         * because it was a control-flow property of duplicated code. It is now a property
+         * of the CALL GRAPH: there is one sink, in one method, and a walk with one permitted
+         * home cannot be beaten by formatting, by a preprocessor directive, or by where a
+         * `return` sits (#46 loop r2 MAJOR-1 · r3 MAJOR-1/-2/-3).
+         *
+         * ★ WHAT IT ENFORCES, and nothing more is claimed.
+         * The string is parsed ONCE. The Uri object that passes the test is the SAME object
+         * that is handed off, so no re-parse at the sink can disagree with the parse that
+         * passed it.
+         * For ExternalTarget.Web the scheme must be http or https, and `Uri.UserInfo` must
+         * be EMPTY. Userinfo is the construct that puts the real host AFTER text the reader
+         * takes for the destination: "https://paypal.com@evil.example/login" reads as
+         * paypal.com and resolves to evil.example. The property being protected is THE
+         * DESTINATION HOST IS THE HOST THE USER READ.
+         * For ExternalTarget.MailCompose the scheme must be mailto. The userinfo test is
+         * deliberately NOT applied there: .NET parses "mailto:support@spixi.io" with
+         * UserInfo "support", so the Web test would refuse every mail link. A mailto has no
+         * host the user reads, so the property above does not apply to it.
+         *
+         * ★ FAIL CLOSED. `admit` is false unless a named kind matched a named scheme, so a
+         * kind this method does not know is refused, and so is an unparsable string.
+         *
+         * ⚠ WHAT IS NOT ESTABLISHED (#772 / #798). This method does not prove that the text
+         * reaching it is the text a user approved. The chat sink decodes its first line, so
+         * a peer-typed %XX arrives in a form the confirm modal never displayed; the userinfo
+         * refusal is what makes the AUTHORITY safe under that decode, and the path and the
+         * query may still differ by one decode. It is also not proven here that no character
+         * can move the host THROUGH the parser's own normalisation - IDNA mapping, backslash
+         * folding and dot-segment removal all run inside Uri and this method sees only the
+         * result. Two candidates are on record and unanswered: a fullwidth U+FF20 that may
+         * map to '@' during host determination, and the '+' that HttpUtility.UrlDecode turns
+         * into a SPACE on the way in (security review MAJOR #8). Both need a device run.
+         *
+         * ⚠ Utils.IsAllowedURL is NOT used here and must not be. It is a SUBRESOURCE gate
+         * and it returns TRUE for every non-http scheme, which is the exact inverse of what
+         * a browser sink needs.
+         *
+         * ⚠ The refusal and the failure line name the SCHEME and the KIND only. Uri.Scheme is
+         * produced by the parser and its grammar is a letter followed by letters, digits and
+         * "+-.", and the kind is an enum, so no caller text can ride either line. `ex.Message`
+         * is never logged: an exception message repeats the value that caused it, and
+         * ixian.log is rendered by DevPage and shared to the OS share sheet in one tap. */
+        public enum ExternalTarget
+        {
+            Web,           // http and https, and the host must be the host the user read
+            MailCompose    // mailto only
+        }
+
+        /// <summary>Opens a web link with the STRICT kind. Returns false for every refusal.
+        /// Read the two-argument overload for what a true return does and does not mean.</summary>
+        public static bool openExternal(string? url)
+        {
+            return openExternal(url, ExternalTarget.Web);
+        }
+
+        /// <summary>Opens an external link of the named kind. Returns false for every refusal
+        /// and for a synchronous failure. A TRUE return means the link passed the gate and the
+        /// hand-off was ACCEPTED. It does NOT mean a browser opened. Browser.OpenAsync completes
+        /// asynchronously and this method is synchronous, so a failure raised inside that Task
+        /// is LOGGED by the continuation below. It cannot be returned.</summary>
+        public static bool openExternal(string? url, ExternalTarget kind)
+        {
+            Uri? target = null;
+            if (string.IsNullOrEmpty(url) || !Uri.TryCreate(url, UriKind.Absolute, out target) || target == null)
+            {
+                Logging.warn("openExternal refused a link: unparsable, kind=" + kind);
+                return false;
+            }
+
+            bool admit = kind == ExternalTarget.Web
+                ? (target.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.Ordinal)
+                    || target.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.Ordinal))
+                  && target.UserInfo.Length == 0
+                : kind == ExternalTarget.MailCompose
+                  && target.Scheme.Equals(Uri.UriSchemeMailto, StringComparison.Ordinal);
+
+            if (!admit)
+            {
+                Logging.warn("openExternal refused a link: kind=" + kind + " scheme=" + target.Scheme);
+                return false;
+            }
+
+            try
+            {
+                /* ⚠ THE HAND-OFF IS NOT AWAITED, AND THE TASK IS OBSERVED INSTEAD.
+                 * This method returns bool to synchronous callers: the ixian: navigation
+                 * handlers that call it are void event handlers, so an await here would turn
+                 * them async void and the signature change would reach every call site. The
+                 * one caller that is already async is the iOS dispatched lambda, and it is not
+                 * a reason to change the other ten (eleven call sites, five files). The catch below therefore sees only a
+                 * SYNCHRONOUS throw. The ordinary failure - no browser installed, no activity
+                 * to receive the intent - is raised INSIDE the Task, and a discarded Task
+                 * makes it an unobserved exception that no log line can see. The continuation
+                 * reads the outcome, so the failure line below is reachable for the fault, for
+                 * a cancellation and for a plain false result. */
+                Browser.Default.OpenAsync(target).ContinueWith(t =>
+                {
+                    if (t.IsFaulted || t.IsCanceled || !t.Result)
+                    {
+                        Logging.error("openExternal handoff failed: kind=" + kind + " scheme=" + target.Scheme + " " + (t.Exception?.GetBaseException().GetType().Name ?? (t.IsCanceled ? "canceled" : "refused")));
+                    }
+                });
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Logging.error("openExternal handoff failed: kind=" + kind + " scheme=" + target.Scheme + " " + ex.GetType().Name);
+                return false;
+            }
         }
 
         public static bool IsAllowedURL(string url)

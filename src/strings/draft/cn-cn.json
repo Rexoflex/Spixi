@@ -627,5 +627,7 @@
   "chatGround": "画布",
   "groundFlat": "纯色",
   "groundGradient": "渐变",
-  "notifPushProviderSub": "消息一到即唤醒此设备。使用推送服务商 OneSignal。"
+  "notifPushProviderSub": "消息一到即唤醒此设备。使用推送服务商 OneSignal。",
+  "loadMedia": "加载图片和 GIF",
+  "loadMediaSub": "加载会让发送者的服务器知道你打开了聊天"
 }

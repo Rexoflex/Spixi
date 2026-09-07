@@ -384,6 +384,8 @@
   "leaveGroupsConfirmTitle": "Leave {n} groups and remove {name}?",
   "leaveTitle": "このグループを退出しますか？",
   "leftGroupToast": "You left the group",
+  "loadMedia": "画像と GIF を読み込む",
+  "loadMediaSub": "読み込むと、送信者のサーバーにチャットを開いたことが伝わります",
   "loading": "読み込み中",
   "loadingHistory": "以前のメッセージを読み込み中",
   "lockCopy": "ロックを解除するにはウォレットのパスワードを入力してください。",

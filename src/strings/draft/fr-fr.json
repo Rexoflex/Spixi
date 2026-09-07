@@ -704,5 +704,7 @@
   "chatGround": "Fond",
   "groundFlat": "Uni",
   "groundGradient": "Dégradé",
-  "notifPushProviderSub": "Réveille cet appareil dès qu’un message arrive. Utilise OneSignal, un fournisseur de notifications push."
+  "notifPushProviderSub": "Réveille cet appareil dès qu’un message arrive. Utilise OneSignal, un fournisseur de notifications push.",
+  "loadMedia": "Charger les images et les GIF",
+  "loadMediaSub": "Le chargement indique à l’hôte de l’expéditeur que vous avez ouvert la conversation"
 }

@@ -705,5 +705,7 @@
   "chatGround": "Podlaga",
   "groundFlat": "Enobarvno",
   "groundGradient": "Preliv",
-  "notifPushProviderSub": "Prebudi to napravo takoj, ko prispe sporočilo. Uporablja OneSignal, ponudnika potisnih obvestil."
+  "notifPushProviderSub": "Prebudi to napravo takoj, ko prispe sporočilo. Uporablja OneSignal, ponudnika potisnih obvestil.",
+  "loadMedia": "Naloži slike in GIF-e",
+  "loadMediaSub": "Nalaganje pošiljateljevemu strežniku pove, da ste odprli klepet"
 }

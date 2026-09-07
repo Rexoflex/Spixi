@@ -625,7 +625,7 @@ namespace Spixi
             if (hit)
             {
                 /* ★ item 6 (#46 loop, round 2): the notification id comes off the wire too. */
-                Logging.info("[NOTIFDIAG] push " + logSafe(notificationId) + " already decided (" + seen.action + ") — " + where + " is a repeat");
+                Logging.info("[NOTIFDIAG] push " + SPIXI.Utils.logSafe(notificationId) + " already decided (" + seen.action + ") — " + where + " is a repeat");
 
                 /* ★★ MAJOR-7 (#46 loop, ROUND 2): THE ONE ASYMMETRY THE SDK CAN PRODUCE.
                  *
@@ -763,7 +763,13 @@ namespace Spixi
             }
             catch (Exception ex)
             {
-                Logging.error("Exception occured in decidePush (" + where + "): {0}", ex);
+                /* ★ handover sweep O-24: this `try` wraps the code that handles the push `fa`,
+                 * which is the SENDER'S WALLET ADDRESS. `IXICore.Address` formats the offending
+                 * string into its own exception message, so the raw exception object must not
+                 * reach the log. Log the TYPE and a sanitised message. Same rule as
+                 * `postOurPushRow`, which had it and this catch did not. */
+                Logging.error("Exception occured in decidePush (" + where + "): "
+                    + ex.GetType().Name + ": " + SPIXI.Utils.logSafe(ex.Message));
             }
 
             return decideFromAddress(fa, where);
@@ -806,31 +812,13 @@ namespace Spixi
             return PushAction.PostOurs;
         }
 
-        /* ★ m8 AND item 6 (#46 loop, ROUND 2): ONE SANITISER FOR EVERY WIRE-DERIVED VALUE
-         * THAT REACHES THE LOG.
+        /* ★ handover sweep O-25: THE SANITISER MOVED TO `SPIXI.Utils.logSafe`.
          *
-         * `Logging.log` writes the message verbatim and adds the line prefix itself. Nothing
-         * escapes it. So any value that came off the wire can carry a newline and write forged
-         * LINES into `ixian.log` — the address inside an `IXICore.Address` exception message,
-         * the OneSignal notification id, the message of a failed JSON read. That file is
-         * shareable from DevPage and `maxLogCount` is 5, so it is the artifact this project
-         * uses as evidence. `docs/security-handover-gate.md` also states that no log line
-         * carries an address. Flatten the line breaks and truncate.
-         *
-         * ⚠ SCOPE, STATED HONESTLY. This closes CR and LF. It does not close U+2028 or U+2029,
-         * because the log writer is a .NET StreamWriter and does not treat them as line
-         * breaks. It also does not make the value safe for a viewer that does. */
-        private const int LOG_SAFE_MAX = 160;
-
-        internal static string logSafe(string? value)
-        {
-            string safe = (value ?? string.Empty).Replace('\r', ' ').Replace('\n', ' ');
-            if (safe.Length > LOG_SAFE_MAX)
-            {
-                safe = safe.Substring(0, LOG_SAFE_MAX);
-            }
-            return safe;
-        }
+         * It lived here as `internal static`, which put it in the ANDROID compilation slice
+         * only. No shared-code site could call it, so the shared sites that log a wire-derived
+         * value had no sanitiser available. It is in `Spixi/Utils/Utils.cs` now, which every
+         * platform compiles, and O-24/O-26 also made it redact address-shaped tokens. Read the
+         * docblock there for the rule and for what the rule does NOT close. */
 
         /// <summary>★ #495: post OUR row for a push, keyed on the chat address so a second
         /// message from the same sender REPLACES the first instead of stacking beside it.
@@ -855,8 +843,8 @@ namespace Spixi
                  *
                  * `fa` comes off the wire, and `IXICore.Address` formats the offending string
                  * INTO its exception message. Log the exception TYPE and a sanitised message.
-                 * See `logSafe`. */
-                Logging.error("postOurPushRow failed, the raw push is kept: " + ex.GetType().Name + ": " + logSafe(ex.Message));
+                 * See `SPIXI.Utils.logSafe`. */
+                Logging.error("postOurPushRow failed, the raw push is kept: " + ex.GetType().Name + ": " + SPIXI.Utils.logSafe(ex.Message));
                 return false;
             }
         }
@@ -884,7 +872,7 @@ namespace Spixi
             {
                 /* ★ item 6 (#46 loop, round 2): this message comes out of a read of wire data.
                  * Same shape as m8, lower value, closed the same way. */
-                Logging.warn("handleNotificationReceived: could not read the push: " + logSafe(ex.Message));
+                Logging.warn("handleNotificationReceived: could not read the push: " + SPIXI.Utils.logSafe(ex.Message));
             }
 
             /* ★ m9 (#46 loop, 2026-08-22): the extension guards this call and this lane did

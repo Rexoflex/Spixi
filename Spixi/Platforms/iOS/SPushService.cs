@@ -170,7 +170,24 @@ namespace Spixi
             }
         }
 
-        /* * APNS-1 probe. LOG ONLY - see initialize(). Never throws into a caller. */
+        /* * APNS-1 probe. LOG ONLY - see initialize(). Never throws into a caller.
+         *
+         * ★ handover sweep O-21: THE SUBSCRIPTION ID IS NOT PRINTED IN FULL.
+         *
+         * The APNs token on the same line was already reduced to a character count; the
+         * subscription id was not. That id is a persistent push identifier: it correlates one
+         * device across every log file it appears in, and with the app's OneSignal key it also
+         * TARGETS that device. `ixian.log` is shareable from DevPage, so it leaves the device.
+         *
+         * A SHORT PREFIX WAS CONSIDERED AND REFUSED. A prefix would let a maintainer match a
+         * log against a OneSignal dashboard row, but eight characters of this id are still a
+         * stable per-device correlator in a file that leaves the device, and the probe does not
+         * need one: its question is "did APNs registration happen", which presence answers. So
+         * the id is printed the way the token beside it is printed, and the dashboard lookup is
+         * done on the device instead of out of a shared log.
+         *
+         * ⚠ The length is constant for a OneSignal id, so this line effectively reports
+         * PRESENCE. That is the honest description of what it now tells you. */
         private static void logPushSubscription(string when)
         {
             try
@@ -179,7 +196,7 @@ namespace Spixi
                 string tok = sub.Token;
                 Logging.info("[APNSDIAG] " + when
                     + " bundle=" + NSBundle.MainBundle.BundleIdentifier
-                    + " subId=" + (string.IsNullOrEmpty(sub.Id) ? "(none)" : sub.Id)
+                    + " subId=" + (string.IsNullOrEmpty(sub.Id) ? "(none)" : sub.Id.Length + " chars")
                     + " token=" + (string.IsNullOrEmpty(tok)
                         ? "(NONE - not registered with APNs)"
                         : tok.Length + " chars")

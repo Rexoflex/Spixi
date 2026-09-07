@@ -235,6 +235,48 @@
   } = window.Spixi;
   const strings = window.SL || {};
 
+  /* ★★ security sweep C-3 — FORGET A PEER, from the page that removed them.
+   * C# pushes removeContactResult to the page that asked for the removal and to no
+   * other (ContactDetails.xaml.cs and HomePage.xaml.cs each push to `this`), so a
+   * removal started HERE never reaches home.html's own sweep. This is that sweep, with
+   * one difference: this document holds no pin state, so it prunes the address out of
+   * the stored spixi.pins array directly. home.html re-seeds its in-memory set from the
+   * `storage` event that write raises, so a stale set cannot write the address back.
+   * ⚠ Prefix-driven, exactly like the twin in home.html: every `spixi.*` key whose name
+   * ENDS with `.<address>` goes, so a key family added later is covered by construction.
+   * The length guard is load-bearing — an empty address would make the suffix "." and
+   * match nearly every key in the store. Keep the two bodies in step.
+   * `scope`, the same vocabulary home.html uses:
+   *   'contact' — the contact is gone (removed, or a room we left). Everything goes,
+   *               the pin with it. This is also the default.
+   *   'history' — the CONVERSATION is gone but the contact STAYS, so the two
+   *               contact-state markers survive and the pin is left alone. A user who
+   *               deletes their messages must not see a hidden request re-appear, and a
+   *               handshake stage is about the contact, not about the messages. */
+  const PEER_KEYS_KEPT_ON_HISTORY = ['spixi.hidereq.', 'spixi.hsstage.'];
+  function forgetPeerStorage(addr, scope) {
+    const a = String(addr || '');
+    if (a.length < 8) return;                     // fail closed on a short or empty address
+    const suffix = '.' + a;
+    try {
+      const doomed = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || k.indexOf('spixi.') !== 0) continue;
+        if (k.length <= suffix.length || k.slice(-suffix.length) !== suffix) continue;
+        if (scope === 'history' && PEER_KEYS_KEPT_ON_HISTORY.some((pfx) => k.indexOf(pfx) === 0)) continue;
+        doomed.push(k);
+      }
+      // remove AFTER the walk — removing during it re-indexes the store and skips keys
+      for (const k of doomed) localStorage.removeItem(k);
+      if (scope === 'history') return;            // the contact stays, and so does its pin
+      const pins = JSON.parse(localStorage.getItem('spixi.pins') || '[]');
+      if (Array.isArray(pins) && pins.indexOf(a) !== -1) {
+        localStorage.setItem('spixi.pins', JSON.stringify(pins.filter((p) => p !== a)));
+      }
+    } catch (e) { /* storage may be unavailable */ }
+  }
+
   // Boot theme: honor the user's chosen appearance (persisted to localStorage by
   // the Account screen — same Resources/Raw/html origin) so a light/dark pick
   // propagates to every shell; fall back to the OS scheme when 'auto'/unset.
@@ -805,6 +847,10 @@
       balance: 0,                                    // the real balance rides the first quote
       fee: null,                                     // W6: gated until a quote lands
       strings, host: document.body,
+      /* ★ Gate row O-01, the same removal as chat.html. `pick()` of the locked peer fires
+         ONE amount-0 quote at open (wallet-send.js), and that quote carries the balance and
+         the Max ceiling. This shell sent a second, identical quote after the cover was
+         attached. The duplicate is removed. ⚠ Do not add a quote here again. */
       onQuote: (addr, amount) => bridge.send('ixian:feeQuery:' + addr + ':' + amount),
       onSend: (payload, ctrl) => {
         const r = (payload.recipients && payload.recipients[0]) || {};
@@ -840,8 +886,6 @@
       if (f) { try { f.focus(); } catch (err) {} }
     };
     document.addEventListener('focusin', cdSendFocusin);
-    // balance prefetch: amount 0 = "quote the balance + Max ceiling" (fee stays gated)
-    bridge.send('ixian:feeQuery:' + state.address + ':0');
   }
 
   /* Request — the #139 amount sheet. ONE verb per request; the peer is known, so
@@ -950,7 +994,7 @@
     removeContactResult(address, status, ...pairs) {
       const addr = String(address || '');
       const st = String(status || '');
-      if (st === 'ok' || st === 'left') return;
+      if (st === 'ok' || st === 'left') { forgetPeerStorage(addr, 'contact'); return; }
       const groups = [];
       for (let i = 0; i + 1 < pairs.length; i += 2) groups.push({ name: String(pairs[i] || ''), address: String(pairs[i + 1] || '') });
       if (st === 'blocked') {
@@ -963,6 +1007,21 @@
         ? (strings.removeBlockedToast || 'Not removed: still a member of {groups}. Leave the group first.').split('{groups}').join(names)
         : (strings.removeFailedToast || 'The contact could not be removed. Please try again.');
       try { showToast({ text, tone: 'error', host: document.body, strings }); } catch (e) {}
+    },
+    /* ★★ #46 loop B, MAJOR-1 — the other two removals this page owns.
+       "Leave group" and "Delete chat history" removed the record and answered nothing, so
+       the sweep above never ran for either: the user's own unsent DRAFT and the per-peer
+       markers stayed for a room that is gone. C# now pushes the SAME result commands
+       HomePage already uses (leaveGroupResult · removeHistoryResult) from these two
+       branches, and each is pushed on its SUCCESS path only.
+       No toast on either: C# raises its own native alert for both, and the page pops on a
+       leave. A failure pushes nothing here, so there is no branch to write for it. */
+    leaveGroupResult(address, status) {
+      if (String(status || '') === 'left') forgetPeerStorage(String(address || ''), 'contact');
+    },
+    removeHistoryResult(address, status) {
+      // the CONTACT stays — scope 'history' keeps the two contact-state markers and the pin
+      if (String(status || '') === 'ok') forgetPeerStorage(String(address || ''), 'history');
     },
     // Real contact photo → the c-chat-info hero (resolves today on WinUI; every
     // platform once BE cutover X1 lands the data: URI). Commit so the hero updates

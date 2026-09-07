@@ -18,7 +18,7 @@ using System.Threading.Tasks;
 using IXICore.Streaming;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Xaml;
-using System.Net;
+using System.Net;             // ⚠ sweep A-7: the openLink branch no longer decodes. WebUtility was this file's only System.Net user. The import stays until a build can prove it is safe to delete.
 using Microsoft.Maui.Storage;
 using Microsoft.Maui.ApplicationModel;
 using System.Text;
@@ -726,6 +726,18 @@ namespace SPIXI
                     {
                         IXICore.Meta.Logging.info("[CRASHDIAG] chatleave: sent, presenting the alert");
                         IXICore.Meta.Logging.flush();
+                        /* ★ #46 loop B, MAJOR-1 — TELL THE SHELL THE ROOM IS GONE.
+                         * The friend is removed and this branch pushed nothing, so every
+                         * localStorage key that carries this address survived: the user's own
+                         * unsent DRAFT first. `leaveGroupResult` is the command name
+                         * HomePage.onLeaveGroupFor already uses for this outcome — a second
+                         * call site, not a new push. The eval is queued on the main thread
+                         * before popPageAsync queues the teardown, so the sweep runs on a live
+                         * WebView. Success only: a refused leave keeps the record and the data.
+                         * ⚠ The emitter in chat.html is the retained-but-unreachable in-chat
+                         * info takeover (#249 loop C-3). This handler is wired for the day
+                         * that block is lit up again; it is not a live path today. */
+                        try { Utils.sendUiCommand(this, "leaveGroupResult", friend.walletAddress.ToString(), "left"); } catch (Exception) { }
                         displaySpixiAlert(SpixiLocalization._SL("contact-details-removedcontact-title"), SpixiLocalization._SL("contact-details-removedcontact-text"), SpixiLocalization._SL("global-dialog-ok"));
                         popPageAsync();
                         homePage?.removeDetailContent();
@@ -741,21 +753,95 @@ namespace SPIXI
                     link = "http://" + link;
                 }
 
-                try
-                {
-                    string decoded_link = WebUtility.HtmlDecode(link);
-#pragma warning disable CS0618 // Type or member is obsolete
-                    Browser.Default.OpenAsync(new Uri(decoded_link));
-#pragma warning restore CS0618 // Type or member is obsolete
-                }catch(Exception ex)
-                {
-                    Logging.error("Exception occured while trying to open URL '{0}': {1}",  link, ex);
-                }
+                /* ★★ SECURITY MAJOR #3 (handover sweep) — THE HOST THAT OPENS IS THE
+                 * HOST THE USER READ. The confirm modal lives in the chat shell
+                 * (chat.html, confirmOpenLink) and its body is the string the shell puts
+                 * in this verb. This branch used to run WebUtility.HtmlDecode AFTER that
+                 * modal had been approved, so the user approved one string and the app
+                 * opened a different one: "https://paypal.com&commat;evil.example.com/login"
+                 * reads as paypal.com and resolves to host evil.example.com. That decode
+                 * is gone. No legitimate link loses it: the shell builds this string from a
+                 * TEXT node (message-bubble.js, linkifyPlain), so no HTML entity can enter
+                 * it, and the secure-notice link is a compile-time constant.
+                 *
+                 * ⚠ THE TRANSPORT PAIR IS NOT SYMMETRIC, AND THE FIRST FIX CLAIMED IT WAS
+                 * (#46 loop A, MAJOR-1). The shell sends the link RAW (src/bridge/native.js,
+                 * send). The WebView percent-encodes only the characters it must, and it
+                 * never re-encodes a '%' that the peer already typed. onNavigating then
+                 * UrlDecodes EVERY %XX on its first line. So a peer-authored %XX arrives
+                 * here in a form the modal never displayed, and nothing in this branch can
+                 * tell that escape apart from one the WebView added. `link` is therefore
+                 * NOT byte-identical to the approved text, and removing a second decode
+                 * does not make it so.
+                 *
+                 * ★ THIS END IS AUTHORITATIVE, because it is the only end that can refuse.
+                 * The shell cannot be changed from here (its half of the grammar is frozen),
+                 * so C# enforces the one property that decides where the user lands: the
+                 * DESTINATION HOST must be the host the user read.
+                 * ★ WHAT IS ENFORCED. Utils.openExternal refuses a non-empty Uri.UserInfo.
+                 * Userinfo is the construct that puts the real host AFTER text the reader
+                 * takes for the destination: "https://paypal.com@evil.example/login" reads
+                 * as paypal.com and resolves to evil.example, and the decode above turns a
+                 * peer-typed "%40" into that same '@'. The refusal closes both forms. It
+                 * also refuses every scheme but http and https.
+                 * ⚠ WHAT IS NOT ESTABLISHED, stated plainly (#772 / #798). Two earlier
+                 * versions of this paragraph closed the argument with an author's
+                 * enumeration — first a LIST of safe escapes, then a three-way split of
+                 * "each character the decode adds". Both were incomplete, and the second
+                 * one was also FALSE at its premise: HttpUtility.UrlDecode is FORM
+                 * decoding, so a literal '+' becomes a SPACE. The decode can REMOVE a
+                 * character, not only add one, and this repo settles that with a Roslyn run
+                 * (security review MAJOR #8). That same '+' is why a path may not survive
+                 * unchanged: "https://en.wikipedia.org/wiki/C++" arrives here with the two
+                 * plus signs replaced by spaces. Nothing in this branch restores them.
+                 * Nor is it established that no character can move the HOST. The host is
+                 * not the decoded string. It is what Uri produces after its own
+                 * normalisation - IDNA mapping for a non-ASCII host, backslash folding,
+                 * case folding and dot-segment removal all run inside the parser, and this
+                 * branch sees only the result. Two candidates are on record and answerable
+                 * only on a device: a fullwidth U+FF20 that may map to '@' during host
+                 * determination, and what Uri.TryCreate does with the space the '+' leaves
+                 * inside an authority. Neither is closed by the guard, and neither is
+                 * claimed to be.
+                 * A non-ASCII (IDN) host arrives here percent-encoded and keeps working,
+                 * which is why the authority is not simply refused for carrying a '%'.
+                 * ⚠ The confirm is a SHELL surface, so C# cannot re-display the string
+                 * here. If a native confirm is ever added, it must show THIS variable and
+                 * nothing derived from it. */
+
+                /* ★ SECURITY MAJOR #3, second and third half: THE ONE SINK.
+                 * The scheme allow-list and the userinfo refusal used to be written out
+                 * here, and copied word for word into SettingsPage. Both copies are gone.
+                 * `Utils.openExternal` (Spixi/Utils/Utils.cs) now holds the rule once: it
+                 * parses the string ONCE, refuses every scheme but http and https, refuses
+                 * a non-empty Uri.UserInfo, and hands the SAME Uri object to the browser
+                 * inside a try. It is the only method in the tree that may call the sink.
+                 * ⚠ THE DUPLICATION WAS THE DEFECT, not just a smell. A #46 loop defeated
+                 * the pin over these two copies three rounds running, because a control-flow
+                 * property of duplicated code cannot be proven by reading text. Read
+                 * openExternal's own comment for what is enforced and what is NOT.
+                 * The refusal is SILENT to the user, as it was before: the tap does nothing
+                 * and ixian.log carries the scheme. A refused link is a link this app must
+                 * not open, and no message here could be written from peer text safely. */
+                Utils.openExternal(link);
             }
             else if (current_url.StartsWith("ixian:undorequest"))
             {
                 // Remove friend from list and go back to the main screen
-                FriendList.removeFriend(friend);
+                bool requestRemoved = FriendList.removeFriend(friend);
+
+                /* ★ #46 loop B, MAJOR-1 — THE RECORD IS GONE, SO SAY SO.
+                 * chat.html's request pane Decline emits this verb (the only live emitter
+                 * since #562 moved the outgoing Cancel to hide-request), and the branch pushed
+                 * nothing — so the user's own unsent DRAFT and the per-peer markers stayed for
+                 * a contact that no longer exists. A stale spixi.hsstage.<address> also makes
+                 * the next request from the same address restore the previous handshake stage.
+                 * `undoRequestResult` is the command name HomePage.onUndoRequestFor already
+                 * uses for this outcome — a second call site, not a new push.
+                 * ⚠ The result reports the LOCAL removal. A refused removal keeps the record,
+                 * so the shell must keep the data; it answers "fail" and sweeps nothing.
+                 * The eval is queued before popPageAsync queues the teardown. */
+                try { Utils.sendUiCommand(this, "undoRequestResult", friend.walletAddress.ToString(), requestRemoved ? "ok" : "fail"); } catch (Exception) { }
 
                 UIHelpers.shouldRefreshContacts = true;
                 popPageAsync();

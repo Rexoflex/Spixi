@@ -943,7 +943,18 @@ namespace SPIXI
                         Logging.error("App with id {0} is not installed.", app_id);
                     }
                 }
-                Node.addMessageWithType(messageId, FriendMessageType.appSession, sender_address, 0, app_data.appId);
+                /* ★★ HANDOVER SWEEP F2 / B-2 — THE PEER'S INVITE STRING IS GATED HERE.
+                 * This is where peer bytes become the stored message that
+                 * SingleChatPage.loadMessages later splits into `id||url||name||icon`, and
+                 * the icon field becomes an <img src> in the chat document. A hostile peer
+                 * composes this string itself, so MiniAppManager.getAppInfo cannot
+                 * constrain it — this line is the trust boundary.
+                 * sanitizeAppInvite rewrites the icon field to the parser's canonical form
+                 * of an absolute https URL, or to empty, and preserves every other segment
+                 * exactly. It closes the gate that "http:/host/x.gif" stepped over: the
+                 * shell's remote test and the receiver's admission test can no longer
+                 * disagree about the same string. */
+                Node.addMessageWithType(messageId, FriendMessageType.appSession, sender_address, 0, MiniAppManager.sanitizeAppInvite(app_data.appId));
 
             });
         }

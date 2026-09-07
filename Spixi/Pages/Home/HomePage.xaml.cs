@@ -799,7 +799,7 @@ namespace SPIXI
                             continue;
                         }
                         try { addresses.Add(new ExtendedAddress(a)); }
-                        catch (Exception ex) { Logging.error("creategroup: bad address: " + ex); }
+                        catch (Exception ex) { Logging.error("creategroup: bad address: " + ex.GetType().Name); }   // sweep G-3: no ex — the ctor formats the base58 into its message
                     }
                     if (addresses.Count > 1)
                     {
@@ -873,11 +873,11 @@ namespace SPIXI
             }
             else if (current_url.Equals("ixian:about", StringComparison.Ordinal))
             {
-                Browser.Default.OpenAsync(new Uri(Config.aboutUrl));
+                Utils.openExternal(Config.aboutUrl);   // the one external-open gate (Spixi/Utils/Utils.cs)
             }
             else if (current_url.Equals("ixian:guide", StringComparison.Ordinal))
             {
-                Browser.Default.OpenAsync(new Uri(Config.guideUrl));
+                Utils.openExternal(Config.guideUrl);   // the one external-open gate (Spixi/Utils/Utils.cs)
             }
             else if (current_url.Equals("ixian:backup", StringComparison.Ordinal))
             {
@@ -970,7 +970,7 @@ namespace SPIXI
                 }
                 catch (Exception ex)
                 {
-                    Logging.error("ixian:mutechat failed: " + ex);
+                    Logging.error("ixian:mutechat failed: " + ex.GetType().Name);   // sweep G-3: no ex — new Address(muteAddr) formats the token into its message
                 }
                 /* ⚠ AUDIT MINOR: the echo is OUTSIDE the try and outside every guard. Inside,
                  * it was skipped on exactly the paths it exists for — a malformed payload, an
@@ -990,18 +990,34 @@ namespace SPIXI
                     Logging.error("ixian:mutechat echo failed: " + ex2);
                 }
             }
-            else if (current_url.Contains("ixian:chatinfo:"))
+            else if (current_url.StartsWith("ixian:chatinfo:", StringComparison.Ordinal))
             {
                 // #248 (Damir F5 items 1/5): chats row-menu entry → context 'chat'
                 // ("Chat info"/"Group info", no Message action) — same pane routing.
-                string id = current_url.Split(new string[] { "ixian:chatinfo:" }, StringSplitOptions.None)[1];
-                Friend? friend = FriendList.getFriend(new Address(id));
-                if (friend == null)
+                /* ★ HANDOVER SWEEP A-6: ANCHORED, and the address is fenced.
+                 * This was the one verb added since #216 that still dispatched with
+                 * Contains() + Split[1]: it matched the literal ANYWHERE in the URL and
+                 * then cut the payload at it, so a payload that merely embedded the
+                 * literal chose where it was cut and which branch answered it. StartsWith
+                 * + Substring is the shape ScanPage moved to (ScanPage.xaml.cs, the
+                 * ixian:qrresult: branch) and the shape ixian:mutechat: above already uses.
+                 * A URL that IS the prefix now yields an empty payload, which the address
+                 * parse refuses inside the fence (the A-5 class — the ctor threw here). */
+                try
                 {
-                    e.Cancel = true;
-                    return;
+                    string id = current_url.Substring("ixian:chatinfo:".Length);
+                    Friend? friend = FriendList.getFriend(new Address(id));
+                    if (friend == null)
+                    {
+                        e.Cancel = true;
+                        return;
+                    }
+                    openContactDetails(friend, false, true);
                 }
-                openContactDetails(friend, false, true);
+                catch (Exception ex)
+                {
+                    Logging.error("ixian:chatinfo failed (malformed payload or address): " + ex.GetType().Name);
+                }
             }
             else if (current_url.Contains("ixian:txdetails:"))
             {
@@ -1078,6 +1094,7 @@ namespace SPIXI
             {
                 string result = current_url.Split(new string[] { "ixian:rating:" }, StringSplitOptions.None)[1];
                 string? action_url = null;
+                bool mailAction = false;   // "no" opens a mail composer, not a web page
 
                 if (result.Equals("yes", StringComparison.Ordinal))
                 {
@@ -1093,12 +1110,50 @@ namespace SPIXI
                 else if (result.Equals("no", StringComparison.Ordinal))
                 {
                     action_url = Config.supportEmailUrl;
+                    mailAction = true;
                 }
 
                 if (action_url != null)
                 {
                     Preferences.Default.Set("rating_action", "done");
-                    Browser.Default.OpenAsync(new Uri(action_url));
+                    /* ★ THE ONE EXTERNAL-OPEN GATE (Spixi/Utils/Utils.cs). `action_url` is one
+                     * of three compile-time constants set in the branch above and never
+                     * anything else, so the kind is known at the call: "yes" opens a store
+                     * page (Web), "no" opens the support mail composer (MailCompose).
+                     * Config.supportEmailUrl is a mailto:, which the Web kind refuses on
+                     * purpose, so the kind is named rather than defaulted.
+                     * ⚠ WHAT THE GATE ADDS HERE, AND IT IS NOT #797. `new Uri(...)` and the
+                     * hand-off both ran UNFENCED, so a malformed value threw out of this
+                     * handler. The navigation was still cancelled: `e.Cancel = true` is the
+                     * SECOND STATEMENT of onNavigating, above every branch, so no ixian: URL
+                     * could load. What the throw DID do, read at the caller rather than
+                     * guessed from this file: both platform hosts in this repository CATCH
+                     * it. Android wraps the dispatch — SpixiWebViewClient.ShouldOverrideUrlLoading
+                     * try/catches `SendNavigating`, logs, then reads `args.Cancel`, so the
+                     * navigation stays cancelled. iOS wraps `base.DecidePolicy`, which is the
+                     * call that raises MAUI's Navigating event, and fails closed with
+                     * `decide(Cancel)`. So the process does NOT go down. What is lost is the
+                     * REST of this handler — every statement after the throw is abandoned —
+                     * and, on iOS, that catch logs the exception object IN FULL into
+                     * ixian.log, a file DevPage renders and shares to the OS share sheet in
+                     * one tap. The gate returns false instead of throwing, so nothing about
+                     * the offending value reaches that line.
+                     * ⚠ TWO earlier versions of this paragraph were wrong. The first said the
+                     * throw ran before `e.Cancel = true` and re-opened #797 (FALSE — read the
+                     * TOP of the handler, not the nearest `e.Cancel` below the block; the
+                     * correction is also carried in SingleChatPage.onContextAction). The
+                     * second, written to fix the first, said the escape "takes the process
+                     * down on Android and iOS" — also FALSE, and disproved by the catch that
+                     * this same batch documented forty lines away in iOSWebViewHandler
+                     * (#772). Two other comments in SingleChatPage still carry that claim. */
+                    if (mailAction)
+                    {
+                        Utils.openExternal(action_url, Utils.ExternalTarget.MailCompose);
+                    }
+                    else
+                    {
+                        Utils.openExternal(action_url);
+                    }
                 }
 
                 e.Cancel = true;
@@ -1253,7 +1308,7 @@ namespace SPIXI
                 if (txid.Length > 0 && txid.Length <= 128
                     && System.Text.RegularExpressions.Regex.IsMatch(txid, "^[0-9A-Za-z-]+$"))
                 {
-                    Browser.Default.OpenAsync(new Uri(String.Format("{0}?p=transaction&id={1}", Config.explorerUrl, txid)));
+                    Utils.openExternal(String.Format("{0}?p=transaction&id={1}", Config.explorerUrl, txid));   // the one external-open gate
                 }
                 else
                 {
@@ -1262,7 +1317,7 @@ namespace SPIXI
             }
             else if (current_url.StartsWith("ixian:explorer"))
             {
-                Browser.Default.OpenAsync(new Uri(Config.explorerUrl + "index.php?p=address&id=" + IxianHandler.primaryWalletAddress));
+                Utils.openExternal(Config.explorerUrl + "index.php?p=address&id=" + IxianHandler.primaryWalletAddress);   // the one external-open gate
             }
             else if (current_url.StartsWith("ixian:miniAppsStartNoteHidden", StringComparison.Ordinal))
             {
@@ -1289,7 +1344,7 @@ namespace SPIXI
             }
             else if (current_url.StartsWith("ixian:spixiAppsLink", StringComparison.Ordinal))
             {
-                Browser.Default.OpenAsync(new Uri(Config.spixiAppsUrl));
+                Utils.openExternal(Config.spixiAppsUrl);   // the one external-open gate
             }
             else if (current_url.Trim().StartsWith("file:", StringComparison.OrdinalIgnoreCase))
             {
@@ -1403,7 +1458,15 @@ namespace SPIXI
                         || request_friend.type != FriendType.Normal
                         || request_friend.bot)
                     {
-                        Logging.warn("sendrequest: rejected recipient " + recipient
+                        // ★ HANDOVER SWEEP G-2: the ADDRESS IS GONE from this line.
+                        // `new Address(recipient)` succeeded two statements above, so
+                        // `recipient` here is a well-formed wallet address, not a
+                        // malformed token — a normal refusal wrote a real peer address
+                        // into ixian.log, which DevPage renders and shares. The clean twin
+                        // SPayments.handleSendRequest logs a fixed sentence; this one now
+                        // matches it, and keeps only the flags, which answer the
+                        // diagnostic question and name nobody.
+                        Logging.warn("sendrequest: rejected recipient"
                             + " (known: " + (request_friend != null)
                             + ", approved: " + (request_friend != null ? request_friend.approved.ToString() : "n/a")
                             + ", state: " + (request_friend != null ? request_friend.state.ToString() : "n/a")
@@ -1423,7 +1486,9 @@ namespace SPIXI
             }
             catch (Exception ex)
             {
-                Logging.error("Exception occurent for sendrequest action: " + ex);
+                // ★ Sweep G-3: no `ex`. `new Address(recipient)` runs inside this try and
+                // Ixian-Core formats the whole base58 into its exception text.
+                Logging.error("Exception occurent for sendrequest action: " + ex.GetType().Name);
                 displaySpixiAlert(SpixiLocalization._SL("wallet-request-error-title"), SpixiLocalization._SL("wallet-request-error-text"), SpixiLocalization._SL("global-dialog-ok"));
             }
         }
@@ -1660,7 +1725,15 @@ namespace SPIXI
                     displaySpixiAlert(SpixiLocalization._SL("global-invalid-address-title"), SpixiLocalization._SL("global-invalid-address-text"), SpixiLocalization._SL("global-dialog-ok"));
                     return;
                 }
-                Utils.sendUiCommand(this, "quickScanResult", payload);
+                /* ★ Handover sweep O-14: the ADDRESS is validated above, the TAIL was not.
+                 * A QR is a payload a stranger prints, and everything after the first ':'
+                 * crossed into the wallet document and pre-filled the money compose.
+                 * Utils.safeScanPayload keeps only the closed grammar the shell parses and
+                 * drops any other tail. It re-formats nothing: an accepted amount is echoed
+                 * character for character, so this cannot alter a number. Nothing that is
+                 * parsed, signed or broadcast changes — the native confirm still re-reads
+                 * recipient, amount and fee, and it is still the only thing that signs. */
+                Utils.sendUiCommand(this, "quickScanResult", Utils.safeScanPayload(payload));
             };
             await Navigation.PushAsync(scanPage, Config.defaultXamarinAnimations);
         }
@@ -1683,11 +1756,16 @@ namespace SPIXI
                     {
                         throw new Exception("address validation failed");
                     }
-                    Utils.sendUiCommand(this, "quickScanResult", result);
+                    // ★ Handover sweep O-14: the same tail guard as quickScanForSend above.
+                    Utils.sendUiCommand(this, "quickScanResult", Utils.safeScanPayload(result));
                 }
                 catch (Exception ex)
                 {
-                    Logging.error("Invalid address format: " + ex.Message);
+                    /* ★ Sweep G-3: no ex.Message. ExtendedAddress.Validate builds an Address
+                     * from the scanned string, and Ixian-Core's Address constructor formats
+                     * the whole base58 token into its exception text. ixian.log is rendered
+                     * by DevPage and shared in one tap. */
+                    Logging.error("Invalid address format in a scanned payload: " + ex.GetType().Name);
                 }
                 return;
             }
@@ -3370,7 +3448,9 @@ namespace SPIXI
                     catch (Exception e)
                     {
                         // an unparseable address can never resolve — drop it rather than retry
-                        Logging.error("Start screen address is not usable, dropping the deep link: " + e);
+                        // sweep G-3: no `e` — the address comes off a push intent extra and
+                        // Ixian-Core's Address ctor formats it into the exception text
+                        Logging.error("Start screen address is not usable, dropping the deep link: " + e.GetType().Name);
                         usable = false;
                     }
                     if (!usable)
@@ -3390,7 +3470,7 @@ namespace SPIXI
                         }
                         catch (Exception e)
                         {
-                            Logging.error("Error in selecting start screen: " + e);
+                            Logging.error("Error in selecting start screen: " + e.GetType().Name);   // sweep G-3: no `e` — carries the address
                         }
                         return;
                     }
@@ -4480,7 +4560,7 @@ namespace SPIXI
                 }
                 catch (Exception ex)
                 {
-                    Logging.error("startappwith: bad address: " + ex);
+                    Logging.error("startappwith: bad address: " + ex.GetType().Name);   // sweep G-3: no ex — the ctor formats the base58 into its message
                 }
             }
             if (targets.Count < 1)
@@ -4592,16 +4672,27 @@ namespace SPIXI
             // CH2: mirrors SingleChatPage.onAcceptFriendRequest — approve + send the accept.
             // A full contacts refresh (shouldRefreshContacts) re-flushes loadChats, which
             // drops the friend from the requests feed (now approved) into the chat list.
-            Friend friend = FriendList.getFriend(new Address(address));
-            if (friend == null)
+            // ★ HANDOVER SWEEP A-5: the address rides the WebView URL, so it is parsed
+            // inside a fence — a malformed token must never throw out of onNavigating
+            // (the A-4 rule that the five sibling handlers below already keep). The log
+            // names no token: an Address ctor error carries the base58 in its message.
+            try
             {
-                return;
+                Friend friend = FriendList.getFriend(new Address(address));
+                if (friend == null)
+                {
+                    return;
+                }
+                friend.approved = true;
+                friend.handshakePushed = false;
+                UIHelpers.shouldRefreshContacts = true;
+                StreamProcessor.sendAcceptAdd(friend, true);
+                writeConnectedLine(friend);
             }
-            friend.approved = true;
-            friend.handshakePushed = false;
-            UIHelpers.shouldRefreshContacts = true;
-            StreamProcessor.sendAcceptAdd(friend, true);
-            writeConnectedLine(friend);
+            catch (Exception ex)
+            {
+                Logging.error("ixian:acceptRequest failed (malformed payload or address): " + ex.GetType().Name);
+            }
         }
 
         /* ★ #434: the "you are now connected" line, written when the accept happens
@@ -4966,13 +5057,36 @@ namespace SPIXI
         private void onDeclineRequest(string address)
         {
             // CH2: decline = remove the friend (mirrors SingleChatPage's undorequest).
-            Friend friend = FriendList.getFriend(new Address(address));
-            if (friend == null)
+            // ★ HANDOVER SWEEP A-5: fenced, like its accept twin. This handler REMOVES a
+            // friend, so a throw here would leave the verb half-applied and would unwind
+            // into the platform navigation catch.
+            string addr = (address ?? "").Trim();
+            string status = "fail";
+            try
             {
-                return;
+                Friend friend = FriendList.getFriend(new Address(addr));
+                if (friend != null)
+                {
+                    if (FriendList.removeFriend(friend))
+                    {
+                        status = "ok";
+                    }
+                    // R2-3: a REFUSED removal re-flushes too, so the request card comes back
+                    UIHelpers.shouldRefreshContacts = true;
+                }
             }
-            FriendList.removeFriend(friend);
-            UIHelpers.shouldRefreshContacts = true;
+            catch (Exception ex)
+            {
+                Logging.error("ixian:declineRequest failed (malformed payload or address): " + ex.GetType().Name);
+            }
+            /* ★ #46 loop B, MAJOR-1 — THE RECORD IS GONE, SO SAY SO.
+             * Declining removed the friend and pushed nothing, so the shell kept every
+             * localStorage key that carries this address. `undoRequestResult` is the command
+             * name this class already uses for the same outcome on the same record
+             * (onUndoRequestFor) — a second call site, not a new push. The address is echoed
+             * exactly as the shell sent it, so the shell can match its own emit.
+             * ⚠ The status reports the LOCAL removal only. "fail" sweeps nothing. */
+            try { Utils.sendUiCommand(this, "undoRequestResult", addr, status); } catch (Exception) { }
         }
 
         private void onUninstallApp(string appId)

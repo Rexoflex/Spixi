@@ -1,8 +1,14 @@
 # Release readiness — what remains before v1.0
 
-Written 2026-09-06 (end of Session Q). Every claim below was checked against the tree, not
-copied from a doc — several of the docs it draws on are stale, and where they are, this file
-says so.
+Written 2026-09-06 (end of Session Q). **Re-synced 2026-09-07**, after the security handover
+sweep and its #46 loop closed rows this file reported as open. Every claim below was checked
+against the tree, not copied from a doc. Several of the docs it draws on are stale, and where
+they are, this file says so.
+
+⚠ **What the re-sync changed:** §0's security-MAJOR row · §1's "ours" table (all three rows) ·
+§1's `maxLogCount` note · §1's "gates that have never run" (the sweep HAS run) · §1's blocker
+count (13 → 15) · §2's PV1 row · §3's stale-row line · §7 in full. Nothing about the hardware
+walks, the BE engagement or the freeze changed. Those claims are unchanged and still true.
 
 **The one-line answer: nothing architectural is left. What remains is verification, one BE
 engagement, and a freeze that has never been scheduled.** The build is feature-complete against
@@ -22,7 +28,7 @@ newer than `docs/archive/handoff-post-freeze.md`, so where the two disagree, #29
 | real Terms + Privacy | ⚠ **Terms live. PRIVACY IS HELD** — `build-legal-docs` prints 🟡 on every run and bakes `privacy: { text: null }`; the app ships the placeholder summary |
 | dev-mode / send-log | ✅ #321 |
 | the redesigned SEND flow | ✅ built (#523), legacy pages retired (#640), `composeSend` pushed **unconditionally** at `HomePage.xaml.cs:1965` — ⚠ but see the review gate in §1 |
-| the security MAJORs | ❌ not closed — §1 |
+| the security MAJORs | ⚙ **the three OURS rows moved 2026-09-06** — two closed, one partly closed. The inherited ones are still his. §1 |
 | thermal parity (iOS-32) | ❌ **never measured**, and it is Damir's own stated ship gate |
 
 `DECISIONS #532` (2026-08-23) added: the menu batch · W10 · **`maxLogCount` 5→1** · the #232
@@ -32,22 +38,28 @@ money review · **the final security handover sweep** · the translator pass.
 
 ## §1 · Blockers — a public build should not go out with these open
 
-### Ours to fix, and the gate's own rule says so
+### Ours — the three rows in the gate's "ours" column
 
 The handover gate's promise is "the redesign introduced nothing". Three items sit in its
-**"ours — fix before handover"** column, still open in the tree:
+**"ours — fix before handover"** column. **All three moved on 2026-09-06.** Two are closed. One is
+partly closed, and its residual is per-platform. Re-checked at source on 2026-09-07.
 
-| item | what | where |
+| item | what | state, and where |
 |---|---|---|
-| **security MAJOR #3** | the chat link-open confirm modal is spoofable — `HtmlDecode` runs AFTER the modal has shown the pre-decode URL, so the user approves one string and navigates to another. We built the modal; legacy had none | `Spixi/Pages/Chat/SingleChatPage.xaml.cs:746` |
-| **security MAJOR #6(a)** | the iOS global link handoff gives **mini-app** content a one-tap, no-confirm Safari launch — no `TargetFrame` / main-frame test, no MiniAppPage classification. Introduced by our own iOS bring-up | `Spixi/Platforms/iOS/iOSWebViewHandler.cs:101` |
-| **`spixi.draft.*`** | our key, holding the user's own unsent plaintext, in a `file://` localStorage partition a mini-app may be able to read. The gate says "fix regardless of what the sweep concludes" | `src/shells/chat.html` |
+| **security MAJOR #3** | the chat link-open confirm modal is spoofable. We built the modal; legacy had none | ✅ **FIXED.** `SingleChatPage.onNavigating` → the `ixian:openLink:` branch, and the same three guards on the `SettingsPage` twin. The `HtmlDecode` is deleted. A fail-closed `http`/`https` allow-list guards the sink. `Uri.UserInfo` is refused. ⚠ The property is **the destination HOST is the host the user read** — NOT byte-identity. `onNavigating` still `UrlDecode`s on its first line, on purpose. Gate rows F-09 · F-10 |
+| **security MAJOR #6(a)** | the iOS global link handoff gives **mini-app** content a one-tap, no-confirm Safari launch. Introduced by our own iOS bring-up | ✅ **FIXED.** `iOSWebViewHandler` → `SecureNavigationDelegate.DecidePolicy`. The handoff needs `isTrustedHost()` AND main-frame to main-frame AND `LinkActivated`. It fails closed. `decide(Cancel)` is unchanged. ⚠ The classification ask SURVIVES as gate row **O-02**: two platforms read the `ClassId="miniapp"` marker, and two read it nowhere |
+| **`spixi.draft.*`** | our key, holding the user's own unsent plaintext, in a `file://` localStorage partition a mini-app may be able to read | ⚙ **PARTLY CLOSED.** Android was already contained (`DomStorageEnabled` false for the mini-app WebView). iOS is partitioned now (`WKWebsiteDataStore.NonPersistentDataStore` at construction). **Windows and MacCatalyst are NOT partitioned, and the premise is untested there.** Gate rows F-23 · O-03 · O-05 |
+
+⚠ **The gate's census now records 65 introduced findings: 38 fixed, 27 open.** None of the 27 is a
+live leak that this project can close alone. They wait on a ruling, a device, or a named piece of
+work, and every row says which. Read `docs/security-handover-gate.md` §"★★ THE FULL SWEEP" before
+planning any security work.
 
 ### One-line release blockers, still open
 
 | item | where | note |
 |---|---|---|
-| **`maxLogCount = 5`** | `Spixi/Meta/Config.cs:94` | carries a literal `RELEASE BLOCKER — REDUCE TO 1 BEFORE LAUNCH` marker. Five logs feed a file DevPage renders and shares |
+| **`maxLogCount = 5`** | `Spixi/Meta/Config.cs` (`maxLogCount`) | carries a literal `RELEASE BLOCKER — REDUCE TO 1 BEFORE LAUNCH` marker on the first line of its docblock. Five logs feed a file DevPage renders and shares. ⚠ **The flip now edits this file alone.** Gate 23 asserts the legal PAIR — 5 with the marker, or 1 without it — and the old `>= 5` pin, which the flip would have had to edit, is deleted. Gate row **O-18** |
 | **live diagnostic verbs / log sets** | `HomePage.xaml.cs` (`ixian:landtabprobe:`, `[EXCERPTDIAG]`), the `[CDPERF]` set, `[SCROLL]`, `[PAINTDIAG]` | all designed to retire as sets; none has |
 | **the Privacy Policy** | `docs/legal/privacy-policy.md` | HELD on a `⟨PLACEHOLDER⟩`, a "DAMIR TO CONFIRM" note and a session annotation. Needs counsel, not a batch |
 
@@ -55,7 +67,7 @@ The handover gate's promise is "the redesign introduced nothing". Three items si
 
 | gate | who | why it blocks |
 |---|---|---|
-| **the final security handover sweep** — introduced-vs-inherited over the whole delta from `0e85a4b8` | us | Only the per-batch lens plus ONE partial sweep (#642–#722) have run. The gate doc's own census says it is "not assumed complete". Until it runs, "we introduced nothing" is an assertion, not a finding |
+| ~~**the final security handover sweep**~~ | us | ✅ **RAN 2026-09-06.** Eight disjoint auditors, two verifiers, seven fixers in two batches, a #46 adversarial loop with three more auditors and three more fixers, three pin passes. Result: 65 introduced findings, 38 fixed, 27 open, plus 11 MITIGATED-BY-US and 9 new INHERITED rows. The census is `docs/security-handover-gate.md` §"★★ THE FULL SWEEP". "We introduced nothing" is now a count, not an assertion |
 | **the #232/#523 money-path review** | BE engineer | `security-review-for-be-engineer.md` says the W5/W6/PA1 delta "must not ship to users before your review" — and it is enabled in every build today |
 | **the BE security walkthrough (A3)** | BE engineer + Damir | ordered FIRST in the post-freeze plan; never held |
 | **iOS-32 thermal / battery parity vs legacy Spixi** | Damir | his own words: "a ship gate". Never measured. Unplugged, Release build, side by side |
@@ -74,7 +86,7 @@ These go to him untouched by the gate's rule. "Inherited" answers *whose*, not *
 | **MAJOR #10** | `MiniAppManager.remove` builds a delete path from a downloaded `app.id` — arbitrary directory delete, and the account wipe became a second caller |
 | **L6** | restore mutates the lock flags and overwrites `walletpass` **before** verifying the password |
 | **S16 residual** | receive-time `Path.Combine(downloadsPath, transfer.fileName)` — a **remote peer's** filename composed into a path |
-| **C15 · C16 · CH3 · W11 · Q1-ESC · N57? · CORE-8 · the membership question** | the 13 rows `be-cutover-brief.md` classes as blockers — most notably: a remote delete never persists and the message comes back; a paid request stays "pending" for ever if the requester's chat was closed; and Core may not verify room membership on a reaction, which would make a delivery double-check forgeable |
+| **C16 · W11 · Q1-ESC · N57? · CORE-1 · CORE-4 · CORE-8 · the membership question** | part of the **15** rows `be-cutover-brief.md` classes as blockers. ⚠ **That set is now ENUMERATED**, in that file's § Blockers, and every row was re-checked against the tree. The count 13 came from this page and was never derived. `C15` is off the list — it is fixed. `CH3` is demoted. Most notable of what remains: a remote delete never persists and the message comes back · a paid request stays "pending" for ever if the requester's chat was closed · Core may not verify room membership on a reaction, which would make a delivery double-check forgeable |
 
 ### Crash-class, open, and nobody has captured the log
 
@@ -97,8 +109,10 @@ these are a scope decision, not a defect list.
   **tips**, **shared media feed in chat info**, **group rename / re-avatar**, **"you were added
   to a group"**, **mini-app session accept UI**, **return-to-call from the bar** — all built or
   specified, all waiting on a C# or Core row.
-* **Privacy toggles (PV1)** — a privacy-first app whose privacy switches are omitted because
-  `SettingsPage` has no verbs for them.
+* **Privacy toggles (PV1)** — a privacy-first app whose privacy switches are mostly omitted,
+  because `SettingsPage` has no verbs for them. ⚙ The Privacy screen itself is now REACHABLE, and
+  it carries one real switch: media auto-load. That screen was built and called by no shell until
+  2026-09-06 (gate rows F-02 · F-03). The rest of PV1 still needs verbs.
 * **i18n residual (M13)** — ⚠ the most user-visible item on this page: several surfaces still
   render **English under a chosen locale**. This one is ours and buildable now.
 * **Add contact / Add app stutter** — Damir, 2026-09-06. Same mechanism #804 cured for the three
@@ -114,7 +128,8 @@ design · iOS-43 clipped button label · AND-28 existing contacts show no avatar
 contact" offered for someone who already is one · AND-36 rotation leaves a row highlighted ·
 AND-37 back over an Account sheet lands on Chats · the four landscape rows (AND-31/32/33/34) ·
 AND-35 chat-appearance copy + order · R7 share-sheet home leg · Q1 restore file-set state ·
-the wallet sync/block-height surface · and the five stale rows in `be-cutover-brief.md`.
+the wallet sync/block-height surface. ⚠ The "five stale rows in `be-cutover-brief.md`" are done:
+that file was verified row by row on 2026-09-06 and 26 rows changed state (§7).
 
 ---
 
@@ -166,11 +181,22 @@ its six prerequisites are Apple-side).
 
 ## §7 · Before the BE engineer reads anything
 
-`be-cutover-brief.md` holds ~119 rows and **at least eleven are stale** — reported landed
-elsewhere and never marked here (S5/L4 · S7 · S13 · CO2 · C9's premise · L1 · L2 · L3 · L5 · L7 ·
-W9). `docs/legacy-parity-audit.md` has never been updated and its prose count (13) disagrees with
-its own tables (14). `docs/ios-sim-findings.md` carries three rows marked OPEN that the same file
-later records as device passes. `id C18` appears four times with two different verdicts, and one
-row (`N3`, line 156) is **truncated mid-word** and cannot be read.
+⚠ **RE-SYNCED 2026-09-07.** The 2026-09-06 state verification walked the brief and this paragraph
+is what it found.
 
-Fix the brief before he opens it, or he spends a morning on rows that are already in his tree.
+`be-cutover-brief.md` holds **116** rows, not "~119". Every one was verified against the tree, and
+**26 changed state**. The §7 hint had named eleven stale rows: **ten of the eleven were stale**,
+and sixteen more were found that the hint did not name. The one that was NOT stale is `L2` —
+passwords still ride navigation URLs, and the PARSES are deliberately unchanged, because live
+wallets were encrypted under today's behaviour. The blocker set is now enumerated in that file's
+§ Blockers, as **15** rows. The `N3` truncation is written out in full. The four `C18` entries are
+merged into two.
+
+**Still stale elsewhere, and not re-synced by that pass:**
+
+* `docs/legacy-parity-audit.md` has never been updated, and its prose count (13) disagrees with
+  its own tables (14).
+* `docs/ios-sim-findings.md` carries three rows marked OPEN that the same file later records as
+  device passes.
+
+Fix those two before he opens them, or he spends a morning on rows that are already in his tree.

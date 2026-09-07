@@ -1551,6 +1551,20 @@ public partial class App : Application
         }
     }
 
+    /* ★ handover sweep O-23: THESE TWO LINES NAME THEIR FOLDERS, THEY DO NOT PRINT THEM.
+     *
+     * Both diagnostics interpolated an ABSOLUTE path, and on Windows an absolute path under
+     * the user profile contains the OS account name. `recordStartupDiagnostic` writes into
+     * `ixian.log`, which DevPage can share off the device.
+     *
+     * The line stays diagnosable because the absolute path was never what made it useful. It
+     * distinguishes two failures — nothing was staged beside the executable, or the copy broke
+     * part-way — and each folder is a FIXED location the reader already knows: the app folder
+     * and the Spixi user folder. Naming the root and the leaf says which one, and the text
+     * already says what to do about it.
+     * The catch reports the exception TYPE only. A file-system exception message repeats the
+     * failing absolute path, and the type is what separates a permission failure from a disk
+     * failure, so the type is the part that was carrying the diagnosis. */
     public void copyResources()
     {
         string sourceDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "html");
@@ -1558,9 +1572,10 @@ public partial class App : Application
 
         if (!Directory.Exists(sourceDirectory))
         {
-            recordStartupDiagnostic("copyResources: the html asset folder is MISSING at " + sourceDirectory
-                + " — nothing was copied to " + targetDirectory + ". The assets were not staged next to the"
-                + " executable; build and run through Visual Studio (F5 / Deploy) rather than `dotnet build`."
+            recordStartupDiagnostic("copyResources: the 'html' asset folder is MISSING from the app folder"
+                + " — nothing was copied to 'html' in the Spixi user folder. The assets were not staged next"
+                + " to the executable; build and run through Visual Studio (F5 / Deploy) rather than"
+                + " `dotnet build`."
                 + " The app continues; screens will render the localization error page until this is fixed.");
             return;
         }
@@ -1571,9 +1586,10 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            recordStartupDiagnostic("copyResources: copying " + sourceDirectory + " to " + targetDirectory
-                + " FAILED part-way: " + ex + " — the app continues with whatever was already in place;"
-                + " screens whose file did not copy will render the localization error page.");
+            recordStartupDiagnostic("copyResources: copying 'html' from the app folder to the Spixi user"
+                + " folder FAILED part-way: " + ex.GetType().Name + " — the app continues with whatever was"
+                + " already in place; screens whose file did not copy will render the localization error"
+                + " page.");
         }
     }
 

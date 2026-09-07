@@ -15,7 +15,7 @@ using SPIXI.Meta;
 using System;
 using System.IO;
 using System.Linq;                 // ★ #593: NavigationStack is IReadOnlyList<Page>, whose Contains is Enumerable's — and this project sets <ImplicitUsings>disable</ImplicitUsings>, so it must be imported by hand (47 other files already do)
-using System.Net;                 // iOS-21: WebUtility.HtmlDecode for ixian:openLink
+using System.Net;                 // ⚠ sweep A-7: the openLink branch no longer decodes. WebUtility was this file's only System.Net user. The import stays until a build can prove it is safe to delete.
 using System.Threading.Tasks;
 using System.Web;
 
@@ -369,17 +369,37 @@ namespace SPIXI
                     link = "http://" + link;
                 }
 
-                try
-                {
-                    string decoded_link = WebUtility.HtmlDecode(link);
-#pragma warning disable CS0618 // Type or member is obsolete
-                    Browser.Default.OpenAsync(new Uri(decoded_link));
-#pragma warning restore CS0618 // Type or member is obsolete
-                }
-                catch (Exception ex)
-                {
-                    Logging.error("Exception occured while trying to open URL '{0}': {1}", link, ex);
-                }
+                /* ★★ HANDOVER SWEEP A-7 / F3 — THE SAME TWO CHANGES THE CHAT SINK GOT.
+                 * This branch mirrors SingleChatPage's ixian:openLink: handler: no decode
+                 * here, and one shared fail-closed gate for the hand-off.
+                 *
+                 * ⚠ THE DECODE IS GONE. It ran WebUtility.HtmlDecode between the string
+                 * the app had and the string it opened, which is the security MAJOR #3
+                 * shape: what is checked and what is opened must be one value. `link` is
+                 * now that one value — parsed once, tested once, opened.
+                 * Nothing legitimate loses a decode: the four reachable links are
+                 * compile-time https constants in src/components/settings-app.js (the
+                 * About and How-to rows), and none carries an HTML entity.
+                 *
+                 * ⚠ THE FIRST FIX ALSO CLAIMED THE TRANSPORT PAIR ROUND-TRIPS EXACTLY, AND
+                 * IT DOES NOT (#46 loop A, MAJOR-1). onNavigating UrlDecodes EVERY %XX on
+                 * its first line, while the WebView never re-encodes a '%' that was already
+                 * in the string. A caller that put a "%40" in the link therefore reaches
+                 * this sink with an '@'. No reachable link on this page can do that today —
+                 * all four are compile-time constants — but the shared gate below refuses a
+                 * non-empty Uri.UserInfo on every caller, so this page cannot lose the rule.
+                 *
+                 * ★ THE RULE IS NOT WRITTEN OUT HERE ANY MORE, and that is the fix.
+                 * This branch and the chat branch each carried their own copy of the scheme
+                 * allow-list and the userinfo refusal, and "the two must not drift" was
+                 * enforced only by a pin over both copies. A #46 loop defeated that pin
+                 * three rounds running (r2 MAJOR-1 · r3 MAJOR-1/-2/-3): a control-flow
+                 * property of duplicated code cannot be proven by reading text.
+                 * `Utils.openExternal` (Spixi/Utils/Utils.cs) holds the rule ONCE now, and
+                 * it is the only method in the tree that may call the browser sink. There
+                 * is nothing left here to drift. Read openExternal's own comment for what
+                 * it enforces and for what is NOT established. */
+                Utils.openExternal(link);
             }
             else if (current_url.Equals("ixian:encpass", StringComparison.Ordinal))
             {
@@ -1269,8 +1289,27 @@ namespace SPIXI
          *      fresh-install state, which is what "delete account" means)
          *   6. the WebView's `spixi.*` localStorage keys (pins · mutes · drafts · the
          *      declined/canceled invite sets · pattern/text prefs · mention seen-state):
-         *      the `wipeLocalState` push to THIS shell — WebView storage is one store
-         *      per app on every platform, so one page can clear it for all
+         *      the `wipeLocalState` push to THIS shell.
+         *      ★ handover sweep O-42 (#772): THE OLD REASON — "WebView storage is one store
+         *      per app on every platform" — WAS NEVER TRUE AND IS NOW FALSE BY DESIGN. The
+         *      per-platform state, read out of the platform files rather than assumed:
+         *        · Android — every WebView shares the default store, EXCEPT the mini-app one,
+         *          which has DOM storage switched off entirely
+         *          (Platforms/Android/WebViewRenderer.cs, the DomStorageEnabled gate). It has
+         *          no store, so there is nothing there for this step to reach.
+         *        · iOS — every WebView shares the default store, EXCEPT the mini-app one,
+         *          which is built on WKWebsiteDataStore.NonPersistentDataStore
+         *          (Platforms/iOS/iOSWebViewHandler.createIsolatedMiniAppView). That is a
+         *          separate, in-memory store: deliberately NOT one store per app, and it does
+         *          not outlive the app anyway.
+         *        · Windows and MacCatalyst — no platform file overrides the data store, so
+         *          every WebView shares one, the mini-app WebView included.
+         *      What this step actually relies on is narrower and true everywhere: NO platform
+         *      file separates one SPIXI SHELL from another, so the keys this app wrote are in
+         *      one store and one shell can clear them for all of them.
+         *      ⚠ THE REVERSAL: give any shell its own data store — a WebView2
+         *      UserDataFolder or ProfileName, a WKWebsiteDataStore, an Android profile — and
+         *      "delete all data" becomes silently partial. Change this step in the same commit.
          * Then goToWelcome(). No alert: landing on welcome IS the confirmation (#288). */
         private void wipeEverything()
         {
@@ -1351,6 +1390,24 @@ namespace SPIXI
         public void onDeleteHistory()
         {
             FriendList.deleteEntireHistory();
+            /* ★ #46 loop B, MAJOR-1 (the SIXTH removal path) — EVERY conversation on the
+             * device is gone, so every conversation's local keys must go, and the user's own
+             * unsent DRAFT is first among them. This method pushed nothing, so the shell kept
+             * a draft, a like set, a mention-seen set and an invite tombstone for every peer
+             * at once. That is strictly wider than any single path in MAJOR-1.
+             * `removeHistoryResult` is the command name ContactDetails.onRemoveHistory and
+             * HomePage.onRemoveHistoryFor already use for this outcome — a third call site,
+             * not a new push. The bridge protocol is unchanged.
+             * ⚠ THE ADDRESS ARGUMENT IS EMPTY, AND THAT IS THE POINT. This page's delete is
+             * not address-scoped: it wipes every contact's history at once. Pushing one
+             * result per contact would need this page's shell to hold a fourth copy of the
+             * per-address sweep, and it would cost one WebView marshal per contact. The
+             * settings shell therefore sweeps the per-conversation key FAMILIES for all
+             * peers, which needs no address. See src/shells/settings.html.
+             * ⚠ SCOPE: "history", not "contact". Core keeps every contact record, so the
+             * shell keeps the two contact-STATE markers (hidereq · hsstage) and the pins.
+             * This page raises an alert below and does not pop, so the WebView is live. */
+            try { Utils.sendUiCommand(this, "removeHistoryResult", "", "ok"); } catch (Exception) { }
             // iOS-25 (#283): nothing flagged the chats list dirty — the wiped rows stayed
             // painted until some OTHER event set shouldRefreshContacts, so returning to
             // Chats briefly (sometimes longer) showed dead conversations. Flag it now:

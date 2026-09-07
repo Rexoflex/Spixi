@@ -139,7 +139,24 @@ namespace SPIXI
             }
             else if (current_url.Equals("ixian:viewexplorer", StringComparison.Ordinal))
             {
-                Browser.Default.OpenAsync(new Uri(String.Format("{0}?p=transaction&id={1}", Config.explorerUrl, transaction.getTxIdString())));
+                /* ★ THE ONE EXTERNAL-OPEN GATE (Spixi/Utils/Utils.cs). The txid is a local
+                 * value, not peer text, but `new Uri(...)` threw on a malformed one. Nothing
+                 * in THIS file wraps the branch, so the exception escaped into the platform
+                 * host — and, read at the caller, both hosts in this repository CATCH it:
+                 * Android try/catches `SendNavigating` in SpixiWebViewClient and then reads
+                 * `args.Cancel`; iOS try/catches `base.DecidePolicy`, the call that raises
+                 * MAUI's Navigating event, and fails closed with `decide(Cancel)`. The cost
+                 * is the rest of this handler being abandoned, plus — on iOS — the exception
+                 * object logged IN FULL into ixian.log, which DevPage renders and shares in
+                 * one tap. The gate parses inside a guard and returns false, so neither
+                 * happens.
+                 * ⚠ TWO earlier versions of this comment were wrong. The first called this
+                 * the #797 shape: FALSE — `e.Cancel = true` is set at the TOP of
+                 * onNavigating, above every branch, and the comment on that line says so, so
+                 * the WebView could never load `ixian:viewexplorer`. The second said an
+                 * unhandled escape "takes the process down on Android and iOS": also FALSE,
+                 * disproved by the two catches named above (#772). */
+                Utils.openExternal(String.Format("{0}?p=transaction&id={1}", Config.explorerUrl, transaction.getTxIdString()));
             }
             else if (current_url.Trim().StartsWith("file:", StringComparison.OrdinalIgnoreCase))
             {

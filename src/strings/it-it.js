@@ -385,6 +385,8 @@ export const itit = {
   leaveGroupsConfirmTitle: "Leave {n} groups and remove {name}?",
   leaveTitle: "Lasciare questo gruppo?",
   leftGroupToast: "You left the group",
+  loadMedia: "Carica immagini e GIF",
+  loadMediaSub: "Il caricamento comunica all’host del mittente che hai aperto la chat",
   loading: "Caricamento",
   loadingHistory: "Caricamento dei messaggi precedenti",
   lockCopy: "Inserisci la password del portafoglio per sbloccare.",

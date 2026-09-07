@@ -16,7 +16,7 @@
  */
 import { getStrings } from './strings-runtime.js';
 import { createAppIcon } from './apps-icon.js';
-import { hashHue } from './avatar.js';
+import { hashHue, safeImageSrc } from './avatar.js';
 import { createButton, setLoading, setSuccess } from './button.js';
 import { createChip } from './chip.js';
 import { createBadge } from './badge.js';
@@ -56,10 +56,19 @@ function capExplain(c, strings) { return strings['capx_' + c] || APP_CAP_EXPLAIN
 function appHero(app) {
   const hero = document.createElement('div');
   hero.className = 'c-app-hero';
-  if (app.cover) {
+  /* ★ Gate row O-13 (#46 loop B, MINOR-5) — `cover` is a Discover-feed field. The feed is
+   * parked, so no shipped shell sets it and this sink is DORMANT. The test lives here, in
+   * the component, so a wiring pass cannot light the sink up without the rule (row O-13:
+   * "Put the host test in the COMPONENT, not in a future shell"). A cover IS a remote https
+   * URL by design, so the caller opts in; the test's job is to refuse 'javascript:',
+   * 'blob:', a protocol-relative '//host/x' and a value the URL parser rejects. A refused
+   * cover falls through to the deterministic gradient below, which is what an app with no
+   * cover already shows. */
+  const coverSrc = safeImageSrc(app.cover, { allowRemote: true });
+  if (coverSrc) {
     const art = document.createElement('img');
     art.className = 'c-app-hero__art';
-    art.src = app.cover; art.alt = '';
+    art.src = coverSrc; art.alt = '';
     hero.append(art);
   } else {
     const hue = hashHue(app.name || 'app');
@@ -94,20 +103,30 @@ function detailsSection(title) {
 }
 
 /** Screenshot gallery — horizontal scroll-snap strip (rendered only when the app
- *  ships screenshots; graceful omit otherwise, pending the BE preview payload). */
+ *  ships screenshots; graceful omit otherwise, pending the BE preview payload).
+ *  Returns null when nothing survives the source test below — the caller omits the
+ *  whole section then, exactly as it does for an app with no screenshots. */
 function screenshotStrip(shots, strings) {
+  /* ★ Gate row O-13 (#46 loop B, MINOR-5) — the same dormant class as the hero cover above:
+   * a Discover-feed field that no shipped shell sets. Refuse first, then count, so the
+   * "Screenshot 2 / 3" label never counts a shot that was not rendered. The caller drops
+   * the whole section when nothing survives. */
+  const ok = (Array.isArray(shots) ? shots : [])
+    .map((src) => safeImageSrc(src, { allowRemote: true }))
+    .filter(Boolean);
+  if (!ok.length) return null;
   const sec = detailsSection(strings.preview || 'Preview');
   const strip = document.createElement('div');
   strip.className = 'c-app-shots';
   strip.setAttribute('role', 'region');                  // labelled scroll region (a11y scroll-container pattern)
   strip.tabIndex = 0;                                    // focusable so the strip scrolls with arrow keys
   strip.setAttribute('aria-label', strings.preview || 'Preview');
-  shots.forEach((src, i) => {
+  ok.forEach((src, i) => {
     const img = document.createElement('img');
     img.className = 'c-app-shots__item';
     img.loading = 'lazy';
     img.src = src;
-    img.alt = (strings.screenshot || 'Screenshot') + ' ' + (i + 1) + ' / ' + shots.length;   // region has readable content
+    img.alt = (strings.screenshot || 'Screenshot') + ' ' + (i + 1) + ' / ' + ok.length;   // region has readable content
     strip.append(img);
   });
   sec.append(strip);
@@ -228,7 +247,9 @@ export function createAppDetails({ app = {}, strings = getStrings(), host, onIns
 
   /* screenshots first — artwork sells before words (Store order; graceful omit without previews) */
   if (Array.isArray(app.screenshots) && app.screenshots.length) {
-    el.append(screenshotStrip(app.screenshots, strings));
+    // screenshotStrip returns null when every entry is refused — never append that.
+    const shotSec = screenshotStrip(app.screenshots, strings);
+    if (shotSec) el.append(shotSec);
   }
 
   /* description (clamped + Read more) */

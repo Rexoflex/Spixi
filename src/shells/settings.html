@@ -187,6 +187,7 @@
     createSettingsDownloads, setDownloads,
     createChatAppearance, setSettingsSaveVisible,
     createNotificationsScreen,       // ★ NOTIF-2: built since #147, dark until now
+    createPrivacy,                   // ★ security sweep E-1b: the media-autoload switch (FE-only)
     createEncPassScreen, ENC_DELIM,
     attachPressFeedback,
     settingsThemeSheet, settingsOptionSheet, createTopbar,
@@ -356,6 +357,13 @@
   attachPressFeedback();
   installExecuteUiCommand();                     // defines window.executeUiCommand for C#
 
+  /* ★ #46 loop B — `dbg` was CALLED and never DEFINED. wipeLocalState's last statement
+     has been a ReferenceError since #545: the sweep itself completed, so the account wipe
+     worked, but the handler threw on its way out and the F5 counter it exists to print
+     never printed. The same helper is now defined once, with the shape the other shells
+     use (src/shells/contact_details.html), so both call sites log instead of throwing. */
+  const dbg = (...a) => { try { console.debug('[settings]', ...a); } catch (_) {} };
+
   const root = document.getElementById('settings-root');
 
   /* —— account state — flushed by SettingsPage.onLoad after ixian:onload ————————
@@ -523,6 +531,16 @@
       if (gr === 'gradient' || gr === 'flat') chatGround = gr;   // anything else, incl. absent/corrupt → the default above
     } catch (e) {}
     return { pattern, textScale, patternStyle, chatGround };
+  }
+
+  /* ★ security sweep E-1b — the remote-media opt-out, read here and written by the
+     Privacy screen. The KEY AND ITS DEFAULT ARE DEFINED IN chat.html, which owns the
+     behaviour: absent means ON, and only the exact string 'off' turns it off. Keep the
+     two readers in step — the string is the contract, not the boolean. A storage
+     failure reads as ON, which matches what the chat shell then does. */
+  const MEDIA_AUTOLOAD_KEY = 'spixi.media.autoload';
+  function mediaAutoloadPref() {
+    try { return localStorage.getItem(MEDIA_AUTOLOAD_KEY) !== 'off'; } catch (e) { return true; }
   }
 
   /* —— exit — the ONLY persist path is ixian:save, which persists nick + promotes
@@ -919,6 +937,10 @@
          keeps the row hidden instead of showing switches whose verbs nothing handles. */
       capabilities: {
         contributors: true, downloads: true,
+        // ★ security sweep E-1b: a FRONTEND capability. The Privacy screen's media
+        // switch writes localStorage only, so nothing on the C# side declares it and
+        // the row is available on every build. The two §9 rows stay verb-gated.
+        mediaAutoload: true,
         changePassword: bridge.cap('encpass'),
         globalNotifications: bridge.cap('globalNotifications'),
         paymentAuth: bridge.cap('paymentAuth'),   // PA1 (#525): SettingsPage pushes the cap + the verb
@@ -933,6 +955,7 @@
         if (next) state.paymentAuth = true;   // OFF waits for the post-auth echo
       },
       onNotifications: showNotifications,
+      onPrivacy: showPrivacy,
       /* Q1-② (#267, S16 option a): Downloads is a true in-hub SUBLEVEL. The
          list/open/delete verbs are routed through SettingsPage (cap
          'downloadsInline'). No second WebView, and no pane-stacking — the #264
@@ -1313,6 +1336,7 @@
   function showBackup() { currentView = 'backup'; renderLayout(); }        // #243 · #804: backupInline cap, any form factor
   function showDownloads() { currentView = 'downloads'; renderLayout(); }  // Q1-② (#267) · #804: downloadsInline cap, any form factor
   function showNotifications() { currentView = 'notifications'; renderLayout(); }  // ★ NOTIF-2
+  function showPrivacy() { currentView = 'privacy'; renderLayout(); }              // ★ security sweep E-1b
 
   /* ★ NOTIF-2 — the optimistic-switch resolver.
    *
@@ -1476,6 +1500,30 @@
         onPreviews: (next, ctrl) => { latchNotif('notifSenderName', next, ctrl); },
         onSounds: (next, ctrl) => { latchNotif('notifSounds', next, ctrl); },
         onPushProvider: (next, ctrl) => { latchNotif('notifPushProvider', next, ctrl); },   // ★ P2 (#708)
+      });
+      /* ★★ security sweep E-1b — THE OPT-OUT THAT DID NOT EXIST.
+         `chat.html` gates remote media (and the app-invite publisher icon) behind
+         `spixi.media.autoload`, and its comment told the reader to "write 'off' to opt
+         out" — but NOTHING in the tree ever wrote that key, so both gates were
+         permanently on and the documented control was fiction (#772).
+         This row writes it. It is FE-only, exactly like the chat-appearance
+         preferences one case below: same document, same localStorage origin, no verb
+         and no C# change. `chat.html` reads the key on every render, so the choice
+         takes hold in each conversation opened after it.
+         The §9 rows (read receipts / typing) stay dark — they still have no verb. */
+      case 'privacy': return createPrivacy({
+        mediaAutoload: mediaAutoloadPref(),
+        capabilities: { readReceipts: bridge.cap('readReceipts'), typing: bridge.cap('typing') },
+        strings,
+        onBack: showHub,
+        onMediaAutoload: (next, ctrl) => {
+          // a local write has no authority to wait for — commit, or report the failure
+          // the switch would otherwise hide (private mode throws on setItem)
+          try {
+            localStorage.setItem(MEDIA_AUTOLOAD_KEY, next ? 'on' : 'off');
+            ctrl.done();
+          } catch (e) { ctrl.fail(); }
+        },
       });
       case 'contributors': return createSettingsContributors({
         strings,
@@ -1858,19 +1906,81 @@
 
     /* ★ Batch C (#545) C1 — step 6 of the full wipe: every `spixi.*` localStorage key
        goes (pins · mutes · drafts · the declined/canceled invite sets · pattern/text
-       prefs · mention seen-state · the F5 checklist counters). WebView storage is ONE
-       store per app on every platform, so clearing it from this page clears it for all
-       shells. Keys are enumerated first (never a blanket clear — a shell may host
-       a third-party origin's keys on desktop dev builds), and the count is logged for
-       the F5 checklist. Never throws into the C# push. */
+       prefs · mention seen-state · the F5 checklist counters).
+       ★ security sweep C-7 / C-9 (#772) — TWO CLAIMS HERE WERE NOT TRUE.
+       (1) "WebView storage is ONE store per app on every platform" is not something
+       this tree enforces. It holds only because no platform file overrides the WebView
+       data store — no WKWebsiteDataStore, no WebView2 UserDataFolder or ProfileName
+       anywhere in the repo. Say what the code enforces, so that adding one of those
+       makes the account wipe visibly partial instead of silently partial.
+       (2) The sweep called `spixi.` the whole store and then described a hypothetical
+       third-party key while walking past a REAL one: the vendored scanner library
+       writes `HTML5_QRCODE_DATA` (a camera device id) with no prefix, and scan.html
+       loads that library. It is named below, so "delete account" now removes it.
+       Keys are still enumerated first — never a blanket clear, because this document
+       must only remove what this app wrote. The count is logged for the F5 checklist.
+       Never throws into the C# push. */
+    /* ★★ #46 loop B, MAJOR-1 (the SIXTH removal path) — "Delete all chat history" wipes
+       EVERY conversation on the device, and until now it swept no local key at all. Every
+       peer's unsent DRAFT survived a full history wipe, and so did every like set, every
+       mention-seen set and every invite tombstone. Under the gate's own O-03 / MAJOR #4
+       premise a mini-app can plausibly read that store on the desktop platforms.
+       ⚠ THE ADDRESS ARGUMENT IS IGNORED HERE, DELIBERATELY. The three other shells receive
+       this command for ONE contact and sweep by address suffix. This page's delete is not
+       address-scoped, and this page holds no roster, so it can never learn the addresses.
+       It therefore sweeps by key FAMILY, which needs no address and reaches every peer in
+       one pass. C# pushes an empty address for exactly that reason (SettingsPage.onDeleteHistory).
+       ⚠ THE LIST IS A DELETE-LIST, NOT A KEEP-LIST, AND THAT IS THE FAIL-CLOSED DIRECTION.
+       An unrecognised `spixi.*` key SURVIVES. A key family added later is missed, which
+       costs retention — the bug this fixes, bounded. A keep-list would delete a global
+       preference nobody remembered to list, which costs the user a setting. This is the
+       ONE place in this document that enumerates per-conversation families, so a new
+       family must be added here.
+       The seven below are the 'history' scope, derived by walking every `*_PREFIX`
+       declaration in src/shells/chat.html and src/shells/home.html — the same nine
+       families forgetPeerStorage sweeps, MINUS the two contact-STATE markers
+       (spixi.hidereq. · spixi.hsstage.). Core keeps every contact record here, so a user
+       who clears their messages must not see a hidden request re-appear, and a handshake
+       stage describes the contact, not the messages. `spixi.pins` is untouched for the
+       same reason: a pinned contact you still have stays pinned.
+       Prefix match only — never a blanket clear, and never `spixi.` alone. Keys are
+       collected before any removal, because removing during a key(i) walk re-indexes the
+       store and skips keys. Never throws into the C# push. */
+    removeHistoryResult(address, status) {
+      if (String(status || '') !== 'ok') return;      // fail closed on an unknown status
+      const FAMILIES = [
+        'spixi.draft.',            // the user's own unsent plaintext — first out
+        'spixi.exdel.',            // deleted-message excerpt hint
+        'spixi.likes.',            // own-reaction set
+        'spixi.mentions.seen.',    // caught-up @ mentions
+        'spixi.app.declined.',     // declined app-invite tombstones
+        'spixi.app.canceled.',     // canceled app-invite tombstones
+        'spixi.media.loaded.',     // retired key — removed on sight
+      ];
+      let n = 0;
+      try {
+        const doomed = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (!k) continue;
+          if (FAMILIES.some((pfx) => k.indexOf(pfx) === 0)) doomed.push(k);
+        }
+        for (const k of doomed) { try { localStorage.removeItem(k); n += 1; } catch (e) { /* one key must not stop the sweep */ } }
+      } catch (e) { /* storage unavailable — nothing to sweep */ }
+      dbg('removeHistoryResult: ' + n + ' per-conversation keys removed (all peers)');
+    },
+
     wipeLocalState() {
       let n = 0;
       try {
         const keys = [];
-        for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('spixi.')) keys.push(k); }
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('spixi.') || k === 'HTML5_QRCODE_DATA')) keys.push(k);
+        }
         for (const k of keys) { try { localStorage.removeItem(k); n += 1; } catch (e) { /* one key must not stop the sweep */ } }
       } catch (e) { /* storage unavailable — nothing to wipe */ }
-      dbg('wipeLocalState: ' + n + ' spixi.* keys removed');
+      dbg('wipeLocalState: ' + n + ' app keys removed');
     },
 
     // PA1 (#525): the authoritative "Confirm payments" value — pushed at onLoad

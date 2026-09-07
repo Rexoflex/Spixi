@@ -55,11 +55,41 @@ Introduced by the Q4 native call surface (#270) and caught before it shipped. `C
 
 **BE asks:** (1) sanity-check the fix; (2) **product call** — is "rings audibly, no ring UI, appears on unlock" the behaviour you want, or should an incoming call be answerable from the lock screen (that needs a deliberate, native design, not a fallback side-effect)? (3) **Class-wide, logged not fixed:** `PopModalAsync` is *pop-the-top* at **every** call site in the tree (`LockPage:122/171`, `HomePage:1299`, `OnboardPage`, `DevPage`, `ContributorsPage`) — safe only because nothing stacks modals today. Any future second modal re-opens this whole class → a `popModal(page)` helper that refuses when the page is not top. (4) Related: `SpixiContentPage.OnDisappearing → Dispose()` is guarded only by `NavigationStack.Contains(this)`, **not** `ModalStack` — a modal covered by another modal has its WebView torn down. Unreachable today; not widened because MAUI's Disappearing-vs-pop ordering can't be verified from the tree (#215) and a wrong guard would leak every popped modal's WebView.
 
-### ⚠ MAJOR #3 — chat link-open confirm modal is spoofable (Opus re-audit #235; C#/BE, be-cutover **C15**)
+### ✅ MAJOR #3 — chat link-open confirm modal is spoofable — **FIXED 2026-09-06 (the handover-sweep batch); please sanity-check** (Opus re-audit #235; be-cutover **C15**)
 
+**What landed, in three parts.** All three are in `SingleChatPage.onNavigating`, in the `ixian:openLink:` branch.
+
+**(a) The `WebUtility.HtmlDecode` call is DELETED.** Nothing in the branch decodes a second time.
+
+⚠ **THE FIRST WRITE-UP OF THIS ROW CLAIMED BYTE-IDENTITY, AND THAT WAS FALSE** (found by the #46 loop over this batch, loop A MAJOR-1). `onNavigating` runs `HttpUtility.UrlDecode(e.Url)` on its FIRST line, and that decode is deliberately kept. So the transport pair is NOT symmetric. A peer-authored `%XX` still arrives at the branch in a form the modal never displayed. The literal form `https://paypal.com@evil.example/login` was also a working spoof, and removing the second decode never touched it.
+
+**(b) A FAIL-CLOSED scheme allow-list replaced `link.Contains("://")`.** Only `Uri.UriSchemeHttp` and `Uri.UriSchemeHttps` reach `Browser.Default.OpenAsync`. The SAME `Uri` object is tested and opened, so no re-parse can disagree with the parse that passed. `Utils.IsAllowedURL` is deliberately NOT used. It is a subresource gate, and it returns true for every non-http scheme.
+
+**(c) `Uri.UserInfo` is REFUSED.** This is the guard that actually closes the spoof. The property enforced is: **the destination HOST is the host the user read.** Exactly one construct in an authority can put a real host after readable text, and that construct is userinfo. Every other escape ends the host earlier, which is the safe direction: `paypal.com%2Fx.evil.example` parses to host `paypal.com`. The refusal covers the percent-encoded and the literal form together. The path and the query may still differ from the approved text by one decode; that residual is accepted, because a percent-escape there is ordinary and cannot move the destination.
+
+⚠ **A behaviour change to record:** a genuine credentials-in-URL link (`https://user:pw@host/`) no longer opens.
+
+The refusal logs the scheme only, never the peer-authored string.
+
+⚠ **The confirm is a SHELL surface, so C# cannot re-display the string.** If a native confirm is ever added, it must show that one variable and nothing derived from it.
+
+⚠ **A SECOND host of the same sink exists** on `SettingsPage.onNavigating` (be-cutover **S13**, added for the About / How-to links). It received all three identical guards in the same batch. Its four reachable inputs are compile-time constants in `src/components/settings-app.js`, so no peer text reaches it today — the defect there was that the sink trusted its caller.
+
+*(The original finding, for the record.)* 
 `SingleChatPage.xaml.cs:344` runs `WebUtility.HtmlDecode` on the link **after** the FE confirm modal already showed the pre-decode URL, then `Browser.OpenAsync`. `https://paypal.com&commat;evil.example.com/login` displays paypal-leading but opens host `evil.example.com`. Defeats the #231c "the modal shows the true target" mitigation. Fix (C#): don't HtmlDecode a URL for OpenAsync (or decode before showing) + add an http/https scheme allowlist at the sink. Details: be-cutover C15.
 
-### ⚠ MAJOR #4 — the shells' localStorage may be readable by third-party MINI-APP code (Opus #46 loop over #253; DECISIONS #254; PRE-EXISTING, FE mitigated one key)
+### ⚙ MAJOR #4 — the shells' localStorage may be readable by third-party MINI-APP code — **iOS PARTITIONED 2026-09-06; Windows and MacCatalyst are NOT** (Opus #46 loop over #253; DECISIONS #254; PRE-EXISTING)
+
+**State at 2026-09-06, after the handover sweep.**
+
+* **Android — CONTAINED, and it was contained before this batch.** `WebViewRenderer` sets `DomStorageEnabled = false` for the WebView marked `ClassId="miniapp"`, so a mini-app document has no `localStorage` at all. The premise cannot fire there.
+* **iOS — FIXED in this batch.** The mini-app WebView is given `WKWebsiteDataStore.NonPersistentDataStore` at configuration time (`iOSWebViewHandler`, `CreatePlatformView`), so it no longer shares the default data store with the shells. ⚠ The configuration object had to be set BEFORE construction — `platformView.Configuration` returns a COPY, and an assignment after the fact is silently lost. Please sanity-check that leg.
+* **Windows and MacCatalyst — NOT partitioned, and the premise is UNTESTED there.** Nothing in the tree constructs a `CoreWebView2Environment`, a `UserDataFolder`, a WebView2 `ProfileName` or a `WKProcessPool`. ⚠ One in-repo fact moves the odds toward "shared": mini-apps install to `<spixiUserFolder>/html/Apps/<id>/…`, **inside the same `html/` tree** that holds the shells' `ll_*.html`, one directory apart.
+* **The one test that settles it,** and it is cheap: open any mini-app and, in the WebView2 dev tools on **that** WebView, evaluate `localStorage.length` and `localStorage.getItem('spixi.pins')`. Non-zero or non-null means this MAJOR is live off Android and iOS.
+* **`spixi.draft.*`** — the gate's own "ours, fix regardless" row — is still the user's own unsent plaintext in that partition. iOS is now safe by construction. Windows is not.
+
+*(The original finding, unchanged, below.)*
+
 
 **The finding.** The redesigned shells are loaded from a bare local path — `SPlatformUtils.getHtmlBaseUrl()` returns `Config.spixiUserFolder + "/html/"` on Windows/iOS/Mac/Android (`Platforms/*/SPlatformUtils.cs:30-40`) → the WebView resolves it as a **`file://`** document. **Mini-apps** — third-party, publisher-supplied HTML/JS — are loaded as `"file://" + app_entry_point` (`Pages/MiniApps/MiniAppPage.xaml.cs:58`). In **Chromium-based WebViews (WebView2, Android WebView) all `file://` documents share ONE localStorage partition**; WKWebView likewise shares the default `WKWebsiteDataStore` across WebViews in a process unless explicitly given its own. If that holds on our platforms, **mini-app code can read every `spixi.*` key the shells write** — a non-chat, untrusted surface reading chat-derived data (SECURITY.md §1 / ★ #221 class).
 
@@ -100,8 +130,13 @@ composes `Path.Combine(downloadsPath, transfer.fileName)` from a **REMOTE-PEER-s
 file name at receive time — a hostile peer's `..\` name is a write-time traversal.
 Verify + sanitize at the transfer-accept boundary (be-cutover S16 residual).
 
-### ⚠ MAJOR #6 — mini-app WebView regressions from the iOS bring-up (#282/#283; Opus #46 loop over #282+#283; C#/BE — logged, NOT fixed)
+### ✅ MAJOR #6 — mini-app WebView regressions from the iOS bring-up — **BOTH HALVES NOW FIXED; please sanity-check** (#282/#283; Opus #46 loop over #282+#283)
 
+**(a) FIXED 2026-09-06 (the handover-sweep batch).** In `iOSWebViewHandler`, `SecureNavigationDelegate.DecidePolicy`, the external-link handoff is now gated three ways and FAILS CLOSED: the host must be PROVEN one of ours (`_owner.isTrustedHost()`, keyed on the SAME `ClassId="miniapp"` marker Android keys its privilege drops on), the navigation must be main-frame to main-frame (`navigationAction.TargetFrame?.MainFrame == true && navigationAction.SourceFrame?.MainFrame == true` — a subframe anchor tap, a subframe retargeting `_top`, and a null target frame all lose the handoff), and it must still be `WKNavigationType.LinkActivated`. An unidentifiable host is treated as untrusted. The `Cancel` below it is UNCHANGED for every case, so remote content still never loads in any WebView. No shipped shell has an http anchor at all, so this costs our own pages nothing.
+
+⚠ **The classification ask in the last paragraph of this section STILL STANDS**: MiniAppPage's trust tier is now honoured by this one handler, by one marker, on two platforms. Windows and MacCatalyst read that marker NOWHERE (see the 2026-09-06 INHERITED section, row **D24 / D25**). Please rule on whether the marker is the contract, and if it is, honour it on all four platforms or delete the claim.
+
+*(The original finding, for the record.)* 
 Two regressions from the iOS bring-up batch reached the **mini-app** WebView — the one surface that runs third-party, publisher-supplied HTML/JS (`MiniAppPage.xaml.cs:57-60` loads `"file://" + app_entry_point`). Both come from GLOBAL wiring: `iOSWebViewHandler` is registered for `typeof(WebView)` (`MauiProgram.cs:51`), so everything it does applies to every WebView in the app, mini-apps included.
 
 **(a) SECURITY — the iOS-10 external-link handoff gives mini-app content a one-tap, no-confirm Safari launch.** `SecureNavigationDelegate.DecidePolicy` (`iOSWebViewHandler.cs:29-51`) hands ANY http/https navigation with `NavigationType == LinkActivated` to `Browser.Default.OpenAsync` — silently. On the trusted shells this is the intended iOS-10 behaviour (and the redesigned chat flow shows an FE confirm modal before its `ixian:openLink` even fires). But on the mini-app WebView it means: publisher code renders a full-viewport anchor → the user's next tap opens ANY attacker URL in Safari — no confirm, instant IP disclosure to the link host plus a phishing ramp (the class MAJOR #3 is about, minus even the spoofable modal). Two gaps compound it: **(1)** there is no `TargetFrame`/`MainFrame` check — a link tap inside a mini-app iframe is still `LinkActivated`, so subframe content gets the same handoff (the code comment claims subframe loads stay blocked; that holds for subframe *loads*, not for link *taps* in subframes); **(2)** the handoff is keyed on navigation type alone, with no notion of which page hosts the WebView. Pre-#283, mini-app http/https was hard-`Cancel` with no handoff at all — this is a widened surface, not a parity fix. **Fix (C#, your review):** scope the handoff to trusted host shells — classify the hosting page (MiniAppPage → NO silent handoff; either keep hard-Cancel or route through a native confirm dialog showing the true host, honouring MAJOR #3's decode ordering) and add `navigationAction.TargetFrame?.MainFrame == true` to the gate for the shells that keep it. The content-rule allowlist (`iOSWebViewHandler.cs:95-120` — tenor/giphy/apps.spixi.io) is NOT a mitigation here: it gates in-WebView subresource loads, not the `Browser.OpenAsync` sink.
@@ -477,3 +512,192 @@ migration. It needs an on-device test with a `+` password created on an OLD buil
 
 Not fixed in #804: it is a wallet-path change, it is inherited, and the naive fix is worse than
 the defect.
+
+---
+
+# 2026-09-06 handover sweep — INHERITED rows
+
+The introduced-vs-inherited sweep that `CLAUDE.md` requires before handover ran on 2026-09-06 over
+the whole delta from the fork point `0e85a4b8`. Nine auditors, two adversarial verifiers, five fix
+agents.
+
+**Everything the sweep classed as OURS was fixed in the same session** — that is the gate's rule.
+The rows below are **INHERITED**: they exist at the baseline, byte for byte, and the evidence cell
+of each names the baseline anchor. By the gate's rule they come to you untouched.
+
+⚠ **"Inherited" answers *whose*, not *whether it is safe*.** Three of these are the worst
+primitives found in the whole sweep.
+
+## The mini-app trust boundary — five rows, one root
+
+The mini-app WebView runs third-party publisher HTML and JS. It has an SDK, a storage API and an
+install path, and none of the three validates the strings the publisher supplies.
+
+### ⚠ H-6 — a mini-app names a file and the app TRUNCATES it. Wallet included.
+
+`MiniApps/MiniAppStorage.cs`, `writeStorageData` → `File.Open(Path.Combine(appStoragePath, table),
+FileMode.Create)`. `FileMode.Create` TRUNCATES. `table` is the free JSON field `t` on the SDK's
+`STORAGE_SET` action: `MiniApps/MiniAppActionHandler.cs`, `processStorageSet` reads `ssa.t` and
+passes it straight through, reached from `processAction`'s `case MiniAppCommands.STORAGE_SET`.
+`appsStoragePath` is `<spixiUserFolder>/AppsStorage`, so `t = "../../wallet.ixi"` writes over
+`<spixiUserFolder>/wallet.ixi`.
+
+There is **no capability gate and no user prompt** on this command —
+`Pages/MiniApps/MiniAppPage.xaml.cs`, `handleAction` dispatches straight to `processAction`.
+
+The read side is the same primitive in reverse (`getStorageCache` → `File.Open(tableStoragePath,
+FileMode.Open)` opens any file the path names), though exfiltration is unreliable because the bytes
+are parsed as ixi-varuint key/value pairs before `getStorageData` can return them.
+
+**This is strictly worse than MAJOR #8**, which reads app files. This one destroys them.
+
+**Inherited:** `git diff 0e85a4b8..HEAD -- Spixi/MiniApps/MiniAppStorage.cs
+Spixi/MiniApps/MiniAppActionHandler.cs Spixi/MiniApps/ActionRequestModels/StorageSetAction.cs` is
+**empty**.
+
+**The ask.** Reject a `table` that is not its own `Path.GetFileName`, or that contains `..`, a
+separator, or an invalid file-name character. `Data/TransferManager.resolveDownloadPath` is the
+shape to copy — it is already in this tree and it is already fail-closed. Apply it to `appId` too
+(see H-9).
+
+### ⚠ H-7 — the mini-app install filename comes from a downloaded manifest URL, unvalidated
+
+`MiniApps/MiniAppManager.cs`, `installFromUrl` takes `contentUrl` — a free string in the fetched
+`appinfo.spixi`; `MiniApp.cs` assigns it with no check — splits it on `/` only, uses the last
+segment as a filename under `tmpPath`, and then `File.WriteAllBytes` at that path.
+`IxiUtils.IsValidUrl` (Ixian-Core) checks the SCHEME only, and the RAW string, not a normalised
+`Uri`, is what gets split. `https://host/a/..\..\..\x` yields the segment `..\..\..\x`, which
+`Path.Combine` honours on Windows.
+
+**Reachable from a chat**: a peer's app invite carries the install URL, `ixian:installApp:<url>`
+fetches the manifest, and the user's Install tap runs it.
+
+**Inherited**, identical line at `0e85a4b8`; the verb and the emitter are baseline too.
+
+⚠ **Reachability note.** `#214 C7(b)` makes an invite carry an install URL far more often than at
+the baseline, where `url` was usually empty and "Get app" no-opped. The mechanism is inherited; how
+often a user can reach it is not.
+
+**The ask.** Name the temp file in C#: `Path.Combine(tmpPath, Guid.NewGuid().ToString("N") +
+".tmp")`. The downloaded name is never needed.
+
+### ⚠ H-8 — the Android picker's display name is combined into a path and written to
+
+`Pages/MiniApps/AppNewPage.xaml.cs`, `onSelectAppFile` builds `Path.Combine(tmpPath, name +
+".tmp")` from `SpixiImageData.name` and writes there. On Android that field is the raw
+`FileResult.FileName` (`Platforms/Android/SFilePicker.cs`), which comes from a content provider's
+`DISPLAY_NAME` and is **not** run through `Path.GetFileName` — unlike Windows, iOS and MacCatalyst,
+which all do. A hostile app that publishes a document with a `../` display name gets a write
+outside `tmpPath`.
+
+**Inherited**, identical at `0e85a4b8` on both sides.
+
+**The ask.** Either apply `Path.GetFileName` in the Android picker so all four platforms agree, or
+name the temp file in C#. The second is better — the display name only builds a scratch path.
+
+### ⚠ H-9 — `MAJOR #10`'s unvalidated `app.id` reaches FOUR more sinks than the one filed
+
+`MiniApp.cs`, `case "id": id = value;` assigns it from `appinfo.spixi` with no validation. Besides
+`remove` — the one already filed as MAJOR #10 — that id builds:
+
+* the app's **entry point**, which is the URL the mini-app WebView loads;
+* the app's **icon path**, which `Utils.imageToDataUri` then READS and base64-encodes into a
+  trusted shell's push;
+* the **install destination** (`installFromPath` → `target_app_path`, `writeAppInfoFile`);
+* the **per-app storage directory** (`MiniAppStorage`, the `appId` segment — the same
+  `Path.Combine` as H-6).
+
+Each is gated only by `appList.ContainsKey`, so a hostile WebView string cannot get through — but a
+hostile INSTALLED id is already in that dictionary, which is exactly MAJOR #10's premise.
+
+**Inherited**: all five lines are byte-identical at the baseline.
+
+**The ask, and it is the SAME fix.** Validate `app.id` ONCE at install, in the `MiniApp`
+constructor, and every consumer is safe. **Fixing only `remove` leaves the entry point and the icon
+read open.**
+
+### ⚠ H-10 — the Android FileProvider publishes the whole `files/` tree
+
+`Platforms/Android/Resources/xml/provider_paths.xml` declares `<files-path name="files" path="."
+/>` — the entire `files/` tree: `Spixi/wallet.ixi`, `Spixi/Acc/*`, the chat store.
+`Platforms/Android/SFileOperations.open(path)` builds a grant URI from whatever path it is handed
+(`FileProvider.GetUriForFile`). The path handed to it on the chat "open file" route is
+`fm.filePath`, composed at receive time from the peer-supplied `transfer.fileName` — the **S16
+residual**.
+
+So a traversing filename does not only write outside Downloads. It also becomes a **read grant
+handed to whatever app the chooser picks**.
+
+**Inherited**: the provider paths file is byte-identical at the baseline.
+
+**The ask.** Narrow `files-path` to the `Downloads` subtree the share and open flows actually need,
+**and** sanitise `transfer.fileName` at the accept boundary (the S16 residual fix). The two
+together close the amplification; either alone leaves half of it.
+
+## The log
+
+### ⚠ G/I-1 — one line carries a peer's message text, their wallet address and a file path
+
+`Meta/SpixiLocalStorageCallbacks.cs`, the file-transfer prepare callback:
+
+```
+Logging.error("Error occured while trying to prepare file transfer for file '{0}' - friend '{1}',
+              message contents '{2}' full path '{3}': {4}", …)
+```
+
+The sibling line above it logs `friend.walletAddress.ToString()` and the path.
+
+This is the single highest-value line in `ixian.log`, and `ixian.log` is a file the user shares in
+one tap from Account → Developer (`DevPage.onSendLog` — on Windows it also writes a copy straight
+into `%USERPROFILE%\Downloads` with only a confirmation alert). It is also a **log-injection**
+vector: the message text is peer-authored and nothing strips newlines.
+
+**Inherited**: same file, same lines, at `0e85a4b8`; `git diff` on the file is empty.
+
+**Worth putting at the top of your list.** Peer-controlled text in a shareable file.
+
+⚠ Two adjacent facts, both inherited: `Config.spixiUserFolder` resolves to
+`%USERPROFILE%\Documents\Spixi` on Windows, a folder OneDrive backs up by default; and
+`android:allowBackup="true"` puts the whole private directory, `ixian.log*` included, into an ADB
+or cloud backup. iOS is clean — neither `UIFileSharingEnabled` nor
+`LSSupportsOpeningDocumentsInPlace` is in its `Info.plist`, at HEAD or at the baseline.
+
+⚠ One thing the redesign DID change here is the **volume**: `Config.maxLogCount` was raised from 1
+to 5, under its own `RELEASE BLOCKER — REDUCE TO 1 BEFORE LAUNCH` marker. That half is ours and it
+is on the release checklist.
+
+## Platform
+
+### ⚠ C-12 — no storage partitioning on Windows or MacCatalyst
+
+See MAJOR #4 above, which now carries the per-platform state. Android is contained by
+`DomStorageEnabled = false`; iOS was partitioned on 2026-09-06 with a non-persistent data store;
+Windows and MacCatalyst have nothing, and the premise there is untested. One dev-tools line
+settles it.
+
+### ⚠ D24 / D25 — Apple targets: arbitrary loads allowed, and MacCatalyst has no handler at all
+
+* `NSAllowsArbitraryLoads = true` in **both** `Platforms/iOS/Info.plist` and
+  `Platforms/MacCatalyst/Info.plist` — App Transport Security is off for the whole app.
+* **MacCatalyst registers NO custom WebView handler**: `MauiProgram.cs` registers it under
+  `#if IOS`, which is not defined for the maccatalyst target framework, and
+  `Spixi/Platforms/MacCatalyst/` contains no handler. So that target has neither the resource
+  allow-list nor the http/https navigation block — the two things every other platform relies on.
+
+**Both inherited.** MacCatalyst does not ship today, which is why this is filed rather than fixed.
+⚠ It must not ship before the handler exists.
+
+### ⚠ I-1 (nuget) — the repo-local package feed is unscoped
+
+`nuget.config` adds a `local-nuget/` folder source with **no `<clear/>` and no
+`<packageSourceMapping>`**; there is no `packages.lock.json` and no `RestorePackagesWithLockFile`;
+and `local-nuget/README.md` records no hash for the committed `RocksDB.0.0.42.nupkg`.
+
+⚠ This is **not** classic dependency confusion, and the sweep's first draft said it was. `RocksDB`
+is a claimed public id — the same csproj pulls `RocksDB 10.4.2.64152` from nuget.org for the
+non-android/ios targets — so an attacker cannot publish version `0.0.42`. **The real risk is the
+unscoped folder**: any `.nupkg` dropped into `local-nuget/` shadows a public package of that id, so
+a one-file pull request is the attack, not a nuget.org push.
+
+**The fix is the same either way, and it is three lines**: `<clear/>`, a
+`<packageSourceMapping>` that scopes the local feed to `RocksDB` alone, and the recorded sha512.

@@ -704,5 +704,7 @@
   "chatGround": "Lienzo",
   "groundFlat": "Sólido",
   "groundGradient": "Degradado",
-  "notifPushProviderSub": "Despierta este dispositivo en cuanto llega un mensaje. Usa OneSignal, un proveedor de notificaciones push."
+  "notifPushProviderSub": "Despierta este dispositivo en cuanto llega un mensaje. Usa OneSignal, un proveedor de notificaciones push.",
+  "loadMedia": "Cargar imágenes y GIF",
+  "loadMediaSub": "Al cargarlas, el servidor del remitente sabe que abriste el chat"
 }

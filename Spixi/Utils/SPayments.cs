@@ -8,6 +8,7 @@ using Plugin.Fingerprint.Abstractions;
 using SPIXI.Lang;
 using SPIXI.Meta;
 using System;
+using System.Globalization;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -321,7 +322,16 @@ namespace SPIXI
                     return;
                 }
 
-                bool ok = await confirmAndAuth(page, recipientDisplay(addr), amount, fee);
+                /* ★ HANDOVER SWEEP I-3 — THE CONFIRM NAMES THE ADDRESS THAT IS PAID.
+                 * The dialog used to be built from `addr`, the payload slice, while an
+                 * End2End address is REPLACED above by resolveExtendedAddress with a
+                 * payment address that comes off the network. The two strings differ on
+                 * exactly that path, and the transaction is built from `to`
+                 * (Node.prepareTransactionFrom puts to.PaymentAddress in the toList), so
+                 * the user could approve one address and pay another.
+                 * The display is now derived from the SAME value that is signed. For a
+                 * bare base58 address the string is unchanged. */
+                bool ok = await confirmAndAuth(page, to.PaymentAddress.ToString(), amount, fee);
                 if (!ok)
                 {
                     Utils.sendUiCommand(page, "signSendResult", "cancel", "");
@@ -341,7 +351,10 @@ namespace SPIXI
             }
             catch (Exception ex)
             {
-                Logging.error("SPayments.signSend failed: " + ex.Message);
+                // ★ Sweep G-3: no ex.Message. This try builds an ExtendedAddress from the
+                // payload, and Ixian-Core's Address ctor formats the whole base58 into its
+                // exception text (Address.cs, "Invalid address was specified …").
+                Logging.error("SPayments.signSend failed: " + ex.GetType().Name);
                 try { Utils.sendUiCommand(page, "signSendResult", "fail", ""); } catch (Exception) { }
             }
             finally
@@ -396,12 +409,11 @@ namespace SPIXI
                     return;
                 }
 
-                string who = friend.nickname;
-                if (String.IsNullOrEmpty(who))
-                {
-                    who = friend.walletAddress.ToString();
-                }
-                bool ok = await confirmAndAuth(page, who, amount, fee);
+                // ★ Sweep A-9 / I-2: this path used to pass the bare nickname, so the
+                // one dialog that guards signing named a peer-chosen string and showed no
+                // address at all. It passes the address that is paid — the same `to` the
+                // transaction below is built from — and confirmAndAuth adds the nickname.
+                bool ok = await confirmAndAuth(page, to.PaymentAddress.ToString(), amount, fee);
                 if (!ok)
                 {
                     Utils.sendUiCommand(page, "payRequestResult", msgIdHex, "cancel", "");
@@ -442,7 +454,7 @@ namespace SPIXI
             }
             catch (Exception ex)
             {
-                Logging.error("SPayments.payRequest failed: " + ex.Message);
+                Logging.error("SPayments.payRequest failed: " + ex.GetType().Name);   // sweep G-3: no ex.Message — an address ctor error carries the token
                 try { Utils.sendUiCommand(page, "payRequestResult", msgIdHex, "fail", ""); } catch (Exception) { }
             }
             finally
@@ -528,7 +540,7 @@ namespace SPIXI
             }
             try
             {
-                return await confirmAndAuth(page, recipientDisplay(addr), amount, fee);
+                return await confirmAndAuth(page, addr, amount, fee);   // sweep A-9: confirmAndAuth composes the recipient block
             }
             finally
             {
@@ -541,10 +553,19 @@ namespace SPIXI
         /// amount and the fee from C#'s OWN parse — never WebView-composed text beyond
         /// the values this class validated. Existing lang keys only.
         /// </summary>
-        private static async Task<bool> confirmAndAuth(SpixiContentPage page, string who, IxiNumber amount, IxiNumber fee)
+        /* ★ HANDOVER SWEEP A-9 / I-2 — THE RECIPIENT LINE IS BUILT HERE.
+         * This method takes the ADDRESS, not a display string, and composes the
+         * recipient block itself. No call site can leave the address out.
+         * handlePayRequest used to pass a bare nickname, so on that one path the dialog
+         * named a payee and showed no address at all.
+         * Every caller passes C#'s own base58 rendering of the value that is signed.
+         * recipientDisplay puts the contact nickname above it, sanitised and clamped by
+         * displayName, so peer text cannot forge a line, cannot reorder the dialog and
+         * cannot push the fee line out of view. */
+        private static async Task<bool> confirmAndAuth(SpixiContentPage page, string address, IxiNumber amount, IxiNumber fee)
         {
             string title = SpixiLocalization._SL("wallet-send2-confirm-title");   // "You are about to send"
-            string body = Utils.amountToLocalizedDisplayString(amount) + " IXI\n→ " + who + "\n\n"
+            string body = Utils.amountToLocalizedDisplayString(amount) + " IXI\n→ " + recipientDisplay(address) + "\n\n"
                 + SpixiLocalization._SL("wallet-send2-info") + " "
                 + Utils.amountToLocalizedDisplayString(fee) + " "
                 + SpixiLocalization._SL("wallet-send2-feeinfo");
@@ -612,6 +633,9 @@ namespace SPIXI
 
         // nickname + the FULL address when the target is a contact; the bare address
         // otherwise. The address is ALWAYS shown — that is the confirm's whole point.
+        // ★ Sweep A-9: that sentence is now ENFORCED, not claimed (#772). confirmAndAuth
+        // is the only caller and it always passes an address, so the return value always
+        // ends with the address. The nickname is peer text and goes through displayName.
         private static string recipientDisplay(string addr)
         {
             try
@@ -619,11 +643,117 @@ namespace SPIXI
                 Friend? f = FriendList.getFriend(new Address(addr));
                 if (f != null && !String.IsNullOrEmpty(f.nickname) && f.nickname != addr)
                 {
-                    return f.nickname + "\n" + addr;
+                    // the ONE peer-controlled value in this dialog — bounded to one line
+                    string nick = displayName(f.nickname);
+                    if (nick.Length > 0)
+                    {
+                        return nick + "\n" + addr;
+                    }
                 }
             }
             catch (Exception) { }
             return addr;
+        }
+
+        /* ★ HANDOVER SWEEP A-9 / I-2 — THE ONE SANITISER FOR PEER TEXT IN A MONEY DIALOG.
+         *
+         * `Friend.nickname` is written verbatim from peer bytes (Ixian-Core
+         * CoreStreamProcessor → FriendList.setNickname): no length bound, no character
+         * filter, and no sanitiser exists anywhere in Spixi/Utils. It is the only value
+         * in the native confirm that a peer controls, so it is reduced to ONE short line:
+         *   · the character test is a WHITELIST by Unicode category, so an unknown
+         *     character is dropped and never admitted. That removes line and paragraph
+         *     separators, every control character, and the bidirectional overrides that
+         *     can reverse the address printed under it.
+         *   · runs of whitespace collapse to one space, so a nickname cannot pad the
+         *     dialog and push the fee line out of view.
+         *   · the result is clamped to NICKNAME_DISPLAY_MAX characters.
+         * Because no line break can survive, the nickname always renders as one line and
+         * the address line below it can be neither forged nor displaced. The clamp is
+         * also shorter than the shortest wallet address — the smallest address version is
+         * 33 bytes, about 45 base58 characters (Ixian-Core Address.addressVersionLengths)
+         * — so a nickname cannot render a complete address either.
+         * ⚠ This is DISPLAY ONLY. Nothing here reaches a transaction: the amount, the fee
+         * and the recipient are computed elsewhere and are untouched. */
+        private const int NICKNAME_DISPLAY_MAX = 32;
+
+        private static string displayName(string nick)
+        {
+            if (String.IsNullOrEmpty(nick))
+            {
+                return "";
+            }
+            StringBuilder sb = new StringBuilder(nick.Length);
+            bool pendingSpace = false;
+            foreach (char c in nick)
+            {
+                if (!isDisplaySafe(c))
+                {
+                    // whitespace and every refused character become ONE separator, so
+                    // removing a character cannot join two words together
+                    pendingSpace = true;
+                    continue;
+                }
+                if (pendingSpace && sb.Length > 0)
+                {
+                    sb.Append(' ');
+                }
+                pendingSpace = false;
+                sb.Append(c);
+            }
+            string display = sb.ToString();
+            if (display.Length > NICKNAME_DISPLAY_MAX)
+            {
+                int cut = NICKNAME_DISPLAY_MAX;
+                if (char.IsHighSurrogate(display[cut - 1]))
+                {
+                    cut = cut - 1;   // never cut a surrogate pair in half
+                }
+                display = display.Substring(0, cut) + "…";
+            }
+            return display;
+        }
+
+        // The whitelist. A character is kept only when its Unicode category is named
+        // here; anything else — control, format, line and paragraph separator, private
+        // use, unassigned — is refused. Marks are kept because they carry accents and
+        // Indic vowel signs. A space is refused here on purpose: displayName turns it
+        // into the collapsed separator instead.
+        // ⚠ Surrogates are kept so that emoji outside the basic plane survive. A
+        // non-BMP FORMAT character therefore also survives, because its two halves are
+        // surrogates. That residual is bounded and harmless here: it cannot produce a
+        // line break, and the clamp bounds how many characters can enter the dialog.
+        private static bool isDisplaySafe(char c)
+        {
+            switch (char.GetUnicodeCategory(c))
+            {
+                case UnicodeCategory.UppercaseLetter:
+                case UnicodeCategory.LowercaseLetter:
+                case UnicodeCategory.TitlecaseLetter:
+                case UnicodeCategory.ModifierLetter:
+                case UnicodeCategory.OtherLetter:
+                case UnicodeCategory.NonSpacingMark:
+                case UnicodeCategory.SpacingCombiningMark:
+                case UnicodeCategory.EnclosingMark:
+                case UnicodeCategory.DecimalDigitNumber:
+                case UnicodeCategory.LetterNumber:
+                case UnicodeCategory.OtherNumber:
+                case UnicodeCategory.ConnectorPunctuation:
+                case UnicodeCategory.DashPunctuation:
+                case UnicodeCategory.OpenPunctuation:
+                case UnicodeCategory.ClosePunctuation:
+                case UnicodeCategory.InitialQuotePunctuation:
+                case UnicodeCategory.FinalQuotePunctuation:
+                case UnicodeCategory.OtherPunctuation:
+                case UnicodeCategory.MathSymbol:
+                case UnicodeCategory.CurrencySymbol:
+                case UnicodeCategory.ModifierSymbol:
+                case UnicodeCategory.OtherSymbol:
+                case UnicodeCategory.Surrogate:
+                    return true;
+                default:
+                    return false;
+            }
         }
     }
 }

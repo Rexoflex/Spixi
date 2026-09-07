@@ -384,6 +384,8 @@
   "leaveGroupsConfirmTitle": "Sair de {n} grupos e remover {name}?",
   "leaveTitle": "Sair deste grupo?",
   "leftGroupToast": "Você saiu do grupo",
+  "loadMedia": "Carregar imagens e GIFs",
+  "loadMediaSub": "O carregamento informa ao servidor do remetente que você abriu a conversa",
   "loading": "Carregando",
   "loadingHistory": "Carregando mensagens anteriores",
   "lockCopy": "Insira a senha da sua carteira para desbloquear.",

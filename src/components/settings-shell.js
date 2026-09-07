@@ -849,8 +849,13 @@ export function createSettingsHub({
     onClick: () => onSecurity(),
   }).section);
 
-  if ((capabilities.readReceipts || capabilities.typing) && onPrivacy) sec.card.append(settingRow({
-    glyph: 'eye-off', hue: 'info',
+  /* ★ `mediaAutoload` is a FRONTEND capability (security sweep, row E-1b): the media
+     switch writes localStorage and needs no verb, so the shell declares it. The gate
+     still names every row the screen can draw, so the hub cannot offer an empty
+     Privacy screen — which is what it would have done before this row existed, since
+     both §9 capabilities are unreachable today. */
+  if ((capabilities.readReceipts || capabilities.typing || capabilities.mediaAutoload) && onPrivacy) sec.card.append(settingRow({
+    glyph: 'eye-off', hue: 'info', key: 'privacy',
     label: strings.privacy || 'Privacy',
     onClick: () => onPrivacy(),
   }).section);

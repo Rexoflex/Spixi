@@ -15,9 +15,34 @@ refutation pass with file:line evidence in BOTH trees.
 `addCall` was a lossy 4-arg freeform push with no tap action (`SingleChatPage.xaml.cs:1496`,
 `chat.js:955`); (c) reply/edit · retry · pin/mute/favorites/delete-row persistence have zero
 hits in legacy. Of ~50 open be-cutover rows, the large majority are genuine enhancements.
-**But:** the audit found **13 confirmed parity regressions** (most zero-C# to fix), **10
+**But:** the audit found **14 confirmed parity regressions** (the tables below hold R1–R14; earlier copies of this paragraph said 13, which never matched its own tables — corrected 2026-09-06) (most zero-C# to fix), **10
 security/correctness rows** that must not ride to v1.1 as nice-to-haves, one **refuted premise**
 (C9), and **5 stale brief rows**.
+
+---
+
+## ⚠ STATE OF THIS DOCUMENT — read before you act on a row
+
+**Written 2026-07-30 against HEAD `20089c10`. The row states below are as of that date and have
+NOT been re-verified row by row since.** Most of them have been acted on: **parity batch A**
+(DECISIONS #297–#299, 2026-07-30) built 11 of these items plus two free fixes, and a device F5
+on 2026-08-04 passed 6 of the 8 testable ones (DECISIONS #300).
+
+Spot-checks run 2026-09-06 confirm the batch landed: R1 (`ixian:loadmore` is emitted by
+`src/shells/chat.html`), R2 (`setComposerCost` has production callers), R5 (the dev cluster is
+reachable from both shells), R8 (`setUnreadIndicator` is implemented in the chat shell) and R13
+(the length guard is in the chat shell). **R3 was NOT flipped** — the photo/GIF path is still
+gated on `bridge.cap('media')`, which nothing sets.
+
+**The refuted premise (C9) is now also FIXED in the code**, not only refuted: the `friend.bot ||`
+early return is gone from the tip guard (#348 / W8), replaced by a fail-closed metadata test and
+a blind-room test. See `docs/be-cutover-brief.md`, row C9.
+
+**The 5 stale brief rows this audit named are all corrected** in `be-cutover-brief.md` at its
+2026-09-06 state verification, along with twenty-odd more it did not name.
+
+Use this file for its EVIDENCE — the legacy `file:line` anchors are still exact. Do not use its
+row states as current.
 
 ## (a) Genuine regressions → v1.0
 
@@ -82,9 +107,14 @@ the same v1.0 security engagement, not v1.1):
 | W9 | WalletSentPage status-0 sentinel + null-activity NRE (redesign makes the failure visible) |
 | #82 | media auto-load default-ON = legacy-parity posture (legacy auto-loaded tenor/giphy) — needs the standing security sign-off, it's a confirmation not code |
 
-## (d) Doc corrections owed
+## (d) Doc corrections owed — ✅ **DONE 2026-09-06**
 
-`docs/be-cutover-brief.md` is stale in 5 places — mark LANDED: **S5/L4** (`*SL{language-code}`
+All five were marked at the `be-cutover-brief.md` state verification, and the verification
+found roughly twenty more this audit had not looked for. C9 is stronger than
+"premise-refuted": the guard is GONE from the code. The dead-C#-handler cleanup list below
+is still a repoint candidate and still needs no action.
+
+*(The original correction list, for the record.)* `docs/be-cutover-brief.md` is stale in 5 places — mark LANDED: **S5/L4** (`*SL{language-code}`
 carrier live in shells) · **S7** (`ixian:encpass` `SettingsPage.xaml.cs:204`) · **S13**
 (`ixian:openLink` `:178`) · **CO2** (in-shell group create, `HomePage.xaml.cs:419-459`).
 Re-mark **C9** as premise-refuted-pending-old-exe-check. Dead C# handlers catalogued by the

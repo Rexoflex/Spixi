@@ -51,11 +51,160 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); // top-level: share
  * ⚠ A POSITIVE sweep should usually read the raw text — a pin may legitimately want the
  * prose (that a file RECORDS its reasoning is often the thing worth pinning). This is for
  * the `!/…/.test(…)` direction. */
-const stripCode = (t) => t
-  .replace(/<!--[\s\S]*?-->/g, '')
-  .replace(/\/\*[\s\S]*?\*\//g, '')
-  .replace(/^\s*\/\/.*$/gm, '')
-  .replace(/(^|[^:])\/\/.*$/gm, '$1');
+/* ★★ AND IT MUST BE A TOKENIZER, or it blanks LIVE CODE (#46 r5 MINOR-3, r6 MAJOR-1).
+ *
+ * ⚠ TWO REPAIRS OF THIS FUNCTION FAILED BEFORE THIS ONE, and both failed the same way:
+ * they fixed the SPELLING that had been reported instead of the mechanism.
+ *
+ *   r5 reported `"image/*"` — a comment token inside a STRING LITERAL. The r5 repair held
+ *   string literals out of the comment pass and put them back. It was pinned by a property
+ *   about literals (masking and stripping must COMMUTE), so the pin could only ever agree
+ *   with the repair: where no literal is involved the mask is a no-op on both sides and the
+ *   two orders commute BY CONSTRUCTION. r6 then showed the defect needs no literal at all.
+ *
+ * ★ THE MECHANISM. The comment pass ran the BLOCK regex before the LINE regex, so any `/*`
+ * inside a `//` comment opened a block comment that ran to the next real `*\/` and deleted
+ * every line between. Two live files in this tree are cut that way TODAY, and neither
+ * involves a literal:
+ *
+ *     Spixi/Utils/ThemeManager.cs:97   `// instant-bg (src/shells/*: html{…` — the `/`+`*`
+ *                                      of `src/shells/*` opened a 2 211-character comment
+ *                                      that closed at the `*\/` of the AND-7b docblock,
+ *                                      deleting 14 live lines: getResolvedAppearanceName,
+ *                                      getSurfaceColorString and getSurfaceColor, whole.
+ *                                      (getHeroColorString survives — it begins AFTER the
+ *                                      closing `*\/`; an earlier version of this paragraph
+ *                                      named it, and named `"image/*"`, which does not
+ *                                      occur in that file at all. #772.)
+ *     src/components/launch-shell.js   `// docs/legal/*.md by scripts/lib/legal-docs.mjs`
+ *                                      — deleted `const LEGAL_LEAD_ENGLISH_ONLY = …`, and
+ *                                      with it the same line in the two generated bundles.
+ *
+ * Every NEGATIVE sweep in this suite runs on this output, so all of them were blind to
+ * that code at once. A reviewer turned it into a working escape: an OS-open primitive
+ * (`Process.Start(… UseShellExecute = true)`) in a NEW file, hidden by one ordinary `//`
+ * comment containing a path glob and one ordinary block comment below it — full suite
+ * `BASELINE OK`, exit 0.
+ *
+ * ★ SO THIS IS A TOKENIZER, not another regex order. ONE left-to-right pass over four
+ * states — code, line comment, block comment, string — and in code state whichever of `//`
+ * and `/*` comes FIRST wins. A `/*` inside a line comment is text. A `//` inside a block
+ * comment is text. A quote inside either comment is text. That is the whole class, in
+ * every spelling of it, and it is no longer a claim: the pin below does not share the
+ * repair's premise (see "① NO DECLARATION MAY DISAPPEAR").
+ *
+ * ★ WHAT IT SCANS, and why each shape is here. It runs over C#, JS, CSS, HTML and
+ * Markdown, so it is deliberately conservative and every literal form FAILS SAFE:
+ *   · ordinary `"…"` / `'…'` with backslash escapes, terminated on the SAME line. An
+ *     unterminated one is NOT a string — the opener is emitted as ordinary text and the
+ *     scan resumes after it. This is what keeps an apostrophe in Markdown prose, or a lone
+ *     `"` in a docblock, from swallowing the rest of the file.
+ *   · verbatim `@"…"`, where `""` is an escaped quote and a backslash is NOT an escape,
+ *     and which may span lines. Unterminated at EOF → the `@` is ordinary text.
+ *   · raw string literals `"""…"""` (any opening run of three or more quotes, closed by a
+ *     run at least as long). Unterminated at EOF → ordinary text.
+ *   · interpolated `$"…"`, `$@"…"`, `@$"…"` and `$"""…"""` — the prefix is consumed and the
+ *     body scanned by the rule its quote form implies. Interpolation HOLES are not parsed
+ *     recursively: `$"{a["k"]}"` is read as three ordinary runs. That cannot hide a comment
+ *     token (each run is still literal or code), it can only split one literal into three.
+ *   · char literals including `'\''` and `'"'`, by the escape rule above.
+ *   · an unterminated `/*` or `<!--` at EOF is NOT a comment: the opener is emitted as text
+ *     and the scan continues, so an unbalanced token can never silently swallow a file tail.
+ *     (The old regexes did the same by simply not matching. Chosen deliberately: the cost
+ *     of keeping comment prose is a false RED on a positive sweep; the cost of dropping
+ *     code is a false GREEN on every negative one.)
+ *   · backticks are NOT string delimiters here. JS template literals and Markdown code
+ *     spans share the character, Markdown routinely leaves one unpaired, and the old
+ *     function did not treat them as literals either — so this changes nothing and is
+ *     recorded rather than left to be discovered.
+ *
+ * ★ THE `:` GUARD IS KEPT, deliberately. A `//` whose preceding character is `:` is not a
+ * line comment, so `https://host` in raw prose survives. It protects only the FIRST `//`
+ * after the colon, so `file:///a` outside a string still truncates at the second — exactly
+ * as before. Inside a string it no longer matters: the string is scanned as a string.
+ *
+ * ★ MEASURED over all 1 223 text files in the repo plus the `Ixian-Core` sibling: the new
+ * output is a SUPERSEQUENCE of the old in EVERY file — 0 shorter, 0 non-supersequence —
+ * so on THIS TREE it can only preserve text, never delete more of it. That is a
+ * measurement, not a theorem (r6 NIT-1): `/* the marker is "*\/" here *\/` is a case where
+ * the new function deletes MORE, and correctly so. 295 files differ at all; in 291 of them
+ * the difference is whitespace only (the old `^\s*` + `\/\/` regex also ate the blank lines
+ * above a comment line). The FIVE with a content difference are the two live files named
+ * above, the two generated bundles that carry the launch-shell line, and this file itself
+ * (its own source quotes the old regexes). */
+const STRIP_TOK = /\/\*|<!--|\/\//;
+/* Returns the index one past the end of the literal beginning at `i`, or -1 when the text
+   at `i` does not open one (the caller then emits one character and moves on — fail safe). */
+const litEnd = (t, i) => {
+  let j = i, verbatim = false;
+  while (t[j] === '@' || t[j] === '$') { if (t[j] === '@') verbatim = true; j++; }
+  const q = t[j];
+  if (q !== '"' && q !== "'") return -1;
+  if (q === "'") {                                   // char literal: escapes, one line only
+    for (let k = j + 1; k < t.length; k++) {
+      const ch = t[k];
+      if (ch === '\\') { k++; continue; }
+      if (ch === '\n') return -1;
+      if (ch === "'") return k + 1;
+    }
+    return -1;
+  }
+  let r = j; while (t[r] === '"') r++;
+  const run = r - j;
+  if (run >= 3) {                                    // raw string literal """…"""
+    const e = t.indexOf('"'.repeat(run), r);
+    if (e < 0) return -1;
+    let e2 = e; while (t[e2] === '"') e2++;
+    return e2;
+  }
+  if (run === 2) return j + 2;                       // the empty string, not a raw opener
+  if (verbatim) {                                    // @"…" — "" is an escaped quote
+    for (let k = j + 1; k < t.length; k++) {
+      if (t[k] === '"') { if (t[k + 1] === '"') { k++; continue; } return k + 1; }
+    }
+    return -1;
+  }
+  for (let k = j + 1; k < t.length; k++) {           // ordinary "…"
+    const ch = t[k];
+    if (ch === '\\') { k++; continue; }
+    if (ch === '\n') return -1;
+    if (ch === '"') return k + 1;
+  }
+  return -1;
+};
+const stripCode = (t) => {
+  if (!STRIP_TOK.test(t)) return t;                  // no comment can open: nothing to do
+  let out = '', i = 0;
+  const n = t.length;
+  while (i < n) {
+    const c = t[i];
+    if (c === '<' && t.startsWith('<!--', i)) {       // HTML comment
+      const e = t.indexOf('-->', i + 4);
+      if (e < 0) { out += c; i++; continue; }
+      i = e + 3; continue;
+    }
+    if (c === '/' && t[i + 1] === '*') {              // block comment — newlines go with it
+      const e = t.indexOf('*/', i + 2);
+      if (e < 0) { out += c; i++; continue; }
+      i = e + 2; continue;
+    }
+    if (c === '/' && t[i + 1] === '/' && t[i - 1] !== ':') {
+      const nl = t.indexOf('\n', i);                  // line comment — the newline stays
+      const ls = out.lastIndexOf('\n') + 1;           // a whitespace-only prefix goes too
+      if (!/[^ \t]/.test(out.slice(ls))) out = out.slice(0, ls);
+      i = nl < 0 ? n : nl;
+      continue;
+    }
+    if (c === '"' || c === "'"
+      || ((c === '@' || c === '$')
+        && (t[i + 1] === '"' || ((t[i + 1] === '@' || t[i + 1] === '$') && t[i + 2] === '"')))) {
+      const e = litEnd(t, i);
+      if (e > i) { out += t.slice(i, e); i = e; continue; }   // literal, byte for byte
+    }
+    out += c; i++;
+  }
+  return out;
+};
 
 /* ★★ BRANCH — "does control flow open here", for the #797 CANCEL-FIRST pins.
  *
@@ -132,7 +281,45 @@ const load = (file) => new Promise((resolve) => {
  * first, parses @media / @supports / @layer nesting, and returns EVERY rule whose selector
  * SUBJECT (the last compound in the selector) carries the wanted simple selector.
  * A "must not" pin uses .every(). A "must exist" pin uses .some(). */
-const stripCssComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
+/* ★★ AND IT IS THE SAME DEFECT CLASS AS stripCode, so it is not a second regex (#798).
+ *
+ * The body that stood here was `css.replace(/\/\*[\s\S]*?\*\//g, '')` — one naive block
+ * regex, blind to literals. CSS has no `//` comment, so the r6 ORDERING half of the class
+ * cannot apply here and no ordering fix is needed; the LITERAL half applies exactly as it
+ * does in C#, because `/*` is ordinary content inside a quoted value and inside an
+ * unquoted `url(…)` token:
+ *
+ *     .a { content: "/*"; }        the regex opens a comment INSIDE the string and runs to
+ *     .b { color: red; }           the next real close — `.b` disappears from every pin
+ *     /* a real comment *\/
+ *
+ * That is the `"image/*"` mechanism in CSS clothing, and about seventy pins read this
+ * function. ⚠ MEASURED over the 65 stylesheets under src/styles: the naive regex loses
+ * ZERO live declarations TODAY. The defect is a CAPABILITY, not a live loss — the same
+ * standing this had in `ThemeManager.cs` before a reviewer used it to park an OS-open
+ * primitive behind two ordinary comments with the whole suite green.
+ *
+ * ★ SO IT DELEGATES rather than growing a fourth scanner: `scripts/strip-release.mjs`
+ * already exports the repaired CSS tokenizer (strings copied verbatim, quoted and
+ * unquoted `url(…)` handled separately after a break-my-verdict reviewer found
+ * `url( "i)m/*g.png" )` destroyed by the naive url branch), the suite already imports it
+ * to prove `packaged ≡ strip(committed)`, and it already carries a BEHAVIOURAL pin over a
+ * poisoned input (Session O ⑯). One CSS reader, one place to be wrong.
+ *
+ * ⚠ TWO DIFFERENCES FROM THE OLD BODY, both deliberate and both measured:
+ *   · it THROWS on an unterminated comment instead of silently keeping the tail. The suite
+ *     must not die on a malformed stylesheet, so the throw is caught — and the fallback is
+ *     the RAW text, never the naive regex. Keeping comment prose can only make a negative
+ *     pin go RED; falling back to the naive strip would restore the defect silently. No
+ *     stylesheet in this tree throws.
+ *   · it collapses runs of blank lines and trims trailing whitespace. Measured over the 65
+ *     stylesheets: all 65 differ from the naive output, and in every one the difference is
+ *     WHITESPACE ONLY — no declaration text changes. */
+const { stripCssComments: stripCssCommentsScanner } = await import(new URL('./strip-release.mjs', import.meta.url));
+const stripCssComments = (css) => {
+  try { return stripCssCommentsScanner(css); }
+  catch { return css; }                              // fail toward RED: raw text keeps the comments
+};
 
 /* ★★ #46 r2 (auditor finding, MINOR — and a fix agent walked straight into it):
  * SLICING A THEME BLOCK OUT OF A STYLESHEET IS COMMENT-BLIND UNLESS YOU STRIP FIRST.
@@ -2525,9 +2712,32 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
     'chat: full member roster wired via ixian:loadContacts (bug batch)');
   ok(/\.chat-channel-overlay \{ position: fixed; inset: 0; z-index: 15;/.test(chat),
     'chat: channel selector sits below the topbar (z-index 15) (bug batch)');
+  /* ★★ REPAIRED by the handover-gate fix batch, and the old clause was RIGHT to go red.
+     It asserted `const MEDIA_LOADED_PREFIX = 'spixi.media.loaded.'` and called the
+     behaviour "persists per peer". That persistence is RETIRED on purpose (security
+     sweep C-1): the stored value was peer-authored text — a URL lifted out of a received
+     message — in a partition mini-app code may share, and `autoload || loadedMedia.has(url)`
+     made one tap on a tracking URL a beacon that re-fired on every chat open, for ever,
+     with the opt-out switched off. The preference has to win.
+     What survives is asserted below; what replaced it is asserted here as the RETIREMENT,
+     and not as the absence of a constant — a pin that only checked the constant was gone
+     would pass a rename. So: the key string older builds wrote may appear in this file
+     exactly once, and that one use must be a REMOVAL. The full behavioural proof (zero
+     storage writes, per-peer migration, the preference default) is in the handover-gate
+     block near the end of this file, run against the BUILT shell.
+     ⚠ stripCode: the docblock above those functions NAMES the retired key while
+     explaining that it is retired — the #771 shape that has turned pins red before. */
+  const chatCodeM = stripCode(chat);
+  const legacyMediaDecl = /const ([A-Z_]+) = 'spixi\.media\.loaded\.';/.exec(chatCodeM);
+  const legacyMediaUses = (chatCodeM.match(/spixi\.media\.loaded\./g) || []).length;
+  const legacyMediaConsumers = legacyMediaDecl
+    ? (chatCodeM.match(new RegExp('[^\n]*\\b' + legacyMediaDecl[1] + '\\b[^\n]*', 'g')) || []).filter((l) => !l.includes("= 'spixi.media.loaded.'"))
+    : [];
   ok(/autoload: mediaAutoloadOn\(\) \|\| loadedMedia\.has\(media\.url\)/.test(chat)
-    && /const MEDIA_LOADED_PREFIX = 'spixi\.media\.loaded\.'/.test(chat),
-    'chat: remote media loads by default + persists per peer (bug batch)');
+    && !!legacyMediaDecl && legacyMediaUses === 1
+    && legacyMediaConsumers.length === 1 && /localStorage\.removeItem\(/.test(legacyMediaConsumers[0])
+    && !(chatCodeM.match(/localStorage\.setItem\([^)]*\)/g) || []).some((w) => /media[._]loaded|MEDIA_LOADED/i.test(w)),
+    'chat: remote media still LOADS BY DEFAULT, and the remembered set is SESSION-ONLY — the retired spixi.media.loaded. key is named once and only to be removed, and no setItem in the shell writes that family (security sweep C-1; replaces the "persists per peer" clause)');
   ok(/\[identityTitle\(\), identity\.sub \|\| ''\]\.filter\(Boolean\)/.test(chat),
     'chat: bot topbar keeps the member count next to the name (bug batch; #212 identityTitle refactor)');
   const mcss = readFileSync(join(root, 'src/styles/components/media-bubble.css'), 'utf8');
@@ -4222,8 +4432,17 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   // shell uses the same file); what must not survive here is the tail itself.
   ok(!d.querySelector('.c-launch__tail') && !d.querySelector('.c-launch__tail-step'),
     '★ N76: no onboarding tail in the launch shell — create/restore land straight in the app');
-  ok(d.querySelectorAll('.c-launch__illo[data-placeholder="true"]').length === 0,
-    'NO placeholder slots remain (placeholder = img-error fallback only, iOS-2 shipped)');
+  /* ★ Gate row O-10, the DOM half. This used to assert that no placeholder slot was
+     RENDERED — which nothing can create any more, so as written it proved nothing (a
+     vacuous negative is #771 with the sign flipped). Rewritten as the positive the
+     retirement leans on: the welcome carousel paints REAL art, one <img> per slide, each
+     with a non-empty src, and no `.c-launch__illo` slot element exists at all. */
+  {
+    const illoImgs = [...d.querySelectorAll('.c-launch__illo-img')];
+    ok(illoImgs.length >= 3 && illoImgs.every((i) => (i.getAttribute('src') || '').length > 0)
+       && d.querySelectorAll('.c-launch__illo').length === 0,
+      '★ O-10 (DOM): the welcome carousel renders ' + illoImgs.length + ' REAL illustrations, every one with a src, and NOT ONE `.c-launch__illo` placeholder slot — the old pin only said the slot was absent, which the retirement made unfalsifiable');
+  }
 
   // —— premium pickers: the SETTINGS sheets (one grammar app-wide) ——
   const pill = d.querySelector('.c-launch__pill');
@@ -4458,8 +4677,30 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
     'both window-pagehide listeners are self-cleaning (launch shell + [L2] lock screen)');
   ok((ljs.match(/\.trim\(\)/g) || []).length === 2 && /nick\.value\.trim\(\)/.test(ljs),
     'the ONLY trims are the nickname (display name) — passwords are NEVER trimmed');
-  ok(/data-placeholder/.test(ljs) && /aria-hidden/.test(ljs),
-    'illustration slots: placeholder-marked + decorative (copy carries the meaning)');
+  /* ★ Gate row O-10 — THE ILLUSTRATION SLOT IS RETIRED, AND THIS PIN ASSERTS THE
+     RETIREMENT, not a missing name. `illoSlot` built a decorative `.c-launch__illo` whose
+     fallback was an inline SVG written through innerHTML; it had NO caller (iOS-2 shipped
+     the real art) and its two constants ILLO_G/ILLOS existed only to feed it. A pin that
+     only checked the identifier was absent would pass on a rename, and a pin that only
+     checked the absence would also pass on a launch screen with no art at all. So four
+     properties, and the last one is the one that keeps the surface honest:
+       · none of the three identifiers survives in the COMPONENT (code only — the removal
+         note in the diff names them, which is precisely the #771 shape this file keeps
+         paying for),
+       · the component writes NO placeholder marker (`data-placeholder` was the slot's own
+         fallback flag, and it is what the demo-side pin below used to observe),
+       · neither identifier survives in the BUILT bundle the shells actually run, and
+       · the producer that REPLACED it — the carousel's real <img class="c-launch__illo-img">
+         with its src and its error fallback — is still there. */
+  {
+    const ljsCode = stripCode(ljs);
+    const bundleBuilt = readFileSync(join(root, 'Spixi/Resources/Raw/html/spixi.bundle.js'), 'utf8');
+    ok(!/\billoSlot\b/.test(ljsCode) && !/\bILLOS\b/.test(ljsCode) && !/\bILLO_G\b/.test(ljsCode)
+       && !/data-placeholder|dataset\.placeholder/.test(ljsCode)
+       && !/\billoSlot\b|\bILLO_G\b/.test(stripCode(bundleBuilt))
+       && /img\.className = 'c-launch__illo-img';/.test(ljsCode) && /img\.src = s\.img;/.test(ljsCode),
+      '★ O-10: the launch illustration SLOT is retired — illoSlot / ILLOS / ILLO_G are gone from the component AND from the built bundle, and it writes no data-placeholder marker; the real-art <img> the carousel builds is still there, so this cannot pass on a launch screen that simply lost its art');
+  }
 }
 
 console.log('desktop.html — split-view shells (Phase 2 batch, docs/desktop-split-spec.md)');
@@ -6015,18 +6256,24 @@ console.log('F5 fix batch (#301) — F1/F2/F3/iOS-29 attempt 4');
   /* —— F1: scan diagnostics + re-kick (iOS-49, zero-C# by design) —— */
   ok(/function probeScanFeed/.test(scanJs) && /function scheduleScanProbe/.test(scanJs),
     'F1: the scan probe exists — #293\'s "verify with Inspector before building" was never run; this IS that verification, on-screen');
-  // #46 r2 MINOR-A: the window is BOUNDED to the done closure — every atom must appear
-  // BEFORE `fail: (msg)` opens, so relocating any of them into the fail path (the exact
-  // regression the message names) fails this pin instead of slipping through a widened
-  // character count. Pinned order: done → grant write → storage-line removal → probe.
+  /* #46 r2 MINOR-A: the window is BOUNDED to the done closure — every atom must appear
+     BEFORE `fail: (msg)` opens, so relocating any of them into the fail path (the exact
+     regression the message names) fails this pin instead of slipping through a widened
+     character count.
+     ★ Gate row O-07 REMOVED ONE ATOM. The pinned order used to be
+     done → grant write → storage-line removal → probe; the #308 storage line is retired,
+     so its removal step no longer exists and pinning it would fail on the correct tree.
+     The three atoms that carry the property are unchanged, in the same order, in the same
+     fail-excluding window — a schedule or a grant write relocated into the fail path still
+     fails here, which is the whole reason the window is written this way. */
   ok(new RegExp(
     'done: \\(payload\\) => \\{'
     + '(?:(?!fail: \\(msg\\))[\\s\\S]){0,80}?ctrl\\.done\\(payload\\);'
     + "(?:(?!fail: \\(msg\\))[\\s\\S]){0,200}?localStorage\\.setItem\\(SCAN_GRANT_KEY, '1'\\)"
-    + '(?:(?!fail: \\(msg\\))[\\s\\S]){0,600}?storageProbeLine\\.remove\\(\\)'
-    + '(?:(?!fail: \\(msg\\))[\\s\\S]){0,200}?scheduleScanProbe\\(el, feed, \\(\\) => finished\\);'
-  ).test(scanJs),
-    'F1: the probe schedules ONLY on a successful start — done → grant write → #308 line removal → scheduleScanProbe, all inside the done closure (a fail-located schedule or removal escapes the bounded window and fails here)');
+    + '(?:(?!fail: \\(msg\\))[\\s\\S]){0,300}?scheduleScanProbe\\(el, feed, \\(\\) => finished\\);'
+  ).test(scanJs)
+     && !/fail: \(msg\) => \{(?:(?!ctrl\.fail)[\s\S])*?scheduleScanProbe/.test(scanJs),
+    'F1: the probe schedules ONLY on a successful start — done → grant write → scheduleScanProbe, all inside the done closure, and the fail closure reaches no scheduleScanProbe before it answers ctrl (a fail-located schedule escapes the bounded window and fails here)');
   ok(/if \(isDone && isDone\(\)\) return;/.test(scanJs),
     'F1: BOTH probe timers bail once decode/cancel latched — a late probe reads the torn-down feed as dead and would overwrite "Code scanned" on a scanner that just worked');
   ok(/fail: \(msg\) => \{[\s\S]{0,240}?ctrl\.fail\(msg\);/.test(scanJs),
@@ -6161,22 +6408,103 @@ console.log('#307/#308 — aspect-locked scan feed · C-9 storage probe');
   ok(!/qrbox/.test(scanJs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')),
     '#307: NO qrbox was added — under a non-aspect-true feed a qrbox sample distorts identically (getShadedRegionBounds returns client coords through the same per-axis ratios); the fix is the box, not the region');
 
-  /* #308: the C-9 probe — self-serve storage verdict on the consent-card moment */
-  ok(/const SCAN_PROBE_KEY = 'spixi\.probe\.scan'/.test(scanJs) && /function probeScanStorage/.test(scanJs),
-    '#308: the C-9 storage probe exists — a counter key whose increment across scan entries settles same-page file:// localStorage persistence without a Mac tether');
-  ok(/storage\.grant !== '1'\) storageProbeLine = paintStorageProbe\(el, storage\)/.test(scanJs),
-    '#308: the storage line paints ONLY when the consent card gates (the symptom moment) — a working scanner never shows diagnostics');
-  ok(/storageProbeLine\.remove\(\)/.test(scanJs) && /storageProbeLine = null/.test(scanJs)
-    && !/fail: \(msg\) => \{(?:(?!ctrl\.fail)[\s\S])*?storageProbeLine/.test(scanJs),
-    '#308 (#46 r1 MINOR-1): a SUCCESSFUL start removes the storage line (never the fail path — denied KEEPS it, still the symptom moment); placement pinned by the bounded F1 window above plus this fail-closure negative');
   ok(/aspect = video\.videoWidth \/ video\.videoHeight/.test(scanJs),
     '#307 (#46 r1 MINOR-2): resize RE-READS the live stream aspect before re-fitting — rotation swaps videoWidth/videoHeight, and a stale-aspect re-fit would re-open the exact distortion this fix closes');
-  ok(/aria-hidden/.test(scanJs) && /pointer-events:none/.test(scanJs),
-    '#308: the storage line is aria-hidden + pointer-events:none — diagnostics reach neither screen readers nor touch');
-  ok(/spixi\.appearance/.test(scanJs),
-    '#308: the probe also reads spixi.appearance (written by ll_settings.html) — a 1 kills the per-FILE-origin theory for cross-page keys in the same glance');
-  ok(/"ll_" \+ /.test(readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8')),
-    '#308 premise: generatePage still writes the literal "ll_"-prefixed localized page — the STABLE per-page name the probe\'s repo-side verdict rests on (per-visit origins ruled out in-repo)');
+
+  /* ════ ★★ Gate row O-07 — THE #308 C-9 STORAGE PROBE IS RETIRED ════════════════
+     Five pins above this line used to assert the probe EXISTS: the counter key, the
+     consent-gated paint, the success-path removal, the aria-hidden/pointer-events line,
+     and the spixi.appearance read. Its own docblock set the retirement condition —
+     "Retire/gate with the consent fix once C-9 has its verdict" — and DECISIONS #311
+     recorded that verdict from the device (grant:1 · probe:23 · appearance:1: file://
+     localStorage persists AND it crosses ll_* files, both legs closed). The probe painted
+     an English diagnostic line over the camera-consent card on every SHIPPING build, with
+     no build symbol gating it.
+
+     ⚠ A pin that only says the name is gone proves nothing, because a rename passes it,
+     and it says nothing at all about the counter an already-shipped device still holds.
+     So the retirement is asserted three ways, and the third is the one that matters:
+
+       (a) NAMES — none of probeScanStorage / paintStorageProbe / SCAN_PROBE_KEY /
+           storageProbeLine survives in the module's CODE, and the key string
+           `spixi.probe.scan` appears EXACTLY ONCE in the whole raw file. Raw, not
+           stripCode, on purpose: the removal note names the key, so the count is one and
+           any re-appearance in code makes it two.
+       (b) THE ONE OCCURRENCE IS A DELETE — that single mention is the argument of a
+           `localStorage.removeItem(`, and a WALK over every `localStorage.setItem(` in the
+           module shows none of them writes the probe family. A migration that reads the
+           key back, or a probe that quietly writes it again, fails here.
+       (c) BEHAVIOURAL, on the BUILT scan shell — §O-07 below. */
+  {
+    const scanCode = stripCode(scanJs);
+    const nameGone = !/\bprobeScanStorage\b|\bpaintStorageProbe\b|\bSCAN_PROBE_KEY\b|\bstorageProbeLine\b/.test(scanCode);
+    const mentions = (scanJs.match(/spixi\.probe\.scan/g) || []).length;
+    const removeCalls = (scanJs.match(/localStorage\.removeItem\('spixi\.probe\.scan'\)/g) || []).length;
+    /* the WALK: every localStorage.setItem in this module, and what key each writes */
+    const setKeys = [...scanJs.matchAll(/localStorage\.setItem\(\s*([^,]+),/g)].map((m) => m[1].trim());
+    ok(nameGone && mentions === 1 && removeCalls === 1
+       && setKeys.length > 0 && !setKeys.some((k) => /probe/i.test(k)),
+      '★★ O-07: the #308 storage probe is RETIRED, and the leftover it wrote on an already-shipped device is SWEPT — the four identifiers are gone from the code, `spixi.probe.scan` is named exactly once in the file (' + mentions + '), that one mention is a localStorage.removeItem, and a walk over the module\'s ' + setKeys.length + ' localStorage.setItem calls (' + setKeys.join(' · ') + ') finds none writing the probe family. A pin that only checked the name was absent would pass on a rename AND on a build with no cleanup at all');
+  }
+
+  /* ★★ O-07 (c) BEHAVIOURAL, on the SHIPPED artifact — Spixi/Resources/Raw/html/scan.html,
+     the document ScanPage actually loads, booted in jsdom with the localStorage SHIM the
+     rest of this file uses (jsdom's file: origin is opaque and throws SecurityError, and
+     mountScanPage wraps every storage call in try/catch — without the shim this could only
+     ever prove the try/catch exists, #771). The shim is NOT the function under test.
+
+     Seeded the way an already-shipped device looks: the probe counter present with a value
+     the old build wrote, and an UNRELATED spixi.* key beside it. Four properties:
+       · the probe counter is GONE after the mount (the migration ran),
+       · the unrelated key is UNTOUCHED (the cleanup is one key, not a prefix sweep — a
+         prefix sweep here would delete the user's grant, appearance and drafts),
+       · the mount WROTE nothing at all (a probe that still counted would show up here even
+         if it were renamed, which is the hole the name-based clauses cannot cover), and
+       · no element on the page carries the retired diagnostic line. */
+  {
+    const shipped = join(root, 'Spixi/Resources/Raw/html/scan.html');
+    if (!existsSync(shipped)) {
+      ok(false, 'O-07 BEHAVIOURAL premise: the built scan shell exists (run build-shells.mjs)');
+    } else {
+      const store = new Map([['spixi.probe.scan', '23'], ['spixi.appearance', '2']]);
+      const writes = [];
+      const domO7 = new JSDOM(readFileSync(shipped, 'utf8'), {
+        runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true,
+        url: 'file://' + shipped, virtualConsole: new VirtualConsole(),
+        beforeParse(w) {
+          w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+          try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
+          Object.defineProperty(w, 'localStorage', { configurable: true, value: {
+            getItem: (k) => (store.has(k) ? store.get(k) : null),
+            setItem: (k, v) => { writes.push(k); store.set(k, String(v)); },
+            removeItem: (k) => { store.delete(k); }, clear: () => store.clear(),
+            key: (i) => [...store.keys()][i] ?? null, get length() { return store.size; },
+          } });
+        },
+      });
+      await sleep(2200);
+      const dO7 = domO7.window.document;
+      const mounted = !!dO7.querySelector('.c-scan');
+      const probeLine = [...dO7.querySelectorAll('*')].filter((e) => /^storage probe/.test((e.textContent || '').trim())).length;
+      ok(mounted && !store.has('spixi.probe.scan') && store.get('spixi.appearance') === '2'
+         && writes.length === 0 && probeLine === 0,
+        '★★ O-07 BEHAVIOURAL (built scan.html): a device carrying the old probe counter loses it on the next mount, the unrelated spixi.appearance key beside it survives, the mount writes NO key at all (writes: [' + writes.join(', ') + ']), and the retired "storage probe — …" line paints nowhere. This is the clause a rename cannot pass');
+      domO7.window.close();
+    }
+  }
+  /* ⚠ this used to be a single `/"ll_" \+ /` test over the whole file, and a mutation of
+     the DISK-PATH site alone left it green because the URL site still carried the prefix.
+     There are TWO of them — the file generatePage writes and the URL it hands back — and
+     they have to be the same name or the page loads a document nobody wrote. Both are
+     read, and the count is pinned so a third spelling cannot appear beside them. */
+  {
+    const scpFile = readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8');
+    const llSites = (stripCode(scpFile).match(/"ll_" \+ html_file_name/g) || []).length;
+    ok(llSites === 2
+       && /Path\.Combine\(SPlatformUtils\.getHtmlPath\(\), "ll_" \+ html_file_name\)/.test(scpFile)
+       && /getHtmlBaseUrl\(\) \+ "ll_" \+ html_file_name/.test(scpFile),
+    '#308 → O-07 (' + llSites + ' sites, disk + URL, the SAME name): generatePage still writes the literal "ll_"-prefixed localized page. This used to be called the PROBE\'s premise; the probe is retired, and the property outlived it — the STABLE per-page name is what makes every `spixi.*` key survive a relaunch on file://, which is the C-9 verdict (#311: grant:1 · probe:23 · appearance:1) the whole storage design now rests on. Make the name per-visit and every stored preference in this app dies silently');
+  }
 }
 
 /* —— #309 — device round 1 fixes: staged-mount feed re-fit + WKWebView delegate retention. —— */
@@ -6192,10 +6520,20 @@ console.log('#309 — bed ResizeObserver re-fit · strong WKWebView delegate roo
     '#309: loadedmetadata ALWAYS re-fits — the aspect-changed-only short-circuit let a mis-measured bed stick when the stream aspect matched the default (the exact device symptom)');
   ok(/if \(ro\) ro\.disconnect\(\)/.test(scanJs),
     '#309: off() disconnects the bed observer with the rest of the sizer machinery');
+  /* ★★ REPAIRED by the handover-gate fix batch. The old clause pinned the LITERAL
+     `_uiDelegate = new MediaCaptureUIDelegate();`, and the delegate now takes its owning
+     handler so it can read the trust marker (D1). The PROPERTY this pin protects is
+     unchanged, and it is security MAJOR #7: WKWebView keeps only a weak ObjC reference,
+     so a delegate that is not held by a field is collected — and iOS then silently loses
+     the camera gate AND the http/https block. Written as a property, argument-agnostic,
+     so an argument change cannot turn it red again while the mutation it exists to catch
+     still kills it: the field left unassigned, or a fresh instance handed straight to the
+     WebView. The negative sweep is the half that catches that second shape. */
   ok(/SecureNavigationDelegate\? _navigationDelegate;/.test(iosHandler) && /MediaCaptureUIDelegate\? _uiDelegate;/.test(iosHandler)
-    && /_navigationDelegate = new SecureNavigationDelegate\(this\);/.test(iosHandler) && /_uiDelegate = new MediaCaptureUIDelegate\(\);/.test(iosHandler)
-    && /platformView\.NavigationDelegate = _navigationDelegate;/.test(iosHandler) && /platformView\.UIDelegate = _uiDelegate;/.test(iosHandler),
-    '#309 ★: the WKWebView delegates are STRONG-ROOTED on the handler — fields DECLARED + CONSTRUCTED + ASSIGNED (r3 MINOR-1: without the construction atoms, deleting only the `= new …` lines would assign null and drop the http/https block deterministically — the exact MAJOR #7 outcome)');
+    && /_navigationDelegate = new SecureNavigationDelegate\(/.test(iosHandler) && /_uiDelegate = new MediaCaptureUIDelegate\(/.test(iosHandler)
+    && /platformView\.NavigationDelegate = _navigationDelegate;/.test(iosHandler) && /platformView\.UIDelegate = _uiDelegate;/.test(iosHandler)
+    && !/\.(?:NavigationDelegate|UIDelegate)\s*=\s*new\s+/.test(iosHandler),
+    '#309 ★: the WKWebView delegates are STRONG-ROOTED on the handler — fields DECLARED + CONSTRUCTED INTO THE FIELD + the FIELD assigned to the WebView, and nowhere in the file is a fresh delegate handed straight to a WebView (r3 MINOR-1: without the construction atoms, deleting only the `= new …` lines would assign null and drop the http/https block deterministically — the exact MAJOR #7 outcome)');
   ok(/DisconnectHandler\(WKWebView platformView\)[\s\S]{0,300}?_navigationDelegate = null;[\s\S]{0,100}?_uiDelegate = null;/.test(iosHandler),
     '#309: the roots release with the WebView they served (DisconnectHandler)');
 
@@ -7447,8 +7785,18 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      delta stated: +8 651 chars ≈ 8.4 KB ≈ 0.7 ms of parse at the measured 0.08 ms/KB, against
      the ~50–70 ms the eval-queue collapse buys (#796). Headroom after: 6 479 chars in the
      pin's unit (re-measured at the loop's END, #802 r8 — the first statement was the pre-loop
-     number); retiring the TEMPORARY [CDPERF] set gives ~3 KB of it back. */
-  const CHAT_KB_CEIL = 670, INDEX_KB_CEIL = 500;
+     number); retiring the TEMPORARY [CDPERF] set gives ~3 KB of it back.
+     ★ #46 loop C / the handover-gate fix batch: chat.html took the second copy of
+     forgetPeerStorage (#46 loop B, MAJOR-1), normalizeMediaUrl and the three-way
+     reconciliation note (#46 loop B, MINOR-3), and the docblocks the security fixes
+     carry — +11 804 normalized chars over HEAD's 679 635, against 6 445 of headroom, so
+     5 359 OVER 660… 670. The ceiling moves 670 → 682 with the delta stated: +11 804 chars
+     ≈ 11.5 KB ≈ 0.9 ms of parse at the measured 0.08 ms/KB.
+     ⚠ AND IT IS A REAL COST, not one the packaging strip takes back: strip-release.mjs is
+     CSS-ONLY (its allowlist is `spixi.tokens.css`, and the JS strip is refused there
+     because it moves the line numbers the [WEBVIEW] mirror traces by). Headroom after the
+     raise: 6 929 chars, about what HEAD had. */
+  const CHAT_KB_CEIL = 682, INDEX_KB_CEIL = 500;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -8240,9 +8588,20 @@ console.log('#348b — F5 follow-up fixes');
   ok(/if \(!bridge\.cap\('tipResult'\)\)/.test(chB) && /setCaps", "tipResult/.test(scpB)
     && /setCaps\(list\) \{[\s\S]{0,300}?bridge\.capabilities\[c\] = true;/.test(chB),
     '★ D-10 (#348b, audit): the wait is CAPABILITY-GATED. A new shell on an old exe would otherwise freeze 12 s after a SUCCESSFUL tip and then claim it may have failed; an old shell on a new exe would show no error at all. Both combinations were worse than the bug being fixed');
-  ok(/showToast\(\{ text: \(sl\.tipConfirm[\s\S]{0,80}?\.replace\('\{a\}', amt\)/.test(chB)
-    && /tipAmt = payload\.amount;/.test(chB),   // ← r2: without it the toast prints "Tip  IXI"
-    '★ D-10 (#348b, audit): success RESTATES THE AMOUNT. Removing the native alert also removed the only place that said what was paid — the morph reads "Tipped" and the reaction pill carries a txid, not a value, so the figure had vanished from a money flow');
+  /* ⚠ Gate row O-12 changed the SHAPE of this line and not its meaning: the replacement
+     `amt` became `() => amt`, so a '$&' in an amount could never be substitution syntax.
+     The pin is rewritten to the PROPERTY — the success toast composes the tipConfirm
+     string and puts the amount into its {a} slot — and it is SLICE-SCOPED to that one
+     showToast call rather than counting characters over raw text, so neither this change
+     nor the next re-wording of the sentence can make it lie. */
+  {
+    const tipAt = chB.indexOf('sl.tipConfirm');
+    const tipCall = tipAt < 0 ? '' : chB.slice(chB.lastIndexOf('showToast(', tipAt), chB.indexOf(');', tipAt) + 2);
+    ok(tipCall.length > 0 && /\.replace\('\{a\}', (?:\(\) => )?amt\)/.test(tipCall)
+       && /tone: 'success'/.test(tipCall)
+       && /tipAmt = payload\.amount;/.test(chB),   // ← r2: without it the toast prints "Tip  IXI"
+      '★ D-10 (#348b, audit): success RESTATES THE AMOUNT. Removing the native alert also removed the only place that said what was paid — the morph reads "Tipped" and the reaction pill carries a txid, not a value, so the figure had vanished from a money flow. Sliced to the showToast call (' + tipCall.length + ' chars), so the amount cannot be dropped from the sentence without failing here');
+  }
 
   /* —— D-9②: a crash must be able to announce itself —— */
   ok(/private async Task safeFatalAlert\(string title, string body\)/.test(hpB)
@@ -11798,12 +12157,20 @@ console.log('#383 — N12 restore-nudge + N40 connectivity/update');
     const exportLine421 = bundleSrc421.slice(bundleSrc421.lastIndexOf('window.Spixi = {'));
     const bundleExports421 = new Set(
       [...exportLine421.slice(0, exportLine421.indexOf('};')).matchAll(/([A-Za-z_$][\w$]*)\s*:/g)].map((m) => m[1]));
-    /* strip JS block/line comments AND html comments — a bundle name mentioned in a
-       <!-- … --> note is not a call (launch.html mentions passwordField in one) */
-    const stripComments421 = (t) => t
-      .replace(/<!--[\s\S]*?-->/g, '')
-      .replace(/\/\*[\s\S]*?\*\//g, '')
-      .replace(/^\s*\/\/.*$/gm, '');
+    /* ★ #46 r7. A LOCAL `stripComments421` stood here — the SAME three regexes, in the
+       SAME block-before-line order, that r6 proved deletes live code: a `/*` inside a `//`
+       comment opens a block comment that runs to the next real close. This gate is the one
+       that must not be blinded, because what it detects is a MISSING destructure, whose
+       symptom is a shell that boots blank (#258) — so a blanked span here is a false GREEN
+       on exactly the failure the gate exists for. It now reads the shared `stripCode`, the
+       repaired tokenizer, rather than a second copy of the defect (#798).
+       ⚠ MEASURED before the swap, over the 18 source shells: the old regexes deleted ZERO
+       live lines TODAY and the gate's verdict is identical either way (0 undeclared names
+       with both). The defect was a CAPABILITY, not a live loss — the same standing it had
+       in ThemeManager.cs until a reviewer used it.
+       ★ ONE BEHAVIOUR CHANGES, deliberately: `stripCode` also removes a TRAILING `//`
+       comment, which the old whole-line-only regex left on a line of code. That is why
+       `codeBody` below is no longer a second derivation. */
     const undeclared421 = [];
     for (const f of readdirSync(shellDir421).filter((n) => n.endsWith('.html'))) {
       const src = readFileSync(join(shellDir421, f), 'utf8');
@@ -11815,7 +12182,7 @@ console.log('#383 — N12 restore-nudge + N40 connectivity/update');
          the export's name (chat.html's addReactions handler, app_details' modal), so
          neither side may count as an undeclared call. */
       const declared = new Set();
-      for (const tok of stripComments421(m[1]).split(/[,\n]/)) {
+      for (const tok of stripCode(m[1]).split(/[,\n]/)) {
         const t = tok.trim();
         if (!t) continue;
         for (const half of t.split(':')) {
@@ -11823,7 +12190,7 @@ console.log('#383 — N12 restore-nudge + N40 connectivity/update');
           if (/^[A-Za-z_$][\w$]*$/.test(nm)) declared.add(nm);
         }
       }
-      const body = stripComments421(src);
+      const body = stripCode(src);
       /* ⚠ L15 review NIT-9 widened this. The gate matched a CALL — `name(` — and L15
        * added the first export a shell consumes as a VALUE (`const LANGS = LANGUAGES;`).
        * Had the destructure been forgotten, settings.html would have thrown
@@ -11834,12 +12201,18 @@ console.log('#383 — N12 restore-nudge + N40 connectivity/update');
        * of them, not only the new one.
        * Names the shell defines ITSELF are excluded, or a local `const createSheet`
        * would read as an undeclared use of the export that shares its name. */
-      /* ⚠ …and it reads CODE, not prose. stripComments421 leaves a TRAILING `//`
-       * comment on a line of code, and the first run of this check reported four
-       * "undeclared" names that were all mentioned in such comments — the pin-reads-
-       * prose failure this project keeps finding, on the very pin written to close a
-       * gap. The `[^:]` guard keeps `https://` intact. */
-      const codeBody = body.replace(/(^|[^:])\/\/.*$/gm, '$1');
+      /* ⚠ IT READS CODE, NOT PROSE. The local stripper that used to stand above left a
+       * TRAILING `//` comment on a line of code, and the first run of this check reported
+       * four "undeclared" names that were all mentioned in such comments — the pin-reads-
+       * prose failure this project keeps finding, on the very pin written to close a gap.
+       * ★ #46 r7: `stripCode` removes a trailing line comment itself, with the same `:`
+       * guard that keeps `https://` intact, so `body` IS the code body and the second
+       * derivation is gone. `codeBody` is kept as a NAME because two clauses below read it
+       * for a different reason — a value-shaped use is matched against the code text while
+       * a call is matched against the same text — and a reader must not be left thinking
+       * one of them still sees prose. Verified before the swap: identical verdict (0
+       * undeclared) with the old two-text form and with this one. */
+      const codeBody = body;
       const selfDeclared = new Set(
         [...codeBody.matchAll(/(?:^|[;{}\s])(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)/g)].map((x) => x[1]),
       );
@@ -13137,17 +13510,49 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
        itself must really flatten and really truncate. Pinning only the call site would
        leave a logSafe that returns its argument unchanged, which is the guarantee gone
        with the shape intact. */
-    ok(/Logging\.error\("postOurPushRow failed[^"]*" \+ ex\.GetType\(\)\.Name \+ ": " \+ logSafe\(ex\.Message\)\);/.test(coldNC)
+    /* ⚠ Gate row O-25 MOVED the sanitiser out of this file, so the call is now qualified
+       (`SPIXI.Utils.logSafe`). The qualifier is optional in the pattern below — what the
+       property is about is that the TYPE and a SANITISED message are logged and the
+       exception object is not, and forcing one spelling would fail on the correct tree. */
+    ok(/Logging\.error\("postOurPushRow failed[^"]*" \+ ex\.GetType\(\)\.Name \+ ": " \+ (?:SPIXI\.Utils\.)?logSafe\(ex\.Message\)\);/.test(coldNC)
        && !/Logging\.error\([^;]*,\s*ex\)/.test(coldNC),
       '★★ PIN-N5 (#46 loop m8): the catch logs the exception TYPE and logSafe(ex.Message) — never the exception object. `fa` comes off the wire and IXICore.Address formats the offending string INTO its exception message. Logging writes that message verbatim and adds the line prefix itself, so an `fa` that carries a newline forges whole log LINES in ixian.log — the artifact this project uses as evidence, shareable from DevPage, and now kept for five runs. security-handover-gate.md also states that no log line carries an address');
     {
-      const safeFn = code(fnOf(andPushA, 'internal static string logSafe(string? value)'));
-      const maxM = code(andPushA).match(/private const int LOG_SAFE_MAX = (\d+);/);
+      /* ★★ Gate row O-25 — THE SANITISER MOVED, AND THE MOVE IS THE PROPERTY.
+         It was `internal static` inside Platforms/Android/, so it compiled into the Android
+         slice ONLY: no shared-code site — the muted-contact read, the WebView console
+         mirror — could call it even where its author wanted to. It is in Spixi/Utils/Utils.cs
+         now, which the csproj compiles on every TFM, and it is `public`.
+         Three clauses, and the last one is the row itself:
+           · the rule still holds where it now lives (both line breaks flattened, a bounded
+             non-zero clamp, and — new in this batch — the long-token redaction called),
+           · the redaction threshold is BELOW the ~45-character length of an Ixian address,
+             which is the exposure the strengthening exists for, and
+           · a WALK over every file under Spixi/Platforms/ finds NO definition of logSafe.
+             A forwarder left behind in the Android slice is the m12 shape this row closes,
+             so it fails here. */
+      const utilsCs = readFileSync(join(root, 'Spixi/Utils/Utils.cs'), 'utf8');
+      const safeFn = code(fnOf(utilsCs, 'public static string logSafe(string? value, int max)'));
+      const maxM = code(utilsCs).match(/private const int LOG_SAFE_MAX = (\d+);/);
+      const tokM = code(utilsCs).match(/private const int LOG_SAFE_TOKEN_MIN = (\d+);/);
+      const platDefs = [];
+      const walkCs = (dir) => {
+        for (const e of readdirSync(dir, { withFileTypes: true })) {
+          const p = join(dir, e.name);
+          if (e.isDirectory()) walkCs(p);
+          else if (e.name.endsWith('.cs') && /\b(?:internal|public|private|protected)\s+static\s+string\s+logSafe\s*\(/.test(code(readFileSync(p, 'utf8')))) platDefs.push(p);
+        }
+      };
+      walkCs(join(root, 'Spixi/Platforms'));
       ok(safeFn.length > 60
          && /\.Replace\('\\r', ' '\)/.test(safeFn) && /\.Replace\('\\n', ' '\)/.test(safeFn)
-         && /safe = safe\.Substring\(0, LOG_SAFE_MAX\);/.test(safeFn)
-         && !!maxM && Number(maxM[1]) > 0 && Number(maxM[1]) <= 1024,
-        '★★ PIN-N5 (#46 loop m8), THE SANITISER ITSELF: logSafe replaces BOTH CR and LF and truncates at LOG_SAFE_MAX (' + (maxM ? maxM[1] : 'ABSENT') + ' — bounded, and above zero so it is not a blanking function). Strip either replace and a wire value writes forged LINES; drop the Substring and one push writes a log entry of any length the sender chooses');
+         && /safe = safe\.Substring\(0, max\);/.test(safeFn)
+         && /safe = redactLongTokens\(safe\);/.test(safeFn)
+         && !!maxM && Number(maxM[1]) > 0 && Number(maxM[1]) <= 1024
+         && !!tokM && Number(tokM[1]) >= 16 && Number(tokM[1]) <= 45
+         && /public static string logSafe\(string\? value\)/.test(code(utilsCs))
+         && platDefs.length === 0,
+        '★★ PIN-N5 (#46 loop m8) + O-25, THE SANITISER ITSELF, IN ITS NEW HOME: Spixi/Utils/Utils.cs (every TFM compiles it) declares logSafe PUBLIC; it flattens BOTH CR and LF, redacts long tokens, and clamps at LOG_SAFE_MAX (' + (maxM ? maxM[1] : 'ABSENT') + ' — bounded, and above zero so it is not a blanking function) with LOG_SAFE_TOKEN_MIN (' + (tokM ? tokM[1] : 'ABSENT') + ') below the ~45-character Ixian address it exists to catch. And a WALK over every .cs under Spixi/Platforms finds ' + platDefs.length + ' definitions of logSafe — a second copy left in the Android slice is the m12 shape this row closes');
     }
   }
   {
@@ -13909,15 +14314,24 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
     ok(!/fetchPushMessages/.test(dp),
       '★★ N-8 (#46 loop ROUND 2): and the upgrade re-enters decideFromAddress, which is the ADDRESS half and touches no network. decidePush contains NO fetch of its own. Point it at decidePushUncached instead and one push runs the offline fetch TWICE — the exact thing this memo exists to prevent, re-introduced by the code that repairs the memo');
     /* ★★ N-11 (#46 loop item 6) — the notification id comes off the wire too. */
-    ok(/Logging\.info\("\[NOTIFDIAG\] push " \+ logSafe\(notificationId\) \+ " already decided/.test(dp),
-      '★★ N-11 (#46 loop item 6): the "already decided" line runs the notification id through logSafe. The id is wire data like `fa`, Logging writes the message verbatim and adds the line prefix itself, so an id carrying a newline forges whole LINES in ixian.log — the artifact this project uses as evidence');
+    ok(/Logging\.info\("\[NOTIFDIAG\] push " \+ (?:SPIXI\.Utils\.)?logSafe\(notificationId\) \+ " already decided/.test(dp),
+      '★★ N-11 (#46 loop item 6): the "already decided" line runs the notification id through logSafe (qualified since O-25 moved the sanitiser to shared code — the spelling is free, the sanitising is not). The id is wire data like `fa`, Logging writes the message verbatim and adds the line prefix itself, so an id carrying a newline forges whole LINES in ixian.log — the artifact this project uses as evidence');
   }
   {
-    /* ★★ N-11, the other two: BOTH read-failure warns are sanitised, one per lane. */
-    ok(/Logging\.warn\("handleNotificationReceived: could not read the push: " \+ logSafe\(ex\.Message\)\);/.test(pushNC),
-      '★★ N-11 (#46 loop item 6, foreground lane): the payload-read failure logs logSafe(ex.Message). The message comes out of a read of wire data — same shape as m8, lower value, closed the same way');
-    ok(/Logging\.warn\("SpixiNotificationServiceExtension: could not read the push: " \+ SPushService\.logSafe\(ex\.Message\)\);/.test(nseNC),
-      '★★ N-11 (#46 loop item 6, background lane): and the SERVICE EXTENSION does the same, through the one shared sanitiser. Two lanes with two spellings of the same rule is m12 — the class where one copy gets fixed and the other does not');
+    /* ★★ N-11, the other two: BOTH read-failure warns are sanitised, one per lane.
+       ⚠ O-25 gave the two lanes ONE spelling — they used to read `logSafe` and
+       `SPushService.logSafe`, which was the m12 shape in miniature. The pin now requires
+       the SAME qualified helper in both, and asserts that neither file reaches any OTHER
+       logSafe: an Android-local copy coming back is what this row exists to prevent. */
+    ok(/Logging\.warn\("handleNotificationReceived: could not read the push: " \+ SPIXI\.Utils\.logSafe\(ex\.Message\)\);/.test(pushNC),
+      '★★ N-11 (#46 loop item 6, foreground lane): the payload-read failure logs SPIXI.Utils.logSafe(ex.Message). The message comes out of a read of wire data — same shape as m8, lower value, closed the same way');
+    {
+      const lanes = (pushNC.match(/logSafe\(/g) || []).length + (nseNC.match(/logSafe\(/g) || []).length;
+      const qualified = (pushNC.match(/SPIXI\.Utils\.logSafe\(/g) || []).length + (nseNC.match(/SPIXI\.Utils\.logSafe\(/g) || []).length;
+      ok(/Logging\.warn\("SpixiNotificationServiceExtension: could not read the push: " \+ SPIXI\.Utils\.logSafe\(ex\.Message\)\);/.test(nseNC)
+         && lanes > 0 && lanes === qualified,
+        '★★ N-11 (#46 loop item 6, background lane) + O-25: the SERVICE EXTENSION sanitises through the SAME shared helper, and every one of the ' + lanes + ' logSafe calls across both push files is the qualified SPIXI.Utils one. Two lanes with two spellings of the same rule is m12 — the class where one copy gets fixed and the other does not');
+    }
   }
   ok(/decidedOrder\.Count > DECIDED_CAP/.test(pushNC) && /decidedPushes\.Remove\(decidedOrder\.Dequeue\(\)\)/.test(pushNC),
     '#503: and the memo is BOUNDED — an unbounded map on a push path grows for the life of the process');
@@ -14966,15 +15380,17 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   }
 }
 
-{
-  /* —— log retention: the evidence for #505 was destroyed by the recovery ————— */
-  const cfg = readFileSync(join(root, 'Spixi/Meta/Config.cs'), 'utf8');
-  const m = cfg.match(/public static int maxLogCount = (\d+);/);
-  ok(!!m && Number(m[1]) >= 5,
-    '★ LOGS (Damir 2026-08-22): maxLogCount >= 5. Logging.start rolls on EVERY launch, so at 1 the app keeps one previous session — and the #505 restart, the one action that defect forces, overwrote the log of the failure that caused it');
-  ok(/RELEASE BLOCKER — REDUCE TO 1 BEFORE LAUNCH/.test(cfg),
-    '★ LOGS: the raise carries its own release-blocker marker. Damir asked for it explicitly ("remember to reduce before we launch"), and an un-marked debug default is how one ships');
-}
+/* —— log retention: RETIRED, and the retirement is the property ————————————————
+ * This block asserted `maxLogCount >= 5` and, separately, that the RELEASE BLOCKER
+ * marker is present. Both halves are illegal under the contract Config.cs now states:
+ * the legal states are (5, marker) and (1, no marker), so a `>= 5` pin FAILS THE SUITE
+ * on the release flip and the flip then has to edit the pin — which is how a release
+ * blocker gets lost. Gate 23 asserts the PAIR and is the one pin allowed to name this
+ * field; Config.cs's docblock says "Delete any such pin instead of relaxing it", and
+ * this is that deletion. Gate 23 also carries the negative that keeps it deleted:
+ * no other assertion in this suite compares maxLogCount to a value.
+ * (#46 loop C, MINOR-1 — the old block was still live and the release flip failed
+ * three assertions.) */
 
 
 {
@@ -15159,7 +15575,11 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     'W5: the backstop clears on every resolution path');
   ok(/c\.fail\(m === '' \? null : m\);/.test(chatS) && /ctrl\.fail\(m === '' \? null : m\);/.test(homeS),
     "★ W5 (loop MAJOR): an EMPTY fail routes to the default error copy — only 'cancel' is silent");
-  ok(/quickScanForSend/.test(hpW5) && /sendUiCommand\(this, "quickScanResult", result\)/.test(hpW5),
+  /* ⚠ Gate row O-14 wrapped the pushed VALUE (`Utils.safeScanPayload`) — the ROUTE this
+     pin is about is unchanged, so the argument shape is read through that wrapper rather
+     than pinned to the bare identifier. The wrapper itself, and the walk proving BOTH push
+     sites use it, are pinned in the O-14 gate further down. */
+  ok(/quickScanForSend/.test(hpW5) && /sendUiCommand\(this, "quickScanResult", Utils\.safeScanPayload\(result\)\)/.test(hpW5),
     'W5: C# routes a :send QR to the shell compose, not to the retired WalletSendPage');
 
   /* component: the fee gate is REAL (mutating valid() must fail this) */
@@ -15923,8 +16343,29 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ok(/const scannedAddr = raw\.split\(':'\)\[0\]\.split\('_'\)\[0\];\s*const known = scannedAddr \? peopleRoster\(\)\.find\(\(c\) => c && c\.address && String\(c\.address\)\.split\('_'\)\[0\] === scannedAddr\) : null;\s*if \(known && setSendRecipient\(walletSendView, known, raw\)\) return;\s*setSendAddress\(walletSendView, raw\);/.test(homeSrc),
       '★ W-f SHELL (loop r1 A-3, verified at ExtendedAddress.cs:199-208): the receive QR carries the EXTENDED `<base58>_<ext>` form while the roster holds the bare address — the lookup compares the payment address before "_" (exact, people only) → setSendRecipient on a hit, setSendAddress on a miss');
     const hp = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
-    ok(/current_url\.Equals\("ixian:sendScan", StringComparison\.Ordinal\)/.test(hp) && /public async void quickScanForSend\(\)[\s\S]{0,1600}?Utils\.sendUiCommand\(this, "quickScanResult", payload\);/.test(hp),
-      'W-e at source: HomePage routes ixian:sendScan → quickScanForSend → quickScanResult(payload) with NO page navigation (the #523 path the hero now uses)');
+    /* ⚠ Two changes since this was written, and both are worth stating.
+       (1) Gate row O-14 wrapped the pushed value in `Utils.safeScanPayload`, so the bare
+           `quickScanResult", payload)` shape is gone.
+       (2) The old form bounded the method by a 1600-CHARACTER window over raw text, which
+           the standing rule forbids — prose inside the method moves the budget. Sliced to
+           the method instead: from its signature to the next member declaration. */
+    const qsAt = hp.indexOf('public async void quickScanForSend()');
+    const qsEnd = qsAt < 0 ? -1 : hp.slice(qsAt + 1).search(/\n        (?:public|private|internal|protected|\/\/\/)/);
+    const qs = qsAt < 0 ? '' : hp.slice(qsAt, qsEnd < 0 ? hp.length : qsAt + 1 + qsEnd);
+    ok(/current_url\.Equals\("ixian:sendScan", StringComparison\.Ordinal\)/.test(hp)
+       && qs.length > 200
+       && /Utils\.sendUiCommand\(this, "quickScanResult", Utils\.safeScanPayload\(payload\)\);/.test(qs)
+       /* ⚠ AND THE OLD WINDOW WAS HIDING SOMETHING. "NO page navigation" was never true of
+          this method — it pushes the SCAN page and always did; the 1600-character budget
+          simply stopped one line short of that `await Navigation.PushAsync(scanPage, …)`,
+          so the sentence read as an invariant the code does not hold (#772). What the row
+          is actually about is that the RESULT goes to the shell compose and NOT to a money
+          page: the only thing this method navigates to is the scanner, and no retired
+          wallet page is named anywhere in it. */
+       && (qs.match(/Navigation\.PushAsync\(/g) || []).length === 1
+       && /await Navigation\.PushAsync\(scanPage, /.test(qs)
+       && !/WalletSendPage|WalletSend2Page|WalletRecipientPage/.test(qs),
+      'W-e at source: HomePage routes ixian:sendScan → quickScanForSend → quickScanResult(safeScanPayload(payload)), and the only page it pushes is the SCANNER — no retired wallet page is reachable from it (the #523 path the hero now uses). Sliced to the method (' + qs.length + ' chars): the old 1600-character window was a distance bound over raw text AND it stopped one line above a PushAsync its own message said was absent');
     ok(/ExtendedAddress\.Validate\(addr\)/.test(hp.slice(hp.indexOf('public async void quickScanForSend()'), hp.indexOf('public async void quickScanForSend()') + 1600)),
       'W-e at source (loop r1 B-4): quickScanForSend VALIDATES the scanned address before it reaches the compose — a non-Ixian QR gets the invalid-address alert, never the money surface');
 
@@ -16086,8 +16527,21 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ok(W.Spixi.setRemoveSheetResult('BOB1234567890ABCDEFGHIJKL', 'blocked', [{ name: 'Late', address: 'GRP9' }]) === true
       && sheetB.querySelectorAll('.c-remove-contact__row').length === 1 && !sheetB.querySelector('.c-remove-contact__error').hidden,
       'A5: setRemoveSheetResult(blocked) lists the late blocker + the inline error on an OPEN sheet (loop r2 R2-2: in production the verb fires as the sheet closes, so this path is the toast\'s belt, not the live answer)');
-    ok(/localStorage\.removeItem\(DRAFT_PREFIX \+ addr\)/.test(homeA) && !/removeItem\(DRAFT_PREFIX \+ chat\.address\)/.test(homeA),
-      'loop r2 R2-4: the unsent draft is purged on the SUCCESS answer only — a refused history delete keeps it');
+    /* ★★ REPAIRED by the handover-gate fix batch. The draft purge used to be a bare
+       `localStorage.removeItem(DRAFT_PREFIX + addr)` in this branch. Security sweep C-3
+       replaced it with `forgetPeerStorage(addr, 'history')`, which takes the draft AND the
+       eight other key families that name the peer — and keeps the two contact-STATE
+       markers, because clearing your messages must not un-hide a request you hid. The
+       PROPERTY is unchanged and is asserted here: the purge happens on the SUCCESS answer
+       only, and it is never keyed on `chat.address`. The scope argument is asserted too —
+       a 'contact' sweep here would take the pin and the hidden-request marker with the
+       messages. What the sweep DOES is proved behaviourally in the handover-gate block. */
+    const rhAt = homeA.indexOf('removeHistoryResult(address, status) {');
+    const rhBody = rhAt < 0 ? '' : homeA.slice(rhAt, homeA.indexOf('\n    },', rhAt));
+    const rhOk = rhBody.indexOf("String(status || '') === 'ok'");
+    ok(rhBody.length > 100 && rhOk > 0 && rhBody.indexOf("forgetPeerStorage(addr, 'history')") > rhOk
+      && !/removeItem\(DRAFT_PREFIX \+ chat\.address\)/.test(homeA),
+      'loop r2 R2-4: the unsent draft is purged on the SUCCESS answer only — a refused history delete keeps it (the purge is now forgetPeerStorage(addr, \'history\'), which also takes the eight other peer-keyed families and keeps the two contact-state markers; security sweep C-3)');
     ok(/strings\.sharedGroupsUnknown \|\|/.test(readFileSync(join(root, 'src/components/chats-row-menu.js'), 'utf8')) && /try \{ w\.location\.href = outbox\.shift\(\); \}\s*finally \{ setTimeout\(drain, 0\); \}/.test(readFileSync(join(root, 'src/bridge/native.js'), 'utf8')),
       'loop r2 R2-1/R2-3: a throwing href costs ONE command (try/finally keeps draining), and the sheet\'s group ask has a 4 s belt');
     /* a group row: the sheet reads "Leave group", no blockers */
@@ -16187,8 +16641,16 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ok(!/\.c-delete-chat__opt:disabled \.c-delete-chat__opt-label \{ opacity/.test(menuCss), 'loop r1: the fixed-on "Delete chat" statement keeps full ink (dimmed it read 2.57:1)');
     ok(/Their chats are removed from this device\./.test(readFileSync(join(root, 'src/components/chats-row-menu.js'), 'utf8')),
       '★ loop r1 A-4 (cs): leaving a ticked group removes that group\'s chat from the device (Core removeFriend → deleteMessages) — the copy says so');
-    ok(/if \(st === 'left'\)/.test(homeA) && /return leaveGroup\(friend\) \? "left" : "fail";/.test(scA) && /localStorage\.removeItem\(DRAFT_PREFIX \+ addr\)/.test(homeA),
-      'loop r1: a group/bot LEAVE answers "left" (no "Contact removed" lie for a bot that stays until acknowledged) and the unsent draft goes with the chat (on the success answer, r2)');
+    /* ★★ REPAIRED by the handover-gate fix batch: the draft purge on this answer is now
+       `forgetPeerStorage(addr, 'contact')` (security sweep C-3). A room we have left is a
+       peer that is GONE, so the sweep takes every key that names it, the pin included —
+       which is exactly the 'contact' scope, and asserting the scope is what keeps this
+       from being weakened into "some sweep happens". */
+    const leftAt = homeA.indexOf("if (st === 'left') {");
+    const leftBody = leftAt < 0 ? '' : homeA.slice(leftAt, homeA.indexOf('\n        return;', leftAt));
+    ok(leftAt > 0 && /return leaveGroup\(friend\) \? "left" : "fail";/.test(scA)
+      && /forgetPeerStorage\(addr, 'contact'\)/.test(leftBody),
+      'loop r1: a group/bot LEAVE answers "left" (no "Contact removed" lie for a bot that stays until acknowledged) and everything this device kept under that address goes with the chat — the unsent draft included (on the success answer, r2)');
     /* ★ F5-2 (#555) REBASED loop r1 A-3: the CRASHDIAG breadcrumbs now sit between
        the resolve and the removal — the pin tests the PROPERTY (resolve BEFORE
        remove, pop on ok/left) by ORDER, not by adjacency. */
@@ -16238,7 +16700,25 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   const homeB = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
   const chatB = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
   /* B1 — at source: undorequest is removeFriend with NO notification to the peer */
-  ok(/StartsWith\("ixian:undorequest"\)[\s\S]{0,200}?FriendList\.removeFriend\(friend\);[\s\S]{0,300}?TODO: send a notification to the other party/.test(scpB),
+  /* ⚠ #46 loop C class: this was `[\s\S]{0,200}? … [\s\S]{0,300}?` — a CHARACTER-DISTANCE
+     window over raw text, and the #46 loop B fix put a push and its docblock between the
+     two atoms, so the pin went red against code that still holds the property. The branch
+     is brace-matched out now and the two facts are asserted inside it, at any distance.
+     Comments are masked to SPACES rather than removed, so the offsets stay true while the
+     brace walk cannot be thrown by a brace inside prose; the TODO itself is read from the
+     raw branch, because the claim IS the comment (#771 in the other direction). */
+  const maskCmt = (t) => t.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, (m) => m.replace(/[^\n]/g, ' '));
+  const scpMask = maskCmt(scpB);
+  const undoAt = scpMask.indexOf('StartsWith("ixian:undorequest")');
+  let dU = 0, undoEnd = -1;
+  for (let k = scpMask.indexOf('{', undoAt); undoAt >= 0 && k >= 0 && k < scpMask.length; k++) {
+    if (scpMask[k] === '{') dU++;
+    else if (scpMask[k] === '}' && --dU === 0) { undoEnd = k + 1; break; }
+  }
+  const undoBranch = undoAt >= 0 && undoEnd > undoAt ? scpB.slice(undoAt, undoEnd) : '';
+  ok(undoBranch.length > 100
+     && /FriendList\.removeFriend\(friend\);/.test(maskCmt(undoBranch))
+     && /TODO: send a notification to the other party/.test(undoBranch),
     'B1 at source: SingleChatPage ixian:undorequest = FriendList.removeFriend + a "TODO: notify the other party" — the peer is NOT told (the copy must say so)');
   ok(/StartsWith\("ixian:undorequest:", StringComparison\.Ordinal\)/.test(hpB)
     && /bool outgoingPending = f\.state == FriendState\.RequestSent;/.test(hpB) && !/outgoingPending = !f\.approved/.test(hpB)
@@ -17724,7 +18204,16 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       const spay = rdf('Spixi/Utils/SPayments.cs').replace(/\/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
       const cAt = spay.indexOf('public static async Task<bool> confirmTip(');
       const cBody = spay.slice(cAt, cAt + 500);
-      ok(cAt > 0 && /acquireConfirm\(\)/.test(cBody) && /confirmAndAuth\(page, recipientDisplay\(addr\), amount, fee\)/.test(cBody) && /releaseConfirm\(\)/.test(cBody),
+      /* ★★ REPAIRED by the handover-gate fix batch. This clause pinned
+         `confirmAndAuth(page, recipientDisplay(addr), …)`, and sweep A-9 moved the
+         recipient composition INTO confirmAndAuth so that no call site can leave the
+         address out — handlePayRequest used to pass a bare nickname and show no address
+         at all. The property this pin is about is unchanged and is now enforced in one
+         place instead of asserted at three: confirmTip passes the ADDRESS, and
+         confirmAndAuth's own body composes the ladder through recipientDisplay. Both
+         halves are asserted, so passing a nickname from here still fails. */
+      ok(cAt > 0 && /acquireConfirm\(\)/.test(cBody) && /confirmAndAuth\(page, addr, amount, fee\)/.test(cBody) && /releaseConfirm\(\)/.test(cBody)
+         && /string body = [^;]*recipientDisplay\(address\)/.test(spay) && /private static string recipientDisplay\(string addr\)/.test(spay),
         '★★ V-2: confirmTip is the SAME wall as Send and Pay — the shared in-flight latch, the same dialog, the same PA1 auth step, and the recipient ladder that shows a nickname only for a real contact and ALWAYS the full address under it');
       ok(/bool ok = await confirmAndAuth/.test(spay) && (spay.match(/private static async Task<bool> confirmAndAuth/g) || []).length === 1,
         '★ V-2: and there is still exactly ONE confirmAndAuth — the tip did not get its own softer copy of the wall');
@@ -18049,7 +18538,17 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        with no native confirm, the same ground-rule breach as V-2, and it dereferenced a
        null requestMsg (the white error page on a canceled request) and a null
        transaction. Its replacement has all three guards. */
-    ok(/bool ok = await confirmAndAuth\(page, who, amount, fee\);/.test(spayD),
+    /* ★★ REPAIRED by the handover-gate fix batch. The replacement used to read
+       `confirmAndAuth(page, who, …)` and `who` was a bare nickname on this very path
+       (sweep I-2) — so the dialog that guards signing named a peer-chosen string and
+       showed no address. It now takes the address that is PAID. The property this pin
+       exists for is the ORDER, so the order is what is asserted rather than a call
+       shape: the native confirm stands between the amount and the broadcast. */
+    const prAt = spayD.indexOf('handlePayRequest(');
+    const prBody = prAt < 0 ? '' : spayD.slice(prAt, spayD.indexOf('\n        }\n', spayD.indexOf('sendTransactionFrom', prAt)));
+    ok(prBody.indexOf('await confirmAndAuth(page,') > 0
+       && prBody.indexOf('await confirmAndAuth(page,') < prBody.indexOf('Node.sendTransactionFrom(')
+       && /await confirmAndAuth\(page, to\.PaymentAddress\.ToString\(\), amount, fee\);/.test(prBody),
       '★★ DECISION 4: what replaces it runs the NATIVE confirm before it signs. The deleted page did not — it took the amount it was constructed with straight into sendTransactionFrom, which is the V-2 breach a second time, on a bigger number');
 
     /* —— DECLINE, extracted and wired —— */
@@ -21068,13 +21567,17 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
  * ========================================================================== */
 {
   const rdC = (pth) => readFileSync(join(root, pth), 'utf8');
-  const stripComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
+  /* ★ #46 r7. A LOCAL `stripComments` stood here — the same naive block regex the shared
+     `stripCssComments` used to be, and therefore the same literal-blind defect in a second
+     home. It is gone; this block reads the ONE repaired CSS scanner like every other CSS
+     pin. A defect class closed in one place and left open in another is the failure this
+     loop keeps paying for (#798). */
   const stripJs = (js) => js.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   const stripXml = (x) => x.replace(/<!--[\s\S]*?-->/g, '');
 
   /* —— L18 · the logotype ink —————————————————————————————————————————————— */
   {
-    const tok = stripComments(rdC('src/styles/tokens.css'));
+    const tok = stripCssComments(rdC('src/styles/tokens.css'));
     const darkStart = tok.indexOf('[data-theme="dark"]');
     /* ⚠ Splitting by POSITION is weak on its own — three `:root` blocks sit AFTER the
      * dark one, so a declaration misplaced in one of those would count as dark.
@@ -21109,7 +21612,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
      * tokens.css as absolute. It is not: topbar.css has carried three dark BORDER
      * overrides since long before this row. A pin that asserts something untrue about
      * the tree gets deleted by the next reader rather than believed. */
-    const themedRules = (css) => stripComments(css).split('}')
+    const themedRules = (css) => stripCssComments(css).split('}')
       .filter((r) => /\[data-theme/.test(r) && /(data-logotype|c-bottomnav__logo)/.test(r));
     ok(themedRules(topbarCss).length === 0 && themedRules(navCss).length === 0,
       '★ L18: no [data-theme] rule in a COMPONENT file touches either mark — the per-theme answer lives in tokens.css, as one role. (The three pre-existing dark border overrides in topbar.css are not this)');
@@ -21566,8 +22069,12 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     const at = home13.indexOf('leaveGroupResult(address, status) {');
     const end = home13.indexOf('removeHistoryResult(address, status) {', at);
     const body = (at < 0 || end < at) ? '' : home13.slice(at, end);
+    /* ★★ REPAIRED by the handover-gate fix batch: the draft purge inside this handler is
+       now `forgetPeerStorage(addr, 'contact')` (security sweep C-3). Slice-scoped as
+       before, and the SCOPE is asserted — a 'history' sweep here would leave the address
+       in spixi.pins for a group we are no longer in. */
     ok(at > 0 && /=== 'left'/.test(body) && /deletedChats\.delete\(addr\);/.test(body)
-      && /localStorage\.removeItem\(DRAFT_PREFIX \+ addr\)/.test(body),
+      && /forgetPeerStorage\(addr, 'contact'\)/.test(body),
       '★★ L13 SHELL: the answer un-tombstones anything that is not "left", and only a real leave sheds the unsent draft. A row that vanished while you are still in the group is the exact lie A6 was built to end');
     ok(!/'blocked'/.test(body) && !/pairs/.test(body),
       '★ L13 SHELL: its vocabulary is "left" | "fail" — NOT removeContactResult\'s ok/left/blocked+pairs. removeFriend refuses a CONTACT who is in a group; a group is never itself blocked, so a blocked branch here would be a promise the verb can never keep');
@@ -23254,10 +23761,30 @@ console.log('Session J: the seven walk fixes · Damir\'s evening rulings · the 
   {
     const wr = rdF('Spixi/Platforms/Android/WebViewRenderer.cs');
     const blk = wr.slice(wr.indexOf('#if SPIXI_DEV_COEXIST'), wr.indexOf('#endif', wr.indexOf('#if SPIXI_DEV_COEXIST')));
-    ok(blk.length > 0 && /public override bool OnConsoleMessage\(ConsoleMessage\? consoleMessage\)/.test(blk)
-       && /_renderer\?\.Element\?\.ClassId != "miniapp"/.test(blk) && /Logging\.info\("\[WEBVIEW\] "/.test(blk) && /msg\.Length > 400/.test(blk)
+    /* ⚠⚠ THIS PIN WENT VACUOUS RATHER THAN RED, WHICH IS THE WORSE OUTCOME.
+       It asserted the literal `_renderer?.Element?.ClassId != "miniapp"`. Gate row O-22
+       replaced that expression — it PASSED for a null renderer, because null is not
+       "miniapp", so a WebView this code could not identify was forwarded while the
+       docblock above it claimed the opposite. The expression is gone from the code and
+       survives only in the comment that explains its removal, so the raw-text pin stayed
+       GREEN on changed code. #771, inside a pin, again.
+       Rewritten against stripped code, as the three properties the block must hold:
+         · the host test is FAIL-CLOSED — the element must be proven non-null AND proven
+           not to be the mini-app, in that order;
+         · the message is SANITISED BEFORE it is capped (a 400-character cap does not stop
+           page script writing a newline and forging whole [WEBVIEW] lines into ixian.log),
+           and the #754 cap and its cut marker both survive; and
+         · the whole thing still exists only inside the #if fence. */
+    const blkCode = stripCode(blk);
+    ok(blk.length > 0 && /public override bool OnConsoleMessage\(ConsoleMessage\? consoleMessage\)/.test(blkCode)
+       && /bool ourHost = element != null && element\.ClassId != "miniapp";/.test(blkCode)
+       && !/_renderer\?\.Element\?\.ClassId != "miniapp"/.test(blkCode)
+       && /SPIXI\.Utils\.logSafe\(consoleMessage\.Message\(\) \?\? "", 0\)/.test(blkCode)
+       && blkCode.indexOf('logSafe(') < blkCode.indexOf('msg.Length > 400')
+       && /msg\.Length > 400/.test(blkCode) && /\+ "…"/.test(blkCode)
+       && /Logging\.info\("\[WEBVIEW\] "/.test(blkCode)
        && !/OnConsoleMessage/.test(stripCode(wr.replace(blk, ''))),
-      '★ #754: SpixiWebChromeClient.OnConsoleMessage forwards the SHELLS\' console into Logging ([WEBVIEW] level msg (src:line), capped 400) ONLY inside #if SPIXI_DEV_COEXIST, and NEVER for the mini-app WebView (ClassId "miniapp" — third-party code, #265) — Damir\'s first working capture had every C# stamp and not one shell line');
+      '★ #754 + O-22: SpixiWebChromeClient.OnConsoleMessage forwards the SHELLS\' console into Logging ([WEBVIEW] level msg (src:line)) ONLY inside #if SPIXI_DEV_COEXIST — and the host test is now FAIL-CLOSED (a null Element is refused, not forwarded), with the message running through logSafe BEFORE the 400-cap, so page script cannot forge log lines with a newline. ⚠ The previous version of this pin read the OLD expression out of the comment that records its removal and stayed green');
     ok(/const ds = \(paneMode \? detailWrap : root\)\.querySelector\('\.c-settings-about__devseed-status'\);/.test(rdF('src/shells/settings.html'))
        && /if \(ds && ds\.textContent !== state\.devSeed\.status\) ds\.textContent = state\.devSeed\.status;/.test(rdF('src/shells/settings.html')),
       '★ #754: the About seed-status line is refreshed IN PLACE on every rebuild in both presentations — the About sublevel keeps its live node, so the setDevSeed push after a seed used to land on a stale card (Damir: "the note didn\'t change")');
@@ -23474,6 +24001,14 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
        reads the FIRST and the LAST occurrence separately, so a single flush can satisfy
        neither half: one must sit before the start behind `Node.Instance != null`, one after
        it inside the `== null` branch. Comments out — the docblock quotes both. */
+    /* ★ Gate row O-23 re-wrapped both diagnostic sentences across several concatenated C#
+       string literals, so a phrase pin over the raw text now straddles `" + "` joins. Join
+       the literals back before reading the SENTENCES (this is a normalisation of the same
+       characters, not a widening of the pin), and pull each recordStartupDiagnostic call
+       out on its own so the path negative below is scoped to what is actually LOGGED. */
+    const unconcat = (t) => t.replace(/"\s*\n?\s*\+\s*"/g, '');
+    const crJoined = unconcat(cr);
+    const crCalls = [...cr.matchAll(/recordStartupDiagnostic\(([\s\S]*?)\);/g)].map((m) => m[1]);
     const flushCount = (appNC.match(/flushStartupDiagnostics\(\);/g) || []).length;
     const flushAtA = appNC.lastIndexOf('flushStartupDiagnostics();'), startAtA = appNC.indexOf('Logging.start(Config.spixiUserFolder');
     const flushEarlyA = appNC.indexOf('flushStartupDiagnostics();');
@@ -23484,12 +24019,25 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
        && flushEarlyA > 0 && flushEarlyA < startAtA
        && /if \(IXICore\.Platform\.onWindows\(\)\)\s*\{\s*copyResources\(\);\s*\}\s*if \(Node\.Instance != null\)\s*\{\s*flushStartupDiagnostics\(\);\s*\}\s*if \(Node\.Instance == null\)/.test(appNC)
        && /private static void flushStartupDiagnostics\(\)\s*\{[\s\S]{0,300}?Logging\.error\(startupDiagnostic\);/.test(appNC)
-       && /if \(!Directory\.Exists\(sourceDirectory\)\)\s*\{\s*recordStartupDiagnostic\("copyResources: the html asset folder is MISSING at " \+ sourceDirectory/.test(cr)
-       && /\+ " — nothing was copied to " \+ targetDirectory/.test(cr)
-       && /return;\s*\}\s*try\s*\{\s*copyContents\(sourceDirectory, targetDirectory\);\s*\}\s*catch \(Exception ex\)\s*\{\s*recordStartupDiagnostic\("copyResources: copying " \+ sourceDirectory \+ " to " \+ targetDirectory/.test(cr)
-       && (cr.match(/Visual Studio \(F5 \/ Deploy\) rather than `dotnet build`/g) || []).length === 1
-       && /The app continues;/.test(cr)
-       && /the app continues with whatever was already in place;/.test(cr)
+       && /if \(!Directory\.Exists\(sourceDirectory\)\)\s*\{\s*recordStartupDiagnostic\("copyResources: the 'html' asset folder is MISSING from the app folder"/.test(cr)
+       && /nothing was copied to 'html' in the Spixi user folder/.test(cr)
+       && /return;\s*\}\s*try\s*\{\s*copyContents\(sourceDirectory, targetDirectory\);\s*\}\s*catch \(Exception ex\)\s*\{\s*recordStartupDiagnostic\("copyResources: copying 'html' from the app folder to the Spixi user"/.test(cr)
+       /* ★ Gate row O-23 — NEITHER DIAGNOSTIC MAY CARRY AN ABSOLUTE PATH. On Windows
+          `sourceDirectory`/`targetDirectory` resolve under the user profile, so the line
+          published the OS ACCOUNT NAME into ixian.log, which DevPage shares in one tap.
+          Both folders are fixed locations the reader already knows, so naming the ROLE
+          keeps the two failures apart — which is the entire diagnostic — while the path
+          adds nothing. The catch reports the exception TYPE for the same reason: a
+          file-system exception message repeats the failing absolute path, while the type
+          is what separates a permission failure from a disk failure.
+          Asserted as a NEGATIVE over the whole method, so a third diagnostic added later
+          cannot re-introduce it either. */
+       && crCalls.length === 2 && crCalls.every((a) => !/sourceDirectory|targetDirectory|BaseDirectory|spixiUserFolder/.test(a))
+       && crCalls.every((a) => /'html'/.test(a))
+       && /catch \(Exception ex\)[\s\S]*?ex\.GetType\(\)\.Name/.test(cr) && !/\+ ex\)/.test(cr)
+       && (crJoined.match(/Visual Studio \(F5 \/ Deploy\) rather than `dotnet build`/g) || []).length === 1
+       && /The app continues;/.test(crJoined)
+       && /the app continues with whatever was already in place;/.test(crJoined)
        && /if \(IXICore\.Platform\.onWindows\(\)\)\s*\{\s*copyResources\(\);\s*\}/.test(appNC),
       '★★ #46 A2 (④, MAJOR — same root cause as A1): copyResources() checks the folder exists and wraps the copy, so it CONTINUES instead of throwing out of the App() constructor. It is called UNCAUGHT from `App()` on every Windows launch and `copyContents` opens with `Directory.GetFiles(sourceDirectory)`: when `<exe>\\html` was not staged — the normal state after a plain `dotnet build` — that threw DirectoryNotFoundException before MAUI has any handler, and the process died with no window, no dialog and no log line. It does NOT swallow: BOTH branches log at ERROR and BOTH name the folder AND the fix, because "the assets were never staged" and "the copy failed half-way" need different fixes and ixian.log is the only place to tell them apart. \u2605\u2605 #46 r2, CONFIRMED against the Ixian-Core sibling at 097341a: those two lines were being DROPPED. copyResources runs from App() ~30 lines ABOVE Logging.start, and Core\'s Logging does not buffer \u2014 Meta/Logging.cs:196 is `if (running == false) { if (consoleOutput) Console.WriteLine(...); return; }`, and a Windows GUI app has no console. So the diagnostic is RECORDED here and FLUSHED after Logging.start succeeds; the ORDER is pinned, because a flush above the start is the same silent guard. The call site is deliberately not moved below Logging.start: that sits inside `if (Node.Instance == null)` and moving it would skip the copy on a second App(). \u2605\u2605 r2 R2-4: and THAT second construction is now SERVED. Round 1 made the argument and left the only flush inside `if (Node.Instance == null)`, so on exactly the case it names the diagnostic was recorded and never emitted \u2014 with Logging running by then, and Console.WriteLine a no-op in a Windows GUI app, which is this whole fix\'s premise. There are TWO flush sites now: `Node.Instance != null` immediately after copyResources (the logger is already up, because the first construction could not have got past Logging.start otherwise), and the original one after Logging.start. flushStartupDiagnostics clears the buffer, so whichever runs, the other is a no-op. Got ' + crErrors + ' recordStartupDiagnostic in a ' + cr.length + '-char method');
 
@@ -26479,6 +27027,3673 @@ console.log('★★ Session Q (#804) — the Account sublevels render in the set
         '★ #804: the built shell threw NOTHING through the boot, the caps push and every tap above — not a ReferenceError, not anything else. This is the net that catches a destructured export the bundle no longer has (#421 MAJOR-2, which booted every conversation to a permanent spinner). Errors: ' + (errsQ.slice(0, 2).join(' | ') || 'none'));
       domQ.window.close();
     }
+  }
+}
+
+/* ═══ ★★ THE HANDOVER-GATE FIX BATCH — the security pins ═══════════════════════════
+ *
+ * The introduced-vs-inherited sweep (docs/security-handover-gate.md) ran over the delta
+ * from the fork point `0e85a4b8`, and a five-fixer batch closed everything it attributed
+ * to US. This block is the half that keeps it closed.
+ *
+ * The rules this block is written to, and each one was paid for by a defect in this file:
+ *   · #771 — every sweep declares stripCode or raw, and asserts a PROPERTY. A distance
+ *     bound over raw text is satisfied or defeated by the comment that explains it, and
+ *     this batch added a great deal of comment. Slice by structure.
+ *   · #773 — cite by branch or method. Every line number below the new docblocks moved.
+ *   · #798 — a refusal, an enumeration or a sweep written from the author's list is not
+ *     yet a pin. Where the property is "no site does X", the sites are WALKED out of the
+ *     tree here and the list is printed, so a site the fixer never saw still fails.
+ *   · a behavioural pin never stubs the function under test: the frontend pins below run
+ *     the code out of the BUILT shell, which is the artifact the app loads.
+ */
+console.log('★★ handover-gate fix batch — the security pins');
+{
+  const rdS = (pth) => readFileSync(join(root, pth), 'utf8');
+  const builtChat = rdS('Spixi/Resources/Raw/html/chat.html');
+  const srcChat = rdS('src/shells/chat.html');
+  const utilsCs = rdS('Spixi/Utils/Utils.cs');
+  const iosCs = rdS('Spixi/Platforms/iOS/iOSWebViewHandler.cs');
+
+  /* Brace-matched C# slice over an offset-preserving literal mask — the Session O ① /
+     Session P shape, re-declared because those helpers are scoped to their own blocks. */
+  const maskCsG = (t) => t.replace(/@"(?:[^"]|"")*"|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'/g, (m) => ' '.repeat(m.length));
+  const csSliceG = (src, startAnchor, from = 0) => {
+    const a = src.indexOf(startAnchor, from);
+    if (a < 0) return { a: -1, b: -1, body: '' };
+    const mask = maskCsG(src);
+    const open = mask.indexOf('{', a + startAnchor.length);
+    if (open < 0) return { a, b: -1, body: '' };
+    let depth = 0, b = -1;
+    for (let i = open; i < mask.length; i++) {
+      if (mask[i] === '{') depth++;
+      else if (mask[i] === '}' && --depth === 0) { b = i + 1; break; }
+    }
+    return { a, b, body: b > a ? src.slice(a, b) : '' };
+  };
+  const sliceOkG = (s, name) => ok(s.a >= 0 && s.b > s.a && s.body.trimEnd().endsWith('}'),
+    'gate: the slice `' + name + '` resolves as a brace-matched body — the pins that read it assert nothing without it');
+  /* Balanced argument text of a call, from the identifier. Used by the logging walks:
+     a regex cannot find the end of an argument list that contains parentheses. */
+  const argsOf = (src, i) => {
+    const open = src.indexOf('(', i);
+    if (open < 0) return '';
+    let depth = 0;
+    for (let k = open; k < src.length; k++) {
+      if (src[k] === '(') depth++;
+      else if (src[k] === ')' && --depth === 0) return src.slice(open + 1, k);
+    }
+    return '';
+  };
+
+  /* ─── 1 · THE MEDIA HOST ALLOW-LIST — one rule, three enforcement points ──────────
+   * A lone media URL in a RECEIVED message renders an <img> on chat open, so its host
+   * is a host the SENDER picked and the fetch tells that host the reader's IP and the
+   * moment they opened the chat (#82). Android and Windows have always refused every
+   * host outside the list through `Utils.IsAllowedURL`; iOS has only its WKWebView
+   * content-rule list, and the shell had no test at all.
+   * The three are a STATED CONTRACT and drift is the failure mode, so they are not
+   * compared as strings — each is EXECUTED against one corpus and the three verdicts
+   * must agree on every URL in it. A string comparison would have to know which
+   * escapes are meaningful in which dialect; running them cannot get that wrong, and
+   * it kills a `tenor`→`tenorr` edit made on ANY of the three sides. */
+  {
+    // the C# gate, taken from its own source and run as the regular expression it is
+    const rxLit = /string rx_pattern = @"([^"]+)"/.exec(utilsCs);
+    ok(!!rxLit, 'gate 1 premise: Utils.IsAllowedURL still declares its allow pattern as `string rx_pattern = @"…"` — every agreement pin below reads it from there');
+    const csPrefixLit = /url\.StartsWith\("(https:\/\/apps\.spixi\.io\/)", StringComparison\.OrdinalIgnoreCase\)/.exec(utilsCs);
+    ok(!!csPrefixLit, 'gate 1 premise: Utils.IsAllowedURL still admits the apps.spixi.io host with a case-insensitive StartsWith — the shell mirrors that half as a prefix, not as a regex');
+
+    // the shell's allow-list, taken from the BUILT chat shell
+    const jsRxLit = /const ALLOWED_MEDIA_URL = (\/\^https[^\n]*?\/);/.exec(builtChat);
+    const jsPfxLit = /const ALLOWED_MEDIA_PREFIX = '([^']+)';/.exec(builtChat);
+    ok(!!jsRxLit && !!jsPfxLit, 'gate 1: the BUILT chat shell declares ALLOWED_MEDIA_URL and ALLOWED_MEDIA_PREFIX — the host rule reached the artifact the app loads, not only src/');
+
+    // the iOS content-rule list, JSON-parsed out of the C# raw string
+    const rulesStart = iosCs.indexOf('const string anchoredContentRules = """');
+    const rulesBody = rulesStart < 0 ? '' : iosCs.slice(iosCs.indexOf('[', rulesStart), iosCs.indexOf('""";', rulesStart));
+    let iosRules = null;
+    try { iosRules = JSON.parse(rulesBody); } catch (e) { iosRules = null; }
+    ok(Array.isArray(iosRules) && iosRules.length >= 5,
+      'gate 1: the iOS anchored content-rule list parses as JSON with every rule present — a list that does not parse is a list WebKit rejects, and a rejected list used to mean no blocking at all');
+
+    if (rxLit && csPrefixLit && jsRxLit && jsPfxLit && Array.isArray(iosRules)) {
+      const csRe = new RegExp(rxLit[1]);
+      const csPfx = csPrefixLit[1];
+      const csAllows = (u) => {
+        if (!/^http/i.test(u)) return true;      // IsAllowedURL polices web fetches only
+        return csRe.test(u) || u.slice(0, csPfx.length).toLowerCase() === csPfx.toLowerCase();
+      };
+      const jsRe = new RegExp(jsRxLit[1].slice(1, jsRxLit[1].lastIndexOf('/')), jsRxLit[1].slice(jsRxLit[1].lastIndexOf('/') + 1));
+      const jsPfx = jsPfxLit[1];
+      const jsAllows = (u) => jsRe.test(u) || u.slice(0, jsPfx.length).toLowerCase() === jsPfx.toLowerCase();
+      const iosAllowFilters = iosRules.filter((r) => r.action && r.action.type === 'ignore-previous-rules')
+        .map((r) => r.trigger['url-filter']).filter((f) => /^\^https/.test(f));
+      /* WebKit matches url-filter case-INSENSITIVELY unless a rule sets
+         "url-filter-is-case-sensitive": true, and none of ours does — which is asserted
+         here, because the model below would otherwise drift away from the matcher it
+         claims to represent. The corpus therefore carries the uppercase apps.spixi.io
+         host, where all three must agree, and NOT an uppercase SCHEME: a URL reaches
+         either gate after the engine has normalised its scheme, so that shape is not
+         reachable and pinning it would freeze a divergence nobody can observe. */
+      ok(iosRules.every((r) => r.trigger['url-filter-is-case-sensitive'] !== true),
+        'gate 1 premise: no iOS content rule declares url-filter-is-case-sensitive, so WebKit matches these filters case-insensitively — which is how the agreement pin below models them');
+      const iosAllows = (u) => iosAllowFilters.some((f) => new RegExp(f, 'i').test(u));
+
+      /* The corpus. Every row is a shape one of the three used to disagree about, plus
+         the ones that must keep working. It is deliberately not a list of "bad URLs":
+         it is a list of DISAGREEMENTS. */
+      const corpus = [
+        'https://a.tenor.com/abc.gif',
+        'https://media1.giphy.com/media/xyz/giphy.gif',
+        'https://i.giphy.com/abc123X.gif',
+        'https://apps.spixi.io/icons/a.png',
+        'https://APPS.SPIXI.IO/icons/a.png',
+        'http://a.tenor.com/abc.gif',
+        'https://a.b.tenor.com/x.gif',
+        'https://a.tenor.com/x.gif#frag',
+        'https://attacker.example/x.gif?u=https://a.tenor.com/y',
+        'https://evil.example/pixel.png?id=victim',
+        'http://attacker.example/track.gif',
+        'https://tenor.com/view/something',
+        'https://a.tenor.evil.com/x.gif',
+        'https://apps.spixi.io.evil.example/x.png',
+      ];
+      const disagree = corpus.filter((u) => {
+        const c = csAllows(u), j = jsAllows(u), i = iosAllows(u);
+        return !(c === j && j === i);
+      });
+      ok(disagree.length === 0,
+        '★★ gate 1 THE CONTRACT, EXECUTED: the C# gate (Utils.IsAllowedURL), the chat shell allow-list and the iOS content-rule list are RUN against one corpus of ' + corpus.length + ' URLs and return the same verdict for every one. This is the pin the fixers asked for by name — the three are a stated contract, drift is the failure mode, and a string comparison would have to know which escape is meaningful in which dialect. Disagreements: ' + (disagree.join(' · ') || 'none'));
+      ok(csAllows('https://attacker.example/x.gif?u=https://a.tenor.com/y') === false
+        && jsAllows('https://attacker.example/x.gif?u=https://a.tenor.com/y') === false
+        && iosAllows('https://attacker.example/x.gif?u=https://a.tenor.com/y') === false,
+        '★ gate 1: the SUBSTRING shape — an arbitrary host whose query merely CONTAINS an allow-listed URL — is refused by all three. On iOS this was live: WebKit matches url-filter as a search, so an unanchored allow rule fired on that substring and set ignore-previous-rules, and the request left the device');
+      ok(iosAllowFilters.length === 3 && iosAllowFilters.every((f) => f.startsWith('^'))
+        && iosAllowFilters.filter((f) => f.endsWith('$')).length === 2,
+        '★ gate 1: every https allow rule in the iOS list is anchored at the START, and the tenor/giphy pair is anchored at BOTH ends — apps.spixi.io keeps a free tail on purpose, because IsAllowedURL admits that host with a StartsWith and a mirror must never be STRICTER than the gate it mirrors. Got: ' + iosAllowFilters.join(' · '));
+    }
+
+    /* The file rule and the block rule — the two the anchoring pass must NOT treat alike. */
+    if (Array.isArray(iosRules)) {
+      const fileRule = iosRules.find((r) => /file/.test(r.trigger['url-filter']));
+      const blockRule = iosRules.find((r) => r.action && r.action.type === 'block');
+      ok(!!fileRule && fileRule.trigger['url-filter'] === '^file://',
+        '★ gate 1: the file allow rule is "^file://" and not "file://.*" — the second half of the same bug. An https URL whose QUERY contains "file://" used to win ignore-previous-rules, and mediaUrlOf accepts exactly that shape of URL. Got: ' + (fileRule ? fileRule.trigger['url-filter'] : 'absent'));
+      ok(!!blockRule && blockRule.trigger['url-filter'] === '.*' && iosRules.indexOf(blockRule) === 0,
+        '★ gate 1: the BLOCK rule is still ".*" and still FIRST, and it is the one rule that must stay unanchored — it has to match every URL at any position, ".*" is the documented "everything" form, and anchoring it buys nothing while risking a list WebKit rejects. Got: ' + (blockRule ? JSON.stringify(blockRule.trigger['url-filter']) + ' at index ' + iosRules.indexOf(blockRule) : 'absent'));
+    }
+  }
+
+  /* ─── 2 · mediaUrlOf, RUN OUT OF THE BUILT SHELL ─────────────────────────────────
+   * The gate belongs on the URL that is FETCHED, not on the message text — which is
+   * exactly what keeps the Giphy share link working, because the share PAGE is not
+   * allow-listed and the direct URL derived from it is. A pin that only read the source
+   * could not tell those two apart. */
+  {
+    const A = 'const MEDIA_EXT =';
+    const B = 'function buildMediaRow(rec, media) {';
+    const i = builtChat.indexOf(A), j = builtChat.indexOf(B);
+    const src = i >= 0 && j > i ? builtChat.slice(i, j) : '';
+    ok(src.length > 500 && /function mediaUrlOf\(text\)/.test(src) && /function isAllowedMediaUrl\(url\)/.test(src),
+      'gate 2 premise: the media decision (MEDIA_EXT · the allow-list · giphyDirectFromShare · mediaUrlOf) slices out of the BUILT chat shell as one block — the pins below run that code, they do not re-implement it');
+    if (src.length > 500) {
+      const dom = new JSDOM('<!doctype html><body>', { url: 'https://example.test/' });
+      let mediaUrlOf = null;
+      try { mediaUrlOf = new dom.window.Function(src + '\nreturn mediaUrlOf;')(); } catch (e) { mediaUrlOf = null; }
+      ok(typeof mediaUrlOf === 'function', 'gate 2 premise: the sliced block evaluates and yields mediaUrlOf');
+      if (typeof mediaUrlOf === 'function') {
+        const kills = [
+          ['http://attacker.example/track.gif', 'a plain remote tracking pixel with a media extension'],
+          ['https://evil.example/pixel.png?id=victim', 'an https pixel carrying an id'],
+          ['https://attacker.example/x.gif?u=https://a.tenor.com/y', 'the substring shape the iOS rule list used to admit'],
+          ['http://a.tenor.com/abc.gif', 'the right host over the wrong scheme'],
+          ['https://a.b.tenor.com/x.gif', 'two labels before tenor.com'],
+          ['https://a.tenor.com/x.gif#frag', 'a fragment, which is outside the C# path character class'],
+        ];
+        const leaks = kills.filter(([u]) => mediaUrlOf(u) !== null).map(([u]) => u);
+        ok(leaks.length === 0,
+          '★★ gate 2 BEHAVIOURAL, on the BUILT shell: mediaUrlOf returns null for every non-allow-listed host, so the chat document renders a confirm-to-open link and FETCHES NOTHING. Before this batch each of these was an <img> that loaded on chat open. Still tiled: ' + (leaks.join(' · ') || 'none'));
+        const keeps = [
+          ['https://a.tenor.com/abc.gif', 'https://a.tenor.com/abc.gif'],
+          ['https://media1.giphy.com/media/xyz/giphy.gif', 'https://media1.giphy.com/media/xyz/giphy.gif'],
+          ['https://i.giphy.com/abc123X.gif', 'https://i.giphy.com/abc123X.gif'],
+          ['https://apps.spixi.io/icons/a.png', 'https://apps.spixi.io/icons/a.png'],
+        ];
+        const broke = keeps.filter(([u, want]) => { const m = mediaUrlOf(u); return !m || m.url !== want; }).map(([u]) => u);
+        ok(broke.length === 0,
+          '★ gate 2 BEHAVIOURAL: every allow-listed host still tiles. A host allow-list that also broke tenor and giphy would be noticed on the first F5; one that broke only the corner cases would not. Broken: ' + (broke.join(' · ') || 'none'));
+        const share = mediaUrlOf('https://giphy.com/gifs/excited-yay-l0HlvtIPzPdt2usKs');
+        ok(!!share && share.url === 'https://i.giphy.com/l0HlvtIPzPdt2usKs.gif',
+          '★★ gate 2 BEHAVIOURAL — THE GATE IS ON THE FETCHED URL, NOT ON THE TEXT: a Giphy SHARE page is not allow-listed, and the direct URL derived from it is, so the tile survives (#684). Move the test above the derivation and this is the case that dies. Got: ' + (share ? share.url : 'null'));
+        dom.window.close();
+      }
+    }
+  }
+
+  /* ─── 3 · the app-invite icon predicate is FAIL-CLOSED ───────────────────────────
+   * The 4th field of a `||` invite becomes an <img src> in the chat document and a
+   * hostile peer composes it. The shell used to ask "does this look remote?" with
+   * /^https?:\/\//; `http:/host/x.gif` — ONE slash — fails that test, was filed as a
+   * LOCAL icon, was therefore never privacy-gated, and the browser normalised it back
+   * into a real remote fetch. The question is inverted now: LOCAL is the thing that has
+   * to be proven, and only a `data:image/` URI proves it. */
+  {
+    const C = 'const rawIcon = rec.iconUrl || null;', D = 'return createAppBubble({';
+    const k = builtChat.indexOf(C), l = builtChat.indexOf(D, k);
+    const slice = k >= 0 && l > k ? builtChat.slice(k, l) : '';
+    ok(slice.length > 100 && /const localIcon = !!rawIcon && \/\^data:image\\\/\/i\.test\(rawIcon\)/.test(slice),
+      'gate 3 premise: the icon decision slices out of the BUILT chat shell between `const rawIcon` and the createAppBubble call, and LOCAL is decided by a data:image/ test');
+    if (slice.length > 100) {
+      const dom = new JSDOM('<!doctype html><body>', { url: 'https://example.test/' });
+      /* The slice reads `rec.iconUrl` and calls `mediaAutoloadOn()`; both are supplied
+         here, and the slice itself is never rewritten — running a modified copy of the
+         function under test would prove nothing. */
+      const decide = (rawIconVal, autoload) => new dom.window.Function('rec', 'mediaAutoloadOn',
+        slice + '\nreturn iconUrl;')({ iconUrl: rawIconVal }, () => autoload);
+      const rows = [
+        // [value, expect with the pref ON, expect with the pref OFF, why it is here]
+        ['data:image/png;base64,AAA', 'data:image/png;base64,AAA', 'data:image/png;base64,AAA', 'an installed app icon (Utils.imageToDataUri, cutover X1) is local and is never gated'],
+        ['https://apps.spixi.io/i.png', 'https://apps.spixi.io/i.png', null, 'a well-formed remote icon is gated by the media preference'],
+        ['http://evil.example/x.gif', 'http://evil.example/x.gif', null, 'so is a plaintext one'],
+        ['http:/evil.example/x.gif', 'http:/evil.example/x.gif', null, '★ ONE SLASH — the shape that used to be filed as LOCAL and therefore never gated at all'],
+        ['HTTP:/evil.example/x.gif', 'HTTP:/evil.example/x.gif', null, 'and its upper-case twin'],
+        ['//host/x.gif', null, null, 'protocol-relative: not a data URI, not parseable as absolute — refused in both states'],
+        ['javascript:alert(1)', null, null, 'a scheme the browser must never be handed'],
+        ['Apps/foo/icon.png', null, null, 'a raw filesystem path, which would otherwise resolve against the document'],
+        ['/data/user/0/x.png', null, null, 'and an absolute one'],
+      ];
+      const bad = [];
+      for (const [val, onWant, offWant, why] of rows) {
+        let gotOn, gotOff;
+        try { gotOn = decide(val, true); gotOff = decide(val, false); } catch (e) { gotOn = 'THREW'; gotOff = 'THREW'; }
+        if (gotOn !== onWant || gotOff !== offWant) bad.push(JSON.stringify(val) + ' → on=' + JSON.stringify(gotOn) + ' off=' + JSON.stringify(gotOff) + ' (' + why + ')');
+      }
+      ok(bad.length === 0,
+        '★★ gate 3 BEHAVIOURAL, on the BUILT shell: the app-icon predicate is fail-closed — only a `data:image/` URI counts as local, a parseable http(s) URL is remote and gated, and EVERYTHING ELSE gets no src at all. The one-slash row is the defect this replaces. Wrong: ' + (bad.join(' | ') || 'none'));
+      dom.window.close();
+    }
+  }
+
+  /* ─── 4 · THE REMEMBERED-MEDIA SET IS SESSION-ONLY ───────────────────────────────
+   * ⚠ THIS PIN REPLACES ONE THIS BATCH TURNED RED, AND THE OLD ONE WAS RIGHT TO GO RED.
+   * It asserted `const MEDIA_LOADED_PREFIX = 'spixi.media.loaded.'` and described the
+   * behaviour as "persists per peer". The batch RETIRED that persistence on purpose:
+   * the value was PEER-AUTHORED text (a URL lifted out of a received message) held in a
+   * partition mini-app code may share, and `autoload || loadedMedia.has(url)` turned one
+   * tap on a tracking URL into a beacon that re-fired on every chat open, for ever, with
+   * the opt-out switched off. The preference has to win.
+   * The replacement asserts the RETIREMENT, and it is at least as strong: a pin that only
+   * checked the constant is absent would pass a rename. What is pinned instead is that
+   * the KEY STRING older builds wrote is now reached only by a removal, and — behaviourally,
+   * on the built shell — that remembering writes NOTHING while the per-peer reset DELETES. */
+  {
+    const A = "const MEDIA_AUTOLOAD_KEY = 'spixi.media.autoload';";
+    const i = builtChat.indexOf(A);
+    const j = builtChat.indexOf('function rememberLoadedMedia(url) {', i);
+    let end = -1, depth = 0;
+    for (let k = builtChat.indexOf('{', j); k >= 0 && k < builtChat.length; k++) {
+      if (builtChat[k] === '{') depth++;
+      else if (builtChat[k] === '}' && --depth === 0) { end = k + 1; break; }
+    }
+    const slice = i >= 0 && j > i && end > j ? builtChat.slice(i, end) : '';
+    ok(slice.length > 200 && /function resetLoadedMedia\(\)/.test(slice) && /function rememberLoadedMedia\(url\)/.test(slice),
+      'gate 4 premise: the media-policy functions slice out of the BUILT chat shell — this pin runs them, it does not re-implement them');
+
+    /* structural half — the key literal, sliced to the two functions and read on
+       stripCode'd source, because the docblock above them NAMES the retired key while
+       explaining that it is retired (#771, the exact shape that has gone red before) */
+    const chatCode = stripCode(srcChat);
+    const setItems = (chatCode.match(/localStorage\.setItem\([^)]*\)/g) || []);
+    ok(!setItems.some((s) => /media[._]loaded|MEDIA_LOADED/i.test(s)),
+      '★ gate 4: a WALK over every localStorage.setItem in the chat shell — not one of them writes the media-loaded family. ' + setItems.length + ' writes examined');
+    /* ⚠ The first draft of this clause read `/removeItem|LEGACY/` over the one line that
+       names the key — and the line that names it is the CONSTANT DECLARATION, whose
+       identifier contains "LEGACY". So the clause passed on the declaration alone and
+       deleting the migration did not move it. What is asserted instead: the key string
+       is named exactly once, the constant it declares has exactly ONE consumer, and that
+       consumer is a removeItem. #798 in its own pin. */
+    const decl = /const ([A-Z_]+) = 'spixi\.media\.loaded\.';/.exec(chatCode);
+    const consumers = decl
+      ? (chatCode.match(new RegExp('[^\n]*\\b' + decl[1] + '\\b[^\n]*', 'g')) || []).filter((l) => !l.includes("= 'spixi.media.loaded.'"))
+      : [];
+    ok(!!decl && (chatCode.match(/spixi\.media\.loaded\./g) || []).length === 1
+      && consumers.length === 1 && /localStorage\.removeItem\(/.test(consumers[0]),
+      '★ gate 4: the retired key string `spixi.media.loaded.` survives for exactly one reason — to be REMOVED. It is named once, the constant it declares has exactly one consumer, and that consumer is a removeItem. Consumers: ' + consumers.length);
+
+    if (slice.length > 200) {
+      const dom = new JSDOM('<!doctype html><body>', { url: 'https://example.test/' });
+      const PEER = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAA1';
+      const OTHER = 'BBBBBBBBBBBBBBBBBBBBBBBBBBBB2';
+      const store = new Map([
+        ['spixi.media.loaded.' + PEER, '["https://evil.example/track.gif"]'],
+        ['spixi.media.loaded.' + OTHER, '["https://evil.example/other.gif"]'],
+        ['spixi.appearance', 'dark'],
+      ]);
+      const writes = [];
+      const fakeLs = {
+        get length() { return store.size; },
+        key: (n) => [...store.keys()][n] ?? null,
+        getItem: (k) => (store.has(k) ? store.get(k) : null),
+        setItem: (k, v) => { writes.push(k); store.set(k, v); },
+        removeItem: (k) => { store.delete(k); },
+      };
+      const api = new dom.window.Function('localStorage', 'identity', 'loadedMediaBox',
+        'let loadedMedia = loadedMediaBox.set;\n' + slice
+        + '\nreturn { mediaAutoloadOn, resetLoadedMedia, rememberLoadedMedia, peek: () => loadedMedia };')(
+        fakeLs, { address: PEER }, { set: new dom.window.Set() });
+      api.resetLoadedMedia();
+      const migrated = !store.has('spixi.media.loaded.' + PEER) && store.has('spixi.media.loaded.' + OTHER);
+      api.rememberLoadedMedia('https://a.tenor.com/x.gif');
+      const remembered = api.peek().has('https://a.tenor.com/x.gif');
+      ok(migrated && remembered && writes.length === 0,
+        '★★ gate 4 BEHAVIOURAL, on the BUILT shell: opening a conversation DELETES the persisted set an older build left for that peer (and touches no other peer), and loading a tile remembers it IN MEMORY ONLY — zero storage writes. Re-add the setItem and this is the pin that goes red. migrated=' + migrated + ' remembered=' + remembered + ' writes=' + writes.length);
+      /* the half of the old pin that is NOT retired: the preference still defaults ON,
+         and the tile still honours a same-session tap */
+      const defOn = api.mediaAutoloadOn();
+      store.set('spixi.media.autoload', 'off');
+      const offNow = api.mediaAutoloadOn();
+      ok(defOn === true && offNow === false,
+        '★ gate 4: remote media still LOADS BY DEFAULT (legacy parity, Damir 2026-07-08) and only the exact string "off" turns it off — the surviving half of the pin this one replaces');
+      ok(/autoload: mediaAutoloadOn\(\) \|\| loadedMedia\.has\(media\.url\)/.test(builtChat),
+        '★ gate 4: the tile still reads `mediaAutoloadOn() || loadedMedia.has(media.url)` — only the SET\'s lifetime changed, so a tap still survives a bridge re-render inside one conversation and no longer survives the conversation');
+      dom.window.close();
+    }
+  }
+
+  /* ─── 5 · FORGETTING A PEER — a walk over the "this contact is gone" handlers ─────
+   * Nine key families carry a peer's wallet ADDRESS in the key NAME, and spixi.pins holds
+   * addresses in its VALUE. "Contact removed" used to clear none of them.
+   * ⚠ THE HANDLER SET IS DERIVED, NOT LISTED (#798). The three bridge pushes that mean
+   * "this peer is gone" are read out of the C# tree — every sendUiCommand command name of
+   * the shape `<remove|leave>…Result` — and every shell that owns a handler of that name
+   * is then found by walking src/shells. That is the derivation that matters here: the
+   * fixer's own first pass missed contact_details.html entirely, because C# pushes
+   * removeContactResult to the page that ASKED for the removal and to no other. */
+  {
+    /* ★★ #46 loop B / loop C — THE AXIS WAS WRONG, TWICE.
+       The first derivation read the C# tree for every command name matching
+       `"(remove|leave)[A-Za-z]*Result"`. Two defects, and the second is the one that
+       matters:
+         · a removal path that pushes NOTHING can never enter a walk over PUSHES, and four
+           of the five removal paths this batch fixed pushed nothing at all;
+         · the regex could not see `undoRequestResult` — a "this peer is gone" answer since
+           #543 — because the name begins with `undo`. The list was computed, but the
+           computation encoded a guess about the naming convention (#798 one level down).
+       Both halves are derived from the tree now, and on opposite axes:
+         · the SWEEP COMMANDS come from the SHELLS — every handler in a shell's own
+           `handlers` dispatch object whose body reaches localStorage, directly through
+           `localStorage.removeItem(` or through `forgetPeerStorage(`. Read from the
+           dispatcher object only: a throwaway version matched any 4-space-indented
+           `name(` and collected four unrelated functions.
+         · the OPERATIONS come from Ixian-Core, below. */
+    const braceFrom = (t, from) => {
+      let d = 0;
+      for (let k = t.indexOf('{', from); k >= 0 && k < t.length; k++) {
+        if (t[k] === '{') d++;
+        else if (t[k] === '}' && --d === 0) return t.slice(from, k + 1);
+      }
+      return '';
+    };
+    const SWEEPS = /forgetPeerStorage\(|localStorage\.removeItem\(/;
+    const shellDirG = join(root, 'src/shells');
+    const shellFiles = readdirSync(shellDirG).filter((f) => f.endsWith('.html')).sort();
+    const goneCmds = new Set();
+    for (const file of shellFiles) {
+      const code = stripCode(readFileSync(join(shellDirG, file), 'utf8'));
+      const at = code.indexOf('const handlers = {');
+      if (at < 0) continue;
+      const obj = braceFrom(code, at);
+      for (const m of obj.matchAll(/(?:^|\n)\s{4}([A-Za-z_$][\w$]*)\s*\(/g)) {
+        if (SWEEPS.test(braceFrom(obj, m.index + m[0].length - 1))) goneCmds.add(m[1]);
+      }
+    }
+    ok(goneCmds.size >= 4 && goneCmds.has('removeContactResult') && goneCmds.has('leaveGroupResult')
+       && goneCmds.has('removeHistoryResult') && goneCmds.has('undoRequestResult'),
+      'gate 5 premise, DERIVED FROM THE SHELLS: the pushes a shell answers by deleting local state are ' + [...goneCmds].sort().join(', ') + '. `undoRequestResult` is in that set and the old name-shaped regex could not see it. A fifth one added later joins this walk automatically');
+
+    /* ★★ THE AXIS: the subject is the OPERATION, the predicate is "ends in a push whose
+       shell handler sweeps". The operations are derived from Ixian-Core, starting at the
+       storage primitive that destroys a peer's whole message store —
+       `IxianHandler.localStorage.deleteMessages(` — and closing transitively over Core's
+       PUBLIC methods. Two filters, each a stated property rather than a name:
+         · the method's own name must begin with `remove` or `delete`, which keeps the
+           protocol layer's incidental callers (receiveData, fetchPushMessages) out;
+         · no parameter may name a message, which keeps `removeMessage(Friend, msg_id)` —
+           a ONE-message operation — out.
+       That yields the four whole-peer deleters, and a fifth added to Core joins by itself.
+       The closure then continues through SPIXI's own helpers: a method that DELETES and
+       RETURNS the outcome instead of pushing has handed the obligation to its caller, so
+       it joins the surface and its callers become subjects. A method that deletes, returns
+       `void` and answers nothing is the failure this walk exists to name. */
+    const coreDirG = join(root, '..', 'Ixian-Core');
+    const walkCsG = (dir, out = []) => {
+      for (const ent of readdirSync(dir, { withFileTypes: true }).sort((x, y) => (x.name < y.name ? -1 : 1))) {
+        if (ent.isDirectory()) { if (!['obj', 'bin', '.git', 'node_modules', 'local-nuget'].includes(ent.name)) walkCsG(join(dir, ent.name), out); }
+        else if (ent.name.endsWith('.cs')) out.push(join(dir, ent.name));
+      }
+      return out;
+    };
+    if (!existsSync(coreDirG)) {
+      ok(true, 'gate 5 THE AXIS: no Ixian-Core sibling in this checkout — the deletion surface cannot be derived, so the operation walk is skipped (the M1 hold-out precedent)');
+    } else {
+      const surface = new Set(['deleteMessages']);
+      const cand = [];
+      for (const f of walkCsG(coreDirG)) {
+        const t = stripCode(readFileSync(f, 'utf8'));
+        for (const m of t.matchAll(/\n\s+public\s+(?:static\s+)?[\w<>\[\],?\s]*?\b([A-Za-z_]\w*)\s*\(([^;{)]*)\)\s*\n?\s*\{/g)) {
+          if (!/^(?:remove|delete)/.test(m[1])) continue;
+          if (/\b\w*(?:msg|message)\w*\s*(?:,|$)/i.test(m[2])) continue;
+          cand.push({ name: m[1], body: braceFrom(t, m.index + m[0].length - 1) });
+        }
+      }
+      for (let grew = true; grew;) {
+        grew = false;
+        for (const m of cand) {
+          if (surface.has(m.name)) continue;
+          if ([...surface].some((n) => new RegExp('[.\\s(]' + n + '\\s*\\(').test(m.body))) { surface.add(m.name); grew = true; }
+        }
+      }
+      const coreNames = [...surface].sort().join(', ');
+      ok(surface.size >= 3 && surface.has('removeFriend') && surface.has('deleteHistory') && surface.has('deleteEntireHistory'),
+        'gate 5 THE AXIS premise: Ixian-Core\'s whole-peer deletion surface, derived from `localStorage.deleteMessages(` outward — ' + coreNames + '. `deleteEntireHistory` is in it, and the reviewer\'s own reproduction grep could not find the Settings path because that call is neither removeFriend nor deleteHistory');
+
+      const csFilesS = walkCsG(join(root, 'Spixi'));
+      const textS = new Map(csFilesS.map((f) => [f, stripCode(readFileSync(f, 'utf8'))]));
+      const allCodeS = [...textS.values()].join('\n');
+      const METHOD_S = /\n\s{4,}(?:\[[^\]]*\]\s*)?(?:public|private|protected|internal)\s[^\n;=]*?\b([A-Za-z_]\w*)\s*\(([^;{)]*)\)\s*\n?\s*\{/g;
+      const methodsS = [];
+      for (const [f, t] of textS) {
+        for (const m of t.matchAll(METHOD_S)) {
+          const body = braceFrom(t, m.index + m[0].length - 1);
+          methodsS.push({ f, name: m[1], head: m[0].trim().replace(/\s+/g, ' '), start: m.index, end: m.index + m[0].length - 1 + body.length, body });
+        }
+      }
+      const methodAtS = (f, i) => methodsS.filter((m) => m.f === f && m.start <= i && i < m.end).sort((x, y) => y.start - x.start)[0] || null;
+      const devFencedS = (f, at) => {
+        const t = textS.get(f);
+        const open = t.lastIndexOf('#if SPIXI_DEV_COEXIST', at);
+        if (open < 0) return false;
+        const end = t.indexOf('#endif', open);
+        return end < 0 || end > at;
+      };
+      const referencedS = (n) => (allCodeS.match(new RegExp('\\b' + n + '\\s*\\(', 'g')) || []).length > 1;
+      /* ★ THE ANSWER SCOPE is the enclosing DISPATCH BRANCH, not the enclosing method.
+         `onNavigating` is one method holding a dozen verb branches, and it already pushes
+         several of these commands — so a method-level test would accept the leave branch
+         after its own push was deleted, because the removecontact branch below it still
+         pushes. The climb stops at the smallest enclosing block whose head tests an
+         "ixian:" verb literal; where there is none, the method body is the scope. */
+      const scopesOf = (t, i, meth) => {
+        const stack = [];
+        for (let k = meth.start; k <= i; k++) { if (t[k] === '{') stack.push(k); else if (t[k] === '}') stack.pop(); }
+        const out = [];
+        for (let sIdx = stack.length - 1; sIdx >= 0; sIdx--) {
+          const open = stack[sIdx];
+          out.push(braceFrom(t, open));
+          const head = t.slice(Math.max(meth.start, open - 400), open);
+          const lastIf = Math.max(head.lastIndexOf('else if'), head.lastIndexOf('if ('));
+          if (lastIf >= 0 && /"ixian:[^"]*"/.test(head.slice(lastIf))) break;
+        }
+        return out;
+      };
+      const rows5 = [];
+      for (let grew = true; grew;) {
+        grew = false; rows5.length = 0;
+        for (const [f, t] of textS) {
+          for (const op of surface) {
+            for (const m of t.matchAll(new RegExp('[.\\s(]' + op + '\\s*\\(', 'g'))) {
+              const meth = methodAtS(f, m.index);
+              if (!meth || meth.name === op) continue;
+              const answered = scopesOf(t, m.index, meth).some((sc) => [...goneCmds].some((c) => sc.includes('"' + c + '"')));
+              let v;
+              if (answered) v = 'PUSHES';
+              else if (/FriendList\.addFriend\(/.test(meth.body)) v = 're-adds (heal)';
+              else if (meth.body.includes('"wipeLocalState"')) v = 'wipeLocalState';
+              else if (devFencedS(f, m.index)) v = 'dev-fenced';
+              else if (!referencedS(meth.name)) v = 'unreachable';
+              else if (!/\bvoid\b/.test(meth.head.split('(')[0])) {
+                v = 'HELPER';
+                if (!surface.has(meth.name)) { surface.add(meth.name); grew = true; }
+              } else v = 'NO ANSWER';
+              rows5.push({ v, where: f.slice(root.length + 1).replace(/\\/g, '/').split('/').pop() + ' → ' + meth.name + ' (' + op + ')' });
+            }
+          }
+        }
+      }
+      const noAnswer = [...new Set(rows5.filter((r) => r.v === 'NO ANSWER').map((r) => r.where))];
+      const counted = [...new Set(rows5.map((r) => r.v + ' ' + r.where))];
+      ok(rows5.length >= 12 && noAnswer.length === 0,
+        '★★ gate 5 THE AXIS WALK: every call site of Ixian-Core\'s whole-peer deletion surface in Spixi/**.cs — ' + counted.length + ' of them, over the surface ' + [...surface].sort().join(', ') + ' — ends in a push whose shell handler sweeps, or discharges the obligation in one of four ways read from the code: it re-adds the same record in the same breath (the pendingDeletion heal), it pushes wipeLocalState (the account wipe removes every spixi.* key), it is fenced under SPIXI_DEV_COEXIST (the dev seed\'s addresses are SHA-256 hashes that can never belong to a contact), or its name is referenced nowhere in the tree and it cannot run. A removal that pushes NOTHING is exactly what the old push-shaped walk could not see. Unanswered: [' + (noAnswer.join(' | ') || 'none') + ']');
+    }
+
+    const problems = [];
+    let handlersSeen = 0;
+    let successBranches = 0;
+    for (const file of shellFiles) {
+      const code = stripCode(readFileSync(join(shellDirG, file), 'utf8'));
+      for (const cmd of goneCmds) {
+        const at = code.indexOf(cmd + '(');
+        if (at < 0) continue;
+        const body = braceFrom(code, at);
+        handlersSeen++;
+        if (!SWEEPS.test(body)) { problems.push(file + ' → ' + cmd + ' (no sweep at all)'); continue; }
+        /* ⚠ ONE sweep in the handler is not the property. `removeContactResult` answers
+           both 'ok' (removed) and 'left' (a group we left) in SEPARATE early-return
+           branches, and a mutation that dropped the sweep from just one of them passed a
+           handler-level test — #798 again, found by mutating this pin. So every SUCCESS
+           branch is walked: each block whose condition names 'ok' or 'left' must sweep.
+           ⚠ A NEGATED condition (`!== 'ok'`) is a refusal, not a success branch — the
+           settings sweep is written that way — so it is skipped rather than demanded. */
+        /* ⚠ The condition is read by BALANCING parentheses, not with `[^)]*`. The first
+           draft used the character class and found 3 of the 5 branches: it cannot cross
+           the `)` in `if (String(status || '') === 'left')`, which is the shape two of
+           the three home.html handlers use. A pin that silently examines fewer subjects
+           than it claims is the #798 failure in miniature, and mutation is what keeps it
+           exposed. */
+        for (let q = body.indexOf('if ('); q >= 0; q = body.indexOf('if (', q + 1)) {
+          let pd = 0, condEnd = -1;
+          for (let k = body.indexOf('(', q); k < body.length; k++) {
+            if (body[k] === '(') pd++;
+            else if (body[k] === ')' && --pd === 0) { condEnd = k; break; }
+          }
+          if (condEnd < 0) continue;
+          const cond = body.slice(q, condEnd + 1);
+          if (!/'(?:ok|left)'/.test(cond) || /!==|!=/.test(cond)) continue;
+          const brace = body.indexOf('{', condEnd);
+          if (brace < 0) continue;
+          let d2 = 0, close = -1;
+          for (let k = brace; k < body.length; k++) {
+            if (body[k] === '{') d2++;
+            else if (body[k] === '}' && --d2 === 0) { close = k; break; }
+          }
+          const branch = close > 0 ? body.slice(q, close) : '';
+          successBranches++;
+          if (!SWEEPS.test(branch)) problems.push(file + ' → ' + cmd + ' → ' + cond.replace(/\s+/g, ' '));
+        }
+      }
+    }
+    ok(handlersSeen >= 8 && successBranches >= 5 && problems.length === 0,
+      '★★ gate 5 THE WALK: every "this peer or this conversation is gone" handler in every shell deletes the local state it answers for, and so does every SUCCESS branch inside it — ' + handlersSeen + ' handlers and ' + successBranches + ' success branches across src/shells. The sweep may be the per-peer helper or a per-FAMILY pass over localStorage: settings.html owns no roster and is answered with an empty address, so its handler sweeps by key family instead. Missing the sweep: ' + (problems.join(' · ') || 'none'));
+
+    /* BEHAVIOURAL, both shells, with a key family the pin INVENTS. The claim being
+       tested is "a family added later is forgotten by construction" — a corpus of the
+       nine known families would pass against an explicit nine-name list and prove
+       nothing, so the family below appears nowhere in the source. */
+    const sliceFn = (text, sig) => {
+      const a = text.indexOf(sig);
+      if (a < 0) return '';
+      let depth = 0;
+      for (let k = text.indexOf('{', a); k >= 0 && k < text.length; k++) {
+        if (text[k] === '{') depth++;
+        else if (text[k] === '}' && --depth === 0) return text.slice(a, k + 1);
+      }
+      return '';
+    };
+    const builtHome = rdS('Spixi/Resources/Raw/html/index.html');
+    const builtCd = rdS('Spixi/Resources/Raw/html/contact_details.html');
+    const builtChatFn = rdS('Spixi/Resources/Raw/html/chat.html');
+    const SIG5 = 'function forgetPeerStorage(addr, scope) {';
+    const homeFn = sliceFn(builtHome, SIG5);
+    const cdFn = sliceFn(builtCd, SIG5);
+    const chatFn = sliceFn(builtChatFn, SIG5);
+    ok(homeFn.length > 200 && cdFn.length > 200 && chatFn.length > 200,
+      'gate 5 premise: all THREE shells\' sweeps slice out of the BUILT artifacts under one signature. contact_details gained the `scope` parameter and chat.html gained a copy, so the three documents speak one vocabulary');
+    /* ★★ THE TWINS. Three copies is one more than this project should carry, and a shared
+       component would need a bundle rebuild the fix batch was forbidden; this clause is
+       the mitigation, and it is a stronger drift guard than a comment.
+       The copies fall into two groups, and the SPLIT IS DERIVED from the bodies rather
+       than from a file list: home.html owns the in-memory `pinnedChats` set and prunes the
+       address through it, while a document that holds no pin state of its own has to
+       rewrite the stored array. Every copy that does NOT name `pinnedChats` must be
+       character-identical to every other, and the rules the three share — the address
+       floor, the suffix rule and the history scope — must be present in all of them.
+       ⚠ A single "all three are identical" clause is not writable and never was: it would
+       be red against the correct tree, which is the shape that gets a pin deleted. */
+    const copies = { home: homeFn, contact_details: cdFn, chat: chatFn };
+    const names5 = Object.keys(copies).filter((k) => copies[k].length > 200);
+    const storeGroup = names5.filter((k) => !/pinnedChats/.test(copies[k]));
+    const setGroup = names5.filter((k) => /pinnedChats/.test(copies[k]));
+    const notIdentical = storeGroup.filter((k) => copies[k] !== copies[storeGroup[0]]);
+    const SHARED = [
+      ['the 8-character address floor', /if \(a\.length < 8\) return;/],
+      ['the suffix carries the leading dot, and a key no longer than the suffix is not a match', /const suffix = '\.' \+ a;/],
+      ['the length floor on the key itself — otherwise the suffix "." would take every key ending in a dot', /k\.length <= suffix\.length \|\| k\.slice\(-suffix\.length\) !== suffix/],
+      ['the doomed keys are collected BEFORE any removal — removing during a key(i) walk re-indexes the store', /const doomed = \[\];[\s\S]*?for \(const k of doomed\) localStorage\.removeItem\(k\);/],
+      ['the history scope leaves the contact-state markers alone', /scope === 'history'/],
+    ];
+    const missingShared = SHARED.filter(([, re]) => !names5.every((k) => re.test(copies[k]))).map(([why]) => why);
+    ok(names5.length === 3 && storeGroup.length === 2 && setGroup.length === 1
+       && notIdentical.length === 0 && missingShared.length === 0
+       && /localStorage\.setItem\('spixi\.pins'/.test(copies[storeGroup[0]])
+       && /pinnedChats\.delete\(a\)/.test(copies[setGroup[0]]),
+      '★★ gate 5 THE TWINS: the two shells that hold no pin state of their own (' + storeGroup.join(', ') + ') carry character-identical sweeps (' + (copies[storeGroup[0]] || '').length + ' chars), and the one that owns the in-memory set (' + setGroup.join(', ') + ') differs only by pruning through it. All three still carry the shared rules. Divergent twins: [' + (notIdentical.join(', ') || 'none') + ']. Rules missing somewhere: [' + (missingShared.join(' | ') || 'none') + ']');
+    if (homeFn.length > 200 && cdFn.length > 200) {
+      const PEER = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAA1';
+      const OTHER = 'BBBBBBBBBBBBBBBBBBBBBBBBBBBB2';
+      const INVENTED = 'spixi.notyetinvented.';        // appears nowhere in the source
+      const seed = () => new Map([
+        ['spixi.draft.' + PEER, 'my unsent plaintext'],
+        ['spixi.likes.' + PEER, '["1"]'],
+        ['spixi.hidereq.' + PEER, '1'],
+        ['spixi.hsstage.' + PEER, '2'],
+        [INVENTED + PEER, 'x'],
+        ['spixi.draft.' + OTHER, 'the other peer'],
+        [INVENTED + OTHER, 'y'],
+        ['spixi.appearance', 'dark'],
+        ['HTML5_QRCODE_DATA', 'camera-id'],
+        ['spixi.pins', JSON.stringify([PEER, OTHER])],
+        ['spixi.trailingdot.', 'a key whose name ends in a dot — what an unguarded empty address would sweep'],
+      ]);
+      const run = (fnSrc, scope, isHome) => {
+        const dom = new JSDOM('<!doctype html><body>', { url: 'https://example.test/' });
+        const store = seed();
+        const fakeLs = {
+          get length() { return store.size; },
+          key: (n) => [...store.keys()][n] ?? null,
+          getItem: (k) => (store.has(k) ? store.get(k) : null),
+          setItem: (k, v) => { store.set(k, v); },
+          removeItem: (k) => { store.delete(k); },
+        };
+        const pinned = new dom.window.Set([PEER, OTHER]);
+        const fn = new dom.window.Function('localStorage', 'PEER_KEYS_KEPT_ON_HISTORY', 'pinnedChats', 'savePins',
+          fnSrc + '\nreturn forgetPeerStorage;')(fakeLs, ['spixi.hidereq.', 'spixi.hsstage.'], pinned,
+          () => { store.set('spixi.pins', JSON.stringify([...pinned])); });
+        isHome ? fn(PEER, scope) : fn(PEER);
+        const left = [...store.keys()].filter((k) => k.endsWith('.' + PEER)).sort();
+        const pins = JSON.parse(store.get('spixi.pins') || '[]');
+        dom.window.close();
+        return { left, pins, other: [...store.keys()].filter((k) => k.endsWith('.' + OTHER)).length, unrelated: store.has('spixi.appearance') && store.has('HTML5_QRCODE_DATA') };
+      };
+      const contact = run(homeFn, 'contact', true);
+      const history = run(homeFn, 'history', true);
+      const details = run(cdFn, 'contact', true);
+      ok(contact.left.length === 0 && contact.pins.join() === OTHER && contact.other === 2 && contact.unrelated,
+        '★★ gate 5 BEHAVIOURAL (home, scope "contact"): every key naming the removed peer goes — INCLUDING an invented family `' + INVENTED + '` that appears nowhere in the source, which is what proves the sweep is prefix-driven and not a nine-name list — and the address is pruned out of spixi.pins. The other peer keeps all of theirs and the unrelated keys are untouched. Left: ' + (contact.left.join(' · ') || 'none'));
+      ok(history.left.join(' · ') === ['spixi.hidereq.' + PEER, 'spixi.hsstage.' + PEER].sort().join(' · ') && history.pins.length === 2,
+        '★★ gate 5 BEHAVIOURAL (home, scope "history"): clearing the MESSAGES keeps exactly the two contact-STATE markers and the pin — a user who deletes their chat must not see a request they hid re-appear, and a handshake stage is about the contact, not the messages. Kept: ' + (history.left.join(' · ') || 'none'));
+      ok(details.left.length === 0 && details.pins.join() === OTHER && details.other === 2,
+        '★★ gate 5 BEHAVIOURAL (contact_details, the handler a file list missed): the twin sweep clears the same keys and prunes spixi.pins by writing the array back, because that document holds no pin state of its own. Left: ' + (details.left.join(' · ') || 'none'));
+      /* THE EMPTY-ADDRESS GUARD, stated as what it actually does. The sweep matches on
+         `endsWith('.' + address)`, so an empty address does NOT take the whole store —
+         it reduces the suffix to "." and takes every key that ends in a dot. That is a
+         small set, and the guard is one line, and the right default for a routine that
+         DELETES is to refuse an input it cannot make sense of. The store below is
+         seeded with such a key so the property is testable rather than asserted. */
+      const shortRun = (fnSrc, isHome) => {
+        const dom = new JSDOM('<!doctype html><body>', { url: 'https://example.test/' });
+        const store = seed();
+        const fakeLs = { get length() { return store.size; }, key: (n) => [...store.keys()][n] ?? null, getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => { store.set(k, v); }, removeItem: (k) => { store.delete(k); } };
+        const before = store.size;
+        const fn = new dom.window.Function('localStorage', 'PEER_KEYS_KEPT_ON_HISTORY', 'pinnedChats', 'savePins', fnSrc + '\nreturn forgetPeerStorage;')(fakeLs, [], new dom.window.Set(), () => {});
+        isHome ? fn('', 'contact') : fn('');
+        isHome ? fn('short', 'contact') : fn('short');
+        const after = store.size;
+        dom.window.close();
+        return before === after;
+      };
+      ok(shortRun(homeFn, true) && shortRun(cdFn, true) && shortRun(chatFn, true),
+        '★ gate 5 BEHAVIOURAL: an empty or short address sweeps NOTHING, in both shells — including a seeded key whose own name ends in a dot, which is exactly what an unguarded empty address would take (the suffix becomes "."). A routine that DELETES must refuse an input it cannot make sense of');
+    }
+
+    /* the other half of the contact_details write: home.html must re-seed its in-memory
+       pin set from the `storage` event that write raises, or a stale set writes the
+       address back on the next pin toggle */
+    const homeCode = stripCode(rdS('src/shells/home.html'));
+    /* ⚠ home.html owns FIVE `storage` listeners (landtab · exdel · hsstage · hidereq ·
+       this one), so the handler is found by walking them, not by indexOf — the first
+       draft of this pin took the first one and went red against correct code. */
+    const storHandlers = [];
+    for (let at = homeCode.indexOf("window.addEventListener('storage'"); at >= 0;
+         at = homeCode.indexOf("window.addEventListener('storage'", at + 1)) {
+      let depth = 0;
+      for (let k = homeCode.indexOf('{', at); k >= 0 && k < homeCode.length; k++) {
+        if (homeCode[k] === '{') depth++;
+        else if (homeCode[k] === '}' && --depth === 0) { storHandlers.push(homeCode.slice(at, k + 1)); break; }
+      }
+    }
+    const stor = storHandlers.filter((h) => /PINS_KEY/.test(h)).join('\n');
+    ok(storHandlers.length >= 5 && stor.length > 40 && /e\.key !== PINS_KEY/.test(stor) && /pinnedChats\.clear\(\)/.test(stor),
+      '★ gate 5: home.html re-seeds pinnedChats from the `storage` event keyed on PINS_KEY. A storage event never fires in the document that wrote the value, so this cannot fight savePins — and without it a home document that was open during a contact-details removal writes the address back');
+  }
+
+  /* ─── 6 · the account wipe reaches the ONE unprefixed key in the store ────────────*/
+  {
+    const setShellCode = stripCode(rdS('src/shells/settings.html'));
+    const wipe = (() => {
+      const a = setShellCode.indexOf('wipeLocalState() {');
+      if (a < 0) return '';
+      let depth = 0;
+      for (let k = setShellCode.indexOf('{', a); k >= 0 && k < setShellCode.length; k++) {
+        if (setShellCode[k] === '{') depth++;
+        else if (setShellCode[k] === '}' && --depth === 0) return setShellCode.slice(a, k + 1);
+      }
+      return '';
+    })();
+    ok(wipe.length > 100 && /k === 'HTML5_QRCODE_DATA'/.test(wipe) && /k\.startsWith\('spixi\.'\)/.test(wipe)
+      && !/localStorage\.clear\(\)/.test(wipe),
+      '★ gate 6: "delete account" now also removes HTML5_QRCODE_DATA — the vendored scanner\'s camera-device id, the one key in the store with no spixi. prefix, and the real key a comment walked past while describing a hypothetical one. Still an ENUMERATION, never a blanket clear: this document may only remove what this app wrote');
+  }
+
+  /* ─── 7 · iOS — WHO MAY OPEN THE OS BROWSER ──────────────────────────────────────
+   * MauiProgram registers this handler for typeof(WebView), so the MINI-APP WebView
+   * rides it too. Third-party publisher code could therefore hand an arbitrary URL to
+   * Safari on a link tap, in any frame. The gate reads the SAME untrusted-content marker
+   * Android keys its privilege drops on, and it fails closed. */
+  {
+    const iosCode = stripCode(iosCs);
+    const decide = csSliceG(iosCode, 'public override void DecidePolicy(');
+    sliceOkG(decide, 'SecureNavigationDelegate.DecidePolicy');
+    const httpBranch = csSliceG(decide.body, 'if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||');
+    sliceOkG(httpBranch, 'the http(s) branch of DecidePolicy');
+    const hb = httpBranch.body;
+
+    /* ⚠ #46 loop C, MAJOR-4: this clause used to be `handoffAt > guardAt` — an ORDERING
+       test, not a CONTAINMENT test. The reviewer emptied the trust block and moved the
+       handoff to the statement AFTER it; the index order still held, `decide(Cancel)`
+       still sat below the closing brace, and the whole suite stayed green while security
+       MAJOR #6(a) was re-opened in full. The block is brace-matched now and the call must
+       fall INSIDE it. `hb` is stripCode'd, so the comments beside the handoff cannot move
+       an index. */
+    const guardAt = hb.indexOf('if (trustedHost && mainFrameOnly');
+    const ifOpen = guardAt >= 0 ? hb.indexOf('{', guardAt) : -1;
+    let dG = 0, ifClose = -1;
+    for (let k = ifOpen; k >= 0 && k < hb.length; k++) { if (hb[k] === '{') dG++; else if (hb[k] === '}' && --dG === 0) { ifClose = k; break; } }
+    /* ⚠ THE SINK MOVED (the sweep batch). Every external open in the tree now goes through
+       `SPIXI.Utils.openExternal`, so this clause reads THAT call as well as the raw
+       `OpenAsync(` it used to read. The containment property is unchanged: the hand-off
+       must sit inside the trust block, not merely after it.
+       ★★ r4 MAJOR-1, SECOND HALF. This clause counted `Utils.openExternal(` ALONE, and its
+       comment leaned on gate 16 — "a fixer cannot escape this clause by calling the browser
+       directly here". That was false. The reviewer LEFT the gate call inside the trust block
+       and added `var ob = Browser.Default; ob.OpenAsync(url);` after it. Gate 7 found its one
+       contained hand-off and passed; gate 16's type-name walk did not see the local either;
+       security MAJOR #6(a) re-opened with every line green.
+       So the two clauses no longer lean on each other. This one now matches the GATE CALL
+       OR ANY `OpenAsync(`, and both must fall inside the trust block. Gate 16 refuses a raw
+       sink anywhere in the shipped projects, this clause refuses one HERE even if the walk
+       above were ever narrowed, and neither claim depends on the other being true. */
+    const handoffs = [...hb.matchAll(/(?:SPIXI\.)?Utils\.openExternal\s*\(|\b(?:Try)?OpenAsync\s*\(/g)].map((m) => m.index);
+    const outside = handoffs.filter((i) => !(ifOpen >= 0 && ifClose > ifOpen && i > ifOpen && i < ifClose));
+    ok(guardAt >= 0 && ifClose > ifOpen && handoffs.length >= 1 && outside.length === 0,
+      '★★ gate 7: every external-open hand-off in this branch — ' + handoffs.length + ' of them, counting `Utils.openExternal(` AND any raw `OpenAsync(` — sits INSIDE the brace-matched body of `if (trustedHost && mainFrameOnly && …)`, not merely after it. Delete the `trustedHost &&`, or lift the handoff out of the block while leaving the block above it, and the OS-browser hand-off returns to mini-app content: security MAJOR #6(a) itself. Outside the block: ' + outside.length);
+    ok(/bool trustedHost = _owner != null && _owner\.isTrustedHost\(\);/.test(hb),
+      '★ gate 7: `trustedHost` is computed from the handler, and a NULL owner is untrusted — a delegate with no handler cannot hold a privilege');
+    ok(/navigationAction\.TargetFrame\?\.MainFrame == true/.test(hb) && /navigationAction\.SourceFrame\?\.MainFrame == true/.test(hb),
+      '★ gate 7: BOTH frames must be the main frame. TargetFrame alone is not enough — a SUBFRAME retargeting _top has a main-frame target, and that is the shape the SourceFrame clause exists to refuse. TargetFrame is null for a blank target, so `?.MainFrame == true` refuses a new window too');
+    /* the invariant that must survive the narrowing: remote content still never loads */
+    const cancels = (hb.match(/decide\(WKNavigationActionPolicy\.Cancel\);/g) || []).length;
+    const cancelAt = hb.lastIndexOf('decide(WKNavigationActionPolicy.Cancel);');
+    ok(cancels >= 1 && cancelAt > ifClose && ifClose > 0,
+      '★ gate 7 POSITION: the last `decide(WKNavigationActionPolicy.Cancel);` in this branch — ' + cancels + ' in total — sits AFTER the trust block closes, so no path can leave the block without having reached it. Move the Cancel inside the `if` and the untrusted path falls through with no decision at all. ⚠ #772: this clause used to claim the Cancel "runs on EVERY path", and POSITION CANNOT PROVE THAT. `decide` is a ONE-SHOT — the first delivery wins — so an earlier `decide(Allow)` above makes this call a no-op with the position unchanged. A reviewer added exactly one such line and the whole suite printed BASELINE OK. What forbids it is the VALUE clause below, not this one');
+    /* ★★ r6 MAJOR-2 — THE VALUE, not the position. The clause above counts and places a
+       Cancel; nothing in this suite read what `decide` is actually HANDED. `decide` is
+       `policy => { if (decided) return; decided = true; decisionHandler(policy); }`, so a
+       single `decide(WKNavigationActionPolicy.Allow);` anywhere above the trailing Cancel
+       delivers Allow to WebKit and every http(s) URL LOADS — in every WebView this handler
+       serves, the mini-app's included (MauiProgram registers it for `typeof(WebView)`).
+       That is the hole gate 7's own message called "bigger than the one the batch closed",
+       and it passed with 29/0.
+
+       ★ DERIVED FROM A WALK, and the exceptions are named rather than assumed (#798). Every
+       `WKNavigationActionPolicy.<value>` in the FILE is enumerated — not a list of the call
+       sites somebody remembered — and every one must be `.Cancel`. There is exactly ONE
+       site where a policy this file did not choose may still be delivered, and it is not an
+       exception to the rule but a DELEGATION: `base.DecidePolicy(webView, navigationAction,
+       decide)` hands the one-shot to MAUI, which allows the LOCAL `file:` navigation that
+       loads every shell. Nothing here may allow anything; the only Allow in the process
+       comes from the base implementation, for a document already on disk.
+       ⚠ THE COST, stated: a deliberate future in-app load ("let our own help page render
+       here") turns this RED, and that is the review it should be. Add the value here in the
+       same commit with the reason it is not remote content.
+       ⚠ WHAT IT CANNOT SEE: a policy value reached without naming the enum in this file — a
+       constant from another type, a cast from an int, a value handed in by a caller. The
+       `decisionHandler` clause is the belt for the nearest of those: the raw handler may be
+       invoked in exactly one place, inside the one-shot, so a second delivery path cannot be
+       assembled without changing text this pin reads. */
+    const policyValues = [...iosCode.matchAll(/WKNavigationActionPolicy\s*\.\s*(\w+)/g)].map((m) => m[1]);
+    const notCancel = policyValues.filter((v) => v !== 'Cancel');
+    const decideArgs = [...decide.body.matchAll(/\bdecide\s*\(([^;]*?)\)\s*;/g)].map((m) => m[1].trim());
+    const badArgs = decideArgs.filter((a) => a !== 'WKNavigationActionPolicy.Cancel');
+    const rawDeliveries = (decide.body.match(/\bdecisionHandler\s*\(/g) || []).length;
+    const delegated = (decide.body.match(/base\.DecidePolicy\(webView, navigationAction, decide\);/g) || []).length;
+    ok(policyValues.length >= 2 && notCancel.length === 0
+      && decideArgs.length >= 1 && badArgs.length === 0
+      && rawDeliveries === 1 && delegated === 1
+      && /Action<WKNavigationActionPolicy> decide = policy => \{ if \(decided\) return; decided = true; decisionHandler\(policy\); \};/.test(decide.body),
+      '★★ gate 7 THE POLICY VALUE — this file never allows a navigation: a walk over iOSWebViewHandler.cs finds ' + policyValues.length + ' `WKNavigationActionPolicy.<value>` and every one is `.Cancel` (' + (notCancel.join(', ') || 'none other') + '); every `decide(…)` call in DecidePolicy is handed `WKNavigationActionPolicy.Cancel` (' + (badArgs.join(', ') || 'none other') + '); the raw `decisionHandler(` is invoked ' + rawDeliveries + ' time(s), only inside the one-shot; and the ONE site that may deliver a policy this file did not choose is the ' + delegated + ' `base.DecidePolicy(webView, navigationAction, decide)` delegation — MAUI\'s own handling of the LOCAL file: load, without which no shell renders. Because `decide` is a one-shot, ONE added `decide(WKNavigationActionPolicy.Allow)` above the Cancel loads remote http(s) content in every WebView this handler serves, the mini-app\'s included');
+
+    const trust = csSliceG(iosCode, 'internal bool isTrustedHost()');
+    sliceOkG(trust, 'iOSWebViewHandler.isTrustedHost');
+    ok(/if \(element == null\) return false;/.test(trust.body)
+      && /catch \(Exception\)\s*\{\s*return false;\s*\}/.test(trust.body)
+      && (trust.body.match(/return true;/g) || []).length === 0,
+      '★★ gate 7 FAIL CLOSED: isTrustedHost returns false for a null virtual view and false from its catch, and it contains no bare `return true` at all — the only success path is the negated marker comparison. A host must be PROVEN one of ours to get a privilege');
+    ok(/return !string\.Equals\(element\.ClassId, "miniapp", StringComparison\.Ordinal\);/.test(trust.body),
+      '★ gate 7: the marker test is an ORDINAL equality against the literal "miniapp" — the cross-file contract pinned below');
+  }
+
+  /* ─── 8 · the untrusted-content marker is a THREE-FILE contract ──────────────────
+   * ⚠ A WALK, not a list of the three files I happened to know about (#798). Any file
+   * that mentions the marker at all is required to spell it the same way — that is what
+   * makes D2 (iOS read the marker nowhere) impossible to re-introduce quietly. */
+  {
+    const wanted = 'miniapp';
+    const hits = [];
+    const walkAll = (dir) => {
+      for (const ent of readdirSync(dir, { withFileTypes: true }).sort((x, y) => (x.name < y.name ? -1 : 1))) {
+        if (ent.isDirectory()) { if (!['obj', 'bin', 'node_modules', '.git', 'local-nuget'].includes(ent.name)) walkAll(join(dir, ent.name)); }
+        else if (/\.(cs|xaml)$/.test(ent.name)) {
+          /* stripCode, and it is load-bearing (#771): the iOS and Android files both
+             SPELL the marker inside the comment that explains why they read it, and the
+             assign-count clause below would then find three "assignments" in code that
+             has one. stripCode's `//` rule ignores a `://`, so XAML namespace URLs are
+             not touched. */
+          const t = stripCode(readFileSync(join(dir, ent.name), 'utf8'));
+          const rel = join(dir, ent.name).slice(root.length + 1).replace(/\\/g, '/');
+          for (const m of t.matchAll(/ClassId\s*=\s*"([^"]*)"/g)) hits.push({ rel, kind: 'assign', val: m[1] });
+          for (const m of t.matchAll(/ClassId,\s*"([^"]*)"/g)) hits.push({ rel, kind: 'compare', val: m[1] });
+          for (const m of t.matchAll(/ClassId\s*(?:==|!=)\s*"([^"]*)"/g)) hits.push({ rel, kind: 'compare', val: m[1] });
+        }
+      }
+    };
+    walkAll(join(root, 'Spixi'));
+    const files = [...new Set(hits.map((h) => h.rel))].sort();
+    const wrong = hits.filter((h) => h.val !== wanted);
+    ok(hits.length >= 3 && files.length >= 3 && wrong.length === 0,
+      '★★ gate 8 THE MARKER CONTRACT, walked out of the tree: every ClassId literal in Spixi/ is "' + wanted + '" — ' + hits.length + ' uses across ' + files.length + ' files (' + files.join(', ') + '). Android drops DomStorage and the console forward on it, iOS now gates the camera, the browser handoff and the storage jar on it. Change the spelling in ANY one of them and the contract splits silently, which is exactly how it split before. Wrong: ' + (wrong.map((w) => w.rel + '="' + w.val + '"').join(' · ') || 'none'));
+    const assigns = hits.filter((h) => h.kind === 'assign');
+    ok(assigns.length === 1 && /MiniAppPage\.xaml$/.test(assigns[0].rel),
+      '★ gate 8: the marker is ASSIGNED in exactly one place — ' + (assigns[0] ? assigns[0].rel : 'nowhere') + ' — and nowhere in C#. Publisher code cannot shed it and cannot forge it onto a shell, and that is the whole reason the marker can carry a privilege decision');
+  }
+
+  /* ─── 9 · iOS — WHO MAY OPEN THE CAMERA ─────────────────────────────────────────
+   * The delegate used to grant on ONE test, "is AVFoundation authorized", which is
+   * permanently true after the user's first QR scan. It read neither origin nor frame,
+   * so the mini-app WebView inherited a silent camera AND microphone grant. */
+  {
+    const iosCode = stripCode(iosCs);
+    const req = csSliceG(iosCode, 'public void RequestMediaCapturePermission(');
+    sliceOkG(req, 'MediaCaptureUIDelegate.RequestMediaCapturePermission');
+    const refusalAt = req.body.indexOf('string? refusal = captureRefusal(');
+    const firstGrant = req.body.indexOf('WKPermissionDecision.Grant');
+    ok(refusalAt >= 0 && (firstGrant < 0 || firstGrant > refusalAt),
+      '★★ gate 9: the REFUSAL runs first. Every `WKPermissionDecision.Grant` in the request handler lies below `captureRefusal`, so the grant is unreachable without a null refusal. Move the refusal below the first Grant and this pin is the only thing that notices');
+    ok(/decisionHandler\(WKPermissionDecision\.Deny\);\s*return;/.test(req.body),
+      '★ gate 9: a refusal denies and RETURNS — it does not fall through into the AVFoundation path');
+    ok(/var mediaType = AVFoundation\.AVAuthorizationMediaType\.Video;/.test(req.body)
+      && !/AVAuthorizationMediaType\.Audio/.test(req.body),
+      '★★ gate 9: the surviving path asks AVFoundation for VIDEO, and the file names Audio nowhere. The old mapping was `type == Microphone ? Audio : Video`, so WKMediaCaptureType.CameraAndMicrophone fell into the else and was checked against the VIDEO authorization — a camera-only OS permission granted the MICROPHONE as well');
+
+    const cr = csSliceG(iosCode, 'string? captureRefusal(');
+    sliceOkG(cr, 'MediaCaptureUIDelegate.captureRefusal');
+    const tests = [
+      [/if \(_owner == null \|\| !_owner\.isTrustedHost\(\)\) return "untrusted-host";/, 'the hosting page is one of ours (the same "miniapp" marker)'],
+      [/if \(type != WKMediaCaptureType\.Camera\) return "capture-type";/, 'the type is the camera — nothing in this app captures audio in a WebView, VoIP capture is native'],
+      [/if \(frame == null \|\| !frame\.MainFrame\) return "subframe";/, 'the request comes from the MAIN frame'],
+      [/if \(!isScanDocument\(webView\)\) return "not-the-scan-document";/, 'the document asking is the QR scan shell — chat renders untrusted peer content in its own WebView (#221) and must never reach a camera'],
+    ];
+    const missing = tests.filter(([re]) => !re.test(cr.body)).map(([, why]) => why);
+    ok(missing.length === 0,
+      '★★ gate 9: all four tests are present and each REFUSES — ' + tests.length + ' of them: ' + tests.map(([, w]) => w.split(' — ')[0]).join(' · ') + '. Missing: ' + (missing.join(' | ') || 'none'));
+    const returns = [...cr.body.matchAll(/return\s+([^;]+);/g)].map((m) => m[1].trim());
+    ok(returns.length >= 6 && returns.filter((r) => r === 'null').length === 1
+      && returns.filter((r) => r !== 'null').every((r) => /^"[a-z-]+"$/.test(r)),
+      '★★ gate 9 FAIL CLOSED, from a WALK over every return in captureRefusal: exactly ONE returns null (the grant), and every other one returns a fixed lower-case refusal word. Not a URL, not a host, not a path — the word is written into ixian.log and the page console. Returns: ' + returns.join(' · '));
+    ok(/catch \(Exception\)\s*\{\s*return "gate-error";\s*\}/.test(cr.body),
+      '★ gate 9: the catch REFUSES. A gate whose unknown case admits is not a gate');
+
+    const sd = csSliceG(iosCode, 'static bool isScanDocument(');
+    sliceOkG(sd, 'MediaCaptureUIDelegate.isScanDocument');
+    ok(/url\.StartsWith\("file:\/\/", StringComparison\.OrdinalIgnoreCase\)/.test(sd.body)
+      && /leaf\.Equals\("ll_scan\.html", StringComparison\.OrdinalIgnoreCase\)/.test(sd.body)
+      && !/url\.Contains\(/.test(sd.body)
+      && /catch \(Exception\)\s*\{\s*return false;\s*\}/.test(sd.body),
+      '★★ gate 9: the document test requires a file:// URL and compares the LEAF by equality — never Contains. A path that merely contains "scan.html" does not pass, the query and fragment are cut first, and the catch refuses');
+
+    /* the owner reaches the delegate through its constructor — a WALK over every
+       construction of it, because a site built without an owner denies everything and
+       would break the scanner rather than open a hole, but both sites must still hold */
+    const ctors = [...iosCode.matchAll(/new MediaCaptureUIDelegate\(([^)]*)\)/g)].map((m) => m[1].trim());
+    ok(ctors.length >= 2 && ctors.every((c) => c === 'this'),
+      '★ gate 9: every construction of MediaCaptureUIDelegate passes its owning handler — ' + ctors.length + ' sites (ConnectHandler and EnsureUiDelegate), args: ' + ctors.map((c) => '(' + c + ')').join(' '));
+  }
+
+  /* ─── 10 · iOS — NO LOG LINE IN THIS FILE CARRIES A URL ──────────────────────────
+   * The try around `base.DecidePolicy` wraps MAUI's Navigating event, so EVERY page's
+   * onNavigating runs inside it, and five bridge grammars carry a plaintext wallet
+   * password. DevPage renders ixian.log and offers it to the OS share sheet in one tap.
+   * ⚠ A WALK over every sink in the file, and over the locals those sinks log — not the
+   * two lines the row named. */
+  {
+    const iosCode = stripCode(iosCs);
+    const SINKS = ['IXICore.Meta.Logging.error(', 'IXICore.Meta.Logging.warn(', 'IXICore.Meta.Logging.info(', 'EvaluateJavaScript(', 'forward('];
+    /* A URL reaching a sink as a VALUE. `url.StartsWith(...)` is a boolean and is fine;
+       `+ url` and `verbLabel(url)` are not the same thing, so verbLabel calls are removed
+       before the test and what remains must be URL-free. */
+    const stripLabel = (t) => t.replace(/verbLabel\([^)]*\)/g, 'LABEL');
+    /* ⚠ #46 loop C, MINOR-4: the first version required `url` to be followed by one of
+       `)`, `,`, `+`, `}`, `;` or end-of-string, so a MEMBER ACCESS was invisible — the
+       reviewer logged `url.Substring(0, 40)` inside DecidePolicy and nothing failed. Forty
+       characters of `ixian:proceed:<password>` is the first forty characters of the
+       password grammar this gate exists for.
+       The rule is inverted now: `url` in any form is a carrier UNLESS it is one of the
+       members that cannot yield a URL — a boolean test or a scalar. Those are named, so a
+       member that returns TEXT (Substring, ToString, Replace, Trim, anything new) is a
+       carrier by default, which is the fail-closed direction. */
+    const URL_SAFE_MEMBERS = 'StartsWith|Equals|EndsWith|Contains|IndexOf|IndexOfAny|LastIndexOf|Length';
+    const URL_CARRIER = new RegExp('(^|[^A-Za-z0-9_.])url\\s*(?!\\.(?:' + URL_SAFE_MEMBERS + ')\\b)(?![A-Za-z0-9_])');
+    const carriesUrl = (t) => /\bAbsoluteString\b|\bexternal\b/.test(t) || URL_CARRIER.test(t);
+    const sites = [];
+    for (const sink of SINKS) {
+      for (let at = iosCode.indexOf(sink); at >= 0; at = iosCode.indexOf(sink, at + 1)) {
+        sites.push({ sink, args: argsOf(iosCode, at + sink.length - 1) });
+      }
+    }
+    /* one level of local resolution: a sink whose whole argument is an identifier is
+       tested against that identifier's own definition, so the #311/#312 diagnostics —
+       which log a local built from a boolean test on `url` — are examined and not
+       waved through */
+    const resolveLocal = (name) => {
+      const m = new RegExp('var\\s+' + name + '\\s*=\\s*([^;]+);').exec(iosCode);
+      return m ? m[1] : '';
+    };
+    const leaks = [];
+    for (const s of sites) {
+      let text = stripLabel(s.args);
+      for (const idm of text.matchAll(/(^|[,\s(])([a-z][A-Za-z0-9_]*)\s*(?=,|\)|$)/g)) {
+        const def = resolveLocal(idm[2]);
+        if (def) text += ' ' + stripLabel(def);
+      }
+      if (carriesUrl(text)) leaks.push(s.sink + '…' + s.args.slice(0, 70));
+    }
+    ok(sites.length >= 12 && leaks.length === 0,
+      '★★ gate 10 THE WALK: ' + sites.length + ' logging, eval and [cam-perm] forward sites in iOSWebViewHandler.cs, and not one of them carries a URL as a VALUE — a bare `url`, an `external`, or an `AbsoluteString`. The two the row named are wrapped in verbLabel; the rest were already fixed vocabulary and are asserted here rather than assumed. Leaking: ' + (leaks.join(' | ') || 'none'));
+
+    const vl = csSliceG(iosCode, 'internal static string verbLabel(string? url)');
+    sliceOkG(vl, 'SecureNavigationDelegate.verbLabel');
+    ok(/int sep = url\.IndexOf\(':', colon \+ 1\);/.test(vl.body) && /url\.Substring\(0, sep \+ 1\)/.test(vl.body),
+      '★★ gate 10: for an `ixian` scheme verbLabel cuts at the SECOND colon and keeps it. All five password grammars carry that colon — ixian:unlock: · ixian:create:<nick>: · ixian:restore: · ixian:proceed: · ixian:changepass: — so the payload, and on create the nickname too, is gone before the string is a label');
+    ok(/if \(name\.Length > 48\) return "<unrecognized>";/.test(vl.body)
+      && /if \(c != ':' && !isAsciiAlnum\(c\)\) return "<unrecognized>";/.test(vl.body),
+      '★★ gate 10: verbLabel bounds BOTH the length and the alphabet. The bound is what closes the shape with no second colon, where the whole URL would otherwise become the "name"; the ASCII alphabet is what stops `char.IsLetterOrDigit`, which admits every Unicode letter, from being enough');
+    ok(/catch \(Exception\)\s*\{\s*return "<unrecognized>";/.test(vl.body),
+      '★ gate 10: verbLabel refuses on throw — a label must never break the line it labels, and it must never fall back to the input');
+    ok(/static bool isAsciiAlnum\(char c\)/.test(iosCode) && !/char\.IsLetterOrDigit/.test(iosCode),
+      '★ gate 10: the alphabet is a hand-written ASCII test and `char.IsLetterOrDigit` appears nowhere in the file');
+  }
+
+  /* ─── 11 · iOS — THE CONTENT-RULE COMPILE NO LONGER FAILS OPEN ───────────────────
+   * The old callback acted only when `error == null`. On any failure NO rule list was
+   * attached, silently — and the rule list is the ONLY subresource gate iOS has, because
+   * DecidePolicy sees navigations and not the image loads that carry the media leak. */
+  {
+    const iosCode = stripCode(iosCs);
+    const comp = csSliceG(iosCode, 'static void compileContentRules(');
+    sliceOkG(comp, 'iOSWebViewHandler.compileContentRules');
+    ok(/if \(error == null && compiledRuleList != null\)/.test(comp.body),
+      '★ gate 11: success requires BOTH a null error and a non-null rule list — a compiler that returns neither used to satisfy the old `error == null` test and attach nothing');
+    ok(/compileContentRules\(platformView, "ContentBlockingRulesUnanchored", unanchoredContentRules, true\);/.test(comp.body),
+      '★★ gate 11: a failed compile falls back to the previous UNANCHORED list. Anchoring is the only change in the first list, so if some WebKit version rejects "^" or "$" the app loses the substring fix and NOT all of its blocking. Delete the recursive call and a rejected list silently disables every subresource gate iOS has');
+    const errs = (comp.body.match(/Logging\.error\(/g) || []).length;
+    ok(errs >= 3,
+      '★ gate 11: every rung of the ladder says which one is live — ' + errs + ' error lines, so the state is readable from ixian.log instead of being invisible. The silent failure is what made this ladder worth writing');
+    const cpv = csSliceG(iosCode, 'protected override WKWebView CreatePlatformView()');
+    sliceOkG(cpv, 'iOSWebViewHandler.CreatePlatformView');
+    ok(/compileContentRules\(platformView, "ContentBlockingRules", anchoredContentRules, false\);/.test(cpv.body),
+      '★ gate 11: CreatePlatformView attaches the ANCHORED list first');
+  }
+
+  /* ─── 12 · iOS — THE MINI-APP DOES NOT SHARE THE SHELLS' STORAGE JAR ─────────────
+   * The shells write 27 spixi.* keys; nine families carry a peer wallet address in the
+   * key NAME and spixi.draft.<address> holds the user's own unsent plaintext. MiniAppPage
+   * loads third-party code from file:// into a MAUI WebView, and on iOS that sat in the
+   * same jar (security MAJOR #4). Android already refuses this. */
+  {
+    const iosCode = stripCode(iosCs);
+    const cpv = csSliceG(iosCode, 'protected override WKWebView CreatePlatformView()');
+    ok(/WKWebView platformView = createIsolatedMiniAppView\(\) \?\? base\.CreatePlatformView\(\);/.test(cpv.body),
+      '★★ gate 12: the isolated view is on the LEFT of the `??`. Swap the operands and `base.CreatePlatformView()` — which is never null — makes the mini-app path dead code that still reads like a fix');
+    const iso = csSliceG(iosCode, 'WKWebView? createIsolatedMiniAppView()');
+    sliceOkG(iso, 'iOSWebViewHandler.createIsolatedMiniAppView');
+    ok(/configuration\.WebsiteDataStore = WKWebsiteDataStore\.NonPersistentDataStore;/.test(iso.body),
+      '★★ gate 12: the mini-app store is NON-PERSISTENT. Change it to DefaultDataStore and the whole fix is a no-op with the file still compiling — the mini-app SDK gives apps their own C#-side persistence (MiniAppStorage), so an in-memory browser store costs them nothing across sessions and keeps localStorage working inside one');
+    ok(/if \(!isMiniAppHost\(\)\) return null;/.test(iso.body)
+      && /catch \(Exception ex\)/.test(iso.body) && /return null;/.test(iso.body) && !/throw;/.test(iso.body),
+      '★★ gate 12 FAIL SAFE: only a positively identified mini-app takes this path, and every failure returns null so the caller uses MAUI\'s own WebView. This change can never delete a shell\'s storage, and a MAUI version change degrades instead of taking the mini-app page down');
+    ok(/Logging\.error\("Mini-app storage isolation failed/.test(iso.body),
+      '★ gate 12: the failure is LOUD. The fallback shares the shells\' jar with publisher code, so a silent failure would restore the exposure this method removes');
+
+    const mah = csSliceG(iosCode, 'internal bool isMiniAppHost()');
+    sliceOkG(mah, 'iOSWebViewHandler.isMiniAppHost');
+    ok(/return string\.Equals\(element\.ClassId, "miniapp", StringComparison\.Ordinal\);/.test(mah.body),
+      '★★ gate 12: isMiniAppHost is a POSITIVE match with no leading `!`. Invert it and EVERY shell gets an in-memory store and loses every spixi.* key at the next launch — this is the one guard in the batch whose fail-closed direction points at destroying user data, so the SUBJECT is inverted and the rule is not');
+    ok(/if \(element == null\) return false;/.test(mah.body) && /catch \(Exception\)\s*\{\s*return false;\s*\}/.test(mah.body)
+      && !/isTrustedHost\(\)/.test(mah.body),
+      '★★ gate 12: isMiniAppHost and isTrustedHost are SEPARATE methods and neither is defined as the other\'s negation. They protect opposite things, so each must fail to false: one hands out a privilege, the other takes storage away. Rewrite this one as `return !isTrustedHost();` and a WebView with no readable virtual view silently flips to "isolate everything"');
+    /* the copy-semantics trap: a WKWebView copies its configuration at construction, so
+       an assignment through platformView.Configuration writes into a throwaway. A WALK,
+       because that line compiles, reads as a fix and does nothing. */
+    const badAssign = [...iosCode.matchAll(/\w+\.Configuration\.WebsiteDataStore\s*=/g)].map((m) => m[0]);
+    ok(badAssign.length === 0,
+      '★★ gate 12 THE COPY-SEMANTICS TRAP, as a sweep: nothing in this file assigns a WebsiteDataStore through `.Configuration`. WKWebView.configuration is a `copy` property, so such a line writes into a copy and has no effect — while looking exactly like the fix. The store must be chosen before the WKWebView exists. Found: ' + (badAssign.join(' · ') || 'none'));
+  }
+
+  /* ─── 13 · the delegates are STRONG-ROOTED (security MAJOR #7) ───────────────────
+   * ⚠ THIS PIN REPLACES ONE THIS BATCH TURNED RED, AND THE PROPERTY IT PROTECTS IS
+   * UNCHANGED. The old clause asserted the literal `_uiDelegate = new
+   * MediaCaptureUIDelegate();`, and the delegate now takes its owning handler. What the
+   * pin is FOR is that the delegate is held by a field: WKWebView keeps only a weak
+   * ObjC reference, so an unrooted instance is collected and iOS silently loses the
+   * camera gate AND the http(s) block. Written as a property, so an argument change
+   * cannot make it red again, and the mutation it exists to catch — the field left
+   * unassigned, or a fresh instance handed straight to the WebView — still kills it. */
+  {
+    const iosCode = stripCode(iosCs);
+    const conn = csSliceG(iosCode, 'protected override void ConnectHandler(WKWebView platformView)');
+    sliceOkG(conn, 'iOSWebViewHandler.ConnectHandler');
+    for (const [field, type, prop] of [['_navigationDelegate', 'SecureNavigationDelegate', 'NavigationDelegate'], ['_uiDelegate', 'MediaCaptureUIDelegate', 'UIDelegate']]) {
+      const declared = new RegExp(type + '\\? ' + field + ';').test(iosCode);
+      const constructed = new RegExp(field + ' = new ' + type + '\\(').test(conn.body);
+      const assigned = new RegExp('platformView\\.' + prop + ' = ' + field + ';').test(conn.body);
+      ok(declared && constructed && assigned,
+        '★★ gate 13 (#309, security MAJOR #7): ' + field + ' is DECLARED as a field, CONSTRUCTED into that field, and the FIELD is what is handed to platformView.' + prop + '. declared=' + declared + ' constructed=' + constructed + ' assigned=' + assigned);
+    }
+    const unrooted = [...iosCode.matchAll(/\.(?:NavigationDelegate|UIDelegate)\s*=\s*new\s+/g)].map((m) => m[0]);
+    ok(unrooted.length === 0,
+      '★★ gate 13 THE MUTATION THIS PIN EXISTS FOR, as a sweep: nowhere in the file is a FRESH delegate handed straight to a WebView. `platformView.UIDelegate = new MediaCaptureUIDelegate(this);` compiles, works for a few seconds and then the garbage collector takes the only managed reference — which is how WebKit\'s own camera prompt came back, and how the http/https block would disappear. Found: ' + (unrooted.join(' · ') || 'none'));
+    ok(/DisconnectHandler\(WKWebView platformView\)[\s\S]{0,400}?_navigationDelegate = null;[\s\S]{0,200}?_uiDelegate = null;/.test(iosCode),
+      '★ gate 13: the roots release with the WebView they served');
+    ok(/webView\.UIDelegate = _owner\.EnsureUiDelegate\(\);/.test(iosCode) && /internal IWKUIDelegate EnsureUiDelegate\(\)/.test(iosCode),
+      '★ gate 13: the #312 heal re-asserts the delegate THROUGH the handler root — `EnsureUiDelegate()` — and never an unrooted fresh instance, which is what would otherwise re-open MAJOR #7 on every re-assert');
+  }
+
+  /* ─── 14 · THE RESTORE ZIP-SLIP FENCE (H-1) ──────────────────────────────────────
+   * ZipFile.ExtractToDirectory blocks a "/" traversal, but on Android, iOS and
+   * MacCatalyst a "\" is an ordinary filename character — so a crafted entry named
+   * "..\wallet.ixi\x" survives extraction as ONE legal file whose NAME contains the
+   * traversal, and the #565 rehome loop turned that name back into a real path. The
+   * attacker needs the archive password and the SPIXIACCB1 header, nothing else, because
+   * the loop runs BEFORE verifyWallet.
+   * ⚠ WRITTEN AS A WALK OVER THE LOOP BODY, not as the two calls the row named: every
+   * filesystem op inside the loop must be dominated by both halves of the fence, so a
+   * third op added later is covered. */
+  {
+    const lpCode = stripCode(rdS('Spixi/Pages/Launch/LaunchPage.xaml.cs'));
+    const restore = csSliceG(lpCode, 'private RestoreOutcome restoreAccountFile(string source_path, string pass)');
+    sliceOkG(restore, 'LaunchPage.restoreAccountFile');
+    const loop = csSliceG(restore.body, 'foreach (var strayFile in Directory.EnumerateFiles(tmpDirectory))');
+    sliceOkG(loop, 'the #565 stray-rehome loop');
+
+    /* ⚠ #46 loop C, MINOR-3: the op set used to be SEVEN SPELLINGS. The docblock above
+       claims "every filesystem op", and the reviewer put `File.Create(Path.Combine(
+       tmpDirectory, strayRelative)).Dispose();` ABOVE the fence — the zip-slip primitive
+       itself — and the suite stayed green, because File.Create was not one of the seven.
+       So the set is DERIVED (#798): any member call on File or Directory, plus a raw
+       FileStream construction, is an operation. The exemption goes the other way — a
+       small list of members that only READ, each of which cannot create, move, delete or
+       write. A member nobody anticipated is an operation by default. */
+    const FS_READONLY = /^(?:Directory\.(?:EnumerateFiles|EnumerateDirectories|EnumerateFileSystemEntries|GetFiles|GetDirectories|Exists)|File\.(?:Exists|ReadAllBytes|ReadAllText|ReadAllLines|OpenRead|GetAttributes|GetLastWriteTimeUtc))$/;
+    const fsSites = [];
+    for (const m of loop.body.matchAll(/\b((?:File|Directory)\.[A-Za-z]+)\s*\(/g)) {
+      if (!FS_READONLY.test(m[1])) fsSites.push({ name: m[1], at: m.index });
+    }
+    for (const m of loop.body.matchAll(/\bnew\s+FileStream\s*\(/g)) fsSites.push({ name: 'new FileStream', at: m.index });
+    const fsOps = fsSites.map((o) => o.name);
+    const iPlain = loop.body.indexOf('isPlainRelativeEntry(');
+    const iFence = loop.body.indexOf('StartsWith(fenceRoot');
+    const firstOp = fsSites.length ? Math.min(...fsSites.map((o) => o.at)) : -1;
+    ok(fsSites.length >= 2 && iPlain >= 0 && iFence >= 0 && firstOp >= 0 && iPlain < firstOp && iFence < firstOp,
+      '★★ gate 14 THE WALK: every filesystem operation inside the rehome loop — ' + fsOps.join(', ') + ' — is dominated in the same iteration by BOTH halves of the fence (isPlainRelativeEntry, then the fenceRoot containment test). The operations are DERIVED, not listed: every File.* / Directory.* member call and every `new FileStream`, minus a named read-only set, so an op nobody anticipated is fenced by default. A third op added below the fence inherits it; one added above it fails this pin');
+    ok(/Directory\.CreateDirectory\(rehomedParent\);/.test(loop.body) && !/Directory\.CreateDirectory\(Path\.GetDirectoryName\(/.test(loop.body),
+      '★★ gate 14: CreateDirectory runs on the VALIDATED parent, never on Path.GetDirectoryName of an unvalidated combine. That call is the sharper half of the primitive — it cannot throw on an existing target, so a crafted entry would otherwise create a DIRECTORY at <spixiUserFolder>/wallet.ixi and break the restore\'s own File.Move and every future account create or restore, permanently');
+    ok(/fenceRoot \+= Path\.DirectorySeparatorChar;/.test(restore.body),
+      '★★ gate 14: fenceRoot ends with the separator before its first use. Delete that and the prefix test compares a STRING, so a sibling folder named "tmp_zip_evil" passes a "tmp_zip" test — the fence has to compare a DIRECTORY');
+    const iLoop = restore.body.indexOf('foreach (var strayFile in Directory.EnumerateFiles(tmpDirectory))');
+    const iVerify = restore.body.indexOf('ws.verifyWallet(');
+    ok(iLoop >= 0 && iVerify > iLoop,
+      '★ gate 14: the loop still runs BEFORE verifyWallet, which is why the fence is what makes the ordering survivable. This pin records the premise rather than the fix: move verifyWallet above the loop and the fence is no longer the only thing between a crafted archive and the filesystem, but this pin must then be re-argued, not deleted');
+    ok(/Logging\.warn\("restoreAccountFile: " \+ refusedStrays \+ /.test(restore.body)
+      && !/refusedStrays[\s\S]{0,200}?strayName/.test(restore.body.slice(restore.body.indexOf('if (refusedStrays > 0)'))),
+      '★ gate 14: a refusal logs a COUNT. The entry name comes out of the archive, and ixian.log is a file the user shares from Account → Developer');
+
+    const plain = csSliceG(lpCode, 'private static bool isPlainRelativeEntry(string relative)');
+    sliceOkG(plain, 'LaunchPage.isPlainRelativeEntry');
+    const preturns = [...plain.body.matchAll(/return\s+(true|false);/g)].map((m) => m[1]);
+    ok(preturns.length >= 4 && preturns[preturns.length - 1] === 'true' && preturns.slice(0, -1).every((r) => r === 'false'),
+      '★★ gate 14 WHITELIST, from a walk over every return: the ONLY `return true` in isPlainRelativeEntry is its last statement, and every earlier return refuses. It whitelists a segment SHAPE — it never looks for a known-bad pattern — so an escape shape nobody anticipated cannot slip past. Returns in order: ' + preturns.join(' · '));
+    ok(/segment == "\.\."/.test(plain.body) && /segment == "\."/.test(plain.body) && /segment\.Length == 0/.test(plain.body)
+      && /Path\.IsPathRooted\(relative\)/.test(plain.body) && /relative\.IndexOf\(':'\) >= 0/.test(plain.body),
+      '★★ gate 14: the refused shapes are ".." (walks out), "." (a no-op segment that hides a ".."), an empty segment (a doubled separator), a ROOTED name — Path.Combine DISCARDS its first argument the moment the second is rooted, which is an escape needing no ".." at all — and a ":" drive prefix');
+    ok(/relative\.Split\(Path\.DirectorySeparatorChar, Path\.AltDirectorySeparatorChar\)/.test(plain.body),
+      '★ gate 14: both separators are split on — the platform one, and "/" for a name that survived extraction with a forward slash still in it');
+  }
+
+  /* ─── 15 · THE THREE PASSWORD VERBS ARE FENCED (A-1) ─────────────────────────────
+   * onNavigating has no outer try, so a throw from these branches unwinds into the iOS
+   * navigation delegate's tail catch, which logged the WHOLE navigation URL — and on
+   * these three verbs that URL is `ixian:create:<nick>:<password>`,
+   * `ixian:restore:<password>` or `ixian:proceed:<password>`.
+   * ⚠ A WALK over the handler for any call to a password-taking handler, so a fifth
+   * verb added later is caught too. */
+  {
+    const lpCode = stripCode(rdS('Spixi/Pages/Launch/LaunchPage.xaml.cs'));
+    const nav = csSliceG(lpCode, 'void onNavigating(object sender, WebNavigatingEventArgs e)');
+    sliceOkG(nav, 'LaunchPage.onNavigating');
+    /* The password-taking handlers are DERIVED: every method on this page that takes a
+       parameter whose name is `pass` or `password`. That is the set whose failure can
+       carry a secret, and it is read out of the file rather than listed. */
+    const pwHandlers = [...lpCode.matchAll(/(?:private|public|internal|protected)[^\n(){}]*?\b([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*\bstring\s+(?:pass|password)\b[^)]*\)/g)]
+      .map((m) => m[1]).filter((n) => !/^(runFencedVerb|logVerbName)$/.test(n));
+    ok(pwHandlers.length >= 3,
+      'gate 15 premise (derived, not listed): LaunchPage declares ' + pwHandlers.length + ' handlers that take a password — ' + [...new Set(pwHandlers)].join(', ') + '. Every CALL to one of them from onNavigating must be fenced');
+    /* ⚠ #46 loop C, MAJOR-5: this walk used to deem a call fenced when the literal
+       `runFencedVerb(` appeared ANYWHERE IN THE PRECEDING 400 CHARACTERS. That is a
+       distance window, not a condition (#771), and the reviewer defeated it with two
+       lines — `runFencedVerb("ixian:proceed:", () => { }); proceed(password);` — leaving a
+       password verb outside every fence with the suite green.
+       The fence is PARSED now, the way gate 28's outward climb parses its guard: each
+       `runFencedVerb(` call's argument list is balanced out, the lambda arrow inside it is
+       located, and a call counts as fenced only when its index falls inside that argument
+       list AND after the arrow. A call in the statement after the fence is outside it. */
+    const maskNav = maskCsG(nav.body);
+    const fences = [];
+    for (const m of nav.body.matchAll(/runFencedVerb\s*\(/g)) {
+      const open = maskNav.indexOf('(', m.index);
+      let d = 0, close = -1;
+      for (let k = open; k >= 0 && k < maskNav.length; k++) {
+        if (maskNav[k] === '(') d++;
+        else if (maskNav[k] === ')' && --d === 0) { close = k; break; }
+      }
+      if (close < 0) continue;
+      const arrow = nav.body.indexOf('=>', open);
+      fences.push({ open, close, arrow: arrow >= 0 && arrow < close ? arrow : -1 });
+    }
+    const unfenced = [];
+    for (const h of new Set(pwHandlers)) {
+      for (const m of nav.body.matchAll(new RegExp('(?<![A-Za-z0-9_.])' + h + '\\s*\\(', 'g'))) {
+        const inside = fences.some((f) => f.arrow >= 0 && m.index > f.arrow && m.index < f.close);
+        if (!inside) unfenced.push(h + '@' + m.index);
+      }
+    }
+    ok(fences.length >= 3 && unfenced.length === 0,
+      '★★ gate 15 THE WALK: every call from onNavigating to a password-taking handler sits INSIDE the balanced argument list of a runFencedVerb(…, () => …) call, after its arrow — ' + fences.length + ' fences parsed, not a lookback window. Unfenced: ' + (unfenced.join(' · ') || 'none'));
+    for (const verb of ['ixian:create:', 'ixian:restore:', 'ixian:proceed:']) {
+      ok(nav.body.includes('runFencedVerb("' + verb + '"'),
+        '★ gate 15: ' + verb + ' is fenced by name, so the catch can say WHICH verb failed without saying anything else about it');
+    }
+
+    const fence = csSliceG(lpCode, 'private void runFencedVerb(string verb_name, Action branch)');
+    sliceOkG(fence, 'LaunchPage.runFencedVerb');
+    const cat = csSliceG(fence.body, 'catch (Exception ex)');
+    sliceOkG(cat, 'runFencedVerb\'s catch');
+    ok(/ex\.GetType\(\)\.Name/.test(cat.body)
+      && !/ex\.Message|ex\.ToString|ex\.StackTrace|current_url|\bverb\b|\bpass\b|\bpassword\b/.test(cat.body),
+      '★★ gate 15: the catch logs the verb NAME and the exception TYPE, and nothing else. Never ex.Message — an exception message repeats the value that caused it, and on this page that value is the wallet password. Never the URL. This is the logVerbName rule, applied to the fence');
+    const inner = csSliceG(cat.body, 'try');
+    ok(/Utils\.sendUiCommand\(this, "removeLoadingOverlay"\);/.test(cat.body)
+      && inner.a >= 0 && /removeLoadingOverlay/.test(inner.body),
+      '★★ gate 15: the catch RELEASES the shell, and the release is itself inside a try. The create and restore views show an indefinite morph that only removeLoadingOverlay re-enables (#334 L1), so a fence that swallowed the throw and left the form dead would trade a leak for a wedge — and a release that threw inside the catch would leak again');
+  }
+
+  /* ─── 16 · THE ONE EXTERNAL-OPEN SINK (security MAJOR #3 · A-7 / F3) ─────────────
+   * The chat confirm modal is a SHELL surface, and its body is the exact string the shell
+   * puts in the verb. C# then ran WebUtility.HtmlDecode AFTER the approval, so the user
+   * approved one string and the app opened another: "https://paypal.com&commat;evil.example.com/login"
+   * reads as paypal.com and resolves to evil.example.com. The property the fix must hold is
+   * THE DESTINATION HOST IS THE HOST THE USER READ.
+   *
+   * ★★ THIS GATE WAS REBUILT BECAUSE IT WAS DEFEATED THREE ROUNDS RUNNING, and the third
+   * time it was defeated the ruling was to change the CODE, not the pin (#46: when a
+   * reviewer finds the same class of defect twice, stop patching and question the design).
+   *   · r2 MAJOR-1 — the clause was a 400-character window. A neighbouring `return;`
+   *     satisfied it while the guard did nothing.
+   *   · r3 MAJOR-1 — the clause was rebuilt to assert POSITION. The reviewer moved the
+   *     hand-off INSIDE the guard's own body; every structural part still passed.
+   *   · r3 MAJOR-2 — a `#if WINDOWS` around the guard reads as live code, because
+   *     `stripCode` removes comments and not directives. Both subject files already carry
+   *     `#if` blocks, so the refusal would have died on Android and iOS with the suite green.
+   *   · r3 MAJOR-3 — the walk found dispatch branches with `lastIndexOf('if (', …)`, one
+   *     space, so a third sink written `if(` was invisible.
+   *   · r4 MAJOR-1 — the rebuilt walk read a TYPE NAME. `Browser.Default` is an
+   *     `IBrowser`, so a local variable, a private helper and a `using static` each called
+   *     the sink with no `Browser` beside it. An unguarded sink one line above the gate
+   *     call, in the peer-reachable chat branch and in the iOS mini-app branch, passed the
+   *     whole suite. Both security MAJORs were re-opened green.
+   * Every one of those is a way to hide something from a text parser, and the rule was
+   * WRITTEN TWICE, so the pin had to parse control flow in duplicated code to prove it.
+   *
+   * The duplication is gone. `Spixi/Utils/Utils.cs → Utils.openExternal` holds the rule
+   * once, and it is the ONLY method in the shipped C# projects that may call a browser or
+   * launcher sink. The property is now a property of the CALL GRAPH, and a walk with
+   * exactly one permitted home cannot be beaten by formatting, by a preprocessor directive,
+   * or by where a `return` sits. The walk reads the METHOD NAME, so it cannot be beaten by
+   * how the receiver was obtained either. A new sink in the source set below fails this
+   * gate by existing. */
+  {
+    /* ── THE SOURCE SET. Every SHIPPED C# project, not the app alone. ──────────────
+       ⚠ r4 NIT-1: this walk stopped at `Spixi/`, and `SPIXI.sln` builds more than that. A
+       reviewer put a sink in `Spixi-PushService/NotificationService.cs` and the gate stayed
+       green. That project is the shipped iOS notification-service extension, so it is
+       walked here.
+       ⚠ r5 MINOR-2: `Ixian-Core` used to be named as OUTSIDE, with the reason "it is absent
+       from many checkouts, so a walk that needed it would go red on a clean clone rather
+       than on a defect". That reason was FALSE — this same file already guards a sibling
+       directory with `existsSync` twice (the M1 hold-out gate, and the `Spixi-PushService`
+       loop right here), and a missing sibling simply contributes no files. `IXICore` is a
+       SHARED project whose sources compile INTO the Spixi assembly, so a sink there SHIPS.
+       It is walked, when it is present. A clean clone without the sibling walks 140 files
+       instead of 297 and the pin says which.
+       NAMED AND OUTSIDE, with the reason, because a boundary a pin does not state reads as
+       coverage it does not have (#772):
+         · `Spixi-UnitTests` — test code, and it opens nothing for a user. */
+    const cs16 = [];
+    const walk16 = (dir) => {
+      for (const ent of readdirSync(dir, { withFileTypes: true }).sort((x, y) => (x.name < y.name ? -1 : 1))) {
+        if (ent.isDirectory()) { if (!['obj', 'bin', 'node_modules', '.git', 'local-nuget'].includes(ent.name)) walk16(join(dir, ent.name)); }
+        else if (ent.name.endsWith('.cs')) cs16.push(join(dir, ent.name));
+      }
+    };
+    for (const projDir of [join(root, 'Spixi'), join(root, 'Spixi-PushService'), join(root, '..', 'Ixian-Core')]) {
+      if (existsSync(projDir)) walk16(projDir);
+    }
+    /* one read + one strip per file, memoised: four separate walks below read the same set
+       and the set is now 297 files. `rel16` has to survive the sibling, whose path leaves
+       the repo root, so it is computed rather than sliced. */
+    const rd16 = new Map();
+    const read16 = (f) => { if (!rd16.has(f)) rd16.set(f, stripCode(readFileSync(f, 'utf8'))); return rd16.get(f); };
+    const rel16 = (f) => {
+      const p = f.replace(/\\/g, '/');
+      const r = root.replace(/\\/g, '/').replace(/\/$/, '');
+      return p.startsWith(r + '/') ? p.slice(r.length + 1) : '../' + p.slice(p.lastIndexOf('/Ixian-Core/') + 1);
+    };
+
+    /* ── THE WALK. One sink METHOD, one permitted home. ───────────────────────────
+       ★★ r4 MAJOR-1. This pattern used to require the TYPE NAME:
+             /(?:Browser|Launcher)\s*\.\s*(?:Default\s*\.\s*)?(?:Try)?OpenAsync/
+       It proved "no file contains the text Browser....OpenAsync". It did NOT prove "no file
+       calls the browser". `Browser.Default` is an `IBrowser`, and three ORDINARY spellings
+       call the sink with no type name beside it. All three passed:
+         · `var ob = Browser.Default; ob.OpenAsync(u);` — `Default` exists for exactly this;
+         · a same-file private helper holding those two lines, called from the branch;
+         · `using static …Browser;` then `Default.OpenAsync(u);` — a `using`. The alias
+           clause below still cannot see it, because that clause requires an `=`; the
+           `using static` clause beside it is what closes this one.
+       The reviewer put an unguarded sink ONE LINE ABOVE the gate call in the peer-reachable
+       chat branch, and again in the iOS mini-app branch. The whole suite printed BASELINE OK
+       and exited 0 both times, with security MAJOR #3 and MAJOR #6(a) each re-opened in full.
+       This is r3 MAJOR-3 in a new costume. That walk read a KEYWORD; this one read a TYPE
+       NAME. Both are a text proxy for the thing that matters, and a proxy loses the next
+       spelling. So the walk matches the METHOD — every `OpenAsync(` and `TryOpenAsync(` in
+       the source set, however the receiver was obtained — and the two clauses beside it
+       refuse the two ways to HOLD the interface without writing `OpenAsync` at all.
+       ⚠ MEASURED, and it is why the widening costs nothing:
+       `grep -rnE "(Try)?OpenAsync\s*\("` over the source set returns EXACTLY ONE line
+       today, and it is the gate's own hand-off.
+       ⚠ IT IS DELIBERATELY BROADER THAN THE BROWSER. `DbConnection.OpenAsync` and several
+       other BCL types carry the name, so a future non-browser `OpenAsync` turns this RED.
+       That is the fail-closed direction and it is not a defect. Do not narrow the pattern
+       back towards a type name: name the exemption here in the SAME commit, and say why
+       that call is not an external open.
+       ★★ r5 MAJOR-1, AND IT IS WHY THIS CLAUSE IS NO LONGER THE LOAD-BEARING ONE.
+       A METHOD NAME is a narrower proxy than a type name and it is still a proxy: this
+       clause proves "nothing calls `OpenAsync`", not "nothing opens a URL in the OS". Two
+       ORDINARY spellings walked past it with the whole suite green and both security MAJORs
+       re-opened:
+         · `UIApplication.SharedApplication.OpenUrl(new NSUrl(url), …)` in the iOS http
+           branch — MAJOR #6(a);
+         · `SFileOperations.open(link)` in the chat branch — which on Windows is
+           `Process.Start(UseShellExecute = true)`, i.e. the browser — MAJOR #3. That is not
+           an invented API: `SingleChatPage` ALREADY CALLS `SFileOperations.open` twice, in
+           the same file.
+       Three rounds, three spellings: r3 read the keyword `if (`, r4 read the type name
+       `Browser`, r5 read the method name `OpenAsync`. Widening the pattern a fourth time
+       would lose the fifth spelling, and "no other external open exists anywhere" cannot be
+       proven from text at all. So the guarantee was moved to a POSITIVE, BRANCH-SCOPED
+       property — "THE BRANCH CALLS ONLY THE GATE", below — which enumerates every
+       invocation inside each sink branch and refuses anything that is not on a named
+       allow-list. A spelling nobody has thought of fails THERE by being a call.
+       ⚠ WHAT THIS WALK STILL CANNOT SEE (#798): a call reached through reflection, a helper
+       compiled from another assembly, and — the ordinary one this list used to miss while
+       naming the two exotic ones — ANY OS-OPEN PRIMITIVE THAT IS NOT SPELLED `OpenAsync`.
+       The sweep below covers four of those by name; the branch-scoped property covers all of
+       them inside the branches that matter. */
+    const SINK_SRC = String.raw`\b(?:Try)?OpenAsync\s*\(`;
+    /* ⚠ NOT global. `.test()` on a /g regex carries `lastIndex` between calls — the rule
+       this file states at the `BRANCH` constant and then broke here (r4 NIT-2). The one-arg
+       overload clause below reads this with `.test()`. `matchAll` gets its own global copy
+       per file, so no index can travel between two reads. */
+    const SINK = new RegExp(SINK_SRC);
+    const GATE_FILE = 'Spixi/Utils/Utils.cs';
+    const GATE_SIG = 'public static bool openExternal(string? url, ExternalTarget kind)';
+    const gateRaw = readFileSync(join(root, GATE_FILE), 'utf8');
+    const gateCode = stripCode(gateRaw);
+    const gateSlice = csSliceG(gateCode, GATE_SIG);
+    sliceOkG(gateSlice, 'Utils.openExternal(string?, ExternalTarget)');
+
+    const sinks = [];
+    const aliases = [];
+    const statics = [];
+    const ifaces = [];
+    for (const f of cs16) {
+      const rel = rel16(f);
+      const code = read16(f);
+      for (const m of code.matchAll(new RegExp(SINK_SRC, 'g'))) {
+        const atHome = rel === GATE_FILE && gateSlice.a >= 0 && m.index > gateSlice.a && m.index < gateSlice.b;
+        sinks.push({ at: rel + ':' + m.index, atHome });
+      }
+      for (const m of code.matchAll(/^\s*using\s+(?!static\b)[A-Za-z_]\w*\s*=\s*([^;\n]+);/gm)) {
+        if (/\b(?:Browser|Launcher)\b/.test(m[1])) aliases.push(rel + ' → ' + m[1].trim());
+      }
+      /* ⚠ r4 MAJOR-1, the third spelling. A `using static` has NO `=`, so the alias clause
+         above cannot see it, and it imports the type's STATIC MEMBERS — `Browser.Default`
+         becomes the bare `Default`, and the word `Browser` never appears beside a call.
+         The two `using static` lines this tree ships name `IXICore.Transaction`. */
+      for (const m of code.matchAll(/^\s*using\s+static\s+([^;\n]+);/gm)) {
+        if (/\b(?:Browser|Launcher)\b/.test(m[1])) statics.push(rel + ' → ' + m[1].trim());
+      }
+      /* ⚠ BELT, and named as one. The injected-interface form — `IBrowser b = …;` held in a
+         field, `b.OpenAsync(u)` called somewhere else — is already refused by the METHOD
+         walk above, wherever the call lands. This clause refuses the HANDLE as well, so the
+         type cannot be carried around waiting for a sink. Zero hits in the source set. */
+      if (rel !== GATE_FILE && /\bI(?:Browser|Launcher)\b/.test(code)) ifaces.push(rel);
+    }
+    const strays = sinks.filter((x) => !x.atHome).map((x) => x.at);
+    ok(sinks.length >= 1 && strays.length === 0,
+      '★★ gate 16 THE WALK — ONE SINK, ONE HOME: a walk over ' + cs16.length + ' .cs files in the shipped C# projects finds ' + sinks.length + ' call(s) to `OpenAsync(`/`TryOpenAsync(` of any kind, and every one must sit inside `Utils.openExternal`. The walk reads the METHOD, not a type name: a receiver obtained through a local, a private helper, a `using static` or a fully-qualified name is the SAME call and fails here. A new sink cannot bypass the gate by formatting, by a `#if`, by a `const`, or by where a `return` sits — it fails by existing. Sinks outside the gate: ' + (strays.join(', ') || 'none'));
+    ok(aliases.length === 0 && statics.length === 0,
+      '★★ gate 16 NO IMPORT MAY RENAME THE SINK: no `using` alias and no `using static` in the source set names Browser or Launcher. This tree really does alias types (ten of them, e.g. `using AWebView = Android.Webkit.WebView`), and a `using static …Browser;` turns every `Browser.Default` into a bare `Default` — the exact shape that defeated the old type-name walk. Aliases: ' + (aliases.join(', ') || 'none') + '. Static imports: ' + (statics.join(', ') || 'none'));
+    ok(ifaces.length === 0,
+      '★ gate 16 THE HANDLE IS NOT CARRIED: no file outside ' + GATE_FILE + ' names `IBrowser` or `ILauncher`. This is a BELT — the method walk above already catches the call wherever it lands — but it also refuses a field or a parameter that holds the browser for later, so the injected-interface form cannot be assembled across two files. Files naming the interface: ' + (ifaces.join(', ') || 'none'));
+
+    /* ── ② THE OS-OPEN PRIMITIVES. A NEGATIVE SWEEP, AND A BELT, NOT THE GUARANTEE. ──
+       r5 MAJOR-1 measured the cost of this sweep on the tree and it is nearly nothing:
+         Process.Start(          1   Spixi/Platforms/Windows/SFileOperations.cs
+         Intent.ActionView       1   Spixi/Platforms/Android/SFileOperations.cs
+         OpenUrl(                0
+         LaunchUriAsync(         0
+         Process.Start(          2   ../Ixian-Core (both non-browser, named below)
+       Each one is a documented way to open a URL in the OS browser, and none of them is
+       spelled `OpenAsync`, so the walk above cannot see any of them.
+
+       ★ THE PERMITTED HOMES ARE NAMED, EACH WITH ITS REASON. A home is a FILE, so a new
+       call in a new file fails even if it copies a permitted line verbatim:
+         · `Spixi/Platforms/{Android,Windows}/SFileOperations.cs` — the LOCAL-FILE opener.
+           It receives a resolved path under the app's own download directory (the
+           `..`-traversal guard lives in `TransferManager.resolveDownloadPath`), never a
+           URL from a peer or a shell. Windows opens it with `UseShellExecute = true`, so
+           this file CAN reach a browser — which is exactly why r5's `SFileOperations.open(link)`
+           mutation worked, and why the property that catches THAT one is ① below, not this.
+         · `../Ixian-Core/Utils/IxiUtils.cs` (`executeProcess`) — a generic exec helper that
+           sets `UseShellExecute = false`, so a URL handed to it is looked up as an
+           executable and no browser is reached.
+         · `../Ixian-Core/Utils/MemoryInfoProvider.cs` — `sysctl hw.memsize` under `#if OSX`,
+           a fixed command with no caller-supplied part.
+       `Utils.cs` is deliberately NOT a permitted home for these four: its own hand-off is
+       `OpenAsync`, covered by the frozen body and by the walk, and nothing in this file
+       needs a platform primitive.
+
+       ⚠ WHAT THIS SWEEP CANNOT SEE, and it is not a hedge — it is the reason ① exists:
+       it is a LIST, so it can only refuse the spellings on it. It cannot see a primitive
+       nobody here listed (a MAUI or platform API added later, `Launcher`'s successor, a
+       custom URL-scheme dispatch), a call reached through reflection, a helper compiled
+       from another assembly, or `StartActivity` handed an intent whose action was built
+       from a string rather than the `Intent.ActionView` constant. THREE ROUNDS OF THIS
+       LOOP were each defeated by the next spelling of exactly this kind of list. So this
+       clause is a belt: the guarantee that a peer-supplied link cannot open an unread host
+       is carried by ① THE BRANCH CALLS ONLY THE GATE, which enumerates what a branch DOES
+       call instead of guessing what it might. */
+    const OS_OPEN = [
+      ['Process.Start(', /\bProcess\s*\.\s*Start\s*\(/g],
+      ['Intent.ActionView', /\bIntent\s*\.\s*ActionView\b/g],
+      ['OpenUrl(', /\bOpenUrl\s*\(/g],
+      ['LaunchUriAsync(', /\bLaunchUriAsync\s*\(/g],
+    ];
+    const OS_OPEN_HOMES = new Set([
+      'Spixi/Platforms/Android/SFileOperations.cs',
+      'Spixi/Platforms/Windows/SFileOperations.cs',
+      '../Ixian-Core/Utils/IxiUtils.cs',
+      '../Ixian-Core/Utils/MemoryInfoProvider.cs',
+    ]);
+    const osStrays = [];
+    const osCounts = OS_OPEN.map(([n]) => [n, 0]);
+    for (const f of cs16) {
+      const rel = rel16(f);
+      const code = read16(f);
+      OS_OPEN.forEach(([name, re], i) => {
+        for (const m of code.matchAll(re)) {
+          osCounts[i][1]++;
+          if (!OS_OPEN_HOMES.has(rel)) osStrays.push(name + ' @ ' + rel + ':' + m.index);
+        }
+      });
+    }
+    ok(osStrays.length === 0,
+      '★★ gate 16 THE OS-OPEN PRIMITIVES (belt): `Process.Start(` · `Intent.ActionView` · `OpenUrl(` · `LaunchUriAsync(` appear ONLY in the named local-file and exec homes — ' + osCounts.map(([n, c]) => n + '=' + c).join(' · ') + ' over ' + cs16.length + ' files. None of these is spelled `OpenAsync`, so the walk above is blind to all four: a reviewer re-opened security MAJOR #6(a) with `UIApplication.SharedApplication.OpenUrl(…)` and MAJOR #3 with `SFileOperations.open(link)` — which on Windows is `Process.Start(UseShellExecute = true)` — while the whole suite printed BASELINE OK. ⚠ This clause is a LIST and therefore cannot see a primitive nobody listed, reflection, another assembly, or an intent action built from a string; property ① below is what carries the guarantee. Outside the permitted homes: ' + (osStrays.join(', ') || 'none'));
+
+    /* ── stripCode MUST NOT DELETE LIVE CODE (r5 MINOR-3, r6 MAJOR-1). ─────────────
+       Every negative sweep in this suite — this gate's walk included — runs on
+       `stripCode`'s output, so a defect there hides code from ALL of them at once, and
+       twice now it did: `"image/*"` (a comment token in a LITERAL) and
+       `// … src/shells/*: …` (a comment token in another COMMENT) each opened a block
+       comment that ran to the next real close and deleted whole methods.
+
+       ★★ THE PIN AND THE FIX MUST NOT SHARE A PREMISE — the r6 lesson, and the reason
+       this clause was rewritten. The previous version asserted COMMUTATION: masking
+       literals and stripping comments must give the same text in either order. That is a
+       true property, but it is a property ABOUT LITERALS, and the repair it was pinning
+       was also about literals. Where no literal is involved, the mask is a no-op on both
+       sides, the two orders commute BY CONSTRUCTION, and the clause is structurally
+       unable to fire. `ThemeManager.cs` was still losing three whole methods to a `/*`
+       inside a `//` comment while this gate printed a pass.
+
+       ★ SO THE REFERENCE IS EXTERNAL TO THE REPAIR. Three deliberately NAIVE strippers,
+       none of them the shipped function and each wrong in a DIFFERENT direction:
+         · blockFirst — block comments before line comments (the shape that hides code
+           behind a `/*` inside a `//`);
+         · lineFirst  — line comments first (the mirror: it hides a close token that
+           only a block-first pass would honour);
+         · maskFirst  — literals blanked, then blockFirst (blind to the literal defect
+           only, which is what makes it the witness FOR that defect).
+       A fragment that ANY of the three keeps is code by at least one honest reading, so
+       the shipped `stripCode` must keep it too. A fragment all three drop is a comment by
+       every reading and is not required to survive — that is what keeps the large blocks
+       of commented-out C# in `Ixian-Core` (GenericAPIServer, CoreStreamProcessor) from
+       being false positives, without an allow-list of the files nobody may touch (#798).
+
+       ★ WHAT COUNTS AS A FRAGMENT — a WALK over the file, not a list of methods: every
+       member declaration (an access modifier at the head of a line, through the opening
+       paren) and every statement-shaped line (trimmed, ends in `;` `{` or `}`, does not
+       open with a comment marker). String literals are masked on BOTH sides before the
+       comparison so a difference inside a string cannot raise a false red.
+       ⚠ WHAT IT CANNOT SEE, stated because a blind spot a pin does not name reads as
+       coverage (#772): a fragment that all three references also drop; a continuation
+       line that ends in an operator or a `)`; and any file type other than `.cs` — the
+       same function runs over JS, CSS, HTML and Markdown, and `src/components/launch-shell.js`
+       is the second file this defect cut (`// … docs/legal/*.md …` deleted
+       `const LEGAL_LEAD_ENGLISH_ONLY = …`). This clause would not have caught that one.
+       Measured while it was written: 0 lost with the shipped tokenizer · 5 with the r5
+       literal-only repair (all in ThemeManager.cs) · 15 with the pre-r5 comment-only
+       regexes (ThemeManager.cs and WebViewRenderer.cs). */
+    const naive16 = {
+      blockFirst: (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '').replace(/(^|[^:])\/\/.*$/gm, '$1'),
+      lineFirst: (t) => t.replace(/^[ \t]*\/\/.*$/gm, '').replace(/(^|[^:])\/\/.*$/gm, '$1').replace(/\/\*[\s\S]*?\*\//g, ''),
+    };
+    naive16.maskFirst = (t) => naive16.blockFirst(maskCsG(t));
+    const DECL16 = /^[ \t]*(?:public|private|protected|internal)[ \t]+(?:[A-Za-z_][\w<>[\],.?]*[ \t]+){0,6}[A-Za-z_]\w*[ \t]*\(/gm;
+    const norm16 = (s) => maskCsG(s).replace(/\s+/g, ' ').trim();
+    const stmt16 = (s) => { const x = s.trim(); return x.length > 2 && /[;{}]$/.test(x) && !/^(?:\/\/|\/\*|\*)/.test(x); };
+    const blankBad = [];
+    for (const f of cs16) {
+      const raw = readFileSync(f, 'utf8');
+      const refs = [naive16.blockFirst(raw), naive16.lineFirst(raw), naive16.maskFirst(raw)].map(norm16);
+      const out = norm16(read16(f));                     // what every pin in this suite actually reads
+      let lost = 0;
+      for (const frag of [...[...raw.matchAll(DECL16)].map((m) => m[0]), ...raw.split('\n').filter(stmt16)]) {
+        const d = norm16(frag);
+        if (d.length < 4 || !refs.some((r) => r.includes(d))) continue;
+        if (!out.includes(d)) lost++;
+      }
+      if (lost) blankBad.push(rel16(f) + ' (' + lost + ' live fragment(s) deleted)');
+    }
+    ok(blankBad.length === 0,
+      '★★ gate 16 stripCode DELETES NO LIVE CODE: over ' + cs16.length + ' .cs files, every declaration and every statement-shaped line that ANY of three naive reference strippers keeps also survives the shipped `stripCode`. The reference is external to the repair on purpose — the clause this replaced asserted a property about LITERALS while the defect needed none, so it was green by construction while `ThemeManager.cs` still lost getResolvedAppearanceName, getSurfaceColorString and getSurfaceColor to the `/*` in `// … src/shells/*: …` at :97. Revert the tokenizer to either regex order and this names the file and the count. Files losing code: ' + (blankBad.join(', ') || 'none'));
+
+    /* ── ...AND NEITHER MAY THE OTHER TWO READERS OF THIS FILE (#46 r7). ───────────
+       ⚠ THE CLAUSE ABOVE NAMED ITS OWN BLIND SPOT — "any file type other than `.cs`" —
+       and that blind spot had two occupants, both in this file, both carrying the r6
+       defect verbatim while the clause above printed a pass:
+         · a LOCAL `stripComments421` (block regex before line regex) that fed THE
+           DESTRUCTURE GATE over the 18 source shells. What that gate detects is a missing
+           `const { … } = window.Spixi` entry, whose symptom is a shell that boots BLANK
+           (#258) — so a blanked span there is a false GREEN on exactly its own subject.
+         · a naive `stripCssComments` (one block regex, literal-blind) read by ~70 CSS
+           pins, plus a second LOCAL copy of it in the Session C block.
+       Both now route through a repaired reader — `stripCode` and the tokenizer exported by
+       `scripts/strip-release.mjs` — so this clause is the sweep that says so.
+
+       ★★ AND IT IS HONEST ABOUT WHAT THE SWEEP CAN SEE. Measured before it was written:
+       the old strippers deleted ZERO live lines from the 18 shells and ZERO live
+       declarations from the 65 stylesheets. THE WALK BELOW IS THEREFORE VACUOUS ON TODAY'S
+       TREE — revert either reader and it stays green, because no file currently contains
+       the trap. A walk that cannot fail is the #771 defect, so it is NOT the pin: it is
+       the REGRESSION sweep for the day a real file grows one, and the two BEHAVIOURAL
+       clauses after it are the witnesses that actually fire.
+
+       ★ THE REFERENCES ARE EXTERNAL TO BOTH REPAIRS, the r6 shape. For the shells, the
+       same three naive strippers, each wrong in a different direction, with the HTML
+       comment pass in front because a shell has both. For CSS there are only TWO, and the
+       missing one is not an oversight: CSS HAS NO `//` COMMENT, so the ORDERING half of
+       the class cannot exist here and `lineFirst` would not be a reading of anything. What
+       remains is the LITERAL half — `/*` inside a quoted value or an unquoted `url(…)` —
+       so the pair is the naive block regex and a literal-masking twin.
+       ⚠ WHAT IT CANNOT SEE, stated rather than left to be discovered: a fragment that all
+       references also drop; a continuation line ending in an operator or `)`; a JS
+       template literal, which `maskCsG` does not mask and `stripCode` does not treat as a
+       string; and a CSS at-rule or bare selector line, which `cssFrag17` does not count. */
+    const noHtml17 = (t) => t.replace(/<!--[\s\S]*?-->/g, '');
+    const naiveSh17 = {
+      blockFirst: (t) => noHtml17(t).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '').replace(/(^|[^:])\/\/.*$/gm, '$1'),
+      lineFirst: (t) => noHtml17(t).replace(/^[ \t]*\/\/.*$/gm, '').replace(/(^|[^:])\/\/.*$/gm, '$1').replace(/\/\*[\s\S]*?\*\//g, ''),
+    };
+    naiveSh17.maskFirst = (t) => naiveSh17.blockFirst(maskCsG(t));
+    /* CSS literals: a quoted value, and an UNQUOTED url( … ) token whose content runs to
+       the closing paren. The quoted url form needs no case of its own — its literal is
+       taken by the string rule on the way past. */
+    const maskCssLit17 = (c) => c
+      .replace(/"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'/g, (m) => ' '.repeat(m.length))
+      .replace(/url\(\s*[^)"'\s][^)]*\)/g, (m) => 'url(' + ' '.repeat(m.length - 5) + ')');
+    const normCss17 = (s) => maskCssLit17(s).replace(/\s+/g, ' ').trim();
+    const naiveCss17 = { blockOnly: (c) => c.replace(/\/\*[\s\S]*?\*\//g, '') };
+    naiveCss17.maskFirst = (c) => maskCssLit17(c).replace(/\/\*[\s\S]*?\*\//g, '');
+    const cssFrag17 = (l) => { const x = l.trim(); return x.length > 3 && /[;{]$/.test(x) && !/^(?:\/\*|\*)/.test(x); };
+    const cssFiles17 = [];
+    const walkCss17 = (dir) => {
+      for (const ent of readdirSync(dir, { withFileTypes: true }).sort((x, y) => (x.name < y.name ? -1 : 1))) {
+        if (ent.isDirectory()) walkCss17(join(dir, ent.name));
+        else if (ent.name.endsWith('.css')) cssFiles17.push(join(dir, ent.name));
+      }
+    };
+    walkCss17(join(root, 'src', 'styles'));
+    const shellFiles17 = readdirSync(join(root, 'src', 'shells')).filter((n) => n.endsWith('.html')).sort();
+    const otherBad17 = [];
+    for (const f of shellFiles17) {
+      const raw = readFileSync(join(root, 'src', 'shells', f), 'utf8');
+      const refs = [naiveSh17.blockFirst(raw), naiveSh17.lineFirst(raw), naiveSh17.maskFirst(raw)].map(norm16);
+      const out = norm16(stripCode(raw));                 // what the destructure gate reads
+      let lost = 0;
+      for (const frag of raw.split('\n').filter(stmt16)) {
+        const d = norm16(frag);
+        if (d.length < 6 || !refs.some((r) => r.includes(d))) continue;
+        if (!out.includes(d)) lost++;
+      }
+      if (lost) otherBad17.push('src/shells/' + f + ' (' + lost + ')');
+    }
+    for (const f of cssFiles17) {
+      const raw = readFileSync(f, 'utf8');
+      const refs = [naiveCss17.blockOnly(raw), naiveCss17.maskFirst(raw)].map(normCss17);
+      const out = normCss17(stripCssComments(raw));       // what ~70 CSS pins read
+      let lost = 0;
+      for (const frag of raw.split('\n').filter(cssFrag17)) {
+        const d = normCss17(frag);
+        if (d.length < 6 || !refs.some((r) => r.includes(d))) continue;
+        if (!out.includes(d)) lost++;
+      }
+      if (lost) otherBad17.push(rel16(f) + ' (' + lost + ')');
+    }
+    /* ⚠ AND THE TWO RETIRED COPIES MAY NOT COME BACK. Matched as a DEFINITION, never as
+       the WORD — the prose above names both, and a pin a comment can satisfy is the #771
+       defect. ⚠ Its limit, stated: a copy under a DIFFERENT name escapes this, and that is
+       exactly how these two came to exist. ⚠ AND THE CLASS IS NOT CLOSED FILE-WIDE: this
+       file still declares 26 other local strippers under 17 names, built from the same
+       naive regexes, over C# and JS rather than shells or stylesheets. They are outside
+       this repair, this sweep does not read them, and they are recorded in the round's
+       report so they are not silently counted as covered. */
+    const suiteSelf17 = readFileSync(fileURLToPath(import.meta.url), 'utf8');
+    const revived17 = /const stripComments421\s*=/.test(suiteSelf17) || /const stripComments\s*=\s*\(/.test(suiteSelf17);
+    ok(shellFiles17.length >= 15 && cssFiles17.length >= 50 && otherBad17.length === 0 && !revived17,
+      '★★ gate 16 NO READER IN THIS FILE DELETES LIVE CODE (the regression sweep): over ' + shellFiles17.length + ' source shells read through `stripCode` and ' + cssFiles17.length + ' stylesheets read through `stripCssComments`, every statement- or declaration-shaped line that ANY naive reference stripper keeps also survives the shipped reader. ⚠ THIS SWEEP IS VACUOUS ON TODAY\'S TREE BY MEASUREMENT — the two strippers it replaced lost 0 lines and 0 declarations here, so reverting either one leaves this green. It exists for the day a real file grows the trap; the two behavioural clauses below are what actually witness a revert. The file counts are asserted so a mis-walked empty set cannot make it pass by finding nothing, and neither retired local copy has been re-declared (' + (revived17 ? 'ONE HAS' : 'neither') + '). Losing code: ' + (otherBad17.join(', ') || 'none'));
+
+    /* ★★ THE WITNESS FOR `stripCode`, over the shell shape the destructure gate reads.
+       Two traps in one input, because the defect has two spellings and the two previous
+       repairs each fixed only the one that had been reported:
+         · `src/shells/*` inside a `//` comment — a `/*` in a LINE COMMENT (r6);
+         · `"/*"` in a STRING — a comment token in a LITERAL (r5).
+       ⚠ AND THE FIXTURE IS PROVED TO BE A TRAP, not merely passed: each naive reference
+       must LOSE the line the shipped reader keeps. Without that half, a future "tidy-up"
+       of this input could make it harmless and the clause would go on printing a pass —
+       the pin-green-by-construction failure this loop has punished in every round. */
+    const SHELL_TRAP17 = [
+      '<script>',
+      '  // the glyphs live in src/shells/* and are copied by build-shells',
+      '  const bridgeA = createNativeBridge();',
+      '  const marker = "/*";',
+      '  const bridgeB = installExecuteUiCommand();',
+      '  /* an ordinary block comment */',
+      '  const bridgeC = mountLockPage();',
+      '</script>',
+    ].join('\n');
+    const shOut17 = stripCode(SHELL_TRAP17);
+    const keptSh17 = (t, n) => t.includes('const ' + n + ' =');
+    ok(keptSh17(shOut17, 'bridgeA') && keptSh17(shOut17, 'bridgeB') && keptSh17(shOut17, 'bridgeC')
+       && !keptSh17(naiveSh17.blockFirst(SHELL_TRAP17), 'bridgeA')     // the r6 spelling
+       && !keptSh17(naiveSh17.blockFirst(SHELL_TRAP17), 'bridgeB')     // the r5 spelling
+       && !keptSh17(naiveSh17.lineFirst(SHELL_TRAP17), 'bridgeB')      // the mirror still loses the literal
+       && !/an ordinary block comment/.test(shOut17) && !/copied by build-shells/.test(shOut17),
+      '★★ gate 16 BEHAVIOURAL, `stripCode` on the shell shape: a `/*` inside a `//` comment and a `"/*"` inside a string each leave the live statements below them intact, and the real comments are still gone. The naive references LOSE those statements — asserted here, so the input is proved to be a trap rather than assumed to be one. This is the clause that turns red if the destructure gate is ever pointed back at a local block-before-line stripper, which is what fed it until r7');
+
+    /* ★★ THE WITNESS FOR `stripCssComments`. CSS carries only the LITERAL half of the
+       class, in two spellings, and the second one broke a previous repair: an unquoted
+       `url(i/*m.png)`, and the QUOTED form with whitespace, `url( "i)m/*g.png" )`, whose
+       `)` sits inside the quotes. Same two-sided shape: the shipped reader must keep the
+       declarations, and the naive regex must lose them. */
+    const CSS_TRAP17 = [
+      '.a { content: "/*"; }',
+      '.b { color: red; }',
+      '/* an ordinary comment */',
+      '.c { background: url(i/*m.png); }',
+      '.d { color: blue; }',
+      '/* another */',
+      '.e { background: url( "i)m/*g.png" ); }',
+      '.f { color: green; }',
+    ].join('\n');
+    const cssOut17 = stripCssComments(CSS_TRAP17);
+    const naiveOut17 = naiveCss17.blockOnly(CSS_TRAP17);
+    ok(cssOut17.includes('.b { color: red; }') && cssOut17.includes('.d { color: blue; }')
+       && cssOut17.includes('.f { color: green; }')
+       && cssOut17.includes('content: "/*"') && cssOut17.includes('url(i/*m.png)')
+       && cssOut17.includes('url( "i)m/*g.png" )')
+       && !naiveOut17.includes('.b { color: red; }')      // the literal spelling
+       && !naiveOut17.includes('.d { color: blue; }')     // the unquoted url spelling
+       && !/an ordinary comment/.test(cssOut17) && !/another/.test(cssOut17),
+      '★★ gate 16 BEHAVIOURAL, `stripCssComments` on the CSS shapes: a `/*` inside a quoted value and inside an unquoted `url(…)` is CONTENT, both are kept byte for byte, the declarations after them survive, and the real comments are still removed. The naive block regex loses two of those declarations — asserted, so the input is proved to be a trap. ⚠ There is no `//` case here on purpose: CSS has no line comment, so the ordering half of the r6 defect cannot exist in this reader and a third reference would be a reading of nothing');
+
+    /* ── THE GATE ITSELF. Its body is FROZEN, on purpose. ──────────────────────────
+       ⚠ TO THE NEXT DEVELOPER, because r3 NIT-2 is right that a red gate with no
+       explanation is a trap: the whole body below is compared token for token. A correct
+       refactor — `!string.IsNullOrEmpty(target.UserInfo)`, folding the two refusals into
+       one, extracting a helper — turns this RED. That is deliberate. This is the single
+       method through which every link this app opens passes, and a change to it is a
+       security review, not a refactor. Change the expectation below in the same commit,
+       and say in that commit why the new text holds the same property.
+       Whitespace is normalised on both sides, so re-indenting and re-wrapping are free and
+       `stripCode` runs first, so the comments inside the method are free too. */
+    const norm = (t) => t.replace(/\s+/g, ' ').trim();
+    const EXPECT = [
+      'public static bool openExternal(string? url, ExternalTarget kind)',
+      '{',
+      'Uri? target = null;',
+      'if (string.IsNullOrEmpty(url) || !Uri.TryCreate(url, UriKind.Absolute, out target) || target == null)',
+      '{',
+      'Logging.warn("openExternal refused a link: unparsable, kind=" + kind);',
+      'return false;',
+      '}',
+      'bool admit = kind == ExternalTarget.Web',
+      '? (target.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.Ordinal)',
+      '|| target.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.Ordinal))',
+      '&& target.UserInfo.Length == 0',
+      ': kind == ExternalTarget.MailCompose',
+      '&& target.Scheme.Equals(Uri.UriSchemeMailto, StringComparison.Ordinal);',
+      'if (!admit)',
+      '{',
+      'Logging.warn("openExternal refused a link: kind=" + kind + " scheme=" + target.Scheme);',
+      'return false;',
+      '}',
+      'try',
+      '{',
+      'Browser.Default.OpenAsync(target).ContinueWith(t =>',
+      '{',
+      'if (t.IsFaulted || t.IsCanceled || !t.Result)',
+      '{',
+      'Logging.error("openExternal handoff failed: kind=" + kind + " scheme=" + target.Scheme + " " + (t.Exception?.GetBaseException().GetType().Name ?? (t.IsCanceled ? "canceled" : "refused")));',
+      '}',
+      '});',
+      'return true;',
+      '}',
+      'catch (Exception ex)',
+      '{',
+      'Logging.error("openExternal handoff failed: kind=" + kind + " scheme=" + target.Scheme + " " + ex.GetType().Name);',
+      'return false;',
+      '}',
+      '}',
+    ].join(' ');
+    ok(norm(gateSlice.body) === EXPECT,
+      '★★ gate 16 THE GATE IS FROZEN: `Utils.openExternal(string?, ExternalTarget)` matches its expected body token for token. Every mutation the three review rounds used — a hand-off added inside a guard body, a `#if` around a guard, a `>= 0` for a `> 0`, a `goto` past it, a softening behind a preference — changes this text and fails here, without this pin having to model control flow at all');
+
+    /* The named properties. The freeze above already kills every change; these exist so a
+       failure says WHICH property was lost, and so a reader can see what is claimed. */
+    const gp = [
+      ['the string is parsed ONCE, by TryCreate, and no second Uri is built',
+        (g) => (g.match(/Uri\.TryCreate\(/g) || []).length === 1 && !/new Uri\(/.test(g)],
+      ['the object OPENED is the object the test ran on',
+        (g) => /Browser\.Default\.OpenAsync\(target\)/.test(g)],
+      ['the hand-off Task is OBSERVED, so the failure line is reachable for the ORDINARY failure — no browser installed, no activity to receive the intent. That failure is raised INSIDE the Task, which the catch cannot see, and a discarded Task makes it an unobserved exception no log can read (r4 MINOR-3)',
+        (g) => /OpenAsync\(target\)\s*\.ContinueWith\(/.test(g)
+            && /t\.IsFaulted/.test(g) && /t\.IsCanceled/.test(g) && /!t\.Result/.test(g)],
+      ['Web admits http and https ONLY, and only with an EMPTY UserInfo — the one construct that puts the real host after readable text',
+        (g) => /kind == ExternalTarget\.Web/.test(g)
+            && /target\.Scheme\.Equals\(Uri\.UriSchemeHttp, StringComparison\.Ordinal\)/.test(g)
+            && /target\.Scheme\.Equals\(Uri\.UriSchemeHttps, StringComparison\.Ordinal\)/.test(g)
+            && /target\.UserInfo\.Length == 0/.test(g)],
+      ['MailCompose admits mailto ONLY, and the userinfo test is NOT applied to it — .NET parses "mailto:support@spixi.io" with UserInfo "support", so the Web test would refuse every mail link',
+        (g) => /kind == ExternalTarget\.MailCompose/.test(g)
+            && /target\.Scheme\.Equals\(Uri\.UriSchemeMailto, StringComparison\.Ordinal\)/.test(g)],
+      ['the admission is an EXPRESSION with no third branch, so a kind this method does not know is refused — fail closed',
+        (g) => /bool admit = kind == ExternalTarget\.Web[\s\S]*?: kind == ExternalTarget\.MailCompose[\s\S]*?;/.test(g)
+            && !/\belse\b/.test(g)],
+      ['the hand-off is inside a try, so a throw cannot escape into onNavigating and leave a bridge navigation uncancelled (#797)',
+        (g) => { const t = g.indexOf('try'); const o = g.indexOf('Browser.Default.OpenAsync'); return t >= 0 && o > t; }],
+      ['no log line carries the URL or an exception MESSAGE — ixian.log is rendered by DevPage and shared to the OS share sheet in one tap',
+        (g) => !/ex\.Message|ex\.ToString|ex\.StackTrace/.test(g)
+            && ![...g.matchAll(/\bLogging\.(?:error|warn|info|log|trace)\s*\(/g)]
+                 .some((m) => /(?:^|[^A-Za-z0-9_.])url(?:[^A-Za-z0-9_]|$)/.test(
+                   argsOf(g, m.index + m[0].length - 1).replace(/@"(?:[^"]|"")*"|"(?:\\.|[^"\\\n])*"/g, '""')))],
+      ['Utils.IsAllowedURL is NOT used here: it is a SUBRESOURCE gate and it returns TRUE for every non-http scheme, the exact inverse of what a browser sink needs',
+        (g) => !/IsAllowedURL/.test(g)],
+    ];
+    for (const [why, test] of gp) {
+      ok(test(gateSlice.body), '★★ gate 16 (Utils.openExternal): ' + why);
+    }
+
+    /* ⚠ r3 MAJOR-2, closed at its root: `stripCode` removes comments, NOT preprocessor
+       directives, so a `#if` fence reads to every text pin as live code. The gate is one
+       method, so the rule can be absolute here — it may contain no conditional compilation
+       at all, and this is asserted over the RAW source, not the stripped copy. A `#pragma`
+       is not a `#if`: it suppresses a warning and cannot remove a statement. */
+    const gateRawSlice = csSliceG(gateRaw, GATE_SIG);
+    sliceOkG(gateRawSlice, 'Utils.openExternal, raw source');
+    ok(!/^\s*#\s*(?:if|ifdef|ifndef|elif|else|endif)\b/m.test(gateRawSlice.body),
+      '★★ gate 16: the gate carries NO conditional compilation. A `#if WINDOWS` around the userinfo refusal reads as ordinary live code to every text pin in this suite, and it would kill the refusal on Android and iOS — the two platforms the handover gate exists for — with the whole suite green. That mutation survived the previous clause');
+
+    /* the one-argument overload is the DEFAULT, and the default is the strict kind */
+    const gate1 = csSliceG(gateCode, 'public static bool openExternal(string? url)');
+    sliceOkG(gate1, 'Utils.openExternal(string?)');
+    ok(/return openExternal\(url, ExternalTarget\.Web\);/.test(gate1.body)
+      && !SINK.test(gate1.body),
+      '★★ gate 16: the one-argument overload forwards to ExternalTarget.Web — the STRICT kind. A caller that names no kind gets the http/https-and-no-userinfo rule, so the permissive mail kind can only be reached by asking for it in writing');
+
+    /* ── THE CALLERS. The walk above proves nobody else opens a browser; this walk proves
+       the two peer-reachable branches hand their string over CLEAN. It is the same
+       `ixian:openLink:` dispatch walk r3 MAJOR-3 rebuilt, with the dispatch shape widened:
+       `if(` with no space, `else if(`, and a `while`/`switch` head are all matched now,
+       because the old `lastIndexOf('if (', …)` missed a branch by one character and the
+       premise below claimed the opposite as fact (#772). ── */
+    /* Climb from a LITERAL to the body of the branch that dispatches on it, and
+       brace-match that body. ONE function, because property ① below derives the iOS
+       hand-off subject with the same walk that finds these — a subject found by a
+       different mechanism would not inherit the same guarantees (#798).
+       ⚠ r3 MAJOR-3: the old climb was `lastIndexOf('if (', …)` — one space — so a
+       branch written `if(` was invisible and the sink inside it never joined the walk.
+       The keyword is not read at all now. A candidate is a `(` whose balanced close
+       falls AFTER the literal AND is followed, past whitespace, by `{`. That second test
+       is what separates a condition head from an ordinary call: the literal in
+       `current_url.Substring("ixian:openLink:".Length)` sits inside a `(` too, and
+       `Substring(…)` is followed by `;`. The search keeps climbing outward past every
+       candidate that fails it, so `StartsWith("ixian:openLink:", …)` inside `if(…)`
+       resolves to the `if`'s own parentheses.
+       A BRACELESS branch body is not matched, and that is fail-closed: its file then
+       contributes no branch and the census below goes red. */
+    const climbBranch16 = (mask, at) => {
+      let condEnd = -1;
+      for (let k = at; k >= 0; k--) {
+        if (mask[k] !== '(') continue;
+        let d = 0, close = -1;
+        for (let j = k; j < mask.length; j++) {
+          if (mask[j] === '(') d++;
+          else if (mask[j] === ')' && --d === 0) { close = j; break; }
+        }
+        if (close <= at) continue;                            // does not enclose the literal
+        let t = close + 1;
+        while (t < mask.length && /\s/.test(mask[t])) t++;
+        if (mask[t] === '{') { condEnd = close; break; }      // a condition head, not a call
+      }
+      if (condEnd < 0) return null;             // the literal is in a BODY, not a dispatch condition
+      const open = mask.indexOf('{', condEnd);
+      if (open < 0) return null;
+      let d2 = 0, close = -1;
+      for (let k = open; k >= 0 && k < mask.length; k++) {
+        if (mask[k] === '{') d2++;
+        else if (mask[k] === '}' && --d2 === 0) { close = k + 1; break; }
+      }
+      return close > open ? { open, close } : null;
+    };
+
+    const results = [];
+    for (const f of cs16) {
+      const code = read16(f);
+      if (!code.includes('"ixian:openLink:"')) continue;
+      const rel = rel16(f);
+      const mask = maskCsG(code);
+      const seenBranch = new Set();
+      for (const m of code.matchAll(/"ixian:openLink:"/g)) {
+        const b = climbBranch16(mask, m.index);
+        if (!b || seenBranch.has(b.open)) continue;
+        seenBranch.add(b.open);
+        results.push({ name: rel.split('/').pop().replace('.xaml.cs', '') + ':' + b.open, slice: code.slice(b.open, b.close) });
+      }
+    }
+    /* ⚠ r3 MAJOR-3: the premise used to read "two is the shipped number; a third page joins
+       this pin automatically", and that was FALSE for a branch written `if(`. It is a
+       CENSUS now, not a floor: every file that contains the verb literal outside a comment
+       must contribute at least one brace-matched dispatch branch. A literal the walk cannot
+       climb fails the premise instead of hiding behind it. */
+    const verbFiles = cs16.filter((f) => read16(f).includes('"ixian:openLink:"'))
+      .map((f) => rel16(f));
+    const covered = new Set(results.map((r) => r.name.split(':')[0]));
+    const uncovered = verbFiles.filter((rel) => !covered.has(rel.split('/').pop().replace('.xaml.cs', '')));
+    ok(verbFiles.length >= 2 && results.length >= verbFiles.length && uncovered.length === 0
+      && results.every((r) => r.slice.length > 100),   // a sanity net on the brace match, not a
+                                                       // shape test: the branch is small now that
+                                                       // it only forwards to the gate
+      'gate 16 premise, DERIVED AS A CENSUS: ' + verbFiles.length + ' file(s) under Spixi/ contain the `ixian:openLink:` verb literal, and the walk brace-matched ' + results.length + ' dispatch branch(es) (' + results.map((r) => r.name).join(' · ') + '). A file whose branch the walk cannot climb fails HERE — a floor of two could never see an addition');
+    const blankLits = (t) => t.replace(/@"(?:[^"]|"")*"|"(?:\\.|[^"\\\n])*"/g, '""');
+    const props = [
+      ['no decode of any kind survives in the slice', (s16) => !/HtmlDecode|UnescapeDataString|HttpUtility\.|UrlDecode/.test(s16)],
+      /* the branch does no URL work at all any more. It cannot parse, it cannot test and it
+         cannot open — it hands the string to the one gate. That is what makes the WALK
+         above sufficient: there is no second place for the rule to drift to. */
+      ['the branch builds NO Uri and runs NO scheme or userinfo test of its own — it hands the string to the ONE gate',
+        (s16) => !/new Uri\(|Uri\.TryCreate\(|\.Scheme\b|\.UserInfo\b/.test(s16)
+              && /Utils\.openExternal\(link\);/.test(s16)],
+      ['Utils.IsAllowedURL is NOT used here', (s16) => !/IsAllowedURL/.test(s16)],
+      /* ⚠ STRING LITERALS ARE BLANKED FIRST (#771). A refusal message can contain the word
+         "link", so a raw sweep for it is satisfied by the message text and proves nothing.
+         What is asserted is the ARGUMENT LIST: no log call in the branch may take the
+         peer's `link`, or the caught exception itself, as a VALUE. */
+      ['no log call takes `link` or a bare exception as an argument', (s16) => {
+        const catches = [...s16.matchAll(/catch\s*\(\s*[A-Za-z_][\w.<>]*\s+([A-Za-z_]\w*)\s*\)/g)].map((c) => c[1]);
+        for (const lm of s16.matchAll(/\bLogging\.(?:error|warn|info|log|trace)\s*\(/g)) {
+          const args = blankLits(argsOf(s16, lm.index + lm[0].length - 1));
+          if (/\blink\b/.test(args)) return false;
+          if (catches.some((n) => new RegExp('(?:,|\\+)\\s*' + n + '\\s*$').test(args.trim()))) return false;
+        }
+        return true;
+      }],
+    ];
+    for (const [why, test] of props) {
+      const bad = results.filter((r) => !test(r.slice)).map((r) => r.name);
+      ok(results.length >= 2 && bad.length === 0, '★★ gate 16 (every openLink dispatch): ' + why + '. Failing: ' + (bad.join(', ') || 'none'));
+    }
+
+    /* ══ ① THE BRANCH CALLS ONLY THE GATE. THIS IS THE PROPERTY THAT CARRIES THE
+       GUARANTEE, and every clause above it is a belt. ══════════════════════════════
+
+       ★★ WHY IT EXISTS. Three rounds of the #46 loop each defeated the sink pin, and each
+       time for the SAME reason in a new costume: the pin proved a NEGATIVE by matching one
+       spelling, so the next reviewer wrote the next spelling.
+         r3 matched the keyword `if (` — a branch written `if(` was invisible;
+         r4 matched the type name `Browser`  — `var ob = Browser.Default; ob.OpenAsync(u);`
+            walked past it, and so did a private helper and a `using static`;
+         r5 matched the method name `OpenAsync` — `UIApplication.SharedApplication.OpenUrl(…)`
+            walked past it (security MAJOR #6(a)), and so did `SFileOperations.open(link)`,
+            which on Windows is `Process.Start(UseShellExecute = true)`, i.e. the browser
+            (security MAJOR #3). `SingleChatPage` ALREADY calls `SFileOperations.open` twice
+            in the same file, so that edit reads as ordinary code and compiles everywhere.
+       Widening the pattern again would lose the sixth spelling. "No other external open
+       exists anywhere in the tree" is not a property text can prove — there is no compiler
+       here to build a call graph, and any list of primitives is the author's list (#798).
+
+       ★ SO THE PROPERTY IS INVERTED. Instead of guessing what a branch MIGHT call, this
+       clause enumerates what it DOES call and refuses anything not on a named, tiny
+       allow-list. A spelling nobody has thought of fails here BY BEING A CALL. Reflection
+       fails too — `typeof(IBrowser).GetMethod(…).Invoke(…)` is three calls, none of them
+       on the list — which is one thing the walk above explicitly cannot see.
+       Constructors are refused with the calls: `new` appears in neither branch today, and
+       `new Intent(Intent.ActionView, uri)` is exactly the shape this must not admit.
+
+       ★ THE SUBJECTS COME FROM A WALK, NOT A FILE LIST (#798). The openLink subjects are
+       `results` — the same census the clauses above use — so a THIRD page that gains an
+       `ixian:openLink:` dispatch inherits this property on the commit that adds it. The
+       iOS subject is climbed by the SAME `climbBranch16` from the `"http://"` literal in
+       `DecidePolicy`, and the count is asserted, so a rename or a second http branch goes
+       red rather than silently dropping the subject.
+
+       ★ THE iOS SUBJECT IS THE WHOLE http(s) BRANCH, not the trust block inside it. r5's
+       surviving mutation sat OUTSIDE the trust block and INSIDE the branch, where gate 7's
+       containment clause does not look and its `OpenAsync`/`openExternal` vocabulary does
+       not match. Scoping to the branch closes that gap on a third axis.
+
+       ⚠ WHAT THIS COSTS, stated so nobody is surprised by a red gate. The allow-list holds
+       the FULL dotted callee, so renaming the local `link`, or reaching the gate through a
+       new helper, turns this RED. That is deliberate and it is the same decision as the
+       frozen gate body: these are the two peer-reachable branches that decide where a user
+       lands, and a change to what they call is a security review, not a refactor. Add the
+       new callee here in the SAME commit and say why it cannot open anything.
+       ⚠ WHAT IT DOES NOT PROVE: that a PERMITTED callee is safe. `Utils.openExternal` is
+       proven by the frozen body above; `Substring`/`Contains`/`GetType` are pure; the two
+       iOS helpers are argued at their entries. It also says nothing about code OUTSIDE
+       these three branches — that is the walk's job, and the walk has edges of its own. */
+    const KW16 = new Set(['if', 'else', 'while', 'for', 'foreach', 'switch', 'catch', 'lock', 'using',
+      'fixed', 'return', 'async', 'await', 'yield', 'do', 'try', 'when', 'in', 'is', 'as', 'out', 'ref',
+      'case', 'default', 'checked', 'unchecked', 'nameof', 'sizeof', 'typeof', 'throw', 'delegate',
+      'stackalloc']);
+    /* An INVOCATION is a dotted name (or a `new` type) immediately before a `(`, with an
+       optional generic argument list between them so `Activator.CreateInstance<T>()` cannot
+       hide behind its `>`. C# keywords that take a parenthesised head are language
+       constructs, not calls, and are skipped by name. Literals are masked first so a `(`
+       inside a string cannot invent a callee. */
+    const callsIn16 = (slice) => {
+      const m = maskCsG(slice);
+      const out = [];
+      for (const t of m.matchAll(/(?:\b(new)\s+)?([A-Za-z_][\w.]*)\s*(?:<[^<>()\n]*>)?\s*\(/g)) {
+        if (!t[1] && KW16.has(t[2].split('.').pop())) continue;
+        out.push((t[1] ? 'new ' : '') + t[2]);
+      }
+      return out;
+    };
+    /* THE ALLOW-LISTS. Small on purpose, and every entry carries the reason it cannot open
+       anything. A callee absent from the list fails, whatever it is called. */
+    const OPENLINK_OK = new Set([
+      'current_url.Substring',  // takes the verb payload off the front. String slice.
+      'link.Contains',          // "does it carry a scheme" — the test behind the http:// prefix
+      'Utils.openExternal',     // THE GATE, frozen above
+    ]);
+    const IOS_HTTP_OK = new Set([
+      '_owner.isTrustedHost',              // the trust marker; gate 7 pins it fails closed
+      'MainThread.BeginInvokeOnMainThread', // a thread hop; opens nothing
+      'SPIXI.Utils.openExternal',          // THE GATE, frozen above
+      'IXICore.Meta.Logging.error',        // the G-1 failure line; its arguments are pinned by gate 10
+      'verbLabel',                         // maps a URL to a fixed vocabulary so no URL reaches the log
+      'oex.GetType',                       // exception TYPE, never its message
+      'decide',                            // the one-shot policy delegate. ⚠ #772: this entry
+                                           // used to read "Cancel on every path", which is the
+                                           // invariant a reviewer BROKE with one added
+                                           // decide(Allow) while every gate stayed green. What
+                                           // makes it true is gate 7's VALUE clause, which walks
+                                           // every WKNavigationActionPolicy in the file
+    ]);
+    const badCalls = [];
+    for (const r of results) {
+      for (const c of callsIn16(r.slice)) if (!OPENLINK_OK.has(c)) badCalls.push(r.name + ' → ' + c + '(');
+    }
+    ok(results.length >= 2 && badCalls.length === 0,
+      '★★ gate 16 ① THE BRANCH CALLS ONLY THE GATE — every `ixian:openLink:` dispatch: the branch is parsed and EVERY invocation in it must be one of ' + [...OPENLINK_OK].join('( · ') + '(. A POSITIVE property, because three rounds proved a negative one loses the next spelling: r3 lost `if(`, r4 lost `var ob = Browser.Default`, r5 lost `SFileOperations.open(link)` — which on Windows is Process.Start(UseShellExecute=true), the browser — and that mutation re-opened security MAJOR #3 with the whole suite green. A new OS-open spelling fails HERE by being a call that is not the gate, and so does reflection. Subjects come from the same census above, so a third page inherits this. Calls that are not the gate: ' + (badCalls.join(', ') || 'none'));
+
+    /* the iOS hand-off block, climbed by the SAME walk */
+    const iosCode16 = read16(join(root, 'Spixi', 'Platforms', 'iOS', 'iOSWebViewHandler.cs'));
+    const iosMask16 = maskCsG(iosCode16);
+    const iosSubjects = [];
+    const seenIos = new Set();
+    for (const m of iosCode16.matchAll(/"http:\/\/"/g)) {
+      const b = climbBranch16(iosMask16, m.index);
+      if (!b || seenIos.has(b.open)) continue;
+      seenIos.add(b.open);
+      iosSubjects.push(iosCode16.slice(b.open, b.close));
+    }
+    const iosBad = [];
+    for (const sl of iosSubjects) {
+      for (const c of callsIn16(sl)) if (!IOS_HTTP_OK.has(c)) iosBad.push(c + '(');
+    }
+    ok(iosSubjects.length === 1 && iosBad.length === 0
+      && iosSubjects.every((sl) => sl.includes('SPIXI.Utils.openExternal(external);')),
+      '★★ gate 16 ① THE BRANCH CALLS ONLY THE GATE — the iOS http(s) hand-off: ' + iosSubjects.length + ' branch(es) climbed from the `"http://"` literal in DecidePolicy (expected exactly 1), and every invocation in the WHOLE branch — not only inside the trust block — must be one of ' + [...IOS_HTTP_OK].join('( · ') + '(. The scope is the branch because the mutation that re-opened security MAJOR #6(a) sat OUTSIDE the trust block, where gate 7 does not look, and was spelled `UIApplication.SharedApplication.OpenUrl(…)`, which neither gate 7 nor the OpenAsync walk can see. Calls that are not permitted: ' + (iosBad.join(', ') || 'none'));
+    /* ★ THE ASYMMETRY IS REAL, and the branch's own comment says so (#46 loop A, MAJOR-1).
+       The shell sends the link RAW and onNavigating UrlDecodes its FIRST statement, so
+       `link` is not byte-identical to the string the modal displayed. That decode is kept
+       deliberately — ordinary path and query escapes must keep working — and the residue
+       it creates is what the gate's userinfo refusal closes. Pinned in BOTH directions: the
+       decode is still the first statement of the handler, and no second decode lives in
+       the branch (the previous clause). A fixer who "restores symmetry" by moving the
+       decode below the dispatch changes which string every other verb receives.
+       ⚠ The decode is FORM decoding, so it can also REMOVE a character: a literal '+'
+       becomes a space (security review MAJOR #8, proven with Roslyn). The branch comments
+       say so; nothing here claims the path survives unchanged. */
+    const decodeHosts = [...new Set(results.map((r) => r.name.split(':')[0]))];
+    const navFirst = [];
+    for (const f of cs16) {
+      const code = read16(f);
+      if (!code.includes('"ixian:openLink:"')) continue;
+      const nav16 = csSliceG(code, 'void onNavigating(object sender, WebNavigatingEventArgs e)');
+      const body = nav16.body.slice(nav16.body.indexOf('{') + 1).trimStart();
+      if (!body.startsWith('string current_url = HttpUtility.UrlDecode(e.Url);')) navFirst.push(f.split('/').pop());
+    }
+    ok(decodeHosts.length >= 2 && navFirst.length === 0,
+      '★★ gate 16 THE TRANSPORT: in every page that owns an openLink dispatch, `string current_url = HttpUtility.UrlDecode(e.Url);` is still the FIRST statement of onNavigating — the asymmetry the branch documents is the real shape, and the gate\'s userinfo refusal is what makes it safe. Pages whose handler no longer opens with the decode: ' + (navFirst.join(', ') || 'none'));
+    /* the reason IsAllowedURL must stay out of the sink, asserted at its own source so
+       nobody "harmonises" the two gates later */
+    ok(/return true;\s*\}\s*\}\s*\}$/m.test(stripCode(utilsCs).trimEnd()) || /\n            return true;\n        \}/.test(stripCode(utilsCs)),
+      '★ gate 16 premise: Utils.IsAllowedURL returns TRUE for every URL that does not start with http — it is a SUBRESOURCE gate. Applied to a browser sink it would admit javascript: and file: and block ordinary web links, which is the exact inverse of what Utils.openExternal needs');
+  }
+
+  /* ─── 17 · THE NATIVE MONEY CONFIRM NAMES AN ADDRESS (A-9 / I-2 / I-3) ───────────
+   * `Friend.nickname` is written verbatim from peer bytes with no length bound and no
+   * character filter, and it was the recipient line of the one dialog that guards
+   * signing. On handlePayRequest it was the ONLY line: that path passed a bare nickname
+   * and showed no address at all. */
+  {
+    const payCode = stripCode(rdS('Spixi/Utils/SPayments.cs'));
+    const conf = csSliceG(payCode, 'private static async Task<bool> confirmAndAuth(SpixiContentPage page, string address, IxiNumber amount, IxiNumber fee)');
+    sliceOkG(conf, 'SPayments.confirmAndAuth');
+    ok(/string body = [^;]*recipientDisplay\(address\)/.test(conf.body),
+      '★★ gate 17: confirmAndAuth takes the ADDRESS and composes the recipient block itself through recipientDisplay. No call site builds that line any more, so no call site can leave the address out — which is what closed handlePayRequest');
+    /* a WALK over every call site in the file, not the three the fixer named.
+       ⚠ #46 loop C, MINOR-7: the match used to require the first argument to be SPELLED
+       `page`. The reviewer added `confirmAndAuth(pg, f.nickname, amount, fee)` in a new
+       method — a raw peer nickname as the recipient, the exact defect of row F-13 — and
+       the suite stayed green because the new site was never walked. `confirmAndAuth(this,
+       …)` would have escaped the same way. The argument LIST is parsed now, balanced and
+       split at its top-level commas, so a call site is found however its first argument is
+       named; the DECLARATION is the one match that is skipped, by its modifiers. */
+    const splitArgs = (t) => {
+      const out = []; let depth = 0, last = 0;
+      for (let i = 0; i < t.length; i++) {
+        const c = t[i];
+        if (c === '(' || c === '[' || c === '<') depth++;
+        else if (c === ')' || c === ']' || c === '>') depth--;
+        else if (c === ',' && depth === 0) { out.push(t.slice(last, i)); last = i + 1; }
+      }
+      out.push(t.slice(last));
+      return out.map((x) => x.trim());
+    };
+    const calls = [];
+    for (const m of payCode.matchAll(/\bconfirmAndAuth\s*\(/g)) {
+      const lineFrom = payCode.lastIndexOf('\n', m.index) + 1;
+      if (/\b(?:private|public|protected|internal|static|async|Task)\b/.test(payCode.slice(lineFrom, m.index))) continue;   // the declaration
+      const args = splitArgs(argsOf(payCode, m.index + m[0].length - 1));
+      if (args.length >= 2) calls.push(args[1]);
+    }
+    ok(calls.length >= 3 && calls.every((a) => /\.ToString\(\)|^addr$/.test(a)) && !calls.some((a) => /nickname/i.test(a)),
+      '★★ gate 17 THE WALK: every confirmAndAuth call site passes an ADDRESS as its recipient argument — ' + calls.length + ' sites: ' + calls.join(' · ') + '. Not one passes a nickname');
+    ok(calls.filter((a) => /^to\.PaymentAddress\.ToString\(\)$/.test(a)).length >= 2,
+      '★★ gate 17 (I-3): the two signing paths show `to.PaymentAddress` — the SAME field the transaction credits (Node.prepareTransactionFrom puts to.PaymentAddress in the toList). An End2End address is REPLACED above by resolveExtendedAddress with an address that comes off the network, so a dialog built from the typed payload named one address while the money went to another');
+    /* the confirm must still stand between the resolve and the broadcast */
+    const sign = csSliceG(payCode, 'public static async void handleSignSend(');
+    sliceOkG(sign, 'SPayments.handleSignSend');
+    const iRes = sign.body.indexOf('resolveExtendedAddress('), iConf = sign.body.indexOf('confirmAndAuth('), iSend = sign.body.indexOf('Node.sendTransactionFrom(');
+    ok(iRes >= 0 && iConf > iRes && iSend > iConf,
+      '★★ gate 17 ORDER: resolve → confirm → broadcast. The confirm sits AFTER the address is resolved and BEFORE anything is signed; move it above the resolve and the dialog goes back to naming the address the user typed rather than the one that is paid');
+
+    const dn = csSliceG(payCode, 'private static string displayName(string nick)');
+    sliceOkG(dn, 'SPayments.displayName');
+    const safe = csSliceG(payCode, 'private static bool isDisplaySafe(char c)');
+    sliceOkG(safe, 'SPayments.isDisplaySafe');
+    ok(/default:\s*return false;/.test(safe.body) && !/default:\s*return true;/.test(safe.body)
+      && (safe.body.match(/case UnicodeCategory\./g) || []).length >= 10,
+      '★★ gate 17 FAIL CLOSED: isDisplaySafe is a WHITELIST by Unicode category whose default REFUSES. An unknown or future character is dropped, not admitted — that is what removes every control character, the line and paragraph separators, and the bidirectional overrides that could otherwise reverse the address rendered underneath');
+    for (const cat of ['Control', 'Format', 'LineSeparator', 'ParagraphSeparator', 'SpaceSeparator', 'PrivateUse', 'OtherNotAssigned']) {
+      ok(!new RegExp('case UnicodeCategory\\.' + cat + ':').test(safe.body),
+        '★ gate 17: UnicodeCategory.' + cat + ' is NOT on the whitelist — ' + (cat === 'Format' ? 'the bidirectional overrides live here' : cat === 'SpaceSeparator' ? 'a space becomes the collapsed separator instead, so a nickname cannot pad the dialog' : 'it can carry or hide a line break'));
+    }
+    ok(/displayName\(f\.nickname\)/.test(payCode) && !/return f\.nickname \+ "\\n"/.test(payCode),
+      '★★ gate 17: the nickname reaches the dialog only through displayName. Replace it with the raw field and a peer-chosen string is concatenated into the confirm again');
+    const maxm = /NICKNAME_DISPLAY_MAX = (\d+);/.exec(payCode);
+    ok(!!maxm && Number(maxm[1]) <= 45,
+      '★★ gate 17 THE CLAMP IS SHORTER THAN AN ADDRESS: NICKNAME_DISPLAY_MAX is ' + (maxm ? maxm[1] : '?') + ', and the SHORTEST wallet address is 33 address bytes ≈ 45 base58 characters (Ixian-Core Address.addressVersionLengths). A clamped nickname is therefore structurally too short to render a complete address and be mistaken for one. Raise it past 45 and that stops being true');
+    /* ★ the money path itself, unchanged — this row was display-only and says so */
+    ok(/Node\.sendTransactionFrom\(from, to, amount, null\)/.test(payCode)
+      && /Node\.calculateTransactionFee\(IxianHandler\.primaryWalletAddress, to, amount\)/.test(payCode)
+      && /Utils\.amountToLocalizedDisplayString\(amount\)/.test(conf.body) && /Utils\.amountToLocalizedDisplayString\(fee\)/.test(conf.body),
+      '★★ gate 17: the money path is untouched by this batch. The broadcast still takes `to`, the fee is still computed from `to`, and the two numbers in the dialog still come from the same calls. This row changed DISPLAY COMPOSITION and nothing else, and the pin says so out loud');
+  }
+
+  /* ─── 18 · THE G-3 FAMILY — an Address-constructor failure names its own token ────
+   * Ixian-Core's `Address(string)` throws with the whole base58 formatted into the
+   * message: "Invalid address was specified (checksum error) {0}." So any catch whose
+   * try builds an Address, and which logs `ex.Message` or the bare exception, writes a
+   * wallet address into ixian.log — a file DevPage renders and shares in one tap. Some of
+   * those tokens are peer- or bot-supplied.
+   * ⚠ WRITTEN AS A WALK OVER THE TREE, and the subjects are found, not listed (#798): the
+   * pin brace-matches every `try` in every .cs file, keeps the ones that construct an
+   * Address, and reads their catch clauses. The direction asserted is that the offender
+   * set may SHRINK and never GROW — the remaining entries are inherited or out-of-scope
+   * sites the handover gate sends to the engineer untouched, and each is named with the
+   * log text it carries, so a NEW offender anywhere (including a re-introduced
+   * `+ ex.Message` at any of the sites this batch fixed) fails this pin. */
+  {
+    const csFilesW = [];
+    (function walkW(dir) {
+      for (const ent of readdirSync(dir, { withFileTypes: true }).sort((x, y) => (x.name < y.name ? -1 : 1))) {
+        if (ent.isDirectory()) { if (ent.name !== 'obj' && ent.name !== 'bin') walkW(join(dir, ent.name)); }
+        else if (ent.name.endsWith('.cs')) csFilesW.push(join(dir, ent.name));
+      }
+    })(join(root, 'Spixi'));
+    const offenders = [];
+    let triesWithCtor = 0;
+    for (const f of csFilesW) {
+      const src = stripCode(readFileSync(f, 'utf8'));
+      const m = maskCsG(src);
+      const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+      let i = 0;
+      while ((i = m.indexOf('try', i)) >= 0) {
+        if (/[A-Za-z0-9_]/.test(m[i - 1] || '') || /[A-Za-z0-9_]/.test(m[i + 3] || '')) { i += 3; continue; }
+        const open = m.indexOf('{', i);
+        if (open < 0) break;
+        let d = 0, b = -1;
+        for (let k = open; k < m.length; k++) { if (m[k] === '{') d++; else if (m[k] === '}' && --d === 0) { b = k + 1; break; } }
+        if (b < 0) { i += 3; continue; }
+        if (/new (?:IXICore\.)?(?:Extended)?Address\s*\(/.test(src.slice(open, b))) {
+          triesWithCtor++;
+          let j = b;
+          for (;;) {
+            const cm = /^\s*catch\s*(\([^)]*\))?\s*(when\s*\([^)]*\)\s*)?\{/.exec(m.slice(j, j + 400));
+            if (!cm) break;
+            const co = m.indexOf('{', j + cm[0].length - 1);
+            let d2 = 0, cb = -1;
+            for (let k = co; k < m.length; k++) { if (m[k] === '{') d2++; else if (m[k] === '}' && --d2 === 0) { cb = k + 1; break; } }
+            if (cb < 0) break;
+            const cbody = src.slice(co, cb);
+            const varm = /catch\s*\(\s*[A-Za-z0-9_.]+\s+([A-Za-z0-9_]+)\s*\)/.exec(src.slice(j, co + 1));
+            const v = varm ? varm[1] : null;
+            const named = v && (new RegExp('\\b' + v + '\\s*\\.\\s*Message\\b').test(cbody)
+              || (new RegExp('[+,(]\\s*' + v + '\\s*[),;]').test(cbody) && !new RegExp('\\b' + v + '\\s*\\.').test(cbody)));
+            if (named) {
+              const lit = /Logging\.\w+\(\s*"([^"]{0,60})/.exec(cbody);
+              offenders.push(rel + ' :: ' + (lit ? lit[1].trim() : '<no literal>'));
+            }
+            j = cb;
+          }
+        }
+        i = b;
+      }
+    }
+    /* The INHERITED / out-of-scope set, each with the log text it carries. Every one is
+       recorded in the fixer reports with the reason it was not touched: the gate's rule
+       is that legacy exposure goes to the engineer untouched, and a fixer who quietly
+       repairs legacy code is how the "ours" and "his" columns get mixed. */
+    const LEGACY_G3 = [
+      "Spixi/Meta/SNotificationPrefs.cs :: shouldDisplayRawPush failed:",
+      "Spixi/Pages/Chat/SingleChatPage.xaml.cs :: Tip failed with an exception:",
+      "Spixi/Pages/Contacts/ContactNewPage.xaml.cs :: Invalid address format:",
+      "Spixi/Pages/Contacts/ContactNewPage.xaml.cs :: viewcontact failed:",
+      "Spixi/Pages/Home/HomePage.xaml.cs :: Exception occurred in HomePage.UpdateScreen:",
+      "Spixi/Pages/MiniApps/MiniAppPage.xaml.cs :: Exception while processing Mini App action '{0}': {1}",
+      "Spixi/Platforms/Android/SPushService.cs :: postOurPushRow failed, the raw push is kept:",
+      "Spixi/Utils/SpixiContentPage.cs :: sendContactRequest: invalid address payload:",
+    ];
+    const added = offenders.filter((o) => !LEGACY_G3.includes(o));
+    ok(triesWithCtor >= 25 && added.length === 0,
+      '★★ gate 18 THE WALK: every `try` in Spixi/**/*.cs that constructs an Address or an ExtendedAddress is brace-matched and its catches read — ' + triesWithCtor + ' such blocks, ' + offenders.length + ' still name the caught exception, and every one of those is on the inherited/out-of-scope list the handover gate sends to the engineer untouched. The set may shrink; it may never grow. NEW offenders: ' + (added.join(' | ') || 'none'));
+    ok(offenders.length <= LEGACY_G3.length,
+      '★ gate 18: the offender count is ' + offenders.length + ', floor of the known legacy set ' + LEGACY_G3.length + '. A fix that removes one of them is welcome and passes; only a new one fails');
+    /* the positive half — the twelve the batch fixed carry the TYPE and nothing else */
+    const fixedFiles = ['Spixi/Utils/SPayments.cs', 'Spixi/Pages/Home/HomePage.xaml.cs', 'Spixi/Pages/Contacts/ContactDetails.xaml.cs'];
+    const typeOnly = fixedFiles.map((f) => (stripCode(rdS(f)).match(/\bex\.GetType\(\)\.Name|\be\.GetType\(\)\.Name/g) || []).length);
+    ok(typeOnly.every((n) => n >= 2),
+      '★ gate 18: the fixed catches log `GetType().Name` — a .NET type name cannot carry a payload. Counts per file: ' + fixedFiles.map((f, i) => f.split('/').pop() + '=' + typeOnly[i]).join(' · '));
+  }
+
+  /* ─── 19 · A-5 / A-6 — the destructive handlers are fenced, and chatinfo is anchored ─ */
+  {
+    const hpCode = stripCode(rdS('Spixi/Pages/Home/HomePage.xaml.cs'));
+    /* ⚠ A WALK over every method on this page that builds an Address out of a `string
+       address` parameter — that is the shape a WebView token takes — so a fourth handler
+       added later is covered without anybody editing this pin. */
+    const methods = [...hpCode.matchAll(/(?:public|private|internal|protected)[^\n(){}]*?\b([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*string\s+address\s*\)/g)].map((m) => m[1]);
+    const unfenced = [];
+    for (const name of new Set(methods)) {
+      const s = csSliceG(hpCode, 'void ' + name + '(string address)');
+      if (s.a < 0 || !/new Address\(address\)/.test(s.body)) continue;
+      const iTry = s.body.indexOf('try'), iCtor = s.body.indexOf('new Address(address)');
+      if (iTry < 0 || iTry > iCtor) unfenced.push(name);
+    }
+    ok(methods.length >= 2 && unfenced.length === 0,
+      '★★ gate 19 THE WALK: every HomePage handler that builds an Address from a `string address` parameter opens its `try` BEFORE the constructor. ' + [...new Set(methods)].join(', ') + '. Unfenced: ' + (unfenced.join(' · ') || 'none'));
+    for (const name of ['onAcceptRequest', 'onDeclineRequest']) {
+      const s = csSliceG(hpCode, 'void ' + name + '(string address)');
+      ok(s.a >= 0 && /ex\.GetType\(\)\.Name/.test(s.body)
+        && !/ex\.Message|ex\.ToString|ex\.StackTrace/.test(s.body)
+        && !/\+\s*ex\s*[),;]/.test(s.body) && !/\+\s*address\b/.test(s.body),
+        '★ gate 19: ' + name + '\'s catch names the exception TYPE and neither the message nor the token. ' + (name === 'onDeclineRequest' ? 'This handler REMOVES a friend, so a throw would otherwise leave the verb half-applied and unwind into the platform navigation catch' : 'A malformed accept token used to produce a silent platform-level failure'));
+    }
+    const nav = csSliceG(hpCode, 'void onNavigating(object sender, WebNavigatingEventArgs e)');
+    const at = nav.body.indexOf('else if (current_url.StartsWith("ixian:chatinfo:"');
+    let depth = 0, end = -1;
+    for (let k = nav.body.indexOf('{', at); k >= 0 && k < nav.body.length; k++) {
+      if (nav.body[k] === '{') depth++;
+      else if (nav.body[k] === '}' && --depth === 0) { end = k + 1; break; }
+    }
+    const ci = at >= 0 && end > at ? nav.body.slice(at, end) : '';
+    ok(ci.length > 100 && /current_url\.Substring\("ixian:chatinfo:"\.Length\)/.test(ci)
+      && !/Split\(/.test(ci) && !/Contains\("ixian:chatinfo/.test(ci),
+      '★★ gate 19 (A-6): the ixian:chatinfo: branch dispatches with StartsWith + Substring. Contains() + Split[1] matched the literal ANYWHERE in the URL and then cut the payload at it, so a payload that merely embedded the literal chose both which branch answered it and where its own payload was cut');
+    /* the count of the remaining Contains dispatches may FALL as legacy pages are
+       repointed; it must never rise. Derived by sweeping the tree, not by listing. */
+    const containsBranches = [];
+    (function walkC(dir) {
+      for (const ent of readdirSync(dir, { withFileTypes: true }).sort((x, y) => (x.name < y.name ? -1 : 1))) {
+        if (ent.isDirectory()) { if (ent.name !== 'obj' && ent.name !== 'bin') walkC(join(dir, ent.name)); }
+        else if (ent.name.endsWith('.cs')) {
+          for (const m of stripCode(readFileSync(join(dir, ent.name), 'utf8')).matchAll(/Contains\("ixian:[a-zA-Z]*/g)) containsBranches.push(m[0]);
+        }
+      }
+    })(join(root, 'Spixi'));
+    ok(containsBranches.length <= 12,
+      '★ gate 19: ' + containsBranches.length + ' `Contains("ixian:` dispatch branches remain, ceiling 12. Every one of them has a byte-identical twin at the fork point — chatinfo was the only INTRODUCED one, which is why it is the only one that changed. The count may fall as legacy pages are repointed; a thirteenth is a new introduced defect');
+  }
+
+  /* ─── 20 · THE APP-INVITE ICON IS GATED AT THE TRUST BOUNDARY (F2 / B-2) ─────────
+   * The 4th `||` field becomes an <img src> in the chat document. The C# receiver admitted
+   * it on StartsWith("http") while the shell decided "remote, therefore privacy-gated"
+   * with /^https?:\/\//i — and `http:/host/x.gif`, one slash, passed the first and failed
+   * the second, so the shell filed it as LOCAL, never gated it, and the browser normalised
+   * it back into a real remote fetch. A hostile peer never calls getAppInfo, so the gate
+   * has to sit where their bytes become a stored message. */
+  {
+    const mamCode = stripCode(rdS('Spixi/MiniApps/MiniAppManager.cs'));
+    const safe = csSliceG(mamCode, 'private static string safeAppIconUrl(string image)');
+    sliceOkG(safe, 'MiniAppManager.safeAppIconUrl');
+    const rets = [...safe.body.matchAll(/return\s+([^;]+);/g)].map((m) => m[1].trim());
+    ok(rets.length >= 4 && rets[rets.length - 1] === 'canonical' && rets.slice(0, -1).every((r) => r === '""'),
+      '★★ gate 20 FAIL CLOSED, from a walk over every return: safeAppIconUrl returns the PARSER\'S OWN canonical form or an empty string, and every refusal is the empty one. Returning the INPUT instead of `canonical` is the mutation that matters — the whole point is that both predicates then read the same string, so it never has to be known whether .NET accepts `https:/host/x`. Returns: ' + rets.join(' · '));
+    ok(/uri\.Scheme != Uri\.UriSchemeHttps/.test(safe.body) && /string canonical = uri\.AbsoluteUri;/.test(safe.body),
+      '★ gate 20: https only, and the canonical form is `uri.AbsoluteUri`. The precedent is in the same file — fetch() has always required Uri.UriSchemeHttps for this same publisher metadata — and an http icon is already a broken tile on Android and Windows, where Utils.IsAllowedURL refuses it');
+    ok(/canonical\.Contains\("\|"\)/.test(safe.body),
+      '★ gate 20: a canonical URL containing "|" is refused — it would add or move a field and re-shape the invite for every reader');
+    const san = csSliceG(mamCode, 'public static string sanitizeAppInvite(string app_info)');
+    sliceOkG(san, 'MiniAppManager.sanitizeAppInvite');
+    ok(/parts\[3\] = safeAppIconUrl\(parts\[3\]\);/.test(san.body) && /if \(parts\.Length < 4\)/.test(san.body)
+      && /string\.Join\("\|\|", parts\)/.test(san.body),
+      '★★ gate 20: segment 3 — the segment the reader uses as the icon (SingleChatPage.loadMessages, app_id_data[3]) — is the segment rewritten, every other segment is preserved exactly, and a shorter string is the pre-C7(b) shape and passes through. Change the index and the gate edits a field nobody reads while the icon field stays raw');
+    ok(/safeAppIconUrl\(mini_app\.image\)/.test(csSliceG(mamCode, 'public string getAppInfo(').body),
+      '★ gate 20: getAppInfo gates the icon field BEFORE the join, so an app NAME containing "||" cannot make the gate edit the wrong segment — and a sideloaded app\'s local filesystem path is no longer carried verbatim to the peer');
+
+    /* ⚠ THE LINE THAT ACTUALLY CLOSES THE HOLE — a WALK over every appSession store in
+       the tree, because a peer never runs getAppInfo and constraining only the emitter
+       would have left the receiving side wide open. */
+    const stores = [];
+    (function walkS(dir) {
+      for (const ent of readdirSync(dir, { withFileTypes: true }).sort((x, y) => (x.name < y.name ? -1 : 1))) {
+        if (ent.isDirectory()) { if (ent.name !== 'obj' && ent.name !== 'bin') walkS(join(dir, ent.name)); }
+        else if (ent.name.endsWith('.cs')) {
+          const src = stripCode(readFileSync(join(dir, ent.name), 'utf8'));
+          const rel = join(dir, ent.name).slice(root.length + 1).replace(/\\/g, '/');
+          for (let at = src.indexOf('FriendMessageType.appSession'); at >= 0; at = src.indexOf('FriendMessageType.appSession', at + 1)) {
+            const line = src.slice(src.lastIndexOf('\n', at) + 1, src.indexOf('\n', at));
+            if (/addMessageWithType/.test(line)) stores.push({ rel, line: line.trim() });
+          }
+        }
+      }
+    })(join(root, 'Spixi'));
+    const ungated = stores.filter((s) => !/sanitizeAppInvite\(|getAppInfo\(|app_info/.test(s.line));
+    ok(stores.length >= 3 && ungated.length === 0,
+      '★★ gate 20 THE WALK: every site that STORES an appSession message — ' + stores.length + ' of them across the tree — passes its text through the gate, either as a peer string through MiniAppManager.sanitizeAppInvite or as our own through getAppInfo. The received one (StreamProcessor.handleAppRequest) is the trust boundary and the line that closes the hole. Ungated: ' + (ungated.map((s) => s.rel).join(' · ') || 'none'));
+    ok(stores.some((s) => /StreamProcessor\.cs$/.test(s.rel) && /MiniAppManager\.sanitizeAppInvite\(/.test(s.line)),
+      '★★ gate 20: the RECEIVED invite specifically — the one a hostile peer composed — is sanitised at the moment their bytes become a stored message. Delete that wrapper and the emitter-side gate is decoration');
+  }
+
+  /* ─── 21 · THE ICON GENERATOR FAILS CLOSED (E-4) ─────────────────────────────────
+   * An icon body is written into a live document with `svg.innerHTML = entry.b`, and the
+   * documented pipeline is "re-export the frame from Figma and re-run this script" — a
+   * tool output a human eyeballs as a picture, never as markup. */
+  {
+    const genSrc = rdS('scripts/generate-icons.mjs');
+    const gen = stripCode(genSrc);
+    ok(/const ALLOWED_TAGS = new Set\(/.test(gen) && /const ALLOWED_ATTRS = new Set\(/.test(gen),
+      'gate 21 premise: the generator declares tag and attribute allow-lists');
+    const tagsm = /const ALLOWED_TAGS = new Set\(\[([^\]]*)\]\)/.exec(gen);
+    const tags = tagsm ? tagsm[1].split(',').map((t) => t.trim().replace(/^'|'$/g, '')).filter(Boolean) : [];
+    const attrsm = /const ALLOWED_ATTRS = new Set\(\[([\s\S]*?)\]\)/.exec(gen);
+    const attrs = attrsm ? attrsm[1].split(',').map((t) => t.trim().replace(/^'|'$/g, '')).filter(Boolean) : [];
+    const forbiddenTags = ['script', 'foreignObject', 'image', 'use', 'a', 'style', 'iframe', 'set', 'animate'].filter((t) => tags.includes(t));
+    const forbiddenAttrs = attrs.filter((a) => /^on/i.test(a) || /href/i.test(a) || a === 'style');
+    ok(tags.length > 0 && forbiddenTags.length === 0 && forbiddenAttrs.length === 0,
+      '★★ gate 21: the allow-lists admit no scripting surface — no script, foreignObject, image, use, a or style tag, and no on* / href / style attribute. They are absent by construction rather than by a deny-list. Tags: ' + tags.join(' ') + '. Offending: ' + ([...forbiddenTags, ...forbiddenAttrs].join(' · ') || 'none'));
+    const iGate = gen.indexOf('const faults = iconBodyFaults(inner);');
+    const iReject = gen.indexOf('rejected.push({ file, faults });');
+    const iEntry = gen.indexOf('entries[name] = {');
+    const iExit = gen.indexOf('process.exit(1);');
+    const iWrite = gen.indexOf('writeFileSync(');
+    ok(iGate >= 0 && iReject > iGate && iEntry > iReject,
+      '★★ gate 21 ORDER (a): the gate runs on the FINAL body — the exact string that is stored and later assigned to svg.innerHTML, so no transform above it can slip anything past — and the refusal `continue`s BEFORE the entry is built, so a rejected asset never becomes a registry entry at all');
+    ok(iExit > 0 && iWrite > iExit && iWrite > 0,
+      '★★ gate 21 ORDER (b): `process.exit(1)` stands BEFORE both writeFileSync calls, so a hostile asset cannot reach the registry — and it is not silently stripped either, so the fact that an asset was hostile stays visible instead of being quietly repaired');
+
+    /* BEHAVIOURAL — the generator is RUN, in a temp tree, against one real icon and one
+       hostile asset. A source-only pin cannot tell an allow-list that is consulted from
+       one that is declared. */
+    /* mkdirSync/cpSync are not in this file's static fs import — pulled in here rather
+       than widening that line, which every other block depends on. */
+    const { mkdirSync, cpSync } = await import('node:fs');
+    const tmpG = mkdtempSync(join(tmpdir(), 'spixi-icons-'));
+    try {
+      mkdirSync(join(tmpG, 'scripts'), { recursive: true });
+      mkdirSync(join(tmpG, 'src/assets/icons'), { recursive: true });
+      mkdirSync(join(tmpG, 'src/components'), { recursive: true });
+      writeFileSync(join(tmpG, 'scripts/generate-icons.mjs'), readFileSyncRaw(join(root, 'scripts/generate-icons.mjs')));
+      const realIcon = readdirSync(join(root, 'src/assets/icons')).filter((f) => f.endsWith('.svg')).sort()[0];
+      cpSync(join(root, 'src/assets/icons', realIcon), join(tmpG, 'src/assets/icons', realIcon));
+      const { execFileSync } = await import('node:child_process');
+      const runGen = () => {
+        try { execFileSync(process.execPath, [join(tmpG, 'scripts/generate-icons.mjs')], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); return { code: 0, err: '' }; }
+        catch (e) { return { code: e.status ?? 1, err: String(e.stderr || '') }; }
+      };
+      const clean = runGen();
+      const wroteClean = existsSync(join(tmpG, 'src/components/icons.js'));
+      rmSync(join(tmpG, 'src/components/icons.js'), { force: true });
+      rmSync(join(tmpG, 'src/components/icons.iife.js'), { force: true });
+      writeFileSync(join(tmpG, 'src/assets/icons/tabler-icon-hostile.svg'),
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M0 0" onload="steal()"/></svg>');
+      const hostile = runGen();
+      const wroteHostile = existsSync(join(tmpG, 'src/components/icons.js')) || existsSync(join(tmpG, 'src/components/icons.iife.js'));
+      ok(clean.code === 0 && wroteClean && hostile.code === 1 && !wroteHostile
+        && /REJECTED/.test(hostile.err) && /hostile\.svg/.test(hostile.err) && /onload/.test(hostile.err),
+        '★★ gate 21 BEHAVIOURAL: the generator is RUN in a temp tree. A real icon alone → exit 0 and the registry is written. Add one asset carrying `onload="steal()"` → exit 1, the FILE and the offending TOKEN are named on stderr, and NEITHER output file is written. clean=' + clean.code + '/' + wroteClean + ' hostile=' + hostile.code + '/wrote=' + wroteHostile);
+    } finally { rmSync(tmpG, { recursive: true, force: true }); }
+    /* and the gate must not have changed the output for the real set — the existing
+       registry-equality gate is the other half of this */
+    ok(!/generate-icons: REJECTED/.test(rdS('src/components/icons.js')),
+      'gate 21: the shipped registry is a registry, not a rejection log (the sanity half of the behavioural pin above)');
+  }
+
+  /* ─── 22 · nuget.config — the folder feed is scoped to one package id (I-1) ──────
+   * A folder source with no packageSourceMapping is unscoped: any .nupkg dropped into
+   * local-nuget/ shadows a public package of that id, at any version, for every restore.
+   * The payload is a NATIVE library that links into a wallet app. */
+  {
+    const ng = rdS('nuget.config');
+    ok(/<packageSources>[\s\S]*?<clear\s*\/>/.test(ng),
+      '★★ gate 22: <clear /> is the FIRST thing inside <packageSources>, so the two sources declared below it are the only ones a restore uses. Without it the file inherits machine-level sources and the mapping no longer describes the whole source set');
+    const mapping = /<packageSourceMapping>([\s\S]*?)<\/packageSourceMapping>/.exec(ng);
+    ok(!!mapping, '★★ gate 22: a <packageSourceMapping> block exists — it is the thing that stops a dropped .nupkg shadowing a public id');
+    if (mapping) {
+      const localBlock = /<packageSource key="local">([\s\S]*?)<\/packageSource>/.exec(mapping[1]);
+      const localPatterns = localBlock ? [...localBlock[1].matchAll(/pattern="([^"]+)"/g)].map((m) => m[1]) : [];
+      ok(localPatterns.length === 1 && localPatterns[0] === 'RocksDB',
+        '★★ gate 22: the `local` source maps to exactly ONE pattern and it is RocksDB — the child COUNT is asserted, not merely the presence of the pattern, because adding `<package pattern="*" />` beside it leaves the mapping present and the folder feed unscoped again. Patterns: ' + (localPatterns.join(' · ') || 'none'));
+      const orgBlock = /<packageSource key="nuget\.org">([\s\S]*?)<\/packageSource>/.exec(mapping[1]);
+      const orgPatterns = orgBlock ? [...orgBlock[1].matchAll(/pattern="([^"]+)"/g)].map((m) => m[1]) : [];
+      ok(orgPatterns.includes('*') && orgPatterns.includes('RocksDB'),
+        '★★ gate 22: nuget.org carries BOTH `*` and an explicit `RocksDB`. NuGet resolves by longest matching pattern, so without that second line every non-android/ios restore of RocksDB 10.4.2.64152 — the public package Spixi.csproj asks for on Windows and MacCatalyst — fails with NU1100. Patterns: ' + orgPatterns.join(' · '));
+    }
+    /* the recorded hash is a REAL hash of the committed bytes, not a string that looks
+       like one — a stale hash is worse than none */
+    const nupkg = join(root, 'local-nuget/RocksDB.0.0.42.nupkg');
+    if (existsSync(nupkg)) {
+      const { createHash } = await import('node:crypto');
+      const real = createHash('sha512').update(readFileSyncRaw(nupkg)).digest('hex');
+      const recorded = (ng.match(/SHA-512\s+([0-9a-f\s]+)/) || [null, ''])[1].replace(/\s+/g, '');
+      ok(recorded.length === 128 && recorded === real,
+        '★★ gate 22: the SHA-512 recorded beside the feed is COMPUTED here from the committed bytes and compared — not matched as a string. Replace the .nupkg or edit one hex character and this goes red, which is the only way a recorded hash is worth recording');
+    } else {
+      ok(false, 'gate 22 premise: local-nuget/RocksDB.0.0.42.nupkg is tracked — the hash pin has nothing to verify without it');
+    }
+  }
+
+  /* ─── 23 · maxLogCount — the PAIR, not the value (G-4) ───────────────────────────
+   * ⚠ THIS PIN REPLACES A `>= 5` ASSERTION, and the old shape fired at the wrong moment.
+   * The field is 5 for development and must go to 1 before release; the marker above it
+   * says so. A `>= 5` pin FAILS THE SUITE on the release flip — so the flip has to edit
+   * the pin, which is how a release blocker is quietly lost. The contract Config.cs now
+   * states is a pair: value 5 WITH the marker, or value 1 WITHOUT it, and no other pair. */
+  {
+    const cfg = rdS('Spixi/Meta/Config.cs');
+    const valm = /public static int maxLogCount = (\d+);/.exec(cfg);
+    const value = valm ? Number(valm[1]) : null;
+    /* the marker is a COMMENT, so this half reads prose (#771 in the other direction —
+       stripCode would delete the very thing being asserted).
+       ⚠ #46 loop C, MINOR-1: it reads the docblock's FIRST LINE, not the whole comment.
+       The contract paragraph BELOW the marker quotes the phrase "the RELEASE BLOCKER
+       marker above is present" — so a whole-comment test found the marker after the real
+       marker line was deleted, and the marker half could never go false. That is #771
+       inside the pin written to encode the release-blocker contract, and it also meant
+       this pin BLOCKED the release flip by computing the illegal pair (1, present).
+       ★ WHAT THE FLIP EDITS: the value, and the marker LINE — the first line of this
+       docblock. The contract paragraph stays, because the pin it describes stays. */
+    const decl = cfg.indexOf('public static int maxLogCount');
+    const blockAt = cfg.lastIndexOf('/*', decl);
+    const eol = cfg.indexOf('\n', blockAt);
+    const doc = prose(cfg.slice(Math.max(0, blockAt), decl));
+    const marker = blockAt >= 0 && /RELEASE BLOCKER/.test(prose(cfg.slice(blockAt, eol > blockAt && eol < decl ? eol : decl)));
+    ok(value !== null && ((value === 5 && marker) || (value === 1 && !marker)),
+      '★★ gate 23 THE CONTRACT AS A PAIR: maxLogCount is ' + value + ' and the RELEASE BLOCKER marker is ' + (marker ? 'present on the docblock\'s first line' : 'absent from the docblock\'s first line') + '. Legal pairs are 5-with-marker (development) and 1-without-marker (released). The release flip therefore edits Config.cs alone and passes; a released value left beside a stale marker — the drift that actually loses a blocker — fails; and 3, 7 or 10 fail whatever the marker says');
+    ok(/THE PIN CONTRACT/.test(doc),
+      '★ gate 23: Config.cs states the contract this pin encodes, so the next author can read at the other end what the pin is asserting. A coupling that is documented in only one of the two places is a coupling that gets broken');
+
+    /* ★★ THE NEGATIVE THAT KEEPS THE DELETION DELETED (#46 loop C, MINOR-1).
+       Config.cs states "EXACTLY ONE smoke pin may assert this field". That sentence was
+       false for the whole of this batch: a superseded `>= 5` block was still live and the
+       release flip failed three assertions. Deleting it is not enough — the property is
+       that no SECOND value assertion comes back. A line naming maxLogCount may compare it
+       to nothing: `Config.maxLogSize, Config.maxLogCount, true` (the setOptions pin) is a
+       PASSTHROUGH and stays legal; `>= 5`, `=== 1` or a `(\d+)` capture outside this gate
+       is not. Read LINE BY LINE — a line is a syntactic unit here — never as a character
+       window over the file (#771). */
+    const selfSrc = readFileSync(fileURLToPath(import.meta.url), 'utf8');
+    const g23From = selfSrc.indexOf("const valm = /public static int maxLogCount");
+    const g23To = selfSrc.indexOf('gate 23: Config.cs states the contract this pin encodes');
+    const strays = [];
+    let cursor = 0;
+    for (const line of selfSrc.split('\n')) {
+      const at = cursor, end = cursor + line.length; cursor = end + 1;
+      if (!line.includes('maxLogCount')) continue;
+      /* gate 23's own two lines, by RANGE — the line START sits before the anchor */
+      if (g23From >= 0 && g23To > g23From && end >= g23From && at <= g23To) continue;
+      /* a comment is prose, not an assertion. The retirement note above QUOTES the shape
+         it retired, and a raw line sweep is satisfied by that quotation (#771 again — the
+         first draft of this very clause went red against the correct tree). */
+      if (/^\s*(?:\*|\/\*|\/\/)/.test(line)) continue;
+      if (/maxLogCount[^\n]{0,30}?(?:>=|<=|===|==|!==|<|>)\s*\d/.test(line) || /maxLogCount\s*=\s*\(\\d\+\)/.test(line)) {
+        strays.push(line.trim().slice(0, 90));
+      }
+    }
+    ok(g23From >= 0 && g23To > g23From && strays.length === 0,
+      '★★ gate 23 THE NEGATIVE: this suite contains no SECOND assertion that compares maxLogCount to a value — gate 23 is the only pin allowed to name the field, and it names the PAIR. Re-add a `>= 5` test anywhere and this clause goes red instead of the release flip going red. Strays: [' + (strays.join(' | ') || 'none') + ']');
+  }
+
+  /* ─── 24 · THE OPT-OUT THAT DID NOT EXIST (E-1b) ─────────────────────────────────
+   * chat.html gated remote media and the app-invite publisher icon behind
+   * `spixi.media.autoload`, and its comment told the reader to "write 'off' to opt out"
+   * — but NOTHING in the tree ever wrote that key, so both gates were permanently on and
+   * the documented control was fiction (#772). The Privacy screen existed, was fully
+   * built, and had never been reachable: the hub gated it on two §9 capabilities that
+   * nothing pushes. */
+  {
+    const setShell = rdS('src/shells/settings.html');
+    const setCode = stripCode(setShell);
+    ok(/case 'privacy': return createPrivacy\(/.test(setCode) && /onPrivacy: showPrivacy/.test(setCode),
+      '★ gate 24: settings.html now RENDERS the Privacy screen and the hub routes to it. The screen has existed and been unreachable since it was built');
+    const write = /localStorage\.setItem\(MEDIA_AUTOLOAD_KEY, next \? 'on' : 'off'\)/.test(setCode);
+    ok(write, '★★ gate 24: the switch writes `off` when it is turned OFF. Invert the ternary and the row reads correctly, toggles correctly, and turns the gate ON when the user asks for it off');
+    ok(/ctrl\.done\(\)/.test(setCode) && /catch \(e\) \{ ctrl\.fail\(\); \}/.test(setCode),
+      '★ gate 24: a storage failure calls ctrl.fail(), so the switch reverts instead of lying. Private mode throws on setItem');
+    ok(/mediaAutoload: true,/.test(setCode) && /capabilities\.mediaAutoload/.test(stripCode(rdS('src/components/settings-shell.js'))),
+      '★★ gate 24: `mediaAutoload` is declared as a FRONTEND capability and the hub gate names it. The gate still enumerates every row the screen can draw, so the hub cannot offer an EMPTY Privacy screen — which is what it would do the moment a §9 capability were pushed and this row were not counted');
+    ok(/key: 'privacy'/.test(stripCode(rdS('src/components/settings-shell.js'))),
+      '★ gate 24: the Privacy row carries `key: \'privacy\'`, so the desktop pane\'s aria-current lookup finds it (#246\'s "add key at cap-enable" note)');
+    /* the KEY and its DEFAULT are owned by chat.html; settings.html reads with the
+       identical predicate, and the STRING is the contract, not the boolean */
+    ok(/const MEDIA_AUTOLOAD_KEY = 'spixi\.media\.autoload';/.test(setCode)
+      && /localStorage\.getItem\(MEDIA_AUTOLOAD_KEY\) !== 'off'/.test(setCode)
+      && /localStorage\.getItem\(MEDIA_AUTOLOAD_KEY\) !== 'off'/.test(stripCode(srcChat)),
+      '★★ gate 24: both documents read the key with the IDENTICAL predicate — absent means ON, and only the exact string "off" turns it off. They are two WebViews on one localStorage origin and there is no push between them, so the string is the whole contract');
+
+    /* BEHAVIOURAL — the row exists, it is a switch, and it reports the value the shell
+       then writes. jsdom, on the component the built shell bundles. */
+    const dom = await load('components.html');
+    const W = dom.window;
+    if (W.Spixi && W.Spixi.createPrivacy && W.Spixi.createSettingsHub) {
+      let got = null;
+      const screen = W.Spixi.createPrivacy({ mediaAutoload: true, onMediaAutoload: (next, ctrl) => { got = next; ctrl.done(); } });
+      W.document.body.append(screen);
+      const sw = screen.querySelector('input[type="checkbox"], [role="switch"]');
+      ok(!!sw, '★ gate 24 BEHAVIOURAL: createPrivacy renders the media row as a switch when the handler is passed');
+      if (sw) {
+        sw.click();
+        await sleep(60);
+        ok(got === false,
+          '★★ gate 24 BEHAVIOURAL: turning the switch off hands the shell `false`, which is the value that becomes the string "off". Row rendered, clicked, and the handler received: ' + JSON.stringify(got));
+      }
+      const bare = W.Spixi.createPrivacy({});
+      ok(bare.querySelectorAll('input[type="checkbox"], [role="switch"]').length === 0,
+        '★ gate 24 BEHAVIOURAL: with no handlers at all createPrivacy renders ZERO switches — which is exactly what the hub gate exists to stop the user ever seeing');
+      const hubOn = W.Spixi.createSettingsHub({ onPrivacy: () => {}, capabilities: { mediaAutoload: true } });
+      const hubOff = W.Spixi.createSettingsHub({ onPrivacy: () => {}, capabilities: {} });
+      const hasRow = (el) => !!el.querySelector('[data-setting-key="privacy"]');
+      ok(hasRow(hubOn) && !hasRow(hubOff),
+        '★★ gate 24 BEHAVIOURAL: the hub shows the Privacy row when the frontend capability is declared and hides it when it is not. Drop `|| capabilities.mediaAutoload` from the gate and the opt-out becomes unreachable again — which was its entire history until this batch');
+    } else {
+      ok(false, 'gate 24 BEHAVIOURAL premise: components.html exposes createPrivacy and createSettingsHub');
+    }
+    dom.window.close();
+  }
+}
+
+
+/* ═════════════════════════════════════════════════════════════════════════════════
+   ★★ THE SECOND HANDOVER-GATE FIX BATCH — gates 25…38
+   `docs/security-handover-gate.md` §"★★ THE FULL SWEEP — 2026-09-06", rows O-01 ·
+   O-07 · O-10 · O-12 · O-13 · O-14 · O-16 · O-17 · O-21 · O-22 · O-23 · O-24 · O-25 ·
+   O-26 · O-37 · O-39 · O-42. O-07 and O-10 are pinned where their subjects already
+   live (the scan block and the launch block); O-23's half rides the #46 A2 pin, which
+   is the only reader of copyResources. Everything else is here.
+
+   THE RULES THESE OBEY, restated because this file keeps paying for forgetting them:
+     · every pin declares stripCode or raw and asserts a PROPERTY (#771);
+     · no property is bounded by CHARACTER DISTANCE over raw text — slice by structure;
+     · a behavioural pin never stubs the function it is testing;
+     · a refusal, an enumeration or a sweep is WALKED out of the tree, never listed by
+       the author (#798).
+   ════════════════════════════════════════════════════════════════════════════════ */
+console.log('handover gate — the second fix batch (log reach · frontend NITs)');
+{
+  const rdG = (p) => readFileSync(join(root, p), 'utf8');
+  const utilsCs = rdG('Spixi/Utils/Utils.cs');
+  const csCode = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+
+  /* Slice a C# member by BRACE MATCHING from its signature — the standing rule, and the
+     only way to read a body without a character budget. Returns the body, braces excluded. */
+  const csBody = (src, sig) => {
+    const i = src.indexOf(sig);
+    if (i < 0) return '';
+    let j = src.indexOf('{', i + sig.length);
+    if (j < 0) return '';
+    let d = 0, k = j;
+    for (; k < src.length; k++) {
+      if (src[k] === '{') d += 1;
+      else if (src[k] === '}') { d -= 1; if (d === 0) break; }
+    }
+    return src.slice(j + 1, k);
+  };
+
+  /* ══ GATE 25 — `logSafe`: WHERE IT LIVES, AND WHAT IT ACTUALLY DOES ═══════════════
+     O-25 moved the sanitiser out of Platforms/Android/ so every TFM can call it, and
+     O-24/O-26 STRENGTHENED its rule: flattening and a 160-character clamp close line
+     forgery, but an Ixian address is ~45 base58 characters and fits inside the clamp
+     intact, and the two catches this batch guards wrap code handling the push `fa`,
+     which IS the sender's wallet address.
+
+     ⚠ THE RULE IS ASSERTED BEHAVIOURALLY, and the code that runs is DERIVED FROM THE
+     SOURCE TEXT, not transcribed. The three C# members are sliced out by brace match and
+     mechanically rewritten into JS by a fixed, tiny substitution table (StringBuilder →
+     string concatenation, .Append/.Substring/.Replace/.Length → their JS spellings). The
+     rewriter then REFUSES: if any C#-only construct survives the table, the pin FAILS
+     rather than silently testing something else. So a change to the C# changes what is
+     executed here — which is the whole difference between this and a copy of the rule. */
+  {
+    const TOKMIN = Number((csCode(utilsCs).match(/LOG_SAFE_TOKEN_MIN = (\d+);/) || [])[1]);
+    const toJs = (t) => csCode(t)
+      .replace(/StringBuilder sb = new StringBuilder\([^)]*\);/g, "let sb = '';")
+      .replace(/sb\.Append\("<redacted:"\)\.Append\(run\)\.Append\('>'\);/g, "sb += '<redacted:' + run + '>';")
+      .replace(/sb\.Append\(value, start, run\);/g, 'sb += value.substr(start, run);')
+      .replace(/sb\.Append\(value\[i\]\);/g, 'sb += value[i];')
+      .replace(/return sb\.ToString\(\);/g, 'return sb;')
+      .replace(/\bstring\.Empty\b/g, "''")
+      .replace(/\.Replace\('([^']*)', '([^']*)'\)/g, ".split('$1').join('$2')")
+      .replace(/\.Substring\(0, max\)/g, '.slice(0, max)')
+      .replace(/\.Length\b/g, '.length')
+      .replace(/\bfor \(int /g, 'for (let ')
+      .replace(/\bint /g, 'let ').replace(/\bstring /g, 'let ');
+    const CS_RESIDUE = /StringBuilder|\.Append\(|\.ToString\(\)|\bint\b|\bstring\b|\.Replace\(|\.Substring\(|\.Length\b/;
+    const jsTok = toJs(csBody(utilsCs, 'private static bool isLogTokenChar(char c)'));
+    const jsRed = toJs(csBody(utilsCs, 'private static string redactLongTokens(string value)'));
+    const jsSafe = toJs(csBody(utilsCs, 'public static string logSafe(string? value, int max)'));
+    const translated = jsTok.length > 20 && jsRed.length > 200 && jsSafe.length > 60
+      && !CS_RESIDUE.test(jsTok) && !CS_RESIDUE.test(jsRed) && !CS_RESIDUE.test(jsSafe)
+      && Number.isFinite(TOKMIN);
+    let run = null;
+    if (translated) {
+      try {
+        const isLogTokenChar = new Function('c', jsTok);
+        const redactLongTokens = new Function('value', 'isLogTokenChar', 'LOG_SAFE_TOKEN_MIN', jsRed);
+        const logSafeFn = new Function('value', 'max', 'redactLongTokens', jsSafe);
+        run = (v, max) => logSafeFn(v, max === undefined ? 160 : max,
+          (x) => redactLongTokens(x, isLogTokenChar, TOKMIN));
+      } catch (e) { run = null; }
+    }
+    ok(translated && !!run,
+      '★★ GATE 25 premise: the THREE members of the log sanitiser (logSafe · redactLongTokens · isLogTokenChar) were sliced out of Spixi/Utils/Utils.cs by brace match and mechanically rewritten to JS, with a residue check that FAILS rather than testing a stub. This pin is what makes the behavioural clauses below read the shipped rule instead of a copy of it');
+    if (run) {
+      const addr = '4bXbYzXKfbeaJyPRRnBBWDCDwsN1rMkHfmS4pWn4B6sgqRJP7XZQ9';
+      const redacted = run('Address ' + addr + ' invalid');
+      const cases = {
+        'a base58 wallet address is REMOVED': redacted.indexOf(addr) < 0 && /<redacted:53>/.test(redacted),
+        'and the sentence around it survives': /^Address .* invalid$/.test(redacted),
+        'a .NET type name is UNTOUCHED': run('System.InvalidOperationException: nope') === 'System.InvalidOperationException: nope',
+        'a dashed GUID is UNTOUCHED': run('8b2d3f4a-1122-3344-5566-778899aabbcc') === '8b2d3f4a-1122-3344-5566-778899aabbcc',
+        'a Windows path is UNTOUCHED': run('C:\\Users\\Damir\\Documents\\Spixi\\html\\ll_chat.html') === 'C:\\Users\\Damir\\Documents\\Spixi\\html\\ll_chat.html',
+        'a 25-character run stays, a 26-character run goes': run('x'.repeat(25)) === 'x'.repeat(25) && run('x'.repeat(26)) === '<redacted:26>',
+        'CR and LF are both flattened (line forgery)': run('a\r\nb') === 'a  b' && run('X\nERROR forged').indexOf('\n') < 0,
+        /* ⚠ the clamp case must NOT use one long run: the redactor would collapse it to
+           "<redacted:400>" and the clamp would never be reached. Separated words. */
+        'the clamp still bounds the line': run('ab '.repeat(200)).length === 160 && run('ab '.repeat(200), 0).length === 600,
+        'a null is not a crash': run(null) === '',
+      };
+      const bad = Object.keys(cases).filter((k) => !cases[k]);
+      ok(bad.length === 0,
+        '★★ GATE 25 BEHAVIOURAL — the redaction rule EXECUTED, from the shipped source: ' + Object.keys(cases).join(' · ') + '. Failing: [' + bad.join(' | ') + ']');
+    } else {
+      ok(false, '★★ GATE 25 BEHAVIOURAL: the rule could not be executed (see the premise above)');
+    }
+  }
+  /* ══ GATE 26 — THE THREE CALL SITES, AND A WALK THAT COVERS THE FOURTH ═══════════
+     O-24 named the two push-path catches (`decidePush`'s outer catch and the service
+     extension's) and O-26 the muted-contact read. Each `try` wraps code that handles a
+     value off the wire — the push `fa` IS the sender's wallet address, and `muteKey`
+     EMBEDS the peer address — and `IXICore.Address` formats the offending string into
+     its own exception message.
+     The three sites are asserted by name because the row names them. The property that
+     survives a fourth site is the WALK: across the three files, NO `Logging.*` call may
+     hand the logger a bare exception object. Comments stripped — every one of those
+     catches now carries a docblock that quotes the shape it replaced (#771). */
+  {
+    const logFiles = ['Spixi/Platforms/Android/SPushService.cs',
+      'Spixi/Platforms/Android/SNotificationServiceExtension.cs',
+      'Spixi/Meta/SNotificationPrefs.cs'];
+    /* ⚠ #46 loop C, MINOR-6: the detector used to be a FOUR-NAME VARIABLE LIST — `ex`,
+       `e`, `oex`, `alertEx`. The reviewer added `catch (Exception problem) { Logging.error(
+       "b5 probe failed: " + problem); }` and nothing failed. The property is "no Logging
+       call in these files hands the logger a bare exception object"; the implementation was
+       "…named one of four things" (#798).
+       The name is DERIVED now: every `catch (Type name)` block is brace-matched, and inside
+       it a Logging call whose argument list ENDS with that name is bare. A catch that names
+       its exception anything at all is covered. ⚠ A `catch` with no variable declares no
+       name, so nothing inside it can be bare by this rule — which is correct: there is no
+       object to hand over. */
+    const argsOf26 = (src, i) => {
+      const open = src.indexOf('(', i);
+      if (open < 0) return '';
+      let depth = 0;
+      for (let k = open; k < src.length; k++) {
+        if (src[k] === '(') depth++;
+        else if (src[k] === ')' && --depth === 0) return src.slice(open + 1, k);
+      }
+      return '';
+    };
+    const bare = [];
+    for (const f of logFiles) {
+      const t = csCode(rdG(f));
+      for (const cm of t.matchAll(/catch\s*\(\s*[A-Za-z_][\w.<>]*\s+([A-Za-z_]\w*)\s*\)/g)) {
+        const name = cm[1];
+        let d = 0, end = -1;
+        for (let k = t.indexOf('{', cm.index + cm[0].length); k >= 0 && k < t.length; k++) {
+          if (t[k] === '{') d++;
+          else if (t[k] === '}' && --d === 0) { end = k + 1; break; }
+        }
+        if (end < 0) continue;
+        const body = t.slice(cm.index, end);
+        for (const lm of body.matchAll(/Logging\.(?:error|warn|info|log|trace)\s*\(/g)) {
+          const args = argsOf26(body, lm.index + lm[0].length - 1).trim();
+          if (new RegExp('(?:,|\\+)\\s*' + name + '\\s*$').test(args)) bare.push(f.split('/').pop() + ': ' + args.slice(-70));
+        }
+      }
+    }
+    /* ⚠ THE WALK FOUND MORE THAN THE ROWS CLOSED, AND THAT IS THE POINT OF WALKING.
+       Nine other catches in these files still hand the logger a bare exception object.
+       They are INHERITED (none is in this batch's diff) and no census row names them, so
+       they are frozen here BY THEIR LOG LITERAL and the assertion is a SUBSET test: the
+       set may shrink — a later batch closing one passes — and it may never grow. Two of
+       them deserve the next reader's attention and are called out in the message, because
+       `setContactMuted` and `shouldDisplayRawPush` are the SAME class as O-26: both sit
+       beside `Preferences.Default.Set(muteKey(address), …)`, and muteKey embeds the peer
+       address. O-26 closed the READ; these two are the WRITE and the gate beside it. */
+    const INHERITED_BARE = [
+      'registerEarly failed', 'RequestPermissionAsync threw', 'applyPushProviderPreference',
+      'Exception while clearing all notifications', 'Exception occured in handleNotificationOpened',
+      'SNotificationPrefs.getBool(', 'SNotificationPrefs.setBool(',
+      'SNotificationPrefs.setContactMuted failed', 'shouldDisplayRawPush failed',
+    ];
+    const newBare = bare.filter((b) => !INHERITED_BARE.some((k) => b.includes(k)));
+    const push = csCode(rdG('Spixi/Platforms/Android/SPushService.cs'));
+    const nse = csCode(rdG('Spixi/Platforms/Android/SNotificationServiceExtension.cs'));
+    const prefs = csCode(rdG('Spixi/Meta/SNotificationPrefs.cs'));
+    ok(/Logging\.error\("Exception occured in decidePush \(" \+ where \+ "\): "\s*\+ ex\.GetType\(\)\.Name \+ ": " \+ SPIXI\.Utils\.logSafe\(ex\.Message\)\);/.test(push)
+       && /Logging\.error\("SpixiNotificationServiceExtension failed: "\s*\+ ex\.GetType\(\)\.Name \+ ": " \+ SPIXI\.Utils\.logSafe\(ex\.Message\)\);/.test(nse)
+       && /Logging\.error\("SNotificationPrefs\.isContactMuted failed: "\s*\+ e\.GetType\(\)\.Name \+ ": " \+ SPIXI\.Utils\.logSafe\(e\.Message\)\);/.test(prefs)
+       && newBare.length === 0 && bare.length <= INHERITED_BARE.length,
+      '★★ GATE 26 (O-24 · O-26): the two push-path catches and the muted-contact read log the exception TYPE plus a SANITISED message, and a WALK over every Logging.* call in all three files finds ' + newBare.length + ' NEW site handing the logger a bare exception object (' + bare.length + ' inherited ones are frozen by their log literal — the set may shrink, never grow, and four of the frozen entries have already been closed by this batch). The catch VARIABLE is derived from its own `catch (…)` clause, not matched against a list of four names. `fa` is the sender wallet address and muteKey embeds the peer address; IXICore.Address formats the offending string into its own exception message, and Logging writes that message verbatim');
+  }
+
+  /* ══ GATE 27 — O-21: THE ONESIGNAL SUBSCRIPTION ID IS A LENGTH, NOT A VALUE ═══════
+     That id is a persistent push identifier: it correlates one device across every log
+     it appears in, and with the app key it TARGETS that device. ixian.log is shareable
+     from DevPage. The APNs token on the same line was already a character count; this
+     row brought the id into line, and a short prefix was considered and refused.
+     The pin is a WALK over every `sub.Id` in the file: each one must be either the
+     emptiness test or the `.Length` read. Add a prefix (`sub.Id.Substring(0, 8)`) and
+     that walk fails, which is the decision this row actually made. */
+  {
+    const iosPush = csCode(rdG('Spixi/Platforms/iOS/SPushService.cs'));
+    /* each `sub.Id` plus the ONE character that follows it — that suffix is what separates
+       a length read from a value read, and dropping it is how a walk goes blind. */
+    const uses = [...iosPush.matchAll(/sub\.Id(?:\.\w+|.)/g)].map((m) => m[0]);
+    const okUses = uses.filter((u) => u === 'sub.Id.Length' || u === 'sub.Id)');
+    ok(uses.length >= 2 && uses.length === okUses.length
+       && /subId=" \+ \(string\.IsNullOrEmpty\(sub\.Id\) \? "\(none\)" : sub\.Id\.Length \+ " chars"\)/.test(iosPush),
+      '★★ GATE 27 (O-21): the [APNSDIAG] line reports the subscription id as a LENGTH. A walk over every `sub.Id` in the file finds ' + uses.length + ' uses (' + uses.join(' · ') + ') and all of them are the emptiness test or the length read — a prefix, which was considered and refused because eight characters are still a stable per-device correlator, fails here');
+  }
+
+  /* ══ GATE 28 — O-16: OUR DIAGNOSTICS DO NOT ENTER A PUBLISHER'S CONSOLE ═══════════
+     MauiProgram registers this handler for typeof(WebView), so it also serves the
+     MINI-APP WebView, which renders third-party code. `EvaluateJavaScript` writes into
+     whatever document holds the WebView. The values are a fixed vocabulary, so this was
+     never an injection — it was our internal state offered to code that is not ours.
+
+     ⚠ NOT A LIST OF THE TWO KNOWN SITES. Every `EvaluateJavaScript(` in the file is
+     located, and for each one the enclosing blocks are walked OUTWARD until a block is
+     found that tests `isTrustedHost()` before the call. A third site added anywhere in
+     this file, in any nesting, fails unless it is guarded the same way. */
+  {
+    const iosH = rdG('Spixi/Platforms/iOS/iOSWebViewHandler.cs');
+    const iosHC = csCode(iosH);
+    /* ⚠ MY FIRST VERSION OF THIS WALK WAS WRONG AND A MUTATION FOUND IT. It climbed
+       outward until SOME enclosing block contained the guard — and the CLASS body is an
+       enclosing block, and it contains `forwardToConsole`, whose own body names
+       isTrustedHost. So an ungated EvaluateJavaScript dropped anywhere in the class read
+       as guarded. The climb now STOPS at the type body: the guard has to be inside the
+       same METHOD as the call, which is the only place it can actually dominate it. */
+    const OPENS_A_TYPE = /\b(?:class|struct|interface|namespace|record|enum)\s+[\w<>,. ]+$/;
+    const guardedOutward = (src, idx, re) => {
+      let cursor = idx;
+      for (let hop = 0; hop < 12; hop += 1) {
+        /* walk back to the opening brace of the block that contains `cursor` */
+        let d = 0, i = cursor - 1;
+        for (; i >= 0; i -= 1) {
+          if (src[i] === '}') d += 1;
+          else if (src[i] === '{') { if (d === 0) break; d -= 1; }
+        }
+        if (i < 0) return false;                                    // top level: ungated
+        const head = src.slice(Math.max(0, i - 400), i).replace(/\s+$/, '');
+        if (OPENS_A_TYPE.test(head)) return false;                  // reached the type body: ungated
+        /* (b) the call sits inside a block whose OWN CONDITION tests the guard.
+           ⚠ The condition is PARSED back from the '(' that matches the ')' just before
+           this block's brace. My first version tested a 400-character window instead, and
+           a mutation walked straight through it: an unrelated `if (…)` opening the block
+           plus an isTrustedHost() anywhere in the preceding 400 characters read as a
+           guard. A distance window is not a condition. */
+        if (head.endsWith(')')) {
+          let dc = 0, c = head.length - 1;
+          for (; c >= 0; c -= 1) {
+            if (head[c] === ')') dc += 1;
+            else if (head[c] === '(') { dc -= 1; if (dc === 0) break; }
+          }
+          if (c >= 0) {
+            const kw = head.slice(Math.max(0, c - 12), c).trim();
+            const cond = head.slice(c, head.length);
+            if (/(?:^|\})\s*(?:else\s+)?(?:if|while)$/.test(kw) && re.test(cond)) return true;
+          }
+        }
+        /* (a) or this block is a method body whose FIRST statement is the early-return
+               guard — parsed, not distance-matched: `if (<cond with isTrustedHost>) { return; }` */
+        const body = src.slice(i + 1);
+        const lead = body.replace(/^\s+/, '');
+        if (lead.startsWith('if (')) {
+          let d2 = 0, j2 = lead.indexOf('(');
+          for (; j2 < lead.length; j2 += 1) {
+            if (lead[j2] === '(') d2 += 1;
+            else if (lead[j2] === ')') { d2 -= 1; if (d2 === 0) break; }
+          }
+          const cond = lead.slice(0, j2 + 1);
+          const after = lead.slice(j2 + 1).replace(/^\s+/, '');
+          if (re.test(cond) && /^\{\s*return;\s*\}/.test(after)) return true;
+        }
+        cursor = i;                                                 // one block outward
+      }
+      return false;
+    };
+    const evals = [...iosHC.matchAll(/EvaluateJavaScript\(/g)].map((m) => m.index);
+    const ungated = evals.filter((i) => !guardedOutward(iosHC, i, /isTrustedHost\(\)/));
+    ok(evals.length >= 2 && ungated.length === 0
+       && /\n        void forward\(WKWebView webView, string msg\)/.test(iosH)   // NOT static any more
+       && /void forwardToConsole\(WKWebView webView, string msg\)/.test(iosHC)
+       && (iosHC.match(/IXICore\.Meta\.Logging\.info\("\[cam-perm\] " \+ msg\);/g) || []).length === 1,
+      '★★ GATE 28 (O-16): a WALK over all ' + evals.length + ' EvaluateJavaScript sites in the iOS handler finds ' + ungated.length + ' that is not dominated by an isTrustedHost() test in an enclosing block — a mini-app publisher\'s console receives none of our [cam-perm] diagnostics. `forward` is no longer static (it has to read its owner), and the ixian.log half is kept UNCONDITIONALLY at the same site, so no refusal became undiagnosable for us');
+  }
+
+  /* ══ GATE 29 — O-17: THE PEER-SUPPLIED REACTION KEY IS BOUNDED ════════════════════
+     `reaction` arrives from the wire with no length limit, and `UIHelpers.updateChatReaction`
+     is the ONE funnel between that read and the push into the chats document — a walk
+     over the tree is what says so, not the row. A 1 MB "reaction" would otherwise be
+     marshalled across the bridge on every event.
+     This is a SIZE bound and the code says so: transport is Base64 and the shell renders
+     the excerpt through textContent, so no escaping question arises here. */
+  {
+    const uih = rdG('Spixi/Utils/UIHelpers.cs');
+    const uihC = csCode(uih);
+    const fn = csBody(uihC, 'public static void updateChatReaction(Friend friend, Address reactor_address, string reaction)');
+    const maxM = uihC.match(/private const int REACTION_MAX = (\d+);/);
+    /* THE FUNNEL, walked: every file that calls HomePage's updateChatReaction */
+    const callers = [];
+    const walkTree = (dir) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = join(dir, e.name);
+        if (e.isDirectory()) { if (e.name !== 'obj' && e.name !== 'bin') walkTree(p); }
+        else if (e.name.endsWith('.cs') && /\bupdateChatReaction\(/.test(csCode(readFileSync(p, 'utf8')))) callers.push(p.slice(root.length + 1));
+      }
+    };
+    walkTree(join(root, 'Spixi'));
+    const streamOnly = callers.filter((p) => /StreamProcessor\.cs$/.test(p)).length === 1;
+    ok(fn.length > 150 && !!maxM && Number(maxM[1]) > 0 && Number(maxM[1]) <= 256
+       && /if \(bounded\.Length > REACTION_MAX\)/.test(fn)
+       && /char\.IsHighSurrogate\(bounded\[cut - 1\]\)/.test(fn)
+       && /updateChatReaction\(friend, reactor_address, bounded\);/.test(fn)
+       && !/updateChatReaction\(friend, reactor_address, reaction\);/.test(fn)
+       && callers.length === 3 && streamOnly,
+      '★★ GATE 29 (O-17): the wire-supplied reaction key is clamped at REACTION_MAX (' + (maxM ? maxM[1] : 'ABSENT') + ') with a surrogate-safe cut, and it is the CLAMPED variable — not the parameter — that is forwarded. A walk over every .cs in Spixi finds ' + callers.length + ' files naming updateChatReaction (the funnel, its one wire caller in StreamProcessor, and HomePage), so this really is the single gate between the wire and the bridge');
+  }
+
+  /* ══ GATE 30 — O-14: THE SCANNED QR'S TAIL IS BOUNDED, AND BOTH PUSH SITES USE IT ══
+     C# validated only the part of a scanned payload BEFORE the first ':' and then pushed
+     the WHOLE string to the wallet document, where the shell parses the tail into the
+     send compose. A QR is a payload a stranger prints.
+     `Utils.safeScanPayload` keeps the closed grammar the shell parses — `addr` ·
+     `addr:ixi` · `addr:send:<amount>` — and DROPS everything else. It re-formats nothing:
+     an accepted amount is echoed character for character, so it cannot alter a number,
+     and nothing on the signing path changes (the native confirm still re-reads recipient,
+     amount and fee and is still the only thing that signs).
+
+     ⚠ THE HALF THAT MATTERS IS THE WALK. A guard with no caller is not a guard: the
+     method shipped with none, and the row stayed open until the two pushes adopted it. So
+     every `quickScanResult` push in Spixi/**.cs is FOUND, and each one's argument must be
+     a safeScanPayload call. Two is what there are today; a third fails unless it wraps. */
+  {
+    const MAX = Number((csCode(utilsCs).match(/SCAN_AMOUNT_MAX = (\d+);/) || [])[1]);
+    const toJs2 = (t) => csCode(t)
+      .replace(/string\.IsNullOrEmpty\(([\w.]+)\)/g, '!$1')
+      .replace(/\.Equals\("([^"]*)", StringComparison\.Ordinal\)/g, " === '$1'")
+      .replace(/\.StartsWith\("([^"]*)", StringComparison\.Ordinal\)/g, ".startsWith('$1')")
+      .replace(/\.Substring\(/g, '.__sub(')
+      .replace(/\.IndexOf\(/g, '.indexOf(')
+      .replace(/\.Length\b/g, '.length')
+      .replace(/\bforeach \(char (\w+) in (\w+)\)/g, 'for (const $1 of $2)')
+      .replace(/\bbool /g, 'let ').replace(/\bint /g, 'let ').replace(/\bstring /g, 'let ')
+      /* C# Substring(start[,len]) is not String.prototype.slice — route it to a helper
+         with the C# semantics rather than pretending the two are the same. */
+      .replace(/(\b[\w\])"']+)\.__sub\(/g, '__sub($1, ');
+    const CS_RESIDUE2 = /StringComparison|\.Substring\(|\.IndexOf\(|\.Equals\(|\.StartsWith\(|string\.IsNullOrEmpty|\bbool\b|\bint\b|\bstring\b|foreach|\.Length\b|__sub\(\)/;
+    const jsAmt = toJs2(csBody(utilsCs, 'private static bool isPlainAmount(string amount)'));
+    const jsPay = toJs2(csBody(utilsCs, 'public static string safeScanPayload(string payload)'));
+    const translated2 = jsAmt.length > 100 && jsPay.length > 200
+      && !CS_RESIDUE2.test(jsAmt) && !CS_RESIDUE2.test(jsPay) && Number.isFinite(MAX);
+    let safeScan = null, plain = null;
+    if (translated2) {
+      try {
+        const __sub = (s, a, b) => (b === undefined ? String(s).slice(a) : String(s).slice(a, a + b));
+        plain = new Function('amount', 'SCAN_AMOUNT_MAX', jsAmt).bind(null);
+        const payFn = new Function('payload', 'isPlainAmount', '__sub', jsPay);
+        safeScan = (p) => payFn(p, (a) => plain(a, MAX), __sub);
+      } catch (e) { safeScan = null; }
+    }
+    ok(translated2 && !!safeScan,
+      '★★ GATE 30 premise: safeScanPayload and isPlainAmount were sliced out of Utils.cs by brace match and mechanically rewritten to JS, residue-checked, so the matrix below runs the SHIPPED grammar and not a copy of it');
+    if (safeScan) {
+      const A = 'MEET4Zq9xKfbeaJyPRRnBBWDCDwsN1rMkHfmS4pWn4B6sg';
+      const cases = {
+        'a bare address passes through': safeScan(A) === A,
+        'addr:ixi is kept': safeScan(A + ':ixi') === A + ':ixi',
+        'a plain amount is echoed VERBATIM': safeScan(A + ':send:12.50') === A + ':send:12.50'
+          && safeScan(A + ':send:0.0000001') === A + ':send:0.0000001'
+          && safeScan(A + ':send:007') === A + ':send:007',
+        'a signed amount is DROPPED': safeScan(A + ':send:+1') === A && safeScan(A + ':send:-1') === A,
+        'an exponent is DROPPED': safeScan(A + ':send:1e3') === A,
+        'a grouped amount is DROPPED': safeScan(A + ':send:1,5') === A,
+        'two decimal points are DROPPED': safeScan(A + ':send:1.2.3') === A,
+        'an empty amount is DROPPED': safeScan(A + ':send:') === A,
+        'a long amount is DROPPED': safeScan(A + ':send:' + '9'.repeat(MAX + 1)) === A,
+        'an unknown tail is DROPPED, not passed on': safeScan(A + ':ixi:evil') === A
+          && safeScan(A + ':javascript:alert(1)') === A && safeScan(A + ':send:1:extra') === A,
+        'the refusal keeps the VALIDATED address, so a good QR still fills the recipient':
+          safeScan(A + ':garbage').indexOf(A) === 0,
+        'an empty payload is empty': safeScan('') === '' && safeScan(null) === '',
+      };
+      const bad = Object.keys(cases).filter((k) => !cases[k]);
+      ok(bad.length === 0,
+        '★★ GATE 30 BEHAVIOURAL (O-14) — the scanned-payload grammar EXECUTED from source, FAIL CLOSED: ' + Object.keys(cases).join(' · ') + '. Failing: [' + bad.join(' | ') + ']');
+    } else {
+      ok(false, '★★ GATE 30 BEHAVIOURAL: the grammar could not be executed (see the premise above)');
+    }
+
+    /* THE WALK — every quickScanResult push in the tree, not the row's two. */
+    const pushes = [];
+    const walkPushes = (dir) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = join(dir, e.name);
+        if (e.isDirectory()) { if (e.name !== 'obj' && e.name !== 'bin') walkPushes(p); }
+        else if (e.name.endsWith('.cs')) {
+          const t = csCode(readFileSync(p, 'utf8'));
+          for (const m of t.matchAll(/sendUiCommand\(\s*[^,]+,\s*"quickScanResult"\s*,\s*([^;]*?)\)\s*;/g)) {
+            pushes.push({ file: p.slice(root.length + 1), arg: m[1].trim() });
+          }
+        }
+      }
+    };
+    walkPushes(join(root, 'Spixi'));
+    const unwrapped = pushes.filter((p) => !/^Utils\.safeScanPayload\(/.test(p.arg));
+    ok(pushes.length >= 2 && unwrapped.length === 0,
+      '★★ GATE 30 THE WALK (O-14): every one of the ' + pushes.length + ' `quickScanResult` pushes in Spixi/**.cs wraps its argument in Utils.safeScanPayload — ' + pushes.map((p) => p.file.split('/').pop() + ':' + p.arg).join(' · ') + '. Written as a walk, not as the row\'s two named sites: the guard shipped with NO caller, and a third push added later would re-open the row without this clause');
+  }
+
+  /* ══ GATE 31 — THE FIRST BATCH'S TWO REMOTE-FETCH GATES ARE STILL THE ONLY ROUTES ══
+     This batch edited chat.html again (O-01, O-22), so the two gates the previous pass
+     installed get a REGRESSION clause here: the media tile is still host-allow-listed on
+     the URL that would actually be FETCHED, and the app-invite icon predicate is still
+     INVERTED (only `data:image/` is local; everything unparseable gets no src at all).
+     Read off the BUILT shell, which is what ships. */
+  {
+    const chBuilt = readFileSync(join(root, 'Spixi/Resources/Raw/html/chat.html'), 'utf8');
+    const chCode = stripCode(chBuilt);
+    /* ⚠ RAW for the two clauses whose subject IS a regex literal. stripCode's `//`
+       comment rule eats from the `//` inside `/^data:image\//i` to the end of the line,
+       so a stripped read reports the predicate as absent — and, worse, a NEGATIVE written
+       against the stripped text would report a re-introduced `/^https?:\/\//` as gone.
+       The counting clause is what makes the raw read safe: exactly ONE predicate is
+       applied to rawIcon, so a second one cannot be added beside the first. */
+    const rawIconTests = (chBuilt.match(/\.test\(rawIcon\)/g) || []).length;
+    ok(/if \(!media \|\| !isAllowedMediaUrl\(media\.url\)\) return null;/.test(chCode)
+       && /const ALLOWED_MEDIA_URL = \/\^https:\\\/\\\/\[A-Za-z0-9\]\+\\\.\(\?:tenor\|giphy\)\\\.com\\\//.test(chCode)
+       && chBuilt.includes("const localIcon = !!rawIcon && /^data:image\\//i.test(rawIcon);")
+       && rawIconTests === 1
+       && /const proto = new URL\(rawIcon\)\.protocol;/.test(chCode)
+       && /remoteIcon = \(proto === 'http:' \|\| proto === 'https:'\);/.test(chCode)
+       && /const iconUrl = localIcon \? rawIcon : \(\(remoteIcon && mediaAutoloadOn\(\)\) \? rawIcon : null\);/.test(chCode),
+      '★ GATE 31 (regression, batch 1 gates 1–3): the built chat shell still gates a media tile on the host allow-list applied to the URL that would be FETCHED, and the app-invite icon predicate is still the INVERTED one — only a data:image/ URI is local, an http(s) URL needs the autoload pref, and an unparseable value (`http:/host/x.gif`, one slash) gets no src. This batch edited the same file for O-01 and O-22');
+  }
+
+  /* ══ GATE 32 — O-13: THE `<img src>` GUARD AT THE DORMANT SINKS ═══════════════════
+     Three fields render straight into `<img src>` with no test: the link-preview image,
+     a reply quote's thumb, and the shared-media strip's thumb. All three are dormant —
+     no shipped shell feeds them — and all three become PEER-COMPOSED the moment they are
+     wired, at which point a remote fetch tells the sender's host the reader's IP and the
+     moment the message was opened.
+     `safeImageSrc` refuses on the unknown case, and the remote branch needs the CALLER to
+     opt in, so a wiring pass has to TYPE the opt-in and cannot inherit a fetch by accident.
+
+     Three clauses: the matrix EXECUTED against the shipped bundle; a WALK over every
+     `.src =` in the two components (a fourth sink added later fails without anyone
+     updating a list); and the degrade — a refusal must leave the surface readable, not
+     blank, because a guard that blanks a card gets deleted by the next author. */
+  {
+    const dom32 = new JSDOM(readFileSync(join(root, 'src/demo/components.html'), 'utf8'), {
+      runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true,
+      url: 'file://' + join(root, 'src/demo/components.html'), virtualConsole: new VirtualConsole(),
+      beforeParse(w) {
+        w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+        try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
+      },
+    });
+    await sleep(1200);
+    const S32 = dom32.window.Spixi;
+    if (!S32 || typeof S32.safeImageSrc !== 'function') {
+      ok(false, '★★ GATE 32 premise: the bundle exports safeImageSrc (rebuild the demo bundle)');
+    } else {
+      const f = S32.safeImageSrc;
+      const DATA = 'data:image/png;base64,iVBORw0KGgo=';
+      const REMOTE = 'https://tracker.example/p.gif?id=victim';
+      const matrix = {
+        'a data:image URI is local, admitted in both modes': f(DATA) === DATA && f(DATA, { allowRemote: true }) === DATA,
+        'and the scheme test is case-insensitive': f('DATA:IMAGE/GIF;base64,R0lGOD') === 'DATA:IMAGE/GIF;base64,R0lGOD',
+        'a data: URI that is NOT an image is refused': f('data:text/html,<script>x</script>') === '',
+        'a remote URL needs the caller opt-in': f(REMOTE) === '' && f(REMOTE, { allowRemote: true }) === REMOTE,
+        'the one-slash shape is classified REMOTE, not local': f('http:/tracker.example/p.gif') === ''
+          && f('http:/tracker.example/p.gif', { allowRemote: true }) !== '',
+        'a protocol-relative URL is refused in BOTH modes': f('//tracker.example/p.gif') === ''
+          && f('//tracker.example/p.gif', { allowRemote: true }) === '',
+        'javascript:, blob: and file: are refused in BOTH modes':
+          ['javascript:alert(1)', 'blob:https://x/y', 'file:///etc/passwd']
+            .every((v) => f(v) === '' && f(v, { allowRemote: true }) === ''),
+        'a relative path is refused': f('/data/user/0/a.png') === '' && f('images/a.png') === '',
+        'a non-string is refused, not a crash': f('') === '' && f(null) === '' && f({}) === '' && f(undefined) === '',
+      };
+      const bad32 = Object.keys(matrix).filter((k) => !matrix[k]);
+      ok(bad32.length === 0,
+        '★★ GATE 32 BEHAVIOURAL (O-13): safeImageSrc runs FAIL CLOSED on the shipped bundle — ' + Object.keys(matrix).join(' · ') + '. Failing: [' + bad32.join(' | ') + ']');
+
+      /* the degrade, on the real components: a refused image must not empty the surface */
+      const lp = S32.createMessageBubble({ text: 'see this', direction: 'received',
+        linkPreview: { url: 'https://site.example/a', title: 'A title', domain: 'site.example', image: REMOTE } });
+      const lpOpen = S32.createMessageBubble({ text: 'see this', direction: 'received', allowRemoteImages: true,
+        linkPreview: { url: 'https://site.example/a', title: 'A title', domain: 'site.example', image: REMOTE } });
+      const rq = S32.createMessageBubble({ text: 'x', direction: 'received',
+        reply: { text: 'quoted', kind: 'image', thumb: REMOTE } });
+      const info = S32.createChatInfo({ name: 'Group', isGroup: true,
+        capabilities: { media: true }, media: [{ id: '1', kind: 'image', thumb: REMOTE }] });
+      const degrade = {
+        'a refused preview image renders NO <img>': !lp.querySelector('.c-bubble__linkpreview-img'),
+        'but the card still says what it links to': /A title/.test(lp.textContent) && /site\.example/.test(lp.textContent),
+        'the opt-in renders it': !!lpOpen.querySelector('.c-bubble__linkpreview-img'),
+        'a refused reply thumb falls through to the kind glyph': !rq.querySelector('.c-bubble__reply-thumb')
+          && !!rq.querySelector('.c-bubble__reply-glyph'),
+        'a refused media thumb still renders its tile': !info.querySelector('.c-chat-info__media-thumb img')
+          && !!info.querySelector('.c-chat-info__media-thumb'),
+      };
+      const badD = Object.keys(degrade).filter((k) => !degrade[k]);
+      ok(badD.length === 0,
+        '★★ GATE 32 THE DEGRADE (O-13): a refusal leaves the surface readable — ' + Object.keys(degrade).join(' · ') + '. Failing: [' + badD.join(' | ') + ']. A guard that blanks a card is a guard the next author deletes');
+      dom32.window.close();
+    }
+
+    /* THE WALK — every element `.src =` in the two components must take the guard's
+       return. Derived from the files, so a FOURTH sink fails without a list update. */
+    const sinkFiles = ['src/components/message-bubble.js', 'src/components/chat-info.js'];
+    const sinks = [];
+    for (const f of sinkFiles) {
+      const t = stripCode(rdG(f));
+      for (const m of t.matchAll(/\b(\w+)\.src\s*=\s*([^;]+);/g)) sinks.push({ f, obj: m[1], val: m[2].trim() });
+    }
+    const rawSinks = sinks.filter((s) => !/^safeImageSrc\(|^\w+Src$|^\w+Thumb$/.test(s.val));
+    ok(sinks.length >= 3 && rawSinks.length === 0
+       && sinkFiles.every((f) => /allowRemoteImages = false/.test(rdG(f)))
+       && sinkFiles.every((f) => /safeImageSrc/.test(stripCode(rdG(f)))),
+      '★★ GATE 32 THE WALK (O-13): all ' + sinks.length + ' element `.src =` assignments in message-bubble.js and chat-info.js take a value that came out of safeImageSrc (' + sinks.map((s) => s.obj + '.src = ' + s.val).join(' · ') + '), and both components declare `allowRemoteImages = false` so a caller must TYPE the opt-in. A fourth sink added later fails this without anyone editing a list');
+  }
+
+  /* ══ GATE 33 — O-37: THE INLINER CANNOT BE CLOSED BY ITS OWN INPUT ═══════════════
+     Two splices write a source INTO a block: CSS into <style> and JS into <script>. The
+     HTML tokenizer ends those blocks at the first `</style` / `</script`, wherever the
+     sequence sits — inside a JS string, a CSS url(), a comment. A generated file that
+     ever emitted one would end the block early and the rest of that file would be parsed
+     as MARKUP.
+     ⚠ NO SOURCE IN THE TREE CARRIES EITHER SEQUENCE TODAY, so a pin on today's inputs
+     would pass with the escaping deleted. This one RUNS the inliner on a source that
+     does carry them, in a temp tree, and reads the emitted document. */
+  {
+    const { inlineHtml } = await import('file://' + join(root, 'scripts/lib/inline.mjs'));
+    const dir33 = mkdtempSync(join(tmpdir(), 'o37-'));
+    writeFileSync(join(dir33, 'a.js'), 'var a = "</script>"; var b = /<\\/script>/; window.__O37 = a;\n');
+    writeFileSync(join(dir33, 'a.css'), '/* </style> */ .x { background: url("data:image/svg+xml,%3C/style%3E"); }\n');
+    writeFileSync(join(dir33, 'p.html'),
+      '<link rel="stylesheet" href="a.css">\n<script src="a.js"></script>\n');
+    const out33 = inlineHtml(join(dir33, 'p.html'));
+    const scriptEnds = (out33.match(/<\/script/gi) || []).length;
+    const styleEnds = (out33.match(/<\/style/gi) || []).length;
+    const body33 = out33.slice(out33.indexOf('<script data-src="a.js">') + '<script data-src="a.js">'.length,
+      out33.indexOf('</script>'));
+    let value33 = null;
+    try { const w = { }; new Function('window', body33)(w); value33 = w.__O37; } catch (e) { value33 = 'THREW: ' + e.message; }
+    /* and the escaping is invisible on today's real inputs */
+    const dirty = [];
+    const walkSrc = (dir) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = join(dir, e.name);
+        if (e.isDirectory()) { if (e.name !== 'node_modules') walkSrc(p); }
+        else if (/\.(js|css)$/.test(e.name) && /<\/(script|style)/i.test(readFileSync(p, 'utf8'))) dirty.push(p.slice(root.length + 1));
+      }
+    };
+    walkSrc(join(root, 'src'));
+    rmSync(dir33, { recursive: true, force: true });
+    ok(scriptEnds === 1 && styleEnds === 1 && value33 === '</script>' && dirty.length === 0,
+      '★★ GATE 33 BEHAVIOURAL (O-37): the inliner was RUN over a JS file holding `</script>` and a CSS file holding `</style>`, and the emitted document has exactly ONE of each terminator (script: ' + scriptEnds + ', style: ' + styleEnds + '); the extracted script body still compiles and still evaluates to the string ' + JSON.stringify(value33) + ', so the escape changed the tokenizer\'s view and not the VALUE. And ' + dirty.length + ' file under src/ carries either sequence today — which is why a pin on real inputs alone would pass with the escaping deleted');
+  }
+
+  /* ══ GATE 34 — O-12: A RUNTIME VALUE IS NEVER A REPLACEMENT STRING ══════════════
+     `String.prototype.replace` reads `$&`, `` $` ``, `$'` and `$1` in its REPLACEMENT
+     argument as substitution syntax. A peer's nickname held one and spliced other parts
+     of the sentence into the sentence. A FUNCTION replacement returns its value
+     literally, so the nickname can only ever be the nickname.
+     ⚠ Not a list of the two fixed sites. Every `.replace(` in src/components, src/shells
+     and the two build scripts is WALKED and its SECOND argument classified. A literal is
+     fine. A function is fine. `String(<x>)` of a numeric constant is fine (digits cannot
+     hold a substitution token). Anything else — an identifier, a property, a template
+     with an expression — must be a function, and a NEW site added later fails by
+     construction without anyone updating this pin.
+     ⚠ AND THE PROOF THAT THIS IS NOT THEORETICAL: the fixer's own edit script hit this
+     bug while fixing it. `s.replace(anchor, comment)` where the comment EXPLAINED `$&`
+     spliced a 1,151-line file into itself. */
+  {
+    const dirs34 = ['src/components', 'src/shells', 'src/bridge'];
+    const files34 = [];
+    const walk34 = (dir) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = join(dir, e.name);
+        if (e.isDirectory()) walk34(p);
+        else if (/\.(js|html)$/.test(e.name)) files34.push(p);
+      }
+    };
+    for (const d of dirs34) walk34(join(root, d));
+    files34.push(join(root, 'scripts/lib/inline.mjs'), join(root, 'scripts/build-shells.mjs'));
+    /* split the argument list of one `.replace(` at its TOP-LEVEL comma — a nested call,
+       a regex or a string may hold commas, so this is a scan and not a split(',') */
+    const secondArg = (src, open) => {
+      let d = 0, i = open, inS = null, comma = -1;
+      for (; i < src.length; i += 1) {
+        const c = src[i];
+        if (inS) { if (c === '\\') { i += 1; continue; } if (c === inS) inS = null; continue; }
+        if (c === '"' || c === "'" || c === '`') { inS = c; continue; }
+        if (c === '(' || c === '[' || c === '{') d += 1;
+        else if (c === ')' || c === ']' || c === '}') { d -= 1; if (d === 0) return comma < 0 ? '' : src.slice(comma + 1, i).trim(); }
+        else if (c === ',' && d === 1 && comma < 0) comma = i;
+        else if (c === '/' && d === 1) {          // step over a regex literal's slashes
+          let j = i + 1, esc = false, cls = false;
+          for (; j < src.length; j += 1) {
+            const k = src[j];
+            if (esc) { esc = false; continue; }
+            if (k === '\\') { esc = true; continue; }
+            if (k === '[') cls = true; else if (k === ']') cls = false;
+            else if (k === '/' && !cls) break;
+            else if (k === '\n') { j = i; break; }
+          }
+          if (j > i) i = j;
+        }
+      }
+      return '';
+    };
+    const LITERAL = /^(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\$]|\\.|\$(?!\{))*`)$/;
+    const FUNCTION = /=>|^function\b/;
+    const NUMERIC = /^String\(\s*(?:n|ENC_MIN|[A-Z_]{2,}|\d+)\s*\)$/;
+    const offenders = [];
+    for (const p of files34) {
+      const t = stripCode(readFileSync(p, 'utf8'));
+      for (const m of t.matchAll(/\.replace\(/g)) {
+        const arg = secondArg(t, m.index + '.replace'.length);
+        if (!arg) continue;
+        if (LITERAL.test(arg) || FUNCTION.test(arg) || NUMERIC.test(arg)) continue;
+        offenders.push(p.slice(root.length + 1) + ' → ' + arg.slice(0, 60));
+      }
+    }
+    /* TWO CARVE-OUTS, and each one is EARNED by a clause below rather than waved past.
+       Both are in the build scripts, both compose a string from values that are literals
+       in the SAME FILE, and no runtime input reaches either. The set is frozen by the
+       replacement's own text: it may shrink, it may never grow. */
+    const BUILD_CARVEOUTS = ["DEVICE_CSS + '\\n</head>'", "'<script>(function(){var m=['"];
+    const realOffenders = offenders.filter((o) => !BUILD_CARVEOUTS.some((c) => o.includes(c)));
+    /* the carve-outs' PREMISE, asserted: DEVICE_CSS is a literal const, and every `guards`
+       entry is a literal push. Change either to take a runtime value and this fails, which
+       is what stops the carve-out becoming a hole. */
+    const inl = stripCode(rdG('scripts/lib/inline.mjs'));
+    const bsh = stripCode(rdG('scripts/build-shells.mjs'));
+    const guardPushes = [...bsh.matchAll(/guards\.push\(\s*([\s\S]*?)\);/g)].map((m) => m[1].trim());
+    /* ⚠ my first version of this looked for an identifier followed by `(` or `.`, and a
+       mutation walked through it with `name + '…'` — a bare identifier is enough to carry
+       a runtime value. After the string literals are removed, NO identifier may remain. */
+    const guardsAllLiteral = guardPushes.length > 0
+      && guardPushes.every((g) => !/[A-Za-z_$][\w$]*/.test(g.replace(/(['"`])(?:[^\\]|\\.)*?\1/g, '')));
+    ok(files34.length > 40 && realOffenders.length === 0
+       && /^const DEVICE_CSS =\s*$/m.test(inl) && guardsAllLiteral,
+      '★★ GATE 34 (O-12): a WALK over every `.replace(` in ' + files34.length + ' files under src/components, src/shells, src/bridge plus the two build scripts finds ' + realOffenders.length + ' whose replacement is a runtime value passed as a STRING. Offenders: [' + realOffenders.join(' | ') + ']. Two build-script sites are carved out and their PREMISE is asserted here — DEVICE_CSS is a literal const and all ' + guardPushes.length + ' `guards.push` arguments are literals, so no runtime value reaches either. A nickname is peer data, and in that argument position "$&" is substitution syntax');
+  }
+
+  /* ══ GATE 35 — C-3 REGRESSION: THE PEER-FORGET HELPER STILL RUNS ON EVERY "GONE" ══
+     The previous batch made every "this contact is gone" answer sweep the peer's local
+     storage. This batch edited both of those shells again (O-01 removed a duplicate emit
+     in each `openSendTakeover`), so the sweep gets a regression clause: every SUCCESS
+     branch of the three removal answers still reaches forgetPeerStorage, walked out of
+     the shells rather than listed. */
+  {
+    const shells35 = ['src/shells/home.html', 'src/shells/contact_details.html'];
+    const hits = [];
+    for (const f of shells35) {
+      const t = stripCode(rdG(f));
+      for (const m of t.matchAll(/forgetPeerStorage\(/g)) hits.push(f.split('/').pop());
+      /* the answers themselves must still exist and still be handled */
+      for (const verb of ['removeContactResult', 'leaveGroupResult', 'deleteChatResult']) {
+        if (t.includes(verb)) hits.push(verb);
+      }
+    }
+    /* ⚠ the subject list is DERIVED: every shell that defines the helper. contact_details
+       gained the `scope` parameter and chat.html gained a copy in the #46 loop B fixes, so
+       a pin naming two files by hand went red on a signature rather than on a property. */
+    const helperShells = {};
+    for (const f of readdirSync(join(root, 'src/shells')).filter((n) => n.endsWith('.html')).sort()) {
+      const t = stripCode(rdG('src/shells/' + f));
+      if (/function forgetPeerStorage\(/.test(t)) helperShells[f] = t;
+    }
+    const names35 = Object.keys(helperShells);
+    const oneSig = names35.every((f) => /function forgetPeerStorage\(addr, scope\)/.test(helperShells[f]));
+    const owner35 = helperShells['home.html'] || '';
+    ok(names35.length >= 3 && oneSig
+       && names35.every((f) => (helperShells[f].match(/forgetPeerStorage\(/g) || []).length >= 2)
+       && /forgetPeerStorage\(addr, 'history'\)/.test(owner35)
+       && /forgetPeerStorage\(addr, 'contact'\)/.test(owner35),
+      '★ GATE 35 (regression, batch 1 gate 5): every shell that owns the peer-forget helper — ' + names35.join(', ') + ' — declares it under ONE signature and calls it from its removal answers (' + names35.map((f) => f.replace('.html', '') + ' ' + (helperShells[f].match(/forgetPeerStorage\(/g) || []).length).join(', ') + ' sites), with the history/contact SCOPES intact in the document that owns the pin list');
+  }
+
+  /* ══ GATE 36 — O-01: NO SHELL ASKS FOR A ZERO-AMOUNT FEE QUOTE ═══════════════════
+     `openSendTakeover` ended with its own `ixian:feeQuery:<addr>:0`, one statement after
+     `createWalletSend` had already emitted the byte-identical quote through `onQuote`.
+     The duplicate is gone from BOTH shells that carried it. The removal is only safe
+     because the COMPONENT still asks, so both halves are pinned: the walk over the emits,
+     and the component's own call. */
+  {
+    const emits = [];
+    const walk36 = (dir) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = join(dir, e.name);
+        if (e.isDirectory()) walk36(p);
+        else if (/\.html$/.test(e.name)) {
+          for (const m of stripCode(readFileSync(p, 'utf8')).matchAll(/'ixian:feeQuery:'[^;\n]*/g)) {
+            emits.push({ f: p.slice(root.length + 1), src: m[0].trim() });
+          }
+        }
+      }
+    };
+    walk36(join(root, 'src/shells'));
+    const literalZero = emits.filter((e) => /:\s*'0'|\+\s*':0'/.test(e.src));
+    const ws = stripCode(rdG('src/components/wallet-send.js'));
+    ok(emits.length >= 3 && literalZero.length === 0
+       && /if \(onQuote && amountU\(\) <= 0n\) onQuote\(recipient\.address, '0'\);/.test(ws),
+      '★★ GATE 36 (O-01): a WALK over every `ixian:feeQuery:` emit in src/shells finds ' + emits.length + ' sites and ' + literalZero.length + ' that hard-code the amount 0 — the shells now only pass the compose\'s own amount through. The removal is safe ONLY because createWalletSend still asks for the amount-0 quote itself, which is the second half of this pin: delete that line and the compose loses its balance');
+  }
+
+  /* ══ GATE 37 — O-22: NO SHELL CONSOLE LINE CARRIES AN IDENTIFIER ═════════════════
+     `dbg('onChatScreenReady', address)` put a wallet address on a path that ends in
+     `ixian.log` on a dev build (the Android WebView console mirror, #754) — a file
+     DevPage shares in one tap. Truncating was refused: six leading and six trailing
+     base58 characters is still the address.
+     A WALK over every `dbg(` and `console.*` argument list in the shells: no argument may
+     be an identifier or member expression whose NAME reads like a peer identity. */
+  const argsOf37 = (src, i) => {
+    const open = src.indexOf('(', i);
+    if (open < 0) return '';
+    let depth = 0;
+    for (let k = open; k < src.length; k++) {
+      if (src[k] === '(') depth++;
+      else if (src[k] === ')' && --depth === 0) return src.slice(open + 1, k);
+    }
+    return '';
+  };
+  {
+    /* ⚠ #46 loop C, MINOR-2 — TWO HOLES, both mutated and both survived.
+       ① The argument test was `/^[\w.]+$/`: only a BARE identifier counted. So
+          `dbg('onChatScreenReady ' + address)` — a concatenation, the ordinary way anyone
+          writes a debug line — was never inspected. The argument list is parsed BALANCED
+          now, string literals are blanked, and ANY identity-shaped identifier that
+          remains anywhere in it fails. That is the shape gate 34 already uses for
+          `guards.push`, and it is the only shape that survives a concatenation.
+       ② The walk covered src/shells and src/bridge only. `console.warn(address)` in
+          src/components/message-bubble.js produced NO failure at all — and the components
+          are bundled into the same shells and reach ixian.log through the same #754 mirror.
+          The pin's message was honest about the directories; the PROPERTY (row O-22: no
+          console line carries an identifier) was not. src/components is walked too. */
+    const IDENTITY = /(?:^|\.)(?:addr|address|nick|nickname|pass|password|wallet|seed|recipient)$/i;
+    const blank37 = (t) => t
+      .replace(/'(?:[^'\\]|\\.)*'/g, "''")
+      .replace(/"(?:[^"\\]|\\.)*"/g, '""')
+      .replace(/`(?:[^`\\]|\\.)*`/g, '``');
+    const bad37 = [];
+    let seen37 = 0;
+    const walk37 = (dir) => {
+      for (const e of readdirSync(dir, { withFileTypes: true }).sort((x, y) => (x.name < y.name ? -1 : 1))) {
+        const p = join(dir, e.name);
+        if (e.isDirectory()) walk37(p);
+        else if (/\.(html|js)$/.test(e.name)) {
+          const t = stripCode(readFileSync(p, 'utf8'));
+          for (const m of t.matchAll(/\b(?:dbg|console\.(?:log|warn|error|info|debug))\s*\(/g)) {
+            seen37++;
+            const raw = argsOf37(t, m.index + m[0].length - 1);
+            for (const im of blank37(raw).matchAll(/[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*/g)) {
+              if (IDENTITY.test(im[0])) bad37.push(p.slice(root.length + 1) + ' → ' + raw.replace(/\s+/g, ' ').trim().slice(0, 60) + ' [[' + im[0] + ']]');
+            }
+          }
+        }
+      }
+    };
+    walk37(join(root, 'src/shells'));
+    walk37(join(root, 'src/bridge'));
+    walk37(join(root, 'src/components'));
+    ok(seen37 > 50 && bad37.length === 0,
+      '★★ GATE 37 (O-22): a WALK over every dbg()/console.* call in src/shells, src/bridge AND src/components — ' + seen37 + ' call sites, argument lists parsed balanced and string literals blanked first — finds ' + bad37.length + ' carrying an identity-shaped identifier anywhere in the arguments (' + bad37.join(' | ') + '). A concatenation counts; so does a member expression. On a dev build those lines reach ixian.log through the Android WebView console mirror, and that file is shareable from DevPage');
+  }
+
+  /* ══ GATE 38 — O-39 · O-42: TWO DOCBLOCKS THAT STATED THE OPPOSITE OF THEIR CODE ══
+     #772: a comment stating an invariant the code does not hold is a defect.
+     `resolveDownloadPath`'s docblock ended "C# names its own paths" — and accepting a
+     name the WebView supplied is that function's entire purpose; the real contract is
+     that a LEAF NAME is accepted, only through this function, resolved against a root C#
+     owns, and refused on any escape. `wipeEverything`'s step 6 claimed "WebView storage
+     is one store per app on every platform", which the tree contradicts in two
+     directions (Android switches DOM storage OFF for the mini-app WebView; iOS gives it
+     a NonPersistentDataStore).
+     These two clauses read PROSE, deliberately — the comment IS the subject. */
+  {
+    const tmDoc = prose(rdG('Spixi/Data/TransferManager.cs'));
+    const spDoc = prose(rdG('Spixi/Pages/Settings/SettingsPage.xaml.cs'));
+    /* ⚠ THE NEGATIVE CANNOT BE "the false sentence is absent", AND A DRAFT OF THIS PIN
+       TRIED IT AND FAILED ON THE CORRECT TREE. Both docblocks now QUOTE the sentence they
+       replaced, in the paragraph that records the correction — #771 in prose. So the
+       property is the one that survives quoting: each false claim appears only INSIDE a
+       correction paragraph (the marker sentence precedes it and is close by in the
+       collapsed prose), and each true contract is stated. Delete the corrections and the
+       positives fail; restore a bare false claim as the contract, with no marker before
+       it, and the marker clause fails. */
+    const quotedAsCorrection = (doc, claim, marker) => {
+      const at = doc.indexOf(claim);
+      if (at < 0) return true;                       // not present at all: nothing to excuse
+      const m = doc.lastIndexOf(marker, at);
+      return m >= 0 && at - m < 220;                 // scoped to the correction sentence
+    };
+    ok(quotedAsCorrection(tmDoc, 'C# names its own', 'USED TO SAY')
+       && /NO WebView-supplied string is ever used as a PATH/.test(tmDoc)
+       && /Path\.GetInvalidFileNameChars/.test(tmDoc) && /Path\.IsPathRooted/.test(tmDoc)
+       && quotedAsCorrection(spDoc, 'one store per app on every platform', 'THE OLD REASON')
+       && /NO platform file separates one SPIXI SHELL from another/.test(spDoc)
+       && /NonPersistentDataStore/.test(spDoc) && /DomStorageEnabled/.test(spDoc),
+      '★ GATE 38 (O-39 · O-42): the two docblocks that stated the opposite of their own code are corrected — resolveDownloadPath now states the LEAF-NAME contract it actually enforces (and names the guard clauses), and wipeEverything\'s step 6 states the per-platform reality instead of "one store per app on every platform". #772: a comment asserting an invariant the code does not hold is a defect, and both of these were load-bearing for a reader deciding whether a sink is safe');
+  }
+
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════
+   ★★ GATES 39–43 — THE THIRD PIN PASS (#46 loop C · LOOPFIX1 · LOOPFIX2 · LOOPFIX3)
+
+   Two kinds of row live here.
+   · The pins the loop's own audit found MISSING — a fix that shipped with nothing
+     watching it (F-15, the capture-origin blacklist).
+   · The pins the three fix passes owe, each written to the property and the killing
+     mutation their own reports name.
+
+   Conventions, unchanged from the two passes before: every clause declares stripCode or
+   raw and asserts a PROPERTY; subjects come from a WALK, never from a list (#798); a
+   behavioural clause runs the code out of the BUILT artifact, never a re-implementation;
+   and no message enumerates what its assertion does not check (#772). */
+console.log('\n— handover gate: the third pin pass (loop C repairs · the three fix passes) —');
+{
+  const rd3 = (pth) => readFileSync(join(root, pth), 'utf8');
+  const mask3 = (t) => t.replace(/@"(?:[^"]|"")*"|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'/g, (m) => ' '.repeat(m.length));
+  const csSlice3 = (src, anchor, from = 0) => {
+    const a = src.indexOf(anchor, from);
+    if (a < 0) return '';
+    const mk = mask3(src);
+    const open = mk.indexOf('{', a + anchor.length);
+    if (open < 0) return '';
+    let d = 0;
+    for (let i = open; i < mk.length; i++) {
+      if (mk[i] === '{') d++;
+      else if (mk[i] === '}' && --d === 0) return src.slice(a, i + 1);
+    }
+    return '';
+  };
+  const args3 = (src, i) => {
+    const open = src.indexOf('(', i);
+    if (open < 0) return '';
+    let d = 0;
+    for (let k = open; k < src.length; k++) {
+      if (src[k] === '(') d++;
+      else if (src[k] === ')' && --d === 0) return src.slice(open + 1, k);
+    }
+    return '';
+  };
+  const brace3 = (t, from) => {
+    let d = 0;
+    for (let k = t.indexOf('{', from); k >= 0 && k < t.length; k++) {
+      if (t[k] === '{') d++;
+      else if (t[k] === '}' && --d === 0) return t.slice(from, k + 1);
+    }
+    return '';
+  };
+  const fnSlice3 = (t, sig) => { const a = t.indexOf(sig); return a < 0 ? '' : brace3(t, a); };
+
+  /* ══ GATE 39 — F-15: A MONEY REFUSAL NAMES NOBODY ════════════════════════════════
+     ⚠ THIS FIX SHIPPED WITH NO PIN AT ALL (#46 loop C, MINOR-5). `grep -n "sendrequest:
+     rejected" scripts/smoke-test.mjs` returned nothing, and re-adding `+ recipient` to
+     that line put a full, valid base58 wallet address back into ixian.log on a NORMAL
+     refusal path — the file DevPage renders and shares in one tap — with the suite green.
+     Gate 18 walks catches around an Address constructor; this is an ordinary guard, so
+     gate 18 cannot reach it.
+     The property is not "that one literal". It is a WALK over every Logging call in the
+     two request-composition twins — HomePage's handler and the clean one in SPayments —
+     asserting that no argument carries a peer identity. String literals are blanked
+     first (#771): the message text contains the word "recipient", so a raw sweep for it
+     is satisfied by the sentence and proves nothing. */
+  {
+    const IDENT39 = /\b(?:recipient|nickname|walletAddress|address|addr|pass|password)\b/i;
+    const blank39 = (t) => t.replace(/@"(?:[^"]|"")*"|"(?:\\.|[^"\\\n])*"/g, '""');
+    const subjects39 = [
+      ['HomePage.onSendRequest', 'Spixi/Pages/Home/HomePage.xaml.cs', 'private void onSendRequest(string current_url)'],
+      ['SPayments.handleSendRequest', 'Spixi/Utils/SPayments.cs', 'handleSendRequest'],
+    ];
+    const bad39 = [];
+    let seen39 = 0, calls39 = 0;
+    for (const [name, file, anchor] of subjects39) {
+      const body = csSlice3(stripCode(rd3(file)), anchor);
+      if (body.length < 200) { bad39.push(name + ' (slice did not resolve)'); continue; }
+      seen39++;
+      for (const lm of body.matchAll(/\bLogging\.(?:error|warn|info|log|trace)\s*\(/g)) {
+        calls39++;
+        const a = blank39(args3(body, lm.index + lm[0].length - 1));
+        if (IDENT39.test(a)) bad39.push(name + ' → ' + a.replace(/\s+/g, ' ').slice(0, 80));
+      }
+    }
+    ok(seen39 === 2 && calls39 >= 4 && bad39.length === 0,
+      '★★ GATE 39 (F-15): a WALK over every Logging call in the two request-composition twins — ' + calls39 + ' calls across ' + seen39 + ' methods — finds none that hands the logger a peer identity. `new Address(recipient)` succeeds two statements above HomePage\'s guard, so the value on that line is a WELL-FORMED wallet address and the refusal is a NORMAL path, not an error one. Leaking: [' + (bad39.join(' | ') || 'none') + ']');
+    /* the diagnostic must survive the redaction, or the next author deletes the guard */
+    const hp39 = csSlice3(stripCode(rd3('Spixi/Pages/Home/HomePage.xaml.cs')), 'private void onSendRequest(string current_url)');
+    ok(/known: /.test(hp39) && /approved: /.test(hp39) && /state: /.test(hp39) && /type: /.test(hp39) && /bot: /.test(hp39),
+      '★ GATE 39: the refusal still answers the diagnostic question — it prints the five FLAGS that decided it (known · approved · state · type · bot), which name nobody. A guard that logs nothing at all is a guard support cannot read, and that is how the address comes back');
+  }
+
+  /* ══ GATE 40 — THE CAPTURE ORIGIN TEST IS A BLACKLIST, AND THE DOCUMENT TEST OUTRANKS IT
+     LOOPFIX1 §MAJOR-2. The first cut REQUIRED the WKSecurityOrigin protocol to be "file"
+     or empty — a whitelist over a value nothing in this tree establishes. If WebKit
+     reports an opaque origin as "null" for a file:// main frame, that whitelist DENIES the
+     scanner, a feature that took five device rounds to make work (#304 · #305 · #307 ·
+     #309 · #312), and it buys nothing, because the NEXT test reads the same fact from a
+     source that is traceable end to end.
+     So the test refuses only the two protocols whose meaning is certain, and every other
+     value — "file", "", "null", anything WebKit may invent — falls through to
+     isScanDocument, which is fail-CLOSED on the document itself. Both halves are pinned:
+     the blacklist shape, and the ORDER that makes the belt a belt. */
+  {
+    const ios40 = stripCode(rd3('Spixi/Platforms/iOS/iOSWebViewHandler.cs'));
+    const cr40 = csSlice3(ios40, 'string? captureRefusal(');
+    ok(cr40.length > 300, 'gate 40 premise: captureRefusal slices out of the iOS handler as a brace-matched body');
+    const isBlacklist = /if \(protocol\.Equals\("http",\s*StringComparison\.OrdinalIgnoreCase\)\s*\|\|\s*protocol\.Equals\("https",\s*StringComparison\.OrdinalIgnoreCase\)\) return "remote-origin";/.test(cr40);
+    ok(cr40.length > 300 && isBlacklist && !/!protocol\.Equals\(/.test(cr40) && !/protocol\.Length > 0 &&/.test(cr40),
+      '★★ GATE 40: the origin test REFUSES http and https and admits everything else to the next test. The negative is the half that matters — no `!protocol.Equals(` survives anywhere in the method, so a whitelist cannot come back by inverting one comparison, and an opaque "null" origin can no longer kill the scanner');
+    const iProto = cr40.indexOf('protocol.Equals("http"');
+    const iDoc = cr40.indexOf('if (!isScanDocument(webView))');
+    const iNull = cr40.indexOf('return null;');
+    ok(iProto > 0 && iDoc > iProto && iNull > iDoc,
+      '★★ GATE 40 THE ORDER: the origin blacklist runs BEFORE isScanDocument, and isScanDocument is the LAST refusal before the grant. That ordering is what makes the origin test a belt over a rule the next line already enforces from a known source, rather than the guard itself. Swap the two and an unknown origin decides the camera; drop the document test and "one of our shells" becomes enough, which chat — a WebView that renders untrusted peer content (★ #221) — must never be');
+    ok(/⚠ THE GATE STILL REFUSES THE UNKNOWN CASE|The GATE still refuses the unknown case/.test(prose(rd3('Spixi/Platforms/iOS/iOSWebViewHandler.cs'))),
+      '★ GATE 40: the method says IN ITS OWN COMMENT that this one test does not refuse the unknown case, so the next reader cannot mistake a belt for the guard. #772 in the direction that usually goes unwritten: a deliberate weakening has to be labelled where it lives');
+  }
+
+  /* ══ GATE 41 — normalizeMediaUrl: THE TESTED STRING IS THE FETCHED STRING ═════════
+     LOOPFIX3 §1. `mediaUrlOf` tested the RAW message text. The browser lower-cases the
+     scheme and the host before it issues the request, and both allow-list gates are
+     case-SENSITIVE, so the shell refused 105 shapes the iOS content rules admit — every
+     one an uppercase host or scheme. Normalisation makes the tested string equal the
+     fetched string, and it takes the tail from the PARSER's own fields, which is what
+     closes the userinfo and backslash-authority rewrites the raw text hides.
+     RUN out of the BUILT shell, never re-implemented. */
+  {
+    const chat41 = rd3('Spixi/Resources/Raw/html/chat.html');
+    const i41 = chat41.indexOf('const MEDIA_EXT =');
+    const j41 = chat41.indexOf('function buildMediaRow(rec, media) {');
+    const src41 = i41 >= 0 && j41 > i41 ? chat41.slice(i41, j41) : '';
+    ok(src41.length > 500 && /function normalizeMediaUrl\(u\)/.test(src41) && /function mediaUrlOf\(text\)/.test(src41),
+      'gate 41 premise: the media decision — including normalizeMediaUrl — slices out of the BUILT chat shell as one block');
+    let mediaUrlOf41 = null;
+    if (src41.length > 500) {
+      const dom41 = new JSDOM('<!doctype html><body>', { url: 'https://example.test/' });
+      try { mediaUrlOf41 = new dom41.window.Function(src41 + '\nreturn mediaUrlOf;')(); } catch (e) { mediaUrlOf41 = null; }
+      dom41.window.close();
+    }
+    ok(typeof mediaUrlOf41 === 'function', 'gate 41 premise: the sliced block evaluates and yields mediaUrlOf');
+    if (typeof mediaUrlOf41 === 'function') {
+      const urlOf = (t) => { const r = mediaUrlOf41(t); return r ? r.url : null; };
+      const cases41 = {
+        'an uppercase HOST is lower-cased and tiles': urlOf('https://MEDIA.TENOR.COM/abc/x.gif') === 'https://media.tenor.com/abc/x.gif',
+        'an uppercase SCHEME is lower-cased and tiles': urlOf('HTTPS://media.tenor.com/abc/x.gif') === 'https://media.tenor.com/abc/x.gif',
+        'the PATH keeps its case — it is case-sensitive at the origin': /AbC\/HaPpY\.GIF$/.test(String(urlOf('https://media.tenor.com/AbC/HaPpY.GIF'))),
+        'the QUERY keeps its case': String(urlOf('https://media.tenor.com/abc/x.gif?Q=AbC&r=1')).endsWith('?Q=AbC&r=1'),
+        'a userinfo authority is refused — the host that would be FETCHED is evil.example': urlOf('https://media.tenor.com@evil.example/x.gif') === null,
+        'a backslash authority is refused too, and the tail is taken from the parser so the segment cannot be dropped': urlOf('https://media.tenor.com\\@evil.example/x.gif') === null,
+        'a non-default PORT is refused — u.host keeps it, u.hostname would have hidden it': urlOf('https://media.tenor.com:8443/x.gif') === null,
+        'the default port is dropped, as the engine drops it': urlOf('https://media.tenor.com:443/x.gif') === 'https://media.tenor.com/x.gif',
+      };
+      const bad41 = Object.keys(cases41).filter((k) => !cases41[k]);
+      ok(bad41.length === 0,
+        '★★ GATE 41 BEHAVIOURAL, on the BUILT shell: ' + Object.keys(cases41).join(' · ') + '. Failing: [' + bad41.join(' | ') + ']');
+      /* ⚠ WHAT ACTUALLY DISCRIMINATES, measured rather than assumed. Deleting the
+         `.toLowerCase()` from normalizeMediaUrl's host line changes NOTHING: the WHATWG
+         URL parser already lower-cases the scheme and the host, so those two calls are
+         belts over a parser that follows the spec. The property the clauses above really
+         hold is that the tested string is BUILT FROM THE PARSER'S FIELDS instead of from
+         the message text — which is also what closes the userinfo and backslash-authority
+         rewrites. It is pinned here structurally as well, so the intent is readable and
+         `const norm = t;` cannot come back quietly. */
+      ok(/const norm = normalizeMediaUrl\(u\);/.test(src41)
+         && /return scheme \+ '\/\/' \+ host \+ u\.pathname \+ u\.search \+ u\.hash;/.test(src41)
+         && /if \(!media \|\| !isAllowedMediaUrl\(media\.url\)\) return null;/.test(src41),
+        '★★ GATE 41 THE CONSTRUCTION: the string the gate tests is assembled from the PARSER\'s own fields — scheme, host, pathname, search, hash — and it is `media.url`, the same value the tile and the viewer receive. Slice the tail out of the raw text instead and the backslash-authority form loses its `/@evil.example` segment and is admitted; test `t` instead of `norm` and every uppercase host is refused again on Android and Windows while iOS still fetches it');
+
+      /* ★★ THE INVARIANT, over a DERIVED corpus (#798): every URL this shell decides to
+         TILE must pass the C# fetch gate, with that gate's pattern read out of Utils.cs.
+         The corpus is generated from the parts — scheme × host × path × tail — rather than
+         hand-listed, so the tempting "keep the three in step" edit (widening the shell's
+         label class to the OnCommitContent shape) is caught by construction: the shell
+         would tile media-cdn.tenor.com and Android and Windows would refuse to fetch it. */
+      const utils41 = rd3('Spixi/Utils/Utils.cs');
+      const rxLit41 = /string rx_pattern = @"([^"]+)"/.exec(utils41);
+      const pfx41 = /url\.StartsWith\("(https:\/\/apps\.spixi\.io\/)", StringComparison\.OrdinalIgnoreCase\)/.exec(utils41);
+      ok(!!rxLit41 && !!pfx41, 'gate 41 premise: the C# fetch gate\'s pattern and prefix are read from Utils.cs, so this invariant tests the shipped rule');
+      if (rxLit41 && pfx41) {
+        const csRe41 = new RegExp(rxLit41[1]);
+        const csAllows41 = (u) => (!/^http/i.test(u) ? true : csRe41.test(u) || u.slice(0, pfx41[1].length).toLowerCase() === pfx41[1].toLowerCase());
+        const corpus41 = [];
+        for (const scheme of ['https://', 'HTTPS://', 'http://'])
+          for (const host of ['media.tenor.com', 'MEDIA.TENOR.COM', 'c.tenor.com', 'media1.giphy.com', 'i.giphy.com',
+            'media-cdn.tenor.com', 'c-cdn.tenor.com', 'a.b.tenor.com', 'tenor.com', 'apps.spixi.io',
+            'APPS.SPIXI.IO', 'tenor.com.evil.example', 'apps.spixi.io.evil.example', 'evil.example',
+            'media.tenor.com:8443', 'media.tenor.com:443', 'media.tenor.com@evil.example'])
+            for (const path of ['/abc/x.gif', '/AbC/HaPpY.GIF', '/a%2Fb/x.png', '/img/cover.png'])
+              for (const tail of ['', '?u=https://a.tenor.com/y', '#frag'])
+                corpus41.push(scheme + host + path + tail);
+        const tiles41 = corpus41.map((u) => urlOf(u)).filter(Boolean);
+        const blocked41 = tiles41.filter((u) => !csAllows41(u));
+        ok(corpus41.length > 500 && tiles41.length > 20 && blocked41.length === 0,
+          '★★ GATE 41 THE INVARIANT: over a GENERATED corpus of ' + corpus41.length + ' URLs the shell decides to tile ' + tiles41.length + ', and every one of those passes Utils.IsAllowedURL — the gate that decides whether Android and Windows will FETCH it. A tile nothing will deliver is a broken image on two platforms, and widening the shell to match OnCommitContent\'s hyphen-tolerant host class is exactly the edit that produces one. Tiles the platform would refuse: [' + (blocked41.slice(0, 4).join(' | ') || 'none') + ']');
+      }
+    }
+  }
+
+  /* ══ GATE 42 — THE PEER-COMPOSED IMAGE SINKS ═════════════════════════════════════
+     LOOPFIX3 §2, row O-13. `safeImageSrc` existed and two components used it; four more
+     peer-composed sinks did not. The one with real weight is `media-bubble`'s `preview`:
+     it paints on RENDER, so unlike the tile it is behind neither the tap-to-load state
+     machine nor the media-autoload preference — a remote value there announces the
+     reader's IP and the moment they opened the message before they touch anything.
+     Behavioural on the shipped bundle, plus a provenance WALK. */
+  {
+    const dom42 = new JSDOM(readFileSync(join(root, 'src/demo/components.html'), 'utf8'), {
+      runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true,
+      url: 'file://' + join(root, 'src/demo/components.html'), virtualConsole: new VirtualConsole(),
+      beforeParse(w) {
+        w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+        try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
+      },
+    });
+    await sleep(1200);
+    const S42 = dom42.window.Spixi;
+    if (!S42 || typeof S42.createMediaBubble !== 'function' || typeof S42.createAppBubble !== 'function' || typeof S42.createAppDetails !== 'function') {
+      ok(false, '★★ GATE 42 premise: the bundle exports createMediaBubble, createAppBubble and createAppDetails (rebuild the demo bundle)');
+    } else {
+      const DATA42 = 'data:image/png;base64,iVBORw0KGgo=';
+      const REMOTE42 = 'https://tracker.example/t.gif?id=victim';
+      const mb = (preview) => S42.createMediaBubble({ direction: 'received', kind: 'gif', src: 'https://media.tenor.com/a/x.gif', preview });
+      const ab = (iconUrl) => S42.createAppBubble({ direction: 'received', title: 'App', appName: 'App', iconUrl });
+      const ad = (app) => S42.createAppDetails({ app });
+      const cases42 = {
+        'a remote preview renders NO preview image — it would paint on render, before any tap': !mb(REMOTE42).querySelector('.c-mbubble__preview'),
+        'a protocol-relative preview is refused too': !mb('//tracker.example/t.gif').querySelector('.c-mbubble__preview'),
+        'and a local data:image preview still renders — a guard that blanks the surface is a guard the next author deletes': !!mb(DATA42).querySelector('.c-mbubble__preview'),
+        'an app-invite icon that is protocol-relative renders no <img>': !ab('//cdn.example/i.png').querySelector('.c-tcard__app-icon img'),
+        'and it falls back to the rocket glyph rather than an empty tile': !!ab('//cdn.example/i.png').querySelector('.c-tcard__app-icon svg'),
+        'an app-invite icon that is a data:image URI still renders': !!ab(DATA42).querySelector('.c-tcard__app-icon img'),
+        'a javascript: cover leaves the hero on its placeholder': (() => { const h = ad({ id: 'a', name: 'A', cover: 'javascript:alert(1)' }).querySelector('.c-app-hero'); return !!h && h.hasAttribute('data-placeholder') && !h.querySelector('.c-app-hero__art'); })(),
+      };
+      const shots = ad({ id: 'a', name: 'A', screenshots: ['javascript:alert(1)', DATA42] });
+      const items = shots.querySelectorAll('.c-app-shots__item');
+      cases42['a refused screenshot is dropped AND the count is re-numbered — "1 / 1", not "2 / 2" over one image'] =
+        items.length === 1 && /1\s*\/\s*1\s*$/.test(items[0].alt || '');
+      const allBad = ad({ id: 'a', name: 'A', screenshots: ['javascript:alert(1)', '//x/y.png'] });
+      cases42['an all-refused list renders no strip and appends no "null" text'] =
+        !allBad.querySelector('.c-app-shots') && !/null/.test(allBad.textContent);
+      const bad42 = Object.keys(cases42).filter((k) => !cases42[k]);
+      ok(bad42.length === 0,
+        '★★ GATE 42 BEHAVIOURAL (O-13), on the shipped bundle: ' + Object.keys(cases42).join(' · ') + '. Failing: [' + bad42.join(' | ') + ']');
+      dom42.window.close();
+    }
+
+    /* ★★ THE PROVENANCE WALK. The subject set is DERIVED — every component that imports
+       safeImageSrc — and the predicate is not a NAME SHAPE but where the value came from:
+       the assigned expression must be a safeImageSrc call, or an identifier declared in
+       the same file from one. A `const currentSrc = src` would pass a `/\w+Src$/` test and
+       carry a raw value, which is why the old shape is not reused here.
+       ⚠ The importer set may GROW and may never SHRINK. Deleting the import would
+       otherwise remove a file from its own subject list and pass this pin silently — the
+       #798 failure in its purest form. */
+    const IMPORTERS42 = ['apps-details.js', 'chat-info.js', 'media-bubble.js', 'message-bubble.js', 'typed-bubbles.js'];
+    const compDir = join(root, 'src/components');
+    const importers = readdirSync(compDir).filter((f) => f.endsWith('.js'))
+      .filter((f) => /import\s*\{[^}]*\bsafeImageSrc\b[^}]*\}\s*from\s*'\.\/avatar\.js'/.test(readFileSync(join(compDir, f), 'utf8'))).sort();
+    const lost = IMPORTERS42.filter((f) => !importers.includes(f));
+    /* the three carve-outs, each with its PREMISE asserted below rather than assumed */
+    const CARVED = {
+      'media-bubble.js|currentSrc': 'the tile, gated at its only caller and behind the media-autoload preference',
+      'apps-details.js|app.icon': 'the blurred backdrop — a C# local path or an X1 data: URI, the documented createAvatar class',
+      'apps-details.js|src': 'the screenshot loop, which iterates the ALREADY-FILTERED survivor list',
+    };
+    const raw42 = [];
+    let sinks42 = 0;
+    for (const f of importers) {
+      const t = stripCode(readFileSync(join(compDir, f), 'utf8'));
+      for (const m of t.matchAll(/\b(\w+)\.src\s*=\s*([^;]+);/g)) {
+        sinks42++;
+        const val = m[2].trim();
+        if (/^safeImageSrc\(/.test(val)) continue;
+        if (new RegExp('const\\s+' + val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*=\\s*safeImageSrc\\(').test(t)) continue;
+        if (CARVED[f + '|' + val]) continue;
+        raw42.push(f + ' → ' + m[1] + '.src = ' + val);
+      }
+    }
+    /* the carve-outs' premises */
+    const mbTxt = stripCode(readFileSync(join(compDir, 'media-bubble.js'), 'utf8'));
+    const adTxt = stripCode(readFileSync(join(compDir, 'apps-details.js'), 'utf8'));
+    const premises42 = {
+      'the media tile\'s value is the component\'s own `src` parameter, swapped only by setMediaSrc': /let currentSrc = src;/.test(mbTxt),
+      'the screenshot loop iterates a list built by mapping safeImageSrc and dropping the refusals': /\.map\(\(src\) => safeImageSrc\(src, \{ allowRemote: true \}\)\)/.test(adTxt) && /\.filter\(Boolean\)/.test(adTxt),
+      'the app-hero backdrop is the app ICON, the createAvatar class, and the COVER beside it is guarded': /const coverSrc = safeImageSrc\(app\.cover, \{ allowRemote: true \}\)/.test(adTxt),
+    };
+    const badPrem = Object.keys(premises42).filter((k) => !premises42[k]);
+    ok(importers.length >= 5 && lost.length === 0 && sinks42 >= 8 && raw42.length === 0 && badPrem.length === 0,
+      '★★ GATE 42 THE WALK (O-13): every element `.src =` in the ' + importers.length + ' components that import safeImageSrc (' + importers.join(', ') + ') takes a value that came OUT of it — ' + sinks42 + ' sinks examined, provenance read from the declaration rather than from the identifier\'s name. Three are carved out and each carve-out\'s premise is asserted here, not assumed. Importers lost since the fix: [' + (lost.join(', ') || 'none') + ']. Raw sinks: [' + (raw42.join(' | ') || 'none') + ']. Premises failing: [' + (badPrem.join(' | ') || 'none') + ']');
+  }
+
+  /* ══ GATE 43 — THE REMOVAL ANSWERS, RUN OUT OF THE BUILT SHELLS ══════════════════
+     LOOPFIX2 §1 and LOOPFIX3 §3. Five removal paths gained an answer and a sixth — the
+     Settings "delete all chat history" — gained one in the fix pass after that. Gate 5
+     proves the OPERATIONS all answer and that the sweep itself is prefix-driven; this
+     gate proves the HANDLERS route correctly: the right scope, the right status word, and
+     for the settings sweep the fail-closed direction over a key family it has never seen.
+     ⚠ Every invented key below appears nowhere in the source. A corpus of the known
+     families passes against a hard-coded list and proves nothing. */
+  {
+    const INVENT = 'spixi.notyetinvented.';
+    const GLOBAL_INVENT = 'spixi.alsonotinvented';
+    const P = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAA1';
+    const Q = 'BBBBBBBBBBBBBBBBBBBBBBBBBBBB2';
+    const seed43 = () => new Map([
+      ['spixi.draft.' + P, 'my unsent plaintext'], ['spixi.draft.' + Q, 'the other peer'],
+      ['spixi.likes.' + P, '["1"]'], ['spixi.exdel.' + P, '{}'],
+      ['spixi.hidereq.' + P, '1'], ['spixi.hsstage.' + P, '2'],
+      ['spixi.hidereq.' + Q, '1'], ['spixi.hsstage.' + Q, '2'],
+      [INVENT + P, 'x'], [INVENT + Q, 'y'],
+      ['spixi.appearance', 'dark'], [GLOBAL_INVENT, 'a global nobody listed'],
+      ['HTML5_QRCODE_DATA', 'camera-id'],
+      ['spixi.pins', JSON.stringify([P, Q])],
+    ]);
+    const mkLs = (store) => ({
+      get length() { return store.size; },
+      key: (n) => [...store.keys()][n] ?? null,
+      getItem: (k) => (store.has(k) ? store.get(k) : null),
+      setItem: (k, v) => { store.set(k, v); },
+      removeItem: (k) => { store.delete(k); },
+    });
+    const SIG43 = 'function forgetPeerStorage(addr, scope) {';
+
+    /* ① chat.html — the request-pane Decline. Handler AND sweep, together: the handler
+       is the function under test and the sweep is what it must reach. */
+    const chat43 = rd3('Spixi/Resources/Raw/html/chat.html');
+    const sweepChat = fnSlice3(chat43, SIG43);
+    const hChat = brace3(chat43, chat43.indexOf('undoRequestResult(address, status) {'));
+    ok(sweepChat.length > 200 && hChat.length > 20, 'gate 43 premise: chat.html\'s undoRequestResult handler and its sweep slice out of the BUILT shell');
+    if (sweepChat.length > 200 && hChat.length > 20) {
+      const runChat = (status) => {
+        const dom = new JSDOM('<!doctype html><body>', { url: 'https://example.test/' });
+        const store = seed43();
+        const pinned = new dom.window.Set([P, Q]);
+        const fn = new dom.window.Function('localStorage', 'PEER_KEYS_KEPT_ON_HISTORY', 'pinnedChats', 'savePins',
+          sweepChat + '\nreturn function (address, status) { ' + hChat.slice(hChat.indexOf('{') + 1, hChat.lastIndexOf('}')) + ' };')(
+          mkLs(store), ['spixi.hidereq.', 'spixi.hsstage.'], pinned, () => { store.set('spixi.pins', JSON.stringify([...pinned])); });
+        fn(P, status);
+        const out = { left: [...store.keys()].filter((k) => k.endsWith('.' + P)).sort(), size: store.size };
+        dom.window.close();
+        return out;
+      };
+      const okRun = runChat('ok');
+      const failRun = runChat('fail');
+      ok(okRun.left.length === 0 && failRun.left.length >= 5 && failRun.size === seed43().size,
+        '★★ GATE 43 ① chat.html Decline, BEHAVIOURAL on the BUILT shell: `undoRequestResult(peer, "ok")` takes every key naming that peer — INCLUDING `' + INVENT + '`, a family that appears nowhere in the source — and `undoRequestResult(peer, "fail")` takes NOTHING. A refused removal keeps the record, so the data must stay: the handler tests the WORD, not truthiness. Left after ok: [' + (okRun.left.join(' · ') || 'none') + '], store size after fail: ' + failRun.size);
+    }
+
+    /* ② contact_details.html — the history delete. The SCOPE is the property: the
+       contact stays, so the two contact-STATE markers and the pin must survive. */
+    const cd43 = rd3('Spixi/Resources/Raw/html/contact_details.html');
+    const sweepCd = fnSlice3(cd43, SIG43);
+    const hCd = brace3(cd43, cd43.indexOf('removeHistoryResult(address, status) {'));
+    ok(sweepCd.length > 200 && hCd.length > 20, 'gate 43 premise: contact_details.html\'s removeHistoryResult handler and its sweep slice out of the BUILT shell');
+    if (sweepCd.length > 200 && hCd.length > 20) {
+      const dom = new JSDOM('<!doctype html><body>', { url: 'https://example.test/' });
+      const store = seed43();
+      const pinned = new dom.window.Set([P, Q]);
+      const fn = new dom.window.Function('localStorage', 'PEER_KEYS_KEPT_ON_HISTORY', 'pinnedChats', 'savePins',
+        sweepCd + '\nreturn function (address, status) { ' + hCd.slice(hCd.indexOf('{') + 1, hCd.lastIndexOf('}')) + ' };')(
+        mkLs(store), ['spixi.hidereq.', 'spixi.hsstage.'], pinned, () => { store.set('spixi.pins', JSON.stringify([...pinned])); });
+      fn(P, 'ok');
+      const left = [...store.keys()].filter((k) => k.endsWith('.' + P)).sort();
+      const pins = JSON.parse(store.get('spixi.pins') || '[]');
+      dom.window.close();
+      ok(left.join(' · ') === ['spixi.hidereq.' + P, 'spixi.hsstage.' + P].sort().join(' · ') && pins.length === 2,
+        '★★ GATE 43 ② contact_details.html, BEHAVIOURAL on the BUILT shell: the history delete clears the draft and the invented family and KEEPS exactly the two contact-STATE markers and the pin. Change the call site\'s scope to "contact" and a user who deleted their messages loses a request they hid and a contact they pinned. Kept: [' + (left.join(' · ') || 'none') + ']');
+    }
+
+    /* ③ settings.html — "Delete all chat history". No roster reaches this document, so
+       the answer arrives with an EMPTY address and the sweep is by key FAMILY. The list
+       is a DELETE-list, never a keep-list: an unrecognised key SURVIVES, which costs
+       retention (the bug this closes, bounded) rather than a setting the user still
+       wants. The invented GLOBAL is what proves that direction. */
+    const set43 = rd3('Spixi/Resources/Raw/html/settings.html');
+    const hSet = brace3(set43, set43.indexOf('removeHistoryResult(address, status) {'));
+    const dbgSet = /const dbg = \([^)]*\) => \{/.test(set43);
+    ok(hSet.length > 200, 'gate 43 premise: settings.html\'s removeHistoryResult handler slices out of the BUILT shell');
+    if (hSet.length > 200) {
+      const runSet = (status) => {
+        const dom = new JSDOM('<!doctype html><body>', { url: 'https://example.test/' });
+        const store = seed43();
+        const logged = [];
+        const fn = new dom.window.Function('localStorage', 'dbg',
+          'return function (address, status) { ' + hSet.slice(hSet.indexOf('{') + 1, hSet.lastIndexOf('}')) + ' };')(mkLs(store), (m) => logged.push(m));
+        fn('', status);
+        const keys = [...store.keys()].sort();
+        dom.window.close();
+        return { keys, logged };
+      };
+      const okSet = runSet('ok');
+      const drafts = okSet.keys.filter((k) => k.startsWith('spixi.draft.'));
+      const kept = ['spixi.hidereq.' + P, 'spixi.hsstage.' + P, 'spixi.hidereq.' + Q, 'spixi.hsstage.' + Q,
+        'spixi.pins', 'spixi.appearance', GLOBAL_INVENT, 'HTML5_QRCODE_DATA'].filter((k) => okSet.keys.includes(k));
+      const inventedKept = okSet.keys.filter((k) => k.startsWith(INVENT)).length;
+      ok(drafts.length === 0 && kept.length === 8 && inventedKept === 2,
+        '★★ GATE 43 ③ settings.html, BEHAVIOURAL on the BUILT shell: ONE answer with an EMPTY address clears every peer\'s unsent draft in one call — the sweep is family-driven because this document owns no roster — and it keeps all 8 of the contact-STATE markers, the pins, the preferences and `' + GLOBAL_INVENT + '`. It also keeps `' + INVENT + '`, and THAT is the direction being pinned: this list is a DELETE-list, so a family nobody listed SURVIVES. A keep-list would have deleted a setting the user still wants; missing a family costs retention, which is bounded. Kept ' + kept.length + '/8, unlisted families kept ' + inventedKept + '/2, drafts left: ' + drafts.length);
+      const refused = ['', 'fail', 'OK', 'left'].map((st) => runSet(st).keys.length);
+      ok(refused.every((n) => n === seed43().size),
+        '★★ GATE 43 ③ FAIL CLOSED: "", "fail", "OK" and "left" each sweep NOTHING — the handler tests for the exact word. Sizes: ' + refused.join(' · ') + ' against ' + seed43().size);
+      ok(dbgSet,
+        '★ GATE 43 ③: settings.html DEFINES `dbg` before anything calls it. `wipeLocalState`\'s last statement has called it since #545 and the helper existed nowhere, so the account wipe completed and then threw a ReferenceError on its way out — and the F5 counter that line exists to print never printed');
+    }
+
+    /* ④ home.html — the decline is deliberately SILENT, and the sweep must not be inside
+       the silence. `undoRequestResult`'s success branch shows "Request revoked", the right
+       word for a revoke and the wrong one for declining someone else's request, so the
+       decline suppresses the TOAST. Moving the sweep inside that suppression would make a
+       security fix depend on a copy decision. */
+    const home43 = stripCode(rd3('src/shells/home.html'));
+    const hHome = brace3(home43, home43.indexOf('undoRequestResult(address, status) {'));
+    const okBranchAt = hHome.indexOf("=== 'ok'");
+    const sweepAt = hHome.indexOf("forgetPeerStorage(addr, 'contact')");
+    const silentGuard = hHome.indexOf('if (!silent)');
+    ok(hHome.length > 100 && okBranchAt > 0 && sweepAt > okBranchAt && (silentGuard < 0 || sweepAt < silentGuard)
+       && /silentRequestRemovals\.delete\(addr\)/.test(hHome)
+       && /silentRequestRemovals\.add\(/.test(home43),
+      '★★ GATE 43 ④ home.html: the decline records its address in the set the answer consumes, and the sweep runs in the success branch BEFORE — and outside — the `if (!silent)` that suppresses the toast. Move it inside and the revoke still clears its data while the decline silently keeps all of it, which is the same defect the batch closed, reintroduced by a copy decision');
+
+    /* ⑤ C#: the answer must report the REAL outcome. FriendList.removeFriend refuses when
+       the friend is a participant in a group, and a hard-coded "ok" would tell the shell
+       to delete the data for a record that is still there. */
+    const scp43 = stripCode(rd3('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
+    ok(/bool requestRemoved = FriendList\.removeFriend\(friend\);/.test(scp43)
+       && /"undoRequestResult", friend\.walletAddress\.ToString\(\), requestRemoved \? "ok" : "fail"/.test(scp43),
+      '★★ GATE 43 ⑤ at source: SingleChatPage READS removeFriend\'s return value and pushes it. Core refuses to remove a friend who is a participant in a group, so a hard-coded "ok" would tell the shell to forget a contact the app still has — the fail-OPEN direction on a delete');
   }
 }
 

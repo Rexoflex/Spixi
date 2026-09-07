@@ -1030,6 +1030,41 @@ function renderPlaceholder(el, { name, address, size, group }) {
   }
 }
 
+/* ★ Gate row O-13 — ONE test for an image source a component is asked to render.
+ *
+ * Two sinks took a URL with no host and no scheme test: the link-preview card and the
+ * shared-media strip. Both are dormant — no shipped shell passes those fields — and both
+ * are fed by a PEER-COMPOSED payload the moment they are wired. The test lives in the
+ * component layer for that reason: a wiring pass cannot forget a rule it does not have
+ * to remember.
+ *
+ * The rule, and it refuses on the unknown case:
+ *   · a `data:image/` URI is LOCAL. It makes no request. It is always admitted.
+ *   · an absolute http(s) URL is REMOTE. The fetch tells that host the reader's IP and
+ *     the moment the reader opened the message, so the caller must opt in.
+ *   · everything else gets NO src — a relative path, a protocol-relative '//host/x', a
+ *     'javascript:' URL, 'blob:', 'file:', or a string the URL parser rejects.
+ *
+ * The value is parsed by the SAME WHATWG parser the browser uses for the request, so this
+ * predicate cannot disagree with what the fetch would do. It mirrors the app-invite icon
+ * predicate in chat.html, which asks the same question in the same order.
+ *
+ * The helper sits in avatar.js for the reason truncateAddressMiddle does (#212): both
+ * message-bubble.js and chat-info.js already import from this file, and a new component
+ * file would need scripts/build-demo-bundle.mjs.
+ * ⚠ createAvatar's own <img> below does NOT run this test. Its src is a C# data: URI or a
+ * local file path, it degrades to the gradient on error, and gating it is a live
+ * behaviour change that belongs to its own row. */
+function safeImageSrc(value, { allowRemote = false } = {}) {
+  const v = typeof value === 'string' ? value.trim() : '';
+  if (!v) return '';
+  if (/^data:image\//i.test(v)) return v;                  // local — no request leaves the device
+  let proto = '';
+  try { proto = new URL(v).protocol; } catch (e) { return ''; }   // unparseable → refuse
+  if (proto !== 'http:' && proto !== 'https:') return '';   // only the two schemes that fetch
+  return allowRemote ? v : '';                              // remote needs the caller's opt-in
+}
+
 function createAvatar({ src = null, name = '', address = '', size = 48, online = false, group = false } = {}) {
   const el = document.createElement('span');
   el.className = 'c-avatar';
@@ -4165,6 +4200,8 @@ function createMessageBubble({
   paid = false,                // A2 (#302): this message cost IXI (C# `paid` = transactionId != "")
   onLinkClick = null,
   linkPreview = null,
+  allowRemoteImages = false,   // ★ O-13: a REMOTE http(s) thumb needs the shell's opt-in; a
+                               // data:image/ thumb never does. Default = no remote request.
   mention = null,              // { names:[…], self:[…] } → @-mention highlight (#210); null = off
   roleBadge = null,            // N34 (#365): 'Owner' chip label, top-right of the sender row; null = off
   strings = getStrings(),
@@ -4268,10 +4305,13 @@ function createMessageBubble({
     q.style.setProperty('--reply-h', hashHue(reply.address || reply.sender || ''));
     // media/typed originals show a small identifier (Damir 2026-07-03):
     // shell-composed thumb (data-URI) for media, kind glyph otherwise
-    if (reply.thumb) {
+    // ★ O-13: the quote thumb goes through the one image test. A refused value falls
+    // through to the kind glyph below, so the quote still says what it quotes.
+    const replyThumb = safeImageSrc(reply.thumb, { allowRemote: allowRemoteImages });
+    if (replyThumb) {
       const th = document.createElement('img');
       th.className = 'c-bubble__reply-thumb';
-      th.src = reply.thumb;
+      th.src = replyThumb;
       th.alt = '';
       q.append(th);
     } else if (reply.kind && REPLY_KIND_GLYPHS[reply.kind]) {
@@ -4310,10 +4350,14 @@ function createMessageBubble({
       lp.type = 'button';
       lp.addEventListener('click', () => onLinkClick(linkPreview.url));
     }
-    if (linkPreview.image) {
+    // ★ O-13: the card's image is peer-composed (the SENDER builds the preview — there
+    // is no server to unfurl it). A refused value leaves the card as title + domain,
+    // which is text the bubble already renders safely.
+    const previewSrc = safeImageSrc(linkPreview.image, { allowRemote: allowRemoteImages });
+    if (previewSrc) {
       const img = document.createElement('img');
       img.className = 'c-bubble__linkpreview-img';
-      img.src = linkPreview.image;
+      img.src = previewSrc;
       img.alt = '';
       lp.append(img);
     }
@@ -4948,6 +4992,7 @@ function setComposerCost(el, costText, strings = getStrings()) {
 
 
 
+
 function cardTime(d) {
   return d.toLocaleTimeString(docLocale(), timeOpts());   // ★ Session I: the device's 12/24-hour setting
 }
@@ -5196,7 +5241,15 @@ function createAppBubble({
   id.className = 'c-tcard__app';
   const ic = document.createElement('span');
   ic.className = 'c-tcard__app-icon';
-  if (iconUrl) {
+  /* ★ Gate row O-13 (#46 loop B, MINOR-5) — the app-invite icon is composed by the INVITING
+   * PEER. `chat.html` already asks the same question at the caller and keeps the media-autoload
+   * decision there, which is where it belongs. The shape test moves INTO the component so the
+   * two cannot drift: a second caller cannot light this sink up without the rule.
+   * This is a strict narrowing of what reaches the tag today — `chat.html` passes only a
+   * `data:image/` URI or a well-formed http(s) URL — so it cannot break a working icon. It
+   * refuses a relative path, a protocol-relative '//host/x', 'javascript:' and 'blob:'. */
+  const iconSrc = safeImageSrc(iconUrl, { allowRemote: true });
+  if (iconSrc) {
     const img = document.createElement('img');
     img.alt = '';
     // Graceful fallback (matches c-avatar / c-app-icon): a C# icon path that doesn't
@@ -5204,7 +5257,7 @@ function createAppBubble({
     // <img> and fall back to the rocket. Wire the handler BEFORE src so a synchronously
     // cached error still fires.
     img.addEventListener('error', () => { img.remove(); ic.append(icon('rocket', { size: 24 })); }, { once: true });
-    img.src = iconUrl;
+    img.src = iconSrc;
     ic.append(img);
   } else {
     ic.append(icon('rocket', { size: 24 }));
@@ -6424,6 +6477,7 @@ function attachMessageMenu(row, opts = {}) {
 
 
 
+
 const mediaCtl = new WeakMap(); // tile el → { setSrc } (audit r3: setMediaSrc must reuse the closure state machine)
 
 function mediaAria(state, kind, alt, strings) {
@@ -6486,10 +6540,20 @@ function createMediaBubble({
   };
   if (width > 0 && height > 0) fitTile(width, height); // sanctioned: runtime geometry from sender dims
 
-  if (preview) {
+  /* ★ Gate row O-13 (#46 loop B, MINOR-5) — the sender-embedded preview is the ONE sink in
+   * this file that paints on RENDER. The tile's own `src` below waits for `load()`, which
+   * the tap-to-load state machine and the shell's media-autoload preference both gate. The
+   * preview waits for nothing. A remote value here would announce the reader's IP and the
+   * moment they opened the message before they touched anything.
+   * The docblock at the head of this file already states the rule — a `preview` is a
+   * sender-embedded thumb data-URI, "P2P-safe". The rule is now enforced, not only stated
+   * (#772). Only a `data:image/` URI is admitted; a refused value leaves the tile in its
+   * idle state, which is what a message with no preview already shows. */
+  const previewSrc = safeImageSrc(preview, { allowRemote: false });
+  if (previewSrc) {
     const pv = document.createElement('img');
     pv.className = 'c-mbubble__preview';
-    pv.src = preview;
+    pv.src = previewSrc;
     pv.alt = '';
     pv.setAttribute('aria-hidden', 'true');
     el.append(pv);
@@ -10526,10 +10590,19 @@ function capExplain(c, strings) { return strings['capx_' + c] || APP_CAP_EXPLAIN
 function appHero(app) {
   const hero = document.createElement('div');
   hero.className = 'c-app-hero';
-  if (app.cover) {
+  /* ★ Gate row O-13 (#46 loop B, MINOR-5) — `cover` is a Discover-feed field. The feed is
+   * parked, so no shipped shell sets it and this sink is DORMANT. The test lives here, in
+   * the component, so a wiring pass cannot light the sink up without the rule (row O-13:
+   * "Put the host test in the COMPONENT, not in a future shell"). A cover IS a remote https
+   * URL by design, so the caller opts in; the test's job is to refuse 'javascript:',
+   * 'blob:', a protocol-relative '//host/x' and a value the URL parser rejects. A refused
+   * cover falls through to the deterministic gradient below, which is what an app with no
+   * cover already shows. */
+  const coverSrc = safeImageSrc(app.cover, { allowRemote: true });
+  if (coverSrc) {
     const art = document.createElement('img');
     art.className = 'c-app-hero__art';
-    art.src = app.cover; art.alt = '';
+    art.src = coverSrc; art.alt = '';
     hero.append(art);
   } else {
     const hue = hashHue(app.name || 'app');
@@ -10564,20 +10637,30 @@ function detailsSection(title) {
 }
 
 /** Screenshot gallery — horizontal scroll-snap strip (rendered only when the app
- *  ships screenshots; graceful omit otherwise, pending the BE preview payload). */
+ *  ships screenshots; graceful omit otherwise, pending the BE preview payload).
+ *  Returns null when nothing survives the source test below — the caller omits the
+ *  whole section then, exactly as it does for an app with no screenshots. */
 function screenshotStrip(shots, strings) {
+  /* ★ Gate row O-13 (#46 loop B, MINOR-5) — the same dormant class as the hero cover above:
+   * a Discover-feed field that no shipped shell sets. Refuse first, then count, so the
+   * "Screenshot 2 / 3" label never counts a shot that was not rendered. The caller drops
+   * the whole section when nothing survives. */
+  const ok = (Array.isArray(shots) ? shots : [])
+    .map((src) => safeImageSrc(src, { allowRemote: true }))
+    .filter(Boolean);
+  if (!ok.length) return null;
   const sec = detailsSection(strings.preview || 'Preview');
   const strip = document.createElement('div');
   strip.className = 'c-app-shots';
   strip.setAttribute('role', 'region');                  // labelled scroll region (a11y scroll-container pattern)
   strip.tabIndex = 0;                                    // focusable so the strip scrolls with arrow keys
   strip.setAttribute('aria-label', strings.preview || 'Preview');
-  shots.forEach((src, i) => {
+  ok.forEach((src, i) => {
     const img = document.createElement('img');
     img.className = 'c-app-shots__item';
     img.loading = 'lazy';
     img.src = src;
-    img.alt = (strings.screenshot || 'Screenshot') + ' ' + (i + 1) + ' / ' + shots.length;   // region has readable content
+    img.alt = (strings.screenshot || 'Screenshot') + ' ' + (i + 1) + ' / ' + ok.length;   // region has readable content
     strip.append(img);
   });
   sec.append(strip);
@@ -10698,7 +10781,9 @@ function createAppDetails({ app = {}, strings = getStrings(), host, onInstall, o
 
   /* screenshots first — artwork sells before words (Store order; graceful omit without previews) */
   if (Array.isArray(app.screenshots) && app.screenshots.length) {
-    el.append(screenshotStrip(app.screenshots, strings));
+    // screenshotStrip returns null when every entry is refused — never append that.
+    const shotSec = screenshotStrip(app.screenshots, strings);
+    if (shotSec) el.append(shotSec);
   }
 
   /* description (clamped + Read more) */
@@ -17559,6 +17644,8 @@ function createChatInfo({
   amOwner = false,               // N48 (#370): MY OWN owner status (self-only push; blind-safe)
   notifications = true,
   media = [],                    // [{ id, thumb, kind }] — flagged section
+  allowRemoteImages = false,     // ★ O-13: a REMOTE http(s) thumb needs the shell's opt-in; a
+                                 // data:image/ thumb never does. Default = no remote request.
   txs = [],                      // txlist-item opts (1:1 activity), newest first
   selfDestruct = 0,              // current disappearing-messages window (seconds; 0 = off)
   capabilities = {},             // { notifications, media, admin, presence, selfDestruct }
@@ -18031,9 +18118,12 @@ function createChatInfo({
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'c-chat-info__media-thumb';
-      if (item.thumb) {
+      // ★ O-13: the strip's thumbs are peer-composed the moment this section is fed.
+      // A refused value falls through to the kind glyph, so the tile still reads.
+      const thumbSrc = safeImageSrc(item.thumb, { allowRemote: allowRemoteImages });
+      if (thumbSrc) {
         const img = document.createElement('img');
-        img.src = item.thumb;
+        img.src = thumbSrc;
         img.alt = '';
         b.append(img);
       } else {
@@ -19295,8 +19385,14 @@ function createAddContact({
     } else {
       knownAddress = info.address || '';
       const who = (info.nick || '').trim();
+      /* ★ Gate row O-12. `who` is the PEER's nickname, and it was the REPLACEMENT
+         argument of String.prototype.replace. In that position "$&" and its family are
+         substitution syntax, so a nickname that holds one splices other parts of the
+         sentence into the sentence. A FUNCTION replacement returns its value literally,
+         so the nickname can only ever be the nickname. The product goes to textContent,
+         so the damage was a mangled line, never a script. */
       knownText.textContent = who
-        ? ((strings.alreadyContactNamed || '{name} is already in your contacts.').replace('{name}', who))
+        ? ((strings.alreadyContactNamed || '{name} is already in your contacts.').replace('{name}', () => who))
         : (strings.alreadyContact || 'This address is already in your contacts.');
       knownBtn.hidden = !knownAddress || !onViewContact;
     }
@@ -21447,8 +21543,13 @@ function createSettingsHub({
     onClick: () => onSecurity(),
   }).section);
 
-  if ((capabilities.readReceipts || capabilities.typing) && onPrivacy) sec.card.append(settingRow({
-    glyph: 'eye-off', hue: 'info',
+  /* ★ `mediaAutoload` is a FRONTEND capability (security sweep, row E-1b): the media
+     switch writes localStorage and needs no verb, so the shell declares it. The gate
+     still names every row the screen can draw, so the hub cannot offer an empty
+     Privacy screen — which is what it would have done before this row existed, since
+     both §9 capabilities are unreachable today. */
+  if ((capabilities.readReceipts || capabilities.typing || capabilities.mediaAutoload) && onPrivacy) sec.card.append(settingRow({
+    glyph: 'eye-off', hue: 'info', key: 'privacy',
     label: strings.privacy || 'Privacy',
     onClick: () => onPrivacy(),
   }).section);
@@ -22674,25 +22775,52 @@ function createChatAppearance({
 }
 
 /**
- * Privacy — §9-GATED toggles (read receipts / typing indicators). No legacy
- * commands exist; every row renders ONLY when its capability is flagged.
+ * Privacy — the media-autoload switch, plus §9-GATED toggles (read receipts /
+ * typing indicators). The §9 rows render ONLY when their capability is flagged;
+ * no legacy command exists for either.
+ *
+ * ★ THE MEDIA ROW IS FRONTEND-ONLY (security sweep, row E-1b). It writes
+ * `spixi.media.autoload`, which the chat shell already read but which NOTHING in
+ * the tree ever wrote — so the documented opt-out did not exist and the gate it
+ * guards was permanently on. The shell owns the key (the chat-appearance
+ * preferences work the same way), so this needs no verb and no C# change.
+ * The two documents are different WebViews on ONE localStorage origin, and the
+ * chat shell reads the key on every render — so a change here applies to each
+ * conversation opened after it, not to a conversation already on screen.
  */
 function createPrivacy({
   readReceipts = true,
   typingIndicators = true,
+  mediaAutoload = true,          // FE-only: spixi.media.autoload (the shell reads it per render)
   capabilities = {},             // { readReceipts, typing }
   onBack,
   onReadReceipts,                // (next, ctrl) — §9
   onTyping,                      // (next, ctrl) — §9
+  onMediaAutoload,               // (next, ctrl) — FE-only, writes localStorage
   strings = getStrings(),
 } = {}) {
   const { el, body, live } = screenShell('c-settings-privacy', strings.privacy || 'Privacy', onBack);
 
-  const note = document.createElement('p');
-  note.className = 'c-settings__note';
-  note.textContent = strings.privacyNote ||
-    'These apply to everyone you chat with. Turning one off also hides theirs from you.';
-  body.append(note);
+  if (onMediaAutoload) body.append(switchRow({
+    glyph: 'photo', hue: 'info',
+    label: strings.loadMedia || 'Load pictures and GIFs',
+    // the sub says WHAT IT COSTS, because that is the whole reason the row exists
+    sub: strings.loadMediaSub || 'Loading tells the sender’s host that you opened the chat',
+    checked: mediaAutoload, live,
+    failText: strings.privacyFailed || 'Couldn’t update. Try again.',
+    onToggle: onMediaAutoload,
+  }));
+
+  /* The note describes the §9 pair only — it says "turning one off also hides theirs
+     from you", which is true of a receipt and false of the local media switch. It
+     therefore renders with the rows it is about, and only when they render (#772). */
+  if ((capabilities.readReceipts && onReadReceipts) || (capabilities.typing && onTyping)) {
+    const note = document.createElement('p');
+    note.className = 'c-settings__note';
+    note.textContent = strings.privacyNote ||
+      'These apply to everyone you chat with. Turning one off also hides theirs from you.';
+    body.append(note);
+  }
 
   if (capabilities.readReceipts && onReadReceipts) body.append(switchRow({
     glyph: 'checks', hue: 'info',
@@ -23817,57 +23945,6 @@ function launchCtrl(onDone, onFail) {            // one-shot (lockCtrl grammar)
     done: (payload) => { if (used) return; used = true; onDone(payload); },
     fail: (msg) => { if (used) return; used = true; onFail(msg); },
   };
-}
-
-/* —— illustration slots ————————————————————————————————————
-   Welcome slides reuse the legacy art verbatim (originally img/dark/onboarding/
-   step1–4.svg — that folder is deleted, Session N — now src/demo/images/onboarding/*.png — Damir premium rework;
-   the welcome is pinned dark so only the dark set rides). The backup nudge
-   keeps its placeholder (nano-banana asset #6 pending, illustrations-plan §2
-   palette; data-placeholder = the swap stays deliberate). Static strings
-   only — innerHTML carries no user data. */
-const ILLO_G = (id) => `<defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1">`
-  + '<stop offset="0" stop-color="#3050bd"/><stop offset="1" stop-color="#515ee6"/>'
-  + '</linearGradient></defs>';
-const ILLOS = {
-  backup:
-    `<svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">${ILLO_G('ilg-b')}`
-    + '<circle cx="120" cy="126" r="84" fill="#e3e4fe"/>'
-    + '<path d="M120 44 L180 66 V132 Q180 178 120 200 Q60 178 60 132 V66 Z" fill="url(#ilg-b)"/>'
-    + '<rect x="94" y="92" width="52" height="68" rx="10" fill="#f9fafb"/>'
-    + '<circle cx="110" cy="110" r="7" fill="#769dff"/>'
-    + '<circle cx="130" cy="110" r="7" fill="#b7c9f4"/>'
-    + '<rect x="104" y="128" width="32" height="8" rx="4" fill="#cbcffe"/>'
-    + '<rect x="104" y="142" width="24" height="8" rx="4" fill="#cbcffe"/>'
-    + '</svg>',
-};
-
-function illoSlot(name, src) {
-  const slot = document.createElement('div');
-  slot.className = 'c-launch__illo';
-  slot.dataset.illo = name;                      // illustrations-plan naming
-  slot.setAttribute('aria-hidden', 'true');      // decorative — copy carries meaning
-  if (src) {
-    // iOS-2 (#283): REAL asset first — the #245b canon (same art as the backup
-    // nudge + Account→Backup pane, images/backup.png — N45). Join-step <img> grammar;
-    // load error → the token-styled placeholder below, so a missing asset
-    // degrades to the old look, never a blank slot.
-    const img = document.createElement('img');
-    img.className = 'c-launch__illo-img';
-    img.src = src;
-    img.alt = '';                                // decorative — copy carries meaning
-    img.draggable = false;
-    img.addEventListener('error', () => {
-      img.remove();
-      slot.dataset.placeholder = 'true';
-      slot.innerHTML = ILLOS[name] || '';
-    }, { once: true });
-    slot.append(img);
-    return slot;
-  }
-  slot.dataset.placeholder = 'true';             // real-asset swap = deliberate
-  slot.innerHTML = ILLOS[name] || '';
-  return slot;
 }
 
 /* —— view plumbing ———————————————————————————————————————————— */
@@ -25786,75 +25863,12 @@ function scheduleScanProbe(el, feedEl, isDone) {
   }, 1200);
 }
 
-/* ————————————————————————————————————————————————————————————————————————————
- * D2 (#308) — C-9 STORAGE PROBE, self-serve (no Mac tether). Diagnostics only.
- *
- * The #305 grant flag did not survive a ScanPage relaunch (#306). Repo facts
- * pinned first (#215): the generated page name is the LITERAL prefix "ll_" +
- * page — `ll_scan.html`, STABLE per page (SpixiContentPage.generatePage), so
- * the per-VISIT-origin hedge is dead; cross-page keys DO live on different
- * files (ll_settings.html vs ll_scan.html → the per-FILE-origin theory stays
- * live for those); no custom WKWebsiteDataStore anywhere (MAUI default). What
- * only the device can answer is whether file:// localStorage persists AT ALL —
- * so every mount runs this probe and, exactly when the consent card gates
- * (= the symptom moment), paints one aria-hidden line:
- *
- *   storage probe — ll_scan.html · grant:0 · probe:N · appearance:X
- *
- *   · probe INCREMENTS across scan entries → same-page localStorage persists →
- *     the storage theory is DEAD and the grant clearing is a logic path
- *     (remember: an iOS-Settings revoke legitimately clears it — ask Damir).
- *   · probe stuck at 0 (write ok) → reads are session-ephemeral → C-9 CONFIRMED:
- *     every spixi.* localStorage feature is dead on iOS → be-cutover row
- *     (C# preference push / capability grammar), NOT a scan patch. Log it big.
- *   · write:ERR(name) → localStorage structurally dead on file:// → same
- *     escalation, with the exception name as evidence.
- *   · appearance:1 (written by ll_settings.html on a theme pick) → cross-FILE
- *     visibility works too → the per-file-origin theory is dead as well.
- *     appearance:0 alone is ambiguous (dead storage kills it identically) —
- *     the runsheet's Inspector variant stays the tie-breaker for that leg.
- *
- * Healthy platforms: the line renders only under the consent card (first-ever
- * visit or post-revoke), never over a working scanner; SRs skip it entirely.
- * English-only diagnostics — the #301 probe-line precedent. Retire/gate with
- * the consent fix once C-9 has its verdict.
- * ———————————————————————————————————————————————————————————————————————————— */
-const SCAN_PROBE_KEY = 'spixi.probe.scan';
-
-function probeScanStorage() {
-  const r = { page: '?', grant: '0', probe: '0', appearance: '0', write: 'ok' };
-  try { r.page = String(location.pathname || '').split('/').pop() || '?'; } catch (e) { /* opaque env */ }
-  try { r.grant = localStorage.getItem(SCAN_GRANT_KEY) ? '1' : '0'; } catch (e) { r.grant = 'ERR:' + (e && e.name); }
-  let n = 0;
-  try { n = parseInt(localStorage.getItem(SCAN_PROBE_KEY) || '0', 10) || 0; r.probe = String(n); } catch (e) { r.probe = 'ERR:' + (e && e.name); }
-  try { localStorage.setItem(SCAN_PROBE_KEY, String(n + 1)); } catch (e) { r.write = 'ERR:' + (e && e.name); }
-  try { r.appearance = localStorage.getItem('spixi.appearance') != null ? '1' : '0'; } catch (e) { r.appearance = 'ERR:' + (e && e.name); }
-  return r;
-}
-
-function paintStorageProbe(el, storage) {
-  try {
-    const d = document.createElement('p');
-    d.setAttribute('aria-hidden', 'true');       // diagnostics never reach screen readers
-    d.style.cssText = 'position:absolute;left:12px;right:12px;bottom:calc(8px + env(safe-area-inset-bottom,0px));'
-      + 'z-index:3;margin:0;text-align:center;font:11px/1.4 -apple-system,sans-serif;'
-      + 'color:rgba(255,255,255,0.55);pointer-events:none;';
-    d.textContent = 'storage probe — ' + storage.page + ' · grant:' + storage.grant
-      + ' · probe:' + storage.probe + ' · appearance:' + storage.appearance
-      + (storage.write !== 'ok' ? ' · write:' + storage.write : '');
-    el.appendChild(d);
-    return d;                                    // #46 r1 MINOR-1: caller removes it when scanning starts
-  } catch (e) { /* fail soft — the console line above already carries the verdict */ }
-  return null;
-}
-
 function mountScanPage({ host, bridge, strings, camera } = {}) {
   const br = bridge || createNativeBridge();
   const sl = strings || (typeof window !== 'undefined' && window.SL) || {};
   const cam = camera !== undefined ? camera : html5QrcodeCamera();
   let el = null;
   let finished = false;                          // decode/cancel are terminal (C# pops the page)
-  let storageProbeLine = null;                   // #308 line — lives only while consent gates (#46 r1 MINOR-1)
 
   const stopCamera = () => { if (cam) { try { cam.stop(); } catch { /* fail soft */ } } };
 
@@ -25871,10 +25885,6 @@ function mountScanPage({ host, bridge, strings, camera } = {}) {
         done: (payload) => {
           ctrl.done(payload);
           try { localStorage.setItem(SCAN_GRANT_KEY, '1'); } catch (e) { /* private mode */ }
-          // #46 r1 MINOR-1: the storage line is consent-card evidence — a successful
-          // start enters 'scanning', so it must not linger over the live camera (it
-          // sat above the success flash, z3 > z2). Denied keeps it: still the symptom.
-          if (storageProbeLine) { try { storageProbeLine.remove(); } catch (e) { /* gone */ } storageProbeLine = null; }
           scheduleScanProbe(el, feed, () => finished);
         },
         fail: (msg) => {
@@ -25905,11 +25915,15 @@ function mountScanPage({ host, bridge, strings, camera } = {}) {
 
   (host || document.body).append(el);
   br.ready();                                    // ixian:onload — C# flushes queued pushes
-  // #308: the C-9 storage probe runs on EVERY mount (console) and paints its line
-  // only when the consent card is about to gate — the exact symptom moment.
-  const storage = probeScanStorage();
-  try { console.error('[scan-probe] storage', JSON.stringify(storage)); } catch (e) { /* console gone */ }
-  if (storage.grant !== '1') storageProbeLine = paintStorageProbe(el, storage);
+  /* #308 STORAGE PROBE RETIRED — gate row O-07. Its own docblock set the condition:
+   * "Retire/gate with the consent fix once C-9 has its verdict". #311 recorded that
+   * verdict from the device — grant:1 · probe:23 · appearance:1 — so file:// localStorage
+   * persists AND it crosses ll_* files. Both C-9 legs are closed. The probe, its paint and
+   * its key are gone. A device that already ran the probe still holds the counter, so the
+   * key is removed here. The removal is the last reference to that key in the tree.
+   * ⚠ Do not add a user-visible diagnostic to this surface again. It painted an English
+   * line over the consent card on every shipping build, with no build symbol. */
+  try { localStorage.removeItem('spixi.probe.scan'); } catch (e) { /* private mode — nothing to clear */ }
   // #305: a previously granted camera skips the consent-card tap — auto-enter the
   // SAME request path (latched, honest: failure lands on the denied card and clears
   // the flag). First-ever visit still shows the card; nothing is captured unbidden.
@@ -26022,5 +26036,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

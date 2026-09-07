@@ -183,13 +183,38 @@ namespace SPIXI
 
         public static string downloadsPath = "Downloads";
 
-        // Q1-② (#267) + security-review MAJOR (`..`-traversal on downloads open/
-        // delete): resolve a WEBVIEW-SUPPLIED file NAME against the Downloads root.
-        // Returns the full path only when the name is a plain leaf that stays
-        // inside the root; anything else (empty, separators, "..", rooted input,
-        // or a canonical path escaping the root) → null. Shared by SettingsPage
-        // (openDownload/deleteDownload) and DownloadsPage (open/delete) so the
-        // guard lives ONCE. C# names its own paths (CLAUDE.md ground rule).
+        /* Q1-② (#267) + security-review MAJOR (`..`-traversal on downloads open/
+         * delete): resolve a WEBVIEW-SUPPLIED file NAME against the Downloads root.
+         * Returns the full path only when the name is a plain leaf that stays
+         * inside the root; anything else (empty, separators, "..", rooted input,
+         * or a canonical path escaping the root) → null. Shared by SettingsPage
+         * (openDownload/deleteDownload) and DownloadsPage (open/delete) so the
+         * guard lives ONCE.
+         *
+         * ★ handover sweep O-39 (#772): THE LAST SENTENCE USED TO SAY "C# names its own
+         * paths (CLAUDE.md ground rule)", WHICH IS THE OPPOSITE OF WHAT THIS FUNCTION DOES.
+         * Accepting a name the WebView supplied is this function's entire purpose. A comment
+         * that states an invariant the code does not enforce is a defect by this project's own
+         * rule, so here is the contract the code actually keeps:
+         *
+         *   NO WebView-supplied string is ever used as a PATH. A WebView-supplied LEAF NAME is
+         *   accepted, and only through this function, which resolves it against a root C# owns
+         *   and refuses on any escape.
+         *
+         * What the guard PROVES about the name it returns a path for, in order:
+         *   · it contains no ".." anywhere, no '/' and no '\';
+         *   · `Path.IsPathRooted` is false, so it names no drive and no share;
+         *   · it is its own `Path.GetFileName`, so it carries no directory part at all;
+         *   · it contains no character from `Path.GetInvalidFileNameChars()` — on Windows that
+         *     set includes ':', which also kills an alternate-data-stream name;
+         *   · and after `Path.GetFullPath`, the result still begins with the Downloads root
+         *     followed by a separator, so a canonical form that escapes is refused as well.
+         * Every one of those refuses rather than admits, and the catch returns null too, so a
+         * name this function cannot resolve never reaches a filesystem call.
+         *
+         * ⚠ WHAT IT DOES NOT PROVE. It says nothing about how the file got its name at
+         * RECEIVE time (`transfer.fileName` off the wire — be-cutover S16), and it does not
+         * decide whether opening the file is safe, only which file is named. */
         public static string resolveDownloadPath(string file_name)
         {
             if (string.IsNullOrEmpty(file_name)) return null;

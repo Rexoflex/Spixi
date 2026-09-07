@@ -221,14 +221,22 @@ namespace SPIXI
             else if (current_url.StartsWith("ixian:language:", StringComparison.Ordinal))
             {
                 string lang = current_url.Substring("ixian:language:".Length);
-                if(SpixiLocalization.loadLanguage(lang))
+                /* ★ A-1 walk: fenced for the FILESYSTEM op, not for a secret — this URL
+                 * carries a language code only. loadLanguage reads a dictionary file and
+                 * loadIntro regenerates the document through generatePage/localizeHtml, and
+                 * #768 showed that leg can fail. Without the fence one failed write kills
+                 * the whole navigation handler for the rest of the page's life. */
+                runFencedVerb("ixian:language:", () =>
                 {
-                    Preferences.Default.Set("language", lang);
-                }
-                // the pick only exists on the welcome view, and the reload re-boots there
-                currentView = "welcome";
-                loadIntro();
-                Utils.sendUiCommand(this, "showOnboardingSection");
+                    if(SpixiLocalization.loadLanguage(lang))
+                    {
+                        Preferences.Default.Set("language", lang);
+                    }
+                    // the pick only exists on the welcome view, and the reload re-boots there
+                    currentView = "welcome";
+                    loadIntro();
+                    Utils.sendUiCommand(this, "showOnboardingSection");
+                });
             }
             else if (current_url.Equals("ixian:avatar", StringComparison.Ordinal))
             {
@@ -264,7 +272,10 @@ namespace SPIXI
                 string pass = sep >= 0 ? payload.Substring(sep + 1) : "";
 
                 // Create the account
-                onCreateAccount(nick, pass);
+                // ★ A-1: fenced. The parse above is total (StartsWith proved the literal is
+                // present, and both Substring indexes come from it), so the call is the only
+                // statement in this branch that can throw.
+                runFencedVerb("ixian:create:", () => onCreateAccount(nick, pass));
             }
             else if (current_url.Equals("ixian:selectfile", StringComparison.Ordinal))
             {
@@ -305,11 +316,17 @@ namespace SPIXI
                 }
 
                 string password = split[1]; // Todo: secure this
-                if(!onRestore(password))
+                // ★ A-1: fenced. onRestore reads the staged file, decrypts it, extracts an
+                // archive and moves files — every one of those can throw, and the URL that
+                // reaches the iOS catch would carry this password.
+                runFencedVerb("ixian:restore:", () =>
                 {
-                    e.Cancel = true;
-                    Utils.sendUiCommand(this, "removeLoadingOverlay");
-                }
+                    if(!onRestore(password))
+                    {
+                        e.Cancel = true;
+                        Utils.sendUiCommand(this, "removeLoadingOverlay");
+                    }
+                });
             }
             else if (verb.StartsWith("ixian:proceed:", StringComparison.Ordinal))
             {
@@ -322,7 +339,10 @@ namespace SPIXI
                 }
 
                 string password = split[1]; // Todo: secure this
-                proceed(password);
+                // ★ A-1: fenced. proceed opens and decrypts the wallet file, so a corrupt
+                // or locked wallet.ixi is a live throw path on the ONE verb a user retypes
+                // until it works.
+                runFencedVerb("ixian:proceed:", () => proceed(password));
             }
             else if (current_url.Trim().StartsWith("file:", StringComparison.OrdinalIgnoreCase))
             {
@@ -343,6 +363,42 @@ namespace SPIXI
          * ixian: verb is reported by shape only, never by content — this method's input
          * comes off a WebView navigation URL, and DevPage renders ixian.log and offers it
          * through the share sheet (the #385 NIT-3 rule). */
+        /* ★ SECURITY (handover sweep A-1): the FENCE for the branches that carry a
+         * plaintext wallet password.
+         * onNavigating has no outer try, so a managed throw from ixian:create:,
+         * ixian:restore: or ixian:proceed: unwinds out of this handler and into the iOS
+         * navigation delegate, whose tail catch logs the WHOLE navigation URL
+         * (Platforms/iOS/iOSWebViewHandler.cs, SecureNavigationDelegate.DecidePolicy).
+         * DevPage renders ixian.log and offers it through the share sheet, so that one
+         * line publishes the user's wallet password. The fence stops the throw inside the
+         * branch, before it can reach that catch.
+         * WHAT THE CATCH MAY SAY: the verb NAME and the exception TYPE. Never the URL.
+         * Never ex.Message — an exception message repeats the value that caused it, and on
+         * this page that value is the password. This is the logVerbName rule below.
+         * WHAT THE CATCH MUST DO: release the shell. The create and restore forms show an
+         * indefinite morph, and only removeLoadingOverlay re-enables them, so swallowing a
+         * throw without this call would trade a leak for a dead form (#334 L1). The
+         * release is itself fenced, because it must never re-throw into the handler. */
+        private void runFencedVerb(string verb_name, Action branch)
+        {
+            try
+            {
+                branch();
+            }
+            catch (Exception ex)
+            {
+                Logging.error("LaunchPage " + verb_name + " failed: " + ex.GetType().Name);
+                try
+                {
+                    Utils.sendUiCommand(this, "removeLoadingOverlay");
+                }
+                catch (Exception)
+                {
+                    // best effort only — the release must not become a second throw
+                }
+            }
+        }
+
         private static void logVerbName(string verb)
         {
             try
@@ -780,6 +836,40 @@ namespace SPIXI
                  * backup made on the PC carries names like "Acc\xxx\file" — and
                  * extraction on Android/iOS creates FILES with backslashes in the name
                  * instead of the Acc tree. Rehome them so old backups restore fully. */
+                /* ★★ SECURITY (handover sweep H-1): this loop is a ZIP-SLIP unless it is
+                 * fenced. ZipFile.ExtractToDirectory blocks a "/" traversal, but on Android,
+                 * iOS and MacCatalyst a "\" is an ordinary filename character. A crafted
+                 * entry named "..\wallet.ixi\x" therefore survives extraction as ONE legal
+                 * file, and the rehome below turns that name into a REAL path outside
+                 * tmp_zip. Path.GetFileName cannot strip it, because on Unix it splits on
+                 * "/" only.
+                 * Two facts decide the severity, and both must stay true in this comment:
+                 *   · the loop runs BEFORE verifyWallet, so the attacker needs only the
+                 *     archive password and the SPIXIACCB1 header, never a valid wallet;
+                 *   · Directory.CreateDirectory below cannot throw on an existing target,
+                 *     so a crafted entry can create a DIRECTORY where a file must go. An
+                 *     entry named "..\wallet.ixi\x" makes <spixiUserFolder>/wallet.ixi a
+                 *     folder, after which the restore's own File.Move and every future
+                 *     account create or restore fail forever. That is the sharper half:
+                 *     a permanent denial of service on the wallet path.
+                 * The fence is fail-closed. An entry must be a plain relative name, and the
+                 * resolved file AND its parent directory must stay under tmp_zip. A refused
+                 * entry is skipped and counted. Only the COUNT reaches the log: the name
+                 * comes from the archive, and ixian.log is a file the user shares from
+                 * Account -> Developer (the #385 NIT-3 rule).
+                 * A real Windows-made backup is unaffected. BackupPage writes exactly
+                 * "Acc/<address>/<file>", "account.ixi", "avatar.jpg" and "wallet.ixi", the
+                 * address is base58 and the file names are account.ixi, meta.ixi,
+                 * contacts.dat, groups.dat and channels.dat - every segment is a plain
+                 * relative name. */
+                string fenceRoot = Path.GetFullPath(tmpDirectory);
+                if (!fenceRoot.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal))
+                {
+                    // The prefix test compares a DIRECTORY. Without the trailing separator a
+                    // sibling folder named "tmp_zip_evil" would pass a "tmp_zip" test.
+                    fenceRoot += Path.DirectorySeparatorChar;
+                }
+                int refusedStrays = 0;
                 foreach (var strayFile in Directory.EnumerateFiles(tmpDirectory))
                 {
                     string strayName = Path.GetFileName(strayFile);
@@ -787,9 +877,29 @@ namespace SPIXI
                     {
                         continue;
                     }
-                    string rehomed = Path.Combine(tmpDirectory, strayName.Replace('\\', Path.DirectorySeparatorChar));
-                    Directory.CreateDirectory(Path.GetDirectoryName(rehomed));
+                    string strayRelative = strayName.Replace('\\', Path.DirectorySeparatorChar);
+                    if (!isPlainRelativeEntry(strayRelative))
+                    {
+                        refusedStrays++;
+                        continue;
+                    }
+                    string rehomed = Path.GetFullPath(Path.Combine(tmpDirectory, strayRelative));
+                    string? rehomedParent = Path.GetDirectoryName(rehomed);
+                    // Both tests, and both fail closed. The parent is tested separately
+                    // because CreateDirectory runs on it before the file ever moves.
+                    if (!rehomed.StartsWith(fenceRoot, StringComparison.Ordinal)
+                        || string.IsNullOrEmpty(rehomedParent)
+                        || !rehomedParent.StartsWith(fenceRoot, StringComparison.Ordinal))
+                    {
+                        refusedStrays++;
+                        continue;
+                    }
+                    Directory.CreateDirectory(rehomedParent);
                     File.Move(strayFile, rehomed);
+                }
+                if (refusedStrays > 0)
+                {
+                    Logging.warn("restoreAccountFile: " + refusedStrays + " backup entries left the extraction folder and were refused");
                 }
                 string tmpWalletFile = Path.Combine(tmpDirectory, Config.walletFile);
                 WalletStorage ws = new WalletStorage(tmpWalletFile);
@@ -862,6 +972,39 @@ namespace SPIXI
                  * simply not ours; after it matched, an account restore genuinely failed. */
                 return headerMatched ? RestoreOutcome.Failed : RestoreOutcome.NotAnAccountBackup;
             }
+        }
+
+        /* ★ SECURITY (handover sweep H-1), part 1 of the fence. The rehomed name must be a
+         * PLAIN RELATIVE path: every segment a real name, no root, no drive.
+         *   · ".." walks out of the extraction folder;
+         *   · "" comes from a doubled or trailing separator;
+         *   · "." is a no-op segment that hides a "..";
+         *   · a rooted name replaces the root, because Path.Combine DISCARDS its first
+         *     argument as soon as the second one is rooted;
+         *   · ":" names a drive on Windows ("C:x" is drive-relative, not a file name).
+         * The method refuses everything it does not recognise. It never inspects the name
+         * for a pattern, so a new escape shape cannot slip past a pattern that missed it.
+         * Both separators are split on: the platform one, and "/" for a name that survived
+         * extraction with a forward slash still in it. */
+        private static bool isPlainRelativeEntry(string relative)
+        {
+            if (string.IsNullOrEmpty(relative))
+            {
+                return false;
+            }
+            if (Path.IsPathRooted(relative) || relative.IndexOf(':') >= 0)
+            {
+                return false;
+            }
+            string[] segments = relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            foreach (string segment in segments)
+            {
+                if (segment.Length == 0 || segment == "." || segment == "..")
+                {
+                    return false;
+                }
+            }
+            return true;
         }
 
         private bool restoreWalletFile(string source_path, string pass)

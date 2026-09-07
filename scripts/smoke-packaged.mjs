@@ -42,6 +42,19 @@ try {
   // #46 auditor B: obj/ bin/ local-nuget/ _to_delete/ are excluded too — hundreds of MB per run on the PC otherwise
   cpSync(root, copy, { recursive: true, filter: (p) => !/[\\/](?:\.git|node_modules|obj|bin|local-nuget|_to_delete)(?:[\\/]|$)/.test(p.slice(root.length)) });
   if (existsSync(join(root, 'node_modules'))) symlinkSync(join(root, 'node_modules'), join(copy, 'node_modules'), 'junction');
+  /* ★★ 2026-09-07 (Damir, iOS walk R) — local-nuget/ IS SYMLINKED BACK IN, and leaving it out
+     had made GATE 2 UNPASSABLE since Session R added gate 22. That gate hashes the committed
+     RocksDB.0.0.42.nupkg; the exclusion above deleted the file from the package, so the pin
+     took its else-branch and reported "gate 22 premise: … nothing to verify without it" — a
+     RED that says nothing about the packaged tree and everything about the copy.
+     ⚠ The exclusion's stated reason does not hold for this folder: obj/ and bin/ are the
+     hundreds of megabytes, local-nuget/ is ~1 MB. It was swept up with them.
+     A symlink, not a copy, for the same reason node_modules gets one: nothing in the suite
+     writes here, and the bytes gate 22 hashes must be the COMMITTED bytes.
+     ★ This is the second gate found dead in one afternoon. The first was strip-release's
+     main-module guard. Both were written in the container and never run on a Mac; neither
+     had a pin asserting it could run at all. */
+  if (existsSync(join(root, 'local-nuget'))) symlinkSync(join(root, 'local-nuget'), join(copy, 'local-nuget'), 'junction');
 
   const copyRaw = join(copy, 'Spixi', 'Resources', 'Raw', 'html');
   console.log('smoke-packaged: stripping the copy in place (the package)');

@@ -27,7 +27,15 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>XSAppIconAssets</key>
-	<string>Assets.xcassets/appicon.appiconset</string>
+	<!-- ★★ E1c (2026-09-07): appicon -> appicon_ios. The resizetizer names the generated
+	     .appiconset after the MauiIcon FILE, so giving iOS its own appicon_ios.svg renamed
+	     the icon set, and actool failed the build with "None of the input catalogs contained
+	     a matching ... app icon set ... named appicon". This string and the iOS MauiIcon
+	     Include in Spixi.csproj are ONE coupling with nothing but this comment holding it
+	     together, so smoke-test pins them equal.
+	     MacCatalyst keeps "appicon" in ITS Info.plist and is correct to: it rides the Android
+	     MauiIcon line, whose file really is appicon.svg. -->
+	<string>Assets.xcassets/appicon_ios.appiconset</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

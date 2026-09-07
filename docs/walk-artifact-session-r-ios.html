@@ -1,0 +1,221 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Walk — Session R, iOS device</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{--bg:#f4f6f9;--card:#fff;--ink:#141b23;--sub:#5b6672;--line:#dfe5ec;
+        --p:#1a7f4b;--f:#b12525;--n:#8b95a1;--act:#1956b2}
+  @media (prefers-color-scheme:dark){:root{--bg:#0d1117;--card:#161b22;--ink:#e6edf3;
+        --sub:#9aa7b4;--line:#252c36;--p:#3fb27a;--f:#f08a80;--n:#7d8794;--act:#5a8dee}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.55 -apple-system,Segoe UI,Roboto,sans-serif;padding:24px}
+  header{max-width:1040px;margin:0 auto 20px}
+  h1{font-size:24px;margin:0 0 6px}
+  h2{font-size:18px;margin:30px 0 10px}
+  p.lede{color:var(--sub);margin:0 0 8px}
+  main{max-width:1040px;margin:0 auto}
+  section{background:var(--card);border:1px solid var(--line);border-radius:14px;
+          padding:16px 18px;margin:0 0 16px}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--sub)}
+  td.id{width:56px;font-weight:600;white-space:nowrap}
+  td.v{width:200px;white-space:nowrap}
+  .btn{border:1px solid var(--line);background:transparent;color:var(--sub);
+       border-radius:8px;padding:5px 11px;margin-right:5px;cursor:pointer;font:inherit;font-size:13px}
+  .btn[aria-pressed=true][data-v=P]{background:var(--p);border-color:var(--p);color:#fff}
+  .btn[aria-pressed=true][data-v=F]{background:var(--f);border-color:var(--f);color:#fff}
+  .btn[aria-pressed=true][data-v=N]{background:var(--n);border-color:var(--n);color:#fff}
+  .note{width:100%;margin-top:6px;border:1px solid var(--line);border-radius:8px;
+        padding:6px 8px;font:inherit;font-size:13px;background:transparent;color:var(--ink);display:block}
+  .tally{position:sticky;top:0;background:var(--bg);padding:10px 0;z-index:2;
+         display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .tally b{font-size:18px}
+  pre{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;
+      overflow:auto;font-size:13px;white-space:pre-wrap}
+  .warn{border-inline-start:3px solid var(--f);padding-inline-start:12px}
+  .dial{border-inline-start:3px solid var(--act);padding-inline-start:12px}
+  code{background:var(--bg);padding:1px 5px;border-radius:5px}
+</style>
+<header>
+  <h1>Walk — Session R, iPhone 15, Release build</h1>
+  <p class="lede">Two walks in one sheet, and the second one is the bigger risk.
+     <b>Section S</b> is the Session R security batch — mostly invisible when it works, so the rows are the
+     ones a user can see plus the ones that break loudly if a fix is wrong.
+     <b>Sections L and C</b> exist because <code>docs/release-readiness.md</code> §6 says the last iOS device pass
+     was 2026-08-27 at <code>eeed6549</code>: <b>Sessions I to R have never been on an iPhone.</b>
+     The pre-warm, the batch transport, the legacy purge, the density pass and #804 are all unverified here.</p>
+  <p class="lede warn"><b>This is a RELEASE build, and two things follow.</b>
+     Safari Web Inspector is gone — <code>Inspectable</code> is <code>#if DEBUG</code> (census row O-34) — so a failing row
+     cannot be opened up in place; the diagnosis path is <code>ixian.log</code> through dev mode, or a Debug rebuild.
+     And <code>UseInterpreter</code> stays <b>true</b> on iOS in every configuration, so this is not full-AOT speed
+     either; it is the honest mid-point, faster than Debug, slower than a store build.</p>
+  <p class="lede dial">Score every row <b>P</b>, <b>F</b> or <b>N/A</b> — and the note box is open on every row
+     whatever the verdict, so a pass with a caveat can say so. Nothing is stored: hit
+     <b>Copy results</b> at the bottom and paste the block back to me.</p>
+</header>
+<main>
+  <div class="tally">
+    <span><b id="tp">0</b> pass</span><span><b id="tf">0</b> fail</span>
+    <span><b id="tn">0</b> n/a</span><span><b id="tr">0</b> not scored</span>
+    <button class="btn" onclick="copyAll()">Copy results</button>
+    <span id="copied" style="color:var(--p);display:none">copied</span>
+  </div>
+
+  <section>
+    <h2>What Session R did, in one paragraph</h2>
+    <p class="lede">The security handover gate finally ran — eight disjoint auditors over the whole delta from
+      the fork point, then two adversarial verifiers. 82 filed rows became <b>65 introduced</b>; 38 are fixed and 27
+      stay open. Three MAJORs mattered here more than anywhere: the media auto-fetch had lost its host
+      constraint and <b>iOS was one of only two platforms where that leak was live</b>; account restore carried a
+      zip-slip that ran before the wallet check; and <b>iOS granted camera and microphone to mini-app content
+      with no prompt at all</b>. Then six rounds of the #46 loop rebuilt the link-open gate three times, and
+      found that the suite comment-stripper had been hiding 17 live lines from every negative sweep.</p>
+    <p class="lede warn"><b>CLEAN is not claimed.</b> Round 6 fixed two MAJORs and re-ran their reproductions red,
+      but no seventh round reviewed that fix. Also: <code>cs-syntax-check</code> proves braces, not types — your build was
+      the first compile of a batch that touched a lot of C#.</p>
+  </section>
+
+  <section id="R"><h2>R · The Release build itself</h2>
+    <p class="lede">Release runs the packaging strip target (Session N, #791–#795). The MSBuild leg of that target
+      has never been verified anywhere but on a Windows deploy, so gate 1 against this app bundle is real work,
+      not a formality.</p>
+    <table><thead><tr><th>#</th><th>do</th><th>expect</th><th>verdict + note</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section id="S"><h2>S · The Session R batch — what a user can see</h2>
+    <table><thead><tr><th>#</th><th>do</th><th>expect</th><th>verdict + note</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section id="L"><h2>L · Six sessions that have never been on an iPhone</h2>
+    <p class="lede dial">Sessions I to R landed on Android and Windows only. Nothing here is a Session R claim —
+      these rows exist to find what six blind sessions cost on this platform.</p>
+    <table><thead><tr><th>#</th><th>do</th><th>expect</th><th>verdict + note</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section id="C"><h2>C · Carried iOS defects — is it still broken?</h2>
+    <p class="lede">From the 2026-08-27 verdict (48 P / 14 F) and <code>ios-sim-findings.md</code>. Six sessions of work
+      have landed since, so some of these may have been fixed by accident. A row that now passes is worth as much
+      as one that fails.</p>
+    <table><thead><tr><th>#</th><th>do</th><th>expect</th><th>verdict + note</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section>
+    <h2>Results</h2>
+    <pre id="out"></pre>
+  </section>
+</main>
+<script>
+const ROWS = {
+  R: [
+    ['R1','Build Release for ios-arm64, install, launch.','It launches to the launch shell or your account. A Release-only failure here is the linker or the strip target, not the batch. MtouchLink is SdkOnly, so trimming is conservative.'],
+    ['R2','GATE 1: node scripts/strip-release.mjs --check <the html folder inside Spixi.app>','GATE 1 OK. This proves the packaged tokens.css is exactly strip(committed). ★ Point it at the DEPLOYED folder, never the obj dir.'],
+    ['R3','GATE 2 (optional): node scripts/smoke-packaged.mjs <that same folder>','BASELINE OK at 4612 (one below the 4613 with the sibling — the M1 hold-out pair).'],
+    ['R4','Open the app, use it for two minutes, then read the battery temperature.','No thermal surprise. iOS-32 thermal parity vs legacy Spixi is your own stated ship gate and has never been measured; say here whether it is worth its own session.'],
+  ],
+  S: [
+    ['S1.1','Have someone send you a Tenor or Giphy link in a chat.','It still renders as a tile and the image loads.'],
+    ['S1.2','Have someone send a link to an image on ANY other host, e.g. https://example.com/x.png','It renders as a PLAIN confirm-to-open link, not a tile. ★ This is the intended change: it is what the baseline did, and what Android and Windows already enforced at the network layer. iOS was one of the two platforms actually leaking.'],
+    ['S1.3','Account → Privacy. Turn the pictures-and-GIFs switch OFF, then open a conversation with media.','The switch exists, and with it off the tiles do not load. Before this batch nothing in the tree ever wrote that preference.'],
+    ['S2.1','Tap an ordinary https:// link in a chat.','The confirm shows the URL and opening it works exactly as before.'],
+    ['S2.2','Ask someone to send https://paypal.com@evil.example/login — use a host you own or a nonsense one.','The app REFUSES it. Before this batch the confirm showed one host and the browser opened another.'],
+    ['S2.3','Settings → About, How to use, the explorer link, the support mail link.','All four still open. They now go through ONE gate, so if one is broken they are all suspect.'],
+    ['S2.4','★ Open the QR scanner. Scan a code.','The camera comes up and a code scans. ★ This is the row the session is least sure of — the capture gate is new. On failure ixian.log carries [cam-perm] ... DENIED reason=... and THE WORD AFTER reason= IS THE ANSWER. Put it in the note.'],
+    ['S2.5','Open a mini-app.','It loads and works. Its browser storage is now a separate jar; the SDK gives it storage through C#, so it should not notice.'],
+    ['S2.6','Scan or open the QR from inside a mini-app, and try a camera-using mini-app if you have one.','★ The other half of S2.4: the fix refuses camera to anything that is not the scan shell, and the microphone is never granted. A mini-app must NOT silently get the camera.'],
+    ['S2.7','Restore an account from a backup you made with this app.','It restores. The restore path gained a zip-slip fence and a real backup must pass it.'],
+    ['S2.8','Send a payment to a contact whose nickname is long.','The native confirm shows the nickname on ONE clamped line, with the ADDRESS always beneath it. The confirm now takes an address and composes the block itself, so no caller can omit it.'],
+    ['S3.1','Type a draft in a chat, leave without sending, remove the contact. Re-add them.','The draft is gone.'],
+    ['S3.2','Same draft test with Leave group, and with Delete chat history from the contact or group info screen.','The draft is gone. Before this batch these paths cleared nothing — the helper never ran on six removal paths.'],
+    ['S3.3','Account → delete all chat history.','Every conversation draft is gone.'],
+  ],
+  L: [
+    ['L1','#800 pre-warm: open a conversation from the chats list. Do it ten times, on different chats.','It opens fast and it opens EVERY time. The lever moves WebView creation and parse off the critical path; every refusal is supposed to fall back to the old construct-and-stage push. A chat that opens EMPTY is the #802 class and is a fail.'],
+    ['L2','#800 pre-warm: scroll the chats list, back out of chats repeatedly, then judge the LIST.','The chats list is not paying for the lever. On Android this is measured with frame probes; here it is your eye. Say if backing out of a chat feels worse than opening one.'],
+    ['L3','#804: Account → Backup, Change password, Downloads.','Each opens as a SUBLEVEL with a slide, like How-to-use. No full-screen page swap, no white flash, no pause. On Android these three were 12.19 percent janky frames before the fix.'],
+    ['L4','#789/#790 legacy purge: walk every screen and look for a missing icon, font or image.','Nothing is missing. Roughly 60 images, all of css/ libs/ fonts/ and three C# pages were deleted; every route was re-proved by reference search, but never on iOS.'],
+    ['L5','#801 batch transport: open a conversation with a long history, then scroll UP to load more.','History loads in one burst and the reading anchor does NOT jump to the bottom on load-more. A live message arriving during a load burst must not be wiped.'],
+    ['L6','Sessions I and J density and colour: look at chats, chat, wallet and Account in BOTH themes.','Everything reads. The whole density pass was dialled on a Motorola at 2.5 dpr and has never been seen on this screen.'],
+    ['L7','★ MEMORY. Use the app normally for about 30 minutes, opening and backing out of chats often. Watch Xcode → Debug Navigator → Memory, or Instruments → Allocations.','Say the number at launch and after 30 minutes. ★ Android KILLS the app after about half an hour at 511 MB max. The suspect is platform-neutral C#: SpixiContentPage.Dispose() does ALL its teardown inside if (!Navigation.NavigationStack.Contains(this)), so a page on the stack keeps its platform WebView for ever — and #800 re-arms a chat page on every back-out at about 15 MB each.'],
+    ['L8','#725 subscreen slides: Account sublevels, Contacts, Wallet Send and Receive, Launch create and restore.','One shared slide at 300/220 ms. No double-back, no dead input window on entry.'],
+    ['L9','Account → Terms, and Account → Privacy Policy.','Terms renders the full baked document. The Privacy Policy is HELD by design and should say so rather than show a stale document.'],
+    ['L10','Wallet: send a small amount, and open Receive.','Money still works. ★ "Wallet-send LAST" is a fossil — send shipped at #523 and is enabled in every build today. The live constraint is the #232/#523 review gate.'],
+  ],
+  C: [
+    ['C1','★ Join or open the Spixi bot group.','SEVERITY 1 from 2026-08-27: the group took MINUTES and the app FROZE during the load, where Android took 10 seconds. The batch transport (#801) is the change most likely to have fixed this. Say how long it takes and whether it freezes.'],
+    ['C2','★ Create an account, or restore one, and try to dismiss the keyboard.','SEVERITY 1 from 2026-08-27: the keyboard could not be dismissed and covered the first screen a new user ever sees.'],
+    ['C3','iOS-67: Chats → the FAB → the contacts picker. Tap a contact.','It responds to taps and does not exit to the chats list. ⚠ The findings doc says do NOT fix before this test runs.'],
+    ['C4','iOS-44: open the attach sheet from the composer.','It sits ABOVE the composer, not under it.'],
+    ['C5','iOS-56b: edge-swipe back inside an Account sublevel.','It goes back one level.'],
+    ['C6','C8 from the 2026-08-27 verdict: tap a push notification.','It lands on the CHAT it came from, not the chats list. The push carries the sender address.'],
+    ['C7','C2 from that verdict: leave the app killed, receive several pushes.','The launcher badge ACCUMULATES rather than resetting to 1 on every push.'],
+    ['C8','Row 33: mute a contact, force-stop, cold boot, have them call you.','No missed-call notification from a muted contact.'],
+    ['C9','B1.7: contact details → the address row, press it.','It gives press feedback the way it does on other platforms.'],
+    ['C10','The lifted row (rows A2.1, A2.2, 12, 15): long-press a message.','Four rows, one defect on iOS. ⚠ You said you want the ring gone — say here whether the current behaviour is acceptable or still wrong.'],
+    ['C11','The wallet and tip numpad.','Four separate defects were logged on the money path on 2026-08-27. Say which of them survive.'],
+    ['C12','iOS-55: look at transaction timestamps under a non-English language.','They are localized.'],
+    ['C13','iOS-43: look for a clipped button label anywhere in the flow.','Nothing is clipped.'],
+    ['C14','Anything else that is wrong and is not on this sheet.','Free row. Use the note.'],
+  ],
+};
+const state = {};
+for (const [sec, rows] of Object.entries(ROWS)) {
+  const tb = document.querySelector('#' + sec + ' tbody');
+  for (const [id, doo, exp] of rows) {
+    state[id] = { v: '', note: '' };
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td class="id">' + id + '</td><td>' + doo + '</td><td>' + exp + '</td>'
+      + '<td class="v">' + ['P','F','N'].map((v) =>
+        '<button class="btn" data-v="' + v + '" data-id="' + id + '" aria-pressed="false">' + v + '</button>').join('')
+      + '<input class="note" placeholder="note (optional, any verdict)" data-id="' + id + '"></td>';
+    tb.append(tr);
+  }
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('.btn[data-v]');
+  if (!b) return;
+  const id = b.dataset.id;
+  state[id].v = state[id].v === b.dataset.v ? '' : b.dataset.v;
+  for (const o of document.querySelectorAll('.btn[data-id="' + id + '"]')) {
+    o.setAttribute('aria-pressed', String(o.dataset.v === state[id].v));
+  }
+  render();
+});
+document.addEventListener('input', (e) => {
+  if (!e.target.classList.contains('note')) return;
+  state[e.target.dataset.id].note = e.target.value;
+  render();
+});
+function render() {
+  const vals = Object.values(state);
+  document.getElementById('tp').textContent = vals.filter((s) => s.v === 'P').length;
+  document.getElementById('tf').textContent = vals.filter((s) => s.v === 'F').length;
+  document.getElementById('tn').textContent = vals.filter((s) => s.v === 'N').length;
+  document.getElementById('tr').textContent = vals.filter((s) => !s.v).length;
+  const lines = Object.entries(state).map(([id, s]) =>
+    id + ': ' + (s.v || '-') + (s.note ? '  -- ' + s.note : ''));
+  const f = Object.entries(state).filter(([, s]) => s.v === 'F').map(([id]) => id);
+  document.getElementById('out').textContent =
+    'WALK R (iOS, iPhone 15, Release) -- ' + document.getElementById('tp').textContent + ' P / '
+    + document.getElementById('tf').textContent + ' F / '
+    + document.getElementById('tn').textContent + ' N-A / '
+    + document.getElementById('tr').textContent + ' not scored\n'
+    + 'FAILS: ' + (f.length ? f.join(', ') : 'none')
+    + '\n\n' + lines.join('\n')
+    + '\n\nS2.4 wants the word after reason= if it failed. L7 wants two memory numbers, at launch and after 30 minutes.';
+}
+function copyAll() {
+  const t = document.getElementById('out').textContent;
+  const done = () => { const c = document.getElementById('copied');
+    c.style.display = 'inline'; setTimeout(() => { c.style.display = 'none'; }, 1400); };
+  if (navigator.clipboard) navigator.clipboard.writeText(t).then(done, sel);
+  else sel();
+  function sel() {
+    const r = document.createRange(); r.selectNodeContents(document.getElementById('out'));
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    try { document.execCommand('copy'); done(); } catch (e) {}
+  }
+}
+render();
+</script>

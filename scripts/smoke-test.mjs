@@ -21736,11 +21736,25 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
            line, and both carry that colour, so it could no longer tell which one it proved.
            That is the identical defect recorded a few lines up about #175595 matching either
            MauiIcon or MauiSplashScreen. Count them instead. */
+        /* ★★ E1c (2026-09-07) SPLIT IT AGAIN, 2 -> 3, and this pin went red and was RIGHT to.
+           iOS left the Android pair because it neither masks-with-headroom nor zooms the
+           foreground, so the adaptive padding rendered its mark ~2/3 size (Damir, iOS walk R).
+           `nonWin` is retired: with THREE lines "not Windows" no longer names one line, which
+           is the same defect E1b fixed when "carries #0076E1" stopped naming one line. Each
+           line is now identified by the FILE it includes — the only stable discriminator. */
         const iconLines = (csp683.match(/<MauiIcon [^>]*\/>/g) || []);
-        const nonWin = iconLines.filter((l) => !/appicon_windows/.test(l));
         const winLine = iconLines.filter((l) => /appicon_windows/.test(l));
-        ok(iconLines.length === 2 && nonWin.length === 1 && /Color="#0076E1"/.test(nonWin[0]),
-          '★ #683/#689 + E1b: the ANDROID/iOS MauiIcon carries the GROUND colour, so a platform that takes the flat colour instead of the file lands on #689\'s measured blue. Pinned on that line specifically — one regex across the whole csproj matched either line and could not tell which it proved, the identical defect #683 fixed for MauiSplashScreen. Got ' + iconLines.length + ' line(s)');
+        const iosLine = iconLines.filter((l) => /appicon_ios/.test(l));
+        const droidLine = iconLines.filter((l) => /appicon\.svg/.test(l) && /ForegroundFile/.test(l));
+        ok(iconLines.length === 3 && droidLine.length === 1 && /Color="#0076E1"/.test(droidLine[0]),
+          '★ #683/#689 + E1b: the ANDROID/iOS MauiIcon carries the GROUND colour, so a platform that takes the flat colour instead of the file lands on #689\'s measured blue. Pinned on that line specifically — one regex across the whole csproj matched either line and could not tell which it proved, the identical defect #683 fixed for MauiSplashScreen. E1c: it is now the ANDROID line alone — iOS and Windows both carry their own ground. Got ' + iconLines.length + ' line(s)');
+        /* ★ E1c: the iOS line carries NO Color, for E1b's Windows reason exactly. Color is
+           painted BEHIND the rasterised SVG, so it can only flood transparency — and an iOS
+           icon must be fully opaque anyway, so appicon_ios.svg runs its own ground to the
+           edges. A Color here would be dead weight at best and, on any file that ever grew a
+           transparent corner, the square-corner defect E1b spent a round measuring. */
+        ok(iosLine.length === 1 && !/Color=/.test(iosLine[0]),
+          '★★ E1c: the iOS MauiIcon carries NO Color — appicon_ios.svg carries its own ground, and iOS icons are opaque by requirement. Same argument as the Windows line one row down');
         /* ★★ E1b ROUND 2 — THE COLOR ATTRIBUTE IS WHAT SQUARED THE CORNERS.
            Damir on the first build: "the logo is bigger, but the rectangle is sharp."
            MEASURED at the built artifact, not judged from the taskbar: every corner pixel of
@@ -21752,11 +21766,92 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
            very transparency a rounded corner is made of. So the Windows line must not have it. */
         ok(winLine.length === 1 && !/Color=/.test(winLine[0]),
           '★★ E1b: the WINDOWS MauiIcon carries NO Color. It is painted as a background behind the SVG, so it floods the transparent corners and hands back the square this file exists to round. The Windows icon needs no fallback colour — it carries its own ground');
-        ok(/<MauiIcon Condition="!\$\(TargetFramework\.Contains\('-windows'\)\)" Include="Resources\\AppIcon\\appicon\.svg" ForegroundFile="Resources\\AppIcon\\appiconfg\.svg"/.test(csp683)
+        /* ★★ E1c: THREE lines now, and the property they must satisfy is unchanged and is the
+           one that matters — every target framework matches EXACTLY ONE of them. Two lines
+           could assert that by being literal complements; three cannot, so the conditions are
+           pinned individually AND the partition is asserted below by evaluating them.
+           ⚠ MacCatalyst deliberately rides the Android line: it has never run (no RocksDB
+           slice), so moving it would be an unverifiable change. That is a decision, not drift. */
+        ok(/<MauiIcon Condition="!\$\(TargetFramework\.Contains\('-windows'\)\) and !\$\(TargetFramework\.Contains\('-ios'\)\)" Include="Resources\\AppIcon\\appicon\.svg" ForegroundFile="Resources\\AppIcon\\appiconfg\.svg"/.test(csp683)
+          && /<MauiIcon Condition="\$\(TargetFramework\.Contains\('-ios'\)\)" Include="Resources\\AppIcon\\appicon_ios\.svg"/.test(csp683)
           && /<MauiIcon Condition="\$\(TargetFramework\.Contains\('-windows'\)\)" Include="Resources\\AppIcon\\appicon_windows\.svg"/.test(csp683),
-          '★★ E1b: the icon is split by TARGET FRAMEWORK — Android/iOS keep the foreground+background pair L17 needs for the adaptive mask, Windows takes a single file. The conditions are complements of one another, so exactly one applies to any build and no target is left with none');
+          '★★ E1b + E1c: the icon is split by TARGET FRAMEWORK three ways — Android keeps the foreground+background pair L17 needs for the adaptive mask, iOS takes a single opaque full-bleed file, Windows takes its own single file');
+        /* ★ The partition, EVALUATED rather than eyeballed: for each TFM the app ships, count
+           how many of the three conditions are true. Exactly one, always. A pin that only
+           matched the three regexes above would stay green if someone dropped the `!ios` term
+           from the Android line — which would give iOS TWO icons and is precisely the mistake
+           E1c had to avoid making. */
+        for (const tfm of ['net10.0-android', 'net10.0-ios', 'net10.0-maccatalyst', 'net10.0-windows10.0.19041.0']) {
+          const has = (x) => tfm.includes(x);
+          const matches = [
+            !has('-windows') && !has('-ios'),   // the Android/MacCatalyst pair
+            has('-ios'),                        // E1c
+            has('-windows'),                    // E1b
+          ].filter(Boolean).length;
+          ok(matches === 1,
+            '★★ E1c: exactly ONE MauiIcon condition matches ' + tfm + ' — no target is left with no icon, and none is given two. Matched ' + matches);
+        }
         ok(!/appicon_windows\.svg[^>]*ForegroundFile/.test(csp683),
           '★ E1b: the Windows icon is deliberately a SINGLE file with no ForegroundFile. The split exists for Android\'s adaptive layers; Windows has no adaptive layer to feed, and pairing it would reintroduce the padding this file exists to remove');
+        /* ★★ 2026-09-07 — EVERY RESIZETIZER SVG MUST BE WELL-FORMED XML, AND THIS PIN EXISTS
+           BECAUSE ITS ABSENCE COST A BUILD THE SAME AFTERNOON IT WAS WRITTEN.
+           E1c's new appicon_ios.svg carried a documentation comment whose prose used " -- "
+           as a dash, eight times. XML forbids "--" inside a comment and forbids a comment
+           ending in "-", so `Microsoft.Maui.Resizetizer` threw MAUIR0001 at line 13 and the
+           whole iOS build failed with 1 error and 0 warnings.
+           ⚠ NOTHING in this suite read these files as XML. Every icon pin above reads the
+           CSPROJ — which line declares which file — and not one of them opens the artwork.
+           So the repo could declare a perfect three-way split of files that cannot be parsed.
+           ★ This pins the EXACT rule that broke the build, not "valid XML" in general: node
+           ships no XML parser, and a pin that claims more than it checks is worse than none.
+           The comment bodies are extracted and the two illegal shapes are asserted absent.
+           ⚠ It walks Resources/ rather than naming files, because an author's list is not a
+           pin (#798) — a new SVG dropped in tomorrow is covered the day it lands. */
+        {
+          const svgs = [];
+          const walkSvg = (d) => {
+            let ents = [];
+            try { ents = readdirSync(join(root, d), { withFileTypes: true }); } catch (_) { return; }
+            for (const e of ents) {
+              if (e.isDirectory()) walkSvg(d + '/' + e.name);
+              else if (e.name.endsWith('.svg')) svgs.push(d + '/' + e.name);
+            }
+          };
+          walkSvg('Spixi/Resources');
+          const bad = [];
+          for (const f of svgs) {
+            let t = '';
+            try { t = rdC(f); } catch (_) { bad.push(f + ' (unreadable)'); continue; }
+            for (const m of t.matchAll(/<!--([\s\S]*?)-->/g)) {
+              if (m[1].includes('--')) bad.push(f + ' (a comment contains "--")');
+              else if (m[1].endsWith('-')) bad.push(f + ' (a comment ends in "-")');
+            }
+          }
+          ok(svgs.length > 0 && bad.length === 0,
+            '★★ every SVG under Spixi/Resources is legal XML in its COMMENTS — no "--" inside one and none ending in "-". The resizetizer parses these as XML and throws MAUIR0001 on either, failing the whole build; no other pin in this suite opens the artwork at all. Scanned ' + svgs.length + ' file(s). Offenders: ' + (bad.join(' · ') || 'none'));
+        }
+        /* ★★ 2026-09-07 — THE ICON SET NAME IS A COUPLING BETWEEN TWO FILES, AND IT BROKE
+           THE BUILD THE MOMENT E1c RENAMED ONE OF THEM.
+           The resizetizer names the generated .appiconset after the MauiIcon FILE. Each
+           platform's Info.plist names the set it wants in XSAppIconAssets — as a hardcoded
+           string. Give iOS appicon_ios.svg and the set becomes appicon_ios.appiconset, while
+           the plist still asked for appicon.appiconset, and actool failed with "None of the
+           input catalogs contained a matching ... app icon set ... named appicon".
+           ⚠ NOTHING connected these two files. The csproj pins above prove which SVG each
+           platform takes; not one of them had ever read an Info.plist.
+           ★ MacCatalyst is the control, and it must NOT move: it rides the Android MauiIcon
+           line, whose file really is appicon.svg, so "appicon" in ITS plist is correct. A pin
+           that just required both plists to match iOS would have broken Catalyst silently. */
+        {
+          const setOf = (plist) => ((rdC(plist).match(/<key>XSAppIconAssets<\/key>[\s\S]*?<string>([^<]*)<\/string>/) || [null, ''])[1]).trim();
+          const fileOf = (line) => ((line.match(/Include="Resources\\AppIcon\\([^."]+)\.svg"/) || [null, ''])[1]);
+          const iosFile = fileOf(iosLine[0] || '');
+          const droidFile = fileOf(droidLine[0] || '');
+          ok(!!iosFile && setOf('Spixi/Platforms/iOS/Info.plist') === 'Assets.xcassets/' + iosFile + '.appiconset',
+            '★★ E1c: the iOS Info.plist XSAppIconAssets names the icon set the resizetizer will actually generate — i.e. the iOS MauiIcon FILE. Rename one without the other and actool fails the whole build. csproj says "' + iosFile + '", plist says "' + setOf('Spixi/Platforms/iOS/Info.plist') + '"');
+          ok(!!droidFile && setOf('Spixi/Platforms/MacCatalyst/Info.plist') === 'Assets.xcassets/' + droidFile + '.appiconset',
+            '★★ E1c: MacCatalyst rides the ANDROID MauiIcon line, so ITS plist must name that file\'s set — not the iOS one. This pin is what stops a well-meaning sweep from "fixing" Catalyst to match iOS. csproj says "' + droidFile + '", plist says "' + setOf('Spixi/Platforms/MacCatalyst/Info.plist') + '"');
+        }
         const win = rdC('Spixi/Resources/AppIcon/appicon_windows.svg');
         ok(/<rect width="1024" height="1024" rx="229" ry="229"\/>/.test(win) && /clip-path="url\(#spixiWinIconClip\)"/.test(win),
           '★★ E1b: the Windows icon bakes its OWN rounded rectangle (r=229, 22.4% of 1024 — the Win11 app-icon convention) and clips the ground to it. On Android the rounding is the LAUNCHER\'s job and baking it in would double it; Windows rounds nothing for you, so it has to be in the asset. This is why the two files can never be merged');
@@ -22378,8 +22473,8 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     let csp = '';
     try { csp = stripX(rdF('Spixi/Spixi.csproj')); } catch (_) { csp = ''; }
     const icons = csp.match(/<MauiIcon [^>]*\/>/g) || [];
-    ok(icons.length === 2,
-      '★★ SESSION F (mutation M1): exactly two LIVE MauiIcon entries after XML comments are stripped — the old pin counted them in the RAW file, so commenting the Android/iOS line out left both platforms with no icon at all and the pin still green. This is the L17 failure class and it is an XML file, so stripCode() is the wrong tool');
+    ok(icons.length === 3,
+      '★★ SESSION F (mutation M1), E1c 2 -> 3: exactly three LIVE MauiIcon entries after XML comments are stripped — the old pin counted them in the RAW file, so commenting the Android/iOS line out left both platforms with no icon at all and the pin still green. This is the L17 failure class and it is an XML file, so stripCode() is the wrong tool. Android/MacCatalyst · iOS · Windows');
     let androidRefs = 0;
     for (const f of ['Spixi/Platforms/Android/Resources/values/styles.xml',
                      'Spixi/Platforms/Android/Resources/values-v31/styles.xml',

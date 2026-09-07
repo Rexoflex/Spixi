@@ -1,0 +1,36 @@
+Walk R on the iPhone — four dead gates, the iOS launcher icon, and 35/2 (#807–#810)
+
+The first iOS device pass since 2026-08-27. It covered Sessions I → R, six sessions
+that had never been on this platform, and the app came out well: 35 pass, 2 fail,
+4 n/a. Chat open is fast and the bot group that froze the app for minutes in August
+loads normally.
+
+What it found instead was FOUR DEAD GATES, none of them in the app, all the same
+shape: the suite pinned what a thing DECLARES and never that it WORKS.
+
+  W-R6  strip-release.mjs:117 — its main-module guard compared a REALPATH against an
+        as-typed path. On macOS /var is a symlink to /private/var, which is where
+        smoke-packaged always puts its copy, so the CLI was skipped and the process
+        exited 0 having written nothing. GATE 2 HAS NEVER WORKED ON A MAC.
+  W-R7  smoke-packaged.mjs excluded local-nuget/ from the package, so gate 22 — added
+        in Session R — could never find the .nupkg it hashes. Symlinked back in; the
+        exclusion's "hundreds of MB" reason is true of obj/ and bin/, not of 1 MB.
+  W-R8  E1c's own SVG broke the build with MAUIR0001: an XML comment cannot contain
+        '--'. No pin had ever opened the artwork.
+  W-R9  The resizetizer names the .appiconset after the MauiIcon FILE, and each
+        Info.plist names the set it wants as a hardcoded string. No pin had ever
+        opened an Info.plist.
+
+E1c gives iOS its own launcher icon. It is E1b's measured argument one platform over:
+iOS neither masks with headroom nor zooms the foreground, so the Android adaptive
+padding rendered the mark at about two thirds size. appicon_ios.svg is full-bleed and
+opaque with no rounding of its own, the ground copied verbatim from appicon.svg and
+the mark copied verbatim from appiconfg.svg at 1.6x about the tile centre — about 62%
+of the tile. Verified at the generated artwork, never at the springboard.
+
+Every new pin was mutation-tested red. Counts: committed 4621, packaged 4620.
+
+STILL OWED, and it is the lesson: nothing in the suite asserts that a GATE CAN
+EXECUTE. Four gates were green by silence.
+
+DECISIONS #807 #808 #809 #810

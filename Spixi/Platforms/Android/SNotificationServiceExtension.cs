@@ -91,8 +91,9 @@ namespace Spixi
                  *
                  * ★ item 6 (#46 loop, round 2): the message comes out of a `JSONObject` read of
                  * wire data, so it can carry line breaks into `ixian.log`. Same shape as m8,
-                 * lower value, closed the same way. See `SPushService.logSafe`. */
-                Logging.warn("SpixiNotificationServiceExtension: could not read the push: " + SPushService.logSafe(ex.Message));
+                 * lower value, closed the same way. See `SPIXI.Utils.logSafe` (O-25 moved it
+                 * out of the Android-only slice). */
+                Logging.warn("SpixiNotificationServiceExtension: could not read the push: " + SPIXI.Utils.logSafe(ex.Message));
             }
 
             try
@@ -152,7 +153,12 @@ namespace Spixi
             }
             catch (Exception ex)
             {
-                Logging.error("SpixiNotificationServiceExtension failed: {0}", ex);
+                /* ★ handover sweep O-24: this `try` wraps the code that handles the push `fa`,
+                 * which is the SENDER'S WALLET ADDRESS, and `IXICore.Address` formats the
+                 * offending string into its own exception message. The raw exception object
+                 * must not reach the log. Log the TYPE and a sanitised message. */
+                Logging.error("SpixiNotificationServiceExtension failed: "
+                    + ex.GetType().Name + ": " + SPIXI.Utils.logSafe(ex.Message));
             }
         }
     }

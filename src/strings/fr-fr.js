@@ -385,6 +385,8 @@ export const frfr = {
   leaveGroupsConfirmTitle: "Quitter {n} groupes et supprimer {name} ?",
   leaveTitle: "Quitter ce groupe ?",
   leftGroupToast: "Vous avez quitté le groupe",
+  loadMedia: "Charger les images et les GIF",
+  loadMediaSub: "Le chargement indique à l’hôte de l’expéditeur que vous avez ouvert la conversation",
   loading: "Chargement",
   loadingHistory: "Chargement des messages précédents",
   lockCopy: "Saisissez le mot de passe de votre portefeuille pour déverrouiller.",

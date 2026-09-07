@@ -704,5 +704,7 @@
   "chatGround": "Untergrund",
   "groundFlat": "Einfarbig",
   "groundGradient": "Verlauf",
-  "notifPushProviderSub": "Weckt dieses Gerät, sobald eine Nachricht eintrifft. Nutzt OneSignal, einen Push-Anbieter."
+  "notifPushProviderSub": "Weckt dieses Gerät, sobald eine Nachricht eintrifft. Nutzt OneSignal, einen Push-Anbieter.",
+  "loadMedia": "Bilder und GIFs laden",
+  "loadMediaSub": "Das Laden zeigt dem Host des Absenders, dass du den Chat geöffnet hast"
 }

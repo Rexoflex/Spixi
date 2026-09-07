@@ -89,8 +89,15 @@ namespace SPIXI.Meta
          * guarantees. 5 keeps roughly a working day of sessions and costs at most 25 MB at
          * maxLogSize = 5.
          *
-         * ⚠ A smoke pin asserts this value and names this row, so the reduction cannot be
-         * forgotten silently — change both together. */
+         * ⚠ THE PIN CONTRACT (handover sweep G-4, corrected by the #46 loop A, MINOR-2).
+         * ONE property, and only one: the value is 5 AND the RELEASE BLOCKER marker above is
+         * present, OR the value is 1 AND that marker is deleted. No other pair is legal.
+         * The release flip therefore edits this file, and only this file.
+         * ⚠ EXACTLY ONE smoke pin may assert this field, and it must assert that PAIR. A pin
+         * that asserts the VALUE alone — a ">= 5" test, or a test for the marker on its own —
+         * contradicts the contract, because the release flip then fails the suite and the
+         * flip has to edit the pin. That is how a release blocker gets lost. Delete any such
+         * pin instead of relaxing it. */
         public static int maxLogCount = 5;
 
         public static int logVerbosity = (int)LogSeverity.info + (int)LogSeverity.warn + (int)LogSeverity.error;

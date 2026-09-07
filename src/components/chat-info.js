@@ -51,7 +51,7 @@
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { discGrad } from './disc.js';
-import { createAvatar, truncateAddressMiddle } from './avatar.js';
+import { createAvatar, truncateAddressMiddle, safeImageSrc } from './avatar.js';
 import { createButton, setLoading } from './button.js';
 import { createTopbar } from './topbar.js';
 import { createBadge } from './badge.js';
@@ -137,6 +137,8 @@ export function createChatInfo({
   amOwner = false,               // N48 (#370): MY OWN owner status (self-only push; blind-safe)
   notifications = true,
   media = [],                    // [{ id, thumb, kind }] — flagged section
+  allowRemoteImages = false,     // ★ O-13: a REMOTE http(s) thumb needs the shell's opt-in; a
+                                 // data:image/ thumb never does. Default = no remote request.
   txs = [],                      // txlist-item opts (1:1 activity), newest first
   selfDestruct = 0,              // current disappearing-messages window (seconds; 0 = off)
   capabilities = {},             // { notifications, media, admin, presence, selfDestruct }
@@ -609,9 +611,12 @@ export function createChatInfo({
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'c-chat-info__media-thumb';
-      if (item.thumb) {
+      // ★ O-13: the strip's thumbs are peer-composed the moment this section is fed.
+      // A refused value falls through to the kind glyph, so the tile still reads.
+      const thumbSrc = safeImageSrc(item.thumb, { allowRemote: allowRemoteImages });
+      if (thumbSrc) {
         const img = document.createElement('img');
-        img.src = item.thumb;
+        img.src = thumbSrc;
         img.alt = '';
         b.append(img);
       } else {

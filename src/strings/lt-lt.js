@@ -385,6 +385,8 @@ export const ltlt = {
   leaveGroupsConfirmTitle: "Leave {n} groups and remove {name}?",
   leaveTitle: "Palikti šią grupę?",
   leftGroupToast: "You left the group",
+  loadMedia: "Įkelti paveikslėlius ir GIF",
+  loadMediaSub: "Įkėlimas siuntėjo serveriui praneša, kad atvėrėte pokalbį",
   loading: "Įkeliama",
   loadingHistory: "Įkeliamos ankstesnės žinutės",
   lockCopy: "Įveskite piniginės slaptažodį, kad atrakintumėte.",

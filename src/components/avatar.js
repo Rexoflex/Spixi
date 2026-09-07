@@ -154,6 +154,41 @@ function renderPlaceholder(el, { name, address, size, group }) {
   }
 }
 
+/* ★ Gate row O-13 — ONE test for an image source a component is asked to render.
+ *
+ * Two sinks took a URL with no host and no scheme test: the link-preview card and the
+ * shared-media strip. Both are dormant — no shipped shell passes those fields — and both
+ * are fed by a PEER-COMPOSED payload the moment they are wired. The test lives in the
+ * component layer for that reason: a wiring pass cannot forget a rule it does not have
+ * to remember.
+ *
+ * The rule, and it refuses on the unknown case:
+ *   · a `data:image/` URI is LOCAL. It makes no request. It is always admitted.
+ *   · an absolute http(s) URL is REMOTE. The fetch tells that host the reader's IP and
+ *     the moment the reader opened the message, so the caller must opt in.
+ *   · everything else gets NO src — a relative path, a protocol-relative '//host/x', a
+ *     'javascript:' URL, 'blob:', 'file:', or a string the URL parser rejects.
+ *
+ * The value is parsed by the SAME WHATWG parser the browser uses for the request, so this
+ * predicate cannot disagree with what the fetch would do. It mirrors the app-invite icon
+ * predicate in chat.html, which asks the same question in the same order.
+ *
+ * The helper sits in avatar.js for the reason truncateAddressMiddle does (#212): both
+ * message-bubble.js and chat-info.js already import from this file, and a new component
+ * file would need scripts/build-demo-bundle.mjs.
+ * ⚠ createAvatar's own <img> below does NOT run this test. Its src is a C# data: URI or a
+ * local file path, it degrades to the gradient on error, and gating it is a live
+ * behaviour change that belongs to its own row. */
+export function safeImageSrc(value, { allowRemote = false } = {}) {
+  const v = typeof value === 'string' ? value.trim() : '';
+  if (!v) return '';
+  if (/^data:image\//i.test(v)) return v;                  // local — no request leaves the device
+  let proto = '';
+  try { proto = new URL(v).protocol; } catch (e) { return ''; }   // unparseable → refuse
+  if (proto !== 'http:' && proto !== 'https:') return '';   // only the two schemes that fetch
+  return allowRemote ? v : '';                              // remote needs the caller's opt-in
+}
+
 export function createAvatar({ src = null, name = '', address = '', size = 48, online = false, group = false } = {}) {
   const el = document.createElement('span');
   el.className = 'c-avatar';

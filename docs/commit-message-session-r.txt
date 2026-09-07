@@ -1,0 +1,66 @@
+Session R — the security handover sweep, and the fixes it named (#805, #806)
+
+THE GATE RAN. CLAUDE.md has promised since 2026-08-15 that the redesign
+introduces nothing. Until now that was an assertion. Eight disjoint read-only
+auditors swept the whole delta from the fork point 0e85a4b8, and two adversarial
+verifiers attacked every finding. 82 filed rows deduplicate to 65 INTRODUCED.
+The census is a new final section of docs/security-handover-gate.md, one row per
+finding, cited by branch or method.
+
+THREE MAJORS NOBODY HAD FILED
+
+- The remote-media auto-fetch was widened from two hosts to all of them. The
+  baseline auto-loaded an <img> only for an anchored tenor/giphy URL. The
+  redesign accepted any host, over http or https, on render, behind a gate that
+  defaults ON and had no code anywhere that wrote its preference. A stranger's
+  first message took the reader's IP, user agent and read time. Live on iOS and
+  MacCatalyst; Android and Windows already refused the host at the platform
+  layer.
+
+- A zip-slip in account restore. The heal-Windows-backups loop converts a
+  backslash into a separator, and on Android, iOS and MacCatalyst a backslash is
+  a legal filename character. It runs before verifyWallet, so an attacker needs
+  only the archive password.
+
+- iOS granted camera and microphone to mini-app content with no prompt. The
+  capture delegate read neither the origin nor the frame, and the handler is
+  registered app-wide.
+
+THE THREE ROWS THE GATE ALREADY CALLED OURS ARE CLOSED
+
+- security MAJOR #3, the link-open spoof.
+- security MAJOR #6(a), the iOS link handoff reaching mini-apps.
+- spixi.draft.*, closed structurally rather than per key: the mini-app WebView
+  now has its own storage jar on iOS, so the trust marker Android has always
+  keyed on is a two-platform contract. Windows and MacCatalyst are NOT
+  partitioned, and that residual is written down with its device test.
+
+38 of the 65 INTRODUCED rows are fixed. 27 stay open, each naming its owner.
+
+THE BE BRIEF. All 116 rows re-verified against the tree; 26 changed state;
+sixteen stale rows the release doc had not named; nine INHERITED security rows
+the engineer did not have are now filed.
+
+THE #46 LOOP — SIX ROUNDS. The pin guarding the link-spoof fix was rebuilt three
+times and a fresh reviewer defeated every version, because each proved a negative
+by matching one spelling: a keyword, then a type name, then a method name. The
+fourth attempt changed the design instead: every external link now opens through
+one gate, and the pin proves a positive branch-scoped property. It killed
+reflection and a wrapper helper on its first run.
+
+The last two rounds found a defect in the test infrastructure itself. stripCode
+removed block comments before line comments, so a /* inside a // comment blanked
+live code — 17 live lines across four files, invisible to every negative sweep in
+the suite. A reproduction hid an OS-open primitive behind two ordinary comments
+with the whole suite green. It is now a one-pass tokenizer, pinned against three
+independent reference strippers.
+
+Closing: bundle 321 exports, 18 shells, smoke BASELINE OK 4613 pass / the 3 known
+pre-existers (#136, M5, B3), locales 786 ALL CLEAN, i18n-lint clean, pseudo 9/9,
+cs-syntax 138 + 1, the three --check gates green. Ixian-Core 097341a untouched.
+
+NOT COMPILED here. cs-syntax-check proves braces, not types, and this batch
+touched a lot of C#.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_018Sj7tEetrRG6trRdfd6A3w

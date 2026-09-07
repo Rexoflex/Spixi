@@ -519,13 +519,42 @@ namespace SPIXI
             }
         }
 
-        // CH8: reaction excerpt for the chats list (mirrors updateReactions' HomePage dispatch)
+        /* CH8: reaction excerpt for the chats list (mirrors updateReactions' HomePage dispatch).
+         *
+         * ★ handover sweep O-17: THE REACTION STRING IS PEER-SUPPLIED AND IS NOW BOUNDED HERE.
+         *
+         * `reaction` arrives from the wire (Network/StreamProcessor.cs, the msgReaction case)
+         * with no length limit, and this method is the ONE funnel between that read and the
+         * push into the chats document. A reaction key is short by construction — the longest
+         * legitimate value is an emoji sequence — so a very long one is not a reaction, it is a
+         * cost: every event would marshal the whole string across the bridge.
+         *
+         * This is a SIZE bound, not an injection guard. Transport is Base64 and the shell
+         * renders an excerpt through `textContent`, so no escaping question arises here. The
+         * clamp follows the convention `Utils/SPayments.displayName` established for peer text:
+         * a named maximum, and a cut that never splits a surrogate pair, so a truncated emoji
+         * degrades to a whole character instead of a broken one.
+         *
+         * A hostile value therefore becomes its first REACTION_MAX UTF-16 units. That key does
+         * not match any glyph the chat list knows, so the row degrades to a plain excerpt. */
+        private const int REACTION_MAX = 64;
+
         public static void updateChatReaction(Friend friend, Address reactor_address, string reaction)
         {
+            string bounded = reaction ?? "";
+            if (bounded.Length > REACTION_MAX)
+            {
+                int cut = REACTION_MAX;
+                if (char.IsHighSurrogate(bounded[cut - 1]))
+                {
+                    cut = cut - 1;   // never cut a surrogate pair in half
+                }
+                bounded = bounded.Substring(0, cut);
+            }
             Page? page = Application.Current?.MainPage?.Navigation?.NavigationStack?.LastOrDefault();
             if (page != null && page is HomePage)
             {
-                ((HomePage)page).updateChatReaction(friend, reactor_address, reaction);
+                ((HomePage)page).updateChatReaction(friend, reactor_address, bounded);
             }
         }
 

@@ -680,25 +680,52 @@ export function createChatAppearance({
 }
 
 /**
- * Privacy — §9-GATED toggles (read receipts / typing indicators). No legacy
- * commands exist; every row renders ONLY when its capability is flagged.
+ * Privacy — the media-autoload switch, plus §9-GATED toggles (read receipts /
+ * typing indicators). The §9 rows render ONLY when their capability is flagged;
+ * no legacy command exists for either.
+ *
+ * ★ THE MEDIA ROW IS FRONTEND-ONLY (security sweep, row E-1b). It writes
+ * `spixi.media.autoload`, which the chat shell already read but which NOTHING in
+ * the tree ever wrote — so the documented opt-out did not exist and the gate it
+ * guards was permanently on. The shell owns the key (the chat-appearance
+ * preferences work the same way), so this needs no verb and no C# change.
+ * The two documents are different WebViews on ONE localStorage origin, and the
+ * chat shell reads the key on every render — so a change here applies to each
+ * conversation opened after it, not to a conversation already on screen.
  */
 export function createPrivacy({
   readReceipts = true,
   typingIndicators = true,
+  mediaAutoload = true,          // FE-only: spixi.media.autoload (the shell reads it per render)
   capabilities = {},             // { readReceipts, typing }
   onBack,
   onReadReceipts,                // (next, ctrl) — §9
   onTyping,                      // (next, ctrl) — §9
+  onMediaAutoload,               // (next, ctrl) — FE-only, writes localStorage
   strings = getStrings(),
 } = {}) {
   const { el, body, live } = screenShell('c-settings-privacy', strings.privacy || 'Privacy', onBack);
 
-  const note = document.createElement('p');
-  note.className = 'c-settings__note';
-  note.textContent = strings.privacyNote ||
-    'These apply to everyone you chat with. Turning one off also hides theirs from you.';
-  body.append(note);
+  if (onMediaAutoload) body.append(switchRow({
+    glyph: 'photo', hue: 'info',
+    label: strings.loadMedia || 'Load pictures and GIFs',
+    // the sub says WHAT IT COSTS, because that is the whole reason the row exists
+    sub: strings.loadMediaSub || 'Loading tells the sender’s host that you opened the chat',
+    checked: mediaAutoload, live,
+    failText: strings.privacyFailed || 'Couldn’t update. Try again.',
+    onToggle: onMediaAutoload,
+  }));
+
+  /* The note describes the §9 pair only — it says "turning one off also hides theirs
+     from you", which is true of a receipt and false of the local media switch. It
+     therefore renders with the rows it is about, and only when they render (#772). */
+  if ((capabilities.readReceipts && onReadReceipts) || (capabilities.typing && onTyping)) {
+    const note = document.createElement('p');
+    note.className = 'c-settings__note';
+    note.textContent = strings.privacyNote ||
+      'These apply to everyone you chat with. Turning one off also hides theirs from you.';
+    body.append(note);
+  }
 
   if (capabilities.readReceipts && onReadReceipts) body.append(switchRow({
     glyph: 'checks', hue: 'info',

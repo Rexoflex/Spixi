@@ -20,6 +20,7 @@
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
+import { safeImageSrc } from './avatar.js';
 import { docLocale, timeOpts } from './timestamp.js';
 
 const mediaCtl = new WeakMap(); // tile el → { setSrc } (audit r3: setMediaSrc must reuse the closure state machine)
@@ -84,10 +85,20 @@ export function createMediaBubble({
   };
   if (width > 0 && height > 0) fitTile(width, height); // sanctioned: runtime geometry from sender dims
 
-  if (preview) {
+  /* ★ Gate row O-13 (#46 loop B, MINOR-5) — the sender-embedded preview is the ONE sink in
+   * this file that paints on RENDER. The tile's own `src` below waits for `load()`, which
+   * the tap-to-load state machine and the shell's media-autoload preference both gate. The
+   * preview waits for nothing. A remote value here would announce the reader's IP and the
+   * moment they opened the message before they touched anything.
+   * The docblock at the head of this file already states the rule — a `preview` is a
+   * sender-embedded thumb data-URI, "P2P-safe". The rule is now enforced, not only stated
+   * (#772). Only a `data:image/` URI is admitted; a refused value leaves the tile in its
+   * idle state, which is what a message with no preview already shows. */
+  const previewSrc = safeImageSrc(preview, { allowRemote: false });
+  if (previewSrc) {
     const pv = document.createElement('img');
     pv.className = 'c-mbubble__preview';
-    pv.src = preview;
+    pv.src = previewSrc;
     pv.alt = '';
     pv.setAttribute('aria-hidden', 'true');
     el.append(pv);

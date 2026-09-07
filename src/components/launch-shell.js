@@ -86,57 +86,6 @@ function launchCtrl(onDone, onFail) {            // one-shot (lockCtrl grammar)
   };
 }
 
-/* —— illustration slots ————————————————————————————————————
-   Welcome slides reuse the legacy art verbatim (originally img/dark/onboarding/
-   step1–4.svg — that folder is deleted, Session N — now src/demo/images/onboarding/*.png — Damir premium rework;
-   the welcome is pinned dark so only the dark set rides). The backup nudge
-   keeps its placeholder (nano-banana asset #6 pending, illustrations-plan §2
-   palette; data-placeholder = the swap stays deliberate). Static strings
-   only — innerHTML carries no user data. */
-const ILLO_G = (id) => `<defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1">`
-  + '<stop offset="0" stop-color="#3050bd"/><stop offset="1" stop-color="#515ee6"/>'
-  + '</linearGradient></defs>';
-const ILLOS = {
-  backup:
-    `<svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">${ILLO_G('ilg-b')}`
-    + '<circle cx="120" cy="126" r="84" fill="#e3e4fe"/>'
-    + '<path d="M120 44 L180 66 V132 Q180 178 120 200 Q60 178 60 132 V66 Z" fill="url(#ilg-b)"/>'
-    + '<rect x="94" y="92" width="52" height="68" rx="10" fill="#f9fafb"/>'
-    + '<circle cx="110" cy="110" r="7" fill="#769dff"/>'
-    + '<circle cx="130" cy="110" r="7" fill="#b7c9f4"/>'
-    + '<rect x="104" y="128" width="32" height="8" rx="4" fill="#cbcffe"/>'
-    + '<rect x="104" y="142" width="24" height="8" rx="4" fill="#cbcffe"/>'
-    + '</svg>',
-};
-
-function illoSlot(name, src) {
-  const slot = document.createElement('div');
-  slot.className = 'c-launch__illo';
-  slot.dataset.illo = name;                      // illustrations-plan naming
-  slot.setAttribute('aria-hidden', 'true');      // decorative — copy carries meaning
-  if (src) {
-    // iOS-2 (#283): REAL asset first — the #245b canon (same art as the backup
-    // nudge + Account→Backup pane, images/backup.png — N45). Join-step <img> grammar;
-    // load error → the token-styled placeholder below, so a missing asset
-    // degrades to the old look, never a blank slot.
-    const img = document.createElement('img');
-    img.className = 'c-launch__illo-img';
-    img.src = src;
-    img.alt = '';                                // decorative — copy carries meaning
-    img.draggable = false;
-    img.addEventListener('error', () => {
-      img.remove();
-      slot.dataset.placeholder = 'true';
-      slot.innerHTML = ILLOS[name] || '';
-    }, { once: true });
-    slot.append(img);
-    return slot;
-  }
-  slot.dataset.placeholder = 'true';             // real-asset swap = deliberate
-  slot.innerHTML = ILLOS[name] || '';
-  return slot;
-}
-
 /* —— view plumbing ———————————————————————————————————————————— */
 
 /* ★ F-2 (#395/#399): ONE reporting point for the whole component.

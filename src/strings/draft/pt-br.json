@@ -704,5 +704,7 @@
   "chatGround": "Tela",
   "groundFlat": "Sólido",
   "groundGradient": "Gradiente",
-  "notifPushProviderSub": "Acorda este dispositivo assim que uma mensagem chega. Usa o OneSignal, um provedor de push."
+  "notifPushProviderSub": "Acorda este dispositivo assim que uma mensagem chega. Usa o OneSignal, um provedor de push.",
+  "loadMedia": "Carregar imagens e GIFs",
+  "loadMediaSub": "O carregamento informa ao servidor do remetente que você abriu a conversa"
 }

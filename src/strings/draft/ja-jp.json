@@ -628,5 +628,7 @@
   "chatGround": "キャンバス",
   "groundFlat": "単色",
   "groundGradient": "グラデーション",
-  "notifPushProviderSub": "メッセージが届くとすぐにこの端末を起動します。プッシュ配信に OneSignal を使用します。"
+  "notifPushProviderSub": "メッセージが届くとすぐにこの端末を起動します。プッシュ配信に OneSignal を使用します。",
+  "loadMedia": "画像と GIF を読み込む",
+  "loadMediaSub": "読み込むと、送信者のサーバーにチャットを開いたことが伝わります"
 }

@@ -488,7 +488,11 @@ namespace SPIXI
                 }
                 catch (Exception ex)
                 {
-                    Logging.error("ixian:removecontact failed: " + ex.Message);
+                    // ★ Sweep G-3: no ex.Message. SContacts.removeContact builds an Address
+                    // from each shared-group id; that ctor is fenced inside SContacts today,
+                    // but the fence is in another file and the message answers nothing this
+                    // line needs.
+                    Logging.error("ixian:removecontact failed: " + ex.GetType().Name);
                 }
                 try
                 {
@@ -552,7 +556,7 @@ namespace SPIXI
                 }
                 catch (Exception ex)
                 {
-                    Logging.warn("ixian:sharedGroups: " + ex.Message);
+                    Logging.warn("ixian:sharedGroups: " + ex.GetType().Name);   // sweep G-3: no ex.Message — the enumeration handles contact addresses
                 }
             }
             /* ★★ L1 (#640) — THE LEGACY MONEY BRANCHES ARE GONE.
@@ -687,6 +691,20 @@ namespace SPIXI
                     else
                     {
                         IXICore.Meta.Logging.info("[CRASHDIAG] leave: sent, presenting the alert");
+                        /* ★ #46 loop B, MAJOR-1 — TELL THE SHELL THE ROOM IS GONE.
+                         * This branch removed the friend and pushed nothing, so the shell
+                         * kept every localStorage key that carries this address: the user's
+                         * own unsent DRAFT first, then the eight per-conversation markers and
+                         * the address inside spixi.pins. `leaveGroupResult` is the command
+                         * name HomePage.onLeaveGroupFor already uses for this exact outcome,
+                         * so this is a second CALL SITE, not a new push.
+                         * ⚠ ORDER: sendUiCommand queues the eval on the main thread, and
+                         * popToRootAsync below queues the teardown after it. The sweep
+                         * therefore runs on a live WebView. This is the same order the
+                         * ixian:removecontact branch above uses.
+                         * ⚠ SUCCESS ONLY. A refused leave keeps the record, so the local data
+                         * must stay — the refusal branch above pushes nothing on purpose. */
+                        try { Utils.sendUiCommand(this, "leaveGroupResult", friend.walletAddress.ToString(), "left"); } catch (Exception) { }
                         displaySpixiAlert(SpixiLocalization._SL("contact-details-removedcontact-title"), SpixiLocalization._SL("contact-details-removedcontact-text"), SpixiLocalization._SL("global-dialog-ok"));
                         IXICore.Meta.Logging.info("[CRASHDIAG] leave: popping to root");
                         IXICore.Meta.Logging.flush();
@@ -765,7 +783,10 @@ namespace SPIXI
                 }
                 catch (Exception ex)
                 {
-                    Logging.warn("kick: invalid address payload: " + ex.Message);
+                    // ★ HANDOVER SWEEP G-3: no ex.Message. The token comes from the group
+                    // roster the BOT supplies, and Ixian-Core's Address ctor formats the
+                    // whole base58 into its exception text (Address.cs).
+                    Logging.warn("kick: invalid address payload: " + ex.GetType().Name);
                 }
             }
             else if (current_url.StartsWith("ixian:ban:"))
@@ -778,7 +799,7 @@ namespace SPIXI
                 }
                 catch (Exception ex)
                 {
-                    Logging.warn("ban: invalid address payload: " + ex.Message);
+                    Logging.warn("ban: invalid address payload: " + ex.GetType().Name);   // sweep G-3: no ex.Message — carries the token
                 }
             }
             else if (current_url.Contains("ixian:txdetails:"))
@@ -824,6 +845,15 @@ namespace SPIXI
             if(friend.deleteHistory())
             {
                 UIHelpers.shouldRefreshContacts = true;
+                /* ★ #46 loop B, MAJOR-1 — THE CONVERSATION IS GONE ON DISK, SO SAY SO.
+                 * This method pushed nothing, so the shell kept the user's own unsent DRAFT
+                 * and the per-conversation markers for a chat that no longer exists.
+                 * `removeHistoryResult` is the command name HomePage.onRemoveHistoryFor
+                 * already uses for this outcome — a second call site, not a new push.
+                 * ⚠ SCOPE: "history", not "contact". The CONTACT stays, so the shell keeps
+                 * the two contact-STATE markers (hidereq · hsstage) and the pin.
+                 * This page does not pop here, so the WebView is live when the sweep runs. */
+                try { Utils.sendUiCommand(this, "removeHistoryResult", friend.walletAddress.ToString(), "ok"); } catch (Exception) { }
                 // iOS-24 (#283): the OPEN conversation kept rendering the wiped history —
                 // deleteHistory() clears storage + the in-memory list but the chat WebView's
                 // DOM was never told, so the messages only disappeared on the next chat

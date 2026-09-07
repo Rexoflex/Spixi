@@ -385,6 +385,8 @@ export const srsp = {
   leaveGroupsConfirmTitle: "Napustiti {n} grupa i ukloniti {name}?",
   leaveTitle: "Napustiti ovu grupu?",
   leftGroupToast: "Napustio si grupu",
+  loadMedia: "Učitaj slike i GIF-ove",
+  loadMediaSub: "Učitavanje serveru pošiljaoca otkriva da ste otvorili ćaskanje",
   loading: "Učitavanje",
   loadingHistory: "Učitavanje ranijih poruka",
   lockCopy: "Unesite lozinku novčanika da biste otključali.",

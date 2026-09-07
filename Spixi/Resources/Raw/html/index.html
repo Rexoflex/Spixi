@@ -6432,6 +6432,14 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
    * and unread count at delete time, and ANY push (flush or lone) that shows a newer
    * message or a higher unread count brings the conversation back. */
   const deletedChats = new Map();   // address → { ts, unread } captured at delete time
+  /* ★ #46 loop B, MAJOR-1: DECLINING an incoming request removes the friend, so it must
+     end in the same storage sweep a revoke does. C# answers it with `undoRequestResult`
+     — the same record and the same ok/fail vocabulary, so no new push name. The answer
+     must arrive QUIETLY though: the card is already gone from this list, and the revoke
+     toast says "Request revoked", which a decline is not. onRequestDecline records the
+     address here and the handler consumes it once. Bounded by the declines in one
+     session, and it holds an address, never any peer text (the #254 rule). */
+  const silentRequestRemovals = new Set();
   // ★ N76: the zero-state "Join the Spixi community" tap is one-shot per document.
   let joinBotSent = false;
   /* Pin chat (6e.3, #232 ⑤): FE interim persistence — localStorage address list
@@ -6599,6 +6607,9 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     // CH2: Decline = drop the request locally + emit the verb (C# removes the friend).
     onRequestDecline: (req) => {
       if (!req || !req.address) return;
+      // MAJOR-1: the answer to this verb completes the removal on THIS device — quietly,
+      // because the card below is already gone (see silentRequestRemovals).
+      silentRequestRemovals.add(req.address);
       bridge.send('ixian:declineRequest:' + req.address);
       state.requests = (state.requests || []).filter((r) => r !== req);
       renderChatsNow();                 // re-render + onModelChange (refreshes the Requests chip count/hide)
@@ -7297,6 +7308,64 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   window.addEventListener('storage', (e) => { if (e && e.key && e.key.indexOf(HIDEREQ_PREFIX) === 0 && e.newValue) consumeHideReqs(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) consumeHideReqs(); });
   window.addEventListener('focus', applyExdelHints);
+
+  /* ★★ security sweep C-3 / C-4 — FORGET A PEER.
+   * Nine key families carry a peer's wallet ADDRESS in the key name — draft ·
+   * exdel · likes · mentions.seen · app.declined · app.canceled · hidereq ·
+   * hsstage, plus the retired media.loaded — and spixi.pins holds an address
+   * ARRAY in its value. Until this helper, "Contact removed" cleared none of them:
+   * the address, the user's own unsent plaintext and the per-conversation message
+   * ids stayed until "delete account". Two of the three result handlers cleared
+   * only the draft.
+   * ⚠ THE SWEEP IS PREFIX-DRIVEN, NOT A LIST. It removes every `spixi.*` key whose
+   * name ENDS with `.<address>`, which is the shape all nine share, so a family
+   * added later is forgotten by construction and nobody has to remember this
+   * function. Forgetting is the safe default; retention is the exception and has to
+   * be named.
+   * `scope`:
+   *   'contact' — the contact is gone (removed, or a group we left). Everything
+   *               goes, the pin with it.
+   *   'history' — the CONVERSATION is gone but the contact stays, so the two
+   *               contact-STATE markers survive. A user who clears their messages
+   *               must not see a hidden request re-appear, and a handshake stage is
+   *               about the contact, not about the messages.
+   * The address length guard is not cosmetic: an empty address would turn the
+   * suffix into "." and match nearly every key in the store. */
+  const PEER_KEYS_KEPT_ON_HISTORY = [HIDEREQ_PREFIX, HSSTAGE_PREFIX];
+  function forgetPeerStorage(addr, scope) {
+    const a = String(addr || '');
+    if (a.length < 8) return;                     // fail closed: never sweep on a short/empty address
+    const suffix = '.' + a;
+    try {
+      const doomed = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || k.indexOf('spixi.') !== 0) continue;
+        if (k.length <= suffix.length || k.slice(-suffix.length) !== suffix) continue;
+        if (scope === 'history' && PEER_KEYS_KEPT_ON_HISTORY.some((pfx) => k.indexOf(pfx) === 0)) continue;
+        doomed.push(k);
+      }
+      // remove AFTER the walk — removing during it re-indexes the store and skips keys
+      for (const k of doomed) localStorage.removeItem(k);
+    } catch (e) { /* storage may be unavailable */ }
+    if (scope === 'history') return;
+    if (pinnedChats.delete(a)) savePins();        // the address also lives in a VALUE
+  }
+  /* contact_details.html removes a contact from its OWN document and prunes the same
+     keys there (C# pushes removeContactResult to the page that asked, and only to it).
+     It writes spixi.pins directly, so re-seed from the store rather than let this
+     document's stale in-memory set write the address back on the next pin toggle.
+     A storage event never fires in the document that wrote the value, so this cannot
+     fight savePins. */
+  window.addEventListener('storage', (e) => {
+    if (!e || e.key !== PINS_KEY) return;
+    try {
+      const arr = JSON.parse(e.newValue || '[]');
+      if (!Array.isArray(arr)) return;
+      pinnedChats.clear();
+      for (const a of arr) if (typeof a === 'string') pinnedChats.add(a);
+    } catch (err) { /* leave the set as it is — a corrupt value is not authority */ }
+  });
 
   /* —————————————————————————————————————————————————————————————————————————
    * WALLET (tab2). Balance hero + transaction list. C# drives it once the user
@@ -8926,10 +8995,12 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
       const st = String(status || '');
       const s = window.SL || {};
       if (st === 'ok') {
+        forgetPeerStorage(addr, 'contact');             // C-3: the contact is gone, and so is everything keyed on it
         try { showToast({ text: s.contactRemoved || 'Contact removed', tone: 'success', host: document.body, strings: s }); } catch (e) {}
         return;
       }
       if (st === 'left') {                                // loop r1: a group/bot LEAVE — a bot stays until the server acknowledges
+        forgetPeerStorage(addr, 'contact');             // C-3: same for a room we are no longer in
         try { showToast({ text: s.leftGroupToast || 'You left the group', tone: 'success', host: document.body, strings: s }); } catch (e) {}
         return;
       }
@@ -8947,10 +9018,20 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     undoRequestResult(address, status) {
       const addr = String(address || '');
       const s = window.SL || {};
+      /* ★ #46 loop B, MAJOR-1: this answer now has TWO emitters — the chats-row revoke
+         (HomePage.onUndoRequestFor) and the request-card DECLINE
+         (HomePage.onDeclineRequest), which used to answer nothing at all. Both remove the
+         same record, so both end here; only the revoke speaks, because only the revoke
+         has no other feedback. */
+      const silent = silentRequestRemovals.delete(addr);
       if (String(status || '') === 'ok') {
-        try { showToast({ text: s.requestRevoked || 'Request revoked', tone: 'success', host: document.body, strings: s }); } catch (e) {}
+        // the pending record is gone — and so is everything this device kept under that
+        // address (C-3). Before this call the draft, the markers and the pin all survived.
+        forgetPeerStorage(addr, 'contact');
+        if (!silent) { try { showToast({ text: s.requestRevoked || 'Request revoked', tone: 'success', host: document.body, strings: s }); } catch (e) {} }
         return;
       }
+      if (silent) { deletedChats.delete(addr); return; }   // a refused decline: the C# re-flush restores the card
       // refused → un-tombstone; C# now flags shouldRefreshContacts on EVERY outcome
       // (loop r2 R2-3 — the r1 tab-verb emit was decorative AND ran the #240
       // overlay-exit sweep, tearing down an open pane on desktop), so the row
@@ -8974,8 +9055,9 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
       const s = window.SL || {};
       if (String(status || '') === 'left') {
         // the leave really removed the friend, and Core deleted the history file with it —
-        // the user's own unsent draft goes too (the removeHistoryResult rule, one surface over)
-        try { localStorage.removeItem(DRAFT_PREFIX + addr); } catch (e) { /* storage may be unavailable */ }
+        // so does everything this device kept under that address (C-3). The draft was
+        // the only thing this branch cleared before the sweep existed.
+        forgetPeerStorage(addr, 'contact');
         try { showToast({ text: s.leftGroupToast || 'You left the group', tone: 'success', host: document.body, strings: s }); } catch (e) {}
         return;
       }
@@ -8986,8 +9068,10 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
       const addr = String(address || '');
       if (String(status || '') === 'ok') {
         // the C# re-flush carries the truth (no row without messages); the unsent DRAFT is the
-        // user's own plaintext and goes with the chat (loop r1) — only once the delete is real (r2 R2-4)
-        try { localStorage.removeItem(DRAFT_PREFIX + addr); } catch (e) { /* storage may be unavailable */ }
+        // user's own plaintext and goes with the chat (loop r1) — only once the delete is real (r2 R2-4).
+        // C-3: everything else the conversation left behind goes with it. The CONTACT stays,
+        // so the two contact-state markers are kept (see forgetPeerStorage).
+        forgetPeerStorage(addr, 'history');
         return;
       }
       deletedChats.delete(addr);                          // refused → the row may come back on the flush; never a silent lie

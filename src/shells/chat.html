@@ -1526,7 +1526,7 @@
   // selected "you reacted" state immediately (Damir F5). Historical own-state
   // (a like from a previous session, re-pushed on load) still needs the C5 flag.
   const myLikes = new Set();
-  let loadedMedia = new Set();   // remote-media URLs the user has loaded (persisted per peer, Damir 2026-07-08)
+  let loadedMedia = new Set();   // remote-media URLs the user opened — SESSION ONLY (security sweep C-1; never persisted)
   // installed multi-user apps pushed by C# loadApps (addApp) — feed the attach
   // → "App invite" picker (legacy parity: legacy showed an app option in the
   // attach bar, picking one emits ixian:app:<id>, chat.js:1250 / onApp xaml:832).
@@ -1844,12 +1844,52 @@
    * instead of the plain confirm-to-open link. Detection is conservative — a
    * direct media EXTENSION or a known direct-media host (media.tenor.com,
    * mediaN.giphy.com) — so a random page URL stays a link (a page URL wouldn't
-   * load as an <img> anyway). Non-direct hosts fail-soft to the tile's retry
-   * state. autoload stays OFF (a future "auto-load media" setting = legacy's
-   * immediate load). NOTE: website OpenGraph meta cards are NOT wired — fetching
+   * load as an <img> anyway).
+   * ⚠ TWO SENTENCES HERE WERE UNTRUE and are corrected (#772). Autoload does NOT
+   * stay off: `mediaAutoloadOn()` defaults ON, and Account → Privacy now writes the
+   * key that turns it off. A non-direct host no longer reaches "the tile's retry
+   * state" either — it is not a tile at all, because the host allow-list below
+   * rejects it and the message renders as a confirm-to-open link.
+   * NOTE: website OpenGraph meta cards are NOT wired — fetching
    * a site's meta from the WebView is CORS-blocked; that needs a proxy or
    * sender-composed meta (§82). */
   const MEDIA_EXT = /\.(gif|png|jpe?g|webp|bmp|avif)(\?|#|$)/i;
+  /* ★★ THE HOST ALLOW-LIST — one contract, four platforms.
+     A tile fetches its bytes on render, so the host of a lone URL in a RECEIVED
+     message is a host the SENDER picked. That fetch tells the sender's host the
+     reader's IP, user agent and the moment they opened the chat (#82).
+     The platform layers already refuse every other host: Utils.IsAllowedURL is
+     called from SpixiWebViewClient.ShouldInterceptRequest on Android and from
+     CoreWebView2_WebResourceRequested on Windows, so a non-allow-listed tile is
+     ALREADY a broken image there — and it is a live leak only on iOS and
+     MacCatalyst, which have no such handler. Testing the same rule here removes
+     the leak and makes the four platforms behave identically.
+     ⚠ THIS IS A MIRROR OF `Utils.IsAllowedURL` (Spixi/Utils/Utils.cs). Keep the two
+     in step: same single label before tenor/giphy, same path charset, same
+     case-sensitive https scheme, same case-insensitive apps.spixi.io prefix. A smoke
+     pin asserts the two agree — change both together.
+     ★★ A THIRD PATTERN EXISTS, AND IT IS WIDER THAN BOTH (#46 loop B, MINOR-3).
+     `WebViewRenderer.OnCommitContent` decides what the Android GIF keyboard may SEND.
+     It uses `^https://([A-Za-z0-9-]+\.)*(tenor|giphy)\.com/…$`, so it admits a hyphen
+     and more than one label. The app can therefore send
+     `https://media-cdn.tenor.com/x.gif`. `Utils.IsAllowedURL` refuses that host, and
+     `Utils.IsAllowedURL` is the rule Android and Windows enforce at the NETWORK layer.
+     The two rules disagree, so this gate cannot obey both. It mirrors
+     `Utils.IsAllowedURL`, which is the safe side: this shell never renders a tile whose
+     bytes the platform then blocks. A hyphenated or multi-label host is a
+     confirm-to-open LINK on all four platforms. That is honest, and it is better than a
+     broken tile on two platforms and a working tile on the other two. Widening the
+     FETCH allow-list is a security decision for the BE cutover.
+     `OnCommitContent`'s own comment already declines to make that decision.
+     The baseline enforced the same shape (0e85a4b8 js/chat.js `linkify`: an <img>
+     only for `^https://[label].(tenor|giphy).com/…$`); the redesign dropped it. */
+  const ALLOWED_MEDIA_URL = /^https:\/\/[A-Za-z0-9]+\.(?:tenor|giphy)\.com\/[A-Za-z0-9_/=%?\-.&]+$/;
+  const ALLOWED_MEDIA_PREFIX = 'https://apps.spixi.io/';
+  function isAllowedMediaUrl(url) {
+    const u = String(url || '');
+    if (ALLOWED_MEDIA_URL.test(u)) return true;
+    return u.slice(0, ALLOWED_MEDIA_PREFIX.length).toLowerCase() === ALLOWED_MEDIA_PREFIX;
+  }
   /* ★★ #684 (Session F) — A SHARE LINK IS A PAGE URL, AND THAT IS THE WHOLE BUG.
      What a user pastes, and what the Android GIF keyboard hands us (LinkUri, see
      WebViewRenderer.OnCommitContent), is the SHARE page:
@@ -1886,20 +1926,56 @@
     if (!/^[A-Za-z0-9]{7,}$/.test(id) || !/[A-Z0-9]/.test(id)) return null;
     return 'https://i.giphy.com/' + id + '.gif';
   }
+  /* ★ #46 loop B, MINOR-2 — NORMALISE, THEN TEST, THEN FETCH THE STRING THAT WAS TESTED.
+     A scheme and a host are case-insensitive by definition, so `HTTPS://Media.Tenor.com/x.gif`
+     names the same bytes as the lowercase form. Both regex gates are case-SENSITIVE, so the
+     raw message text failed them while the iOS content rules admitted it. A legitimate GIF
+     became a plain link on iOS and MacCatalyst. The cure is to normalise, not to loosen.
+     This helper lower-cases ONLY the scheme and the host. It takes the rest from the URL
+     parser's own canonical fields, which is the exact string the engine will request.
+     ⚠ A path, a query and a fragment are case-SENSITIVE. This helper never changes their
+     case. `pathname`, `search` and `hash` preserve it.
+     ⚠ The parser's fields also close two rewrites that raw text hides: userinfo
+     (`https://media.tenor.com@evil.example/x.gif` resolves to host `evil.example`) and a
+     backslash authority. Both now fail the allow-list, because the string that is tested is
+     the string that is fetched.
+     `u.host` carries a non-default port, so such a URL still fails the allow-list. The
+     parser drops a default port, and that is correct: the engine drops it too. */
+  function normalizeMediaUrl(u) {
+    const scheme = String(u.protocol || '').toLowerCase();
+    const host = String(u.host || '').toLowerCase();
+    if (!scheme || !host) return '';
+    return scheme + '//' + host + u.pathname + u.search + u.hash;
+  }
   function mediaUrlOf(text) {
     const t = (text == null ? '' : String(text)).trim();
     if (!/^https?:\/\/\S+$/i.test(t) || /\s/.test(t)) return null;   // must be a lone URL
     let u;
     try { u = new URL(t); } catch (_) { return null; }
     const host = u.hostname.toLowerCase();
+    // The normalised form is what the tile fetches, so it is what the gate tests and what
+    // every caller receives. `t` is kept only for the unused Giphy `from` record.
+    const norm = normalizeMediaUrl(u);
+    if (!norm) return null;
     const directGifHost = /^media\d*\.(tenor|giphy)\.com$/.test(host) || /^c\.tenor\.com$/.test(host) || /^i\.giphy\.com$/.test(host);
+    let media = null;
     if (MEDIA_EXT.test(u.pathname)) {
-      return { url: t, kind: /\.gif(\?|#|$)/i.test(u.pathname) ? 'gif' : 'image' };
+      media = { url: norm, kind: /\.gif(\?|#|$)/i.test(u.pathname) ? 'gif' : 'image' };
+    } else if (directGifHost) {
+      media = { url: norm, kind: 'gif' };
+    } else {
+      const giphy = giphyDirectFromShare(u);
+      if (giphy) media = { url: giphy, kind: 'gif', from: t };
     }
-    if (directGifHost) return { url: t, kind: 'gif' };
-    const giphy = giphyDirectFromShare(u);
-    if (giphy) return { url: giphy, kind: 'gif', from: t };
-    return null;
+    /* ★ The gate runs on the URL that would actually be FETCHED, not on the text. It now
+       does so literally: `media.url` is the normalised string in every branch, and
+       `buildMediaRow` passes that same string to the tile and to the viewer.
+       That is what keeps the Giphy share link working: the share page itself is not
+       allow-listed, and the derived https://i.giphy.com/<id>.gif is. Anything else
+       returns null and falls through to the ordinary text bubble, where linkify
+       renders a confirm-to-open link and fetches nothing. */
+    if (!media || !isAllowedMediaUrl(media.url)) return null;
+    return media;
   }
   function buildMediaRow(rec, media) {
     const isSent = rec.direction === 'sent';
@@ -1912,13 +1988,14 @@
       timestamp: rec.ts,
       gutter: mode.isMulti && !isSent,
       strings: window.SL || {},
-      // legacy parity (Damir 2026-07-08): LOAD BY DEFAULT — or if the user loaded
-      // this exact URL before (persisted), even when the global pref is off.
+      // legacy parity (Damir 2026-07-08): LOAD BY DEFAULT — or, with the pref off,
+      // a tile the user opened IN THIS SESSION stays open across a bridge re-render.
+      // The set does not outlive the conversation, so the preference wins on re-entry.
       autoload: mediaAutoloadOn() || loadedMedia.has(media.url),
       onOpen: () => openMediaViewer({ host: overlayHost, src: media.url, kind: media.kind, alt: label, strings: window.SL || {} }),
       // the tile grows from its placeholder box to the GIF's full size on load —
-      // if the user was at the bottom, pull the log down; and remember this URL so
-      // it auto-expands on re-entry even if autoload is later turned off.
+      // if the user was at the bottom, pull the log down; and remember this URL for
+      // the rest of THIS session, so a re-render does not collapse it again.
       onLoad: () => { rememberLoadedMedia(media.url); if (nearBottom()) box.scrollTop = box.scrollHeight; },
     });
   }
@@ -2001,14 +2078,31 @@
     const incoming = rec.direction === 'received';
     const declined = incoming && declinedApps.has(String(rec.id));
     const canceled = !incoming && canceledApps.has(String(rec.id));   // ★ B2: my own invite, withdrawn
-    // C7(b) privacy: a REMOTE (http) app icon auto-fetches from the publisher on render
-    // → reveals the receiver's IP before any install consent (#82). Gate it behind the
-    // media-autoload pref (privacy-first) so the same opt-out that suppresses remote chat
-    // media also suppresses the publisher icon → rocket fallback. Local icon paths
-    // (installed apps) are never remote, so never gated.
+    /* C7(b) privacy: a REMOTE app icon auto-fetches from the publisher on render and
+       reveals the receiver's IP before any install consent (#82). Gate it behind the
+       media-autoload pref (privacy-first), so the same opt-out that suppresses remote
+       chat media also suppresses the publisher icon and the card draws its rocket.
+       ★★ THE TEST IS INVERTED (security sweep, verifier miss (1)). It used to ask
+       "does this look remote?" with /^https?:\/\//. A peer-composed invite can carry
+       `http:/host/x.gif` — ONE slash — which fails that test, was therefore treated as a
+       local icon and was never gated, while the browser normalises it back to
+       http://host/x.gif and fetches it. The C# receiver's own test is
+       StartsWith("http"), which admits the same value, so the two predicates disagreed
+       and the browser sided with the looser one.
+       Now only a `data:image/` URI counts as local — that is exactly what C# delivers
+       for an installed app's icon (Utils.imageToDataUri, cutover X1). A well-formed
+       absolute http(s) URL is remote and is gated. Everything else is malformed and
+       gets no src at all, so an unknown shape can never open a hole. */
     const rawIcon = rec.iconUrl || null;
-    const remoteIcon = !!rawIcon && /^https?:\/\//i.test(rawIcon);
-    const iconUrl = (remoteIcon && !mediaAutoloadOn()) ? null : rawIcon;
+    const localIcon = !!rawIcon && /^data:image\//i.test(rawIcon);
+    let remoteIcon = false;
+    if (rawIcon && !localIcon) {
+      try {
+        const proto = new URL(rawIcon).protocol;
+        remoteIcon = (proto === 'http:' || proto === 'https:');
+      } catch (_) { remoteIcon = false; }
+    }
+    const iconUrl = localIcon ? rawIcon : ((remoteIcon && mediaAutoloadOn()) ? rawIcon : null);
     return createAppBubble({
       name: rec.name || '',
       iconUrl: iconUrl,
@@ -3521,6 +3615,14 @@
       balance: 0,                                      // real balance rides the first quote
       fee: null,                                       // W6: gated until a quote lands
       strings: s, host: document.body,
+      /* ★ Gate row O-01. The compose asks for its own pair. `pick()` of the locked peer
+         fires ONE amount-0 quote at open (wallet-send.js), and that quote carries the
+         balance and the Max ceiling. This shell sent a SECOND, identical quote after the
+         cover was attached. The duplicate is removed: the balance now enters this document
+         only with an open compose, and it goes with the compose (closeSendTakeover drops
+         the view, and setSendQuote below routes to nothing when no compose is open).
+         ⚠ Do not add a quote here again. The policy question — whether a balance belongs
+         in the chat document at all — stays OPEN for Damir. */
       onQuote: (addr, amount) => bridge.send('ixian:feeQuery:' + addr + ':' + amount),
       onSend: (payload, ctrl) => {
         const r = (payload.recipients && payload.recipients[0]) || {};
@@ -3557,8 +3659,6 @@
       if (f) { try { f.focus(); } catch (err) {} }
     };
     document.addEventListener('focusin', chatSendFocusin);
-    // balance prefetch: amount 0 = "quote the balance + Max ceiling" (fee stays gated)
-    bridge.send('ixian:feeQuery:' + identity.address + ':0');
   }
 
   /* ★ W-d: request-in Pay → the review sheet. ONE sheet at a time; the quote rides
@@ -4852,6 +4952,21 @@
     // Clear the composer input (C# echoes this after a successful send).
     clearInput() { if (composerEl) clearComposer(composerEl); },
 
+    /* ★★ #46 loop B, MAJOR-1 — the two removals THIS shell starts, answered.
+       C# pops this page right after both, so the sweep must run on the push, not on some
+       later frame: sendUiCommand queues the eval before the teardown is queued, and
+       localStorage is synchronous, so the keys are gone before the WebView goes.
+       Both use the result commands HomePage already pushes — no new push name.
+       No toast on either: the user is leaving this surface, and C# raises its own alert
+       on the leave. `undoRequestResult` answers the request pane's Decline; a "fail"
+       means the record is still there, so nothing is swept (fail closed). */
+    undoRequestResult(address, status) {
+      if (String(status || '') === 'ok') forgetPeerStorage(String(address || ''), 'contact');
+    },
+    leaveGroupResult(address, status) {
+      if (String(status || '') === 'left') forgetPeerStorage(String(address || ''), 'contact');
+    },
+
     /* ——— lifecycle acks (minimal) ———————————————————————————————————————— */
 
     // C#→JS acks. onChatScreenReady carries the peer address; store it so the
@@ -4868,7 +4983,7 @@
       if (!identity.name) renderTopbar();
       maybeRestoreDraft();                 // address known → bring back any saved draft (CH7)
       loadLikes();                         // address known → restore my own-reaction state (per-peer)
-      loadLoadedMedia();                   // restore which remote media the user loaded (per-peer)
+      resetLoadedMedia();                  // per-peer reset, and drop any set an older build persisted
       loadDeclinedApps();                  // restore which app invites the user declined (per-peer, C7)
       loadCanceledApps();                  // ★ B2: …and which own invites they canceled
       pendingLocalDeletes.clear();         // Q12 per-peer reset: a never-echoed local delete (e.g. the bot
@@ -4909,7 +5024,13 @@
          an answer stamped before any address describes THIS peer. Adopt it. An answer
          stamped for a DIFFERENT peer is dropped. */
       mode.answeredFor = (mode.answeredFor === '') ? identity.address : null;
-      dbg('onChatScreenReady', address);
+      /* ★ Gate row O-22. The address was the second argument here, and on Android a
+         SPIXI_DEV_COEXIST build mirrors every WebView console line into ixian.log
+         (WebViewRenderer.OnConsoleMessage). That made this the ONE console line in any
+         shell that wrote a wallet address to a shareable file. The line's whole value is
+         "the handler fired"; the peer it fired for is already in the pushes around it.
+         ⚠ Do not log an identifier here again, truncated or whole. */
+      dbg('onChatScreenReady');
     },
     // End of the initial load burst (fires after loadMessages, xaml:588) — paint
     // the whole history in ONE render, pin to the bottom, and put the caret in the
@@ -4963,7 +5084,11 @@
            pill carries a txid, not a value, so the figure vanished. The toast is the
            shell's own announcement and needs nothing from C#. */
         try {
-          showToast({ text: (sl.tipConfirm || 'Tip {a} IXI').replace('{a}', amt), tone: 'success', host: overlayHost, strings: sl });
+          /* Gate row O-12: the same rule. A function replacement returns its value
+             literally. `amt` is a canonical decimal today (the tip sheet sends
+             canonicalAmount), so it carries no substitution token — the function form
+             keeps that true here, without a reader tracing money.js to prove it. */
+          showToast({ text: (sl.tipConfirm || 'Tip {a} IXI').replace('{a}', () => amt), tone: 'success', host: overlayHost, strings: sl });
         } catch (e) { /* the morph already confirmed; a toast failure must not matter */ }
       } else {
         c.fail(body || sl.tipFailed || 'The tip could not be sent. Please try again.');
@@ -5688,7 +5813,7 @@
    * usually the nearest scroll), pulsing it; each subsequent tap steps to the next-older
    * unseen (Damir: jumping to the earliest first felt backwards). A mention becomes
    * "seen" once it scrolls into view (or is jumped to). The seen set is PERSISTED per
-   * peer (localStorage, same pattern as myLikes/loadedMedia) so a caught-up mention does
+   * peer (localStorage, same pattern as myLikes) so a caught-up mention does
    * not resurface on the next open — mirrors Telegram's durable unread-mention marker.
    * No baseline seed: on first open, all not-yet-seen mentions (anywhere in the log)
    * surface, which IS the desired catch-up. */
@@ -5765,6 +5890,46 @@
    * typing → ixian:typing, throttled to >1s like legacy (chat.js:423). Legacy
    *         suppresses typing in group chats; mirror that.
    * After send we clear locally for snappiness; C# also echoes clearInput. */
+  /* ★★ #46 loop B, MAJOR-1 — FORGET A PEER, from the conversation itself.
+   * Two verbs THIS shell emits remove the record for good: the request pane's Decline
+   * (`ixian:undorequest`, the only live emitter since #562) and the in-chat room leave
+   * (`ixian:leave`). Neither was answered, so the sweep home.html and contact_details.html
+   * run never ran for either: the user's own unsent DRAFT below, the per-conversation
+   * markers, and the address inside spixi.pins all survived a removal. C# now answers both
+   * with the result commands HomePage already pushes, and these handlers do the sweep.
+   * ⚠ Prefix-driven, not a list: every `spixi.*` key whose name ENDS with `.<address>`
+   * goes, which is the shape every per-peer family in this shell shares (draft · likes ·
+   * mentions.seen · exdel · app.declined · app.canceled · hidereq · hsstage), so a family
+   * added later is covered by construction. THIS BODY IS A TWIN of the one in
+   * contact_details.html — keep the two in step.
+   * ⚠ The length guard is load-bearing: an empty address makes the suffix "." and matches
+   * nearly every key in the store. It fails closed — a short address sweeps nothing.
+   * The pin lives in a VALUE, so it is pruned by rewriting the array; home.html re-seeds
+   * its in-memory set from the `storage` event that write raises. */
+  const PEER_KEYS_KEPT_ON_HISTORY = ['spixi.hidereq.', 'spixi.hsstage.'];
+  function forgetPeerStorage(addr, scope) {
+    const a = String(addr || '');
+    if (a.length < 8) return;                     // fail closed on a short or empty address
+    const suffix = '.' + a;
+    try {
+      const doomed = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || k.indexOf('spixi.') !== 0) continue;
+        if (k.length <= suffix.length || k.slice(-suffix.length) !== suffix) continue;
+        if (scope === 'history' && PEER_KEYS_KEPT_ON_HISTORY.some((pfx) => k.indexOf(pfx) === 0)) continue;
+        doomed.push(k);
+      }
+      // remove AFTER the walk — removing during it re-indexes the store and skips keys
+      for (const k of doomed) localStorage.removeItem(k);
+      if (scope === 'history') return;            // the contact stays, and so does its pin
+      const pins = JSON.parse(localStorage.getItem('spixi.pins') || '[]');
+      if (Array.isArray(pins) && pins.indexOf(a) !== -1) {
+        localStorage.setItem('spixi.pins', JSON.stringify(pins.filter((p) => p !== a)));
+      }
+    } catch (e) { /* storage may be unavailable */ }
+  }
+
   /* —— composer drafts (CH7). Persist the UNSENT composer text to localStorage
    * keyed by peer address so it survives leaving/returning to the chat, and the
    * chats list (home.html, same Resources/Raw/html origin) can show a "Draft: …"
@@ -5883,33 +6048,33 @@
     } catch (_) {}
   }
 
-  // Remote media (GIF/image) load policy — legacy parity: load by default. The
-  // global pref defaults ON; write 'off' to spixi.media.autoload to opt out (a
-  // settings toggle can flip it — deferred UI). Regardless of the pref, URLs the
-  // user DID load are remembered per peer so they auto-expand on re-entry (fixes
-  // the "GIF hidden again after leaving + returning" bug). #82 security note in
-  // be-cutover-brief (auto-loading remote media reveals the reader's IP to the host).
+  /* Remote media (GIF/image) load policy — legacy parity: load by default, from an
+     allow-listed host only (ALLOWED_MEDIA_URL, above). The pref defaults ON, and
+     Account -> Privacy writes 'off' to spixi.media.autoload. Every render reads the
+     key, so a change applies to each conversation opened after it.
+     ★★ THE REMEMBERED SET IS SESSION-ONLY NOW (security sweep C-1 and verifier miss
+     (2)). It was persisted per peer under spixi.media.loaded.<address>. That had two
+     defects. The value was PEER-AUTHORED text — a URL taken out of a received message
+     — held in a storage partition that mini-app code may share on iOS, MacCatalyst and
+     Windows. And `autoload || loadedMedia.has(url)` made one tap on a tracking URL a
+     beacon that re-fired on every chat open, for ever, even with the pref off. The
+     preference must win, so the set dies with the conversation.
+     #82 security note in be-cutover-brief (loading remote media reveals the reader's
+     IP to the host). */
   const MEDIA_AUTOLOAD_KEY = 'spixi.media.autoload';
-  const MEDIA_LOADED_PREFIX = 'spixi.media.loaded.';
+  const MEDIA_LOADED_LEGACY_PREFIX = 'spixi.media.loaded.';   // retired key — removed on sight
   function mediaAutoloadOn() {
     try { return localStorage.getItem(MEDIA_AUTOLOAD_KEY) !== 'off'; } catch (_) { return true; }
   }
-  function loadedMediaKey() { return identity.address ? MEDIA_LOADED_PREFIX + identity.address : ''; }
-  function loadLoadedMedia() {
+  function resetLoadedMedia() {
     loadedMedia = new Set();                    // reset for THIS peer (desktop peer-switch safe)
-    const k = loadedMediaKey();
-    if (!k) return;
-    try {
-      const arr = JSON.parse(localStorage.getItem(k) || '[]');
-      if (Array.isArray(arr)) arr.forEach((u) => loadedMedia.add(String(u)));
-    } catch (_) {}
+    if (!identity.address) return;
+    // an older build persisted this set. Remove it here, so peer-authored URLs do not
+    // survive the upgrade with only "delete account" to clear them.
+    try { localStorage.removeItem(MEDIA_LOADED_LEGACY_PREFIX + identity.address); } catch (_) {}
   }
   function rememberLoadedMedia(url) {
-    if (!url) return;
-    loadedMedia.add(url);
-    const k = loadedMediaKey();
-    if (!k) return;
-    try { localStorage.setItem(k, JSON.stringify([...loadedMedia])); } catch (_) {}
+    if (url) loadedMedia.add(url);              // session only — never written to storage
   }
 
   /* —— declined app-invite persistence (C7(a)). Declining an app invite is a LOCAL

@@ -67,14 +67,34 @@ public class SpixiWebChromeClient : WebChromeClient
      * ⚠ This renderer serves EVERY WebView, the mini-app one included (MiniAppPage.xaml
      * ClassId="miniapp", third-party code — #265). Its console is NOT forwarded: a publisher's
      * page must not be able to write lines into the app's log, dev build or not. Only the
-     * shells' own words reach here, and each line is capped. */
+     * shells' own words reach here, and each line is capped.
+     *
+     * ★ handover sweep O-22, ESTABLISHED BY READING THE csproj, NOT ASSUMED. This mirror is
+     * NOT Debug-only. `Spixi.csproj` defaults `SpixiDevCoexist` to true only on the Debug
+     * configuration, but `SPIXI_DEV_COEXIST` is defined for ANY configuration where that
+     * property is true, and the csproj itself sanctions `-p:SpixiDevCoexist=true` on a
+     * "real-behaviour Release test build". A store Release build never passes the property and
+     * so never carries this override; an opted-in Release build does. Two things follow, and
+     * both are done below rather than argued away:
+     *   1. the host test FAILS CLOSED. `_renderer?.Element?.ClassId != "miniapp"` also passed
+     *      when `_renderer` was null, because null is not "miniapp" — a WebView this code
+     *      cannot identify was forwarded. It must be identified as one of ours first.
+     *   2. the message is SANITISED, not merely capped. A cap does not stop page script from
+     *      writing a newline and forging whole `[WEBVIEW]` lines into `ixian.log`, and it does
+     *      not stop a shell line from carrying a wallet address. `SPIXI.Utils.logSafe` closes
+     *      the line break and redacts address-shaped tokens, and the 400-character cap and
+     *      its "…" cut marker are kept exactly as they were. */
     public override bool OnConsoleMessage(ConsoleMessage? consoleMessage)
     {
         try
         {
-            if (consoleMessage != null && _renderer?.Element?.ClassId != "miniapp")
+            var element = _renderer?.Element;
+            bool ourHost = element != null && element.ClassId != "miniapp";
+            if (consoleMessage != null && ourHost)
             {
-                string msg = consoleMessage.Message() ?? "";
+                // logSafe with no clamp (flatten + redact), then the #754 cap and its cut
+                // marker, so the line still says when it was truncated.
+                string msg = SPIXI.Utils.logSafe(consoleMessage.Message() ?? "", 0);
                 if (msg.Length > 400) msg = msg.Substring(0, 400) + "…";
                 IXICore.Meta.Logging.info("[WEBVIEW] " + consoleMessage.InvokeMessageLevel() + " " + msg
                     + " (" + consoleMessage.SourceId() + ":" + consoleMessage.LineNumber() + ")");

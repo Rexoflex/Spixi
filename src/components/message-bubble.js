@@ -33,7 +33,7 @@
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
-import { createAvatar, hashHue, truncateAddressMiddle } from './avatar.js';
+import { createAvatar, hashHue, truncateAddressMiddle, safeImageSrc } from './avatar.js';
 
 /* ★ Session K (walk J2 T1): the group-sender avatar's size is the `--bubble-avatar-size`
    token (tokens.css) — read once from :root and cached; 24 when unreadable (jsdom, a stale
@@ -299,6 +299,8 @@ export function createMessageBubble({
   paid = false,                // A2 (#302): this message cost IXI (C# `paid` = transactionId != "")
   onLinkClick = null,
   linkPreview = null,
+  allowRemoteImages = false,   // ★ O-13: a REMOTE http(s) thumb needs the shell's opt-in; a
+                               // data:image/ thumb never does. Default = no remote request.
   mention = null,              // { names:[…], self:[…] } → @-mention highlight (#210); null = off
   roleBadge = null,            // N34 (#365): 'Owner' chip label, top-right of the sender row; null = off
   strings = getStrings(),
@@ -402,10 +404,13 @@ export function createMessageBubble({
     q.style.setProperty('--reply-h', hashHue(reply.address || reply.sender || ''));
     // media/typed originals show a small identifier (Damir 2026-07-03):
     // shell-composed thumb (data-URI) for media, kind glyph otherwise
-    if (reply.thumb) {
+    // ★ O-13: the quote thumb goes through the one image test. A refused value falls
+    // through to the kind glyph below, so the quote still says what it quotes.
+    const replyThumb = safeImageSrc(reply.thumb, { allowRemote: allowRemoteImages });
+    if (replyThumb) {
       const th = document.createElement('img');
       th.className = 'c-bubble__reply-thumb';
-      th.src = reply.thumb;
+      th.src = replyThumb;
       th.alt = '';
       q.append(th);
     } else if (reply.kind && REPLY_KIND_GLYPHS[reply.kind]) {
@@ -444,10 +449,14 @@ export function createMessageBubble({
       lp.type = 'button';
       lp.addEventListener('click', () => onLinkClick(linkPreview.url));
     }
-    if (linkPreview.image) {
+    // ★ O-13: the card's image is peer-composed (the SENDER builds the preview — there
+    // is no server to unfurl it). A refused value leaves the card as title + domain,
+    // which is text the bubble already renders safely.
+    const previewSrc = safeImageSrc(linkPreview.image, { allowRemote: allowRemoteImages });
+    if (previewSrc) {
       const img = document.createElement('img');
       img.className = 'c-bubble__linkpreview-img';
-      img.src = linkPreview.image;
+      img.src = previewSrc;
       img.alt = '';
       lp.append(img);
     }

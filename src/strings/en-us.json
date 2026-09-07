@@ -384,6 +384,8 @@
   "leaveGroupsConfirmTitle": "Leave {n} groups and remove {name}?",
   "leaveTitle": "Leave this group?",
   "leftGroupToast": "You left the group",
+  "loadMedia": "Load pictures and GIFs",
+  "loadMediaSub": "Loading tells the sender’s host that you opened the chat",
   "loading": "Loading",
   "loadingHistory": "Loading earlier messages",
   "lockCopy": "Enter your wallet password to unlock.",

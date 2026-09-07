@@ -627,5 +627,7 @@
   "chatGround": "Drobė",
   "groundFlat": "Vientisas",
   "groundGradient": "Gradientas",
-  "notifPushProviderSub": "Pažadina šį įrenginį vos gavus žinutę. Naudoja „OneSignal“ – „push“ pranešimų tiekėją."
+  "notifPushProviderSub": "Pažadina šį įrenginį vos gavus žinutę. Naudoja „OneSignal“ – „push“ pranešimų tiekėją.",
+  "loadMedia": "Įkelti paveikslėlius ir GIF",
+  "loadMediaSub": "Įkėlimas siuntėjo serveriui praneša, kad atvėrėte pokalbį"
 }

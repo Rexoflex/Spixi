@@ -385,6 +385,8 @@ export const dede = {
   leaveGroupsConfirmTitle: "{n} Gruppen verlassen und {name} entfernen?",
   leaveTitle: "Diese Gruppe verlassen?",
   leftGroupToast: "Du hast die Gruppe verlassen",
+  loadMedia: "Bilder und GIFs laden",
+  loadMediaSub: "Das Laden zeigt dem Host des Absenders, dass du den Chat geöffnet hast",
   loading: "Wird geladen",
   loadingHistory: "Frühere Nachrichten werden geladen",
   lockCopy: "Gib dein Wallet-Passwort ein, um zu entsperren.",

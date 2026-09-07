@@ -385,6 +385,8 @@ export const idid = {
   leaveGroupsConfirmTitle: "Leave {n} groups and remove {name}?",
   leaveTitle: "Tinggalkan grup ini?",
   leftGroupToast: "You left the group",
+  loadMedia: "Muat gambar dan GIF",
+  loadMediaSub: "Memuat memberi tahu host pengirim bahwa Anda membuka obrolan",
   loading: "Memuat",
   loadingHistory: "Memuat pesan sebelumnya",
   lockCopy: "Masukkan kata sandi dompet Anda untuk membuka kunci.",

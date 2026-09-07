@@ -9,6 +9,28 @@ import { resolve, dirname } from 'node:path';
 
 const FONT_MIME = { woff2: 'font/woff2', woff: 'font/woff', ttf: 'font/ttf', otf: 'font/otf' };
 
+/* ★ Gate row O-37 — a source spliced INTO a <script> or <style> block must not be able to
+ * close it. The HTML tokenizer ends a script block at the first `</script` and a style
+ * block at the first `</style`, wherever the sequence sits — inside a JS string, a CSS
+ * url(), or a comment. A source that carried one would end the block early, and the rest
+ * of that file would be parsed as MARKUP. The inliner reads generated files, so the day a
+ * generator emits such a sequence the shell breaks in a way no gate here reads.
+ *
+ * The break is one backslash before the slash, and the VALUE does not change:
+ *   · in a JS string or template literal, '\/' is '/';
+ *   · in a JS regular expression, '\/' is the escaped '/' the syntax already asks for;
+ *   · in a CSS string or url(), '\/' is '/';
+ *   · in a comment nothing is read at all.
+ * Only the tokenizer sees a difference, which is the whole point.
+ * ⚠ The one JS shape this WOULD change is the operator sequence `a < /script/` (a
+ * less-than beside a regular expression). No source in this tree holds it, and a shell
+ * built from one would fail its own boot, not ship a silent hole.
+ *
+ * No file the inliner reads today carries either sequence, so the built shells are
+ * byte-identical. This exists to keep that true. */
+const breakScriptEnd = (js) => String(js).replace(/<\/(script)/gi, (m, tag) => '<\\/' + tag);
+const breakStyleEnd = (css) => String(css).replace(/<\/(style)/gi, (m, tag) => '<\\/' + tag);
+
 /** Inline @font-face url(...) refs in a CSS string as base64 data: URIs. */
 export function inlineFonts(css, cssDir) {
   return css.replace(/url\(\s*(['"]?)([^'")]+\.(woff2|woff|ttf|otf))\1\s*\)/gi, (m, q, relPath, ext) => {
@@ -69,7 +91,7 @@ export function inlineHtml(inPath, opts = {}) {
     const cssPath = resolve(htmlDir, href);
     let css = readFileSync(cssPath, 'utf8');
     css = inlineFonts(css, dirname(cssPath));
-    return `<style data-src="${href}">\n${css}\n</style>`;
+    return `<style data-src="${href}">\n${breakStyleEnd(css)}\n</style>`;
   });
 
   // 3. <script src="Y"></script> → <script>…</script>
@@ -80,7 +102,7 @@ export function inlineHtml(inPath, opts = {}) {
     if (external.has(src)) return `<script src="${external.get(src)}"></script>`;
     const jsPath = resolve(htmlDir, src);
     const js = readFileSync(jsPath, 'utf8');
-    return `<script data-src="${src}">\n${js}\n</script>`;
+    return `<script data-src="${src}">\n${breakScriptEnd(js)}\n</script>`;
   });
 
   /* 3b. ★ #346 (review of #345) — CATCH THE SCRIPT TAGS STEP 3 CANNOT SEE.

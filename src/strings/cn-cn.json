@@ -384,6 +384,8 @@
   "leaveGroupsConfirmTitle": "Leave {n} groups and remove {name}?",
   "leaveTitle": "退出此群组？",
   "leftGroupToast": "You left the group",
+  "loadMedia": "加载图片和 GIF",
+  "loadMediaSub": "加载会让发送者的服务器知道你打开了聊天",
   "loading": "加载中",
   "loadingHistory": "正在加载更早的消息",
   "lockCopy": "输入您的钱包密码以解锁。",

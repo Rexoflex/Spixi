@@ -457,9 +457,86 @@ namespace SPIXI.MiniApps
                 // an app it doesn't have (mini_app.image is absolute for URL-installed apps).
                 // Trailing, ||-delimited, backward-compatible — old receivers ignore the extra
                 // segment; new receivers guard the index (SingleChatPage app_id_data.Length>3).
-                return $"{app_id}||{mini_app.url}||{mini_app.name}||{mini_app.image}"; // TODO pack this information better
+                // ★ Sweep F2/B-2: the icon goes through the gate BEFORE it is joined.
+                // `mini_app.image` is whatever the package's appinfo.spixi declared, so an
+                // outgoing invite must not carry a local file path or a URL form the
+                // receiver cannot classify. Gating the field rather than the joined string
+                // also means an app NAME containing "||" cannot make the gate edit the
+                // wrong segment.
+                return $"{app_id}||{mini_app.url}||{mini_app.name}||{safeAppIconUrl(mini_app.image)}"; // TODO pack this information better
             }
             return app_id;
+        }
+
+        /* ★★ HANDOVER SWEEP F2 / B-2 — THE APP-INVITE ICON GATE, AND WHY IT MUST BE HERE.
+         *
+         * The invite is a `||`-delimited string, and its 4th field (added by C7(b), absent
+         * at the fork point) becomes an `<img src>` in the CHAT document. It is chosen by
+         * the SENDER — a hostile peer writes the stream message itself — so it is peer
+         * input on the receiving side, not publisher metadata.
+         *
+         * THE DEFECT WAS A DISAGREEMENT BETWEEN TWO PREDICATES. The C# receiver admitted
+         * the field on `StartsWith("http")`, while the shell decides "is this remote, and
+         * therefore subject to the privacy gate" with /^https?:\/\//i. The string
+         * `http:/host/x.gif` — ONE slash — passes the first and FAILS the second, so the
+         * shell filed it as a LOCAL icon, which is never gated, and the browser then
+         * normalised it back into a real remote request. The gate could be stepped over by
+         * choosing a URL form.
+         *
+         * The fix is to remove the disagreement at the source: the field is either a
+         * CANONICAL absolute https URL, or it is empty. `Uri.AbsoluteUri` is the parser's
+         * own normal form, so whatever `Uri` accepts is emitted in the one shape both
+         * predicates read the same way, and whatever it refuses is emitted as empty — the
+         * receiver already renders a placeholder for an empty field. This is fail-closed:
+         * the default is the refusal.
+         *
+         * `https` only, and the precedent is in this file: `fetch()` has always required
+         * `uri.Scheme == Uri.UriSchemeHttps` for the same publisher's own metadata. A
+         * plaintext icon is also a broken tile on Android and Windows already, because
+         * `Utils.IsAllowedURL` refuses everything that is not https there.
+         *
+         * ⚠ BOTH ENDS use the same predicate. getAppInfo above gates the field it builds;
+         * sanitizeAppInvite gates the field a PEER built, at the point where their bytes
+         * become a stored message (StreamProcessor.handleAppRequest). The second one is
+         * what closes the hole — a peer never runs getAppInfo. sanitizeAppInvite rewrites
+         * segment 3 because that is the segment the reader uses as the icon
+         * (SingleChatPage.loadMessages, app_id_data[3]), so the gate and the reader agree
+         * on which field they are talking about. */
+        public static string sanitizeAppInvite(string app_info)
+        {
+            if (string.IsNullOrEmpty(app_info))
+            {
+                return "";
+            }
+            string[] parts = app_info.Split("||");
+            if (parts.Length < 4)
+            {
+                return app_info;   // no icon field — the pre-C7(b) shape, unchanged
+            }
+            parts[3] = safeAppIconUrl(parts[3]);
+            return string.Join("||", parts);   // every other segment is preserved exactly
+        }
+
+        // The icon predicate. Returns the parser's canonical form of an absolute https
+        // URL, or an empty string. It refuses anything else, so an unknown shape is
+        // dropped rather than admitted.
+        private static string safeAppIconUrl(string image)
+        {
+            if (string.IsNullOrWhiteSpace(image))
+            {
+                return "";
+            }
+            if (!Uri.TryCreate(image.Trim(), UriKind.Absolute, out Uri uri) || uri.Scheme != Uri.UriSchemeHttps)
+            {
+                return "";
+            }
+            string canonical = uri.AbsoluteUri;
+            if (canonical.Contains("|"))
+            {
+                // a "|" would add or move a field and re-shape the invite for every reader
+                return "";
+            }
+            return canonical;
         }
 
         public Dictionary<string, MiniApp> getInstalledApps()

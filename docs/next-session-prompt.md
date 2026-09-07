@@ -3,179 +3,154 @@
 Repo: `C:\Users\Damir\Claude\Projects\Spixi Rework Of Frontend\Spixi`, branch
 `redesign/frontend`. Ixian-Core sibling frozen at `097341a`, read-only, must be present.
 
-**Read `docs/release-readiness.md` FIRST — the whole file.** Then `docs/handoff-2026-09-06b.md`,
-then DECISIONS **#803** and **#804**, then `docs/opus-review-verdict-session-q.md`.
+**Read `docs/handoff-2026-09-07.md` FIRST — the whole file.** Then `docs/release-readiness.md`,
+then the final section of `docs/security-handover-gate.md` (the census), then DECISIONS **#805**
+and **#806**, then `docs/opus-review-verdict-session-r.md`.
 
-★ **This is NOT the session that finishes the app, and no single session is.** The build is
-feature-complete. What remains is one gate we owe, a small number of fixes that gate names, one
-BE engagement, three walks on hardware, and a freeze nobody has scheduled. This session owns
-**the gate and the fixes**. It cannot own the walks, the engineer, or the freeze. Say so in your
-first reply rather than promising a finish.
+★ **The security handover gate has now RUN.** That was the last thing standing between this app
+and the BE engineer. What remains is verification on hardware, one engagement, a short list of
+buildable rows, and a freeze nobody has scheduled. **No single session finishes this**; say so
+in your first reply rather than promising a finish.
 
 ---
 
-## Item 0 — verify the baseline in a clean clone before touching anything
+## Item 0 — verify the baseline in a clean clone
 
-Expect exactly: bundle **320 exports** · **18 shells** · smoke **BASELINE OK 4377 / the 3 known
-(#136 · M5 · B3)** WITH the sibling (one lower without) · locales **784 ALL CLEAN** · i18n-lint ✓
-(6 dev exemptions) · pseudo **9/9** · cs-syntax **138 + 1** ·
-`extract-strings` / `build-shells` / `build-legal-docs` `--check` all ✓ ·
-`strip-release --check` GATE 1 OK · `smoke-packaged` GATE 2 OK at **4376**.
+Expect exactly: bundle **321 exports** · **18 shells** · smoke **BASELINE OK 4613 / the 3 known
+(#136 · M5 · B3)** WITH the sibling · locales **786 ALL CLEAN** · i18n-lint ✓ (6 dev) · pseudo
+**9/9** · cs-syntax **138 + 1** · `extract-strings` / `build-shells` / `build-legal-docs`
+`--check` all ✓ · `strip-release --check` GATE 1 OK · `smoke-packaged` GATE 2 OK.
 **Any difference → STOP and say so before building.**
 
-⚠ `build-legal-docs --check` prints 🟡 on **privacy** by design. That is the held Privacy Policy,
-not a broken gate. Terms is baked and real (12 147 chars, 20 sections).
+⚠ `build-legal-docs --check` prints 🟡 on **privacy** by design — the held Privacy Policy, not a
+broken gate.
 
 ---
 
-## Item 1 — ★ THE SECURITY HANDOVER SWEEP. This is the session's point.
+## Item 1 — ★ the memory kill, and it is the only thing a user is feeling right now
 
-`CLAUDE.md` has promised since 2026-08-15 that **the redesign introduces nothing**, and
-`docs/security-handover-gate.md` is the gate that proves it. **That sweep has never run.** Only
-the per-batch lens and ONE partial pass over #642–#722 have. Until the sweep runs, "we
-introduced nothing" is an assertion, not a finding — and it is the sentence the BE engineer is
-about to be handed.
+Damir, 2026-09-07: **Android kills the app after about half an hour.** Settings reads 221 MB
+average, **511 MB maximum**, on the Dev/coexist build. `#764` logged 411 MB, so it has grown.
 
-The method is in the gate doc. The scope is the **whole delta from the fork point `0e85a4b8` to
-HEAD**. One question per finding, and only one: **does this exposure exist at the baseline?**
+⚠ **Do not guess and do not open a redesign (#294).** The instrument is one command, and the
+handoff §"NEW" carries the protocol:
 
-* **No → we introduced it → we fix it before handover.**
-* **Yes → legacy → it goes to him untouched.**
+```
+adb shell dumpsys meminfo io.ixian.spixi.dev
+```
 
-Sweep at least these classes, and derive the list from the DIFF, not from this paragraph
-(#798 — a sweep written from the author's list is not yet a sweep):
+Read the FOOTER — the `WebViews:` count and the `Native Heap` / `Dalvik Heap` / `Graphics` split
+— at launch and again after the half hour that gets it killed.
 
-* every new or changed `ixian:` verb and every `sendUiCommand` push
-* every `spixi.*` storage key, and which WebView partition it lives in
-* every WebView setting we set or changed, on all four platforms
-* every HTML sink (`innerHTML`, `insertAdjacentHTML`, `document.write`, `eval`-shaped calls)
-* every network fetch a shell or a handler can start, and what it leaks
-* every log line that can carry an address, a filename, a password or a URL
-* every filesystem path built from a value the WebView or a remote peer supplied
+★ **The suspect is already in code.** `SpixiContentPage.Dispose()` sets `disposed = true` and then
+does ALL of its teardown inside `if (!Navigation.NavigationStack.Contains(this))`. A page on the
+stack when `Dispose` runs is marked disposed and **keeps its platform WebView for ever**. `#800`'s
+pre-warm re-arms a chat page on every back-out, at a measured ~15 MB each, so a path that used to
+run once now runs many times per session.
 
-**Write the census into `docs/security-handover-gate.md`**, in its existing two-column shape, with
-`file:line` for each row. A row with no anchor is not a finding.
+**The free discriminator costs one token** and it is the same experiment item 5 of the last prompt
+has been carrying: set `CHAT_SPARE_ENABLED = false`, rebuild, use it for the same half hour.
+Kills stop → the pre-warm is the cause, and **do not just flip the flag** — that discards a
+measured win Damir took knowingly (#802). Fix the disposal.
 
-⚠ Two rules this repo learned the hard way and both apply here: cite by **branch or method**, not
-by a line number a later comment will move (#773); and a **refusal** — "we did not introduce X" —
-must be written from the cases you did not think of, never from your own list (#798).
-
-## Item 2 — the three rows the gate already names as OURS
-
-These sit in the gate's own "ours — fix before handover" column and are still open. The sweep may
-add more; these do not wait for it.
-
-1. **security MAJOR #3** — `Spixi/Pages/Chat/SingleChatPage.xaml.cs:746`. The link-open confirm
-   modal is spoofable: `HtmlDecode` runs AFTER the modal shows the pre-decode URL, so the user
-   approves one string and the app navigates to another. **We built the modal; legacy had none**,
-   so this is ours by the gate's rule even though it is an improvement on nothing.
-2. **security MAJOR #6(a)** — `Spixi/Platforms/iOS/iOSWebViewHandler.cs:101`. The global link
-   handoff gives **mini-app** content a one-tap, no-confirm Safari launch: no `TargetFrame` test,
-   no main-frame test, no MiniAppPage classification. Introduced by our own iOS bring-up.
-3. **`spixi.draft.*`** — `src/shells/chat.html`. Our key, holding the user's own unsent
-   plaintext, in a `file://` localStorage partition a mini-app may be able to read. The gate says
-   fix it **regardless of what the sweep concludes about the partition**.
-
-⚠ #3 above is a design question, not a deletion: drafts are a shipped feature Damir uses. Price
-the options (drop the key · move it behind a C# pref push · scope the partition) and
-**recommend one explicitly** — do not choose silently.
-
-## Item 3 — correct `docs/be-cutover-brief.md` BEFORE the engineer reads it
-
-The parity audit found **five stale rows** (S5/L4 · S7 · S13 · CO2 — landed, still written as
-open). A brief that lies about what is done wastes the one engagement we get. Re-verify each row
-against the tree and mark it, and while you are in there confirm the 13 blocker rows are still
-blockers.
+⚠ Rule out the heavy seed first. On a 10 × 1000 profile neither number means anything.
 
 ---
 
-## Gated — do NOT start these until the number exists
+## Item 2 — the comment-stripper class, and it is a gate on every sweep you write
 
-**Add contact and Add app** (`HomePage.xaml.cs:826` → `ContactNewPage`, `:832` → `AppNewPage`)
-are the same mechanism #804 removed, and Damir reported both stutter. **They are gated on the
-§3 measurement in `docs/f5-checklist-session-q.md`,** which has not been taken. If the three
-Account rows come back smooth and these still stutter, that is the evidence to build on. If
-everything is smooth, something else carried it and the next step is a **systrace, not another
-guess** (#294).
+Session R found that `stripCode` removed BLOCK comments before LINE comments, so a `/*` inside a
+`//` comment blanked live code — **17 live lines across four files, invisible to every negative
+sweep in the suite**. A reproduction hid an OS-open primitive behind two ordinary comments with
+the whole suite green.
 
-★ And one of them is a widening: `ixian:fetch:` is a REMOTE fetch (`MiniAppManager.fetch` →
-`extractAppInfo`). Hosting it on the page that also hosts the chats list needs a security-gate
-row before a line is written — which is another reason item 1 comes first.
+That one is fixed and pinned. ⚠ **The class is not closed: 123 occurrences of the naive regex and
+26 more local strippers under 17 names remain** across `scripts/` and the suite. Each can hide
+code from whatever reads through it.
+
+Close them the way Session R did: reuse the repaired tokenizer rather than writing an eighteenth,
+and pin the property against independent reference strippers so pin and repair share no premise.
+⚠ CSS has no `//`, so a CSS stripper is legitimately different — say why in its docblock.
+
+---
+
+## Item 3 — the 27 INTRODUCED rows still open
+
+They are `O-…` in the census, and each names its owner. Three groups:
+
+* **Buildable now, no decision** — the NITs and the hygiene rows. Batch them by surface, not one
+  by one, and run ONE #46 loop over the batch.
+* **Damir's ruling** — the live wallet balance inside the chat document (`O-01`) is the one that
+  matters. The gate rejected the same design for `setTipResult` on ★ #221 grounds. Either it goes,
+  or it gets a gate row with the depth the tip refusal got.
+* **One device test each** — chiefly `O-03`: do a mini-app document and a shell share one
+  `localStorage` origin on Windows? Open a mini-app, and in its WebView2 dev tools evaluate
+  `localStorage.length` and `localStorage.getItem('spixi.pins')`. That one answer moves four rows.
+
+---
+
+## Item 4 — the rows that are ours, buildable, and need no decision
+
+`docs/release-readiness.md` §3. Read it THERE and re-verify each row against the tree — several
+docs it draws on have been stale, and at least six briefed plans have been defective (#297, #301).
+Lead with the **i18n residual (M13)**: surfaces still render English under a chosen locale, and
+both lint gates have been proven blind to that class (#269), so a green gate is not evidence.
+
+⚠ Batch by surface, not by platform. One #46 loop over the whole batch.
 
 ---
 
 ## NOT a session, and do not plan one around them
 
-* **The measurement and the walks** — Damir's, on hardware. The §3 gfxinfo protocol; a current
-  **iOS** walk (Sessions I → Q have never been on an iPhone); the **iOS-32 thermal parity**
-  reading, which is his own stated ship gate and has never been taken.
-* **The BE engagement** — the A3 walkthrough, the #232/#523 money review, and his inherited set
-  (Android MAJOR #8 · #9 · #234 · cleartext `walletpass` · MAJOR #10 · L6 · S16 residual).
-  Walk him through `docs/security-review-for-be-engineer.md` first.
-* **The Privacy Policy** — held on three markers. It needs counsel, not a batch.
-* **The freeze** — Phase 4's four items are all undone and there is **no store-submission path
-  written down at all**: no signing identity, no listing, no review timeline. That is a plan
-  Damir owns, and it is the longest pole left.
+* **The walks** — Windows and Android F5 of Session R (`docs/f5-checklist-session-r.md`), and a
+  current **iOS** walk. Sessions I → R have never been on an iPhone, and Session R changed the iOS
+  capture gate, the iOS content rules and the iOS storage partition. That walk is now overdue in a
+  way it was not before.
+* **The BE engagement** — the #232/#523 money review (the compose surface is live in every build
+  today), and his inherited set. Walk him through `docs/security-review-for-be-engineer.md` first;
+  it gained nine rows this session.
+* **iOS-32 thermal parity** — Damir's own stated ship gate. Never measured.
+* **The Privacy Policy** — held on three markers. Counsel, not a batch.
+* **The freeze** — Phase 4's four items are all undone, and there is still **no store-submission
+  path written down anywhere**: no signing identity, no listing, no review timeline.
 
-⚠ **`maxLogCount = 5` → 1 is a FREEZE-TIME flip, not this session's.** The marker at
-`Spixi/Meta/Config.cs:94` is real, but five logs are what make a crash reproducible, and there
-are three open crash-class rows (AND-25 · AND-27 · iOS-67). Flip it when the walks are done,
-not before. The same applies to the live diagnostic sets (`[CDPERF]` · `[SCROLL]` ·
-`[PAINTDIAG]` · `[EXCERPTDIAG]` · `ixian:landtabprobe:`) — they retire as sets, at the freeze.
+⚠ **`maxLogCount = 5 → 1` is a FREEZE-TIME flip**, and the pin no longer blocks it — Session R
+made the contract "5 with the marker, or 1 without, and no other pair". The live diagnostic sets
+(`[CDPERF]` · `[SCROLL]` · `[PAINTDIAG]` · `[EXCERPTDIAG]` · `ixian:landtabprobe:`) retire as sets,
+at the freeze.
 
 ⚠ **iOS-67 must NOT be fixed before its test runs.** Rule #215.
 
 ---
 
-## Do NOT
-
-* **B7** — a bot group shows no reactions on the phone while the SAME build passes on Windows.
-  Untouched. The discriminator is still owed and is still one minute on the phone: react in a
-  NORMAL (non-bot) group.
-* **the no-backoff retry loop** (`missing encryption keys`) — its first hypothesis was TESTED
-  AND REFUTED (50 keyless seeded contacts produced zero lines). Nobody should look for it in the
-  keyless path.
-* ⚠ **"wallet-send last" is a FOSSIL.** Send shipped at #523, the legacy pages went at #640, and
-  `composeSend` is pushed unconditionally (`HomePage.xaml.cs:1965`). The live constraint is the
-  **#232/#523 review gate** — the money delta must not reach users before the BE engineer
-  reviews it, and it is enabled in every build today. Do not re-defer the feature; do chase the
-  review.
-* **security-review MAJOR #8** (the wallet password's `+` → space form-decode). Inherited, on the
-  wallet path, and the naive fix locks out every user who already set a `+` password. It goes to
-  the engineer with its migration shape, not into a batch.
-* **reaction code** and **wallet-send code** — unchanged, per the standing rule.
-
----
-
 ## Rules that bind
 
-Mutate in FULL tar copies, never `cp -al`, and run the COPY's scripts · bundle BEFORE shells ·
-the closing number is measured AFTER the last suite edit · every pin declares `stripCode` or raw
-and asserts a PROPERTY (#771) · **a distance pin over raw text is defeated by prose — two of the
-suite's own pins went red at Session Q's comments and were right to** · a behavioural pin that
-stubs the function under test proves nothing · a comment stating an invariant the code does not
-enforce is a defect (#772) · `file:line` is a searchable anchor, and a line number is only an
-anchor while nothing above it grows — cite by BRANCH or METHOD when a batch is adding comments
-(#773) · a refusal, an enumeration or a sweep written from the author's list is not yet a pin
-(#798) · chat and any surface rendering untrusted content lives in its OWN WebView (#221) · the
-bridge protocol is frozen · ASD-STE100 Simplified Technical English for all output · the commit
-is Damir's in GitHub Desktop, never `git add -A` (CRLF churn on ~116 files), nothing pushes from
-the container.
+Mutate in FULL copies and run the COPY's scripts · bundle BEFORE shells · every pin declares
+`stripCode` or raw and asserts a PROPERTY (#771) · **a distance pin over raw text is defeated by
+prose** · a behavioural pin that stubs the function under test proves nothing · a comment stating
+an invariant the code does not enforce is a defect (#772) · cite by BRANCH or METHOD, never a bare
+line number (#773) · **a refusal, an enumeration or a sweep written from the author's list is not
+yet a pin (#798)** · chat and any surface rendering untrusted content lives in its OWN WebView
+(#221) · the bridge protocol is frozen · ASD-STE100 Simplified Technical English for all output ·
+the commit is Damir's in GitHub Desktop, never `git add -A` (CRLF churn on ~116 files).
 
-**RUN THE #46 LOOP ON OPUS.** Session Q's batch was three deleted tokens, it had already passed
-twelve of my own mutations, and the loop still found four MAJORs — two of them in pins I had
-mutation-tested myself.
+★★ **THE TWO RULES SESSION R PAID FOR, and they cost six rounds:**
 
-⚠ Two tooling facts worth carrying:
-* **jsdom 30 silently ignores the `userAgent` constructor option that jsdom 29 honours.** The
-  container installs 30; Damir's `node_modules` has 29. A pin that sets a phone UA the old way
-  runs as a DESKTOP on one machine and a phone on the other, with no error. Set it in
-  `beforeParse` with `Object.defineProperty(w.navigator, 'userAgent', …)`.
-* **jsdom cannot report the URL of a blocked navigation.** `window.location` is unforgeable and
-  its `href` descriptor is non-configurable — both verified, not assumed. A behavioural pin can
-  count navigation ATTEMPTS, never their targets.
+1. **A negative sweep IS an author's list, always.** "No other X exists anywhere" cannot be proven
+   from text — three rounds each lost the next spelling (a keyword, a type name, a method name).
+   The escape is to prove a POSITIVE property over a small slice: *inside this branch, the only
+   call is the gate*. That caught reflection and a wrapper helper on its first run.
+2. **When a reviewer finds the same class of defect twice, stop patching and question the design.**
+   The design change closed in one round what three patches could not.
 
-**Build rules:** Windows must be built with F5 in Visual Studio, never `dotnet build` — it does
-not stage `MauiAsset` and the app then silently serves the previous build's shell (#663).
-Android: `-t:SignAndroidPackage` then `adb install -r`, and verify `lastUpdateTime` before
-measuring anything.
+★ And one more, from the census: **a census is a snapshot, and a snapshot taken mid-batch is stale
+before anyone reads it.** The doc pass belongs after the last fixer, and its summary must state the
+commit and the smoke number it was derived from.
+
+**RUN THE #46 LOOP ON OPUS.** Session R's loop found MAJORs in every round, including two inside
+the tool every other finding was measured with.
+
+**Build rules:** Windows must be built with F5 in Visual Studio, never `dotnet build` — it does not
+stage `MauiAsset` and the app then silently serves the previous build's shell (#663). Android:
+`-t:SignAndroidPackage` then `adb install -r`, and verify `lastUpdateTime` before measuring
+anything.

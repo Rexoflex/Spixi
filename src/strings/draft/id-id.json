@@ -628,5 +628,7 @@
   "chatGround": "Kanvas",
   "groundFlat": "Polos",
   "groundGradient": "Gradien",
-  "notifPushProviderSub": "Membangunkan perangkat ini begitu pesan tiba. Menggunakan OneSignal, penyedia push."
+  "notifPushProviderSub": "Membangunkan perangkat ini begitu pesan tiba. Menggunakan OneSignal, penyedia push.",
+  "loadMedia": "Muat gambar dan GIF",
+  "loadMediaSub": "Memuat memberi tahu host pengirim bahwa Anda membuka obrolan"
 }

@@ -451,8 +451,22 @@ function buildWelcome(st) {
 // fallback: while docs/legal/privacy-policy.md carries an editorial marker (the §4.3/§11
 // retention placeholder is Damir's to fill; the §4.4 "(Updated Session G/#708…)" note
 // is internal history), the bake HOLDS that document and this summary renders in its
-// place. The day the markers are gone, this constant is dead code — delete it then
-// (a grep for PRIVACY_HELD_SUMMARY finds every consumer).
+// place.
+//
+// ★★ 2026-09-08 — THE MARKERS ARE GONE AND THE FULL POLICY NOW SHIPS. Damir supplied the
+// one fact the document was waiting on (an undelivered message is discarded after 30 days;
+// a delivered one is deleted automatically), §4.3 and the §11 table were filled, and the
+// §4.4 internal changelog note was removed. `build-legal-docs` no longer prints 🟡 and
+// `legalDocText('privacy')` now returns the baked document.
+//
+// ⚠ AND THE SENTENCE THAT USED TO STAND HERE — "the day the markers are gone, this
+// constant is dead code, delete it then" — IS WRONG, so it has been removed rather than
+// followed. The hold is not a one-time state: `holdReasons()` runs on EVERY bake, so any
+// future edit that reintroduces a marker holds the document again and this summary is what
+// renders in its place. Delete it and that edit ships an EMPTY privacy sheet instead of an
+// honest short one. The constant stays as the guard it actually is; it is simply not
+// reached while the document is clean. (#772: the licence-to-delete class — a comment that
+// reads as an instruction is still only a claim, and this one did not survive checking.)
 //
 // The one-paragraph "dud" of walk row A15 (#731), named: nothing was stale and nothing
 // shadowed the body — the legacy lang dictionary has no privacy/terms body key and
@@ -468,7 +482,9 @@ const LEGAL_LEAD_ENGLISH_ONLY = 'This document is provided in English only.';
  * stays on device · push token+IP to OneSignal on Android/iOS unless switched off · NO
  * push provider on Windows/Catalyst — pushProviderSupported() is false there and the
  * switch is never rendered) are facts and must survive any rewrite. 🟡 Damir: the #730
- * wording pass. This text renders ONLY while the full policy is held (see above). */
+ * wording pass. This text renders ONLY while the full policy is held — which, since
+ * 2026-09-08, is no longer the case: it is the fallback for a FUTURE hold, not the
+ * shipping copy. Keep it accurate anyway; it is one bad edit away from being live. */
 const PRIVACY_HELD_SUMMARY = 'No phone number or email is required. Your messages stay on your device, and IXI Labs cannot read your message history or access your wallet keys.\n\nOn Android and iOS, notification delivery uses OneSignal, a push provider: a push token and your IP address reach it. You can turn this off in Settings → Notifications. The desktop app uses no push provider.\n\nThe full Privacy Policy is provided in English only.';
 
 /** The sheet text for a legal document: the baked full document under the lead line,

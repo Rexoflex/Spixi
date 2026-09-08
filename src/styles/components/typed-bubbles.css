@@ -340,14 +340,26 @@
   gap: var(--spacing-8);
   margin: var(--spacing-12) 0;
   padding: var(--spacing-4) var(--spacing-16);
-  background: var(--surface-chat-chip);   /* ★ AUG: see tokens.css — neutral-02 vanished on the new light ground */
-  border-block: var(--outline-width-1) solid var(--outline-neutral-02); /* -02: -01 vanished on same-value surfaces in dark (audit) */
+  /* ★ GLASS (Damir picked B, 2026-09-08). ⚠ FULL-BLEED IS DELIBERATE — he asked for the
+     strip to stay the full width ("i like the full length unread"); option D turned it
+     into a centred pill and was NOT taken. Only the fill and the hairlines change. */
+  background: var(--surface-chat-glass);
+  -webkit-backdrop-filter: blur(var(--blur-chat-glass)) saturate(160%);
+  backdrop-filter: blur(var(--blur-chat-glass)) saturate(160%);
+  border-block: var(--outline-width-1) solid var(--outline-chat-glass);
   color: var(--text-neutral-02);
   font-size: var(--font-size-label-xs);
   line-height: var(--line-height-label-xs);
   letter-spacing: var(--tracking-label-xs);
   font-weight: var(--font-weight-semibold);
+}/* same fallback as the day pill — see message-bubble.css. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .c-unread-divider {
+    background: var(--surface-chat-chip);
+    border-block-color: var(--outline-neutral-02);
+  }
 }
+
 
 /* #334 — file-send CANCEL (own un-accepted offer; sibling of the bubble button,
    sits left of the sent bubble under flex-end). Quiet text control, action ink. */

@@ -10,7 +10,15 @@
  *              // name label-md, sub body-sm text-02 ("Online" / "6 members" —
  *              // bridge-driven via setOnlineStatus)
  *   onBack: (e) => void,                 // view/chat variants: back icon-button
- *   backLabel: 'Back',                   // back button a11y label (SL in shells)
+ *   backLabel: 'Back',                   // back button a11y label — DEFAULTS from the live
+ *                                        // dictionary (getStrings().back), so a caller that
+ *                                        // omits it still gets the user's language. It used
+ *                                        // to default to the English literal, and most
+ *                                        // callers omit it: a German user's screen reader
+ *                                        // said "Back" on Settings, Downloads, Contributors,
+ *                                        // Add contact, Dev and every Account sublevel while
+ *                                        // the dictionary held "Zurück" (M13 sweep,
+ *                                        // 2026-09-08). An explicit argument still wins.
  *   onIdentity: (e) => void,             // chat variant: identity block becomes a
  *                                        // BUTTON (channel selector on bots, chat
  *                                        // info later — #86 bot surface)
@@ -23,11 +31,12 @@
  * })
  * setTopbarSub(el, text) — live sub updates (typing…, presence) (#44 free fn)
  */
+import { getStrings } from './strings-runtime.js';
 import { createButton } from './button.js';
 import { icon } from './icons.js';
 import { createAvatar } from './avatar.js';
 
-export function createTopbar({ variant = 'view', title = '', logo = false, identity = null, onBack, backLabel = 'Back', onIdentity = null, actions = [] } = {}) {
+export function createTopbar({ variant = 'view', title = '', logo = false, identity = null, onBack, strings = getStrings(), backLabel = strings.back || 'Back', onIdentity = null, actions = [] } = {}) {
   const el = document.createElement('header');
   el.className = 'c-topbar';
   el.dataset.variant = variant;

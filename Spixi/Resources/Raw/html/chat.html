@@ -759,7 +759,20 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-bubble-row {
   display: flex;
   align-items: flex-end;
-  --bubble-row-inset: calc(var(--spacing-16) + var(--bubble-tail));   /* ★ Session J: ONE home for the row inset — chat-select.css positions the tick from it */
+  /* ★ Damir 2026-09-08: "reduce the side padding so that the tails would be closer to the
+     edge and the chat bubbles itself be on the edge where the tail is now". MEASURED at
+     411 CSS px before and after, which is what makes it a one-token change: the row used to
+     reserve the tail's width on top of the gutter, so the bubble BODY sat at 24 px and the
+     tail TIP at 16 px. Dropping the tail term moves the body to exactly 16 — where the tip
+     was — and the tip to 8. Nothing else moves: the tail is absolutely positioned at
+     -1 × --bubble-tail from the bubble, so it follows the body.
+     ⚠ chat-select.css reads this same token for the selection tick (Session J: ONE home),
+     so the tick follows — that is the design, but it is a second thing to eyeball.
+     ⚠ NOTE for the dial: the composer pill's own edge is 12 px (composer.css
+     padding-inline), so at 16 the tail TIP now sits 4 px OUTSIDE that line. WhatsApp does
+     the same; if it reads wrong, 20px puts the tip exactly on the composer edge instead.
+     Reversal: calc(var(--spacing-16) + var(--bubble-tail)). */
+  --bubble-row-inset: var(--spacing-16);
   padding-inline: var(--bubble-row-inset);   /* Session I: the tail sits inside the gutter */
   margin-top: var(--bubble-gap-group);     /* gap between groups (Session I dial; was --spacing-12) */
   /* N36b (#363 candidate, repro gate met 2026-08-17): in select mode the ROW is
@@ -780,7 +793,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    the end side keeps the plain inset. */
 .c-bubble-row[data-gutter] {
   --bubble-row-inset: var(--bubble-avatar-inset);
-  padding-inline-end: calc(var(--spacing-16) + var(--bubble-tail));
+  padding-inline-end: var(--spacing-16);   /* the same value as the plain row's inset — one number on that edge */
 }
 .c-bubble-row[data-position="middle"],
 .c-bubble-row[data-position="last"] { margin-top: var(--bubble-gap-inner); } /* in-group gap (Session I dial; was --spacing-2) */
@@ -846,12 +859,15 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 
 /* grouped radii (#63 amended): tighten the corners facing group neighbors.
    Logical corner props (Chrome 89+/Safari 15+, within baseline) — RTL-correct */
-.c-bubble-row[data-direction="received"][data-position="first"] .c-bubble { border-end-start-radius: var(--radius-8); }
-.c-bubble-row[data-direction="received"][data-position="middle"] .c-bubble { border-start-start-radius: var(--radius-8); border-end-start-radius: var(--radius-8); }
-.c-bubble-row[data-direction="received"][data-position="last"] .c-bubble { border-start-start-radius: var(--radius-8); }
-.c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble { border-end-end-radius: var(--radius-8); }
-.c-bubble-row[data-direction="sent"][data-position="middle"] .c-bubble { border-start-end-radius: var(--radius-8); border-end-end-radius: var(--radius-8); }
-.c-bubble-row[data-direction="sent"][data-position="last"] .c-bubble { border-start-end-radius: var(--radius-8); }
+/* ★ Damir 2026-09-08: the corners a same-sender run SHARES take their own token, not the
+   shared --radius-8 that chips and cards also read (#812b). Tightening a chat run must not
+   move anything else, and a future radius-scale dial must not move the chat. */
+.c-bubble-row[data-direction="received"][data-position="first"] .c-bubble { border-end-start-radius: var(--bubble-radius-group); }
+.c-bubble-row[data-direction="received"][data-position="middle"] .c-bubble { border-start-start-radius: var(--bubble-radius-group); border-end-start-radius: var(--bubble-radius-group); }
+.c-bubble-row[data-direction="received"][data-position="last"] .c-bubble { border-start-start-radius: var(--bubble-radius-group); }
+.c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble { border-end-end-radius: var(--bubble-radius-group); }
+.c-bubble-row[data-direction="sent"][data-position="middle"] .c-bubble { border-start-end-radius: var(--bubble-radius-group); border-end-end-radius: var(--bubble-radius-group); }
+.c-bubble-row[data-direction="sent"][data-position="last"] .c-bubble { border-start-end-radius: var(--bubble-radius-group); }
 
 /* ★ Session I — THE TAIL (sheet 1c; #735④ "bubble tails: YES — WA/TG grammar, tail on the
    group-start bubble"). A pseudo-element on the FIRST (or single) bubble of a group, at
@@ -1315,14 +1331,29 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-datesep__pill {
   padding: var(--spacing-2) var(--spacing-12);
   border-radius: var(--radius-full);
-  background: var(--surface-chat-chip);   /* ★ AUG: see tokens.css — neutral-02 vanished on the new light ground */
-  border: var(--outline-width-1) solid var(--outline-neutral-01); /* audit: pill vanished on same-value canvas */
+  /* ★ GLASS (Damir picked B, 2026-09-08 — docs/sheets/session-s/separators-*.png).
+     The fill is --surface-screen's own colour at ~55%, so this reads as the page seen
+     through frosted glass rather than as a chip laid on top. The @supports block below is
+     NOT optional: without it an engine with no backdrop-filter renders a 58%-transparent
+     label over a busy pattern, which is worse than the opaque chip this replaced. */
+  background: var(--surface-chat-glass);
+  -webkit-backdrop-filter: blur(var(--blur-chat-glass)) saturate(160%);
+  backdrop-filter: blur(var(--blur-chat-glass)) saturate(160%);
+  border: var(--outline-width-1) solid var(--outline-chat-glass);
   color: var(--text-neutral-02);
   font-size: var(--font-size-label-xs);
   line-height: var(--line-height-label-xs);
   letter-spacing: var(--tracking-label-xs);
   font-weight: var(--font-weight-semibold);
+}/* the fallback the glass depends on — AUG's opaque chip, verbatim. Both spellings are
+   tested because WebKit shipped the prefixed form long before the unprefixed one. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .c-datesep__pill {
+    background: var(--surface-chat-chip);
+    border-color: var(--outline-neutral-01);
+  }
 }
+
 
 /* iOS-33 — long-press ownership on TOUCH surfaces.
    WKWebView runs its own long-press gesture (text selection + the native callout)
@@ -1372,8 +1403,16 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
      housing moved. So the bar's leading edge is a chrome edge again: 12, like the trailing
      one beside the send disc. The A2 `data-no-attach` compensation retires with it — the
      pill's own start padding is what changes when the ⊕ is hidden (below). */
-  padding-inline-start: var(--spacing-12);
-  padding-inline-end: var(--spacing-12);
+  /* ★ Damir 2026-09-08, right after the row inset (#817): "the composer as well with the
+     button, roughly 8px margin to the screen sides". 12 → 8, both edges, so the pill, the
+     ⊕ and the send disc all sit 8 px off the screen — the same 8 px the bubble TAIL now
+     reaches. ⚠ THIS IS COUPLED: Session K set --bubble-avatar-inset to the composer's own
+     inset so a group avatar's left edge and the ⊕'s left edge are one line (walk J2 T1,
+     his words: "left aligned with the left edge of the composer"). Measured: at 12 both
+     were 12; moving only this one left the avatar 4 px inboard. The token moved with it.
+     Reversal: var(--spacing-12) here AND in --bubble-avatar-inset. */
+  padding-inline-start: var(--spacing-8);
+  padding-inline-end: var(--spacing-8);
   /* ★ #711 (Damir 2026-08-30): the bar FLOATS. No ground of its own and no hairline —
      the canvas (gradient + pattern) runs on behind it and the pill, the ⊕ and the send
      disc sit on it as three floating shapes (iMessage / Telegram grammar). The pill
@@ -2044,14 +2083,26 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   gap: var(--spacing-8);
   margin: var(--spacing-12) 0;
   padding: var(--spacing-4) var(--spacing-16);
-  background: var(--surface-chat-chip);   /* ★ AUG: see tokens.css — neutral-02 vanished on the new light ground */
-  border-block: var(--outline-width-1) solid var(--outline-neutral-02); /* -02: -01 vanished on same-value surfaces in dark (audit) */
+  /* ★ GLASS (Damir picked B, 2026-09-08). ⚠ FULL-BLEED IS DELIBERATE — he asked for the
+     strip to stay the full width ("i like the full length unread"); option D turned it
+     into a centred pill and was NOT taken. Only the fill and the hairlines change. */
+  background: var(--surface-chat-glass);
+  -webkit-backdrop-filter: blur(var(--blur-chat-glass)) saturate(160%);
+  backdrop-filter: blur(var(--blur-chat-glass)) saturate(160%);
+  border-block: var(--outline-width-1) solid var(--outline-chat-glass);
   color: var(--text-neutral-02);
   font-size: var(--font-size-label-xs);
   line-height: var(--line-height-label-xs);
   letter-spacing: var(--tracking-label-xs);
   font-weight: var(--font-weight-semibold);
+}/* same fallback as the day pill — see message-bubble.css. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .c-unread-divider {
+    background: var(--surface-chat-chip);
+    border-block-color: var(--outline-neutral-02);
+  }
 }
+
 
 /* #334 — file-send CANCEL (own un-accepted offer; sibling of the bubble button,
    sits left of the sent bubble under flex-end). Quiet text control, action ink. */
@@ -6186,7 +6237,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   <div id="chat-topbar"></div>
   <div class="c-chat-canvas">
     <!-- tabindex: keyboard users must be able to scroll text-only history -->
-    <div class="messages u-scroll" id="messages" role="log" aria-label="Messages" tabindex="0"><div class="chat-boot" aria-hidden="true"><span class="chat-boot__spinner"></span></div></div>
+    <div class="messages u-scroll" id="messages" role="log" aria-label="Messages" data-sl-aria="messagesLog" tabindex="0"><div class="chat-boot" aria-hidden="true"><span class="chat-boot__spinner"></span></div></div>
     <!-- ★ #711 (Damir 2026-08-30): the composer FLOATS — it lives inside the canvas, so
          the gradient and the pattern run on behind a bar that has no background of its
          own. Still in the flex flow (no absolute positioning): the keyboard margin, the
@@ -6206,6 +6257,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      'en-us' in EVERY locale. ?lang= still overrides (demos/tests); in a plain-browser
      preview the marker stays un-substituted → SpixiStrings.get() falls back to en-us. -->
 <script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || '*SL{language-code}');</script>
+<script>/* M13 (2026-09-08): the STATIC a11y labels below the boot line. They are in the markup so a screen reader has them on the FIRST paint, which is exactly why they could not be written as getStrings() calls — and so they were English in every locale. One walk over [data-sl-aria] relabels them from the dictionary as soon as the DOM exists; the English in the attribute stays as the fallback for a key the dictionary lacks. */
+(function(){function r(){for(var e of document.querySelectorAll('[data-sl-aria]')){var v=window.SL&&window.SL[e.dataset.slAria];if(v)e.setAttribute('aria-label',v);}}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',r,{once:true});else r();})();</script>
 <script src="spixi.bundle.js"></script>
 <script>window.__cdParse&&window.__cdParse.push(['bundle',performance.now()]);</script>
 <script>
@@ -7212,7 +7265,17 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    * Only TEXT rows group: a typed card (file/…) is always standalone and breaks
    * the run. In group chats a run also breaks when the sender changes, so every
    * participant keeps their own label + avatar. */
-  const GROUP_WINDOW = 90000;
+  /* ★ Damir 2026-09-08, on a #General screenshot: Mary posts at 05:04 and 05:06 and gets
+     TWO avatars and TWO name labels — "the same sender renders the avatar twice and some
+     gap. probably shouldn't be right?" Measured before it was changed (#215): at 89 s the
+     two rows are first/last (one label, one avatar); at 91 s they are single/single (two
+     of each). The 90 s window WAS the mechanism — nothing else in `cont` had moved.
+     Raised to FIVE MINUTES: two minutes apart is one person still talking, which is what
+     the block is meant to show. 90 s was never dialled against a real conversation.
+     ⚠ A date change cannot slip through — it is hours, far outside any sane window — and
+     the unread divider has its own explicit break above, so neither depends on this
+     number being small. Reversal: 90000. */
+  const GROUP_WINDOW = 300000;
   function positionsFor(ids) {
     const pos = {};
     for (let i = 0; i < ids.length; i++) {

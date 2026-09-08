@@ -541,8 +541,16 @@
      selected tonal > this wash > hover. Ink = brand-900 at 9% — loop C-2: at 5%
      the composite (#EDEEF0) was a perceptual TIE with the neutral-50 hover
      (#edf0f2, delta <1%), unreadable as a marker; 9% sits clearly above hover
-     while staying a light wash. ⚠ Damir eyeball dial — both values. */
-  --surface-pinned: rgba(13, 19, 36, 0.09);
+     while staying a light wash. ⚠ Damir eyeball dial — both values.
+     ★ 2026-09-08, Damir on a chats-list screenshot: "take the pinned background a tone
+     lighter". 9% → 7%. The 5% failure above was RE-DERIVED before moving, not trusted:
+     over the #f9fafb ground, 5% composites to #edeef0 against a #edf0f2 hover — a contrast
+     ratio of 1.014, which is the tie the loop recorded. The ladder from that ground:
+     5% #edeef0 (1.014 vs hover — TIE) · 6% #ebecee (1.033) · 7% #e8eaec (1.054, shipped) ·
+     9% #e4e5e8 (1.101, was). 7% is one visible step down while keeping four times the
+     5% margin over hover. Reversal: 0.09. DARK IS UNCHANGED — it is a light LIFT, not an
+     ink wash, so "lighter" there would mean the opposite operation; ask before moving it. */
+  --surface-pinned: rgba(13, 19, 36, 0.07);
   --surface-menu: var(--neutral-10);
 
   /* text */
@@ -1031,16 +1039,36 @@
   --bubble-line-height: 20px;                         /* was var(--line-height-body-md) = 24 on mobile · 21 desktop (#227) */
   --bubble-pad-y: 6px;                                /* was var(--spacing-8) */
   --bubble-pad-x: 11px;                               /* was var(--spacing-12) */
-  --bubble-radius: 18px;                              /* was var(--radius-16); the group-adjacent corners stay --radius-8 */
+  /* ★ Damir 2026-09-08, picked B off a four-option render (docs/sheets/session-s/): the day
+     pill and the unread strip go GLASS — a translucent fill over a real backdrop blur, no
+     heavy chip. Mode-less because the RADIUS is the same in both themes; only the fill and
+     the hairline flip. ⚠ backdrop-filter is a per-case modern-CSS flag under the WebView
+     baseline rule: it needs the -webkit- prefix for WebKit and it ships with an @supports
+     fallback to the opaque chip (message-bubble.css), so an engine without it degrades to
+     the previous design rather than to a transparent label. Reversal: delete the two
+     declarations and the @supports block. */
+  --blur-chat-glass: 16px;                            /* the day pill / unread strip backdrop blur */
+  --bubble-radius: 18px;                              /* was var(--radius-16); the group-adjacent corners take --bubble-radius-group */
+  /* ★ Damir 2026-09-08 ("reduce the spacing between bubbles that come from the same person in
+     sequence — it should be more tied together"). Measured first: grouping was ALREADY working
+     on his screenshot — the run carried the 3px inner gap, not the 10px group gap — so the run
+     did not read as one block for a different reason, and the corner was most of it. Rendered
+     on the real built shell at his 2.5 dpr (docs/sheets/session-s/), four dials, and this is C.
+     ⚠ The group-adjacent corners used the SHARED --radius-8, which four other components read.
+     They have their own token now: tightening a chat run must not move a chip or a card, and
+     a future --radius-8 dial must not move the chat.
+     ★ PICKED D, same day, on the rendered sheet: gap 1px, corner 4px (C was 2/4).
+     Reversal ladder: 1px (D, shipped) · 2px (C) · 3px (Session I) · var(--spacing-2). */
+  --bubble-radius-group: 4px;                         /* the corners a same-sender run shares; was var(--radius-8) */
   --bubble-gap-group: 10px;                           /* between groups (row margin-top); was var(--spacing-12) */
-  --bubble-gap-inner: 3px;                            /* inside a same-sender group; was var(--spacing-2) */
+  --bubble-gap-inner: 1px;                            /* inside a same-sender group; was 2px (dial C), 3px before that, var(--spacing-2) before that */
   --bubble-meta-margin-top: 4px;                      /* the floated time/ticks tail; was var(--spacing-8) — must stay ≤ line-height − meta line-height */
   --bubble-meta-size: 11px;                           /* ★ Damir: "reduce the timestamp" — was var(--font-size-body-xs) = 12. Measured: TG/WA/ours digits are the SAME 21 px on his phone; the width of " PM" was the difference (fixed by hourCycle) — the 1px step is his call on top */
   --bubble-meta-line-height: 14px;                    /* was var(--line-height-body-xs) = 16 */
   --bubble-tail: 8px;                                 /* ★ sheet 1c: the tail on the group-start bubble (WA grammar, #735④); 0 = off */
   --bubble-tail-h: 13px;
   --bubble-avatar-size: 32px;                         /* ★ Session K (walk J2 T1, Damir: "a bit bigger"): the group sender avatar beside the first bubble — sheet 28 / 32 / 36, 32 ships until he picks; reversal var(--size-avatar-24) */
-  --bubble-avatar-inset: var(--spacing-12);           /* ★ Session K (walk J2 T1: "left aligned with the left edge of the composer"): the avatar row's inline inset = the composer's own (composer.css padding-inline-start); reversal = the plain row inset calc(var(--spacing-16) + var(--bubble-tail)) */
+  --bubble-avatar-inset: var(--spacing-8);            /* ★ Session K (walk J2 T1: "left aligned with the left edge of the composer"): the avatar row's inline inset = the composer's own (composer.css padding-inline-start). ★ 2026-09-08: moved 12 → 8 WITH that padding — measured, moving only the bar left the avatar 4px inboard and broke the alignment the token exists for. Reversals in step: --spacing-12 here + --spacing-12 there; before Session K it was the plain row inset */
   --bubble-elevation: 0 1px 0.5px rgba(0, 0, 0, 0.13);  /* ★ sheet 1c: the WA/TG faint lift (light); dark re-dials below. Reversal = `0 0 0 0 transparent` (a no-op shadow, never `none`: it sits in a shadow LIST beside the hairline hook) */
   --bubble-tracking: -0.2px;                          /* ★ sheet 1e (a′): Roboto tuned — was var(--tracking-body-md) = 0 on mobile */
   --bubble-meta-weight: var(--font-weight-medium, 500); /* ★ sheet 1e (a′): Medium meta — was inherited regular */
@@ -1246,6 +1274,13 @@
      as #1956b2 at 287° and #0076E1 at 282°, where #eff5eb sat at 132° green) and it gives
      the BEST white-bubble separation of any flat ground tried: ΔL* +5.44, against +4.15 for
      #eff5eb and +3.19 for the pre-E1c #f4f6f9. Sent bubble 6.07, pattern ink @5% −3.53. */
+  /* ★ the GLASS pair (Damir's B). Literal rgba, NOT color-mix(): color-mix is Chrome 111 /
+     Safari 16.2, NEWER than backdrop-filter itself, and adding a second modern feature to
+     express the first would narrow support for nothing. Light = --surface-screen's own
+     #f9fafb at 58%, so the pill reads as the page seen through frosted glass; the hairline
+     is text-neutral-01 (#131415) at 10%. */
+  --surface-chat-glass: rgba(249, 250, 251, 0.58);
+  --outline-chat-glass: rgba(19, 20, 21, 0.10);
   --chat-canvas-base: #E4EAF3;   /* ★ Session J (#744/A14, Damir 2026-09-02: "light mode background: E4EAF3") — a cool blue-grey again, a step deeper than AUG's #ebf0f5; white bubbles measure 1.22:1 against it. Reversal = #EEECEF (Session I k2); before that #ebf0f5 (AUG) */
   /* ★★ AUG (Damir 2026-08-30, ON DEVICE): "the unread messages strip is not very visible,
      and the Today badge also". MEASURED, and it is a direct consequence of the new ground:
@@ -1521,6 +1556,10 @@
   --chat-canvas-base: #0D1117;   /* ★ Session J (#758, Damir 2026-09-03: "on dark mode the chat canvas should be #0D1117 and make it a token") — a GitHub-dark neutral, a hair deeper and less blue than the #10151e chrome (ΔL* ≈ −1.3). Reversal = #10151e (= --surface-screen, Session H's three-option pick above) */
   /* ★ AUG: dark's ground did not move, so its chips keep the surface they had. Defined
      here so the token resolves in BOTH themes rather than inheriting light's near-white. */
+  /* the glass pair, dark: --surface-screen's own --ink-900 (#10151e) at 55%, hairline
+     neutral-100 at 10%. Same rule as light — the fill IS the ground, seen through blur. */
+  --surface-chat-glass: rgba(16, 21, 30, 0.55);
+  --outline-chat-glass: rgba(233, 236, 243, 0.10);
   --surface-chat-chip: var(--surface-neutral-02);
   /* dark keeps the outline token for the Off-swatch slash — see the light block for why
      light needed its own. Dark's ground did not move at E1c and #701 makes it DARKER,

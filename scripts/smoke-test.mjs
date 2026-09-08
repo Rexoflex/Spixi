@@ -30792,6 +30792,445 @@ console.log('\n— handover gate: the third pin pass (loop C repairs · the thre
   }
 }
 
+/* ══ GATE 50 — THE COMPOSER INSET AND THE AVATAR COLUMN ARE ONE LINE ══════════════
+   Damir 2026-09-08: "the composer as well with the button, roughly 8px margin to the screen
+   sides". 12 → 8 on both edges, so the pill, the ⊕ and the send disc sit at the same 8 px
+   the bubble tail now reaches (#817).
+
+   ★★ IT IS A CROSS-FILE COUPLING THAT ONLY EXISTED IN A COMMENT. Session K set
+   --bubble-avatar-inset to the composer's own inset for one reason, in his words: the group
+   avatar should be "left aligned with the left edge of the composer" (walk J2 T1). The two
+   values live in DIFFERENT FILES — composer.css and tokens.css — and nothing tied them
+   together. Measured: at 12 both edges were 12; moving only the bar left the avatar 4 px
+   inboard, with every gate green. A comment stating an invariant the code does not enforce
+   is a defect (#772), so this enforces it.
+
+   The pin compares TOKEN NAMES, not resolved pixels, and that is deliberate: the point is
+   that the two read the SAME dial. Equal-but-independent literals would satisfy a value
+   check and still drift the next time one of them is dialled.
+   ① the composer's start and end insets are the same token as each other;
+   ② --bubble-avatar-inset is that same token;
+   ③ and it is a spacing token, not a bare length, so the ladder stays the one home. */
+{
+  const comp50 = stripCode(readFileSync(join(root, 'src/styles/components/composer.css'), 'utf8'));
+  const tok50 = stripCode(readFileSync(join(root, 'src/styles/tokens.css'), 'utf8'));
+  const barRule = (comp50.split('.c-composer {')[1] || '').split('}')[0];
+  const start = (barRule.match(/padding-inline-start:\s*var\((--spacing-\d+)\)/) || [])[1] || null;
+  const end = (barRule.match(/padding-inline-end:\s*var\((--spacing-\d+)\)/) || [])[1] || null;
+  const avatar = (tok50.match(/--bubble-avatar-inset:\s*var\((--spacing-\d+)\)/) || [])[1] || null;
+  const bad50 = [];
+  if (!start || !end) bad50.push('the composer bar no longer takes both inline insets from a --spacing token (start=' + start + ', end=' + end + ')');
+  else if (start !== end) bad50.push('the composer bar\'s two edges use DIFFERENT tokens (' + start + ' vs ' + end + ')');
+  if (!avatar) bad50.push('--bubble-avatar-inset is no longer a --spacing token (' + avatar + ')');
+  else if (start && avatar !== start) bad50.push('the avatar column (' + avatar + ') and the composer (' + start + ') have DRIFTED — the group avatar no longer lines up with the ⊕, which is the only reason this token exists');
+  ok(bad50.length === 0,
+    '★★ GATE 50: the composer bar takes both inline insets from ' + start + ', and --bubble-avatar-inset reads THE SAME TOKEN, so a group avatar\'s left edge and the ⊕\'s left edge are one line (Session K, walk J2 T1). Failing: ['
+    + (bad50.join(' | ') || 'none') + ']. Names are compared rather than resolved pixels on purpose: two equal-but-independent literals would pass a value check and drift the next time either is dialled — which is exactly what a comment-only invariant across two files invites');
+}
+
+/* ══ GATE 49 — THE ROW INSET, AND THE THREE THINGS THAT READ IT ═══════════════════
+   Damir 2026-09-08: "reduce the side padding so the tails would be closer to the edge and
+   the chat bubbles itself be on the edge where the tail is now". Measured at 411 CSS px:
+   the row reserved the tail's width ON TOP of the gutter, so the bubble BODY sat at 24 and
+   the tail TIP at 16. Dropping the tail term puts the body at 16 — where the tip was — and
+   the tip at 8. One token; the tail follows because it is positioned at -1 × --bubble-tail
+   from the bubble, not from the row.
+
+   ★ THE REGRESSION THIS GUARDS IS A TIDY-UP, not a typo. `calc(var(--spacing-16) +
+   var(--bubble-tail))` reads like the "correct" value — it reserves room for the thing that
+   hangs outside — and anyone restoring that symmetry silently puts 8 px back on both edges
+   of every row in the app. The comment explains why it is deliberate; this makes the
+   explanation enforceable (#772).
+
+   Three readers, and they must not drift apart:
+   ① the plain row's inset is the BARE gutter token, with no tail term added;
+   ② a gutter (group-avatar) row's END edge takes the same value — that edge used to carry
+      its own copy of the calc, so the two could drift by 8 px with nothing failing;
+   ③ chat-select.css still derives the selection tick from --bubble-row-inset rather than
+      from a literal. Session J made that token the ONE home precisely because the tick had
+      drifted from the row once already; a hard-coded number here re-opens it. */
+{
+  const mb49 = stripCode(readFileSync(join(root, 'src/styles/components/message-bubble.css'), 'utf8'));
+  const sel49 = stripCode(readFileSync(join(root, 'src/styles/components/chat-select.css'), 'utf8'));
+  const rowRule = (mb49.split('.c-bubble-row {')[1] || '').split('}')[0];
+  const gutRule = (mb49.split('.c-bubble-row[data-gutter] {')[1] || '').split('}')[0];
+  const bad49 = [];
+  if (!/--bubble-row-inset:\s*var\(--spacing-16\);/.test(rowRule)) bad49.push('① the plain row inset is not the bare --spacing-16');
+  if (/--bubble-row-inset:[^;]*--bubble-tail/.test(rowRule)) bad49.push('① the tail term is back on the row inset — every row gains 8px on BOTH edges');
+  if (!/padding-inline-end:\s*var\(--spacing-16\);/.test(gutRule)) bad49.push('② the gutter row\'s end edge no longer matches the plain row');
+  if (/padding-inline-end:[^;]*--bubble-tail/.test(gutRule)) bad49.push('② the gutter row\'s end edge carries its own tail term again');
+  /* ⚠ the declaration is sliced whole and then tested, NOT matched by a distance window:
+     the real value nests a fallback — calc(var(--bubble-row-inset, var(--spacing-16)) + 6px)
+     — and a [^)]* window stops at the inner paren and convicts correct CSS (#771, and it
+     did exactly that on this pin's first run). */
+  const tickDecls = sel49.match(/inset-inline-start:[^;]*;/g) || [];
+  if (!tickDecls.some((d) => /var\(--bubble-row-inset/.test(d))) bad49.push('③ chat-select no longer derives the tick from --bubble-row-inset (declarations seen: ' + (tickDecls.join(' ') || 'none') + ')');
+  // the tail still hangs OUTSIDE the bubble — the whole geometry rests on this
+  if (!/inset-inline-start:\s*calc\(-1 \* var\(--bubble-tail\)\)/.test(mb49)
+      || !/inset-inline-end:\s*calc\(-1 \* var\(--bubble-tail\)\)/.test(mb49)) bad49.push('the tail is no longer offset by -1 × --bubble-tail from the bubble, so the tip is not inset − tail');
+  ok(bad49.length === 0,
+    '★★ GATE 49: the chat row inset is the BARE --spacing-16 (bubble body 16 px, tail tip 8 px at 411 CSS px), the gutter row\'s end edge takes the same value rather than its own copy of the calc, chat-select still derives the selection tick from the same token (Session J\'s ONE home), and the tail is still offset -1 × --bubble-tail so the tip follows the body. Failing: ['
+    + (bad49.join(' | ') || 'none') + ']. The reversal, calc(--spacing-16 + --bubble-tail), is the shape this refuses: it reads like the tidy answer and silently returns 8px to both edges of every row');
+}
+
+/* ══ GATE 48 — THE GLASS SEPARATORS, AND THE FALLBACK THEY DEPEND ON ══════════════
+   Damir picked option B off a four-option render (docs/sheets/session-s/): the day pill and
+   the unread strip go translucent over a real backdrop blur. He kept the strip FULL-BLEED —
+   option D turned it into a centred pill and was not taken.
+
+   ★★ THE FALLBACK IS THE LOAD-BEARING HALF, and every way it can die is silent:
+   ⓐ a malformed @supports condition is simply never true, so the block is dead and an
+      engine with no backdrop-filter renders a 58%-TRANSPARENT LABEL over a busy chat
+      pattern — worse than the opaque chip this replaced, and nothing anywhere fails;
+   ⓑ a condition testing only the UNPREFIXED spelling fires the fallback on a WebKit that
+      supports the prefixed one — degrading an engine that was working;
+   ⓒ an @supports block that lost its declarations still parses, still matches, and still
+      restores nothing;
+   ⓓ and per #813, `background: var(--surface-chat-glass)` on an UNDECLARED token is an
+      invalid declaration that computes to transparent — it does not fall back. So the
+      tokens are asserted in the BUILT stylesheet the shells load, not just in source.
+
+   ⓔ Finally: NO color-mix() in these rules. color-mix is Chrome 111 / Safari 16.2, NEWER
+   than backdrop-filter itself — expressing the fill with it would narrow support below the
+   feature the fill exists to serve. The mock used it; the shipped rules must not. */
+{
+  const files48 = {
+    'the day pill': ['src/styles/components/message-bubble.css', '.c-datesep__pill'],
+    'the unread strip': ['src/styles/components/typed-bubbles.css', '.c-unread-divider'],
+  };
+  const built48 = readFileSync(join(root, 'Spixi/Resources/Raw/html/spixi.tokens.css'), 'utf8');
+  const bad48 = [];
+  for (const [what, [file, sel]] of Object.entries(files48)) {
+    const css = readFileSync(join(root, file), 'utf8');
+    const rule = (css.split(sel + ' {')[1] || '').split('}')[0];
+    if (!/backdrop-filter: blur\(var\(--blur-chat-glass\)\)/.test(rule)) bad48.push(what + ': no unprefixed backdrop-filter on the token');
+    if (!/-webkit-backdrop-filter: blur\(var\(--blur-chat-glass\)\)/.test(rule)) bad48.push(what + ': no -webkit- form (WebKit shipped prefixed first)');
+    if (!/background: var\(--surface-chat-glass\)/.test(rule)) bad48.push(what + ': the fill is not the glass token');
+    if (/color-mix\(/.test(rule)) bad48.push(what + ': uses color-mix, which is NEWER than the feature it dresses');
+    // the @supports block for THIS selector: condition tests both spellings, block restores an opaque fill
+    const sup = css.match(/@supports not \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\) \{([\s\S]*?)\n\}/g) || [];
+    const mine = sup.filter((b) => b.includes(sel + ' {'));
+    if (!mine.length) bad48.push(what + ': NO @supports fallback testing both spellings');
+    else if (!/background:\s*var\(--surface-chat-chip\)/.test(mine[0])) bad48.push(what + ': the fallback restores no opaque background');
+  }
+  // ⓓ the tokens exist where the shells read them
+  const tokens48 = ['--surface-chat-glass', '--outline-chat-glass', '--blur-chat-glass'];
+  const missTok = tokens48.filter((t) => !new RegExp(t + ':\\s*[^;]+;').test(built48));
+  // and both THEMES declare the two that flip (one declaration each is a theme that lost its value)
+  const perTheme = ['--surface-chat-glass', '--outline-chat-glass']
+    .filter((t) => (built48.match(new RegExp(t + ':', 'g')) || []).length < 2);
+  ok(bad48.length === 0 && missTok.length === 0 && perTheme.length === 0,
+    '★★ GATE 48: both separators carry the prefixed AND unprefixed backdrop-filter on --blur-chat-glass, take their fill from --surface-chat-glass, use no color-mix, and each has an @supports fallback whose condition tests BOTH spellings and whose block restores the opaque chip. Failing: ['
+    + (bad48.join(' | ') || 'none') + ']. Tokens absent from the BUILT spixi.tokens.css (an undeclared custom property is an INVALID declaration that computes to transparent — #813): ['
+    + (missTok.join(', ') || 'none') + ']. Declared in only one theme: [' + (perTheme.join(', ') || 'none') + ']');
+}
+
+/* ══ GATE 47 — THE GROUPING WINDOW, AND WHAT RAISING IT MADE LOAD-BEARING ═════════
+   Damir 2026-09-08, on a #General screenshot: Mary posts at 05:04 and 05:06 and gets TWO
+   avatars and TWO name labels. Measured before anything changed (#215): at 89 s apart the
+   two rows are first/last — one label, one avatar; at 91 s they are single/single. The 90 s
+   GROUP_WINDOW was the whole mechanism, and it had never been dialled against a real
+   conversation. Raised to five minutes: two minutes apart is one person still talking.
+
+   ★★ THE POINT OF THIS GATE IS NOT THE NUMBER. Raising the window REMOVED a guard nobody
+   had counted as one. At 90 s, two different senders' rows almost always fell outside the
+   window anyway, so the sender-key clause in `cont` was belt-and-braces. At five minutes it
+   is the ONLY thing keeping Bob's message from rendering under Alice's label with Alice's
+   avatar — which is #356 (D-19), a bug this project has already shipped once, when an
+   address-only key merged every address-less bot row into one run.
+
+   So the pin asserts the CLAUSES the larger window now leans on, and reads the window from
+   the BUILT shell rather than the source, because the shell in the package is what runs:
+   ① the sender key is `address || nick || ''` on BOTH sides — not address alone (#356);
+   ② direction, and ③ text-kind-only, so a card never joins a run;
+   ④ the unread divider's explicit break — it must not depend on the window being small;
+   ⑤ the window is at least five minutes AND under an hour: too small brings the defect
+      back, and a window measured in hours would group a morning and an afternoon message
+      into one block with no visual break between them. */
+{
+  const built47 = readFileSync(join(root, 'Spixi/Resources/Raw/html/chat.html'), 'utf8');
+  const src47 = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+  const winOf = (t) => { const m = stripCode(t).match(/const GROUP_WINDOW = (\d+);/); return m ? Number(m[1]) : NaN; };
+  const wBuilt = winOf(built47), wSrc = winOf(src47);
+  const cont47 = stripCode(src47).split('const cont =')[1] || '';
+  const head47 = cont47.slice(0, 900);
+  const clauses = {
+    'sender key falls back to the nick (#356), on both sides':
+      /\(a\.senderAddress \|\| a\.senderNick \|\| ''\) === \(b\.senderAddress \|\| b\.senderNick \|\| ''\)/.test(head47),
+    'same direction': /a\.direction === b\.direction/.test(head47),
+    'text rows only — a typed card never joins a run': /\(a\.kind \|\| 'text'\) === 'text' && \(b\.kind \|\| 'text'\) === 'text'/.test(head47),
+    'the unread divider breaks the run on its own, not by being outside the window':
+      /bid !== unreadBoundaryId/.test(head47),
+    'the window is the comparison, and it is a strict less-than': /Math\.abs\(a\.ts - b\.ts\) < GROUP_WINDOW/.test(head47),
+  };
+  const bad47 = Object.keys(clauses).filter((k) => !clauses[k]);
+  ok(bad47.length === 0 && wSrc === wBuilt && wBuilt >= 300000 && wBuilt < 3600000,
+    '★★ GATE 47: GROUP_WINDOW is ' + (Number.isFinite(wBuilt) ? wBuilt / 1000 + 's' : 'UNREADABLE') + ' in the BUILT shell and '
+    + (Number.isFinite(wSrc) ? wSrc / 1000 + 's' : 'UNREADABLE') + ' in source (they must agree — the package is what runs), inside the 5-minute…1-hour band. '
+    + 'And every clause the larger window now leans on is still in `cont`: ' + Object.keys(clauses).length + ' checked, failing: ['
+    + (bad47.join(' | ') || 'none') + ']. At 90s the sender-key clause was belt-and-braces because two speakers rarely fell inside the window; at five minutes it is the only thing between Bob\'s message and Alice\'s label');
+}
+
+/* ══ GATE 46 — A SAME-SENDER RUN READS AS ONE BLOCK ═══════════════════════════════
+   Damir, 2026-09-08: "reduce the spacing between bubbles that come from the same person
+   in sequence — it should be more tied together". ★ Measured before it was dialled:
+   grouping was ALREADY working on his screenshot (the run carried the inner gap, not the
+   group gap), so the run failed to read as one block for a different reason — and the
+   shared corner was most of it.
+
+   ⚠⚠ THE CLAUSE THAT EARNS THIS PIN IS ①-b, AND IT IS THE BUG THIS BATCH ACTUALLY HIT.
+   `border-start-start-radius: var(--bubble-radius-group)` on an UNDEFINED token is not a
+   fallback to the old value — the declaration is invalid and the corner computes to
+   **0px**. Mid-build, with the rules repointed and the token not yet in the built
+   stylesheet, every grouped bubble rendered SQUARE and nothing failed. A pin that only
+   checks the rules would have been green for that tree.
+
+   ① the six grouped-corner rules read the DEDICATED token, and that token is DECLARED in
+      the built stylesheet the shells actually load;
+   ② no grouped-corner rule reads the SHARED --radius-8 any more — four other components
+      read it, and tightening a chat run must not move a chip or a card (nor a future
+      radius-scale dial move the chat);
+   ③ the run gap is strictly TIGHTER than the between-runs gap. That inequality IS the
+      feature; equal values make grouping invisible, inverted values make it a lie. */
+{
+  const bub46 = readFileSync(join(root, 'src/styles/components/message-bubble.css'), 'utf8');
+  const tok46 = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8');
+  const built46 = readFileSync(join(root, 'Spixi/Resources/Raw/html/spixi.tokens.css'), 'utf8');
+
+  /* ① a WALK over the whole matrix — both directions × the three grouped positions — built
+     from the axes, not from a list of six selectors anyone could shorten (#798). */
+  const missing46 = [];
+  for (const dir of ['received', 'sent']) {
+    for (const pos of ['first', 'middle', 'last']) {
+      const re = new RegExp('\\.c-bubble-row\\[data-direction="' + dir + '"\\]\\[data-position="' + pos + '"\\] \\.c-bubble \\{([^}]*)\\}');
+      const m = bub46.match(re);
+      if (!m) { missing46.push(dir + '/' + pos + ': RULE ABSENT'); continue; }
+      if (!/var\(--bubble-radius-group\)/.test(m[1])) missing46.push(dir + '/' + pos + ': not the dedicated token');
+      if (/var\(--radius-8\)/.test(m[1])) missing46.push(dir + '/' + pos + ': still reads the SHARED --radius-8');
+    }
+  }
+  // ①-b the token is DECLARED — in the source AND in the built stylesheet the shells load
+  const declRe = /--bubble-radius-group:\s*([^;]+);/;
+  const srcDecl = tok46.match(declRe), builtDecl = built46.match(declRe);
+
+  // ③ the inequality, read as numbers from the built stylesheet
+  const px = (name) => { const m = built46.match(new RegExp('--' + name + ':\\s*(\\d+(?:\\.\\d+)?)px')); return m ? Number(m[1]) : NaN; };
+  const inner46 = px('bubble-gap-inner'), group46 = px('bubble-gap-group');
+
+  ok(missing46.length === 0 && !!srcDecl && !!builtDecl
+     && Number.isFinite(inner46) && Number.isFinite(group46) && inner46 < group46,
+    '★★ GATE 46: a WALK over both directions × first/middle/last finds all six grouped-corner rules reading the DEDICATED --bubble-radius-group and none reading the shared --radius-8 — failures: ['
+    + (missing46.join(' | ') || 'none') + ']. The token is declared in tokens.css ('
+    + (srcDecl ? srcDecl[1].trim() : 'ABSENT') + ') AND in the BUILT spixi.tokens.css the shells load ('
+    + (builtDecl ? builtDecl[1].trim() : 'ABSENT — every grouped corner would compute to 0px and render SQUARE, silently: an undefined custom property makes the declaration invalid, it does not fall back')
+    + '). And the run gap is tighter than the between-runs gap: inner ' + inner46 + 'px < group ' + group46 + 'px — the inequality IS the feature');
+}
+
+/* ══ GATE 45 — THE STATIC a11y LABELS ARE TRANSLATED (M13) ════════════════════════
+   A shell's boot markup carries a11y labels that must be right on the FIRST paint —
+   the spinner's "Loading", the chat log's "Messages", the nav landmark. Because they
+   are in the markup they could not be written as `strings.x || '…'`, so the string
+   sweep never saw them and they were ENGLISH IN EVERY LOCALE. A German user's screen
+   reader said "Back" and "Loading" while the dictionary held "Zurück" and "Wird
+   geladen". Found by booting every built shell under ?lang=pseudo (Session S).
+
+   ★ IT IS A WALK OVER EVERY SHELL, not a list of the ones that were fixed (#798). A new
+   shell, or a new static label in an old one, has to opt in or this goes red.
+
+   The three properties:
+   ① every static aria-label in src/shells is a *SL{} carrier (C# substitutes it) OR
+      carries a data-sl-aria key — with ONE carve-out, and the carve-out's PREMISE is
+      asserted rather than assumed;
+   ② every shell that has a data-sl-aria also carries the boot walk that consumes it —
+      the tag without the walk is a label that never gets translated, which looks
+      exactly like being fixed;
+   ③ the two component defaults that fed the same defect read the live dictionary:
+      createTopbar's backLabel and createBottomNav's ariaLabel used to default to the
+      English literal, and almost no caller passes either.
+   ⚠ And the EXTRACTOR has to know the mechanism, or a key introduced this way can never
+      be translated — the exact class of defect this closes. That clause is last. */
+{
+  const shellDir = join(root, 'src/shells');
+  const shells45 = readdirSync(shellDir).filter((f) => f.endsWith('.html')).sort();
+  /* the carve-out, and its reason. empty_detail.html has no window.SL at all — it is
+     localized entirely by C# *SL{} carriers (#248) — and no legacy SL id exists for
+     "Loading", so its one label cannot be routed either way today. */
+  const CARVE45 = 'empty_detail.html';
+  const untagged = [], walkless = [], tagged = [];
+  for (const f of shells45) {
+    const src = readFileSync(join(shellDir, f), 'utf8');
+    const labels = [...src.matchAll(/aria-label="([^"]*)"(\s+data-sl-aria="([A-Za-z_$][\w$]*)")?/g)];
+    for (const m of labels) {
+      if (m[1].startsWith('*SL{') || m[3]) continue;
+      untagged.push(f + ':' + m[1]);
+    }
+    if (labels.some((m) => m[3])) {
+      tagged.push(f);
+      if (!/document\.querySelectorAll\('\[data-sl-aria\]'\)/.test(src)) walkless.push(f);
+    }
+  }
+  // the carve-out's premise, checked: no window.SL, and it really does carry the label
+  const carveSrc = readFileSync(join(shellDir, CARVE45), 'utf8');
+  const carveOk = !/window\.SL\s*=/.test(carveSrc) && /aria-label="Loading"/.test(carveSrc);
+  const stray = untagged.filter((u) => !u.startsWith(CARVE45 + ':'));
+
+  const topbar45 = stripCode(readFileSync(join(root, 'src/components/topbar.js'), 'utf8'));
+  const nav45 = stripCode(readFileSync(join(root, 'src/components/bottomnav.js'), 'utf8'));
+  const defaultsOk = /strings = getStrings\(\), backLabel = strings\.back \|\| 'Back'/.test(topbar45)
+    && /strings = getStrings\(\), ariaLabel = strings\.mainNav \|\| 'Main'/.test(nav45);
+
+  const extractor45 = stripCode(readFileSync(join(root, 'scripts/extract-strings.mjs'), 'utf8'));
+  const sweepOk = /data-sl-aria="\(\[A-Za-z_\$\]\[\\w\$\]\*\)/.test(extractor45)
+    && /record\(key, value, f, lineOf\(src, a\.index\), 'label'\)/.test(extractor45);
+
+  ok(stray.length === 0 && walkless.length === 0 && tagged.length >= 10 && carveOk && defaultsOk && sweepOk,
+    '★★ GATE 45 (M13): a WALK over all ' + shells45.length + ' shells — every static aria-label is a *SL{} carrier or carries a data-sl-aria key, and all ' + tagged.length
+    + ' shells that use one also run the boot walk that consumes it. Untagged outside the carve-out: [' + (stray.join(' | ') || 'none')
+    + ']. Tagged but with no walk: [' + (walkless.join(' | ') || 'none')
+    + ']. The ' + CARVE45 + ' carve-out\'s PREMISE (no window.SL, and it does carry the label): ' + (carveOk ? 'holds' : 'FAILS — re-derive the carve-out')
+    + '. createTopbar.backLabel and createBottomNav.ariaLabel default from the live dictionary: ' + (defaultsOk ? 'yes' : 'NO — they are back to the English literal')
+    + '. And extract-strings sweeps the aria pair, so a key introduced this way can be translated at all: ' + (sweepOk ? 'yes' : 'NO'));
+}
+
+/* ══ THE `[CDPERF] settings-sub` PROBE (Session S, 2026-09-08) — PINNED PRESENT ═══
+   TEMPORARY, and this pin is what makes "temporary" a decision rather than a leak: the
+   probe's own docblock says a pin holds it in place, and a comment stating an invariant
+   the code does not enforce is a defect (#772). Delete the probe and the suite goes red
+   until this block goes with it.
+
+   ⚠ IT READS THE BUILT SHELL AS WELL AS THE SOURCE. A probe that only exists in
+   `src/shells/` is a probe that never reaches the phone — `build-shells` is what puts it
+   in the APK, and the run that produced no numbers is exactly the failure mode this
+   session is trying to end.
+
+   The three properties, and each one cost something to learn:
+   ① console.WARN. The Android WebView drops INFO, which is why Session J's numbers never
+      reached logcat (#751) — an `.info` here would be a probe that logs nothing.
+   ② ONE hook, on a view CHANGE inside renderLayout. Not a call in each of the twelve
+      `show*` setters (#798), and not on every render — a push-driven re-render of the
+      SAME view must not stamp a second, meaningless tap.
+   ③ the downloads `list` term exists, because that is the only term that can show the C#
+      round trip (EnumerateFiles + one addFile marshal per file) as its own number.
+
+   BEHAVIOURAL EVIDENCE, declared: the probe was RUN — the built shell booted from file://
+   in Chromium at 432x900 @2.5 through the real executeUiCommand wire, all four sublevels
+   tapped, and it emits build/paint for each, `list` for downloads, nothing on the way back
+   to the hub, and nothing on a same-view re-render (DECISIONS, Session S). This block is
+   the presence gate, not a re-run of that. */
+{
+  const subSrc = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
+  const subBuilt = readFileSync(join(root, 'Spixi/Resources/Raw/html/settings.html'), 'utf8');
+  const subCode = stripCode(subSrc);
+  const warns = (t) => (t.match(/console\.warn\('\[CDPERF\] settings-sub /g) || []).length;
+  // ② the hook: exactly one call, and it is the view-change test in renderLayout
+  const starts = (subCode.match(/cdperfSubStart\(/g) || []).length;   // 1 definition + 1 call
+  ok(warns(subCode) >= 2 && warns(subBuilt) >= 2
+     && !/console\.(info|log)\('\[CDPERF\] settings-sub/.test(subCode)
+     && starts === 2
+     && /if \(currentView !== subRendered\) \{ subRendered = currentView; cdperfSubStart\(currentView\); \}/.test(subCode)
+     && /cdperfSub\('list', ' n=' \+ dlN\)/.test(subCode)
+     && /\[CDPERF\] settings-sub/.test(subBuilt),
+    '★ the [CDPERF] settings-sub probe is PRESENT in src/shells/settings.html AND in the BUILT Spixi/Resources/Raw/html/settings.html ('
+    + warns(subCode) + ' / ' + warns(subBuilt) + ' console.warn stamps), it uses warn rather than info (the Android WebView drops INFO — #751), the hook is the SINGLE view-change test inside renderLayout rather than a call in each show* setter (' + starts + ' occurrences = the definition plus one call), and the downloads `list` term survives. TEMPORARY: remove the probe and this pin together once the numbers have named the mechanism');
+}
+
+/* ══ GATE 44 — A GATE THAT CANNOT RUN MUST FAIL WHERE THE SUITE CAN SEE IT ════════
+   ★★ THE DEBT THIS PAYS. On 2026-09-07 four gates were found green-by-silence in one
+   afternoon (walk R, W-R6…W-R9): `strip-release`'s main-module guard had disabled GATE 2
+   on EVERY Mac since the fork, `local-nuget` was excluded from the package so gate 22 had
+   been unpassable since Session R, and no pin had ever opened the artwork or an
+   `Info.plist`. The tally in `docs/walk-r-ios-results-2026-09-07.md` names the shape:
+   THE SUITE PINNED WHAT A THING DECLARES AND NEVER THAT IT WORKS.
+
+   `strip-release.mjs` says so in its own docblock — "⚠ OWED: a pin. The property is
+   'the CLI runs when this file is invoked through a SYMLINKED path', and no pin in the
+   suite asserts it — which is exactly why a broken gate went unnoticed."  This is it.
+
+   ★ CLAUSE (a) EXECUTES the script. It does not read it. The invocation carries NO
+   arguments, so the CLI's own last line prints the usage and exits 2 — no file is read,
+   nothing is written, and the two outcomes are unmistakable:
+       guard WORKS  → status 2, the usage line on stderr
+       guard BROKEN → status 0, stdout and stderr both EMPTY   ← the W-R6 failure, exactly
+   The symlink is what makes it a test: Node resolves an ESM module to its realpath while
+   `process.argv[1]` stays as the caller typed it, so a guard that compares those two
+   strings only diverges when the invoked path is not the real one. A direct invocation is
+   run as the control, so a pin that passes because the script is broken in some OTHER way
+   cannot read as green.
+   ⚠ The symlink type is 'junction' — Windows creates those without elevation (`mklink /J`),
+   and POSIX ignores the argument. If the link cannot be made at all this pin FAILS and
+   says why, which is the property it is here to defend: an unrunnable gate is a red one.
+
+   ★ CLAUSE (b) is the WALK, so the property outlives this one script (#798 — an
+   enumeration written from the author's list is not a pin). Every `.mjs` under scripts/
+   whose CODE names `process.argv[1]` must compare REALPATHS ON BOTH SIDES. Today that set
+   has one member; the day a second script grows a main-module guard of the old shape, this
+   goes red before it can hide anything.
+   ⚠ DECLARED: the sweep runs over stripCode'd source, and it has to. strip-release.mjs
+   QUOTES the broken form inside the docblock that explains it, so a raw-text sweep would
+   convict the file that documents the fix (#771). The premise below asserts the strip
+   actually removed that quotation — if it ever stops doing so, this pin says so rather
+   than silently inverting. */
+{
+  const { spawnSync } = await import('node:child_process');
+  const { symlinkSync } = await import('node:fs');
+
+  /* (a) — run it, twice: through a symlink and directly. */
+  let viaLink = null, direct = null, linkErr = '';
+  const tmpG44 = mkdtempSync(join(tmpdir(), 'spixi-gate44-'));
+  try {
+    const link = join(tmpG44, 'scripts-link');
+    symlinkSync(join(root, 'scripts'), link, 'junction');
+    const run = (p) => spawnSync(process.execPath, [p], { encoding: 'utf8' });
+    viaLink = run(join(link, 'strip-release.mjs'));
+    direct = run(join(root, 'scripts', 'strip-release.mjs'));
+  } catch (e) {
+    linkErr = String(e && e.message ? e.message : e);
+  } finally {
+    try { rmSync(tmpG44, { recursive: true, force: true }); } catch (_) {}
+  }
+  const ran = (r) => !!r && r.status === 2 && /strip-release: one of/.test(String(r.stderr || ''));
+  const shape = (r) => !r ? 'NOT RUN' : 'status=' + r.status + ' stdout=' + JSON.stringify(String(r.stdout || '').slice(0, 60)) + ' stderr=' + JSON.stringify(String(r.stderr || '').slice(0, 60));
+  ok(ran(viaLink) && ran(direct),
+    '★★ GATE 44 (a) EXECUTED: scripts/strip-release.mjs invoked through a SYMLINKED path runs its CLI — ' + shape(viaLink)
+    + '; the direct control — ' + shape(direct)
+    + '. A main-module guard that compares the resolved module URL against the caller\'s unresolved script path exits 0 in SILENCE here, which is how GATE 2 stayed dead on every Mac from the fork until 2026-09-07'
+    + (linkErr ? '. The link could not be made: ' + linkErr + ' — an unrunnable gate is a RED one, not a skipped one' : ''));
+
+  /* (b) — the walk over every main-module guard in scripts/. */
+  const mjs = [];
+  (function walkG44(d, pre) {
+    for (const n of readdirSync(d)) {
+      const q = join(d, n);
+      if (statSync(q).isDirectory()) walkG44(q, pre + n + '/');
+      else if (n.endsWith('.mjs')) mjs.push(pre + n);
+    }
+  })(join(root, 'scripts'), '');
+  const codeOf = (f) => stripCode(readFileSync(join(root, 'scripts', f), 'utf8'));
+  /* ⚠ A MAIN-MODULE GUARD, not a mention. The predicate is PROXIMITY — the two tokens
+     within 200 characters of each other in stripped code — because that is what the guard
+     looks like on the page (`realpathSync(fileURLToPath(import.meta.url)) === realpathSync(
+     process.argv[1])` is one expression) and because a bare mention is not one. The first
+     draft of this pin matched the raw token and convicted THIS FILE, whose own message
+     names it — the same trap in a third costume (#771). Escaped occurrences inside a regex
+     literal carry backslashes and never match either side.
+     ⚠ AND IT IS WHY CLAUSE (a)'s MESSAGE NAMES NEITHER TOKEN. It described the broken
+     guard using both of them forty characters apart, which made THIS FILE a candidate and
+     turned (b) red against correct code. The prose is the pin's input here, so the prose
+     is part of the pin: keep the two literals apart in this block, or teach the predicate
+     to read declarations instead of text. */
+  const GUARD_NEAR = /import\.meta\.url[\s\S]{0,200}?process\.argv\[1\]|process\.argv\[1\][\s\S]{0,200}?import\.meta\.url/;
+  const guarded = mjs.filter((f) => GUARD_NEAR.test(codeOf(f)));
+  const REALPATH_BOTH = /realpathSync\(fileURLToPath\(import\.meta\.url\)\)\s*===\s*realpathSync\(process\.argv\[1\]\)/;
+  const badG44 = guarded.filter((f) => !REALPATH_BOTH.test(codeOf(f)));
+  // the premise: the strip really did remove the docblock's quotation of the broken form
+  const stripWorked = !/pathToFileURL\(process\.argv\[1\]\)/.test(codeOf('strip-release.mjs'))
+    && /pathToFileURL\(process\.argv\[1\]\)/.test(readFileSync(join(root, 'scripts', 'strip-release.mjs'), 'utf8'));
+  ok(guarded.length >= 1 && badG44.length === 0 && stripWorked,
+    '★★ GATE 44 (b) THE WALK: ' + mjs.length + ' script(s) under scripts/, ' + guarded.length + ' of them carrying a main-module guard in CODE (' + guarded.join(' · ')
+    + '), and every one compares realpaths on BOTH sides. Failing: [' + (badG44.join(' | ') || 'none')
+    + ']. Premise — the comment strip removed the docblock quotation of the broken form so this sweep convicts code and not prose: ' + (stripWorked ? 'yes' : 'NO, and the walk above is therefore not trustworthy'));
+}
+
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.
  * Exactly the known set → BASELINE OK + exit 0. Any OTHER failure — or a known

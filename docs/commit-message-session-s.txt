@@ -1,0 +1,83 @@
+Session S — the premise, the sweep, and six dials (#811–#819)
+
+Nine batches. Three of them started as "just change this number" and each one
+turned out to own something nobody had written down.
+
+#811 THE THREE "STILL JANKY" ACCOUNT ROWS — the premise did not survive.
+Backup / Change password / Downloads ARE #804, and #804 is in the tree. Checked
+four ways: the source guards, the BUILT shell plus a green build-shells --check,
+SettingsPage declaring AND pushing the caps outside the paneMode block, and the
+one that could still have left it inert — bridge.cap() reads an SPIXI_ENV no
+shell sets, so the route lives on setCaps mutating bridge.capabilities in place,
+proven by BOOTING the built shell and tapping the rows.
+
+Measured on the built shell in Chromium at 432x900 @2.5 through the real
+executeUiCommand wire: How-to-use 5.1ms of script, Backup 5.2, Change password
+5.3, Downloads 29.0 — and Downloads scales, 6.6 at zero files to 58.9 at 100. At
+zero files it costs what the control costs; the whole term is the list, and
+loadDownloads sends one addFile marshal per file on the UI thread, fired at the
+START of the 300ms slide. The two rows named first are the two with no
+measurable cost. Nothing behavioural was built (#294); the batch transport is
+specified and gated on one fact nobody has: the file count.
+
+What shipped instead is the instrument — [CDPERF] settings-sub (build / paint /
+list), one hook on a view CHANGE, console.warn never .info (#751) — and GATE 44,
+the pin four dead gates asked for, which EXECUTES strip-release.mjs through a
+symlinked path.
+
+#812 M13 — the code half was already closed, and the sweep that proved it found
+a different defect in every shell. Every built shell booted under ?lang=pseudo,
+plus a data-fed pass through the real wire because the surfaces named render
+nothing until C# pushes. Verdict: no visible English left; M13's code half closed
+at #269 the day AFTER the F5 that recorded the residual, and the roadmap row was
+never updated. What the sweep DID find: the static a11y labels in boot markup —
+16x "Loading", the chat log's "Messages" — plus createTopbar's backLabel and
+createBottomNav's ariaLabel defaulting to the English LITERAL. A German user's
+screen reader said "Back" and "Loading" while the dictionary held "Zurück" and
+"Wird geladen". Invisible to both gates. Fixed with one mechanism; extract-strings
+was taught the new one, because a mechanism the sweep cannot see is a key that
+can never be translated. 786 -> 788 keys.
+
+#813/#814 THE CHAT GROUPING. Grouping was NOT broken — the run in the screenshot
+already carried the inner gap; the shared corner was doing the damage, and it
+read --radius-8, which four other components also read. Own token now, dial D
+(gap 1px / corner 4px) off a rendered sheet. Then: the same sender rendering
+twice was the 90s GROUP_WINDOW, measured at 89s vs 91s. Raised to five minutes —
+which promoted four incidental clauses in cont() into load-bearing ones, none of
+which had a pin. GATE 47 pins the clauses, not the number.
+
+#815 the pinned wash 9% -> 7%, with the 5% tie against hover re-derived rather
+than trusted (it reproduces exactly).
+
+#816 THE GLASS SEPARATORS, picked off a four-option render; the full-bleed unread
+strip kept. No color-mix — it is NEWER than backdrop-filter itself. The @supports
+fallback is the load-bearing half and every way it dies is silent; GATE 48 pins
+all four.
+
+#817/#818 the chat row inset 24 -> 16 (bubble body where the tail tip was) and
+the composer 12 -> 8. The composer move silently owned --bubble-avatar-inset,
+which lives in a different file and was tied to it only by a comment: moving the
+bar alone left the group avatar 4px inboard of the ⊕, with every gate green.
+
+#819 THE PRIVACY POLICY IS UNHELD — a store blocker closes. Damir supplied the
+one fact it was waiting on: an undelivered message is discarded after 30 days, a
+delivered one deleted automatically. The internal changelog note in §4.4 removed.
+★ And the comment saying "the day the markers are gone, delete this constant" was
+NOT followed: holdReasons() runs on every bake, so a future marker holds the
+document again and that summary is what renders — deleting it would ship an EMPTY
+privacy sheet. Third licence-to-delete this project has caught.
+
+THE RECURRING LESSON: three comment-stated invariants had no pin behind them, and
+this batch converted all three. Two instruments lied before they told the truth —
+a "perfectly clean" four-screen result produced by clicks that opened nothing, and
+a stale staged artifact reported as the new value twice. A measurement with no
+assertion that its subject changed is a pin with no mutation.
+
+7 new gates (44-50). 30+ mutations, zero survivors.
+
+Gates: build-shells / extract-strings / build-legal-docs --check OK · locales 788
+ALL CLEAN · i18n-lint OK · pseudo 9/9 · NUL sweep clean. smoke-test could not run
+on the bridge (>3 min per call) — first full run is local.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01HNSkxZxgeEoCC8o1ciSzYm

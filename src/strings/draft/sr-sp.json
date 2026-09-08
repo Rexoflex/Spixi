@@ -706,5 +706,7 @@
   "groundGradient": "Gradijent",
   "notifPushProviderSub": "Budi ovaj uređaj čim stigne poruka. Koristi OneSignal, pružaoca push obaveštenja.",
   "loadMedia": "Učitaj slike i GIF-ove",
-  "loadMediaSub": "Učitavanje serveru pošiljaoca otkriva da ste otvorili ćaskanje"
+  "loadMediaSub": "Učitavanje serveru pošiljaoca otkriva da ste otvorili ćaskanje",
+  "mainNav": "Glavna navigacija",
+  "messagesLog": "Poruke"
 }

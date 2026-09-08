@@ -1106,7 +1106,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 </head>
 <body>
   <div id="topbar-slot"></div>
-  <div class="u-scroll" id="add-scroll"><div class="boot"><div class="boot__spinner" role="status" aria-label="Loading"></div></div></div>
+  <div class="u-scroll" id="add-scroll"><div class="boot"><div class="boot__spinner" role="status" aria-label="Loading" data-sl-aria="loading"></div></div></div>
 
 <script src="spixi.icons.js"></script>
 <script src="spixi.strings.js"></script>
@@ -1116,6 +1116,8 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      'en-us' in EVERY locale. ?lang= still overrides (demos/tests); in a plain-browser
      preview the marker stays un-substituted → SpixiStrings.get() falls back to en-us. -->
 <script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || '*SL{language-code}');</script>
+<script>/* M13 (2026-09-08): the STATIC a11y labels below the boot line. They are in the markup so a screen reader has them on the FIRST paint, which is exactly why they could not be written as getStrings() calls — and so they were English in every locale. One walk over [data-sl-aria] relabels them from the dictionary as soon as the DOM exists; the English in the attribute stays as the fallback for a key the dictionary lacks. */
+(function(){function r(){for(var e of document.querySelectorAll('[data-sl-aria]')){var v=window.SL&&window.SL[e.dataset.slAria];if(v)e.setAttribute('aria-label',v);}}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',r,{once:true});else r();})();</script>
 <script src="spixi.bundle.js"></script>
 <script>
   /* —————————————————————————————————————————————————————————————————————————

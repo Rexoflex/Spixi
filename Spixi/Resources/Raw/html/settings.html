@@ -3421,7 +3421,20 @@ button.c-settings-howto__join:disabled {
 .c-bubble-row {
   display: flex;
   align-items: flex-end;
-  --bubble-row-inset: calc(var(--spacing-16) + var(--bubble-tail));   /* ★ Session J: ONE home for the row inset — chat-select.css positions the tick from it */
+  /* ★ Damir 2026-09-08: "reduce the side padding so that the tails would be closer to the
+     edge and the chat bubbles itself be on the edge where the tail is now". MEASURED at
+     411 CSS px before and after, which is what makes it a one-token change: the row used to
+     reserve the tail's width on top of the gutter, so the bubble BODY sat at 24 px and the
+     tail TIP at 16 px. Dropping the tail term moves the body to exactly 16 — where the tip
+     was — and the tip to 8. Nothing else moves: the tail is absolutely positioned at
+     -1 × --bubble-tail from the bubble, so it follows the body.
+     ⚠ chat-select.css reads this same token for the selection tick (Session J: ONE home),
+     so the tick follows — that is the design, but it is a second thing to eyeball.
+     ⚠ NOTE for the dial: the composer pill's own edge is 12 px (composer.css
+     padding-inline), so at 16 the tail TIP now sits 4 px OUTSIDE that line. WhatsApp does
+     the same; if it reads wrong, 20px puts the tip exactly on the composer edge instead.
+     Reversal: calc(var(--spacing-16) + var(--bubble-tail)). */
+  --bubble-row-inset: var(--spacing-16);
   padding-inline: var(--bubble-row-inset);   /* Session I: the tail sits inside the gutter */
   margin-top: var(--bubble-gap-group);     /* gap between groups (Session I dial; was --spacing-12) */
   /* N36b (#363 candidate, repro gate met 2026-08-17): in select mode the ROW is
@@ -3442,7 +3455,7 @@ button.c-settings-howto__join:disabled {
    the end side keeps the plain inset. */
 .c-bubble-row[data-gutter] {
   --bubble-row-inset: var(--bubble-avatar-inset);
-  padding-inline-end: calc(var(--spacing-16) + var(--bubble-tail));
+  padding-inline-end: var(--spacing-16);   /* the same value as the plain row's inset — one number on that edge */
 }
 .c-bubble-row[data-position="middle"],
 .c-bubble-row[data-position="last"] { margin-top: var(--bubble-gap-inner); } /* in-group gap (Session I dial; was --spacing-2) */
@@ -3508,12 +3521,15 @@ button.c-settings-howto__join:disabled {
 
 /* grouped radii (#63 amended): tighten the corners facing group neighbors.
    Logical corner props (Chrome 89+/Safari 15+, within baseline) — RTL-correct */
-.c-bubble-row[data-direction="received"][data-position="first"] .c-bubble { border-end-start-radius: var(--radius-8); }
-.c-bubble-row[data-direction="received"][data-position="middle"] .c-bubble { border-start-start-radius: var(--radius-8); border-end-start-radius: var(--radius-8); }
-.c-bubble-row[data-direction="received"][data-position="last"] .c-bubble { border-start-start-radius: var(--radius-8); }
-.c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble { border-end-end-radius: var(--radius-8); }
-.c-bubble-row[data-direction="sent"][data-position="middle"] .c-bubble { border-start-end-radius: var(--radius-8); border-end-end-radius: var(--radius-8); }
-.c-bubble-row[data-direction="sent"][data-position="last"] .c-bubble { border-start-end-radius: var(--radius-8); }
+/* ★ Damir 2026-09-08: the corners a same-sender run SHARES take their own token, not the
+   shared --radius-8 that chips and cards also read (#812b). Tightening a chat run must not
+   move anything else, and a future radius-scale dial must not move the chat. */
+.c-bubble-row[data-direction="received"][data-position="first"] .c-bubble { border-end-start-radius: var(--bubble-radius-group); }
+.c-bubble-row[data-direction="received"][data-position="middle"] .c-bubble { border-start-start-radius: var(--bubble-radius-group); border-end-start-radius: var(--bubble-radius-group); }
+.c-bubble-row[data-direction="received"][data-position="last"] .c-bubble { border-start-start-radius: var(--bubble-radius-group); }
+.c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble { border-end-end-radius: var(--bubble-radius-group); }
+.c-bubble-row[data-direction="sent"][data-position="middle"] .c-bubble { border-start-end-radius: var(--bubble-radius-group); border-end-end-radius: var(--bubble-radius-group); }
+.c-bubble-row[data-direction="sent"][data-position="last"] .c-bubble { border-start-end-radius: var(--bubble-radius-group); }
 
 /* ★ Session I — THE TAIL (sheet 1c; #735④ "bubble tails: YES — WA/TG grammar, tail on the
    group-start bubble"). A pseudo-element on the FIRST (or single) bubble of a group, at
@@ -3977,14 +3993,29 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-datesep__pill {
   padding: var(--spacing-2) var(--spacing-12);
   border-radius: var(--radius-full);
-  background: var(--surface-chat-chip);   /* ★ AUG: see tokens.css — neutral-02 vanished on the new light ground */
-  border: var(--outline-width-1) solid var(--outline-neutral-01); /* audit: pill vanished on same-value canvas */
+  /* ★ GLASS (Damir picked B, 2026-09-08 — docs/sheets/session-s/separators-*.png).
+     The fill is --surface-screen's own colour at ~55%, so this reads as the page seen
+     through frosted glass rather than as a chip laid on top. The @supports block below is
+     NOT optional: without it an engine with no backdrop-filter renders a 58%-transparent
+     label over a busy pattern, which is worse than the opaque chip this replaced. */
+  background: var(--surface-chat-glass);
+  -webkit-backdrop-filter: blur(var(--blur-chat-glass)) saturate(160%);
+  backdrop-filter: blur(var(--blur-chat-glass)) saturate(160%);
+  border: var(--outline-width-1) solid var(--outline-chat-glass);
   color: var(--text-neutral-02);
   font-size: var(--font-size-label-xs);
   line-height: var(--line-height-label-xs);
   letter-spacing: var(--tracking-label-xs);
   font-weight: var(--font-weight-semibold);
+}/* the fallback the glass depends on — AUG's opaque chip, verbatim. Both spellings are
+   tested because WebKit shipped the prefixed form long before the unprefixed one. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .c-datesep__pill {
+    background: var(--surface-chat-chip);
+    border-color: var(--outline-neutral-01);
+  }
 }
+
 
 /* iOS-33 — long-press ownership on TOUCH surfaces.
    WKWebView runs its own long-press gesture (text selection + the native callout)
@@ -4926,7 +4957,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 <body>
   <!-- Splash boot cover (Batch B) — logo injected right after icons.iife.js below;
        dropped in signalReady (window load). -->
-  <div class="app-boot" id="app-boot"><div class="app-boot__logo" id="app-boot-logo" role="status" aria-label="Loading"></div></div>
+  <div class="app-boot" id="app-boot"><div class="app-boot__logo" id="app-boot-logo" role="status" aria-label="Loading" data-sl-aria="loading"></div></div>
   <div id="settings-root"></div>
   <div id="settings-nav"></div>
 
@@ -5066,7 +5097,11 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       // has already replaced the children, so downloadsEl is DETACHED. Painting
       // into it is a no-op that only retains a dead node; bail and release.
       if (!downloadsEl || !downloadsEl.isConnected) { downloadsEl = null; dlBuf = null; return; }
-      if (dlBuf !== null) { setDownloads(downloadsEl, dlBuf); dlBuf = null; }
+      if (dlBuf !== null) {
+        const dlN = dlBuf.length;
+        setDownloads(downloadsEl, dlBuf); dlBuf = null;
+        if (subView === 'downloads') cdperfSub('list', ' n=' + dlN);   // [CDPERF]: the C# round trip as its own term
+      }
     }, 80);
   }
   /* Q1 review (#267 loop): leaving the Downloads sublevel RELEASES it. renderLayout
@@ -5587,8 +5622,50 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     }
   }
 
+  /* ★★ TEMPORARY INSTRUMENT — `[CDPERF] settings-sub` (Session S, 2026-09-08).
+     WHY IT EXISTS: Damir reports Backup / Change password / Downloads still feel janky
+     to open on Android AFTER #804 removed their WebView boot. #803's own numbers cannot
+     answer that — they were taken over a whole Account MINUTE, not per row — and this
+     session has no device. Session Q's Chromium instrument (docs/sheets/session-q) says
+     the in-shell build cost of Backup and Change password is indistinguishable from
+     How-to-use, which Damir describes as opening "just nicely", so an impression is all
+     that separates them. This turns the impression into two numbers per tap.
+
+     `build` = the SYNCHRONOUS render, measured in the microtask that follows the click
+     task, so it covers buildScreen + the DOM insert and nothing after.
+     `paint`  = tap → the frame the browser has COMMITTED (the double rAF, the same
+                contract bridge.painted uses), i.e. what the eye actually waits for.
+     `list`   = downloads only: tap → the settled list, so the C# round trip
+                (Directory.EnumerateFiles + one addFile marshal per file) is visible
+                as its own term rather than hidden inside `paint`.
+
+     console.WARN, never .info — the Android WebView drops INFO (#751, and it cost that
+     session its numbers). Fires only on a view CHANGE, so a push-driven re-render of the
+     same view does not report a second, meaningless tap.
+
+     ⚠ REMOVE IT once the numbers have named the mechanism. A smoke pin asserts it is
+     PRESENT, so deleting it fails the suite until that pin goes with it. */
+  let subT0 = 0, subView = '', subRendered = '';
+  function cdperfSub(stage, extra) {
+    if (!subT0) return;
+    try { console.warn('[CDPERF] settings-sub ' + subView + ' ' + stage + '=' + Math.round(performance.now() - subT0) + 'ms' + (extra || '')); } catch (e) {}
+  }
+  function cdperfSubStart(view) {
+    if (view === 'hub') { subT0 = 0; subView = ''; return; }
+    subT0 = performance.now(); subView = view;
+    const t0 = subT0, v = view;
+    const stamp = (stage) => { try { console.warn('[CDPERF] settings-sub ' + v + ' ' + stage + '=' + Math.round(performance.now() - t0) + 'ms'); } catch (e) {} };
+    // after the click task drains — the whole synchronous render, nothing else
+    if (typeof queueMicrotask === 'function') queueMicrotask(() => stamp('build'));
+    // after the browser has committed the frame that render produced
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => requestAnimationFrame(() => stamp('paint')));
+  }
+
   function renderLayout() {
     if (exiting) return;                           // no re-render once the page is exiting
+    // [CDPERF] settings-sub — ONE hook for every view (#798: not a list of the three
+    // rows this session is about). Stamps only when the view actually changes.
+    if (currentView !== subRendered) { subRendered = currentView; cdperfSubStart(currentView); }
     // ★ Session H: a render landing inside a slide (a C# push in the 300 ms) starts
     // from a SETTLED DOM — the in-flight slide's end state is applied first.
     settleSubscreenSlide(root);
@@ -7108,6 +7185,8 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   if (document.readyState === 'complete') signalReady();
   else window.addEventListener('load', signalReady, { once: true });
 </script>
+<script>/* M13 (2026-09-08): the STATIC a11y labels below the boot line. They are in the markup so a screen reader has them on the FIRST paint, which is exactly why they could not be written as getStrings() calls — and so they were English in every locale. One walk over [data-sl-aria] relabels them from the dictionary as soon as the DOM exists; the English in the attribute stays as the fallback for a key the dictionary lacks. */
+(function(){function r(){for(var e of document.querySelectorAll('[data-sl-aria]')){var v=window.SL&&window.SL[e.dataset.slAria];if(v)e.setAttribute('aria-label',v);}}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',r,{once:true});else r();})();</script>
 <script>(function(){var m=[!window.SpixiIcons&&"spixi.icons.js",!window.SpixiStrings&&"spixi.strings.js",!window.Spixi&&"spixi.bundle.js",!getComputedStyle(document.documentElement).getPropertyValue("--spacing-16").trim()&&"spixi.tokens.css",!getComputedStyle(document.documentElement).getPropertyValue("--spixi-base-css").trim()&&"spixi.base.css"].filter(Boolean);if(!m.length)return;console.error("SPIXI: shared asset did not load: "+m.join(", "));document.documentElement.innerHTML='<pre style="margin:0;padding:24px;font:13px/1.5 monospace;color:#f66;background:#13171b">Spixi could not load: '+m.join(", ")+'\n\nThe shell and its shared assets must sit in the SAME folder.\nRe-run: node scripts/build-shells.mjs</pre>';})();</script>
 </body>
 </html>

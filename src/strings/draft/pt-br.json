@@ -706,5 +706,7 @@
   "groundGradient": "Gradiente",
   "notifPushProviderSub": "Acorda este dispositivo assim que uma mensagem chega. Usa o OneSignal, um provedor de push.",
   "loadMedia": "Carregar imagens e GIFs",
-  "loadMediaSub": "O carregamento informa ao servidor do remetente que você abriu a conversa"
+  "loadMediaSub": "O carregamento informa ao servidor do remetente que você abriu a conversa",
+  "mainNav": "Navegação principal",
+  "messagesLog": "Mensagens"
 }

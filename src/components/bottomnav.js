@@ -4,7 +4,10 @@
  * createBottomNav({
  *   items: [{ id, label, icon: 'messages', avatar: url|null, badge: number }],
  *   active: 'chats',
- *   ariaLabel: 'Main',                 // nav landmark label (SL in shells)
+ *   ariaLabel: 'Main',                 // nav landmark label — DEFAULTS from the live
+ *                                      // dictionary (getStrings().mainNav). No shell has
+ *                                      // ever passed it, so the landmark was announced in
+ *                                      // English in every locale (M13 sweep, 2026-09-08).
  *   variant: 'rail',                   // desktop LEFT RAIL (spec 6e.1) — vertical
  *                                      // column variant, same items/free-fn API
  *   logo: true,                        // rail only: Spixi logo pinned at the top
@@ -19,7 +22,7 @@ import { getStrings } from './strings-runtime.js';
 import { icon, ICONS } from './icons.js';
 import { formatCount } from './chatlist-item.js';
 
-export function createBottomNav({ items = [], active, ariaLabel = 'Main', variant, logo, onChange } = {}) {
+export function createBottomNav({ items = [], active, strings = getStrings(), ariaLabel = strings.mainNav || 'Main', variant, logo, onChange } = {}) {
   const el = document.createElement('nav');
   el.className = 'c-bottomnav' + (variant === 'rail' ? ' c-bottomnav--rail' : '');
   if (variant === 'rail' && logo) {

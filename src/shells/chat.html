@@ -581,7 +581,7 @@
   <div id="chat-topbar"></div>
   <div class="c-chat-canvas">
     <!-- tabindex: keyboard users must be able to scroll text-only history -->
-    <div class="messages u-scroll" id="messages" role="log" aria-label="Messages" tabindex="0"><div class="chat-boot" aria-hidden="true"><span class="chat-boot__spinner"></span></div></div>
+    <div class="messages u-scroll" id="messages" role="log" aria-label="Messages" data-sl-aria="messagesLog" tabindex="0"><div class="chat-boot" aria-hidden="true"><span class="chat-boot__spinner"></span></div></div>
     <!-- ★ #711 (Damir 2026-08-30): the composer FLOATS — it lives inside the canvas, so
          the gradient and the pattern run on behind a bar that has no background of its
          own. Still in the flex flow (no absolute positioning): the keyboard margin, the
@@ -601,6 +601,8 @@
      'en-us' in EVERY locale. ?lang= still overrides (demos/tests); in a plain-browser
      preview the marker stays un-substituted → SpixiStrings.get() falls back to en-us. -->
 <script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || '*SL{language-code}');</script>
+<script>/* M13 (2026-09-08): the STATIC a11y labels below the boot line. They are in the markup so a screen reader has them on the FIRST paint, which is exactly why they could not be written as getStrings() calls — and so they were English in every locale. One walk over [data-sl-aria] relabels them from the dictionary as soon as the DOM exists; the English in the attribute stays as the fallback for a key the dictionary lacks. */
+(function(){function r(){for(var e of document.querySelectorAll('[data-sl-aria]')){var v=window.SL&&window.SL[e.dataset.slAria];if(v)e.setAttribute('aria-label',v);}}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',r,{once:true});else r();})();</script>
 <script src="../demo/spixi.iife.js"></script>
 <script>window.__cdParse&&window.__cdParse.push(['bundle',performance.now()]);</script>
 <script>
@@ -1607,7 +1609,17 @@
    * Only TEXT rows group: a typed card (file/…) is always standalone and breaks
    * the run. In group chats a run also breaks when the sender changes, so every
    * participant keeps their own label + avatar. */
-  const GROUP_WINDOW = 90000;
+  /* ★ Damir 2026-09-08, on a #General screenshot: Mary posts at 05:04 and 05:06 and gets
+     TWO avatars and TWO name labels — "the same sender renders the avatar twice and some
+     gap. probably shouldn't be right?" Measured before it was changed (#215): at 89 s the
+     two rows are first/last (one label, one avatar); at 91 s they are single/single (two
+     of each). The 90 s window WAS the mechanism — nothing else in `cont` had moved.
+     Raised to FIVE MINUTES: two minutes apart is one person still talking, which is what
+     the block is meant to show. 90 s was never dialled against a real conversation.
+     ⚠ A date change cannot slip through — it is hours, far outside any sane window — and
+     the unread divider has its own explicit break above, so neither depends on this
+     number being small. Reversal: 90000. */
+  const GROUP_WINDOW = 300000;
   function positionsFor(ids) {
     const pos = {};
     for (let i = 0; i < ids.length; i++) {

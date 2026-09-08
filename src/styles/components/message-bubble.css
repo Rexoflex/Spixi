@@ -43,7 +43,20 @@
 .c-bubble-row {
   display: flex;
   align-items: flex-end;
-  --bubble-row-inset: calc(var(--spacing-16) + var(--bubble-tail));   /* ★ Session J: ONE home for the row inset — chat-select.css positions the tick from it */
+  /* ★ Damir 2026-09-08: "reduce the side padding so that the tails would be closer to the
+     edge and the chat bubbles itself be on the edge where the tail is now". MEASURED at
+     411 CSS px before and after, which is what makes it a one-token change: the row used to
+     reserve the tail's width on top of the gutter, so the bubble BODY sat at 24 px and the
+     tail TIP at 16 px. Dropping the tail term moves the body to exactly 16 — where the tip
+     was — and the tip to 8. Nothing else moves: the tail is absolutely positioned at
+     -1 × --bubble-tail from the bubble, so it follows the body.
+     ⚠ chat-select.css reads this same token for the selection tick (Session J: ONE home),
+     so the tick follows — that is the design, but it is a second thing to eyeball.
+     ⚠ NOTE for the dial: the composer pill's own edge is 12 px (composer.css
+     padding-inline), so at 16 the tail TIP now sits 4 px OUTSIDE that line. WhatsApp does
+     the same; if it reads wrong, 20px puts the tip exactly on the composer edge instead.
+     Reversal: calc(var(--spacing-16) + var(--bubble-tail)). */
+  --bubble-row-inset: var(--spacing-16);
   padding-inline: var(--bubble-row-inset);   /* Session I: the tail sits inside the gutter */
   margin-top: var(--bubble-gap-group);     /* gap between groups (Session I dial; was --spacing-12) */
   /* N36b (#363 candidate, repro gate met 2026-08-17): in select mode the ROW is
@@ -64,7 +77,7 @@
    the end side keeps the plain inset. */
 .c-bubble-row[data-gutter] {
   --bubble-row-inset: var(--bubble-avatar-inset);
-  padding-inline-end: calc(var(--spacing-16) + var(--bubble-tail));
+  padding-inline-end: var(--spacing-16);   /* the same value as the plain row's inset — one number on that edge */
 }
 .c-bubble-row[data-position="middle"],
 .c-bubble-row[data-position="last"] { margin-top: var(--bubble-gap-inner); } /* in-group gap (Session I dial; was --spacing-2) */
@@ -130,12 +143,15 @@
 
 /* grouped radii (#63 amended): tighten the corners facing group neighbors.
    Logical corner props (Chrome 89+/Safari 15+, within baseline) — RTL-correct */
-.c-bubble-row[data-direction="received"][data-position="first"] .c-bubble { border-end-start-radius: var(--radius-8); }
-.c-bubble-row[data-direction="received"][data-position="middle"] .c-bubble { border-start-start-radius: var(--radius-8); border-end-start-radius: var(--radius-8); }
-.c-bubble-row[data-direction="received"][data-position="last"] .c-bubble { border-start-start-radius: var(--radius-8); }
-.c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble { border-end-end-radius: var(--radius-8); }
-.c-bubble-row[data-direction="sent"][data-position="middle"] .c-bubble { border-start-end-radius: var(--radius-8); border-end-end-radius: var(--radius-8); }
-.c-bubble-row[data-direction="sent"][data-position="last"] .c-bubble { border-start-end-radius: var(--radius-8); }
+/* ★ Damir 2026-09-08: the corners a same-sender run SHARES take their own token, not the
+   shared --radius-8 that chips and cards also read (#812b). Tightening a chat run must not
+   move anything else, and a future radius-scale dial must not move the chat. */
+.c-bubble-row[data-direction="received"][data-position="first"] .c-bubble { border-end-start-radius: var(--bubble-radius-group); }
+.c-bubble-row[data-direction="received"][data-position="middle"] .c-bubble { border-start-start-radius: var(--bubble-radius-group); border-end-start-radius: var(--bubble-radius-group); }
+.c-bubble-row[data-direction="received"][data-position="last"] .c-bubble { border-start-start-radius: var(--bubble-radius-group); }
+.c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble { border-end-end-radius: var(--bubble-radius-group); }
+.c-bubble-row[data-direction="sent"][data-position="middle"] .c-bubble { border-start-end-radius: var(--bubble-radius-group); border-end-end-radius: var(--bubble-radius-group); }
+.c-bubble-row[data-direction="sent"][data-position="last"] .c-bubble { border-start-end-radius: var(--bubble-radius-group); }
 
 /* ★ Session I — THE TAIL (sheet 1c; #735④ "bubble tails: YES — WA/TG grammar, tail on the
    group-start bubble"). A pseudo-element on the FIRST (or single) bubble of a group, at
@@ -599,14 +615,29 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-datesep__pill {
   padding: var(--spacing-2) var(--spacing-12);
   border-radius: var(--radius-full);
-  background: var(--surface-chat-chip);   /* ★ AUG: see tokens.css — neutral-02 vanished on the new light ground */
-  border: var(--outline-width-1) solid var(--outline-neutral-01); /* audit: pill vanished on same-value canvas */
+  /* ★ GLASS (Damir picked B, 2026-09-08 — docs/sheets/session-s/separators-*.png).
+     The fill is --surface-screen's own colour at ~55%, so this reads as the page seen
+     through frosted glass rather than as a chip laid on top. The @supports block below is
+     NOT optional: without it an engine with no backdrop-filter renders a 58%-transparent
+     label over a busy pattern, which is worse than the opaque chip this replaced. */
+  background: var(--surface-chat-glass);
+  -webkit-backdrop-filter: blur(var(--blur-chat-glass)) saturate(160%);
+  backdrop-filter: blur(var(--blur-chat-glass)) saturate(160%);
+  border: var(--outline-width-1) solid var(--outline-chat-glass);
   color: var(--text-neutral-02);
   font-size: var(--font-size-label-xs);
   line-height: var(--line-height-label-xs);
   letter-spacing: var(--tracking-label-xs);
   font-weight: var(--font-weight-semibold);
+}/* the fallback the glass depends on — AUG's opaque chip, verbatim. Both spellings are
+   tested because WebKit shipped the prefixed form long before the unprefixed one. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .c-datesep__pill {
+    background: var(--surface-chat-chip);
+    border-color: var(--outline-neutral-01);
+  }
 }
+
 
 /* iOS-33 — long-press ownership on TOUCH surfaces.
    WKWebView runs its own long-press gesture (text selection + the native callout)

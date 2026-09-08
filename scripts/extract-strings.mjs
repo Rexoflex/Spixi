@@ -275,6 +275,28 @@ for (const f of shellFiles) {
     re.lastIndex = fb.end;
   }
 }
+/* —— M13 (2026-09-08): the STATIC a11y sweep ————————————————————————————————
+ * A shell's boot markup carries a11y labels that must be correct on the FIRST paint,
+ * before any component has run — so they cannot be written as `strings.x || '…'` and
+ * this sweep never saw them. They were English in every locale. They now carry
+ * `data-sl-aria="<key>"` beside the English `aria-label`, which the shell's own boot
+ * walk swaps for the dictionary value; the attribute stays as the fallback.
+ * ⚠ THE SWEEP HAS TO KNOW ABOUT THE MECHANISM, or a key introduced this way can never
+ * be translated — which is the exact class of defect it was introduced to fix. The
+ * English literal in `aria-label` IS the fallback, so the pair reads like every other
+ * site: key + fallback. Order-independent: either attribute may come first. */
+const ARIA_PAIR = /(?:aria-label="([^"]*)"\s+data-sl-aria="([A-Za-z_$][\w$]*)"|data-sl-aria="([A-Za-z_$][\w$]*)"\s+aria-label="([^"]*)")/g;
+for (const f of shellFiles) {
+  const src = readFileSync(join(SHELLS_DIR, f), 'utf8');
+  let a;
+  while ((a = ARIA_PAIR.exec(src))) {
+    const value = a[1] !== undefined ? a[1] : a[4];
+    const key = a[2] !== undefined ? a[2] : a[3];
+    if (!value || value.startsWith('*SL{')) continue;
+    record(key, value, f, lineOf(src, a.index), 'label');
+  }
+}
+
 for (const [key, value] of Object.entries(DYNAMIC)) {
   const prefix = Object.keys(DYNAMIC_SOURCES).find((p) => key.startsWith(p)) || '';
   const comp = (DYNAMIC_SOURCES[prefix] || 'dynamic').split(' ')[0];

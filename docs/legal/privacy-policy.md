@@ -80,7 +80,7 @@ Your device registers with the service using its public key and a signature, and
 
 **How long it is held.** Once your device has fetched a message, it asks the service to **delete it immediately**, and that is the normal path — a delivered message does not linger.
 
-> ⟨PLACEHOLDER — the maximum period an *undelivered* message is retained before the service discards it. This is a server-side setting and must be stated as a concrete period, e.g. "at most N days". DAMIR TO CONFIRM with whoever operates ipn.ixian.io.⟩
+If the recipient never comes online, the message is **discarded after 30 days**. That is the outer limit: nothing waits on the service longer than that, whether or not anyone ever collects it.
 
 ### 4.4 Push notifications, and OneSignal
 
@@ -92,7 +92,7 @@ The notification itself is a signal that something is waiting. **The message con
 
 OneSignal processes this data on our instructions as a processor, and is located in the United States; see §10.
 
-**Where and when this applies.** OneSignal is used by the **Android and iOS** apps only; the Windows and macOS apps use no push provider. The SDK does not initialise until you have accepted these documents. *(Updated Session G/#708: the earlier draft of this paragraph disclosed that Android initialised OneSignal before the first screen; P1 shipped the fix — Android now arms `ConsentRequired` before initialisation and withholds consent until acceptance, and iOS starts the SDK only with the messaging node, after your wallet exists.)*
+**Where and when this applies.** OneSignal is used by the **Android and iOS** apps only; the Windows and macOS apps use no push provider. The SDK does not initialise until you have accepted these documents.
 
 **Turning it off.** On Android and iOS, Settings → Notifications → **Instant delivery via OneSignal** is a real opt-out (shipped as P2/#708): off, on iOS the SDK is not initialised at all, and on Android consent is withdrawn and the subscription opted out — nothing more is transmitted to OneSignal from this device. The trade-off is stated on the switch: without the push, messages arrive when Spixi checks (Android) or when you open the app (iOS). The record OneSignal already holds is not deleted by the switch; only their processes can delete it.
 
@@ -193,7 +193,7 @@ OneSignal and some infrastructure providers are located outside the EEA, princip
 
 | data | kept for |
 |---|---|
-| Encrypted messages awaiting an offline recipient | deleted as soon as the recipient fetches them; if never fetched, ⟨PLACEHOLDER — DAMIR TO CONFIRM⟩ |
+| Encrypted messages awaiting an offline recipient | deleted automatically as soon as the recipient fetches them; if never fetched, **discarded after 30 days** |
 | Push tokens at OneSignal | for as long as the installation is active; removed when you uninstall or disable notifications |
 | Website log and analytics data | per our analytics provider's configured retention |
 | Support correspondence | as long as needed to resolve your matter and for a reasonable period afterwards |

@@ -67,7 +67,7 @@ This is NOT part of the batch. It is Damir's report from the same day: the app i
 about half an hour, Settings shows 511 MB maximum.
 
 ```
-adb shell dumpsys meminfo io.ixian.spixi.dev
+adb shell dumpsys meminfo com.ixilabs.spixi.dev
 ```
 
 Take it at launch, then again after the half hour that gets it killed. Read the **footer**:

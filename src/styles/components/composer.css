@@ -21,8 +21,16 @@
      housing moved. So the bar's leading edge is a chrome edge again: 12, like the trailing
      one beside the send disc. The A2 `data-no-attach` compensation retires with it — the
      pill's own start padding is what changes when the ⊕ is hidden (below). */
-  padding-inline-start: var(--spacing-12);
-  padding-inline-end: var(--spacing-12);
+  /* ★ Damir 2026-09-08, right after the row inset (#817): "the composer as well with the
+     button, roughly 8px margin to the screen sides". 12 → 8, both edges, so the pill, the
+     ⊕ and the send disc all sit 8 px off the screen — the same 8 px the bubble TAIL now
+     reaches. ⚠ THIS IS COUPLED: Session K set --bubble-avatar-inset to the composer's own
+     inset so a group avatar's left edge and the ⊕'s left edge are one line (walk J2 T1,
+     his words: "left aligned with the left edge of the composer"). Measured: at 12 both
+     were 12; moving only this one left the avatar 4 px inboard. The token moved with it.
+     Reversal: var(--spacing-12) here AND in --bubble-avatar-inset. */
+  padding-inline-start: var(--spacing-8);
+  padding-inline-end: var(--spacing-8);
   /* ★ #711 (Damir 2026-08-30): the bar FLOATS. No ground of its own and no hairline —
      the canvas (gradient + pattern) runs on behind it and the pill, the ⊕ and the send
      disc sit on it as three floating shapes (iMessage / Telegram grammar). The pill

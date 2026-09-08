@@ -1,0 +1,217 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Walk — Session S, Android</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{--bg:#f4f6f9;--card:#fff;--ink:#141b23;--sub:#5b6672;--line:#dfe5ec;
+        --p:#1a7f4b;--f:#b12525;--n:#8b95a1;--act:#1956b2}
+  @media (prefers-color-scheme:dark){:root{--bg:#0d1117;--card:#161b22;--ink:#e6edf3;
+        --sub:#9aa7b4;--line:#252c36;--p:#3fb27a;--f:#f08a80;--n:#7d8794;--act:#5a8dee}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.55 -apple-system,Segoe UI,Roboto,sans-serif;padding:24px}
+  header{max-width:1040px;margin:0 auto 20px}
+  h1{font-size:24px;margin:0 0 6px}
+  h2{font-size:18px;margin:30px 0 10px}
+  p.lede{color:var(--sub);margin:0 0 8px}
+  main{max-width:1040px;margin:0 auto}
+  section{background:var(--card);border:1px solid var(--line);border-radius:14px;
+          padding:16px 18px;margin:0 0 16px}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--sub)}
+  td.id{width:56px;font-weight:600;white-space:nowrap}
+  td.v{width:200px;white-space:nowrap}
+  .btn{border:1px solid var(--line);background:transparent;color:var(--sub);
+       border-radius:8px;padding:5px 11px;margin-right:5px;cursor:pointer;font:inherit;font-size:13px}
+  .btn[aria-pressed=true][data-v=P]{background:var(--p);border-color:var(--p);color:#fff}
+  .btn[aria-pressed=true][data-v=F]{background:var(--f);border-color:var(--f);color:#fff}
+  .btn[aria-pressed=true][data-v=N]{background:var(--n);border-color:var(--n);color:#fff}
+  .note{width:100%;margin-top:6px;border:1px solid var(--line);border-radius:8px;
+        padding:6px 8px;font:inherit;font-size:13px;background:transparent;color:var(--ink);display:block}
+  .tally{position:sticky;top:0;background:var(--bg);padding:10px 0;z-index:2;
+         display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .tally b{font-size:18px}
+  pre{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;
+      overflow:auto;font-size:13px;white-space:pre-wrap}
+  .warn{border-inline-start:3px solid var(--f);padding-inline-start:12px}
+  .dial{border-inline-start:3px solid var(--act);padding-inline-start:12px}
+  code{background:var(--bg);padding:1px 5px;border-radius:5px}
+</style>
+<header>
+  <h1>Walk — Session S, Android (#811–#819)</h1>
+  <p class="lede">Nine batches in one day. <b>Row A1 is still the one that decides the most</b> — it takes one tap
+     and it tells us whether the Account jank you reported was ever a live defect or a stale build.</p>
+  <p class="lede warn"><b>Build first, in this order.</b> The legal text and the components both changed, so it is the
+     FULL sequence, not <code>build-shells</code> alone:<br>
+     <code>node scripts/extract-strings.mjs</code> → <code>build-locales</code> → <code>build-strings-iife</code> →
+     <code>build-demo-bundle</code> → <code>build-shells</code> → <code>smoke-test</code><br>
+     Then a normal Android build. No <code>obj</code>/<code>bin</code> wipe — no C# changed today.
+     ⚠ An incremental iOS build does NOT repackage <code>Raw/html</code> (#320); on Android, plain build then Run.</p>
+  <p class="lede dial">Score every row <b>P</b>, <b>F</b> or <b>N/A</b>. The note box is open on every row whatever the
+     verdict — a pass with a caveat is worth more than a bare tick. Nothing is stored: hit <b>Copy results</b> and paste
+     the block back to me.</p>
+</header>
+<main>
+  <div class="tally">
+    <span><b id="tp">0</b> pass</span><span><b id="tf">0</b> fail</span>
+    <span><b id="tn">0</b> n/a</span><span><b id="tr">0</b> not scored</span>
+    <button class="btn" onclick="copyAll()">Copy results</button>
+    <span id="copied" style="color:var(--p);display:none">copied</span>
+  </div>
+
+  <section id="D"><h2>D · The gates (before you touch the phone)</h2>
+    <table><thead><tr><th>#</th><th>do</th><th>expect</th><th>verdict + note</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section id="A"><h2>A · The Account jank — the one tap</h2>
+    <p class="lede">Your own iOS walk row L3, asked on Android. <b>How to use</b> is the reference: it has always been a
+      sublevel and you said it opens "just nicely".</p>
+    <table><thead><tr><th>#</th><th>do</th><th>expect</th><th>verdict + note</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section id="B"><h2>B · The numbers (#811) — eight lines of logcat</h2>
+    <p class="lede"><code>adb logcat -c</code> then <code>adb logcat | grep "CDPERF] settings-sub"</code>, and walk
+      How&nbsp;to&nbsp;use → back → Backup → back → Change&nbsp;password → back → Downloads → back.</p>
+    <pre>[CDPERF] settings-sub backup build=6ms          the synchronous render
+[CDPERF] settings-sub backup paint=21ms         tap to the COMMITTED frame
+[CDPERF] settings-sub downloads list=169ms n=12 downloads only: tap to list on glass</pre>
+    <p class="lede dial">Desktop x86 reference, same probe: How&nbsp;to&nbsp;use 4/17 · Backup 6/21 · Change&nbsp;password 6/10 ·
+      Downloads 6/21 with list&nbsp;169 at 12 files.</p>
+    <table><thead><tr><th>#</th><th>do</th><th>expect</th><th>verdict + note</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section id="G"><h2>G · Chat grouping (#813 · #814)</h2>
+    <table><thead><tr><th>#</th><th>do</th><th>expect</th><th>verdict + note</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section id="S"><h2>S · The glass separators (#816)</h2>
+    <table><thead><tr><th>#</th><th>do</th><th>expect</th><th>verdict + note</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section id="I"><h2>I · The chat + composer insets (#817 · #818)</h2>
+    <table><thead><tr><th>#</th><th>do</th><th>expect</th><th>verdict + note</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section id="L"><h2>L · Privacy Policy + the a11y labels (#819 · #812)</h2>
+    <table><thead><tr><th>#</th><th>do</th><th>expect</th><th>verdict + note</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section id="X"><h2>X · Optional, if you have the patience</h2>
+    <p class="lede">Neither blocks the commit. Both answer a question this session could not.</p>
+    <table><thead><tr><th>#</th><th>do</th><th>expect</th><th>verdict + note</th></tr></thead><tbody></tbody></table>
+  </section>
+</main>
+<pre id="out"></pre>
+<script>
+const ROWS = {
+  D: [
+    ['D1','node scripts/smoke-test.mjs','BASELINE OK, the 3 known pre-existers, roughly 4632 (was 4621). \u26a0 This session could NOT run the suite \u2014 it needs more than the 3 minutes the bridge allows \u2014 so this is the first full run of the day.'],
+    ['D2','The other gates: build-shells --check, extract-strings --check, verify-locales, i18n-lint, pseudo-locale-smoke, build-legal-docs --check','All green. \u2605 build-legal-docs must NOT print the yellow HELD line any more \u2014 that is #819.'],
+    ['D3','\u2605 GATE 44 (a) in the smoke output.','It EXECUTES strip-release.mjs through a directory junction in your temp folder. If it goes RED it prints the reason \u2014 that is the property, an unrunnable gate is a red one, not a skipped one.'],
+  ],
+  A: [
+    ['A1','\u2605 Account \u2192 Backup. Watch HOW it arrives.','It SLIDES in from the right, the Account top bar stays, no full-screen page swap, no white flash. If instead the whole screen swaps to a new page, #804 was NOT in the build you judged \u2014 score F and say so, and the rest is confirmation rather than a hunt.'],
+    ['A2','Account \u2192 Change password.','Slides in as a sublevel, like How to use.'],
+    ['A3','Account \u2192 Downloads.','Slides in as a sublevel. \u2605 The one screen with a measured cost \u2014 note whether the LIST appears with the screen or lands visibly later.'],
+    ['A4','The reference: Account \u2192 How to use.','Opens the way you already like. If A1\u2013A3 feel the same as this, the three rows are fixed and what remains is not the screen build.'],
+  ],
+  B: [
+    ['B1','Read build= and paint= for all four rows.','Paste all eight lines in the note. \u2605 The comparison that matters is Backup and Change password AGAINST How to use \u2014 close means the screen build is not the problem.'],
+    ['B2','\u2605 Read n= on the downloads list line.','\u2605 THE NUMBER THIS SESSION COULD NOT GET. loadDownloads sends one addFile marshal per file, each its own EvaluateJavaScriptAsync after a stat, on the UI thread, fired at the START of the 300ms slide. The batch fix is specified and gets built only if your n= justifies it. If Downloads is empty, say so \u2014 that rules the one measured mechanism OUT.'],
+    ['B3','Go BACK to the hub; change the theme while a sublevel is open.','NOTHING stamps on the way back, and a push-driven re-render of the same view does not stamp twice. If either stamps, the hook is wrong \u2014 report it, do not work around it.'],
+  ],
+  G: [
+    ['G1','Open the chat from your first screenshot \u2014 the run of received messages.','They read as ONE BLOCK: 1px between them (dial D, your pick), shared corners 4px instead of 8px. The gap BETWEEN runs is unchanged at 10px.'],
+    ['G2','A single message with nothing before or after it.','Unchanged \u2014 fully rounded 18px, with its tail.'],
+    ['G3','\u2605 A run of WRAPPED, multi-line messages.','The sheet was single-line bubbles only. If a multi-line run reads as a wall at 1px, say so \u2014 C (2px) is one token back.'],
+    ['G4','\u2605 #General: Mary\u2019s 05:04 and 05:06 messages.','ONE avatar and ONE name label, not two. The grouping window went 90s \u2192 5 min.'],
+    ['G5','Two messages from the same person MORE than 5 minutes apart.','Still separate \u2014 new avatar and label. That break is intentional.'],
+    ['G6','\u2605 A group where two DIFFERENT people post within a minute of each other.','\u2605 Each keeps their OWN label and avatar. The wider window makes the sender check load-bearing \u2014 this is the row that catches #356 coming back.'],
+  ],
+  S: [
+    ['S1','A chat with a date break, BOTH themes.','The Today / Yesterday pill is frosted \u2014 translucent, the pattern softly visible through it, a hairline instead of a chip.'],
+    ['S2','A chat with unread messages.','The unread strip stays FULL WIDTH (your call) and is frosted the same way.'],
+    ['S3','\u2605 Scroll that chat hard, up and down.','No new stutter. Main-thread cost measured identical (90 vs 91ms) but that instrument cannot see the GPU \u2014 this row is the real test. If it stutters, say so: the fallback tint is a one-block change.'],
+  ],
+  I: [
+    ['I1','Open any chat.','Bubbles sit 8px further out on both sides \u2014 the body is now where the tail tip used to be (24\u219216px), the tip at 8px. Longer messages wrap one line later.'],
+    ['I2','Long-press to enter selection mode.','\u2605 The selection tick moved out with the rows. It reads the same token by design \u2014 but it is a second thing to look at.'],
+    ['I3','\u2605 A GROUP chat.','\u2605 The avatar\u2019s left edge and the \u2295\u2019s left edge are THE SAME LINE. That alignment is the only reason the token exists, and it lives in a different file from the composer \u2014 moving one without the other is the failure this row catches.'],
+    ['I4','The composer.','Pill, \u2295 and send disc all sit 8px off the screen edges (was 12).'],
+    ['I5','Your dial.','The composer edge is 12px, so the tail tip now sits 4px outside it. WhatsApp does the same. If it reads wrong, 20px puts the tip exactly on the composer edge.'],
+    ['I6','Chats list \u2014 the pinned rows.','A tone lighter (9% \u2192 7%). 6% is one more step if you want it; dark is unchanged and needs its own word from you.'],
+  ],
+  L: [
+    ['L1','\u2605 Account \u2192 Privacy Policy.','The FULL document \u2014 18 sections \u2014 not the three-paragraph summary.'],
+    ['L2','Find \u00a74.3 "How long it is held" and the \u00a711 retention table.','Both say an undelivered message is discarded after 30 days, and a delivered one is deleted automatically on fetch.'],
+    ['L3','Account \u2192 Terms.','Unchanged \u2014 it was never held.'],
+    ['L4','Set the language to Deutsch. Turn on TalkBack. Focus the back arrow on any Account sublevel.','It says "Zur\u00fcck", not "Back". Before today every shell said "Back" in all 12 languages. \u26a0 If TalkBack is a hassle, score N/A \u2014 it is verified in the browser already.'],
+    ['L5','Still in Deutsch: nothing VISIBLE changed anywhere.','\u2605 #812 touches accessible NAMES only. Any visible text that moved is a regression, not the feature.'],
+  ],
+  X: [
+    ['X1','The paired gfxinfo capture (checklist \u00a73): Account minute vs scrolling 50 chats, A\u2192B\u2192B\u2192A, battery temp at the start and end of each.','#803 read Account 12.19% janky / 99th 48ms against a control of 4.09%. \u26a0 end \u2212 start > 3\u00b0C voids a capture.'],
+    ['X2','\u2605 dumpsys gfxinfo GPU column, glass separators on a hard scroll.','The one number this session could not take \u2014 blur is a compositor job and CDP metrics cannot see it.'],
+    ['X3','Anything else that is wrong and is not on this sheet.','Free row. Use the note.'],
+  ],
+};
+const state = {};
+for (const [sec, rows] of Object.entries(ROWS)) {
+  const tb = document.querySelector('#' + sec + ' tbody');
+  for (const [id, doo, exp] of rows) {
+    state[id] = { v: '', note: '' };
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td class="id">' + id + '</td><td>' + doo + '</td><td>' + exp + '</td>'
+      + '<td class="v">' + ['P','F','N'].map((v) =>
+        '<button class="btn" data-v="' + v + '" data-id="' + id + '" aria-pressed="false">' + v + '</button>').join('')
+      + '<input class="note" placeholder="note (optional, any verdict)" data-id="' + id + '"></td>';
+    tb.append(tr);
+  }
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('.btn[data-v]');
+  if (!b) return;
+  const id = b.dataset.id;
+  state[id].v = state[id].v === b.dataset.v ? '' : b.dataset.v;
+  for (const o of document.querySelectorAll('.btn[data-id="' + id + '"]')) {
+    o.setAttribute('aria-pressed', String(o.dataset.v === state[id].v));
+  }
+  render();
+});
+document.addEventListener('input', (e) => {
+  if (!e.target.classList.contains('note')) return;
+  state[e.target.dataset.id].note = e.target.value;
+  render();
+});
+function render() {
+  const vals = Object.values(state);
+  document.getElementById('tp').textContent = vals.filter((s) => s.v === 'P').length;
+  document.getElementById('tf').textContent = vals.filter((s) => s.v === 'F').length;
+  document.getElementById('tn').textContent = vals.filter((s) => s.v === 'N').length;
+  document.getElementById('tr').textContent = vals.filter((s) => !s.v).length;
+  const lines = Object.entries(state).map(([id, s]) =>
+    id + ': ' + (s.v || '-') + (s.note ? '  -- ' + s.note : ''));
+  const f = Object.entries(state).filter(([, s]) => s.v === 'F').map(([id]) => id);
+  document.getElementById('out').textContent =
+    'WALK S (Android, #811-#819) -- ' + document.getElementById('tp').textContent + ' P / '
+    + document.getElementById('tf').textContent + ' F / '
+    + document.getElementById('tn').textContent + ' N-A / '
+    + document.getElementById('tr').textContent + ' not scored\n'
+    + 'FAILS: ' + (f.length ? f.join(', ') : 'none')
+    + '\n\n' + lines.join('\n')
+    + '\n\nS2.4 wants the word after reason= if it failed. L7 wants two memory numbers, at launch and after 30 minutes.';
+}
+function copyAll() {
+  const t = document.getElementById('out').textContent;
+  const done = () => { const c = document.getElementById('copied');
+    c.style.display = 'inline'; setTimeout(() => { c.style.display = 'none'; }, 1400); };
+  if (navigator.clipboard) navigator.clipboard.writeText(t).then(done, sel);
+  else sel();
+  function sel() {
+    const r = document.createRange(); r.selectNodeContents(document.getElementById('out'));
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    try { document.execCommand('copy'); done(); } catch (e) {}
+  }
+}
+render();
+</script>

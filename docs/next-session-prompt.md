@@ -1,133 +1,106 @@
-# Next session — paste this
+# Next session — Session U: close the frontend
 
-Repo `Spixi`, branch `redesign/frontend`. Motorola on the cable, Release + coexist
-(`-c Release -p:SpixiDevCoexist=true`). Ixian-Core sibling frozen at `097341a` if reachable.
+Read first: `docs/handoff-2026-09-09.md`, then `DECISIONS.md` **#821–#844**.
+Records live at the bottom of `DECISIONS.md`; Android rows in `docs/android-findings.md`
+(**AND-40 … AND-44** are new); the walk sheet is `docs/walk-artifact-session-t2.html`.
 
-**Read `docs/handoff-2026-09-08b.md` FIRST**, then `DECISIONS.md` **#811–#820**.
-
-**The goal for this session, in Damir's words: finish the remaining jank and finalize the
-Android version.**
-
----
-
-## Item 0 — commit Session S if it is not already in
-
-~92 files, walked **28 P / 0 F**. Message in `docs/commit-message-session-s.txt`.
-⚠ `git add` the new docs and `docs/sheets/session-s/`; never `git add -A`.
+Damir's goal, in his words: **"finally close the FE work, and move on to other stuff."**
+So this session ships the queue rather than opening anything.
 
 ---
 
-## ★ Item 1 — the i18n drafting gate. Build the pin BEFORE the six strings.
+## Item 0 · Commit Session T if it is not already in
 
-Six keys are the English string in **all twelve** locales:
+`git add -A && git commit -F docs/commit-message-session-t.txt` — 80-odd files.
+`_to_delete/` is gitignored (memdiag captures, gate harnesses). If the commit is already
+there, say so and move on; do not re-derive it.
+
+---
+
+## Item 1 · ★ The seven queued dials — the whole point of the session
+
+Every one is recorded WITH ITS MECHANISM. **Do not re-investigate; verify the mechanism
+still holds (#215), then build.** Suggested order — cheapest and most contained first:
+
+1. **#838** — Add app's 32 px inset. One selector beside #560's existing rule. ★ Then the
+   gate that stops a fourth component paying it: **derive** the set from what `home.html`
+   actually mounts into a takeover body, do not list it (#798).
+2. **#841 / AND-44** — the group-create chip overflow. Truncate the label, keep the × from
+   shrinking. Pattern is twelve lines below in the same file.
+3. **#837** — the Requests chip count. ⚠ The same number controls whether the chip renders
+   at all. **M5 is a known-red pin and must be re-read** to assert visibility, not the
+   digit — otherwise the baseline-honest summary stops being honest.
+4. **#842** — drop the possessive in sl-si / id-id / lt-lt, then **split the key**, because
+   one key with two owners (Account = yours, chat-info = theirs) is the actual defect.
+5. **#839 / AND-42** — wire `onViewContact` from `chat.html` AND give it a visible target.
+   Wiring it alone reproduces Damir's report, which was "no button".
+6. **#840 / AND-43** — `AppDetailsPage:197`. Send the real `app_installed`. ⚠ Check where
+   the add flow then lands: the installed layout is a different screen, and the
+   install-confirm morph must not be reachable in it.
+7. **#836 / AND-41** — Add app and Add contact into the desktop pane. The fork is
+   `rightContent.IsVisible`: takeover when hidden, page push when visible. ⚠ **This
+   changes GATE 54's contract** from "never sends `ixian:newcontact`" to "sends it only
+   when the pane is visible" — update the gate deliberately, with a mutation both ways.
+
+## Item 2 · #835 — the chat background, once #837/#842 are in
+
+Keep **Data matrix** only: retire the canvas renderer, Live flow goes with it, Doodles
+goes, and drop the light-mode gradient. The Background control stops being a picker.
+⚠ The walk is not the deletion — it is every reader of the two retired styles, **including
+a stored preference that names one**. A device holding `doodles` must not render nothing.
+Rides AND-35's chat-appearance copy + order change, so do them together as one locale round.
+
+---
+
+## Item 3 · What must NOT be built without a number
+
+* **AND-40, the memory kill.** #830 refuted page accumulation on Damir's own run — do not
+  re-open `Dispose()`. The floor is ~400 MB (Code 67 MB PSS / 206 MB RSS, 94 MB native
+  heap, Java heap 72 KB), so 511 MB is a **spike**. It needs a run that actually kills.
+* **AND-36** — one repro decides it (#826). Rotation re-homes rather than closes.
+* **AND-39** — the tap fill: characterise which phase is abrupt, then measure (#294).
+
+---
+
+## Item 4 · The freeze, when Damir calls it (#825)
+
+`maxLogCount 5 → 1` (GATE 23 guards the legal pair) and retiring the probe set
+(`[CDPERF]` / `[SCROLL]` / `[PAINTDIAG]` / `[EXCERPTDIAG]` / `landtabprobe` / `[MEMDIAG]`,
+enumerated in `docs/f5-checklist-session-t.md` §5). Both remove instruments that are still
+in use while AND-40 is open — flipping them early is not getting ahead.
+
+---
+
+## Working rules that cost this project real time
+
+* **#215 verify first.** Two rows on the Android list were already built (#826).
+* **#294 don't guess** — narrow the mechanism, then get the device datum.
+* **#798** a sweep, an enumeration or a CSS rule written from the author's list is not a
+  pin. #838 is that lesson in a stylesheet; #560 wrote the general rule as two selectors.
+* **#772** a comment stating an unenforced invariant is a defect. #832 fixed one that said
+  so out loud; #834's constraint lived only in another file's slicing behaviour.
+* **#828** a pin verified in a harness you wrote is not verified — assemble the harness
+  from the suite's own header.
+* **#834** an unrunnable gate is a RED row, never a fatal one.
+* **The walk finds what the gates cannot.** Two sessions running, every genuinely new
+  defect came from Damir holding the phone. Write rows in **pairs** — the positive and its
+  control — because both fails this round came from a pair (V1/V1b, and S2's note).
+
+## The bridge
+
+`device_bash` = a Linux VM with the repo mounted. **No `dotnet`, no `adb`, no tree-sitter**;
+`cs-syntax-check` is skipped and the C# is unvalidated until Damir builds. Full
+`smoke-test.mjs` exceeds the call timeout — run individual gates in a harness built from
+the suite's own header. Use `git --no-optional-locks`. The mount cannot delete; move to
+`_to_delete/`.
+
+**Android build (coexist is NOT automatic in Release):**
 
 ```
-spixiAddressSub · peerAddressTitle · peerAddressBody
-peerQrLabel     · removeContactOpt · removeFailedToast
+Remove-Item -Recurse -Force .\Spixi\obj, .\Spixi\bin -ErrorAction SilentlyContinue
+dotnet build Spixi\Spixi.csproj -f net10.0-android -c Release -p:SpixiDevCoexist=true
+dotnet build Spixi\Spixi.csproj -f net10.0-android -c Release -p:SpixiDevCoexist=true -t:Run
 ```
 
-They are absent from every `src/strings/draft/*.json` — added after the last drafting round,
-so `build-locales` silently fell back to English twelve times over.
-
-**Filling them is the small half. The gate is the point**, because the next key added after a
-drafting round does this again and nothing notices.
-
-The property, and it is narrow enough to be honest: *a key that is English in ALL twelve
-locales AND missing from every draft file is a translation that never happened.* Today nine
-keys are English in all twelve — two are correctly untranslatable (`appUrlPlaceholder`,
-`gif`), one is a phantom, six are the defect. The allow-list must be **explicit and short**,
-each entry carrying its reason (#798: derived, not the author's list).
-
-⚠ Do NOT make `verify-locales`'s "still-English" count a failure. Most of it is legitimate —
-"Apps", "Wallet", "Status" are the same word in German. That is why this defect survived.
-
-Then fill the six, in the seven locales that have draft files.
-
-⚠ And drop the phantom: `someKey: "fallback"` is a docblock EXAMPLE in `settings-app.js`
-(`strings.someKey || 'fallback'`) that `extract-strings` scraped as a real reference. Fix the
-sweep so a doc example cannot become a key, not just the one symptom.
-
----
-
-## Item 2 — the last jank screen: Add contact / Add app
-
-The Account rows are closed (#820: 9–15 ms to glass on his device). **This is the same
-mechanism #804 cured, on the two screens nobody has migrated** — Damir reported it
-2026-09-06 and it is priced in `docs/handoff-2026-09-06b.md`.
-
-★ Verify before building (#215), the way #804 was: does the screen still push a page with its
-own WebView, and does the shell already have a route for it? Six questions, six answers in
-the tree, before a token moves.
-
----
-
-## ★ Item 3 — the Android memory kill. The only thing users lose work to.
-
-Unchanged and now three sessions old. **~30 minutes, 511 MB max, on a Release build.**
-
-```
-adb shell dumpsys meminfo com.ixilabs.spixi.dev
-```
-
-Read the **FOOTER**: `WebViews:` count and the `Native Heap` / `Dalvik Heap` / `Graphics`
-split, at launch and again after the half hour that gets it killed.
-
-* `WebViews:` grows with use → a WebView leak.
-* `WebViews:` stays 3–4 while Native or Graphics grows → not WebViews.
-
-★ **The suspect is code:** `SpixiContentPage.Dispose()` sets `disposed = true` and then does
-ALL of its teardown inside `if (!Navigation.NavigationStack.Contains(this))`. A page on the
-stack when `Dispose` runs is marked disposed and keeps its platform WebView for ever. #800's
-pre-warm re-arms a chat page on every back-out, ~15 MB each.
-
-**The free discriminator:** `CHAT_SPARE_ENABLED = false`, rebuild, use it for the same half
-hour. Kills stop → the pre-warm is the cause and the fix is the disposal, not the flag.
-
-⚠ Rule out the heavy seed first (10 × 1000). On that profile neither number means anything.
-
----
-
-## Item 4 — the Android defect list, to finalize the platform
-
-Two crashes nobody has characterised, and they need a logcat AT the repro, not after:
-
-* **AND-25** — remove-contact throws a fatal exception, reproducible.
-* **AND-27** — mic denied → re-asked natively → **no call screen appeared at all**.
-
-Then the small ones: **AND-28** (existing contacts show no avatar) · **AND-30** ("Add contact"
-offered for someone who already is one) · **AND-36** (rotation leaves a row highlighted) ·
-**AND-37** (back over an Account sheet lands on Chats) · the four landscape rows
-(**AND-31/32/33/34**) · **AND-35** (chat-appearance copy + order).
-
----
-
-## Item 5 — the two one-liners that are release blockers
-
-* **`maxLogCount = 5 → 1`** in `Spixi/Meta/Config.cs`. It carries its own
-  `RELEASE BLOCKER — REDUCE TO 1 BEFORE LAUNCH` marker, and GATE 23 asserts the legal PAIR
-  (5 with the marker, or 1 without it), so the flip edits that one file.
-* **Retire the diagnostic probes** — `[CDPERF]` (including this session's
-  `settings-sub`, which has done its job), `[SCROLL]`, `[PAINTDIAG]`, `[EXCERPTDIAG]`,
-  `landtabprobe`. Each comes out **with its pin**.
-
----
-
-## Rules this project keeps paying for
-
-* **#215 verify first · #294 do not guess.** Session S's whole value was checking a premise
-  instead of building against it, twice.
-* **#772 — a comment stating an invariant the code does not enforce is a defect.** Session S
-  converted three of them into pins, and refused a fourth that told it to delete live code.
-* **#798 / #771 — a refusal, an enumeration or a sweep written from the author's list is not
-  a pin.** Three distance-window pins convicted correct code this session.
-* ★ **A measurement with no assertion that its subject changed is a pin with no mutation.**
-  Two instruments reported clean results this session while measuring nothing.
-* ★ **A sweep is only as wide as the surfaces it visits.** The pseudo-locale crawl found "no
-  leaks" on surfaces it never opened; the walk's free row found them in one tap.
-* ⚠ **Stale staged artifacts bit twice.** After a rebuild, re-stage before re-measuring, and
-  assert a computed value rather than trusting a screenshot.
-* Windows: **F5, never `dotnet build`** (#663). An incremental iOS build does **not**
-  repackage `Raw/html` (#320). Wipe `obj`/`bin` on any C# change.
-* ⚠ On this bridge: `smoke-test.mjs` cannot run (>3 min per call, and a backgrounded run dies
-  with its call). `grep -c $'\0'` is a **vacuous** NUL check — use `tr -dc '\000' | wc -c`
-  with a control. Plain `git status` strands a `.git/index.lock`; use `--no-optional-locks`.
+Windows: **F5 in Visual Studio, never `dotnet build`** (#663 — it does not stage the
+`MauiAsset` files, so the app silently serves the previous build's shell).

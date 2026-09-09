@@ -209,6 +209,75 @@ function kindAround(src, idx) {
   return 'text';
 }
 
+/* —— the comment mask (Session T) ———————————————————————————————————————————
+ * ★★ THE DEFECT THIS CLOSES. The component sweep tested for a comment AFTER it had
+ * already recorded a fallback-carrying site and `continue`d, so the guard only ever
+ * protected BARE references — and its own comment said "skip matches inside comments",
+ * an invariant the code did not enforce (#772). The cost shipped: `settings-app.js`
+ * explains the sweep by QUOTING the canonical pattern inside its docblock, that
+ * quotation was scraped as a real reference, and the key it invented rode all thirteen
+ * dictionaries. #771 in its oldest costume — the prose is the sweep's input.
+ *
+ * ⚠ WHY A MASK AND NOT A WIDER LINE TEST. The old test was line-oriented (`//` earlier
+ * on the line, or a line trimmed to `*`/`/*`), which cannot see a block comment whose
+ * continuation lines carry no leading star. Blanking the comment SPANS answers the
+ * question the sweep is actually asking, and it answers it the same way for every form.
+ *
+ * ⚠ COMMENT BYTES ONLY. String and template bodies are left INTACT: a template literal
+ * carries live code inside `${…}`, so blanking string bodies would blind the sweep to
+ * real sites. Strings and regex literals are tracked solely so a `//` inside one of them
+ * ("https://…", /\/\//) cannot open a comment. Length and newlines are preserved, so
+ * every index into the mask is valid in the ORIGINAL source — which is what lets the
+ * fallback be parsed out of `src` at a position found in `masked`. */
+function maskComments(src) {
+  const out = src.split('');
+  const blank = (a, b) => { for (let i = a; i < b && i < out.length; i++) if (out[i] !== '\n') out[i] = ' '; };
+  let i = 0, prev = '';
+  while (i < src.length) {
+    const c = src[i];
+    if (c === '/' && src[i + 1] === '/') { let j = src.indexOf('\n', i); if (j < 0) j = src.length; blank(i, j); i = j; continue; }
+    if (c === '/' && src[i + 1] === '*') { let j = src.indexOf('*/', i + 2); j = j < 0 ? src.length : j + 2; blank(i, j); i = j; continue; }
+    if (c === '"' || c === "'" || c === '`') {
+      let j = i + 1;
+      while (j < src.length) { if (src[j] === '\\') { j += 2; continue; } if (src[j] === c) { j++; break; } j++; }
+      i = j; prev = '"'; continue;
+    }
+    /* a '/' here is a regex literal only where an operand cannot be — otherwise it is
+       division, and consuming to the next '/' would swallow real code. */
+    if (c === '/' && /[(,=:[!&|?{};+\-*%~^<>]/.test(prev)) {
+      let j = i + 1, cls = false;
+      while (j < src.length) {
+        const d = src[j];
+        if (d === '\\') { j += 2; continue; }
+        if (d === '[') cls = true; else if (d === ']') cls = false;
+        else if (d === '/' && !cls) { j++; break; }
+        else if (d === '\n') break;
+        j++;
+      }
+      i = j; prev = '/'; continue;
+    }
+    if (!/\s/.test(c)) prev = c;
+    i++;
+  }
+  return out.join('');
+}
+
+/* The HTML form. A shell is markup, and `</div>` puts a '/' after a '<' on nearly
+ * every line — exactly the operand position the regex-literal rule above reads as the
+ * start of a literal, and a URL's "https://" is not a comment either. So the JS mask is
+ * applied ONLY inside <script> regions, where its rules are the right ones; everything
+ * outside is left byte-for-byte. Offsets are preserved, so callers index the original. */
+function maskCommentsHtml(src) {
+  let out = src;
+  const re = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
+  let m;
+  while ((m = re.exec(src))) {
+    const a = m.index + m[0].indexOf('>') + 1, b = a + m[1].length;
+    out = out.slice(0, a) + maskComments(src.slice(a, b)) + out.slice(b);
+  }
+  return out;
+}
+
 const dict = new Map();
 const conflicts = [];
 const bareRefs = new Map();
@@ -226,9 +295,15 @@ function record(key, value, file, line, kind) {
 const files = readdirSync(COMPONENTS_DIR).filter((f) => f.endsWith('.js') && !SKIP.has(f)).sort();
 for (const f of files) {
   const src = readFileSync(join(COMPONENTS_DIR, f), 'utf8');
+  /* ★ THE SCAN RUNS OVER THE MASK, THE PARSE OVER THE SOURCE. Comment bytes are blanked
+     in `masked` at the same offsets, so a docblock that quotes the canonical pattern
+     yields no match at all — the guard now runs BEFORE the record instead of after the
+     `continue` that skipped it. Indices are shared, so the fallback is still read out of
+     the real source. */
+  const masked = maskComments(src);
   const re = /strings\.([A-Za-z_$][\w$]*)/g;
   let m;
-  while ((m = re.exec(src))) {
+  while ((m = re.exec(masked))) {
     const key = m[1];
     let j = skipWs(src, re.lastIndex);
     if (src[j] === '|' && src[j + 1] === '|') {
@@ -236,18 +311,13 @@ for (const f of files) {
       const fb = parseFallback(src, j);
       if (fb) { record(key, fb.value, f, lineOf(src, m.index), kindAround(src, m.index)); re.lastIndex = fb.end; continue; }
     }
-    // skip matches inside comments (doc-comment mentions of strings.X are not refs)
-    const lineStart = src.lastIndexOf('\n', m.index) + 1;
-    const before = src.slice(lineStart, m.index);
-    const trimmed = src.slice(lineStart).trimStart();
-    if (before.includes('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue;
     const at = `${f}:${lineOf(src, m.index)}`;
     if (!bareRefs.has(key)) bareRefs.set(key, []);
     bareRefs.get(key).push(at);
   }
   const red = /strings\[([^\]]+)\]/g;
   let d;
-  while ((d = red.exec(src))) dynamicSites.push({ expr: d[1].trim(), file: f, line: lineOf(src, d.index) });
+  while ((d = red.exec(masked))) dynamicSites.push({ expr: d[1].trim(), file: f, line: lineOf(src, d.index) });
 }
 
 /* —— A4: shell sweep (src/shells/*.html) ————————————————————————————————————
@@ -261,9 +331,10 @@ for (const f of files) {
 const shellFiles = readdirSync(SHELLS_DIR).filter((f) => f.endsWith('.html')).sort();
 for (const f of shellFiles) {
   const src = readFileSync(join(SHELLS_DIR, f), 'utf8');
+  const masked = maskCommentsHtml(src);      // same guard as the component sweep, script-scoped
   const re = /(?:window\.SL(?:\s*&&\s*window\.SL)?|\b(?:s|sl|strings))\.([A-Za-z_$][\w$]*)/g;
   let m;
-  while ((m = re.exec(src))) {
+  while ((m = re.exec(masked))) {
     const key = m[1];
     let j = skipWs(src, re.lastIndex);
     if (src[j] === ')') j = skipWs(src, j + 1);       // the guarded-window.SL paren form

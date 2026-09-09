@@ -637,5 +637,11 @@
   "groundGradient": "Sfumatura",
   "notifPushProviderSub": "Riattiva questo dispositivo non appena arriva un messaggio. Usa OneSignal, un provider di notifiche push.",
   "loadMedia": "Carica immagini e GIF",
-  "loadMediaSub": "Il caricamento comunica all’host del mittente che hai aperto la chat"
+  "loadMediaSub": "Il caricamento comunica all’host del mittente che hai aperto la chat",
+  "spixiAddressSub": "Questo è il vostro indirizzo. Toccate per visualizzarlo.",
+  "peerAddressTitle": "Indirizzo Ixian",
+  "peerAddressBody": "Questo è l’indirizzo di questo contatto sulla rete Ixian. Scansionate il codice o copiate l’indirizzo per inviare IXI.",
+  "peerQrLabel": "QR code: indirizzo Ixian di questo contatto",
+  "removeContactOpt": "Rimuovi contatto",
+  "removeFailedToast": "Non è stato possibile rimuovere il contatto. Riprovate."
 }

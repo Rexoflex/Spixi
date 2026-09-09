@@ -630,5 +630,11 @@
   "groundGradient": "グラデーション",
   "notifPushProviderSub": "メッセージが届くとすぐにこの端末を起動します。プッシュ配信に OneSignal を使用します。",
   "loadMedia": "画像と GIF を読み込む",
-  "loadMediaSub": "読み込むと、送信者のサーバーにチャットを開いたことが伝わります"
+  "loadMediaSub": "読み込むと、送信者のサーバーにチャットを開いたことが伝わります",
+  "spixiAddressSub": "これはあなたのアドレスです。タップして表示します。",
+  "peerAddressTitle": "Ixian アドレス",
+  "peerAddressBody": "これはこの連絡先の Ixian ネットワーク上のアドレスです。コードをスキャンするか、アドレスをコピーして IXI を送信します。",
+  "peerQrLabel": "QR コード：この連絡先の Ixian アドレス",
+  "removeContactOpt": "連絡先を削除",
+  "removeFailedToast": "連絡先を削除できませんでした。もう一度お試しください。"
 }

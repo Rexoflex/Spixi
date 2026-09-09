@@ -90,6 +90,8 @@
 <link rel="stylesheet" href="../styles/components/apps-item.css">
 <link rel="stylesheet" href="../styles/components/apps-shell.css">
 <link rel="stylesheet" href="../styles/components/apps-header.css">
+<link rel="stylesheet" href="../styles/components/apps-add.css"><!-- ★ Session T: the in-shell Add-app panel (createAppsAdd) -->
+<link rel="stylesheet" href="../styles/components/apps-discover.css"><!-- apps-add composes a discover row even with discover:false -->
 <style>
   /* Production shell: fill the WebView (no demo phone frame). Three internal views
      (chats = tab1, wallet = tab2, apps = tab3) swap client-side; the bottom nav
@@ -429,6 +431,8 @@
     resetSearchFields,                   // ★ BUG-3: visit-scoped search reset (search-field.js)
     setChipSelected,
     createWalletReceive,                 // Receive/Request takeover (zero-C#)
+    createAppsAdd, setAddUrl, setAddError,   // ★ Session T: the Add-app screen, in THIS WebView
+    setLoading,                          // ★ Session T: the Get-app button's loading state
     openAddressSheet,                    // ★ #589: the wallet zero-state CTA opens the SHEET, not the Receive takeover
     closeAddressSheet,                   // r2 n5: the takeover closes its address sheet on the way out
     isDesktopPresentation,               // N38: Share hides on desktop (dead ladder; Copy beside it)
@@ -1001,6 +1005,11 @@
    * closing the takeover. Track the top takeover's close fn + push the open/closed
    * state to C# so OnBackButtonPressed can route back INTO the shell (homeBack). */
   let walletTakeoverClose = null;
+  /* ★ Session T: declared HERE, not beside openAppsAdd — homeOverlayLevel() below
+     reads them, and a boot-time sync would hit the temporal dead zone of a `let`
+     that lives 2000 lines further down. */
+  let appsAddTakeover = null;
+  let appsAddClose = null;
   /* AND-29 v2 (#336, Damir F5 r2): "wallet Receive back exits + some sheets exit".
    * Two gaps in v1: (a) the wallet takeover open never pushed state (only contacts
    * did) → Receive's shell takeover was invisible to C# (Send is fine — v1 Send is
@@ -1018,7 +1027,7 @@
    * that path; it did NOT hide it on the wallet's own Receive/Send takeover, which has
    * shipped with hero-coloured glyphs over a screen-surface cover the whole time. */
   function homeOverlayLevel() {
-    if (contactsView || walletTakeover) return 2;
+    if (contactsView || walletTakeover || appsAddTakeover) return 2;   // ★ Session T: the add-app subscreen is a takeover too
     /* ★ Session H review MAJOR-1 (auditor A): a takeover SLIDING OUT still covers the
        screen for 220 ms after its handle was nulled. Reporting 0 in that window put
        homeShellOverlayOpen=false while the cover was on glass — a second hardware back
@@ -1071,6 +1080,7 @@
       settleSubscreenSlide(document.body);
       return true;
     }
+    if (appsAddTakeover && appsAddClose) { appsAddClose('back'); return true; }   // ★ Session T: same C4 grammar as the wallet takeover
     if (walletTakeover && walletTakeoverClose) { walletTakeoverClose('back'); return true; }   // ★ Session H: hardware back IS the user's Back (C4) — it slides
     if (contactsView) { contactsView.close('back'); return true; }   // onClose nulls the handle + syncs · C4: hardware back IS the user's Back
     return false;
@@ -1093,6 +1103,7 @@
    * Sheets/menus (z-40) are deliberately NOT swept: their scrim covers the rail, so
    * a tab tap cannot happen while one is up. */
   function closeHomeTakeovers() {
+    if (appsAddTakeover && appsAddClose) appsAddClose();                 // ★ Session T: symmetric with the two below
     if (walletTakeover && walletTakeoverClose) walletTakeoverClose();   // nulls both handles + syncs
     if (contactsView) contactsView.close();                             // onClose nulls the handle + syncs
   }
@@ -3158,8 +3169,9 @@
     // secondary "Add app" CTA. Art ships beside the shells (build-shells.mjs:260-267,
     // the images/backup.png mechanism) — a `file://` WebView resolves a sibling file,
     // never an external asset URL. Missing art degrades to the glyph tile.
+
     emptyIllustration: 'images/apps-es.png',
-    onAddApp: () => bridge.send('ixian:newapp'),   // same verb as the topbar action
+    onAddApp: openAppsAdd,     // ★ Session T: in-shell, no page push (was ixian:newapp)
   };
 
   // Apps topbar — root style + the Add action (→ legacy AppNewPage).
@@ -3175,7 +3187,7 @@
     actions: [{
       icon: 'circle-plus', text: strings.addApp || 'Add app',
       label: strings.addMiniApp || 'Add mini app',   // key ≠ app_new's addApp 'Add app' (A4 conflict gate)
-      onClick: () => bridge.send('ixian:newapp'),
+      onClick: openAppsAdd,    // ★ Session T: in-shell (was ixian:newapp)
     }],
   });
   document.getElementById('apps-topbar').append(appsTopbarEl);   // #322: ref kept — the connectivity title-state also lands here
@@ -3193,6 +3205,69 @@
   // browser — does NOT navigate this WebView away). An outbound web link is fine; the
   // app-store-like part to avoid is an IN-APP browsable catalog (the Discover feed),
   // which stays parked. `discover:false` here only means "no in-app feed", not "no banner".
+  /* ★★ Session T — ADD APP IN THIS WEBVIEW (Damir, twice: "it still stutters").
+   * `ixian:newapp` pushed AppNewPage, which boots its own WebView — the very open its
+   * own [CDPERF] instrument was added to measure (Session K #757 ②). The apps tab is
+   * already here, so the screen mounts as a subscreen over it, exactly the way the
+   * wallet Receive/Send takeovers do above (same slide, same back grammar, same
+   * AND-29 overlay bookkeeping).
+   * ⚠ The verbs are UNCHANGED — `ixian:fetch:` / `ixian:selectAppFile` are the same two
+   * app_new.html sends, answered by HomePage against AppNewPage's own cores. */
+  let appsAddEl = null;
+  let appsGetBtn = null;
+  let appsFetchGrace = 0;
+
+  function closeAppsAdd(reason) {
+    clearTimeout(appsFetchGrace);
+    const over = appsAddTakeover;
+    if (!over) return;
+    appsAddTakeover = null; appsAddClose = null; appsAddEl = null; appsGetBtn = null;
+    if (reason === 'back') slideSubscreenOut(document.body, over, () => { over.remove(); syncHomeOverlay(); }, { positioned: false }); else over.remove();
+    syncHomeOverlay();
+  }
+
+  function openAppsAdd() {
+    if (appsAddTakeover) return;
+    leaveSurfaceSearch();
+    const over = document.createElement('div');
+    over.className = 'wallet-takeover';        // the same subscreen shell the wallet uses
+    appsAddTakeover = over;
+    appsAddClose = closeAppsAdd;
+    syncHomeOverlay();                          // AND-29: hardware back closes this takeover
+    over.append(createTopbar({
+      variant: 'view', title: strings.addApp || 'Add app',
+      backLabel: strings.back || 'Back', onBack: () => closeAppsAdd('back'),
+    }));
+    const body = document.createElement('div');
+    body.className = 'wallet-takeover__body u-scroll';
+    appsAddEl = createAppsAdd({
+      strings,
+      discover: false,                          // phase 1: no in-app feed (#216 A2)
+      onFetchUrl: (url) => {
+        if (!url) { setAddError(appsAddEl, strings.enterAppUrl || 'Enter an app link.'); return; }
+        if (appsGetBtn) setLoading(appsGetBtn, true);
+        bridge.send('ixian:fetch:' + url);
+        /* The grace timer stays, and it is SHORTER than the standalone page's 8 s: there
+           both outcomes were silent (success navigated the WebView away), so it had to
+           wait out a network fetch before guessing. Here failure pushes showUrlError and
+           success pushes closeAddApp, so this only covers a genuine no-signal case. */
+        clearTimeout(appsFetchGrace);
+        appsFetchGrace = setTimeout(() => {
+          if (appsGetBtn) setLoading(appsGetBtn, false);
+          setAddError(appsAddEl, strings.fetchMaybeFailed
+            || 'If nothing happened, that link may be invalid or unreachable.');
+        }, 8000);
+      },
+      onScan: () => bridge.send('ixian:appscan'),        // NOT quickscan: see HomePage
+      onPickFile: () => bridge.send('ixian:selectAppFile'),
+    });
+    body.append(appsAddEl);
+    over.append(body);
+    document.body.append(over);
+    appsGetBtn = appsAddEl.querySelector('.c-apps-add__field .c-button');
+    slideSubscreenIn(document.body, over, null, { positioned: false, append: false });
+  }
+
   const appsHeader = createAppsHeader({
     layout: appsState.layout, strings, discover: false,
     // Damir 2026-08-12: the banner gets the illustration, bottom-right. Sibling file
@@ -4181,6 +4256,41 @@
     // (the same file HandlePickSucceeded promotes onto the new group) and pushes it
     // back as a data-URI. Resolves the panel's pending ctrl.
     loadGroupAvatar(src) { if (contactsView && contactsView.setGroupAvatar) contactsView.setGroupAvatar(src || ''); },
+
+    /* ★★ Session T — the ADD-CONTACT screen now lives in THIS WebView (Damir, twice:
+     * "it still stutters"). `ixian:newcontact` pushed ContactNewPage and paid a cold
+     * WebView boot; the contacts takeover was already open, so the screen mounts there
+     * and HomePage answers its verbs against ContactNewPage's own core.
+     * Same guard shape as loadGroupAvatar above: a push that arrives after the user
+     * backed out finds no panel and is dropped. */
+    onValidAddress() { if (contactsView && contactsView.addValidAddress) contactsView.addValidAddress(); },
+    onKnownAddress(kind, address, nick, checked) {
+      if (contactsView && contactsView.addKnownAddress) contactsView.addKnownAddress(kind, address, nick, checked);
+    },
+    /* The verdict the standalone page could never deliver: it answers a rejection with a
+     * native alert and no push, so contact_new.html arms a 6-second timer and guesses.
+     * Here the button is resolved by what actually happened. */
+    onRequestResult(ok, message) {
+      if (contactsView && contactsView.addRequestResult) contactsView.addRequestResult(ok, message);
+    },
+    /* ★ Session T — the add-app screen's two C# answers. `showUrlError` is the SAME
+     * push app_new.html has always consumed; `closeAddApp` is new and only exists
+     * because there is no page to navigate away from here — C# opens AppDetailsPage
+     * over this WebView, so the panel underneath has to be told to go. */
+    showUrlError() {
+      clearTimeout(appsFetchGrace);
+      if (appsGetBtn) setLoading(appsGetBtn, false);
+      if (appsAddEl) setAddError(appsAddEl, strings.appUrlInvalid || 'That link or file isn’t a valid mini app.');
+    },
+    closeAddApp() { closeAppsAdd(); },
+    setScannedData(url) {
+      clearTimeout(appsFetchGrace);
+      if (appsGetBtn) setLoading(appsGetBtn, false);
+      if (appsAddEl) setAddUrl(appsAddEl, url || '');
+    },
+    onContactScanResult(address) {
+      if (contactsView && contactsView.addScanResult) contactsView.addScanResult(address);
+    },
 
     /* ——— safe no-op stubs (features owned by other shells / not in v1) ——— */
     loadAvatar() { dbg('loadAvatar'); },        // avatar path doesn't resolve in-shell (flag) — gradient fallback

@@ -211,7 +211,9 @@
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
   z-index: var(--z-40);
-  background: var(--surface-scrim);
+  /* the OVERLAY backdrop role — not --surface-scrim, which carries near-white ink on
+     media tiles and the call stage (tokens.css). Halved in light, #557 values in dark. */
+  background: var(--surface-scrim-overlay);
   opacity: 0;
   transition: opacity var(--duration-200) var(--easing-standard);
 }

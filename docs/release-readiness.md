@@ -113,22 +113,35 @@ these are a scope decision, not a defect list.
   because `SettingsPage` has no verbs for them. ⚙ The Privacy screen itself is now REACHABLE, and
   it carries one real switch: media auto-load. That screen was built and called by no shell until
   2026-09-06 (gate rows F-02 · F-03). The rest of PV1 still needs verbs.
-* **i18n residual (M13)** — ⚠ the most user-visible item on this page: several surfaces still
-  render **English under a chosen locale**. This one is ours and buildable now.
-* **Add contact / Add app stutter** — Damir, 2026-09-06. Same mechanism #804 cured for the three
-  Account rows; priced in `docs/handoff-2026-09-06b.md`.
+* ~~**i18n residual (M13)**~~ — ✅ **CLOSED (#812 · #821).** The row was stale by two months: the
+  CODE half was closed by #269 on 2026-07-12, the day AFTER the F5 that recorded it, and a
+  `?lang=pseudo` sweep over all 18 built shells found no visible English left. Session T closed
+  the last of it — six keys were the English string in **all twelve** locales because they were
+  added after the last drafting round and were in no draft file, so `build-locales` silently fell
+  back to English. Filled, and **GATE 51** now fails the build when it happens again. What
+  remains is the **translator pass** (§4), which is Damir's, not code.
+* ~~**Add contact / Add app stutter**~~ — ✅ **BUILT (#827).** Damir reported it twice. Both
+  screens pushed a C# page with its own WebView (the 130–230 ms cold boot #803 measured); they
+  now mount inside the home shell, the way #804 did for the Account rows. GATE 54 proves it
+  against the built bundle. 🟡 The C# is uncompiled until his next build.
 
 ---
 
 ## §3 · Ours, buildable today, no decision needed
 
-The i18n residual (M13) · iOS-44 attach sheet under the composer · iOS-56b edge-swipe in
-subscreens · iOS-55 untranslated tx timestamps · iOS-18 multi-user picker still on the old
-design · iOS-43 clipped button label · AND-28 existing contacts show no avatar · AND-30 "Add
-contact" offered for someone who already is one · AND-36 rotation leaves a row highlighted ·
-AND-37 back over an Account sheet lands on Chats · the four landscape rows (AND-31/32/33/34) ·
-AND-35 chat-appearance copy + order · R7 share-sheet home leg · Q1 restore file-set state ·
-the wallet sync/block-height surface. ⚠ The "five stale rows in `be-cutover-brief.md`" are done:
+iOS-44 attach sheet under the composer · iOS-56b edge-swipe in subscreens · iOS-55 untranslated
+tx timestamps · iOS-18 multi-user picker still on the old design · iOS-43 clipped button label ·
+AND-28 existing contacts show no avatar · AND-36 rotation leaves a row highlighted (mechanism
+narrowed in #826 — the highlight only clears when a conversation CLOSES, and a rotation re-homes
+rather than closes; one repro decides it) · the four landscape rows (AND-31/32/33/34) · AND-35
+chat-appearance copy + order · R7 share-sheet home leg · Q1 restore file-set state · the wallet
+sync/block-height surface.
+
+⚠ **Two rows left this list on 2026-09-08 because they were already built** (#826, the #660
+class): **AND-30** — the member sheet has been relation-aware since #366/#370/#613 and C# sends
+the relation at `SingleChatPage:1107` and `:2971`; and **AND-37** — fixed by N51 the day after it
+was written, `settings.html onBack()` consumes back into `dismissTopOverlay()` first. Both need a
+device re-verify, not a build. **M13** is closed (§2). ⚠ The "five stale rows in `be-cutover-brief.md`" are done:
 that file was verified row by row on 2026-09-06 and 26 rows changed state (§7).
 
 ---

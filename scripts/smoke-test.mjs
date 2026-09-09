@@ -7,7 +7,7 @@
  */
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { readFileSync as readFileSyncRaw, readdirSync, existsSync, statSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { readFileSync as readFileSyncRaw, readdirSync, existsSync, statSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 
 /* CRLF NORMALIZATION ON READ (#340; handoff-2026-08-16 "the CRLF smoke brittleness").
@@ -7796,7 +7796,16 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      CSS-ONLY (its allowlist is `spixi.tokens.css`, and the JS strip is refused there
      because it moves the line numbers the [WEBVIEW] mirror traces by). Headroom after the
      raise: 6 929 chars, about what HEAD had. */
-  const CHAT_KB_CEIL = 682, INDEX_KB_CEIL = 500;
+  /* ★ Session T: INDEX_KB_CEIL 500 → 516, with the delta stated as #345's own method
+     requires. home.html gained the ADD-APP screen in-shell (Damir reported that stutter
+     twice) — +14 491 normalized chars over HEAD's 506 498, of which ~8 KB is the two
+     stylesheets the W-h gate correctly demanded (apps-add.css 4.3 · apps-discover.css
+     3.6; without them createAppsAdd renders unstyled) and ~6 KB the takeover itself.
+     ★★ AND THE TRADE IS THE POINT, not the cost: at the measured 0.08 ms/KB that is
+     ~1.1 ms of extra parse, and it BUYS the removal of a 130–230 ms cold WebView boot
+     (#803) on a hot route. A ceiling that refused this would be optimising the wrong
+     number. Headroom after the raise: 7 397 chars. */
+  const CHAT_KB_CEIL = 682, INDEX_KB_CEIL = 516;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -9359,9 +9368,18 @@ console.log('apps surface — perf · Add-app button · empty state · explore b
     'ADD-APP: the Apps topbar carries a real TEXT action, not a bare "+" glyph (Damir 2026-08-12)');
   ok(!!textAction && !textAction.hasAttribute('aria-label'),
     'ADD-APP: the VISIBLE label is the accessible name — no aria-label silently overriding it with different words');
+  /* ★ Session T re-base: the verb is GONE from this shell, and that is the fix, not a
+     regression. `ixian:newapp` pushed AppNewPage and its own WebView — the cold boot
+     Damir reported as a stutter twice. The screen now mounts in THIS document via
+     openAppsAdd. The pin's real property survives verbatim and is asserted below: the
+     topbar action and the empty-state CTA use the SAME entry point, and no NEW bridge
+     command was invented for it (the page's own verbs are untouched; GATE 54 proves the
+     behaviour). AppNewPage still exists and still handles ixian:newapp for its own
+     callers — this asserts only that the HOME shell no longer sends it. */
   ok(/text: strings\.addApp \|\| 'Add app'/.test(homeSrc) && /icon: 'circle-plus'/.test(homeSrc)
-    && /onClick: \(\) => bridge\.send\('ixian:newapp'\)/.test(homeSrc),
-    'ADD-APP: the production shell passes the label + keeps the existing ixian:newapp verb (no new bridge command)');
+    && /onClick: openAppsAdd,/.test(homeSrc)
+    && !/bridge\.send\('ixian:newapp'\)/.test(homeSrc),
+    'ADD-APP: the production shell passes the label and opens the add screen IN-SHELL (openAppsAdd) — the ixian:newapp page push is gone from this shell, and no new bridge command replaced it');
   const tbCss = readFileSync(join(root, 'src/styles/components/topbar.css'), 'utf8');
   ok(/\.c-topbar__action--text::after\s*\{[^}]*inset:\s*-6px 0/.test(tbCss),
     'ADD-APP: the 32px pill still presents a 44px TOUCH TARGET (house hit-expander, §5b)');
@@ -9404,8 +9422,8 @@ console.log('apps surface — perf · Add-app button · empty state · explore b
   S.renderAppsList(eList2, { apps: [], query: '', layout: 'list' }, eOpts);
   ok(!!eList2.querySelector('.c-empty-state__illo-img') && !!eList2.querySelector('.c-empty-state__action .c-button'),
     'APPS EMPTY: the empty node is cached by SHAPE — an early art-less render never pins an art-less state forever');
-  ok(/emptyIllustration: 'images\/apps-es\.png'/.test(homeSrc) && /onAddApp: \(\) => bridge\.send\('ixian:newapp'\)/.test(homeSrc),
-    'APPS EMPTY: the production shell wires the art + the CTA (same verb as the topbar — no new bridge verb)');
+  ok(/emptyIllustration: 'images\/apps-es\.png'/.test(homeSrc) && /onAddApp: openAppsAdd,/.test(homeSrc),
+    'APPS EMPTY: the production shell wires the art + the CTA, and the CTA is the SAME entry point as the topbar action (Session T: openAppsAdd, in-shell — was ixian:newapp, a page push). One entry, two affordances, still no new bridge verb');
   ok(existsSync(join(root, 'Spixi/Resources/Raw/html/images/apps-es.png'))
     && existsSync(join(root, 'Spixi/Resources/Raw/html/images/explore-banner.png')),
     'APPS ART (N45): both PNGs ship next to the packaged shells (build-shells copies src/demo/images) — else both refs 404 on device');
@@ -10243,8 +10261,18 @@ console.log('BUG-3 — search reset (static)');
   ok(ocBody.indexOf('leaveSurfaceSearch();') > 0
     && ocBody.indexOf('leaveSurfaceSearch();') < ocBody.indexOf('mountContacts('),
     'BUG-3: opening the contacts takeover drops the query, and drops it BEFORE the takeover mounts — that is Damir\'s exact path (chats → FAB → create group → back)');
-  ok((home.match(/leaveSurfaceSearch\(\);\s*(?:\/\/[^\n]*)?\n?\s*const over = document\.createElement\('div'\);/g) || []).length === 2,
-    'BUG-3: both wallet takeovers (Receive and Send) drop it — a cover over the tab is leaving the tab');
+  /* ★ Session T: this was a COUNT of two (the wallet Receive/Send takeovers) and the
+     add-app takeover made it three — so the count went red against correct code. A count
+     is the weak form anyway (#798): it says nothing about a FOURTH takeover added later.
+     Rewritten as the property it was always reaching for — EVERY takeover that covers a
+     tab in this shell drops the query first, with no list of which ones. */
+  {
+    const covers = (home.match(/const over = document\.createElement\('div'\);/g) || []).length;
+    const dropped = (home.match(/leaveSurfaceSearch\(\);\s*(?:\/\/[^\n]*)?\n?\s*const over = document\.createElement\('div'\);/g) || []).length;
+    ok(covers >= 3 && dropped === covers,
+      'BUG-3: EVERY tab-covering takeover in home.html drops the search query first — ' + dropped + ' of ' + covers
+      + ' (wallet Receive, wallet Send, and Session T\'s add-app). A cover over the tab is leaving the tab, so its query dies with the visit; asserted as a property rather than a count of the two that existed when this was written');
+  }
   ok(/setNavActive\(nav, 'account'\);[\s\S]{0,300}?leaveSurfaceSearch\(\);/.test(home),
     'BUG-3: opening the Account peer pane drops it — the tab underneath has been left');
   ok(/#wallet-scroll > \.c-wallet-tools\.is-pinned/.test(home) && /position: sticky/.test(home)
@@ -11769,9 +11797,15 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
   /* —— N56: pinned-row wash —— */
   {
     const tok = read('src/styles/tokens.css');
-    ok(/--surface-pinned: rgba\(13, 19, 36, 0\.09\);/.test(tok)
+    /* ★ Session T re-base, on the RECORD not on the code: DECISIONS #815 (walked ✅) reads
+       "7% shipped" — Damir's dial, "take the pinned background a tone lighter". The pin
+       still carried 9% because Session S never ran this suite, so HEAD has been red here
+       since it was committed. The floor the old message records is preserved and is why
+       the dial stopped at 7 rather than 5: at 5% the composite is a perceptual TIE with
+       the neutral-50 hover (contrast 1.014) — an unreadable marker; 7% sits at 1.054. */
+    ok(/--surface-pinned: rgba\(13, 19, 36, 0\.07\);/.test(tok)
       && /--surface-pinned: rgba\(233, 236, 243, 0\.06\);/.test(tok),
-      '★ N56: --surface-pinned in BOTH themes — light at 9% (loop C-2: 5% composited to a perceptual TIE with the neutral-50 hover — an unreadable marker); dark is a LIGHT lift, not a brand darken (brand-900 sits darker than the neutral-900 screen and would vanish, the #194 lesson)');
+      '★ N56: --surface-pinned in BOTH themes — light at 7% (#815, his dial; 5% composited to a perceptual TIE with the neutral-50 hover at 1.014 — an unreadable marker, which is the floor the ladder stops above); dark is a LIGHT lift, not a brand darken (brand-900 sits darker than the neutral-900 screen and would vanish, the #194 lesson)');
     const css = read('src/styles/components/chatlist-item.css');
     ok(/\.c-chatlist-item\[data-pinned\]:not\(\[aria-current\]\) \{ background-color: var\(--surface-pinned\); \}/.test(css),
       'N56: the pinned wash paints on the row, selected still wins (the :not() keeps the ladder: selected > pinned > hover)');
@@ -12475,9 +12509,21 @@ console.log('#441–#447 — reply-to · privacy shield · banked bugs · wallet
   ok(/if \(knownAddress \|\| !known\.hidden\) \{\s*\n\s*input\.focus\(\);\s*\n\s*return;\s*\n\s*\}/.test(cs435),
     '★ #435(b): a duplicate never reaches ixian:request. C# rejects it with a NATIVE alert and no push back — the known wedge that leaves Send latched in "loading" for 6 s. Same reasoning as looksLikeAddress blocking obvious garbage locally');
   const cnp435 = read4('Spixi/Pages/Contacts/ContactNewPage.xaml.cs');
-  ok(/Utils\.sendUiCommand\(this, "onKnownAddress", "contact",\s*\n\s*routing_address\.ToString\(\), known\.nickname == null \? "" : known\.nickname, address\);/.test(cnp435)
-    && /Utils\.sendUiCommand\(this, "onKnownAddress", "self", "", "", address\);/.test(cnp435),
-    '★ #435(b): checkAddress answers WHICH outcome an address has, not just "it parses". ⚠ The dial assumed the shell could detect this locally from a contacts list — it cannot: production add-contact is the STANDALONE ContactNewPage, which never receives a roster. Pushing the whole roster to a WebView for one boolean would be strictly worse');
+  /* ★ Session T: the answer moved into `answerCheckAddress`, a static both hosts call, so
+     the receiver is the page passed in rather than `this` and the local is `routing`. The
+     PROPERTY is unchanged and is what is asserted: checkAddress answers WHICH outcome —
+     self, already-a-contact, or valid — never just "it parses".
+     ⚠ AND THE OLD MESSAGE'S REASONING IS NOW HALF WRONG, so it is corrected rather than
+     carried: it said the shell could not detect this locally because "production
+     add-contact is the STANDALONE ContactNewPage, which never receives a roster". The
+     home shell hosts that screen now and DOES hold a roster — but the check still cannot
+     be local, for a better reason: it parses an Ixian ExtendedAddress and resolves it to
+     a routing address, which no shell can do. The round trip stays because of the parse,
+     not because of the roster. */
+  ok(/Utils\.sendUiCommand\(page, "onKnownAddress", "contact",\s*\n\s*routing\.ToString\(\), known\.nickname == null \? "" : known\.nickname, address\);/.test(cnp435)
+    && /Utils\.sendUiCommand\(page, "onKnownAddress", "self", "", "", address\);/.test(cnp435)
+    && /public static void answerCheckAddress\(SpixiContentPage page, string address\)/.test(cnp435),
+    '★ #435(b): checkAddress answers WHICH outcome an address has, not just "it parses" — and it answers it from ONE static (answerCheckAddress) that both the standalone page and the in-shell screen call, so the two can never disagree about what a request would do. The round trip is required by the ExtendedAddress parse + routing resolution, which no WebView can perform');
   ok(/current_url\.StartsWith\("ixian:viewcontact:", StringComparison\.Ordinal\)/.test(cnp435)
     && /pushPageLoaded\(new ContactDetails\(known, false, null, false\), 4000, null, -1, this\)/.test(cnp435),
     '★ #435(b): "View contact" REPLACES the form in the same slot — tag and column left at their defaults on purpose so pushPageLoaded inherits the replaced overlay\'s slot (the Q1 fix), instead of blowing a pane up into a full-window takeover');
@@ -16609,7 +16655,14 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     /* A8 lives on contact_details — the in-chat takeover has been dead code since #249 (ixian:details owns info);
        the loop r1 caught a first cut that skeletoned the dead surface and pinned it by regex (the #512 lesson) */
     ok(/loading: !state\.membersLanded && state\.members\.length === 0 && Date\.now\(\) - bootAt < 2500,/.test(cdS)
-      && /state\.membersLanded = true;/.test(cdS) && /<div class="contact-boot" role="status" aria-label="Loading" aria-busy="true">/.test(cdS)
+      && /state\.membersLanded = true;/.test(cdS)
+      /* ★ Session T: was an exact-attribute-order string match on the boot cover, and #812
+         added `data-sl-aria` beside its aria-label so the shell can localize it — correct
+         work that broke a pin matching literal markup. Asserted as the PROPERTIES the cover
+         must have, in any order, so the next attribute added does not break it again. */
+      && /<div class="contact-boot"[^>]*role="status"[^>]*>/.test(cdS)
+      && /<div class="contact-boot"[^>]*aria-busy="true"[^>]*>/.test(cdS)
+      && /<div class="contact-boot"[^>]*aria-label="[^"]+"[^>]*>/.test(cdS)
       && (cdS.match(/contact-boot__row/g) || []).length >= 3 && /\.contact-boot__disc, \.contact-boot__dot, \.contact-boot__line \{ animation: none; \}/.test(cdS),
       '★ A8 SHELL (contact_details — the LIVE info surface): the boot cover is a skeleton panel (role=status, aria-busy, reduced-motion off) and the roster rows skeleton until the first commit or 2.5 s');
     ok(/if \(state\.sharedGroups === null\) \{ state\.sharedGroups = undefined; scheduleCommit\(\); \}/.test(cdS),
@@ -18403,9 +18456,27 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     const scpChatV = rdf('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
 
     /* —— V-5: a 5-second task that outlives its page —— */
+    /* ★★ Session T — THIS PIN ASSERTED THE DEFECT, and it is rewritten rather than deleted.
+     * V-5's reasoning was right about one thing and wrong about the other. Right: a flag
+     * set at the END of a method that can bail early is not a flag. Wrong: it concluded
+     * the flag must therefore be set FIRST, before the on-stack guard — and that made it
+     * mean "Dispose() was called", not "this page is gone". `OnDisappearing` calls
+     * Dispose() UNCONDITIONALLY, and it fires when a page is merely COVERED, so every
+     * page that had anything pushed over it was marked disposed for the rest of its life
+     * with nothing to clear it. Its three readers all treat it as "this page is dead":
+     * popPageAsync's own guard below (back stops working on a page you came back to) and
+     * ContactDetails:293/:375 (the group roster is dropped after you view a transaction).
+     * The assignment now lives INSIDE the guard, where it means what the readers think.
+     * ⚠ V-5's ORIGINAL repro is preserved and still passes: its page was never pushed —
+     * staging, then abandoned — so it is OFF the stack, the teardown runs, and the flag
+     * IS set. The two readings only diverge for a page that is alive. GATE 53 carries the
+     * structural half (exactly one assignment, after the guard, so a fix-by-addition
+     * cannot pass); this clause keeps V-5's own half — the flag exists and the pop guard
+     * still consults it. See DECISIONS #824. */
     ok(/private volatile bool disposed = false;/.test(scpV)
-       && /public void Dispose\(\)\s*\n\s*\{\s*\n\s*disposed = true;/.test(scpV),
-      '★★ V-5: Dispose sets the flag, and sets it FIRST — before the NavigationStack test that can throw, and before the WebView teardown. A flag set at the end of a method that can bail early is not a flag');
+       && !/public void Dispose\(\)\s*\n\s*\{\s*\n\s*disposed = true;/.test(scpV)
+       && /if \(!Navigation\.NavigationStack\.Contains\(this\)\)\s*\n\s*\{\s*\n\s*disposed = true;/.test(scpV),
+      '★★ V-5 (re-based, #824): the flag exists and is set INSIDE the on-stack guard, so it means "the teardown ran, this page is really gone" — not "Dispose() was called". Set first, it latched true on every page anything was pushed over, and three readers treat it as death: back stopped working on a page you returned to, and the group roster was guarded out after viewing a transaction. V-5\'s own repro (a page that was never pushed) is off-stack, so it still sets the flag and is unaffected');
     {
       const popAt = scpV.indexOf('public void popPageAsync()');
       const popBody = popAt > 0 ? scpV.slice(popAt, popAt + 2600).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '') : '';
@@ -23034,10 +23105,14 @@ console.log('Session H: the in-shell subscreen slide · the icon wiring');
   ok(paneBranch.length > 200 && !/slideSubscreen/.test(paneBranch) && /slideSubscreenIn/.test(rl.slice(paneStart + paneBranch.length)),
     '★ Session H [settings]: the PANE (desktop master-detail) branch calls no slide — #704, desktop only chat info slides');
   const home = nc(rdF('src/shells/home.html'));
-  ok((home.match(/slideSubscreenIn\(document\.body, over, null, \{ positioned: false, append: false \}\);/g) || []).length === 2
-     /* ★ review MAJOR-1 re-base: the exit's remove callback now ALSO re-syncs the overlay
-        level — the flag stays 2 while the cover slides and reports 0 only when it is gone */
-     && (home.match(/if \(reason === 'back'\) slideSubscreenOut\(document\.body, over, \(\) => \{ over\.remove\(\); syncHomeOverlay\(\); \}, \{ positioned: false \}\); else over\.remove\(\);/g) || []).length === 2
+  /* ★ Session T: these were counts of TWO (wallet Receive/Send) and the add-app takeover
+     made them three. A count is the weak form (#798) — it says nothing about the next
+     takeover. Asserted as the PROPERTY instead: every screen that slides IN also slides
+     OUT through a callback that re-syncs AFTER the cover is removed, and the two counts
+     must MATCH, so a takeover added with only half the grammar fails here. */
+  ok((home.match(/slideSubscreenIn\(document\.body, over, null, \{ positioned: false, append: false \}\);/g) || []).length >= 3
+     && (home.match(/slideSubscreenIn\(document\.body, over, null, \{ positioned: false, append: false \}\);/g) || []).length
+        === (home.match(/if \(reason === 'back'\) slideSubscreenOut\(document\.body, over, \(\) => \{ over\.remove\(\); syncHomeOverlay\(\); \}, \{ positioned: false \}\); else over\.remove\(\);/g) || []).length
      && /walletTakeoverClose\('back'\); return true;/.test(home) && (home.match(/onBack: \(\) => close\('back'\),/g) || []).length === 2
      && /if \(walletTakeoverClose\) walletTakeoverClose\('back'\);/.test(home)
      && /if \(walletTakeover && walletTakeoverClose\) walletTakeoverClose\(\);\s*\/\/ nulls both handles/.test(rdF('src/shells/home.html')),
@@ -23330,9 +23405,12 @@ console.log('Session H ⑥: the A-round fixes (back-during-slide · shield · tr
     '★★ A MAJOR-1 ①: homeOverlayLevel counts a SLIDING-OUT takeover as level 2 — C# keeps homeShellOverlayOpen true while the cover is on glass');
   ok(/if \(document\.querySelector\('\.contacts-takeover\.c-subslide--out, \.wallet-takeover\.c-subslide--out'\)\) \{\s*settleSubscreenSlide\(document\.body\);\s*return true;\s*\}/.test(home),
     '★★ A MAJOR-1 ②: a second hardware back during the exit ABORTS the slide (settle → instant finish → the remove callback re-syncs 0) and is consumed — the double-back can no longer background the app mid-slide');
-  ok((home.match(/\(\) => \{ over\.remove\(\); syncHomeOverlay\(\); \}/g) || []).length === 2
+  /* ★ Session T: was `=== 2` (the two wallet closes) and the add-app takeover is a third.
+     The property is that EVERY sliding cover re-syncs after removal — never a fixed count
+     of the ones that existed the day this was written. */
+  ok((home.match(/\(\) => \{ over\.remove\(\); syncHomeOverlay\(\); \}/g) || []).length >= 3
      && /onExitSettled: \(\) => syncHomeOverlay\(\),/.test(home),
-    '★ A MAJOR-1 ③: all three exit paths re-sync AFTER the cover is removed (two wallet closes + the contacts onExitSettled hook)');
+    '★ A MAJOR-1 ③: EVERY exit path re-syncs AFTER the cover is removed — ' + ((home.match(/\(\) => \{ over\.remove\(\); syncHomeOverlay\(\); \}/g) || []).length) + ' sliding closes (wallet Receive, wallet Send, Session T add-app) plus the contacts onExitSettled hook. Reporting 0 while the cover is still on glass is what backgrounded the app mid-slide');
   const cp = nc(rdF('src/bridge/contacts-page.js'));
   ok(/onExitSettled\b/.test(cp) && /overlay\.remove\(\); if \(onExitSettled\)/.test(cp),
     '★ A MAJOR-1 ④: mountContacts fires onExitSettled when the exit actually finishes');
@@ -23585,9 +23663,9 @@ console.log('Session I ③: the premium pass token batch');
   const val = (name, block = dial) => ((block.match(new RegExp('--' + name + ': ([^;]+);')) || [])[1] || '').trim();
   /* 1a = A (TG-tight): the bubble role is its OWN dial set — body-md (≈90 riders) is untouched */
   ok(val('bubble-line-height') === '20px' && val('bubble-pad-y') === '6px' && val('bubble-pad-x') === '11px' && val('bubble-radius') === '18px'
-     && val('bubble-gap-group') === '10px' && val('bubble-gap-inner') === '3px' && val('bubble-meta-margin-top') === '4px'
+     && val('bubble-gap-group') === '10px' && val('bubble-gap-inner') === '1px' && val('bubble-meta-margin-top') === '4px'   /* ★ Session T: 3 → 1, DECISIONS #813 dial D ("gap 1 / corner 4"), walked. The pin lagged because Session S predicted a smoke number instead of running the suite */
      && /--font-size-body-md: 16px;\s*--line-height-body-md: 24px;/.test(light),
-    '★★ 1a = A: bubble 16/20 · pad 6×11 · radius 18 · in-group 3 · group 10 · meta tail 4 (single-line 32 CSS = 80 px on the Motorola; was 40 = 100) — and body-md itself is UNTOUCHED at 16/24 (the #423 lesson: ~90 riders)');
+    '★★ 1a = A: bubble 16/20 · pad 6×11 · radius 18 · in-group 1 (#813 dial D) · group 10 · meta tail 4 (single-line 32 CSS = 80 px on the Motorola; was 40 = 100) — and body-md itself is UNTOUCHED at 16/24 (the #423 lesson: ~90 riders)');
   ok(/padding: var\(--bubble-pad-y\) var\(--bubble-pad-x\);/.test(bub) && /border-radius: var\(--bubble-radius\);/.test(bub)
      && /line-height: calc\(var\(--bubble-line-height\) \* var\(--chat-text-scale, 1\)\);/.test(bub)
      && /margin-top: var\(--bubble-gap-group\);/.test(bub) && /\.c-bubble-row\[data-position="last"\] \{ margin-top: var\(--bubble-gap-inner\); \}/.test(bub)
@@ -23626,7 +23704,7 @@ console.log('Session I ③: the premium pass token batch');
      && /filter: drop-shadow\(var\(--bubble-elevation\)\);/.test(bub)
      && /clip-path: path\('M9 0 L2\.2 0 Q0 0\.2 0\.5 2\.2 Q3\.4 8\.2 8 13 L9 13 Z'\);/.test(bub) && /clip-path: path\('M0 0 L6\.8 0 Q9 0\.2 8\.5 2\.2 Q5\.6 8\.2 1 13 L0 13 Z'\);/.test(bub) && /width: calc\(var\(--bubble-tail\) \+ 1px\);/.test(bub)   /* ★ Session J #756: the WhatsApp tail (rounded tip, convex sweep), 1px INTO the bubble (the seam) */
      && /\[dir="rtl"\] \.c-bubble-row\[data-direction="received"\]\[data-position="first"\] \.c-bubble::before/.test(bub)
-     && /--bubble-row-inset: calc\(var\(--spacing-16\) \+ var\(--bubble-tail\)\);\s*padding-inline: var\(--bubble-row-inset\);/.test(bub)   /* ★ Session J: the inset has ONE home — chat-select positions the tick from it */
+     && /--bubble-row-inset: var\(--spacing-16\);\s*padding-inline: var\(--bubble-row-inset\);/.test(bub)   /* ★ Session T: the `+ tail` is gone — #817 (Damir: "reduce the side padding so that the tails would be closer to the edge"), so the tail TIP now sits 4px outside the body line, the WhatsApp shape. The inset still has ONE home; chat-select positions the tick from it */
      && /\.c-bubble-row \.c-bubble\[data-emoji-only\]::before \{ content: none !important; \}/.test(bub)
      && /\[data-position="single"\] \.c-bubble \{ border-start-end-radius: 0; \}/.test(bub) && /\[data-position="single"\] \.c-bubble \{ border-start-start-radius: 0; \}/.test(bub),
     '★ 1c: the tail is a ::before on FIRST/SINGLE bubbles only, in the bubble\'s own surface, RTL-mirrored, carrying the lift as a drop-shadow, inside a widened row inset; the tail corner is SQUARE (Damir\'s walk: 4px read as a flag beside a rounded box); the emoji sticker has none — at (0,3,1)+!important, because the (0,3,1) tail rules beat the first (0,2,1) cut and a sent sticker grew a tail');
@@ -24421,9 +24499,10 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
     const mbc = stripCssComments(rdF('src/styles/components/message-bubble.css'));
     const mb = rdF('src/components/message-bubble.js');
     const tok = stripCssComments(rdF('src/styles/tokens.css'));
-    ok(/--bubble-avatar-size: 32px;/.test(tok) && /--bubble-avatar-inset: var\(--spacing-12\);/.test(tok),
-      '★ Session K (walk J2 T1, Damir: "left aligned with the left edge of the composer, and maybe a bit bigger"): the two tokens — size 32 (sheet 28/32/36, his pick pending) and the inset = the composer\'s own spacing-12 (composer.css padding-inline-start)');
-    ok(/\.c-bubble-row\[data-gutter\] \{\s*--bubble-row-inset: var\(--bubble-avatar-inset\);\s*padding-inline-end: calc\(var\(--spacing-16\) \+ var\(--bubble-tail\)\);/.test(mbc)
+    ok(/--bubble-avatar-size: 32px;/.test(tok) && /--bubble-avatar-inset: var\(--spacing-8\);/.test(tok)
+       && /padding-inline-start: var\(--spacing-8\);/.test(stripCssComments(rdF('src/styles/components/composer.css'))),
+      '★ Session K (walk J2 T1, Damir: "left aligned with the left edge of the composer, and maybe a bit bigger"): the two tokens — size 32 (sheet 28/32/36, his pick pending) and the inset = the composer\'s own spacing-8 (#818 moved BOTH 12 → 8 in step; asserted against composer.css itself, so moving only one side fails here rather than leaving the avatar 4px inboard)');
+    ok(/\.c-bubble-row\[data-gutter\] \{\s*--bubble-row-inset: var\(--bubble-avatar-inset\);\s*padding-inline-end: var\(--spacing-16\);/.test(mbc)   /* ★ Session T: #817 again — the same number as the plain row's inset, one value on that edge */
        && /\.c-bubble-row__gutter \{\s*width: var\(--bubble-avatar-size\);/.test(mbc),
       '★ Session K T1: a row that carries a gutter is STAMPED data-gutter (never :has()) and re-homes --bubble-row-inset — so chat-select\'s tick follows the same number; the gutter\'s width is the size token');
     ok(/row\.dataset\.gutter = '';/.test(mb) && /size: bubbleAvatarSize\(\)/.test(mb) && /getPropertyValue\('--bubble-avatar-size'\)/.test(mb) && !/size: 24 \}\);/.test(mb.slice(mb.indexOf('if (showAvatar && (position'))),
@@ -29919,9 +29998,19 @@ console.log('handover gate — the second fix batch (log reach · frontend NITs)
     }
     ok(translated2 && !!safeScan,
       '★★ GATE 30 premise: safeScanPayload and isPlainAmount were sliced out of Utils.cs by brace match and mechanically rewritten to JS, residue-checked, so the matrix below runs the SHIPPED grammar and not a copy of it');
+    /* ★★ Session T: the matrix is EVALUATED INSIDE A try, because the thing it executes is
+       sliced out of another file and can stop standing alone without anyone touching this
+       gate. That is not hypothetical — refactoring safeScanPayload to call a new helper
+       (correct in C#, invisible here) made every safeScan() below throw ReferenceError,
+       and because the calls sat outside any try it killed Damir's run from GATE 30 to the
+       end of the file: no summary, no GATE 31+, and the two gates added that same session
+       never executed. GATE 44's rule, applied to a gate that had exempted itself: an
+       unrunnable gate is a RED row, never a fatal one. */
     if (safeScan) {
       const A = 'MEET4Zq9xKfbeaJyPRRnBBWDCDwsN1rMkHfmS4pWn4B6sg';
-      const cases = {
+      let cases;
+      try {
+      cases = {
         'a bare address passes through': safeScan(A) === A,
         'addr:ixi is kept': safeScan(A + ':ixi') === A + ':ixi',
         'a plain amount is echoed VERBATIM': safeScan(A + ':send:12.50') === A + ':send:12.50'
@@ -29939,8 +30028,15 @@ console.log('handover gate — the second fix batch (log reach · frontend NITs)
           safeScan(A + ':garbage').indexOf(A) === 0,
         'an empty payload is empty': safeScan('') === '' && safeScan(null) === '',
       };
-      const bad = Object.keys(cases).filter((k) => !cases[k]);
-      ok(bad.length === 0,
+      } catch (e) {
+        cases = null;
+        ok(false, '★★ GATE 30 BEHAVIOURAL: the sliced grammar THREW while executing — ' + (e && e.name)
+          + ': ' + (e && e.message) + '. The slice is safeScanPayload + isPlainAmount and nothing else, so this is almost'
+          + ' certainly a new call to a helper OUTSIDE that pair: either keep the method self-contained (it says so at its'
+          + ' definition) or widen the slice here. Reported as a row so the rest of the suite still runs');
+      }
+      const bad = cases ? Object.keys(cases).filter((k) => !cases[k]) : ['(not executed)'];
+      if (cases) ok(bad.length === 0,
         '★★ GATE 30 BEHAVIOURAL (O-14) — the scanned-payload grammar EXECUTED from source, FAIL CLOSED: ' + Object.keys(cases).join(' · ') + '. Failing: [' + bad.join(' | ') + ']');
     } else {
       ok(false, '★★ GATE 30 BEHAVIOURAL: the grammar could not be executed (see the premise above)');
@@ -31231,6 +31327,424 @@ console.log('\n— handover gate: the third pin pass (loop C repairs · the thre
     + ']. Premise — the comment strip removed the docblock quotation of the broken form so this sweep convicts code and not prose: ' + (stripWorked ? 'yes' : 'NO, and the walk above is therefore not trustworthy'));
 }
 
+/* ══ GATE 51 — A KEY NOBODY EVER DRAFTED SHIPS ENGLISH IN TWELVE LANGUAGES ═══════
+   ★★ THE DEFECT. Damir's walk on 2026-09-08 found the Account address line, the peer
+   address sheet and the remove-contact sheet reading English under a chosen locale. Six
+   keys were the English string in ALL TWELVE locales: added after the last drafting round,
+   present in no `src/strings/draft/*.json`, and `build-locales` did exactly what its
+   docblock promises — "fall back to English (logged)" — twelve times over, in silence.
+   LOGGED IS NOT GATED (#772). The count printed on every build and nothing read it.
+
+   ⚠ AND THE OBVIOUS GATE CANNOT BE BUILT. `verify-locales` reports "still-English N" and
+   that must stay information: most of it is legitimate, because "Apps", "Wallet" and
+   "Status" are the same word in German. Conflating identical with untranslated is exactly
+   why this survived twelve languages.
+
+   ★ (a) EXECUTES the CLI against the real tree — it does not read it, and it does not
+   re-implement the resolver. `build-locales.mjs` owns the reuse/draft/fallback order, so a
+   pin that recomputed the answer here could drift from the thing it guards; running the
+   builder's own `--check` cannot.
+   ★★ (b) IS THE MUTATION, and it is why `--root` exists. A fixture tree carries one key
+   that no draft mentions, and the CLI must exit 1 AND NAME IT. Without (b) a check
+   quietly broken into always-exit-0 would read as a pass — the green-by-silence shape
+   GATE 44 was written to refuse.
+   ★ (c) pins the DESIGN: there is no allow-list, and there must not be one (#798 — a list
+   written by the author is not a pin). A key that should stay English everywhere is
+   recorded by a translator writing the English value into the draft file. The fixture
+   proves that IS the exemption: the same key, drafted identically-English in all twelve,
+   passes. If someone ever adds a hard-coded skip list, (c) still passes but (b)'s sibling
+   below goes red, because the exemption would no longer require the draft. */
+{
+  const { spawnSync } = await import('node:child_process');
+  const CLI = join(root, 'scripts', 'build-locales.mjs');
+  const LANGS51 = ['de-de','es-co','fr-fr','sr-sp','sl-si','ru-ru','pt-br','it-it','id-id','lt-lt','cn-cn','ja-jp'];
+  const run51 = (args) => spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8' });
+
+  /* (a) the real tree */
+  const live = run51(['--check']);
+  ok(live.status === 0 && /every key is drafted or reused/.test(String(live.stdout || '')),
+    '★★ GATE 51 (a) EXECUTED: build-locales --check passes on the tree — status=' + live.status
+    + ' ' + JSON.stringify(String(live.stdout || '').slice(-120))
+    + '. A key present in NO draft file falls back to English in all twelve locales, which is what shipped the Account address line, the peer-address sheet and the remove-contact sheet in English under every chosen locale (walk, 2026-09-08)');
+
+  /* the fixture: three keys, one of each shape */
+  const mk51 = (drafted) => {
+    const d = mkdtempSync(join(tmpdir(), 'spixi-gate51-'));
+    mkdirSync(join(d, 'src', 'strings', 'draft'), { recursive: true });
+    mkdirSync(join(d, 'Spixi', 'Resources', 'Raw', 'lang'), { recursive: true });
+    writeFileSync(join(d, 'src', 'strings', 'en-us.json'), JSON.stringify({
+      zzNeverDrafted: 'A sentence nobody has drafted.',
+      zzStaysEnglish: 'GIF',
+      zzEmpty: '',
+    }, null, 2));
+    for (const c of LANGS51) {
+      const body = { zzEmpty: '' };
+      if (drafted) body.zzNeverDrafted = 'übersetzt';
+      body.zzStaysEnglish = 'GIF';                 // deliberately identical — the record of a decision
+      writeFileSync(join(d, 'src', 'strings', 'draft', c + '.json'), JSON.stringify(body, null, 2));
+    }
+    return d;
+  };
+
+  /* (b) the mutation — undrafted must be RED and NAMED */
+  const fxBad = mk51(false);
+  const bad = run51(['--check', '--root', fxBad]);
+  const badOut = String(bad.stdout || '') + String(bad.stderr || '');
+  ok(bad.status === 1 && /zzNeverDrafted/.test(badOut) && !/zzStaysEnglish/.test(badOut) && !/zzEmpty/.test(badOut),
+    '★★ GATE 51 (b) MUTATION: a key in no draft file makes --check exit 1 and NAME it — status=' + bad.status
+    + ' names-undrafted=' + /zzNeverDrafted/.test(badOut)
+    + ' names-identical-but-drafted=' + /zzStaysEnglish/.test(badOut) + ' (must be false: the draft IS the exemption)'
+    + ' names-empty-english=' + /zzEmpty/.test(badOut) + ' (must be false: nothing to translate is a DERIVED skip, not a listed one)');
+  try { rmSync(fxBad, { recursive: true, force: true }); } catch (_) {}
+
+  /* (c) the design — drafting it, even identically, is what exempts it */
+  const fxOk = mk51(true);
+  const good = run51(['--check', '--root', fxOk]);
+  ok(good.status === 0,
+    '★ GATE 51 (c) DESIGN: the same fixture passes once the key is drafted — status=' + good.status
+    + '. This is the whole exemption mechanism: no allow-list exists in build-locales.mjs, and a key that should read English in every language earns that by a translator writing the English value into the draft, where the decision travels with the key (#798)');
+  try { rmSync(fxOk, { recursive: true, force: true }); } catch (_) {}
+}
+
+/* ══ GATE 52 — THE SWEEP MUST NOT READ ITS OWN DOCUMENTATION ════════════════════
+   ★★ THE DEFECT, and it shipped. `extract-strings` tested for a comment AFTER it had
+   already recorded a fallback-carrying site and `continue`d, so the guard only ever
+   protected BARE references — while its own comment said "skip matches inside comments".
+   An invariant the code did not enforce (#772). `settings-app.js` explains the sweep by
+   QUOTING the canonical pattern in its docblock; that quotation was scraped as a real
+   reference and the key it invented, `someKey: "fallback"`, rode all thirteen dictionaries.
+   #771 in its oldest costume: the prose is the sweep's input.
+
+   ★ EXECUTED against a FIXTURE, both surfaces. The component probe and the shell probe
+   each carry the pattern twice — once live, once inside a comment — and the emitted
+   dictionary must contain the live key and NOT the quoted one. Asserting the live key too
+   is what stops a mask that simply blanks everything from reading as a pass: a sweep that
+   found nothing would satisfy the negative half on its own.
+   ⚠ The shell probe is the HTML form, and it is a separate mechanism on purpose: a shell
+   is markup, `</div>` puts a '/' after a '<' on nearly every line, and "https://" is not a
+   comment — so the JS mask is applied only inside <script> regions. */
+{
+  const { spawnSync } = await import('node:child_process');
+  const fx = mkdtempSync(join(tmpdir(), 'spixi-gate52-'));
+  mkdirSync(join(fx, 'src', 'components'), { recursive: true });
+  mkdirSync(join(fx, 'src', 'shells'), { recursive: true });
+  mkdirSync(join(fx, 'src', 'strings'), { recursive: true });
+  mkdirSync(join(fx, 'docs'), { recursive: true });
+  mkdirSync(join(fx, 'Spixi', 'Resources', 'Raw', 'lang'), { recursive: true });
+  writeFileSync(join(fx, 'Spixi', 'Resources', 'Raw', 'lang', 'en-us.txt'), '');
+  writeFileSync(join(fx, 'src', 'components', 'probe.js'),
+    '/* A docblock that EXPLAINS the sweep by quoting it: strings.zzGhostBlock || \'ghost\'\n'
+    + ' * and a continuation line with no leading star is still a comment.\n'
+    + ' */\n'
+    + '// a line comment quoting it too: strings.zzGhostLine || \'ghost\'\n'
+    + 'export function probe(strings = {}) {\n'
+    + '  const u = "https://example.com/not-a-comment";\n'
+    + '  const re = /a\\/\\/b/;\n'
+    + '  return [strings.zzLiveComponent || \'live\', u, re];\n'
+    + '}\n');
+  writeFileSync(join(fx, 'src', 'shells', 'probe.html'),
+    '<div class="x"></div>\n<a href="https://example.com/x">link</a>\n'
+    + '<script>\n'
+    + '/* quoted in a shell docblock: s.zzGhostShell || \'ghost\' */\n'
+    + 'const s = window.SL || {};\n'
+    + 'document.title = s.zzLiveShell || \'live shell\';\n'
+    + '</script>\n');
+  const r52 = spawnSync(process.execPath, [join(root, 'scripts', 'extract-strings.mjs'), '--root', fx], { encoding: 'utf8' });
+  let dict52 = null;
+  try { dict52 = JSON.parse(readFileSync(join(fx, 'src', 'strings', 'en-us.json'), 'utf8')); } catch (e) { dict52 = null; }
+  const has = (k) => !!dict52 && Object.prototype.hasOwnProperty.call(dict52, k);
+  ok(dict52 && has('zzLiveComponent') && has('zzLiveShell')
+     && !has('zzGhostBlock') && !has('zzGhostLine') && !has('zzGhostShell'),
+    '★★ GATE 52 EXECUTED: extract-strings over a fixture keeps the LIVE keys and drops every quoted one — '
+    + 'live component=' + has('zzLiveComponent') + ' live shell=' + has('zzLiveShell')
+    + ' · ghost block=' + has('zzGhostBlock') + ' ghost line=' + has('zzGhostLine') + ' ghost shell=' + has('zzGhostShell')
+    + ' (status=' + r52.status + '). The live halves are asserted because a mask that blanked EVERYTHING would satisfy the negative halves on its own');
+  try { rmSync(fx, { recursive: true, force: true }); } catch (_) {}
+}
+
+/* ══ GATE 53 — `disposed` MUST MEAN TORN DOWN, NOT "Dispose() WAS CALLED" ════════
+   ★★ THE DEFECT. The flag was assigned on the FIRST line of Dispose(), before the
+   on-stack guard — and `OnDisappearing` calls Dispose() unconditionally. OnDisappearing
+   fires when a page is merely COVERED, so the first time anything was pushed over a page
+   it was marked disposed for the rest of its life, and nothing ever cleared it
+   (`OnAppearing` does not; there is no second assignment anywhere in the file).
+
+   Every reader treats the flag as "this page is dead", and after a cover none of them is:
+     · popPageAsync's V-5 guard returns early — BACK STOPS WORKING on a page you left and
+       came back to.
+     · ContactDetails:293 drops the deferred loadMembers.
+     · ContactDetails:375 drops every roster CHUNK.
+   Reachable in three taps: HomePage pushes ContactNewPage, a scan page, WalletSentPage and
+   mini-app pages over itself, and ContactDetails pushes WalletSentPage over ITSELF — open a
+   contact, tap a transaction, come back, and the member list is guarded out by a page that
+   is on screen.
+
+   ★ THE PROPERTY IS STRUCTURAL, not a spelling: inside Dispose(), EVERY assignment to the
+   flag lies AFTER the on-stack guard. That is the thing that makes the name true, and it
+   is what a revert would undo. Asserting "exactly one assignment" as well is what stops a
+   fix-by-addition — a second assignment restored at the top would satisfy an ordering test
+   on the first one alone.
+   ⚠ V-5 IS PRESERVED AND THE PIN SAYS SO: its repro is a page that was never pushed
+   (staging, then abandoned), which is OFF the stack, so the teardown runs and the flag is
+   still set there. The two meanings only diverge for a page that is alive.
+   ⚠ Runs over stripCode'd source and asserts the strip worked, because the block above
+   describes the OLD placement and a raw sweep would convict the fix (#771). */
+{
+  const rawScp53 = readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8');
+  const scp53 = stripCode(rawScp53);
+
+  /* the premise: OnDisappearing still calls Dispose(). If that ever stops being true the
+     reasoning above changes, and this pin should be re-read rather than trusted. */
+  const onDis = scp53.slice(scp53.indexOf('protected override void OnDisappearing()'));
+  const premise53 = scp53.includes('protected override void OnDisappearing()')
+    && /OnDisappearing\(\)[\s\S]{0,200}?\bDispose\(\)/.test(onDis);
+
+  const dStart = scp53.indexOf('public void Dispose()');
+  const dEnd = scp53.indexOf('public void popPageAsync()', dStart);
+  const body53 = (dStart >= 0 && dEnd > dStart) ? scp53.slice(dStart, dEnd) : '';
+  const guard53 = body53.indexOf('!Navigation.NavigationStack.Contains(this)');
+  const assigns53 = [...body53.matchAll(/\bdisposed\s*=\s*true\b/g)].map((m) => m.index);
+  const stripped53 = !/OnAppearing does not; there is no second assignment/.test(scp53);
+
+  ok(body53 && guard53 > 0 && assigns53.length === 1 && assigns53[0] > guard53 && premise53 && stripped53,
+    '★★ GATE 53: inside SpixiContentPage.Dispose(), the `disposed` flag is assigned exactly once and only AFTER the on-stack guard — assignments=' + assigns53.length
+    + ' guardAt=' + guard53 + ' assignAt=' + (assigns53[0] === undefined ? 'none' : assigns53[0])
+    + ' · OnDisappearing→Dispose premise=' + premise53 + ' · strip worked=' + stripped53
+    + '. Set before the guard it means "Dispose() was called", and OnDisappearing calls it on every COVER — which latched three "this page is dead" readers true on live pages (back stops working; the group roster is guarded out after you view a transaction)');
+
+  /* The app's own WebView count must move where the platform handler does, or it cannot be
+     compared against `dumpsys meminfo`'s `WebViews:` footer — which is the whole point of
+     having it. Same block, not merely the same method. */
+  const relBlock53 = body53.slice(body53.indexOf('DisconnectHandler()'));
+  ok(/DisconnectHandler\(\)[\s\S]{0,320}?Interlocked\.Decrement\(ref memHeld\)/.test(relBlock53)
+     && /Interlocked\.Increment\(ref memHeld\)/.test(scp53.slice(scp53.indexOf('public void loadPage'), scp53.indexOf('public void Dispose'))),
+    '★ GATE 53 (b) [MEMDIAG]: memHeld is incremented where the WebView is adopted (loadPage) and decremented in the same block that calls DisconnectHandler() — so the app\'s count tracks the platform WebViews `dumpsys meminfo` reports in its footer, and the two can be compared. TEMPORARY: retire with the [CDPERF] set');
+}
+
+/* ══ GATE 54 — ADD CONTACT AND ADD APP MUST NOT PUSH A PAGE ═════════════════════
+   ★★ WHY THIS EXISTS. Damir reported the stutter on both screens twice — 2026-09-06 and
+   again 2026-09-08 — and the second time he had to say "I was clear about it". The
+   previous session had gated the fix on walk rows D1/D2 that were never run, and treated
+   an unticked checklist row as outranking the person using the app. It does not.
+
+   Both screens pushed a C# page with its OWN WebView (`ixian:newcontact` → ContactNewPage,
+   `ixian:newapp` → AppNewPage), paying the cold Chromium boot #803 measured at 130–230 ms
+   on the main thread. #804 removed exactly that cost for the three Account rows by hosting
+   them in the shell that was already open; this is the same move for the last two, and
+   the pin is BEHAVIOURAL because the whole property is "no page push happens".
+
+   ★ It runs against the BUILT bundle, not the source, because the built artifact is what
+   the device loads — the Session N/P lesson that a stale artifact passes a source sweep.
+   ⚠ The negative halves are worthless alone: a screen that failed to build also sends no
+   verb. So every clause asserts the POSITIVE — the panel mounted, the right verb went —
+   beside the "and not the old one". */
+{
+  /* ⚠ Uses the suite's OWN `JSDOM` binding (line 28), not a fresh dynamic import. That
+     import is already guarded there; re-importing here would THROW when jsdom is absent
+     and take the whole run down with it — the failure mode this batch shipped once
+     already (a gate that crashes the suite kills every gate after it). */
+  const bundle54 = readFileSync(join(root, 'Spixi/Resources/Raw/html/spixi.bundle.js'), 'utf8');
+  const icons54 = readFileSync(join(root, 'Spixi/Resources/Raw/html/spixi.icons.js'), 'utf8');
+  /* ⚠ runScripts: 'outside-only' is what makes `w54.eval` run IN the window — without it
+     the bundle evaluates in the node scope and dies on its first `window.` write. */
+  if (!JSDOM) { ok(false, 'GATE 54: jsdom is unavailable, so the Add contact / Add app behaviour could not be checked — an unrunnable gate is a RED one (GATE 44)'); }
+  else {
+  const dom54 = new JSDOM('<!doctype html><html><body></body></html>', { runScripts: 'outside-only', pretendToBeVisual: true, url: 'file:///pin/' });
+  const w54 = dom54.window;
+  w54.requestAnimationFrame = (cb) => setTimeout(() => cb(Date.now()), 0);
+  w54.cancelAnimationFrame = (id) => clearTimeout(id);
+  w54.eval(icons54);
+  w54.eval(bundle54);
+  const S54 = w54.Spixi;
+
+  /* (a) ADD CONTACT — the picker's action mounts a panel here instead of pushing. */
+  const sentC = [];
+  const viewC = S54.mountContacts({
+    host: w54.document.body, bridge: { send: (v) => sentC.push(v) }, strings: {},
+    purpose: 'start', getRoster: () => [{ address: 'AAAA1111', name: 'Ann' }], onClose: () => {},
+  });
+  const addRow54 = [...w54.document.querySelectorAll('button, [role="button"]')]
+    .find((r) => /add contact/i.test(r.textContent || ''));
+  if (addRow54) addRow54.click();
+  const panel54 = w54.document.querySelector('.c-contacts-add');
+  const pickerEl54 = w54.document.querySelector('.c-contacts');
+  ok(!!addRow54 && !!panel54 && !sentC.includes('ixian:newcontact') && !!pickerEl54 && pickerEl54.hidden,
+    '★★ GATE 54 (a) ADD CONTACT is in-shell: the picker action mounted .c-contacts-add IN THIS DOCUMENT (' + !!panel54
+    + ') and sent NO ixian:newcontact (' + JSON.stringify(sentC) + '), with the picker hidden-but-mounted so back restores it ('
+    + (pickerEl54 ? pickerEl54.hidden : 'no picker') + '). That verb pushed ContactNewPage and its own WebView — the 130–230 ms cold boot #803 measured, and the stutter Damir reported twice');
+
+  /* (b) the verdict must reach the button. The standalone page cannot do this: it answers
+     a rejection with a native alert and NO push, which is why contact_new.html arms a
+     6-second timer and then GUESSES. */
+  const inputC = panel54 && panel54.querySelector('input');
+  let sendVerb54 = false, closedOnSuccess54 = false;
+  if (inputC) {
+    inputC.value = 'C'.repeat(40);
+    inputC.dispatchEvent(new w54.Event('input', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 700));
+    viewC.addValidAddress();
+    await new Promise((r) => setTimeout(r, 30));
+    sentC.length = 0;
+    const sendBtn54 = [...panel54.querySelectorAll('button')].find((b) => /send|request/i.test(b.textContent || '') && !b.disabled);
+    if (sendBtn54) sendBtn54.click();
+    sendVerb54 = sentC.some((v) => v.startsWith('ixian:request:'));
+    viewC.addRequestResult('1', '');
+    closedOnSuccess54 = !w54.document.querySelector('.c-contacts-add');
+  }
+  ok(sendVerb54 && closedOnSuccess54,
+    '★ GATE 54 (b) the REQUEST round-trips and its verdict resolves the button: Send emitted ixian:request: (' + sendVerb54
+    + ') and onRequestResult("1") closed the panel (' + closedOnSuccess54
+    + '). The standalone page answers a rejection with a native alert and no push at all, so contact_new.html arms a 6-second timer and guesses "If nothing happened…" — that wedge was logged as an owed BE fix and hosting the screen here is what pays it');
+
+  /* (c) ADD APP — and the scan verb is the subtle half. */
+  const sentA = [];
+  const addEl54 = S54.createAppsAdd({
+    strings: {}, discover: false,
+    onFetchUrl: (url) => sentA.push('ixian:fetch:' + url),
+    onScan: () => sentA.push('ixian:appscan'),
+    onPickFile: () => sentA.push('ixian:selectAppFile'),
+  });
+  w54.document.body.append(addEl54);
+  const tiles54 = [...addEl54.querySelectorAll('button')];
+  const scan54 = tiles54.find((b) => /scan/i.test(b.textContent || ''));
+  const file54 = tiles54.find((b) => /file/i.test(b.textContent || ''));
+  const link54 = tiles54.find((b) => /link|paste|url/i.test(b.textContent || ''));
+  if (scan54) scan54.click();
+  if (file54) file54.click();
+  if (link54) link54.click();
+  const urlIn54 = addEl54.querySelector('input');
+  if (urlIn54) { urlIn54.value = 'https://example.com/app.zip'; urlIn54.dispatchEvent(new w54.Event('input', { bubbles: true })); }
+  const getBtn54 = addEl54.querySelector('.c-apps-add__field .c-button');
+  if (getBtn54) getBtn54.click();
+  ok(!!scan54 && !!file54 && !!getBtn54
+     && sentA.includes('ixian:appscan') && !sentA.includes('ixian:quickscan')
+     && sentA.includes('ixian:selectAppFile') && sentA.some((v) => v.startsWith('ixian:fetch:')),
+    '★★ GATE 54 (c) ADD APP is in-shell and its scan has its OWN verb — sent=' + JSON.stringify(sentA)
+    + '. `ixian:appscan` rather than `ixian:quickscan` is load-bearing: HomePage.processQRResult reads any non-payment QR as a CONTACT address, so an app link arriving on the shared verb would be routed into the add-contact flow. The Get-app button must also be findable at `.c-apps-add__field .c-button`, which is the exact node the shell grabs to drive its loading state');
+
+  /* (d) the shell's own grab must match the component, or loading silently never clears. */
+  const homeSrc54 = stripCode(readFileSync(join(root, 'src/shells/home.html'), 'utf8'));
+  ok(/\.c-apps-add__field \.c-button/.test(homeSrc54) && /openAppsAdd/.test(homeSrc54) && !/bridge\.send\('ixian:newapp'\)/.test(homeSrc54),
+    '★ GATE 54 (d) home.html grabs the Get-app button by the SAME selector the component builds, mounts openAppsAdd, and no longer sends ixian:newapp anywhere — a selector drift here leaves the button spinning for ever with nothing to clear it');
+  }
+}
+
+/* ══ GATE 55 — TWO OPPOSITE TAIL RULES, AND BOTH ARE LOAD-BEARING ═══════════════
+   ★★ THE DEFECT (Damir, Motorola walk A7): "it scans and appends ':ixi' to the address and
+   cant add it". Spixi's own contact QR encodes `addr:ixi`. The branch of
+   HomePage.processQRResult that answers a contact scan split the payload on ":send" ONLY,
+   so the other tail of the SAME closed grammar rode straight through — into the shell's
+   address field, and into ContactNewPage on the legacy path — where
+   ExtendedAddress.Validate refuses it. The scan looked like it worked and the contact
+   could not be added.
+
+   THE GRAMMAR is closed and documented at quickScanForSend: addr · addr:ixi ·
+   addr:send:<amount>. The address is what precedes the FIRST colon, whatever the tail
+   says. Splitting on one literal tail answers "is this THE tail I thought of" when the
+   caller needs "where does the address end" — which is why a third arm of the grammar was
+   enough to break it. Utils.scanAddressOf is now that one reader, and the inline copy in
+   quickScanForSend is gone.
+
+   ★ AND THE HALF THAT LOOKS LIKE AN INCONSISTENCY IS THE POINT. The two ADD-APP branches
+   split on ":ixi" and must keep doing so: a mini-app link contains "://", so the
+   address-of rule would cut every one of them to "https". A later tidy-up that makes the
+   four sites agree is the regression this gate exists to catch, so the app arm is pinned
+   NEGATIVELY — it must NOT reach for the shared helper. */
+{
+  const utils55 = stripCode(readFileSync(join(root, 'Spixi/Utils/Utils.cs'), 'utf8'));
+  const home55 = stripCode(readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8'));
+  const cnp55 = stripCode(readFileSync(join(root, 'Spixi/Pages/Contacts/ContactNewPage.xaml.cs'), 'utf8'));
+
+  const helper55 = /public static string scanAddressOf\(string payload\)[\s\S]{0,400}?payload\.IndexOf\(':'\)[\s\S]{0,200}?Substring\(0, sep\)/.test(utils55);
+  /* ⚠ THE SECOND CLAUSE IS THE OPPOSITE OF WHAT IT LOOKS LIKE, and it cost a run to learn.
+     safeScanPayload must NOT call the helper: GATE 30 slices that method out of Utils.cs and
+     EXECUTES it, so it has to stand alone, and routing its three lines through scanAddressOf
+     — tidier, and correct as C# — made the eval throw and killed the suite from GATE 30 on.
+     The duplication is deliberate and is now stated at the definition; this pins it, so the
+     next person to notice the copy finds a red row rather than a dead run. */
+  const standalone55 = !/safeScanPayload\(string payload\)[\s\S]{0,600}?scanAddressOf\(/.test(utils55);
+  ok(helper55 && standalone55,
+    '★★ GATE 55 (a) ONE reader for the three scan-ANSWERING sites: Utils.scanAddressOf returns the text before the first colon (' + helper55
+    + '), and safeScanPayload keeps its OWN copy of that rule (' + standalone55
+    + ') because GATE 30 slices it out of this file and runs it in isolation — a call to any helper outside that slice throws there and takes the rest of the suite with it');
+
+  const qStart55 = home55.indexOf('public void processQRResult(string result)');
+  const qBody55 = qStart55 >= 0 ? home55.slice(qStart55, qStart55 + 4000) : '';
+  const splitAt55 = qBody55.indexOf('string[] split');
+  const appArm55 = splitAt55 > 0 ? qBody55.slice(qBody55.indexOf('if (appScanToShell)'), splitAt55) : '';
+
+  const contactStrips55 = /string id_to_add = Utils\.scanAddressOf\(split\[0\]\)/.test(qBody55);
+  const noRaw55 = !/string id_to_add = split\[0\]\s*;/.test(qBody55);
+  ok(!!qBody55 && contactStrips55 && noRaw55,
+    '★★ GATE 55 (b) THE CONTACT ARM STRIPS THE TAIL: id_to_add is derived through Utils.scanAddressOf (' + contactStrips55
+    + ') and the raw `split[0]` assignment is gone (' + noRaw55
+    + '). Both consumers read it — the shell\'s onContactScanResult and the ContactNewPage push below it — so a revert here breaks the scan on BOTH hosts at once');
+
+  const appKeepsIxi55 = /Split\(new string\[\] \{ ":ixi" \}/.test(appArm55);
+  const appAvoidsHelper55 = !!appArm55 && !/scanAddressOf/.test(appArm55);
+  ok(appKeepsIxi55 && appAvoidsHelper55,
+    '★★ GATE 55 (c) THE APP ARM KEEPS THE OPPOSITE RULE — splits on ":ixi" (' + appKeepsIxi55
+    + ') and does NOT reach for scanAddressOf (' + appAvoidsHelper55
+    + '). An app link contains "://", so the address-of rule would truncate every one of them to "https". This clause is negative on purpose: the failure it guards is a tidy-up that makes the four sites "consistent"');
+
+  const qsStart55 = home55.indexOf('public async void quickScanForSend()');
+  const qsBody55 = qsStart55 >= 0 ? home55.slice(qsStart55, qStart55 > qsStart55 ? qStart55 : qsStart55 + 3000) : '';
+  const qsUses55 = /Utils\.scanAddressOf\(payload\)/.test(qsBody55) && !/payload\.IndexOf\(':'\)/.test(qsBody55);
+  const cnpStart55 = cnp55.indexOf('public void processQRResult(string result)');
+  const cnpBody55 = cnpStart55 >= 0 ? cnp55.slice(cnpStart55, cnpStart55 + 800) : '';
+  const cnpUses55 = /Utils\.scanAddressOf\(result\)/.test(cnpBody55) && !/":ixi"/.test(cnpBody55);
+  ok(qsUses55 && cnpUses55,
+    '★ GATE 55 (d) the other two readers were folded in, so the rule has ONE home: quickScanForSend dropped its inline IndexOf copy (' + qsUses55
+    + ') and ContactNewPage.processQRResult no longer splits on ":ixi" alone (' + cnpUses55
+    + '), which means `addr:send:<amount>` — the third arm of the grammar — now reaches setAddress clean there too');
+}
+
+/* ══ GATE 56 — A DISMISSED FILE PICKER IS NOT A BAD LINK ════════════════════════
+   ★★ THE DEFECT (Damir, walk A12): "Add app → From file → cancel the picker — it shows the
+   link input with inline error of wrong link.. should just go back". pickAppFileCore
+   returned null for BOTH a dismiss and a genuine failure, and the call site said so in as
+   many words: "Cancel and failure are indistinguishable to the core, and always were."
+   That is a comment stating a defect (#772) — tolerable on the standalone page, where the
+   error landed on a screen the user was leaving, and plainly wrong in the shell, where the
+   Add-app panel stays up and accuses you of a bad link you never typed.
+
+   ★ THE PROPERTY IS THAT THE THREE OUTCOMES STAY THREE. Cancelled is returned at exactly
+   ONE place — the documented null from the picker — because widening it to the catch would
+   swallow real read failures silently, which is the opposite defect and just as invisible.
+   Both hosts must return on Cancelled BEFORE they can reach showUrlError; asserting the
+   ORDER is what makes a half-applied fix fail, since an early-return added after the error
+   push would satisfy a presence test on its own. */
+{
+  const anp56 = stripCode(readFileSync(join(root, 'Spixi/Pages/MiniApps/AppNewPage.xaml.cs'), 'utf8'));
+  const home56 = stripCode(readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8'));
+
+  const enum56 = /enum PickAppOutcome[\s\S]{0,120}?Cancelled/.test(anp56);
+  const coreStart56 = anp56.indexOf('> pickAppFileCore()');
+  const coreEnd56 = anp56.indexOf('private async void onFetch', coreStart56);
+  const core56 = (coreStart56 >= 0 && coreEnd56 > coreStart56) ? anp56.slice(coreStart56, coreEnd56) : '';
+  const cancelOnNull56 = /fileData == null\s*\)?\s*\{\s*return \(PickAppOutcome\.Cancelled/.test(core56);
+  const failOnThrow56 = /catch \(Exception ex\)[\s\S]{0,300}?return \(PickAppOutcome\.Failed/.test(core56);
+  const cancelCount56 = (core56.match(/PickAppOutcome\.Cancelled/g) || []).length;
+  ok(enum56 && !!core56 && cancelOnNull56 && failOnThrow56 && cancelCount56 === 1,
+    '★★ GATE 56 (a) THE CORE TELLS THE THREE APART: PickAppOutcome carries Cancelled (' + enum56
+    + '), a null from the picker returns it (' + cancelOnNull56 + '), a throw returns Failed (' + failOnThrow56
+    + '), and Cancelled is returned from exactly ' + cancelCount56 + ' place. Widening it to the catch would hide a real read failure behind a silent no-op — the same invisibility as the defect, pointing the other way');
+
+  const hosts56 = [
+    ['AppNewPage.onSelectAppFile', anp56, 'private async void onSelectAppFile()'],
+    ['HomePage.onShellSelectAppFile', home56, 'private async void onShellSelectAppFile()'],
+  ].map(([name, src, sig]) => {
+    const at = src.indexOf(sig);
+    const body = at >= 0 ? src.slice(at, at + 1400) : '';
+    const idxCancel = body.indexOf('PickAppOutcome.Cancelled');
+    const idxError = body.indexOf('showUrlError');
+    return { name, okOrder: idxCancel > 0 && idxError > 0 && idxCancel < idxError };
+  });
+  ok(hosts56.every((h) => h.okOrder),
+    '★★ GATE 56 (b) BOTH HOSTS RETURN ON CANCEL BEFORE THEY CAN ACCUSE THE USER — ' + hosts56.map((h) => h.name + '=' + h.okOrder).join(' · ')
+    + '. The order is the assertion, not the presence: a Cancelled check added AFTER the showUrlError push reads as a fix and changes nothing. The shell sets no loading state for ixian:selectAppFile and has no page to pop, so silence is the whole correct answer there');
+}
+
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.
  * Exactly the known set → BASELINE OK + exit 0. Any OTHER failure — or a known
@@ -31239,6 +31753,14 @@ const KNOWN_PREEXISTERS = [
   'contact strip caps at 5 with the keep-typing note (#136 scaling)',
   'M5: request rows feed the Requests chip + hold the filter + pending badge in the picker',
   'B3: a lone clearEntries resets the BUFFER only (never blanks the rendered card)',
+  /* ★★ Session T: five Session S pins were red at HEAD and are now RE-BASED, not listed.
+   * Session S changed the bubble grouping (#813 dial D), the row inset (#817), the composer
+   * and avatar inset (#818) and the pinned wash (#815) — all walked by Damir — and then
+   * PREDICTED a smoke number instead of running the suite, so HEAD has been red since it
+   * was committed. Each pin now carries the value its DECISIONS row or its own token
+   * comment records, with the dial cited, because the record is the authority — not the
+   * code, and not the pin's previous number. The sixth, A8, broke on #812's a11y fix and
+   * is now asserted by property rather than by literal markup. */
 ];
 const unexpected = failures.filter((f) => !KNOWN_PREEXISTERS.some((k) => f.includes(k)));
 const missingKnown = KNOWN_PREEXISTERS.filter((k) => !failures.some((f) => f.includes(k)));
@@ -31248,7 +31770,13 @@ if (unexpected.length || missingKnown.length) {
   process.exit(1);
 }
 if (failures.length) {
-  console.log('\nBASELINE OK — ' + passes + ' pass / the ' + failures.length + ' KNOWN pre-existers (#136 · M5 · B3)');
+  /* ★ Session T: the caption used to be the frozen literal '(#136 · M5 · B3)' beside a
+     LIVE `failures.length`, so a run with eight known failures printed "8 … (#136 · M5 ·
+     B3)" — a count of eight labelled with three names, and it misled Damir into reading a
+     stale run as the current one. The list is derived from the array now, so the caption
+     cannot disagree with the number beside it. */
+  console.log('\nBASELINE OK — ' + passes + ' pass / the ' + failures.length + ' KNOWN pre-exister(s): '
+    + KNOWN_PREEXISTERS.map((k) => k.split(':')[0].split(' (')[0]).join(' · '));
   process.exit(0);
 }
 console.log('\nsmoke test CLEAN');

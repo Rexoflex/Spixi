@@ -1133,13 +1133,27 @@
 :root {
 
   /* scrim (keys have no alpha colors — value = grey-1000 #111213 @ 60%;
-     plain rgba for conservative WebView baseline) */
+     plain rgba for conservative WebView baseline)
+     ⚠ THIS ONE IS MODE-LESS AND STAYS MODE-LESS. It is the scrim that CARRIES INK:
+     media tiles, the media viewer, the call stage and the app hero all paint
+     --text-on-scrim / --icon-on-scrim (neutral-10, near white) on top of it, and those
+     inks are mode-less precisely because this surface is dark in both themes. Lightening
+     it in light mode would put near-white text on a barely-dimmed photo. */
   --surface-scrim: rgba(17, 18, 19, 0.6);
   /* ★ Batch E (b) (#557, Damir 2026-08-22): ONE LEVEL DEEPER for the MOBILE overlay
      scrim — the lift (#506②) stays, and the ground behind a long-press menu dims
      70% instead of 60%. Consumed by overlay.css's .c-scrim on non-desktop only;
-     media tiles / the call stage keep --surface-scrim. Same grey-1000 base. */
-  --surface-scrim-deep: rgba(17, 18, 19, 0.7);
+     media tiles / the call stage keep --surface-scrim. Same grey-1000 base.
+     ★★ Damir 2026-09-08: "reduce the dim by half wherever it appears on light mode."
+     HALVED HERE, IN LIGHT ONLY — 0.7 → 0.35 mobile, 0.6 → 0.3 desktop. Dark keeps both
+     values below, because a dim that reads as heavy over a light page reads as ordinary
+     over a dark one.
+     ⚠ AND IT IS SPLIT FROM --surface-scrim ON PURPOSE. "Wherever it appears" is the
+     OVERLAY BACKDROP — the wash behind a sheet, a menu or a modal, which carries no
+     text. The ink-carrying scrim above is a different job under the same word, and
+     halving it is a contrast regression, not a dial. Nothing reads type off these two. */
+  --surface-scrim-overlay: rgba(17, 18, 19, 0.3);
+  --surface-scrim-deep: rgba(17, 18, 19, 0.35);
 
   /* hero gradient overlay (code-only: Figma variables can't hold gradients —
      lives as a fill on the hero components there). Usage:
@@ -1482,6 +1496,11 @@
 }
 
 [data-theme="dark"] {
+  /* ★ Damir 2026-09-08: the overlay backdrop is halved in LIGHT only. Dark keeps the
+     values it has had since #557 — the same wash that reads heavy over a light page is
+     ordinary over a dark one, and the lift (#506②) was measured against these. */
+  --surface-scrim-overlay: rgba(17, 18, 19, 0.6);
+  --surface-scrim-deep: rgba(17, 18, 19, 0.7);
   /* ★ Session I (sheet 1c, dark): the bubble lift on the #10151e canvas — the dark canvas
      measured 1.12:1 bubble/ground (#427), so the shadow is darker and 1px longer than
      light's; it must separate without mud. Reversal = `0 0 0 0 transparent`. */

@@ -19968,13 +19968,55 @@ function mountContacts({
     bridge.send('ixian:startappwith:' + appId + ':|' + addresses.join('|'));
   };
 
+  /* ★★ Session T — ADD CONTACT IN THIS WEBVIEW (Damir, twice: "it still stutters").
+   * `ixian:newcontact` pushed ContactNewPage, which boots its own WebView — the cold
+   * Chromium boot #803 measured at 130–230 ms on the main thread. This takeover is
+   * already open, so the add screen mounts over the picker exactly the way group setup
+   * does above: hide the picker (keep it MOUNTED so back restores it untouched), append
+   * the panel, and drop it on the way out.
+   * ⚠ The page is NOT deleted and its verbs are unchanged — `processQRResult` still
+   * constructs it, and so does the mini-app pick path. Only this entry point moved.
+   * ★ The verbs are the SAME ones contact_new.html sends, answered by HomePage against
+   * ContactNewPage's own core, so the two screens cannot disagree. */
+  let addPanel = null;
+  let addValidCtrl = null;     // the in-flight live-validation ctrl (checkAddress)
+  let addSendCtrl = null;      // the in-flight send ctrl (request)
+
+  const closeAddContact = () => {
+    if (addSendCtrl) { try { addSendCtrl.fail(); } catch (e) {} addSendCtrl = null; }
+    addValidCtrl = null;
+    if (addPanel) { addPanel.remove(); addPanel = null; }
+    picker.hidden = false;
+  };
+
+  const openAddContact = () => {
+    if (addPanel) return;
+    addPanel = createAddContact({
+      strings,
+      onBack: closeAddContact,
+      // live validity — HomePage answers with onValidAddress / onKnownAddress.
+      onCheckAddress: (addr, ctrl) => { addValidCtrl = ctrl; bridge.send('ixian:checkAddress:' + addr); },
+      /* ★ NO 6-SECOND GUESS. The standalone page has to arm one, because a rejection
+       * there is a native alert with no push back and the button would latch in loading
+       * for ever. HomePage answers this host with `onRequestResult`, so the ctrl is
+       * resolved by the actual verdict. */
+      onSendRequest: (addr, ctrl) => { addSendCtrl = ctrl; bridge.send('ixian:request:' + addr); },
+      onScan: () => bridge.send('ixian:contactscan'),
+      /* "View contact" (#435(b)): close this panel and the takeover, then let HomePage
+       * open the contact's own page — the shell has no business rendering it. */
+      onViewContact: (addr) => { if (addr) { closeAddContact(); close(); bridge.send('ixian:details:' + addr); } },
+    });
+    picker.hidden = true;
+    overlay.append(addPanel);
+  };
+
   const picker = createContactsPicker({
     contacts: getRoster ? getRoster() : [],
     purpose,
     strings,
     onBack: () => close('back'),           // close the takeover — never an ixian: nav verb (C4: the user's own Back)
     // Add contact → ContactNewPage. Leave the takeover OPEN underneath (see docblock).
-    onAddContact: () => bridge.send('ixian:newcontact'),
+    onAddContact: openAddContact,     // ★ Session T: in-shell, no page push (was ixian:newcontact)
     // Create group → IN-SHELL multi-select (the picker flips itself; the topbar
     // action confirms) → onNext → the group setup panel above (#265).
     onCreateGroup: () => {},
@@ -20007,6 +20049,35 @@ function mountContacts({
     },
     /** Reset to browse mode (defensive; used if a flow is abandoned). */
     resetMode() { setPickerMode(picker, 'browse'); },
+
+    /* ★ Session T — the add-contact screen's four C# answers, forwarded by the host
+     * shell. Each is a no-op when the panel is not open, so a late push after the user
+     * backed out cannot throw or resurrect anything. */
+    addValidAddress() {
+      if (addValidCtrl) { try { addValidCtrl.done(); } catch (e) {} addValidCtrl = null; }
+    },
+    addKnownAddress(kind, address, nick, checked) {
+      if (!addPanel) return;
+      // 'contact' and 'self' are NOT failures — they never resolve the ✓ ctrl (#435(b));
+      // the panel itself is the answer. Drop the ctrl so a later stale reply can't.
+      addValidCtrl = null;
+      setAddContactKnown(addPanel, kind, address, nick, checked);
+    },
+    addRequestResult(ok, message) {
+      if (!addSendCtrl) return;
+      const ctrl = addSendCtrl;
+      addSendCtrl = null;
+      if (String(ok) === '1') {
+        try { ctrl.done(); } catch (e) {}
+        closeAddContact();            // sent — back to the picker, which the roster refresh repaints
+        return;
+      }
+      try { ctrl.fail(message || ''); } catch (e) {}
+    },
+    addScanResult(address) {
+      if (!addPanel || !address) return;
+      setAddContactAddress(addPanel, address);
+    },
   };
 }
 

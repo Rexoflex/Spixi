@@ -629,5 +629,11 @@
   "groundGradient": "渐变",
   "notifPushProviderSub": "消息一到即唤醒此设备。使用推送服务商 OneSignal。",
   "loadMedia": "加载图片和 GIF",
-  "loadMediaSub": "加载会让发送者的服务器知道你打开了聊天"
+  "loadMediaSub": "加载会让发送者的服务器知道你打开了聊天",
+  "spixiAddressSub": "这是您的地址。点按即可查看。",
+  "peerAddressTitle": "Ixian 地址",
+  "peerAddressBody": "这是该联系人在 Ixian 网络上的地址。扫描 QR 码或复制地址即可发送 IXI。",
+  "peerQrLabel": "QR 码：此联系人的 Ixian 地址",
+  "removeContactOpt": "移除联系人",
+  "removeFailedToast": "无法移除该联系人。请重试。"
 }

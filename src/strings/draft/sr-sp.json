@@ -708,5 +708,11 @@
   "loadMedia": "Učitaj slike i GIF-ove",
   "loadMediaSub": "Učitavanje serveru pošiljaoca otkriva da ste otvorili ćaskanje",
   "mainNav": "Glavna navigacija",
-  "messagesLog": "Poruke"
+  "messagesLog": "Poruke",
+  "spixiAddressSub": "Ovo je vaša adresa. Dodirnite za prikaz.",
+  "peerAddressTitle": "Ixian adresa",
+  "peerAddressBody": "Ovo je adresa ovog kontakta na Ixian mreži. Skenirajte kod ili kopirajte adresu da biste poslali IXI.",
+  "peerQrLabel": "QR kod: Ixian adresa ovog kontakta",
+  "removeContactOpt": "Ukloni kontakt",
+  "removeFailedToast": "Kontakt nije bilo moguće ukloniti. Pokušajte ponovo."
 }

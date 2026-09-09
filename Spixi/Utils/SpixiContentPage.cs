@@ -225,6 +225,12 @@ namespace SPIXI
             pageLoaded = false;
             _webView = web_view;
             loadedHtmlFileName = html_file_name;
+            if (!memCounted)   // [MEMDIAG] — per INSTANCE, so a re-load never double-counts
+            {
+                memCounted = true;
+                System.Threading.Interlocked.Increment(ref memHeld);
+                System.Threading.Interlocked.Increment(ref memLoaded);
+            }
 #if WINDOWS
             wv2Stamp("load");
 #endif
@@ -4405,6 +4411,30 @@ namespace SPIXI
          * which is someone else's screen.
          * Dispose set no flag anyone consulted. Now it does, and the check closes the
          * #328 residual for every caller rather than only this one. */
+        /* ★★ Session T — THE FLAG NOW MEANS WHAT ITS READERS THINK IT MEANS.
+         * It used to be set on the FIRST line of Dispose(), before the on-stack guard, so
+         * it recorded "Dispose() was called at least once" — and `OnDisappearing` calls
+         * Dispose() UNCONDITIONALLY. OnDisappearing fires when a page is merely COVERED,
+         * not only when it is popped, so every page that had something pushed over it was
+         * marked disposed for the rest of its life and nothing ever cleared it
+         * (OnAppearing does not, and there is no other assignment).
+         *
+         * The three readers all treat it as "this page is dead", and none of them is:
+         *   · popPageAsync's V-5 guard returns early — BACK STOPS WORKING on a page you
+         *     have navigated away from and come back to.
+         *   · ContactDetails:293 drops the deferred loadMembers.
+         *   · ContactDetails:375 drops every roster CHUNK.
+         * Reachable in three taps: HomePage pushes ContactNewPage / a scan page /
+         * WalletSentPage / a mini-app over itself, and ContactDetails:817 pushes
+         * WalletSentPage over ITSELF — open a contact, tap a transaction, come back, and
+         * the member list is guarded out by a page that is on screen.
+         *
+         * The fix is that the assignment moved INSIDE the guard, so the flag now means
+         * "the teardown actually ran, this page is really gone". V-5 is preserved exactly:
+         * its repro is a page that was never pushed (staging, then abandoned), which is
+         * OFF the stack, so the teardown runs and the flag is still set there.
+         * ⚠ If the stack check itself throws, the flag stays false — the teardown lives in
+         * the same try, so nothing was released, and claiming otherwise is the bug above. */
         private volatile bool disposed = false;
 
         /* ★ L10 (2026-08-31): read-only for subclasses. A page that defers work to a
@@ -4414,13 +4444,29 @@ namespace SPIXI
          * sendUiCommand only swallows the resulting exception into the log. */
         protected bool isDisposed { get { return disposed; } }
 
+        /* ★ [MEMDIAG] — TEMPORARY (Session T). Damir: Android kills the app after ~30
+         * minutes at 511 MB on a Release build. The suspect is a leaked platform WebView,
+         * and `memHeld` is the app's own count of pages still holding one — the SAME
+         * quantity `adb shell dumpsys meminfo` reports in its footer as `WebViews:`. Two
+         * independent measurements of one number is the discriminator:
+         *   memHeld climbs with use and matches a climbing `WebViews:` → a WebView leak,
+         *     and `skipped` names how many Dispose() calls the on-stack guard passed over.
+         *   memHeld stays flat (3–4) while Native/Graphics climbs → NOT WebViews; stop
+         *     looking here.
+         * ⚠ RETIRE WITH THE [CDPERF] SET — one grep for MEMDIAG. */
+        private static int memHeld = 0;
+        private static int memLoaded = 0;
+        private static int memReleased = 0;
+        private static int memSkipped = 0;
+        private bool memCounted = false;
+
         public void Dispose()
         {
-            disposed = true;
             try
             {
                 if (!Navigation.NavigationStack.Contains(this))
                 {
+                    disposed = true;
                     pageLoaded = false;
                     messageQueue.Clear();
 #if IOS
@@ -4439,7 +4485,24 @@ namespace SPIXI
 
                         webView.Source = null;
                         webView.Handler?.DisconnectHandler();
+                        if (memCounted)
+                        {
+                            memCounted = false;
+                            System.Threading.Interlocked.Decrement(ref memHeld);
+                            System.Threading.Interlocked.Increment(ref memReleased);
+                        }
                     }
+                    Logging.info("[MEMDIAG] " + GetType().Name + " released held=" + memHeld
+                        + " loaded=" + memLoaded + " released=" + memReleased + " skipped=" + memSkipped);
+                }
+                else
+                {
+                    /* The guard passed over this one: the page is still on the navigation
+                     * stack, so it keeps its WebView — correct while it is alive, and a
+                     * leak only if it is never Disposed again once it leaves. */
+                    System.Threading.Interlocked.Increment(ref memSkipped);
+                    Logging.info("[MEMDIAG] " + GetType().Name + " skipped-on-stack held=" + memHeld
+                        + " loaded=" + memLoaded + " released=" + memReleased + " skipped=" + memSkipped);
                 }
             }
             catch (Exception ex)

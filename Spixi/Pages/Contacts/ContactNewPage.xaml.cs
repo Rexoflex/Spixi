@@ -97,56 +97,12 @@ namespace SPIXI
             }
             else if (current_url.StartsWith("ixian:checkAddress:", StringComparison.Ordinal))
             {
-                string address = current_url.Substring("ixian:checkAddress:".Length);
-                ExtendedAddress ext_recipient_address;
-                try
-                {
-                    ext_recipient_address = new ExtendedAddress(address);
-
-                    /* ★ #435(b): answer WHICH outcome this address has, not just "parses".
-                     * The shell used to learn that an address was already a contact only
-                     * from onRequest — which shows a native alert reading "it could be
-                     * invalid or already in your contacts", i.e. two different outcomes
-                     * sharing one failure branch, on a screen that had ALREADY shown a
-                     * green tick. Damir's dial: report it BEFORE the request is sent,
-                     * as a short line plus a View contact button — not an error, because
-                     * an address you already know is not a failure.
-                     * ⚠ The dial assumed the shell could detect this locally from a
-                     * contacts list. It cannot: production add-contact is this STANDALONE
-                     * page (ContactNewPage → contact_new.html), which never receives a
-                     * roster. Pushing the whole roster to it would be strictly worse —
-                     * more data in a WebView, for one boolean. So the answer rides the
-                     * check that was already round-tripping.
-                     * The two rejections mirror onRequest exactly, so the screen can
-                     * never disagree with what the request would do. */
-                    Address routing_address = ext_recipient_address.RoutingAddress;
-                    if (routing_address.SequenceEqual(IxianHandler.getWalletStorage().getPrimaryAddress()))
-                    {
-                        Utils.sendUiCommand(this, "onKnownAddress", "self", "", "", address);
-                    }
-                    else
-                    {
-                        Friend? known = FriendList.getFriend(routing_address);
-                        // pendingDeletion is NOT a duplicate — onRequest removes and re-adds it.
-                        if (known != null && !known.pendingDeletion)
-                        {
-                            // The 4th arg is the string we were ASKED about, echoed back:
-                            // the shell correlates the async answer with the field's current
-                            // value, and the ROUTING address can differ from what was typed
-                            // (an extended address resolves to it), so it cannot serve.
-                            Utils.sendUiCommand(this, "onKnownAddress", "contact",
-                                routing_address.ToString(), known.nickname == null ? "" : known.nickname, address);
-                        }
-                        else
-                        {
-                            Utils.sendUiCommand(this, "onValidAddress");
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Logging.error("Invalid address format: " + ex.Message);
-                }
+                /* ★ Session T: the body moved to `answerCheckAddress` so the shell-hosted
+                 * copy of this screen asks the identical question. #435(b)'s reasoning is
+                 * preserved there verbatim — report "already a contact" BEFORE the request,
+                 * as a line plus a View contact button, because an address you already know
+                 * is not a failure. */
+                answerCheckAddress(this, current_url.Substring("ixian:checkAddress:".Length));
             }
             else if (current_url.StartsWith("ixian:viewcontact:", StringComparison.Ordinal))
             {
@@ -194,81 +150,162 @@ namespace SPIXI
             await hostNav.PushAsync(scanPage, Config.defaultXamarinAnimations);   // #225: root nav
         }
 
+        /* ★ Session T walk A7: this used to split on ":ixi" alone, so `addr:send:<amount>`
+         * — the third arm of the same closed grammar — reached setAddress with its tail on.
+         * Utils.scanAddressOf answers "where does the address end" instead of "is this the
+         * one tail I thought of", which is the shape of the defect Damir hit in the shell.
+         * The length gate is UNCHANGED and still the only thing that rejects junk here. */
         public void processQRResult(string result)
         {
-            if (result.Contains(":ixi"))
+            string wal = Utils.scanAddressOf(result);
+            // TODO: enter exact Ixian address length
+            if (wal.Length > 20 && wal.Length < 128)
             {
-                string[] split = result.Split(new string[] { ":ixi" }, StringSplitOptions.None);
-                if (split.Count() < 1)
-                    return;
-                string wal = split[0];
                 Utils.sendUiCommand(this, "setAddress", wal);
-
             }
-            else
+        }
+
+        /* ★★ Session T — ONE TRUTH FOR "SEND A CONTACT REQUEST".
+         * The body below used to live inside onRequest, on this page. The home shell now
+         * hosts the same screen in ITS OWN WebView (no page push, no cold Chromium boot —
+         * Damir reported the stutter twice), so two hosts run this logic and it must not
+         * be copied. Same pattern as `BackupPage.backupAccount()` forwarding to
+         * `SettingsPage` (#243/S15): the core lives with the page that owns the domain,
+         * and every host forwards to it.
+         *
+         * ★ IT RETURNS AN OUTCOME INSTEAD OF ALERTING, and that is the point. This page
+         * answers a rejection with a native alert and a pop; the shell-hosted screen has
+         * no page to pop and cannot see an alert, so it needs the verdict as data. The
+         * old comment in `contact_new.html` says so — it arms a 6-SECOND timer and then
+         * guesses ("If nothing happened, that address may already be a contact or
+         * invalid"), because C# returns silently on three of four paths. That guess is a
+         * wedge, it was logged as a BE fix that never came, and hosting the screen in the
+         * shell is what finally forces the honest answer.
+         * ⚠ The presentation stays with each host. Nothing here alerts, pops or pushes. */
+        public enum AddContactOutcome { Sent, InvalidAddress, SelfAddress, AlreadyContact }
+
+        public static AddContactOutcome addContactCore(string recipient_address_string, out string? contactName)
+        {
+            contactName = null;
+            ExtendedAddress ext_recipient_address;
+            try
             {
-                string wal = result;
-                // TODO: enter exact Ixian address length
-                if (wal.Length > 20 && wal.Length < 128)
-                    Utils.sendUiCommand(this, "setAddress", wal);
+                ext_recipient_address = new ExtendedAddress(recipient_address_string);
+            }
+            catch (Exception ex)
+            {
+                Logging.error("Invalid address format: " + ex.GetType().Name);   // ★ Sweep G-3: NOT ex.Message —
+                // Ixian-Core's Address constructor formats the whole base58 token into its
+                // exception text, and ixian.log is rendered by DevPage and shared in one tap.
+                // Exposed by Session T: an outer try used to hide the second of these two
+                // sites from gate 18's brace-match, so the leak was latent rather than absent.
+                return AddContactOutcome.InvalidAddress;
+            }
+
+            Address recipient_address = ext_recipient_address.RoutingAddress;
+            if (recipient_address.SequenceEqual(IxianHandler.getWalletStorage().getPrimaryAddress()))
+            {
+                return AddContactOutcome.SelfAddress;
+            }
+
+            Friend? old_friend = FriendList.getFriend(recipient_address);
+            if (old_friend != null)
+            {
+                if (old_friend.pendingDeletion)
+                {
+                    FriendList.removeFriend(old_friend);
+                    UIHelpers.shouldRefreshContacts = true;
+                }
+                else
+                {
+                    return AddContactOutcome.AlreadyContact;
+                }
+            }
+
+            contactName = recipient_address.ToString();
+            Friend? friend = FriendList.addFriend(FriendType.Normal, FriendState.RequestSent, recipient_address, null, contactName, null, null, 0);
+
+            if (friend != null)
+            {
+                friend.save();
+
+                StreamProcessor.sendContactRequest(friend);
+
+                HomePage.writeRequestSentMarker(recipient_address);   // #572 ①: the marker must not count as unread
+
+                UIHelpers.shouldRefreshContacts = true;
+            }
+
+            return AddContactOutcome.Sent;
+        }
+
+        /* ★ Session T — the same three checks the request itself makes, as a QUESTION.
+         * `ixian:checkAddress:` used to be answered only here. The shell-hosted screen
+         * asks the identical question, so the answer comes from one place: this page and
+         * the home shell can never disagree about what a request would do. */
+        public static void answerCheckAddress(SpixiContentPage page, string address)
+        {
+            try
+            {
+                ExtendedAddress ext = new ExtendedAddress(address);
+                Address routing = ext.RoutingAddress;
+                if (routing.SequenceEqual(IxianHandler.getWalletStorage().getPrimaryAddress()))
+                {
+                    Utils.sendUiCommand(page, "onKnownAddress", "self", "", "", address);
+                    return;
+                }
+                Friend? known = FriendList.getFriend(routing);
+                // pendingDeletion is NOT a duplicate — the request removes and re-adds it.
+                if (known != null && !known.pendingDeletion)
+                {
+                    // The 4th arg is the string we were ASKED about, echoed back: the shell
+                    // correlates the async answer with the field's current value, and the
+                    // ROUTING address can differ from what was typed.
+                    Utils.sendUiCommand(page, "onKnownAddress", "contact",
+                        routing.ToString(), known.nickname == null ? "" : known.nickname, address);
+                    return;
+                }
+                Utils.sendUiCommand(page, "onValidAddress");
+            }
+            catch (Exception ex)
+            {
+                Logging.error("Invalid address format: " + ex.GetType().Name);   // ★ Sweep G-3: NOT ex.Message —
+                // Ixian-Core's Address constructor formats the whole base58 token into its
+                // exception text, and ixian.log is rendered by DevPage and shared in one tap.
+                // Exposed by Session T: an outer try used to hide the second of these two
+                // sites from gate 18's brace-match, so the leak was latent rather than absent.
             }
         }
 
         public void onRequest(string recipient_address_string)
         {
             string? contactName = null;
+            AddContactOutcome outcome;
             try
             {
-                ExtendedAddress ext_recipient_address;
-                try
-                {
-                    ext_recipient_address = new ExtendedAddress(recipient_address_string);
-                }
-                catch (Exception ex)
-                {
-                    Logging.error("Invalid address format: " + ex.Message);
-                    displaySpixiAlert(SpixiLocalization._SL("global-invalid-address-title"), SpixiLocalization._SL("global-invalid-address-text"), SpixiLocalization._SL("global-dialog-ok"));
-                    return;
-                }
-
-                Address recipient_address = ext_recipient_address.RoutingAddress;
-                if (recipient_address.SequenceEqual(IxianHandler.getWalletStorage().getPrimaryAddress()))
-                {
-                    displaySpixiAlert(SpixiLocalization._SL("global-invalid-address-title"), SpixiLocalization._SL("contact-new-invalid-address-self-text"), SpixiLocalization._SL("global-dialog-ok"));
-                    return;
-                }
-
-                Friend? old_friend = FriendList.getFriend(recipient_address);
-                if (old_friend != null)
-                {
-                    if (old_friend.pendingDeletion)
-                    {
-                        FriendList.removeFriend(old_friend);
-                        UIHelpers.shouldRefreshContacts = true;
-                    }
-                    else
-                    {
-                        displaySpixiAlert(SpixiLocalization._SL("global-invalid-address-title"), SpixiLocalization._SL("contact-new-invalid-address-exists-text"), SpixiLocalization._SL("global-dialog-ok"));
-                        return;
-                    }
-                }
-                contactName = recipient_address.ToString();
-                Friend? friend = FriendList.addFriend(FriendType.Normal, FriendState.RequestSent, recipient_address, null, contactName, null, null, 0);
-
-                if (friend != null)
-                {
-                    friend.save();
-
-                    StreamProcessor.sendContactRequest(friend);
-
-                    HomePage.writeRequestSentMarker(recipient_address);   // #572 ①: the marker must not count as unread
-
-                    UIHelpers.shouldRefreshContacts = true;
-                }
+                outcome = addContactCore(recipient_address_string, out contactName);
             }
-            catch(Exception)
+            catch (Exception)
             {
+                // unchanged: this page has always swallowed an unexpected failure and
+                // fallen through to the pick/pop below.
+                outcome = AddContactOutcome.Sent;
+            }
 
+            if (outcome == AddContactOutcome.InvalidAddress)
+            {
+                displaySpixiAlert(SpixiLocalization._SL("global-invalid-address-title"), SpixiLocalization._SL("global-invalid-address-text"), SpixiLocalization._SL("global-dialog-ok"));
+                return;
+            }
+            if (outcome == AddContactOutcome.SelfAddress)
+            {
+                displaySpixiAlert(SpixiLocalization._SL("global-invalid-address-title"), SpixiLocalization._SL("contact-new-invalid-address-self-text"), SpixiLocalization._SL("global-dialog-ok"));
+                return;
+            }
+            if (outcome == AddContactOutcome.AlreadyContact)
+            {
+                displaySpixiAlert(SpixiLocalization._SL("global-invalid-address-title"), SpixiLocalization._SL("contact-new-invalid-address-exists-text"), SpixiLocalization._SL("global-dialog-ok"));
+                return;
             }
 
             if (pickSucceeded != null)

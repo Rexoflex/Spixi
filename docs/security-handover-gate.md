@@ -1380,3 +1380,30 @@ and iOS, and unchanged on Windows and MacCatalyst.
 | **`resolveDownloadPath`** and Windows reserved device names | On Windows, print `Path.GetFullPath(Path.Combine(downloadsRoot, "CON"))`. If it returns `\\.\CON` the guard already rejects it. NIT either way |
 | **H-6** on a device | A mini-app sending `STORAGE_SET` with `t = "../../probe.txt"`. ⚠ Do NOT test it against a wallet that holds anything — `FileMode.Create` truncates |
 | **F-13**'s visual reach | Set a contact nickname to 40 lines, open the in-chat Pay compose, and screenshot the confirm on all three platforms. The clamp should make this moot; confirm that it does |
+
+---
+
+## Session T addendum — two verb RELOCATIONS onto HomePage (2026-09-08)
+
+Damir reported, twice, that **Add contact** and **Add app** still stutter. Both pushed a C#
+page with its own WebView; the screens now mount inside the home shell, so four verbs moved
+to `HomePage.onNavigating`. Run through the gate's one question — *does this exposure exist
+at the baseline?* — before the code was written.
+
+| verb | what it reaches | verdict |
+|---|---|---|
+| `ixian:checkAddress:` | `ExtendedAddress` parse + `FriendList.getFriend` | **INHERITED.** Read-only, no I/O. The body did not change — both hosts now call `ContactNewPage.answerCheckAddress`, one truth |
+| `ixian:request:` | `FriendList.addFriend` + `StreamProcessor.sendContactRequest` | **INHERITED.** `ContactNewPage.addContactCore` is the same code, moved to a static. **Nothing is signed** — a contact request is a stream message, not a transaction (SECURITY.md) |
+| `ixian:fetch:` | ★ `MiniAppManager.fetch(url)` → `extractAppInfo` — **the network** | **INHERITED, RELOCATED.** The same user-typed URL, the same fetch, the same parse; only the host page differs. It is NOT the forbidden class in `CLAUDE.md` ("auto-fetch remote resources that leak IP without the media-autoload gate") — nothing here is automatic, the user types or scans a link and presses Get app. ⚠ Flagged anyway because a fetch site moving onto the page that also hosts the chats list is a widening of *where*, and the reviewer should say so out loud rather than find it |
+| `ixian:selectAppFile` | `SFilePicker` → temp file → `extractAppInfo` | **INHERITED, RELOCATED.** ⚠ Carries a pre-existing hazard unchanged: `Path.Combine(tmpPath, name + ".tmp")` where `name` is the **picker-supplied filename**. The picker is native, not the WebView, so this is not the `CLAUDE.md` "WebView-supplied path" rule — but it is the same shape, it is **legacy**, and moving it does not fix it. Left exactly as found, named here so it is not mistaken for ours |
+
+**Nothing new is rendered.** Both app paths hand their result to `AppDetailsPage`, as before.
+No new storage key, no new HTML sink, no new log line carrying a payload — the two new error
+logs print `ex.GetType().Name` only (sweep G-3: Ixian-Core's `Address` constructor formats the
+whole base58 token into its exception text).
+
+★ One genuinely NEW push, and it removes a guess rather than adding reach: `onRequestResult`.
+The standalone page answers a rejection with a native alert and no push at all, which is why
+`contact_new.html` arms a **6-second timer** and then tells the user "If nothing happened, that
+address may already be a contact or invalid." That wedge was logged as an owed BE fix. The
+shell-hosted screen gets the actual verdict instead.

@@ -629,5 +629,11 @@
   "groundGradient": "Gradientas",
   "notifPushProviderSub": "Pažadina šį įrenginį vos gavus žinutę. Naudoja „OneSignal“ – „push“ pranešimų tiekėją.",
   "loadMedia": "Įkelti paveikslėlius ir GIF",
-  "loadMediaSub": "Įkėlimas siuntėjo serveriui praneša, kad atvėrėte pokalbį"
+  "loadMediaSub": "Įkėlimas siuntėjo serveriui praneša, kad atvėrėte pokalbį",
+  "spixiAddressSub": "Tai jūsų adresas. Palieskite, kad peržiūrėtumėte.",
+  "peerAddressTitle": "Ixian adresas",
+  "peerAddressBody": "Tai šio kontakto adresas Ixian tinkle. Nuskaitykite kodą arba nukopijuokite adresą, kad išsiųstumėte IXI.",
+  "peerQrLabel": "QR kodas: šio kontakto Ixian adresas",
+  "removeContactOpt": "Pašalinti kontaktą",
+  "removeFailedToast": "Kontakto pašalinti nepavyko. Bandykite dar kartą."
 }

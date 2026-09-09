@@ -708,5 +708,11 @@
   "loadMedia": "Carregar imagens e GIFs",
   "loadMediaSub": "O carregamento informa ao servidor do remetente que você abriu a conversa",
   "mainNav": "Navegação principal",
-  "messagesLog": "Mensagens"
+  "messagesLog": "Mensagens",
+  "spixiAddressSub": "Este é o seu endereço. Toque para ver.",
+  "peerAddressTitle": "Endereço Ixian",
+  "peerAddressBody": "Este é o endereço deste contato na rede Ixian. Escaneie o código ou copie o endereço para enviar IXI.",
+  "peerQrLabel": "Código QR: endereço Ixian deste contato",
+  "removeContactOpt": "Remover contato",
+  "removeFailedToast": "Não foi possível remover o contato. Tente novamente."
 }

@@ -630,5 +630,11 @@
   "groundGradient": "Gradien",
   "notifPushProviderSub": "Membangunkan perangkat ini begitu pesan tiba. Menggunakan OneSignal, penyedia push.",
   "loadMedia": "Muat gambar dan GIF",
-  "loadMediaSub": "Memuat memberi tahu host pengirim bahwa Anda membuka obrolan"
+  "loadMediaSub": "Memuat memberi tahu host pengirim bahwa Anda membuka obrolan",
+  "spixiAddressSub": "Ini alamat Anda. Ketuk untuk melihat.",
+  "peerAddressTitle": "Alamat Ixian",
+  "peerAddressBody": "Ini alamat kontak ini di jaringan Ixian. Pindai kode atau salin alamat untuk mengirim IXI.",
+  "peerQrLabel": "Kode QR: alamat Ixian kontak ini",
+  "removeContactOpt": "Hapus kontak",
+  "removeFailedToast": "Kontak tidak dapat dihapus. Silakan coba lagi."
 }

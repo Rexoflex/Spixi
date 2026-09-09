@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Motorola Walk — Session T</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --bg:#eef1f6; --card:#ffffff; --sunk:#f5f7fa;
+    --ink:#141b23; --sub:#5b6672; --line:#dfe5ec;
+    --act:#1956b2; --act-soft:#e5edf9;
+    --p:#1a7f4b; --f:#b12525; --n:#8b95a1;
+    --warn:#884b00; --warn-soft:#fbf1e2;
+    --shadow:0 1px 2px rgba(20,27,35,.05), 0 2px 8px rgba(20,27,35,.05);
+  }
+  :root:not([data-theme="light"]) { }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0d1117; --card:#161b22; --sunk:#0f141b;
+      --ink:#e6edf3; --sub:#9aa7b4; --line:#252c36;
+      --act:#5a8dee; --act-soft:#16233a;
+      --p:#3fb27a; --f:#f08a80; --n:#7d8794;
+      --warn:#e0a458; --warn-soft:#241c10;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0d1117; --card:#161b22; --sunk:#0f141b;
+    --ink:#e6edf3; --sub:#9aa7b4; --line:#252c36;
+    --act:#5a8dee; --act-soft:#16233a;
+    --p:#3fb27a; --f:#f08a80; --n:#7d8794;
+    --warn:#e0a458; --warn-soft:#241c10;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.3);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.55 "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding:28px 20px 64px;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1000px;margin:0 auto}
+
+  header{margin:0 0 18px}
+  h1{font-size:27px;line-height:1.2;margin:0 0 6px;font-weight:700;letter-spacing:-.015em;text-wrap:balance}
+  .lede{color:var(--sub);margin:0 0 14px;max-width:64ch}
+  .facts{display:flex;flex-wrap:wrap;gap:8px}
+  .fact{
+    font:500 12px/1 "IBM Plex Mono", ui-monospace, Consolas, monospace;
+    background:var(--card);border:1px solid var(--line);border-radius:999px;
+    padding:7px 12px;color:var(--sub);white-space:nowrap
+  }
+  .fact b{color:var(--ink);font-weight:500}
+
+  .tally{
+    position:sticky;top:0;z-index:5;background:var(--bg);
+    padding:12px 0 10px;margin:0 0 18px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap
+  }
+  .tally .score{font:600 15px/1 "IBM Plex Mono", monospace;letter-spacing:.02em}
+  .tally .score i{font-style:normal;padding:0 2px}
+  .tally .sp{flex:1}
+  .mini{
+    border:1px solid var(--line);background:var(--card);color:var(--ink);
+    border-radius:8px;padding:7px 13px;font:500 13px/1 "IBM Plex Sans",sans-serif;cursor:pointer
+  }
+  .mini:hover{border-color:var(--act);color:var(--act)}
+  .mini:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+
+  h2{
+    font-size:13px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--sub);margin:26px 0 10px;display:flex;align-items:baseline;gap:10px
+  }
+  h2 .num{
+    font-family:"IBM Plex Mono",monospace;color:var(--act);font-weight:500;
+    letter-spacing:0;font-size:12px
+  }
+  section{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:16px 18px;margin:0 0 4px;box-shadow:var(--shadow)
+  }
+  section.flag{border-left:3px solid var(--act)}
+  section > p{margin:0 0 12px;color:var(--sub);max-width:70ch}
+  section > p:last-child{margin-bottom:0}
+  section > p strong{color:var(--ink);font-weight:600}
+  code{
+    font:500 13px/1.4 "IBM Plex Mono",ui-monospace,Consolas,monospace;
+    background:var(--sunk);border:1px solid var(--line);border-radius:5px;padding:1px 5px
+  }
+
+  .cmd{position:relative;margin:0 0 12px}
+  .cmd pre{
+    margin:0;background:var(--sunk);border:1px solid var(--line);border-radius:10px;
+    padding:13px 15px;overflow-x:auto;
+    font:400 12.5px/1.65 "IBM Plex Mono",ui-monospace,Consolas,monospace;
+    color:var(--ink)
+  }
+  .cmd .cp{
+    position:absolute;top:8px;right:8px;
+    border:1px solid var(--line);background:var(--card);color:var(--sub);
+    border-radius:7px;padding:5px 10px;font:500 11px/1 "IBM Plex Sans",sans-serif;cursor:pointer
+  }
+  .cmd .cp:hover{color:var(--act);border-color:var(--act)}
+  .cmd .cp:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+  .cmd .cp[data-done="1"]{color:var(--p);border-color:var(--p)}
+
+  .note-line{
+    display:flex;gap:8px;align-items:flex-start;
+    background:var(--warn-soft);border:1px solid var(--line);border-radius:9px;
+    padding:10px 13px;margin:0 0 12px;color:var(--ink);font-size:13.5px;line-height:1.5
+  }
+  .note-line b{color:var(--warn)}
+
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:10px 8px;border-top:1px solid var(--line);vertical-align:top}
+  thead th{
+    border-top:0;font:600 11px/1 "IBM Plex Sans",sans-serif;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--sub);padding-bottom:8px
+  }
+  td.id{
+    width:44px;font:500 13px/1.5 "IBM Plex Mono",monospace;color:var(--act);white-space:nowrap
+  }
+  td.what{font-size:14px}
+  td.what em{font-style:normal;color:var(--sub);display:block;margin-top:3px;font-size:13px}
+  td.v{width:158px;white-space:nowrap}
+
+  .btn{
+    border:1px solid var(--line);background:transparent;color:var(--sub);
+    border-radius:7px;padding:5px 11px;margin-right:4px;cursor:pointer;
+    font:500 12.5px/1 "IBM Plex Sans",sans-serif
+  }
+  .btn:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+  .btn[aria-pressed="true"][data-v="P"]{background:var(--p);border-color:var(--p);color:#fff}
+  .btn[aria-pressed="true"][data-v="F"]{background:var(--f);border-color:var(--f);color:#fff}
+  .btn[aria-pressed="true"][data-v="N"]{background:var(--n);border-color:var(--n);color:#fff}
+  .nt{
+    width:100%;margin-top:7px;border:1px solid var(--line);border-radius:7px;
+    padding:6px 9px;background:var(--sunk);color:var(--ink);
+    font:400 13px/1.45 "IBM Plex Sans",sans-serif;display:none
+  }
+  .nt.on{display:block}
+  tr[data-v="F"] .nt{display:block;border-color:var(--f)}
+
+  footer{margin:30px 0 0;color:var(--sub);font-size:13.5px;line-height:1.6}
+  footer b{color:var(--ink)}
+
+  @media (max-width:640px){
+    body{padding:20px 14px 56px}
+    td.v{width:auto}
+    th:nth-child(3),td.v{display:block;padding-top:0;border-top:0}
+    td.id{width:38px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Motorola Walk — Session T</h1>
+  <p class="lede">Run the pipeline, build, then walk the rows. <strong>§1 is the point of the session</strong> — everything else is quick. Ticks save in this browser; <em>Copy results</em> at the top gives me something to paste.</p>
+  <div class="facts">
+    <span class="fact">device <b>Motorola · Android</b></span>
+    <span class="fact">package <b>com.ixilabs.spixi.dev</b></span>
+    <span class="fact">build <b>Release + coexist</b></span>
+    <span class="fact">C# files changed <b>4 · never compiled</b></span>
+  </div>
+</header>
+
+<div class="tally">
+  <span class="score" id="score">— / 34</span>
+  <span class="score" style="color:var(--p)">P <i id="cp">0</i></span>
+  <span class="score" style="color:var(--f)">F <i id="cf">0</i></span>
+  <span class="score" style="color:var(--n)">N/A <i id="cn">0</i></span>
+  <span class="sp"></span>
+  <button class="mini" id="copyres">Copy results</button>
+  <button class="mini" id="reset">Reset</button>
+</div>
+
+<main>
+
+<h2><span class="num">§0</span> Build and deploy</h2>
+<section>
+  <p>PowerShell, from the repo root. <strong>Bundle before shells, always</strong> — a stale bundle silently ships the old screens.</p>
+  <div class="cmd"><button class="cp">Copy</button><pre>cd "C:\Users\Damir\Claude\Projects\Spixi Rework Of Frontend\Spixi"
+
+node scripts\extract-strings.mjs
+node scripts\build-locales.mjs
+node scripts\build-strings-iife.mjs
+node scripts\build-demo-bundle.mjs
+node scripts\build-shells.mjs
+
+node scripts\smoke-test.mjs
+node scripts\verify-locales.mjs
+node scripts\i18n-lint.mjs
+node scripts\pseudo-locale-smoke.mjs
+node scripts\build-locales.mjs --check</pre></div>
+  <p>Expect: smoke <code>~4640</code> plus the 3 known (#136 · M5 · B3) · locales <code>ALL CLEAN</code> · the new <code>build-locales --check</code> printing its ✓ line.</p>
+
+  <p><strong>Then wipe and build.</strong> Four C# files changed, so the wipe is not optional.</p>
+  <div class="cmd"><button class="cp">Copy</button><pre>Remove-Item -Recurse -Force Spixi\obj, Spixi\bin -ErrorAction SilentlyContinue
+
+dotnet build Spixi\Spixi.csproj -f net10.0-android -c Release -p:SpixiDevCoexist=true -t:Run</pre></div>
+  <div class="note-line"><b>⚠</b><span>If it fails to compile, it is this batch — the container has no compiler, so <b>your build is the first one</b>. Changed: <code>SpixiContentPage.cs</code>, <code>HomePage.xaml.cs</code>, <code>ContactNewPage.xaml.cs</code>, <code>AppNewPage.xaml.cs</code>. Paste me the first error, not the last.</span></div>
+
+  <p>adb, if it is not already on PATH:</p>
+  <div class="cmd"><button class="cp">Copy</button><pre>$adb = "adb"
+if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
+  $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
+}
+& $adb devices</pre></div>
+</section>
+
+<h2><span class="num">§1</span> The memory run — the reason for this walk</h2>
+<section class="flag">
+  <p>The app dies at <strong>511 MB after ~30 minutes</strong>. This is the only open item that loses people's work. I found and fixed a real defect in the disposal code this session, but <strong>it does not change memory behaviour</strong> — so this run is what actually decides the cause.</p>
+  <p>The app now counts its own live WebViews and prints <code>held=</code>. That is <strong>the same number</strong> Android reports in the meminfo footer as <code>WebViews:</code>. Two independent measurements of one quantity is what makes this decisive.</p>
+
+  <p>Paste this once to define the snapshot helper:</p>
+  <div class="cmd"><button class="cp">Copy</button><pre>$pkg = "com.ixilabs.spixi.dev"
+
+function Snap($tag) {
+  $f = "$env:USERPROFILE\Desktop\spixi-mem-$tag.txt"
+  "=== $tag  $(Get-Date -Format o) ===" | Out-File $f -Encoding utf8
+  "--- battery ---"                     | Out-File $f -Append -Encoding utf8
+  & $adb shell dumpsys battery | Select-String "temperature|level" | Out-File $f -Append -Encoding utf8
+  "--- meminfo ---"                     | Out-File $f -Append -Encoding utf8
+  & $adb shell dumpsys meminfo $pkg     | Out-File $f -Append -Encoding utf8
+  "--- MEMDIAG ---"                     | Out-File $f -Append -Encoding utf8
+  & $adb logcat -d | Select-String "MEMDIAG" | Select-Object -Last 25 | Out-File $f -Append -Encoding utf8
+  Write-Host "wrote $f"
+  & $adb shell dumpsys meminfo $pkg | Select-String "TOTAL PSS|WebViews:|Views:|Activities:|AppContexts:"
+}</pre></div>
+
+  <p><strong>T0</strong> — launch the app, let it settle on the chats list, then:</p>
+  <div class="cmd"><button class="cp">Copy</button><pre>& $adb logcat -c
+Snap "T0"</pre></div>
+
+  <p><strong>Use it for ~30 minutes</strong> the way you normally do — open chats, back out, Account rows, wallet, apps. Then, before or right at the kill:</p>
+  <div class="cmd"><button class="cp">Copy</button><pre>Snap "T30"</pre></div>
+
+  <div class="note-line"><b>⚠</b><span><b>Rule out the heavy seed first.</b> On a 10 × 1000 profile neither number means anything. And read the <b>battery temperature</b> in both files: <b>end − start &gt; 3 °C voids the capture</b> — Session P's ladder was confounded by a phone that warmed 6 °C on the cable.</span></div>
+
+  <p><strong>How to read it</strong> — <code>held=</code> in the MEMDIAG line against <code>WebViews:</code> in the meminfo footer:</p>
+  <table>
+    <thead><tr><th style="width:47%">what you see</th><th>what it means</th></tr></thead>
+    <tbody>
+      <tr><td><code>held=</code> climbs and <code>WebViews:</code> climbs with it</td><td>A WebView leak. <code>skipped=</code> then says how many disposals the on-stack guard passed over.</td></tr>
+      <tr><td><code>held=</code> flat at 3–4, Native Heap or Graphics climbing</td><td><strong>Not</strong> WebViews. Stop looking at disposal — the growth is native or bitmaps.</td></tr>
+      <tr><td>the two <strong>disagree</strong></td><td>My instrument is wrong before the app is. Tell me; do not act on it.</td></tr>
+    </tbody>
+  </table>
+
+  <p style="margin-top:14px">If it <em>is</em> WebViews, this is the free next step — set <code>CHAT_SPARE_ENABLED = false</code>, rebuild, same half hour. Kills stop → the pre-warm is the cause and the fix is the disposal, not the flag.</p>
+
+  <table>
+    <thead><tr><th class="id">#</th><th>step</th><th class="v">result</th></tr></thead>
+    <tbody id="s1"></tbody>
+  </table>
+</section>
+
+<h2><span class="num">§2</span> Add contact / Add app — the stutter you reported twice</h2>
+<section class="flag">
+  <p>You were right and my first answer was wrong. Both screens were pushing a separate C# page with its own browser instance — a <strong>130–230 ms cold boot</strong> every time. They now open inside the screen that is already there, the same fix the Account rows got.</p>
+  <p><strong>Same verbs, same code</strong> — the logic moved into shared functions the old pages still use, so nothing else changed behaviour.</p>
+  <div class="note-line"><b>⚠</b><span>If the old behaviour comes back (a page transition, a white flash), the shells are <b>stale</b>: re-run <code>build-demo-bundle</code> then <code>build-shells</code>, in that order.</span></div>
+  <table>
+    <thead><tr><th class="id">#</th><th>step</th><th class="v">result</th></tr></thead>
+    <tbody id="s2"></tbody>
+  </table>
+</section>
+
+<h2><span class="num">§3</span> The disposal fix — and it is not a memory test</h2>
+<section>
+  <p>A page was marking itself “dead” every time anything opened on top of it, and never marking itself alive again. Three pieces of code read that flag as <em>this page is gone</em>. Two of them you can feel.</p>
+  <p><strong>This changes no memory behaviour</strong> — it fixes guards that were firing on live pages.</p>
+  <table>
+    <thead><tr><th class="id">#</th><th>step</th><th class="v">result</th></tr></thead>
+    <tbody id="s3"></tbody>
+  </table>
+</section>
+
+<h2><span class="num">§4</span> The dim, halved in light mode</h2>
+<section>
+  <p>Your ask. The wash behind menus and sheets drops from 0.7 to <strong>0.35</strong> on phones in light mode. Dark is untouched.</p>
+  <table>
+    <thead><tr><th class="id">#</th><th>step</th><th class="v">result</th></tr></thead>
+    <tbody id="s4"></tbody>
+  </table>
+</section>
+
+<h2><span class="num">§5</span> Six strings that were English in every language</h2>
+<section>
+  <p>They were added after the last translation round, so they were in no draft file and quietly fell back to English — in twelve languages at once. Filled, and the build now fails if it happens again.</p>
+  <table>
+    <thead><tr><th class="id">#</th><th>step</th><th class="v">result</th></tr></thead>
+    <tbody id="s5"></tbody>
+  </table>
+</section>
+
+<h2><span class="num">§6</span> The two crashes — capture the log at the repro</h2>
+<section>
+  <p>Neither has ever been characterised, and both need the log taken <strong>at</strong> the moment, not after. Clear, reproduce, dump.</p>
+  <div class="cmd"><button class="cp">Copy</button><pre># AND-25 — remove a contact
+& $adb logcat -c
+#   ... now remove a contact on the phone ...
+& $adb logcat -d | Out-File "$env:USERPROFILE\Desktop\and25-remove-contact.txt" -Encoding utf8
+
+# AND-27 — deny the mic, then let it re-ask
+& $adb logcat -c
+#   ... now start a call, deny the mic, accept the native re-ask ...
+& $adb logcat -d | Out-File "$env:USERPROFILE\Desktop\and27-mic-denied.txt" -Encoding utf8</pre></div>
+  <table>
+    <thead><tr><th class="id">#</th><th>step</th><th class="v">result</th></tr></thead>
+    <tbody id="s6"></tbody>
+  </table>
+</section>
+
+<h2><span class="num">§7</span> Two rows that were already fixed</h2>
+<section>
+  <p>Both were on the open list; both had been built weeks ago and nobody updated the row. I verified the code — these two need <strong>your eyes, not a build</strong>. That has now happened five times in three sessions, which is why it is worth a minute.</p>
+  <table>
+    <thead><tr><th class="id">#</th><th>step</th><th class="v">result</th></tr></thead>
+    <tbody id="s7"></tbody>
+  </table>
+</section>
+
+<footer>
+  <p><b>Deliberately not done, so don’t be surprised:</b> <code>maxLogCount</code> stays at 5 and the diagnostic probes stay in. Both are one-line release blockers — but flipping them now deletes the log history §1 and §6 depend on. They belong in the freeze batch.</p>
+  <p><b>Still nobody’s but yours:</b> the BE walkthrough (it unblocks the live money path, the cleartext wallet password and the lock-bypass in one sitting), the Privacy Policy text, and the translator pass.</p>
+</footer>
+</main>
+</div>
+
+<script>
+(function(){
+  var ROWS = {
+    s1: [
+      ["M1","T0 snapshot captured","seed profile ruled out; battery temp noted"],
+      ["M2","T30 snapshot captured","end − start ≤ 3 °C, or the capture is void"],
+      ["M3","Did it still get killed inside ~30 minutes?","P = it survived · F = it was killed"],
+      ["M4","Do held= and WebViews: agree?","if they disagree, say so — do not act on it"]
+    ],
+    s2: [
+      ["A1","Chats → FAB → Add contact","opens instantly — no page transition, no white flash"],
+      ["A2","Press back from it","lands on the contacts picker, selection and scroll intact"],
+      ["A3","Type an address you already have","says “already a contact” with a View contact button, before you send"],
+      ["A4","Tap View contact","their page opens; the picker is gone"],
+      ["A5","Type a good address → Send","the button resolves on the real answer"],
+      ["A6","Send to your own address","says it is your own address, inline — no native alert"],
+      ["A7","Add contact → Scan a contact QR","the address lands back in the panel, not in a new page"],
+      ["A8","Apps → + Add app","opens instantly, same as A1"],
+      ["A9","Paste a bad link → Get app","inline error, the button stops spinning"],
+      ["A10","Paste a good link → Get app","app details opens; no stale panel left underneath"],
+      ["A11","Add app → Scan an app QR","the link lands in the URL field — must not be read as a contact"],
+      ["A12","Add app → From file → cancel the picker","inline error, nothing wedged"],
+      ["A13","Either screen → hardware back","closes the screen; does not exit the app"],
+      ["A14","Either screen → tap another tab","the screen dismisses, the tab switches cleanly"]
+    ],
+    s3: [
+      ["L1","A contact → Contact details → tap a transaction → back","the member list is still there"],
+      ["L2","Then press back again","you leave the contact — back is not dead"],
+      ["L3","Home → Add contact → back → scan → back → open a chat → send","all normal, nothing regressed"],
+      ["L4","Open a cold bot room, wait for the blank at ~4 s, back before 5 s","still ignored; no wrong screen popped"]
+    ],
+    s4: [
+      ["D1","Light mode → long-press a message","the wash behind the menu is visibly lighter"],
+      ["D2","Same for a bottom sheet and a modal","same lighter wash on all three"],
+      ["D3","Dark mode, same three","unchanged"],
+      ["D4","A media tile / the call screen, both themes","unchanged — deliberately; white text sits on those"]
+    ],
+    s5: [
+      ["I1","Settings → Deutsch → Account","the line under your address is German"],
+      ["I2","A contact → the address sheet","title and body German; Ixian and IXI intact"],
+      ["I3","A contact row → Remove contact","the option label is German"],
+      ["I4","Spot-check one more (fr / sl / ru)","same four surfaces translated"]
+    ],
+    s6: [
+      ["C1","AND-25 — remove a contact, log captured","does it still crash?"],
+      ["C2","AND-27 — mic denied → re-asked, log captured","does a call screen appear at all?"]
+    ],
+    s7: [
+      ["V1","A group → tap a member who is already a contact","should offer Message / View profile, not Add contact"],
+      ["V2","Account → open Language → hardware back","closes the picker; must not jump to Chats"]
+    ]
+  };
+
+  var KEY = "spixi.walk.session-t";
+  var state = {};
+  try { state = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch(e) { state = {}; }
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){} }
+
+  function build(tbodyId){
+    var tb = document.getElementById(tbodyId);
+    if(!tb) return;
+    ROWS[tbodyId].forEach(function(r){
+      var id = r[0];
+      var tr = document.createElement("tr");
+      tr.dataset.row = id;
+
+      var td1 = document.createElement("td");
+      td1.className = "id"; td1.textContent = id;
+
+      var td2 = document.createElement("td");
+      td2.className = "what";
+      td2.appendChild(document.createTextNode(r[1]));
+      if (r[2]) { var em = document.createElement("em"); em.textContent = r[2]; td2.appendChild(em); }
+
+      var td3 = document.createElement("td");
+      td3.className = "v";
+      ["P","F","N"].forEach(function(v){
+        var b = document.createElement("button");
+        b.className = "btn"; b.dataset.v = v; b.type = "button";
+        b.textContent = v === "N" ? "N/A" : v;
+        b.setAttribute("aria-label", (v==="P"?"Pass":v==="F"?"Fail":"Not applicable") + " " + id);
+        b.setAttribute("aria-pressed", String(state[id] && state[id].v === v));
+        b.addEventListener("click", function(){
+          var cur = state[id] || {};
+          cur.v = (cur.v === v) ? "" : v;
+          state[id] = cur; save(); paint(tr, id); tallyUp();
+        });
+        td3.appendChild(b);
+      });
+      var nt = document.createElement("textarea");
+      nt.className = "nt"; nt.rows = 2;
+      nt.placeholder = "note";
+      nt.value = (state[id] && state[id].n) || "";
+      nt.setAttribute("aria-label", "Note for " + id);
+      nt.addEventListener("input", function(){
+        var cur = state[id] || {}; cur.n = nt.value; state[id] = cur; save();
+      });
+      td3.appendChild(nt);
+
+      tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+      tb.appendChild(tr);
+      paint(tr, id);
+    });
+  }
+
+  function paint(tr, id){
+    var v = (state[id] && state[id].v) || "";
+    tr.dataset.v = v;
+    Array.prototype.forEach.call(tr.querySelectorAll(".btn"), function(b){
+      b.setAttribute("aria-pressed", String(b.dataset.v === v));
+    });
+    var nt = tr.querySelector(".nt");
+    if (nt) nt.classList.toggle("on", !!nt.value || v === "F");
+  }
+
+  function tallyUp(){
+    var p=0,f=0,n=0,total=0;
+    Object.keys(ROWS).forEach(function(k){ total += ROWS[k].length; });
+    Object.keys(state).forEach(function(id){
+      var v = state[id] && state[id].v;
+      if (v==="P") p++; else if (v==="F") f++; else if (v==="N") n++;
+    });
+    document.getElementById("cp").textContent = p;
+    document.getElementById("cf").textContent = f;
+    document.getElementById("cn").textContent = n;
+    document.getElementById("score").textContent = (p+f+n) + " / " + total;
+  }
+
+  Object.keys(ROWS).forEach(build);
+  tallyUp();
+
+  function copyText(text, btn, doneLabel){
+    var ok = function(){
+      if(!btn) return;
+      var old = btn.textContent;
+      btn.textContent = doneLabel || "Copied";
+      btn.dataset.done = "1";
+      setTimeout(function(){ btn.textContent = old; btn.dataset.done = ""; }, 1400);
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(ok, function(){ fallback(text, ok); });
+        return;
+      }
+    } catch(e){}
+    fallback(text, ok);
+  }
+  function fallback(text, ok){
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      ok();
+    } catch(e){}
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll(".cmd .cp"), function(btn){
+    btn.type = "button";
+    btn.addEventListener("click", function(){
+      var pre = btn.parentNode.querySelector("pre");
+      copyText(pre ? pre.textContent : "", btn);
+    });
+  });
+
+  document.getElementById("copyres").addEventListener("click", function(){
+    var out = ["Motorola walk — Session T", ""];
+    var p=0,f=0,n=0;
+    Object.keys(ROWS).forEach(function(k){
+      ROWS[k].forEach(function(r){
+        var id = r[0], s = state[id] || {}, v = s.v || "-";
+        if (v==="P") p++; else if (v==="F") f++; else if (v==="N") n++;
+        out.push(v + "  " + id + "  " + r[1] + (s.n ? "   — " + s.n : ""));
+      });
+    });
+    out.splice(1, 0, p + " pass · " + f + " fail · " + n + " n/a");
+    copyText(out.join("\n"), this, "Copied");
+  });
+
+  document.getElementById("reset").addEventListener("click", function(){
+    if (!window.confirm("Clear every result and note on this sheet?")) return;
+    state = {}; save();
+    Object.keys(ROWS).forEach(function(k){
+      var tb = document.getElementById(k);
+      while (tb.firstChild) tb.removeChild(tb.firstChild);
+      build(k);
+    });
+    tallyUp();
+  });
+})();
+</script>
+</body>
+</html>

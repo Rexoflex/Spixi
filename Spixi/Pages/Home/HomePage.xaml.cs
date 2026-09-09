@@ -831,6 +831,76 @@ namespace SPIXI
                 closeContactDetailsOverlays();   // loop B-MINOR-1 (symmetry)
                 pushPageLoaded(new AppNewPage(), 4000, "formpane", rightContent.IsVisible ? 1 : -1, revealDelayMs: 0);   // load-then-move (N3, round 2) · ★ Session K #766: no data after onload → no hold (walk K P3: 0 dropped frames, the 120 ms was the "stutter")
             }
+            /* ★★ Session T — ADD CONTACT WITHOUT A PAGE (Damir, twice: "it still stutters").
+             * `ixian:newcontact` above pushes ContactNewPage, which boots its OWN WebView —
+             * the cold Chromium boot #803 measured at 130–230 ms on the main thread, and the
+             * same mechanism #804 removed for the three Account rows by hosting them in the
+             * shell that was already open. The contacts takeover lives in THIS WebView, so
+             * the add screen now mounts there and these three verbs answer it. The page and
+             * its verbs stay — the scan hand-off below still constructs it, and nothing that
+             * pushes ContactNewPage today has changed.
+             *
+             * ★ ONE TRUTH: both hosts call the SAME core on ContactNewPage, so the standalone
+             * page and the in-shell screen can never disagree about what a request does.
+             * ⚠ The rejection is DATA here, not a native alert. The standalone page answers a
+             * rejection by alerting and popping; an in-shell screen has no page to pop and
+             * cannot see an alert, which is why `contact_new.html` arms a 6-SECOND timer and
+             * then GUESSES ("If nothing happened, that address may already be a contact or
+             * invalid"). That wedge was logged as an owed BE fix; this is it. */
+            else if (current_url.StartsWith("ixian:checkAddress:", StringComparison.Ordinal))
+            {
+                ContactNewPage.answerCheckAddress(this, current_url.Substring("ixian:checkAddress:".Length));
+            }
+            else if (current_url.StartsWith("ixian:request:", StringComparison.Ordinal))
+            {
+                /* ⚠ StartsWith + Ordinal, and it is NOT `Contains` — the #268 FIX-4 lesson.
+                 * This page carries many data-carrying verbs, and a Contains() match could
+                 * hijack any payload that ever embedded the literal substring. Checked
+                 * against every sibling: `ixian:sendrequest:` (money), `ixian:acceptRequest:`
+                 * and `ixian:declineRequest:` are all distinct prefixes under StartsWith. */
+                onShellContactRequest(current_url.Substring("ixian:request:".Length));
+            }
+            /* ★★ Session T — ADD APP WITHOUT A PAGE, the same move as add-contact above.
+             * `ixian:newapp` pushes AppNewPage and pays the cold WebView boot its own
+             * [CDPERF] instrument was added to measure (Session K #757 ②, Damir: "the
+             * Add-app screen stutters on open"). The apps tab lives in THIS WebView.
+             * ★ Both forward to AppNewPage's own cores, so the standalone page and the
+             * in-shell screen cannot drift. The page and its verbs are untouched.
+             * ⚠ `ixian:fetch:` reaches the network (MiniAppManager.fetch → extractAppInfo).
+             * That is the SAME user-initiated fetch this app already performs, on the same
+             * code, moved to a different host — a RELOCATION, logged in
+             * docs/security-handover-gate.md, not a new capability. Nothing here renders
+             * remote content: the result is handed to AppDetailsPage exactly as before. */
+            else if (current_url.StartsWith("ixian:fetch:", StringComparison.Ordinal))
+            {
+                onShellFetchApp(current_url.Substring("ixian:fetch:".Length));
+            }
+            else if (current_url.Equals("ixian:selectAppFile", StringComparison.Ordinal))
+            {
+                onShellSelectAppFile();
+            }
+            else if (current_url.Equals("ixian:appscan", StringComparison.Ordinal))
+            {
+                /* A distinct verb, for the same reason as `ixian:contactscan`: this page's
+                 * processQRResult reads a non-payment QR as a CONTACT address, so an app
+                 * link scanned from the shell's add-app screen would be routed into the
+                 * add-contact flow. The flag sends it back to the screen that asked. */
+                appScanToShell = true;
+                quickScan();
+                e.Cancel = true;
+                return;
+            }
+            else if (current_url.Equals("ixian:contactscan", StringComparison.Ordinal))
+            {
+                /* A distinct verb from `ixian:quickscan` ON PURPOSE: processQRResult answers a
+                 * NON-payment QR by constructing a ContactNewPage and pushing it (:1774), which
+                 * is the very boot this batch removes. The flag tells it to hand the address to
+                 * the open shell screen instead. */
+                contactScanToShell = true;
+                quickScan();
+                e.Cancel = true;
+                return;
+            }
             else if (current_url.StartsWith("ixian:sendrequest:", StringComparison.Ordinal))
             {
                 // Q2-⑥ (#268, W8 LANDED): the Receive takeover's "request from a
@@ -1715,8 +1785,10 @@ namespace SPIXI
                 // legacy invalid-address alert. The payload's address is the part
                 // before the first ':' (addr · addr:ixi · addr:send:amount).
                 string payload = e.Value ?? "";
-                int sep = payload.IndexOf(':');
-                string addr = sep > 0 ? payload.Substring(0, sep) : payload;
+                // ★ Session T walk A7: the inline IndexOf copy that used to sit here is now
+                // Utils.scanAddressOf — same rule, one home. Three sites had their own copy
+                // of "where does the address end" and the contact one had a different answer.
+                string addr = Utils.scanAddressOf(payload);
                 bool valid = false;
                 try { valid = ExtendedAddress.Validate(addr); } catch (Exception) { valid = false; }
                 if (!valid)
@@ -1741,6 +1813,34 @@ namespace SPIXI
         public void processQRResult(string result)
         {
             popPageAsync();
+
+            /* ★ Session T: the shell's ADD-APP screen asked for this scan. An app link is
+             * not a contact address, so it is answered before the contact branch below —
+             * with AppNewPage's own heuristic, not a second opinion.
+             * ⚠ ABOVE the ":send" split ON PURPOSE: an app link that happened to contain
+             * that literal would otherwise fall into the payment branch, fail
+             * ExtendedAddress.Validate and be dropped with only a log line. */
+            if (appScanToShell)
+            {
+                appScanToShell = false;
+                /* ⚠ ":ixi" AND NOT Utils.scanAddressOf — an app link contains "://", so the
+                 * address-of rule would cut it to "https". The contact branch below uses the
+                 * opposite rule for the opposite reason; GATE 55 pins both so a tidy-up that
+                 * makes them agree fails instead of truncating every app link. */
+                string appUrl = result.Contains(":ixi")
+                    ? result.Split(new string[] { ":ixi" }, StringSplitOptions.None)[0]
+                    : result;
+                if (appUrl.Length > 20 && appUrl.Length < 128)
+                {
+                    Utils.sendUiCommand(this, "setScannedData", appUrl);
+                }
+                else
+                {
+                    Utils.sendUiCommand(this, "showUrlError");
+                }
+                return;
+            }
+
 
             // Check for add contact
             string[] split = result.Split(new string[] { ":send" }, StringSplitOptions.None);
@@ -1770,7 +1870,22 @@ namespace SPIXI
                 return;
             }
 
-            string id_to_add = split[0];
+            /* ★ Session T walk A7 — THE TAIL COMES OFF HERE, for both consumers.
+             * `split` above is on ":send" alone, so a plain contact QR (`addr:ixi`, which is
+             * what Spixi's own contact QR encodes) arrived with ":ixi" still on it: the shell
+             * filled its field with a string ExtendedAddress.Validate refuses, and the page
+             * push below handed the same string to ContactNewPage. Damir scanned one and
+             * could not add the contact. Utils.scanAddressOf is the grammar's one reader. */
+            string id_to_add = Utils.scanAddressOf(split[0]);
+            /* ★ Session T: the shell's add-contact screen asked for this scan, so the result
+             * goes back INTO it — pushing a ContactNewPage here would boot the WebView this
+             * batch exists to avoid, and would leave the shell's own panel underneath it. */
+            if (contactScanToShell)
+            {
+                contactScanToShell = false;
+                Utils.sendUiCommand(this, "onContactScanResult", id_to_add);
+                return;
+            }
             var contactNewPage = new ContactNewPage(id_to_add);
             contactNewPage.pickSucceeded += (sender, e) =>
             {
@@ -4693,6 +4808,104 @@ namespace SPIXI
             {
                 Logging.error("ixian:acceptRequest failed (malformed payload or address): " + ex.GetType().Name);
             }
+        }
+
+        /* ★ Session T — the shell-hosted add-contact screen's request.
+         * Mirrors `onAcceptRequest` for the refresh: the core sets
+         * `UIHelpers.shouldRefreshContacts`, and nothing here reloads by hand, because
+         * that is how every other contact mutation on this page already behaves.
+         * ⚠ This page must NOT pop (the `ixian:sendrequest:` rule) — the shell closes its
+         * own panel when it gets the result. */
+        private bool contactScanToShell = false;
+        private bool appScanToShell = false;
+
+        /* ★ Session T — the shell-hosted add-app screen. Both answer the shell with
+         * `showUrlError` on failure (the same push app_new.html has always consumed) and
+         * hand a success to AppDetailsPage.
+         * ⚠ `replaces:` is NOT passed: there is no form PAGE to replace here — the form is
+         * a panel inside this WebView, and the shell closes it when it opens the details.
+         * The "formpane" tag and column keep the #256 M7 desktop routing. */
+        private async void onShellFetchApp(string url)
+        {
+            MiniApp? app = null;
+            try
+            {
+                app = await AppNewPage.fetchAppCore(url);
+            }
+            catch (Exception ex)
+            {
+                Logging.error("ixian:fetch failed: " + ex.GetType().Name);
+            }
+            if (app == null)
+            {
+                Utils.sendUiCommand(this, "showUrlError");
+                return;
+            }
+            Utils.sendUiCommand(this, "closeAddApp");
+            pushPageLoaded(new AppDetailsPage(app, null, true), 4000, "formpane", rightContent.IsVisible ? 1 : -1, revealDelayMs: 0);
+        }
+
+        private async void onShellSelectAppFile()
+        {
+            AppNewPage.PickedApp? picked = null;
+            AppNewPage.PickAppOutcome outcome = AppNewPage.PickAppOutcome.Failed;
+            try
+            {
+                (outcome, picked) = await AppNewPage.pickAppFileCore();
+            }
+            catch (Exception ex)
+            {
+                Logging.error("ixian:selectAppFile failed: " + ex.GetType().Name);
+            }
+            /* ★ Session T walk A12 — a dismissed picker is answered with SILENCE.
+             * Damir: "it shows the link input with inline error of wrong link.. should just
+             * go back". The panel sets no loading state for this verb and there is no page to
+             * pop, so the correct answer is to send nothing at all and leave the screen
+             * exactly as he left it. The error is reserved for a file that was actually
+             * chosen and turned out not to be an app. */
+            if (outcome == AppNewPage.PickAppOutcome.Cancelled)
+            {
+                return;
+            }
+            if (picked == null)
+            {
+                Utils.sendUiCommand(this, "showUrlError");
+                return;
+            }
+            Utils.sendUiCommand(this, "closeAddApp");
+            pushPageLoaded(new AppDetailsPage(picked.app, picked.filepath, true), 4000, "formpane", rightContent.IsVisible ? 1 : -1, revealDelayMs: 0);
+        }
+
+        private void onShellContactRequest(string address)
+        {
+            string? contactName = null;
+            ContactNewPage.AddContactOutcome outcome;
+            try
+            {
+                outcome = ContactNewPage.addContactCore(address, out contactName);
+            }
+            catch (Exception ex)
+            {
+                /* ⚠ No ex.Message and no payload (sweep G-3): Ixian-Core's Address
+                 * constructor formats the whole base58 token into its exception text, and
+                 * ixian.log is rendered by DevPage and shared in one tap. */
+                Logging.error("ixian:request failed: " + ex.GetType().Name);
+                Utils.sendUiCommand(this, "onRequestResult", "0", SpixiLocalization._SL("global-invalid-address-text"));
+                return;
+            }
+
+            if (outcome == ContactNewPage.AddContactOutcome.Sent)
+            {
+                Utils.sendUiCommand(this, "onRequestResult", "1", "");
+                return;
+            }
+
+            string msg = outcome == ContactNewPage.AddContactOutcome.SelfAddress
+                ? SpixiLocalization._SL("contact-new-invalid-address-self-text")
+                : outcome == ContactNewPage.AddContactOutcome.AlreadyContact
+                    ? SpixiLocalization._SL("contact-new-invalid-address-exists-text")
+                    : SpixiLocalization._SL("global-invalid-address-text");
+            Utils.sendUiCommand(this, "onRequestResult", "0", msg);
         }
 
         /* ★ #434: the "you are now connected" line, written when the accept happens

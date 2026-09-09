@@ -566,12 +566,54 @@ namespace SPIXI
          * not, so a third site cannot be added without the guard. */
         private const int SCAN_AMOUNT_MAX = 32;
 
+        /* ★★ Session T, walk A7 — THE ADDRESS HALF OF A SCANNED PAYLOAD, and the ONE place
+         * that knows where it ends. Damir scanned a contact QR from the shell's add-contact
+         * screen and got the address back with ":ixi" still attached, which
+         * `ExtendedAddress.Validate` then refuses — so the scan appeared to work and the
+         * contact could not be added. The branch that answered him split on ":send" only,
+         * so the OTHER tail in the very same grammar rode straight through.
+         *
+         * The grammar is closed and documented at `quickScanForSend`:
+         *     addr · addr:ixi · addr:send:<amount>
+         * The address is the part before the FIRST colon, whatever the tail says. Splitting
+         * on one literal tail is what created the defect: it answers "is this THE tail I
+         * thought of", and the caller needs "where does the address end".
+         *
+         * ⚠ NOT FOR APP LINKS. A mini-app URL contains "://", so the address-of rule would
+         * cut it to "https". The two add-app branches (`AppNewPage.processQRResult` and the
+         * `appScanToShell` arm of `HomePage.processQRResult`) split on ":ixi" for that
+         * reason and MUST keep doing so — GATE 55 pins both halves, so a later tidy-up that
+         * unifies them fails rather than silently truncating every app link.
+         * ⚠ AND `safeScanPayload` DOES NOT CALL THIS, deliberately — GATE 30 executes that
+         * method in isolation after slicing it out of this file, so it has to stand alone.
+         * The three scan-ANSWERING sites are this helper's callers; the payload-BOUNDING
+         * one keeps its own copy of the first-colon rule and says why. */
+        public static string scanAddressOf(string payload)
+        {
+            if (string.IsNullOrEmpty(payload))
+            {
+                return "";
+            }
+            int sep = payload.IndexOf(':');
+            return sep > 0 ? payload.Substring(0, sep) : payload;
+        }
+
         public static string safeScanPayload(string payload)
         {
             if (string.IsNullOrEmpty(payload))
             {
                 return "";
             }
+            /* ⚠ SELF-CONTAINED ON PURPOSE — and this is a constraint, not a style note.
+             * GATE 30 slices THIS METHOD (and isPlainAmount) out of this file by brace match,
+             * mechanically rewrites it to JS and EXECUTES it, so the grammar matrix runs the
+             * shipped code rather than a copy of it. A call to any helper outside that sliced
+             * pair is not in scope there. Session T learned it the expensive way: routing
+             * these three lines through `scanAddressOf` — which is correct, and tidier — made
+             * the eval throw `ReferenceError` mid-run and killed Damir's whole suite from
+             * GATE 30 onward. The duplication below is the price of the method being
+             * executable in isolation, GATE 55 (a) pins it, and the gate now fails a row
+             * instead of the run if this is broken again. */
             int sep = payload.IndexOf(':');
             if (sep < 0)
             {

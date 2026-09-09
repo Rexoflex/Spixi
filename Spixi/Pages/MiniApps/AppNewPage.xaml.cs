@@ -163,13 +163,73 @@ namespace SPIXI
 
         private async void onSelectAppFile()
         {
+            var (outcome, picked) = await pickAppFileCore();
+            if (outcome == PickAppOutcome.Cancelled)
+            {
+                // walk A12: dismissing the picker changes nothing. It is not an answer about
+                // the link, so the screen must not give one.
+                return;
+            }
+            if (picked == null)
+            {
+                Utils.sendUiCommand(this, "showUrlError");
+                return;
+            }
+            // #225: replaces=this — the machinery closes THIS page only after the details
+            // screen is visible (no gap, no orphaned overlay stage).
+            pushPageLoaded(new AppDetailsPage(picked.app, picked.filepath, true), replaces: this);
+        }
+
+        /* ★★ Session T — ONE TRUTH FOR "ADD AN APP", because two hosts now run it.
+         * The home shell hosts the same screen in ITS OWN WebView (no page push, no cold
+         * Chromium boot — Damir reported the stutter twice; the [CDPERF] instrument above
+         * was added for exactly this complaint). Same pattern as
+         * `ContactNewPage.addContactCore` and `BackupPage.backupAccount()` (#243/S15): the
+         * core lives with the page that owns the domain, and each host presents it.
+         * ⚠ NOTHING NEW HAPPENS HERE. The fetch, the temp file and the parse are the code
+         * that already ran on this page — only the caller can differ. Logged in the
+         * handover gate as a RELOCATION, not a new capability. */
+        public sealed class PickedApp
+        {
+            public MiniApp app = null!;
+            public string? filepath = null;
+        }
+
+        public static async System.Threading.Tasks.Task<MiniApp?> fetchAppCore(string url)
+        {
+            MiniApp? app = await Node.MiniAppManager.fetch(url);
+            if (app == null)
+            {
+                return null;
+            }
+            app.url = url;
+            return app;
+        }
+
+        /* ★★ Session T walk A12 — CANCEL IS NOT A FAILURE, and it used to be.
+         * The old core returned null for both, and the call site said so in as many words:
+         * "Cancel and failure are indistinguishable to the core, and always were." That was
+         * survivable on this standalone page, where the error landed on a screen the user was
+         * leaving anyway. In the shell it is what Damir hit — dismiss the file picker and the
+         * Add-app panel accuses you of a bad link you never typed. A comment that documents a
+         * defect is still a defect (#772), so the distinction is made here, once, and both
+         * hosts answer it on their own terms.
+         * ⚠ ONLY a null from the picker is a dismiss. A throw is a real read failure and the
+         * user is still told; folding the two back together is the regression GATE 56 exists
+         * for. The temp file is cleaned up on the failure paths exactly as before. */
+        public enum PickAppOutcome { Picked, Cancelled, Failed }
+
+        public static async System.Threading.Tasks.Task<(PickAppOutcome outcome, PickedApp? picked)> pickAppFileCore()
+        {
             string name = "";
-            byte[] _data = null;
+            byte[]? _data = null;
             try
             {
                 SpixiImageData fileData = await SFilePicker.PickFileAsync();
                 if (fileData == null)
-                    return; // User canceled file picking
+                {
+                    return (PickAppOutcome.Cancelled, null);   // the picker was dismissed
+                }
 
                 var stream = fileData.stream;
                 _data = new byte[stream.Length];
@@ -178,14 +238,14 @@ namespace SPIXI
             }
             catch (Exception ex)
             {
-                Utils.sendUiCommand(this, "showUrlError");
-                return;
+                // Gate 18: a type name cannot carry a filename or a payload.
+                Logging.error("pickAppFileCore: " + ex.GetType().Name);
+                return (PickAppOutcome.Failed, null);
             }
 
             if (_data == null)
             {
-                Utils.sendUiCommand(this, "showUrlError");
-                return;
+                return (PickAppOutcome.Failed, null);
             }
 
             string filepath = Path.Combine(Node.MiniAppManager.tmpPath, name + ".tmp");
@@ -195,42 +255,34 @@ namespace SPIXI
                 MiniApp app = Node.MiniAppManager.extractAppInfo(filepath);
                 if (app != null)
                 {
-                    // #225: replaces=this — the machinery closes THIS page only after the
-                    // details screen is visible (no gap, no orphaned overlay stage).
-                    pushPageLoaded(new AppDetailsPage(app, filepath, true), replaces: this);
+                    return (PickAppOutcome.Picked, new PickedApp { app = app, filepath = filepath });
                 }
-                else
-                {
-                    Utils.sendUiCommand(this, "showUrlError");
-                    if (File.Exists(filepath))
-                    {
-                        File.Delete(filepath);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Logging.error("Exception caught in process: {0}", ex);
-                Utils.sendUiCommand(this, "showUrlError");
-
                 if (File.Exists(filepath))
                 {
                     File.Delete(filepath);
                 }
+                return (PickAppOutcome.Failed, null);   // a file was chosen; it is not an app
+            }
+            catch (Exception ex)
+            {
+                Logging.error("Exception caught in process: {0}", ex);
+                if (File.Exists(filepath))
+                {
+                    File.Delete(filepath);
+                }
+                return (PickAppOutcome.Failed, null);
             }
         }
 
         private async void onFetch(string url)
         {
-            MiniApp? app = await Node.MiniAppManager.fetch(url);
+            MiniApp? app = await fetchAppCore(url);
             if (app == null)
             {
                 Utils.sendUiCommand(this, "showUrlError");
                 return;
             }
 
-            app.url = url;
-            
             // #225: replaces=this (see onSelectAppFile).
             pushPageLoaded(new AppDetailsPage(app, null, true), replaces: this);
         }

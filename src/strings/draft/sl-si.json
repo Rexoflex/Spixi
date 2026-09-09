@@ -709,5 +709,11 @@
   "loadMedia": "Naloži slike in GIF-e",
   "loadMediaSub": "Nalaganje pošiljateljevemu strežniku pove, da ste odprli klepet",
   "mainNav": "Glavna navigacija",
-  "messagesLog": "Sporočila"
+  "messagesLog": "Sporočila",
+  "spixiAddressSub": "To je vaš naslov. Dotaknite se za ogled.",
+  "peerAddressTitle": "Naslov Ixian",
+  "peerAddressBody": "To je naslov tega stika v omrežju Ixian. Skenirajte kodo ali kopirajte naslov za pošiljanje IXI.",
+  "peerQrLabel": "Koda QR: naslov Ixian tega stika",
+  "removeContactOpt": "Odstrani stik",
+  "removeFailedToast": "Stika ni bilo mogoče odstraniti. Poskusite znova."
 }

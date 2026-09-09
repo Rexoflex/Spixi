@@ -1,0 +1,205 @@
+Session T — the i18n drafting gate, the sweep that read its own docs, the memory measurement, and Add contact/Add app off the page push (#821–#844)
+
+Four of the plate's items were rows already answered or premises that did not
+survive checking. That is the session's main output.
+
+#821 THE i18n DRAFTING GATE (GATE 51) — and it needed no allow-list.
+Six keys were English in all twelve locales: added after the last drafting
+round, in no draft file, so build-locales fell back to English twelve times in
+silence. The record was wrong twice — it said nine keys qualify (it is eleven)
+and asked for an allow-list carrying appUrlPlaceholder and gif. Neither needs
+an entry: both are PRESENT in every draft with the identical value, so the
+predicate already excludes them. The exemption is therefore DERIVED, not
+authored (#798) — a translator records "stays English" by writing the English
+value into the draft, and build-locales has no skip list at all. Mutation
+proves it: removing gif from all twelve drafts turns gif red. The gate lives in
+build-locales --check so the builder's own resolution order is the authority;
+--root was added so the pin can run it against a fixture rather than only
+observe green (GATE 44's lesson). Six keys then filled ×12, register mirrored
+from qrReceiveLabel; verify-locales tokens 0, english-fallback 54 → 48.
+
+#822 THE SWEEP WAS READING ITS OWN DOCUMENTATION (GATE 52).
+extract-strings tested for a comment AFTER recording a fallback site and
+continuing, so the guard only ever protected BARE references — while its own
+comment said "skip matches inside comments" (#772). settings-app.js explains
+the sweep by quoting the pattern, and the key that quotation invented
+(someKey: "fallback") rode all thirteen dictionaries. Fixed by masking comment
+SPANS before the match. Proof is the diff: 788 → 787, someKey the only delta.
+
+#823 THE LIGHT-MODE DIM, halved (Damir): overlay backdrop 0.7 → 0.35 mobile,
+0.6 → 0.3 desktop; dark unchanged. --surface-scrim was NOT halved and that is
+the decision — it also carries near-white text on media tiles, the media
+viewer, the call stage and the app hero, and those inks are mode-less precisely
+because it stays dark. Split into --surface-scrim-overlay.
+
+#824 THE MEMORY KILL — mechanism found, latch fixed, and the fix does NOT
+close it. The on-stack guard in Dispose() is correct; the line above it was
+not. `disposed = true` ran first, so the flag meant "Dispose() was called" —
+and OnDisappearing calls Dispose unconditionally, on every COVER. Nothing
+clears it. All three readers treat it as "this page is dead": popPageAsync's
+V-5 guard (back stops working) and ContactDetails:293/:375 (the group roster is
+guarded out after you view a transaction). The assignment moved inside the
+guard; V-5 preserved exactly. ⚠ This changes NO memory behaviour — for a
+covered page the teardown is byte-identical. [MEMDIAG] is the measurement:
+memHeld is the app's own count of pages holding a platform WebView, the same
+quantity dumpsys meminfo reports as WebViews:, so the two can be compared.
+
+#825 the two release blockers deliberately NOT flipped: maxLogCount 5 → 1 would
+cut the log history the measurement depends on, and this batch ADDED a probe.
+Both go in the freeze batch; GATE 23 already guards the pair.
+
+#826 TWO "SMALL" ANDROID ROWS WERE ALREADY BUILT. AND-37 was fixed by N51 the
+day after it was written. AND-30's stated root cause has been false since
+#366/#370/#613 — C# sends the relation at SingleChatPage:1107 and :2971. Both
+re-labelled BUILT + re-verify on device, not closed. AND-36 narrowed but not
+built (#294). With M13 that is the #660 class three times in two sessions.
+
+#827 ADD CONTACT AND ADD APP NO LONGER PUSH A PAGE. Damir reported the
+stutter twice; the first answer this session gave was "verified, not built",
+because the previous handoff gated the work on walk rows D1/D2 that were never
+run. That was wrong — an unticked checklist row does not outrank the person
+using the app, and the gate its own author set was in fact satisfied (Session S
+measured the Account rows smooth on his device; he supplied the other half).
+Both screens pushed a C# page with its own WebView — the 130–230 ms cold boot
+#803 measured, the same cost #804 removed for the Account rows. Cheaper options
+were checked and rejected on evidence: warmParkedOverlay is a single-slot
+resource already held by SettingsPage and keeps a WebView resident (wrong
+direction with a memory kill open), and the documents are 68–84 KB so parse is
+not the term. Four statics carry the logic (ContactNewPage.addContactCore /
+answerCheckAddress, AppNewPage.fetchAppCore / pickAppFileCore) so the
+standalone pages keep their behaviour and cannot drift. It also pays a logged,
+never-fixed wedge: the standalone page answers a rejection with a native alert
+and no push, so contact_new.html arms a 6-SECOND timer and guesses; the shell
+screen gets the real verdict. Two scans needed their own verbs
+(ixian:contactscan, ixian:appscan) because processQRResult reads any
+non-payment QR as a contact address. Four relocations logged in
+security-handover-gate.md, all INHERITED, with ixian:fetch: flagged as a
+widening of WHERE and the picker-filename hazard named as pre-existing.
+
+Gates: 4 new (51–54), 12 mutations, zero survivors. GATE 54 is behavioural and
+runs against the BUILT bundle, not the source. build-shells /
+extract-strings / build-legal-docs / build-locales --check ✓ · locales 787 ALL
+CLEAN · i18n-lint ✓ · pseudo 9/9 · NUL clean with a control.
+
+#828 MY OWN GATE CRASHED THE SMOKE RUN, and the reason is a rule this project
+already had. Damir's first run died at ReferenceError: mkdirSync is not
+defined, inside GATE 51's fixture builder, and every gate after it — 51(b),
+51(c), 52, 53, 54 — never ran. It passed for me because I verified it in a
+STANDALONE harness that supplied its own imports: a pin verified in an
+environment the author wrote is not verified. Fixed the import, then re-ran all
+four gates in a harness assembled from the suite's OWN header. GATE 54 carried
+the same hazard one level down (a dynamic jsdom re-import that would throw and
+kill the run rather than fail one row) and now uses the suite's binding.
+
+#829 THE FIRST COMPLETED SMOKE RUN SINCE SESSION R, and it split in two. Five
+red rows were Session S's approved dials with pins nobody updated — proven by
+git diff HEAD, not claimed — and all were RE-BASED to the record after Damir
+asked what the pre-existers actually were and checking refuted my first answer.
+Seven were mine, and two were real defects the suite caught: apps-add.css was
+never linked (the new panel would have rendered unstyled) and an appUrlInvalid
+fallback conflicted with en-us.json. gate 18 did not drift — it EXPOSED a
+latent leak, a second ex.Message site on an ExtendedAddress catch that an outer
+try had hidden at HEAD; fixed at source, offenders 9 → 7.
+
+#830 THE MEMORY KILL DID NOT REPRODUCE, and the leading hypothesis is refuted
+on Damir's numbers. 22 minutes of real use on his Motorola: memHeld pinned at 3
+across 74 page loads and 71 releases, so page accumulation is not the
+mechanism. PSS reads as growth (261 → 342 → 362 MB) but swap falls 140 → 46 →
+43, so PSS+SWAP is 402 / 387 / 405 — flat. No lowmemorykiller; the only process
+death in 24 297 lines is his own swipe from recents. ⚠ The cross-check #824
+promised does NOT hold as stated: memHeld and dumpsys WebViews: diverged (3 vs
+5 at peak) because disposal is synchronous and the native object dies at GC —
+the usable form is "climbs and never returns", not equality. The floor is the
+story: Code 67 MB PSS / 206 MB RSS plus a 94 MB native heap, Java heap 72 KB,
+so 511 MB over a ~400 MB floor is a transient SPIKE, not accumulation. The
+defect stays OPEN (AND-40); the hypothesis is closed.
+
+#831 WALK A7 — the contact QR scanned fine and the contact could not be added.
+Spixi's contact QR encodes addr:ixi; the arm answering a shell scan split on
+":send" ONLY, so the other tail of the same closed grammar rode through into
+ExtendedAddress.Validate, which refuses it. Three sites each had their own
+answer to "where does the address end" and they disagreed; all three now read
+Utils.scanAddressOf. ⚠ The two ADD-APP arms keep the OPPOSITE rule on purpose —
+an app link contains "://" — so GATE 55 pins the app arm NEGATIVELY: a tidy-up
+that unifies the four sites fails instead of truncating every app link.
+
+#832 WALK A12 — cancelling the file picker accused the user of a bad link.
+pickAppFileCore returned null for a dismiss and a failure alike, and the call
+site said so in as many words. A comment that documents a defect is still a
+defect (#772). Three outcomes now (PickAppOutcome), and on cancel HomePage
+sends nothing at all — no loading to clear, no page to pop. Cancelled is
+returned from exactly one place, the documented null from the picker; folding
+the catch in would hide a real read failure behind a silent no-op.
+
+#833 WALK T ON ANDROID — 30 P / 3 F / 1 N/A. The disposal fix, the dim, the six
+strings and both AND-25/AND-27 logcats passed, as did the L1/L2 rows #824
+predicted would change. The three fails are all in the new work and none is pin
+drift: A7 and A12 needed a real QR and a real file picker, neither of which the
+jsdom gates can produce — the honest limit of GATE 54, which proved the screens
+are in-shell and their verbs round-trip and claims nothing more. V1 was run in
+a bot room where the member IS a contact, so "no Add contact offered" is the
+pass condition; it needs a non-contact control, and AND-30 proper still needs a
+normal group.
+
+#834 AND I KILLED THE SMOKE RUN A SECOND TIME, same lesson, new coat. #831
+routed safeScanPayload's first three lines through the new scanAddressOf —
+correct C#, and the one thing that method may not do: GATE 30 slices
+safeScanPayload and isPlainAmount out of Utils.cs, rewrites them to JS and
+EXECUTES them, so a call to any helper outside that pair is not in scope. Every
+safeScan() threw ReferenceError, and because those calls sat outside any try it
+killed the run from GATE 30 to end of file — no summary, and the gates added
+this session never ran. Three fixes: the method is self-contained again with
+the constraint stated AT ITS DEFINITION (#772 — it lived only in another file's
+slicing behaviour); GATE 55 (a) pinned the wrong half and now pins
+self-containment, citing GATE 30; and GATE 30 had EXEMPTED ITSELF from GATE
+44's rule — it wrapped the Function construction in a try and left the calls
+bare — so it now evaluates the matrix inside a try and reports a row that names
+the missing identifier. Replayed the exact break: two red rows, everything
+after them still runs.
+
+#835–#842 SEVEN DIALS FROM DAMIR'S RE-WALK, logged with their mechanism and NOT
+built — the run was a measurement and a shell change underneath it would have
+muddied the rows. #835 chat background: keep Data matrix only, retire the canvas
+renderer (Live flow goes with it), drop the light-mode gradient. #836/AND-41 Add
+app AND Add contact must open in the desktop PANE — #827 removed the page push
+and with it the #256 "formpane" column routing; the fork is
+rightContent.IsVisible, and it changes GATE 54's contract. #837 the Requests
+chip loses its count — ⚠ the same number decides whether the chip renders at
+all, and it touches M5, a known-red pin. #838 Add app sits at 32px from each
+edge: #560 RECURRING, because that fix zeroed the inset for two NAMED children
+of .wallet-takeover__body — #798 in a stylesheet. #839/AND-42 the member sheet
+has no View-profile target: onViewContact is declared, read and invoked, and
+passed by no host. #840/AND-43 re-adding an installed app always offers Install
+— AppDetailsPage:197 sends `installing ? "false" : app_installed`, so the screen
+is told the app is absent because of HOW you got there. #841/AND-44 a long
+member name overflows its chip and pushes the remove × off the card. #842
+spixiAddress reads "Your Spixi ID" in sl/id/lt — English is NEUTRAL, which is
+why it survived; one key serves two call sites with opposite owners, and
+splitting it is what stops the next translator re-introducing it.
+
+#843 MY OWN WALK SHEET SWALLOWED A FINDING. The note box was hidden unless a row
+FAILED, and the note Damir could not leave was a real defect (#840). The most
+valuable notes on a walk are the ones on rows that technically passed. Fixed.
+
+#844 THE RE-WALK — 10 P / 2 F, and both fixes are confirmed ON THE DEVICE. A7 +
+A7b pass (the contact QR lands clean and the request sends), A12 + A12b pass
+(cancel is silent, a bad file still errors) on Android AND Windows. V1 passes,
+which is the control that settles AND-30: a bot-room non-contact gets the
+request, so "no Add contact for an existing contact" was the pass condition all
+along. All three scan-grammar regression rows pass. The two fails are new
+information, not regressions: V1b (nowhere to go for a contact) and S2, which is
+a PASS whose note carries #840.
+
+Gates: 6 new (51–56), 18 mutations, zero survivors.
+
+Docs: handoff-2026-09-09.md written; handoff-2026-09-08b/c, f5-checklist-session-s
+and three consumed walk artifacts archived; next-session-prompt.md rewritten
+around closing the FE queue.
+
+⚠ NOT run on this bridge: smoke-test in full (>3 min/call), cs-syntax-check
+(tree-sitter native binding will not load), and there is no dotnet and no adb.
+The C# has never been compiled — six files changed (SpixiContentPage, HomePage,
+ContactNewPage, AppNewPage, Utils, and the #829 gate-18 catches).
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01LcrvkB1PbrEQZ8WekzVoc6

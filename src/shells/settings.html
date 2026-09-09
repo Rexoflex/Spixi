@@ -59,7 +59,6 @@
 <link rel="stylesheet" href="../styles/components/message-bubble.css"><!-- .c-chat-canvas paint for the appearance preview -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 <link rel="stylesheet" href="../styles/chat-pattern.css"><!-- generated doodle pattern for the preview canvas -->
-<link rel="stylesheet" href="../styles/components/chat-flow.css"><!-- W5: Live flow canvas layer (preview + style swatch) -->
 <link rel="stylesheet" href="../styles/components/bottomnav.css"><!-- peer-tab chrome (Account active) -->
 <link rel="stylesheet" href="../styles/components/toast.css"><!-- #314 (Damir screenshots): showToast ran UNSTYLED here — "Settings saved" rendered in document flow under the bottom bar -->
 <link rel="stylesheet" href="../styles/components/wallet-receive.css"><!-- ★ Batch E (d) (#557): openAddressSheet (.c-addr-sheet / __qrcard) — unstyled here without it (the toast.css lesson) -->
@@ -508,31 +507,39 @@
     // Chat-appearance swatch pre-selects what the chat actually shows.
     const desktop = document.documentElement.hasAttribute('data-desktop');
     let pattern = 1, textScale = 1;   // · scale M  ★ Session I (#735③): pattern default-ON in light on EVERY platform (was desktop ? 0 : 1)
-    // E1 (#690): the STYLE default is DOODLES. 'flow' is desktop-only, so a stored
-    // 'flow' on mobile reads back as doodles, exactly what chat.html's pre-paint
-    // script applies. ⚠ This said "line art" — the pre-E1 default — until the Session F
-    // audit; line art and triangles were RETIRED at #690 and exist nowhere in the code.
-    let patternStyle = 'doodles';     // ★ E1 2026-08-29: the new default style
+    /* ★★ #835: ONE style. Doodles and Live flow are retired, so this ladder — the THIRD of
+       the #690 three (chat.html's head script and its live re-resolve are the others) —
+       answers 'matrix' for every stored value, which is what makes a device holding
+       'doodles' or 'flow' fall through instead of rendering nothing. */
+    let patternStyle = 'matrix';      // ★ #835: the only style left
     /* ★★ AUG (Damir 2026-08-30): the LIGHT canvas is a choice — 'flat' (default) |
        'gradient'. Allowlisted exactly like the style, so a corrupt or retired value lands
        on 'flat'. THIS IS THE THIRD LADDER (#690): chat.html's pre-paint script and its
        live re-resolve are the other two, and all three must agree or the picker shows a
        selection the chat does not have. */
-    let chatGround = 'gradient';   // ★ Session I (#735③): gradient default-ON on every platform (was desktop ? 'flat' : 'gradient'), mirrors chat.html
+    /* ★★ #835 (Damir): "we will remove the gradient on light, it's too busy." The DEFAULT
+       flips to flat; the OPTION stays, because he ruled explicitly on 2026-08-30 to "leave
+       the gradient as an option in chat appearance on light mode" and both rulings hold at
+       once — what reads as too busy is what you get without choosing. This also makes the
+       three ladders agree for the first time: this one and chat.html's head script both
+       answered 'gradient' while chat.html's re-resolve answered 'flat' on desktop. */
+    let chatGround = 'flat';   // ★ #835: light default is the solid ground
     try {
       pattern = readPatternLevel(localStorage.getItem(CHAT_PREFS.pattern), pattern);   // ★ N81 (#422)
       const t = parseFloat(localStorage.getItem(CHAT_PREFS.textScale));
       if (!isNaN(t)) textScale = Math.min(1.5, Math.max(0.8, t));
       const st = localStorage.getItem(CHAT_PREFS.patternStyle);
-      // ★ E1: 'triangles' and 'lineart' are retired and deliberately absent here, so a
-      // stored value naming either falls through to the 'doodles' default above.
-      if (st === 'matrix' || (st === 'flow' && desktop)) patternStyle = st;
+      // ★ #835: 'triangles', 'lineart', 'doodles' and 'flow' are all retired and
+      // deliberately absent here, so any of them falls through to the default above.
+      if (st === 'matrix') patternStyle = st;
       const gr = localStorage.getItem(CHAT_PREFS.ground);
       /* ★ Session J (Damir, Windows: "sometimes it shows the gradient selected but doesn't have it
          applied"): this line only ever set 'gradient'. Since Session I the DEFAULT is 'gradient',
          so a stored 'flat' — the user's pick — fell through and the picker re-opened on Gradient
          while chat.html's ladder honoured the flat. Both stored values are read now. */
-      if (gr === 'gradient' || gr === 'flat') chatGround = gr;   // anything else, incl. absent/corrupt → the default above
+      // ★ #855: 'gradient' is retired and deliberately absent here, so a stored gradient
+      // falls through to 'flat' — the THIRD ladder, agreeing with chat.html's two.
+      if (gr === 'flat') chatGround = gr;   // anything else, incl. absent/corrupt → the default above
     } catch (e) {}
     return { pattern, textScale, patternStyle, chatGround };
   }

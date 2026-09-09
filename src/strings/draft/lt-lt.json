@@ -635,5 +635,7 @@
   "peerAddressBody": "Tai šio kontakto adresas Ixian tinkle. Nuskaitykite kodą arba nukopijuokite adresą, kad išsiųstumėte IXI.",
   "peerQrLabel": "QR kodas: šio kontakto Ixian adresas",
   "removeContactOpt": "Pašalinti kontaktą",
-  "removeFailedToast": "Kontakto pašalinti nepavyko. Bandykite dar kartą."
+  "removeFailedToast": "Kontakto pašalinti nepavyko. Bandykite dar kartą.",
+  "contactSpixiAddress": "Spixi adresas",
+  "viewProfile": "Peržiūrėti profilį"
 }

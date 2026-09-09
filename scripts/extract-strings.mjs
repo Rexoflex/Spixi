@@ -71,7 +71,18 @@ const DYNAMIC = {
    * them stays perfectly "consistent". */
   /* ★★ AUG GROUND (Damir 2026-08-30): the light canvas choice. These two are dynamic
      (`strings[o.key]` off CHAT_GROUNDS) so the sweep cannot see them — the same reason
-     every other key in this table is listed here. */
+     every other key in this table is listed here.
+     ★★ #855 — HELD, NOT RETIRED, and the distinction is Damir's own word. He retired the
+     gradient OPTION "for now", which leaves CHAT_GROUNDS with one member, which hides the
+     whole Canvas row (a one-option chooser reads as a broken control — his 2026-09-04
+     ruling). So all three of these — plus `chatGround`, the row's label — are currently
+     UNREAD.
+     ⚠ THE TABLE'S USUAL RULE IS "a key nothing reads is a key that rots", and #853 applied
+     it to patternStyleDoodles/Flow an hour earlier. These are the exception for the reason
+     `--chat-pattern-alpha-2` is: the control is ONE LINE from returning, the twelve
+     translations already exist and are good, and dropping them means re-drafting all of
+     them to restore a row that was never redesigned. Retiring them is correct the day the
+     option is retired for good rather than "for now" — and that is a decision, not a tidy-up. */
   groundFlat: 'Solid',
   groundGradient: 'Gradient',
   // #341 review MINOR-4: PATTERN_STYLES is read as strings[o.key], so it is
@@ -80,12 +91,14 @@ const DYNAMIC = {
   // and that run silently deleted every translation of them. Both i18n gates were
   // blind to it: they compare locales against each other, and a key dropped from
   // ALL of them stays "consistent".
-  patternStyleDoodles: 'Doodles',       // ★ E1 2026-08-29: the DEFAULT style
-  // ★ E1: patternStyleTriangles / patternStyleLineArt REMOVED with the styles
-  // themselves (Damir's ruling, 2026-08-29). Their translations go with them —
-  // a key nothing reads is a key that rots.
+  /* ★★ #835: patternStyleDoodles and patternStyleFlow REMOVED with their styles (Damir,
+     2026-09-09) — the same removal E1 made for patternStyleTriangles / patternStyleLineArt,
+     and for the same reason: a key nothing reads is a key that rots. Deleting the row here
+     is what actually drops it from en-us.json and therefore from all twelve locales, which
+     is exactly the trap the note above this table records — retiring a style in the
+     COMPONENT changes nothing until this table changes too, and both i18n gates are blind
+     to it because they compare locales against each other. */
   patternStyleMatrix: 'Data matrix',
-  patternStyleFlow: 'Live flow',
   textS: 'S',
   textM: 'M',
   textL: 'L',

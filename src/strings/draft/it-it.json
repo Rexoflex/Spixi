@@ -643,5 +643,7 @@
   "peerAddressBody": "Questo è l’indirizzo di questo contatto sulla rete Ixian. Scansionate il codice o copiate l’indirizzo per inviare IXI.",
   "peerQrLabel": "QR code: indirizzo Ixian di questo contatto",
   "removeContactOpt": "Rimuovi contatto",
-  "removeFailedToast": "Non è stato possibile rimuovere il contatto. Riprovate."
+  "removeFailedToast": "Non è stato possibile rimuovere il contatto. Riprovate.",
+  "contactSpixiAddress": "Indirizzo Spixi",
+  "viewProfile": "Vedi profilo"
 }

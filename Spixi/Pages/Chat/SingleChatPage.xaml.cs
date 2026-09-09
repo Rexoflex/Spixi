@@ -438,6 +438,20 @@ namespace SPIXI
             {
                 onContactDetails();
             }
+            /* ★★ #839 / AND-42 — A MEMBER SHEET NEEDED SOMEWHERE TO GO, and this host had
+             * no address-keyed route. `ixian:details` is argument-less and means THIS
+             * conversation; a group member is a different Friend. The verb name and the
+             * handler body are ContactNewPage's (:107), so there is one grammar for
+             * "open that contact's page" rather than a second one invented here.
+             * ⚠ The address arrives from the WebView, and it is used for exactly one
+             * thing: a lookup. An address that is not already a friend resolves to null
+             * and NOTHING happens — no page, no record, no request. Same shape as the
+             * `ixian:kick:` / `ixian:sendContactRequest:` verbs this file already answers,
+             * and the page it pushes is its own WebView (#221 — the wall is untouched). */
+            else if (current_url.StartsWith("ixian:viewcontact:", StringComparison.Ordinal))
+            {
+                onViewMemberContact(current_url.Substring("ixian:viewcontact:".Length));
+            }
             // ★ W5/W6 (#523) — money-compose verbs. StartsWith + trailing colon,
             // placed with the other money verbs; SPayments owns confirm/auth/sign.
             else if (current_url.StartsWith("ixian:signSend:", StringComparison.Ordinal))
@@ -946,6 +960,39 @@ namespace SPIXI
                 messagesToShow += Config.messagesToLoad;
             }
             loadMessages();
+        }
+
+        /* #839: open a GROUP MEMBER's contact page. Deliberately NOT onContactDetails() —
+         * that one is about `friend`, this one about somebody in the room, and it takes
+         * the directory context (`chat_context: false` → "Contact details") because it is
+         * their page, not this chat's info. When hosted, it goes through the same
+         * homePage router the header tap uses, so #249's target match applies and a member
+         * lands in column 1 instead of beside a conversation it does not belong to. */
+        private void onViewMemberContact(string address)
+        {
+            Friend? known = null;
+            try
+            {
+                known = FriendList.getFriend(new Address(address));
+            }
+            catch (Exception ex)
+            {
+                /* ★ HANDOVER SWEEP G-3: never ex.Message here. Ixian-Core's Address ctor
+                 * formats the WHOLE base58 into its exception text (Address.cs), so the
+                 * message on a malformed payload is a wallet address in ixian.log — the
+                 * same finding the kick/ban handlers already carry. Type name only. */
+                Logging.warn("viewcontact: invalid address payload: " + ex.GetType().Name);
+                return;
+            }
+            if (known == null) return;   // not a contact (or removed since the sheet opened) — nothing to show
+
+            if (homePage != null)
+            {
+                homePage.onViewContact(known);   // directory context — their page, not this chat's info (#248)
+                return;
+            }
+            pushPageLoaded(new ContactDetails(known), 4000, null, -1, null, default, false, false,
+                navKey: "contactinfo:" + known.walletAddress, revealDelayMs: 0, slideIn: true);
         }
 
         private void onContactDetails()

@@ -22,8 +22,7 @@ const CHATS_FILTERS = [
 ];
 
 /** Set a chip's count (Damir 2026-07-09): a plain trailing NUMBER (not a badge pill).
- *  n<=0 removes it. The 'requests' chip additionally hides itself when 0 (only
- *  surfaced with active pending requests) — done by setChatsHeaderCounts. */
+ *  n<=0 removes it. NOT used for the 'requests' chip — see setChatsHeaderCounts (#837). */
 function setChipCount(chip, n) {
   let count = chip.querySelector('.c-chip__count');
   if (n > 0) {
@@ -42,13 +41,22 @@ function setChipCount(chip, n) {
 /** Update the chip count badges + Requests-chip visibility after a data change
  *  (Damir 2026-07-09). counts = { unread, groups, requests }. The Requests chip is
  *  HIDDEN unless there are pending requests; Groups shows a badge only when its
- *  unread count > 0; Unread shows its unread count. */
+ *  unread count > 0; Unread shows its unread count.
+ *
+ *  ★★ #837 — THE REQUESTS CHIP SHOWS NO NUMBER, AND `requests` STILL HAS A JOB.
+ *  Damir: "also remove the count in requests.. its just a filter, lets remove count to
+ *  make it cleaner." Unread and Groups are quantities you want to see; Requests is a
+ *  place you go. ⚠ THE TRAP IS THAT ONE NUMBER DID TWO JOBS on the line below: the same
+ *  `requests` that rendered the trailing digit also decides whether the chip EXISTS —
+ *  it is hidden unless something is pending (Damir, 2026-07-09). So the count call goes
+ *  and the argument stays. Removing `requests` from the DATA path instead would pin the
+ *  chip visible at zero, which is a worse filter row than the one he asked to clean up. */
 export function setChatsHeaderCounts(headerEl, { unread = 0, groups = 0, requests = 0 } = {}) {
   const q = (id) => headerEl.querySelector('.c-chip[data-filter="' + id + '"]');
   const u = q('unread'), g = q('groups'), r = q('requests');
   if (u) setChipCount(u, unread);
   if (g) setChipCount(g, groups);
-  if (r) { setChipCount(r, requests); r.style.display = requests > 0 ? '' : 'none'; }
+  if (r) r.style.display = requests > 0 ? '' : 'none';   // #837: visibility only — no digit
 }
 
 /** Build the header: search field + exclusive filter-chip group. */

@@ -73,6 +73,11 @@ const paintGroupAvatar = setGroupAvatar;
 
 export function mountContacts({
   host = document.body, bridge, strings, purpose = 'start', appId = '', getRoster, onClose, onExitSettled,
+  /* #836: a GETTER, not a value. The window can be resized (or the divider dragged)
+     while this takeover is open, so the pane state is read at the moment Add contact is
+     tapped rather than snapshotted at mount. Absent → the #827 in-shell takeover, which
+     is the behaviour every host had before this option existed. */
+  paneAvailable,
 } = {}) {
   /* ★ #589 (Damir F5 2026-08-26): "a mini app that opens the contacts picker leaves
      a pressed-row rectangle over the new screen." A takeover COVERS the list, it does
@@ -177,6 +182,13 @@ export function mountContacts({
   };
 
   const openAddContact = () => {
+    /* ★★ #836 / AND-41 — THE FORK (see home.html openAppsAdd for the full reasoning).
+       A detail pane on screen means the C# page push is the right answer: it is the #256
+       M7 routing that opens ContactNewPage BESIDE this picker, which is what Damir lost
+       when #827 removed the push. The picker deliberately stays open and nothing closes —
+       that is exactly the pre-#827 behaviour (`onAddContact: () => bridge.send(...)`),
+       because the form lands in a different column, not over this one. */
+    if (paneAvailable && paneAvailable()) { bridge.send('ixian:newcontact'); return; }
     if (addPanel) return;
     addPanel = createAddContact({
       strings,

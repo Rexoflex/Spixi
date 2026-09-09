@@ -714,5 +714,7 @@
   "peerAddressBody": "Das ist die Adresse dieses Kontakts im Ixian-Netzwerk. Scanne den Code oder kopiere die Adresse, um IXI zu senden.",
   "peerQrLabel": "QR-Code: Ixian-Adresse dieses Kontakts",
   "removeContactOpt": "Kontakt entfernen",
-  "removeFailedToast": "Der Kontakt konnte nicht entfernt werden. Bitte versuche es erneut."
+  "removeFailedToast": "Der Kontakt konnte nicht entfernt werden. Bitte versuche es erneut.",
+  "contactSpixiAddress": "Spixi Adresse",
+  "viewProfile": "Profil ansehen"
 }

@@ -62,7 +62,6 @@ const FILES = [
   'src/components/reactions.js',
   'src/components/typing-indicator.js',
   'src/components/scroll-latest.js',
-  'src/components/chat-flow.js',   // W5: Live flow animated chat pattern (no imports — pure canvas)
   'src/components/message-menu.js',
   'src/components/media-bubble.js',
   'src/components/system-notice.js',

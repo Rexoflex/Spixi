@@ -66,6 +66,16 @@
 
 /* iOS-26: People/Groups filter chips (exclusive, chats-header #218 grammar).
    Scrolls horizontally on narrow screens rather than wrapping the row. */
+/* ★ #841 OPT-OUT — this row SCROLLS horizontally (see the rule below), so its chips must
+   not cap at 100% of the visible width the way a wrapping row's do. Same deliberate
+   opposite as .c-chats-header__filters and .c-apps-discover__cats.
+   ⚠ FOUND BY GATE 58's OWN DERIVATION, not by reading: the first cut of that gate only
+   checked that existing opt-outs were JUSTIFIED, which is one direction. This row is a
+   chip-holding scroller that had no opt-out at all, and nothing would have said so —
+   the gate now derives the chip containers from the components and requires the two sets
+   to agree, so a scroller that forgets and a wrapping row that borrows both fail. */
+.c-contacts__kinds > .c-chip { max-width: none; }
+
 .c-contacts__kinds {
   display: flex;
   gap: var(--spacing-8);

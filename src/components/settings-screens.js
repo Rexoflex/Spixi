@@ -23,7 +23,6 @@ import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { discGrad } from './disc.js';
 import { createTopbar } from './topbar.js';
-import { attachChatFlow, detachChatFlow } from './chat-flow.js';
 /* ★ Session M (#774): the Colour control is a VALUE ROW that opens the house option sheet,
    not a third tile pair — see createChatAppearance. The direction is safe and already
    travelled: build-demo-bundle.mjs orders settings-shell BEFORE settings-screens, and
@@ -37,18 +36,25 @@ import { settingsOptionSheet } from './settings-shell.js';
  * style here. Live flow is DESKTOP-ONLY (constant animation = battery); the
  * picker renders two options on mobile, three on desktop. */
 export const PATTERN_STYLES = [
-  /* ★★ E1 (Damir 2026-08-29): DOODLES is the default, and TRIANGLES + LINE ART are
-     RETIRED on his explicit ruling — asked for and given, because retiring a style
-     silently re-skins whoever chose it and that is not a tidy-up to make on your own.
-     Listed first because the picker's first entry is what a new install lands on.
-     Data matrix stays (his words: "keep that tech thingy on mobile"); Live flow stays
-     desktop-only. A stored 'triangles' or 'lineart' no longer matches any allowlist,
-     so it FALLS THROUGH to 'doodles' on read — see chat.html / settings.html. */
-  { id: 'doodles', key: 'patternStyleDoodles', label: 'Doodles' },
+  /* ★★ #835 (Damir, mid-run): "we will remove the dodole and just keep matrix and no
+     pattern canvas". Asked back, because "no pattern canvas" could mean either retire the
+     canvas RENDERER or keep Live flow and stop the canvas painting the still tiles, and he
+     answered: "just lets keep the matrix, so removeing excess bloat that is renderer is ok
+     i guess." So DOODLES and LIVE FLOW are retired and `chat-flow.js` is deleted outright.
+     ⓘ ONE STYLE LEFT IS THE POINT, not an accident of this list: with #774 having folded
+     the intensity dial into this same control, Background now renders exactly two tiles —
+     None and Data matrix — which is Damir's "the Background control stops being a picker".
+     ★ RETIREMENT IS A FALL-THROUGH, NOT A MIGRATION — the #422 rule, and it is what keeps
+     a device that stored 'doodles' or 'flow' from rendering nothing: neither value matches
+     any allowlist any more, so all three pre-paint ladders (chat.html's head script,
+     chat.html's live re-resolve, settings.html's readChatPrefs — the #690 three-ladder
+     rule) land on 'matrix'. The stored string is deliberately left alone.
+     ⚠ The doodles TILE still exists in the generated chat-pattern.css and its source SVG is
+     still in the repo. That is asset weight, not behaviour — nothing can select it — and
+     the generator that encodes it carries its own drift guard, so gutting it is a pipeline
+     change rather than part of this dial. Flagged for Damir, not done here. */
   { id: 'matrix', key: 'patternStyleMatrix', label: 'Data matrix' },
-  { id: 'flow', key: 'patternStyleFlow', label: 'Live flow', desktopOnly: true },
-];
-/* ★ N81 (#422) — THREE levels, and the value is a LEVEL INDEX, not an alpha.
+];/* ★ N81 (#422) — THREE levels, and the value is a LEVEL INDEX, not an alpha.
  *
  * Damir's dial: off, the new default, and one stronger step at 0.1. The change
  * that matters is not the count — it is that 0/1/2 are indices resolved to a
@@ -73,8 +79,19 @@ export const PATTERN_STYLES = [
    ★ The notice card follows the ground (system-notice.css): on the saturated wash it works
    by being LIGHTER, on the flat near-white ground it has to be slightly DARKER. */
 export const CHAT_GROUNDS = [
+  /* ★★ #855 (Damir, 2026-09-09, asked and answered): "for gradient, yes I mean retire the
+     option for now." This REVERSES his 2026-08-30 ruling quoted above — recorded as a
+     reversal rather than by deleting that paragraph, because the next reader has to be able
+     to see that "leave the gradient as an option" was a real ruling that a later one
+     replaced, or they will restore it as a fix. (#853 shipped the DEFAULT flip first and
+     asked which he meant; this is the answer.)
+     ⚠ "FOR NOW" IS LOAD-BEARING, so nothing is deleted that would have to be re-derived:
+     the `--gradient-chat` token, its `[data-chat-ground='gradient']` rules and the whole
+     onChatGround plumbing all stay. Restoring the option is putting one line back here.
+     ⓘ ONE MEMBER MEANS THE ROW DOES NOT RENDER — see the guard below. That is Damir's own
+     rule, re-ruled explicitly on 2026-09-04 for the dark case: a one-option chooser reads
+     as a broken control, so the row is ABSENT rather than shown with nothing to choose. */
   { id: 'flat', key: 'groundFlat', label: 'Solid' },
-  { id: 'gradient', key: 'groundGradient', label: 'Gradient' },
 ];
 
 /* ★ Session M (#783): THE PATTERN_LEVELS ARRAY IS GONE. Session M folded the intensity
@@ -146,9 +163,12 @@ export const PATTERN_SWATCH_BOOST = 6;
    Damir asked to quieten. The values ARE the picks, so they are the thing to move: 4.5 is one
    step louder, 2 one step softer, both rendered on the sheet. */
 const PATTERN_SWATCH_BOOSTS = {
-  /* doodles at ×3 sits at the same visual weight as the matrix tile at ×6 in BOTH themes —
-     which is the point of the whole change, since the two tiles are read side by side. */
-  doodles: 3,
+  /* ★ #835: the `doodles: 3` override retired with its style. It existed because ONE
+     multiplier cannot balance two artworks with different ink coverage — dense doodle line
+     art against the matrix's scattered dots. With a single tile left there is nothing to
+     balance it against, so the shared default is the whole answer again and this map is
+     empty BY MEANING rather than by neglect. It stays (and swatchBoost stays) because the
+     next style added will need it, and an empty map is the honest state of "no overrides". */
 };
 
 /** The swatch boost for one style id — the override, or the shared default. */
@@ -261,32 +281,9 @@ function segGroup({ options, current, ariaLabel, onPick }) {
    is precisely why the styles were not keyed off a descendant selector: three
    different styles have to paint side by side in one list.
 
-   The "flow" face mounts the real engine in STILL mode — one frame, no rAF
-   loop. A live loop per swatch in a settings list is not worth the battery,
-   and a static frame is an honest picture of what the style looks like. The
-   density is stepped up for the small tile — these overrides are preview-only
-   and never reach the chat.
-
-   Re-scaled with the chat dial at the F5 of 2026-08-13: the tile is ~110×64,
-   so it keeps the chat's dash-to-gap ratio (~0.6 here vs 0.47 in the chat) at
-   roughly half the chat's absolute size, and fieldScale drops with it — at the
-   chat's own 44 a 110px tile spans barely two field units and every dash comes
-   out parallel, which is the exact "reads as still" failure the chat dial was
-   just fixed for. lineWidth stays 1: 1.25 is chunky at this size. */
-const FLOW_SWATCH_TUNE = { still: true, spacing: 8, dash: 5, lineWidth: 1, fieldScale: 20 };
-
-/* Fail-soft for every flow face: attachChatFlow returns null when the WebView
-   has no 2d context. A style that can't paint must fall back to a real TILE — a
-   bare gradient would read as a broken tile, and the whole point of keeping a
-   resolvable URI under [data-chat-pattern='flow'] (chat-pattern.css) is that this
-   fallback is one attribute flip. ★ E1: that URI, and this fallback, are DOODLES
-   now; both said line art / triangles before the two were retired. */
-function mountFlowFace(face, opts) {
-  let ctrl = null;
-  try { ctrl = attachChatFlow(face, opts); } catch (e) { ctrl = null; }
-  if (!ctrl) face.dataset.chatPattern = 'doodles';    // ★ E1 default style
-  return ctrl;
-}
+   ★ #835: the "flow" face — and FLOW_SWATCH_TUNE and mountFlowFace with it — retired
+   alongside Live flow. Their fail-soft ("a style that cannot paint falls back to a real
+   TILE") has nothing left to fall back FROM: the one surviving style IS a tile. */
 
 /* ★★ AUG (Damir 2026-08-30, ON DEVICE): `faceAttr` — WHICH dataset attribute the tile face
    carries. It was hard-coded to `chatPattern`, which was right while this group only ever
@@ -305,8 +302,6 @@ function mountFlowFace(face, opts) {
    in one place instead of relying on two. */
 function styleSwatchGroup({ options, current, ariaLabel, onPick, faceAttr = 'chatPattern' }) {
   const g = document.createElement('div');
-  const flowFaces = [];
-  let styleRaf = 0;
   g.className = 'c-settings-swatches c-settings-swatches--style';
   g.setAttribute('role', 'radiogroup');
   g.setAttribute('aria-label', ariaLabel);
@@ -343,11 +338,6 @@ function styleSwatchGroup({ options, current, ariaLabel, onPick, faceAttr = 'cha
        than left as a pointer to a row that no longer exists (#772). */
     face.style.setProperty('--chat-pattern-opacity', o.off ? '0' : patternLevelVar(1, swatchBoost(o.id)));
     b.append(face);
-    if (o.id === 'flow') {
-      // mount after layout — a 0×0 face would size the backing store to 1×1
-      flowFaces.push(face);
-      styleRaf = requestAnimationFrame(() => { styleRaf = 0; mountFlowFace(face, FLOW_SWATCH_TUNE); });
-    }
     b.addEventListener('click', () => {
       if (o.id === current) return;
       current = o.id;
@@ -357,10 +347,13 @@ function styleSwatchGroup({ options, current, ariaLabel, onPick, faceAttr = 'cha
     g.append(b);
   }
   paint();
-  g.releaseSwatches = () => {
-    if (styleRaf) { cancelAnimationFrame(styleRaf); styleRaf = 0; }
-    for (const f of flowFaces) detachChatFlow(f);
-  };
+  /* ★ #835: KEPT, and now a no-op by construction. This existed to stop a flow face's rAF
+     loop + visibilitychange listener running against a detached node after
+     settings.html's renderLayout() replaces the screen's children. Every tile is static
+     now, so there is nothing to release — but the hook and its CALL SITE stay wired,
+     because the next animated swatch would otherwise reintroduce that leak silently.
+     Deleting the hook is the change that would hide it. */
+  g.releaseSwatches = () => {};
   return g;
 }
 
@@ -444,7 +437,7 @@ function screenShell(className, title, onBack) {
  */
 export function createChatAppearance({
   patternOpacity = 1,             // ★ N81 (#422): a LEVEL index (0/1/2), not an alpha
-  patternStyle = 'doodles',      // W5 + ★ E1 2026-08-29: 'doodles' (default) | 'matrix' | 'flow' (desktop only)
+  patternStyle = 'matrix',       // ★ #835: the only style left (doodles + Live flow retired)
   chatGround = 'flat',           // ★ AUG 2026-08-30: 'flat' (default) | 'gradient' — LIGHT only
   textScale = 1,
   isDesktop = typeof document === 'object' && document.documentElement.hasAttribute('data-desktop'),
@@ -506,7 +499,7 @@ export function createChatAppearance({
   /* the style axis and the level axis, kept apart INSIDE this screen. `styleCurrent` is
      the style the user last chose (or the default) and survives a None pick; `levelCurrent`
      is 0 or 1 and is what None actually writes. */
-  let styleCurrent = styleOpts.some((o) => o.id === patternStyle) ? patternStyle : 'doodles';
+  let styleCurrent = styleOpts.some((o) => o.id === patternStyle) ? patternStyle : 'matrix';
   let levelCurrent = Number(patternOpacity) > 0 ? 1 : 0;
   const bgOpts = [
     /* ★ Session M: a NEW string, and the only one this restructure adds. The retired
@@ -575,7 +568,12 @@ export function createChatAppearance({
      ⚠ The section is built ONLY in light. It used to be created and appended
      unconditionally, which painted an empty 8px card in dark. */
   let groundSec = null;
-  if (isLight) {
+  /* ★★ #855: DERIVED, not hard-coded off. The row appears when there is more than one
+     ground to choose between — which is false today (gradient retired) and true again the
+     moment a second member returns to CHAT_GROUNDS. Writing `if (false)` or deleting the
+     block would make the restore a re-implementation instead of a one-line revert, and
+     would hide that this is the SAME rule the dark branch already applies. */
+  if (isLight && CHAT_GROUNDS.length > 1) {
     groundSec = document.createElement('div');
     groundSec.className = 'c-settings__section c-settings-appearance__groundsec';
     /* ★★ Session M (#774): A VALUE ROW, NOT A TILE PAIR — and this is the FIX, not a
@@ -654,7 +652,6 @@ export function createChatAppearance({
      subtree. Every re-entry would add another. Same shape as, and released
      alongside, releaseDownloads (#267). (#46 audit) */
   el.release = () => {
-    detachChatFlow(preview);
     /* ★ Session M: ONE group now. The intensity group's release went with its card — and
        it was load-bearing while it existed (a flow face keeps a rAF loop + a
        visibilitychange listener alive against a detached node), which is why the surviving
@@ -671,8 +668,6 @@ export function createChatAppearance({
      before the preview's own initial paint below. */
   function applyPreviewStyle(id) {
     preview.dataset.chatPattern = id;
-    if (id === 'flow') mountFlowFace(preview);
-    else detachChatFlow(preview);
     /* ★ Session M: the `intensityGroup.setSwatchStyle(id)` call lived here — the intensity
        tiles had to re-skin to the chosen style, or a user on "Data matrix" was offered
        levels of doodles. With one control there is no second row to keep honest. */

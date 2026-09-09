@@ -1,0 +1,77 @@
+Session U — the seven queued dials, and the two that were already done (#845-#857)
+
+Damir asked to close the FE work. Every dial arrived with its mechanism recorded, so the
+job was to verify the mechanism still held (#215) and build — not to re-investigate. Two of
+the seven had already moved: AND-35's copy and order change is BUILT and has been since
+#774/#371, and #839's "no button and no chevron" was half wrong — the chevron has been there
+since #249, and the defect was that its gate could never be true. Both were caught by reading
+the tree first.
+
+#846 · #838 — the Add-app screen sat at 32px from each edge. #560 fixed this exact defect
+once already, and its own comment states the invariant ("a component hosted in this body does
+not pay the inset twice") while enforcing it as a list of the two components mounted that day.
+#827 mounted a third. The selector is the invariant now, and GATE 57 derives the mounted set
+from what home.html actually appends.
+
+#847 · #841 — a long member nick carried its remove x off the group-create card. Fixed in
+chip.css so every host benefits, with capping as the default and horizontal scrollers opting
+out. GATE 58's first draft checked one direction; the second found a real miss — a
+chip-holding scroller with no opt-out that the new default had silently capped.
+
+#848 · #837 — the Requests chip loses its digit, and the same number still decides whether
+the chip exists. M5 was re-read as #837 required: four of five clauses always passed, and the
+failing one asserted a spelling iOS-26 moved while the feature stayed live. M5 is green and
+leaves KNOWN_PREEXISTERS — the baseline is 2.
+
+#849 · #842 — "Vas Spixi ID" on somebody else's contact page. English is neutral, which is
+why it survived: no reviewer of the English could see it. Fixed by splitting the key, not by
+re-wording three locales, because the ambiguity is the defect. The new key is held out of
+build-locales' legacy reuse, or its identical English would map it straight back to the value
+that IS the defect.
+
+#850 · #839 — the member sheet had nowhere to go: onViewContact was declared, read, invoked
+and passed by no production host. Both halves ship (the handler and a visible button), plus
+the address-keyed verb the host did not have. The verb is a LOOKUP and nothing else.
+
+#851 · #840 — an app you already have was offered as a fresh install, because the screen was
+told what the route wanted rather than what the store said.
+
+#852 · #836 — Add app and Add contact return to the desktop pane, as a fork rather than a
+revert: the cold boot is what makes the page push wrong on a phone, the detail column is what
+makes it right on a desktop. It cannot key on data-desktop (a constant across resize), so C#
+publishes the live pane state. A mutation deleting the resize push left every clause green,
+which is why the gate grew a clause for the C# half.
+
+#853 · #835 — Doodles and Live flow retired, chat-flow.js deleted. The deletion was the small
+half: fifteen existing pins had their subject removed, one of which still read the deleted
+module and would have thrown and killed the suite. A retirement is a fall-through, never a
+migration, and there are four readers, not three.
+
+#855 - the gradient option retired, not just defaulted away from. #853 shipped the default
+flip and asked which reading he meant, because his 2026-09-09 words sat against his own
+2026-08-30 ruling; he answered "retire the option for now". CHAT_GROUNDS drops to one member,
+which hides the Colour row through a DERIVED guard rather than a switch, and all three ladders
+drop the value from their allowlist - a user who PICKED Gradient must not be stranded on a
+canvas the picker can no longer change. "For now" shaped the rest: the token, the CSS and the
+plumbing stay, and restoring the option is one member.
+
+#856 - the icon re-export is deliberate: Damir is testing THINNER icons. Logged, not folded in
+- and the finding exposed a real gap: nothing compares the SVG sources with the generated
+registry, and generate-icons.mjs has no --check, so the two can disagree with the suite green.
+
+#857 - "do we have a lot of bloat?", measured: 53% of the shipped frontend is comments, which
+is what the release strip already removes. The one real dead item is the retired doodles tile,
+233 KB of a 252 KB generated stylesheet that nothing can select any more.
+
+#854 — what the session learned about its own instruments, including that node --check is
+weaker than the bundle's syntax gate and accepted a genuinely broken file.
+
+NOT IN THIS COMMIT: the 79 re-exported icon SVGs and the four new ones (#856). They are left
+as found and generate-icons.mjs has not been run, so the registry still carries the old
+glyphs. Commit the thinner-icon set separately, after looking at it - see the handoff.
+
+bundle 316 exports (was 321) . 18 shells . locales 787 ALL CLEAN . lint, pseudo 9/9 and every
+--check green . 27 mutations, zero survivors.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013pVYNR6zmeJQsbFhB1Bihg

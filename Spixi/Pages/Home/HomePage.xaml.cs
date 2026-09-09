@@ -469,6 +469,32 @@ namespace SPIXI
             }
         }
 
+        /* ★★ #836 / AND-41 — THE SHELL CANNOT SEE `rightContent.IsVisible`, AND IT HAS TO.
+         * #827 moved Add contact and Add app into this shell to kill the cold Chromium
+         * boot (#803: 130–230 ms on the main thread). That removed the C# page push and,
+         * with it, the #256 M7 desktop routing that landed both screens in the DETAIL
+         * COLUMN — Damir, on Windows: "add app on windows no longer opens in pane".
+         * The honest shape is a FORK, not a revert: the boot cost is what makes the push
+         * wrong on a phone, and the pane is what makes it right on a desktop. So the shell
+         * takes over when there is no pane and asks for the page when there is one.
+         * ⚠ IT CANNOT BE `data-desktop`. That flag is the #228 PLATFORM flag, constant
+         * across resize — a narrow desktop window has it set while `rightContent` is
+         * hidden, so gating on it would push a full-window page (column -1) and hand back
+         * exactly the cold boot #827 removed. The signal has to be the live pane state,
+         * which only C# holds, so C# says it.
+         * ⓘ Pushed on CHANGE only: this handler runs on every resize tick, and the shell
+         * needs an edge, not a stream. `-1` means "never pushed", so the first call always
+         * sends — including the one that follows onLoaded's re-arm below. */
+        private int paneAvailablePushed = -1;
+
+        private void pushPaneAvailable()
+        {
+            int now = rightContent.IsVisible ? 1 : 0;
+            if (now == paneAvailablePushed) return;
+            paneAvailablePushed = now;
+            Utils.sendUiCommand(this, "setPaneAvailable", now.ToString());
+        }
+
         private void OnPageSizeChanged(object? sender, EventArgs? e)
         {
             if (Width < 700)
@@ -503,6 +529,9 @@ namespace SPIXI
                 // #225-M2: re-pin re-homed overlays back to their columns.
                 SpixiContentPage.relayoutPinnedOverlays(true);
             }
+
+            pushPaneAvailable();   // #836: the shell forks Add contact / Add app on this
+
         }
 
         // #247: size (or close) the info-pane column against the current window +
@@ -1569,6 +1598,17 @@ namespace SPIXI
             openContactDetails(friend, true, true);
         }
 
+        /* ★ #839 — a GROUP MEMBER's own page, opened from a member sheet. Deliberately
+         * NOT onContactDetails: that one is the CHAT-header entry and titles the surface
+         * "Chat info"/"Group info" (#248), which is wrong for a person you tapped inside
+         * a room. These are the contacts-DIRECTORY arguments, byte for byte the ones
+         * `ixian:details:` already uses (:982) — one router, one context per meaning,
+         * rather than a third set of flags invented at a new call site. */
+        public void onViewContact(Friend friend)
+        {
+            openContactDetails(friend, false, false);
+        }
+
         /* Unit 6 (#247): ONE router for every chat-info entry (conversation header
          * tap via SingleChatPage, chats row-menu / contacts directory ixian:details:).
          * ★ #221: ContactDetails keeps its OWN WebView; the conversation WebView is
@@ -2151,6 +2191,13 @@ namespace SPIXI
             Utils.sendUiCommand(this, "setAddress", address_string);
 
             Utils.sendUiCommand(this, "setHideBalance", hideBalance.ToString());
+
+            /* #836: a FRESH document knows nothing about the pane, and OnPageSizeChanged
+             * may not fire again before the user reaches Add contact. Re-arm the latch so
+             * the state is re-sent to THIS document (the value is unchanged, but the
+             * document that heard it is gone — the #189/#357 class of latch bug). */
+            paneAvailablePushed = -1;
+            pushPaneAvailable();
 
             // ★ W5 (#523): declare the money-compose capability for this build.
             // ★★ L1 (#640): there is no legacy flow behind this gate any more — the

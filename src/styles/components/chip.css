@@ -18,6 +18,22 @@
   -webkit-tap-highlight-color: transparent;
   white-space: nowrap;
   position: relative;
+  /* ★★ #841 / AND-44 (Damir's screenshot, group create): a member chip labelled
+     "Androoo 🗻🔥 Androoo Androoo Androoootururururuurru" ran off the screen edge and
+     took its remove × with it — the × was clipped away, so the member could not be
+     removed. A nick is network-supplied (#140 family), so the guard belongs here rather
+     than on any assumption about length.
+     THREE declarations, and all three are load-bearing: a flex item's automatic minimum
+     size is its MIN-CONTENT, and min-width beats max-width — so without `min-width: 0`
+     the cap below is inert against exactly the unbreakable label that causes this. The
+     cap is on the CHIP so the label ellipsizes while the × keeps its `flex: none` seat.
+     ⚠ THE DEFAULT IS DELIBERATE. A wrapping row must cap; a horizontal SCROLLER must
+     not, and the two scrollers opt out at their own definitions (.c-chats-header__filters,
+     .c-apps-discover__cats) rather than every wrapping row opting in — #838's lesson: a
+     new wrapping container then gets the safe behaviour for free, and a new scroller that
+     forgets to opt out shows a clipped label, not an unreachable control. */
+  min-width: 0;
+  max-width: 100%;
   /* 100ms intentional: micro-interaction, same rationale as chatlist row hover */
   /* transform = the #343 press release; declared here so base.css never has to
      out-specify (and therefore replace) this shorthand — see #346. */
@@ -54,6 +70,10 @@
 }
 
 .c-chip__icon, .c-chip__dismiss { flex: none; }
+/* #841: the label is the ONLY part that gives. `white-space: nowrap` is inherited from
+   .c-chip, which is what makes the ellipsis render; min-width: 0 lets this inner flex
+   item shrink past its own min-content. Inert until something constrains the chip. */
+.c-chip__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 /* count inside a filter chip (Damir 2026-07-09): a plain trailing NUMBER, sits
    after the label via the chip's flex gap. Muted so the label stays primary; the

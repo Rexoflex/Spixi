@@ -2012,10 +2012,10 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
     '★★★ #774: ONE swatch group on the screen, and it is the Background one. The Opacity row is GONE — its two levels are members of Background now (None = the old level 0). A second tile pair reappearing on this screen, under any label, turns this red');
   ok(segs.length === 1
     && segs[0].querySelectorAll('.c-settings-seg__pill').length === 4
-    && swatches.length === 3
-    && swatches.map((t) => t.dataset.value).join() === 'none,doodles,matrix'
+    && swatches.length === 2
+    && swatches.map((t) => t.dataset.value).join() === 'none,matrix'
     && swatches.every((t) => t.getAttribute('role') === 'radio' && t.getAttribute('aria-label')),
-    '★★ #774: Background = None + the two shipping styles on mobile (Live flow stays desktopOnly — E1 is not re-litigated by this batch), role=radio + localized aria-label each; text size keeps its 4-pill segGroup. The VALUES are pinned, not the arity: a resurrected "lineart" or a dropped "flow" both turn this red');
+    '★★ #774, re-based by #835: Background = None + the ONE shipping style, role=radio + localized aria-label each; text size keeps its 4-pill segGroup. The VALUES are pinned, not the arity: a resurrected "doodles"/"lineart" or a dropped "matrix" both turn this red. ⓘ Two tiles is what Damir meant by "the Background control stops being a picker" — the control still exists, it just has nothing left to pick between beyond on and off');
   const noneTile = appear.querySelector('.c-settings-swatch[data-off]');
   ok(!!noneTile && noneTile.dataset.value === 'none'
     && noneTile.querySelector('.c-settings-swatch__canvas').style.getPropertyValue('--chat-pattern-opacity') === '0'
@@ -2030,32 +2030,39 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
     && appear.querySelector('.c-settings-appearance__preview').style.getPropertyValue('--chat-pattern-opacity') === '0',
     '★★ #774: picking None writes the LEVEL (0) and leaves the stored STYLE untouched — so None → a style → None never loses the pattern the user had. The preview follows in the same frame');
   const matrixTile = swatches.find((t) => t.dataset.value === 'matrix');
-  const doodlesTile = swatches.find((t) => t.dataset.value === 'doodles');
-  doodlesTile.click();
-  ok(stylePick === 'doodles' && patternPick === 1
+  /* ★ #835 RE-BASE: this used to come back from None onto DOODLES and then swap to matrix,
+     which tested two things at once. Doodles is retired, so the round trip runs on the one
+     surviving style. */
+  matrixTile.click();
+  ok(stylePick === 'matrix' && patternPick === 1
     && appear.querySelector('.c-settings-appearance__preview').style.getPropertyValue('--chat-pattern-opacity') !== '0',
     '★★★ #774 THE REGRESSION THIS PIN EXISTS FOR: coming back from None must restore the LEVEL as well as the style, or the user picks a pattern and nothing appears. Both callbacks fire, and the preview stops being blank');
-  patternPick = null;
-  matrixTile.click();
-  ok(stylePick === 'matrix' && patternPick === null,
-    '★ #774: a plain style swap does NOT re-write the level — the restore above is conditional on having been at None, not a blanket write on every pick');
-  /* ★★ the Colour control — a VALUE ROW, and that IS the fix (#774). Two near-identical
-     coloured rectangles is the confusion being removed; shipping it as another swatch pair
-     would delete a card and keep the defect. Pinned as "a row, and not a swatch group". */
-  const groundRow = appear.querySelector('.c-settings-appearance__ground');
-  ok(!!groundRow && groundRow.tagName === 'BUTTON'
-    && !!groundRow.querySelector('.c-settings__row-value')
-    && /Solid|Gradient/.test(groundRow.querySelector('.c-settings__row-value').textContent || ''),
-    '★★ #774: the Colour control is a value ROW (label · current value · chevron), not a third tile pair — the AUG ground swatches are gone. The row carries the CURRENT ground as its value');
-  groundRow.click();
-  const groundOpts = [...d.querySelectorAll('.c-settings__opt')].filter((o) => /Solid|Gradient/.test(o.textContent || ''));
-  ok(groundOpts.length === 2, '★ #774: the row opens the house option sheet (settingsOptionSheet) with the two grounds — the established one-of-N shape, nothing invented');
-  const gradientOpt = groundOpts.find((o) => /Gradient/.test(o.textContent || ''));
-  gradientOpt.click();
-  ok(groundPick === 'gradient'
-    && /Gradient/.test(groundRow.querySelector('.c-settings__row-value').textContent || '')
-    && appear.querySelector('.c-settings-appearance__preview').getAttribute('data-chat-ground') === 'gradient',
-    '★ #774: a pick commits through the sheet contract, updates the row VALUE in place and moves the live preview — the row is not a dead label');
+  /* ★★ #835: the second half — "a plain style swap does NOT re-write the level" — is NOT
+     TESTABLE with one style, because a swap needs somewhere to swap TO. It is retired as a
+     BEHAVIOURAL pin and kept as a SOURCE one: the conditional it guarded is still in
+     settings-screens.js and is still load-bearing the moment a second style returns, so
+     what is asserted now is that the write stayed conditional rather than becoming a
+     blanket write on every pick. A pin that cannot fail is worse than one that is honest
+     about what it can still see. */
+  const condRestore = stripCode(readFileSync(join(root, 'src/components/settings-screens.js'), 'utf8'));
+  ok(/if \(levelCurrent === 0\) \{[\s\S]{0,300}?levelCurrent = 1;[\s\S]{0,300}?onPattern\(1\);/.test(condRestore),
+    '★ #774/#835: the level restore is still CONDITIONAL on having been at None — with one style left the swap case cannot be driven in jsdom, so the property is asserted at the source. Make it unconditional and every style pick re-writes the level');
+  /* ★★ #855 RETIRES THE COLOUR CONTROL — and the three pins that stood here are retired
+     with it, not edited to expect nothing. They drove the row end to end: it is a value ROW
+     and not a third tile pair (#774's actual fix), it opens the house option sheet with the
+     two grounds, and a pick commits through the sheet contract and moves the live preview.
+     Every one of them needs a row with something to choose between.
+     ★ WHAT REPLACES THEM IS THE PROPERTY THAT NOW MATTERS: the row is ABSENT in light too.
+     That is not a special case — it is the SAME rule the dark branch below asserts, and
+     both now come from one guard (`isLight && CHAT_GROUNDS.length > 1`). Damir ruled it on
+     2026-09-04 when offered "hide it or design a gradient": a one-option chooser reads as a
+     broken control.
+     ⚠ Restoring the option restores this block from git along with the CHAT_GROUNDS member —
+     they are one change, which is why the retirement is recorded here rather than silently
+     dropped. */
+  ok(!appear.querySelector('.c-settings-appearance__ground')
+    && !appear.querySelector('.c-settings-appearance__groundsec'),
+    '★★ #855: in LIGHT the Colour row is ABSENT — the gradient option is retired "for now" (Damir, 2026-09-09), leaving one ground and therefore nothing to choose. Neither the row nor its section node is built, so there is no empty card either. Superseded: three pins that drove the row (value row · option sheet with two grounds · a pick that moves the preview) — restore them from git together with the CHAT_GROUNDS member');
   [...segs[0].querySelectorAll('.c-settings-seg__pill')].pop().click();   // XL (1.25)
   ok(scalePick === 1.25, 'text-size pick fires with the scale value');
   ahost.remove();
@@ -2915,14 +2922,42 @@ console.log('chats-list polish batch — Q12 / Q5 / M5 (2026-07-11)');
     && /canonEntry\('sl-ex-contact-request', 'Contact Request', 'request'\);/.test(home)
     && /if \(statusType && trimmed && trimmed === REQUEST_SENT_TEXT\) return \{ type: 'request'/.test(home),
     'M5: outgoing request = waiting-for-response carrier + direction guard (contact-request key belongs to the Q2 canon, not to M5)');
-  // M5: outgoing rows ride the Requests chip (count + filter + leave-guard) and
-  // light the contacts-picker pending badge via requestAddrs.
+  /* ★★ M5 — RE-READ AT #837, AND IT WAS RED FOR THE WRONG REASON.
+     This pin has been one of the three KNOWN pre-existers. Evaluating its five clauses
+     one at a time shows FOUR PASS and only the picker-badge clause fails — and the
+     feature it names is LIVE: `directoryRoster` still reads `requestAddrs.has(c.address)`
+     and still carries the result into a `pending` field. What changed is the SPELLING.
+     iOS-26 (Damir reversing Q5/#253) put groups back into the directory, so that map
+     callback now normalises `isGroup` in the same expression, and the pin's one-line
+     ternary stopped matching code that does exactly what the pin describes. #771 in its
+     usual costume: the pin asserted a spelling, the spelling moved, the property did not.
+
+     ⚠ AND #837 IS WHY IT COULD NOT BE LEFT ALONE. Removing the Requests digit touches
+     this pin's subject. A red row cannot absorb a second, real regression without anyone
+     noticing — "red for a known reason" and "red for a new one" look identical in the
+     summary. So the clauses are re-stated as PROPERTIES, and the two that #837 creates
+     are added: the chip carries no number, and `requests` still gates its visibility.
+     ⓘ This pin therefore leaves KNOWN_PREEXISTERS — see the note there. */
+  const rosterFn = home.slice(home.indexOf('const directoryRoster = ()'), home.indexOf('const peopleRoster = ()'));
+  const pendingByProperty = /requestAddrs\.has\(c\.address\)/.test(rosterFn) && /pending/.test(rosterFn)
+    && /Object\.assign\(\{\}, c,/.test(rosterFn);
   ok(/const isReqRow = isRequestSentPush\(excerpt_msg, type\);/.test(home)
     && /chat\.request = isReqRow;/.test(home)
     && /chats\.filter\(isRequestRow\)\.length/.test(home)
     && /\(state\.chats \|\| \[\]\)\.some\(isRequestRow\)\) return;/.test(home)
-    && /requestAddrs\.has\(c\.address\) \? Object\.assign\(\{\}, c, \{ pending: true \}\) : c/.test(home),
-    'M5: request rows feed the Requests chip + hold the filter + pending badge in the picker');
+    && !!rosterFn && pendingByProperty,
+    'M5: request rows feed the Requests chip + hold the filter + pending badge in the picker (badge asserted by property: directoryRoster reads requestAddrs and carries `pending` onto the copied row — the iOS-26 isGroup normalisation shares that expression, which is what made the old one-line ternary stale)');
+
+  /* #837 (Damir: "its just a filter, lets remove count to make it cleaner") — the two
+     halves of the line that used to do both jobs, pinned apart so neither can take the
+     other with it. The negative clause is the dial; the positive one is the trap. */
+  const hdr5 = stripCode(readFileSync(join(root, 'src/components/chats-header.js'), 'utf8'));
+  const reqLine5 = (hdr5.match(/if \(r\)[^\n]*/) || [''])[0];
+  ok(/setChatsHeaderCounts\(headerEl, \{ unread = 0, groups = 0, requests = 0 \} = \{\}\)/.test(hdr5)
+    && !/setChipCount\(r,/.test(hdr5)
+    && /r\.style\.display = requests > 0 \? '' : 'none'/.test(hdr5),
+    '★★ #837 THE REQUESTS CHIP SHOWS NO NUMBER AND STILL DISAPPEARS AT ZERO — the surviving line is `' + reqLine5.trim()
+    + '`. Both clauses matter and they pull opposite ways: setChipCount(r, …) must be GONE (the dial), and `requests` must still reach the display test (the trap — the same number decided whether the chip exists at all, so deleting it from the DATA path would pin an empty Requests filter permanently visible)');
 }
 
 console.log('chatlist-item / chats-shell — M5 request grammar');
@@ -7357,56 +7392,54 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
       '★ N82(c), STILL TRUE AFTER E1b: --surface-neutral-02 itself is UNCHANGED in both themes. Both the dark card and now the light one are written as COMPONENT literals; a token edit would have recoloured every other surface that reads it. The ruling about the light card reversed — the rule about how to write it did not');
   }
 
-  const flow = readFileSync(join(root, 'src/components/chat-flow.js'), 'utf8');
-  ok(/speed: 0\.85/.test(flow) && /spacing: 15/.test(flow) && /dash: 7/.test(flow)
-    && /lineWidth: 1\.25/.test(flow) && /fieldScale: 44/.test(flow),
-    'W5: the RE-DIALLED Live-flow tuning (Damir F5 2026-08-13: closer · bigger · more visible movement) is verbatim');
-  ok(/ctx\.lineWidth = tune\.lineWidth \* dpr;/.test(flow),
-    'W5: stroke weight is a DIAL, not a hard-coded 1px — "too small" moved dash length AND line width');
-  ok(/0\.9 \* \(Math\.sin\(1\.7 \* x \+ t\) \+ Math\.cos\(1\.3 \* y - 0\.8 \* t\) \+ Math\.sin\(0\.8 \* \(x \+ y\) \+ 0\.5 \* t\)\)/.test(flow),
-    'W5: the angle field matches the prototype exactly');
-  ok(/fps: 25/.test(flow) && /maxDpr: 2/.test(flow) && /ResizeObserver/.test(flow)
-    && /visibilitychange/.test(flow) && /prefers-reduced-motion/.test(flow),
-    'W5: the whole budget story is present (25fps cap · dpr≤2 · ResizeObserver · hidden pauses · reduced-motion = one still frame)');
-  ok(/getPropertyValue\('--chat-pattern-ink'\)/.test(flow) && /getPropertyValue\('--chat-pattern-opacity'\)/.test(flow)
-    && /if \(!ink \|\| opacity <= 0\) return;/.test(flow),
-    'W5: ink + intensity are read from computed style EVERY frame — theme flips and the visibility dial (incl. Off) apply live');
-  ok(/export function setChatFlowPaused/.test(flow),
-    'W5: a park/unpause entry point exists for the covered-chat / backgrounded-app story');
+  /* ★★ RETIRED BY #835 — the six pins that stood here read `src/components/chat-flow.js`
+     and asserted the Live-flow ENGINE's dials (speed/spacing/dash/lineWidth/fieldScale, the
+     angle field, the 25fps + dpr≤2 + ResizeObserver + hidden-pauses + reduced-motion
+     budget, the per-frame ink/opacity read, and the park/unpause entry point). The module
+     is deleted, so every one of them is an assertion about something that does not exist —
+     and, left in place, the readFileSync above would THROW and take the rest of the suite
+     with it, which is the failure mode this file warns about elsewhere.
+     ⚠ Retired as a SET and named individually, because the six were the only record that
+     the flow engine ever had a budget story. If the renderer ever returns, `git show` this
+     line's parent commit is where its dials are. */
 
-  /* ★★ REWRITTEN BY #46 loop MAJOR-2 (was: "negative-z canvas inside a [data-flow]-scoped
-     stacking context"). That recipe WAS the defect. `.c-chat-canvas[data-flow]{z-index:0}`
-     made the host a stacking context, which capped the z-42 long-press lift at the host and
-     put the pressed row back under the z-40 scrim — silently, on the Live flow style only.
-     Both halves are gone. The canvas is the FIRST child at z-index AUTO and paints by TREE
-     ORDER: above the host gradient, below every later sibling. The whole-cascade guarantee
-     is PIN-B in the #506② block; these two pins hold the chat-flow.css half. */
-  const flowCss = readFileSync(join(root, 'src/styles/components/chat-flow.css'), 'utf8');
-  const flowCssNC = stripCssComments(flowCss);
-  ok(!/\.c-chat-canvas\[data-flow\]/.test(flowCssNC) && !/z-index/.test(flowCssNC)
-    && /\.c-chat-canvas > \.c-chat-flow \{/.test(flowCssNC) && /position: absolute;/.test(flowCssNC),
-    '★★ W5 stacking (#46 loop MAJOR-2): chat-flow.css declares NO z-index anywhere and NO [data-flow] host rule. The canvas is position:absolute at z-index auto, so it paints by tree order and needs no host stacking context. The old pair — z-index:-1 on the canvas plus [data-flow]{z-index:0} on the host — killed the long-press lift under Live flow. Comments stripped: the docblock that explains this quotes the retired rule');
-  ok(!/\.c-chat-canvas > \*\s*\{[^}]*position: relative/.test(flowCssNC),
-    'W5 stacking: NO blanket sibling position:relative — that is what left-aligned the jump-to-latest FAB on the Windows F5');
+  /* ★★ RETIRED BY #835, DELIBERATELY AND WITH ITS REASON — the two pins that stood here
+     read `src/styles/components/chat-flow.css`, which no longer exists. Live flow was the
+     only style that painted from a canvas, and Damir retired it ("no pattern canvas …
+     removeing excess bloat that is renderer is ok i guess"), so chat-flow.js and its
+     stylesheet are deleted.
+     ⚠ THE INVARIANT THEY GUARDED IS NOT RETIRED. "the chat canvas must not become a
+     stacking context, or the z-42 long-press lift is capped at the host and the pressed
+     row goes back under the z-40 scrim" (#46 loop MAJOR-2) still holds for every
+     stylesheet that touches .c-chat-canvas — and it is still enforced, by PIN-B in the
+     #506② block, which sweeps the WHOLE cascade rather than one named file. That is why
+     these two could go and PIN-B could not: they were the file-specific half of a rule
+     whose general half already exists. A pin deleted because its subject is gone is
+     correct; a pin deleted because it went red is not, so the difference is written down.
+     ⓘ PIN-B ② went with them for the same reason — it required a `.c-chat-canvas >
+     .c-chat-flow` rule to EXIST, which is a positive assertion about a deleted element. */
 
   const chatW5 = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
   ok(/localStorage\.getItem\('spixi\.chat\.patternstyle'\)/.test(chatW5)
     && /setAttribute\('data-chat-pattern',s\)/.test(chatW5),
     'W5: the style is resolved PRE-PAINT in the same script as the intensity — no wrong-pattern flash on load');
-  /* ★ REBASED AGAIN 2026-08-29 (E1): line art → triangles → doodles. Every fallback
-   * target moved with the default each time. The RULE is unchanged and is what this pin
-   * guards — Live flow is desktop-only and a mobile client carrying that pref must land
-   * somewhere deterministic. */
-  ok(/if\(s==='flow'&&!de\)s='doodles'/.test(chatW5),
-    'W5 (★ E1): Live flow is desktop-only — a mobile client carrying the pref falls back to the DOODLES tile (battery)');
-  ok(/if\(s!=='doodles'&&s!=='matrix'&&s!=='flow'\)s='doodles'/.test(chatW5),
-    '★★ E1 MIGRATION (pre-paint): the head-script allowlist names only the LIVE styles, which is what migrates the two retired ones — a stored \'triangles\' or \'lineart\' matches nothing and lands on doodles BEFORE first paint. Retiring a style without this is how you re-skin someone to a bare gradient on launch');
+  /* ★★ #835 RE-BASE: line art → triangles → doodles → MATRIX. The desktop-only fallback
+     pin retired with Live flow (there is no desktop-only style left to fall back FROM), and
+     the allowlist pin below is the one that still matters — it is the pre-paint half of the
+     fall-through that keeps a device holding a retired style off a bare gradient. GATE 62
+     asserts the same property across all FOUR readers; this keeps it asserted here too,
+     where the rest of the W5 story lives. */
+  ok(/if\(s!=='matrix'\)s='matrix'/.test(chatW5),
+    "★★ #835 MIGRATION (pre-paint): the head-script allowlist names only the LIVE style, which is what migrates every retired one — a stored 'doodles', 'flow', 'triangles' or 'lineart' matches nothing and lands on matrix BEFORE first paint. Retiring a style without this is how you re-skin someone to a bare gradient on launch");
   ok(chatW5.indexOf("p.get('desktop')==='1'") < chatW5.indexOf("spixi.chat.patternstyle"),
     'W5: the ?desktop/?mobile forcing still runs BEFORE the style default derives (the B2 ordering rule)');
-  ok(/attachChatFlow, syncChatFlow, detachChatFlow/.test(chatW5) && /function applyChatPatternStyle/.test(chatW5),
-    'W5: the chat shell mounts/tears down the flow engine');
-  ok(/function syncFlowIfActive\(\)/.test(chatW5) && /syncFlowIfActive\(\);\s*\/\/ …and repaint/.test(chatW5),
-    'W5: applying prefs repaints the flow canvas — under reduced motion there is no loop to re-theme itself');
+  /* ★★ #835: the two mount/sync pins are INVERTED rather than deleted. They asserted that
+     the shell mounts and tears down the flow engine; with the renderer gone the property
+     worth holding is the opposite one, and it is worth holding because the mount ran at TOP
+     LEVEL in the shell's main script — a throw from it aborted identity, theme and the whole
+     bridge wiring below (the Session F audit finding). Nothing should reach for it again. */
+  ok(!/attachChatFlow|syncChatFlow|detachChatFlow|applyChatPatternStyle|syncFlowIfActive/.test(stripCode(chatW5)),
+    '★★ #835: the chat shell no longer mounts, syncs or tears down a pattern canvas — the renderer is retired, and the top-level call site that could abort the entire main script on a throw is gone with it');
 
   /* W5 F5 (Damir 2026-08-13): "it doesnt auto apply to active chats". The pick
    * has to cross from the Account WebView into an ALREADY-OPEN chat, so the
@@ -7430,14 +7463,17 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     'W5 live-apply: the #314 grammar verbatim — storage event + focus + visibilitychange + a visibility-guarded 2s poll (WKWebView fires no cross-WebView storage event, and a covered WebView stays "visible")');
   ok(/if \(stamp === seenPatternPrefs\) return;/.test(chatW5),
     'W5 live-apply: gated on an ACTUAL change of the stored pair — the poll is a no-op read under a live chat');
-  ok(/if \(s === 'flow' && !de\) s = 'doodles';/.test(chatW5),
-    'W5 live-apply (★ E1): the re-resolve keeps the desktop-only rule — a mobile chat can never mount the canvas from a stored flow');
-  ok(/if \(s !== 'doodles' && s !== 'matrix' && s !== 'flow'\) s = 'doodles';/.test(chatW5)
-    && !/'triangles'|'lineart'/.test(chatW5.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')),
-    '★★ E1 MIGRATION (live re-apply): the SECOND ladder carries the same allowlist, and neither retired id survives anywhere in chat.html once comments are stripped. Two ladders that must agree is exactly the shape the W5 F5 bug had — pin BOTH or the live path keeps re-resolving to a style the sheet no longer defines');
-  ok(/r\.setAttribute\('data-chat-pattern', prefs\.style\);[\s\S]{0,700}?applyChatPatternStyle\(\);/.test(chatW5)   // window widened 220 → 700 in Session P: the text-size pair sits between them now (order still asserted below)
-    && chatW5.indexOf("r.setAttribute('data-chat-pattern', prefs.style);") < chatW5.indexOf('applyChatPatternStyle();     // mount / detach'),
-    'W5 live-apply: the attribute moves and THEN the canvas mounts/detaches — a style switch can never leave a tile and a canvas painting at once. ★ AUG: the ORDER is what this pin is about, so it is asserted as an order rather than as adjacency — the ground attribute is set between the two now (it is a sibling display-state write, not part of the mount), and a strict "next line" match made an unrelated insertion look like a regression');
+  /* ★ #835: the desktop-only pin retired with Live flow — it was the only style gated on
+     `de`, so there is no platform rule left for the re-resolve to keep. */
+  ok(/if \(s !== 'matrix'\) s = 'matrix';/.test(chatW5)
+    && !/'triangles'|'lineart'|'doodles'|'flow'/.test(stripCode(chatW5)),
+    '★★ #835 MIGRATION (live re-apply): the SECOND ladder carries the same allowlist, and NO retired id survives anywhere in chat.html once comments are stripped — triangles and lineart (#690), doodles and flow (#835). Two ladders that must agree is exactly the shape the W5 F5 bug had: pin BOTH, or the live path keeps re-resolving to a style the sheet no longer defines');
+  /* ★★ #835: this pinned an ORDER — attribute first, canvas mount second — so that a style
+     switch could never leave a tile and a canvas painting at once. There is no second
+     painter any more, so the ordering hazard is gone with the renderer. What survives is
+     the half that still has a subject: the attribute write itself. */
+  ok(/r\.setAttribute\('data-chat-pattern', prefs\.style\);/.test(chatW5),
+    '★ #835: the live apply still moves data-chat-pattern (the tile is inherited from it). The mount-ORDER clause retired with the canvas — with one painter there is nothing to sequence against');
   /* ★ N81 (#422): this used to pin that the ×0.36 dark derivation was RE-RUN on
    * every apply. There is no derivation left to re-run — the level is an index and
    * the alpha is a per-theme token, so CSS resolves it. Pin the ABSENCE, at all
@@ -7449,12 +7485,12 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   ok(/r\.style\.setProperty\('--chat-pattern-opacity', patternLevelVar\(prefs\.level\)\);/.test(chatW5),
     '★ N81: the live apply assigns the per-theme VAR REFERENCE, so the value resolves under whatever theme is current at paint time');
   ok(/applyPatternPrefs\(readPatternPrefs\(\)\)/.test(chatW5.slice(chatW5.indexOf('setTheme(name)'))),
-    '★ N81: setTheme still re-runs the pattern ladder via the shared onApplied hook — the INTENSITY no longer needs it (CSS resolves that), but the flow canvas genuinely does: under prefers-reduced-motion there is no loop to re-theme itself');
+    '★ N81/#835: setTheme still re-runs the pattern ladder via the shared onApplied hook. ⚠ ITS REASON CHANGED AND THE ASSERTION DID NOT: the justification used to be the flow canvas (under prefers-reduced-motion there is no loop to re-theme itself), and that canvas is retired. It stays because the GROUND is theme-scoped — data-chat-ground is light-only in effect — and because re-resolving on a theme push is the cheap, already-wired way to keep the four prefs in step. A pin kept for a reason that evaporated is a #772 defect, so the new reason is written down rather than the old one left standing');
 
   const setW5 = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
-  ok(/let patternStyle = 'doodles';/.test(setW5)
-    && /if \(st === 'matrix' \|\| \(st === 'flow' && desktop\)\) patternStyle = st;/.test(setW5),
-    '★★ E1 MIGRATION (settings): the THIRD ladder. settings.html reads the same pref with its own allowlist, and it too names only the live styles — so a stored \'triangles\' or \'lineart\' falls through to doodles and the Account screen agrees with the chat about what is selected. Three ladders had to move together; the retirement is only safe because all three did');
+  ok(/let patternStyle = 'matrix';/.test(setW5)
+    && /if \(st === 'matrix'\) patternStyle = st;/.test(setW5),
+    '★★ #835 MIGRATION (settings): the THIRD ladder. settings.html reads the same pref with its own allowlist, and it too names only the LIVE style — so a stored \'doodles\', \'flow\', \'triangles\' or \'lineart\' falls through to matrix and the Account screen agrees with the chat about what is selected. Three ladders had to move together; the retirement is only safe because all three did (GATE 62 adds the generated stylesheet as the fourth reader)');
   {
     const ssCss = readFileSync(join(root, 'src/styles/components/settings-screens.css'), 'utf8');
     ok(/\.c-settings-swatch \.c-settings-swatch__canvas::before \{[\s\S]*?-webkit-mask-size: 110px 191px;\s*mask-size: 110px 191px;/.test(ssCss),
@@ -7484,23 +7520,23 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   }
   ok(/patternStyle: 'spixi\.chat\.patternstyle'/.test(setW5) && /onPatternStyle: \(v\) =>/.test(setW5),
     'W5: the Account screen persists the style like the intensity pref (same origin, try/catch)');
-  ok(/st === 'flow' && desktop/.test(setW5),
-    'W5: readChatPrefs refuses a stored flow on mobile, mirroring what chat.html applies');
+  /* ★ #835: "readChatPrefs refuses a stored flow on mobile" retired — Live flow was the
+     only platform-gated style, so there is no platform rule left to mirror. */
 
-  // runtime: three options on desktop, two on mobile; the picks compose
+  // runtime: None + the one surviving style, identical on desktop and mobile
   const dom5 = await load('settings.html');
   const wd = dom5.window;
   const wdoc = wd.document;
   wdoc.documentElement.setAttribute('data-desktop', '');
   const host5 = wdoc.createElement('div');
   wdoc.body.append(host5);
-  const ap5 = wd.Spixi.createChatAppearance({ patternOpacity: 0.5, patternStyle: 'doodles', isDesktop: true });
+  const ap5 = wd.Spixi.createChatAppearance({ patternOpacity: 0.5, patternStyle: 'matrix', isDesktop: true });
   host5.append(ap5);
   const sg = ap5.querySelector('.c-settings-swatches--style');
   ok(!!sg && sg.getAttribute('role') === 'radiogroup', 'W5: the style picker is its own radiogroup');
   const styleTiles = [...sg.querySelectorAll('.c-settings-swatch')];
-  ok(styleTiles.length === 4 && styleTiles.map((b) => b.dataset.value).join() === 'none,doodles,matrix,flow',
-    '★ E1 + #774: desktop offers None + THREE styles in spec order — doodles (default, listed first because the first entry is what a new install lands on), data matrix, live flow. Was four; triangles and line art are retired');
+  ok(styleTiles.length === 2 && styleTiles.map((b) => b.dataset.value).join() === 'none,matrix',
+    '★★ #835: Background offers None + the ONE surviving style, and the same two on every platform — Live flow was the only desktop-only member. This IS Damir\'s "the Background control stops being a picker": with the intensity dial already folded in (#774), two tiles is the whole control. Was four (none/doodles/matrix/flow), and four before that');
   ok(styleTiles.every((b) => b.getAttribute('role') === 'radio' && b.getAttribute('aria-label')),
     'W5: style tiles keep the #334 swatch a11y grammar (role=radio + localized label, no visible text to overflow)');
   ok(styleTiles.every((b) => (b.dataset.value === 'none'
@@ -7536,22 +7572,15 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     const m = /^calc\(var\(--chat-pattern-alpha-1\) \* ([\d.]+)\)$/.exec(f.style.getPropertyValue('--chat-pattern-opacity'));
     return m ? parseFloat(m[1]) : NaN;
   };
-  /* ★★ Session M (Damir, on the render sheet: "make the doodle pattern also fainter on the
-     tiles") — THE BOOST IS PER STYLE, and this is the pin that says WHY rather than WHAT.
-     One multiplier cannot balance two artworks with different ink coverage: doodles is dense
-     line art, the data matrix is scattered dots, so at a shared 6× the doodles tile shouts
-     while the matrix tile whispers side by side at the same nominal alpha.
-     ⚠ Asserted as a RELATION, not as the number 3. A literal would go red on Damir's next
-     one-word dial (4.5 and 2 are both on the sheet) and say nothing about the property that
-     matters; the relation goes red on the thing that would actually be a regression — the two
-     tiles collapsing back to one multiplier. The shared default is pinned separately below,
-     because "doodles is lower" is also satisfied by lowering BOTH, which is the change the
-     shared strip is evidence against (at ×3 the matrix is already faint; by ×2 it is gone). */
-  const dood = boostOf(faceOf('doodles'));
-  const mtx = boostOf(faceOf('matrix'));
-  ok(dood > 0 && mtx > 0 && dood < mtx && mtx === 6,
-    '★★ Session M: the DOODLES tile is amplified LESS than the data-matrix tile, and the matrix keeps the shared 6× default. A single dial soft enough for the dense doodles art erases the scattered matrix art beside it — the two strips in docs/sheets/session-m/ are that evidence. Pinned as a relation so Damir can move the value without reddening it, and so collapsing the two back to one number cannot pass');
-  ok(bgFaces.length === 4 && !!faceOf('none') && faceOf('none').style.getPropertyValue('--chat-pattern-opacity') === '0'
+  /* ★★ #835 RETIRED — THE PER-STYLE BOOST RELATION. It asserted that the doodles tile is
+     amplified LESS than the matrix tile, because one multiplier cannot balance two artworks
+     with different ink coverage (dense line art against scattered dots). With ONE style
+     there is no second artwork to balance against and no relation to assert: the shared
+     default is the whole answer again, and PATTERN_SWATCH_BOOSTS is empty by meaning.
+     ⓘ The pin's real subject — that a tile assigns the per-theme alpha VAR and never a
+     baked number, which is what closed the #239 ⓐ flag — is the clause immediately below
+     and is untouched. `faceOf`/`boostOf` stay: the boost format is still asserted there. */
+  ok(bgFaces.length === 2 && !!faceOf('none') && faceOf('none').style.getPropertyValue('--chat-pattern-opacity') === '0'
     && styleTiles.filter((b) => b.dataset.value !== 'none')
       .every((b) => /^calc\(var\(--chat-pattern-alpha-1\) \* [\d.]+\)$/.test(b.querySelector('.c-settings-swatch__canvas').style.getPropertyValue('--chat-pattern-opacity'))),
     '★ N81 (closes #239 ⓐ), rebased by #774: every PATTERN tile assigns the per-theme ALPHA VAR so the swatch resolves under the same theme as the chat (the boost is the swatch-legibility dial, PATTERN_SWATCH_BOOST — not a second scale), and the None tile assigns a literal 0, the one honest answer for "no pattern"');
@@ -7572,34 +7601,32 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
        The row's own shape (button · value · sheet) is pinned in the settings-screens block;
        here the question is only "does the canvas choice exist in light and not in dark". */
     const lightGround = apLight.querySelector('.c-settings-appearance__ground');
-    ok(lightGroups.length === 1 && !!lightGround
-      && /Solid|Gradient/.test(lightGround.querySelector('.c-settings__row-value').textContent || ''),
-      '★★★ AUG GROUND, rebased by #774: in LIGHT the appearance screen offers the canvas choice as a VALUE ROW carrying the current ground — and there is exactly ONE swatch group on the screen (Background). Two would mean the AUG tiles came back and the restructure was undone. Superseded: two --style groups, flat/gradient tiles. Original: flat (default) and the gradient Damir asked to keep. Two style-shaped groups: the pattern STYLE list and this one');
+    ok(lightGroups.length === 1 && !lightGround,
+      '★★★ AUG GROUND → #855: in LIGHT there is exactly ONE swatch group (Background) and NO canvas row — the gradient option is retired "for now", so the light branch reaches the same answer the dark one always did. Two swatch groups would mean the AUG tiles came back and the #774 restructure was undone. Superseded: the canvas choice as a VALUE ROW carrying the current ground (#774); before that, two --style groups of flat/gradient tiles');
     de.setAttribute('data-theme', 'dark');
     const apDark = wd.Spixi.createChatAppearance({ isDesktop: false });
     ok([...apDark.querySelectorAll('.c-settings-swatches--style')].length === 1
       && !apDark.querySelector('.c-settings-appearance__ground'),
-      '★★★ AUG GROUND: in DARK the row is ABSENT, not shown with one option — Damir re-ruled it explicitly on 2026-09-04 when offered "hide it or design a gradient" (#774 ③). Dark carries the blue radial in both cases, so there is nothing to choose between and a one-option radiogroup reads as a broken control. The stored pref survives the theme flip untouched; it simply has no effect until the user is back in light');
+      '★★★ AUG GROUND: in DARK the row is ABSENT, not shown with one option — Damir re-ruled it explicitly on 2026-09-04 when offered "hide it or design a gradient" (#774 ③). ⓘ #855 made this the rule on BOTH sides rather than a dark special case: the guard is `isLight && CHAT_GROUNDS.length > 1`, so "a one-option chooser reads as broken" is now enforced by the same expression in both themes. The stored pref survives untouched either way');
     if (prevTheme === null) de.removeAttribute('data-theme'); else de.setAttribute('data-theme', prevTheme);
   }
 
-  // fail-soft: this harness has no canvas backend, so picking Live flow must
-  // land on the line-art tile rather than a bare gradient or a thrown error
-  styleTiles.find((b) => b.dataset.value === 'flow').click();
-  ok(prev5.dataset.chatPattern === 'doodles',
-    'W5 fail-soft (★ E1): no 2d context → the preview falls back to the DOODLES tile, never a bare gradient');
-  styleTiles.find((b) => b.dataset.value === 'doodles').click();
-  const apMobile = wd.Spixi.createChatAppearance({ patternOpacity: 0.5, patternStyle: 'flow', isDesktop: false });
+  /* ★ #835: the fail-soft pin retired with Live flow — it checked that a harness with no 2d
+     context fell back to a tile instead of a bare gradient, and there is no canvas style
+     left to fail. Every surviving style IS a tile, so the failure it guarded is structural.
+     ⓘ The mobile fixture below still stores a RETIRED style on purpose: that is the
+     fall-through #835 named, driven end to end rather than read off the source. */
+  const apMobile = wd.Spixi.createChatAppearance({ patternOpacity: 0.5, patternStyle: 'doodles', isDesktop: false });
   /* ⚠ SCOPED TO THE FIRST --style GROUP. There are TWO of them in light since the Aug
      ground row, and this pin is about the STYLE list. It survived the change only because
      the harness document happens to carry data-theme="dark", where the ground row does not
      render — i.e. it was passing by accident, not by construction. Indexed explicitly now. */
   const mobileTiles = [...apMobile.querySelectorAll('.c-settings-swatches--style')[0].querySelectorAll('.c-settings-swatch')];
-  ok(mobileTiles.length === 3 && mobileTiles.map((b) => b.dataset.value).join() === 'none,doodles,matrix',
-    '★ E1 + #774: mobile shows None and TWO styles — doodles and the data matrix ("keep that tech thingy on mobile", Damir 2026-08-29). Live flow stays desktop-only');
+  ok(mobileTiles.length === 2 && mobileTiles.map((b) => b.dataset.value).join() === 'none,matrix',
+    '★★ #835: mobile and desktop now offer the SAME two tiles — None and the data matrix ("keep that tech thingy on mobile", Damir 2026-08-29, and it is the one that stayed). Live flow was the only platform split');
   const mobileChecked = mobileTiles.filter((b) => b.getAttribute('aria-checked') === 'true');
-  ok(mobileChecked.length === 1 && mobileChecked[0].dataset.value === 'doodles',
-    '★ W5 (E1) + #774: a stored desktop-only style falls back to a SELECTED doodles on mobile (never an empty radiogroup) — and it is still the STYLE that is checked, not None. The fixture stores flow at level 1, so a Background control that resolved its selection from the level alone would check the wrong tile here');
+  ok(mobileChecked.length === 1 && mobileChecked[0].dataset.value === 'matrix',
+    '★★★ #835 THE FALL-THROUGH, DRIVEN END TO END: the fixture stores a RETIRED style (\'doodles\') at level 1, and the control resolves it to a SELECTED matrix — never an empty radiogroup, never None. This is the failure #835 named ("a device holding doodles must not render nothing") reproduced in the component rather than read off the source, and it also proves the selection comes from the (style, level) PAIR: a control resolving it from the level alone would check the wrong tile here');
 }
 
 /* —— Contact-details PREMIUM pass (Damir 2026-08-12) ——————————————————————
@@ -8761,9 +8788,22 @@ console.log('#341 — Change password renders inside the Account pane');
 
   /* —— #341 REVIEW ROUND 2: what the break-my-verdict pass found —————————————— */
   const extractSrc = readFileSync(join(root, 'scripts/extract-strings.mjs'), 'utf8');
-  ok(/patternStyleDoodles: 'Doodles',[\s\S]{0,400}?patternStyleMatrix:[\s\S]{0,120}?patternStyleFlow:/.test(extractSrc)
-    && !/patternStyle(Triangles|LineArt):/.test(extractSrc.replace(/\/\/[^\n]*/g, '')),
-    '★ #341 review MINOR-4 (★ Session O reword — the old message named PATTERN_LEVELS, an array Session M retired): PATTERN_STYLES is in the extractor DYNAMIC table. It is read as strings[o.key] — a key composed at runtime, which the static extractor cannot see — and while it was missing, the FIRST extract run silently deleted every translation of the three style names from all seven locales. Both i18n gates were blind, because they compare locales against each other and a key dropped from all of them still looks consistent');
+  /* ★★ #835 RE-BASE, and the rule survives the re-base better than the list did: the
+     DYNAMIC table must carry a key for EVERY live style and for no retired one. Asserted by
+     DERIVING both sets — PATTERN_STYLES from the component, the table from the extractor —
+     rather than by naming the styles that happened to exist when the pin was written
+     (#798). The old form spelled out doodles → matrix → flow in order, so retiring two
+     styles reddened it for the right reason and would have been "fixed" by editing the
+     spelling; this form goes red only when the two sets actually disagree. */
+  const liveStyleKeys = [...stripCode(readFileSync(join(root, 'src/components/settings-screens.js'), 'utf8'))
+    .matchAll(/key: '(patternStyle[A-Za-z]+)'/g)].map((m) => m[1]);
+  const tableKeys = [...stripCode(extractSrc).matchAll(/^\s*(patternStyle[A-Za-z]+):/gm)].map((m) => m[1]);
+  ok(liveStyleKeys.length > 0
+    && liveStyleKeys.every((k) => tableKeys.includes(k))
+    && tableKeys.every((k) => liveStyleKeys.includes(k)),
+    '★ #341 review MINOR-4, re-based by #835: PATTERN_STYLES and the extractor DYNAMIC table carry EXACTLY the same style keys — live=' + JSON.stringify(liveStyleKeys)
+    + ' table=' + JSON.stringify(tableKeys)
+    + '. These keys are read as strings[o.key], a key composed at runtime that the static extractor cannot see, so the table IS the declaration: a style added to the component and not here ships English in twelve languages, and one retired here and not there keeps a dead key alive. While the table was missing entirely, the first extract run silently deleted every translation of the style names — and both i18n gates were blind, because they compare locales against each other and a key dropped from all of them still looks consistent');
   ok(/strings\.encpassRejected \|\|/.test(shEnc) && !/strings\.badPassword \|\|/.test(shEnc),
     '★ #341 review MINOR-2: the "2" result uses its OWN key. Re-using badPassword collided with the component value for the same key, and extract-strings sets exitCode 1 on a fallback conflict — Damir\'s documented build chain would have stopped at step 1 and rebuilt nothing');
   /* ★ #804 REBASES this one too, and for the same reason — a `{0,900}` window that this
@@ -15330,16 +15370,19 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
        && cssSubjectIsPseudoElement('.c-chat-canvas:hover') === false,
       '★★ PIN-B ⓪ (#46 loop ROUND 2) — THE FILTER IS ALIVE AND IT READS THE SUBJECT. .c-chat-canvas::before really does declare a stacking property (the pattern mask), and it is dropped because the SUBJECT is a pseudo-element, not because the string contains "::". Round 1 tested the whole selector, so `.c-x::before + .c-chat-canvas { z-index: 0 }` was dropped too — the host rule that MATTERS, thrown away by the filter meant to protect it. Without this guard a filter that dropped every rule would leave PIN-B green over an empty set');
 
-    /* PIN-B ② — the Live-flow canvas itself. It paints in TREE ORDER as the first child at
-       z-index AUTO. A z-index here is what forced the host to become a context. */
-    const flowRules = cssRulesWhere((s) => /(^|\s)\.c-chat-canvas\s*>\s*\.c-chat-flow$/.test(s));
-    const flowZ = flowRules.filter((r) => cssDecls(r.body).some((d) => d.prop === 'z-index'));
-    ok(flowRules.length > 0
-       && flowRules.some((r) => r.file.endsWith('chat-flow.css')
-            && cssDecls(r.body).some((d) => d.prop === 'position' && d.value === 'absolute'))
-       && flowZ.length === 0,
-      '★★ PIN-B ② (#46 loop MAJOR-2): the flow canvas is position:absolute and declares NO z-index at all, in any stylesheet. The old recipe was z-index:-1 on the canvas plus `[data-flow] { z-index: 0 }` on the host, and the host half is what broke the lift. A negative z on the canvas needs a host context to paint against; z-index auto plus tree order needs none'
-      + (flowZ.length ? ' — z-index FOUND in ' + flowZ.map((r) => r.file).join(', ') : ''));
+    /* ★★ PIN-B ② RETIRED BY #835 — see the note in the W5 stacking block above. It
+       asserted that `.c-chat-canvas > .c-chat-flow` exists, is position:absolute and
+       declares no z-index; the element and its stylesheet are gone with Live flow, so the
+       clause is a positive assertion about something deleted. What it protected — no
+       stacking context on the canvas — is PIN-B's own subject and is still swept over the
+       whole cascade, including the ⓪ vacuity guard above that proves the filter is alive.
+       ⚠ Replaced rather than simply dropped: nothing may now declare that selector at all,
+       which is the honest post-retirement form of the same rule. */
+    const flowRules = cssRulesWhere((sel) => /(^|\s)\.c-chat-canvas\s*>\s*\.c-chat-flow$/.test(sel));
+    ok(flowRules.length === 0,
+      '★★ PIN-B ② (#835): the Live-flow canvas is RETIRED, so no stylesheet declares `.c-chat-canvas > .c-chat-flow` any more'
+      + (flowRules.length ? ' — but one still does, in ' + flowRules.map((r) => r.file).join(', ') + '. Either the renderer came back (then restore the position/z-index clauses this replaced) or a rule outlived it' : '')
+      + '. The host-stacking invariant it used to guard is PIN-B\'s own, swept across the whole cascade');
   }
 }
 
@@ -15445,10 +15488,17 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   const patCss = readFileSync(join(root, 'src/styles/chat-pattern.css'), 'utf8');
   const gen = readFileSync(join(root, 'scripts/generate-chat-pattern.mjs'), 'utf8');
 
-  ok(/--chat-pattern-uri-doodles:/.test(patCss) && /\[data-chat-pattern='doodles'\]/.test(patCss),
-    '★ E1 PATTERN: the doodles tile is generated and selectable');
-  ok(/--chat-pattern-uri: var\(--chat-pattern-uri-doodles\);/.test(patCss.split(':root {')[1].split('}')[0]),
-    '★ E1 PATTERN (Damir 2026-08-29): DOODLES is the :root default, replacing the triangles synth. An install with no stored style lands here; anyone who explicitly picked a LIVE style keeps it, because that pref sets data-chat-pattern and outranks :root');
+  /* ★★ #835 INVERTS THE FIRST OF THESE, and the inversion is the point. It said "the
+     doodles tile is generated AND SELECTABLE"; doodles is retired, so what must hold now is
+     that the tile is still GENERATED (the generator's drift guard still owns that asset —
+     re-encoding it is a pipeline change nobody made here) and is NO LONGER SELECTABLE. A
+     variable nothing selects is dead weight; a SELECTOR that outlived its style is a way
+     back onto a retired pattern. */
+  ok(/--chat-pattern-uri-doodles:/.test(patCss)
+    && !stripCssComments(patCss).includes("[data-chat-pattern='doodles']"),
+    '★★ #835: the doodles URI is still EMITTED (the generator owns that asset and its drift guard) but nothing can select it — the [data-chat-pattern=\'doodles\'] block is gone. ⓘ Flagged for Damir as a later cleanup: dropping the asset itself is a generator change, not part of this dial. Superseded: "the doodles tile is generated and selectable"');
+  ok(/--chat-pattern-uri: var\(--chat-pattern-uri-matrix\);/.test(patCss.split(':root {')[1].split('}')[0]),
+    '★★ #835 PATTERN: DATA MATRIX is the :root default, replacing doodles (which replaced the triangles synth, which replaced line art). This is the FOURTH reader of the fall-through — an install with no stored style, or one carrying any retired style, lands here because no block below matches it. GATE 62 asserts all four readers as a set');
   ok(!/--chat-pattern-uri-triangles:/.test(patCss) && !/--chat-pattern-uri-lineart:/.test(patCss),
     '★★ E1 PATTERN: triangles and line art are RETIRED — and this pin is the inverse of the one it replaces, which said line art was "KEPT, not retired". That was the right rule under the old ruling and it is not a rule anyone may reverse quietly: Damir retired both explicitly on 2026-08-29, and the allowlists in chat.html and settings.html migrate the stored prefs so nobody lands on a style that no longer exists');
   {
@@ -22466,9 +22516,9 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     for (const f of ['Spixi/Resources/Raw/html/chat.html', 'Spixi/Resources/Raw/html/settings.html']) {
       let src = '';
       try { src = stripHtmlThenJs(rdF(f)); } catch (_) { src = ''; }
-      ok(src.length > 0 && !/'triangles'|'lineart'/.test(src),
-        '★★ SESSION F: neither RETIRED pattern id survives in the SHIPPED ' + f.split('/').pop()
-        + ' once HTML comments are stripped (#690 was ruled explicitly; a stored value matching no allowlist must land on doodles BEFORE first paint, and only the built file can prove that)');
+      ok(src.length > 0 && !/'triangles'|'lineart'|'doodles'|'flow'/.test(src),
+        '★★ SESSION F, widened by #835: NO retired pattern id survives in the SHIPPED ' + f.split('/').pop()
+        + ' once HTML comments are stripped — triangles and lineart (#690), doodles and flow (#835). Each retirement was ruled explicitly, and a stored value matching no allowlist must land on the live style BEFORE first paint. Only the BUILT file can prove that: mutation M15 survived on exactly this gap, where the built pre-paint allowlist could be widened to re-admit a retired style with every source pin still green');
     }
   }
 
@@ -23790,8 +23840,19 @@ console.log('Session I ③: the premium pass token batch');
   ok(val('chat-canvas-base', light) === '#E4EAF3' && val('chat-pattern-ink', light) === '#051C8E' && val('chat-pattern-alpha-1', light) === '0.06'
      && /:root:not\(\[data-theme='dark'\]\)\[data-chat-ground='gradient'\],\s*:root:not\(\[data-theme='dark'\]\) \[data-chat-ground='gradient'\] \{[^}]*--gradient-chat: linear-gradient\(289deg, #94D2E3 0%, #94CAE9 23\.16%, #99C2ED 46\.31%, #A2B8EC 69\.47%, #ADAEE8 92\.62%\), var\(--chat-canvas-base\);/.test(tok),
     '★★ 4 → Session J (#744/A14, Damir\'s values): light canvas #E4EAF3 · ink #051C8E @ 6% · the gradient option is his 289° #94D2E3 → #ADAEE8 wash (92.62% end, OKLCH interior stops). Superseded: k2 #EEECEF · #83058E · the soft wash a swatch could not show');
-  ok(/if\(g!=='flat'&&g!=='gradient'\)g='gradient';/.test(rdF('src/shells/chat.html')) && /let chatGround = 'gradient';/.test(rdF('src/shells/settings.html')),
-    '★ 4: gradient default-ON on every platform — chat.html\'s pre-paint ladder and settings.html\'s readChatPrefs agree (the #690 three-ladder rule)');
+  /* ★★ #835 REVERSES THIS PIN, and it is pinned as a reversal rather than edited away.
+     Damir 2026-09-09: "we will remove the gradient on light, it's too busy" — so SOLID is
+     the default now and the gradient remains a CHOICE, which is how this ruling and his
+     2026-08-30 one ("leave the gradient as an option in chat appearance on light mode") both
+     hold. ⓘ AND THE OLD PIN WAS ONLY EVER TWO-THIRDS TRUE: it named chat.html's head script
+     and settings.html and called that "the #690 three-ladder rule", while the THIRD ladder —
+     chat.html's own live re-resolve — answered `de ? 'flat' : 'gradient'`. So a desktop user
+     got a gradient pre-paint, a flat repaint, and a picker pre-selecting the one they did not
+     have. All three are asserted here now, which is what the rule actually asks for. */
+  ok(/if\(g!=='flat'&&g!=='gradient'\)g='flat';/.test(rdF('src/shells/chat.html'))
+    && /if \(gr !== 'flat' && gr !== 'gradient'\) gr = 'flat';/.test(rdF('src/shells/chat.html'))
+    && /let chatGround = 'flat';/.test(rdF('src/shells/settings.html')),
+    '★★ #835: SOLID is the light default on every platform, and ALL THREE ladders say so — chat.html\'s pre-paint script, chat.html\'s live re-resolve, and settings.html\'s readChatPrefs (the #690 three-ladder rule, asserted over three ladders for the first time). Superseded: gradient default-ON everywhere');
   /* ★ Session J re-base (Damir 2026-09-02): the card no longer follows the ground — white + lift in light, midnight + lift in dark, no edge in either. */
   ok(/\.c-sysnotice__card \{[^}]*background: #ffffff;\s*box-shadow: var\(--elevation-2\);/.test(stripCssComments(rdF('src/styles/components/system-notice.css')).slice(0, 4000)),
     '★ 4 → Session J: the secure-notice card is WHITE + --elevation-2 (Damir: "no border, white with elevation"). Superseded: the card followed the ground into its family (#E4E1E6, −3.74 ΔL*)');
@@ -25819,11 +25880,17 @@ console.log('★★ Session O — the #46 loop over Sessions M + N');
      unconditional append (#771). */
   {
     const ss = njsO(rdO('src/components/settings-screens.js'));
+    /* ★ #855 re-base: the guard WIDENED (`isLight && CHAT_GROUNDS.length > 1`) when the
+       gradient option was retired, so the pin asserts the SHAPE — created inside a guard
+       that includes isLight, appended only when it exists — rather than the exact condition.
+       The defect it guards is unchanged and is about the create/append pair, not about which
+       terms are in the test; pinning the literal would have to be re-edited every time the
+       guard grows a term, which is how a pin ends up "fixed" by spelling. */
     ok(/let groundSec = null;/.test(ss)
-      && /if \(isLight\) \{\s*groundSec = document\.createElement\('div'\);/.test(ss)
+      && /if \(isLight[^)]*\) \{\s*groundSec = document\.createElement\('div'\);/.test(ss)
       && /body\.append\(sizeSec, styleSec\);\s*if \(groundSec\) body\.append\(groundSec\);/.test(ss)
       && !/body\.append\(sizeSec, styleSec, groundSec\)/.test(ss),
-      '★★ Session O ⑥: the Colour section is CREATED inside `if (isLight)` and appended only when it exists — the unconditional create+append shipped an empty section element into dark, and CSS cannot hide a card it has no way to distinguish');
+      '★★ Session O ⑥: the Colour section is CREATED inside the isLight guard and appended only when it exists — the unconditional create+append shipped an empty section element into dark, and CSS cannot hide a card it has no way to distinguish. ⓘ #855 widened that guard to `isLight && CHAT_GROUNDS.length > 1`, so the row is absent in BOTH themes now; the create/append shape is what this asserts');
   }
 
   const domO = await load('settings.html');
@@ -25835,9 +25902,9 @@ console.log('★★ Session O — the #46 loop over Sessions M + N');
     deO.setAttribute('data-theme', 'dark');
     const apD = WO.Spixi.createChatAppearance({ isDesktop: false });
     if (prev === null) deO.removeAttribute('data-theme'); else deO.setAttribute('data-theme', prev);
-    ok(apL.querySelectorAll('.c-settings-appearance__groundsec').length === 1
+    ok(apL.querySelectorAll('.c-settings-appearance__groundsec').length === 0
       && apD.querySelectorAll('.c-settings-appearance__groundsec').length === 0,
-      '★★ Session O ⑥ (the DOM half): the Colour SECTION NODE exists in light and does not exist in dark — got ' + apL.querySelectorAll('.c-settings-appearance__groundsec').length + ' / ' + apD.querySelectorAll('.c-settings-appearance__groundsec').length + '. A source pin cannot see an empty element; this is the pin that fails if the create moves back outside the guard');
+      '★★ Session O ⑥ → #855 (the DOM half): the Colour SECTION NODE now exists in NEITHER theme — the gradient option is retired, so the light branch takes the same guard the dark one does. ⚠ Session O found this by RENDERING: an empty 8px card was painted in dark because the section was created unconditionally and only its CONTENT was gated. That failure mode is what this pin still guards, and it is why the assertion is on the section NODE and not on the row');
 
     /* ═══ ⑬ THE PRESENT SIGNAL, BEHAVIOURALLY (auditor C NIT-1) ═══
        Every other painted pin reads text. This one drives the real bundle export: latched
@@ -31571,7 +31638,7 @@ console.log('\n— handover gate: the third pin pass (loop C repairs · the thre
   ok(!!addRow54 && !!panel54 && !sentC.includes('ixian:newcontact') && !!pickerEl54 && pickerEl54.hidden,
     '★★ GATE 54 (a) ADD CONTACT is in-shell: the picker action mounted .c-contacts-add IN THIS DOCUMENT (' + !!panel54
     + ') and sent NO ixian:newcontact (' + JSON.stringify(sentC) + '), with the picker hidden-but-mounted so back restores it ('
-    + (pickerEl54 ? pickerEl54.hidden : 'no picker') + '). That verb pushed ContactNewPage and its own WebView — the 130–230 ms cold boot #803 measured, and the stutter Damir reported twice');
+    + (pickerEl54 ? pickerEl54.hidden : 'no picker') + '). That verb pushed ContactNewPage and its own WebView — the 130–230 ms cold boot #803 measured, and the stutter Damir reported twice. ⓘ #836 narrowed this clause: it is now the NO-PANE arm, and this mount passes no paneAvailable at all — which is also the fail-safe default, so an absent or late signal degrades to exactly this behaviour');
 
   /* (b) the verdict must reach the button. The standalone page cannot do this: it answers
      a rejection with a native alert and NO push, which is why contact_new.html arms a
@@ -31595,6 +31662,33 @@ console.log('\n— handover gate: the third pin pass (loop C repairs · the thre
     '★ GATE 54 (b) the REQUEST round-trips and its verdict resolves the button: Send emitted ixian:request: (' + sendVerb54
     + ') and onRequestResult("1") closed the panel (' + closedOnSuccess54
     + '). The standalone page answers a rejection with a native alert and no push at all, so contact_new.html arms a 6-second timer and guesses "If nothing happened…" — that wedge was logged as an owed BE fix and hosting the screen here is what pays it');
+
+  /* ★★ (a2) #836 / AND-41 — THE OTHER ARM
+     ⚠ PLACED AFTER (b) ON PURPOSE: this clause mounts a SECOND picker into the same
+     document, and when it FAILS it leaves a .c-contacts-add behind — which is exactly the
+     node (b) queries to prove the panel closed. Run first, a real (a2) failure dragged (b)
+     red with it and the run reported two defects where there is one., AND IT IS THE ONE DAMIR REPORTED. #827 removed
+     the page push and took the #256 M7 desktop routing with it: "add app on windows no
+     longer opens in pane". The fix is a fork, not a revert — the cold boot is what makes
+     the push wrong on a phone, and the detail column is what makes it right on a desktop.
+     So this clause is the exact inverse of (a) on the SAME mount, and the pair is the
+     assertion: either alone would pass on code that ignored the signal entirely. */
+  const sentP = [];
+  S54.mountContacts({
+    host: w54.document.body, bridge: { send: (v) => sentP.push(v) }, strings: {},
+    purpose: 'start', getRoster: () => [{ address: 'BBBB2222', name: 'Bo' }], onClose: () => {},
+    paneAvailable: () => true,
+  });
+  const addRowsP = [...w54.document.querySelectorAll('button, [role="button"]')]
+    .filter((r) => /add contact/i.test(r.textContent || ''));
+  const addRowP = addRowsP[addRowsP.length - 1];
+  const panelsBeforeP = w54.document.querySelectorAll('.c-contacts-add').length;
+  if (addRowP) addRowP.click();
+  const panelsAfterP = w54.document.querySelectorAll('.c-contacts-add').length;
+  ok(!!addRowP && sentP.includes('ixian:newcontact') && panelsAfterP === panelsBeforeP,
+    '★★ GATE 54 (a2) WITH A DETAIL PANE ON SCREEN, ADD CONTACT ASKS FOR THE PAGE — sent=' + JSON.stringify(sentP)
+    + ' and no new .c-contacts-add was mounted (' + (panelsAfterP === panelsBeforeP)
+    + '). `paneAvailable` is a GETTER because the window can be resized while this takeover is open, so the state is read when the row is tapped and not snapshotted at mount. Nothing closes here on purpose: the form lands in a DIFFERENT column, which is the pre-#827 behaviour Damir is asking for back');
 
   /* (c) ADD APP — and the scan verb is the subtle half. */
   const sentA = [];
@@ -31624,8 +31718,53 @@ console.log('\n— handover gate: the third pin pass (loop C repairs · the thre
 
   /* (d) the shell's own grab must match the component, or loading silently never clears. */
   const homeSrc54 = stripCode(readFileSync(join(root, 'src/shells/home.html'), 'utf8'));
-  ok(/\.c-apps-add__field \.c-button/.test(homeSrc54) && /openAppsAdd/.test(homeSrc54) && !/bridge\.send\('ixian:newapp'\)/.test(homeSrc54),
-    '★ GATE 54 (d) home.html grabs the Get-app button by the SAME selector the component builds, mounts openAppsAdd, and no longer sends ixian:newapp anywhere — a selector drift here leaves the button spinning for ever with nothing to clear it');
+  /* ⚠ #836 CHANGED THIS CLAUSE'S CONTRACT. It used to assert that `ixian:newapp` appears
+     NOWHERE — correct while #827 had removed the push outright, and wrong now that the
+     verb is the desktop arm of a fork. A bare absence test would have to be deleted; what
+     replaces it is stricter, not weaker: the send must exist EXACTLY ONCE, inside
+     openAppsAdd, guarded by paneAvailable, and the takeover must still be there after it.
+     `openAppsAdd` is shell-internal (not a bundle export), so this arm cannot be driven in
+     jsdom the way (a2) drives its twin — the property is asserted at the source instead,
+     and its shape is pinned rather than its spelling. */
+  const addFnStart54 = homeSrc54.indexOf('function openAppsAdd()');
+  const addFn54 = addFnStart54 >= 0 ? homeSrc54.slice(addFnStart54, addFnStart54 + 1200) : '';
+  const guarded54 = /if \(paneAvailable\) \{ bridge\.send\('ixian:newapp'\); return; \}/.test(addFn54);
+  const onceOnly54 = (homeSrc54.match(/bridge\.send\('ixian:newapp'\)/g) || []).length === 1;
+  const takeoverKept54 = /appsAddTakeover/.test(addFn54) && /wallet-takeover__body/.test(homeSrc54);
+  ok(/\.c-apps-add__field \.c-button/.test(homeSrc54) && /openAppsAdd/.test(homeSrc54)
+     && guarded54 && onceOnly54 && takeoverKept54,
+    '★ GATE 54 (d) ADD APP FORKS ON THE PANE, AND ONLY THERE — the verb is guarded inside openAppsAdd (' + guarded54
+    + '), appears exactly once in the shell (' + onceOnly54 + '), and the in-shell takeover survives after it (' + takeoverKept54
+    + '). home.html must also still grab the Get-app button by the SAME selector the component builds, or the button spins for ever with nothing to clear it');
+
+  /* ★★ (e) #836 — THE HALF THAT LIVES IN C#, AND IT WAS UNPINNED UNTIL A MUTATION SAID SO.
+     Removing the resize-time push left every clause above GREEN: the shell forks correctly
+     on whatever it was last told, and (a)/(a2) supply that value themselves. On a device
+     the consequence is the regression in reverse — widen or narrow the window and the
+     shell acts on a stale answer, pushing a page into a window with no detail column
+     (a full-window cold boot) or taking over next to an empty pane.
+     THREE THINGS, and each one alone is insufficient: the signal must be read from
+     `rightContent.IsVisible` (NOT a platform constant — that is the whole reason
+     `data-desktop` could not answer this); it must be pushed from the size handler, which
+     is the only place that value changes; and it must be re-armed on every fresh document,
+     because the latch that suppresses repeats would otherwise suppress the FIRST push to a
+     shell that has never heard it — the #189/#357 stale-latch class. */
+  const hp54 = stripCode(readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8'));
+  const pusher54 = hp54.slice(hp54.indexOf('private void pushPaneAvailable()'),
+    hp54.indexOf('private void OnPageSizeChanged'));
+  const readsLiveState54 = /rightContent\.IsVisible \? 1 : 0/.test(pusher54)
+    && /sendUiCommand\(this, "setPaneAvailable"/.test(pusher54);
+  const sizeStart54 = hp54.indexOf('private void OnPageSizeChanged');
+  const sizeBody54 = sizeStart54 >= 0 ? hp54.slice(sizeStart54, hp54.indexOf('private void updateInfoPaneWidth')) : '';
+  const pushedOnResize54 = /pushPaneAvailable\(\);/.test(sizeBody54);
+  const loadStart54 = hp54.indexOf('private void onLoaded()');
+  const loadBody54 = loadStart54 >= 0 ? hp54.slice(loadStart54, loadStart54 + 4000) : '';
+  const rearmedOnLoad54 = /paneAvailablePushed = -1;[\s\S]{0,120}?pushPaneAvailable\(\);/.test(loadBody54);
+  ok(readsLiveState54 && pushedOnResize54 && rearmedOnLoad54,
+    '★★ GATE 54 (e) C# TELLS THE SHELL, LIVE — the value is read from rightContent.IsVisible ('
+    + readsLiveState54 + '), pushed from OnPageSizeChanged (' + pushedOnResize54
+    + '), and the change-latch is re-armed for every fresh document before the load-time push (' + rearmedOnLoad54
+    + '). The shell CANNOT compute this: `data-desktop` is the #228 platform flag and is constant across resize, so a narrow desktop window has it set with no pane on screen. Deleting the resize push leaves clauses (a)–(d) green and the app wrong on exactly the surface #836 came from');
   }
 }
 
@@ -31745,13 +31884,559 @@ console.log('\n— handover gate: the third pin pass (loop C repairs · the thre
     + '. The order is the assertion, not the presence: a Cancelled check added AFTER the showUrlError push reads as a fix and changes nothing. The shell sets no loading state for ixian:selectAppFile and has no page to pop, so silence is the whole correct answer there');
 }
 
+/* ══ GATE 57 — THE TAKEOVER INSET IS A RULE, NOT A LIST OF THE COMPONENTS THAT
+      EXISTED THE DAY IT WAS WRITTEN ═══════════════════════════════════════════
+   ★★ THE DEFECT, TWICE (#560 → #838). Damir, 2026-08-25: "the money screens sat at
+   32px from each edge". home.html's `.wallet-takeover__body` pads --spacing-16 and the
+   component mounted into it pads --spacing-16 of its own, so the panel sits at 32 while
+   the Contacts takeover — which mounts .c-contacts with no padding host — sits at 16.
+   #560 fixed it, and wrote the invariant in its own comment: "a component hosted in this
+   body does not pay the inset twice". Then it ENFORCED that invariant as
+   `> .c-wallet-send, > .c-wallet-receive` — the two components that were mounted there
+   that day. #827 mounted a third (createAppsAdd, which pads 16), and Damir reported the
+   identical defect on its first walk: "the add app subscreen has too much padding left
+   right… looks weird".
+
+   ★ #798 IN A STYLESHEET. A comment that generalises beside a rule that enumerates is
+   the gap, and the gap is invisible until someone adds the next element. So the selector
+   is now the invariant (`> *` — every direct child of that body IS a hosted component
+   root; each mount site appends exactly one), and this gate DERIVES the mounted set from
+   what home.html actually appends rather than from any list written here.
+
+   ⚠ CLAUSE (a) IS THE ONE THAT MATTERS, AND IT IS WHY (b) EXISTS. A derivation that
+   silently returns nothing makes "every mounted root is covered" vacuously true — the
+   gate would go green on a broken parse and on a re-narrowed rule alike. (b) pins the
+   derivation itself: it must resolve every mount site to a real component root class. */
+{
+  const homeSrc57 = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
+
+  /* DERIVE: every `body.className = 'wallet-takeover__body …'` site, then the ONE element
+     appended into that body before it is handed to the cover. Read through body.append —
+     not through "any create*() in the window" — so a factory merely NAMED in a comment
+     cannot enter the set. */
+  const mounts57 = [];
+  const lines57 = homeSrc57.split('\n');
+  for (let i = 0; i < lines57.length; i += 1) {
+    if (!/className\s*=\s*'wallet-takeover__body/.test(lines57[i])) continue;
+    let win = '';
+    let closed = false;
+    /* ⚠ THE WINDOW IS BOUNDED BY THE NEXT MOUNT SITE, NOT ONLY BY 400 LINES. A mutation
+       that removed one site's `over.append(body)` closer SURVIVED the first draft of this
+       gate: the scan ran on into the NEXT takeover, borrowed ITS closer, and reported the
+       site as resolved. A per-site window cannot borrow another site's evidence, so a
+       missing closer is now unresolvable — and a factory read out of one block can never
+       be attributed to a different one. */
+    for (let j = i; j < Math.min(i + 400, lines57.length); j += 1) {
+      if (j > i && /className\s*=\s*'wallet-takeover__body/.test(lines57[j])) break;
+      win += lines57[j] + '\n';
+      if (/\bover\.append\(\s*body\s*\)/.test(lines57[j])) { closed = true; break; }
+    }
+    const app = win.match(/\bbody\.append\(\s*([A-Za-z_$][\w$]*)/);
+    let factory = null;
+    if (app) {
+      const arg = app[1];
+      if (/^create[A-Z]/.test(arg)) factory = arg;                       // body.append(createX({…}))
+      else {                                                             // body.append(el) — resolve el
+        const asg = win.match(new RegExp('\\b' + arg + '\\s*=\\s*(create[A-Z]\\w*)\\s*\\('));
+        if (asg) factory = asg[1];
+      }
+    }
+    mounts57.push({ line: i + 1, closed, factory });
+  }
+
+  /* factory → component file → root class. The root is the first className assignment in
+     the module that is a `c-` class with no BEM tail; the repo's components are uniform
+     on this (`el.className = 'c-apps-add'` at the top of the factory). */
+  const rootClassOf57 = (factory) => {
+    const kebab = factory.replace(/^create/, '').replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+    const file = join(root, 'src/components/' + kebab + '.js');
+    if (!existsSync(file)) return null;
+    const m = readFileSync(file, 'utf8').match(/className\s*=\s*'(c-[a-z0-9-]+)'/);
+    return m ? m[1] : null;
+  };
+  const derived57 = mounts57.map((m) => ({ ...m, root: m.factory ? rootClassOf57(m.factory) : null }));
+
+  /* The covered set, read out of the stylesheet: every rule that zeroes padding under
+     that body. `> *` covers everything by construction; anything else covers the classes
+     it names, which is exactly the shape #560 shipped and #838 had to widen. */
+  const style57 = (homeSrc57.match(/<style[^>]*>([\s\S]*?)<\/style>/g) || []).join('\n');
+  let universal57 = false;
+  const namedCover57 = new Set();
+  style57.replace(/\/\*[\s\S]*?\*\//g, ' ').split('}').forEach((chunk) => {
+    const at = chunk.lastIndexOf('{');
+    if (at < 0) return;
+    const sel = chunk.slice(0, at);
+    const decl = chunk.slice(at + 1);
+    if (!/padding\s*:\s*0\s*(;|$)/.test(decl)) return;
+    sel.split(',').forEach((one) => {
+      const m = one.match(/\.wallet-takeover__body\s*>\s*(\*|\.[a-z0-9_-]+)/i);
+      if (!m) return;
+      if (m[1] === '*') universal57 = true; else namedCover57.add(m[1]);
+    });
+  });
+
+  const uncovered57 = derived57.filter((d) => d.root && !universal57 && !namedCover57.has('.' + d.root.replace(/^\./, '')));
+  ok(derived57.length > 0 && uncovered57.length === 0,
+    '★★ GATE 57 (a) EVERY COMPONENT home.html MOUNTS INTO .wallet-takeover__body HAS ITS INNER PADDING ZEROED THERE — mounted='
+    + JSON.stringify(derived57.map((d) => d.factory + '→' + d.root))
+    + ', covered=' + (universal57 ? '> * (the invariant itself)' : JSON.stringify([...namedCover57]))
+    + (uncovered57.length ? ', UNCOVERED=' + JSON.stringify(uncovered57.map((d) => d.root)) : '')
+    + '. This is #560 fixed as a rule instead of as a list: that fix named the two components mounted that day, #827 mounted a third, and Damir reported the same 32px inset on its first walk (#838). The set is derived from the mount sites, so narrowing the selector back to an enumeration fails HERE rather than on a device');
+
+  const unresolved57 = derived57.filter((d) => !d.closed || !d.factory || !d.root);
+  ok(derived57.length >= 3 && unresolved57.length === 0,
+    '★★ GATE 57 (b) THE DERIVATION RESOLVED, so clause (a) is not vacuous — ' + derived57.length
+    + ' mount site(s), each closed by over.append(body) and each resolved through body.append to a component root: '
+    + JSON.stringify(derived57.map((d) => 'L' + d.line + ':' + (d.factory || '?') + '→' + (d.root || '?')))
+    + (unresolved57.length ? ' · UNRESOLVED=' + JSON.stringify(unresolved57.map((d) => 'L' + d.line)) : '')
+    + '. A derivation that returns nothing makes (a) trivially true, which would go green on a broken parse AND on a re-narrowed rule — so the empty set is a failure here, not a pass');
+}
+
+/* ══ GATE 58 — A CHIP CANNOT CARRY ITS REMOVE × OFF THE ROW ═════════════════════
+   ★★ THE DEFECT (#841 / AND-44, Damir's screenshot in group create): a member chip
+   labelled "Androoo 🗻🔥 Androoo Androoo Androoootururururuurru" ran to the screen edge
+   with its × clipped away — so that member could not be removed. `.c-contacts-group__chips`
+   wraps per CHIP, and nothing bounded the chip, so one unbreakable network-supplied nick
+   made a single flex item wider than the row (#140 family).
+
+   ★ THE THREE DECLARATIONS ARE ONE FIX, and the least obvious is the one that makes the
+   other two work: a flex item's automatic minimum size is its MIN-CONTENT and min-width
+   beats max-width, so `max-width: 100%` alone is INERT against exactly the unbreakable
+   label that causes this. `min-width: 0` on the chip, the cap on the chip, and the shrink
+   discipline on the label — remove any one and the row overflows again while the CSS
+   still reads as fixed. That is why this gate asserts the properties rather than the rule.
+
+   ★★ AND CLAUSE (c) IS THE OPPOSITE RULE, DERIVED. Two chip containers SCROLL
+   horizontally on purpose (.c-chats-header__filters, .c-apps-discover__cats) and must NOT
+   cap — a cap would clamp each chip to the visible width instead of letting the row
+   extend. They opt out at their own definitions. #838's lesson decided the DIRECTION:
+   capping is the default and scrolling opts out, so a new wrapping container is safe for
+   free and a new scroller that forgets shows a clipped label rather than an unreachable
+   control. An opt-out must therefore JUSTIFY itself — the container it names has to
+   actually declare a horizontal scroller and must not wrap. A tidy-up that "makes the
+   families consistent" by opting a wrapping row out fails here rather than on a device. */
+{
+  const chipCss58 = readFileSync(join(root, 'src/styles/components/chip.css'), 'utf8');
+  const chipBase58 = chipCss58.slice(chipCss58.indexOf('.c-chip {'), chipCss58.indexOf('.c-chip::after'));
+  const labelRule58 = (chipCss58.match(/\.c-chip__label\s*\{[^}]*\}/g) || []).join(' ');
+  const dismiss58 = /\.c-chip__icon,\s*\.c-chip__dismiss\s*\{[^}]*flex:\s*none/.test(chipCss58);
+
+  const canShrink58 = /min-width:\s*0\s*;/.test(chipBase58);
+  const capped58 = /max-width:\s*100%\s*;/.test(chipBase58);
+  const nowrap58 = /white-space:\s*nowrap\s*;/.test(chipBase58);
+  const labelShrinks58 = /min-width:\s*0/.test(labelRule58) && /overflow:\s*hidden/.test(labelRule58)
+    && /text-overflow:\s*ellipsis/.test(labelRule58);
+  ok(canShrink58 && capped58 && nowrap58 && labelShrinks58 && dismiss58,
+    '★★ GATE 58 (a) THE CHIP CAPS AT ITS ROW AND THE LABEL IS WHAT GIVES — chip min-width:0=' + canShrink58
+    + ' max-width:100%=' + capped58 + ' nowrap=' + nowrap58 + ' · label shrinks+ellipsizes=' + labelShrinks58
+    + ' · the × keeps flex:none=' + dismiss58
+    + '. All five are load-bearing and the first is the one that reads as redundant: a flex item\'s automatic minimum is its min-content and min-width beats max-width, so deleting `min-width: 0` leaves a cap that cannot bind and CSS that still reads as fixed. Without flex:none on the dismiss glyph the cap would squash the × instead of the label — which is the original defect wearing a different shape');
+
+  /* ★★ (b) — DERIVED IN BOTH DIRECTIONS, and the second direction is the one that paid.
+     The first cut of this clause only checked that existing opt-outs were JUSTIFIED. That
+     catches a wrapping row borrowing the exemption and is blind to the opposite: a
+     chip-holding SCROLLER that never opted out at all. Running the derivation found
+     exactly that — `.c-contacts__kinds` (the People/Groups row) scrolls horizontally and
+     was silently capped by the new default. #798 twice over: the set of chip containers is
+     read out of the COMPONENTS (which element actually receives a createChip result), the
+     set of scrollers is read out of the STYLESHEETS, and the two must agree. */
+  const cssDir58 = join(root, 'src/styles/components');
+  const jsDir58 = join(root, 'src/components');
+
+  /* which element does a chip actually get appended to? Resolve `X.append(<chip>)` — both
+     the direct call and a variable/array whose initialiser builds chips — back to X's own
+     className. */
+  const chipContainers58 = new Map();
+  readdirSync(jsDir58).filter((f) => f.endsWith('.js')).forEach((f) => {
+    const t = stripCode(readFileSync(join(jsDir58, f), 'utf8'));
+    if (!t.includes('createChip(')) return;
+    const chipVars = new Set();
+    for (const m of t.matchAll(/(?:const|let|var)\s+(\w+)\s*=\s*([\s\S]{0,900}?);\n/g)) {
+      if (m[2].includes('createChip(')) chipVars.add(m[1]);
+    }
+    for (const m of t.matchAll(/(\w+)\.append\(([^;]*?)\)/g)) {
+      const cont = m[1]; const arg = m[2];
+      const names = new Set((arg.match(/\w+/g) || []));
+      if (!arg.includes('createChip') && ![...chipVars].some((v) => names.has(v))) continue;
+      const cn = new RegExp(cont + "\\.className\\s*=\\s*'([\\w-]+)'").exec(t);
+      if (cn) chipContainers58.set('.' + cn[1], f);
+    }
+  });
+
+  /* the stylesheet's own answers: does this container scroll, and does it opt out? */
+  const cssAll58 = readdirSync(cssDir58).filter((f) => f.endsWith('.css'))
+    .map((f) => [f, readFileSync(join(cssDir58, f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, ' ')]);
+  const declOf58 = (sel) => {
+    for (const [, txt] of cssAll58) {
+      const m = new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{([^}]*)\\}').exec(txt);
+      if (m) return m[1];
+    }
+    return '';
+  };
+  const hasOptOut58 = (sel) => cssAll58.some(([, txt]) =>
+    new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*>\\s*\\.c-chip\\s*\\{[^}]*max-width:\\s*none').test(txt));
+
+  const rows58 = [...chipContainers58.keys()].sort().map((sel) => {
+    const decl = declOf58(sel);
+    return { sel, scrolls: /overflow-x:\s*(auto|scroll)/.test(decl), optOut: hasOptOut58(sel) };
+  });
+  const disagree58 = rows58.filter((r) => r.scrolls !== r.optOut);
+  ok(rows58.length >= 6 && disagree58.length === 0,
+    '★★ GATE 58 (b) EVERY CHIP CONTAINER AGREES WITH ITSELF — ' + rows58.length
+    + ' container(s) derived from the components: ' + JSON.stringify(rows58.map((r) => r.sel + (r.scrolls ? ' scrolls' : ' wraps') + (r.optOut ? ' +optout' : '')))
+    + (disagree58.length ? ' · DISAGREE=' + JSON.stringify(disagree58.map((r) => r.sel + (r.scrolls ? ' SCROLLS but does not opt out' : ' WRAPS but opts out'))) : '')
+    + '. A scroller must opt out (a cap would clamp its chips to the visible width instead of letting the row extend); a wrapping row must NOT (that is #841 re-opened for that row). Both directions are checked because the first version of this clause only checked one, and the direction it skipped is where the real miss was: .c-contacts__kinds scrolls, held chips, and had no opt-out');
+
+}
+
+/* ══ GATE 59 — ONE LABEL, TWO OWNERS: THE KEY IS THE FIX ════════════════════════
+   ★★ THE DEFECT (#842, Damir): "VAŠ SPIXI ID" on somebody else's contact page —
+   "even thought its contacts id, so it should just say Spixi ID not VAŠ or YOURS in any
+   language." One key, `spixiAddress`, was rendered from TWO sites with opposite
+   ownership: settings-shell.js (Account → your own address, where a possessive is
+   natural) and chat-info.js (a CONTACT's address, where it is false).
+
+   ★ AND ENGLISH IS WHY IT SURVIVED. "Spixi address" is neutral, so there is nothing in
+   the source string to translate wrongly and no reviewer of the English could ever see
+   it. Three of twelve translators, given one key and no context, picked the possessive —
+   sl "Vaš Spixi ID", id "Alamat Spixi Anda", lt "Mano Spixi adresas". Nine did not. The
+   signal is OWNERSHIP, and ownership lives at the call site, so no i18n gate could see it
+   either: not i18n-lint, not the pseudo-locale sweep, not `--check`.
+
+   ★★ SO THE FIX IS NOT THE WORDING. Re-wording three locales fixes today's screen and
+   leaves the ambiguity that produced it. `contactSpixiAddress` names its owner, so there
+   is nothing left for a translator to guess — and Account KEEPS `spixiAddress` and keeps
+   its possessive, which is correct there.
+
+   ⚠ CLAUSE (b) IS THE ONE THAT WOULD SILENTLY REGRESS. The new key's English is IDENTICAL
+   to the old one's, so build-locales' reuse-first recipe maps it to the same legacy id —
+   `address-title`, whose value IS the defect. It is held out in NO_REUSE, and deleting
+   that one line puts the possessive back in three languages with every gate still green.
+   That is asserted here by COMPARING the built value against the draft and the legacy
+   value, not by looking for possessive words: a wordlist would be an author's list of the
+   three pronouns that happened to come up (#798), and it could not see a fourth. */
+{
+  const LANGS59 = ['de-de', 'es-co', 'fr-fr', 'sr-sp', 'sl-si', 'ru-ru', 'pt-br',
+    'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp'];
+
+  /* (a) — each key is read from exactly one place. Derived by sweeping the sources, so a
+     future third caller of either key is a red row here rather than a translator's guess. */
+  const srcFiles59 = [];
+  ['src/components', 'src/shells'].forEach((d) => {
+    readdirSync(join(root, d)).forEach((f) => {
+      if (/\.(js|html)$/.test(f)) srcFiles59.push([d + '/' + f, stripCode(readFileSync(join(root, d, f), 'utf8'))]);
+    });
+  });
+  const callersOf59 = (key) => srcFiles59
+    .filter(([, txt]) => new RegExp('strings\\.' + key + '\\b').test(txt))
+    .map(([f]) => f);
+  const mine59 = callersOf59('spixiAddress');
+  const theirs59 = callersOf59('contactSpixiAddress');
+  ok(mine59.length === 1 && /settings-shell\.js$/.test(mine59[0])
+    && theirs59.length === 1 && /chat-info\.js$/.test(theirs59[0]),
+    '★★ GATE 59 (a) EACH LABEL HAS ONE OWNER — spixiAddress read by ' + JSON.stringify(mine59)
+    + ' (Account: the address IS yours) and contactSpixiAddress by ' + JSON.stringify(theirs59)
+    + ' (chat-info: it is theirs). The defect was ONE key on both, and it was invisible in English because "Spixi address" is neutral — the signal is ownership, which lives at the call site, so no i18n gate could reach it. A second caller appearing on either key re-opens exactly that');
+
+  /* (b) — the built value must come from the DRAFT, never from legacy reuse. The three
+     locales where those two differ are the whole test; the nine where they agree prove
+     nothing, and the gate says which is which rather than pretending twelve rows of
+     evidence. */
+  const legacyOf59 = (code) => {
+    const p = join(root, 'Spixi/Resources/Raw/lang', code + '.txt');
+    if (!existsSync(p)) return null;
+    const m = readFileSync(p, 'utf8').split('\n').find((l) => l.trim().startsWith('address-title'));
+    return m ? m.slice(m.indexOf('=') + 1).trim() : null;
+  };
+  const rows59 = LANGS59.map((code) => {
+    const draft = JSON.parse(readFileSync(join(root, 'src/strings/draft', code + '.json'), 'utf8')).contactSpixiAddress;
+    const built = (readFileSync(join(root, 'src/strings', code + '.js'), 'utf8')
+      .match(/\n\s*contactSpixiAddress: "([^"]*)"/) || [])[1];
+    const legacy = legacyOf59(code);
+    return { code, draft, built, legacy, decisive: legacy !== draft };
+  });
+  const wrong59 = rows59.filter((r) => !r.draft || r.built !== r.draft);
+  const decisive59 = rows59.filter((r) => r.decisive);
+  ok(rows59.length === 12 && wrong59.length === 0 && decisive59.length >= 3,
+    '★★ GATE 59 (b) THE CONTACT LABEL IS BUILT FROM ITS DRAFT, NOT FROM legacy address-title — '
+    + decisive59.length + ' of 12 locales DECIDE this (the ones where the two differ): '
+    + JSON.stringify(decisive59.map((r) => r.code + ': draft "' + r.draft + '" vs legacy "' + r.legacy + '"'))
+    + (wrong59.length ? ' · MISMATCHED=' + JSON.stringify(wrong59.map((r) => r.code + ' built "' + r.built + '"')) : '')
+    + '. Dropping contactSpixiAddress from build-locales NO_REUSE makes the reuse-first recipe match its English to that legacy id and puts "Vaš Spixi ID" back on a contact page in three languages — with extract-strings, build-locales --check, i18n-lint and the pseudo sweep all still green, because every one of them is about COVERAGE and this is about ownership');
+
+  const noReuse59 = stripCode(readFileSync(join(root, 'scripts/build-locales.mjs'), 'utf8'));
+  const enUS59 = JSON.parse(readFileSync(join(root, 'src/strings/en-us.json'), 'utf8'));
+  ok(/NO_REUSE = new Set\(\[[\s\S]*?'contactSpixiAddress'[\s\S]*?\]\)/.test(noReuse59)
+    && enUS59.contactSpixiAddress === enUS59.spixiAddress,
+    '★ GATE 59 (c) THE HOLD-OUT IS STILL JUSTIFIED — contactSpixiAddress is in NO_REUSE and its English still collides with spixiAddress ("'
+    + enUS59.contactSpixiAddress + '" === "' + enUS59.spixiAddress
+    + '"). The collision is WHY the hold-out exists; this clause pairs them so that a later change to either English is re-read here instead of quietly making (b) untestable');
+}
+
+/* ══ GATE 60 — A DESTINATION NOBODY COULD REACH ═════════════════════════════════
+   ★★ THE DEFECT (#839 / AND-42, Damir's walk V1b): "no bvutton to view profile,... but
+   rest is pass". V1 — the CONTROL row, run beside it — passed: a bot-room member who is
+   not a contact does get the request. So the relation mechanism was live, and what a
+   CONTACT had was nowhere to go.
+
+   `member-sheet.js` gates its identity block on `relation === 'contact' && !!onViewContact`.
+   The prop was declared, read and invoked — and passed by NO production host. The second
+   half of that condition had been false since the prop was written, so the block, its
+   chevron and the destination behind them were dead code that read as a shipped feature.
+   ⚠ Only the DEMOS passed it, which is why every demo-driven check saw a working control.
+
+   ★ AND WIRING IT ALONE WOULD HAVE REPRODUCED THE REPORT. The handler lights up a
+   tappable header with a chevron; Damir looked for a BUTTON, which is what every other
+   action in this sheet is. Both halves ship, and both are pinned — (a) the affordance,
+   (b) the hosts — because either one alone is the same bug wearing the other's clothes.
+
+   ⚠ (c) IS THE HALF THAT LIVES IN C#. The verb had no answering host: `ixian:details` is
+   argument-less and means THIS conversation, so a member needed an address-keyed route.
+   It reuses ContactNewPage's verb and handler shape, and its whole contract is a LOOKUP —
+   an address that is not already a friend must resolve to null and do nothing. */
+{
+  const ms60 = stripCode(readFileSync(join(root, 'src/components/member-sheet.js'), 'utf8'));
+  const btn60 = /if \(canView\) \{[\s\S]{0,400}?label: strings\.viewProfile[\s\S]{0,300}?onClick: goToProfile/.test(ms60);
+  const oneDest60 = (ms60.match(/goToProfile/g) || []).length >= 3;   // definition + identity block + button
+  ok(btn60 && oneDest60 && /const canView = relation === 'contact' && !!onViewContact;/.test(ms60),
+    '★★ GATE 60 (a) THE DESTINATION HAS A VISIBLE CONTROL — a View profile button renders whenever the identity block is live ('
+    + btn60 + '), and both routes call ONE closure (' + oneDest60
+    + '). The gate is on `canView`, so the button and the header affordance can never disagree about whether there is somewhere to go — and it still requires relation \'contact\', so a stranger is never offered a page that does not exist for them');
+
+  /* (b) — DERIVED: every production shell that opens a member sheet, directly or through
+     chat-info, must supply the handler. Demos are excluded ON PURPOSE — they passed it all
+     along, which is exactly why this defect survived every demo-driven check. */
+  const shellDir60 = join(root, 'src/shells');
+  const hosts60 = readdirSync(shellDir60).filter((f) => f.endsWith('.html')).map((f) => {
+    const txt = stripCode(readFileSync(join(shellDir60, f), 'utf8'));
+    return {
+      file: f,
+      opens: /openMemberSheet\(\{/.test(txt),
+      viaInfo: /createChatInfo\(\{/.test(txt),
+      passes: (txt.match(/onViewContact:/g) || []).length,
+    };
+  }).filter((h) => h.opens || h.viaInfo);
+  const chatHost60 = hosts60.find((h) => h.file === 'chat.html');
+  ok(!!chatHost60 && chatHost60.opens && chatHost60.viaInfo && chatHost60.passes >= 2,
+    '★★ GATE 60 (b) THE HOST ACTUALLY PASSES IT, ON BOTH ROUTES — chat.html opens the sheet directly (from a bubble) and through createChatInfo (from the roster), and supplies onViewContact '
+    + (chatHost60 ? chatHost60.passes : 0) + ' time(s). Shells that host a member sheet: '
+    + JSON.stringify(hosts60.map((h) => h.file + '[' + (h.opens ? 'direct' : '') + (h.viaInfo ? '+info' : '') + ':' + h.passes + ']'))
+    + '. A prop that only the DEMOS pass is the shape of this whole defect — the component looked wired from every angle except the shipped one');
+
+  /* ⚠ (b2) — THE SIBLING HOST IS NOT WIRED, AND THAT IS RECORDED RATHER THAN EXCLUDED.
+     This gate's own derivation found it: contact_details.html hosts the same sheet through
+     createChatInfo (group info → a member) and passes no handler, because its page has no
+     answering verb and ContactDetails makes no page pushes of its own — a route I could
+     not compile or exercise here, so #294 says it is not written blind. What makes the
+     absence SAFE is the component's gate: no handler → no button, no chevron, no tappable
+     header. The feature is missing there, not broken, and this clause pins that reading —
+     if the sheet ever grows an affordance that does not depend on `canView`, the unwired
+     host starts shipping a dead control and this row goes red. */
+  const cd60 = stripCode(readFileSync(join(root, 'src/shells/contact_details.html'), 'utf8'));
+  const cdUnwired60 = !/onViewContact:/.test(cd60);
+  /* brace-matched, not regex-shaped: find every `if (canView) {` block and require that
+     each mention of the button lives INSIDE one. A character window would only answer
+     "is it near a guard"; #771's costume. */
+  const canViewSpans60 = [];
+  for (let i = ms60.indexOf('if (canView)'); i >= 0; i = ms60.indexOf('if (canView)', i + 1)) {
+    let j = ms60.indexOf('{', i); let depth = 0;
+    for (; j < ms60.length; j += 1) {
+      if (ms60[j] === '{') depth += 1;
+      else if (ms60[j] === '}') { depth -= 1; if (depth === 0) break; }
+    }
+    canViewSpans60.push([i, j]);
+  }
+  const inGuard60 = (idx) => canViewSpans60.some(([a, b]) => idx > a && idx < b);
+  const viewMarks60 = [];
+  for (let i = ms60.indexOf('c-member__view'); i >= 0; i = ms60.indexOf('c-member__view', i + 1)) viewMarks60.push(i);
+  for (let i = ms60.indexOf('strings.viewProfile'); i >= 0; i = ms60.indexOf('strings.viewProfile', i + 1)) viewMarks60.push(i);
+  const affordanceGated60 = viewMarks60.length >= 2 && viewMarks60.every(inGuard60);
+  ok(cdUnwired60 === true && affordanceGated60,
+    '★ GATE 60 (b2) THE UNWIRED HOST DEGRADES TO NOTHING, NOT TO A DEAD BUTTON — contact_details.html passes no onViewContact ('
+    + cdUnwired60 + ') and every View-profile affordance sits inside the `canView` branch (' + affordanceGated60
+    + '). Group info therefore shows a member sheet with no profile route at all, which is honest; the follow-up is a verb on ContactDetails, whose pane logic (#247–#251) is not something to write without a device. ⚠ If this clause goes red because contact_details started passing the handler, that is GOOD news — delete the clause and extend (b) to both hosts');
+
+  const scp60 = stripCode(readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8'));
+  const branch60 = scp60.slice(scp60.indexOf('"ixian:viewcontact:"'), scp60.indexOf('"ixian:viewcontact:"') + 300);
+  const handler60 = scp60.slice(scp60.indexOf('private void onViewMemberContact'),
+    scp60.indexOf('private void onContactDetails'));
+  const lookupOnly60 = /FriendList\.getFriend\(new Address\(address\)\)/.test(handler60)
+    && /if \(known == null\) return;/.test(handler60)
+    && !/addFriend|sendContactRequest|new Friend\(/.test(handler60);
+  ok(/StartsWith\("ixian:viewcontact:", StringComparison\.Ordinal\)/.test(scp60)
+    && /onViewMemberContact\(current_url\.Substring\("ixian:viewcontact:"\.Length\)\)/.test(branch60)
+    && !!handler60 && lookupOnly60,
+    '★★ GATE 60 (c) THE VERB IS A LOOKUP AND NOTHING ELSE — the branch is anchored (StartsWith + Ordinal + the trailing colon) and the handler resolves the WebView-supplied address through FriendList.getFriend, returning on null ('
+    + lookupOnly60 + '). It creates no contact, sends nothing, and writes nothing; an address that is not already a friend is a silent no-op. That is the whole reason a WebView-supplied address is safe here, so the negative half of this clause is the load-bearing one');
+}
+
+/* ══ GATE 61 — THE APP DETAILS SCREEN REPORTS THE STORE, NOT THE ROUTE ══════════
+   ★★ THE DEFECT (#840 / AND-43, Damir): "i can always readd same app and it alwys shows
+   install despite it being installed already." `AppDetailsPage` sent the shell
+   `installing ? "false" : app_installed.ToString()` — and `installing` is TRUE for every
+   route that arrives from the ADD flow (a fetched URL, a picked file, an app invite in a
+   chat). So the screen was told the app was absent because of HOW YOU GOT THERE, while
+   `app_installed` — computed three lines above from `getInstalledApps()`, which is the
+   truth — was discarded.
+
+   ★ The override was harmless for the case it was written for (a genuinely new app is not
+   installed anyway, so forcing false changed nothing) and wrong for the only case where it
+   changed anything at all. That is why it survived: it is invisible except on a re-add.
+
+   ⚠ AND IT CHANGES WHICH SCREEN THE ADD FLOW ENDS ON, which is the half worth pinning.
+   `installed` drives the whole action area: true → compact Open pill + a quiet Uninstall
+   row and NO sticky Install bar. The install-confirm morph (loading → check → re-render)
+   starts at the Install button's onClick, so in that layout there is no control to start
+   it and no ctrl is ever latched — the morph is unreachable BY CONSTRUCTION rather than by
+   a guard someone has to remember. (b) pins that construction, because a future "always
+   render the Install bar, just disable it" would quietly put the morph back within reach. */
+{
+  const adp61 = stripCode(readFileSync(join(root, 'Spixi/Pages/MiniApps/AppDetailsPage.xaml.cs'), 'utf8'));
+  const initCall61 = adp61.slice(adp61.indexOf('sendUiCommand(this, "init"'), adp61.indexOf('updateScreen();'));
+  const truthful61 = /\n\s*app_installed\.ToString\(\),/.test(initCall61);
+  const noOverride61 = !/installing \?/.test(adp61);
+  const derivedFromStore61 = /bool app_installed = app_list\.ContainsKey\(appId\);/.test(adp61)
+    && /var app_list = Node\.MiniAppManager\.getInstalledApps\(\);/.test(adp61);
+  ok(truthful61 && noOverride61 && derivedFromStore61,
+    '★★ GATE 61 (a) THE `installed` ARGUMENT IS THE STORE\'S ANSWER — init sends app_installed unconditionally ('
+    + truthful61 + '), no route-dependent override survives anywhere in the page (' + noOverride61
+    + '), and the value still comes from MiniAppManager.getInstalledApps() (' + derivedFromStore61
+    + '). The negative clause is the one that matters: the bug was not a missing check, it was a deliberate ternary that discarded a correct value, so what has to stay gone is the OVERRIDE');
+
+  const ad61 = stripCode(readFileSync(join(root, 'src/components/apps-details.js'), 'utf8'));
+  const installBarBlock61 = ad61.slice(ad61.indexOf('if (app.installed) {', ad61.indexOf('actions —')));
+  const barIsElseOnly61 = /if \(app\.installed\) \{[\s\S]{0,1200}?\} else \{[\s\S]{0,600}?installBtn/.test(installBarBlock61);
+  const morphNeedsBtn61 = /export function (setInstalling|installMorph|startInstall)|const installBtn/.test(ad61)
+    && /installBtn/.test(ad61);
+  ok(barIsElseOnly61 && morphNeedsBtn61,
+    '★★ GATE 61 (b) AN INSTALLED APP HAS NO INSTALL CONTROL, SO THE CONFIRM MORPH CANNOT START — the sticky Install bar is built in the ELSE arm of `if (app.installed)` ('
+    + barIsElseOnly61 + ') and the morph is driven through that button (' + morphNeedsBtn61
+    + '). #840 routes the add flow into the installed layout for the first time, so this is now load-bearing where it used to be incidental: rendering the bar always and merely disabling it would put loading → check → "re-render as installed" back within reach of an app that is already installed');
+
+  ok(!/private bool installing/.test(adp61),
+    '★ GATE 61 (c) THE DEAD FLAG IS GONE — `installing` was the override\'s only input, so once the override went the field was assigned by both constructors and read by nobody: a CS0414 warning in the build and, worse, five lines that still read as live logic. The constructor PARAMETER is deliberately kept (eight positional call sites, in code that cannot be compiled where this was written) and says so at its declaration');
+}
+
+/* ══ GATE 62 — A RETIRED STYLE MUST FALL THROUGH, NOT RENDER NOTHING ═══════════
+   ★★ #835 (Damir, mid-run): "we will remove the dodole and just keep matrix and no pattern
+   canvas, and we will remove the gradient on light, it's too busy." The disambiguating
+   question was asked and answered in the same session — "just lets keep the matrix, so
+   removeing excess bloat that is renderer is ok i guess" — so Doodles and Live flow are
+   retired, `chat-flow.js` and `chat-flow.css` are deleted, and Data matrix is the only
+   style left. With #774 having folded the intensity dial into this same control, Background
+   now renders two tiles (None · Data matrix), which is his "stops being a picker".
+
+   ⚠ THE RISK #835 NAMED IS NOT THE DELETION. It is that "a device holding 'doodles' must
+   not render nothing" — a phone that stored a now-retired style must land on a real tile.
+   That is a FALL-THROUGH, not a migration: the stored string is left alone and every reader
+   normalises it. There are FOUR readers and they must all agree (the #690 three-ladder rule
+   plus the generated stylesheet), which is why this gate checks them as a set rather than
+   one at a time — three agreeing and one stale is exactly a blank chat background.
+
+   ⓘ (c) is the LIGHT GROUND, and it is deliberately the smaller change. Damir ruled on
+   2026-08-30 to "leave the gradient as an option in chat appearance on light mode" — quoted
+   verbatim at CHAT_GROUNDS — and on 2026-09-09 that it is too busy. Both hold at once if
+   what changes is the DEFAULT, which is what he sees without choosing. Reading it as
+   "retire the option" would reverse an explicit ruling and collapse the Canvas control to a
+   single choice, a removal he never asked for. */
+{
+  const RETIRED62 = ['doodles', 'flow', 'triangles', 'lineart'];
+  const scr62 = stripCode(readFileSync(join(root, 'src/components/settings-screens.js'), 'utf8'));
+  const chat62 = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+  const set62 = stripCode(readFileSync(join(root, 'src/shells/settings.html'), 'utf8'));
+  const pat62 = readFileSync(join(root, 'src/styles/chat-pattern.css'), 'utf8');
+
+  /* (a) the offer: exactly one style, and it is matrix */
+  const styles62 = [...scr62.matchAll(/\{ id: '([a-z]+)', key: 'patternStyle/g)].map((m) => m[1]);
+  ok(styles62.length === 1 && styles62[0] === 'matrix',
+    '★★ GATE 62 (a) ONE STYLE IS OFFERED — PATTERN_STYLES = ' + JSON.stringify(styles62)
+    + '. Doodles and Live flow are retired; with the intensity dial already folded in (#774) the Background control renders None + Data matrix, which is the toggle Damir asked for');
+
+  /* (b) THE FALL-THROUGH, across all four readers. Each must resolve a retired value to
+     'matrix' — the head script pre-paint, the live re-resolve, settings' readChatPrefs,
+     and the generated stylesheet's :root default (which is what paints when an attribute
+     is absent or names a block that no longer exists). */
+  const headScript62 = (chat62.match(/<script>\(function\(\)\{var r=document\.documentElement\.style[\s\S]*?<\/script>/) || [''])[0];
+  const readers62 = {
+    'chat.html head (pre-paint)': /if\(s!=='matrix'\)s='matrix'/.test(headScript62),
+    'chat.html readPatternPrefs': /if \(s !== 'matrix'\) s = 'matrix';/.test(stripCode(chat62)),
+    'settings.html readChatPrefs': /let patternStyle = 'matrix';/.test(set62) && /if \(st === 'matrix'\) patternStyle = st;/.test(set62),
+    'chat-pattern.css :root default': /--chat-pattern-uri: var\(--chat-pattern-uri-matrix\);/.test(
+      pat62.slice(pat62.indexOf(':root {'), pat62.indexOf('[data-chat-pattern='))),
+  };
+  const stale62 = Object.keys(readers62).filter((k) => !readers62[k]);
+  /* and nothing may still SELECT a retired style anywhere.
+     ⚠ COMMENTS OUT FIRST, and this clause proved the rule on itself: the generator emits a
+     note saying the doodles and flow BLOCKS are retired, so the note NAMES both selectors
+     and the first version of this sweep convicted the file for explaining its own absence.
+     #771, in the costume it always wears — a comment about a removal necessarily contains
+     the removed thing. */
+  const pat62NC = stripCssComments(pat62);
+  const selectors62 = RETIRED62.filter((id) => pat62NC.includes("[data-chat-pattern='" + id + "']"));
+  ok(stale62.length === 0 && selectors62.length === 0,
+    '★★ GATE 62 (b) EVERY READER LANDS A RETIRED STYLE ON A REAL TILE — ' + JSON.stringify(readers62)
+    + (stale62.length ? ' · STALE=' + JSON.stringify(stale62) : '')
+    + ' · no stylesheet block still selects ' + JSON.stringify(RETIRED62) + ' (' + (selectors62.length === 0)
+    + '). This is the failure #835 named: the stored string is deliberately NOT migrated, so a phone that chose Doodles keeps sending "doodles" for ever and every reader has to answer it. Three readers agreeing and one stale is a blank chat background, which is why they are asserted as a SET');
+
+  /* (c) the renderer is gone — module, stylesheet, bundle exports and every call site */
+  const bundle62 = readFileSync(join(root, 'Spixi/Resources/Raw/html/spixi.bundle.js'), 'utf8');
+  const gone62 = !existsSync(join(root, 'src/components/chat-flow.js'))
+    && !existsSync(join(root, 'src/styles/components/chat-flow.css'));
+  const noExports62 = !/\battachChatFlow\b/.test(bundle62) && !/\bsyncChatFlow\b/.test(bundle62)
+    && !/\bdetachChatFlow\b/.test(bundle62);
+  const noLinks62 = !/components\/chat-flow\.css/.test(chat62) && !/components\/chat-flow\.css/.test(set62);
+  ok(gone62 && noExports62 && noLinks62,
+    '★★ GATE 62 (c) THE CANVAS RENDERER IS GONE END TO END — source module + stylesheet deleted (' + gone62
+    + '), no flow symbol survives in the BUILT bundle (' + noExports62 + '), and neither shell still links the stylesheet (' + noLinks62
+    + '). The built artifact is checked rather than the source because that is what the device loads — a source-only sweep passes over a stale bundle, which is the Session N/P lesson');
+
+  /* ★★ (d) THE LIGHT GROUND — AND THIS CLAUSE WAS REVERSED WITHIN THE HOUR, WHICH IS THE
+     POINT OF ASKING. #853 read "we will remove the gradient on light, it's too busy" as the
+     DEFAULT, because Damir had ruled explicitly on 2026-08-30 to "leave the gradient as an
+     option in chat appearance on light mode" and both rulings hold that way. The question
+     went to him with the code; he answered "for gradient, yes I mean retire the option for
+     now" (#855). So the option is gone, and the reversal is pinned AS a reversal — the
+     superseded ruling stays quoted here, because a reader who cannot see that it WAS a real
+     ruling will restore it as a fix.
+     ⚠ "FOR NOW" IS WHY THIS IS A ONE-LINE REVERT AND NOT A DELETION: the token, the CSS
+     rules and the onChatGround plumbing all stay, the row's guard is DERIVED from
+     CHAT_GROUNDS.length rather than switched off, and the three keys are HELD in the
+     extractor table. Restoring the option is putting one member back. */
+  const grounds62 = [...scr62.matchAll(/\{ id: '(flat|gradient)', key: 'ground/g)].map((m) => m[1]);
+  const rowDerived62 = /if \(isLight && CHAT_GROUNDS\.length > 1\) \{/.test(scr62);
+  const gDefaults62 = {
+    'chat.html head': /if\(g!=='flat'\)g='flat'/.test(headScript62),
+    'chat.html readPatternPrefs': /if \(gr !== 'flat'\) gr = 'flat';/.test(stripCode(chat62)),
+    'settings.html readChatPrefs': /let chatGround = 'flat';/.test(set62) && /if \(gr === 'flat'\) chatGround = gr;/.test(set62),
+  };
+  const gStale62 = Object.keys(gDefaults62).filter((k) => !gDefaults62[k]);
+  ok(grounds62.length === 1 && grounds62[0] === 'flat' && rowDerived62 && gStale62.length === 0,
+    '★★ GATE 62 (d) THE GRADIENT OPTION IS RETIRED AND A STORED ONE FALLS THROUGH — CHAT_GROUNDS = '
+    + JSON.stringify(grounds62) + ' · the Canvas row is guarded on CHAT_GROUNDS.length > 1 rather than switched off (' + rowDerived62
+    + ') · ladders ' + JSON.stringify(gDefaults62)
+    + (gStale62.length ? ' · STALE=' + JSON.stringify(gStale62) : '')
+    + '. All three ladders must drop \'gradient\' from their allowlist, not merely default away from it: a user who PICKED Gradient would otherwise be stranded on a canvas the picker can no longer change. ⓘ The row guard is derived so that restoring the option is one line and cannot forget to un-hide the control — and it is the same rule the dark branch already applies, because a one-option chooser reads as broken (Damir, 2026-09-04). Superseded: "the light ground defaults to Solid and the gradient remains an option" (#853), which was the reading he corrected');
+
+}
+
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.
  * Exactly the known set → BASELINE OK + exit 0. Any OTHER failure — or a known
  * one ABSENT (a silent fix: update this list!) — keeps the red block + exit 1. */
 const KNOWN_PREEXISTERS = [
   'contact strip caps at 5 with the keep-typing note (#136 scaling)',
-  'M5: request rows feed the Requests chip + hold the filter + pending badge in the picker',
+  /* ★★ M5 IS GONE FROM THIS LIST, and it was retired by being READ rather than by being
+   * fixed. #837 (remove the Requests digit) touches M5's subject, and a row that is
+   * already red cannot absorb a second, real regression — "red for a known reason" and
+   * "red for a new one" are the same line in this summary. So the pin was re-read clause
+   * by clause: FOUR of its five passed, and the failing one names a feature that is LIVE.
+   * `directoryRoster` still reads `requestAddrs.has(c.address)` and still carries
+   * `pending` onto the row; iOS-26 folded the isGroup normalisation into that same map
+   * callback, so the pin's one-line ternary stopped matching code doing exactly what the
+   * pin describes. #771: the spelling moved, the property did not. The clause now asserts
+   * the property (and was mutation-checked by removing the badge for real), so M5 is
+   * green — 3 known pre-existers become 2. ⚠ If M5 goes red again it is NEW. */
   'B3: a lone clearEntries resets the BUFFER only (never blanks the rendered card)',
   /* ★★ Session T: five Session S pins were red at HEAD and are now RE-BASED, not listed.
    * Session S changed the bubble grouping (#813 dial D), the row inset (#817), the composer

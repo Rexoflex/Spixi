@@ -62,12 +62,18 @@ export function openMemberSheet({
   } else {
     // identity block — for CONTACTS it's a button → full contact page
     // (round 10; the page itself lands with the contacts shell)
+    /* ★★ #839 / AND-42 — `onViewContact` was passed by NOBODY until now, so this was
+       false for every contact in every room since the prop was written: declared at :40,
+       read here, invoked below, and never supplied. Damir, walk V1b: "no bvutton to view
+       profile,... but rest is pass" — V1 (the control) passed, so the relation mechanism
+       works and a contact simply had nowhere to go. */
     const canView = relation === 'contact' && !!onViewContact;
+    const goToProfile = () => { closeSheet(sheet); onViewContact(member); };
     const id = document.createElement(canView ? 'button' : 'div');
     id.className = 'c-member__id';
     if (canView) {
       id.type = 'button';
-      id.addEventListener('click', () => { closeSheet(sheet); onViewContact(member); });
+      id.addEventListener('click', goToProfile);
     }
     id.append(createAvatar({
       src: member.avatar, name: member.name, address: member.address, size: 48,
@@ -152,6 +158,24 @@ export function openMemberSheet({
         msg.dataset.width = 'full';
         msg.classList.add('c-member__request');
         content.append(msg);
+      }
+      /* ★ #839 SECOND HALF — THE HANDLER ALONE WOULD REPRODUCE THE REPORT. Wiring the
+         prop lights up the identity block and its chevron, and that is what Damir had
+         already looked at and not found: he asked for a BUTTON, which is what every other
+         action in this sheet is. So the destination gets one, in the sheet's own grammar
+         (outline 44, full width, below the fill primary). The identity block keeps its
+         click and its chevron — the same destination reached two ways is normal for a
+         header that leads somewhere; a destination with no visible control is not. */
+      if (canView) {
+        const view = createButton({
+          label: strings.viewProfile || 'View profile',
+          type: 'outline', size: 44,
+          icon: icon('user-circle', { size: 18 }),
+          onClick: goToProfile,
+        });
+        view.dataset.width = 'full';
+        view.classList.add('c-member__view');
+        content.append(view);
       }
       // payment pair — CONTACTS ONLY (round 10 guard rail)
       if (onPay || onRequestPayment) {

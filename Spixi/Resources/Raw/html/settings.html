@@ -4045,54 +4045,6 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 </style><!-- .c-chat-canvas paint for the appearance preview -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 <link rel="stylesheet" href="spixi.chat-pattern.css"><!-- generated doodle pattern for the preview canvas -->
-<style data-src="../styles/components/chat-flow.css">
-/* c-chat-flow — canvas layer for the "Live flow" chat pattern style (W5).
-   Paint lives in src/components/chat-flow.js; this file owns ONLY the layer.
-
-   STACKING — read this before you edit (#506② precondition; #46 loop MAJOR-2):
-   chat-flow.js prepends the canvas, so the canvas is the FIRST child of
-   .c-chat-canvas. The canvas is position:absolute with z-index AUTO. It thus
-   paints in TREE ORDER among the positioned z-auto descendants. It paints above
-   the host gradient background. It paints below every later sibling. This gives
-   the correct layer with NO z-index on the canvas and NO stacking context on
-   the host.
-
-   ⚠ RULE FOR EVERY STYLESHEET: .c-chat-canvas must NOT become a stacking
-   context. A long-pressed message row lifts to z-42 to clear the z-40 scrim
-   (message-menu.css). A z-index, a transform, a filter or `isolation` on the
-   host caps the lift at the host. The lift then stops, and it stops silently.
-   The FULL list of properties that cost a stacking context lives in ONE place —
-   the precondition block in message-menu.css. Read it there before you add any
-   declaration to this host. Do not copy the list here: two copies drift, and the
-   short list above already misses `translate`, `rotate`, `scale`, `clip-path`,
-   `mask-image`, `content-visibility`, `view-transition-name`, `position: sticky`
-   and `position: fixed`.
-   The old `.c-chat-canvas[data-flow] { z-index: 0; }` did exactly that under
-   Live flow, so this file no longer has it.
-
-   The host ::before tile does not compete with the canvas. chat-pattern.css
-   sets --chat-pattern-tile: none under [data-chat-pattern='flow'], so ::before
-   is display:none while this canvas is mounted. Every other pattern style
-   detaches the canvas first.
-
-   Do NOT "fix" a layer problem with a blanket position:relative on the
-   siblings. That rule pulls the absolutely-positioned jump-to-latest FAB into
-   flow (left-aligned FAB and a blank band above the composer).
-   message-bubble.css sets position:relative on the children with
-   `.c-chat-canvas > *`, so the rule below must out-specify it (0,2,0 against
-   0,1,0). */
-.c-chat-canvas > .c-chat-flow {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  /* the backing store is sized in device pixels by the engine; the element
-     itself always fills the canvas box */
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-</style><!-- W5: Live flow canvas layer (preview + style swatch) -->
 <style data-src="../styles/components/bottomnav.css">
 /* c-bottomnav — mirrors Figma nav-bot / nav-item (selected = "super selected":
    tonal pill around stacked icon + label). Height: --layout-bar-bottom. */
@@ -5325,31 +5277,39 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     // Chat-appearance swatch pre-selects what the chat actually shows.
     const desktop = document.documentElement.hasAttribute('data-desktop');
     let pattern = 1, textScale = 1;   // · scale M  ★ Session I (#735③): pattern default-ON in light on EVERY platform (was desktop ? 0 : 1)
-    // E1 (#690): the STYLE default is DOODLES. 'flow' is desktop-only, so a stored
-    // 'flow' on mobile reads back as doodles, exactly what chat.html's pre-paint
-    // script applies. ⚠ This said "line art" — the pre-E1 default — until the Session F
-    // audit; line art and triangles were RETIRED at #690 and exist nowhere in the code.
-    let patternStyle = 'doodles';     // ★ E1 2026-08-29: the new default style
+    /* ★★ #835: ONE style. Doodles and Live flow are retired, so this ladder — the THIRD of
+       the #690 three (chat.html's head script and its live re-resolve are the others) —
+       answers 'matrix' for every stored value, which is what makes a device holding
+       'doodles' or 'flow' fall through instead of rendering nothing. */
+    let patternStyle = 'matrix';      // ★ #835: the only style left
     /* ★★ AUG (Damir 2026-08-30): the LIGHT canvas is a choice — 'flat' (default) |
        'gradient'. Allowlisted exactly like the style, so a corrupt or retired value lands
        on 'flat'. THIS IS THE THIRD LADDER (#690): chat.html's pre-paint script and its
        live re-resolve are the other two, and all three must agree or the picker shows a
        selection the chat does not have. */
-    let chatGround = 'gradient';   // ★ Session I (#735③): gradient default-ON on every platform (was desktop ? 'flat' : 'gradient'), mirrors chat.html
+    /* ★★ #835 (Damir): "we will remove the gradient on light, it's too busy." The DEFAULT
+       flips to flat; the OPTION stays, because he ruled explicitly on 2026-08-30 to "leave
+       the gradient as an option in chat appearance on light mode" and both rulings hold at
+       once — what reads as too busy is what you get without choosing. This also makes the
+       three ladders agree for the first time: this one and chat.html's head script both
+       answered 'gradient' while chat.html's re-resolve answered 'flat' on desktop. */
+    let chatGround = 'flat';   // ★ #835: light default is the solid ground
     try {
       pattern = readPatternLevel(localStorage.getItem(CHAT_PREFS.pattern), pattern);   // ★ N81 (#422)
       const t = parseFloat(localStorage.getItem(CHAT_PREFS.textScale));
       if (!isNaN(t)) textScale = Math.min(1.5, Math.max(0.8, t));
       const st = localStorage.getItem(CHAT_PREFS.patternStyle);
-      // ★ E1: 'triangles' and 'lineart' are retired and deliberately absent here, so a
-      // stored value naming either falls through to the 'doodles' default above.
-      if (st === 'matrix' || (st === 'flow' && desktop)) patternStyle = st;
+      // ★ #835: 'triangles', 'lineart', 'doodles' and 'flow' are all retired and
+      // deliberately absent here, so any of them falls through to the default above.
+      if (st === 'matrix') patternStyle = st;
       const gr = localStorage.getItem(CHAT_PREFS.ground);
       /* ★ Session J (Damir, Windows: "sometimes it shows the gradient selected but doesn't have it
          applied"): this line only ever set 'gradient'. Since Session I the DEFAULT is 'gradient',
          so a stored 'flat' — the user's pick — fell through and the picker re-opened on Gradient
          while chat.html's ladder honoured the flat. Both stored values are read now. */
-      if (gr === 'gradient' || gr === 'flat') chatGround = gr;   // anything else, incl. absent/corrupt → the default above
+      // ★ #855: 'gradient' is retired and deliberately absent here, so a stored gradient
+      // falls through to 'flat' — the THIRD ladder, agreeing with chat.html's two.
+      if (gr === 'flat') chatGround = gr;   // anything else, incl. absent/corrupt → the default above
     } catch (e) {}
     return { pattern, textScale, patternStyle, chatGround };
   }

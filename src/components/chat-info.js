@@ -448,7 +448,21 @@ export function createChatInfo({
     addrLab.className = 'c-chat-info__row-label c-chat-info__addr-label';
     const addrTop = document.createElement('span');
     addrTop.className = 'c-chat-info__addr-top';
-    addrTop.append(infoDisc('qrcode', 'accent'), document.createTextNode(strings.spixiAddress || 'Spixi address'));
+    /* ★★ #842 — THIS ROW HAS ITS OWN KEY, and the reason is ownership, not wording.
+       Damir: "even thought its contacts id, so it should just say Spixi ID not VAŠ or
+       YOURS in any language." The row used to share `spixiAddress` with the ACCOUNT
+       screen (settings-shell.js), where the address really is yours — one key, two sites,
+       opposite owners. English hid it completely ("Spixi address" is neutral, so no
+       reviewer of the English could ever see the problem) while three translators given
+       that key and no context picked the possessive: sl "Vaš Spixi ID", id "Alamat Spixi
+       Anda", lt "Mano Spixi adresas". Nine did not.
+       ⚠ Re-wording those three fixes today's screen and leaves the ambiguity that caused
+       it — the next translator has the same key and the same absent context. The KEY is
+       the fix: `contactSpixiAddress` says whose address it is, so there is nothing left to
+       guess. Account keeps `spixiAddress` and keeps its (correct) possessive there.
+       ⓘ Its English matches `spixiAddress`'s exactly, which would send it straight back to
+       the same legacy `address-title` value — so it is listed in build-locales' NO_REUSE. */
+    addrTop.append(infoDisc('qrcode', 'accent'), document.createTextNode(strings.contactSpixiAddress || 'Spixi address'));
     const addrVal = document.createElement('span');
     addrVal.className = 'c-chat-info__addr-value u-tabular';
     // #211 canon: the row shows the TRUNCATED form; the full value lives in the sheet

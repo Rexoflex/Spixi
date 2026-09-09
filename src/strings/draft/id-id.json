@@ -636,5 +636,7 @@
   "peerAddressBody": "Ini alamat kontak ini di jaringan Ixian. Pindai kode atau salin alamat untuk mengirim IXI.",
   "peerQrLabel": "Kode QR: alamat Ixian kontak ini",
   "removeContactOpt": "Hapus kontak",
-  "removeFailedToast": "Kontak tidak dapat dihapus. Silakan coba lagi."
+  "removeFailedToast": "Kontak tidak dapat dihapus. Silakan coba lagi.",
+  "contactSpixiAddress": "Alamat Spixi",
+  "viewProfile": "Lihat profil"
 }

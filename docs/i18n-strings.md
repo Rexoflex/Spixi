@@ -7,7 +7,7 @@
 - **Len**: rough budget — short ≤20, medium ≤60, long >60 chars. Keep tight-UI strings (buttons, badges, chips) near the English length.
 - **{…}** placeholders MUST survive translation verbatim (e.g. `{n}`, `{date}`, `{count}`, `{q}`).
 
-Summary: **787** keys · **140** map to a legacy id · **647** new · legacy dict has **602** ids · **0** fallback conflicts to resolve (see end).
+Summary: **787** keys · **141** map to a legacy id · **646** new · legacy dict has **602** ids · **0** fallback conflicts to resolve (see end).
 
 ## app_new.html (3)
 
@@ -203,6 +203,7 @@ Summary: **787** keys · **140** map to a legacy id · **647** new · legacy dic
 | `callAction` | Call | label | short |  | — |
 | `chatInfo` | Chat info | text/label | short |  | — |
 | `contactDetails` | Contact details | title | short |  | — |
+| `contactSpixiAddress` | Spixi address | text | short |  | `address-title` |
 | `deleteConfirm` | Delete | text | short |  | — |
 | `deleteHistory` | Delete chat history | text | short |  | `contact-details-deletehistory` |
 | `deleteHistoryBody` | Messages are removed from this device. The contact keeps their copy. | title | long |  | — |
@@ -248,7 +249,6 @@ Summary: **787** keys · **140** map to a legacy id · **647** new · legacy dic
 | `selfDestructHint` | New messages in this chat disappear for everyone after the selected time. | text | long |  | — |
 | `sharedGroupsTitle` | Groups you are both in | text | medium |  | — |
 | `sharedMedia` | Shared media | text | short |  | — |
-| `spixiAddress` | Spixi address | text/label | short |  | `address-title` |
 | `viewAllPayments` | View all {n} payments | text | medium | {n} | — |
 | `viewPhoto` | View photo | aria | short |  | — |
 | `youAreOwner` | You are the owner | badge | short |  | — |
@@ -629,7 +629,7 @@ Summary: **787** keys · **140** map to a legacy id · **647** new · legacy dic
 |---|---|---|---|---|---|
 | `save` | Save | aria/label | short |  | `settings-save` |
 
-## member-sheet.js (9)
+## member-sheet.js (10)
 
 | Key | English | Kind | Len | {…} | Legacy id |
 |---|---|---|---|---|---|
@@ -642,6 +642,7 @@ Summary: **787** keys · **140** map to a legacy id · **647** new · legacy dic
 | `requestReceived` | Request received | label | short |  | — |
 | `sendContactRequest` | Send contact request | badge | short |  | — |
 | `sendPayment` | Pay | label | short |  | `chat-send-payment` |
+| `viewProfile` | View profile | label | short |  | — |
 
 ## message-bubble.js (16)
 
@@ -809,7 +810,7 @@ Summary: **787** keys · **140** map to a legacy id · **647** new · legacy dic
 | `backupShared` | Shared | label | short |  | — |
 | `backupTitle` | Backup | title | short |  | `index-side-backup` |
 
-## settings-screens.js (43)
+## settings-screens.js (41)
 
 | Key | English | Kind | Len | {…} | Legacy id |
 |---|---|---|---|---|---|
@@ -828,8 +829,6 @@ Summary: **787** keys · **140** map to a legacy id · **647** new · legacy dic
 | `notifSounds` | In-app sounds | error | short |  | — |
 | `patternNone` | None | label | short |  | — |
 | `patternStyle` | Background | text | short |  | — |
-| `patternStyleDoodles` | Doodles | label | short |  | — |
-| `patternStyleFlow` | Live flow | label | short |  | — |
 | `patternStyleMatrix` | Data matrix | label | short |  | — |
 | `previewIncoming` | Pattern, gradient, text size… | text | medium |  | — |
 | `previewOutgoing` | …exactly how your chats will look. | text | medium |  | — |
@@ -857,7 +856,7 @@ Summary: **787** keys · **140** map to a legacy id · **647** new · legacy dic
 | `typingIndicators` | Typing indicators | label | short |  | — |
 | `typingIndicatorsSub` | Others see when you’re typing | label | medium |  | — |
 
-## settings-shell.js (48)
+## settings-shell.js (49)
 
 | Key | English | Kind | Len | {…} | Legacy id |
 |---|---|---|---|---|---|
@@ -903,6 +902,7 @@ Summary: **787** keys · **140** map to a legacy id · **647** new · legacy dic
 | `removePhoto` | Remove photo | text | short |  | — |
 | `saved` | Saved | text/aria | short |  | — |
 | `securityPrivacy` | Security & privacy | text | short |  | — |
+| `spixiAddress` | Spixi address | label | short |  | `address-title` |
 | `spixiAddressSub` | This is your address. Tap to view. | label | medium |  | — |
 | `theme` | Theme | aria/title/label/text | short |  | — |
 | `themeDark` | Dark | label | short |  | `settings-account-appearance-dark` |
@@ -1128,7 +1128,7 @@ Keys built at runtime as `strings['<prefix>' + token]`; enumerated in the extrac
 | `chatsFilter_` | chats-header.js (CHATS_FILTERS) | all, unread, favorites, groups, requests |
 | `theme` | settings-shell.js (THEME_OPTIONS) | System, Light, Dark |
 | `?` |  | roundFlat, roundGradient, equestPayment |
-| `pattern` | settings-screens.js (PATTERN_STYLES, bgOpts) | StyleDoodles, StyleMatrix, StyleFlow |
+| `pattern` | settings-screens.js (PATTERN_STYLES, bgOpts) | StyleMatrix |
 | `text` | settings-screens.js (TEXT_SIZES) | S, M, L, XL |
 | `tier` | settings-screens.js (TIERS) | Basic, BasicDesc, Moderate, ModerateDesc, Strict, StrictDesc, Custom, CustomDesc |
 | `sd` | chat-info.js (disappearing-message options) | Off, Hour, Day, Week |

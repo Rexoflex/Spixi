@@ -5968,262 +5968,6 @@ function setScrollLatestCount(el, count, strings = getStrings()) {
     formatCount(count) + ' ' + (strings.unread || 'unread'));
 }
 
-/* ---- src/components/chat-flow.js ---- */
-/**
- * c-chat-flow — "Live flow", the animated chat background pattern style
- * (W5, Damir 2026-08-12; RE-DIALLED by the F5 of 2026-08-13).
- *
- * A grid of short dashes, each angled by a smooth time-drifting field. It
- * REPLACES the static ::before tile while active — chat-pattern.css sets
- * --chat-pattern-tile: none under [data-chat-pattern='flow'], and this module
- * paints the canvas instead.
- *
- *   attachChatFlow(host)            → controller { detach, pause, resume, sync }
- *   setChatFlowPaused(host, paused) → free fn (#44 grammar) for the shell/C#
- *
- * TUNING — Damir F5 2026-08-13 ("the live flow is too far away and too small so
- * barely visible movements"), superseding his own 2026-08-12 prototype dial
- * (0.4 · 20 · 4.5 · 1 · 95). Each complaint maps to one number, measured in
- * Chromium against real bubbles at 1100×760 and 420×760, dpr 2:
- *   "too far away"  → spacing 20 → 15px (dash-to-gap 0.23 → 0.47; +78% dashes).
- *   "too small"     → dash 4.5 → 7px, lineWidth 1 → 1.25px. This is ALSO half of
- *                     the motion fix: the dashes only ROTATE, and the endpoint
- *                     travel produced by a given angular rate scales with dash
- *                     length — at 4.5px a full second of drift moved an endpoint
- *                     less than a pixel, i.e. the field was animating correctly
- *                     and rendering the result below the resolution of the eye.
- *   "barely visible → fieldScale 95 → 44px and speed 0.4 → 0.85 rad/s. At 95 a
- *    movements"       1100px pane was ~11 field units wide, so neighbouring
- *                     dashes were near-parallel and the whole field turned as
- *                     one slab — motion with no relative motion reads as still.
- * Measured effect: mean |Δluma| over a 1s sample went 0.37 → 1.74 (4.7×), and
- * the share of pixels changing by ≥4/255 in one second went 2.0% → 7.6%.
- * Cost: 0.29 → 0.42 ms per frame at 2200×1520 device px — ~1% of the 40ms
- * budget, so the 25fps cap is untouched.
- *
- * DESKTOP ONLY (Damir 2026-08-12): constant animation is a battery cost on
- * phones, so the style picker offers it only under :root[data-desktop]. This
- * module does not enforce that — the picker and the pre-paint pref script do
- * (a mobile device that somehow carries the pref falls back to doodles).
- *
- * Ink + intensity are READ FROM COMPUTED STYLE every frame, never captured:
- * a theme switch or a move of the visibility dial applies live with no
- * re-mount. --chat-pattern-opacity 0 (visibility Off) paints nothing at all,
- * so "Off" keeps working exactly as it does for the tiles.
- *
- * Budget: ~25fps (frames closer than 40ms are skipped), devicePixelRatio
- * capped at 2, ResizeObserver-driven backing-store sizing, the rAF loop is
- * PAUSED whenever the document is hidden, and prefers-reduced-motion renders
- * ONE static frame with no loop at all (the reduced-motion contract is honored
- * in JS here because the token trick in tokens.css can only reach CSS motion).
- *
- * STACKING (#46 loop MAJOR-2 — read this before you "simplify"):
- * the canvas is the FIRST child of .c-chat-canvas, and it has z-index AUTO.
- * A positioned z-auto child paints in TREE ORDER: above the host gradient
- * background, and below every later sibling. That is the layer this module
- * needs, and it needs nothing else.
- * ⚠ The host must NOT become a stacking context. A long-pressed message row
- * lifts to z-42 to clear the z-40 scrim (message-menu.css). A z-index, a
- * transform, a filter or `isolation` on .c-chat-canvas caps that lift at the
- * host, and the lift then fails silently. An earlier version of this module
- * used z-index:-1 here plus `[data-flow] { z-index: 0 }` on the host. That
- * pair broke the lift under Live flow, so both are gone.
- * Do NOT reach for a blanket position:relative on the siblings instead: that
- * pulls the absolutely positioned jump-to-latest FAB into flow (left-aligned
- * FAB + a blank band above the composer). message-bubble.css already sets
- * position:relative on the children.
- */
-
-const CHAT_FLOW = {   // Damir F5 2026-08-13 (supersedes the 2026-08-12 dial)
-  speed: 0.85,               // field drift, radians of t per second
-  spacing: 15,               // CSS px between dash centres
-  dash: 7,                   // CSS px, full dash length
-  lineWidth: 1.25,           // CSS px, dash stroke weight
-  fieldScale: 44,            // CSS px per field unit
-  fps: 25,                   // frame budget (skip anything under 1000/fps ms)
-  maxDpr: 2,
-};
-
-const FRAME_MS = 1000 / CHAT_FLOW.fps;
-
-/** angle(x, y, t) — x,y in FIELD UNITS (px / fieldScale), t in drifted seconds */
-function fieldAngle(x, y, t) {
-  return 0.9 * (Math.sin(1.7 * x + t) + Math.cos(1.3 * y - 0.8 * t) + Math.sin(0.8 * (x + y) + 0.5 * t));
-}
-
-function reduceMotion() {
-  try { return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches; }
-  catch (e) { return false; }
-}
-
-/**
- * attachChatFlow(host, opts?)
- *   opts.still     — paint ONE frame and never loop (the settings swatch/preview:
- *                    a live rAF per tile in a settings list is not worth a battery)
- *   opts.spacing / opts.dash / opts.fieldScale — preview-only density overrides.
- *                    The CHAT never passes these: its tuning is Damir-locked.
- */
-function attachChatFlow(host, opts = {}) {
-  if (!host || host.__chatFlow) return host && host.__chatFlow;
-  const tune = {
-    spacing: opts.spacing > 0 ? opts.spacing : CHAT_FLOW.spacing,
-    dash: opts.dash > 0 ? opts.dash : CHAT_FLOW.dash,
-    fieldScale: opts.fieldScale > 0 ? opts.fieldScale : CHAT_FLOW.fieldScale,
-    lineWidth: opts.lineWidth > 0 ? opts.lineWidth : CHAT_FLOW.lineWidth,
-  };
-  const canvas = document.createElement('canvas');
-  canvas.className = 'c-chat-flow';
-  canvas.setAttribute('aria-hidden', 'true');
-  // getContext must be treated as THROWING, not merely nullable: jsdom (the
-  // smoke harness) raises "not implemented" rather than returning null, and a
-  // hardened WebView can do the same. Either way the caller falls back to the
-  // doodles tile — a pattern style must never be able to break the shell.
-  let ctx = null;
-  try { ctx = canvas.getContext && canvas.getContext('2d'); } catch (e) { ctx = null; }
-  if (!ctx) return null;                       // no 2d context → tile fallback below
-
-  // FIRST child: the paint order above depends on it (see STACKING above).
-  // data-flow is a state MARKER only. No style may hang a stacking context on it.
-  host.prepend(canvas);
-  host.dataset.flow = '';
-
-  let dpr = 1, w = 0, h = 0;
-  let raf = 0, last = 0, paused = false, detached = false;
-  const still = !!opts.still || reduceMotion();
-  // t0 is captured at mount, not at module load: two chats opened minutes apart
-  // should not start the field at wildly different phases.
-  const t0 = (typeof performance === 'object' && performance.now) ? performance.now() : Date.now();
-
-  function measure() {
-    const cw = host.clientWidth, ch = host.clientHeight;
-    dpr = Math.min(CHAT_FLOW.maxDpr, (typeof devicePixelRatio === 'number' && devicePixelRatio > 0) ? devicePixelRatio : 1);
-    const nw = Math.max(1, Math.round(cw * dpr));
-    const nh = Math.max(1, Math.round(ch * dpr));
-    if (nw === w && nh === h) return false;
-    w = canvas.width = nw;
-    h = canvas.height = nh;
-    return true;
-  }
-
-  function draw(tMs) {
-    if (!w || !h) return;
-    const cs = getComputedStyle(host);
-    const ink = (cs.getPropertyValue('--chat-pattern-ink') || '').trim();
-    const rawOpacity = parseFloat(cs.getPropertyValue('--chat-pattern-opacity'));
-    const opacity = isNaN(rawOpacity) ? 1 : Math.min(1, Math.max(0, rawOpacity));
-    ctx.clearRect(0, 0, w, h);
-    // visibility Off (or an ink we can't resolve) → paint NOTHING; the canvas
-    // stays mounted and transparent, so the gradient shows through untouched.
-    if (!ink || opacity <= 0) return;
-
-    const t = (tMs / 1000) * CHAT_FLOW.speed;
-    const step = tune.spacing * dpr;
-    const half = (tune.dash / 2) * dpr;
-    const unit = tune.fieldScale * dpr;   // px → field units, at device scale
-
-    ctx.globalAlpha = opacity;
-    ctx.strokeStyle = ink;
-    ctx.lineWidth = tune.lineWidth * dpr;
-    ctx.lineCap = 'round';
-    // ONE path for the whole grid — a stroke() per dash costs ~30× more and
-    // was the difference between 25fps and jank on the Windows F5 pass.
-    ctx.beginPath();
-    for (let py = step / 2; py < h + step; py += step) {
-      const yu = py / unit;
-      for (let px = step / 2; px < w + step; px += step) {
-        const a = fieldAngle(px / unit, yu, t);
-        const dx = Math.cos(a) * half, dy = Math.sin(a) * half;
-        ctx.moveTo(px - dx, py - dy);
-        ctx.lineTo(px + dx, py + dy);
-      }
-    }
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-  }
-
-  function frame(now) {
-    raf = 0;
-    if (detached || paused) return;
-    if (now - last >= FRAME_MS) { last = now; draw(now - t0); }
-    raf = requestAnimationFrame(frame);
-  }
-
-  function start() {
-    if (detached || paused || still || raf) return;
-    raf = requestAnimationFrame(frame);
-  }
-  function stop() {
-    if (raf) { cancelAnimationFrame(raf); raf = 0; }
-  }
-
-  /** repaint one frame without running the loop (theme flip, dial move, resize) */
-  function sync() {
-    if (detached) return;
-    measure();
-    const now = (typeof performance === 'object' && performance.now) ? performance.now() : Date.now();
-    draw(still ? 0 : now - t0);
-  }
-
-  /* measure() reassigns canvas.width/height, which CLEARS the backing store.
-     Resetting `last` forces the very next rAF to redraw instead of being
-     skipped by the 40ms budget gate — without it, dragging a window edge
-     clears every frame while only repainting every ~50ms, and the pattern
-     strobes off and on for the whole drag (#46 audit). */
-  const ro = (typeof ResizeObserver === 'function')
-    ? new ResizeObserver(() => { if (measure()) last = 0; if (still || paused) sync(); })
-    : null;
-  if (ro) ro.observe(host);
-  else window.addEventListener('resize', sync);
-
-  // the WebView keeps running when the app is backgrounded or the chat is
-  // covered by a native page — hidden means STOP, not "draw to nobody"
-  const onVisibility = () => {
-    if (document.visibilityState === 'hidden') stop();
-    else { last = 0; start(); if (still) sync(); }
-  };
-  document.addEventListener('visibilitychange', onVisibility);
-
-  const ctrl = {
-    sync,
-    pause() { paused = true; stop(); },
-    resume() { if (!paused) return; paused = false; last = 0; start(); if (still) sync(); },
-    detach() {
-      detached = true;
-      stop();
-      if (ro) ro.disconnect(); else window.removeEventListener('resize', sync);
-      document.removeEventListener('visibilitychange', onVisibility);
-      canvas.remove();
-      delete host.dataset.flow;
-      delete host.__chatFlow;
-    },
-  };
-  host.__chatFlow = ctrl;
-
-  measure();
-  sync();          // paint frame 0 immediately — no blank canvas before rAF
-  start();
-  return ctrl;
-}
-
-/** #44 free-fn grammar: the shell (or a future C# push) parks/unparks the loop */
-function setChatFlowPaused(host, isPaused) {
-  const ctrl = host && host.__chatFlow;
-  if (!ctrl) return;
-  if (isPaused) ctrl.pause(); else ctrl.resume();
-}
-
-/** detach a live flow canvas (style switched away, or the chat is torn down) */
-function detachChatFlow(host) {
-  const ctrl = host && host.__chatFlow;
-  if (ctrl) ctrl.detach();
-}
-
-/** repaint after a theme / visibility-dial change (no-op when flow isn't up) */
-function syncChatFlow(host) {
-  const ctrl = host && host.__chatFlow;
-  if (ctrl) ctrl.sync();
-}
-
 /* ---- src/components/message-menu.js ---- */
 /**
  * c-msgmenu — message context menu (batch 3). Spec: DESIGN_SYSTEM.md §5b,
@@ -7460,12 +7204,18 @@ function openMemberSheet({
   } else {
     // identity block — for CONTACTS it's a button → full contact page
     // (round 10; the page itself lands with the contacts shell)
+    /* ★★ #839 / AND-42 — `onViewContact` was passed by NOBODY until now, so this was
+       false for every contact in every room since the prop was written: declared at :40,
+       read here, invoked below, and never supplied. Damir, walk V1b: "no bvutton to view
+       profile,... but rest is pass" — V1 (the control) passed, so the relation mechanism
+       works and a contact simply had nowhere to go. */
     const canView = relation === 'contact' && !!onViewContact;
+    const goToProfile = () => { closeSheet(sheet); onViewContact(member); };
     const id = document.createElement(canView ? 'button' : 'div');
     id.className = 'c-member__id';
     if (canView) {
       id.type = 'button';
-      id.addEventListener('click', () => { closeSheet(sheet); onViewContact(member); });
+      id.addEventListener('click', goToProfile);
     }
     id.append(createAvatar({
       src: member.avatar, name: member.name, address: member.address, size: 48,
@@ -7550,6 +7300,24 @@ function openMemberSheet({
         msg.dataset.width = 'full';
         msg.classList.add('c-member__request');
         content.append(msg);
+      }
+      /* ★ #839 SECOND HALF — THE HANDLER ALONE WOULD REPRODUCE THE REPORT. Wiring the
+         prop lights up the identity block and its chevron, and that is what Damir had
+         already looked at and not found: he asked for a BUTTON, which is what every other
+         action in this sheet is. So the destination gets one, in the sheet's own grammar
+         (outline 44, full width, below the fill primary). The identity block keeps its
+         click and its chevron — the same destination reached two ways is normal for a
+         header that leads somewhere; a destination with no visible control is not. */
+      if (canView) {
+        const view = createButton({
+          label: strings.viewProfile || 'View profile',
+          type: 'outline', size: 44,
+          icon: icon('user-circle', { size: 18 }),
+          onClick: goToProfile,
+        });
+        view.dataset.width = 'full';
+        view.classList.add('c-member__view');
+        content.append(view);
       }
       // payment pair — CONTACTS ONLY (round 10 guard rail)
       if (onPay || onRequestPayment) {
@@ -9485,8 +9253,7 @@ const CHATS_FILTERS = [
 ];
 
 /** Set a chip's count (Damir 2026-07-09): a plain trailing NUMBER (not a badge pill).
- *  n<=0 removes it. The 'requests' chip additionally hides itself when 0 (only
- *  surfaced with active pending requests) — done by setChatsHeaderCounts. */
+ *  n<=0 removes it. NOT used for the 'requests' chip — see setChatsHeaderCounts (#837). */
 function setChipCount(chip, n) {
   let count = chip.querySelector('.c-chip__count');
   if (n > 0) {
@@ -9505,13 +9272,22 @@ function setChipCount(chip, n) {
 /** Update the chip count badges + Requests-chip visibility after a data change
  *  (Damir 2026-07-09). counts = { unread, groups, requests }. The Requests chip is
  *  HIDDEN unless there are pending requests; Groups shows a badge only when its
- *  unread count > 0; Unread shows its unread count. */
+ *  unread count > 0; Unread shows its unread count.
+ *
+ *  ★★ #837 — THE REQUESTS CHIP SHOWS NO NUMBER, AND `requests` STILL HAS A JOB.
+ *  Damir: "also remove the count in requests.. its just a filter, lets remove count to
+ *  make it cleaner." Unread and Groups are quantities you want to see; Requests is a
+ *  place you go. ⚠ THE TRAP IS THAT ONE NUMBER DID TWO JOBS on the line below: the same
+ *  `requests` that rendered the trailing digit also decides whether the chip EXISTS —
+ *  it is hidden unless something is pending (Damir, 2026-07-09). So the count call goes
+ *  and the argument stays. Removing `requests` from the DATA path instead would pin the
+ *  chip visible at zero, which is a worse filter row than the one he asked to clean up. */
 function setChatsHeaderCounts(headerEl, { unread = 0, groups = 0, requests = 0 } = {}) {
   const q = (id) => headerEl.querySelector('.c-chip[data-filter="' + id + '"]');
   const u = q('unread'), g = q('groups'), r = q('requests');
   if (u) setChipCount(u, unread);
   if (g) setChipCount(g, groups);
-  if (r) { setChipCount(r, requests); r.style.display = requests > 0 ? '' : 'none'; }
+  if (r) r.style.display = requests > 0 ? '' : 'none';   // #837: visibility only — no digit
 }
 
 /** Build the header: search field + exclusive filter-chip group. */
@@ -17967,7 +17743,21 @@ function createChatInfo({
     addrLab.className = 'c-chat-info__row-label c-chat-info__addr-label';
     const addrTop = document.createElement('span');
     addrTop.className = 'c-chat-info__addr-top';
-    addrTop.append(infoDisc('qrcode', 'accent'), document.createTextNode(strings.spixiAddress || 'Spixi address'));
+    /* ★★ #842 — THIS ROW HAS ITS OWN KEY, and the reason is ownership, not wording.
+       Damir: "even thought its contacts id, so it should just say Spixi ID not VAŠ or
+       YOURS in any language." The row used to share `spixiAddress` with the ACCOUNT
+       screen (settings-shell.js), where the address really is yours — one key, two sites,
+       opposite owners. English hid it completely ("Spixi address" is neutral, so no
+       reviewer of the English could ever see the problem) while three translators given
+       that key and no context picked the possessive: sl "Vaš Spixi ID", id "Alamat Spixi
+       Anda", lt "Mano Spixi adresas". Nine did not.
+       ⚠ Re-wording those three fixes today's screen and leaves the ambiguity that caused
+       it — the next translator has the same key and the same absent context. The KEY is
+       the fix: `contactSpixiAddress` says whose address it is, so there is nothing left to
+       guess. Account keeps `spixiAddress` and keeps its (correct) possessive there.
+       ⓘ Its English matches `spixiAddress`'s exactly, which would send it straight back to
+       the same legacy `address-title` value — so it is listed in build-locales' NO_REUSE. */
+    addrTop.append(infoDisc('qrcode', 'accent'), document.createTextNode(strings.contactSpixiAddress || 'Spixi address'));
     const addrVal = document.createElement('span');
     addrVal.className = 'c-chat-info__addr-value u-tabular';
     // #211 canon: the row shows the TRUNCATED form; the full value lives in the sheet
@@ -19886,6 +19676,11 @@ const paintGroupAvatar = setGroupAvatar;
 
 function mountContacts({
   host = document.body, bridge, strings, purpose = 'start', appId = '', getRoster, onClose, onExitSettled,
+  /* #836: a GETTER, not a value. The window can be resized (or the divider dragged)
+     while this takeover is open, so the pane state is read at the moment Add contact is
+     tapped rather than snapshotted at mount. Absent → the #827 in-shell takeover, which
+     is the behaviour every host had before this option existed. */
+  paneAvailable,
 } = {}) {
   /* ★ #589 (Damir F5 2026-08-26): "a mini app that opens the contacts picker leaves
      a pressed-row rectangle over the new screen." A takeover COVERS the list, it does
@@ -19990,6 +19785,13 @@ function mountContacts({
   };
 
   const openAddContact = () => {
+    /* ★★ #836 / AND-41 — THE FORK (see home.html openAppsAdd for the full reasoning).
+       A detail pane on screen means the C# page push is the right answer: it is the #256
+       M7 routing that opens ContactNewPage BESIDE this picker, which is what Damir lost
+       when #827 removed the push. The picker deliberately stays open and nothing closes —
+       that is exactly the pre-#827 behaviour (`onAddContact: () => bridge.send(...)`),
+       because the form lands in a different column, not over this one. */
+    if (paneAvailable && paneAvailable()) { bridge.send('ixian:newcontact'); return; }
     if (addPanel) return;
     addPanel = createAddContact({
       strings,
@@ -22201,7 +22003,6 @@ function backupCtrl(onDone, onFail) {
 
 
 
-
 /* ★ Session M (#774): the Colour control is a VALUE ROW that opens the house option sheet,
    not a third tile pair — see createChatAppearance. The direction is safe and already
    travelled: build-demo-bundle.mjs orders settings-shell BEFORE settings-screens, and
@@ -22215,18 +22016,25 @@ function backupCtrl(onDone, onFail) {
  * style here. Live flow is DESKTOP-ONLY (constant animation = battery); the
  * picker renders two options on mobile, three on desktop. */
 const PATTERN_STYLES = [
-  /* ★★ E1 (Damir 2026-08-29): DOODLES is the default, and TRIANGLES + LINE ART are
-     RETIRED on his explicit ruling — asked for and given, because retiring a style
-     silently re-skins whoever chose it and that is not a tidy-up to make on your own.
-     Listed first because the picker's first entry is what a new install lands on.
-     Data matrix stays (his words: "keep that tech thingy on mobile"); Live flow stays
-     desktop-only. A stored 'triangles' or 'lineart' no longer matches any allowlist,
-     so it FALLS THROUGH to 'doodles' on read — see chat.html / settings.html. */
-  { id: 'doodles', key: 'patternStyleDoodles', label: 'Doodles' },
+  /* ★★ #835 (Damir, mid-run): "we will remove the dodole and just keep matrix and no
+     pattern canvas". Asked back, because "no pattern canvas" could mean either retire the
+     canvas RENDERER or keep Live flow and stop the canvas painting the still tiles, and he
+     answered: "just lets keep the matrix, so removeing excess bloat that is renderer is ok
+     i guess." So DOODLES and LIVE FLOW are retired and `chat-flow.js` is deleted outright.
+     ⓘ ONE STYLE LEFT IS THE POINT, not an accident of this list: with #774 having folded
+     the intensity dial into this same control, Background now renders exactly two tiles —
+     None and Data matrix — which is Damir's "the Background control stops being a picker".
+     ★ RETIREMENT IS A FALL-THROUGH, NOT A MIGRATION — the #422 rule, and it is what keeps
+     a device that stored 'doodles' or 'flow' from rendering nothing: neither value matches
+     any allowlist any more, so all three pre-paint ladders (chat.html's head script,
+     chat.html's live re-resolve, settings.html's readChatPrefs — the #690 three-ladder
+     rule) land on 'matrix'. The stored string is deliberately left alone.
+     ⚠ The doodles TILE still exists in the generated chat-pattern.css and its source SVG is
+     still in the repo. That is asset weight, not behaviour — nothing can select it — and
+     the generator that encodes it carries its own drift guard, so gutting it is a pipeline
+     change rather than part of this dial. Flagged for Damir, not done here. */
   { id: 'matrix', key: 'patternStyleMatrix', label: 'Data matrix' },
-  { id: 'flow', key: 'patternStyleFlow', label: 'Live flow', desktopOnly: true },
-];
-/* ★ N81 (#422) — THREE levels, and the value is a LEVEL INDEX, not an alpha.
+];/* ★ N81 (#422) — THREE levels, and the value is a LEVEL INDEX, not an alpha.
  *
  * Damir's dial: off, the new default, and one stronger step at 0.1. The change
  * that matters is not the count — it is that 0/1/2 are indices resolved to a
@@ -22251,8 +22059,19 @@ const PATTERN_STYLES = [
    ★ The notice card follows the ground (system-notice.css): on the saturated wash it works
    by being LIGHTER, on the flat near-white ground it has to be slightly DARKER. */
 const CHAT_GROUNDS = [
+  /* ★★ #855 (Damir, 2026-09-09, asked and answered): "for gradient, yes I mean retire the
+     option for now." This REVERSES his 2026-08-30 ruling quoted above — recorded as a
+     reversal rather than by deleting that paragraph, because the next reader has to be able
+     to see that "leave the gradient as an option" was a real ruling that a later one
+     replaced, or they will restore it as a fix. (#853 shipped the DEFAULT flip first and
+     asked which he meant; this is the answer.)
+     ⚠ "FOR NOW" IS LOAD-BEARING, so nothing is deleted that would have to be re-derived:
+     the `--gradient-chat` token, its `[data-chat-ground='gradient']` rules and the whole
+     onChatGround plumbing all stay. Restoring the option is putting one line back here.
+     ⓘ ONE MEMBER MEANS THE ROW DOES NOT RENDER — see the guard below. That is Damir's own
+     rule, re-ruled explicitly on 2026-09-04 for the dark case: a one-option chooser reads
+     as a broken control, so the row is ABSENT rather than shown with nothing to choose. */
   { id: 'flat', key: 'groundFlat', label: 'Solid' },
-  { id: 'gradient', key: 'groundGradient', label: 'Gradient' },
 ];
 
 /* ★ Session M (#783): THE PATTERN_LEVELS ARRAY IS GONE. Session M folded the intensity
@@ -22324,9 +22143,12 @@ const PATTERN_SWATCH_BOOST = 6;
    Damir asked to quieten. The values ARE the picks, so they are the thing to move: 4.5 is one
    step louder, 2 one step softer, both rendered on the sheet. */
 const PATTERN_SWATCH_BOOSTS = {
-  /* doodles at ×3 sits at the same visual weight as the matrix tile at ×6 in BOTH themes —
-     which is the point of the whole change, since the two tiles are read side by side. */
-  doodles: 3,
+  /* ★ #835: the `doodles: 3` override retired with its style. It existed because ONE
+     multiplier cannot balance two artworks with different ink coverage — dense doodle line
+     art against the matrix's scattered dots. With a single tile left there is nothing to
+     balance it against, so the shared default is the whole answer again and this map is
+     empty BY MEANING rather than by neglect. It stays (and swatchBoost stays) because the
+     next style added will need it, and an empty map is the honest state of "no overrides". */
 };
 
 /** The swatch boost for one style id — the override, or the shared default. */
@@ -22439,32 +22261,9 @@ function segGroup({ options, current, ariaLabel, onPick }) {
    is precisely why the styles were not keyed off a descendant selector: three
    different styles have to paint side by side in one list.
 
-   The "flow" face mounts the real engine in STILL mode — one frame, no rAF
-   loop. A live loop per swatch in a settings list is not worth the battery,
-   and a static frame is an honest picture of what the style looks like. The
-   density is stepped up for the small tile — these overrides are preview-only
-   and never reach the chat.
-
-   Re-scaled with the chat dial at the F5 of 2026-08-13: the tile is ~110×64,
-   so it keeps the chat's dash-to-gap ratio (~0.6 here vs 0.47 in the chat) at
-   roughly half the chat's absolute size, and fieldScale drops with it — at the
-   chat's own 44 a 110px tile spans barely two field units and every dash comes
-   out parallel, which is the exact "reads as still" failure the chat dial was
-   just fixed for. lineWidth stays 1: 1.25 is chunky at this size. */
-const FLOW_SWATCH_TUNE = { still: true, spacing: 8, dash: 5, lineWidth: 1, fieldScale: 20 };
-
-/* Fail-soft for every flow face: attachChatFlow returns null when the WebView
-   has no 2d context. A style that can't paint must fall back to a real TILE — a
-   bare gradient would read as a broken tile, and the whole point of keeping a
-   resolvable URI under [data-chat-pattern='flow'] (chat-pattern.css) is that this
-   fallback is one attribute flip. ★ E1: that URI, and this fallback, are DOODLES
-   now; both said line art / triangles before the two were retired. */
-function mountFlowFace(face, opts) {
-  let ctrl = null;
-  try { ctrl = attachChatFlow(face, opts); } catch (e) { ctrl = null; }
-  if (!ctrl) face.dataset.chatPattern = 'doodles';    // ★ E1 default style
-  return ctrl;
-}
+   ★ #835: the "flow" face — and FLOW_SWATCH_TUNE and mountFlowFace with it — retired
+   alongside Live flow. Their fail-soft ("a style that cannot paint falls back to a real
+   TILE") has nothing left to fall back FROM: the one surviving style IS a tile. */
 
 /* ★★ AUG (Damir 2026-08-30, ON DEVICE): `faceAttr` — WHICH dataset attribute the tile face
    carries. It was hard-coded to `chatPattern`, which was right while this group only ever
@@ -22483,8 +22282,6 @@ function mountFlowFace(face, opts) {
    in one place instead of relying on two. */
 function styleSwatchGroup({ options, current, ariaLabel, onPick, faceAttr = 'chatPattern' }) {
   const g = document.createElement('div');
-  const flowFaces = [];
-  let styleRaf = 0;
   g.className = 'c-settings-swatches c-settings-swatches--style';
   g.setAttribute('role', 'radiogroup');
   g.setAttribute('aria-label', ariaLabel);
@@ -22521,11 +22318,6 @@ function styleSwatchGroup({ options, current, ariaLabel, onPick, faceAttr = 'cha
        than left as a pointer to a row that no longer exists (#772). */
     face.style.setProperty('--chat-pattern-opacity', o.off ? '0' : patternLevelVar(1, swatchBoost(o.id)));
     b.append(face);
-    if (o.id === 'flow') {
-      // mount after layout — a 0×0 face would size the backing store to 1×1
-      flowFaces.push(face);
-      styleRaf = requestAnimationFrame(() => { styleRaf = 0; mountFlowFace(face, FLOW_SWATCH_TUNE); });
-    }
     b.addEventListener('click', () => {
       if (o.id === current) return;
       current = o.id;
@@ -22535,10 +22327,13 @@ function styleSwatchGroup({ options, current, ariaLabel, onPick, faceAttr = 'cha
     g.append(b);
   }
   paint();
-  g.releaseSwatches = () => {
-    if (styleRaf) { cancelAnimationFrame(styleRaf); styleRaf = 0; }
-    for (const f of flowFaces) detachChatFlow(f);
-  };
+  /* ★ #835: KEPT, and now a no-op by construction. This existed to stop a flow face's rAF
+     loop + visibilitychange listener running against a detached node after
+     settings.html's renderLayout() replaces the screen's children. Every tile is static
+     now, so there is nothing to release — but the hook and its CALL SITE stay wired,
+     because the next animated swatch would otherwise reintroduce that leak silently.
+     Deleting the hook is the change that would hide it. */
+  g.releaseSwatches = () => {};
   return g;
 }
 
@@ -22622,7 +22417,7 @@ function screenShell(className, title, onBack) {
  */
 function createChatAppearance({
   patternOpacity = 1,             // ★ N81 (#422): a LEVEL index (0/1/2), not an alpha
-  patternStyle = 'doodles',      // W5 + ★ E1 2026-08-29: 'doodles' (default) | 'matrix' | 'flow' (desktop only)
+  patternStyle = 'matrix',       // ★ #835: the only style left (doodles + Live flow retired)
   chatGround = 'flat',           // ★ AUG 2026-08-30: 'flat' (default) | 'gradient' — LIGHT only
   textScale = 1,
   isDesktop = typeof document === 'object' && document.documentElement.hasAttribute('data-desktop'),
@@ -22684,7 +22479,7 @@ function createChatAppearance({
   /* the style axis and the level axis, kept apart INSIDE this screen. `styleCurrent` is
      the style the user last chose (or the default) and survives a None pick; `levelCurrent`
      is 0 or 1 and is what None actually writes. */
-  let styleCurrent = styleOpts.some((o) => o.id === patternStyle) ? patternStyle : 'doodles';
+  let styleCurrent = styleOpts.some((o) => o.id === patternStyle) ? patternStyle : 'matrix';
   let levelCurrent = Number(patternOpacity) > 0 ? 1 : 0;
   const bgOpts = [
     /* ★ Session M: a NEW string, and the only one this restructure adds. The retired
@@ -22753,7 +22548,12 @@ function createChatAppearance({
      ⚠ The section is built ONLY in light. It used to be created and appended
      unconditionally, which painted an empty 8px card in dark. */
   let groundSec = null;
-  if (isLight) {
+  /* ★★ #855: DERIVED, not hard-coded off. The row appears when there is more than one
+     ground to choose between — which is false today (gradient retired) and true again the
+     moment a second member returns to CHAT_GROUNDS. Writing `if (false)` or deleting the
+     block would make the restore a re-implementation instead of a one-line revert, and
+     would hide that this is the SAME rule the dark branch already applies. */
+  if (isLight && CHAT_GROUNDS.length > 1) {
     groundSec = document.createElement('div');
     groundSec.className = 'c-settings__section c-settings-appearance__groundsec';
     /* ★★ Session M (#774): A VALUE ROW, NOT A TILE PAIR — and this is the FIX, not a
@@ -22832,7 +22632,6 @@ function createChatAppearance({
      subtree. Every re-entry would add another. Same shape as, and released
      alongside, releaseDownloads (#267). (#46 audit) */
   el.release = () => {
-    detachChatFlow(preview);
     /* ★ Session M: ONE group now. The intensity group's release went with its card — and
        it was load-bearing while it existed (a flow face keeps a rAF loop + a
        visibilitychange listener alive against a detached node), which is why the surviving
@@ -22849,8 +22648,6 @@ function createChatAppearance({
      before the preview's own initial paint below. */
   function applyPreviewStyle(id) {
     preview.dataset.chatPattern = id;
-    if (id === 'flow') mountFlowFace(preview);
-    else detachChatFlow(preview);
     /* ★ Session M: the `intensityGroup.setSwatchStyle(id)` call lived here — the intensity
        tiles had to re-skin to the chosen style, or a user on "Data matrix" was offered
        levels of doodles. With one control there is no second row to keep honest. */
@@ -26135,5 +25932,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, CHAT_FLOW: CHAT_FLOW, attachChatFlow: attachChatFlow, setChatFlowPaused: setChatFlowPaused, detachChatFlow: detachChatFlow, syncChatFlow: syncChatFlow, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

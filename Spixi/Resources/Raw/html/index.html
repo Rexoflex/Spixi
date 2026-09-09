@@ -1134,6 +1134,22 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   -webkit-tap-highlight-color: transparent;
   white-space: nowrap;
   position: relative;
+  /* ★★ #841 / AND-44 (Damir's screenshot, group create): a member chip labelled
+     "Androoo 🗻🔥 Androoo Androoo Androoootururururuurru" ran off the screen edge and
+     took its remove × with it — the × was clipped away, so the member could not be
+     removed. A nick is network-supplied (#140 family), so the guard belongs here rather
+     than on any assumption about length.
+     THREE declarations, and all three are load-bearing: a flex item's automatic minimum
+     size is its MIN-CONTENT, and min-width beats max-width — so without `min-width: 0`
+     the cap below is inert against exactly the unbreakable label that causes this. The
+     cap is on the CHIP so the label ellipsizes while the × keeps its `flex: none` seat.
+     ⚠ THE DEFAULT IS DELIBERATE. A wrapping row must cap; a horizontal SCROLLER must
+     not, and the two scrollers opt out at their own definitions (.c-chats-header__filters,
+     .c-apps-discover__cats) rather than every wrapping row opting in — #838's lesson: a
+     new wrapping container then gets the safe behaviour for free, and a new scroller that
+     forgets to opt out shows a clipped label, not an unreachable control. */
+  min-width: 0;
+  max-width: 100%;
   /* 100ms intentional: micro-interaction, same rationale as chatlist row hover */
   /* transform = the #343 press release; declared here so base.css never has to
      out-specify (and therefore replace) this shorthand — see #346. */
@@ -1170,6 +1186,10 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 }
 
 .c-chip__icon, .c-chip__dismiss { flex: none; }
+/* #841: the label is the ONLY part that gives. `white-space: nowrap` is inherited from
+   .c-chip, which is what makes the ellipsis render; min-width: 0 lets this inner flex
+   item shrink past its own min-content. Inert until something constrains the chip. */
+.c-chip__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 /* count inside a filter chip (Damir 2026-07-09): a plain trailing NUMBER, sits
    after the label via the chip's flex gap. Muted so the label stays primary; the
@@ -2675,6 +2695,14 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 .c-chats-header__filters::-webkit-scrollbar { display: none; }
 
+/* ★ #841 OPT-OUT — the opposite rule, and it is deliberate. chip.css caps every chip at
+   100% of its row so a long label ellipsizes instead of carrying its remove × off the
+   edge. That is right for a WRAPPING row and wrong here: this container SCROLLS, and a
+   cap would clamp each chip to the visible width instead of letting the row extend. A
+   later tidy-up that makes the two families agree is the regression GATE 58 exists to
+   catch. */
+.c-chats-header__filters > .c-chip { max-width: none; }
+
 </style>
 <style data-src="../styles/components/chats-swipe.css">
 /* c-swipe — chat-row swipe accelerator (step 5; spec §6). iOS-Mail reveal:
@@ -2803,6 +2831,16 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 
 /* iOS-26: People/Groups filter chips (exclusive, chats-header #218 grammar).
    Scrolls horizontally on narrow screens rather than wrapping the row. */
+/* ★ #841 OPT-OUT — this row SCROLLS horizontally (see the rule below), so its chips must
+   not cap at 100% of the visible width the way a wrapping row's do. Same deliberate
+   opposite as .c-chats-header__filters and .c-apps-discover__cats.
+   ⚠ FOUND BY GATE 58's OWN DERIVATION, not by reading: the first cut of that gate only
+   checked that existing opt-outs were JUSTIFIED, which is one direction. This row is a
+   chip-holding scroller that had no opt-out at all, and nothing would have said so —
+   the gate now derives the chip containers from the components and requires the two sets
+   to agree, so a scroller that forgets and a wrapping row that borrows both fail. */
+.c-contacts__kinds > .c-chip { max-width: none; }
+
 .c-contacts__kinds {
   display: flex;
   gap: var(--spacing-8);
@@ -5271,6 +5309,14 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   color: var(--text-neutral-02);
 }
 
+/* ★ #841 OPT-OUT — the opposite rule, and it is deliberate. chip.css caps every chip at
+   100% of its row so a long label ellipsizes instead of carrying its remove × off the
+   edge. That is right for a WRAPPING row and wrong here: this container SCROLLS, and a
+   cap would clamp each chip to the visible width instead of letting the row extend. A
+   later tidy-up that makes the two families agree is the regression GATE 58 exists to
+   catch. */
+.c-apps-discover__cats > .c-chip { max-width: none; }
+
 </style><!-- apps-add composes a discover row even with discover:false -->
 <style>
   /* Production shell: fill the WebView (no demo phone frame). Three internal views
@@ -5397,9 +5443,19 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
      each edge — this body pads 16 AND the component pads 16. The Contacts panel
      sits at 16. One inset owns it: the host keeps its 16, the component's inner
      padding zeroes HERE (scoped — the chat attach-Pay compose hosts the same
-     component elsewhere and keeps the component default). */
-  .wallet-takeover__body > .c-wallet-send,
-  .wallet-takeover__body > .c-wallet-receive { padding: 0; }
+     component elsewhere and keeps the component default).
+     ★★ #838 (Damir, Session T walk: "the add app subscreen has too much padding
+     left right"): #560 stated the invariant in its comment and then enforced it as a
+     LIST OF TWO NAMED CHILDREN. #827 mounted a third component (createAppsAdd, which
+     pads 16 of its own) into this same body and it inherited the exact defect #560
+     had already fixed — #798 in a stylesheet: an enumeration written from the
+     author's list is not a rule. The selector is now the invariant itself. Every
+     direct child of this body IS a hosted component root (each mount site appends
+     exactly one), so "a component hosted here does not pay the inset twice" is
+     `> *`, and a fourth component cannot re-introduce this. GATE 57 derives the
+     mounted set from what home.html actually appends and fails if the selector is
+     ever narrowed back to a list that misses one. */
+  .wallet-takeover__body > * { padding: 0; }
 
   /* ============================================================================
      DESKTOP NAV RAIL (spec 6e.1, DECISIONS #232 ④) — gated on :root[data-desktop]
@@ -6186,6 +6242,13 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
    * closing the takeover. Track the top takeover's close fn + push the open/closed
    * state to C# so OnBackButtonPressed can route back INTO the shell (homeBack). */
   let walletTakeoverClose = null;
+  /* ★★ #836: FALSE until C# says otherwise, and that default is the safe one. An unknown
+     pane state must behave like a phone — the in-shell takeover works on every surface and
+     costs no WebView boot, whereas a page push into a window with no detail column is the
+     full-window cold boot #827 removed. So a lost or late push degrades to #827's
+     behaviour, never to the regression. */
+  let paneAvailable = false;
+
   /* ★ Session T: declared HERE, not beside openAppsAdd — homeOverlayLevel() below
      reads them, and a boot-time sync would hit the temporal dead zone of a `let`
      that lives 2000 lines further down. */
@@ -6385,6 +6448,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     try {
         contactsView = mountContacts({
         host: document.body, bridge, strings, purpose, appId: appId || '',
+        paneAvailable: () => paneAvailable,       // #836: live read at tap time, not a mount-time snapshot
         onExitSettled: () => syncHomeOverlay(),   // ★ Session H MAJOR-1: the cover is gone NOW — report the real 0
         getRoster: () => directoryRoster(),               // iOS-26: groups included in BOTH purposes
         onClose: (reason) => {
@@ -8408,6 +8472,15 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   }
 
   function openAppsAdd() {
+    /* ★★ #836 / AND-41 — THE FORK. With a detail pane on screen the page push is the
+       RIGHT answer: it is the #256 M7 routing that lands this screen beside the list
+       (`pushPageLoaded(new AppNewPage(), …, rightContent.IsVisible ? 1 : -1)`), and the
+       cold Chromium boot that made it wrong on a phone buys a real affordance here.
+       Without a pane it is the takeover below — #827, unchanged.
+       ⚠ This is why `ixian:newapp` and `ixian:newcontact` are NOT dead branches in
+       HomePage, and why GATE 54's contract had to change from "never sends them" to
+       "sends them only when the pane is visible". */
+    if (paneAvailable) { bridge.send('ixian:newapp'); return; }
     if (appsAddTakeover) return;
     leaveSurfaceSearch();
     const over = document.createElement('div');
@@ -9177,6 +9250,15 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
       scanCreatedHere = createdHere === '1' || createdHere === 1 || createdHere === true;
       lastScanArgs = { current, target, origin };
       applyScanRow();
+    },
+
+    /* ★★ #836 / AND-41 — IS THERE A DETAIL PANE RIGHT NOW? Only C# knows: it owns the
+       column grid and flips `rightContent.IsVisible` at 700 DIP. The shell's own
+       `data-desktop` cannot answer this — that is the #228 PLATFORM flag and is constant
+       across resize, so a NARROW desktop window has it set with no pane on screen.
+       Pushed on change (and once per fresh document), so this is an edge, not a stream. */
+    setPaneAvailable(v) {
+      paneAvailable = v === '1' || v === 1 || v === 'True' || v === true;
     },
 
     // setHideBalance(hide) — C# sends bool.ToString() → "True"/"False" (home.js:101).

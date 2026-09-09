@@ -217,9 +217,19 @@
      each edge — this body pads 16 AND the component pads 16. The Contacts panel
      sits at 16. One inset owns it: the host keeps its 16, the component's inner
      padding zeroes HERE (scoped — the chat attach-Pay compose hosts the same
-     component elsewhere and keeps the component default). */
-  .wallet-takeover__body > .c-wallet-send,
-  .wallet-takeover__body > .c-wallet-receive { padding: 0; }
+     component elsewhere and keeps the component default).
+     ★★ #838 (Damir, Session T walk: "the add app subscreen has too much padding
+     left right"): #560 stated the invariant in its comment and then enforced it as a
+     LIST OF TWO NAMED CHILDREN. #827 mounted a third component (createAppsAdd, which
+     pads 16 of its own) into this same body and it inherited the exact defect #560
+     had already fixed — #798 in a stylesheet: an enumeration written from the
+     author's list is not a rule. The selector is now the invariant itself. Every
+     direct child of this body IS a hosted component root (each mount site appends
+     exactly one), so "a component hosted here does not pay the inset twice" is
+     `> *`, and a fourth component cannot re-introduce this. GATE 57 derives the
+     mounted set from what home.html actually appends and fails if the selector is
+     ever narrowed back to a list that misses one. */
+  .wallet-takeover__body > * { padding: 0; }
 
   /* ============================================================================
      DESKTOP NAV RAIL (spec 6e.1, DECISIONS #232 ④) — gated on :root[data-desktop]
@@ -1005,6 +1015,13 @@
    * closing the takeover. Track the top takeover's close fn + push the open/closed
    * state to C# so OnBackButtonPressed can route back INTO the shell (homeBack). */
   let walletTakeoverClose = null;
+  /* ★★ #836: FALSE until C# says otherwise, and that default is the safe one. An unknown
+     pane state must behave like a phone — the in-shell takeover works on every surface and
+     costs no WebView boot, whereas a page push into a window with no detail column is the
+     full-window cold boot #827 removed. So a lost or late push degrades to #827's
+     behaviour, never to the regression. */
+  let paneAvailable = false;
+
   /* ★ Session T: declared HERE, not beside openAppsAdd — homeOverlayLevel() below
      reads them, and a boot-time sync would hit the temporal dead zone of a `let`
      that lives 2000 lines further down. */
@@ -1204,6 +1221,7 @@
     try {
         contactsView = mountContacts({
         host: document.body, bridge, strings, purpose, appId: appId || '',
+        paneAvailable: () => paneAvailable,       // #836: live read at tap time, not a mount-time snapshot
         onExitSettled: () => syncHomeOverlay(),   // ★ Session H MAJOR-1: the cover is gone NOW — report the real 0
         getRoster: () => directoryRoster(),               // iOS-26: groups included in BOTH purposes
         onClose: (reason) => {
@@ -3227,6 +3245,15 @@
   }
 
   function openAppsAdd() {
+    /* ★★ #836 / AND-41 — THE FORK. With a detail pane on screen the page push is the
+       RIGHT answer: it is the #256 M7 routing that lands this screen beside the list
+       (`pushPageLoaded(new AppNewPage(), …, rightContent.IsVisible ? 1 : -1)`), and the
+       cold Chromium boot that made it wrong on a phone buys a real affordance here.
+       Without a pane it is the takeover below — #827, unchanged.
+       ⚠ This is why `ixian:newapp` and `ixian:newcontact` are NOT dead branches in
+       HomePage, and why GATE 54's contract had to change from "never sends them" to
+       "sends them only when the pane is visible". */
+    if (paneAvailable) { bridge.send('ixian:newapp'); return; }
     if (appsAddTakeover) return;
     leaveSurfaceSearch();
     const over = document.createElement('div');
@@ -3996,6 +4023,15 @@
       scanCreatedHere = createdHere === '1' || createdHere === 1 || createdHere === true;
       lastScanArgs = { current, target, origin };
       applyScanRow();
+    },
+
+    /* ★★ #836 / AND-41 — IS THERE A DETAIL PANE RIGHT NOW? Only C# knows: it owns the
+       column grid and flips `rightContent.IsVisible` at 700 DIP. The shell's own
+       `data-desktop` cannot answer this — that is the #228 PLATFORM flag and is constant
+       across resize, so a NARROW desktop window has it set with no pane on screen.
+       Pushed on change (and once per fresh document), so this is an edge, not a stream. */
+    setPaneAvailable(v) {
+      paneAvailable = v === '1' || v === 1 || v === 'True' || v === true;
     },
 
     // setHideBalance(hide) — C# sends bool.ToString() → "True"/"False" (home.js:101).

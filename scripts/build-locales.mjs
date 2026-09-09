@@ -66,6 +66,15 @@ const draftDir = join(root, 'src/strings/draft');
    quoted beside it, so the reason travels with the exception. */
 const NO_REUSE = new Set([
   'appDetails',   // legacy app-details-title: de "Spixi App", sl "Aplikacija Spixi", ja "Spixi アプリ" — a name, not "details"
+  /* ★ #842 — the SAME English, a DIFFERENT owner. `contactSpixiAddress` labels a CONTACT's
+     address in chat-info; its English ("Spixi address") is identical to `spixiAddress`, so
+     the reuse-first recipe would match it to the very legacy id whose value is the defect:
+     address-title is the legacy ACCOUNT page's own title, and three translators wrote it
+     possessive there — sl "Vaš Spixi ID", id "Alamat Spixi Anda", lt "Mano Spixi adresas".
+     Correct on Account (which keeps the key and the value); false on somebody else's page.
+     ⓘ This is the first NO_REUSE entry whose legacy value is not a MISTRANSLATION — it is
+     right for the site it was written for and wrong for the one that borrowed it. */
+  'contactSpixiAddress',
 ]);
 
 /* GATE 51 — see the tail of this file. */

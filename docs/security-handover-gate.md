@@ -1407,3 +1407,28 @@ The standalone page answers a rejection with a native alert and no push at all, 
 `contact_new.html` arms a **6-second timer** and then tells the user "If nothing happened, that
 address may already be a contact or invalid." That wedge was logged as an owed BE fix. The
 shell-hosted screen gets the actual verdict instead.
+
+---
+
+## Session U (#845–#854) — the seven queued dials
+
+Two rows added a verb or a push; the rest are CSS, strings and a deletion. Run through the
+gate's one question — *does this exposure exist at the baseline?* — for each.
+
+| what | reach | verdict |
+|---|---|---|
+| **`ixian:viewcontact:<address>`** — NEW verb on `SingleChatPage` (#850) | `new Address(payload)` → `FriendList.getFriend` → push `ContactDetails` for a friend that already exists | **INHERITED, RELOCATED.** Verb name, payload grammar and handler body are `ContactNewPage.onNavigating:107`, which has answered this since #435(b); `ContactDetails` also answers `ixian:kick:`/`ixian:ban:`/`ixian:sendContactRequest:` on the same address-keyed shape. The WebView-supplied token reaches exactly one thing — a LOOKUP — and a null resolves to a silent no-op: no contact created, nothing sent, nothing written. GATE 60 (c) pins the negative half (`!/addFriend\|sendContactRequest\|new Friend\(/`), because that is what makes the address safe here. ⚠ The catch logs `ex.GetType().Name`, never `ex.Message` — sweep **G-3**: Ixian-Core's `Address` ctor formats the whole base58 into its exception text. The first draft of this handler logged `ex.Message` and was fixed before it shipped. |
+| **`setPaneAvailable` "1"/"0"** — NEW push to the home shell (#852) | C# → shell: one boolean, read from `rightContent.IsVisible` | **INTRODUCED, and it is display state.** No payload, no address, no user data — it says only whether a detail column is on screen, which the shell cannot compute (`data-desktop` is the #228 platform flag and is constant across resize). Same class as the `setPaneMode` pushes #240/#247 already make to the settings and contact-details shells. The shell's only use is to choose between an in-shell takeover and a C# page push; it reaches no sink. |
+| `ixian:newcontact` / `ixian:newapp` (#852) | `HomePage` → `ContactNewPage` / `AppNewPage` | **INHERITED, UN-RETIRED.** #827 stopped SENDING these; the branches were never removed. They are reachable again on a wide window only. Nothing about the branches changed. |
+| **★ chat-flow.js deleted** (#853) | — | **REDUCES reach.** A canvas renderer that read computed style every frame, held a rAF loop, a `ResizeObserver` and a `visibilitychange` listener, and was mounted from a TOP-LEVEL call in the chat shell's main script — where a throw aborted identity, theme and the whole bridge wiring below it (the Session F audit finding, previously guarded by a try/catch). Gone, so the hazard is structural rather than guarded. |
+| `contactSpixiAddress`, `viewProfile` (#849/#850) | dictionary keys | **No reach.** Text, rendered through the same `strings.*` channel as every other label. |
+
+**No new storage key. No new HTML sink. No new network fetch. No new log line carrying a
+payload.** The money path is untouched — `signSend`, `feeQuery`, `payRequest` and the compose
+surfaces were not read or modified in this batch — and the ★ chat-isolation invariant (#221)
+holds: `ixian:viewcontact:` pushes a page with its OWN WebView, and every coordination step is
+C#-side. The one deletion removes a JS module from the chat WebView and adds nothing to it.
+
+⚠ **Carried, not closed:** `contact_details.html` hosts the same member sheet and has no
+`viewcontact` route (#850). That is a missing feature, not an exposure — the component's
+`canView` gate means the affordance does not render at all there.

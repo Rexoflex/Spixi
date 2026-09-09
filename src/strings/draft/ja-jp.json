@@ -636,5 +636,7 @@
   "peerAddressBody": "これはこの連絡先の Ixian ネットワーク上のアドレスです。コードをスキャンするか、アドレスをコピーして IXI を送信します。",
   "peerQrLabel": "QR コード：この連絡先の Ixian アドレス",
   "removeContactOpt": "連絡先を削除",
-  "removeFailedToast": "連絡先を削除できませんでした。もう一度お試しください。"
+  "removeFailedToast": "連絡先を削除できませんでした。もう一度お試しください。",
+  "contactSpixiAddress": "Spixi アドレス",
+  "viewProfile": "プロフィールを表示"
 }

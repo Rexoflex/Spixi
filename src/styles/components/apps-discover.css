@@ -114,3 +114,11 @@
   line-height: var(--line-height-body-md);
   color: var(--text-neutral-02);
 }
+
+/* ★ #841 OPT-OUT — the opposite rule, and it is deliberate. chip.css caps every chip at
+   100% of its row so a long label ellipsizes instead of carrying its remove × off the
+   edge. That is right for a WRAPPING row and wrong here: this container SCROLLS, and a
+   cap would clamp each chip to the visible width instead of letting the row extend. A
+   later tidy-up that makes the two families agree is the regression GATE 58 exists to
+   catch. */
+.c-apps-discover__cats > .c-chip { max-width: none; }

@@ -38,7 +38,6 @@ namespace SPIXI
 
         private string? path = null;
 
-        private bool installing = false;
         /* ★★ L3 (Session F) — A SHEET OPEN IN THIS SHELL IS NOW A BACK LEVEL.
          * The defect: this page emitted/consumed ixian:back but never asked the shell
          * whether an overlay was up, so hardware back POPPED THE PAGE OUT FROM UNDER an
@@ -50,13 +49,20 @@ namespace SPIXI
         private bool shellOverlayOpen = false;
 
 
+        /* ⓘ #840: `installing` IS NO LONGER READ. It existed to force the shell's
+         * `installed` flag to "false" for every add-flow arrival, which is the defect
+         * #840 removed — the page now reports what getInstalledApps() says. The private
+         * field is deleted (an assigned-but-never-read field is a CS0414 warning and,
+         * worse, reads as live logic); the PARAMETER stays so this bug-fix batch does not
+         * churn eight positional call sites in code that cannot be compiled where it was
+         * written. Dropping the parameter and updating those callers is a tidy-up, and it
+         * belongs in a batch that ends in a build. Nothing branches on it today. */
         public AppDetailsPage(string app_id, string? path = null, bool installing = false)
         {
             InitializeComponent();
 
             appId = app_id;
             this.path = path;
-            this.installing = installing;
 
             NavigationPage.SetHasNavigationBar(this, false);
 
@@ -71,7 +77,6 @@ namespace SPIXI
             this.shouldReloadDetailView = shouldReloadDetailView;
             fetchedApp = app;
             this.path = path;
-            this.installing = installing;
 
             NavigationPage.SetHasNavigationBar(this, false);
 
@@ -194,7 +199,32 @@ namespace SPIXI
                 appId,
                 app.hasCapability(MiniAppCapabilities.SingleUser).ToString(),
                 app.hasCapability(MiniAppCapabilities.MultiUser).ToString(), 
-                installing ? "false" : app_installed.ToString(),
+                /* ★★ #840 / AND-43 — THE SCREEN USED TO BE TOLD THE APP WAS ABSENT
+                 * BECAUSE OF HOW YOU GOT HERE. Damir: "i can always readd same app and it
+                 * alwys shows install despite it being installed already." This argument
+                 * was `installing ? "false" : app_installed.ToString()`, and `installing`
+                 * is TRUE for every route that arrives from the ADD flow (a fetched URL, a
+                 * picked file, an app invite in a chat). So the override discarded
+                 * `app_installed` — computed three lines up from getInstalledApps(), which
+                 * IS the truth — and asserted "not installed" from the caller's intent.
+                 * It was harmless for the case it was presumably written for (a genuinely
+                 * new app is not installed anyway, so forcing false changed nothing) and
+                 * wrong for the only case where it changed anything: re-adding something
+                 * you already have.
+                 * ⚠ THIS ROUTES THE ADD FLOW TO A DIFFERENT SCREEN. `installed` drives the
+                 * whole action area (app_details.html → apps-details.js): true renders the
+                 * compact Open pill + a quiet Uninstall row and NO sticky Install bar. That
+                 * is the correct destination for a re-add, and it is also what keeps the
+                 * install-confirm morph out of reach — the morph starts at the Install
+                 * button's onClick, and in this layout there is no Install button to start
+                 * it, so no ctrl is ever latched.
+                 * ⓘ CONSEQUENCE, FLAGGED NOT GUESSED: onInstall() re-installs from either
+                 * source (installFromUrl / installFromPath), so a user who picks a FILE for
+                 * an app they already have now lands on Open/Uninstall and cannot install
+                 * that package. There is no Update affordance in the component and no
+                 * version comparison anywhere, so inventing one is a design call, not a bug
+                 * fix — recorded for Damir rather than built. */
+                app_installed.ToString(),
                 app_verified.ToString(),
                 (true).ToString());
 

@@ -49,10 +49,10 @@ export const PATTERN_STYLES = [
      any allowlist any more, so all three pre-paint ladders (chat.html's head script,
      chat.html's live re-resolve, settings.html's readChatPrefs — the #690 three-ladder
      rule) land on 'matrix'. The stored string is deliberately left alone.
-     ⚠ The doodles TILE still exists in the generated chat-pattern.css and its source SVG is
-     still in the repo. That is asset weight, not behaviour — nothing can select it — and
-     the generator that encodes it carries its own drift guard, so gutting it is a pipeline
-     change rather than part of this dial. Flagged for Damir, not done here. */
+     ⓘ #866 (Session W) then retired the doodles TILE from the generated chat-pattern.css as
+     well — #835 had left it emitted (233 KB, 94% of the sheet, selectable by nothing) because
+     the generator's drift guard owned the asset; the guard went with it. The source SVG may
+     still sit in src/assets/images unreferenced — deleting artwork is Damir's call. */
   { id: 'matrix', key: 'patternStyleMatrix', label: 'Data matrix' },
 ];/* ★ N81 (#422) — THREE levels, and the value is a LEVEL INDEX, not an alpha.
  *

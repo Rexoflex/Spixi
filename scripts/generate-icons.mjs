@@ -127,6 +127,22 @@ for (const file of readdirSync(ASSETS).sort()) {
     .trim();
   // raw Tabler downloads carry an invisible background stub — dead bytes
   inner = inner.replace(/<path\b[^>]*\bd="M0 0h24v24H0z"[^>]*\/?>(?:\s*<\/path>)?/g, '');
+  /* ★★ #868 — A CONTENT-CREDENTIALS (C2PA) MANIFEST IS NOT GLYPH CONTENT.
+     Session W (#865) found where the `<metadata>` rejections were coming from: the session
+     file bridge stamps a `<metadata><c2pa:manifest>base64</c2pa:manifest></metadata>` block
+     (and an xmlns:c2pa on the root, which the root strip above already drops) into any SVG
+     it writes to Damir's disk — by content, not by name — so every clean glyph a session
+     landed came back 7.7 KB heavier and the gate refused it. Refusing an unknown tag was the
+     right outcome; handing Damir the same red four times over was not. Same class as the
+     Tabler background stub: strip EXACTLY this shape and nothing else, say so on the console,
+     and let the gate run on what remains. Any other <metadata>, or a manifest with markup
+     inside it, still fails closed (the character class admits base64 and whitespace only).
+     The Figma frame export itself does not carry one; if it ever does, this is the same
+     answer. */
+  inner = inner.replace(/<metadata>\s*<c2pa:manifest>[A-Za-z0-9+/=\s]*<\/c2pa:manifest>\s*<\/metadata>/g, () => {
+    console.log(`icons: ${file} — content-credentials (C2PA) manifest dropped: provenance metadata stamped on write (#868), not glyph content`);
+    return '';
+  });
   // theme ink (every spelling of it — see INK) on fills AND strokes
   inner = inner.replace(/\b(fill|stroke)="([^"]*)"/g, (all, attr, val) => (INK.test(val.trim()) ? `${attr}="currentColor"` : all));
   // logo inherits its context color (topbar title ink — works in both modes);

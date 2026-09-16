@@ -46,9 +46,9 @@
      settings swatches can override it per element). Two dials, orthogonal:
      style picks the SOURCE, the intensity pref keeps mapping to opacity, and
      "Off" lives ONLY in the intensity dial (there is no fourth style).
-     Live flow is DESKTOP-ONLY — a mobile client carrying the pref (restore,
-     hand-edited storage) falls back to DOODLES here rather than burning
-     battery on a constant rAF loop. -->
+     ★ #835: ONE style is left (data matrix). A stored 'doodles', 'flow',
+     'triangles' or 'lineart' matches no allowlist below and lands on matrix
+     before first paint — the fall-through, not a migration (#422 rule). -->
 <!-- ★ N81 (#422): the level is an INDEX (0 Off / 1 Default / 2 Strong) and the
      alpha comes from the theme's own --chat-pattern-alpha-N. The old dark ×0.36
      derivation is GONE from every script — CSS resolves var() under the current

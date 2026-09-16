@@ -2,7 +2,7 @@
    #14 width). Region tokens only. No tails — grouping = inner-corner
    tightening (radius-16 outer / radius-8 group-adjacent), per design language. */
 
-/* —— chat canvas (Damir 2026-07-03): themed gradient + doodle pattern layer.
+/* —— chat canvas (Damir 2026-07-03): themed gradient + pattern layer (the data-matrix tile since #835).
    Pattern sits on the canvas (::before), messages scroll in a child ⇒ pattern
    stays fixed under the scroll, WhatsApp-style. */
 .c-chat-canvas {

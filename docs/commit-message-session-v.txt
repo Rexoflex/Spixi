@@ -1,0 +1,44 @@
+Session V - the icon gate that did not exist, the Add-contact chooser sheet, the contact-details read (#862-#864)
+
+#862 builds the cheapest gate on the board and it failed in three ways nobody had listed.
+`generate-icons --check` regenerates in memory and compares byte-for-byte with the two
+committed registries; GATE 63 asserts it runs green, plus four derived sweeps over the
+sources. Building it found:
+
+  - there is no `stroke-width` to sweep: Figma outlines the strokes, so the weight is read
+    off the round-cap quarter-circle radius instead. Every 2026-09-10 export measures 1.50,
+    every older stroke glyph 2.00; the expected value is the mode of the set, never a literal.
+  - the re-export says fill="black" where the old files say #131415. The generator themed
+    only #131415 and warned only on #hex, so running it as it stood would have shipped 79
+    glyphs that stay black in dark mode with no warning - and checks-l already ships that
+    way. The generator now themes every spelling of ink and warns on any unthemed paint.
+  - apps.svg and messages.svg are byte-identical to their -filled twins and were never read
+    by the generator: dead, not shadowing. Removed.
+
+Ten stroke glyphs still carried the old weight when the gate first ran; it named them. Damir
+re-exported the whole Figma frame at 1.50, added the four that were missing from Figma
+(message-plus phone-end alert-small layout-grid) and removed the three that nothing used
+(checks-l phone-done user-pentagon). 91 glyphs, one weight, one ink, --check green.
+Six mutations, six kills; the gate-21 ORDER pins still hold.
+
+#863 replaces the Add-contact screen with a chooser sheet (Figma 11751:1401, Damir: "UX is
+not good in screen"). Tapping Add contact asks which way in - Scan QR code, or Enter or paste
+- and the unchanged form follows the answer. Scan mounts the form and then opens the scanner,
+so the address the scanner hands back has a field to land in; Enter mounts it with the field
+focused inside the tap, so the keyboard comes up. Zero C# change: Session T already put the
+form in the home WebView and ixian:contactscan already returns via addScanResult. The desktop
+fork (#836) is untouched. Re-entrancy reads the overlay stack, not a handle - onDismiss fires
+only after the exit transition, and a handle-only guard left Add contact dead for those 400 ms
+(the harness caught it). GATE 54 (a) re-based in BOTH halves (#861), plus (a3)(a4)(a5).
+Verified on a bundle built in the container: 8/8 green on the new bundle, a0/a/a3/a4 red on
+the committed one. Five new strings ride the extract -> build-locales pipeline.
+
+#864 is a read, not a build: contact details in the home shell saves one cold WebView boot per
+open from the directory or row-menu (130-230 ms, #803) and nothing at idle; it is a C# batch
+of 9 new HomePage verbs plus 19 re-targeted pushes with two forks (the chat header and the
+desktop panes keep the page), a takeover subscreen rather than a c-sheet, no new exposure class
+under #221, and it waits on the CHAT_SPARE_ENABLED experiment to know whether it is a treatment
+or a nicety.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01EJaENjhBrmKP5kn8pKdzsD

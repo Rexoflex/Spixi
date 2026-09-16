@@ -638,5 +638,10 @@
   "removeContactOpt": "Hapus kontak",
   "removeFailedToast": "Kontak tidak dapat dihapus. Silakan coba lagi.",
   "contactSpixiAddress": "Alamat Spixi",
-  "viewProfile": "Lihat profil"
+  "viewProfile": "Lihat profil",
+  "addContactSheetLead": "Anda dapat menambahkan kontak baru dengan memindai kode QR mereka, atau dengan memasukkan atau menempelkan alamat Spixi mereka.",
+  "addContactScanLabel": "Pindai kode QR",
+  "addContactScanHint": "Kode QR mereka harus terlihat di perangkat lain agar Anda dapat memindainya dengan perangkat ini.",
+  "addContactEnterLabel": "Masukkan atau tempel alamat Spixi",
+  "addContactEnterHint": "Ketik atau tempel alamat Spixi mereka (misalnya 42Spox…M3rci98)."
 }

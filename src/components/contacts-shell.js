@@ -48,6 +48,7 @@ import { createSearchField } from './search-field.js';
 import { createBadge } from './badge.js';
 import { createChip, setChipSelected } from './chip.js';
 import { overlayId } from './overlay.js';
+import { createSheet } from './sheet.js';   // ★ #863: the add-contact chooser sheet
 import { createEmptyState } from './empty-state.js';
 
 function contactsCtrl(onDone, onFail) {          // one-shot (settingsCtrl grammar)
@@ -1154,4 +1155,101 @@ export function setGroupAvatar(el, src) {
   img.src = src;
   img.alt = '';
   st.avatarBtn.append(img);
+}
+
+/* ★★ #863 — THE ADD-CONTACT CHOOSER SHEET (Figma "add contact" 11751:1401; Damir,
+ * 2026-09-16: "add the Add contact sheet rather than screen, since UX is not good in
+ * screen"). Tapping Add contact used to land the user on the whole form at once — an
+ * address field, a scan button hidden inside it, and a Send button — before he had
+ * said which of the two ways in he wanted. The sheet asks that one question first,
+ * on the surface he is already looking at, and the form (createAddContact above,
+ * unchanged) follows the answer:
+ *   · Scan QR code   → the form mounts and the native scanner opens over it, so the
+ *                      scanned address lands in a field that exists (addScanResult →
+ *                      setAddContactAddress) and the user reviews it before sending;
+ *   · Enter or paste → the form mounts with the address field focused.
+ * The host (contacts-page.js openAddContact) does the routing; this is the surface.
+ * Copy is the design's, re-cased and de-typo'd ("the contacts Spixi ID" → "their Spixi
+ * address"). The art is the same class of asset as the empty states — a PNG under
+ * images/ that fails soft to a token glyph tile, never a hole (empty-state.js). */
+export function createAddContactSheet({
+  onScan, onEnter, onDismiss, host,
+  strings = getStrings(),
+} = {}) {
+  const content = document.createElement('div');
+  content.className = 'c-contacts-addsheet';
+
+  /* —— hero: art + lead —— */
+  const hero = document.createElement('div');
+  hero.className = 'c-contacts-addsheet__hero';
+  const art = document.createElement('div');
+  art.className = 'c-contacts-addsheet__art';
+  art.setAttribute('aria-hidden', 'true');
+  const drawGlyph = () => { art.dataset.placeholder = ''; art.append(icon('user-plus', { size: 48 })); };
+  const img = document.createElement('img');
+  img.className = 'c-contacts-addsheet__art-img';
+  img.alt = '';
+  img.draggable = false;
+  img.decoding = 'async';
+  img.addEventListener('error', () => { img.remove(); drawGlyph(); }, { once: true });   // handler BEFORE src (c-app-icon precedent)
+  img.src = 'images/add-contact.png';
+  art.append(img);
+  hero.append(art);
+  const lead = document.createElement('p');
+  lead.className = 'c-contacts-addsheet__lead';
+  lead.textContent = strings.addContactSheetLead
+    || 'You can add a new contact by scanning their QR code, or by entering or pasting their Spixi address.';
+  hero.append(lead);
+  content.append(hero);
+
+  /* —— the two ways in —— */
+  const options = document.createElement('div');
+  options.className = 'c-contacts-addsheet__options';
+  const item = (kind, glyphs, label, hint, cb) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-contacts-addsheet__item';
+    b.dataset.kind = kind;
+    const med = document.createElement('span');
+    med.className = 'c-contacts-addsheet__medallion';
+    med.setAttribute('aria-hidden', 'true');
+    for (const g of glyphs) {
+      const svg = icon(g.name, { size: g.size });
+      svg.classList.add('c-contacts-addsheet__glyph');
+      if (g.inset) svg.classList.add('c-contacts-addsheet__glyph--inset');
+      med.append(svg);
+    }
+    b.append(med);
+    const text = document.createElement('span');
+    text.className = 'c-contacts-addsheet__text';
+    const l = document.createElement('span');
+    l.className = 'c-contacts-addsheet__label t-label-md';
+    l.textContent = label;
+    const h = document.createElement('span');
+    h.className = 'c-contacts-addsheet__hint t-body-sm';
+    h.textContent = hint;
+    text.append(l, h);
+    b.append(text);
+    if (cb) b.addEventListener('click', cb);
+    return b;
+  };
+  // the design's scan medallion is the scan frame with a small qrcode inside it
+  options.append(item('scan',
+    [{ name: 'scan', size: 28 }, { name: 'qrcode', size: 11, inset: true }],
+    strings.addContactScanLabel || 'Scan QR code',
+    strings.addContactScanHint || 'Their QR code needs to be visible on another device, so you can scan it with this one.',
+    onScan));
+  options.append(item('enter',
+    [{ name: 'pencil', size: 28 }],
+    strings.addContactEnterLabel || 'Enter or paste a Spixi address',
+    strings.addContactEnterHint || 'Type or paste their Spixi address (for example 42Spox…M3rci98).',
+    onEnter));
+  content.append(options);
+
+  const sheet = createSheet({ title: strings.addContact || 'Add contact', content, host, onDismiss, strings });
+  sheet.classList.add('c-sheet--add-contact');
+  // the design sets this title one step up from the sheet default, centred (heading/sm)
+  const title = sheet.querySelector('.c-sheet__title');
+  if (title) title.classList.replace('t-heading-xs', 't-heading-sm');
+  return sheet;
 }

@@ -717,5 +717,10 @@
   "removeContactOpt": "Odstrani stik",
   "removeFailedToast": "Stika ni bilo mogoče odstraniti. Poskusite znova.",
   "contactSpixiAddress": "Spixi ID",
-  "viewProfile": "Prikaži profil"
+  "viewProfile": "Prikaži profil",
+  "addContactSheetLead": "Nov stik lahko dodate tako, da skenirate njegovo kodo QR ali vnesete oziroma prilepite njegov naslov Spixi.",
+  "addContactScanLabel": "Skeniraj kodo QR",
+  "addContactScanHint": "Koda QR mora biti vidna na drugi napravi, da jo lahko skenirate s to napravo.",
+  "addContactEnterLabel": "Vnesi ali prilepi naslov Spixi",
+  "addContactEnterHint": "Vtipkajte ali prilepite naslov Spixi (na primer 42Spox…M3rci98)."
 }

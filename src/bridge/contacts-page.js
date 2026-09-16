@@ -63,7 +63,9 @@
 // and has no alias support — so every import here must be ONE line with plain
 // names (a multi-line import leaves its tail behind; an `x as y` alias survives
 // into the bundle → "Unexpected identifier 'as'"). Both fail the syntax gate.
-import { createContactsPicker, setPickerContacts, createGroupSetup, setGroupAvatar, setPickerMode, createAddContact, setAddContactAddress, setAddContactKnown } from '../components/contacts-shell.js';
+import { createContactsPicker, setPickerContacts, createGroupSetup, setGroupAvatar, setPickerMode, createAddContact, setAddContactAddress, setAddContactKnown, createAddContactSheet } from '../components/contacts-shell.js';
+import { openSheet, closeSheet } from '../components/sheet.js';   // ★ #863: the add-contact chooser
+import { isOverlayOpen } from '../components/overlay.js';         // ★ #863: re-entrancy reads the stack, not a handle
 import { slideSubscreenIn, slideSubscreenOut } from '../components/subscreen-slide.js';
 import { clearPressFeedback } from '../components/pressable.js';   // ★ #589: a press must not outlive the screen that owned it
 
@@ -94,9 +96,16 @@ export function mountContacts({
   /* ★ C4 (#547): onClose carries the REASON — 'back' when the user pressed the
      takeover's own Back (the return-to-Account hop keys on it), anything else when
      the shell closed it programmatically (a tab tap, an app launch, a chat open). */
+  /* ★ #863: the add-contact chooser sheet sits on the SHARED stack (host), above this
+     takeover — so a programmatic close of the takeover must take it down too, or a tab
+     tap under an open chooser leaves a sheet over nothing. Declared here, above close(). */
+  let addSheet = null;
+  const closeAddSheet = () => { if (addSheet) { const s = addSheet; addSheet = null; closeSheet(s); } };
+
   const close = (reason) => {
     if (closed) return;
     closed = true;
+    closeAddSheet();
     /* ★ Session H (walk row 31): the user's OWN Back — arrow, hardware back, the edge
        swipe, all of which arrive here as 'back' — slides the takeover off the list it
        covered (the native pop grammar, #707). A programmatic close ('auto': a tab tap,
@@ -181,15 +190,19 @@ export function mountContacts({
     picker.hidden = false;
   };
 
-  const openAddContact = () => {
-    /* ★★ #836 / AND-41 — THE FORK (see home.html openAppsAdd for the full reasoning).
-       A detail pane on screen means the C# page push is the right answer: it is the #256
-       M7 routing that opens ContactNewPage BESIDE this picker, which is what Damir lost
-       when #827 removed the push. The picker deliberately stays open and nothing closes —
-       that is exactly the pre-#827 behaviour (`onAddContact: () => bridge.send(...)`),
-       because the form lands in a different column, not over this one. */
-    if (paneAvailable && paneAvailable()) { bridge.send('ixian:newcontact'); return; }
-    if (addPanel) return;
+  /* ★★ #863 — THE CHOOSER COMES FIRST (Figma 11751:1401; Damir: "add the Add contact
+   * sheet rather than screen, since UX is not good in screen"). Add contact no longer
+   * lands on the whole form: a c-sheet asks WHICH way in, and the form above mounts on
+   * the answer. Scan mounts the form AND opens the scanner, so the address the scanner
+   * hands back (addScanResult → setAddContactAddress) has a field to land in and the
+   * user reviews it before Send — the same round trip the form's own scan button already
+   * made, minus the tap that reached it. Enter mounts the form with the field focused.
+   * ⚠ The desktop fork above is untouched: with a detail pane on screen the form lands
+   * in the other column, and a chooser over THIS column would answer the wrong question.
+   * ⚠ The sheet is on the shared overlay stack, so the iOS back signal and Esc close it
+   * first (dismissTopOverlay, #706) — nothing here has to know. */
+  const mountAddContact = () => {
+    if (addPanel) return addPanel;
     addPanel = createAddContact({
       strings,
       onBack: closeAddContact,
@@ -207,6 +220,35 @@ export function mountContacts({
     });
     picker.hidden = true;
     overlay.append(addPanel);
+    return addPanel;
+  };
+
+  const openAddContact = () => {
+    /* ★★ #836 / AND-41 — THE FORK (see home.html openAppsAdd for the full reasoning).
+       A detail pane on screen means the C# page push is the right answer: it is the #256
+       M7 routing that opens ContactNewPage BESIDE this picker, which is what Damir lost
+       when #827 removed the push. The picker deliberately stays open and nothing closes —
+       that is exactly the pre-#827 behaviour (`onAddContact: () => bridge.send(...)`),
+       because the form lands in a different column, not over this one. */
+    if (paneAvailable && paneAvailable()) { bridge.send('ixian:newcontact'); return; }
+    if (addPanel) return;
+    /* re-entrancy is read off the overlay STACK, not off the handle: onDismiss only fires
+       after the exit transition, so a handle-only guard would make Add contact dead for
+       the 200–400 ms a dismissed sheet is still sliding out (harness (e) caught it) */
+    if (addSheet && isOverlayOpen(addSheet)) return;
+    addSheet = createAddContactSheet({
+      strings, host,
+      onScan: () => { closeAddSheet(); mountAddContact(); bridge.send('ixian:contactscan'); },
+      onEnter: () => {
+        closeAddSheet();
+        const panel = mountAddContact();
+        // inside the tap that chose it, so the soft keyboard is allowed to come up with the field
+        const input = panel.querySelector('.c-contacts-add__input');
+        if (input) { try { input.focus({ preventScroll: true }); } catch (e) {} }
+      },
+      onDismiss: () => { addSheet = null; },
+    });
+    openSheet(addSheet);
   };
 
   const picker = createContactsPicker({

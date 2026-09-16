@@ -7836,7 +7836,16 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      ~1.1 ms of extra parse, and it BUYS the removal of a 130–230 ms cold WebView boot
      (#803) on a hot route. A ceiling that refused this would be optimising the wrong
      number. Headroom after the raise: 7 397 chars. */
-  const CHAT_KB_CEIL = 682, INDEX_KB_CEIL = 516;
+  /* ★ Session V (#863): INDEX_KB_CEIL 516 → 528, with the delta stated. index.html measured
+     538 677 chars on Damir's first run of this batch — 10 293 OVER 516. Of that, 3 276 is
+     #863's stylesheet (the add-contact chooser: contacts-shell.css, inlined here and in
+     contact_new.html), ≈ 0.3 ms of parse at 0.08 ms/KB for the sheet Damir asked for. The
+     other ~7 000 predates this session: home.html grew through Session U and this pin was
+     not run end to end afterwards (handoff-2026-09-16 §1, the #860 constraint), so the
+     first honest number for it is this run's. Headroom after the raise: ~1 900 chars —
+     thinner than Session T left, on purpose: the next thing added to home.html re-bases
+     this pin with ITS delta rather than spending Session T's margin. */
+  const CHAT_KB_CEIL = 682, INDEX_KB_CEIL = 528;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -31659,7 +31668,14 @@ console.log('\n— handover gate: the third pin pass (loop C repairs · the thre
   w54.eval(bundle54);
   const S54 = w54.Spixi;
 
-  /* (a) ADD CONTACT — the picker's action mounts a panel here instead of pushing. */
+  /* (a) ADD CONTACT — the picker's action opens the CHOOSER here, and the chosen way in
+     mounts the form here. Nothing pushes.
+     ★★ RE-BASED at #863 (the add-contact chooser sheet, Figma 11751:1401). Until then this
+     clause asserted "tap → .c-contacts-add mounted at once"; the tap now opens a c-sheet
+     asking WHICH way in, and the form mounts on the answer. BOTH halves moved (#861): the
+     assertion below walks tap → sheet → Enter → form, and the message says so. The
+     property the clause guards is unchanged — no ixian:newcontact, the form lives in
+     THIS document, the picker is hidden-but-mounted under it. */
   const sentC = [];
   const viewC = S54.mountContacts({
     host: w54.document.body, bridge: { send: (v) => sentC.push(v) }, strings: {},
@@ -31668,12 +31684,22 @@ console.log('\n— handover gate: the third pin pass (loop C repairs · the thre
   const addRow54 = [...w54.document.querySelectorAll('button, [role="button"]')]
     .find((r) => /add contact/i.test(r.textContent || ''));
   if (addRow54) addRow54.click();
+  const sheet54 = w54.document.querySelector('.c-sheet--add-contact');
+  const items54 = sheet54 ? [...sheet54.querySelectorAll('.c-contacts-addsheet__item')] : [];
+  const panelEarly54 = !!w54.document.querySelector('.c-contacts-add');
+  ok(!!addRow54 && !!sheet54 && sheet54.getAttribute('role') === 'dialog' && items54.length === 2
+     && items54[0].dataset.kind === 'scan' && items54[1].dataset.kind === 'enter' && !panelEarly54 && sentC.length === 0,
+    '★★ GATE 54 (a0) #863 ADD CONTACT OPENS THE CHOOSER FIRST — a role=dialog c-sheet with exactly two ways in [scan, enter] (' + items54.map((i) => i.dataset.kind).join(',')
+    + '), the form NOT yet mounted (' + panelEarly54 + ') and nothing sent (' + JSON.stringify(sentC) + '). Damir: "add the Add contact sheet rather than screen, since UX is not good in screen"');
+  if (items54[1]) items54[1].click();
+  await new Promise((r) => setTimeout(r, 30));
   const panel54 = w54.document.querySelector('.c-contacts-add');
   const pickerEl54 = w54.document.querySelector('.c-contacts');
-  ok(!!addRow54 && !!panel54 && !sentC.includes('ixian:newcontact') && !!pickerEl54 && pickerEl54.hidden,
-    '★★ GATE 54 (a) ADD CONTACT is in-shell: the picker action mounted .c-contacts-add IN THIS DOCUMENT (' + !!panel54
-    + ') and sent NO ixian:newcontact (' + JSON.stringify(sentC) + '), with the picker hidden-but-mounted so back restores it ('
-    + (pickerEl54 ? pickerEl54.hidden : 'no picker') + '). That verb pushed ContactNewPage and its own WebView — the 130–230 ms cold boot #803 measured, and the stutter Damir reported twice. ⓘ #836 narrowed this clause: it is now the NO-PANE arm, and this mount passes no paneAvailable at all — which is also the fail-safe default, so an absent or late signal degrades to exactly this behaviour');
+  ok(!!addRow54 && !!panel54 && !sentC.includes('ixian:newcontact') && !!pickerEl54 && pickerEl54.hidden
+     && w54.document.activeElement === panel54.querySelector('.c-contacts-add__input'),
+    '★★ GATE 54 (a) ADD CONTACT is in-shell: choosing ENTER mounted .c-contacts-add IN THIS DOCUMENT (' + !!panel54
+    + ') with the address field focused, and sent NO ixian:newcontact (' + JSON.stringify(sentC) + '), with the picker hidden-but-mounted so back restores it ('
+    + (pickerEl54 ? pickerEl54.hidden : 'no picker') + '). That verb pushed ContactNewPage and its own WebView — the 130–230 ms cold boot #803 measured, and the stutter Damir reported twice. ⓘ #836 narrowed this clause: it is the MOBILE arm of a fork — (a2) below is the other. ⓘ #863 re-based it: the tap opens the chooser (a0), and the form follows the choice');
 
   /* (b) the verdict must reach the button. The standalone page cannot do this: it answers
      a rejection with a native alert and NO push, which is why contact_new.html arms a
@@ -31724,6 +31750,49 @@ console.log('\n— handover gate: the third pin pass (loop C repairs · the thre
     '★★ GATE 54 (a2) WITH A DETAIL PANE ON SCREEN, ADD CONTACT ASKS FOR THE PAGE — sent=' + JSON.stringify(sentP)
     + ' and no new .c-contacts-add was mounted (' + (panelsAfterP === panelsBeforeP)
     + '). `paneAvailable` is a GETTER because the window can be resized while this takeover is open, so the state is read when the row is tapped and not snapshotted at mount. Nothing closes here on purpose: the form lands in a DIFFERENT column, which is the pre-#827 behaviour Damir is asking for back');
+
+  /* ★ (a3) #863 — THE SCAN WAY IN mounts the form AND opens the scanner, in that order,
+     because the address the scanner hands back (addScanResult → setAddContactAddress)
+     needs a field to land in. Same verb the form's own scan button sends, minus one tap. */
+  {
+    const sentS = [];
+    const viewS = S54.mountContacts({
+      host: w54.document.body, bridge: { send: (v) => sentS.push(v) }, strings: {},
+      purpose: 'start', getRoster: () => [{ address: 'CCCC3333', name: 'Cy' }], onClose: () => {},
+    });
+    const rowsS = [...w54.document.querySelectorAll('button, [role="button"]')].filter((r) => /add contact/i.test(r.textContent || ''));
+    const rowS = rowsS[rowsS.length - 1];
+    if (rowS) rowS.click();
+    const sheetsS = [...w54.document.querySelectorAll('.c-sheet--add-contact')];
+    const scanItem = sheetsS.length ? sheetsS[sheetsS.length - 1].querySelector('.c-contacts-addsheet__item[data-kind="scan"]') : null;
+    if (scanItem) scanItem.click();
+    await new Promise((r) => setTimeout(r, 30));
+    const panelsS = [...w54.document.querySelectorAll('.c-contacts-add')];
+    const panelS = panelsS[panelsS.length - 1];
+    viewS.addScanResult('SCANNED' + 'X'.repeat(30));
+    const landed = !!panelS && (panelS.querySelector('.c-contacts-add__input').value || '').startsWith('SCANNED');
+    ok(!!scanItem && !!panelS && sentS.includes('ixian:contactscan') && !sentS.includes('ixian:newcontact') && landed,
+      '★ GATE 54 (a3) #863 SCAN mounts the form and sends ixian:contactscan (' + JSON.stringify(sentS) + '), and the scanned address lands in that form (' + landed
+      + ') — the form mounts BEFORE the scanner because addScanResult has nowhere else to put the result');
+    /* (a4) dismissing the chooser leaves nothing behind, and a re-tap DURING its exit
+       transition still opens a fresh one — re-entrancy reads the overlay stack, not a
+       handle that onDismiss only releases ~400 ms later (harness (e) caught the dead window) */
+    viewS.addRequestResult('0', '');       // no-op here; keeps the panel's ctrl bookkeeping honest
+    panelS && panelS.querySelector('.c-topbar button') && panelS.querySelector('.c-topbar button').click();   // form's own Back → picker
+    await new Promise((r) => setTimeout(r, 30));
+    if (rowS) rowS.click();
+    w54.document.dispatchEvent(new w54.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await new Promise((r) => setTimeout(r, 50));      // still sliding out
+    if (rowS) rowS.click();
+    await new Promise((r) => setTimeout(r, 30));      // data-open lands two frames after open (R3-1)
+    const openNow = w54.document.querySelectorAll('.c-sheet--add-contact[data-open]').length;
+    ok(openNow === 1 && !w54.document.querySelector('.c-contacts-add'),
+      '★ GATE 54 (a4) #863 Esc closes the chooser with nothing mounted, and a re-tap during its exit transition opens exactly one fresh chooser (' + openNow + ') — `isOverlayOpen` is the re-entrancy oracle, not the handle');
+    viewS.close('auto');
+    await new Promise((r) => setTimeout(r, 450));
+    ok(!w54.document.querySelector('.c-sheet--add-contact[data-open]'),
+      '★ GATE 54 (a5) #863 a programmatic close of the takeover takes the chooser down with it — the sheet lives on the shared host above the takeover, so a tab tap under an open chooser must not leave a sheet over nothing');
+  }
 
   /* (c) ADD APP — and the scan verb is the subtle half. */
   const sentA = [];
@@ -32456,6 +32525,164 @@ console.log('\n— handover gate: the third pin pass (loop C repairs · the thre
     + (gStale62.length ? ' · STALE=' + JSON.stringify(gStale62) : '')
     + '. All three ladders must drop \'gradient\' from their allowlist, not merely default away from it: a user who PICKED Gradient would otherwise be stranded on a canvas the picker can no longer change. ⓘ The row guard is derived so that restoring the option is one line and cannot forget to un-hide the control — and it is the same rule the dark branch already applies, because a one-option chooser reads as broken (Damir, 2026-09-04). Superseded: "the light ground defaults to Solid and the gradient remains an option" (#853), which was the reading he corrected');
 
+}
+
+/* ══ GATE 63 — THE ICON SOURCES AND THE REGISTRY THE APP SHIPS MUST AGREE (#862) ═════
+   ★★ #856: Damir re-exported 79 of 96 SVGs at a lighter weight on 2026-09-10 and, on
+   purpose, did not regenerate — so for six days the sources under src/assets/icons/ and
+   the registry the app actually loads (icons.js → icons.iife.js → spixi.icons.js) told
+   different stories with the WHOLE SUITE GREEN. Nothing read the SVGs: the C MAJOR-2
+   gate proves icons.js ≡ icons.iife.js ≡ shipped, and gate 21 proves the generator
+   fails closed, but neither reaches back to the files the registry is generated FROM.
+   Same shape `build-shells --check` closes for the shells; this is the icons half.
+
+   ★ WHAT THE MEASUREMENT FOUND (#294 — read off the 96 files, not assumed):
+   · There is NO `stroke-width` attribute in any of the 96. Figma outlines the strokes on
+     export, so "thin" is path geometry, not an attribute — the sweep the brief asked for
+     cannot be written as an attribute sweep. But an outlined round cap leaves TWO
+     quarter-circle cubics whose radius is exactly half the stroke weight, so the weight
+     is DERIVABLE from the `d` string (κ = 0.5523 · r; handle/chord = κ/√2). Read that
+     way, every 2026-09-10 export measures 1.50 and every older stroke glyph 2.00.
+   · The re-export carries `fill="black"` where the older exports carry `fill="#131415"`.
+     The generator themed only `#131415`, and its hardcoded-colour warning matched only
+     `#hex`, so running it would have shipped 79 glyphs that stay black in dark mode with
+     no warning at all — and `checks-l` ALREADY ships that way. (d) is that gate.
+   · `apps.svg` and `messages.svg` are byte-identical to their `-filled` twins and the
+     generator skips anything not prefixed `tabler-icon-` (line 96), so they are dead —
+     not shadowing, dead. (e) is the rule that keeps the directory honest.
+
+   ⓘ EXPECTED VALUES ARE DERIVED FROM THE SET, never chosen here: (c) takes the modal
+   weight across the measurable glyphs and names the outliers; (b) takes the majority ink
+   spelling and names the minority. A half-finished re-export is red and named, instead
+   of invisible. Filled glyphs (`-filled` suffix) and the logo are excluded by RULE, not
+   by list (#846): a filled glyph has no stroke to be thin. */
+console.log('GATE 63: icon sources ≡ registry (#862)');
+{
+  const ICON_DIR = join(root, 'src/assets/icons');
+  const svgs = readdirSync(ICON_DIR).filter((f) => f.endsWith('.svg')).sort();
+  const strokeGlyphs = svgs.filter((f) => f.startsWith('tabler-icon-') && !/-filled\.svg$/.test(f));
+  const gen63 = stripCode(readFileSync(join(root, 'scripts/generate-icons.mjs'), 'utf8'));
+
+  /* (a) --check EXISTS and it PASSES: the committed registry equals a fresh generation.
+     Run, not read — a flag that is declared but never consulted is the C MINOR-3 lesson. */
+  {
+    const { execSync } = await import('node:child_process');
+    let okA = true, tail = '';
+    try {
+      tail = execSync(JSON.stringify(process.execPath) + ' ' + JSON.stringify(join(root, 'scripts/generate-icons.mjs')) + ' --check', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim().split('\n').pop();
+    } catch (e) { okA = false; tail = String(e.stderr || e.stdout || e.message).trim().split('\n').slice(0, 2).join(' · ').slice(0, 400); }
+    ok(/const CHECK_ONLY = process\.argv\.includes\('--check'\);/.test(gen63) && /if \(CHECK_ONLY\) \{/.test(gen63)
+       && gen63.indexOf('if (CHECK_ONLY) {') < gen63.indexOf('writeFileSync(OUT_ESM'),
+      '★★ GATE 63 (a) generate-icons has a --check that stands BEFORE the writes — it compares and exits, it never writes (the gate-21 ORDER pins still hold: the rejection exit is first, the writes are last)');
+    ok(okA && /registry is current/.test(tail),
+      '★★ GATE 63 (a) generate-icons --check RUNS GREEN — icons.js and icons.iife.js equal a fresh in-memory generation of every source SVG (a re-exported source that nobody regenerated can no longer pass the suite) — ' + tail);
+  }
+
+  /* (b) ONE EXPORT GENERATION: every stroke glyph carries the same ink spelling. The
+     2026-07 exports say #131415, the 2026-09-10 ones say black; both theme now (d), so
+     this is not a colour pin — it is the cheapest "was the whole set re-exported?"
+     signal there is, and it covers the closed shapes (c) cannot measure. */
+  const ink63 = {};
+  for (const f of strokeGlyphs) {
+    const inks = [...readFileSync(join(ICON_DIR, f), 'utf8').matchAll(/\b(?:fill|stroke)="([^"]*)"/g)].map((m) => m[1].toLowerCase()).filter((v) => v !== 'none');
+    ink63[f] = [...new Set(inks)].sort().join('+') || '(none)';
+  }
+  const inkCounts63 = {};
+  for (const v of Object.values(ink63)) inkCounts63[v] = (inkCounts63[v] || 0) + 1;
+  const inkMajority63 = Object.keys(inkCounts63).sort((x, y) => inkCounts63[y] - inkCounts63[x])[0];
+  const inkMinority63 = strokeGlyphs.filter((f) => ink63[f] !== inkMajority63);
+  ok(strokeGlyphs.length >= 80 && inkMinority63.length === 0,
+    '★ GATE 63 (b) ONE EXPORT GENERATION — all ' + strokeGlyphs.length + ' stroke glyphs carry the majority ink spelling `' + inkMajority63 + '` (' + JSON.stringify(inkCounts63) + ')'
+    + (inkMinority63.length ? ' · NOT YET RE-EXPORTED: ' + inkMinority63.map((f) => f.replace('tabler-icon-', '').replace('.svg', '') + '=' + ink63[f]).join(', ') : '')
+    + '. Derived from the set: the majority spelling is the expectation, the minority is the half-finished re-export');
+
+  /* (c) ONE STROKE WEIGHT, derived from cap geometry. Only glyphs with ≥ 4 agreeing cap
+     arcs are asserted (a single arc can be a decorative curve — settings, share-3 —
+     and closed shapes have no caps at all); the unmeasurable ones are NAMED so nobody
+     mistakes silence for a pass. */
+  const weight63 = (svg) => {
+    const KAPPA = 0.5522847;
+    const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+    const radii = [];
+    for (const dm of svg.matchAll(/\bd="([^"]+)"/g)) {
+      const t = dm[1].match(/[MLHVCSQTAZmlhvcsqtaz]|-?\d*\.?\d+(?:e[-+]?\d+)?/g) || [];
+      let i = 0, cmd = null, x = 0, y = 0, sx = 0, sy = 0, bail = false;
+      const num = () => parseFloat(t[i++]);
+      while (i < t.length && !bail) {
+        if (/[A-Za-z]/.test(t[i])) cmd = t[i++];
+        switch (cmd) {
+          case 'M': x = num(); y = num(); sx = x; sy = y; cmd = 'L'; break;
+          case 'm': x += num(); y += num(); sx = x; sy = y; cmd = 'l'; break;
+          case 'L': x = num(); y = num(); break;
+          case 'l': x += num(); y += num(); break;
+          case 'H': x = num(); break;
+          case 'h': x += num(); break;
+          case 'V': y = num(); break;
+          case 'v': y += num(); break;
+          case 'C': case 'c': {
+            const rel = cmd === 'c';
+            const p0 = [x, y];
+            const p1 = rel ? [x + num(), y + num()] : [num(), num()];
+            const p2 = rel ? [x + num(), y + num()] : [num(), num()];
+            const p3 = rel ? [x + num(), y + num()] : [num(), num()];
+            const h1 = dist(p0, p1), h2 = dist(p2, p3), c = dist(p0, p3);
+            /* a quarter circle: chord = r√2, both handles = κ·r → handle/chord = κ/√2 */
+            if (c >= 0.05 && h1 >= 0.01 && Math.abs(h1 - h2) < 0.02 && Math.abs(h1 / c - KAPPA / Math.SQRT2) < 0.015) radii.push(c / Math.SQRT2);
+            x = p3[0]; y = p3[1]; break;
+          }
+          case 'Z': case 'z': x = sx; y = sy; break;
+          default: bail = true; // S/Q/T/A never appear in these exports; if one does, this path is not measured
+        }
+      }
+    }
+    const counts = new Map();
+    for (const r of radii) { const w = (Math.round(2 * r * 20) / 20).toFixed(2); counts.set(w, (counts.get(w) || 0) + 1); }
+    const top = [...counts.entries()].sort((p, q) => q[1] - p[1])[0];
+    return top && top[1] >= 4 ? Number(top[0]) : null;
+  };
+  const w63 = {};
+  for (const f of strokeGlyphs) w63[f] = weight63(readFileSync(join(ICON_DIR, f), 'utf8'));
+  const measurable63 = strokeGlyphs.filter((f) => w63[f] !== null);
+  const unmeasurable63 = strokeGlyphs.filter((f) => w63[f] === null);
+  const wCounts63 = {};
+  for (const f of measurable63) wCounts63[w63[f]] = (wCounts63[w63[f]] || 0) + 1;
+  const wMode63 = Number(Object.keys(wCounts63).sort((x, y) => wCounts63[y] - wCounts63[x])[0]);
+  const wOutliers63 = measurable63.filter((f) => w63[f] !== wMode63);
+  ok(measurable63.length >= 60 && wOutliers63.length === 0,
+    '★★ GATE 63 (c) ONE STROKE WEIGHT — ' + measurable63.length + ' of ' + strokeGlyphs.length + ' stroke glyphs are measurable from their cap arcs and every one reads ' + wMode63.toFixed(2)
+    + ' (' + JSON.stringify(wCounts63) + ')'
+    + (wOutliers63.length ? ' · STILL THE OLD WEIGHT: ' + wOutliers63.map((f) => f.replace('tabler-icon-', '').replace('.svg', '') + '=' + w63[f].toFixed(2)).join(', ') : '')
+    + ' · unmeasurable (closed shapes, no caps): ' + unmeasurable63.map((f) => f.replace('tabler-icon-', '').replace('.svg', '')).join(', ')
+    + '. There is no stroke-width attribute to sweep (Figma outlines the stroke); the weight is derived from the round-cap quarter-circle radius, and the expected value is the mode of the set, not a literal');
+
+  /* (d) EVERY INK SPELLING THEMES. The generator maps every spelling of ink to
+     currentColor (mechanism), and the registry it wrote carries no unthemed paint
+     (behaviour). Negative sweep on the generated file — there is nothing but the header
+     comment to strip, and it is stripped anyway (#771). */
+  {
+    const inkRe = /const INK = \/\^\(\?:([^/]+)\)\$\/i;/.exec(gen63);
+    const spellings = inkRe ? inkRe[1].split('|') : [];
+    const reg63 = stripCode(readFileSync(join(root, 'src/components/icons.js'), 'utf8'));
+    const unthemed = [...reg63.matchAll(/(?:fill|stroke)=\\"([^\\]*)\\"/g)].map((m) => m[1]).filter((v) => v !== 'none' && v !== 'currentColor' && !/^var\(--icon-accent/.test(v));
+    ok(spellings.includes('#131415') && spellings.includes('black') && spellings.includes('#000000')
+       && /INK\.test\(val\.trim\(\)\)/.test(gen63),
+      '★★ GATE 63 (d) THE GENERATOR THEMES EVERY SPELLING OF INK — INK = ' + JSON.stringify(spellings) + ' → currentColor on fill AND stroke (the 2026-09-10 export says `black`, the 2026-07 export says `#131415`; a hex-only replace shipped black-on-black in dark mode)');
+    ok(unthemed.length === 0,
+      '★★ GATE 63 (d) THE REGISTRY CARRIES NO UNTHEMED PAINT — every fill/stroke in icons.js is none, currentColor or the accent variable' + (unthemed.length ? ' · UNTHEMED: ' + JSON.stringify([...new Set(unthemed)]) : ''));
+    /* the warning loop must iterate EVERY paint value and test it against the themed
+       set — not iterate only `#hex` values (the shape that let `black` through) */
+    const warnLoop = /for \(const m of inner\.matchAll\(\/\\b\(fill\|stroke\)="\(\[\^"\]\*\)"\/g\)\) \{\s*const v = m\[2\]\.trim\(\);\s*if \(v !== 'none' && v !== 'currentColor' && !\/\^var\\\(--icon-accent\/\.test\(v\)\) \{/.test(gen63);
+    ok(warnLoop && !/matchAll\(\/\(fill\|stroke\)="\(#\[0-9a-fA-F\]\{6\}\)"\/g\)/.test(gen63),
+      '★ GATE 63 (d) the hardcoded-colour warning reads EVERY paint value and tests it against {none, currentColor, var(--icon-accent…)} — not only #hex values, which is the shape that waved `black` through');
+  }
+
+  /* (e) NO DEAD ASSET: every .svg in the directory is one the generator will read.
+     `apps.svg` / `messages.svg` were byte-identical copies of their -filled twins that
+     the prefix rule skipped — present in the tree, absent from the app, and a trap for
+     the next reader who greps the directory to see what ships. */
+  const dead63 = svgs.filter((f) => f !== 'logo.svg' && !f.startsWith('tabler-icon-'));
+  ok(dead63.length === 0,
+    '★ GATE 63 (e) EVERY SVG IN src/assets/icons IS ONE THE GENERATOR READS — logo.svg or tabler-icon-*.svg, nothing else' + (dead63.length ? ' · DEAD: ' + dead63.join(', ') + ' (byte-identical to the -filled twins; `git rm` them)' : ''));
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

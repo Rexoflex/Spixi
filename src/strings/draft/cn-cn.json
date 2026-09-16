@@ -637,5 +637,10 @@
   "removeContactOpt": "移除联系人",
   "removeFailedToast": "无法移除该联系人。请重试。",
   "contactSpixiAddress": "Spixi 地址",
-  "viewProfile": "查看资料"
+  "viewProfile": "查看资料",
+  "addContactSheetLead": "您可以通过扫描对方的 QR 码，或输入/粘贴对方的 Spixi 地址来添加新联系人。",
+  "addContactScanLabel": "扫描 QR 码",
+  "addContactScanHint": "对方的 QR 码需要显示在另一台设备上，以便您用这台设备扫描。",
+  "addContactEnterLabel": "输入或粘贴 Spixi 地址",
+  "addContactEnterHint": "输入或粘贴对方的 Spixi 地址（例如 42Spox…M3rci98）。"
 }

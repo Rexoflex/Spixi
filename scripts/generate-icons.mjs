@@ -3,15 +3,26 @@
  * (classic script for file:// demos) from src/assets/icons/tabler-icon-*.svg.
  *
  * Pipeline (DECISIONS.md #32): Figma icons frame → bulk SVG export by Damir →
- * this script. Ink fills/strokes (#131415) become currentColor; brand fills/
- * strokes (#3050BD) become var(--icon-accent, #3050bd) so they theme.
- * logo.svg IS processed into the registry (DECISIONS #32/#36) — all its inks
- * (including brand #3050BD) become currentColor so it inherits its context
+ * this script. Ink fills/strokes (#131415, and since #862 Figma's `black`) become
+ * currentColor; brand fills/strokes (#3050BD) become var(--icon-accent, #3050bd) so
+ * they theme. logo.svg IS processed into the registry (DECISIONS #32/#36) — all its
+ * inks (including brand #3050BD) become currentColor so it inherits its context
  * color (topbar title ink — works in both modes).
  *
- * Run: node scripts/generate-icons.mjs   (from repo root)
+ * Run: node scripts/generate-icons.mjs           (from repo root — writes both files)
+ *      node scripts/generate-icons.mjs --check   (writes NOTHING; exit 1 if the two
+ *                                                 committed files differ from a fresh
+ *                                                 in-memory generation — #862)
+ *
+ * ★ WHY --check EXISTS (#856 → #862). The registry is the only thing the app ships —
+ * the SVGs are never loaded at runtime — so a re-exported source that nobody
+ * regenerated is invisible to every gate that reads icons.js: the suite stayed green
+ * for six days while 79 of 96 sources disagreed with the file the app loads. Same
+ * shape `build-shells --check` closes for the shells. The comparison is byte-for-byte
+ * against the exact strings this script would write, after CRLF→LF on the disk side
+ * (a Windows checkout may carry CRLF; #340 — content, never line endings).
  */
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -19,6 +30,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ASSETS = join(root, 'src/assets/icons');
 const OUT_ESM = join(root, 'src/components/icons.js');
 const OUT_IIFE = join(root, 'src/components/icons.iife.js');
+const CHECK_ONLY = process.argv.includes('--check');
 
 /* ★★ THE CONTENT GATE (security sweep, row E-4).
  * The stored body of an icon is written into a LIVE document with
@@ -88,6 +100,14 @@ function iconBodyFaults(body) {
   return faults;
 }
 
+/* ★ THE INK SPELLINGS (#862). The 2026-07 exports carry the design token `#131415`;
+ * the 2026-09-10 re-export (Tabler outline set at a lighter weight, strokes outlined
+ * in Figma) carries Figma's default `black` on every path instead. Both are the same
+ * ink and both must become currentColor, or the thinner set ships black-on-black in
+ * dark mode. `#000000` / `#000` are the other spellings the same tool can emit. The
+ * brand hex is NOT in this list: it themes to the accent variable below, not to ink. */
+const INK = /^(?:#131415|black|#000000|#000)$/i;
+
 const rejected = [];
 const entries = {};
 for (const file of readdirSync(ASSETS).sort()) {
@@ -107,10 +127,8 @@ for (const file of readdirSync(ASSETS).sort()) {
     .trim();
   // raw Tabler downloads carry an invisible background stub — dead bytes
   inner = inner.replace(/<path\b[^>]*\bd="M0 0h24v24H0z"[^>]*\/?>(?:\s*<\/path>)?/g, '');
-  // theme ink + brand colors (fills AND strokes)
-  inner = inner
-    .replace(/fill="#131415"/gi, 'fill="currentColor"')
-    .replace(/stroke="#131415"/gi, 'stroke="currentColor"');
+  // theme ink (every spelling of it — see INK) on fills AND strokes
+  inner = inner.replace(/\b(fill|stroke)="([^"]*)"/g, (all, attr, val) => (INK.test(val.trim()) ? `${attr}="currentColor"` : all));
   // logo inherits its context color (topbar title ink — works in both modes);
   // other brand-colored glyphs keep themed accent
   inner = isLogo
@@ -135,9 +153,11 @@ for (const file of readdirSync(ASSETS).sort()) {
       console.warn(`icons: ${file} has inline ${m[0]} — style attributes are not themed, clean up the export manually`);
     }
   }
-  for (const m of inner.matchAll(/(fill|stroke)="(#[0-9a-fA-F]{6})"/g)) {
-    const hex = m[2].toLowerCase();
-    if (hex !== '#131415' && hex !== '#3050bd') {
+  /* any paint that is not `none`, `currentColor` or the accent variable is a colour
+     the theme cannot reach — hex OR named (#862: `black` sailed past a hex-only test) */
+  for (const m of inner.matchAll(/\b(fill|stroke)="([^"]*)"/g)) {
+    const v = m[2].trim();
+    if (v !== 'none' && v !== 'currentColor' && !/^var\(--icon-accent/.test(v)) {
       console.warn(`icons: ${file} ships hardcoded ${m[1]}="${m[2]}" — not a known ink/brand color, will be wrong in dark mode`);
     }
   }
@@ -188,19 +208,53 @@ const header = (kind) => `/* GENERATED by scripts/generate-icons.mjs from src/as
  * DO NOT EDIT — re-export from Figma + re-run the script instead. ${kind}
  */`;
 
-writeFileSync(OUT_ESM, `${header('ESM module.')}
+const OUTPUT_ESM = `${header('ESM module.')}
 export const ICONS = ${registry};
 ${factory}
 export const icon = iconFactory(ICONS);
-`);
+`;
 
-writeFileSync(OUT_IIFE, `${header('Classic script for file:// demos — exposes window.SpixiIcons.')}
+const OUTPUT_IIFE = `${header('Classic script for file:// demos — exposes window.SpixiIcons.')}
 (function () {
   var ICONS = ${registry};
   ${factory}
   window.SpixiIcons = { ICONS: ICONS, icon: iconFactory(ICONS) };
 })();
-`);
+`;
+
+/* ★★ --check (#862): the two committed files must equal a fresh generation, byte for
+ * byte. On drift, say WHICH glyphs moved — added, removed or changed body/viewBox — so
+ * the answer to "did somebody re-export without regenerating?" is on one screen. The
+ * per-glyph diff is derived from the committed file's own registry (its `"name":{"v"…}`
+ * lines) against `entries`; the verdict itself is the whole-string comparison. */
+if (CHECK_ONLY) {
+  const onDisk = (p) => (existsSync(p) ? readFileSync(p, 'utf8').replace(/\r\n/g, '\n') : null);
+  const stale = [];
+  if (onDisk(OUT_ESM) !== OUTPUT_ESM) stale.push('src/components/icons.js');
+  if (onDisk(OUT_IIFE) !== OUTPUT_IIFE) stale.push('src/components/icons.iife.js');
+  if (stale.length) {
+    const committed = {};
+    // the registry breaks its line between "v" and "b" (the `","` → `",\n  "` rewrite above),
+    // and the first entry's closer is `"\n}` (the `"}` rewrite lands on it, not on the file's)
+    for (const g of (onDisk(OUT_ESM) || '').matchAll(/"([a-z0-9-]+)":\{"v":"([^"]*)",\s*"b":"((?:[^"\\]|\\.)*)"\s*\}/g)) committed[g[1]] = g[2] + ' ' + g[3];
+    const fresh = Object.fromEntries(Object.entries(entries).map(([k, e]) => [k, e.v + ' ' + JSON.stringify(e.b).slice(1, -1)]));
+    const added = Object.keys(fresh).filter((k) => !(k in committed));
+    const removed = Object.keys(committed).filter((k) => !(k in fresh));
+    const changed = Object.keys(fresh).filter((k) => k in committed && committed[k] !== fresh[k]);
+    console.error(`generate-icons --check: STALE — ${stale.join(' + ')} differ from a fresh generation of ${Object.keys(entries).length} sources.`);
+    console.error(`generate-icons --check: ${changed.length} changed · ${added.length} added · ${removed.length} removed (vs the committed icons.js)`);
+    if (changed.length) console.error('  changed: ' + changed.join(', '));
+    if (added.length) console.error('  added:   ' + added.join(', '));
+    if (removed.length) console.error('  removed: ' + removed.join(', '));
+    console.error('generate-icons --check: run `node scripts/generate-icons.mjs` then build-demo-bundle + build-shells, and commit the result.');
+    process.exit(1);
+  }
+  console.log('generate-icons --check: registry is current — ' + Object.keys(entries).length + ' icons, icons.js and icons.iife.js match a fresh generation');
+  process.exit(0);
+}
+
+writeFileSync(OUT_ESM, OUTPUT_ESM);
+writeFileSync(OUT_IIFE, OUTPUT_IIFE);
 
 /* ★ Session H review (auditor C, MAJOR-2 belt): READ BOTH FILES BACK and require the
  * registry to appear byte-identically in each. The two writes come from one string, so
@@ -216,4 +270,4 @@ writeFileSync(OUT_IIFE, `${header('Classic script for file:// demos — exposes 
     process.exit(1);
   }
 }
-console.log('generated', Object.keys(entries).length, 'icons →', OUT_ESM, '+', OUT_IIFE, '· read-back \u2713');
+console.log('generated', Object.keys(entries).length, 'icons →', OUT_ESM, '+', OUT_IIFE, '· read-back ✓');

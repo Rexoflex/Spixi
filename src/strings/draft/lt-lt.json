@@ -637,5 +637,10 @@
   "removeContactOpt": "Pašalinti kontaktą",
   "removeFailedToast": "Kontakto pašalinti nepavyko. Bandykite dar kartą.",
   "contactSpixiAddress": "Spixi adresas",
-  "viewProfile": "Peržiūrėti profilį"
+  "viewProfile": "Peržiūrėti profilį",
+  "addContactSheetLead": "Naują kontaktą galite pridėti nuskaitę jo QR kodą arba įvedę ar įklijavę jo Spixi adresą.",
+  "addContactScanLabel": "Nuskaityti QR kodą",
+  "addContactScanHint": "QR kodas turi būti matomas kitame įrenginyje, kad galėtumėte jį nuskaityti šiuo įrenginiu.",
+  "addContactEnterLabel": "Įvesti arba įklijuoti Spixi adresą",
+  "addContactEnterHint": "Įveskite arba įklijuokite Spixi adresą (pavyzdžiui, 42Spox…M3rci98)."
 }

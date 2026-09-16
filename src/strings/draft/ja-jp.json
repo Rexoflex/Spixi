@@ -638,5 +638,10 @@
   "removeContactOpt": "連絡先を削除",
   "removeFailedToast": "連絡先を削除できませんでした。もう一度お試しください。",
   "contactSpixiAddress": "Spixi アドレス",
-  "viewProfile": "プロフィールを表示"
+  "viewProfile": "プロフィールを表示",
+  "addContactSheetLead": "相手の QR コードをスキャンするか、Spixi アドレスを入力または貼り付けて、新しい連絡先を追加できます。",
+  "addContactScanLabel": "QR コードをスキャン",
+  "addContactScanHint": "この端末でスキャンできるように、相手の QR コードを別の端末に表示してもらってください。",
+  "addContactEnterLabel": "Spixi アドレスを入力または貼り付け",
+  "addContactEnterHint": "相手の Spixi アドレスを入力または貼り付けます（例：42Spox…M3rci98）。"
 }

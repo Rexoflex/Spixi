@@ -993,6 +993,101 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   outline-offset: 1px;
 }
 
+/* ★★ #863 — THE ADD-CONTACT CHOOSER SHEET (Figma 11751:1401). Mounted by createSheet, so
+   the surface, handle, radius and elevation are the c-sheet's own (overlay.css); this
+   is only the content. Every value is the design's, read through the token it names:
+   surface-menu sheet · 12px inset around the hero copy · 128px art · 24 between hero
+   and options · 8 between the two items · item = surface-neutral-02 card, radius-12,
+   16 pad, 12 gap, 40px surface-neutral-04 medallion, label/md + body/sm copy. */
+.c-sheet--add-contact .c-sheet__title { text-align: center; }
+.c-contacts-addsheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-24);
+}
+.c-contacts-addsheet__hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-16);
+  padding: 0 var(--spacing-12);
+}
+.c-contacts-addsheet__art {
+  width: 128px;
+  height: 128px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.c-contacts-addsheet__art-img { width: 100%; height: 100%; object-fit: contain; }
+/* art missing/blocked → the empty-state glyph tile grammar, never a hole */
+.c-contacts-addsheet__art[data-placeholder] {
+  width: 96px; height: 96px;
+  border-radius: var(--radius-24);
+  background: var(--surface-neutral-02);
+  color: var(--text-neutral-02);
+}
+.c-contacts-addsheet__lead {
+  margin: 0;
+  text-align: center;
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  letter-spacing: var(--tracking-body-md);
+}
+.c-contacts-addsheet__options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+}
+.c-contacts-addsheet__item {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-12);
+  padding: var(--spacing-16);
+  border: 0;
+  border-top: var(--outline-width-1) solid var(--outline-neutral-01);
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-02);
+  box-shadow: var(--elevation-1);
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) { .c-contacts-addsheet__item:hover { background: var(--surface-interactive-hover); } }
+.c-contacts-addsheet__item:active { background: var(--surface-interactive-pressed); }
+.c-contacts-addsheet__item:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+}
+.c-contacts-addsheet__medallion {
+  position: relative;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-04);
+  color: var(--text-neutral-01);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* the scan medallion is a composite: the frame, with the small qrcode centred inside it */
+.c-contacts-addsheet__glyph--inset { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+.c-contacts-addsheet__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+.c-contacts-addsheet__label { color: var(--text-neutral-01); }
+.c-contacts-addsheet__hint { color: var(--text-neutral-02); }
+
 </style>
 <style data-src="../styles/components/overlay.css">
 /* Overlay layer: scrim + c-sheet + c-modal (docs/overlays-spec.md, DECISIONS #56).

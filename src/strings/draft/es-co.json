@@ -716,5 +716,10 @@
   "removeContactOpt": "Eliminar contacto",
   "removeFailedToast": "No se pudo eliminar el contacto. Inténtalo de nuevo.",
   "contactSpixiAddress": "Dirección Spixi",
-  "viewProfile": "Ver perfil"
+  "viewProfile": "Ver perfil",
+  "addContactSheetLead": "Puedes agregar un contacto nuevo escaneando su código QR o ingresando o pegando su dirección de Spixi.",
+  "addContactScanLabel": "Escanear código QR",
+  "addContactScanHint": "Su código QR debe estar visible en otro dispositivo para que puedas escanearlo con este.",
+  "addContactEnterLabel": "Ingresar o pegar una dirección de Spixi",
+  "addContactEnterHint": "Escribe o pega su dirección de Spixi (por ejemplo 42Spox…M3rci98)."
 }

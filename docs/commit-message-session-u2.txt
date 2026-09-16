@@ -1,0 +1,60 @@
+Session U part 2 — the eight pins the token sweep missed, and the sweep that finds them (#859, #860)
+
+Session U retired a pattern renderer, two styles, a ground option, a CSS enumeration and a
+bridge verb, then swept the pin suite for the TOKEN NAMES it had changed - 'doodles',
+'flow', CHAT_GROUNDS, PATTERN_STYLES, groundGradient. Fifteen pins were found and re-based
+that way and every gate went green. Eight more were still red on the first real run:
+
+  #560          the money-takeover inset enumeration
+  ADD-APP       the ixian:newapp absence
+  Session F M5  the :root pattern default
+  W5            the attribute-selector pair
+  E1            the flow fallback block
+  #755          the ground read-back
+  Session M     the swatch-boost lookup
+  #774          the Background arity
+
+Not one of them mentioned a token that was grepped for. Every one of them READ A FILE THAT
+HAD BEEN EDITED. That is #798 charged against the person who kept citing it: a sweep written
+from the author's list of what he thinks he changed is not a sweep. The derivable question is
+the other one - which pins read the files the commit actually touched - and it has a precise
+answer no amount of guessing reproduces: 416 read sites across Session U's delta.
+
+scripts/pin-sweep.mjs asks that question. It reports READ SITES, not failures: it cannot know
+which pin a change invalidates, it tells you where to look.
+
+All eight are re-based rather than deleted, and each says what it now asserts and what it
+supersedes. Two are stricter than what they replaced: #560 became the `> *` INVARIANT, since
+the enumeration WAS the defect #838 fixed; ADD-APP became "guarded, and exactly once", which
+a bare absence test could not express once the verb returned as the desktop arm of a fork.
+E1's flow fallback retired with its subject, and its MUTATION-05 lesson - bound the slice by
+the block's own brace and assert the LAST declaration - moved to the surviving :root pin.
+
+#860 records a working constraint rather than a change: a Windows update on 2026-09-08 stops
+Claude's Linux workspace reaching the repo, so a session can no longer run git, node or any
+gate on this machine. Batches land as files plus a command block; verification is manual.
+
+#861 is the same lesson, caught one layer deeper. Two pins were still red after the
+eight: #835 and #755, and THE CODE WAS CORRECT IN BOTH. #855 retired the gradient option and
+closed all three ground ladders on 'flat'; #835 still asserted the two-value allowlist the
+retirement had removed. #755 was the instructive one - its MESSAGE had been re-based at #855
+("one, since the gradient option was retired") while its ASSERTION still tested the old
+'gradient' || 'flat' read. Prose and test described different worlds, and the red was the
+lucky outcome: had the old spelling survived, that pin would have stayed GREEN while its own
+message advertised an invariant it no longer checked - #772 inside a pin, which is exactly
+what O-22 cost a session.
+
+Both are re-based with a NEGATIVE half, because the positive half cannot see the failure that
+matters: a ladder that merely defaults away from 'gradient' while still admitting it strands
+the user who picked Gradient on a canvas the picker can no longer change. The sweep runs on
+stripped code (#771) - all three files legitimately name 'gradient' in the comments that
+record its retirement. Six mutations, zero survivors.
+
+Three of those comments were themselves corrected: chat.html's (2) docblock and settings.html's
+readChatPrefs block still documented 'flat' (default) | 'gradient' as a live choice, and GATE
+62's note still argued that reading #835 as "retire the option" would be "a removal he never
+asked for" - the reading Damir overturned the same day. A stale comment is what the next
+session reads before deciding the code is wrong.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013pVYNR6zmeJQsbFhB1Bihg

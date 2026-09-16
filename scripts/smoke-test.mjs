@@ -2540,8 +2540,13 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
        && !/\.c-wallet-receive__cta \{[^}]*position: sticky/.test(wrcSticky),
       '★ #560: the wallet CTA is STICKY at the safe bottom — reachable at any scroll depth — and it is ONE rule serving BOTH money takeovers, not a per-button copy that can drift');
     /* the double side inset: the takeover body owns the ONE 16px */
-    ok(/\.wallet-takeover__body > \.c-wallet-send,\s*\.wallet-takeover__body > \.c-wallet-receive \{ padding: 0; \}/.test(readFileSync(join(root, 'src/shells/home.html'), 'utf8')),
-      '★ #560: the money takeovers zero the component\'s inner padding — content sits at the SAME 16px inset as Contacts (was 32)');
+    /* ★★ #846 RE-BASE: this asserted the two NAMED children #560 shipped, which is exactly
+       the enumeration #838 proved wrong — #827 mounted a third component into the same body
+       and it inherited the 32px defect. The rule is `> *` now, so the pin asserts the
+       INVARIANT (every direct child pays no inner padding) instead of the list. GATE 57
+       carries the derivation that a narrowing cannot pass. */
+    ok(/\.wallet-takeover__body > \* \{ padding: 0; \}/.test(readFileSync(join(root, 'src/shells/home.html'), 'utf8')),
+      '★ #560 → #846: EVERY component hosted in a money/app takeover body zeroes its inner padding — content sits at the SAME 16px inset as Contacts (was 32). Superseded: the two named children (.c-wallet-send, .c-wallet-receive), which is the enumeration a third component walked straight past');
   }
 }
 
@@ -7163,25 +7168,24 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   ok(/const DOODLES_SCALE = 0\.6875;/.test(gen) && /prev\.match\(\/doodles-natural:/.test(gen),
     '★★ E1b: the drift guard reads the NATURAL size from the emitted marker, not the scaled --chat-pattern-size. Compare the asset\'s 610 against the emitted 366 and the guard fires on EVERY run — which would train whoever hits it to pass --accept-doodles-change, i.e. to disarm the one thing the guard exists to do');
   ok(/--chat-pattern-size-matrix: 288px 288px/.test(pat), 'W5: the data-matrix tile is the spec 288×288');
-  ok(/\[data-chat-pattern='matrix'\]/.test(pat) && /\[data-chat-pattern='flow'\]/.test(pat),
-    'W5: styles switch on an ATTRIBUTE selector, not a descendant one — the settings swatches each need their own style');
+  ok(/\[data-chat-pattern='matrix'\]/.test(pat),
+    'W5 (★ #853 re-base): styles switch on an ATTRIBUTE selector, not a descendant one — which is why a swatch can paint its own style beside the chat. The `flow` half of this pin retired with the canvas renderer; one attribute-keyed block is all that is left to assert');
   ok(/display: var\(--chat-pattern-tile, block\)/.test(pat),
     'W5: the tile hides via an INHERITED custom property, so :root and a single canvas can both drive it');
-  {
-    /* ⚠ MUTATION 05: the first version of this pin read `[^}]*` from the selector and
-       accepted ANY doodles reference inside the block. That is not what the browser does
-       — the LAST declaration of a property wins — so a block carrying two
-       --chat-pattern-uri lines would have passed on the loser. (The mutation that exposed
-       it was itself invalid, which is the useful part: designing the mutation is what
-       showed the pin was reading the wrong thing.) Bound the slice by the block's own
-       closing brace and assert the EFFECTIVE value, i.e. the last one. */
-    const flowBlock = (pat.split("[data-chat-pattern='flow'] {")[1] || '').split('}')[0];
-    const uris = [...flowBlock.matchAll(/--chat-pattern-uri:\s*var\((--chat-pattern-uri-[a-z]+)\)/g)].map((m) => m[1]);
-    ok(uris.length >= 1 && uris[uris.length - 1] === '--chat-pattern-uri-doodles',
-      '★★ E1: flow keeps a resolvable tile URI and the EFFECTIVE one is DOODLES. This is the pin that would have caught the retirement half-done — flow used to fall back to line art, and a fallback pointing at a var() that no longer exists resolves to nothing, which fail-softs the canvas to a BARE GRADIENT. The style that is hardest to test by hand is the one that breaks silently. Got: ' + JSON.stringify(uris));
-  }
-  ok(!/\[data-chat-pattern='(triangles|lineart)'\]/.test(pat) && !/--chat-pattern-uri-(triangles|lineart):/.test(pat),
-    '★★ E1 NEGATIVE: no selector and no URI survives for either retired style in the generated sheet');
+  /* ★★ RETIRED BY #853 — this pin read the `[data-chat-pattern='flow']` block and asserted
+     that its EFFECTIVE --chat-pattern-uri (the LAST declaration, because that is what the
+     browser takes) still resolved to a real tile. It existed because a fallback pointing at
+     a var() that no longer exists resolves to nothing and fail-softs the canvas to a bare
+     gradient — "the style that is hardest to test by hand is the one that breaks silently".
+     ⓘ ITS POINT SURVIVES AND IS STRONGER: with the canvas retired there is no fallback to
+     get wrong, and the negative below now sweeps `flow` and `doodles` alongside the two
+     #690 styles — nothing may select a retired style at all. The MUTATION-05 lesson (bound
+     the slice by the block's own brace and assert the LAST declaration, not any match
+     inside it) is preserved at the :root pin in the Session F block, which is where the
+     last surviving default lives. */
+  ok(!/\[data-chat-pattern='(triangles|lineart|doodles|flow)'\]/.test(stripCssComments(pat))
+    && !/--chat-pattern-uri-(triangles|lineart):/.test(pat),
+    '★★ E1 NEGATIVE, widened by #853: no SELECTOR survives for ANY retired style — triangles and lineart (#690), doodles and flow (#835) — and no URI variable survives for the two #690 ones. ⚠ The doodles URI variable IS still emitted on purpose: the generator owns that asset behind a drift guard, and re-encoding it is a pipeline change, not a dial. Nothing can select it, which is the property that matters. Comments stripped first — the generated sheet NAMES the retired selectors in the note explaining that they are retired (#771)');
 
   /* W5 F5 (Damir 2026-08-13): "on light mode perhaps bump opacity, as its barely
    * visible on the strongest." Measured in Chromium, the light pattern's contrast
@@ -9416,10 +9420,18 @@ console.log('apps surface — perf · Add-app button · empty state · explore b
      command was invented for it (the page's own verbs are untouched; GATE 54 proves the
      behaviour). AppNewPage still exists and still handles ixian:newapp for its own
      callers — this asserts only that the HOME shell no longer sends it. */
+  /* ★★ #852 RE-BASE: the bare absence is wrong now. #827 removed the page push and took the
+     #256 M7 DESKTOP ROUTING with it — "add app on windows no longer opens in pane" — so the
+     verb is back as the pane ARM of a fork, guarded on the live pane state. The property
+     this pin owns is unchanged and is asserted more strictly than before: the entry point
+     is still openAppsAdd, and the verb may appear ONLY inside that function's guard, never
+     as a second unguarded call site. GATE 54 (a2)/(d)/(e) drive both arms. */
+  const newappSends = (stripCode(homeSrc).match(/bridge\.send\('ixian:newapp'\)/g) || []).length;
   ok(/text: strings\.addApp \|\| 'Add app'/.test(homeSrc) && /icon: 'circle-plus'/.test(homeSrc)
     && /onClick: openAppsAdd,/.test(homeSrc)
-    && !/bridge\.send\('ixian:newapp'\)/.test(homeSrc),
-    'ADD-APP: the production shell passes the label and opens the add screen IN-SHELL (openAppsAdd) — the ixian:newapp page push is gone from this shell, and no new bridge command replaced it');
+    && newappSends === 1
+    && /if \(paneAvailable\) \{ bridge\.send\('ixian:newapp'\); return; \}/.test(stripCode(homeSrc)),
+    'ADD-APP → #852: the production shell passes the label and routes BOTH surfaces through openAppsAdd, which takes over in-shell without a pane and asks for the page WITH one (' + newappSends + ' send site, guarded). Superseded: "the ixian:newapp page push is gone from this shell" — true while #827 stood, and it cost the desktop its detail-column routing');
   const tbCss = readFileSync(join(root, 'src/styles/components/topbar.css'), 'utf8');
   ok(/\.c-topbar__action--text::after\s*\{[^}]*inset:\s*-6px 0/.test(tbCss),
     'ADD-APP: the 32px pill still presents a 44px TOUCH TARGET (house hit-expander, §5b)');
@@ -22577,8 +22589,8 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     try { pat = rdF('src/styles/chat-pattern.css'); } catch (_) { pat = ''; }
     const rootBlock = (pat.split(':root {')[1] || '').split('}')[0];
     ok((rootBlock.match(/--chat-pattern-uri:/g) || []).length === 1
-      && /--chat-pattern-uri: var\(--chat-pattern-uri-doodles\);/.test(rootBlock),
-      '★★ SESSION F (mutation M5): the :root default declares --chat-pattern-uri exactly ONCE and it is doodles — a second, later declaration wins on source order and lands every no-pref install on the data matrix, which the contains-test could not see');
+      && /--chat-pattern-uri: var\(--chat-pattern-uri-matrix\);/.test(rootBlock),
+      '★★ SESSION F (mutation M5) → #853: the :root default declares --chat-pattern-uri exactly ONCE and it is MATRIX — a second, later declaration wins on source order and would land every no-pref install (and every device carrying a retired style) somewhere else, which a contains-test cannot see. ⓘ This is the FOURTH reader of #835\'s fall-through; GATE 62 (b) asserts all four as a set. Superseded: doodles, which #835 retired');
     let ovl = '';
     try { ovl = rdF('src/styles/components/overlay.css'); } catch (_) { ovl = ''; }
     ok((ovl.match(/overflow-wrap:\s*normal/g) || []).length === 0,
@@ -23848,11 +23860,24 @@ console.log('Session I ③: the premium pass token batch');
      and settings.html and called that "the #690 three-ladder rule", while the THIRD ladder —
      chat.html's own live re-resolve — answered `de ? 'flat' : 'gradient'`. So a desktop user
      got a gradient pre-paint, a flat repaint, and a picker pre-selecting the one they did not
-     have. All three are asserted here now, which is what the rule actually asks for. */
-  ok(/if\(g!=='flat'&&g!=='gradient'\)g='flat';/.test(rdF('src/shells/chat.html'))
-    && /if \(gr !== 'flat' && gr !== 'gradient'\) gr = 'flat';/.test(rdF('src/shells/chat.html'))
-    && /let chatGround = 'flat';/.test(rdF('src/shells/settings.html')),
-    '★★ #835: SOLID is the light default on every platform, and ALL THREE ladders say so — chat.html\'s pre-paint script, chat.html\'s live re-resolve, and settings.html\'s readChatPrefs (the #690 three-ladder rule, asserted over three ladders for the first time). Superseded: gradient default-ON everywhere');
+     have. All three are asserted here now, which is what the rule actually asks for.
+     ★★ #855 (Damir, same day, correcting the conservative reading this pin shipped with):
+     "for gradient, yes I mean retire the option for now" — so the option is GONE, not merely
+     off by default, and the ladders must CLOSE on 'flat'.
+     ⚠ #859, AGAIN, AND ON THIS PIN. After #855 the assertion below still spelled the TWO-value
+     allowlist (`g!=='flat'&&g!=='gradient'`) — the world before the retirement — so it went RED
+     on correct code. Re-based, and given a negative half, because the positive half alone cannot
+     see the failure that matters: a ladder that merely DEFAULTS away from 'gradient' while still
+     admitting it strands the user who picked Gradient on a canvas the picker can no longer
+     change. The negative sweep runs on STRIPPED code (#771) — every one of these files still
+     names 'gradient' in the comments that record its retirement. */
+  ok(/if\(g!=='flat'\)g='flat';/.test(rdF('src/shells/chat.html'))
+    && /if \(gr !== 'flat'\) gr = 'flat';/.test(rdF('src/shells/chat.html'))
+    && /let chatGround = 'flat';/.test(rdF('src/shells/settings.html'))
+    && /if \(gr === 'flat'\) chatGround = gr;/.test(rdF('src/shells/settings.html'))
+    && !/'gradient'|"gradient"/.test(stripCode(rdF('src/shells/chat.html')))
+    && !/'gradient'|"gradient"/.test(stripCode(rdF('src/shells/settings.html'))),
+    '★★ #835 → #855: SOLID is the ONLY light ground, and all three ladders CLOSE on it — chat.html\'s pre-paint script, chat.html\'s live re-resolve, and settings.html\'s readChatPrefs (the #690 three-ladder rule). The NEGATIVE half is the point: no ladder may ADMIT \'gradient\', so a stored gradient falls through to solid instead of stranding the user on a canvas the picker cannot change. Superseded: gradient default-ON everywhere (#835 flipped the default; #855 retired the option)');
   /* ★ Session J re-base (Damir 2026-09-02): the card no longer follows the ground — white + lift in light, midnight + lift in dark, no edge in either. */
   ok(/\.c-sysnotice__card \{[^}]*background: #ffffff;\s*box-shadow: var\(--elevation-2\);/.test(stripCssComments(rdF('src/styles/components/system-notice.css')).slice(0, 4000)),
     '★ 4 → Session J: the secure-notice card is WHITE + --elevation-2 (Damir: "no border, white with elevation"). Superseded: the card followed the ground into its family (#E4E1E6, −3.74 ΔL*)');
@@ -24024,9 +24049,13 @@ console.log('Session J: the seven walk fixes · Damir\'s evening rulings · the 
       '★ #754: the About seed-status line is refreshed IN PLACE on every rebuild in both presentations — the About sublevel keeps its live node, so the setDevSeed push after a seed used to land on a stale card (Damir: "the note didn\'t change")');
   }
   /* ★ Session J #755 — the walk's small fixes */
-  ok(/if \(gr === 'gradient' \|\| gr === 'flat'\) chatGround = gr;/.test(rdF('src/shells/settings.html'))
+  /* ⚠ #859: this pin's MESSAGE was re-based at #855 ("one, since the gradient option was
+     retired") while its ASSERTION was left testing the two-value read — a pin whose prose and
+     test described different worlds. Had the old spelling survived, this would have stayed
+     GREEN while lying about what it checks (#772, inside a pin). */
+  ok(/if \(gr === 'flat'\) chatGround = gr;/.test(rdF('src/shells/settings.html'))
      && /preview\.setAttribute\('data-chat-ground', groundCurrent\);/.test(rdF('src/components/settings-screens.js')),
-    '★ #755 (Damir, Windows: "shows the gradient selected but doesn\'t have it applied"): settings reads BOTH stored grounds back (a stored flat used to fall through to the gradient default) and the live preview is stamped with the current ground at build, not only on a pick');
+    '★ #755 → #855 (Damir, Windows: "shows the gradient selected but doesn\'t have it applied"): settings reads back every LIVE stored ground — one, since the gradient option was retired — and the live preview is stamped with the current ground at BUILD, not only on a pick. The original defect was that a stored \'flat\' fell through to the gradient default, so the picker re-opened on the value the chat did not have');
   ok(/background: var\(--surface-input, var\(--surface-neutral-02\)\);/.test(rdF('src/styles/components/search-field.css')),
     '★ #755 (Damir, members search in chat info): the search field reads --surface-input, so on a card it takes the on-card white (#150③) and on a screen it stays neutral-02');
   /* ★ Session J #756 — the [KBTRAY] verdict built; pick D on the tails */
@@ -25471,12 +25500,18 @@ console.log('Session M: the apps layout · the present signal on the DATA pages'
      docblocks that explain the retirement, and a raw sweep would fail on the explanation
      instead of on the code (#771). */
   const ssM = njsM(rdM('src/components/settings-screens.js'));
-  ok(/const PATTERN_SWATCH_BOOSTS = \{[\s\S]{0,200}?doodles: \d/.test(ssM)
+  /* ★★ #853 RE-BASE: the `doodles: N` override retired WITH ITS STYLE. It existed because one
+     multiplier cannot balance two artworks of different ink coverage — dense line art against
+     scattered dots — and with a single style left there is nothing to balance against, so
+     the map is empty BY MEANING. What still matters, and is what this pin was really about,
+     is the ROUTING: tiles go through the per-style lookup rather than calling the shared
+     constant directly, so the next style added gets a dial instead of a hard-coded 6×. */
+  ok(/const PATTERN_SWATCH_BOOSTS = \{/.test(ssM)
     && /function swatchBoost\(id\)/.test(ssM)
     && /patternLevelVar\(1, swatchBoost\(o\.id\)\)/.test(ssM)
     && !/patternLevelVar\(1, PATTERN_SWATCH_BOOST\)/.test(ssM)
     && /export const PATTERN_SWATCH_BOOST = 6;/.test(ssM),
-    '★★ Session M: the style tiles take swatchBoost(o.id) — the per-style lookup — and the shared constant is no longer called directly at the tile. Both halves are asserted: a lookup that exists but is bypassed would leave every tile back at 6×, which is the state Damir asked to change');
+    '★★ Session M → #853: the style tiles take swatchBoost(o.id) — the per-style lookup — and the shared constant is never called directly at the tile. A lookup that exists but is bypassed would pin every tile at 6×, which is the state Damir asked to change. ⓘ The map itself is EMPTY now: its only entry was the doodles override, retired with that style, and an empty map is the honest state of "no overrides" rather than a missing one');
   ok(!/function swatchGroup\(/.test(ssM) && /function styleSwatchGroup\(/.test(ssM),
     '★★ Session M (#774): the INTENSITY row\'s builder is DELETED, not merely uncalled. It lost its only caller when Background absorbed Opacity, and an unreachable builder for a retired control reads as live code and is one call site from returning — the same hazard as the retired card, which is why the card was removed from the file too. Recover it from git if the intensity axis ever comes back');
 
@@ -32333,12 +32368,15 @@ console.log('\n— handover gate: the third pin pass (loop C repairs · the thre
    plus the generated stylesheet), which is why this gate checks them as a set rather than
    one at a time — three agreeing and one stale is exactly a blank chat background.
 
-   ⓘ (c) is the LIGHT GROUND, and it is deliberately the smaller change. Damir ruled on
-   2026-08-30 to "leave the gradient as an option in chat appearance on light mode" — quoted
-   verbatim at CHAT_GROUNDS — and on 2026-09-09 that it is too busy. Both hold at once if
-   what changes is the DEFAULT, which is what he sees without choosing. Reading it as
-   "retire the option" would reverse an explicit ruling and collapse the Canvas control to a
-   single choice, a removal he never asked for. */
+   ⓘ THE LIGHT GROUND WENT ALL THE WAY, and this note is kept to record the reading that was
+   WRONG. Damir ruled on 2026-08-30 to "leave the gradient as an option in chat appearance on
+   light mode" — quoted verbatim at CHAT_GROUNDS — and on 2026-09-09 that it is too busy. I
+   read those as reconcilable if only the DEFAULT changed, shipped that, and said so here. He
+   corrected it the same day (#855): "for gradient, yes I mean retire the option for now." So
+   the Canvas control DOES collapse to a single choice, by explicit instruction, and the
+   2026-08-30 ruling is superseded rather than preserved. The general lesson: when two rulings
+   look reconcilable, ask which he meant — do not quietly pick the reading that changes less
+   and pin it as settled. */
 {
   const RETIRED62 = ['doodles', 'flow', 'triangles', 'lineart'];
   const scr62 = stripCode(readFileSync(join(root, 'src/components/settings-screens.js'), 'utf8'));

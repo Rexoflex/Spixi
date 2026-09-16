@@ -512,18 +512,16 @@
        answers 'matrix' for every stored value, which is what makes a device holding
        'doodles' or 'flow' fall through instead of rendering nothing. */
     let patternStyle = 'matrix';      // ★ #835: the only style left
-    /* ★★ AUG (Damir 2026-08-30): the LIGHT canvas is a choice — 'flat' (default) |
-       'gradient'. Allowlisted exactly like the style, so a corrupt or retired value lands
-       on 'flat'. THIS IS THE THIRD LADDER (#690): chat.html's pre-paint script and its
-       live re-resolve are the other two, and all three must agree or the picker shows a
-       selection the chat does not have. */
-    /* ★★ #835 (Damir): "we will remove the gradient on light, it's too busy." The DEFAULT
-       flips to flat; the OPTION stays, because he ruled explicitly on 2026-08-30 to "leave
-       the gradient as an option in chat appearance on light mode" and both rulings hold at
-       once — what reads as too busy is what you get without choosing. This also makes the
-       three ladders agree for the first time: this one and chat.html's head script both
-       answered 'gradient' while chat.html's re-resolve answered 'flat' on desktop. */
-    let chatGround = 'flat';   // ★ #835: light default is the solid ground
+    /* ★★ THE LIGHT CANVAS IS SOLID, and 'flat' is the ONLY value this ladder admits.
+       THIS IS THE THIRD LADDER (#690): chat.html's pre-paint script and its live re-resolve
+       are the other two, and all three must agree or the picker shows a selection the chat
+       does not have — which is exactly the defect #755 was filed for.
+       ★ #835 (Damir 2026-09-09): "we will remove the gradient on light, it's too busy" — the
+       DEFAULT flipped to flat. ★★ #855 (same day, correcting the reading that the option
+       should survive the flip): "for gradient, yes I mean retire the option for now" — so the
+       option is GONE. Superseded: AUG 2026-08-30, "leave the gradient as an option in chat
+       appearance on light mode", and #835's default-only flip. */
+    let chatGround = 'flat';   // ★ #855: the solid ground is the only ground
     try {
       pattern = readPatternLevel(localStorage.getItem(CHAT_PREFS.pattern), pattern);   // ★ N81 (#422)
       const t = parseFloat(localStorage.getItem(CHAT_PREFS.textScale));

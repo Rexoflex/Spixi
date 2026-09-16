@@ -3382,7 +3382,7 @@ button.c-settings-howto__join:disabled {
    #14 width). Region tokens only. No tails — grouping = inner-corner
    tightening (radius-16 outer / radius-8 group-adjacent), per design language. */
 
-/* —— chat canvas (Damir 2026-07-03): themed gradient + doodle pattern layer.
+/* —— chat canvas (Damir 2026-07-03): themed gradient + pattern layer (the data-matrix tile since #835).
    Pattern sits on the canvas (::before), messages scroll in a child ⇒ pattern
    stays fixed under the scroll, WhatsApp-style. */
 .c-chat-canvas {
@@ -4044,7 +4044,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 
 </style><!-- .c-chat-canvas paint for the appearance preview -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
-<link rel="stylesheet" href="spixi.chat-pattern.css"><!-- generated doodle pattern for the preview canvas -->
+<link rel="stylesheet" href="spixi.chat-pattern.css"><!-- generated pattern tile (data matrix) for the preview canvas -->
 <style data-src="../styles/components/bottomnav.css">
 /* c-bottomnav — mirrors Figma nav-bot / nav-item (selected = "super selected":
    tonal pill around stacked icon + label). Height: --layout-bar-bottom. */

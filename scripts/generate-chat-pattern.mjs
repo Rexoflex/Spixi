@@ -1,23 +1,32 @@
 #!/usr/bin/env node
 /**
- * generate-chat-pattern.mjs — inline the chat background pattern TILES as
- * data-URI CSS masks so they can take per-theme token ink (CLAUDE.md "pattern
+ * generate-chat-pattern.mjs — emit the chat background pattern TILE as a
+ * data-URI CSS mask so it can take per-theme token ink (CLAUDE.md "pattern
  * premium treatment"). A data-URI mask is CORS-clean even on file:// —
  * external mask URLs fail silently there (see message-bubble.css note).
  *
- * Emits TWO tiles (E1 — Damir 2026-08-29, the pattern rework):
- *   · Doodles    — the export, src/assets/images/chat-bg-doodles.svg  ★ default
- *   · Data matrix— synthesized here (no asset): faint grid + clustered dots
- * The third style, Live flow, is a CANVAS engine (chat-flow.js) with no tile.
+ * Emits ONE tile:
+ *   · Data matrix — synthesized here (no asset): faint grid + clustered dots
  *
- * ★ E1 RETIRED two styles on Damir's explicit ruling (2026-08-29): the TRIANGLES
- * synth (default since 2026-08-22) and the LINE-ART export that preceded it. Both
- * are gone from the picker and from this file; a stored pref naming either is
- * migrated to 'doodles' in settings-screens.js, because retiring a style silently
- * re-skins whoever chose it and the migration is what makes that survivable.
- * The old line-art asset (chat-bg-pattern.svg) is left on disk, unreferenced.
+ * ★ RETIREMENTS, each on Damir's explicit ruling:
+ *   · TRIANGLES synth and the LINE-ART export — E1, 2026-08-29 (#690).
+ *   · DOODLES export (src/assets/images/chat-bg-doodles.svg) and LIVE FLOW canvas —
+ *     #835, 2026-09-09 ("we will remove the dodole and just keep matrix and no pattern
+ *     canvas"). #835 retired the SELECTOR and left the doodles URI emitted, because the
+ *     generator's drift guard owned the asset and gutting it was a pipeline change, not
+ *     a dial. #857 then measured it: 233 KB of a 252 KB generated sheet — 94% — shipped
+ *     in every shell that links chat-pattern.css and selectable by nothing. Session W
+ *     (#866) is that pipeline change: the asset is no longer READ, the URI is no longer
+ *     EMITTED, and the drift guard went with the asset it guarded. The three retired
+ *     asset files (chat-bg-doodles.svg · chat-bg-pattern.svg · doodle-pattern-aug.svg)
+ *     stay on disk unreferenced unless Damir removes them — deleting artwork is his call.
+ *   A stored pref naming ANY retired style falls through to 'matrix' in all three
+ *   pre-paint ladders (chat.html head script · chat.html live re-resolve ·
+ *   settings.html readChatPrefs — the #690 three-ladder rule), because none of them
+ *   matches a block below. Retiring a style silently re-skins whoever chose it, and
+ *   the fall-through is what makes that survivable.
  *
- * Reads  src/assets/images/chat-bg-doodles.svg  (source of truth, Damir export)
+ * Reads  nothing — the tile is synthesized (deterministic PRNG, byte-identical on every machine)
  * Writes src/styles/chat-pattern.css            (generated — do not edit)
  *
  * SELECTION CONTRACT (W5): the style rides the INHERITED custom properties
@@ -33,41 +42,18 @@
  * canvas fail-softs to gradient-only — never a solid ink rectangle.
  *
  * Encoding: URL-encoded utf-8 (not base64) — the path-data alphabet survives
- * encodeURIComponent nearly untouched, so the payload stays ≈1.05× the asset
+ * encodeURIComponent nearly untouched, so the payload stays ≈1.05× the SVG
  * vs 1.33× for base64. Double quotes become apostrophes (valid XML) so the
  * URI can sit inside url("…").
  *
- * DOODLES DRIFT GUARD (#337 audit class): a changed export would silently RESKIN
- * the shipped chat background from inside an unrelated batch. The script refuses
- * to change the doodles tile SIZE unless `--accept-doodles-change` is passed.
- * ★ E1: unlike the line-art guard it replaces, this one starts in AGREEMENT —
- * asset and committed tile are both 610×610 — so it is dormant, not papering
- * over a known mismatch. If it ever fires, the export moved; find out why.
- *
  * Re-run: node scripts/generate-chat-pattern.mjs
  */
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const SRC = resolve(root, 'src/assets/images/chat-bg-doodles.svg');
 const OUT = resolve(root, 'src/styles/chat-pattern.css');
-const ACCEPT_DOODLES_CHANGE = process.argv.includes('--accept-doodles-change');
-
-/* ★ E1b (Damir 2026-08-29): the tile is RENDERED SMALLER than the asset is drawn.
- * At its natural 610px the motifs read as individual drawings; at 0.6 they read as
- * TEXTURE, which is what a chat background is for (his words: "the scale is too
- * [big]. Should probably be smaller by 40%"). 610 × 0.6 = 366.
- * ⚠ SCALING IS A CSS CONCERN, NOT AN ASSET ONE. The export is untouched — it stays
- * 610×610 and the mask is simply painted at 366. Re-exporting it smaller would have
- * thrown away resolution on high-DPI screens for nothing, and would have tripped the
- * drift guard for a change that is not a change to the artwork.
- * ★ Which is why the guard below still compares NATURAL sizes: it reads the natural
- * size back from the marker comment this script emits, so moving this dial can never
- * be mistaken for the export moving underneath us. */
-const DOODLES_SCALE = 0.6875;
-const scaled = (n) => Math.round(Number(n) * DOODLES_SCALE);
 
 /* —— shared: SVG → CSS-url()-safe data URI ——————————————————————————————— */
 function toDataUri(rawSvg) {
@@ -86,54 +72,7 @@ function toDataUri(rawSvg) {
   return `url("data:image/svg+xml,${encoded}")`;
 }
 
-/* —— 1. Doodles (the Damir export — ★ E1 default) —————————————————————————— */
-let doodlesSvg = readFileSync(SRC, 'utf8').trim();
-if (!doodlesSvg.startsWith('<svg')) {
-  console.error(`✖ ${SRC} does not look like an SVG (starts: ${doodlesSvg.slice(0, 30)}…)`);
-  process.exit(1);
-}
-// tile size from the asset itself — fail loudly if the export changes shape
-const m = doodlesSvg.match(/width="(\d+)"\s+height="(\d+)"/);
-if (!m) {
-  console.error('✖ could not read width/height from the SVG root — update this script');
-  process.exit(1);
-}
-const [, lw, lh] = m;
-
-/* Drift guard. If the committed tile and the on-disk asset ever disagree,
- * re-encoding would silently reskin every chat background as a side effect of
- * an unrelated batch. When the sizes disagree we CARRY THE COMMITTED doodles
- * URI THROUGH verbatim and shout; `--accept-doodles-change` re-encodes from the
- * asset deliberately. ★ E1: they agree today (610×610), so this is a tripwire,
- * not a workaround — do not pass the flag to silence an error. */
-let doodlesUri = null;
-let doodlesW = lw, doodlesH = lh;
-if (existsSync(OUT) && !ACCEPT_DOODLES_CHANGE) {
-  const prev = readFileSync(OUT, 'utf8');
-  /* ★ E1b: read the NATURAL size out of the marker, not the emitted --chat-pattern-size,
-     which is the SCALED one. Comparing the asset's 610 against a scaled 366 would fire the
-     guard on every single run and train whoever hits it to pass the flag — which is the one
-     thing the guard exists to prevent. */
-  const pm = prev.match(/doodles-natural:\s*(\d+)x(\d+)/);
-  if (pm && (pm[1] !== lw || pm[2] !== lh)) {
-    const carried = prev.match(/--chat-pattern-uri(?:-doodles)?:\s*(url\("data:image\/svg\+xml,[^"]*"\))/);
-    if (!carried) {
-      console.error(`✖ doodles drift detected (committed ${pm[1]}×${pm[2]} vs asset ${lw}×${lh})`
-        + ` but the committed URI could not be recovered from ${OUT}. Refusing to guess.`);
-      process.exit(1);
-    }
-    doodlesUri = carried[1];
-    doodlesW = pm[1]; doodlesH = pm[2];
-    console.warn(
-      `⚠ DOODLES DRIFT — carrying the COMMITTED ${doodlesW}×${doodlesH} tile through unchanged.\n`
-      + `  ${SRC} on disk exports ${lw}×${lh}; it is NOT the asset the shipped tile came from.\n`
-      + `  Nothing about the Doodles look changes in this run (by design).\n`
-      + `  To adopt the on-disk asset instead: node scripts/generate-chat-pattern.mjs --accept-doodles-change`);
-  }
-}
-if (!doodlesUri) doodlesUri = toDataUri(doodlesSvg);
-
-/* —— 2. Data matrix (synthesized — Damir-approved look, W5) ————————————————
+/* —— Data matrix (synthesized — Damir-approved look, W5) ———————————————————
  * 24×24 cells at 12px → 288×288, seamless by construction. Faint grid at every
  * cell boundary; dots snapped to cell centres in two sizes, with a Markov row
  * bias so filled cells cluster into punch-card streaks instead of dissolving
@@ -217,39 +156,32 @@ function buildMatrixSvg() {
 const matrixSize = MATRIX.cells * MATRIX.cell;
 const matrixUri = toDataUri(buildMatrixSvg());
 
-/* —— 3. Emit ——————————————————————————————————————————————————————————————— */
+/* —— Emit ————————————————————————————————————————————————————————————————— */
 const css = `/* GENERATED by scripts/generate-chat-pattern.mjs — DO NOT EDIT.
-   Chat background pattern tiles as data-URI masks (CORS-clean on file://) so
-   each takes token ink per theme: --chat-pattern-ink (tokens.css).
+   Chat background pattern tile as a data-URI mask (CORS-clean on file://) so
+   it takes token ink per theme: --chat-pattern-ink (tokens.css).
 
    W5 style contract — the active tile rides INHERITED custom properties, so
    one \`data-chat-pattern\` attribute works BOTH on :root (the app-wide pref,
-   set pre-paint) and on a single .c-chat-canvas (the settings swatch tiles,
-   which each show a different style simultaneously):
-     --chat-pattern-uri   the mask image        (doodles | data matrix)
+   set pre-paint) and on a single .c-chat-canvas (the settings swatch tiles):
+     --chat-pattern-uri   the mask image        (data matrix)
      --chat-pattern-size  its tile size
-     --chat-pattern-tile  block | none          (none = Live flow canvas paints)
-   Live flow ("flow") has no tile: it hides ::before and lets chat-flow.js draw.
+     --chat-pattern-tile  block | none
 
-   doodles-natural: ${doodlesW}x${doodlesH}  scale: ${DOODLES_SCALE}   ← the drift guard reads THIS line
-
-   Sources: doodles    — src/assets/images/chat-bg-doodles.svg (${doodlesW}×${doodlesH} natural,
-                         painted at ${scaled(doodlesW)}×${scaled(doodlesH)} — see DOODLES_SCALE)
-            data matrix — synthesized in the generator (${matrixSize}×${matrixSize}, seed ${MATRIX.seed})
-   ★ E1 (2026-08-29): TRIANGLES and LINE ART are retired — see the file header.
+   Source: data matrix — synthesized in the generator (${matrixSize}×${matrixSize}, seed ${MATRIX.seed})
+   ★ RETIRED: triangles and line art (E1, 2026-08-29); doodles and Live flow (#835,
+     2026-09-09); the doodles URI itself (#866, Session W — 233 KB nothing could select).
    Re-run: node scripts/generate-chat-pattern.mjs */
 :root {
-  --chat-pattern-uri-doodles: ${doodlesUri};
-  --chat-pattern-size-doodles: ${scaled(doodlesW)}px ${scaled(doodlesH)}px;
   --chat-pattern-uri-matrix: ${matrixUri};
   --chat-pattern-size-matrix: ${matrixSize}px ${matrixSize}px;
 
   /* ★★ #835 default style = DATA MATRIX (Damir, 2026-09-09: "we will remove the dodole and
      just keep matrix and no pattern canvas"). An absent pref resolves HERE, and so does a
-     pref naming any retired style — 'triangles' and 'lineart' (#690), and now 'doodles'
-     and 'flow' — because none of them matches a block below. That fall-through is what
-     stops a device that stored a retired style from rendering nothing; all three pre-paint
-     ladders (#690) also normalise the value on read, so the two mechanisms agree. */
+     pref naming any retired style — 'triangles' and 'lineart' (#690), 'doodles' and 'flow'
+     (#835) — because none of them matches a block below. That fall-through is what stops a
+     device that stored a retired style from rendering nothing; all three pre-paint ladders
+     (#690) also normalise the value on read, so the two mechanisms agree. */
   --chat-pattern-uri: var(--chat-pattern-uri-matrix);
   --chat-pattern-size: var(--chat-pattern-size-matrix);
   --chat-pattern-tile: block;
@@ -259,10 +191,8 @@ const css = `/* GENERATED by scripts/generate-chat-pattern.mjs — DO NOT EDIT.
   --chat-pattern-size: var(--chat-pattern-size-matrix);
   --chat-pattern-tile: block;
 }
-/* ★ #835: the [data-chat-pattern='doodles'] and ='flow' blocks are retired with their
-   styles. The doodles URI variable above is still EMITTED — the generator's drift guard
-   owns that asset and re-encoding it is a pipeline change, not this dial — but nothing
-   selects it any more. Flagged for a later cleanup pass, deliberately not done here. */
+/* ★ #835 retired the [data-chat-pattern='doodles'] and ='flow' blocks with their styles;
+   #866 retired the doodles URI variable that #835 had left emitted. One tile, one block. */
 .c-chat-canvas::before {
   display: var(--chat-pattern-tile, block);
   background-color: var(--chat-pattern-ink);
@@ -277,5 +207,4 @@ const css = `/* GENERATED by scripts/generate-chat-pattern.mjs — DO NOT EDIT.
 
 writeFileSync(OUT, css);
 console.log(`✓ ${OUT} written (${(css.length / 1024).toFixed(1)} KB)`);
-console.log(`  doodles     ${doodlesW}×${doodlesH} natural → painted ${scaled(doodlesW)}×${scaled(doodlesH)} (scale ${DOODLES_SCALE})   ${(doodlesUri.length / 1024).toFixed(1)} KB   ★ default`);
-console.log(`  data matrix ${matrixSize}×${matrixSize}   ${(matrixUri.length / 1024).toFixed(1)} KB`);
+console.log(`  data matrix ${matrixSize}×${matrixSize}   ${(matrixUri.length / 1024).toFixed(1)} KB   ★ the one tile`);

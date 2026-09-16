@@ -1,0 +1,44 @@
+Session W + V round 3 - the icons actually closed, the doodles tile retired, the duplication read (#865-#868)
+
+#865 ran Session V's own "verify before treating the icons as done" and found the tree red
+in two ways the suite would have caught at Damir's step 3 and nobody had seen yet:
+
+  - the four glyphs pulled by Figma asset URL (alert-small layout-grid message-plus
+    phone-end) were pictures of the glyph ON ITS PAGE - background rect, canvas paths,
+    an id on every element. The content gate rejected them before --check could compare,
+    and the registry on disk predated them, so it still shipped their previous versions.
+    Cleaned to the one path every frame export has; measured 1.50 / #131415 like the other
+    82 (layout-grid is a closed shape and joins the unmeasurable list - it had read 4.00
+    only from the canvas rect's corner arcs). Registry regenerated: --check green, 91 icons.
+  - writing the cleaned SVGs to disk from the session stamped a 7.7 KB C2PA <metadata>
+    manifest into each (the bridge does it to anything it recognises as an image, by
+    content, not by name). The same gate refused those too - fail-closed on a payload
+    nobody had listed. The clean bytes travel as docs/icons-fix-session-w.zip, hash-verified
+    on the round trip; the registry (plain JS) landed byte-identical.
+
+#866 retires the doodles tile from chat-pattern.css - #857's single largest removable item.
+The generator reads no asset and emits one tile; the drift guard, DOODLES_SCALE and the
+doodles URI/size go with it. src/styles/chat-pattern.css 254 358 -> 15 133 bytes (-94.05%);
+the matrix URI is byte-identical, so no screen changes. Eight pins re-based in both halves
+(16/16 green on the new tree, 8/8 red on the committed one), five mutations killed, and the
+three negatives that swept raw CSS moved onto stripped CSS so the header may record the
+retirement without tripping the pin that pins it (#771). Four comments the change made false
+are corrected in the same pass. The three retired pattern exports stay in src/assets/images
+unreferenced - deleting artwork is Damir's line to keep or drop.
+
+#867 is a read: #858's ~368 KB of shell-CSS duplication is not dead weight but the same live
+bytes inlined per shell, which #345 chose on a measurement (generatePage is linear in inlined
+size; per-shell CSS is not shared within a shell). Externalising it trades APK bytes against
+per-boot parse of the union of 63 stylesheets - a measurement before it is a change, not a
+deletion.
+
+#868 closes the loop #865 diagnosed: generate-icons drops exactly the content-credentials
+manifest the file bridge stamps into SVGs it writes (base64 body only - a manifest with
+markup inside, or any other <metadata>, still fails closed), so --check is green on the tree
+as it sits on disk; verified against all 91 sources with the four still stamped. And the
+three doodles pins #866 left red (SESSION F M4, M3, AUG TILE) are re-based onto the one tile
+left: no argv and no asset read, matrix size interpolated from cells x cell, swatch aspect
+against the matrix override. 4/4 green, 6 of 7 mutations killed, the seventh silent by rule.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01CmZ4akcX4QLYfu7HnmsysQ

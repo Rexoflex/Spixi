@@ -7147,15 +7147,14 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
  * visibility dial; "Off" stays in the visibility control only. */
 {
   const gen = readFileSync(join(root, 'scripts/generate-chat-pattern.mjs'), 'utf8');
-  ok(/--chat-pattern-uri-doodles: \$\{doodlesUri\}/.test(gen) && /--chat-pattern-uri-matrix: \$\{matrixUri\}/.test(gen),
-    'W5 (★ E1 rebase): the generator emits BOTH tiles (doodles + data matrix) from one run, and it is the DECLARATION that is pinned, not the name. ⚠ MUTATION 01 SURVIVED the first version of this pin: `--chat-pattern-uri-doodles` occurs three times in the generator (the declaration, the :root default, the style block), so breaking the one that emits the tile left two matches behind and the pin stayed green. Session D\'s "a bare key name is a PREFIX TEST" — the same class, found again in a pin written the same day it was quoted');
-  ok(/prev\.match\(\/doodles-natural:/.test(gen)
-    && /if \(pm && \(pm\[1\] !== lw \|\| pm\[2\] !== lh\)\)/.test(gen)
-    && /doodlesUri = carried\[1\];/.test(gen)
-    && /!ACCEPT_DOODLES_CHANGE/.test(gen) && /--accept-doodles-change/.test(gen),
-    '★ E1: the drift guard MOVED to the new asset with the style, and the MECHANISM is what is pinned: read the committed NATURAL size out of the marker line in the previous sheet, compare it to the asset, and on a mismatch CARRY THE COMMITTED URI THROUGH rather than re-encode — gated on the opt-in flag. ⚠ E1b MOVED WHAT IT READS: the guard used to read --chat-pattern-size-doodles, which stopped being the natural size the moment DOODLES_SCALE arrived, and this pin went red on the change — correctly, and it is the pin catching my own edit rather than a defect. It is the same guard that refused to reskin the shipped tile from inside an unrelated batch, but it now starts in AGREEMENT (asset and committed tile both 610×610) instead of papering over the old 248-vs-314 mismatch. Never pass the flag to silence it. ⚠ MUTATION 02 SURVIVED the first version, which grepped for the words "DOODLES DRIFT" — a string that also appears in the console.warn, so the pin could not tell whether the guard\'s LOGIC still existed or only its shouting');
-  ok(!/buildTriangleSvg|--chat-pattern-uri-triangles|--chat-pattern-uri-lineart/.test(gen),
-    '★★ E1 NEGATIVE: the triangles synth and the line-art tile are GONE from the generator, not merely unlisted in the picker. A retired style that still emits a URI is a style someone can reach by hand-editing a pref');
+  ok(/--chat-pattern-uri-matrix: \$\{matrixUri\}/.test(gen) && !/--chat-pattern-uri-doodles/.test(gen) && !/doodlesUri/.test(gen),
+    'W5 (★ E1 rebase, ★★ #866 re-base): the generator emits ONE tile (data matrix) and the doodles declaration is GONE from it — not the :root default, not the style block, not the variable. #835 retired the selector and deliberately left the URI emitted (the drift guard owned the asset); #857 measured that leftover at 233 KB of a 252 KB sheet, 94%, shipped in every shell that links chat-pattern.css and selectable by nothing; #866 is the pipeline change #835 named. It is the DECLARATION that is pinned, not the name. Superseded: "the generator emits BOTH tiles (doodles + data matrix) from one run". ⚠ MUTATION 01 SURVIVED the first version of this pin: `--chat-pattern-uri-doodles` occurs three times in the generator (the declaration, the :root default, the style block), so breaking the one that emits the tile left two matches behind and the pin stayed green. Session D\'s "a bare key name is a PREFIX TEST" — the same class, found again in a pin written the same day it was quoted');
+  ok(!/doodles-natural:/.test(gen) && !/ACCEPT_DOODLES_CHANGE|--accept-doodles-change/.test(gen)
+    && !/chat-bg-doodles\.svg|readFileSync\(SRC/.test(stripCode(gen))
+    && !/\breadFileSync\b/.test(stripCode(gen).replace(/import \{[^}]*\} from 'node:fs';/, '')),
+    '★★ #866: the DOODLES DRIFT GUARD IS RETIRED WITH THE ASSET IT GUARDED — no `doodles-natural` marker, no `--accept-doodles-change` flag, and the generator READS NO FILE at all now (readFileSync is not even imported): the one tile left is synthesized from a seeded PRNG, so there is no export whose drift could reskin the chat from inside an unrelated batch. A guard with nothing to guard is a comment stating an unenforced invariant (#772). Superseded — kept for the mechanism it recorded: E1: the drift guard MOVED to the new asset with the style, and the MECHANISM is what is pinned: read the committed NATURAL size out of the marker line in the previous sheet, compare it to the asset, and on a mismatch CARRY THE COMMITTED URI THROUGH rather than re-encode — gated on the opt-in flag. ⚠ E1b MOVED WHAT IT READS: the guard used to read --chat-pattern-size-doodles, which stopped being the natural size the moment DOODLES_SCALE arrived, and this pin went red on the change — correctly, and it is the pin catching my own edit rather than a defect. It is the same guard that refused to reskin the shipped tile from inside an unrelated batch, but it now starts in AGREEMENT (asset and committed tile both 610×610) instead of papering over the old 248-vs-314 mismatch. Never pass the flag to silence it. ⚠ MUTATION 02 SURVIVED the first version, which grepped for the words "DOODLES DRIFT" — a string that also appears in the console.warn, so the pin could not tell whether the guard\'s LOGIC still existed or only its shouting');
+  ok(!/buildTriangleSvg|--chat-pattern-uri-triangles|--chat-pattern-uri-lineart|--chat-pattern-uri-doodles|--chat-pattern-size-doodles|DOODLES_SCALE/.test(gen),
+    '★★ E1 NEGATIVE, widened by #866: the triangles synth, the line-art tile AND the doodles tile (URI, size, scale) are GONE from the generator, not merely unlisted in the picker. A retired style that still emits a URI is a style someone can reach by hand-editing a pref');
   ok(/cells: 24/.test(gen) && /cell: 12/.test(gen) && /gridAlpha: 0\.16/.test(gen)
     && /pFillAfterFilled: 0\.62/.test(gen) && /pFillAfterEmpty: 0\.3/.test(gen)
     && /pBig: 0\.45/.test(gen) && /rBig: 1\.7/.test(gen) && /rSmall: 0\.9/.test(gen)
@@ -7163,10 +7162,10 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     'W5: the Damir-approved data-matrix dial is intact (24×12 · grid 0.16 · Markov .62/.30 · 45% r1.7 · r0.9@0.55 · seed 11)');
 
   const pat = readFileSync(join(root, 'src/styles/chat-pattern.css'), 'utf8');
-  ok(/--chat-pattern-size-doodles: 220px 383px/.test(pat) && /doodles-natural: 320x557\s+scale: 0\.6875/.test(pat),
-    '★★ AUG TILE (Damir 2026-08-30): the tile is PAINTED at 220×383 from a 320×557 export — about 1.77 repeats across a 390px phone, which is the 1.5x–2x density Damir asked for. ⚠ THE EXPORT IS DELIBERATELY SMALL: the artwork arrived as a 3078×5361 sheet and was rescaled with coordinates rounded to INTEGERS, which is what took the asset 306KB → 237KB and chat-pattern.css 323KB → 255KB (-21%) while the pattern got DENSER. That rounding is safe because the tile is a mask painted at 5% ink: the worst measured deviation is 0.135 of one 8-bit level on screen. Superseded, kept because the reasoning still holds for why a tile is painted below its export: E1b (Damir 2026-08-29): the tile is PAINTED at 366×366 — 40% smaller — while the export stays 610×610. At its natural size the motifs read as individual drawings; at 0.6 they read as texture, which is what a chat background is for. Both numbers are pinned because the pair is the point: scaling is a CSS concern and the ASSET IS UNTOUCHED, so this can never be confused with the export moving');
-  ok(/const DOODLES_SCALE = 0\.6875;/.test(gen) && /prev\.match\(\/doodles-natural:/.test(gen),
-    '★★ E1b: the drift guard reads the NATURAL size from the emitted marker, not the scaled --chat-pattern-size. Compare the asset\'s 610 against the emitted 366 and the guard fires on EVERY run — which would train whoever hits it to pass --accept-doodles-change, i.e. to disarm the one thing the guard exists to do');
+  ok(!/--chat-pattern-size-doodles/.test(stripCssComments(pat)) && !/doodles-natural:/.test(pat) && !/--chat-pattern-uri-doodles/.test(stripCssComments(pat)),
+    '★★ #866: the doodles tile is GONE from the generated sheet — no size, no URI (swept on STRIPPED css, #771 — the header comment is allowed to record the retirement), and no natural-size marker (swept RAW, because that marker lived in a comment by design). Nothing painted it since #835; the 233 KB was pure weight (#857). Superseded, kept for the reasoning about painting a tile below its export: AUG TILE (Damir 2026-08-30): the tile is PAINTED at 220×383 from a 320×557 export — about 1.77 repeats across a 390px phone, which is the 1.5x–2x density Damir asked for. ⚠ THE EXPORT IS DELIBERATELY SMALL: the artwork arrived as a 3078×5361 sheet and was rescaled with coordinates rounded to INTEGERS, which is what took the asset 306KB → 237KB and chat-pattern.css 323KB → 255KB (-21%) while the pattern got DENSER. That rounding is safe because the tile is a mask painted at 5% ink: the worst measured deviation is 0.135 of one 8-bit level on screen. Superseded, kept because the reasoning still holds for why a tile is painted below its export: E1b (Damir 2026-08-29): the tile is PAINTED at 366×366 — 40% smaller — while the export stays 610×610. At its natural size the motifs read as individual drawings; at 0.6 they read as texture, which is what a chat background is for. Both numbers are pinned because the pair is the point: scaling is a CSS concern and the ASSET IS UNTOUCHED, so this can never be confused with the export moving');
+  ok(!/DOODLES_SCALE/.test(gen) && !/scaled\(/.test(stripCode(gen)),
+    '★★ #866: DOODLES_SCALE and its scaled() helper are gone with the tile they scaled — the matrix is emitted at its natural 288px and there is no second size to derive. Superseded: E1b: the drift guard reads the NATURAL size from the emitted marker, not the scaled --chat-pattern-size. Compare the asset\'s 610 against the emitted 366 and the guard fires on EVERY run — which would train whoever hits it to pass --accept-doodles-change, i.e. to disarm the one thing the guard exists to do');
   ok(/--chat-pattern-size-matrix: 288px 288px/.test(pat), 'W5: the data-matrix tile is the spec 288×288');
   ok(/\[data-chat-pattern='matrix'\]/.test(pat),
     'W5 (★ #853 re-base): styles switch on an ATTRIBUTE selector, not a descendant one — which is why a swatch can paint its own style beside the chat. The `flow` half of this pin retired with the canvas renderer; one attribute-keyed block is all that is left to assert');
@@ -7184,8 +7183,8 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
      inside it) is preserved at the :root pin in the Session F block, which is where the
      last surviving default lives. */
   ok(!/\[data-chat-pattern='(triangles|lineart|doodles|flow)'\]/.test(stripCssComments(pat))
-    && !/--chat-pattern-uri-(triangles|lineart):/.test(pat),
-    '★★ E1 NEGATIVE, widened by #853: no SELECTOR survives for ANY retired style — triangles and lineart (#690), doodles and flow (#835) — and no URI variable survives for the two #690 ones. ⚠ The doodles URI variable IS still emitted on purpose: the generator owns that asset behind a drift guard, and re-encoding it is a pipeline change, not a dial. Nothing can select it, which is the property that matters. Comments stripped first — the generated sheet NAMES the retired selectors in the note explaining that they are retired (#771)');
+    && !/--chat-pattern-(uri|size)-(triangles|lineart|doodles|flow):/.test(stripCssComments(pat)),
+    '★★ E1 NEGATIVE, widened by #853 and again by #866 (and moved onto STRIPPED css, #771 — the #690 half swept raw text, which a retirement note in the header would have tripped): no SELECTOR survives for ANY retired style — triangles and lineart (#690), doodles and flow (#835) — and no URI or SIZE variable survives for any of the four either. Superseded (#866): "the doodles URI variable IS still emitted on purpose: the generator owns that asset behind a drift guard, and re-encoding it is a pipeline change, not a dial. Nothing can select it, which is the property that matters. Comments stripped first — the generated sheet NAMES the retired selectors in the note explaining that they are retired (#771)');
 
   /* W5 F5 (Damir 2026-08-13): "on light mode perhaps bump opacity, as its barely
    * visible on the strongest." Measured in Chromium, the light pattern's contrast
@@ -7498,7 +7497,7 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   {
     const ssCss = readFileSync(join(root, 'src/styles/components/settings-screens.css'), 'utf8');
     ok(/\.c-settings-swatch \.c-settings-swatch__canvas::before \{[\s\S]*?-webkit-mask-size: 110px 191px;\s*mask-size: 110px 191px;/.test(ssCss),
-      '★★ AUG TILE (Damir 2026-08-30, ON DEVICE): the swatch mask is 110×191 — the TILE\'S OWN ASPECT, not a square. ⚠ THE OLD VALUE WAS 140px 140px AND IT WAS A LATENT BUG: it only worked because the doodles tile was itself square, and the moment the tile became 320×557 the art letterboxed inside the square cell and the swatch rendered band/gap/band on both desktop and Android. 110px re-picked BY RENDERING at the real 185×64 swatch at the boosted alpha (90 reads as noise, 180/220 read as a crop of one motif) and it is a clean half of the chat\'s painted 220, so the swatch stays a miniature of the chat. The companion pin above asserts the ASPECT against the emitted natural size so this cannot silently break again. Superseded: E1: the swatch mask is re-scaled to 140px for the new tile. 96px was derived from the 314px LINE-ART tile (a 3.3× reduction); the doodles tile is 610px NATURAL, so carrying 96px over would have been 6.4× and shrunk the motifs to noise in a 64px-tall swatch. ⚠ E1b: the CHAT now paints that tile at 366, but this override is an absolute mask-size and is deliberately independent of DOODLES_SCALE — the swatch is an icon for a choice, not a scale model of the canvas. Re-picked by RENDERING the swatch at both themes and the boosted alpha, not by arithmetic — 96px crowded, 187px and 240px too sparse');
+      '★★ AUG TILE (Damir 2026-08-30, ON DEVICE): the swatch mask is 110×191 — the TILE\'S OWN ASPECT, not a square. ⚠ THE OLD VALUE WAS 140px 140px AND IT WAS A LATENT BUG: it only worked because the doodles tile was itself square, and the moment the tile became 320×557 the art letterboxed inside the square cell and the swatch rendered band/gap/band on both desktop and Android. 110px re-picked BY RENDERING at the real 185×64 swatch at the boosted alpha (90 reads as noise, 180/220 read as a crop of one motif) and it is a clean half of the chat\'s painted 220, so the swatch stays a miniature of the chat. The companion pin (SESSION F block, AUG TILE) asserts the ASPECT against the emitted tile size — the matrix since #866/#868 — so this cannot silently break again; this 110×191 value itself is reachable only by the None face since #866, at zero alpha. Superseded: E1: the swatch mask is re-scaled to 140px for the new tile. 96px was derived from the 314px LINE-ART tile (a 3.3× reduction); the doodles tile is 610px NATURAL, so carrying 96px over would have been 6.4× and shrunk the motifs to noise in a 64px-tall swatch. ⚠ E1b: the CHAT now paints that tile at 366, but this override is an absolute mask-size and is deliberately independent of DOODLES_SCALE — the swatch is an icon for a choice, not a scale model of the canvas. Re-picked by RENDERING the swatch at both themes and the boosted alpha, not by arithmetic — 96px crowded, 187px and 240px too sparse');
     ok(/\[data-chat-pattern='matrix'\]::before \{\s*-webkit-mask-size: 144px 144px;/.test(ssCss)
       && /-webkit-mask-size: 110px 191px;/.test(ssCss)
       && /THE FIRST RENDER WAS WRONG/.test(ssCss),
@@ -15515,9 +15514,10 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
      re-encoding it is a pipeline change nobody made here) and is NO LONGER SELECTABLE. A
      variable nothing selects is dead weight; a SELECTOR that outlived its style is a way
      back onto a retired pattern. */
-  ok(/--chat-pattern-uri-doodles:/.test(patCss)
-    && !stripCssComments(patCss).includes("[data-chat-pattern='doodles']"),
-    '★★ #835: the doodles URI is still EMITTED (the generator owns that asset and its drift guard) but nothing can select it — the [data-chat-pattern=\'doodles\'] block is gone. ⓘ Flagged for Damir as a later cleanup: dropping the asset itself is a generator change, not part of this dial. Superseded: "the doodles tile is generated and selectable"');
+  ok(!/--chat-pattern-uri-doodles:/.test(stripCssComments(patCss))
+    && !stripCssComments(patCss).includes("[data-chat-pattern='doodles']")
+    && !/doodles/.test(stripCssComments(patCss)),
+    '★★ #866 (inverts #835, which inverted E1): the doodles tile is neither EMITTED nor SELECTABLE — once comments are stripped the word does not occur in the generated sheet. Sequence, so nobody reads this as a flip-flop: E1 "generated and selectable" → #835 "generated, not selectable" (retired the selector, kept the URI because the drift guard owned the asset) → #857 measured the kept URI at 233 KB / 94% of the sheet → #866 retired the URI and the guard together. The :root default and the matrix block are what remains, pinned separately below');
   ok(/--chat-pattern-uri: var\(--chat-pattern-uri-matrix\);/.test(patCss.split(':root {')[1].split('}')[0]),
     '★★ #835 PATTERN: DATA MATRIX is the :root default, replacing doodles (which replaced the triangles synth, which replaced line art). This is the FOURTH reader of the fall-through — an install with no stored style, or one carrying any retired style, lands here because no block below matches it. GATE 62 asserts all four readers as a set');
   ok(!/--chat-pattern-uri-triangles:/.test(patCss) && !/--chat-pattern-uri-lineart:/.test(patCss),
@@ -15528,8 +15528,8 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
        The mask throws COLOUR away and keeps only alpha, which is why a single ink token
        can theme it per mode, and why the export's own #181A20 never reaches a screen. */
     const genNC = gen.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-    ok(/src\/assets\/images\/chat-bg-doodles\.svg/.test(genNC),
-      '★ E1 PATTERN: the generator reads the DOODLES export as its source of truth');
+    ok(!/src\/assets\/images\/chat-bg-doodles\.svg/.test(genNC) && !/readFileSync/.test(genNC),
+      '★ #866 PATTERN (inverts E1): the generator reads NO export — the one tile is synthesized, and the doodles source of truth is no longer a source of anything. The asset files (chat-bg-doodles.svg · chat-bg-pattern.svg · doodle-pattern-aug.svg) may still sit in src/assets/images unreferenced; deleting artwork is Damir\'s call, not a generator change. Superseded: "the generator reads the DOODLES export as its source of truth"');
     ok(!/chat-bg-pattern\.svg/.test(genNC),
       '★ E1 PATTERN: the retired line-art asset is no longer READ. The file stays on disk unreferenced — deleting an artwork export is not a code change to make on an agent\'s own initiative — but nothing inlines it any more, so it cannot come back through the generated sheet');
     ok(/-webkit-mask-image: var\(--chat-pattern-uri\)/.test(patCss) && /background-color: var\(--chat-pattern-ink\)/.test(patCss),
@@ -19540,8 +19540,8 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     {
       const shipped = listFiles(rawDir).filter((f) => /^(images|img)\//.test(f));
       // stripCode: a comment cannot LOAD a file. The raw corpus names `img/flags/zz.png` (a
-      // flags.js docblock example) and `src/assets/images/chat-bg-doodles.svg` (the pattern
-      // generator's source note) — both would read as dangling references. #771 in reverse.
+      // flags.js docblock example) — it would read as a dangling reference. #771 in reverse.
+      // (Until #866 the generated chat-pattern.css header also named its doodles source SVG.)
       const corpus = listFiles(rawDir).filter((f) => /\.(html|css|js)$/.test(f)).map((f) => stripCode(built(f))).join('\n');
       const refs = new Set();
       for (const m of corpus.matchAll(/(?:images|img)\/[A-Za-z0-9_./-]+\.(?:png|svg|jpg|jpeg|gif|webp)/g)) refs.add(m[0]);
@@ -22583,10 +22583,15 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   {
     let gen = '';
     try { gen = rdF('scripts/generate-chat-pattern.mjs'); } catch (_) { gen = ''; }
-    ok(/process\.argv\.includes\('--accept-doodles-change'\)/.test(gen),
-      '★★ SESSION F (mutation M4): the drift-guard opt-in is read from argv by its EXACT name — the old pin matched the flag anywhere, and the string also appears in two docblocks and a console.warn, so a typo in the only live read left the documented escape hatch unreachable with the pin still green');
-    ok(/--chat-pattern-size-doodles: \$\{scaled\(doodlesW\)\}px \$\{scaled\(doodlesH\)\}px;/.test(gen),
-      '★★ SESSION F (mutation M3): the emitted doodles size is the SCALED one — DOODLES_SCALE being declared proves nothing if the template interpolates the natural size, which is E1b\'s 366 silently undone on the next regeneration');
+    /* ★★ #868 (Session V, on top of #866) RE-BASE of M4 and M3 — both pinned the doodles
+       pipeline #866 retired: M4 the drift guard's argv read, M3 the scaled doodles size.
+       Each is re-based to the invariant it was PROTECTING, on the one tile that is left. */
+    const genCode = stripCode(gen);
+    ok(!/process\.argv/.test(genCode) && !/readFileSync|readFile\(|existsSync/.test(genCode),
+      '★★ SESSION F (mutation M4) → #866/#868 re-base: the generator reads NO argv and NO asset — the drift guard (and its --accept-doodles-change escape hatch) existed to notice the doodles export changing under the encoded tile, and #866 removed the export from the pipeline, so the honest invariant is now that the generator is a pure function of its source: same script, same bytes (Session W ran it twice to one hash). Swept on STRIPPED source (#771) because the header comment is allowed to record what was retired. A flag or a file read coming back is a new input to the sheet and needs a new pin, not this one');
+    ok(/const matrixSize = MATRIX\.cells \* MATRIX\.cell;/.test(genCode)
+      && /--chat-pattern-size-matrix: \$\{matrixSize\}px \$\{matrixSize\}px;/.test(genCode),
+      '★★ SESSION F (mutation M3) → #866/#868 re-base: the emitted matrix tile size is INTERPOLATED from the same constant that builds the SVG (cells × cell), not typed into the template — M3\'s class was a size declared in one place and a literal painted in another, which is a mask that repeats on a period the art was not drawn to (a visible seam every tile). The matrix has no scale step (it is painted at its synthesized size, #774 re-checked), so the pin binds emission to derivation and nothing else');
     ok(/\bseed: 11,/.test(gen) && /\bcells: 24,/.test(gen) && /\bcell: 12,/.test(gen) && /\bgridAlpha: 0\.16,/.test(gen),
       '★ SESSION F (mutation M8): the data-matrix dial is bound by the trailing comma, not left as a prefix test — `seed: 11` matched `seed: 117` and `cell: 12` matched `cell: 120`, so the whole approved layout could change under a green pin');
   }
@@ -22666,18 +22671,27 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
     let css = '', pat = '';
     try { css = rdF('src/styles/components/settings-screens.css'); pat = rdF('src/styles/chat-pattern.css'); } catch (_) {}
-    const nat = pat.match(/doodles-natural: (\d+)x(\d+)/);
-    const ms = css.match(/\n  mask-size: (\d+)px (\d+)px;/);
+    /* ★★ #868 (Session V, on top of #866) RE-BASE: the doodles tile and its natural-size
+       marker are gone from the sheet, so the tile this pin relates the swatch to is the ONE
+       tile left — the data matrix — read from the EMITTED `--chat-pattern-size-matrix`, and
+       the mask it relates it to is the matrix swatch's OWN rule (the [data-chat-pattern='matrix']
+       override, 144×144), because that is the rule the live swatch hits. The shared 110×191
+       below it is still doodles-shaped: it is reachable only by the None face, whose tile
+       paints at zero alpha, so it letterboxes nothing anyone can see — recorded, not changed,
+       because a value nobody can see is not worth a render pass to re-pick (#294). The lesson
+       is unchanged: the mask must carry the TILE'S aspect, and the check re-derives itself. */
+    const nat = pat.match(/--chat-pattern-size-matrix: (\d+)px (\d+)px;/);
+    const mblock = css.match(/\[data-chat-pattern='matrix'\]::before \{[^}]*\n  mask-size: (\d+)px (\d+)px;/);
     let aspectOk = false, detail = 'not found';
-    if (nat && ms) {
+    if (nat && mblock) {
       const tileAspect = Number(nat[2]) / Number(nat[1]);
-      const maskAspect = Number(ms[2]) / Number(ms[1]);
+      const maskAspect = Number(mblock[2]) / Number(mblock[1]);
       aspectOk = Math.abs(tileAspect - maskAspect) / tileAspect < 0.02;
-      detail = `tile ${nat[1]}x${nat[2]} (${tileAspect.toFixed(3)}) vs mask ${ms[1]}x${ms[2]} (${maskAspect.toFixed(3)})`;
+      detail = `tile ${nat[1]}x${nat[2]} (${tileAspect.toFixed(3)}) vs matrix swatch mask ${mblock[1]}x${mblock[2]} (${maskAspect.toFixed(3)})`;
     }
     ok(aspectOk,
-      '★★ AUG TILE: the chat-appearance swatch mask-size carries the DOODLES TILE\'S OWN ASPECT within 2% — ' + detail
-      + '. A square mask-size against a non-square tile letterboxes the art inside its cell and the swatch renders band/gap/band, which is what shipped to Damir on 2026-08-30. Derived from the emitted natural size so it re-checks itself whenever the artwork changes');
+      '★★ AUG TILE → #866/#868 re-base: the chat-appearance swatch mask-size carries the LIVE TILE\'S OWN ASPECT within 2% — ' + detail
+      + '. A mask-size whose aspect is not the tile\'s letterboxes the art inside its cell and the swatch renders band/gap/band, which is what shipped to Damir on 2026-08-30 when a square 140px cell met the 320×557 doodles tile. Derived from the emitted matrix size and the matrix swatch\'s own override so it re-checks itself whenever either changes. Superseded: the same relation against the doodles tile\'s emitted natural size, which #866 retired with the tile');
   }
 
   /* ★ #684 — the GIF chain, pinned end to end, because all three defects were invisible. */

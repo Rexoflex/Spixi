@@ -1048,18 +1048,30 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   gap: var(--spacing-12);
   padding: var(--spacing-16);
   border: 0;
-  border-top: var(--outline-width-1) solid var(--outline-neutral-01);
   border-radius: var(--radius-12);
-  background: var(--surface-neutral-02);
+  /* ★ Session X (walk V 1.7 "dark styles are off" · 3.2 "we need hover on the cards"):
+     the card rode --surface-neutral-02 + a neutral-01 top hairline + the generic hover.
+     In dark that is neutral-800 on a neutral-700 sheet (RECESSED), a hairline the same
+     tone as the card (invisible) and a hover the same tone as the card (invisible); in
+     light the hover was neutral-50 on a neutral-50 card — no hover on any pointer. The
+     sheet-card pair (tokens.css) lifts one step from the sheet in BOTH modes; hover = one
+     more step + elevation-2; pressed = the top step, shadow dropped. No hairline: a card
+     in dark lifts by tone, it does not outline (the same rule the brief's dark-mode read
+     states). The medallion tints tonal on hover — the attach-sheet grammar. */
+  background: var(--surface-sheet-card);
   box-shadow: var(--elevation-1);
   color: var(--text-neutral-01);
   font-family: var(--font-secondary);
   text-align: start;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) ease, box-shadow var(--duration-100) ease;
 }
-@media (hover: hover) and (pointer: fine) { .c-contacts-addsheet__item:hover { background: var(--surface-interactive-hover); } }
-.c-contacts-addsheet__item:active { background: var(--surface-interactive-pressed); }
+@media (hover: hover) and (pointer: fine) {
+  .c-contacts-addsheet__item:hover { background: var(--surface-sheet-card-hover); box-shadow: var(--elevation-2); }
+  .c-contacts-addsheet__item:hover .c-contacts-addsheet__medallion { background: var(--surface-action-tonal-default); color: var(--icon-action-default); }
+}
+.c-contacts-addsheet__item:active { background: var(--surface-sheet-card-pressed); box-shadow: none; }
 .c-contacts-addsheet__item:focus-visible {
   outline: var(--outline-width-2) solid var(--outline-action-default);
   outline-offset: 1px;

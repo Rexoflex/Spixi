@@ -1432,3 +1432,17 @@ C#-side. The one deletion removes a JS module from the chat WebView and adds not
 ⚠ **Carried, not closed:** `contact_details.html` hosts the same member sheet and has no
 `viewcontact` route (#850). That is a missing feature, not an exposure — the component's
 `canView` gate means the affordance does not render at all there.
+
+## Session X (#869–#872) — the composer fix, the chooser, the row and the ticks (2026-09-17)
+
+One question per row: does this exposure exist at the baseline?
+
+| item | verb / key / sink / fetch / log? | verdict |
+|---|---|---|
+| `chat.html` composer-height publish (#869) | **ONE new log line**: `console.warn('[composer-h] publish failed — …', e)` in the outer catch. It logs a caught `Error` object, never an address, a nick or message text; the block touches only `slot.offsetHeight` and a CSS custom property. | INTRODUCED, harmless — no user data can reach it (G-3 holds: nothing formats base58 into the message) |
+| `smoke-test.mjs` undeclared-identifier gate (#869) | a NEW DEV DEPENDENCY: `eslint` + `globals`, `--no-save`, dev machine only; never shipped, never in the WebView | not an app exposure — supply-chain note only: the suite header now names both, pinned versions are NOT enforced (the same standing jsdom has) |
+| chooser tokens + CSS + SVG-first art (#870) | no verb, no key, no fetch — `img.src` moves from one **relative co-located** file to another (`images/add-contact.svg` → `.png` fallback), both under `Raw/html/images`, both copied from `src/demo/images` by `build-shells`; no remote host can enter the ladder | none |
+| chats-row column, tick stroke, `--icon-bubble-read` literal (#871) | CSS only | none |
+
+Nothing in Session X adds a verb, a `spixi.*` key, an HTML sink or a network fetch. The
+introduced-vs-inherited census (the Session R sweep) is unchanged by it.

@@ -1,0 +1,20 @@
+Session X — the newest bubble under the composer (a ReferenceError swallowed for three sessions) and the gate that reads scopes; the chooser in dark; the chats-row column; ticks colour-only; the contact-details proposal, decided (#869–#877)
+
+FIXES (walk-visible)
+- chat.html: --composer-h was written to a const Session U deleted with the "Live flow" renderer, inside catch(_){} — never written, the log padded by spacing-4, every --composer-h pin green on the source string. Target derived from the slot, publish() before the observer, the throw logged. The built-shell boot pin reads the PROPERTY (HEAD red, fix green).
+- chatlist-item.css: the trailing column is two line boxes, always both tall — the time sits on the name line in every row (measured 0.0 px on the built shell).
+- tokens.css: --icon-bubble-read = #8ff5b4 (4.52:1 on the bubble; success-300 was 3.06). Ticks keep ONE weight — colour is the only differentiator (#877; a heavier read tick shipped for one build and was reversed).
+- tokens.css + contacts-shell.css/.js: --surface-sheet-card/-hover/-pressed — a card ON a sheet lifts in both modes (dark was recessed, hover was invisible in both themes); medallion tonal on hover; no hairline. Art stays add-contact.png (Damir supplies the transparent export); an SVG-first rung tripped the reachability gate and was reverted.
+
+GATES
+- smoke-test.mjs: THE UNDECLARED-IDENTIFIER GATE — ESLint no-undef over every inline script of every source shell (header: npm i --no-save jsdom eslint globals; refuses to pass without the parser). Named chatCanvasEl on 608e12b7; zero noise on the other 17.
+- +9 assertions, each run new-vs-committed with mutations; one of my own pins was vacuous and rewritten (#871).
+
+RECORDS
+- docs/contact-details-premium-proposal.md — mock rendered over the real shell; DECIDED: contact details only (hub keeps its discs) · max four rounded-rect neutral tiles, Request out, Mute in · address under the name · group/bot destructive rows above the roster (#873/#875/#876).
+- #874: two stale OPEN rows in the release ledger closed (#234 was fixed at #458; Privacy bakes). #875: bottom bleed DROPPED (my "Android requires it" was wrong).
+- security-handover-gate.md Session X section (one harmless log line; no verb/key/sink/fetch). Sheets in docs/sheets/session-x/ (⚠ each carries a bridge C2PA chunk, #865 extends to PNG).
+- Consumed → docs/archive: handoffs 09-16b/c, checklists U/V/W, commit messages U/U2/V/W.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0128ZSs1PDc9ckQDfS6T1MMa

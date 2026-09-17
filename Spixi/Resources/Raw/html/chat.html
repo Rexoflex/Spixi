@@ -1251,6 +1251,10 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    same #1956b2 in both themes and --icon-bubble-delivered resolves to the same
    --text-bubble-sent-meta in both, so ONE rule genuinely covers both modes. */
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="delivered"] { opacity: 0.571; }
+/* ★ Session X (Damir 2026-09-17): the ticks keep ONE weight and ONE size — COLOUR is the only
+   differentiator (delivered = the meta ink at 0.571, read = --icon-bubble-read, the mint that
+   clears 4.5:1 on the bubble). A heavier read tick shipped for one build and was REVERSED on
+   his word (#877). Nothing here may thicken, enlarge or restyle a tick by state. */
 /* A2 (#302): paid marker. Inherits the meta ink on BOTH directions — those inks are
    already AA-tuned per direction two rules up (--text-bubble-*-meta), so the glyph
    needs no token of its own and reads correctly in light and dark. flex:none stops
@@ -11875,18 +11879,30 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
        GREW re-pin on the next frame — every observer tick of the 200 ms rise, so the log
        follows the tray up; a scrolled-up reader keeps their place. Shrinks (the tray
        leaving) need nothing: the keyboard path already re-pins. */
+    /* ★★ Session X (Damir's screenshot, 2026-09-17: the last bubble sat UNDER the pill in
+       every conversation): this block wrote the height to a canvas const that
+       Session U (#845–#857) DELETED together with the "Live flow" renderer it served —
+       and the inner `try { … } catch (_) {}` swallowed the ReferenceError, so
+       --composer-h was never written, #messages padded by spacing-4 alone, and every
+       `--composer-h` pin stayed green because each one reads the SOURCE string.
+       The target is now derived from the slot itself (the canvas is its ancestor —
+       message-bubble.css), `publish()` runs BEFORE the observer is constructed so an
+       engine without ResizeObserver still pads the log once (that is also what makes
+       the property observable to the built-shell boot pin), and nothing in here is
+       silenced: a throw reaches the outer catch, which now LOGS it. */
+    const canvasEl = slot.closest('.c-chat-canvas');
     let lastSlotH = slot.offsetHeight;
     const publish = () => {
       const h = slot.offsetHeight;
       const grew = h > lastSlotH;
       lastSlotH = h;
       const atBottom = nearBottom();
-      try { chatCanvasEl.style.setProperty('--composer-h', h + 'px'); } catch (_) {}
+      canvasEl.style.setProperty('--composer-h', h + 'px');
       if (grew && atBottom) requestAnimationFrame(() => { box.scrollTop = box.scrollHeight; });
     };
-    new ResizeObserver(publish).observe(slot);
     publish();
-  } catch (_) {}
+    if (typeof ResizeObserver === 'function') new ResizeObserver(publish).observe(slot);
+  } catch (e) { console.warn('[composer-h] publish failed — the log will not pad for the pill', e); }
   /* The ⊕ offers nothing at boot: the room type is not known yet, so it holds its place
      and stays invisible until setChatMode answers or the wait window closes. THE
      ROOM-ANSWER LATCH above holds the whole rule. This is the FIRST derive; every later

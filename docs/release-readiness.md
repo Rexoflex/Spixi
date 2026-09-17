@@ -25,7 +25,7 @@ newer than `docs/archive/handoff-post-freeze.md`, so where the two disagree, #29
 |---|---|
 | polish + platform fixes | continuous; no defined end — §3 lists what is left |
 | Android bring-up | ✅ built, run, walked (Walk N, 15 P · 0 F) |
-| real Terms + Privacy | ⚠ **Terms live. PRIVACY IS HELD** — `build-legal-docs` prints 🟡 on every run and bakes `privacy: { text: null }`; the app ships the placeholder summary |
+| real Terms + Privacy | ✅ **both bake** (2026-09-17 check: privacy 17 942 chars / 18 sections, `build-legal-docs --check` green). ⚠ This row read HELD until 2026-09-17 |
 | dev-mode / send-log | ✅ #321 |
 | the redesigned SEND flow | ✅ built (#523), legacy pages retired (#640), `composeSend` pushed **unconditionally** at `HomePage.xaml.cs:1965` — ⚠ but see the review gate in §1 |
 | the security MAJORs | ⚙ **the three OURS rows moved 2026-09-06** — two closed, one partly closed. The inherited ones are still his. §1 |
@@ -81,7 +81,7 @@ These go to him untouched by the gate's rule. "Inherited" answers *whose*, not *
 |---|---|
 | **MAJOR #8 (Android)** | a mini-app WebView can XHR-read arbitrary app files **including `wallet.ixi`** (`WebViewRenderer.cs:431`, `AllowFileAccessFromFileURLs = true` for every WebView) |
 | **MAJOR #9 (Android)** | `OnPermissionRequest` auto-grants mic and camera to every WebView, mini-apps included, with no prompt |
-| **#234** | the resume / privacy lock shows **Cancel**, and Cancel unlocks the app with no password — a lock bypass on a self-custodial wallet, confirmed on device |
+| ~~**#234**~~ | ✅ **CLOSED #458 (2026-08-20)** — the app-owned locks present in a `'locked'` mode with no exit; Cancel survives only on the confirm screen that turns the lock OFF, where it is harmless (#499). This row and the BE doc's §1a read OPEN until 2026-09-17 |
 | **A1 / L8** | the wallet password is stored in **cleartext** `Preferences["walletpass"]`. There is no `SecureStorage` anywhere in the tree |
 | **MAJOR #10** | `MiniAppManager.remove` builds a delete path from a downloaded `app.id` — arbitrary directory delete, and the account wipe became a second caller |
 | **L6** | restore mutates the lock flags and overwrites `walletpass` **before** verifying the password |

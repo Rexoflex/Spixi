@@ -533,6 +533,10 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    same #1956b2 in both themes and --icon-bubble-delivered resolves to the same
    --text-bubble-sent-meta in both, so ONE rule genuinely covers both modes. */
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="delivered"] { opacity: 0.571; }
+/* ★ Session X (Damir 2026-09-17): the ticks keep ONE weight and ONE size — COLOUR is the only
+   differentiator (delivered = the meta ink at 0.571, read = --icon-bubble-read, the mint that
+   clears 4.5:1 on the bubble). A heavier read tick shipped for one build and was REVERSED on
+   his word (#877). Nothing here may thicken, enlarge or restyle a tick by state. */
 /* A2 (#302): paid marker. Inherits the meta ink on BOTH directions — those inks are
    already AA-tuned per direction two rules up (--text-bubble-*-meta), so the glyph
    needs no token of its own and reads correctly in light and dark. flex:none stops

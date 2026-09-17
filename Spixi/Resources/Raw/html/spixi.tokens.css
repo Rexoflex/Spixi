@@ -491,6 +491,14 @@
   --surface-composer: var(--neutral-10);
   --surface-card: var(--neutral-50);
   --surface-card-raised: var(--neutral-100);
+  /* ★ Session X (walk V 1.7/3.2): a CARD ON A SHEET. The sheet is --surface-menu (neutral-10
+     light / neutral-700 dark); --surface-card is neutral-800 in dark, i.e. DARKER than the sheet
+     it sits on — a recessed card. This pair always lifts one step from the sheet in both modes,
+     and the hover step is a step the eye can see (the generic --surface-interactive-hover is
+     neutral-50 in light = the card's own colour, so the chooser cards had no hover at all). */
+  --surface-sheet-card: var(--neutral-50);
+  --surface-sheet-card-hover: var(--neutral-100);
+  --surface-sheet-card-pressed: var(--neutral-200);
   --surface-bubble-sent: #2160c2;      /* ★ Session I (#735⑥, sheet 1d = A): softened one step, REVERSIBLY — was #1956b2 (N81 #422). White text 5.97:1 (was 6.96); meta ink 5.05:1. Matches --gradient-bubble-sent; the fallback must not disagree */
   --surface-bubble-received: #ffffff;   /* ★ N81 (#422) — pure white on the cream canvas (Damir) */
   --surface-input: var(--neutral-50);
@@ -664,7 +672,13 @@
   --text-bubble-received-meta: var(--neutral-490);
   /* status glyphs ON the sent bubble (audit + Damir: read must POP — success
      green, distinct hue on the blue in both modes). Mirror to Figma next batch. */
-  --icon-bubble-read: var(--success-300);
+  /* ★ Session X (Damir 2026-09-17, after E1: "delivered and read need more differentiation"):
+     success-300 sat at 3.06:1 on the #2160c2 bubble — the non-text floor, and a DULL green
+     beside a delivered tick at 3.00:1. The read tick now carries a MINT literal at 4.52:1
+     (rendered A/B/C on the built shell, docs/sheets/session-x/ticks-sheet.png; B shipped, C = 18 px
+     is the open dial) and a heavier outline (message-bubble.css). Literal, not a scale step:
+     no green step between 300 and 200 reaches 4.5 on this blue. Reversal = var(--success-300). */
+  --icon-bubble-read: #8ff5b4;
   /* iOS-16 (#283, amends #80): delivered was success-400 — one green shade off
      read's success-300, indistinguishable at 16px on the vivid bubble (Damir:
      "hard to tell states apart"). WhatsApp grammar instead: sent ✓ and
@@ -823,6 +837,9 @@
   --surface-composer: var(--neutral-900);
   --surface-card: var(--neutral-800);
   --surface-card-raised: var(--neutral-700);
+  --surface-sheet-card: var(--neutral-600);          /* ★ Session X: the sheet is neutral-700 — a card LIFTS in dark, it does not outline */
+  --surface-sheet-card-hover: var(--neutral-500);
+  --surface-sheet-card-pressed: var(--neutral-500);  /* the ramp has no step between 500 and 400 (400 is light) — pressed drops the shadow instead */
   --surface-bubble-sent: #2160c2;      /* ★ Session I (sheet 1d = A): was #1956b2 — matches --gradient-bubble-sent in both themes */
   /* ★★ AUG (Damir 2026-08-30, ON DEVICE): "incoming bubbles on dark mode need a bit more
      colour tuning so it stands out a bit more". MEASURED, and the number explains the
@@ -919,7 +936,7 @@
   --text-bubble-received-meta: var(--neutral-400);
   /* saturated deep-blue outgoing bubble → LIGHT glyphs pop (mirror light mode; the
      old 700/800 values were tuned for the pale primary-400 bubble). */
-  --icon-bubble-read: var(--success-300);
+  --icon-bubble-read: #8ff5b4;                    /* ★ Session X: the same mint — the bubble is the same blue in both themes (see light) */
   --icon-bubble-delivered: var(--text-bubble-sent-meta); /* iOS-16 (#283): neutral like sent — see light-mode note */
   --icon-bubble-failed: var(--error-200);
 

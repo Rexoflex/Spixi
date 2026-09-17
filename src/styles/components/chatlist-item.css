@@ -73,17 +73,27 @@
 }
 .c-chatlist-item[data-unread] .c-chatlist-item__name { font-weight: var(--row-name-weight-unread); }   /* ★ Session I: bold when unread (was semibold) · ★ Session J: semibold (Damir) */
 
+/* ★ Session X (Damir 2026-09-17: "the timestamp and status must align top with the name —
+   it's centered, so it moves depending on the unread indicator or muted"): the trailing
+   column was justify-content:center with a spacing-4 gap, so a row WITH indicators put the
+   time ~12 px higher than a row without. Now the column mirrors the content column's two
+   line boxes exactly — line 1 (time + status) is the name's line-height tall, line 2 (the
+   indicators) is the excerpt's — and it is ALWAYS both lines tall, indicators or not. Both
+   columns are then centred in the row by the same rule, so the time sits on the name's
+   line in every row, and the indicators on the excerpt's. */
 .c-chatlist-item__right {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  justify-content: center;
-  gap: var(--spacing-4);
+  justify-content: flex-start;
+  gap: 0;
+  min-height: calc(var(--row-name-line-height) + var(--line-height-body-sm));
   flex: none;
 }
 .c-chatlist-item__meta {
   display: flex;
   align-items: center;
+  height: var(--row-name-line-height);
   gap: var(--spacing-2);
   color: var(--icon-neutral-03);
 }
@@ -93,13 +103,17 @@
   letter-spacing: var(--tracking-body-sm);
   color: var(--text-neutral-02);
 }
-.c-chatlist-item__indicators { display: flex; gap: var(--spacing-4); }
+.c-chatlist-item__indicators { display: flex; align-items: center; height: var(--line-height-body-sm); gap: var(--spacing-4); }
 
 /* —— status icon tones —— */
 .c-status-icon { flex: none; }
 .c-status-icon[data-tone="neutral"] { color: var(--icon-neutral-03); }
 .c-status-icon[data-tone="delivered"] { color: var(--icon-neutral-03); } /* list surface: delivered stays neutral; sent bubble overrides to muted green */
 .c-status-icon[data-tone="read"] { color: var(--icon-accent); }
+/* ★ Session X (Damir 2026-09-17, second ruling the same day): the ticks keep ONE weight — COLOUR
+   is the only differentiator (delivered = neutral-03, read = the accent). A heavier read tick
+   (a CSS stroke around the filled glyph) shipped for one build and was REVERSED on his word;
+   #877. Nothing here may thicken, enlarge or restyle a tick by state. */
 .c-status-icon[data-tone="failed"] { color: var(--icon-error); }
 
 /* —— indicator —— */

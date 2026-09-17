@@ -1,6 +1,6 @@
 /**
  * jsdom smoke test for the demo pages (#46 audit-loop step).
- * Run: npm i --no-save jsdom && node scripts/smoke-test.mjs
+ * Run: npm i --no-save jsdom eslint globals && node scripts/smoke-test.mjs   (eslint + globals: the undeclared-identifier gate, Session X)
  * Optional arg: repo root (default = script's parent dir) — lets the script run
  * from a location where jsdom resolves, e.g. `node /x/smoke-test.mjs /repo`.
  * Asserts against COMPUTED styles where it matters ([hidden] vs author display).
@@ -7390,6 +7390,92 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
        reversal: the elevation must be there, or the E1b/E1c objection below comes true. */
     ok(/background: #ffffff;/.test(noticeLight) && /box-shadow: var\(--elevation-2\);/.test(noticeLight),
       '★ Session J: the light card IS white — and LIFTED (--elevation-2), which is what keeps it from reading as one more bubble. Superseded: E1b/E1c: the card is NOT white. White IS the incoming bubble in light mode, so a white card would read as one more bubble in the thread rather than as the notice that sits above it — which is the same reason dark went to #0c1a4a rather than to a lighter grey');
+    /* ★ Session X (walk V 1.7 + 3.2): the chooser cards sat on --surface-neutral-02 — neutral-800
+       on a neutral-700 sheet in dark (RECESSED), and hovered to --surface-interactive-hover =
+       neutral-50 in light = the card's own colour (NO hover). The new --surface-sheet-card pair
+       is pinned as a PROPERTY over RESOLVED primitives, not as a spelling: in dark the card is
+       LIGHTER than the sheet and the hover lighter than the card; in light the card differs
+       from the sheet and the hover from the card; and the chooser CSS actually reads the pair.
+       Resolver: var() chains → hex, light from the :root blocks, dark from the dark block laid
+       over them (what the cascade does). Mutated: card = sheet in dark → red; hover = card in
+       light → red; chooser back on --surface-neutral-02 → red. */
+    {
+      const tokAll = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+      const blockMap = (sel) => {
+        const m = {};
+        const re = new RegExp('(?:^|\\n)' + sel.replace(/[[\]]/g, '\\$&') + '\\s*\\{([^}]*)\\}', 'g');
+        for (const b of tokAll.matchAll(re)) for (const d of b[1].matchAll(/--([\w-]+)\s*:\s*([^;]+);/g)) m['--' + d[1]] = d[2].trim();
+        return m;
+      };
+      const light = blockMap(':root');
+      const dark = { ...light, ...blockMap('[data-theme="dark"]') };
+      const resolve = (map, v, depth = 0) => {
+        if (depth > 12 || !v) return null;
+        const mm = /^var\((--[\w-]+)\)$/.exec(v.trim());
+        return mm ? resolve(map, map[mm[1]], depth + 1) : v.trim();
+      };
+      const lum = (hex) => {
+        const h = /^#([0-9a-f]{6})$/i.exec(hex || ''); if (!h) return NaN;
+        const c = [0, 2, 4].map((i) => { const x = parseInt(h[1].slice(i, i + 2), 16) / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; });
+        return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+      };
+      const L = (map, k) => lum(resolve(map, map[k]));
+      const dSheet = L(dark, '--surface-menu'), dCard = L(dark, '--surface-sheet-card'), dHover = L(dark, '--surface-sheet-card-hover');
+      const lSheet = L(light, '--surface-menu'), lCard = L(light, '--surface-sheet-card'), lHover = L(light, '--surface-sheet-card-hover');
+      ok([dSheet, dCard, dHover, lSheet, lCard, lHover].every(Number.isFinite) && dCard > dSheet && dHover > dCard && lCard !== lSheet && lHover !== lCard,
+        '★ Session X: --surface-sheet-card LIFTS from --surface-menu in dark and its hover lifts again; in light card ≠ sheet and hover ≠ card — resolved to primitives (dark L: sheet ' + dSheet.toFixed(3) + ' card ' + dCard.toFixed(3) + ' hover ' + dHover.toFixed(3) + ')');
+      const chooserCss = stripCssComments(readFileSync(join(root, 'src/styles/components/contacts-shell.css'), 'utf8'));
+      const itemRule = /\.c-contacts-addsheet__item \{([^}]*)\}/.exec(chooserCss);
+      const hoverRule = /\.c-contacts-addsheet__item:hover \{([^}]*)\}/.exec(chooserCss);
+      ok(!!itemRule && /background: var\(--surface-sheet-card\);/.test(itemRule[1]) && !/border-top/.test(itemRule[1])
+        && !!hoverRule && /background: var\(--surface-sheet-card-hover\);/.test(hoverRule[1]) && /box-shadow: var\(--elevation-2\);/.test(hoverRule[1]),
+        '★ Session X: the chooser card reads the sheet-card pair (no top hairline — a dark card lifts, it does not outline) and hover adds --elevation-2');
+    }
+    /* ★ Session X (Damir 2026-09-17, two mid-turn asks). (1) "the timestamp and status must
+       align top with the name — it's centered, so it moves depending on the unread indicator":
+       the trailing column mirrors the content column's two line boxes and is ALWAYS both
+       lines tall. MEASURED on the built home shell in Chromium before it was pinned: time
+       midline − name midline = 0.0 px on all six rows, with and without indicators (it was
+       ~12 px off on rows without). (2) "delivered and read need more differentiation": the
+       registry glyphs are FILLED outlines (#865), so read gets a CSS stroke around the fill on
+       BOTH surfaces (message-bubble.css stays self-contained), and the on-bubble read ink
+       moves from success-300 (3.06:1 on the bubble — the floor) to a mint that CLEARS 4.5:1.
+       The colour clause is a computed contrast, not a spelling. */
+    {
+      const rowCss = stripCssComments(readFileSync(join(root, 'src/styles/components/chatlist-item.css'), 'utf8'));
+      const rightRule = /\.c-chatlist-item__right \{([^}]*)\}/.exec(rowCss);
+      const metaRule = /\.c-chatlist-item__meta \{([^}]*)\}/.exec(rowCss);
+      const indRule = /\.c-chatlist-item__indicators \{([^}]*)\}/.exec(rowCss);
+      ok(!!rightRule && /justify-content: flex-start;/.test(rightRule[1]) && /gap: 0;/.test(rightRule[1])
+        && /min-height: calc\(var\(--row-name-line-height\) \+ var\(--line-height-body-sm\)\);/.test(rightRule[1])
+        && !!metaRule && /height: var\(--row-name-line-height\);/.test(metaRule[1])
+        && !!indRule && /height: var\(--line-height-body-sm\);/.test(indRule[1]),
+        '★ Session X: the chats-row trailing column is two line boxes (name-line + excerpt-line) and always both tall — the time sits on the name line in every row, indicators or not');
+      const bubCss = stripCssComments(readFileSync(join(root, 'src/styles/components/message-bubble.css'), 'utf8'));
+      /* ★ REVERSED the same day (#877, Damir: "same weight always, colour only differentiator").
+         The clause that stood here asserted a heavier read tick; it now asserts the OPPOSITE as a
+         property over STRIPPED css (#771): no rule in either stylesheet may set stroke,
+         stroke-width, width, height, transform or font-size on a status icon BY tone. */
+      const toneRuleRe = /\.c-status-icon\[data-tone="[a-z]+"\][^{]*\{([^}]*)\}/g;
+      const weightProps = /\b(stroke|stroke-width|width|height|transform|font-size|scale)\s*:/;
+      const offenders = [];
+      for (const [name, css] of [['chatlist-item.css', rowCss], ['message-bubble.css', bubCss]])
+        for (const m of css.matchAll(toneRuleRe)) if (weightProps.test(m[1])) offenders.push(name + ': ' + m[0].slice(0, 80));
+      ok(offenders.length === 0 && (rowCss.match(toneRuleRe) || []).length >= 4,
+        '★ Session X #877: ticks keep ONE weight and size — no per-tone status-icon rule sets stroke/width/height/transform/font-size in either stylesheet; colour is the only differentiator (and the tone rules exist — ' + (rowCss.match(toneRuleRe) || []).length + ' in the row css). Offenders: ' + (offenders.join(' | ') || 'none'));
+      const tokX = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+      const hexOf = (name) => { const m = new RegExp('--' + name + ':\\s*(#[0-9a-fA-F]{6})').exec(tokX); return m ? m[1] : null; };
+      const lumX = (hex) => { const h = /^#([0-9a-f]{6})$/i.exec(hex || ''); if (!h) return NaN; const c = [0, 2, 4].map((i) => { const x = parseInt(h[1].slice(i, i + 2), 16) / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+      /* ⚠ The first draft read ONE hex (the first match) and counted declarations — reverting
+         the LIGHT block alone to the old token survived it (#798, caught by its own mutation).
+         Every declaration is walked now, and each must be a literal that clears the floor. */
+      const bubbleHex = hexOf('surface-bubble-sent');
+      const readVals = [...tokX.matchAll(/--icon-bubble-read:\s*([^;]+);/g)].map((m) => m[1].trim());
+      const ratioOf = (hex) => { const lr = lumX(hex), lb = lumX(bubbleHex); return (Math.max(lr, lb) + 0.05) / (Math.min(lr, lb) + 0.05); };
+      const readRatios = readVals.map((v) => (/^#[0-9a-fA-F]{6}$/.test(v) ? ratioOf(v) : NaN));
+      ok(readVals.length === 2 && readRatios.every((r) => Number.isFinite(r) && r >= 4.5),
+        '★ Session X: --icon-bubble-read is a literal in BOTH theme blocks and EACH clears 4.5:1 on --surface-bubble-sent (got ' + readVals.join(' / ') + ' on ' + bubbleHex + ' = ' + readRatios.map((r) => (Number.isFinite(r) ? r.toFixed(2) : 'NaN')).join(' / ') + ':1; success-300 was 3.06)');
+    }
     ok(/--surface-neutral-02: var\(--neutral-800\);/.test(darkN81)
       && /--surface-neutral-02: var\(--neutral-50\);/.test(lightN81),
       '★ N82(c), STILL TRUE AFTER E1b: --surface-neutral-02 itself is UNCHANGED in both themes. Both the dark card and now the light one are written as COMPONENT literals; a token edit would have recoloured every other surface that reads it. The ruling about the light card reversed — the rule about how to write it did not');
@@ -10172,6 +10258,21 @@ console.log('★ N71/N81 — the built CHAT shell actually boots');
       '★ N71/N81: bridge.exposeAll was REACHED — the C#-callable page globals exist. This is the assertion that fails when the main script dies partway, which no regex pin can detect');
     ok(typeof WC.setTheme === 'function',
       '★ N71 (#421): setTheme is a real global on the BUILT chat shell, not just present in the source. C# emits it as a bare identifier, so this is the exact lookup the WebView performs');
+    /* ★★ Session X (Damir's screenshot, 2026-09-17: the newest bubble sat UNDER the composer
+       pill in every conversation). The #711 publish wrote --composer-h to a canvas const that
+       Session U (#845–#857) deleted with the "Live flow" renderer, inside a
+       `try { … } catch (_) {}` — so the property was never written, #messages padded by
+       spacing-4 alone, and all five --composer-h pins stayed green because each reads the
+       SOURCE string. This one reads the PROPERTY on the booted shell. jsdom has no
+       ResizeObserver, so it also proves publish() runs BEFORE the observer is constructed
+       (an engine without one still pads once). Mutations, each run: a target that does not
+       resolve → red; the committed shape restored (no typeof guard, publish() after the
+       observer) → red; the publish() call deleted → red. ⚠ Swapping the order UNDER the
+       guard stays green here — the guard is what makes the order irrelevant. */
+    const canvasX = WC.document.querySelector('.c-chat-canvas');
+    const composerHX = canvasX ? canvasX.style.getPropertyValue('--composer-h') : null;
+    ok(/^\d+px$/.test(composerHX || ''),
+      '★★ Session X: the BUILT chat shell WRITES --composer-h on the canvas at boot (the log\'s bottom padding for the floating pill) — read from the element, not the source. Got: ' + JSON.stringify(composerHX));
     /* the shell must survive the push it will actually receive, arguments and all */
     let themeThrew = null;
     try { WC.executeUiCommand(WC.setTheme, Buffer.from('dark', 'utf8').toString('base64')); }
@@ -12323,6 +12424,57 @@ console.log('#383 — N12 restore-nudge + N40 connectivity/update');
       '★ THE DESTRUCTURE GATE: no shell CALLS or READS a bundle export it did not destructure. An undefined bare global throws before the dispatcher\'s try/catch can run (#258), and a value-shaped one throws at module top level and boots the shell blank. Found: ' + (undeclared421.join(', ') || 'none'));
     ok(bundleExports421.size > 200 && bundleExports421.has('applyPushedTheme') && bundleExports421.has('patternLevelVar'),
       '★ the destructure gate reads a REAL export list (a mis-parsed empty set would make the gate above vacuously pass — the failure mode of every "check nothing is missing" test)');
+    /* ★★ THE UNDECLARED-IDENTIFIER GATE (Session X, 2026-09-17). The gate above resolves ONE
+     * class of free name — a bundle export — by regex. Damir's screenshot of the newest
+     * bubble under the composer pill was the OTHER class: `chatCanvasEl`, a shell-local const
+     * Session U deleted with the "Live flow" renderer, still read by the #711 publish site
+     * 5 000 lines below, inside a `try { … } catch (_) {}` that swallowed the ReferenceError.
+     * A regex cannot resolve scopes; ESLint's `no-undef` is exactly that walk, so it is not
+     * hand-rolled here. Every inline <script> of every SOURCE shell is linted with the
+     * browser + ES globals plus the names the shell ITSELF makes global (`window.X =` and the
+     * top-level declarations of its classic scripts — the head boot scripts share the page
+     * scope with the module). PROVEN before it was pinned: on 608e12b7's chat.html it names
+     * chatCanvasEl at its line; on the other 17 shells it reports nothing (zero noise). A
+     * <script> inside an HTML comment is prose, not a script.
+     * ⚠ The gate REFUSES to pass without its parser (#798): the header's install line is
+     * `npm i --no-save jsdom eslint globals`. A missing parser is one honest red line. */
+    {
+      let ESLintX = null, globalsX = null, loadErr = null;
+      try { ESLintX = (await import('eslint')).ESLint; globalsX = (await import('globals')).default; } catch (e) { loadErr = e; }
+      if (!ESLintX || !globalsX) {
+        ok(false, '★★ UNDECLARED-IDENTIFIER GATE: parser missing — run `npm i --no-save jsdom eslint globals` (' + (loadErr && loadErr.message) + ')');
+      } else {
+        const undefX = [];
+        let scriptsX = 0;
+        for (const f of readdirSync(shellDir421).filter((n) => n.endsWith('.html'))) {
+          const html = readFileSyncRaw(join(shellDir421, f), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+          const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)]
+            .filter((m) => !/\bsrc=/.test(m[1]))
+            .map((m) => ({ module: /type\s*=\s*["']module["']/.test(m[1]), code: m[2] }));
+          const shellGlobals = new Set();
+          for (const s of scripts) {
+            const body = stripCode(s.code);
+            for (const m of body.matchAll(/(?:window|globalThis)\s*\.\s*([A-Za-z_$][\w$]*)\s*=[^=]/g)) shellGlobals.add(m[1]);
+            for (const m of body.matchAll(/(?:window|globalThis)\s*\[\s*['"]([A-Za-z_$][\w$]*)['"]\s*\]\s*=[^=]/g)) shellGlobals.add(m[1]);
+            if (!s.module) for (const m of body.matchAll(/^(?:const|let|var|function|class|async function)\s+([A-Za-z_$][\w$]*)/gm)) shellGlobals.add(m[1]);
+          }
+          const globals = { ...globalsX.browser, ...globalsX.es2025 };
+          for (const g of shellGlobals) globals[g] = 'writable';
+          const eslint = new ESLintX({ overrideConfigFile: true, overrideConfig: [{
+            languageOptions: { ecmaVersion: 'latest', sourceType: 'module', globals },
+            rules: { 'no-undef': 'error' } }] });
+          for (const [i, s] of scripts.entries()) {
+            scriptsX += 1;
+            const res = await eslint.lintText(s.code, { filePath: f + '.' + i + '.js' });
+            for (const r of res) for (const m of r.messages) undefX.push(f + '#' + i + ':' + m.line + ' ' + (m.fatal ? 'PARSE ' : '') + m.message);
+          }
+        }
+        ok(undefX.length === 0,
+          '★★ THE UNDECLARED-IDENTIFIER GATE: no source shell references a name it declares nowhere (ESLint no-undef over every inline script; a swallowed ReferenceError is a feature that silently never runs). Found: ' + (undefX.slice(0, 6).join(' | ') || 'none'));
+        ok(scriptsX >= 18,
+          '★ the undeclared-identifier gate LINTED something (' + scriptsX + ' scripts across the shells) — an empty extraction would pass the gate above vacuously');
+      }
+    }
 
     const themeRt421 = readFileSync(join(root, 'src/components/theme-runtime.js'), 'utf8');
     ok(/export function applyPushedTheme\b/.test(themeRt421) && /theme-switching/.test(themeRt421)
@@ -31700,6 +31852,21 @@ console.log('\n— handover gate: the third pin pass (loop C repairs · the thre
   if (addRow54) addRow54.click();
   const sheet54 = w54.document.querySelector('.c-sheet--add-contact');
   const items54 = sheet54 ? [...sheet54.querySelectorAll('.c-contacts-addsheet__item')] : [];
+  /* ★ Session X (walk V 1.8: the PNG carries a baked background). The asset is Damir's to
+     replace (a transparent PNG export); the fail-soft ladder is EXERCISED here, not read:
+     error → the glyph tile, never a hole. jsdom loads no images, so the rung is stepped by a
+     dispatched event. ⚠ An SVG-first rung shipped for one build and the Session N reachability
+     gate failed it on Damir's run (a referenced images/ path that does not ship) — the ladder
+     must only name files the tree holds. */
+  {
+    const artImg = sheet54 ? sheet54.querySelector('.c-contacts-addsheet__art-img') : null;
+    const src0 = artImg ? artImg.getAttribute('src') : '';
+    if (artImg) artImg.dispatchEvent(new w54.Event('error'));
+    const gone = artImg ? !artImg.isConnected : false;
+    const tile = sheet54 ? sheet54.querySelector('.c-contacts-addsheet__art[data-placeholder] svg') : null;
+    ok(src0 === 'images/add-contact.png' && existsSync(join(root, 'src/demo/images/add-contact.png')) && gone && !!tile,
+      '★ Session X: the add-contact art is the shipped PNG (the file exists in src/demo/images) and the ladder RUNS — png → glyph tile (got ' + JSON.stringify([src0, gone, !!tile]) + ')');
+  }
   const panelEarly54 = !!w54.document.querySelector('.c-contacts-add');
   ok(!!addRow54 && !!sheet54 && sheet54.getAttribute('role') === 'dialog' && items54.length === 2
      && items54[0].dataset.kind === 'scan' && items54[1].dataset.kind === 'enter' && !panelEarly54 && sentC.length === 0,

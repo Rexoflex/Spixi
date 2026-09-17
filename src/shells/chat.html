@@ -6244,18 +6244,30 @@
        GREW re-pin on the next frame — every observer tick of the 200 ms rise, so the log
        follows the tray up; a scrolled-up reader keeps their place. Shrinks (the tray
        leaving) need nothing: the keyboard path already re-pins. */
+    /* ★★ Session X (Damir's screenshot, 2026-09-17: the last bubble sat UNDER the pill in
+       every conversation): this block wrote the height to a canvas const that
+       Session U (#845–#857) DELETED together with the "Live flow" renderer it served —
+       and the inner `try { … } catch (_) {}` swallowed the ReferenceError, so
+       --composer-h was never written, #messages padded by spacing-4 alone, and every
+       `--composer-h` pin stayed green because each one reads the SOURCE string.
+       The target is now derived from the slot itself (the canvas is its ancestor —
+       message-bubble.css), `publish()` runs BEFORE the observer is constructed so an
+       engine without ResizeObserver still pads the log once (that is also what makes
+       the property observable to the built-shell boot pin), and nothing in here is
+       silenced: a throw reaches the outer catch, which now LOGS it. */
+    const canvasEl = slot.closest('.c-chat-canvas');
     let lastSlotH = slot.offsetHeight;
     const publish = () => {
       const h = slot.offsetHeight;
       const grew = h > lastSlotH;
       lastSlotH = h;
       const atBottom = nearBottom();
-      try { chatCanvasEl.style.setProperty('--composer-h', h + 'px'); } catch (_) {}
+      canvasEl.style.setProperty('--composer-h', h + 'px');
       if (grew && atBottom) requestAnimationFrame(() => { box.scrollTop = box.scrollHeight; });
     };
-    new ResizeObserver(publish).observe(slot);
     publish();
-  } catch (_) {}
+    if (typeof ResizeObserver === 'function') new ResizeObserver(publish).observe(slot);
+  } catch (e) { console.warn('[composer-h] publish failed — the log will not pad for the pill', e); }
   /* The ⊕ offers nothing at boot: the room type is not known yet, so it holds its place
      and stays invisible until setChatMode answers or the wait window closes. THE
      ROOM-ANSWER LATCH above holds the whole rule. This is the FIRST derive; every later

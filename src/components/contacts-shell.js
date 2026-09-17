@@ -1191,7 +1191,14 @@ export function createAddContactSheet({
   img.alt = '';
   img.draggable = false;
   img.decoding = 'async';
-  img.addEventListener('error', () => { img.remove(); drawGlyph(); }, { once: true });   // handler BEFORE src (c-app-icon precedent)
+  /* ★ Session X (walk V 1.8: the PNG carries a baked background and reads wrong in dark):
+     the fix is the ASSET, not the path — Damir replaces src/demo/images/add-contact.png with a
+     TRANSPARENT export of the Figma NODE (never the asset URL, #865); build-shells copies that
+     folder verbatim beside the shells. ⚠ An SVG-first rung was tried and REVERTED the same day:
+     the Session N reachability gate requires every referenced images/ path to SHIP, and a rung
+     that points at a file the tree does not hold is exactly the dangling reference it exists
+     to catch. Handler BEFORE src (c-app-icon precedent): the PNG → the glyph tile, never a hole. */
+  img.addEventListener('error', () => { img.remove(); drawGlyph(); }, { once: true });
   img.src = 'images/add-contact.png';
   art.append(img);
   hero.append(art);

@@ -1,0 +1,20 @@
+Session Y — the contact-details premium pass, built (#878–#882): monochrome glyphs, inset-grouped cards, four tiles with Mute, the address under the name in action ink, destructive rows placed by kind; the undeclared-identifier gate hardened by the Opus loop
+
+FIXES (walk-visible — contact details / chat info / group info, both themes)
+- chat-info.js + chat-info.css: row glyphs are bare 22px monochrome (no discs; the Account hub keeps its discs — #618 amended to one grammar per screen family); sections are inset-grouped cards (label outside, one card per group, radius 12, no elevation, inset hairlines on ::after — base.css owns ::before for the press layer); the action row is at most FOUR equal rounded-rectangle tiles (Message · Call · Pay · Mute; Request is not a tile — the composer ⊕ sheet owns it; QA_MAX log+trim, never a throw); the notifications switch row is retired for a Mute toggle tile (the label is the one state signal, data-muted mirrors it); the address is the hero's last line in ACTION INK when tappable (V2 of four rendered variants; bots carry it, groups never); destructive rows share one card placed BY KIND — 1:1 last, group/bot above the roster; Remove/Leave = --text-error label, no fill; the focus ring draws inside the clipping card.
+- tokens.css: --surface-card-hover/-pressed (light 200/300 · dark 600/500) — a card on the SCREEN that is pressable; --surface-card-raised was the invisible step (1.04 / 1.048). Hairline = --outline-neutral-03 (computed 1.42 light / 1.22 dark; -01 is 800 on 800 in dark).
+- Contrast owed at build (#769) is COMPUTED in the suite over the resolved ramps: --text-error on --surface-card 5.80 / 8.08; --icon-neutral-02 6.44 / 9.09; the accent glyph 6.10 / 6.48.
+
+GATES
+- smoke-test.mjs: +42 assertions (the Session Y block; 19 mutations killed); 23 pins re-based in BOTH halves (#861).
+- THE UNDECLARED-IDENTIFIER GATE (Opus loop on Session X, #881): HTML comments are stripped only OUTSIDE <script> spans (a `// <!--` … `// -->` pair in one script silently deleted the code between them before the lint — a false GREEN of the #869 class); `src` matched as an attribute (data-src hid a whole script); Spixi/SpixiIcons/Html5Qrcode seeded; findings carry FILE lines; vacuity per shell; a fixture proves all of it.
+- #877's tick clause re-based from a double-quoted-only regex to the positive property (per-tone rules declare only colour-class properties; 6/6 mutations killed).
+- #345: CHAT_KB_CEIL 682 → 684, delta stated (+2 045 chars of chat-info.css inlined into chat.html — which still carries the #249-retired takeover: Damir's dial).
+- The FULL suite ran in the container on this tree: BASELINE OK — 4714 / the 2 KNOWN (#882 ①).
+
+RECORDS
+- DECISIONS #878–#882 · docs/handoff-2026-09-17b.md · docs/f5-checklist-session-y.md · docs/walk-artifact-session-y.html · docs/walk-session-y-results.md (12/12 P) · docs/sheets/session-y/ (8 PNG, bridge caBX chunk) · CLAUDE.md status · security-handover-gate.md Session Y (no verb, no push, no key; the gate's own hardening) · next-session-prompt.md.
+- Consumed → docs/archive: handoff-2026-09-17.md, f5-checklist-session-x.md, commit-message-session-x.txt.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01VUEf78ip825WSfqMZ4D6kg

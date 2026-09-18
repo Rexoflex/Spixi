@@ -17298,19 +17298,20 @@ function attachSplitPaste(composerEl, { onSendEach, strings = getStrings() } = {
  * ONE surface for 1:1 / group / bot (Damir: send-screen grammar — tap the chat
  * header, full in-phone takeover); sections render by kind + capabilities:
  *
- *   hero (CENTERED: avatar-80, name, 1:1 nickname edit → ixian:userdefinednick)
- *   action row (1:1/bot; contact context leads with Message) — wallet-banner
- *     quick actions: tonal circle + label, one centered row (Damir 2026-08-12,
- *     supersedes the #144 two-row button block). Sits DIRECTLY under the
- *     identity: identity → what you can do → details you rarely need.
- *   address card (not for blind groups) — FULL address, HONEST copy morph
- *     (#137: ✓ only after the clipboard write resolves), "Show QR" reveal →
- *     qr.js `address:ixi` on the --surface-qr card
- *     (money is 1:1/bot only — group request semantics are a §9 ask, #139;
- *     Pay/Request stay SHELL duties: onPay/onRequest open the native flows)
- *   notifications toggle — rendered when capabilities.notifications; the
- *     bridge only supports groups/bots today (ixian:en/disableNotifications);
- *     1:1 ships gated off until the §9 command lands (Damir: design now, flag)
+ *   hero (CENTERED: avatar-80, name, 1:1 nickname edit → ixian:userdefinednick,
+ *     and — ★ Session Y, #875 — the TRUNCATED ADDRESS under the name (#211 canon);
+ *     tap = the shared address/QR sheet via onAddressSheet. Not for groups/blind.)
+ *   action row — ★ Session Y (#876): max FOUR equal ROUNDED-RECTANGLE tiles on
+ *     --surface-card, glyph on the one accent, label inside. Chat header (1:1) =
+ *     Call · Pay · Mute; directory (1:1) = Message · Call · Pay · Mute; rooms =
+ *     Message (directory only) · Mute. REQUEST IS NOT IN THE ROW any more — it lives
+ *     in the composer ⊕ attach sheet (File · Pay · Request). Sits DIRECTLY under
+ *     the identity: identity → what you can do → details you rarely need.
+ *     (money is 1:1 ONLY — rooms never render Pay, and group request semantics are a
+ *     §9 ask, #139; Pay stays a SHELL duty: onPay opens the native flow)
+ *   mute tile — rendered when capabilities.notifications && onNotifications
+ *     (the Notifications SWITCH ROW is retired, #875): the LABEL is the state (Mute ↔ Unmute; data-muted mirrors it),
+ *     optimistic flip, revert on ctrl.fail — the switch's contract, on a tile
  *   shared media strip — capabilities.media (NO legacy command, §9; demo-fed)
  *   members (group) — FULL A–Z scrollable list (#142: the #136③ caps made
  *     scanning impossible — you had to already know who you were looking for;
@@ -17325,25 +17326,38 @@ function attachSplitPaste(composerEl, { onSendEach, strings = getStrings() } = {
  *     command, §9; demo-fed) — setting row → option sheet (Off/1h/1d/1w),
  *     committed per option with a latched ctrl
  *   destructive zone — 1:1: delete history (ixian:removehistory) + remove
- *     contact (ixian:remove) · group: leave (ixian:leave). Rows are separated,
- *     bordered cards (#142: flush rows invited mistaps). EVERY destructive
- *     confirm follows the #135-C1 lock: dismissal disabled while in flight
- *     (live via setOverlayOpts — the #138 overlay fix), confirm latched.
+ *     contact (ixian:remove) · group: leave (ixian:leave). ★ Session Y (#873/#875):
+ *     ONE inset-grouped card, placed BY KIND — 1:1 = the LAST group (nothing
+ *     unbounded sits below it); group/bot = ABOVE the roster (the roster is
+ *     unbounded, #726 batches it — a Leave at its foot is out of reach). The
+ *     irreversible row (Remove / Leave) is a --text-error LABEL, no fill; Delete
+ *     history stays neutral. EVERY destructive confirm follows the #135-C1 lock:
+ *     dismissal disabled while in flight (live via setOverlayOpts — the #138
+ *     overlay fix), confirm latched.
+ *
+ *   ★ Session Y — THE PREMIUM PASS (docs/contact-details-premium-proposal.md; #875
+ *   picks; #876 tiles; #873 danger placement). Grammar of THIS screen family only
+ *   (#618 amended: the Account hub keeps its coloured discs): row glyphs are bare
+ *   22px monochrome (--icon-neutral-02), sections are INSET-GROUPED cards (one card
+ *   per group, rows inside with inset hairlines, radius 12, NO elevation), section
+ *   labels sit OUTSIDE the card, red is destructive-only. Group avatars keep their
+ *   identity gradient (#34 — identity hues are data, not decoration).
  *
  * context: 'chat' (default) | 'contact' — ONE component, two surfaces (#142).
  *   'contact' = the contact page (from the contacts list / member sheet):
  *   title "Contact info", a Message action (onMessage) leads, delete-history
  *   and disappearing-messages stay chat-side.
- *   ROOMS (kind 'group'/'bot') are context-free on this point (W9-②): they show a
- *   LONE Message action whenever the caller supplies onMessage, and nothing at all
- *   when it does not. That is the whole switch between "reached from the directory"
- *   (needs a way in — the history may be deleted) and "opened on top of the
- *   conversation you are already in" (chat.html passes no onMessage).
+ *   ROOMS (kind 'group'/'bot') are context-free on this point (W9-②): they show the
+ *   Message action whenever the caller supplies onMessage, and no Message when it does
+ *   not (★ Session Y: the Mute tile is there either way when the host wires
+ *   notifications — so a room from the chat header shows Mute alone). That is the
+ *   whole switch between "reached from the directory" (needs a way in — the history
+ *   may be deleted) and "opened on top of the conversation you are already in"
+ *   (chat.html passes no onMessage).
  *
  * Async callbacks use the house (payload, ctrl) contract — ctrl.done()/fail(msg)
  * from the bridge; each ctrl is one-shot per attempt (#138 m1).
  */
-
 
 
 
@@ -17382,40 +17396,64 @@ function sectionLabel(text) {
   return l;
 }
 
-/* tinted icon disc (#148 — the settings-family atom from base.css; Damir:
-   chat-info/contact follows the same treatment for consistency).
-   `grad:false` keeps the disc on its HUE default — needed for the quiet
-   destructive tier, where the per-glyph gradient (data-grad wins over
-   data-hue in base.css) would repaint a deliberately grey disc vivid. */
-function infoDisc(glyph, hue, { grad = true } = {}) {
-  const d = document.createElement('span');
-  d.className = 'c-disc';
-  d.dataset.hue = hue;
-  if (grad) d.dataset.grad = String(discGrad(glyph));
-  d.append(icon(glyph, { size: 16 }));
-  return d;
+/* ★ Session Y (#875 P2/P5): an INSET-GROUPED section — a transparent wrapper holding
+   the label OUTSIDE (iOS grouped: label-sm, uppercase, --text-neutral-02) and ONE card
+   (--surface-card, radius 12, no elevation) that the group's rows sit inside, separated
+   by inset hairlines (chat-info.css). `cls` lands on the WRAPPER so the section-level
+   selectors the suite and the shells already use (`__members`, `__shared`, `__txs`,
+   `__media`, `__danger`) keep resolving to the section. */
+function groupCard({ label, cls } = {}) {
+  const wrap = document.createElement('div');
+  wrap.className = 'c-chat-info__group' + (cls ? ' ' + cls : '');
+  if (label) wrap.append(sectionLabel(label));
+  const card = document.createElement('div');
+  card.className = 'c-chat-info__card';
+  wrap.append(card);
+  return { wrap, card };
 }
 
-/* Quick action — the WALLET-BANNER grammar (c-wallet-hero__qa: tinted circle +
-   label underneath), ported to the card/screen surface as a TONAL circle.
-   Damir 2026-08-12: the full-width Message + the two 44px outline buttons read
-   "rough" and ate a third of the screen; three small quick actions sit directly
-   under the identity, exactly like the wallet banner (and WhatsApp/Discord).
-   The whole control is the target (48px circle + label ≈ 74px tall ≥ 44). */
-function infoQuickAction({ glyph, label, onClick }) {
+/* ★ Session Y (#875 P1): a ROW GLYPH is a bare 22px monochrome icon — no disc, no
+   hue, no gradient. The coloured-squircle grammar (`c-disc`, #147/#148) is the iOS
+   *Settings* idiom; the messengers this screen is measured against (Telegram, Signal,
+   WhatsApp) draw one accent + greyscale, and five hues on one contact screen were the
+   "too colourful" Damir named. The Account hub KEEPS its discs (#618 amended to one
+   grammar per screen FAMILY) — this atom is chat-info's only. Colour is a ROLE set
+   in css: --icon-neutral-02 by default, --icon-error under [data-tone="error"]. */
+function rowGlyph(glyph) {
+  const g = icon(glyph, { size: 22 });
+  g.classList.add('c-chat-info__row-glyph');
+  return g;
+}
+
+/* ★ Session Y (#876): a quick action is a ROUNDED-RECTANGLE TILE, one of at most
+   four equals in the row. The button IS the tile — --surface-card, radius 12 (the same
+   surface and radius as the grouped cards below it, so the screen has one system),
+   a 22px glyph on the single accent and a 12px label INSIDE it (Telegram's
+   PeerInfoHeaderButtonNode: tile = list block colour, icon over label). The 48px
+   tonal circle + label-underneath of the 2026-08-12 pass (the wallet-banner grammar)
+   is retired HERE ONLY — the wallet hero keeps its circles: different surface,
+   different job. The whole tile is the target (≥ 64 tall, equal widths).
+   A TOGGLE tile (Mute) signals its state through its LABEL (Mute ↔ Unmute) and glyph —
+   ONE signal, per the APG button pattern: a tile that also flipped `aria-pressed` would
+   announce "Unmute, pressed", the un-done action plus a state (#46 loop, Session Y
+   MINOR-4). The state rides `data-muted` for css and tests. */
+function infoQuickAction({ glyph, label, onClick, action }) {
   const b = document.createElement('button');
   b.type = 'button';
   b.className = 'c-chat-info__qa';
-  const circle = document.createElement('span');
-  circle.className = 'c-chat-info__qa-circle';
-  circle.append(icon(glyph, { size: 22 }));
+  if (action) b.dataset.action = action;
+  const g = icon(glyph, { size: 22 });
+  g.classList.add('c-chat-info__qa-glyph');
   const lab = document.createElement('span');
   lab.className = 'c-chat-info__qa-label';
   lab.textContent = label;
-  b.append(circle, lab);
+  b.append(g, lab);
   if (onClick) b.addEventListener('click', onClick);
   return b;
 }
+/* ★ #876: "a row is a set of equals; five equals is a menu." Enforced, not hoped:
+   Request left the row so Mute could join, and nothing may push the count past four. */
+const QA_MAX = 4;
 
 function createChatInfo({
   kind = 'contact',              // 'contact' | 'group' | 'bot'
@@ -17442,8 +17480,14 @@ function createChatInfo({
   onNickname,                    // (nick, ctrl)
   onMessage,                     // contact context: open the 1:1 chat (shell nav)
   onCall,                        // ★ #591 (Damir): start a voice call — 1:1 only
-  onPay, onRequest,              // shell: #139 takeover / request sheet
-  onAddressSheet,                // ★ #591: the address row opens the ONE address surface
+  onPay,                         // shell: #139 takeover
+  /* ★ Session Y (#876): `onRequest` is ACCEPTED AND NOT RENDERED. Request left the action
+   * row (it lives in the composer ⊕ attach sheet: File · Pay · Request). The shells still
+   * pass the handler; taking the emit site (`ixian:sendrequest` from ContactDetails) out of
+   * a shell is a security-gate inventory row, not this FE-only batch — flagged in the
+   * handoff. Destructured so the option is documented, never read. */
+  onRequest,
+  onAddressSheet,               // ★ #591 / ★ Session Y: the address UNDER THE NAME opens the ONE address surface
   onNotifications,               // (next, ctrl) — optimistic, revert on fail
   onSelfDestruct,                // (seconds, ctrl) — committed per option pick
   onMediaOpen, onMediaAll,
@@ -17563,6 +17607,36 @@ function createChatInfo({
   // unappended node made the wire name silently vanish); hidden when empty
   sub.hidden = !sub.textContent;
   idCol.append(sub);
+  /* ——— ★ Session Y (#875 P7): THE ADDRESS UNDER THE NAME ———
+     Telegram and Signal put the handle under the name; the address row that used to
+     open group 1 (#591) moves INTO the hero as its last line — the #211 TRUNCATED form,
+     tap = the ONE address surface (the shell's sheet: full address, copy, QR). The row
+     LEAVES group 1; nothing else on the screen shows the address.
+     Groups have NO payable/shareable address at all (Damir F5 2026-07-29: a group's
+     identifier is a local session id, not a wallet address), and a blind surface hides
+     identity — both keep the line absent. 1:1 and bots show it.
+     ⚠ The class `c-chat-info__addr-row` stays on the element on purpose: it is still
+     THE address affordance of this screen (the suite's #591 pins read it by that name —
+     truncated text, no full value, tap → onAddressSheet); `__hero-addr` carries the
+     placement. A host that passes no handler gets a plain line — honest, never dead. */
+  if (address && kind !== 'group' && !blind) {
+    const addrRow = document.createElement(onAddressSheet ? 'button' : 'span');
+    if (onAddressSheet) addrRow.type = 'button';
+    addrRow.className = 'c-chat-info__addr-row c-chat-info__hero-addr';
+    const addrVal = document.createElement('span');
+    addrVal.className = 'c-chat-info__addr-value u-tabular';
+    addrVal.textContent = truncateAddressMiddle(address, 9, 6);
+    addrRow.append(addrVal);
+    if (onAddressSheet) {
+      // the affordance is the code glyph, not a chevron: the sheet it opens IS the QR
+      addrRow.append(icon('qrcode', { size: 16 }));
+      // the accessible name CONTAINS the visible label (WCAG 2.5.3) and stays short: the
+      // full value is one tap away in the sheet, not 67 characters read on every focus
+      addrRow.setAttribute('aria-label', (strings.contactSpixiAddress || 'Spixi address') + ', ' + addrVal.textContent);
+      addrRow.addEventListener('click', () => onAddressSheet({ address }));
+    }
+    idCol.append(addrRow);
+  }
   /* N48 (#370): MY OWN owner status. Rendered in the HERO for BLIND rooms only —
      there the roster carries no owner ADDRESS (C# suppresses it), so no ROW can
      wear the Owner chip; the hero is the one reliable place. (The self row may
@@ -17683,14 +17757,22 @@ function createChatInfo({
      shows it alone. The in-chat takeover is untouched — chat.html passes NO
      onMessage (you are already in the conversation), so `roomMessageOnly` is false
      there and the whole row stays absent, exactly as yesterday's pass decided. */
+  /* ★ Session Y (#876): the row is a set of at most FOUR equals — Message (directory
+     only) · Call (1:1 only) · Pay (1:1/bot, capability-gated by the host) · Mute
+     (capabilities.notifications && onNotifications). REQUEST IS NOT HERE any more:
+     it lives in the composer ⊕ attach sheet (File · Pay · Request), so leaving the row
+     cost nothing and made room for Mute without a fifth tile. Rooms get Mute plus
+     whatever the room allows (Message from the directory) — the old "rooms hide the
+     row" rule was about MONEY, and money is still 1:1/bot only (§9). */
   const roomKind = kind === 'group' || kind === 'bot';
   const roomMessageOnly = roomKind && !!onMessage;
-  if ((!roomKind || roomMessageOnly) && (onMessage || onCall || onPay || onRequest)) {
+  const canMute = !!(capabilities.notifications && onNotifications);
+  {
     const money = document.createElement('div');
     money.className = 'c-chat-info__money';
     if ((context === 'contact' || roomMessageOnly) && onMessage) {
       const msg = infoQuickAction({
-        glyph: 'messages', label: strings.message || 'Message', onClick: () => onMessage(),
+        glyph: 'messages', label: strings.message || 'Message', onClick: () => onMessage(), action: 'message',
       });
       msg.classList.add('c-chat-info__message');
       money.append(msg);
@@ -17699,18 +17781,65 @@ function createChatInfo({
        other way to reach a person, so it belongs beside Message rather than beside Pay.
        1:1 ONLY: there is no group-call verb, and a dead button on a details screen is
        the class of defect this project keeps writing rows about. Opt-in like every other
-       action here, so a host that cannot route a call simply shows three. */
+       action here, so a host that cannot route a call simply shows one fewer. */
     if (onCall && !roomKind) money.append(infoQuickAction({
-      glyph: 'phone', label: strings.callAction || 'Call', onClick: () => onCall(),
+      glyph: 'phone', label: strings.callAction || 'Call', onClick: () => onCall(), action: 'call',
     }));
-    if (onPay && !roomMessageOnly) money.append(infoQuickAction({
-      glyph: 'arrow-up-right', label: strings.pay || 'Pay', onClick: () => onPay(),
+    if (onPay && !roomKind) money.append(infoQuickAction({
+      glyph: 'arrow-up-right', label: strings.pay || 'Pay', onClick: () => onPay(), action: 'pay',
     }));
-    if (onRequest && !roomMessageOnly) money.append(infoQuickAction({
-      glyph: 'arrow-down-left', label: strings.request || 'Request', onClick: () => onRequest(),
-    }));
-    // a lone action (room-from-directory) hugs its label instead of stretching
-    // across the screen — a full-width circle+label reads broken
+    /* ★ Session Y (#875): MUTE IS A TILE — the Notifications switch row is retired.
+       Same contract as the switch it replaces: optimistic flip, revert on ctrl.fail,
+       one flight at a time, the polite region announces a failure. The LABEL is the
+       state (Mute ↔ Unmute — a toggle BUTTON that names the action it will take, not a
+       switch), `data-muted` mirrors it for css/tests, and the glyph follows the label
+       (bell / bell-off) so the state reads without the text. */
+    if (canMute) {
+      let muted = !notifications;
+      let inFlight = false;
+      const mute = infoQuickAction({
+        glyph: muted ? 'bell-off' : 'bell',
+        label: muted ? (strings.unmute || 'Unmute') : (strings.mute || 'Mute'),
+        action: 'mute',
+      });
+      mute.dataset.muted = String(muted);              // the mount state, before any tap
+      const paint = () => {
+        mute.dataset.muted = String(muted);
+        const g = icon(muted ? 'bell-off' : 'bell', { size: 22 });
+        g.classList.add('c-chat-info__qa-glyph');      // svg: classList, never .className (read-only SVGAnimatedString)
+        mute.querySelector('.c-chat-info__qa-glyph').replaceWith(g);
+        mute.querySelector('.c-chat-info__qa-label').textContent =
+          muted ? (strings.unmute || 'Unmute') : (strings.mute || 'Mute');
+      };
+      mute.addEventListener('click', () => {
+        if (inFlight) return;                          // no queued double-toggles
+        inFlight = true;
+        muted = !muted;
+        paint();                                       // optimistic (the switch's spec)
+        // the switch's contract was `next` = notifications ON; a muted tile is OFF
+        onNotifications(!muted, ctrlFor(
+          () => { inFlight = false; },
+          () => {                                      // revert on fail
+            muted = !muted;
+            paint();
+            live.textContent = strings.notifFailed || 'Couldn’t update notifications.';
+            inFlight = false;
+          },
+        ));
+      });
+      money.append(mute);
+    }
+    // never five (#876) — by construction above, and ENFORCED so a future tile cannot
+    // slip in without changing the rule that says the row is four equals. ⚠ Not a throw:
+    // this runs inside the shell's rebuild (a setTimeout with no try), where a throw is
+    // a boot spinner that never ends (#801 class) — so it logs LOUDLY and trims instead.
+    while (money.childElementCount > QA_MAX) {
+      // eslint-disable-next-line no-console
+      console.error('c-chat-info: action row exceeds ' + QA_MAX + ' tiles (#876) — dropping', money.lastElementChild.dataset.action);
+      money.lastElementChild.remove();
+    }
+    // a lone action (a room from the chat header: Mute alone) hugs its label instead
+    // of stretching across the screen — a full-width tile reads as a button
     money.dataset.count = String(money.childElementCount);
     // …and an EMPTY row is never appended: a 1:1 surface entered from a chat
     // header passes onMessage but suppresses it (context 'chat'), which used to
@@ -17718,100 +17847,10 @@ function createChatInfo({
     if (money.childElementCount) body.append(money);
   }
 
-  /* ——— address card ———
-     Groups have NO payable/shareable address at all (Damir F5 2026-07-29): a group's
-     identifier is a local session id, not a wallet address, so showing it — and worse,
-     rendering it as a scannable QR that resolves to nothing — is wrong for EVERY group,
-     not just blind ones. Suppress the whole card for groups; 1:1 and bot surfaces keep
-     it. (`blind` stays in the condition for bots/1:1 that opt into identity hiding.) */
-  if (address && kind !== 'group' && !blind) {
-    /* ★★ #591 (Damir 2026-08-26): "the address can show as sheet, same rules as
-     * elsewhere." This was a whole inline CARD — a full base58 line, its own copy
-     * button, and a lazy Show-QR disclosure — three affordances for one value, on a
-     * screen whose every other entry is a row. It is now ONE row that opens the ONE
-     * address surface (`openAddressSheet`, #527), which is exactly the move #575 made
-     * on the Account hub. The sheet carries the code, the full address, copy and the
-     * explainer, so nothing is lost and the grammar stops disagreeing with itself.
-     *
-     * ⚠ The SHEET is the shell's to open, not this component's: it needs a host and,
-     * on a peer address, the peer copy variant. A host that passes no handler gets a
-     * plain non-interactive row with the truncated address — honest, never dead. */
-    const addrRow = document.createElement(onAddressSheet ? 'button' : 'div');
-    if (onAddressSheet) addrRow.type = 'button';
-    addrRow.className = 'c-chat-info__row c-chat-info__addr-row';
-    const addrLab = document.createElement('span');
-    addrLab.className = 'c-chat-info__row-label c-chat-info__addr-label';
-    const addrTop = document.createElement('span');
-    addrTop.className = 'c-chat-info__addr-top';
-    /* ★★ #842 — THIS ROW HAS ITS OWN KEY, and the reason is ownership, not wording.
-       Damir: "even thought its contacts id, so it should just say Spixi ID not VAŠ or
-       YOURS in any language." The row used to share `spixiAddress` with the ACCOUNT
-       screen (settings-shell.js), where the address really is yours — one key, two sites,
-       opposite owners. English hid it completely ("Spixi address" is neutral, so no
-       reviewer of the English could ever see the problem) while three translators given
-       that key and no context picked the possessive: sl "Vaš Spixi ID", id "Alamat Spixi
-       Anda", lt "Mano Spixi adresas". Nine did not.
-       ⚠ Re-wording those three fixes today's screen and leaves the ambiguity that caused
-       it — the next translator has the same key and the same absent context. The KEY is
-       the fix: `contactSpixiAddress` says whose address it is, so there is nothing left to
-       guess. Account keeps `spixiAddress` and keeps its (correct) possessive there.
-       ⓘ Its English matches `spixiAddress`'s exactly, which would send it straight back to
-       the same legacy `address-title` value — so it is listed in build-locales' NO_REUSE. */
-    addrTop.append(infoDisc('qrcode', 'accent'), document.createTextNode(strings.contactSpixiAddress || 'Spixi address'));
-    const addrVal = document.createElement('span');
-    addrVal.className = 'c-chat-info__addr-value u-tabular';
-    // #211 canon: the row shows the TRUNCATED form; the full value lives in the sheet
-    addrVal.textContent = truncateAddressMiddle(address, 9, 6);
-    addrLab.append(addrTop, addrVal);
-    addrRow.append(addrLab);
-    if (onAddressSheet) {
-      addrRow.append(icon('chevron-right', { size: 18 }));
-      addrRow.addEventListener('click', () => onAddressSheet({ address }));
-    }
-    body.append(addrRow);
-  }
-
-  /* ——— notifications (bridge: groups/bots today; 1:1 gated — §9) ——— */
-  if (capabilities.notifications && onNotifications) {
-    const row = document.createElement('div');
-    row.className = 'c-chat-info__row';
-    row.dataset.row = 'switch';   // ★ Session I canon: a switch row is 56, a nav row 48
-    const lab = document.createElement('span');
-    lab.className = 'c-chat-info__row-label';
-    lab.append(infoDisc('bell', 'warning'), document.createTextNode(strings.notifications || 'Notifications'));
-    const toggle = document.createElement('button');
-    toggle.type = 'button';
-    toggle.className = 'c-chat-info__switch';
-    toggle.setAttribute('role', 'switch');
-    toggle.setAttribute('aria-checked', String(!!notifications));
-    toggle.setAttribute('aria-label', strings.notifications || 'Notifications');
-    const knob = document.createElement('span');
-    knob.className = 'c-chat-info__switch-knob';
-    toggle.append(knob);
-    let inFlight = false;
-    toggle.addEventListener('click', () => {
-      if (inFlight) return;                            // no queued double-toggles
-      inFlight = true;
-      const next = toggle.getAttribute('aria-checked') !== 'true';
-      toggle.setAttribute('aria-checked', String(next));   // optimistic (spec)
-      onNotifications(next, ctrlFor(
-        () => { inFlight = false; },
-        () => {                                        // revert on fail
-          toggle.setAttribute('aria-checked', String(!next));
-          live.textContent = strings.notifFailed || 'Couldn’t update notifications.';
-          inFlight = false;
-        },
-      ));
-    });
-    row.append(lab, toggle);
-    // #150④: same wrapper structure as the sd row — the bare row WAS the card,
-    // so its border-box min-height swallowed the card padding and it rendered
-    // shorter than the (wrapped) disappearing-messages row (Damir screenshot)
-    const notifSection = document.createElement('div');
-    notifSection.className = 'c-chat-info__setting-section';
-    notifSection.append(row);
-    body.append(notifSection);
-  }
+  /* ——— address card / notifications switch row: RETIRED (★ Session Y, #875) ———
+     The address is the hero's last line now (above); the Notifications switch became
+     the Mute tile in the action row. Group 1 is gone with them — nothing on this screen
+     is a lone row on its own card any more. */
 
   /* ——— disappearing messages (#142 — chat-side policy, so chat context only;
      capabilities.selfDestruct gates it: NO legacy command, §9 ask) ——— */
@@ -17821,7 +17860,7 @@ function createChatInfo({
     sdRow.className = 'c-chat-info__row c-chat-info__setting';
     const sdLab = document.createElement('span');
     sdLab.className = 'c-chat-info__row-label';
-    sdLab.append(infoDisc('hourglass-empty', 'accent'),
+    sdLab.append(rowGlyph('hourglass-empty'),
       document.createTextNode(strings.selfDestruct || 'Disappearing messages'));
     const sdVal = document.createElement('span');
     sdVal.className = 'c-chat-info__setting-value';
@@ -17896,16 +17935,16 @@ function createChatInfo({
     // wrap in a section div so the `> * + *` divider (hairline + breathing room)
     // lands on the WRAPPER, not the button — the button keeps a tight interactive
     // box so its pressed/focus state doesn't bleed into the divider gap (Damir)
-    const sdSection = document.createElement('div');
-    sdSection.className = 'c-chat-info__setting-section';
-    sdSection.append(sdRow);
-    body.append(sdSection);
+    // ★ Session Y: the wrapper is the inset-grouped CARD now (one group, one row)
+    const sdSection = groupCard({ cls: 'c-chat-info__setting-section' });
+    sdSection.card.append(sdRow);
+    body.append(sdSection.wrap);
   }
 
   /* ——— shared media (capabilities.media — NO legacy command, §9; demo-fed) ——— */
   if (capabilities.media && media.length) {
-    const sec = document.createElement('div');
-    sec.className = 'c-chat-info__media';
+    // ★ Session Y (#875 P5): the label sits OUTSIDE the card, "See all" beside it
+    const { wrap: sec, card: mediaCard } = groupCard({ cls: 'c-chat-info__media' });
     const head = document.createElement('div');
     head.className = 'c-chat-info__media-head';
     head.append(sectionLabel(strings.sharedMedia || 'Shared media'));
@@ -17913,7 +17952,7 @@ function createChatInfo({
       const all = createButton({ label: strings.seeAll || 'See all', type: 'text', size: 32, onClick: () => onMediaAll() });
       head.append(all);
     }
-    sec.append(head);
+    sec.prepend(head);
     const strip = document.createElement('div');
     strip.className = 'c-chat-info__media-strip';
     for (const item of media) {
@@ -17935,7 +17974,7 @@ function createChatInfo({
       if (onMediaOpen) b.addEventListener('click', () => onMediaOpen(item));
       strip.append(b);
     }
-    sec.append(strip);
+    mediaCard.append(strip);
     body.append(sec);
   }
 
@@ -17945,11 +17984,13 @@ function createChatInfo({
      component change (desktop-split-spec §6d), not a silent edit; the full bot
      roster feed + paging stays a §9 BE ask — shells feed what the bridge gives. */
   if ((kind === 'group' || kind === 'bot') && (members.length || kind === 'bot' || loading)) {
-    const sec = document.createElement('div');
-    sec.className = 'c-chat-info__members';
     let count = memberCount || members.length;
-    const countLabel = sectionLabel((strings.membersTitle || 'Members') + ' (' + count + ')');
-    sec.append(countLabel);
+    // ★ Session Y (#875 P5): "Members (N)" is the label OUTSIDE the card; search + the
+    // roster sit inside it. `countLabel` keeps its handle — renderMembers rewrites it.
+    const { wrap: sec, card: membersCard } = groupCard({
+      label: (strings.membersTitle || 'Members') + ' (' + count + ')', cls: 'c-chat-info__members',
+    });
+    const countLabel = sec.querySelector('.c-chat-info__label');
     let query = '';
     let listEl = document.createElement('div');
     listEl.className = 'c-chat-info__member-list';
@@ -17962,9 +18003,9 @@ function createChatInfo({
         placeholder: strings.searchMembers || 'Search members',
         onInput: (v) => { query = (v || '').trim().toLowerCase(); renderMembers(); },
       });
-      sec.append(search);
+      membersCard.append(search);
     }
-    sec.append(listEl);
+    membersCard.append(listEl);
     body.append(sec);
 
     const memberSheetFor = (m) => openMemberSheet({
@@ -18175,9 +18216,9 @@ function createChatInfo({
      strip is also the honest preview of what the remove-contact sheet will ask.
      null = not answered yet (skeleton line while `loading`), [] = none (one quiet line). */
   if (kind === 'contact' && sharedGroups !== undefined) {
-    const sec = document.createElement('div');
-    sec.className = 'c-chat-info__shared';
-    sec.append(sectionLabel(strings.sharedGroupsTitle || 'Groups you are both in'));
+    const { wrap: sec, card: sharedCard } = groupCard({
+      label: strings.sharedGroupsTitle || 'Groups you are both in', cls: 'c-chat-info__shared',
+    });
     const list = document.createElement('div');
     list.className = 'c-chat-info__shared-list';
     if (sharedGroups === null) {
@@ -18209,7 +18250,7 @@ function createChatInfo({
         list.append(row);
       }
     }
-    sec.append(list);
+    sharedCard.append(list);
     body.append(sec);
   }
 
@@ -18218,13 +18259,13 @@ function createChatInfo({
      Expanded = the TX_PREVIEW most recent + "View all" (onTxAll → shell nav;
      without it the full list renders inline — the body scrolls anyway). */
   if (kind !== 'group' && txs.length) {
-    const sec = document.createElement('div');
-    sec.className = 'c-chat-info__txs';
+    // the accordion toggle IS this group's title row — no outside label (one line, not two)
+    const { wrap: sec, card: txsCard } = groupCard({ cls: 'c-chat-info__txs' });
     const toggle = document.createElement('button');
     toggle.type = 'button';
     toggle.className = 'c-chat-info__txs-toggle';
     toggle.setAttribute('aria-expanded', 'false');
-    toggle.append(infoDisc('wallet', 'success'),
+    toggle.append(rowGlyph('wallet'),
       document.createTextNode((strings.payments || 'Payments') + ' (' + txs.length + ')'));
     const chev = icon('chevron-down', { size: 18 });
     chev.classList.add('c-chat-info__txs-chevron');
@@ -18261,13 +18302,16 @@ function createChatInfo({
       list.hidden = !open;
       toggle.setAttribute('aria-expanded', String(open));
     });
-    sec.append(toggle, list);
+    txsCard.append(toggle, list);
     body.append(sec);
   }
 
   /* ——— destructive zone — every action behind a LOCKED confirm (#135-C1) ——— */
-  const danger = document.createElement('div');
-  danger.className = 'c-chat-info__danger';
+  /* ★ Session Y (#875 P2/P4): ONE inset-grouped card holds the destructive rows (the
+     #142 "separated cards" answer to mistaps is now the row height + the confirm each
+     row still opens — Telegram/Signal/iOS all group them). `danger` stays the SECTION
+     handle (the wrapper); the rows go into its card. */
+  const { wrap: danger, card: dangerCard } = groupCard({ cls: 'c-chat-info__danger' });
   /* ★★ #618 (Damir, device 2026-08-28): ONE ROW GRAMMAR ON THIS SCREEN.
    *
    * His words: "delete history and remove contact have completely different style to
@@ -18278,16 +18322,23 @@ function createChatInfo({
    * `c-chat-info__row`: a disc, a label, and a chevron or a toggle, on a card.
    * Two grammars on one screen, and the eye reads the odd ones as unfinished.
    *
-   * So they become ordinary rows, exactly like the Account hub's
+   * So they became ordinary rows, then exactly like the Account hub's
    * (`createSettingsDanger`: disc + label + chevron on a group card).
    *
-   * ⚠ THIS REVERSES #148 (Damir, 2026-08-12 — "delete chat history doesn't need to be
-   * so loud"), and it does not throw that reasoning away, it MOVES it. The two-tier
+   * ⚠ THIS REVERSED #148 (Damir, 2026-08-12 — "delete chat history doesn't need to be
+   * so loud"), and it did not throw that reasoning away, it MOVED it. The two-tier
    * idea was right; carrying it in the row's own paint is what made the rows foreign.
-   * The tier now lives where it always belonged — in the DISC hue (neutral for the
-   * reversible one, error for the irreversible one) and in the locked confirm dialog
-   * that both still open. Red keeps meaning something; it just stops shouting from a
-   * row that looks like nothing else on the page. */
+   * The tier lived in the DISC hue (neutral for the reversible one, error for the
+   * irreversible one) and in the locked confirm dialog that both still open.
+   *
+   * ★ Session Y (#875): #618's "same as our account" is AMENDED to one grammar per
+   * screen FAMILY — the hub keeps its discs, this screen has none. The rows are still
+   * ordinary rows of THIS screen (glyph + label + chevron, in a grouped card); what
+   * changed is the whole screen's row grammar, not these two rows' place in it. */
+  /* ★ Session Y (#875 P4): the #148 two-tier meaning moves AGAIN — from the disc hue to
+     a ROLE on the row. `data-tone="error"` = --text-error label + --icon-error glyph, NO
+     fill (red is a text colour on this screen, never a surface — "Red in UI design");
+     `data-tone="quiet"` = the neutral row every other row is. No disc, no gradient. */
   const dangerRow = (label, glyph, buildOpts, { tone = 'error' } = {}) => {
     const b = document.createElement('button');
     b.type = 'button';
@@ -18295,12 +18346,7 @@ function createChatInfo({
     b.dataset.tone = tone;
     const lab = document.createElement('span');
     lab.className = 'c-chat-info__row-label';
-    // #148 lives on here: the quiet tier drops the per-glyph gradient so the neutral
-    // hue actually survives (base.css), and the error tier keeps the destructive disc.
-    lab.append(
-      tone === 'quiet' ? infoDisc(glyph, 'neutral', { grad: false }) : infoDisc(glyph, 'error'),
-      document.createTextNode(label),
-    );
+    lab.append(rowGlyph(glyph), document.createTextNode(label));
     b.append(lab, icon('chevron-right', { size: 18 }));
     // built at CLICK time (audit m7): the remove-contact title must carry the
     // nickname as it is NOW, not as it was when the panel mounted
@@ -18313,7 +18359,7 @@ function createChatInfo({
       if (o && o.own) { o.run(); return; }
       confirmAction(o);
     });
-    danger.append(b);
+    dangerCard.append(b);
   };
   // delete-history: chat AND contact-details pages both offer it (Damir 2026-07-08,
   // revises #142 — contact-details keeps delete-history while gaining Message + title)
@@ -18346,14 +18392,23 @@ function createChatInfo({
       run: (ctrl) => onLeave(ctrl),
     }));
   }
-  /* ★ A3 (Damir, Batch A 2026-08-24): ACTIONS ON TOP. The destructive rows
-     (Delete chat history · Remove contact / Leave group) sit right under the
-     identity block — after the quick-action row when the surface has one
-     (contact: Message · Pay · Request), else straight after the hero — not at the
-     bottom of a long members list where they were out of reach. */
-  if (danger.childElementCount) {
-    const moneyRow = body.querySelector('.c-chat-info__money');
-    (moneyRow || hero).insertAdjacentElement('afterend', danger);
+  /* ★★ #873 (Damir, 2026-09-17): PLACEMENT BY KIND — a rule that depends on what sits
+     BELOW the group.
+     · GROUP / BOT: the destructive rows (Leave group · Delete history) stay ABOVE THE
+       ROSTER — right under the identity block (after the action row when the surface
+       has one, else straight after the hero). The A3 reason (Batch A 2026-08-24) holds:
+       the roster is UNBOUNDED (#726 batches it), and a Leave at the foot of hundreds of
+       rows is out of reach.
+     · 1:1: the group goes LAST (#875 P4) — the messenger canon (Telegram
+       `itemDestructiveColor` bottom block, Signal Block/Report after a divider, iOS red
+       row at the end), and nothing unbounded sits under it on a contact surface. */
+  if (dangerCard.childElementCount) {
+    if (roomKind) {
+      const moneyRow = body.querySelector('.c-chat-info__money');
+      (moneyRow || hero).insertAdjacentElement('afterend', danger);
+    } else {
+      body.append(danger);
+    }
   }
 
   /* shared destructive-confirm machinery: alertdialog, Cancel autofocused

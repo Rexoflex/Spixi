@@ -1121,8 +1121,12 @@ console.log('chat.html — chat info (#141)');
        && !/https?:/.test(infoP.innerHTML),
       '★★ #596 (V-18, rewritten): with a real photo the hero DOES render it — and every source on this surface is a data: URI, never http(s). That is the rule the cover existed to protect: a screen that also carries a Pay button must not fetch anything from the network (#82)');
   }
-  ok(!info.querySelector('.c-chat-info__switch') && !info.querySelector('.c-chat-info__media'),
-    'notifications + media stay hidden without their capabilities (1:1 bridge honesty)');
+  /* ★ Session Y (#875): the notifications SWITCH ROW is retired — Mute is a TILE in the
+     action row, gated by the same `capabilities.notifications && onNotifications`. The
+     property this pin protected (bridge honesty: no control without its capability) is
+     unchanged; the selector moved from the switch to the tile. */
+  ok(!info.querySelector('.c-chat-info__switch') && !info.querySelector('.c-chat-info__qa[data-action="mute"]') && !info.querySelector('.c-chat-info__media'),
+    'notifications (the Mute tile — Session Y; no switch row exists any more) + media stay hidden without their capabilities (1:1 bridge honesty)');
 
   /* ★★ #591 — THE CALL ACTION, and the audit's MAJOR is what these pin.
      The shell has NO notion of relation state, so an unconditional button would ring on
@@ -1139,10 +1143,13 @@ console.log('chat.html — chat info (#141)');
        action is absent" from "the label changed" — but do not rewrite a working pin on
        the authority of that false diagnosis. */
     const qaCount = (el) => el.querySelectorAll('.c-chat-info__money .c-chat-info__qa').length;
+    /* ★ Session Y (#876) REBASE, both halves: Request is NOT in the row any more (it lives in the
+       composer ⊕ sheet), so the counts are one lower — Pay alone = 1, Call + Pay = 2. The
+       property (Call is opt-in by handler) is unchanged. */
     const noCall = S.createChatInfo({ kind: 'contact', name: 'Han', address: '4fj2addr', onBack() {}, onPay() {}, onRequest() {} });
     const withCall = S.createChatInfo({ kind: 'contact', name: 'Han', address: '4fj2addr', onBack() {}, onCall() {}, onPay() {}, onRequest() {} });
-    ok(qaCount(noCall) === 2 && qaCount(withCall) === 3,
-      '★★ #591: the Call action appears ONLY when a host wires onCall — the C# side reveals it (showCallButton) just for a 1:1 contact in FriendState.Approved with codecs present, so an unwired host must show one fewer control');
+    ok(qaCount(noCall) === 1 && qaCount(withCall) === 2,
+      '★★ #591 (Session Y rebase): the Call action appears ONLY when a host wires onCall — the C# side reveals it (showCallButton) just for a 1:1 contact in FriendState.Approved with codecs present, so an unwired host must show one fewer control (Pay = 1 · Call + Pay = 2; Request is no tile, #876)');
     const groupCall = S.createChatInfo({ kind: 'group', name: 'Room', onBack() {}, onCall() {}, onMessage() {} });
     ok(qaCount(groupCall) === 1,
       '★★ #591: a GROUP shows Message ALONE even when a host wires onCall — there is no group-call verb, and `isGroup` on the C# side covers bots too');
@@ -1211,9 +1218,12 @@ console.log('chat.html — chat info (#141)');
      disappear — it moved into the shared address sheet (#527), which is pinned as a real
      QR in the wallet-receive block. Two QR builders for one value was the drift risk. */
   {
-    const addrBtn = info.querySelector('.c-chat-info__addr-row');
-    ok(addrBtn && addrBtn.tagName === 'DIV',
-      '★ #591: with NO onAddressSheet handler the row is a plain DIV, not a dead button — a host that cannot open the sheet still shows the address honestly');
+    /* ★ Session Y (#875 P7) REBASE, both halves: the address is the HERO's last line now, an
+       inline element — a <span> without a handler (was a DIV row in the body). The property
+       is the same: never a dead button. */
+    const addrBtn = info.querySelector('.c-chat-info__hero .c-chat-info__addr-row');
+    ok(addrBtn && addrBtn.tagName === 'SPAN' && addrBtn.classList.contains('c-chat-info__hero-addr'),
+      '★ #591 (Session Y rebase): with NO onAddressSheet handler the hero address line is a plain SPAN, not a dead button — a host that cannot open the sheet still shows the address honestly');
   }
 
   /* #142: payments = collapsed accordion (no tx wall on entry) */
@@ -1282,11 +1292,15 @@ console.log('chat.html — chat info (#141)');
     'contact context title = "Contact details" (Damir 2026-07-08, revises #142)');
   // Damir 2026-08-12: the three chunky c-buttons became wallet-banner quick
   // actions (tonal circle + label). Message still LEADS the row.
+  // ★ Session Y (#876) REBASE, both halves: the actions are rounded-rectangle TILES now
+  // (button = tile; svg glyph + label INSIDE, no inner circle span), and Request is no
+  // tile — this host wires Message + Pay (+ Request, ignored) → TWO tiles, Message first.
   const moneyBtns = [...cinfo.querySelectorAll('.c-chat-info__money .c-chat-info__qa')];
-  ok(moneyBtns.length === 3 && moneyBtns[0].classList.contains('c-chat-info__message')
-    && moneyBtns.every((b) => !!b.querySelector('.c-chat-info__qa-circle')
+  ok(moneyBtns.length === 2 && moneyBtns[0].classList.contains('c-chat-info__message')
+    && !cinfo.querySelector('.c-chat-info__qa-circle')
+    && moneyBtns.every((b) => !!b.querySelector(':scope > svg.c-chat-info__qa-glyph')
       && !!b.querySelector('.c-chat-info__qa-label')),
-    'contact page: Message LEADS a 3-up wallet-banner quick-action row (circle + label)');
+    'contact page (Session Y): Message LEADS a row of TILES — glyph + label inside the button, no circle span; Message · Pay for this host (Request is not a tile, #876)');
   const dRows = [...cinfo.querySelectorAll('.c-chat-info__row--action')];
   ok(dRows.length === 2
     && dRows.some((r) => /Delete/i.test(r.textContent))
@@ -1300,18 +1314,27 @@ console.log('chat.html — chat info (#141)');
      the destructive rows and the ordinary rows must share the base class, the disc
      and the trailing control — because "looks the same" is not something a source
      grep can check and this is exactly the kind of drift that returns. */
+  /* ★ Session Y (#875) REBASE, both halves: #618's "same as our account" is AMENDED to one
+     grammar per screen FAMILY — the hub keeps its discs, THIS screen has none. The rows
+     are still ordinary rows of this screen: same base class, a bare 22px GLYPH inside the
+     label (never a disc), the trailing chevron, inside ONE grouped card. */
   ok(dRows.length === 2
     && dRows.every((r) => r.classList.contains('c-chat-info__row')
-      && !!r.querySelector('.c-chat-info__row-label > .c-disc')
-      && !!r.querySelector(':scope > svg')),
-    '★★ #618: the destructive rows ARE ordinary rows — same base class, disc inside the label, trailing chevron. Same grammar as the address and notification rows, and as the Account hub');
+      && !!r.querySelector('.c-chat-info__row-label > svg.c-chat-info__row-glyph')
+      && !r.querySelector('.c-disc')
+      && !!r.querySelector(':scope > svg')
+      && r.parentElement.classList.contains('c-chat-info__card')),
+    '★★ #618 (Session Y rebase): the destructive rows ARE ordinary rows of THIS screen — same base class, bare glyph inside the label (no disc), trailing chevron, both inside ONE grouped card');
   {
-    /* the two-tier meaning of #148 is not thrown away, it MOVED — from the row's own
-       paint (which is what made it foreign) into the DISC hue, where it costs nothing
-       and still reads. Losing the tier entirely would be a silent regression. */
-    const hues = dRows.map((r) => (r.querySelector('.c-disc') || {}).dataset?.hue);
-    ok(hues.includes('neutral') && hues.includes('error'),
-      '★ #618 keeps #148: the reversible action takes the NEUTRAL disc and the irreversible one the ERROR disc, so red still means something — it just stops shouting from a row that looks like nothing else on the page');
+    /* the two-tier meaning of #148 is not thrown away, it MOVED again — from the disc hue
+       (#618) to a ROLE on the row (Session Y): `data-tone` quiet vs error, and the error
+       role is a --text-error LABEL, never a fill (the css half is pinned in the static
+       block). Losing the tier entirely would be a silent regression. */
+    const tones = dRows.map((r) => r.dataset.tone);
+    ok(tones.includes('quiet') && tones.includes('error')
+      && dRows.find((r) => /Remove/i.test(r.textContent)).dataset.tone === 'error'
+      && dRows.find((r) => /Delete/i.test(r.textContent)).dataset.tone === 'quiet',
+      '★ #618 keeps #148 (Session Y rebase): the reversible action is the QUIET role and the irreversible one the ERROR role, so red still means something — as a label colour, not a disc');
   }
   ok(!cinfo.querySelector('.c-chat-info__setting'),
     'disappearing messages is chat-side — hidden on the contact page');
@@ -1372,8 +1395,9 @@ console.log('chat.html — chat info (#141)');
   const sdRow = sinfo.querySelector('.c-chat-info__setting');
   ok(!!sdRow && sdRow.querySelector('.c-chat-info__setting-value').textContent === 'Off',
     'disappearing-messages row renders with the current value (Off)');
-  ok(!!sinfo.querySelector('.c-chat-info__setting-section > .c-chat-info__setting'),
-    'disappearing row is wrapped in a divider section (pressed/tap state confined to the row — #145b)');
+  // ★ Session Y REBASE, both halves: the section is a grouped CARD now (wrapper > card > row)
+  ok(!!sinfo.querySelector('.c-chat-info__setting-section.c-chat-info__group > .c-chat-info__card > .c-chat-info__setting'),
+    'disappearing row is wrapped in its own grouped card (pressed/tap state confined to the row — #145b; Session Y: wrapper > card > row)');
   sdRow.click();
   const sdOpts = [...d.querySelectorAll('.c-chat-info__sd-option')];
   ok(sdOpts.length === 4 && sdOpts[0].getAttribute('aria-checked') === 'true',
@@ -1430,15 +1454,26 @@ console.log('chat.html — chat info (#141)');
     onLeave() {},
   });
   ghost.append(ginfo);
-  ok(!ginfo.querySelector('.c-chat-info__money'), 'rooms hide the money row (§9 room-request ask) — `roomKind` covers group AND bot');
+  /* ★ Session Y (#875/#876) REBASE, both halves: a room's action row is not "hidden" any more —
+     it carries the MUTE tile (the switch row is retired) and NOTHING ELSE unless the host
+     wires Message. What the old pin protected was MONEY on a room (§9): still absent. */
+  {
+    const roomTiles = [...ginfo.querySelectorAll('.c-chat-info__money .c-chat-info__qa')].map((b) => b.dataset.action);
+    ok(roomTiles.join() === 'mute',
+      'rooms show NO money action (§9 room-request ask) — `roomKind` covers group AND bot; Session Y: the row holds the Mute tile alone');
+  }
   const rowNames = [...ginfo.querySelectorAll('.c-chat-info__member-name')].map((e) => e.textContent);
   ok(rowNames.length === 6 && !ginfo.querySelector('.c-search-field'),
     '6 members: ALL 6 rows, no search below 8 — the list is scannable (#142)');
   ok(rowNames[0] === 'Alex' && rowNames[1] === 'Chewie',
     'member rows sort A–Z (#142 — scanning needs an order)');
-  const sw = ginfo.querySelector('.c-chat-info__switch');
+  /* ★ Session Y: the toggle is the Mute TILE (data-muted = muted; the label is the state). Same contract as the
+     switch it replaces: optimistic flip on tap. */
+  const sw = ginfo.querySelector('.c-chat-info__qa[data-action="mute"]');
+  ok(!!sw && !ginfo.querySelector('.c-chat-info__switch') && sw.dataset.muted === 'false' && sw.textContent === 'Mute',
+    'Session Y: the notifications control is the Mute tile — no switch row; notifications ON renders "Mute" (data-muted=false)');
   sw.click();
-  ok(sw.getAttribute('aria-checked') === 'false', 'notifications toggle flips optimistically');
+  ok(sw.dataset.muted === 'true' && sw.textContent === 'Unmute', 'notifications toggle (the Mute tile) flips optimistically — "Unmute" (data-muted=true)');
 
   ginfo.querySelectorAll('.c-chat-info__member')[2].click();     // Han (A–Z: Alex, Chewie, Han…)
   const kickBtn = [...d.querySelectorAll('.c-sheet .c-button')].find((b) => b.textContent.trim() === 'Kick');
@@ -2411,17 +2446,27 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
     && /background: var\(--switch-knob\)/.test(setCss),
     'settings switch rides the dedicated pair (#148①)');
   const infoCss2 = readFileSync(join(root, 'src/styles/components/chat-info.css'), 'utf8');
-  ok(/background: var\(--switch-track-off\)/.test(infoCss2)
-    && /background: var\(--switch-knob\)/.test(infoCss2),
-    'chat-info switch rides the same pair (#148 harmonization)');
-  ok(/\.c-chat-info__body > :not\(\.c-chat-info__hero\)/.test(infoCss2)
-    && /background: var\(--surface-card\)/.test(infoCss2),
-    'chat-info sections sit on cards — the settings grammar (#148, Damir consistency call)');
+  const infoCss2S = stripCssComments(infoCss2);
+  /* ★ Session Y (#875) REBASE, both halves — THE PREMIUM PASS. Three #148 pins inverted:
+     ① the notifications SWITCH is retired (Mute is a tile) — chat-info.css declares NO
+        switch rule, and the pair tokens are not read here any more (the hub still is, above);
+     ② sections are INSET-GROUPED: one `__card` per group on --surface-card, radius 12,
+        NO elevation — the old one-card-per-row `__body > :not(…)` rule is gone;
+     ③ row glyphs are MONOCHROME (`rowGlyph`, 22px, no disc): chat-info.js has no `infoDisc`
+        and no `c-disc` in CODE (#771 — the retirement note in a comment may name it). */
+  ok(!/\.c-chat-info__switch/.test(infoCss2S) && !/--switch-track-off|--switch-knob/.test(infoCss2S),
+    '★ Session Y: chat-info.css declares NO switch — the notifications switch row is retired for the Mute tile (#875); dead CSS does not ship inlined');
+  ok(!/\.c-chat-info__body > :not\(/.test(infoCss2S)
+    && /\.c-chat-info__card \{[^}]*background: var\(--surface-card\);[^}]*border-radius: var\(--radius-12\);/.test(infoCss2S)
+    && !/\.c-chat-info__card \{[^}]*box-shadow/.test(infoCss2S)
+    && !/var\(--elevation-1\)/.test(infoCss2S),
+    '★ Session Y (#875 P2/P3): chat-info sections are inset-grouped CARDS — one `__card` per group on --surface-card, radius 12, NO elevation anywhere in the sheet; the one-card-per-row `__body > :not(…)` rule is gone');
   const infoJs2 = readFileSync(join(root, 'src/components/chat-info.js'), 'utf8');
-  ok(/function infoDisc/.test(infoJs2)
-    && (infoJs2.match(/infoDisc\((?:'[^']+'|glyph), 'error'\)/g) || []).length === 1
-    && /infoDisc\('bell', 'warning'\)/.test(infoJs2),
-    'chat-info rows wear discs; error disc only on the destructive rows (#148)');
+  const infoJs2S = stripCode(infoJs2);
+  ok(!/infoDisc|discGrad|c-disc/.test(infoJs2S)
+    && /function rowGlyph\(glyph\)/.test(infoJs2S)
+    && (infoJs2S.match(/rowGlyph\(/g) || []).length >= 4,
+    '★ Session Y (#875 P1): chat-info rows wear bare monochrome GLYPHS — no infoDisc, no discGrad, no c-disc in code; rowGlyph is the atom and every row uses it');
   ok(/\.c-settings-backup__body > \* \{ flex: none/.test(bkCss)
     && /\.c-settings__body > \*,\n\.c-settings-danger__body > \* \{ flex: none/.test(setCss),
     'scroll-column children never shrink — the crushed-CTA class is guarded (#148③)');
@@ -2429,12 +2474,18 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
     'backup hero is a raised PANEL carrying art/status/CTA (#148③ premium pass)');
 
   /* —— #149 guards (Damir chat-info review, 3 items — all layout, jsdom-blind) —— */
-  ok(/\.c-chat-info__txs-list \{[^}]*margin-inline: calc\(-1 \* var\(--spacing-12\)\)/.test(infoCss2)
-    && /\.c-chat-info__txs \{[^}]*overflow: hidden/.test(infoCss2),
-    'chat-info tx rows run full-bleed in the card, clipped to its radius (#149①)');
-  /* ★ Session I re-base (the gap canon, sheet 3a): 52 → var(--row-h-nav) = 48; switch rows 56 */
-  ok(/\.c-chat-info__row \{[^}]*min-height: var\(--row-h-nav\)/.test(infoCss2) && /\.c-chat-info__row\[data-row="switch"\] \{ min-height: var\(--row-h-switch\); \}/.test(infoCss2),
-    'chat-info rows breathe on the CANON — 48 nav / 56 switch (was 52, #149② settings parity; Session I sheet 3a)');
+  /* ★ Session Y REBASE, both halves: the CARD carries no padding, so the negative margins
+     that cancelled it are gone; the card's own `overflow: hidden` clips every group's
+     full-bleed rows (#149①, now for all groups, not only payments). */
+  ok(!/\.c-chat-info__txs-list \{[^}]*margin-inline/.test(infoCss2S)
+    && /\.c-chat-info__card \{[^}]*overflow: hidden/.test(infoCss2S)
+    && /\.c-chat-info__txs-list \.c-txlist-item \{ border-radius: 0; \}/.test(infoCss2S),
+    'chat-info tx rows run full-bleed in the CARD, clipped by the card\'s own overflow (#149①; Session Y: no negative margins — the card has no padding to cancel)');
+  /* ★ Session I re-base (the gap canon, sheet 3a): 52 → var(--row-h-nav) = 48.
+     ★ Session Y: the 56 switch row is GONE from this screen with the switch (Mute is a tile);
+     the rule must not survive as dead CSS. */
+  ok(/\.c-chat-info__row \{[^}]*min-height: var\(--row-h-nav\)/.test(infoCss2S) && !/data-row="switch"/.test(infoCss2S) && !/--row-h-switch/.test(infoCss2S),
+    'chat-info rows breathe on the CANON — 48 nav (was 52, #149② settings parity; Session I sheet 3a); Session Y: no switch row rule survives');
   /* ★ N86 ③ — #149③ RETIRED, and it was never a code defect. The pin expected 148px;
      the CSS moved to 185px on 2026-07-29 when Damir F5'd that 148 "scanned poorly on a
      phone held at arm's length", and the assertion was left behind. It has been one of
@@ -2459,8 +2510,14 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
     && /--surface-input: var\(--surface-input-on-card\)/.test(setCss),
     'carded containers reassign --surface-input (the #20 contextual-override precedent, #150③)');
   const infoJs3 = readFileSync(join(root, 'src/components/chat-info.js'), 'utf8');
-  ok(/notifSection\.className = 'c-chat-info__setting-section'/.test(infoJs3),
-    'notifications row wrapped like the sd row — equal single-row card heights (#150④)');
+  /* ★ Session Y REBASE, both halves: the notifications ROW is retired (#875 — the Mute tile
+     carries the contract: capabilities-gated, optimistic, revert on fail). #150④'s property
+     ("no bare row is its own card") now holds by construction: every section is a grouped
+     card built by ONE helper. Pinned as: no switch row builder, one groupCard helper. */
+  ok(!/notifSection|c-chat-info__switch/.test(stripCode(infoJs3))
+    && /function groupCard\(/.test(infoJs3)
+    && (stripCode(infoJs3).match(/groupCard\(\{/g) || []).length >= 5,
+    '★ Session Y: the notifications switch row is gone (Mute tile, #875); every section is built by the one groupCard helper — #150④\'s equal-card-heights property holds by construction');
   const scrCss = readFileSync(join(root, 'src/styles/components/settings-screens.css'), 'utf8');
   ok(/data-side='sent'\] \{[^}]*color: var\(--text-bubble-sent\)/.test(scrCss)
     && /data-side='received'\] \{[^}]*color: var\(--text-bubble-received\)/.test(scrCss),
@@ -2633,10 +2690,14 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
      items gained `min-width: 0` — without it a flex item's min-content is the whole word,
      so at 320px the row OVERFLOWS instead of letting its labels wrap. The property is
      unchanged: still ONE centered row that never wraps into two. */
-  ok(/\.c-chat-info__money \{[^}]*justify-content: center/.test(infoCss)
-    && /\.c-chat-info__money > \.c-chat-info__qa \{ flex: 1; min-width: 0; max-width:/.test(infoCss)
+  /* ★ Session Y (#876) REBASE, both halves: the actions are EQUAL TILES that fill the row —
+     `flex: 1 1 0; min-width: 0` with NO max-width cap (the 84px cap sized circles); a lone
+     tile hugs (`[data-count='1']`, centred). Still ONE row that never wraps into two. */
+  ok(/\.c-chat-info__money > \.c-chat-info__qa \{ flex: 1 1 0; min-width: 0; \}/.test(infoCss)
+    && !/\.c-chat-info__money > \.c-chat-info__qa \{[^}]*max-width/.test(infoCss)
+    && /\.c-chat-info__money\[data-count='1'\] \{ justify-content: center; \}/.test(infoCss)
     && !/flex-wrap: wrap/.test(infoCss.split('.c-chat-info__money {')[1].split('}')[0]),
-    'contact action row: ONE centered quick-action row (wallet-banner grammar, supersedes the #144 two-row block)');
+    'contact action row (Session Y): ONE row of EQUAL tiles — flex 1 1 0, no width cap, a lone tile hugs centred; never wraps into two rows (supersedes the #144 two-row block and the #591 84px cap)');
   /* ★★ #591 (round-2 MAJOR): the LABEL wraps rather than ellipsizing, and this pin exists
      because the first fix was a NO-OP — it declared a second `.c-chat-info__qa-label`
      block EARLIER in the file than the one already setting `white-space: nowrap`, so the
@@ -2648,10 +2709,16 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
      `.c-chat-info__addr-row:active` is (0,2,0) and LOSES, which is how the first fix
      shipped a press wash that never painted while `-webkit-tap-highlight-color:
      transparent` suppressed the native one. */
-  ok(/\.c-chat-info__body > \.c-chat-info__addr-row:active \{[^}]*background:/.test(infoCss)
-     && /\.c-chat-info__body > \.c-chat-info__addr-row:hover \{[^}]*background:/.test(infoCss)
-     && !/^\.c-chat-info__addr-row:(hover|active)/m.test(infoCss),
-    '★★ #591: the addr-row press wash is scoped through `__body >` so it beats the (0,4,0) card rule — an unscoped :active is a wash that never paints');
+  /* ★ Session Y (#875 P7) REBASE, both halves: the address line lives in the HERO now (no
+     card rule to out-specify — the (0,4,0) rule itself is gone). The property that pin
+     protected: the tappable line HAS a press wash and a hover, and only the BUTTON form
+     (a host that wired the sheet) wears them and the action ink — a handler-less <span>
+     must not look tappable. */
+  ok(/button\.c-chat-info__hero-addr:active \{[^}]*background:/.test(infoCss)
+     && /button\.c-chat-info__hero-addr:hover \{[^}]*background:/.test(infoCss)
+     && /button\.c-chat-info__hero-addr \{[^}]*color: var\(--text-action-default\)/.test(infoCss)
+     && !/\.c-chat-info__body > \.c-chat-info__addr-row/.test(stripCssComments(infoCss)),
+    '★★ #591 → Session Y: the hero address line has a press wash + hover and the ACTION INK on its <button> form only (Damir: blue = tappable); the old `__body > .addr-row` card-scoped rules are gone with the row');
   {
     const qaRules = infoCss.match(/\.c-chat-info__qa-label \{[^}]*\}/g) || [];
     ok(qaRules.length === 1 && /white-space: normal/.test(qaRules[0]) && /overflow-wrap: anywhere/.test(qaRules[0])
@@ -2680,8 +2747,8 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   const chatHtml = readFileSync(join(root, 'src/demo/chat.html'), 'utf8');
   ok(/\.demo-sendpanel \{[^}]*inset: 44px 0 0 0/.test(chatHtml),
     'demo takeover starts BELOW the 44px mock statusbar — no cover (#145 ①)');
-  ok(/\.c-chat-info__setting-section > \.c-chat-info__setting/.test(infoCss),
-    'disappearing row uses a wrapper section for its divider — pressed/tap box stays off the gap (#145 ②)');
+  ok(/\.c-chat-info__setting-section > \.c-chat-info__card > \.c-chat-info__setting/.test(infoCss),
+    'disappearing row uses a wrapper section (Session Y: wrapper > card > row) — pressed/tap box stays off the gap (#145 ②)');
   ok(/\.c-chat-info__sd-status \{[^}]*color: var\(--icon-success\)/.test(infoCss)
     && /\.c-chat-info__sd-option\[data-loading\] \.c-chat-info__sd-check \{ display: none/.test(infoCss),
     'sd check uses --icon-success (both themes) + loading swaps the check for a spinner in the slot (#145 ③)');
@@ -4819,7 +4886,9 @@ console.log('desktop.html — split-view shells (Phase 2 batch, docs/desktop-spl
   d.querySelector('#chat-topbar [aria-label="Chat info"]').click();
   ok(infoPanel.querySelectorAll('.c-chat-info__member-list .c-chat-info__member').length >= 4,
     'group info renders the member ROWS (6-member crew; admin kick/ban rides capabilities.admin)');
-  ok(!!infoPanel.querySelector('[role="switch"]'), 'group info carries the notifications toggle (capabilities-gated)');
+  // ★ Session Y (#875): the toggle is the Mute TILE (data-muted; the label is the state), not a switch row
+  ok(!!infoPanel.querySelector('.c-chat-info__qa[data-action="mute"][data-muted]') && !infoPanel.querySelector('[role="switch"], [aria-pressed]'),
+    'group info carries the notifications toggle as the Mute tile (capabilities-gated; Session Y — no switch row)');
   d.querySelector('#chat-topbar [aria-label="Chat info"]').click();
 
   // —— 06c ⑩/⑰: right-click = ANCHORED dropdown + source-row highlight ——
@@ -7456,13 +7525,35 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
          The clause that stood here asserted a heavier read tick; it now asserts the OPPOSITE as a
          property over STRIPPED css (#771): no rule in either stylesheet may set stroke,
          stroke-width, width, height, transform or font-size on a status icon BY tone. */
-      const toneRuleRe = /\.c-status-icon\[data-tone="[a-z]+"\][^{]*\{([^}]*)\}/g;
-      const weightProps = /\b(stroke|stroke-width|width|height|transform|font-size|scale)\s*:/;
+      /* ★ Session Y (#46 loop on Session X, secondary): the first form of this clause was SPELLING-
+         bound — a double-quoted `[data-tone="x"]` regex and an author's list of "weight" props —
+         and 6 of 8 mutations survived it (single-quoted or unquoted tones, a tone on an ancestor,
+         a `--read` modifier class, `font-weight`). It is now the POSITIVE property #877 states:
+         a rule that selects a status icon BY TONE (any quoting, on the icon or an ancestor, or a
+         `--tone` modifier) may declare ONLY colour-class properties — color · opacity · fill —
+         and nothing else. `opacity` is colour-class (E1's 0.571 on delivered is a lightness step,
+         not a weight), which the old message ("colour is the ONLY differentiator") glossed over. */
+      const toneRules = (css) => {
+        const out = [];
+        for (const m of css.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+          const sel = m[1].trim(), body = m[2];
+          if (!/\.c-status-icon/.test(sel)) continue;
+          if (!/data-tone\s*=\s*["']?[A-Za-z-]+["']?\s*\]|\.c-status-icon--[a-z-]+/i.test(sel)) continue;
+          out.push({ sel, body });
+        }
+        return out;
+      };
+      const COLOUR_CLASS = new Set(['color', 'opacity', 'fill']);
       const offenders = [];
-      for (const [name, css] of [['chatlist-item.css', rowCss], ['message-bubble.css', bubCss]])
-        for (const m of css.matchAll(toneRuleRe)) if (weightProps.test(m[1])) offenders.push(name + ': ' + m[0].slice(0, 80));
-      ok(offenders.length === 0 && (rowCss.match(toneRuleRe) || []).length >= 4,
-        '★ Session X #877: ticks keep ONE weight and size — no per-tone status-icon rule sets stroke/width/height/transform/font-size in either stylesheet; colour is the only differentiator (and the tone rules exist — ' + (rowCss.match(toneRuleRe) || []).length + ' in the row css). Offenders: ' + (offenders.join(' | ') || 'none'));
+      let toneCount = 0, toneCountBub = 0;
+      for (const [name, css] of [['chatlist-item.css', rowCss], ['message-bubble.css', bubCss]]) {
+        for (const r of toneRules(css)) {
+          if (name === 'chatlist-item.css') toneCount += 1; else toneCountBub += 1;
+          for (const d of r.body.matchAll(/([a-z-]+)\s*:/gi)) if (!COLOUR_CLASS.has(d[1].toLowerCase())) offenders.push(name + ': ' + r.sel.slice(0, 60) + ' → ' + d[1]);
+        }
+      }
+      ok(offenders.length === 0 && toneCount >= 4 && toneCountBub >= 4,
+        '★ Session X #877 (Session Y re-based to the POSITIVE property): every per-tone status-icon rule in BOTH stylesheets declares ONLY colour-class properties (color/opacity/fill) — one weight, one size, any quoting or placement of the tone; and the tone rules exist in both (' + toneCount + ' row · ' + toneCountBub + ' bubble)' + (offenders.length ? ' · OFFENDERS: ' + offenders.join(' | ') : ''));
       const tokX = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
       const hexOf = (name) => { const m = new RegExp('--' + name + ':\\s*(#[0-9a-fA-F]{6})').exec(tokX); return m ? m[1] : null; };
       const lumX = (hex) => { const h = /^#([0-9a-f]{6})$/i.exec(hex || ''); if (!h) return NaN; const c = [0, 2, 4].map((i) => { const x = parseInt(h[1].slice(i, i + 2), 16) / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
@@ -7735,14 +7826,16 @@ console.log('contact details — premium pass');
   });
   host.append(ci);
 
-  // ① wallet-banner grammar: the same circle+label construction as c-wallet-hero__qa,
-  //    and NO c-button left in the action row (that was the "rough" 44px trio).
+  // ① 2026-08-12: the wallet-banner circle+label grammar replaced the "rough" 44px c-button
+  //    trio. ★ Session Y (#876) REBASE, both halves: the circles are now rounded-rectangle
+  //    TILES (button = tile, glyph + label inside), and Request is NOT in the row — this
+  //    host (Message · Pay · Request wired, no notifications) renders TWO tiles.
   const qas = [...ci.querySelectorAll('.c-chat-info__money .c-chat-info__qa')];
-  ok(qas.length === 3 && !ci.querySelector('.c-chat-info__money .c-button'),
-    'premium ①: the action row is 3 quick actions, no chunky c-buttons left');
-  ok(qas.map((b) => b.querySelector('.c-chat-info__qa-label').textContent).join() === 'Message,Pay,Request',
-    'premium ①: Message · Pay · Request, in that order');
-  ok(ci.querySelector('.c-chat-info__money').dataset.count === '3',
+  ok(qas.length === 2 && !ci.querySelector('.c-chat-info__money .c-button') && !ci.querySelector('.c-chat-info__qa-circle'),
+    'premium ① (Session Y): the action row is quick-action TILES — no chunky c-buttons, no circle spans; two for this host');
+  ok(qas.map((b) => b.querySelector('.c-chat-info__qa-label').textContent).join() === 'Message,Pay',
+    'premium ① (Session Y): Message · Pay, in that order — Request left the row for the composer ⊕ sheet (#876)');
+  ok(ci.querySelector('.c-chat-info__money').dataset.count === '2',
     'premium ①: the row carries its count so a lone action hugs instead of stretching');
 
   // ② quiet destructive tier — delete-history reads secondary; red stays reserved
@@ -7752,20 +7845,27 @@ console.log('contact details — premium pass');
   const remove = rows.find((r) => /Remove/i.test(r.textContent));
   ok(hist.dataset.tone === 'quiet' && remove.dataset.tone === 'error',
     'premium ②: delete-history = quiet tier, remove-contact stays the loud one');
-  ok(hist.querySelector('.c-disc').dataset.hue === 'neutral'
-    && !hist.querySelector('.c-disc').hasAttribute('data-grad'),
-    'premium ②: the quiet disc drops data-grad — base.css lets the per-glyph gradient win over data-hue');
-  ok(remove.querySelector('.c-disc').dataset.hue === 'error',
-    'premium ②: the destructive disc stays red (the reservation, #148)');
+  // ★ Session Y (#875 P1/P4) REBASE, both halves: no discs on this screen — the tier is the
+  //    row's ROLE. Both rows carry a bare glyph; the css half (--text-error label, --icon-error
+  //    glyph, no fill) is pinned in the Session Y static block.
+  ok(!hist.querySelector('.c-disc') && !!hist.querySelector('.c-chat-info__row-label > svg.c-chat-info__row-glyph'),
+    'premium ② (Session Y): the quiet row wears a bare glyph — no disc, no gradient');
+  ok(!remove.querySelector('.c-disc') && !!remove.querySelector('.c-chat-info__row-label > svg.c-chat-info__row-glyph') && remove.dataset.tone === 'error',
+    'premium ② (Session Y): the destructive row is the ERROR role on a bare glyph — red is a label colour here, never a disc (the reservation, #148)');
 
   // ③ hierarchy: identity → what you can do → the details. The address used to sit
   //    between the hero and the actions and pushed them off the fold.
   //    ★ #591: the card became a ROW (it opens the shared sheet now) — the ORDER is the
   //    property and it is unchanged.
+  //    ★ Session Y (#875 P7): the address is INSIDE THE HERO now (under the name) — the
+  //    property "identity → actions → details" holds in its strongest form: the address is
+  //    identity, the action row is the first body child after the hero, and no address
+  //    row exists in the body at all.
   const kids = [...ci.querySelector('.c-chat-info__body').children];
-  ok(kids.indexOf(ci.querySelector('.c-chat-info__money'))
-      < kids.indexOf(ci.querySelector('.c-chat-info__addr-row')),
-    'premium ③: actions come BEFORE the address row');
+  ok(kids.indexOf(ci.querySelector('.c-chat-info__money')) === kids.indexOf(ci.querySelector('.c-chat-info__hero')) + 1
+      && !!ci.querySelector('.c-chat-info__hero .c-chat-info__addr-row')
+      && !kids.some((k) => k.classList.contains('c-chat-info__addr-row')),
+    'premium ③ (Session Y): identity → actions → details — the address is part of the hero, the actions follow it directly, no address row in the body');
   ok(ci.querySelector('.c-chat-info__hero .c-avatar').dataset.size === '80',
     'premium ③: portrait-scale hero avatar (centered identity block)');
 
@@ -7773,9 +7873,13 @@ console.log('contact details — premium pass');
   ok(/\.c-chat-info__hero \{[^}]*flex-direction: column/.test(css)
     && /\.c-chat-info__hero \{[^}]*align-items: center/.test(css),
     'premium ③: the hero is a centered column, not a list-row');
-  ok(/\.c-chat-info__qa-circle \{[^}]*var\(--surface-action-tonal-default\)/.test(css)
-    && /\.c-chat-info__qa-circle \{[^}]*var\(--icon-action-default\)/.test(css),
-    'premium ①: quick-action circles ride semantic tonal tokens (no raw hex)');
+  // ★ Session Y (#876) REBASE, both halves: the tile is the button — --surface-card ground,
+  //    radius 12 (the grouped cards' radius: one system), glyph on the one accent.
+  ok(/\.c-chat-info__qa \{[^}]*background: var\(--surface-card\)/.test(css)
+    && /\.c-chat-info__qa \{[^}]*border-radius: var\(--radius-12\)/.test(css)
+    && /\.c-chat-info__qa-glyph \{[^}]*color: var\(--icon-action-default\)/.test(css)
+    && !/\.c-chat-info__qa-circle/.test(stripCssComments(css)),
+    'premium ① (Session Y): quick-action TILES ride semantic tokens — --surface-card ground, --radius-12, glyph on --icon-action-default; no circle rule survives');
   ok(/@media \(hover: hover\)[^{]*\{\s*\.c-chat-info__qa:hover/.test(css),
     '#43: the quick action has a hover state, guarded by the hover media query');
   ok(!/@media[^{]*min-width:\s*(7|8|9|1\d)\d\d/.test(css),
@@ -7930,7 +8034,18 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      first honest number for it is this run's. Headroom after the raise: ~1 900 chars —
      thinner than Session T left, on purpose: the next thing added to home.html re-bases
      this pin with ITS delta rather than spending Session T's margin. */
-  const CHAT_KB_CEIL = 682, INDEX_KB_CEIL = 528;
+  /* ★ Session Y (#875): CHAT_KB_CEIL 682 → 684, with the delta stated. chat-info.css grew
+     28 747 → 30 792 chars (+2 045: the grouped-card rules, the ::after/press-layer and
+     focus-ring fixes the #46 loop demanded, and the measurements that justify their tokens)
+     and chat.html INLINES that sheet, so it measured 699 916 — 1 548 chars OVER 682 KB.
+     ≈ 0.16 ms of parse at 0.08 ms/KB. ⚠ THE REAL NUMBER HERE IS NOT THIS ONE:
+     chat.html links chat-info.css for the in-chat info TAKEOVER that #249 retired ("dead
+     code since #249" — the shell's own words at its createChatInfo call), so every chat
+     WebView boot parses ~29.5 KB of CSS (and the takeover's JS) for a surface it never
+     shows. Removing that link + the dead call is the honest #345 saving (≈ 2.4 ms at the
+     measured rate) and it is Damir's call, listed in the Session Y handoff — not folded
+     into a batch about a different screen. Headroom after the raise: 500 chars. */
+  const CHAT_KB_CEIL = 684, INDEX_KB_CEIL = 528;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -12444,35 +12559,93 @@ console.log('#383 — N12 restore-nudge + N40 connectivity/update');
       if (!ESLintX || !globalsX) {
         ok(false, '★★ UNDECLARED-IDENTIFIER GATE: parser missing — run `npm i --no-save jsdom eslint globals` (' + (loadErr && loadErr.message) + ')');
       } else {
-        const undefX = [];
-        let scriptsX = 0;
-        for (const f of readdirSync(shellDir421).filter((n) => n.endsWith('.html'))) {
-          const html = readFileSyncRaw(join(shellDir421, f), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
-          const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)]
-            .filter((m) => !/\bsrc=/.test(m[1]))
-            .map((m) => ({ module: /type\s*=\s*["']module["']/.test(m[1]), code: m[2] }));
-          const shellGlobals = new Set();
-          for (const s of scripts) {
-            const body = stripCode(s.code);
-            for (const m of body.matchAll(/(?:window|globalThis)\s*\.\s*([A-Za-z_$][\w$]*)\s*=[^=]/g)) shellGlobals.add(m[1]);
-            for (const m of body.matchAll(/(?:window|globalThis)\s*\[\s*['"]([A-Za-z_$][\w$]*)['"]\s*\]\s*=[^=]/g)) shellGlobals.add(m[1]);
-            if (!s.module) for (const m of body.matchAll(/^(?:const|let|var|function|class|async function)\s+([A-Za-z_$][\w$]*)/gm)) shellGlobals.add(m[1]);
+        /* ★ Session Y (#46 loop on Session X, MAJOR-1 / MINOR-3/4/6/7): the gate is a FUNCTION of a
+         * directory so a FIXTURE can prove it, and four holes the review proved are closed:
+         *   · HTML comments are stripped ONLY OUTSIDE <script> spans. The old whole-document
+         *     `<!--[\s\S]*?-->` strip was content-blind: a `// <!--` and a `// -->` in one script
+         *     deleted every line between them BEFORE the lint — a false GREEN of exactly the
+         *     #869 class, silent (balanced cut, no parse error). A <script> inside a real HTML
+         *     comment is still prose (claim 2 of #869 holds, now by a scanner, not a regex).
+         *   · `src` is matched as an ATTRIBUTE (`\ssrc\s*=`), not `\bsrc=` — `data-src` made a
+         *     whole inline script vanish from the lint.
+         *   · the three `<script src>` globals the shells load (Spixi · SpixiIcons · Html5Qrcode)
+         *     are seeded, so a bare `Spixi.x` is not a false red in one shell and green in 17.
+         *   · the finding carries the FILE line (script start + eslint line − 1), not a
+         *     script-relative one; and vacuity is asserted PER SHELL, not as one loose total. */
+        const lintShellDir = async (dir) => {
+          const undef = [], perShell = {};
+          for (const f of readdirSync(dir).filter((n) => n.endsWith('.html'))) {
+            const raw = readFileSyncRaw(join(dir, f), 'utf8');
+            const scripts = [];
+            let i = 0;
+            while (i < raw.length) {
+              const c = raw.indexOf('<!--', i), sc = raw.indexOf('<script', i);
+              if (c < 0 && sc < 0) break;
+              if (c >= 0 && (sc < 0 || c < sc)) {              // an HTML comment OUTSIDE a script: prose
+                const e = raw.indexOf('-->', c + 4); i = e < 0 ? raw.length : e + 3; continue;
+              }
+              const tagEnd = raw.indexOf('>', sc);
+              if (tagEnd < 0) break;
+              const attrs = raw.slice(sc + 7, tagEnd);
+              const close = raw.indexOf('</script>', tagEnd + 1);
+              if (close < 0) break;
+              const code = raw.slice(tagEnd + 1, close);
+              if (!/\ssrc\s*=/.test(attrs)) {
+                scripts.push({ module: /type\s*=\s*["']module["']/.test(attrs), code,
+                  startLine: raw.slice(0, tagEnd + 1).split('\n').length });
+              }
+              i = close + 9;
+            }
+            perShell[f] = scripts.length;
+            const shellGlobals = new Set(['Spixi', 'SpixiIcons', 'Html5Qrcode']);
+            for (const s of scripts) {
+              const body = stripCode(s.code);
+              for (const m of body.matchAll(/(?:window|globalThis)\s*\.\s*([A-Za-z_$][\w$]*)\s*=[^=]/g)) shellGlobals.add(m[1]);
+              for (const m of body.matchAll(/(?:window|globalThis)\s*\[\s*['"]([A-Za-z_$][\w$]*)['"]\s*\]\s*=[^=]/g)) shellGlobals.add(m[1]);
+              if (!s.module) for (const m of body.matchAll(/^(?:const|let|var|function|class|async function)\s+([A-Za-z_$][\w$]*)/gm)) shellGlobals.add(m[1]);
+            }
+            const globals = { ...globalsX.browser, ...globalsX.es2025 };
+            for (const g of shellGlobals) globals[g] = 'writable';
+            const eslint = new ESLintX({ overrideConfigFile: true, overrideConfig: [{
+              languageOptions: { ecmaVersion: 'latest', sourceType: 'module', globals },
+              rules: { 'no-undef': 'error' } }] });
+            for (const [k, s] of scripts.entries()) {
+              const res = await eslint.lintText(s.code, { filePath: f + '.' + k + '.js' });
+              for (const r of res) for (const m of r.messages) undef.push(f + ':' + (s.startLine + m.line - 1) + ' (script #' + k + ') ' + (m.fatal ? 'PARSE ' : '') + m.message);
+            }
           }
-          const globals = { ...globalsX.browser, ...globalsX.es2025 };
-          for (const g of shellGlobals) globals[g] = 'writable';
-          const eslint = new ESLintX({ overrideConfigFile: true, overrideConfig: [{
-            languageOptions: { ecmaVersion: 'latest', sourceType: 'module', globals },
-            rules: { 'no-undef': 'error' } }] });
-          for (const [i, s] of scripts.entries()) {
-            scriptsX += 1;
-            const res = await eslint.lintText(s.code, { filePath: f + '.' + i + '.js' });
-            for (const r of res) for (const m of r.messages) undefX.push(f + '#' + i + ':' + m.line + ' ' + (m.fatal ? 'PARSE ' : '') + m.message);
-          }
+          return { undef, perShell };
+        };
+        const gateX = await lintShellDir(shellDir421);
+        const scriptsX = Object.values(gateX.perShell).reduce((a, b) => a + b, 0);
+        ok(gateX.undef.length === 0,
+          '★★ THE UNDECLARED-IDENTIFIER GATE: no source shell references a name it declares nowhere (ESLint no-undef over every inline script; a swallowed ReferenceError is a feature that silently never runs). Found: ' + (gateX.undef.slice(0, 6).join(' | ') || 'none'));
+        ok(Object.keys(gateX.perShell).length >= 18 && Object.values(gateX.perShell).every((n) => n >= 1) && scriptsX >= 100,
+          '★ the undeclared-identifier gate LINTED something in EVERY shell (' + scriptsX + ' scripts across ' + Object.keys(gateX.perShell).length + ' shells; per-shell minimum ' + Math.min(...Object.values(gateX.perShell)) + ') — a shell whose extraction silently failed would pass the gate above vacuously');
+        /* ★ THE FIXTURE (Session Y): the gate proved against a shell it must fail. Two line
+         * comments naming `<!--` and `-->` bracket a real undeclared read; a data-src script
+         * carries another; a genuinely commented-out <script> carries a third that must NOT be
+         * reported. The old gate reported nothing for the first two. */
+        {
+          const fx = mkdtempSync(join(tmpdir(), 'spixi-gate-'));
+          writeFileSync(join(fx, 'fixture.html'), [
+            '<!doctype html><html><head>',
+            '<!-- <script>void ghostInProse;</script> -->',
+            '<script>',
+            '  // the token <!-- here is prose',
+            '  void ghostBetween;',
+            '  // and the token --> here is prose too',
+            '</script>',
+            '<script data-src="x">void ghostDataSrc;</script>',
+            '<script src="spixi.bundle.js"></script>',
+            '<script>window.SL = {}; const declaredHere = 1; void declaredHere; void Spixi;</script>',
+            '</head><body></body></html>'].join('\n'));
+          const fxRes = await lintShellDir(fx);
+          rmSync(fx, { recursive: true, force: true });
+          ok(fxRes.undef.some((u) => /fixture\.html:5 .*ghostBetween/.test(u)) && fxRes.undef.some((u) => /ghostDataSrc/.test(u))
+             && !fxRes.undef.some((u) => /ghostInProse|declaredHere|Spixi\b/.test(u)) && fxRes.undef.length === 2 && fxRes.perShell['fixture.html'] === 3,
+            '★★ Session Y (#46 loop on #869): the gate names an undeclared read BETWEEN two comments that spell `<!--` and `-->` (FILE line 5), and one inside a `data-src` script; it stays silent on a script inside a REAL HTML comment, on a self-declared name and on a `<script src>` global. Got: ' + JSON.stringify(fxRes));
         }
-        ok(undefX.length === 0,
-          '★★ THE UNDECLARED-IDENTIFIER GATE: no source shell references a name it declares nowhere (ESLint no-undef over every inline script; a swallowed ReferenceError is a feature that silently never runs). Found: ' + (undefX.slice(0, 6).join(' | ') || 'none'));
-        ok(scriptsX >= 18,
-          '★ the undeclared-identifier gate LINTED something (' + scriptsX + ' scripts across the shells) — an empty extraction would pass the gate above vacuously');
       }
     }
 
@@ -16841,9 +17014,15 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       '★★ A1: a BOT room lists its members as legacy did — nickname, else the #211 truncated address, with the avatar; "Hidden member" is gone from bot rows');
     const bdanger = [...bot.querySelectorAll('.c-chat-info__row--action')];
     ok(bdanger.some((r) => /Leave group/.test(r.textContent)), '★ A2: the bot info carries Leave (SingleChatPage ixian:leave handles bots: sendLeave + immediate removeFriend, #567)');
+    /* ★ #873 (Session Y) REBASE, both halves: this bot wires notifications, so the Mute TILE
+       row sits under the hero and the destructive group follows IT — still ABOVE the
+       members list, which is the A3 property (an unbounded roster must never sit above
+       Leave). Asserted as ORDER against the roster, not as a fixed index. */
     const bkids = [...bot.querySelector('.c-chat-info__body').children];
-    ok(bkids.indexOf(bot.querySelector('.c-chat-info__danger')) === bkids.indexOf(bot.querySelector('.c-chat-info__hero')) + 1,
-      '★ A3: on a group/bot the action rows sit DIRECTLY under the hero — on top, not under the members list');
+    ok(bkids.indexOf(bot.querySelector('.c-chat-info__danger')) === bkids.indexOf(bot.querySelector('.c-chat-info__money')) + 1
+       && bkids.indexOf(bot.querySelector('.c-chat-info__money')) === bkids.indexOf(bot.querySelector('.c-chat-info__hero')) + 1
+       && bkids.indexOf(bot.querySelector('.c-chat-info__danger')) < bkids.indexOf(bot.querySelector('.c-chat-info__members')),
+      '★ A3 / #873: on a group/bot the destructive group sits DIRECTLY under the identity block (hero → Mute tile → Leave) and ABOVE the members list — the roster is unbounded (#726), so Leave never sits under it');
     const grp = W.Spixi.createChatInfo({ kind: 'group', context: 'chat', name: 'Blind', blind: true,
       members: [{ name: '', address: '[Unknown]' }], strings: {}, host: d.body, onBack() {}, onLeave() {} });
     host.append(grp);
@@ -16860,9 +17039,13 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       strings: {}, host: d.body, onBack() {}, onMessage() {}, onDeleteHistory() {}, onRemoveContact() {} });
     host.append(contact);
     ok(!!contact.querySelector('.c-chat-info__shared .c-chat-info__member--skeleton'), '★ A4/A8: the 1:1 shared-groups strip shows a skeleton line until C# answers');
+    /* ★ #873/#875 (Session Y) REBASE, both halves — PLACEMENT BY KIND. On a 1:1 the destructive
+       group is the LAST body child (the messenger canon: nothing unbounded sits below it on a
+       contact surface); the group/bot arm above keeps A3's "on top". */
     const ckids = [...contact.querySelector('.c-chat-info__body').children];
-    ok(ckids.indexOf(contact.querySelector('.c-chat-info__danger')) === ckids.indexOf(contact.querySelector('.c-chat-info__money')) + 1,
-      '★ A3: on a contact the action rows sit right after the quick actions (Message · Pay · Request) — on top');
+    ok(ckids[ckids.length - 1] === contact.querySelector('.c-chat-info__danger')
+       && ckids.indexOf(contact.querySelector('.c-chat-info__danger')) > ckids.indexOf(contact.querySelector('.c-chat-info__shared')),
+      '★ A3 → #873/#875: on a CONTACT the destructive group is the LAST group — after the shared-groups strip, nothing below it (placement by kind: 1:1 last, rooms above the roster)');
     let opened = null;
     const contact2 = W.Spixi.createChatInfo({ kind: 'contact', context: 'contact', name: 'Marta', address: '4mkzaddr', sharedGroups: [{ name: 'Devs', address: 'GRP1' }],
       strings: {}, host: d.body, onBack() {}, onOpenGroup: (g) => { opened = g.address; }, onRemoveContact() {} });
@@ -20999,8 +21182,12 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       const withCaps = labels(createChatInfo({ ...base, onMessage: () => {}, onPay: () => {}, onRequest: () => {} }));
       ok(!/Pay/.test(noCaps) && !/Request/.test(noCaps),
         '★★★ #46 loop EXECUTED (findings-B MAJOR-2): with no onPay and no onRequest the panel renders NO money action. This is the half the shell gate depends on — a component that rendered a disabled button instead would turn the C# gate into a dead tap. Got: ' + JSON.stringify(noCaps));
-      ok(/Pay/.test(withCaps) && /Request/.test(withCaps),
-        '★★★ #46 loop EXECUTED PAIR: and with both handlers the two actions DO appear. Without this pair the pin above would pass on a component that renders nothing ever');
+      /* ★ Session Y (#876) REBASE, both halves: Request is NOT an action on this surface any
+         more (the composer ⊕ sheet owns it), so the pair is Pay-only. The gate's property is
+         intact: Pay renders IFF onPay is passed; Request renders NEVER, handler or not — so a
+         shell passing `onRequest` from a stale capability cannot grow a tile. */
+      ok(/Pay/.test(withCaps) && !/Request/.test(withCaps),
+        '★★★ #46 loop EXECUTED PAIR (Session Y rebase): with onPay the Pay action DOES appear, and onRequest renders NOTHING (Request left the row, #876). Without this pair the pin above would pass on a component that renders nothing ever');
     } catch (e) {
       ok(false, '★★★ #46 loop EXECUTED: chat-info could not be run — ' + e.message);
     } finally {
@@ -21341,8 +21528,8 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     } catch (e) { ciNo = 'threw: ' + e.message; }
     ok(ciNo === 'Message',
       '★★★ #46 loop EXECUTED, ON THE SHIPPED BUNDLE (surviving mutation X6): with NO onPay and NO onRequest the shipped createChatInfo renders neither. The whole C# capability gate rests on this one claim, and round 2 tested it against the SOURCE module only — so the artifact could render a dead Pay button to every contact C# refused with the C# pin, the shell pin and the source component pin all green. Got: ' + JSON.stringify(ciNo));
-    ok(ciYes === 'Message,Pay,Request',
-      '★★★ #46 loop EXECUTED, ON THE SHIPPED BUNDLE PAIR: and with both handlers the shipped component renders both actions, in order. Got: ' + JSON.stringify(ciYes));
+    ok(ciYes === 'Message,Pay',
+      '★★★ #46 loop EXECUTED, ON THE SHIPPED BUNDLE PAIR (Session Y rebase): with both handlers the shipped component renders Message · Pay in order and NO Request tile (#876 — it lives in the composer ⊕ sheet). Got: ' + JSON.stringify(ciYes));
   }
 
   /* —— ★★★ THE ⊕ WIRE · the writer of the state CALLS the reader ————————————— */
@@ -24010,15 +24197,17 @@ console.log('Session I ③: the premium pass token batch');
     '★★ 3 = canon: TWO row heights (48 nav / 56 switch + member), screen gap 12, screen pad 12 — four heights (44/48/52/56) coexisted before');
   {
     const ci = stripCssComments(rdF('src/styles/components/chat-info.css')), ss = stripCssComments(rdF('src/styles/components/settings-shell.css')), sa = stripCssComments(rdF('src/styles/components/settings-app.css'));
-    ok(/\.c-chat-info__row \{[^}]*min-height: var\(--row-h-nav\);/.test(ci) && /\.c-chat-info__row\[data-row="switch"\] \{ min-height: var\(--row-h-switch\); \}/.test(ci) && /\.c-chat-info__member \{[^}]*min-height: var\(--row-h-member\);/.test(ci)
+    /* ★ Session Y REBASE, both halves: chat-info has NO switch row any more (#875 — Mute is a
+       tile), so its `[data-row="switch"]` clause is inverted: none may exist. */
+    ok(/\.c-chat-info__row \{[^}]*min-height: var\(--row-h-nav\);/.test(ci) && !/data-row="switch"/.test(ci) && /\.c-chat-info__member \{[^}]*min-height: var\(--row-h-member\);/.test(ci)
        && /\.c-chat-info__body \{[^}]*gap: var\(--screen-gap\);\s*padding: var\(--screen-pad\) var\(--spacing-16\) var\(--spacing-32\);/.test(ci)
        && /\.c-settings__row \{[^}]*min-height: var\(--row-h-nav\);/.test(ss) && /\.c-settings__row\[data-row="switch"\] \{ min-height: var\(--row-h-switch\); \}/.test(ss)
        && /\.c-settings__body \{[^}]*gap: var\(--screen-gap\);\s*padding: var\(--screen-pad\) var\(--spacing-16\) var\(--spacing-32\);/.test(ss)
        && (sa.match(/min-height: var\(--row-h-nav\);/g) || []).length === 2 && !/min-height: 52px/.test(ci + ss + sa),
-      '★ 3: chat-info, settings-shell and settings-app rows all read the canon; no 52px row survives in the family');
-    const sw = [rdF('src/components/chat-info.js'), rdF('src/components/settings-shell.js'), rdF('src/components/settings-screens.js')].map(stripCode);
-    ok(sw.every((t) => /row\.dataset\.row = 'switch';/.test(t)),
-      '★ 3: every switch-row builder (chat-info notifications · settings-shell authSwitchRow · settings-screens switchRow) stamps data-row="switch", so the 56 is keyed by the attribute, never by :has()');
+      '★ 3: chat-info, settings-shell and settings-app rows all read the canon (chat-info: 48 nav, no switch row since Session Y); no 52px row survives in the family');
+    const sw = [rdF('src/components/settings-shell.js'), rdF('src/components/settings-screens.js')].map(stripCode);
+    ok(sw.every((t) => /row\.dataset\.row = 'switch';/.test(t)) && !/dataset\.row = 'switch'/.test(stripCode(rdF('src/components/chat-info.js'))),
+      '★ 3: every switch-row builder (settings-shell authSwitchRow · settings-screens switchRow) stamps data-row="switch", so the 56 is keyed by the attribute, never by :has(); chat-info builds NO switch row since Session Y (#875)');
   }
   /* 4 = k2 */
   /* ★ Session J re-base (#744/A14, Damir 2026-09-02 — his three values): ground #E4EAF3 · ink #051C8E @ 6% ·
@@ -32864,6 +33053,204 @@ console.log('GATE 63: icon sources ≡ registry (#862)');
   const dead63 = svgs.filter((f) => f !== 'logo.svg' && !f.startsWith('tabler-icon-'));
   ok(dead63.length === 0,
     '★ GATE 63 (e) EVERY SVG IN src/assets/icons IS ONE THE GENERATOR READS — logo.svg or tabler-icon-*.svg, nothing else' + (dead63.length ? ' · DEAD: ' + dead63.join(', ') + ' (byte-identical to the -filled twins; `git rm` them)' : ''));
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════
+ * ★ SESSION Y (2026-09-17) — THE CONTACT-DETAILS PREMIUM PASS (#873 · #875 · #876, built).
+ * docs/contact-details-premium-proposal.md, every fork picked by Damir. Pins are PROPERTIES,
+ * executed on the component where the property is behaviour and read off STRIPPED source
+ * where it is a rule (#771). Rendered both themes through the C# wire BEFORE these were
+ * written (docs/sheets/session-y/). Contrast owed at build (#769) is COMPUTED here over the
+ * resolved token ramps, both themes — not read off a comment.
+ * ══════════════════════════════════════════════════════════════════════════════════ */
+console.log('★ Session Y — contact details, the premium pass (#873/#875/#876)');
+{
+  const dom = await load('chats.html');
+  const W = dom.window, d = W.document, S = W.Spixi;
+  const host = d.createElement('div'); d.body.append(host);
+  const mk = (o) => { const el = S.createChatInfo({ strings: {}, onBack() {}, ...o }); host.append(el); return el; };
+  const tiles = (el) => [...el.querySelectorAll('.c-chat-info__money .c-chat-info__qa')].map((b) => b.dataset.action);
+  const kids = (el) => [...el.querySelector('.c-chat-info__body').children];
+  const notif = { capabilities: { notifications: true }, notifications: true, onNotifications: (n, c) => c.done() };
+  /* ⚠ try/finally: a component that THROWS (the #876 guard is one) must land as a loud red
+     line, not as a suite that never exits — an unclosed jsdom window keeps node alive. */
+  try {
+
+  /* ① THE ROW IS AT MOST FOUR EQUALS (#876). Every host configuration, including one that
+     wires EVERY handler this component accepts, renders ≤ 4 tiles; Request is never one.
+     Mutated: a fifth tile appended → the component THROWS (the guard), and this pin reads
+     the throw as red. */
+  const maxed = mk({ kind: 'contact', context: 'contact', name: 'A', address: 'AD', onMessage() {}, onCall() {}, onPay() {}, onRequest() {}, ...notif });
+  ok(tiles(maxed).join() === 'message,call,pay,mute',
+    '★★ #876: the directory 1:1 with every handler wired renders EXACTLY Message · Call · Pay · Mute — four, Request is not a tile');
+  ok(tiles(mk({ kind: 'contact', context: 'chat', name: 'A', address: 'AD', onMessage() {}, onCall() {}, onPay() {}, onRequest() {}, ...notif })).join() === 'call,pay,mute',
+    '★ #876: from the chat header (context chat) the 1:1 row is Call · Pay · Mute');
+  ok(tiles(mk({ kind: 'group', context: 'chat', name: 'R', address: 'g', onCall() {}, onPay() {}, onRequest() {}, onLeave() {}, ...notif })).join() === 'mute',
+    '★ #876: a room from the chat header shows Mute ALONE — money and call never render on a room even when a host wires them (§9)');
+  ok(tiles(mk({ kind: 'bot', context: 'chat', name: 'B', address: 'b', onMessage() {}, onLeave() {}, ...notif })).join() === 'message,mute',
+    '★ #876: a room handed onMessage (the directory arm — rooms are context-free on this point, W9-②) = Message · Mute');
+  {
+    const src = stripCode(readFileSync(join(root, 'src/components/chat-info.js'), 'utf8'));
+    ok(/const QA_MAX = 4;/.test(src) && /while \(money\.childElementCount > QA_MAX\)/.test(src) && /money\.lastElementChild\.remove\(\)/.test(src) && !/throw new Error\('c-chat-info: action row/.test(src),
+      '★ #876: the four-tile rule is ENFORCED in code (QA_MAX: log loudly + TRIM, never a throw — this runs inside the shell\'s rebuild, where a throw is a boot spinner that never ends), not hoped');
+    ok(!/arrow-down-left/.test(src) && !/strings\.request \|\|/.test(src),
+      '★ #876 NEGATIVE (stripped code): no Request glyph and no Request label anywhere in chat-info.js — the tile is gone, not hidden');
+  }
+
+  /* ② THE MUTE TILE carries the switch's contract (#875): optimistic flip, one flight, revert
+     + announce on fail, data-muted = muted, the LABEL is the one state signal. */
+  {
+    const calls = [];
+    const el = mk({ kind: 'contact', context: 'chat', name: 'A', address: 'AD', capabilities: { notifications: true }, notifications: true, onNotifications: (next, ctrl) => calls.push({ next, ctrl }) });
+    const t = el.querySelector('.c-chat-info__qa[data-action="mute"]');
+    /* ONE state signal (the label), per the APG toggle-button pattern — #46 loop MINOR-4:
+       `aria-pressed` + a label swap announced "Unmute, pressed". No aria-pressed anywhere. */
+    ok(!!t && t.dataset.muted === 'false' && t.textContent === 'Mute' && !t.hasAttribute('aria-pressed') && !el.querySelector('.c-chat-info__switch, [role="switch"], [aria-pressed]'),
+      '★ #875: notifications ON → a "Mute" tile (data-muted=false), NO aria-pressed (the label IS the state) and NO switch row anywhere on the surface');
+    const glyphBefore = t.querySelector('.c-chat-info__qa-glyph').innerHTML;
+    t.click();
+    ok(t.dataset.muted === 'true' && t.textContent === 'Unmute' && calls.length === 1 && calls[0].next === false,
+      '★ #875: tap → optimistic flip to "Unmute" (data-muted=true) and onNotifications(false) — the switch\'s `next` contract, inverted for a mute tile');
+    ok(t.querySelector('.c-chat-info__qa-glyph').innerHTML !== glyphBefore && t.querySelector('.c-chat-info__qa-glyph').innerHTML.length > 20,
+      '★ #875 (#46 loop R1): the GLYPH follows the state — bell → bell-off is a different path, so the state reads without the text');
+    t.click();
+    ok(calls.length === 1, '★ #875: a second tap while the first is in flight is dropped (one flight at a time)');
+    calls[0].ctrl.fail('x');
+    ok(t.dataset.muted === 'false' && t.textContent === 'Mute' && /notifications/i.test(el.querySelector('.c-chat-info__live').textContent),
+      '★ #875: ctrl.fail REVERTS the tile and announces in the polite region');
+    t.click(); calls[1].ctrl.done();
+    ok(calls.length === 2 && t.dataset.muted === 'true', '★ #875: after a revert the next tap is accepted; ctrl.done leaves the flipped state');
+    const off = mk({ kind: 'contact', context: 'chat', name: 'A', address: 'AD', capabilities: { notifications: true }, notifications: false, onNotifications: (n, c) => c.done() });
+    ok(off.querySelector('[data-action="mute"]').dataset.muted === 'true' && off.querySelector('[data-action="mute"]').textContent === 'Unmute',
+      '★ #875: notifications OFF at mount → "Unmute" (data-muted=true; the bell-off state renders from the pushed value)');
+    ok(!mk({ kind: 'contact', context: 'chat', name: 'A', address: 'AD', capabilities: {}, notifications: true, onNotifications: (n, c) => c.done() }).querySelector('[data-action="mute"]'),
+      '★ #875: no capabilities.notifications → no Mute tile (the gate the switch row had)');
+  }
+
+  /* ③ THE ADDRESS UNDER THE NAME (#875 P7): inside the hero, truncated (#211), a <button> only
+     when a host wires the sheet, absent for groups and blind surfaces, present for bots. */
+  {
+    let got = null;
+    const FULL = '4fj2ppRkmVAPaGJj3kFaxQ4JupRHY1JfETjfemMgyUBGBmZ2q7xoUgSnHnPwHgrcMcx';
+    const c = mk({ kind: 'contact', context: 'contact', name: 'A', address: FULL, onAddressSheet: (o) => { got = o; } });
+    const a = c.querySelector('.c-chat-info__hero .c-chat-info__hero-addr');
+    ok(!!a && a.tagName === 'BUTTON' && a.classList.contains('c-chat-info__addr-row') && !kids(c).some((k) => k.classList.contains('c-chat-info__addr-row')),
+      '★ #875 P7: the address is a BUTTON inside the hero and no address row exists in the body');
+    ok(a.querySelector('.c-chat-info__addr-value').textContent.includes('…') && !a.textContent.includes(FULL)
+       && a.getAttribute('aria-label').includes(a.querySelector('.c-chat-info__addr-value').textContent) && !a.getAttribute('aria-label').includes(FULL)
+       && !!a.querySelector(':scope > svg'),
+      '★ #875 P7: the visible line is the #211 TRUNCATED form; the accessible name CONTAINS it and NOT the 67-char full value (WCAG 2.5.3 — the full address lives in the sheet); the qrcode glyph is the non-colour affordance (#46 loop R2)');
+    a.click();
+    ok(got && got.address === FULL, '★ #875 P7: tap → onAddressSheet({ address }) — the ONE address surface (#527)');
+    ok(mk({ kind: 'contact', context: 'contact', name: 'A', address: FULL }).querySelector('.c-chat-info__hero-addr').tagName === 'SPAN',
+      '★ #875 P7: no handler → a SPAN (never a dead button)');
+    ok(!mk({ kind: 'group', context: 'chat', name: 'G', address: 'gid', members: [{ name: 'x', address: 'x' }], onAddressSheet() {} }).querySelector('.c-chat-info__addr-row'),
+      '★ #875 P7: a GROUP shows no address line (a group id is not an address — Damir F5 2026-07-29)');
+    ok(mk({ kind: 'bot', context: 'chat', name: 'B', address: FULL, onAddressSheet() {} }).querySelector('.c-chat-info__hero-addr')?.tagName === 'BUTTON',
+      '★ #875 P7 (Damir, Session Y: "bot group needs to have address as well"): a BOT shows its address line, tappable (#731)');
+    ok(!mk({ kind: 'contact', context: 'chat', name: 'X', address: FULL, blind: true, onAddressSheet() {} }).querySelector('.c-chat-info__addr-row'),
+      '★ #875 P7: a blind surface hides the address');
+  }
+
+  /* ④ PLACEMENT BY KIND (#873) + ONE grouped card, NO discs, the tier as a ROLE (#875 P1/P4). */
+  {
+    const c = mk({ kind: 'contact', context: 'contact', name: 'A', address: 'AD', onMessage() {}, onPay() {}, ...notif,
+      txs: [{ direction: 'out', status: 'confirmed', amount: '-1' }], sharedGroups: [{ name: 'Devs', address: 'G1' }], onOpenGroup() {}, onDeleteHistory() {}, onRemoveContact() {}, onAddressSheet() {} });
+    const k = kids(c);
+    ok(k[k.length - 1].classList.contains('c-chat-info__danger') && k.indexOf(c.querySelector('.c-chat-info__danger')) > k.indexOf(c.querySelector('.c-chat-info__txs')),
+      '★ #873: 1:1 — the destructive group is the LAST body child, after payments and shared groups');
+    const g = mk({ kind: 'group', context: 'chat', name: 'R', address: 'g', members: [{ name: 'Z', address: 'z' }, { name: 'A', address: 'a' }], onMessage() {}, ...notif, onLeave() {} });
+    const gk = kids(g);
+    ok(gk.indexOf(g.querySelector('.c-chat-info__danger')) === gk.indexOf(g.querySelector('.c-chat-info__money')) + 1 && gk.indexOf(g.querySelector('.c-chat-info__danger')) < gk.indexOf(g.querySelector('.c-chat-info__members')),
+      '★ #873: group — the destructive group sits right after the action row and ABOVE the roster (unbounded, #726)');
+    const rows = [...c.querySelectorAll('.c-chat-info__row--action')];
+    ok(rows.length === 2 && rows.every((r) => r.parentElement.classList.contains('c-chat-info__card')) && rows[0].parentElement === rows[1].parentElement,
+      '★ #875 P2: both destructive rows share ONE card');
+    ok(rows.find((r) => /Remove/.test(r.textContent)).dataset.tone === 'error' && rows.find((r) => /Delete/.test(r.textContent)).dataset.tone === 'quiet'
+       && g.querySelector('.c-chat-info__row--action[data-tone="error"]').textContent.includes('Leave'),
+      '★ #875 P4: Remove contact / Leave group are the ERROR role; Delete history is quiet');
+    ok(!c.querySelector('.c-disc') && !c.querySelector('[data-grad]') && !g.querySelector('.c-disc') && !c.querySelector('[data-hue]:not(.c-avatar)'),
+      '★ #875 P1: no disc, no gradient, no hue on ANY row of either surface — only avatars carry a hue');
+    ok(!!c.querySelector('.c-chat-info__shared .c-avatar[data-hue]'),
+      '★ #875 P9: the shared-group avatars KEEP their identity gradient (#34 — identity hues are data, not decoration)');
+    ok(c.querySelectorAll('.c-chat-info__row-glyph').length >= 3 && [...c.querySelectorAll('.c-chat-info__row-glyph')].every((s) => s.tagName.toLowerCase() === 'svg' && s.getAttribute('width') === '22'),
+      '★ #875 P1: every row glyph is a bare 22px svg');
+    /* labels OUTSIDE the card, every section a group with a card */
+    for (const [el, sel, txt] of [[g, '.c-chat-info__members', 'Members (2)'], [c, '.c-chat-info__shared', 'Groups you are both in']]) {
+      const sec = el.querySelector(sel);
+      ok(sec.classList.contains('c-chat-info__group') && sec.firstElementChild.classList.contains('c-chat-info__label') && sec.firstElementChild.textContent === txt
+         && !sec.querySelector('.c-chat-info__card .c-chat-info__label') && !!sec.querySelector(':scope > .c-chat-info__card'),
+        '★ #875 P5: ' + sel + ' — the label "' + txt + '" is the WRAPPER\'s first child, outside the card');
+    }
+    ok(kids(c).every((x) => x.classList.contains('c-chat-info__hero') || x.classList.contains('c-chat-info__money') || (x.classList.contains('c-chat-info__group') && !!x.querySelector(':scope > .c-chat-info__card'))),
+      '★ #875 P2: every body child is the hero, the action row, or a group wrapping ONE card');
+  }
+  } catch (e) {
+    ok(false, '★★ Session Y block THREW — ' + e.message);
+  } finally {
+    host.remove();
+    dom.window.close();
+  }
+}
+{
+  /* ⑤ THE CSS HALF, on stripped source (#771), plus the #769 contrast owed at build. */
+  const css = stripCssComments(readFileSync(join(root, 'src/styles/components/chat-info.css'), 'utf8'));
+  ok(/\.c-chat-info__row--action\[data-tone="error"\] \.c-chat-info__row-label \{ color: var\(--text-error\); \}/.test(css)
+     && /\.c-chat-info__row--action\[data-tone="error"\] \.c-chat-info__row-glyph \{ color: var\(--icon-error\); \}/.test(css)
+     && !/\[data-tone="error"\][^{]*\{[^}]*background/.test(css)
+     && /\.c-chat-info__row--action \{[^}]*background: transparent;/.test(css),
+    '★ #875 P4 (css): the error role is a LABEL colour (--text-error) + glyph (--icon-error) — no rule paints a destructive row red, and the action row itself is transparent on the card');
+  ok(/\.c-chat-info__row-glyph \{ flex: none; color: var\(--icon-neutral-02\); \}/.test(css),
+    '★ #875 P1 (css): the row glyph reads --icon-neutral-02 — monochrome, one role');
+  ok(/\.c-chat-info__label \{[^}]*text-transform: uppercase;[^}]*font-weight: var\(--font-weight-medium\);[^}]*color: var\(--text-neutral-02\);/.test(css),
+    '★ #875 P5 (css): section labels are uppercase, Medium, --text-neutral-02 (iOS grouped headers)');
+  ok(/\.c-chat-info__qa \{[^}]*min-height: 64px;[^}]*border-radius: var\(--radius-12\);[^}]*background: var\(--surface-card\);/.test(css)
+     && /\.c-chat-info__qa:hover \{ background: var\(--surface-card-hover\); \}/.test(css)
+     && /\.c-chat-info__qa:active \{ background: var\(--surface-card-pressed\); \}/.test(css),
+    '★ #876 (css): a tile is ≥ 64 tall, radius 12 on --surface-card, and hover/pressed read the NEW card pair (one visible step, the #870 property on the screen ramp)');
+  ok(!/--elevation-1/.test(css) && !/--radius-16/.test(css),
+    '★ #875 P3/P8 (css): no --elevation-1 and no radius-16 anywhere in the sheet — ONE radius (12) on the screen, no cards float');
+  ok(/background: var\(--outline-neutral-03\);/.test(css) && !/--outline-neutral-01/.test(css)
+     && /\.c-chat-info__txs-list > \* \+ \*::after \{/.test(css) && !/::before/.test(css)
+     && /html:root \.c-txlist-item::before/.test(stripCssComments(readFileSync(join(root, 'src/styles/base.css'), 'utf8')))
+     && /\.c-chat-info__row \{[^}]*padding-inline: var\(--spacing-12\);/.test(css) && /--ci-hairline-inset: calc\(var\(--spacing-12\) \+ 22px \+ var\(--spacing-12\)\);/.test(css)
+     && /\.c-chat-info__card :focus-visible \{ outline-offset: -2px; \}/.test(css),
+    '★ #875 P2 (css): the in-card hairline is --outline-neutral-03 (computed visible on BOTH grounds: light 1.42 · dark 1.22; -01 is invisible in dark) drawn on ::after — base.css owns ::before on .c-txlist-item for the press layer (#46 loop MAJOR-1) — inset = the row\'s own 12px padding + 22 glyph + 12 gap, and the focus ring draws INSIDE the clipping card (MAJOR-2)');
+  ok(/button\.c-chat-info__hero-addr \{[^}]*color: var\(--text-action-default\)/.test(css) && /button\.c-chat-info__hero-addr > svg \{ color: var\(--icon-action-default\); \}/.test(css)
+     && /\.c-chat-info__hero-addr \{[^}]*color: var\(--text-neutral-02\)/.test(css),
+    '★ Session Y (Damir, V2 of four rendered variants): the tappable address is ACTION INK on the <button> form; the handler-less span stays neutral — blue means tappable');
+
+  /* THE CONTRAST OWED (#769), computed over the resolved ramps in BOTH themes. */
+  const tokAll = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const blockMap = (sel) => {
+    const m = {};
+    const re = new RegExp('(?:^|\\n)' + sel.replace(/[[\]]/g, '\\$&') + '\\s*\\{([^}]*)\\}', 'g');
+    for (const b of tokAll.matchAll(re)) for (const dcl of b[1].matchAll(/--([\w-]+)\s*:\s*([^;]+);/g)) m['--' + dcl[1]] = dcl[2].trim();
+    return m;
+  };
+  const light = blockMap(':root');
+  const dark = { ...light, ...blockMap('[data-theme="dark"]') };
+  const resolve = (map, v, depth = 0) => { if (depth > 12 || !v) return null; const mm = /^var\((--[\w-]+)\)$/.exec(v.trim()); return mm ? resolve(map, map[mm[1]], depth + 1) : v.trim(); };
+  const lum = (hex) => { const h = /^#([0-9a-f]{6})$/i.exec(hex || ''); if (!h) return NaN; const c = [0, 2, 4].map((i) => { const x = parseInt(h[1].slice(i, i + 2), 16) / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+  const cr = (map, a, b) => { const la = lum(resolve(map, map[a])), lb = lum(resolve(map, map[b])); return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05); };
+  const r = {
+    errL: cr(light, '--text-error', '--surface-card'), errD: cr(dark, '--text-error', '--surface-card'),
+    glyphL: cr(light, '--icon-neutral-02', '--surface-card'), glyphD: cr(dark, '--icon-neutral-02', '--surface-card'),
+    accL: cr(light, '--icon-action-default', '--surface-card'), accD: cr(dark, '--icon-action-default', '--surface-card'),
+    hairL: cr(light, '--outline-neutral-03', '--surface-card'), hairD: cr(dark, '--outline-neutral-03', '--surface-card'),
+    hovL: cr(light, '--surface-card-hover', '--surface-card'), hovD: cr(dark, '--surface-card-hover', '--surface-card'),
+    prsL: cr(light, '--surface-card-pressed', '--surface-card'), prsD: cr(dark, '--surface-card-pressed', '--surface-card'),
+  };
+  const f = (x) => Number.isFinite(x) ? x.toFixed(2) : 'NaN';
+  ok(r.errL >= 4.5 && r.errD >= 4.5,
+    '★ #769 owed: --text-error on --surface-card is text-grade in BOTH themes (light ' + f(r.errL) + ' · dark ' + f(r.errD) + ' ≥ 4.5)');
+  ok(r.glyphL >= 3 && r.glyphD >= 3 && r.accL >= 3 && r.accD >= 3,
+    '★ #769 owed: --icon-neutral-02 and the accent glyph clear the 3:1 non-text floor on the card in BOTH themes (neutral light ' + f(r.glyphL) + ' · dark ' + f(r.glyphD) + '; accent light ' + f(r.accL) + ' · dark ' + f(r.accD) + ')');
+  ok(r.hairL >= 1.11 && r.hairD >= 1.11 && r.hovL >= 1.11 && r.hovD >= 1.11 && r.prsL > r.hovL && r.prsD > r.hovD,
+    '★ Session Y: the hairline and the tile hover are ONE VISIBLE STEP from the card in BOTH themes (≥ 1.11, the #870 floor; hairline ' + f(r.hairL) + '/' + f(r.hairD) + ' · hover ' + f(r.hovL) + '/' + f(r.hovD) + ') and pressed steps past hover (' + f(r.prsL) + '/' + f(r.prsD) + ')');
+  ok(/--surface-card-hover: var\(--neutral-200\);/.test(tokAll) && /--surface-card-pressed: var\(--neutral-300\);/.test(tokAll)
+     && /--surface-card-hover: var\(--neutral-600\);/.test(tokAll) && /--surface-card-pressed: var\(--neutral-500\);/.test(tokAll),
+    '★ Session Y: the --surface-card-hover/-pressed pair is defined in BOTH modes (light 200/300 · dark 600/500) beside the #870 sheet pair');
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

@@ -499,6 +499,13 @@
   --surface-sheet-card: var(--neutral-50);
   --surface-sheet-card-hover: var(--neutral-100);
   --surface-sheet-card-pressed: var(--neutral-200);
+  /* ★ Session Y (#875/#876): a CARD ON THE SCREEN that is itself pressable — the contact-details
+     action tiles. `--surface-card-raised` is NOT its hover: measured, neutral-100 on the neutral-50
+     card is 1.04:1 in light and neutral-700 on neutral-800 is 1.048:1 in dark — both in the
+     near-invisible class #870 named (its floor was ~1.11). Same shape as the sheet pair, one
+     ramp further: hover 200/600 (1.137 · 1.223), pressed 300/500 (1.423 · 1.357). */
+  --surface-card-hover: var(--neutral-200);
+  --surface-card-pressed: var(--neutral-300);
   --surface-bubble-sent: #2160c2;      /* ★ Session I (#735⑥, sheet 1d = A): softened one step, REVERSIBLY — was #1956b2 (N81 #422). White text 5.97:1 (was 6.96); meta ink 5.05:1. Matches --gradient-bubble-sent; the fallback must not disagree */
   --surface-bubble-received: #ffffff;   /* ★ N81 (#422) — pure white on the cream canvas (Damir) */
   --surface-input: var(--neutral-50);
@@ -840,6 +847,8 @@
   --surface-sheet-card: var(--neutral-600);          /* ★ Session X: the sheet is neutral-700 — a card LIFTS in dark, it does not outline */
   --surface-sheet-card-hover: var(--neutral-500);
   --surface-sheet-card-pressed: var(--neutral-500);  /* the ramp has no step between 500 and 400 (400 is light) — pressed drops the shadow instead */
+  --surface-card-hover: var(--neutral-600);          /* ★ Session Y: 1.223:1 on the neutral-800 card (700 would be 1.048 — invisible) */
+  --surface-card-pressed: var(--neutral-500);        /* 1.357:1 */
   --surface-bubble-sent: #2160c2;      /* ★ Session I (sheet 1d = A): was #1956b2 — matches --gradient-bubble-sent in both themes */
   /* ★★ AUG (Damir 2026-08-30, ON DEVICE): "incoming bubbles on dark mode need a bit more
      colour tuning so it stands out a bit more". MEASURED, and the number explains the

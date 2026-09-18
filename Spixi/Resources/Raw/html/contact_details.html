@@ -1155,18 +1155,85 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    settings guard, applied here too: never shrink. */
 .c-chat-info__body > * { flex: none; }
 
-/* #142 dividers → #148 CARD sections (the settings-family grammar, Damir:
-   consistent treatment): every section after the hero sits on --surface-card.
-   Hero + money stay on the screen; danger rows are their own bordered cards.
-   #150③: cards REASSIGN --surface-input (input === card in both modes made
-   fields invisible) — the #20 contextual-override precedent. */
-.c-chat-info__body > :not(.c-chat-info__hero):not(.c-chat-info__money):not(.c-chat-info__danger) {
-  background: var(--surface-card);
-  border-radius: var(--radius-16);
-  padding: var(--spacing-12);
-  box-shadow: var(--elevation-1);
-  --surface-input: var(--surface-input-on-card);
+/* ★ Session Y (#875 P2/P3/P5/P8) — INSET-GROUPED SECTIONS.
+   #142 dividers → #148 one card PER ROW → now one card PER GROUP: a transparent
+   `__group` wrapper carries the label OUTSIDE (iOS grouped) and one `__card` that the
+   group's rows sit inside, separated by inset hairlines. Radius 12 — the ONE radius on
+   this screen (the tiles above use it too). NO elevation: in light the card's own tone
+   on the screen carries the lift; in dark a card lifts by tone and never outlines
+   (Apple HIG grouped backgrounds, Telegram/Signal in dark). Hero + action row stay on
+   the screen.
+   #150③ lives on: cards REASSIGN --surface-input (input === card in both modes made
+   fields invisible) — the #20 contextual-override precedent.
+   ⚠ The card is `overflow: hidden` so full-bleed row washes clip to its corners (the
+   #149① move, now for every group); the #150① never-shrink guard is on the WRAPPER
+   (`__body > *`), so the clip cannot collapse a section to a sliver. */
+.c-chat-info__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
 }
+.c-chat-info__card {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-card);
+  border-radius: var(--radius-12);
+  overflow: hidden;
+  --surface-input: var(--surface-input-on-card);
+  /* the hairline between rows starts at the LABEL edge: card pad 12 + glyph 22 + gap 12.
+     Lists with a 40 avatar override it (member/shared: 12 + 40 + 12); tx rows 12 + 48 + 12. */
+  --ci-hairline-inset: calc(var(--spacing-12) + 22px + var(--spacing-12));
+}
+/* ★ THE HAIRLINE is a pseudo on every row after the first — a border cannot be inset.
+   ⚠ `::after`, NOT `::before`: base.css owns `::before` on `.c-txlist-item` (and the other
+   row families) for the 5c-ii compositor PRESS LAYER (`html:root .c-txlist-item::before`,
+   0,2,2). A `::before` hairline here loses that cascade on the payment rows — it inherits
+   the press layer's `opacity: 0; z-index: -1` (no line) while its own `height: 1px`
+   still lands and squashes the press fill to a sliver (#46 loop, Session Y MAJOR-1).
+   `::after` is free on every row family this sheet draws (verified: `content: none`).
+   `--outline-neutral-03`, NOT -01 or -02 — COMPUTED against the card, both themes (the
+   suite recomputes these from the resolved ramps):
+     -01  light neutral-100 on the neutral-50 card 1.04:1 · dark neutral-800 on neutral-800 = 1.00 (no line)
+     -02  light neutral-200 1.137 · dark neutral-700 1.048 (the near-invisible class, #870)
+     -03  light neutral-300 1.423 · dark neutral-600 1.223 — a separator you can see and
+          would not call a border, on BOTH grounds (iOS's separator on white is ~1.30;
+          light sits a shade heavier than that, dark a shade lighter — one token, two ramps).
+   The Account hub draws its in-card hairlines at -01 and is invisible in dark for the
+   same reason — not this batch's screen; named in the handoff. */
+.c-chat-info__card > * + *,
+.c-chat-info__member-list > * + *,
+.c-chat-info__member-fill > * + *,
+.c-chat-info__shared-list > * + *,
+.c-chat-info__txs-list > * + * { position: relative; }
+.c-chat-info__card > * + *::after,
+.c-chat-info__member-list > * + *::after,
+.c-chat-info__member-fill > * + *::after,
+.c-chat-info__shared-list > * + *::after,
+.c-chat-info__txs-list > * + *::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  inset-inline: var(--ci-hairline-inset) 0;
+  height: var(--outline-width-1);
+  background: var(--outline-neutral-03);
+  pointer-events: none;
+}
+/* a list CONTAINER that follows another card child (the search field, the payments
+   toggle) is itself `> * + *` of the card, so it draws the line ABOVE its first row —
+   full-bleed, because what sits above it is not a row of the same family. Its first row
+   is `:first-child` of the list and draws none (no double line). The "View all" button at
+   the foot of the payments list is not a tx row either: full-bleed too. */
+.c-chat-info__card > .c-chat-info__member-list::after,
+.c-chat-info__card > .c-chat-info__shared-list::after,
+.c-chat-info__card > .c-chat-info__txs-list::after,
+.c-chat-info__txs-list > .c-chat-info__txs-all::after { inset-inline-start: 0; }
+/* ★ #46 loop (Session Y MAJOR-2): the card clips (`overflow: hidden`) and its rows are
+   full-bleed, so base.css's 2px OUTSIDE focus ring (outline-offset: 2px) fell off the
+   card — on a single-row card (Leave group) the ring vanished entirely. Inside a card the
+   ring draws INSIDE the row. */
+.c-chat-info__card :focus-visible { outline-offset: -2px; }
+.c-chat-info__member-list, .c-chat-info__shared-list { --ci-hairline-inset: calc(var(--spacing-12) + var(--size-avatar-40) + var(--spacing-12)); }
+.c-chat-info__txs-list { --ci-hairline-inset: calc(var(--spacing-12) + var(--size-avatar-48) + var(--spacing-12)); }
 
 /* clip-hidden live region (wallet-receive __live pattern) */
 .c-chat-info__live {
@@ -1178,12 +1245,17 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   margin: 0;
 }
 
+/* ★ Session Y (#875 P5): the section title sits OUTSIDE the card — label-sm, UPPERCASE,
+   Medium, --text-neutral-02, inset to the card's content edge (iOS grouped headers).
+   Uppercase needs POSITIVE tracking; the label-sm token's is negative, so it is set here. */
 .c-chat-info__label {
   margin: 0;
+  padding-inline: var(--spacing-12);
   font-size: var(--font-size-label-sm);
   line-height: var(--line-height-label-sm);
-  letter-spacing: var(--tracking-label-sm);
-  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  font-weight: var(--font-weight-medium);
   color: var(--text-neutral-02);
 }
 
@@ -1263,6 +1335,48 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* ★ Session Y (#875 P7): THE ADDRESS UNDER THE NAME — the hero's last line. The #211
+   truncated form in the sub register, a 16px code glyph beside it (the sheet it opens IS
+   the QR), tabular so the digits sit still. It is a <button> when a host wires the
+   sheet: reset the button box, keep a 32 min-height + padding, wash on press.
+   ★ Damir (Session Y, on four rendered variants): the TAPPABLE line is ACTION INK — blue
+   text + blue glyph, no ground (iOS Contacts' number, Telegram's @username: the oldest
+   "blue text is tappable" rule; no new string, one accent, the hero stays quiet). A host
+   that passes no handler renders a <span> and it stays --text-neutral-02: blue means
+   tappable, so a line that does nothing must not wear it. Bots carry the line too (a bot
+   HAS an address, #731); groups never do. */
+.c-chat-info__hero-addr {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  max-width: 100%;
+  min-height: 32px;
+  margin: 0;
+  padding: var(--spacing-2) var(--spacing-8);
+  border: 0;
+  border-radius: var(--radius-8);
+  background: transparent;
+  color: var(--text-neutral-02);
+  font: inherit;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+button.c-chat-info__hero-addr { cursor: pointer; color: var(--text-action-default); }
+.c-chat-info__hero-addr > svg { flex: none; color: var(--icon-neutral-02); }
+button.c-chat-info__hero-addr > svg { color: var(--icon-action-default); }
+.c-chat-info__hero-addr .c-chat-info__addr-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (hover: hover) and (pointer: fine) {
+  button.c-chat-info__hero-addr:hover { background: var(--surface-interactive-hover); }
+}
+button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pressed); }
 /* N48 (#370): own owner-status chip under the hero sub (blind rooms). The hero
    column is centered; the badge hugs its content and needs only breathing room. */
 .c-chat-info__self-role {
@@ -1286,171 +1400,111 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   color: var(--text-error);
 }
 
-/* —— address —— ★ #591 (Damir 2026-08-26): THE CARD IS RETIRED.
-   It was ~123 lines carrying a full base58 line on its own chip surface, a copy button
-   with its own hit-area padding, and a lazy Show-QR disclosure with a rotating chevron
-   and a fixed 185px code — three affordances for one value, on a screen whose every
-   other entry is a row. All of it moved into the shared address sheet (#527), which is
-   the same collapse #575 made on the Account hub. The row that replaced it is below.
-   ⚠ The rules are DELETED, not left dangling: dead CSS ships inlined into every built
-   shell that links this file, and five smoke assertions were still pinning its styling
-   while a new assertion pinned the markup absent — a suite asserting both that the
-   markup is gone and that its CSS is right would have gone red for the correct cleanup.
-   The sheet's own rules (wallet-receive.css) carry the QR, the chip and the copy morph. */
+/* —— address —— ★ #591 retired the CARD (→ the shared address sheet, #527);
+   ★ Session Y (#875 P7) retired the ROW too — the address is the hero's last line
+   (`__hero-addr`, above). No address rule lives in the body any more. */
 
-/* —— action row —— WALLET-BANNER grammar (Damir 2026-08-12): the three chunky
-   44px buttons (a full-width fill + two outlines, wrapping onto two rows) are
-   now small quick actions — tonal circle + label — sitting one row under the
-   identity. Same construction as .c-wallet-hero__qa, tonal instead of on-hero. */
+/* —— action row —— ★ Session Y (#876): FOUR EQUAL ROUNDED-RECTANGLE TILES, max.
+   The 48px tonal circle + label-underneath of 2026-08-12 (the wallet-banner grammar)
+   is retired on THIS screen: the button IS the tile — --surface-card, radius 12 (the
+   same surface and radius as the grouped cards below, one system), a 22px glyph on
+   the single accent, a 12px label INSIDE. Telegram's header buttons (tile = list block
+   colour, icon over label) and iOS Contacts' tile row are the reference. The wallet
+   hero keeps its circles (different surface, different job).
+   Equal widths: `flex: 1 1 0` with NO max-width cap (the #591 84px cap sized circles;
+   tiles fill the row). A lone tile (a room from the chat header: Mute alone) hugs.
+   Labels WRAP rather than truncate (the #591 ru-ru lesson: "Сообщ…" is unreadable, a
+   two-line label is merely tall) — ONE `__qa-label` rule, see the #591 note below. */
 .c-chat-info__money {
   display: flex;
-  justify-content: center;
   gap: var(--spacing-8);
 }
-/* ★ #591: FOUR actions now (Message · Call · Pay · Request). The 96px cap was sized
-   for three; 84 keeps four equal targets with the row still centred, and a shorter row
-   (a bot, or a host that wires fewer) still hugs because items only grow to their cap.
-   ⚠ THE CAP IS NOT THE BINDING CONSTRAINT — `flex: 1` is. At 360px four items leave
-   ~68px of label, and the audit measured ru-ru "Сообщение" at 70px and "Позвонить" at
-   70px: both would have ellipsized. The label WRAPS to two lines instead of being cut,
-   because a truncated verb on an action button is unreadable while a wrapped one is
-   merely tall. ⚠ The project's i18n-overflow audit has no control class for
-   `.c-chat-info__qa`, so it reported NO BREAKERS while carrying this — see the script.
-   ⚠ THE WRAP LIVES ON THE EXISTING `.c-chat-info__qa-label` RULE BELOW, not here. The
-   first cut declared a second `.c-chat-info__qa-label` block at THIS point — earlier in
-   the file than the one that already set `white-space: nowrap` — so at equal specificity
-   the later rule won and the fix did nothing. That is the exact mistake documented four
-   rules down in this same file, in this same batch. `overflow-wrap` is also inert under
-   `nowrap`, so the whole block was decoration. */
-.c-chat-info__money > .c-chat-info__qa { flex: 1; min-width: 0; max-width: 84px; }
+.c-chat-info__money > .c-chat-info__qa { flex: 1 1 0; min-width: 0; }
 /* identity + actions read as ONE header block: pull the row up out of the
-   body's 16px section rhythm (the full gap made the actions look orphaned) */
-.c-chat-info__hero + .c-chat-info__money { margin-block-start: calc(-1 * var(--spacing-8)); }
-/* a lone action (a group reached from the directory) hugs instead of stretching */
-.c-chat-info__money[data-count='1'] > .c-chat-info__qa { flex: none; min-width: 96px; }
+   body's section rhythm (the full gap made the actions look orphaned) */
+.c-chat-info__hero + .c-chat-info__money { margin-block-start: calc(-1 * var(--spacing-4)); }
+/* a lone action hugs instead of stretching — a full-width tile reads as a button */
+.c-chat-info__money[data-count='1'] { justify-content: center; }
+.c-chat-info__money[data-count='1'] > .c-chat-info__qa { flex: none; min-width: 112px; }
 
 .c-chat-info__qa {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--spacing-8);
-  padding: var(--spacing-4) var(--spacing-4) var(--spacing-8);
+  justify-content: center;
+  gap: var(--spacing-4);
+  min-height: 64px;
+  padding: var(--spacing-8) var(--spacing-4);
   border: 0;
-  border-radius: var(--radius-16);
-  background: transparent;
+  border-radius: var(--radius-12);
+  background: var(--surface-card);
   color: var(--text-neutral-01);
   font-family: var(--font-secondary);
-  font-size: var(--font-size-label-sm);
-  line-height: var(--line-height-label-sm);
-  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-}
-.c-chat-info__qa-circle {
-  width: 48px;
-  height: 48px;
-  border-radius: var(--radius-full);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--surface-action-tonal-default);
-  color: var(--icon-action-default);
   transition: background-color var(--duration-100) var(--easing-standard);
+}
+.c-chat-info__qa-glyph {
+  flex: none;
+  color: var(--icon-action-default);       /* the ONE accent on this screen (#875) */
 }
 .c-chat-info__qa-label {
   max-width: 100%;
-  /* ★ #591: WRAPS (see the four-up note above). A truncated verb on an action button is
-     unreadable — "Сообщ…" — while a wrapped one is merely two lines tall. `overflow-wrap`
-     only does anything once wrapping is permitted, which is why it must live HERE and not
-     in a second block that a later `nowrap` would beat. */
+  /* ★ #591: WRAPS (see the note above). `overflow-wrap` only does anything once
+     wrapping is permitted, which is why it must live HERE and not in a second block
+     that a later `nowrap` would beat. */
   white-space: normal;
   overflow-wrap: anywhere;
   text-align: center;
 }
+/* ★ hover/pressed = ONE VISIBLE STEP from the tile's own ground (the #870 PROPERTY).
+   The #870 TOKENS are the sheet pair (a card on --surface-menu); a tile is a card on the
+   SCREEN, so tokens.css now carries the card pair beside it — `--surface-card-hover /
+   -pressed` (light 200/300 on the 50 card · dark 600/500 on the 800 card; measured
+   1.137/1.423 · 1.223/1.357). `--surface-card-raised` was NOT usable as the hover: 1.04
+   light / 1.048 dark, the invisible class. */
 @media (hover: hover) and (pointer: fine) {
-  .c-chat-info__qa:hover .c-chat-info__qa-circle { background: var(--surface-action-tonal-hover); }
+  .c-chat-info__qa:hover { background: var(--surface-card-hover); }
 }
-.c-chat-info__qa:active .c-chat-info__qa-circle { background: var(--surface-action-tonal-pressed); }
+.c-chat-info__qa:active { background: var(--surface-card-pressed); }
 
-/* —— generic row + switch —— */
+/* —— generic row —— ★ Session Y: rows live INSIDE a grouped card now. A row is
+   full-bleed (the card clips the wash to its corners), carries its own 12px inline
+   padding, and stacks with the inset hairline drawn by the card rule above. The switch
+   row and the address row are gone (Mute tile · hero address); `--row-h-nav` 48 is the
+   canon height (Session I), a member row 56, a tx row its own. */
 .c-chat-info__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-8);
-  min-height: var(--row-h-nav);     /* ★ Session I canon: 48 (was 52 — #149② "44 target + disc breathing room"); a switch row takes 56 below */
+  min-height: var(--row-h-nav);     /* ★ Session I canon: 48 (was 52 — #149② "44 target + disc breathing room") */
+  padding-inline: var(--spacing-12);
 }
-.c-chat-info__row[data-row="switch"] { min-height: var(--row-h-switch); }
-/* ★ #591: the ADDRESS ROW — the card became one row that opens the address sheet.
-   Two lines in the label column: the disc + title on top, the truncated address below
-   it, aligned with the title's TEXT rather than under the disc (the #575 one-left-edge
-   rule, same as the Account hub's sub-lines). */
-.c-chat-info__addr-row {
-  width: 100%;
-  border: 0;
-  text-align: start;
-  cursor: pointer;
-  color: inherit;
-  font: inherit;
-  -webkit-tap-highlight-color: transparent;
-  border-radius: var(--radius-16);   /* the press wash must follow the card's corner */
-  transition: background-color var(--duration-100) var(--easing-standard);
-}
-/* ⚠ #43 hover coverage + the LOCAL pattern: every other tappable row on this screen
-   (`__setting`, `__sd-option`, `__member`) carries hover AND active. The first cut
-   carried neither while suppressing the native tap highlight, so a tap on the one new
-   control did nothing visible until the sheet finished building. */
-/* ⚠ SCOPED THROUGH `__body >`, and that is not stylistic. The card rule at the top of
-   this file is `.c-chat-info__body > :not(…):not(…):not(…)` — `:not()` carries its
-   argument's specificity, so it is (0,4,0), and it sets `background: --surface-card` on
-   this element. A bare `.c-chat-info__addr-row:active` is (0,2,0) and LOSES: the first
-   cut's press wash never painted, so the row still did nothing visible on tap — the very
-   defect it was written for. This is M1's mistake in its other form, in the same file.
-   ⚠ The addr-row is the only interactive DIRECT CHILD of the body; `__setting`,
-   `__sd-option` and `__member` all sit nested inside cards, which is why the "local
-   pattern" they follow works for them and did not work here. */
-@media (hover: hover) and (pointer: fine) {
-  .c-chat-info__body > .c-chat-info__addr-row:hover { background: var(--surface-interactive-hover); }
-}
-.c-chat-info__body > .c-chat-info__addr-row:active { background: var(--surface-interactive-pressed); }
-.c-chat-info__body > div.c-chat-info__addr-row,
-.c-chat-info__body > div.c-chat-info__addr-row:active { cursor: default; background: var(--surface-card); }
-/* ⚠ COMPOUND, not a bare class. `.c-chat-info__row-label` is declared LATER with
-   `align-items: center; gap: --spacing-8`, and at equal specificity later wins — so the
-   first cut's column layout silently kept the row grammar's centring and gap, which is
-   precisely the one-left-edge rule the comment claimed to be applying. */
-.c-chat-info__row-label.c-chat-info__addr-label {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--spacing-2);
-}
-.c-chat-info__addr-top { display: inline-flex; align-items: center; gap: var(--spacing-12); }
-.c-chat-info__addr-value {
-  /* 32px disc + the 12px gap: the address starts where the title's text starts */
-  padding-inline-start: calc(32px + var(--spacing-12));
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-height-body-sm);
-  color: var(--text-neutral-02);
-}
+/* ★ Session Y (#875 P1): the ROW GLYPH — bare 22px, monochrome, no disc. Colour is a
+   ROLE: --icon-neutral-02 for every row, --icon-error under the destructive tone. */
+.c-chat-info__row-glyph { flex: none; color: var(--icon-neutral-02); }
 
 /* setting row (#142: disappearing messages) — a tappable row: label · value · chevron */
 .c-chat-info__setting {
   width: 100%;
   border: 0;
   background: transparent;
-  padding: 0 var(--spacing-4);
-  border-radius: var(--radius-12);
+  border-radius: 0;                 /* ★ Session Y: full-bleed inside the card; the card clips */
   cursor: pointer;
   text-align: start;
   font: inherit;
   -webkit-tap-highlight-color: transparent;
   transition: background-color var(--duration-100) var(--easing-standard);
 }
-/* the disappearing-messages row is wrapped in this section div so the `> * + *`
-   divider (hairline + top padding) lands HERE, not on the button — the button
-   keeps a tight border-box so its pressed/focus state stays on the ~44px row and
-   never bleeds up into the divider gap (Damir: tap area + pressed state were off) */
-.c-chat-info__setting-section > .c-chat-info__setting { width: 100%; }
+/* the disappearing-messages row is wrapped in its own group (one card, one row) so a
+   divider/hairline can only ever land on the CARD's children, never on the button — the
+   button keeps a tight border-box so its pressed/focus state stays on the row and never
+   bleeds up into a divider gap (Damir: tap area + pressed state were off) */
+.c-chat-info__setting-section > .c-chat-info__card > .c-chat-info__setting { width: 100%; }
 @media (hover: hover) and (pointer: fine) {
   .c-chat-info__setting:hover { background: var(--surface-interactive-hover); }
 }
@@ -1516,65 +1570,34 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-chat-info__row-label {
   display: flex;
   align-items: center;
-  gap: var(--spacing-8);
+  gap: var(--spacing-12);          /* ★ Session Y: glyph 22 + 12 = the label edge (hairline inset) */
+  min-width: 0;
   color: var(--text-neutral-01);
   font-size: var(--font-size-body-md);
   font-weight: var(--row-title-weight);   /* ★ Session J: same notch as the settings rows (tokens.css) */
 }
-.c-chat-info__switch {
-  flex: none;
-  position: relative;
-  width: 48px;
-  height: 28px;
-  border: var(--outline-width-1) solid var(--outline-neutral-02);
-  border-radius: var(--radius-full);
-  background: var(--switch-track-off);   /* #148: dedicated pair — neutral-03 was near-invisible on cards */
-  cursor: pointer;
-  transition: background-color var(--duration-200) var(--easing-standard),
-              border-color var(--duration-200) var(--easing-standard);
-  -webkit-tap-highlight-color: transparent;
-}
-.c-chat-info__switch::after {      /* 44px target on a 28px control */
-  content: '';
-  position: absolute;
-  inset: -8px;
-}
-.c-chat-info__switch[aria-checked='true'] {
-  background: var(--surface-action-default);
-  border-color: var(--surface-action-default);
-}
-.c-chat-info__switch-knob {
-  position: absolute;
-  top: 2px;
-  inset-inline-start: 2px;
-  width: 22px;
-  height: 22px;
-  border-radius: var(--radius-full);
-  background: var(--switch-knob);              /* #148: on-action ink goes near-black in dark — invisible knob */
-  box-shadow: var(--elevation-1);
-  transition: transform var(--duration-200) var(--easing-standard);
-}
-.c-chat-info__switch[aria-checked='true'] .c-chat-info__switch-knob {
-  transform: translateX(20px);
-}
+/* ★ Session Y (#875): the notifications SWITCH (`__switch`, `__switch-knob`, the 56px
+   switch row) is RETIRED with its row — Mute is a tile in the action row. Rules deleted,
+   not left dangling: dead CSS ships inlined into every built shell (#591's rule). */
 @media (prefers-reduced-motion: reduce) {
-  /* #591: __qr-chevron left with the retired address card */
-  .c-chat-info__switch, .c-chat-info__switch-knob,
+  /* #591: __qr-chevron left with the retired address card; Session Y: the switch too */
   .c-chat-info__txs-chevron { transition: none; }
 }
 
-/* —— shared media (flagged) —— */
-.c-chat-info__media { display: flex; flex-direction: column; gap: var(--spacing-8); }
+/* —— shared media (flagged) —— ★ Session Y: a grouped section — the head (label +
+   See all) is the wrapper's first child, the strip sits inside the card with its own
+   padding (cards carry none; rows/strips do). */
 .c-chat-info__media-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding-inline-end: var(--spacing-4);
 }
 .c-chat-info__media-strip {
   display: flex;
   gap: var(--spacing-8);
   overflow-x: auto;
-  padding-bottom: var(--spacing-4);
+  padding: var(--spacing-12);
 }
 .c-chat-info__media-thumb {
   flex: none;
@@ -1597,8 +1620,9 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   object-fit: cover;
 }
 
-/* —— members —— */
-.c-chat-info__members { display: flex; flex-direction: column; gap: var(--spacing-8); }
+/* —— members —— ★ Session Y: the "Members (N)" label is outside; search + the roster
+   are the card's children (a hairline lands between them via the card rule). */
+.c-chat-info__members .c-search-field { margin: var(--spacing-12) var(--spacing-12) var(--spacing-8); }
 .c-chat-info__member-list { display: flex; flex-direction: column; }
 /* ★ Session H: the incremental fill's skeleton tail — a transparent wrapper so its
    skeleton rows stack exactly like real rows while real batches insert above it. */
@@ -1608,9 +1632,9 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   align-items: center;
   gap: var(--spacing-12);
   min-height: var(--row-h-member);  /* ★ Session I canon: 56 */
-  padding: var(--spacing-4) var(--spacing-4);
+  padding: var(--spacing-4) var(--spacing-12);   /* ★ Session Y: full-bleed in the card, 12 inline like every row */
   border: 0;
-  border-radius: var(--radius-12);
+  border-radius: 0;                 /* the card clips the wash to ITS corners (#149①, for every group now) */
   background: transparent;
   text-align: start;
   cursor: pointer;
@@ -1633,46 +1657,44 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-chat-info__member-badge { flex: none; }
 .c-chat-info__member > svg:last-child { color: var(--icon-neutral-02); flex: none; }
 .c-chat-info__member-note {
-  padding: var(--spacing-8) var(--spacing-4);
+  padding: var(--spacing-12);
   color: var(--text-neutral-02);
   font-size: var(--font-size-body-sm);
 }
 
 /* —— payments (#142: collapsed accordion — reveal grammar shared with Show QR) —— */
-.c-chat-info__txs {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-4);
-  overflow: hidden;                 /* #149①: full-bleed rows clip to the card radius */
-}
-/* #149① (Damir): tx rows run FULL-BLEED across the card — the press state
-   spans edge to edge instead of a floating inset rectangle. The negative
-   margins cancel the card padding; the rows' own inline padding re-aligns
-   their content with the card. */
+/* #149① (Damir): tx rows run FULL-BLEED across the card — the press state spans edge
+   to edge instead of a floating inset rectangle. ★ Session Y: the card carries NO
+   padding any more, so the negative margins that cancelled it are gone; the card's
+   own `overflow: hidden` clips the rows to radius 12. */
 .c-chat-info__txs-list {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-4);
-  margin-inline: calc(-1 * var(--spacing-12));
-  margin-block-end: calc(-1 * var(--spacing-12));
 }
 .c-chat-info__txs-list .c-txlist-item { border-radius: 0; }
+/* the accordion toggle IS the group's title row — the row grammar (48, 12 inline,
+   glyph + label), Medium like every row title (--row-title-weight, Session J) */
 .c-chat-info__txs-toggle {
   display: flex;
   align-items: center;
-  gap: var(--spacing-8);
-  min-height: 44px;
-  padding: 0 var(--spacing-4);
+  gap: var(--spacing-12);
+  min-height: var(--row-h-nav);
+  padding: 0 var(--spacing-12);
   border: 0;
   background: transparent;
   color: var(--text-neutral-01);
   font-size: var(--font-size-body-md);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--row-title-weight);
   cursor: pointer;
-  border-radius: var(--radius-8);
+  border-radius: 0;
   text-align: start;
   -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
 }
+@media (hover: hover) and (pointer: fine) {
+  .c-chat-info__txs-toggle:hover { background: var(--surface-interactive-hover); }
+}
+.c-chat-info__txs-toggle:active { background: var(--surface-interactive-pressed); }
 .c-chat-info__txs-chevron {
   margin-inline-start: auto;
   transition: transform var(--duration-200) var(--easing-standard);
@@ -1682,7 +1704,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 .c-chat-info__txs-all {
   min-height: 44px;
-  padding: 0 var(--spacing-4);
+  padding: 0 var(--spacing-12);
   border: 0;
   background: transparent;
   color: var(--text-action-default);
@@ -1694,55 +1716,44 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   -webkit-tap-highlight-color: transparent;
 }
 
-/* —— destructive zone (#142: separated, bordered rows — flush rows invited
-   mistaps between "Delete chat history" and "Remove contact") —— */
-/* ★★ #618 (Damir, device 2026-08-28): the destructive rows join the ONE grammar.
-   The container keeps the body's own card rhythm so these two read as two more
-   cards in the stack, not as a foreign block wedged into it. */
-.c-chat-info__danger {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-16);
-}
-/* ★★ #618 — AN ORDINARY ROW, ON AN ORDINARY CARD.
-   It was `background: transparent` with its own border, no chevron and red label
-   ink: a shape that appeared nowhere else on the screen, which is exactly what
-   Damir saw. It now takes the same card the address and notification rows take
-   (the `.c-chat-info__body >` rule above skips `__danger`, so the card is painted
-   here instead) and the same disc + label + chevron as the Account hub.
+/* —— destructive zone —— ★ Session Y (#875 P2/P4, #873): ONE grouped card, placed by
+   kind in chat-info.js (1:1 last · group/bot above the roster). #142's "separated,
+   bordered rows" and #618's "one card per row" are both superseded by the group card:
+   the rows are ordinary rows of THIS screen, the tier lives in the ROLE.
    ⚠ It is a <button>, so every inherited button default has to be spelled out —
-   a half-reset button inside a card is how one row ends up a pixel off from its
+   a half-reset button in a card is how one row ends up a pixel off from its
    neighbours. */
 .c-chat-info__row--action {
   /* ★★ V-14 (#46 loop 2026-08-29): TEN interactive rules in this file carry this kill
    * and #618's new row did not — so on Android it painted its own :active wash AND a
-   * square platform rectangle over a --radius-16 card. That is the exact artefact #622
-   * removed from the explore banner, in the same batch, reintroduced here. There is no
-   * global reset to fall back on: base.css and tokens.css contain zero occurrences, and
-   * the Account-hub row this one says it copies does carry it. */
+   * square platform rectangle over a rounded card. There is no global reset to fall
+   * back on: base.css and tokens.css contain zero occurrences. */
   -webkit-tap-highlight-color: transparent;
   width: 100%;
-  padding: var(--spacing-12);
   border: 0;
-  border-radius: var(--radius-16);
-  background: var(--surface-card);
-  box-shadow: var(--elevation-1);
+  border-radius: 0;                 /* full-bleed in the card; the card clips */
+  background: transparent;          /* NO fill, NO elevation — the card is the surface */
   color: var(--text-neutral-01);
   font-family: inherit;
   font-size: var(--font-size-body-md);
-  font-weight: var(--font-weight-regular);
+  font-weight: var(--row-title-weight);
   text-align: start;
   cursor: pointer;
+  transition: background-color var(--duration-100) var(--easing-standard);
 }
 @media (hover: hover) and (pointer: fine) {
   .c-chat-info__row--action:hover { background: var(--surface-interactive-hover); }
 }
 .c-chat-info__row--action:active { background: var(--surface-interactive-pressed); }
-/* the chevron reads as chrome, like every other row's; the DISC keeps its own ink,
-   which is where the #148 two-tier meaning moved to — neutral for the reversible
-   action, error for the irreversible one. */
+/* the chevron reads as chrome, like every other row's */
 .c-chat-info__row--action > svg { color: var(--icon-neutral-02); flex: none; }
-.c-chat-info__row--action .c-disc svg { color: currentColor; }
+/* ★ #875 P4 — RED IS A ROLE, NOT A FILL. The irreversible row (Remove contact · Leave
+   group) sets its LABEL on --text-error and its glyph on --icon-error; nothing is
+   painted red. The reversible row (Delete history, tone "quiet") is every other row.
+   Contrast owed at build (#769): --text-error on --surface-card, both themes — the
+   suite computes it. */
+.c-chat-info__row--action[data-tone="error"] .c-chat-info__row-label { color: var(--text-error); }
+.c-chat-info__row--action[data-tone="error"] .c-chat-info__row-glyph { color: var(--icon-error); }
 
 .c-chat-info__confirm-error {
   margin: var(--spacing-8) 0 0;
@@ -1798,7 +1809,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 @keyframes c-chat-info-shimmer { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 @media (prefers-reduced-motion: reduce) { .c-chat-info__skeleton-avatar, .c-chat-info__skeleton-line { animation: none; } }
 /* ★ A4: the shared-groups strip (1:1) — the members-list grammar, group avatars */
-.c-chat-info__shared { display: flex; flex-direction: column; gap: var(--spacing-4); }
+/* ★ Session Y: `__shared` is a grouped section (label outside, list in the card) */
 .c-chat-info__shared-list { display: flex; flex-direction: column; }
 .c-chat-info__shared-row:disabled { cursor: default; }
 

@@ -1446,3 +1446,16 @@ One question per row: does this exposure exist at the baseline?
 
 Nothing in Session X adds a verb, a `spixi.*` key, an HTML sink or a network fetch. The
 introduced-vs-inherited census (the Session R sweep) is unchanged by it.
+## Session Y (#878–#882) — the contact-details premium pass, and the gate's own hardening (2026-09-17, evening)
+
+One question per row: does this exposure exist at the baseline?
+
+| item | verb / key / sink / fetch / log? | verdict |
+|---|---|---|
+| `chat-info.js` (#878) — tiles, Mute tile, hero address, grouped cards, danger by kind | **no verb, no key, no fetch, no HTML sink**: every text node is `textContent`; the hero address is `truncateAddressMiddle()` output and an `aria-label` built from the same string; the Mute tile calls the SAME `onNotifications(next, ctrl)` the switch called (the shells' `ixian:en/disableNotifications` emit is unchanged); `onRequest` is accepted and never invoked. **ONE new log line**: `console.error('c-chat-info: action row exceeds 4 tiles (#876) — dropping', <tile action name>)` — a static string + a `data-action` token (`message|call|pay|mute`), never an address or a name | none |
+| `chat-info.css` · `tokens.css` (#878/#879/#880) | CSS only (`::after` hairlines, focus ring inside the card, two role tokens) | none |
+| `contact_details.html` / `chat.html` | **UNTOUCHED** (#221). ⓘ The `onRequest` handler + `openRequestForPeer()` in `contact_details.html` are now an emit site (`ixian:sendrequest:<addr>:<amount>`) with no caller — an inventory entry that is DEAD, not a new exposure; retiring it is a gate row for the session that does it (#880 ⑤, Damir's dial) | none (dead code named) |
+| `smoke-test.mjs` undeclared-identifier gate (#881) | dev machine only, never shipped. The gate got STRICTER: a `<!--`/`-->` pair inside one inline script no longer deletes the code between them before the lint (a false GREEN of the #869 class), `data-src` scripts are linted, three `<script src>` globals seeded, a fixture pin proves it | not an app exposure — the tool that checks for swallowed errors now checks all of the code |
+
+Nothing in Session Y adds a verb, a `spixi.*` key, an HTML sink or a network fetch. The
+introduced-vs-inherited census (the Session R sweep) is unchanged by it.

@@ -523,6 +523,9 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    untouched, and `.c-disc[data-hue]` cannot collide because its hues are NAMES
    ('accent', 'info', …) and these are indices. */
 
+/* sanctioned-block: IDENTITY HUES ARE DATA, not a theme role — the index is hashed from the
+   address (identityIndex) and the twelve anchors are the palette itself; a token per stop
+   would be twelve names for twelve numbers nobody else reads. Theme-aware S/L live below. */
 .c-avatar[data-hue="0"], .c-idhue[data-hue="0"]  { --av-c1: hsl(0, 62%, 52%);   --av-c2: hsl(25, 58%, 42%);  }
 /* ★ Session I (sheet 2b = D; Damir #735: "our avatars seem a bit off"): the three MUDDY
    anchors re-tuned — 1 was olive-brown, 2 brown, 3 a dull green; they now read orange,
@@ -556,7 +559,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   /* N1 (#364): white ink in BOTH themes — the anchor gradients are dark enough
      everywhere (≥ 4.5:1 computed). Literal #fff on purpose, exactly like
      c-disc (base.css): a theme-flipping token here re-breaks dark mode. */
-  color: #fff; /* initials/glyph over gradient */
+  color: #fff; /* sanctioned: initials/glyph over the gradient — mode-agnostic white (N1), c-disc precedent */
   overflow: visible;
 }
 
@@ -602,6 +605,9 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
      still clears 4.4:1 there under white ink; the 18px+ semibold initials are WCAG
      large text (3:1 floor). The sheet's 28%/55% draft veiled the centre to ≈ 13% and
      failed that arithmetic, so it was dialled down before shipping. */
+  /* sanctioned-block: the specular highlight is a white alpha over a DATA gradient (mode-
+     agnostic, measured above); the two hsl() fallbacks are hue 7's anchors for a row that
+     carries no data-hue — the palette's own value, never a theme role. */
   background-image:
     radial-gradient(100% 100% at 28% 18%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 50%),
     linear-gradient(160deg,
@@ -678,7 +684,13 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   border-radius: var(--radius-24) var(--radius-24) 0 0;
   box-shadow: var(--elevation-3);
   padding: var(--spacing-8) var(--spacing-16) var(--spacing-16);
-  padding-bottom: calc(var(--spacing-16) + var(--safe-bottom, 0px));
+  /* ★ Session Z (#884 ①, Damir on the Y walk: every sheet "feels too low", "maybe even
+     32px"): the foot is spacing-24 (was 16) ABOVE the safe region — the same 24 the
+     desktop dialog already used (`:root[data-desktop] .c-sheet` below), so one number
+     serves both presentations. Picked over 32: on a 3-button Android bar the sheet now
+     also carries the 48 px bar under it (AND-45), and 32 + 48 read as an empty shelf
+     (the two variants were rendered; 24 is his pick). The keyboard variant mirrors it. */
+  padding-bottom: calc(var(--spacing-24) + var(--safe-bottom, 0px));
   transform: translateY(100%);
   transition: transform var(--duration-200) var(--easing-accelerate);
   outline: none;
@@ -707,7 +719,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    separately further down this file. */
 :root:not([data-desktop]) .c-sheet {
   bottom: var(--kb-inset, 0px);
-  padding-bottom: calc(var(--spacing-16) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)));
+  padding-bottom: calc(var(--spacing-24) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)));   /* ★ Session Z #884 ①: 24, as the resting sheet */
   max-height: calc(100% - var(--kb-inset, 0px));
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -1145,6 +1157,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   min-width: 0;
   max-width: 100%;
 }
+/* ★ Session Z (#884 ⑥): the ghost mirrors the pencil — a 44 icon-only button is 44 wide
+   (`.c-button[data-icon-only][data-size="44"]`, button.css) — so the NAME is what the
+   row centres, not the name+pencil pair. It hides with the pencil while the editor is
+   open (the input then centres alone). The suite reads both widths from the sheets. */
+.c-settings__nick-ghost { flex: none; width: 44px; }
 .c-settings__name {
   min-width: 0;                     /* nowrap flex item — the #140③ class */
   font-size: var(--font-size-heading-xs);
@@ -1265,9 +1282,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   box-shadow: var(--elevation-1);
   --surface-input: var(--surface-input-on-card);   /* #150③: input === card otherwise */
 }
-/* hairline between rows INSIDE a card, inset past the disc column */
+/* hairline between rows INSIDE a card, inset past the disc column.
+   ★ Session Z (#884 ⑤ / #882 (b)): `--outline-on-card`, the same role chat-info's lists
+   read — -01 was neutral-800 on the neutral-800 card in dark (1.00, no line at all). */
 .c-settings__group > .c-settings__section + .c-settings__section {
-  border-top: var(--outline-width-1) solid var(--outline-neutral-01);
+  border-top: var(--outline-width-1) solid var(--outline-on-card);
 }
 
 /* —— rows: disc · label · value · chevron —— */
@@ -1292,7 +1311,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 .c-settings__row--static { cursor: default; }
 @media (hover: hover) and (pointer: fine) {
-  .c-settings__row:not(.c-settings__row--static):hover { background-color: var(--surface-interactive-hover); }
+  .c-settings__row:not(.c-settings__row--static):hover { background-color: var(--surface-card-hover); }   /* ★ Session Z (#882 (a)): this row sits ON a --surface-card, and --surface-interactive-hover IS the card's colour (light 50 on 50, dark 800 on 800) — no hover at all. The card pair is one visible step (#878). */
 }
 /* 5c-i/ii: the :active fill mirror is REMOVED — see chatlist-item.css. */
 .c-settings__row-label {
@@ -1626,9 +1645,9 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   transition: background-color var(--duration-100) var(--easing-standard);
 }
 @media (hover: hover) and (pointer: fine) {
-  .c-settings-danger__card:hover { background: var(--surface-interactive-hover); }
+  .c-settings-danger__card:hover { background: var(--surface-card-hover); }   /* ★ Session Z (#46 loop A-4): the card IS --surface-card — the screen pair was its own colour */
 }
-.c-settings-danger__card:active { background: var(--surface-interactive-pressed); }
+.c-settings-danger__card:active { background: var(--surface-card-pressed); }
 .c-settings-danger__card-title {
   display: flex;
   align-items: center;
@@ -2045,6 +2064,7 @@ button.c-settings-howto__join:disabled {
 <script>/* M13 (2026-09-08): the STATIC a11y labels below the boot line. They are in the markup so a screen reader has them on the FIRST paint, which is exactly why they could not be written as getStrings() calls — and so they were English in every locale. One walk over [data-sl-aria] relabels them from the dictionary as soon as the DOM exists; the English in the attribute stays as the fallback for a key the dictionary lacks. */
 (function(){function r(){for(var e of document.querySelectorAll('[data-sl-aria]')){var v=window.SL&&window.SL[e.dataset.slAria];if(v)e.setAttribute('aria-label',v);}}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',r,{once:true});else r();})();</script>
 <script src="spixi.bundle.js"></script>
+<script>/* ★ L15b (Session Z): the flag font — a device that cannot paint a flag emoji (Windows) gets the flags-only Twemoji face for the regional-indicator block, injected at runtime so the 78 KB is never inlined and never fetched on a phone; flags.js holds the mechanism. Unguarded on purpose: a missing export must fail loudly at boot, not fall silent. */window.Spixi.installFlagFont();</script>
 <script>
   /* —————————————————————————————————————————————————————————————————————————
    * Production Downloads shell — the redesigned received-files list wired to the

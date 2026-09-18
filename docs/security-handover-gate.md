@@ -1474,3 +1474,20 @@ One question per row: does this exposure exist at the baseline?
 
 AND-45 adds one numeric push and one numeric carrier, both validated where they land; no verb, no
 `spixi.*` key, no HTML sink, no fetch. The introduced-vs-inherited census is unchanged by it.
+
+## Session Z (#885–#890) — the Y-walk list, the flags on Windows, the glass dial (2026-09-18)
+
+One question per row: does this exposure exist at the baseline?
+
+| item | verb / key / sink / fetch / log? | verdict |
+|---|---|---|
+| `spixi.chat.glass` (#889) | **ONE new `spixi.*` localStorage key**, boolean (`'1'` or absent), read by chat.html's pre-paint script and mapped to a `data-chat-glass` attribute; nothing else reads it, nothing writes it yet (no toggle). Same class as `spixi.chat.pattern` (#236): no user data, no address, no text. It lives on the shared `file://` partition like every other chat pref (MAJOR #4's partition question is unchanged by it). | **introduced, benign** — a boolean UI pref |
+| `fonts/TwemojiCountryFlags.js` + `installFlagFont()` (#888) | **A local script asset** loaded by 17 shells with a RELATIVE `src` (same folder tier as `spixi.bundle.js` — no network, no remote host, `--check` regenerates it from the committed woff2). It sets one global string; `flags.js` accepts it only if it `startsWith('data:')` and interpolates it into a `<style>` `@font-face` via `textContent` (no `innerHTML`, no `eval`). ⚠ The `startsWith` check is a SHAPE check, not a sanitiser: a payload containing `')` would break out of the `url()` into CSS. That requires replacing a file in the app's own Raw asset folder, which is already code execution at the shell's tier — the same trust as the bundle. The font face carries `unicode-range` and a `data:` src → the WebView fetches nothing. The canvas probe paints one glyph into an offscreen canvas and reads pixels — no fingerprint leaves the document. | **introduced, same tier as the bundle** — no verb, no fetch, no sink |
+| `img.c-flag--img` → emoji span upgrade (#888) | reads the PNG's own filename (written by `createFlag` from a 2-letter code) and replaces the element with a `textContent` span | none |
+| `settings-app.js` ASSET_CREDITS `creditFlags` (#888) | static text rows rendered by `textContent`; the licence URL is text, not a link target | none |
+| `chat.html` — the #249 takeover DELETED (#887 (c)) | code REMOVED only: `createChatInfo` destructure, its cover rules, two stylesheet links. The census of sinks shrinks by the takeover's render path; no verb, no key, no fetch changed. | none (a deletion) |
+| `chat-info.js` Request tile on the directory arm (#887 (d)) | re-exposes the EXISTING `onRequest` handler (`contact_details.html` → `ixian:sendrequest:<addr>:<amount>`, the emit site recorded under Session Y) on the arm #880 had hidden it from; a request = a chat message, nothing is signed | none — the verb pre-dates Session Y |
+| tokens.css · chat-info.css · settings-shell.css · overlay.css · composer.css · system-notice.css · attach-sheet.css · contacts-shell.css · contact-row.css · settings-screens.css · the `sanctioned:` markers (#886/#887/#889) | CSS only | none |
+| `scripts/build-shells.mjs` (#888) · `smoke-test.mjs` GATE 64/65 | dev machine only, never shipped; the generated `fonts/TwemojiCountryFlags.js` IS shipped (row 2) | none |
+
+Session Z adds one boolean `spixi.*` key and one local script asset at the bundle's own tier; no verb, no HTML sink, no network fetch, no log line. The introduced-vs-inherited census (the Session R sweep) gains the two rows above and is otherwise unchanged.

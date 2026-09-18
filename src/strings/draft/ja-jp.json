@@ -643,5 +643,7 @@
   "addContactScanLabel": "QR コードをスキャン",
   "addContactScanHint": "この端末でスキャンできるように、相手の QR コードを別の端末に表示してもらってください。",
   "addContactEnterLabel": "Spixi アドレスを入力または貼り付け",
-  "addContactEnterHint": "相手の Spixi アドレスを入力または貼り付けます（例：42Spox…M3rci98）。"
+  "addContactEnterHint": "相手の Spixi アドレスを入力または貼り付けます（例：42Spox…M3rci98）。",
+  "creditFlags": "国旗",
+  "sharedGroupsTitle": "共通のグループ"
 }

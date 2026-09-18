@@ -1,0 +1,28 @@
+Session Z — the Y-walk list built (#884 ①–⑦), the three #882 dials, flags on Windows (L15b), the glass dial, the Opus loop (#885–#890)
+
+FIXES (walk-visible, both themes)
+- #884 ④ contact-details card labels in sentence case (letter-spacing --tracking-label-sm; no text-transform); sharedGroupsTitle drafted for cn/id/it/ja/lt.
+- #884 ⑤ ONE hairline role --outline-on-card: light neutral-200 (1.137 on the card), dark neutral-600 (1.187) — chat-info's four lists, the Account hub, the contacts picker's action rows; the hub's dark hairlines were 1.00 (invisible), the light ones 1.42 ("much too visible").
+- #884 ⑥ the nickname pencil: an aria-hidden ghost the pencil's width (44) before the name in chat-info AND settings-shell name rows, hidden with the pencil while the editor is open — the NAME centres, not the pair.
+- #884 ① bottom sheets: foot 16 → 24 above --safe-bottom (resting + keyboard variant). The attach TRAY stays 16 (it fills a fixed keyboard-height slot with overflow hidden — reviewer MINOR-10, reason on the rule). Chooser copy: three renders, Damir picks.
+- #884 ② the dark chooser "random colour" was a HUE BREAK: the ink ramp had no 500/600, so dark neutral-500/600 fell through to the grey primitives. --ink-500 #253246 · --ink-600 #202b3c (L held; Y 0.0341→0.0312 / 0.0259→0.0236); every consumer re-measured (card-hover 1.187 · pressed 1.309 · the composer pill 1.41/1.46/1.23).
+- #884 ③ system-notice.css reads --surface-notice-card (#ffffff / #0c1a4a); every other literal in the component sheets + base.css carries a `sanctioned:` reason; deferred rows named `tokenise-candidate` where they sit.
+- #882 (a) card-hosted hover/pressed on every family (--surface-card-hover/-pressed); tx rows inside a card get an explicit override.
+- #882 (c) chat.html's dead #249 in-chat info takeover DELETED with chat-info.css + txlist-item.css links, cover rules and JS (search-field.css stays — the W5 send compose needs it): built chat.html 700 920 → 662 061 chars (−38 859, ≈3.1 ms of parse on every conversation open); CHAT_KB_CEIL 686 → 648, DOWN, delta stated.
+- #882 (d) Request tile back on the DIRECTORY arm (context 'contact', 1:1, onRequest); Mute joins by count (four-tile rule).
+- L15b flags on Windows (#888): src/assets/fonts/TwemojiCountryFlags.woff2 (78 292 B, TalkJS subset of Mozilla twemoji-colr, from country-flag-emoji-polyfill@0.1.10). flags.js installFlagFont() runs ONLY on an answered "no" from the canvas probe ('yes'/'unknown' refuse), injects @font-face "Twemoji Country Flags" unicode-range U+1F1E6-1F1FF (U+1F3F4 out), sets data-flag-font so --font-ui prepends the family over --font-ui-native, upgrades PNG flags already painted. ★ A @font-face url() is CORS-refused from a file:// document → build-shells generates fonts/TwemojiCountryFlags.js (window.__spixiFlagFont = data: URL), 17 shells call installFlagFont() after the bundle. Credit: ASSET_CREDITS creditFlags (CC-BY 4.0) + third-party-notices; creditFlags ×12 drafts.
+- The glass dial (#889): spixi.chat.glass (boolean pref, default OFF, no toggle yet) → data-chat-glass → composer.css backdrop-filter blur(--blur-chat-glass) saturate(160%) on --surface-composer-glass (the canvas base @ .72), @supports fallback transparent. Windows: :root[data-desktop] .c-composer padding-block-end 12 + --safe-bottom (Damir: "too low").
+
+THE LOOP (Opus, #890): auditor A — "contrast unchanged" was false (re-measured), the sheet-card pair 1.133/1.103 recorded, tx-row-in-card hover, Mute by count; auditor B — the file:// font CORS block (MAJOR → the script route), U+1F3F4, the probe's inverted fail-safe → probeState, GATE 64 regex/walk-up holes; reviewer — the welcome pill PNG (in-place upgrade), the vacuous derived card pin (unparsed = fail), GATE 64 per-line → declaration join, the unexecuted script path. The suite's own last catch: synthetic load/error events hid a real file: fetch → the pin runs on the BUILT shell (jsdom fetches the shipped payload) and declares its one miss; 3/3 mutations killed.
+
+GATES
+- smoke-test.mjs: GATE 64 (the colour-literal walk over stripped, declaration-joined CSS; fixtures) · GATE 65 (Session Z, executed where it can be) · ~40 pins re-based in both halves (#861) · load(file, { expectErrors }) opt-in.
+- build-shells.mjs generates + --checks fonts/TwemojiCountryFlags.js. extract-strings --check ✓ · i18n-lint ✓ · pseudo 9/9.
+- The FULL suite in the container on this tree: BASELINE OK — 4754 pass / the 2 KNOWN. No C# changed.
+
+RECORDS
+- DECISIONS #885–#890 · docs/handoff-2026-09-18b.md · docs/f5-checklist-session-z.md · docs/walk-artifact-session-z.html · docs/security-handover-gate.md Session Z (one boolean spixi.* key; one local script asset at the bundle's tier) · docs/flags-on-windows-brief.md status · docs/legal/third-party-notices.md · docs/sheets/session-z/ · CLAUDE.md status · next-session-prompt.md. AND-45 walk verdict (17/0/1) written into f5-checklist-and-45.md.
+- Consumed → docs/archive: handoff-2026-09-18.md, f5-checklist-and-45.md, commit-message-and-45.txt.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01EnxCmwnfDpEeSCBYvijsym

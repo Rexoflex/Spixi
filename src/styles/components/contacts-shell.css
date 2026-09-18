@@ -57,10 +57,10 @@
   font-size: var(--font-size-body-md);
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) and (pointer: fine) { .c-contacts__action:hover { background: var(--surface-interactive-hover); } }
-.c-contacts__action:active { background: var(--surface-interactive-pressed); }
+@media (hover: hover) and (pointer: fine) { .c-contacts__action:hover { background: var(--surface-card-hover); } }   /* ★ Session Z (#46 loop A-4): a card-hosted row hovers/presses on the CARD pair — the screen pair is the card's own colour */
+.c-contacts__action:active { background: var(--surface-card-pressed); }
 .c-contacts__action + .c-contacts__action {
-  border-top: var(--outline-width-1) solid var(--outline-neutral-01);
+  border-top: var(--outline-width-1) solid var(--outline-on-card);   /* ★ Session Z (#46 loop A-7): -01 was 800-on-800 in dark, no line (#884 ⑤'s role) */
 }
 .c-contacts__action-label { min-width: 0; }
 
@@ -132,7 +132,7 @@
   /* 5c-ii (2026-08-24): the press fill MOVED to the compositor ::before layer in
      base.css — see chatlist-item.css. State rules set background-COLOR only. */
 }
-@media (hover: hover) and (pointer: fine) { .c-contacts__row:not(:disabled):hover { background-color: var(--surface-interactive-hover); } }
+@media (hover: hover) and (pointer: fine) { .c-contacts__row:not(:disabled):hover { background-color: var(--surface-card-hover); } }   /* ★ Session Z (#882 (a)): this row sits ON a --surface-card, and --surface-interactive-hover IS the card's colour (light 50 on 50, dark 800 on 800) — no hover at all. The card pair is one visible step (#878). */
 /* 5c-i/ii: the :active fill mirror is REMOVED — see chatlist-item.css. */
 /* F7: dim only the avatar + name — the Pending badge and the reason sub-text
    ("Can't be added to groups") must stay legible, they're the whole point of

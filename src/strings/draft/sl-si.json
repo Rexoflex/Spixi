@@ -722,5 +722,6 @@
   "addContactScanLabel": "Skeniraj kodo QR",
   "addContactScanHint": "Koda QR mora biti vidna na drugi napravi, da jo lahko skenirate s to napravo.",
   "addContactEnterLabel": "Vnesi ali prilepi naslov Spixi",
-  "addContactEnterHint": "Vtipkajte ali prilepite naslov Spixi (na primer 42Spox…M3rci98)."
+  "addContactEnterHint": "Vtipkajte ali prilepite naslov Spixi (na primer 42Spox…M3rci98).",
+  "creditFlags": "Zastave držav"
 }

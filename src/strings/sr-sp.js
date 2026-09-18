@@ -205,6 +205,7 @@ export const srsp = {
   createWarnBody: "Bez nje i vaše datoteke rezervne kopije, vaš nalog i novčanik ne mogu se vratiti, čak ni od strane nas.",
   createWarnTitle: "Spixi ne čuva vašu lozinku.",
   created: "Nalog kreiran",
+  creditFlags: "Zastave država",
   creditIcons: "Ikone interfejsa",
   creditSounds: "Zvukovi interfejsa",
   creditsTitle: "Zasluge",

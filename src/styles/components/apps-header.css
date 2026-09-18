@@ -68,7 +68,7 @@
   /* Damir: identical in BOTH themes → pin to the theme-STABLE primitives (--primary-600
      + --neutral-10), not the semantic action tokens which flip to a lighter blue +
      near-black ink in dark. Same rich light-mode banner everywhere. */
-  background: linear-gradient(90deg, rgba(102, 102, 102, 0.00) 0%, rgba(2, 6, 25, 0.45) 100%), var(--primary-600);
+  background: linear-gradient(90deg, rgba(102, 102, 102, 0.00) 0%, rgba(2, 6, 25, 0.45) 100%), var(--primary-600); /* sanctioned: tokenise-candidate (#884 ③ `--surface-scrim-art`, Damir deferred) — the same art scrim as apps-details */
   color: var(--neutral-10);
   /* ★ #622 (Damir, device 2026-08-28): "the pressed state of the explore banner seems to
      be system based, it's a pure rectangle dark blue. We need to remove it."

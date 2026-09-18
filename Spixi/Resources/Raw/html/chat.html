@@ -69,7 +69,7 @@
         any corrupt value — lands on 'flat' BEFORE first paint rather than painting a ground
         the picker can no longer choose. The attribute is still set in BOTH themes and is
         simply inert in dark. Superseded: 'flat' (default) | 'gradient'. -->
-<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),p=NaN,t=NaN,s='',g='';try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));s=localStorage.getItem('spixi.chat.patternstyle')||'';g=localStorage.getItem('spixi.chat.ground')||'';}catch(e){}var lv;if(!isFinite(p))lv=1;else if(p<=0)lv=0;else lv=1;r.setProperty('--chat-pattern-opacity',lv<=0?'0':'var(--chat-pattern-alpha-1)');if(isFinite(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));if(s!=='matrix')s='matrix';document.documentElement.setAttribute('data-chat-pattern',s);if(g!=='flat')g='flat';document.documentElement.setAttribute('data-chat-ground',g);})();</script>
+<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),p=NaN,t=NaN,s='',g='';try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));s=localStorage.getItem('spixi.chat.patternstyle')||'';g=localStorage.getItem('spixi.chat.ground')||'';}catch(e){}var lv;if(!isFinite(p))lv=1;else if(p<=0)lv=0;else lv=1;r.setProperty('--chat-pattern-opacity',lv<=0?'0':'var(--chat-pattern-alpha-1)');if(isFinite(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));if(s!=='matrix')s='matrix';document.documentElement.setAttribute('data-chat-pattern',s);if(g!=='flat')g='flat';document.documentElement.setAttribute('data-chat-ground',g);var gl='';try{gl=localStorage.getItem('spixi.chat.glass')||'';}catch(e){}if(gl==='1')document.documentElement.setAttribute('data-chat-glass','');})();</script>
 <style>
   /* Paint the screen surface IMMEDIATELY — before tokens.css/base.css load and
      before the JS bundle parses — so entering a chat doesn't flash an empty
@@ -599,6 +599,9 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    untouched, and `.c-disc[data-hue]` cannot collide because its hues are NAMES
    ('accent', 'info', …) and these are indices. */
 
+/* sanctioned-block: IDENTITY HUES ARE DATA, not a theme role — the index is hashed from the
+   address (identityIndex) and the twelve anchors are the palette itself; a token per stop
+   would be twelve names for twelve numbers nobody else reads. Theme-aware S/L live below. */
 .c-avatar[data-hue="0"], .c-idhue[data-hue="0"]  { --av-c1: hsl(0, 62%, 52%);   --av-c2: hsl(25, 58%, 42%);  }
 /* ★ Session I (sheet 2b = D; Damir #735: "our avatars seem a bit off"): the three MUDDY
    anchors re-tuned — 1 was olive-brown, 2 brown, 3 a dull green; they now read orange,
@@ -632,7 +635,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   /* N1 (#364): white ink in BOTH themes — the anchor gradients are dark enough
      everywhere (≥ 4.5:1 computed). Literal #fff on purpose, exactly like
      c-disc (base.css): a theme-flipping token here re-breaks dark mode. */
-  color: #fff; /* initials/glyph over gradient */
+  color: #fff; /* sanctioned: initials/glyph over the gradient — mode-agnostic white (N1), c-disc precedent */
   overflow: visible;
 }
 
@@ -678,6 +681,9 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
      still clears 4.4:1 there under white ink; the 18px+ semibold initials are WCAG
      large text (3:1 floor). The sheet's 28%/55% draft veiled the centre to ≈ 13% and
      failed that arithmetic, so it was dialled down before shipping. */
+  /* sanctioned-block: the specular highlight is a white alpha over a DATA gradient (mode-
+     agnostic, measured above); the two hsl() fallbacks are hue 7's anchors for a row that
+     carries no data-hue — the palette's own value, never a theme role. */
   background-image:
     radial-gradient(100% 100% at 28% 18%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 50%),
     linear-gradient(160deg,
@@ -1151,11 +1157,11 @@ button.c-bubble__reply { cursor: pointer; -webkit-tap-highlight-color: transpare
    are TOKEN CANDIDATES (same class as the #49 on-hero white washes). */
 .c-bubble-row[data-direction="sent"] .c-bubble__mention {
   color: var(--text-bubble-sent);
-  background: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.22); /* sanctioned: tokenise-candidate (#884 ③ `--surface-on-media-wash`, Damir deferred) — a white wash on the sent gradient, both themes */
 }
 .c-bubble-row[data-direction="sent"] .c-bubble__mention[data-self] {
   color: var(--text-bubble-sent);
-  background: rgba(255, 214, 10, 0.34);
+  background: rgba(255, 214, 10, 0.34); /* sanctioned: tokenise-candidate (#884 ③ `--surface-highlight-wash`, Damir deferred) — the self-mention warning wash on the sent gradient */
 }
 
 /* —— link preview card (§8-gated: sender-composed, Signal-style) —— */
@@ -1426,6 +1432,43 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   background: transparent;
   border-top: 0;
   z-index: var(--z-20);
+}
+/* ★ Session Z (Damir, Windows screenshot after the AND-45 walk: "add normal padding below
+   the composer in chat, it's too low"): on desktop --safe-bottom is 0 — no home indicator, no
+   Android bar — so the 6 px block pad was the WHOLE foot and the pill sat on the window edge.
+   Desktop gets the screen-pad canon (12) under the bar; the top keeps 6 so the bubbles still
+   meet the bar tightly. Mobile is untouched (its foot is the bar/indicator inset). Placed AFTER
+   the base rule's closing brace on purpose — Session K's trap was a rule inserted INSIDE one. */
+:root[data-desktop] .c-composer {
+  padding-block-end: calc(var(--spacing-12) + var(--safe-bottom, 0px));
+}
+/* ★ Session Z (Damir, after the AND-45 walk: "we now have transparency under the composer,
+   so messages go by — how expensive is a glass effect / blur and reduced opacity for the
+   messages that pass under it?") — THE GLASS DIAL, OFF BY DEFAULT, MEASURED BEFORE DECIDED
+   (#294). `html[data-chat-glass]` is set by the chat pre-paint script from the
+   `spixi.chat.glass` preference ('1'), flippable from the WebView console; the [SCROLL]
+   instrument in chat.html reads frames/drop/max with it on and off on the same phone, and
+   that number decides whether it ships on (and on which platforms). What it costs by
+   mechanism: `backdrop-filter` makes the bar its own render surface and the compositor
+   re-samples and blurs the pixels BEHIND it on EVERY frame the canvas moves — a per-frame
+   GPU pass over the band's area (full width × composer height, ~1080 × 300 device px on
+   the Motorola). Chromium blurs at a downscaled resolution so a 16 px radius is not 16×
+   the cost of 1 px, but it is never free; Telegram Android ships its chat blur as a
+   SETTING for exactly this reason. The translucent GROUND on its own (the "reduced
+   opacity" half) is a static composited layer and costs nothing per frame — it is the
+   fallback if the blur's number is bad. `-webkit-` twin for WKWebView (iOS/Mac), which
+   implements it as UIVisualEffectView-class work. The bar keeps its transparent default so
+   every existing render and pin holds; the dial adds, it does not change. */
+html[data-chat-glass] .c-composer {
+  background: var(--surface-composer-glass);
+  -webkit-backdrop-filter: blur(var(--blur-chat-glass)) saturate(160%);   /* the day pill's own radius + saturation (message-bubble.css) — one glass grammar */
+  backdrop-filter: blur(var(--blur-chat-glass)) saturate(160%);
+}
+/* the fallback the glass depends on (the day pill's rule, verbatim in shape): an engine with no
+   backdrop-filter must NOT get a 72%-translucent band over the messages — that is worse than
+   the transparent bar it replaces, so it falls back to exactly that bar. Both spellings tested. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html[data-chat-glass] .c-composer { background: transparent; }
 }
 
 /* —— bot-chat cost hint (#86): standing money fact above the field —— */
@@ -2227,7 +2270,13 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   border-radius: var(--radius-24) var(--radius-24) 0 0;
   box-shadow: var(--elevation-3);
   padding: var(--spacing-8) var(--spacing-16) var(--spacing-16);
-  padding-bottom: calc(var(--spacing-16) + var(--safe-bottom, 0px));
+  /* ★ Session Z (#884 ①, Damir on the Y walk: every sheet "feels too low", "maybe even
+     32px"): the foot is spacing-24 (was 16) ABOVE the safe region — the same 24 the
+     desktop dialog already used (`:root[data-desktop] .c-sheet` below), so one number
+     serves both presentations. Picked over 32: on a 3-button Android bar the sheet now
+     also carries the 48 px bar under it (AND-45), and 32 + 48 read as an empty shelf
+     (the two variants were rendered; 24 is his pick). The keyboard variant mirrors it. */
+  padding-bottom: calc(var(--spacing-24) + var(--safe-bottom, 0px));
   transform: translateY(100%);
   transition: transform var(--duration-200) var(--easing-accelerate);
   outline: none;
@@ -2256,7 +2305,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    separately further down this file. */
 :root:not([data-desktop]) .c-sheet {
   bottom: var(--kb-inset, 0px);
-  padding-bottom: calc(var(--spacing-16) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)));
+  padding-bottom: calc(var(--spacing-24) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)));   /* ★ Session Z #884 ①: 24, as the resting sheet */
   max-height: calc(100% - var(--kb-inset, 0px));
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -3176,7 +3225,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    radius the bubble itself carries. box-shadow rather than `border` because a
    border would change the box and reflow the bubble under the user's finger. */
 [data-menu-target] {
-  box-shadow: 0 0 0 2px var(--brand-400), 0 0 0 5px rgba(118, 157, 255, 0.28);
+  box-shadow: 0 0 0 2px var(--brand-400), 0 0 0 5px rgba(118, 157, 255, 0.28); /* sanctioned: tokenise-candidate (#884 ③ `--surface-selected-wash` = primary-400 at alpha, Damir deferred) */
   transition: box-shadow 120ms ease-out;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -3464,8 +3513,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      stripper swallow the rule below. That helper now strips comments BEFORE slicing and a
      dedicated differential pin holds it that way, so writing the selector here is safe again.
      The general lesson survives and is the governing one of this loop: a sweep over raw text
-     can be satisfied — or defeated — by the very comment explaining it. */
-  background: #ffffff;
+     can be satisfied — or defeated — by the very comment explaining it.
+     ★ Session Z (#884 ③): the two literals became ONE role, `--surface-notice-card`
+     (light #ffffff · dark #0c1a4a in tokens.css). The reasoning above is why it is its OWN
+     role and not an alias of the bubble/pill/input tokens; the values did not move. */
+  background: var(--surface-notice-card);
   box-shadow: var(--elevation-2);
   /* ⚠ HISTORY, NOT INSTRUCTION (rewritten by the Session F audit). This surface once
      took the same --border-bubble-received hairline the received bubble carries
@@ -3560,8 +3612,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   /* ★ Session J (Damir: "dark midnight blue … with some elevation as well", no border):
      the #0c1a4a midnight stays, the rgba(118,157,255,.35) EDGE goes, and the dark
      --elevation-2 (0 2px 6px black .5) lifts it off the #10151e canvas. Reversal = the
-     inset edge in this comment. */
-  background: #0c1a4a;
+     inset edge in this comment.
+     ★ Session Z (#884 ③): the midnight is now the dark value of `--surface-notice-card`
+     (tokens.css), so this rule no longer repaints the ground — it keeps only the dark
+     elevation. */
   box-shadow: var(--elevation-2);
 }
 
@@ -3584,7 +3638,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   /* ★ Session J: on the wash too the card is WHITE + elevation (Damir, no per-ground
      family any more — a white card is lighter than any ground it can sit on). The
      rule stays as the reversal hook for a ground-tinted card (#eaf0fa). */
-  background: #ffffff; /* sanctioned: same literal, same reasoning as the base card rule above (#46 C3) */
+  background: var(--surface-notice-card); /* ★ Session Z (#884 ③): the same role as the base card rule */
 }
 
 </style>
@@ -3685,7 +3739,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-attach-tray[data-instant] { transition: none; } /* #721: swapped with the keyboard, not animated */
 .c-attach-tray .c-attach {
   gap: var(--spacing-12) var(--spacing-8);
-  padding: var(--spacing-8) 0 calc(var(--spacing-16) + var(--safe-bottom, 0px));
+  padding: var(--spacing-8) 0 calc(var(--spacing-16) + var(--safe-bottom, 0px));   /* ★ Session Z: STAYS 16 while the sheets went to 24 (#884 ①) — the tray fills a FIXED keyboard-height slot with overflow hidden, so a bigger foot would be subtracted from its grid, not added below it (#46 loop, reviewer MINOR-10) */
 }
 .c-attach-tray .c-attach__medallion { width: 56px; height: 56px; }
 /* the tray owns the home-indicator inset while it is open — the composer above it
@@ -4242,853 +4296,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 /* pressed after hover (source-order rule) */
 .c-search-field__clear:active { color: var(--text-action-pressed); }
 
-</style><!-- c-chat-info member filter (group takeover, ≥8 members) -->
-<style data-src="../styles/components/chat-info.css">
-/* c-chat-info — chat info takeover (docs/chat-info-spec.md, #141).
-   One surface for 1:1/group/bot; sections render by kind + capabilities. */
-
-.c-chat-info {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: var(--surface-screen);
-}
-.c-chat-info__body {
-  flex: 1;
-  min-height: 0;                    /* the flex-column scroll rule (#136①) */
-  display: flex;
-  flex-direction: column;
-  gap: var(--screen-gap);                      /* ★ Session I canon: 12 (was 16) */
-  padding: var(--screen-pad) var(--spacing-16) var(--spacing-32);   /* ★ Session I canon: 12 top (was 16) */
-}
-/* #150①: children of a SCROLLING flex column are shrinkable — overflow:hidden
-   (#149①) dropped the payments section's min-height:auto floor to 0, so it
-   absorbed ALL the shrink and rendered as a clipped sliver (Damir). The #148③
-   settings guard, applied here too: never shrink. */
-.c-chat-info__body > * { flex: none; }
-
-/* ★ Session Y (#875 P2/P3/P5/P8) — INSET-GROUPED SECTIONS.
-   #142 dividers → #148 one card PER ROW → now one card PER GROUP: a transparent
-   `__group` wrapper carries the label OUTSIDE (iOS grouped) and one `__card` that the
-   group's rows sit inside, separated by inset hairlines. Radius 12 — the ONE radius on
-   this screen (the tiles above use it too). NO elevation: in light the card's own tone
-   on the screen carries the lift; in dark a card lifts by tone and never outlines
-   (Apple HIG grouped backgrounds, Telegram/Signal in dark). Hero + action row stay on
-   the screen.
-   #150③ lives on: cards REASSIGN --surface-input (input === card in both modes made
-   fields invisible) — the #20 contextual-override precedent.
-   ⚠ The card is `overflow: hidden` so full-bleed row washes clip to its corners (the
-   #149① move, now for every group); the #150① never-shrink guard is on the WRAPPER
-   (`__body > *`), so the clip cannot collapse a section to a sliver. */
-.c-chat-info__group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-4);
-}
-.c-chat-info__card {
-  display: flex;
-  flex-direction: column;
-  background: var(--surface-card);
-  border-radius: var(--radius-12);
-  overflow: hidden;
-  --surface-input: var(--surface-input-on-card);
-  /* the hairline between rows starts at the LABEL edge: card pad 12 + glyph 22 + gap 12.
-     Lists with a 40 avatar override it (member/shared: 12 + 40 + 12); tx rows 12 + 48 + 12. */
-  --ci-hairline-inset: calc(var(--spacing-12) + 22px + var(--spacing-12));
-}
-/* ★ THE HAIRLINE is a pseudo on every row after the first — a border cannot be inset.
-   ⚠ `::after`, NOT `::before`: base.css owns `::before` on `.c-txlist-item` (and the other
-   row families) for the 5c-ii compositor PRESS LAYER (`html:root .c-txlist-item::before`,
-   0,2,2). A `::before` hairline here loses that cascade on the payment rows — it inherits
-   the press layer's `opacity: 0; z-index: -1` (no line) while its own `height: 1px`
-   still lands and squashes the press fill to a sliver (#46 loop, Session Y MAJOR-1).
-   `::after` is free on every row family this sheet draws (verified: `content: none`).
-   `--outline-neutral-03`, NOT -01 or -02 — COMPUTED against the card, both themes (the
-   suite recomputes these from the resolved ramps):
-     -01  light neutral-100 on the neutral-50 card 1.04:1 · dark neutral-800 on neutral-800 = 1.00 (no line)
-     -02  light neutral-200 1.137 · dark neutral-700 1.048 (the near-invisible class, #870)
-     -03  light neutral-300 1.423 · dark neutral-600 1.223 — a separator you can see and
-          would not call a border, on BOTH grounds (iOS's separator on white is ~1.30;
-          light sits a shade heavier than that, dark a shade lighter — one token, two ramps).
-   The Account hub draws its in-card hairlines at -01 and is invisible in dark for the
-   same reason — not this batch's screen; named in the handoff. */
-.c-chat-info__card > * + *,
-.c-chat-info__member-list > * + *,
-.c-chat-info__member-fill > * + *,
-.c-chat-info__shared-list > * + *,
-.c-chat-info__txs-list > * + * { position: relative; }
-.c-chat-info__card > * + *::after,
-.c-chat-info__member-list > * + *::after,
-.c-chat-info__member-fill > * + *::after,
-.c-chat-info__shared-list > * + *::after,
-.c-chat-info__txs-list > * + *::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  inset-inline: var(--ci-hairline-inset) 0;
-  height: var(--outline-width-1);
-  background: var(--outline-neutral-03);
-  pointer-events: none;
-}
-/* a list CONTAINER that follows another card child (the search field, the payments
-   toggle) is itself `> * + *` of the card, so it draws the line ABOVE its first row —
-   full-bleed, because what sits above it is not a row of the same family. Its first row
-   is `:first-child` of the list and draws none (no double line). The "View all" button at
-   the foot of the payments list is not a tx row either: full-bleed too. */
-.c-chat-info__card > .c-chat-info__member-list::after,
-.c-chat-info__card > .c-chat-info__shared-list::after,
-.c-chat-info__card > .c-chat-info__txs-list::after,
-.c-chat-info__txs-list > .c-chat-info__txs-all::after { inset-inline-start: 0; }
-/* ★ #46 loop (Session Y MAJOR-2): the card clips (`overflow: hidden`) and its rows are
-   full-bleed, so base.css's 2px OUTSIDE focus ring (outline-offset: 2px) fell off the
-   card — on a single-row card (Leave group) the ring vanished entirely. Inside a card the
-   ring draws INSIDE the row. */
-.c-chat-info__card :focus-visible { outline-offset: -2px; }
-.c-chat-info__member-list, .c-chat-info__shared-list { --ci-hairline-inset: calc(var(--spacing-12) + var(--size-avatar-40) + var(--spacing-12)); }
-.c-chat-info__txs-list { --ci-hairline-inset: calc(var(--spacing-12) + var(--size-avatar-48) + var(--spacing-12)); }
-
-/* clip-hidden live region (wallet-receive __live pattern) */
-.c-chat-info__live {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  margin: 0;
-}
-
-/* ★ Session Y (#875 P5): the section title sits OUTSIDE the card — label-sm, UPPERCASE,
-   Medium, --text-neutral-02, inset to the card's content edge (iOS grouped headers).
-   Uppercase needs POSITIVE tracking; the label-sm token's is negative, so it is set here. */
-.c-chat-info__label {
-  margin: 0;
-  padding-inline: var(--spacing-12);
-  font-size: var(--font-size-label-sm);
-  line-height: var(--line-height-label-sm);
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
-  font-weight: var(--font-weight-medium);
-  color: var(--text-neutral-02);
-}
-
-/* —— hero —— CENTERED identity block (Damir 2026-08-12 "premium" pass): the
-   left-aligned avatar+name row read like a list item, not a profile. Portrait
-   avatar, name, then the wire name / member count — the WhatsApp/Discord
-   register, and it gives the quick-action row a natural anchor underneath. */
-.c-chat-info__hero {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-8);                        /* ★ Session I canon: hero tightened (was 12) */
-  padding-block: var(--spacing-4) 0;            /* was 8 / 4 */
-  text-align: center;
-}
-
-/* avatar.css tokenizes 24/40/48 (+ the old 64 hero); the 80 hero sizes inline
-   via avatar.js, so its initials + presence dot are pinned here (0.38× scale,
-   the avatar.css rule of thumb). */
-.c-chat-info__hero .c-avatar__initials { font-size: 30px; }
-.c-chat-info__hero .c-avatar__dot { width: 18px; height: 18px; }
-/* #334: real hero photo → full-size viewer. The button hugs the avatar circle
-   (radius-full) so the base.css :focus-visible ring draws round; state rides an
-   action ring — a photo face can't tint (#43 hover coverage, tokens only). */
-.c-chat-info__avatar-view {
-  flex: none;
-  display: inline-flex;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: box-shadow var(--duration-100) var(--easing-standard);
-}
-@media (hover: hover) and (pointer: fine) {
-  .c-chat-info__avatar-view:hover { box-shadow: 0 0 0 var(--outline-width-2) var(--outline-action-hover); }
-}
-.c-chat-info__avatar-view:active { box-shadow: 0 0 0 var(--outline-width-2) var(--outline-action-pressed); }
-.c-chat-info__id {
-  min-width: 0;                     /* long names ellipsize, never blow out (③ lesson) */
-  width: 100%;                      /* centered hero: the column is the full row, so
-                                       the ellipsis still has a box to clip against */
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-2);
-}
-.c-chat-info__name-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-4);
-  min-width: 0;
-  max-width: 100%;
-}
-.c-chat-info__name {
-  min-width: 0;                     /* flex item in name-row: without this its
-                                       min-width resolves to the NOWRAP content
-                                       width, so a long name/nickname (or RTL
-                                       string) never ellipsizes — it overflows
-                                       the hero and shoves the edit pencil off
-                                       screen (#140③ / #136① class) */
-  font-size: var(--font-size-heading-sm);   /* centered hero carries one step more presence */
-  line-height: var(--line-height-heading-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-neutral-01);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.c-chat-info__sub {
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-height-body-sm);
-  color: var(--text-neutral-02);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-/* ★ Session Y (#875 P7): THE ADDRESS UNDER THE NAME — the hero's last line. The #211
-   truncated form in the sub register, a 16px code glyph beside it (the sheet it opens IS
-   the QR), tabular so the digits sit still. It is a <button> when a host wires the
-   sheet: reset the button box, keep a 32 min-height + padding, wash on press.
-   ★ Damir (Session Y, on four rendered variants): the TAPPABLE line is ACTION INK — blue
-   text + blue glyph, no ground (iOS Contacts' number, Telegram's @username: the oldest
-   "blue text is tappable" rule; no new string, one accent, the hero stays quiet). A host
-   that passes no handler renders a <span> and it stays --text-neutral-02: blue means
-   tappable, so a line that does nothing must not wear it. Bots carry the line too (a bot
-   HAS an address, #731); groups never do. */
-.c-chat-info__hero-addr {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-4);
-  max-width: 100%;
-  min-height: 32px;
-  margin: 0;
-  padding: var(--spacing-2) var(--spacing-8);
-  border: 0;
-  border-radius: var(--radius-8);
-  background: transparent;
-  color: var(--text-neutral-02);
-  font: inherit;
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-height-body-sm);
-  cursor: default;
-  -webkit-tap-highlight-color: transparent;
-  transition: background-color var(--duration-100) var(--easing-standard);
-}
-button.c-chat-info__hero-addr { cursor: pointer; color: var(--text-action-default); }
-.c-chat-info__hero-addr > svg { flex: none; color: var(--icon-neutral-02); }
-button.c-chat-info__hero-addr > svg { color: var(--icon-action-default); }
-.c-chat-info__hero-addr .c-chat-info__addr-value {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-@media (hover: hover) and (pointer: fine) {
-  button.c-chat-info__hero-addr:hover { background: var(--surface-interactive-hover); }
-}
-button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pressed); }
-/* N48 (#370): own owner-status chip under the hero sub (blind rooms). The hero
-   column is centered; the badge hugs its content and needs only breathing room. */
-.c-chat-info__self-role {
-  margin-top: var(--spacing-8);
-  align-self: center;
-}
-.c-chat-info__nick-input {
-  font: inherit;
-  font-size: var(--font-size-heading-xs);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-neutral-01);
-  background: var(--surface-input);
-  border: var(--outline-width-1) solid var(--outline-action-default);
-  border-radius: var(--radius-8);
-  padding: var(--spacing-2) var(--spacing-8);
-  min-width: 0;
-  width: 100%;
-}
-.c-chat-info__nick-error {
-  font-size: var(--font-size-body-sm);
-  color: var(--text-error);
-}
-
-/* —— address —— ★ #591 retired the CARD (→ the shared address sheet, #527);
-   ★ Session Y (#875 P7) retired the ROW too — the address is the hero's last line
-   (`__hero-addr`, above). No address rule lives in the body any more. */
-
-/* —— action row —— ★ Session Y (#876): FOUR EQUAL ROUNDED-RECTANGLE TILES, max.
-   The 48px tonal circle + label-underneath of 2026-08-12 (the wallet-banner grammar)
-   is retired on THIS screen: the button IS the tile — --surface-card, radius 12 (the
-   same surface and radius as the grouped cards below, one system), a 22px glyph on
-   the single accent, a 12px label INSIDE. Telegram's header buttons (tile = list block
-   colour, icon over label) and iOS Contacts' tile row are the reference. The wallet
-   hero keeps its circles (different surface, different job).
-   Equal widths: `flex: 1 1 0` with NO max-width cap (the #591 84px cap sized circles;
-   tiles fill the row). A lone tile (a room from the chat header: Mute alone) hugs.
-   Labels WRAP rather than truncate (the #591 ru-ru lesson: "Сообщ…" is unreadable, a
-   two-line label is merely tall) — ONE `__qa-label` rule, see the #591 note below. */
-.c-chat-info__money {
-  display: flex;
-  gap: var(--spacing-8);
-}
-.c-chat-info__money > .c-chat-info__qa { flex: 1 1 0; min-width: 0; }
-/* identity + actions read as ONE header block: pull the row up out of the
-   body's section rhythm (the full gap made the actions look orphaned) */
-.c-chat-info__hero + .c-chat-info__money { margin-block-start: calc(-1 * var(--spacing-4)); }
-/* a lone action hugs instead of stretching — a full-width tile reads as a button */
-.c-chat-info__money[data-count='1'] { justify-content: center; }
-.c-chat-info__money[data-count='1'] > .c-chat-info__qa { flex: none; min-width: 112px; }
-
-.c-chat-info__qa {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-4);
-  min-height: 64px;
-  padding: var(--spacing-8) var(--spacing-4);
-  border: 0;
-  border-radius: var(--radius-12);
-  background: var(--surface-card);
-  color: var(--text-neutral-01);
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-label-xs);
-  line-height: var(--line-height-label-xs);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: background-color var(--duration-100) var(--easing-standard);
-}
-.c-chat-info__qa-glyph {
-  flex: none;
-  color: var(--icon-action-default);       /* the ONE accent on this screen (#875) */
-}
-.c-chat-info__qa-label {
-  max-width: 100%;
-  /* ★ #591: WRAPS (see the note above). `overflow-wrap` only does anything once
-     wrapping is permitted, which is why it must live HERE and not in a second block
-     that a later `nowrap` would beat. */
-  white-space: normal;
-  overflow-wrap: anywhere;
-  text-align: center;
-}
-/* ★ hover/pressed = ONE VISIBLE STEP from the tile's own ground (the #870 PROPERTY).
-   The #870 TOKENS are the sheet pair (a card on --surface-menu); a tile is a card on the
-   SCREEN, so tokens.css now carries the card pair beside it — `--surface-card-hover /
-   -pressed` (light 200/300 on the 50 card · dark 600/500 on the 800 card; measured
-   1.137/1.423 · 1.223/1.357). `--surface-card-raised` was NOT usable as the hover: 1.04
-   light / 1.048 dark, the invisible class. */
-@media (hover: hover) and (pointer: fine) {
-  .c-chat-info__qa:hover { background: var(--surface-card-hover); }
-}
-.c-chat-info__qa:active { background: var(--surface-card-pressed); }
-
-/* —— generic row —— ★ Session Y: rows live INSIDE a grouped card now. A row is
-   full-bleed (the card clips the wash to its corners), carries its own 12px inline
-   padding, and stacks with the inset hairline drawn by the card rule above. The switch
-   row and the address row are gone (Mute tile · hero address); `--row-h-nav` 48 is the
-   canon height (Session I), a member row 56, a tx row its own. */
-.c-chat-info__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-8);
-  min-height: var(--row-h-nav);     /* ★ Session I canon: 48 (was 52 — #149② "44 target + disc breathing room") */
-  padding-inline: var(--spacing-12);
-}
-/* ★ Session Y (#875 P1): the ROW GLYPH — bare 22px, monochrome, no disc. Colour is a
-   ROLE: --icon-neutral-02 for every row, --icon-error under the destructive tone. */
-.c-chat-info__row-glyph { flex: none; color: var(--icon-neutral-02); }
-
-/* setting row (#142: disappearing messages) — a tappable row: label · value · chevron */
-.c-chat-info__setting {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  border-radius: 0;                 /* ★ Session Y: full-bleed inside the card; the card clips */
-  cursor: pointer;
-  text-align: start;
-  font: inherit;
-  -webkit-tap-highlight-color: transparent;
-  transition: background-color var(--duration-100) var(--easing-standard);
-}
-/* the disappearing-messages row is wrapped in its own group (one card, one row) so a
-   divider/hairline can only ever land on the CARD's children, never on the button — the
-   button keeps a tight border-box so its pressed/focus state stays on the row and never
-   bleeds up into a divider gap (Damir: tap area + pressed state were off) */
-.c-chat-info__setting-section > .c-chat-info__card > .c-chat-info__setting { width: 100%; }
-@media (hover: hover) and (pointer: fine) {
-  .c-chat-info__setting:hover { background: var(--surface-interactive-hover); }
-}
-.c-chat-info__setting:active { background: var(--surface-interactive-pressed); }
-.c-chat-info__setting-value {
-  margin-inline-start: auto;
-  color: var(--text-neutral-02);
-  font-size: var(--font-size-body-md);
-  flex: none;
-}
-.c-chat-info__setting > svg:last-child { color: var(--icon-neutral-02); flex: none; }
-
-/* disappearing-messages option sheet */
-.c-chat-info__sd { display: flex; flex-direction: column; gap: var(--spacing-4); }
-.c-chat-info__sd-hint {
-  margin: 0 0 var(--spacing-8);
-  color: var(--text-neutral-02);
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-height-body-sm);
-}
-.c-chat-info__sd-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-8);
-  min-height: 48px;
-  padding: 0 var(--spacing-12);
-  border: 0;
-  border-radius: var(--radius-12);
-  background: transparent;
-  color: var(--text-neutral-01);
-  font-size: var(--font-size-body-md);
-  cursor: pointer;
-  text-align: start;
-  -webkit-tap-highlight-color: transparent;
-  transition: background-color var(--duration-100) var(--easing-standard);
-}
-@media (hover: hover) and (pointer: fine) {
-  .c-chat-info__sd-option:hover { background: var(--surface-interactive-hover); }
-}
-.c-chat-info__sd-option:active { background: var(--surface-interactive-pressed); }
-.c-chat-info__sd-option-label {   /* keep the label put; ellipsize if ever long */
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* fixed right-hand slot: the success check (checked) OR the loading spinner (in
-   flight) live HERE, so tapping never shifts the label (Damir) */
-.c-chat-info__sd-status {
-  flex: none;
-  width: 18px;
-  height: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--icon-success);       /* success token — theme-correct (light 600 / dark 400); spinner inherits it */
-}
-.c-chat-info__sd-check { visibility: hidden; }
-.c-chat-info__sd-option[aria-checked='true'] { font-weight: var(--font-weight-semibold); }
-.c-chat-info__sd-option[aria-checked='true'] .c-chat-info__sd-check { visibility: visible; }
-.c-chat-info__sd-option[data-loading] .c-chat-info__sd-check { display: none; }   /* the spinner takes the slot */
-.c-chat-info__row-label {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-12);          /* ★ Session Y: glyph 22 + 12 = the label edge (hairline inset) */
-  min-width: 0;
-  color: var(--text-neutral-01);
-  font-size: var(--font-size-body-md);
-  font-weight: var(--row-title-weight);   /* ★ Session J: same notch as the settings rows (tokens.css) */
-}
-/* ★ Session Y (#875): the notifications SWITCH (`__switch`, `__switch-knob`, the 56px
-   switch row) is RETIRED with its row — Mute is a tile in the action row. Rules deleted,
-   not left dangling: dead CSS ships inlined into every built shell (#591's rule). */
-@media (prefers-reduced-motion: reduce) {
-  /* #591: __qr-chevron left with the retired address card; Session Y: the switch too */
-  .c-chat-info__txs-chevron { transition: none; }
-}
-
-/* —— shared media (flagged) —— ★ Session Y: a grouped section — the head (label +
-   See all) is the wrapper's first child, the strip sits inside the card with its own
-   padding (cards carry none; rows/strips do). */
-.c-chat-info__media-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-inline-end: var(--spacing-4);
-}
-.c-chat-info__media-strip {
-  display: flex;
-  gap: var(--spacing-8);
-  overflow-x: auto;
-  padding: var(--spacing-12);
-}
-.c-chat-info__media-thumb {
-  flex: none;
-  width: 72px;
-  height: 72px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: var(--radius-12);
-  background: var(--surface-neutral-01);
-  color: var(--icon-neutral-02);
-  overflow: hidden;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.c-chat-info__media-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-/* —— members —— ★ Session Y: the "Members (N)" label is outside; search + the roster
-   are the card's children (a hairline lands between them via the card rule). */
-.c-chat-info__members .c-search-field { margin: var(--spacing-12) var(--spacing-12) var(--spacing-8); }
-.c-chat-info__member-list { display: flex; flex-direction: column; }
-/* ★ Session H: the incremental fill's skeleton tail — a transparent wrapper so its
-   skeleton rows stack exactly like real rows while real batches insert above it. */
-.c-chat-info__member-fill { display: flex; flex-direction: column; }
-.c-chat-info__member {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-12);
-  min-height: var(--row-h-member);  /* ★ Session I canon: 56 */
-  padding: var(--spacing-4) var(--spacing-12);   /* ★ Session Y: full-bleed in the card, 12 inline like every row */
-  border: 0;
-  border-radius: 0;                 /* the card clips the wash to ITS corners (#149①, for every group now) */
-  background: transparent;
-  text-align: start;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: background-color var(--duration-100) var(--easing-standard);
-}
-@media (hover: hover) and (pointer: fine) {
-  .c-chat-info__member:hover { background: var(--surface-interactive-hover); }
-}
-.c-chat-info__member:active { background: var(--surface-interactive-pressed); }
-.c-chat-info__member-name {
-  flex: 1;
-  min-width: 0;
-  color: var(--text-neutral-01);
-  font-size: var(--font-size-body-md);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.c-chat-info__member-badge { flex: none; }
-.c-chat-info__member > svg:last-child { color: var(--icon-neutral-02); flex: none; }
-.c-chat-info__member-note {
-  padding: var(--spacing-12);
-  color: var(--text-neutral-02);
-  font-size: var(--font-size-body-sm);
-}
-
-/* —— payments (#142: collapsed accordion — reveal grammar shared with Show QR) —— */
-/* #149① (Damir): tx rows run FULL-BLEED across the card — the press state spans edge
-   to edge instead of a floating inset rectangle. ★ Session Y: the card carries NO
-   padding any more, so the negative margins that cancelled it are gone; the card's
-   own `overflow: hidden` clips the rows to radius 12. */
-.c-chat-info__txs-list {
-  display: flex;
-  flex-direction: column;
-}
-.c-chat-info__txs-list .c-txlist-item { border-radius: 0; }
-/* the accordion toggle IS the group's title row — the row grammar (48, 12 inline,
-   glyph + label), Medium like every row title (--row-title-weight, Session J) */
-.c-chat-info__txs-toggle {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-12);
-  min-height: var(--row-h-nav);
-  padding: 0 var(--spacing-12);
-  border: 0;
-  background: transparent;
-  color: var(--text-neutral-01);
-  font-size: var(--font-size-body-md);
-  font-weight: var(--row-title-weight);
-  cursor: pointer;
-  border-radius: 0;
-  text-align: start;
-  -webkit-tap-highlight-color: transparent;
-  transition: background-color var(--duration-100) var(--easing-standard);
-}
-@media (hover: hover) and (pointer: fine) {
-  .c-chat-info__txs-toggle:hover { background: var(--surface-interactive-hover); }
-}
-.c-chat-info__txs-toggle:active { background: var(--surface-interactive-pressed); }
-.c-chat-info__txs-chevron {
-  margin-inline-start: auto;
-  transition: transform var(--duration-200) var(--easing-standard);
-}
-.c-chat-info__txs-toggle[aria-expanded='true'] > .c-chat-info__txs-chevron {
-  transform: rotate(180deg);        /* child combinator — the #137 M4 lesson */
-}
-.c-chat-info__txs-all {
-  min-height: 44px;
-  padding: 0 var(--spacing-12);
-  border: 0;
-  background: transparent;
-  color: var(--text-action-default);
-  font-size: var(--font-size-label-md);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-  border-radius: var(--radius-8);
-  text-align: center;
-  -webkit-tap-highlight-color: transparent;
-}
-
-/* —— destructive zone —— ★ Session Y (#875 P2/P4, #873): ONE grouped card, placed by
-   kind in chat-info.js (1:1 last · group/bot above the roster). #142's "separated,
-   bordered rows" and #618's "one card per row" are both superseded by the group card:
-   the rows are ordinary rows of THIS screen, the tier lives in the ROLE.
-   ⚠ It is a <button>, so every inherited button default has to be spelled out —
-   a half-reset button in a card is how one row ends up a pixel off from its
-   neighbours. */
-.c-chat-info__row--action {
-  /* ★★ V-14 (#46 loop 2026-08-29): TEN interactive rules in this file carry this kill
-   * and #618's new row did not — so on Android it painted its own :active wash AND a
-   * square platform rectangle over a rounded card. There is no global reset to fall
-   * back on: base.css and tokens.css contain zero occurrences. */
-  -webkit-tap-highlight-color: transparent;
-  width: 100%;
-  border: 0;
-  border-radius: 0;                 /* full-bleed in the card; the card clips */
-  background: transparent;          /* NO fill, NO elevation — the card is the surface */
-  color: var(--text-neutral-01);
-  font-family: inherit;
-  font-size: var(--font-size-body-md);
-  font-weight: var(--row-title-weight);
-  text-align: start;
-  cursor: pointer;
-  transition: background-color var(--duration-100) var(--easing-standard);
-}
-@media (hover: hover) and (pointer: fine) {
-  .c-chat-info__row--action:hover { background: var(--surface-interactive-hover); }
-}
-.c-chat-info__row--action:active { background: var(--surface-interactive-pressed); }
-/* the chevron reads as chrome, like every other row's */
-.c-chat-info__row--action > svg { color: var(--icon-neutral-02); flex: none; }
-/* ★ #875 P4 — RED IS A ROLE, NOT A FILL. The irreversible row (Remove contact · Leave
-   group) sets its LABEL on --text-error and its glyph on --icon-error; nothing is
-   painted red. The reversible row (Delete history, tone "quiet") is every other row.
-   Contrast owed at build (#769): --text-error on --surface-card, both themes — the
-   suite computes it. */
-.c-chat-info__row--action[data-tone="error"] .c-chat-info__row-label { color: var(--text-error); }
-.c-chat-info__row--action[data-tone="error"] .c-chat-info__row-glyph { color: var(--icon-error); }
-
-.c-chat-info__confirm-error {
-  margin: var(--spacing-8) 0 0;
-  color: var(--text-error);
-  font-size: var(--font-size-body-sm);
-}
-
-/* member-sheet injected actions (#141) — lives here: the opt only exists for
-   chat-info's admin path today */
-.c-member__actions {
-  display: flex;
-  gap: var(--spacing-8);
-  margin-top: var(--spacing-8);
-  width: 100%;                      /* #150②: the sheet centers its children — the
-                                       hugging row made Kick/Ban read smaller than
-                                       Pay/Request; span the row, flex:1 splits it */
-}
-.c-member__actions > .c-button { flex: 1; }
-
-/* ★ A8 (Batch A 2026-08-24): skeleton rows while the roster / shared-groups pushes
-   land. Neutral wash, a slow shimmer (off under reduced motion), never interactive.
-
-   ★ #591 (Damir 2026-08-26): "it needs to have the EXACT same placement as the elements
-   here, and it needs to be more visible, a notch or 2."
-
-   TWO STEPS UP, not one: `--surface-neutral-02` is the same fill the cards on this
-   screen already paint, so a skeleton drawn in it was a shape the eye read as content
-   rather than as absence. `--surface-neutral-04` is two rungs of the ramp and reads as
-   a placeholder in both themes.
-
-   ⚠ PLACEMENT is the other half, and it is the half that matters more: a skeleton whose
-   boxes MOVE when the data lands is worse than no skeleton at all. The row itself is
-   already the real `.c-chat-info__member` (same min-height, padding, gap), so the two
-   things that could still shift are the line's HEIGHT and its BASELINE. The line is now
-   the real name's line-height, centred in the same box the text occupies, so the swap
-   is a colour change and nothing reflows. */
-.c-chat-info__member--skeleton { cursor: default; pointer-events: none; }
-.c-chat-info__skeleton-avatar {
-  flex: none;
-  width: var(--size-avatar-40); height: var(--size-avatar-40);
-  border-radius: var(--radius-full);
-  background: var(--surface-neutral-04);
-}
-.c-chat-info__skeleton-line {
-  /* the real row's name is body-md; matching its LINE BOX is what stops the jump */
-  height: var(--line-height-body-md);
-  border-radius: var(--radius-full);
-  background: var(--surface-neutral-04);
-}
-.c-chat-info__skeleton-avatar, .c-chat-info__skeleton-line {
-  animation: c-chat-info-shimmer 1.4s var(--easing-standard) infinite;
-}
-@keyframes c-chat-info-shimmer { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
-@media (prefers-reduced-motion: reduce) { .c-chat-info__skeleton-avatar, .c-chat-info__skeleton-line { animation: none; } }
-/* ★ A4: the shared-groups strip (1:1) — the members-list grammar, group avatars */
-/* ★ Session Y: `__shared` is a grouped section (label outside, list in the card) */
-.c-chat-info__shared-list { display: flex; flex-direction: column; }
-.c-chat-info__shared-row:disabled { cursor: default; }
-
-</style><!-- group/bot info takeover (header tap) -->
-<style data-src="../styles/components/txlist-item.css">
-/* c-txlist-item — wallet transaction row (docs/tx-row-spec.md, DECISIONS #55).
-   Figma rows are static; hover/pressed = #23 interactive tokens per #43. */
-
-.c-txlist-item {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-12);
-  width: 100%;
-  padding: var(--spacing-16) var(--spacing-12);
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  text-align: start;
-  font-family: var(--font-secondary);
-  -webkit-tap-highlight-color: transparent;
-  /* 100ms intentional: micro-interaction, matches chatlist row hover */
-  transition: background-color var(--duration-100) var(--easing-standard);
-  /* 5c-ii (2026-08-24): the press fill MOVED to the compositor ::before layer in
-     base.css — see chatlist-item.css for the note. State rules set colour only. */
-}
-/* W4a (#348): the selected row uses the CHAT-ROW treatment, exactly.
-   The wallet row was left on --surface-interactive-selected while the chats list
-   moved to the action-tonal surface (Damir 2026-07-07, chatlist-item.css:22), so
-   the two lists showed DIFFERENT selected colours in the same desktop window. The
-   shell rule that set it even CLAIMED to "mirror the chats-list treatment"
-   (home.html) — it had stopped doing so. The rule now lives here, beside this
-   row's own hover and pressed rules and in the same order as the chat row, so the
-   two lists cannot drift apart again. */
-.c-txlist-item[aria-current] {
-  background-color: var(--surface-action-tonal-default);
-  /* 5c-ii: the tonal-pressed fill rides base.css's ::before layer — no image here. */
-}
-@media (hover: hover) and (pointer: fine) {
-  /* ★ #353 (Damir): NO hover tint on a selected row — identical to the chat row,
-     see chatlist-item.css. :not([aria-current]) is load-bearing (source order).
-     ⚠ Keep this rule TRANSITION-FREE — see the chat row's B-4 note. */
-  .c-txlist-item:hover:not([aria-current]) { background-color: var(--surface-interactive-hover); }
-}
-/* 5c-i/ii: the :active fill mirrors are REMOVED — see chatlist-item.css. */
-
-/* #228 desktop row rhythm — same treatment as chat rows (#226/R3): 48px circle
-   + 2×8px padding ≈ 64px rows. Mobile keeps spacing-16. */
-:root[data-desktop] .c-txlist-item { padding-block: var(--spacing-8); }
-
-/* direction circle: 48, centered 24 arrow */
-.c-txlist-item__direction {
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--size-avatar-48);
-  height: var(--size-avatar-48);
-  border-radius: var(--radius-full);
-  border: var(--outline-width-1) solid var(--outline-neutral-04);
-  color: var(--icon-neutral-01);
-}
-.c-txlist-item[data-type="received"] .c-txlist-item__direction {
-  border-color: var(--outline-success-inverse);
-  color: var(--text-success);
-}
-.c-txlist-item[data-type="failed"] .c-txlist-item__direction { color: var(--text-error); }
-
-.c-txlist-item__content {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
-}
-
-.c-txlist-item__name {
-  /* #277: row-title parity with chat rows (.c-chatlist-item__name) — label-lg
-     became the BUTTON role at the #227 type dial (16px desktop) while chat-row
-     names moved to body-lg (14px), and the always-semibold weight made
-     addresses read outsized (Damir F5). body-lg regular; the AMOUNT keeps
-     label-lg semibold as the row's money emphasis (dial if too loud). */
-  font-size: var(--tx-name-size);            /* ★ Session I (sheet 2, #735⑦): 15 mobile / 14 desktop — was body-lg */
-  line-height: var(--line-height-body-lg);
-  letter-spacing: var(--tracking-body-lg);
-  font-weight: var(--tx-name-weight);        /* ★ Session I: semibold — #277's regular reversed on Damir's ruling */
-  color: var(--text-neutral-01);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.c-txlist-item__meta {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-8);
-  min-width: 0;
-  /* #286: belt — a non-shrinking child must never paint into the amounts column */
-  overflow: hidden;
-}
-/* #286 (Damir F5, narrow desktop pane): the status badge's default min-width:auto
-   made it refuse to shrink below its label — it painted over the fiat amount.
-   Let it shrink; the label ellipsizes (icon + tint keep carrying the status,
-   and the full wording lives on the detail sheet). */
-.c-txlist-item__meta .c-badge { min-width: 0; }
-.c-txlist-item__meta .c-badge__label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.c-txlist-item__time {
-  /* #231b: secondary list lines ride body-sm (chat-excerpt parity) — body-md
-     is the BUBBLE role since the #227 dial and outsized the 16px label-lg name */
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-height-body-sm);
-  letter-spacing: var(--tracking-body-sm);
-  color: var(--text-neutral-02);
-  /* #288 review: as a flex child its automatic minimum size is its full min-content
-     width, so it never shrinks — the #286 overflow:hidden belt on __meta then CLIPS it
-     mid-glyph and the text-overflow below can never fire. */
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* right column: amount over fiat, right-aligned. Amounts are bridge-formatted
-   (bounded in practice); max-width + ellipsis = belt-and-braces overflow guard */
-.c-txlist-item__amounts {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  flex: none;
-  max-width: 55%;
-}
-.c-txlist-item__amount, .c-txlist-item__fiat {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.c-txlist-item__amount {
-  font-size: var(--font-size-label-lg);
-  line-height: var(--line-height-label-lg);
-  letter-spacing: var(--tracking-label-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-neutral-01);
-}
-.c-txlist-item__fiat {
-  font-size: var(--font-size-body-sm);   /* #231b: secondary-line parity (see __time) */
-  line-height: var(--line-height-body-sm);
-  letter-spacing: var(--tracking-body-sm);
-  /* Figma sent-fiat used text-neutral-01, every other type -02 — normalized to -02 (spec ①) */
-  color: var(--text-neutral-02);
-}
-
-.c-txlist-item[data-type="received"] .c-txlist-item__amount { color: var(--text-success); }
-.c-txlist-item[data-type="pending"] .c-txlist-item__amount { color: var(--text-neutral-02); }
-.c-txlist-item[data-type="failed"] .c-txlist-item__amount,
-.c-txlist-item[data-type="failed"] .c-txlist-item__fiat {
-  /* Figma raw #6a717c = unbound token error (spec ②) — bound to disabled ink */
-  color: var(--text-neutral-disabled);
-  text-decoration: line-through;
-  font-weight: var(--font-weight-regular);
-}
-
-</style><!-- W-h gate (2026-08-24): createChatInfo renders c-txlist-item rows for a `txs` list — this shell passes none today, linked so the path is never unstyled when it does -->
+</style><!-- ★ Session Z (#882 (c)): kept for the W5 in-chat send compose (createWalletSend renders the recipient search) — the W-h gate derives this from the import graph; the comment that once said "chat-info member filter" was the wrong reason for a right link -->
+<!-- ★ Session Z (#882 (c)): chat-info.css · txlist-item.css are NO LONGER linked here — they served only the in-chat info takeover #249 retired (its member/txs lists); every info route emits ixian:details and the ContactDetails shell (its own WebView) styles itself. -->
 <style data-src="../styles/components/banner.css">
 /* c-banner — warning strip under the top bar. Passive status: no scrim/trap.
    Collapses via max-height (conservative baseline — no 0fr grid animation). */
@@ -5488,7 +4697,7 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   text-align: start;
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) and (pointer: fine) { .c-contact-row:not(:disabled):hover { background-color: var(--surface-interactive-hover); } }
+@media (hover: hover) and (pointer: fine) { .c-contact-row:not(:disabled):hover { background-color: var(--surface-card-hover); } }   /* ★ Session Z (#882 (a)): this row sits ON a --surface-card, and --surface-interactive-hover IS the card's colour (light 50 on 50, dark 800 on 800) — no hover at all. The card pair is one visible step (#878). */
 .c-contact-row:disabled { cursor: default; }
 .c-contact-row:disabled > .c-avatar,
 .c-contact-row:disabled .c-contact-row__name { opacity: var(--opacity-disabled); }
@@ -6034,17 +5243,10 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   @media (hover: hover) and (pointer: fine) { .chat-app-picker__item:hover { background: var(--surface-interactive-hover); } } /* #337: AND-18 sweep miss */
   .chat-app-picker__name { font-weight: 600; }
   .chat-app-picker__empty { padding: var(--spacing-16); text-align: center; color: var(--text-neutral-02); }
-  /* group/bot chat-info takeover — full-viewport cover mounted over the chat.
-     z-30 sits ABOVE the bars/composer (z-20) but BELOW the sheets (z-40) + modal
-     (z-50) it spawns, so its member sheet + kick/ban/leave confirms render on top.
-     The c-chat-info panel is height:100% → fills this. */
-  .chat-info-takeover {
-    position: fixed; inset: 0; z-index: var(--z-30, 30);
-    background: var(--surface-screen);
-    display: flex; flex-direction: column;
-  }
-  .chat-info-takeover > .c-chat-info { flex: 1; min-height: 0; }
-  /* W5 (#523): the in-chat send compose — same cover grammar as chat-info; its
+  /* ★ Session Z (#882 (c)): the `.chat-info-takeover` cover rules are gone with the dead
+     takeover (see the tombstone at the old block). The send compose below keeps the same
+     full-viewport cover grammar on its own rules. */
+  /* W5 (#523): the in-chat send compose — full-viewport cover over the chat (z-30); its
      review sheet (z-40) + Max modal (z-50) render on top. */
   .chat-send-takeover {
     position: fixed; inset: 0; z-index: var(--z-30, 30);
@@ -6251,6 +5453,7 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
 <script>/* M13 (2026-09-08): the STATIC a11y labels below the boot line. They are in the markup so a screen reader has them on the FIRST paint, which is exactly why they could not be written as getStrings() calls — and so they were English in every locale. One walk over [data-sl-aria] relabels them from the dictionary as soon as the DOM exists; the English in the attribute stays as the fallback for a key the dictionary lacks. */
 (function(){function r(){for(var e of document.querySelectorAll('[data-sl-aria]')){var v=window.SL&&window.SL[e.dataset.slAria];if(v)e.setAttribute('aria-label',v);}}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',r,{once:true});else r();})();</script>
 <script src="spixi.bundle.js"></script>
+<script>/* ★ L15b (Session Z): the flag font — a device that cannot paint a flag emoji (Windows) gets the flags-only Twemoji face for the regional-indicator block, injected at runtime so the 78 KB is never inlined and never fetched on a phone; flags.js holds the mechanism. Unguarded on purpose: a missing export must fail loudly at boot, not fall silent. */window.Spixi.installFlagFont();</script>
 <script>window.__cdParse&&window.__cdParse.push(['bundle',performance.now()]);</script>
 <script>
   /* —————————————————————————————————————————————————————————————————————————
@@ -6305,7 +5508,6 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
     createModal, openModal, showToast, createButton,
     createWarningBanner, setWarning, createContactRequest,
     createSheet, openSheet, closeSheet,
-    createChatInfo,                 // group/bot chat-info takeover (header tap; 1:1 → ContactDetails page)
     addReactions: applyReactions,   // component free-fn; aliased — the bridge handler below is also `addReactions`
     truncateAddressMiddle,          // #211 canon: chat surfaces show addresses truncated, never in full
     attachContextMenuAnchors, anchorSheetAbove,   // Batch C (M6): desktop sheet grammar (no-op on mobile)
@@ -6376,15 +5578,16 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
      storage event, the same focus/visibility fallback, the same stamp gate, plus one explicit
      refresh at onChatScreenReady so an attach never presents a stale size. An unset or
      non-finite value means "no override" and REMOVES the property (the token default). */
-  const PATTERN_PREF_KEYS = { level: 'spixi.chat.pattern', style: 'spixi.chat.patternstyle', ground: 'spixi.chat.ground', text: 'spixi.chat.textscale' };
+  const PATTERN_PREF_KEYS = { level: 'spixi.chat.pattern', style: 'spixi.chat.patternstyle', ground: 'spixi.chat.ground', text: 'spixi.chat.textscale', glass: 'spixi.chat.glass' };   // ★ Session Z: glass rides the stamp gate like the rest (L1·12 — a boot-only pref is one pick behind on a pre-warmed document)
   function readPatternPrefs() {
     const de = document.documentElement.hasAttribute('data-desktop');
-    let p = NaN, s = '', gr = '', t = NaN;
+    let p = NaN, s = '', gr = '', t = NaN, gl = '';
     try {
       p = parseFloat(localStorage.getItem(PATTERN_PREF_KEYS.level));
       s = localStorage.getItem(PATTERN_PREF_KEYS.style) || '';
       gr = localStorage.getItem(PATTERN_PREF_KEYS.ground) || '';
       t = parseFloat(localStorage.getItem(PATTERN_PREF_KEYS.text));
+      gl = localStorage.getItem(PATTERN_PREF_KEYS.glass) || '';
     } catch (e) { /* DomStorageEnabled=false → boot defaults, forever */ }
     if (isFinite(t)) t = Math.min(1.5, Math.max(0.8, t)); else t = NaN;   // the head script's clamp, in step
     // ★ N81 (#422): p is a LEVEL INDEX now. readPatternLevel migrates the legacy
@@ -6418,7 +5621,7 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
        is deliberately left in localStorage: it is never read back as anything but "not in
        the list", and restoring the option restores their pick. */
     if (gr !== 'flat') gr = 'flat';
-    return { level: p, style: s, ground: gr, text: t };
+    return { level: p, style: s, ground: gr, text: t, glass: gl === '1' };   // ★ Session Z: the glass dial, '1' and nothing else
   }
   function applyPatternPrefs(prefs) {
     const r = document.documentElement;
@@ -6434,11 +5637,12 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
     r.setAttribute('data-chat-ground', prefs.ground);   // ★ AUG: light-only in effect; inert in dark
     if (isFinite(prefs.text)) r.style.setProperty('--chat-text-scale', String(prefs.text));   // ★ Session P: the stored size, or
     else r.style.removeProperty('--chat-text-scale');                                          //   the token default when unset
+    if (prefs.glass) r.setAttribute('data-chat-glass', ''); else r.removeAttribute('data-chat-glass');   // ★ Session Z: the glass dial (composer.css)
   }
   /* ⚠ THE STAMP IS THE GATE. A key left out of it is a key whose change is invisible to
      the poll — the ground would have needed a WebView reload exactly like the pattern did
      before W5 F5. Every field readPatternPrefs returns must appear here. */
-  const patternStamp = (p) => p.level + '|' + p.style + '|' + p.ground + '|' + p.text;
+  const patternStamp = (p) => p.level + '|' + p.style + '|' + p.ground + '|' + p.text + '|' + (p.glass ? 1 : 0);
   let seenPatternPrefs = patternStamp(readPatternPrefs());
   function refreshPatternPrefsIfChanged() {
     const prefs = readPatternPrefs();
@@ -6448,7 +5652,7 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
     applyPatternPrefs(prefs);
   }
   window.addEventListener('storage', (e) => {
-    if (!e.key || e.key === PATTERN_PREF_KEYS.level || e.key === PATTERN_PREF_KEYS.style || e.key === PATTERN_PREF_KEYS.ground || e.key === PATTERN_PREF_KEYS.text) refreshPatternPrefsIfChanged();
+    if (!e.key || e.key === PATTERN_PREF_KEYS.level || e.key === PATTERN_PREF_KEYS.style || e.key === PATTERN_PREF_KEYS.ground || e.key === PATTERN_PREF_KEYS.text || e.key === PATTERN_PREF_KEYS.glass) refreshPatternPrefsIfChanged();
   });
   window.addEventListener('focus', refreshPatternPrefsIfChanged);
   document.addEventListener('visibilitychange', () => {
@@ -6723,8 +5927,8 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
     // the in-chat takeover overtook the conversation instead of paning. The
     // channel SELECTOR stays in-convo (title tap, botChannels mode). The
     // conversation wall (#221) is untouched — only a verb is emitted.
-    // (openChatInfo/buildChatInfo remain for a possible channel-scoped info
-    // surface — currently unreferenced by the topbar.)
+    // (★ Session Z #882 (c): the dead in-chat takeover is DELETED — a channel-scoped
+    // info surface, if ever wanted, is built on ContactDetails.)
     const infoTap = () => bridge.send('ixian:details');
 
     const actions = [];
@@ -8650,158 +7854,18 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
     });
   }
 
-  /* —— group / bot chat-info takeover (#189-follow: header tap on a multi chat) ——
-   * Mounts a full-viewport c-chat-info panel OVER the conversation (not a page
-   * nav — SingleChatPage owns the group verbs). onBack closes it back to the
-   * chat; it never emits ixian:back (that would pop the whole SingleChatPage).
-   *
-   * Members are BEST-EFFORT: there is no full-roster push from SingleChatPage, so
-   * the list is built from senders we've SEEN (received rows) + resolved group
-   * nicks (updateGroupChatNicks). A true roster + member count is a BE ask.
-   * Blind groups (type 2) hide addresses. Admin (mode.admin) injects Kick/Ban via
-   * the component's built-in member sheet; contact-request + kick/ban reuse the
-   * existing verbs. */
-  /* ⚠ #249 loop C-3: this whole in-chat takeover block (openChatInfo/buildChatInfo/
-   * refreshChatInfo/collectGroupMembers + the groupRoster/groupOwner feeds) is
-   * RETAINED BUT CURRENTLY UNREACHABLE — every topbar info route now emits
-   * ixian:details (the shell-side ContactDetails surface owns group/bot info).
-   * Kept for a possible future CHANNEL-scoped info surface; C#'s addContact/
-   * setGroupOwner pushes still land here harmlessly. Prune when that's decided. */
-  let chatInfoTakeover = null;
-  let chatInfoOpen = false;
-
-  // Members: authoritative full roster (ixian:loadContacts) enriched with senders
-  // SEEN in loaded history (fresher nick/photo, and covers not-yet-synced members).
-  function collectGroupMembers() {
-    const byKey = new Map();     // unique key → { name, address, avatar, relation }
-    // 1) full participant roster (blind entries keyed by nick, real ones by address)
-    for (const [key, m] of groupRoster) {
-      // #366 loop m2: carry the roster relation — a revived takeover must not
-      // regress D-5 (every member reading 'none' = live request buttons again)
-      byKey.set(key, { name: m.name || '', address: m.address || '', avatar: m.avatar || null, relation: m.relation || '' });
-    }
-    // 2) enrich from received-message senders (skip blind-masked addresses)
-    // #366 loop r2 MAJOR-1(a): steps 2+3 rebuilt entries WITHOUT relation, so an
-    // ACTIVE contact (one who has posted) fell back to 'none' and got the request
-    // button while quiet members read correctly — the exact inversion D-5 kills.
-    // Step 2 also ENRICHES from the per-message relation (rec.relation is the
-    // live truth the roster push may lack), latch-aware like openMember.
-    for (const rec of model.values()) {
-      if (rec.direction === 'received' && rec.senderAddress && rec.senderAddress !== '[Unknown]') {
-        const prev = byKey.get(rec.senderAddress) || { name: '', address: rec.senderAddress, avatar: null, relation: '' };
-        byKey.set(rec.senderAddress, {
-          name: prev.name || (senderHasNick(rec) ? rec.senderNick : ''),
-          address: rec.senderAddress,
-          avatar: prev.avatar || rec.avatar || null,   // real per-sender photo (C# addThem avatar)
-          relation: prev.relation || rec.relation || '',
-        });
-      }
-    }
-    // 3) resolved nicks
-    for (const [addr, nick] of groupNicks) {
-      if (!addr || addr === '[Unknown]') continue;
-      const prev = byKey.get(addr) || { name: '', address: addr, avatar: null, relation: '' };
-      byKey.set(addr, { name: prev.name || (nick || ''), address: addr, avatar: prev.avatar, relation: prev.relation || '' });
-    }
-    // #248: mark the owner (blind groups never get an owner push).
-    // #365 loop NIT-3: the ONE isOwnerAddr predicate — no inline drift copy.
-    // #366 loop r2 MAJOR-1(b): apply the requestedMembers latch here too — the
-    // list is rebuilt from scratch on every refreshChatInfo, so an in-flight
-    // request must resurface as 'pending', never as a fresh button.
-    const list = [...byKey.values()];
-    for (const m of list) {
-      if (isOwnerAddr(m.address)) m.owner = true;
-      if (m.address && requestedMembers.has(m.address) && (m.relation || 'none') === 'none') m.relation = 'pending';
-    }
-    return list;
-  }
-
-  function buildChatInfo() {
-    const s = window.SL || {};
-    const infoKind = mode.type === 3 ? 'bot' : 'group';   // bot channels reuse the members/notifications surface
-    return createChatInfo({
-      kind: infoKind,
-      context: 'chat',
-      name: identity.name || identity.address || '',
-      avatar: identity.avatar || null,       // real 1:1/bot/group photo (C# addThem/setAvatar); gradient fallback
-      avatarSeed: identity.address || identity.name || '',
-      members: collectGroupMembers(),        // best-effort; memberCount falls back to members.length
-      blind: mode.blind,                     // blind group OR blind bot: identities hidden (#348)
-      notifications: mode.notifications,
-      // groups/bots have en/disableNotifications; admin gates kick/ban. media +
-      // selfDestruct stay OFF (no bridge verb, §9).
-      capabilities: { notifications: true, admin: mode.admin },
-      host: overlayHost,                     // member sheet + kick/ban/leave confirms attach to body (above the takeover)
-      strings: s,
-      onBack: closeChatInfo,                 // close the takeover — NOT ixian:back
-      // #839: the roster's member sheet reaches the same destination as the bubble's
-      // (chat-info passes this straight through to openMemberSheet) — one behaviour for
-      // one control, whichever way the sheet was opened.
-      onViewContact: (m) => { if (m && m.address) bridge.send('ixian:viewcontact:' + m.address); },
-
-      // notifications toggle → the group/bot mute verbs. Fire-and-forget: the
-      // bridge gives no ack, so resolve optimistically (component keeps the state).
-      onNotifications: (next, ctrl) => {
-        mode.notifications = next;
-        bridge.send(next ? 'ixian:enableNotifications' : 'ixian:disableNotifications');
-        ctrl.done();
-      },
-
-      // member sheet (component-owned): contact request + admin kick/ban. Reuses
-      // the existing verbs; C# runs its own confirm for kick/ban on receipt.
-      // #366 loop r2 MAJOR-1(b): feed the latch like the other two call sites —
-      // chat-info's optimistic 'pending' lives on a mapped copy and dies on the
-      // next refreshChatInfo rebuild without it.
-      onContactRequest: (m) => {
-        /* ★★ #623: the bot gate is REMOVED here too — this sends the same direct,
-           address-keyed verb, which has never been bot-guarded in either tree. The
-           `[Unknown]` test below is the blind-room guard and is the part that matters. */
-        if (mode.blind) return;
-        if (m && m.address && m.address !== '[Unknown]') {
-          requestedMembers.add(m.address);
-          bridge.send('ixian:sendContactRequest:' + m.address);
-          // N55: optimistic toast at the emit site (fire-and-forget verb, no ack)
-          showToast({ text: s.contactRequestSent || 'Contact request sent', tone: 'success', host: overlayHost, strings: s });
-        }
-      },
-      onMemberAction: (action, m, ctrl) => {
-        if (m && m.address && (action === 'kick' || action === 'ban')) bridge.send('ixian:' + action + ':' + m.address);
-        ctrl.done();
-      },
-
-      // destructive — leave group (component renders this for kind 'group' only;
-      // bots have no in-chat leave verb → no destructive row for a bot, flagged).
-      onLeave: (ctrl) => { bridge.send('ixian:leave'); ctrl.done(); },
-    });
-  }
-
-  let chatInfoRefreshQueued = false;
-  function scheduleChatInfoRefresh() {   // coalesce the loadContacts roster burst → one rebuild
-    if (chatInfoRefreshQueued) return;
-    chatInfoRefreshQueued = true;
-    requestAnimationFrame(() => { chatInfoRefreshQueued = false; refreshChatInfo(); });
-  }
-
-  function openChatInfo() {
-    if (chatInfoOpen) return;
-    chatInfoOpen = true;
-    groupRoster.clear();                 // fresh roster per open (avoids stale/removed members accumulating)
-    bridge.send('ixian:loadContacts');   // pull the full participant roster → addContact per member
-    chatInfoTakeover = document.createElement('div');
-    chatInfoTakeover.className = 'chat-info-takeover';
-    chatInfoTakeover.append(buildChatInfo());
-    document.body.append(chatInfoTakeover);
-  }
-  function closeChatInfo() {
-    chatInfoOpen = false;
-    if (chatInfoTakeover) { chatInfoTakeover.remove(); chatInfoTakeover = null; }
-  }
-  // Rebuild an OPEN takeover in place (e.g. setChatMode arrived after opening, or
-  // new senders were seen). Cheap; the takeover is a shallow snapshot.
-  function refreshChatInfo() {
-    if (!chatInfoOpen || !chatInfoTakeover) return;
-    chatInfoTakeover.replaceChildren(buildChatInfo());
-  }
+  /* ★ Session Z (#882 (c), Damir's dial): the IN-CHAT chat-info TAKEOVER is DELETED.
+   * It was retained-but-unreachable since #249 (every topbar info route emits
+   * `ixian:details`, and the shell-side ContactDetails surface owns 1:1/group/bot info —
+   * its own WebView, #221). What it cost: chat-info.css + search-field.css + txlist-item.css
+   * inlined into EVERY chat document plus the takeover's JS, parsed on every conversation
+   * open for a surface that never showed (~30 KB of CSS alone, the reason CHAT_KB_CEIL
+   * moved 682 → 684 in Session Y). What STAYS, because live code reads it: `groupRoster`
+   * (the L2 delivery denominator, the tip recipient ladder, the mention list),
+   * `requestedMembers` (the in-chat member sheet's latch), `groupOwner`/`isOwnerAddr`
+   * (the Owner chip on bubbles + the member sheet), the `addContact`/`setGroupOwner`
+   * pushes (they feed those). A channel-scoped info surface, if ever wanted, is built on
+   * ContactDetails, not here. */
 
   /* tip: open the amount sheet (no balance — C# runs the real balance check +
    * native confirm), then emit ixian:contextAction:tip:<id>:<amount>. Recipient
@@ -10257,16 +9321,19 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
       /* ★★ L2 (#641) — THE ROSTER IS PULLED AT CHAT OPEN FOR A PRIVATE GROUP.
        *
        * ⚠ The first cut of the delivery detail read `groupRoster` for its denominator, and
-       * that map had exactly ONE writer: the addContact push, which only ever fires from
-       * openChatInfo(). So the detail was EMPTY until the user independently opened Group
-       * info — and the bubble had already lost its read tick. The "no roster, no line"
-       * degrade was not an edge case, it was the default state.
+       * that map had exactly ONE writer: the addContact push, which only ever fired from
+       * the (since deleted, #882 (c)) in-chat openChatInfo(). So the detail was EMPTY until
+       * the user independently opened Group info — and the bubble had already lost its
+       * read tick. The "no roster, no line" degrade was not an edge case, it was the
+       * default state.
        *
        * ⚠ PRIVATE AND BLIND GROUPS ONLY (t 1 and 2), never a bot room. loadContacts walks
        * the whole roster synchronously on the UI thread, and a public bot channel holds up
        * to 500 members — that is the #619 freeze, which cost this project a batch. A bot
        * room needs no denominator anyway: it answers "Delivered" or nothing.
-       * Idempotent: openChatInfo clears and re-requests, so this only front-loads it. */
+       * ★ Session Z (#882 (c)): this is now the roster's ONLY requester in the chat shell
+       * (the takeover that also asked is deleted), and `!groupRoster.size` keeps it one ask
+       * per open — the per-peer reset in onChatScreenReady clears the map. */
       if ((t === 1 || t === 2) && !groupRoster.size) {
         try { bridge.send('ixian:loadContacts'); } catch (e) { /* roster is best-effort */ }
       }
@@ -10309,8 +9376,6 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
          The ⊕ re-derives by itself: every handler in this object is wrapped at
          bridge.exposeAll. Do not add a syncAttachAffordance() call here. */
       mode.answeredFor = identity.address;
-      // reflect a live mode/notification change into an OPEN chat-info takeover
-      if (chatInfoOpen) refreshChatInfo();
       // channel UI is bot-gated (channel-as-title) — re-evaluate on any mode change
       renderTopbar();
       dbg('setChatMode', { type: t, cost, showCost, admin: mode.admin, notificationsString });
@@ -11097,11 +10162,10 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
         relation: RELATIONS.has(relation) ? relation : (prev.relation || ''),
       });
       invalidateMentions();                // roster nick changed → rebuild the mention name list
-      if (chatInfoOpen) scheduleChatInfoRefresh();
     },
-    // #248 (Damir item 3): the group/bot OWNER address — the in-chat takeover's
-    // member list marks the matching row with an "Owner" chip. Never pushed for
-    // blind groups (C# suppresses it — the address would de-anonymize).
+    // #248 (Damir item 3): the group/bot OWNER address — the bubbles' Owner chip and the
+    // in-chat member sheet read it (isOwnerAddr). Never pushed for blind groups (C#
+    // suppresses it — the address would de-anonymize).
     setGroupOwner(address) {
       const next = String(address || '');
       const changed = next !== groupOwner;
@@ -11110,7 +10174,6 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
        * so this is a no-op. A late or changed value repaints the log once so
        * the Owner chips stay honest (renderLog is coalesced). */
       if (changed && model.size) renderLog();
-      if (chatInfoOpen) scheduleChatInfoRefresh();
     },
     // incoming contact request (xaml:1196) → accept/decline pane above composer.
     // Q1 review (#267 loop): terminal once accepted — a late push (C# re-evaluates

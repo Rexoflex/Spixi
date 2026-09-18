@@ -186,11 +186,16 @@ export function createChatInfo({
   onMessage,                     // contact context: open the 1:1 chat (shell nav)
   onCall,                        // ★ #591 (Damir): start a voice call — 1:1 only
   onPay,                         // shell: #139 takeover
-  /* ★ Session Y (#876): `onRequest` is ACCEPTED AND NOT RENDERED. Request left the action
-   * row (it lives in the composer ⊕ attach sheet: File · Pay · Request). The shells still
-   * pass the handler; taking the emit site (`ixian:sendrequest` from ContactDetails) out of
-   * a shell is a security-gate inventory row, not this FE-only batch — flagged in the
-   * handoff. Destructured so the option is documented, never read. */
+  /* ★ Session Y (#876): Request left the action row (it lives in the composer ⊕ attach
+   * sheet: File · Pay · Request), and `onRequest` was accepted-and-not-rendered.
+   * ★ Session Z (#882 (d), Damir's dial): it RETURNS ON THE DIRECTORY ARM ONLY
+   * (`context === 'contact'`), where there is no composer and Request was three taps away
+   * (Message → conversation → ⊕). #876's four-tile ceiling holds: on that arm Request
+   * takes the fourth slot and MUTE STEPS OUT only when the row is full (Message · Call · Pay
+   * · Request); a peer with no call route keeps Mute (Message · Pay · Request · Mute). Mute
+   * is a chat setting and stays a tile on the chat arm regardless. A fifth tile
+   * was measured and rejected: (360 − 32 − 4×8) / 5 = 59 px, narrower than the label
+   * "Message" at label-sm. From the chat arm (`context === 'chat'`) it stays unrendered. */
   onRequest,
   onAddressSheet,               // ★ #591 / ★ Session Y: the address UNDER THE NAME opens the ONE address surface
   onNotifications,               // (next, ctrl) — optimistic, revert on fail
@@ -369,6 +374,16 @@ export function createChatInfo({
       onClick: startNickEdit,
     });
     pencil.classList.add('c-chat-info__nick-edit');
+    /* ★ Session Z (#884 ⑥, Damir on the Y walk: the pencil pushes the name off centre):
+       the row is `justify-content: center` and the pencil is a flex SIBLING, so the PAIR
+       was centred and the name sat half a pencil (22 px) left of the axis. A symmetric
+       GHOST — the pencil's width, inert, hidden from readers — before the name puts the
+       NAME on the axis. It hides and shows WITH the pencil (an open editor centres its
+       input alone), which is why both toggles below touch it. */
+    const ghost = document.createElement('span');
+    ghost.className = 'c-chat-info__nick-ghost';
+    ghost.setAttribute('aria-hidden', 'true');
+    nameRow.insertBefore(ghost, nameEl);
     nameRow.append(pencil);
 
     var nickErr = document.createElement('span');   // hoisted: cleared on re-edit
@@ -388,6 +403,7 @@ export function createChatInfo({
       input.placeholder = name;
       nameEl.hidden = true;
       pencil.hidden = true;
+      ghost.hidden = true;
       nameRow.insertBefore(input, nameEl);
       input.focus();
       let closed = false;
@@ -400,6 +416,7 @@ export function createChatInfo({
         input.remove();
         nameEl.hidden = false;
         pencil.hidden = false;
+        ghost.hidden = false;
       };
       const commit = () => {
         if (closed || committing) return;
@@ -493,13 +510,21 @@ export function createChatInfo({
     if (onPay && !roomKind) money.append(infoQuickAction({
       glyph: 'arrow-up-right', label: strings.pay || 'Pay', onClick: () => onPay(), action: 'pay',
     }));
+    /* ★ Session Z (#882 (d)): Request on the DIRECTORY arm only — see the option docblock.
+       It displaces Mute there (the four-tile rule, #876). */
+    const requestTile = context === 'contact' && !roomKind && !!onRequest;
+    if (requestTile) money.append(infoQuickAction({
+      glyph: 'arrow-down-left', label: strings.request || 'Request', onClick: () => onRequest(), action: 'request',
+    }));
     /* ★ Session Y (#875): MUTE IS A TILE — the Notifications switch row is retired.
        Same contract as the switch it replaces: optimistic flip, revert on ctrl.fail,
        one flight at a time, the polite region announces a failure. The LABEL is the
        state (Mute ↔ Unmute — a toggle BUTTON that names the action it will take, not a
        switch), `data-muted` mirrors it for css/tests, and the glyph follows the label
        (bell / bell-off) so the state reads without the text. */
-    if (canMute) {
+    /* ★ #46 loop (A-5): Mute yields to Request only when the row is FULL — a peer with no
+       call route (Message · Pay · Request) keeps Mute as its fourth tile. */
+    if (canMute && money.childElementCount < QA_MAX) {
       let muted = !notifications;
       let inFlight = false;
       const mute = infoQuickAction({

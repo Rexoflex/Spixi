@@ -71,7 +71,7 @@
   align-items: center;
   justify-content: center;
   margin-bottom: var(--spacing-8);
-  color: var(--icon-brand-logo, #ffffff);   /* ★ Session J: WHITE (Damir) — was var(--icon-accent), accent-300 on the dark-pinned subtree; tokens.css holds the reversal */
+  color: var(--icon-brand-logo, #ffffff);   /* sanctioned: the var() fallback = the token's own value on the fixed-dark artwork. ★ Session J: WHITE (Damir) — was var(--icon-accent), accent-300 on the dark-pinned subtree; tokens.css holds the reversal */
   filter: drop-shadow(0 0 28px rgba(123, 92, 255, 0.55)); /* sanctioned: glow on the fixed gradient */
 }
 .c-lock__title {
@@ -107,7 +107,7 @@
    precedent) — encpass keeps the token surface via its own card scope */
 .c-lock .c-lock__input {
   background: rgba(255, 255, 255, 0.07);   /* sanctioned: glass on the fixed gradient */
-  border-color: rgba(255, 255, 255, 0.16); /* sanctioned */
+  border-color: rgba(255, 255, 255, 0.16); /* sanctioned: the glass edge on the fixed gradient */
 }
 .c-lock__input::placeholder { color: var(--text-neutral-02); }
 .c-lock__input:focus-visible {

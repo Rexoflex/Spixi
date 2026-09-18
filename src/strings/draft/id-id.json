@@ -643,5 +643,7 @@
   "addContactScanLabel": "Pindai kode QR",
   "addContactScanHint": "Kode QR mereka harus terlihat di perangkat lain agar Anda dapat memindainya dengan perangkat ini.",
   "addContactEnterLabel": "Masukkan atau tempel alamat Spixi",
-  "addContactEnterHint": "Ketik atau tempel alamat Spixi mereka (misalnya 42Spox…M3rci98)."
+  "addContactEnterHint": "Ketik atau tempel alamat Spixi mereka (misalnya 42Spox…M3rci98).",
+  "creditFlags": "Bendera negara",
+  "sharedGroupsTitle": "Grup bersama"
 }

@@ -244,9 +244,9 @@
 }
 .c-settings-security__tier[aria-checked='true'] { border-color: var(--outline-action-default); }
 @media (hover: hover) and (pointer: fine) {
-  .c-settings-security__tier:hover { background: var(--surface-interactive-hover); }
+  .c-settings-security__tier:hover { background: var(--surface-card-hover); }   /* ★ Session Z (#46 loop A-4): the tier IS --surface-card — the screen pair was its own colour */
 }
-.c-settings-security__tier:active { background: var(--surface-interactive-pressed); }
+.c-settings-security__tier:active { background: var(--surface-card-pressed); }
 .c-settings-security__tier-head {
   display: flex;
   align-items: center;

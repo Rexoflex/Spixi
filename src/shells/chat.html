@@ -69,7 +69,7 @@
         any corrupt value — lands on 'flat' BEFORE first paint rather than painting a ground
         the picker can no longer choose. The attribute is still set in BOTH themes and is
         simply inert in dark. Superseded: 'flat' (default) | 'gradient'. -->
-<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),p=NaN,t=NaN,s='',g='';try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));s=localStorage.getItem('spixi.chat.patternstyle')||'';g=localStorage.getItem('spixi.chat.ground')||'';}catch(e){}var lv;if(!isFinite(p))lv=1;else if(p<=0)lv=0;else lv=1;r.setProperty('--chat-pattern-opacity',lv<=0?'0':'var(--chat-pattern-alpha-1)');if(isFinite(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));if(s!=='matrix')s='matrix';document.documentElement.setAttribute('data-chat-pattern',s);if(g!=='flat')g='flat';document.documentElement.setAttribute('data-chat-ground',g);})();</script>
+<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),p=NaN,t=NaN,s='',g='';try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));s=localStorage.getItem('spixi.chat.patternstyle')||'';g=localStorage.getItem('spixi.chat.ground')||'';}catch(e){}var lv;if(!isFinite(p))lv=1;else if(p<=0)lv=0;else lv=1;r.setProperty('--chat-pattern-opacity',lv<=0?'0':'var(--chat-pattern-alpha-1)');if(isFinite(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));if(s!=='matrix')s='matrix';document.documentElement.setAttribute('data-chat-pattern',s);if(g!=='flat')g='flat';document.documentElement.setAttribute('data-chat-ground',g);var gl='';try{gl=localStorage.getItem('spixi.chat.glass')||'';}catch(e){}if(gl==='1')document.documentElement.setAttribute('data-chat-glass','');})();</script>
 <style>
   /* Paint the screen surface IMMEDIATELY — before tokens.css/base.css load and
      before the JS bundle parses — so entering a chat doesn't flash an empty
@@ -126,9 +126,8 @@
 <link rel="stylesheet" href="../styles/components/tip-sheet.css">
 <link rel="stylesheet" href="../styles/components/chip.css">
 <link rel="stylesheet" href="../styles/components/member-sheet.css">
-<link rel="stylesheet" href="../styles/components/search-field.css"><!-- c-chat-info member filter (group takeover, ≥8 members) -->
-<link rel="stylesheet" href="../styles/components/chat-info.css"><!-- group/bot info takeover (header tap) -->
-<link rel="stylesheet" href="../styles/components/txlist-item.css"><!-- W-h gate (2026-08-24): createChatInfo renders c-txlist-item rows for a `txs` list — this shell passes none today, linked so the path is never unstyled when it does -->
+<link rel="stylesheet" href="../styles/components/search-field.css"><!-- ★ Session Z (#882 (c)): kept for the W5 in-chat send compose (createWalletSend renders the recipient search) — the W-h gate derives this from the import graph; the comment that once said "chat-info member filter" was the wrong reason for a right link -->
+<!-- ★ Session Z (#882 (c)): chat-info.css · txlist-item.css are NO LONGER linked here — they served only the in-chat info takeover #249 retired (its member/txs lists); every info route emits ixian:details and the ContactDetails shell (its own WebView) styles itself. -->
 <link rel="stylesheet" href="../styles/components/banner.css">
 <link rel="stylesheet" href="../styles/components/contact-request.css">
 <link rel="stylesheet" href="../styles/components/media-bubble.css"><!-- GIF/image tiles (remote media URLs) -->
@@ -389,17 +388,10 @@
   @media (hover: hover) and (pointer: fine) { .chat-app-picker__item:hover { background: var(--surface-interactive-hover); } } /* #337: AND-18 sweep miss */
   .chat-app-picker__name { font-weight: 600; }
   .chat-app-picker__empty { padding: var(--spacing-16); text-align: center; color: var(--text-neutral-02); }
-  /* group/bot chat-info takeover — full-viewport cover mounted over the chat.
-     z-30 sits ABOVE the bars/composer (z-20) but BELOW the sheets (z-40) + modal
-     (z-50) it spawns, so its member sheet + kick/ban/leave confirms render on top.
-     The c-chat-info panel is height:100% → fills this. */
-  .chat-info-takeover {
-    position: fixed; inset: 0; z-index: var(--z-30, 30);
-    background: var(--surface-screen);
-    display: flex; flex-direction: column;
-  }
-  .chat-info-takeover > .c-chat-info { flex: 1; min-height: 0; }
-  /* W5 (#523): the in-chat send compose — same cover grammar as chat-info; its
+  /* ★ Session Z (#882 (c)): the `.chat-info-takeover` cover rules are gone with the dead
+     takeover (see the tombstone at the old block). The send compose below keeps the same
+     full-viewport cover grammar on its own rules. */
+  /* W5 (#523): the in-chat send compose — full-viewport cover over the chat (z-30); its
      review sheet (z-40) + Max modal (z-50) render on top. */
   .chat-send-takeover {
     position: fixed; inset: 0; z-index: var(--z-30, 30);
@@ -605,6 +597,7 @@
 <script>/* M13 (2026-09-08): the STATIC a11y labels below the boot line. They are in the markup so a screen reader has them on the FIRST paint, which is exactly why they could not be written as getStrings() calls — and so they were English in every locale. One walk over [data-sl-aria] relabels them from the dictionary as soon as the DOM exists; the English in the attribute stays as the fallback for a key the dictionary lacks. */
 (function(){function r(){for(var e of document.querySelectorAll('[data-sl-aria]')){var v=window.SL&&window.SL[e.dataset.slAria];if(v)e.setAttribute('aria-label',v);}}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',r,{once:true});else r();})();</script>
 <script src="../demo/spixi.iife.js"></script>
+<script>/* ★ L15b (Session Z): the flag font — a device that cannot paint a flag emoji (Windows) gets the flags-only Twemoji face for the regional-indicator block, injected at runtime so the 78 KB is never inlined and never fetched on a phone; flags.js holds the mechanism. Unguarded on purpose: a missing export must fail loudly at boot, not fall silent. */window.Spixi.installFlagFont();</script>
 <script>window.__cdParse&&window.__cdParse.push(['bundle',performance.now()]);</script>
 <script>
   /* —————————————————————————————————————————————————————————————————————————
@@ -659,7 +652,6 @@
     createModal, openModal, showToast, createButton,
     createWarningBanner, setWarning, createContactRequest,
     createSheet, openSheet, closeSheet,
-    createChatInfo,                 // group/bot chat-info takeover (header tap; 1:1 → ContactDetails page)
     addReactions: applyReactions,   // component free-fn; aliased — the bridge handler below is also `addReactions`
     truncateAddressMiddle,          // #211 canon: chat surfaces show addresses truncated, never in full
     attachContextMenuAnchors, anchorSheetAbove,   // Batch C (M6): desktop sheet grammar (no-op on mobile)
@@ -730,15 +722,16 @@
      storage event, the same focus/visibility fallback, the same stamp gate, plus one explicit
      refresh at onChatScreenReady so an attach never presents a stale size. An unset or
      non-finite value means "no override" and REMOVES the property (the token default). */
-  const PATTERN_PREF_KEYS = { level: 'spixi.chat.pattern', style: 'spixi.chat.patternstyle', ground: 'spixi.chat.ground', text: 'spixi.chat.textscale' };
+  const PATTERN_PREF_KEYS = { level: 'spixi.chat.pattern', style: 'spixi.chat.patternstyle', ground: 'spixi.chat.ground', text: 'spixi.chat.textscale', glass: 'spixi.chat.glass' };   // ★ Session Z: glass rides the stamp gate like the rest (L1·12 — a boot-only pref is one pick behind on a pre-warmed document)
   function readPatternPrefs() {
     const de = document.documentElement.hasAttribute('data-desktop');
-    let p = NaN, s = '', gr = '', t = NaN;
+    let p = NaN, s = '', gr = '', t = NaN, gl = '';
     try {
       p = parseFloat(localStorage.getItem(PATTERN_PREF_KEYS.level));
       s = localStorage.getItem(PATTERN_PREF_KEYS.style) || '';
       gr = localStorage.getItem(PATTERN_PREF_KEYS.ground) || '';
       t = parseFloat(localStorage.getItem(PATTERN_PREF_KEYS.text));
+      gl = localStorage.getItem(PATTERN_PREF_KEYS.glass) || '';
     } catch (e) { /* DomStorageEnabled=false → boot defaults, forever */ }
     if (isFinite(t)) t = Math.min(1.5, Math.max(0.8, t)); else t = NaN;   // the head script's clamp, in step
     // ★ N81 (#422): p is a LEVEL INDEX now. readPatternLevel migrates the legacy
@@ -772,7 +765,7 @@
        is deliberately left in localStorage: it is never read back as anything but "not in
        the list", and restoring the option restores their pick. */
     if (gr !== 'flat') gr = 'flat';
-    return { level: p, style: s, ground: gr, text: t };
+    return { level: p, style: s, ground: gr, text: t, glass: gl === '1' };   // ★ Session Z: the glass dial, '1' and nothing else
   }
   function applyPatternPrefs(prefs) {
     const r = document.documentElement;
@@ -788,11 +781,12 @@
     r.setAttribute('data-chat-ground', prefs.ground);   // ★ AUG: light-only in effect; inert in dark
     if (isFinite(prefs.text)) r.style.setProperty('--chat-text-scale', String(prefs.text));   // ★ Session P: the stored size, or
     else r.style.removeProperty('--chat-text-scale');                                          //   the token default when unset
+    if (prefs.glass) r.setAttribute('data-chat-glass', ''); else r.removeAttribute('data-chat-glass');   // ★ Session Z: the glass dial (composer.css)
   }
   /* ⚠ THE STAMP IS THE GATE. A key left out of it is a key whose change is invisible to
      the poll — the ground would have needed a WebView reload exactly like the pattern did
      before W5 F5. Every field readPatternPrefs returns must appear here. */
-  const patternStamp = (p) => p.level + '|' + p.style + '|' + p.ground + '|' + p.text;
+  const patternStamp = (p) => p.level + '|' + p.style + '|' + p.ground + '|' + p.text + '|' + (p.glass ? 1 : 0);
   let seenPatternPrefs = patternStamp(readPatternPrefs());
   function refreshPatternPrefsIfChanged() {
     const prefs = readPatternPrefs();
@@ -802,7 +796,7 @@
     applyPatternPrefs(prefs);
   }
   window.addEventListener('storage', (e) => {
-    if (!e.key || e.key === PATTERN_PREF_KEYS.level || e.key === PATTERN_PREF_KEYS.style || e.key === PATTERN_PREF_KEYS.ground || e.key === PATTERN_PREF_KEYS.text) refreshPatternPrefsIfChanged();
+    if (!e.key || e.key === PATTERN_PREF_KEYS.level || e.key === PATTERN_PREF_KEYS.style || e.key === PATTERN_PREF_KEYS.ground || e.key === PATTERN_PREF_KEYS.text || e.key === PATTERN_PREF_KEYS.glass) refreshPatternPrefsIfChanged();
   });
   window.addEventListener('focus', refreshPatternPrefsIfChanged);
   document.addEventListener('visibilitychange', () => {
@@ -1077,8 +1071,8 @@
     // the in-chat takeover overtook the conversation instead of paning. The
     // channel SELECTOR stays in-convo (title tap, botChannels mode). The
     // conversation wall (#221) is untouched — only a verb is emitted.
-    // (openChatInfo/buildChatInfo remain for a possible channel-scoped info
-    // surface — currently unreferenced by the topbar.)
+    // (★ Session Z #882 (c): the dead in-chat takeover is DELETED — a channel-scoped
+    // info surface, if ever wanted, is built on ContactDetails.)
     const infoTap = () => bridge.send('ixian:details');
 
     const actions = [];
@@ -3004,158 +2998,18 @@
     });
   }
 
-  /* —— group / bot chat-info takeover (#189-follow: header tap on a multi chat) ——
-   * Mounts a full-viewport c-chat-info panel OVER the conversation (not a page
-   * nav — SingleChatPage owns the group verbs). onBack closes it back to the
-   * chat; it never emits ixian:back (that would pop the whole SingleChatPage).
-   *
-   * Members are BEST-EFFORT: there is no full-roster push from SingleChatPage, so
-   * the list is built from senders we've SEEN (received rows) + resolved group
-   * nicks (updateGroupChatNicks). A true roster + member count is a BE ask.
-   * Blind groups (type 2) hide addresses. Admin (mode.admin) injects Kick/Ban via
-   * the component's built-in member sheet; contact-request + kick/ban reuse the
-   * existing verbs. */
-  /* ⚠ #249 loop C-3: this whole in-chat takeover block (openChatInfo/buildChatInfo/
-   * refreshChatInfo/collectGroupMembers + the groupRoster/groupOwner feeds) is
-   * RETAINED BUT CURRENTLY UNREACHABLE — every topbar info route now emits
-   * ixian:details (the shell-side ContactDetails surface owns group/bot info).
-   * Kept for a possible future CHANNEL-scoped info surface; C#'s addContact/
-   * setGroupOwner pushes still land here harmlessly. Prune when that's decided. */
-  let chatInfoTakeover = null;
-  let chatInfoOpen = false;
-
-  // Members: authoritative full roster (ixian:loadContacts) enriched with senders
-  // SEEN in loaded history (fresher nick/photo, and covers not-yet-synced members).
-  function collectGroupMembers() {
-    const byKey = new Map();     // unique key → { name, address, avatar, relation }
-    // 1) full participant roster (blind entries keyed by nick, real ones by address)
-    for (const [key, m] of groupRoster) {
-      // #366 loop m2: carry the roster relation — a revived takeover must not
-      // regress D-5 (every member reading 'none' = live request buttons again)
-      byKey.set(key, { name: m.name || '', address: m.address || '', avatar: m.avatar || null, relation: m.relation || '' });
-    }
-    // 2) enrich from received-message senders (skip blind-masked addresses)
-    // #366 loop r2 MAJOR-1(a): steps 2+3 rebuilt entries WITHOUT relation, so an
-    // ACTIVE contact (one who has posted) fell back to 'none' and got the request
-    // button while quiet members read correctly — the exact inversion D-5 kills.
-    // Step 2 also ENRICHES from the per-message relation (rec.relation is the
-    // live truth the roster push may lack), latch-aware like openMember.
-    for (const rec of model.values()) {
-      if (rec.direction === 'received' && rec.senderAddress && rec.senderAddress !== '[Unknown]') {
-        const prev = byKey.get(rec.senderAddress) || { name: '', address: rec.senderAddress, avatar: null, relation: '' };
-        byKey.set(rec.senderAddress, {
-          name: prev.name || (senderHasNick(rec) ? rec.senderNick : ''),
-          address: rec.senderAddress,
-          avatar: prev.avatar || rec.avatar || null,   // real per-sender photo (C# addThem avatar)
-          relation: prev.relation || rec.relation || '',
-        });
-      }
-    }
-    // 3) resolved nicks
-    for (const [addr, nick] of groupNicks) {
-      if (!addr || addr === '[Unknown]') continue;
-      const prev = byKey.get(addr) || { name: '', address: addr, avatar: null, relation: '' };
-      byKey.set(addr, { name: prev.name || (nick || ''), address: addr, avatar: prev.avatar, relation: prev.relation || '' });
-    }
-    // #248: mark the owner (blind groups never get an owner push).
-    // #365 loop NIT-3: the ONE isOwnerAddr predicate — no inline drift copy.
-    // #366 loop r2 MAJOR-1(b): apply the requestedMembers latch here too — the
-    // list is rebuilt from scratch on every refreshChatInfo, so an in-flight
-    // request must resurface as 'pending', never as a fresh button.
-    const list = [...byKey.values()];
-    for (const m of list) {
-      if (isOwnerAddr(m.address)) m.owner = true;
-      if (m.address && requestedMembers.has(m.address) && (m.relation || 'none') === 'none') m.relation = 'pending';
-    }
-    return list;
-  }
-
-  function buildChatInfo() {
-    const s = window.SL || {};
-    const infoKind = mode.type === 3 ? 'bot' : 'group';   // bot channels reuse the members/notifications surface
-    return createChatInfo({
-      kind: infoKind,
-      context: 'chat',
-      name: identity.name || identity.address || '',
-      avatar: identity.avatar || null,       // real 1:1/bot/group photo (C# addThem/setAvatar); gradient fallback
-      avatarSeed: identity.address || identity.name || '',
-      members: collectGroupMembers(),        // best-effort; memberCount falls back to members.length
-      blind: mode.blind,                     // blind group OR blind bot: identities hidden (#348)
-      notifications: mode.notifications,
-      // groups/bots have en/disableNotifications; admin gates kick/ban. media +
-      // selfDestruct stay OFF (no bridge verb, §9).
-      capabilities: { notifications: true, admin: mode.admin },
-      host: overlayHost,                     // member sheet + kick/ban/leave confirms attach to body (above the takeover)
-      strings: s,
-      onBack: closeChatInfo,                 // close the takeover — NOT ixian:back
-      // #839: the roster's member sheet reaches the same destination as the bubble's
-      // (chat-info passes this straight through to openMemberSheet) — one behaviour for
-      // one control, whichever way the sheet was opened.
-      onViewContact: (m) => { if (m && m.address) bridge.send('ixian:viewcontact:' + m.address); },
-
-      // notifications toggle → the group/bot mute verbs. Fire-and-forget: the
-      // bridge gives no ack, so resolve optimistically (component keeps the state).
-      onNotifications: (next, ctrl) => {
-        mode.notifications = next;
-        bridge.send(next ? 'ixian:enableNotifications' : 'ixian:disableNotifications');
-        ctrl.done();
-      },
-
-      // member sheet (component-owned): contact request + admin kick/ban. Reuses
-      // the existing verbs; C# runs its own confirm for kick/ban on receipt.
-      // #366 loop r2 MAJOR-1(b): feed the latch like the other two call sites —
-      // chat-info's optimistic 'pending' lives on a mapped copy and dies on the
-      // next refreshChatInfo rebuild without it.
-      onContactRequest: (m) => {
-        /* ★★ #623: the bot gate is REMOVED here too — this sends the same direct,
-           address-keyed verb, which has never been bot-guarded in either tree. The
-           `[Unknown]` test below is the blind-room guard and is the part that matters. */
-        if (mode.blind) return;
-        if (m && m.address && m.address !== '[Unknown]') {
-          requestedMembers.add(m.address);
-          bridge.send('ixian:sendContactRequest:' + m.address);
-          // N55: optimistic toast at the emit site (fire-and-forget verb, no ack)
-          showToast({ text: s.contactRequestSent || 'Contact request sent', tone: 'success', host: overlayHost, strings: s });
-        }
-      },
-      onMemberAction: (action, m, ctrl) => {
-        if (m && m.address && (action === 'kick' || action === 'ban')) bridge.send('ixian:' + action + ':' + m.address);
-        ctrl.done();
-      },
-
-      // destructive — leave group (component renders this for kind 'group' only;
-      // bots have no in-chat leave verb → no destructive row for a bot, flagged).
-      onLeave: (ctrl) => { bridge.send('ixian:leave'); ctrl.done(); },
-    });
-  }
-
-  let chatInfoRefreshQueued = false;
-  function scheduleChatInfoRefresh() {   // coalesce the loadContacts roster burst → one rebuild
-    if (chatInfoRefreshQueued) return;
-    chatInfoRefreshQueued = true;
-    requestAnimationFrame(() => { chatInfoRefreshQueued = false; refreshChatInfo(); });
-  }
-
-  function openChatInfo() {
-    if (chatInfoOpen) return;
-    chatInfoOpen = true;
-    groupRoster.clear();                 // fresh roster per open (avoids stale/removed members accumulating)
-    bridge.send('ixian:loadContacts');   // pull the full participant roster → addContact per member
-    chatInfoTakeover = document.createElement('div');
-    chatInfoTakeover.className = 'chat-info-takeover';
-    chatInfoTakeover.append(buildChatInfo());
-    document.body.append(chatInfoTakeover);
-  }
-  function closeChatInfo() {
-    chatInfoOpen = false;
-    if (chatInfoTakeover) { chatInfoTakeover.remove(); chatInfoTakeover = null; }
-  }
-  // Rebuild an OPEN takeover in place (e.g. setChatMode arrived after opening, or
-  // new senders were seen). Cheap; the takeover is a shallow snapshot.
-  function refreshChatInfo() {
-    if (!chatInfoOpen || !chatInfoTakeover) return;
-    chatInfoTakeover.replaceChildren(buildChatInfo());
-  }
+  /* ★ Session Z (#882 (c), Damir's dial): the IN-CHAT chat-info TAKEOVER is DELETED.
+   * It was retained-but-unreachable since #249 (every topbar info route emits
+   * `ixian:details`, and the shell-side ContactDetails surface owns 1:1/group/bot info —
+   * its own WebView, #221). What it cost: chat-info.css + search-field.css + txlist-item.css
+   * inlined into EVERY chat document plus the takeover's JS, parsed on every conversation
+   * open for a surface that never showed (~30 KB of CSS alone, the reason CHAT_KB_CEIL
+   * moved 682 → 684 in Session Y). What STAYS, because live code reads it: `groupRoster`
+   * (the L2 delivery denominator, the tip recipient ladder, the mention list),
+   * `requestedMembers` (the in-chat member sheet's latch), `groupOwner`/`isOwnerAddr`
+   * (the Owner chip on bubbles + the member sheet), the `addContact`/`setGroupOwner`
+   * pushes (they feed those). A channel-scoped info surface, if ever wanted, is built on
+   * ContactDetails, not here. */
 
   /* tip: open the amount sheet (no balance — C# runs the real balance check +
    * native confirm), then emit ixian:contextAction:tip:<id>:<amount>. Recipient
@@ -4611,16 +4465,19 @@
       /* ★★ L2 (#641) — THE ROSTER IS PULLED AT CHAT OPEN FOR A PRIVATE GROUP.
        *
        * ⚠ The first cut of the delivery detail read `groupRoster` for its denominator, and
-       * that map had exactly ONE writer: the addContact push, which only ever fires from
-       * openChatInfo(). So the detail was EMPTY until the user independently opened Group
-       * info — and the bubble had already lost its read tick. The "no roster, no line"
-       * degrade was not an edge case, it was the default state.
+       * that map had exactly ONE writer: the addContact push, which only ever fired from
+       * the (since deleted, #882 (c)) in-chat openChatInfo(). So the detail was EMPTY until
+       * the user independently opened Group info — and the bubble had already lost its
+       * read tick. The "no roster, no line" degrade was not an edge case, it was the
+       * default state.
        *
        * ⚠ PRIVATE AND BLIND GROUPS ONLY (t 1 and 2), never a bot room. loadContacts walks
        * the whole roster synchronously on the UI thread, and a public bot channel holds up
        * to 500 members — that is the #619 freeze, which cost this project a batch. A bot
        * room needs no denominator anyway: it answers "Delivered" or nothing.
-       * Idempotent: openChatInfo clears and re-requests, so this only front-loads it. */
+       * ★ Session Z (#882 (c)): this is now the roster's ONLY requester in the chat shell
+       * (the takeover that also asked is deleted), and `!groupRoster.size` keeps it one ask
+       * per open — the per-peer reset in onChatScreenReady clears the map. */
       if ((t === 1 || t === 2) && !groupRoster.size) {
         try { bridge.send('ixian:loadContacts'); } catch (e) { /* roster is best-effort */ }
       }
@@ -4663,8 +4520,6 @@
          The ⊕ re-derives by itself: every handler in this object is wrapped at
          bridge.exposeAll. Do not add a syncAttachAffordance() call here. */
       mode.answeredFor = identity.address;
-      // reflect a live mode/notification change into an OPEN chat-info takeover
-      if (chatInfoOpen) refreshChatInfo();
       // channel UI is bot-gated (channel-as-title) — re-evaluate on any mode change
       renderTopbar();
       dbg('setChatMode', { type: t, cost, showCost, admin: mode.admin, notificationsString });
@@ -5451,11 +5306,10 @@
         relation: RELATIONS.has(relation) ? relation : (prev.relation || ''),
       });
       invalidateMentions();                // roster nick changed → rebuild the mention name list
-      if (chatInfoOpen) scheduleChatInfoRefresh();
     },
-    // #248 (Damir item 3): the group/bot OWNER address — the in-chat takeover's
-    // member list marks the matching row with an "Owner" chip. Never pushed for
-    // blind groups (C# suppresses it — the address would de-anonymize).
+    // #248 (Damir item 3): the group/bot OWNER address — the bubbles' Owner chip and the
+    // in-chat member sheet read it (isOwnerAddr). Never pushed for blind groups (C#
+    // suppresses it — the address would de-anonymize).
     setGroupOwner(address) {
       const next = String(address || '');
       const changed = next !== groupOwner;
@@ -5464,7 +5318,6 @@
        * so this is a no-op. A late or changed value repaints the log once so
        * the Owner chips stay honest (renderLog is coalesced). */
       if (changed && model.size) renderLog();
-      if (chatInfoOpen) scheduleChatInfoRefresh();
     },
     // incoming contact request (xaml:1196) → accept/decline pane above composer.
     // Q1 review (#267 loop): terminal once accepted — a late push (C# re-evaluates

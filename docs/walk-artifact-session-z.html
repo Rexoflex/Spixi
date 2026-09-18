@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Walk — Session Z: the Y-walk list, flags on Windows, the glass dial</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --bg:#eef1f6; --card:#ffffff; --sunk:#f5f7fa;
+    --ink:#141b23; --sub:#5b6672; --line:#dfe5ec;
+    --act:#1956b2; --act-soft:#e5edf9;
+    --p:#1a7f4b; --f:#b12525; --n:#8b95a1;
+    --warn:#884b00; --warn-soft:#fbf1e2;
+    --shadow:0 1px 2px rgba(20,27,35,.05), 0 2px 8px rgba(20,27,35,.05);
+  }
+  :root:not([data-theme="light"]) { }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0d1117; --card:#161b22; --sunk:#0f141b;
+      --ink:#e6edf3; --sub:#9aa7b4; --line:#252c36;
+      --act:#5a8dee; --act-soft:#16233a;
+      --p:#3fb27a; --f:#f08a80; --n:#7d8794;
+      --warn:#e0a458; --warn-soft:#241c10;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0d1117; --card:#161b22; --sunk:#0f141b;
+    --ink:#e6edf3; --sub:#9aa7b4; --line:#252c36;
+    --act:#5a8dee; --act-soft:#16233a;
+    --p:#3fb27a; --f:#f08a80; --n:#7d8794;
+    --warn:#e0a458; --warn-soft:#241c10;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.3);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.55 "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding:28px 20px 64px;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1000px;margin:0 auto}
+
+  header{margin:0 0 18px}
+  h1{font-size:27px;line-height:1.2;margin:0 0 6px;font-weight:700;letter-spacing:-.015em;text-wrap:balance}
+  .lede{color:var(--sub);margin:0 0 14px;max-width:64ch}
+  .facts{display:flex;flex-wrap:wrap;gap:8px}
+  .fact{
+    font:500 12px/1 "IBM Plex Mono", ui-monospace, Consolas, monospace;
+    background:var(--card);border:1px solid var(--line);border-radius:999px;
+    padding:7px 12px;color:var(--sub);white-space:nowrap
+  }
+  .fact b{color:var(--ink);font-weight:500}
+
+  .tally{
+    position:sticky;top:0;z-index:5;background:var(--bg);
+    padding:12px 0 10px;margin:0 0 18px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap
+  }
+  .tally .score{font:600 15px/1 "IBM Plex Mono", monospace;letter-spacing:.02em}
+  .tally .score i{font-style:normal;padding:0 2px}
+  .tally .sp{flex:1}
+  .mini{
+    border:1px solid var(--line);background:var(--card);color:var(--ink);
+    border-radius:8px;padding:7px 13px;font:500 13px/1 "IBM Plex Sans",sans-serif;cursor:pointer
+  }
+  .mini:hover{border-color:var(--act);color:var(--act)}
+  .mini:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+
+  h2{
+    font-size:13px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--sub);margin:26px 0 10px;display:flex;align-items:baseline;gap:10px
+  }
+  h2 .num{
+    font-family:"IBM Plex Mono",monospace;color:var(--act);font-weight:500;
+    letter-spacing:0;font-size:12px
+  }
+  section{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:16px 18px;margin:0 0 4px;box-shadow:var(--shadow)
+  }
+  section.flag{border-left:3px solid var(--act)}
+  section > p{margin:0 0 12px;color:var(--sub);max-width:70ch}
+  section > p:last-child{margin-bottom:0}
+  section > p strong{color:var(--ink);font-weight:600}
+  code{
+    font:500 13px/1.4 "IBM Plex Mono",ui-monospace,Consolas,monospace;
+    background:var(--sunk);border:1px solid var(--line);border-radius:5px;padding:1px 5px
+  }
+
+  .cmd{position:relative;margin:0 0 12px}
+  .cmd pre{
+    margin:0;background:var(--sunk);border:1px solid var(--line);border-radius:10px;
+    padding:13px 15px;overflow-x:auto;
+    font:400 12.5px/1.65 "IBM Plex Mono",ui-monospace,Consolas,monospace;
+    color:var(--ink)
+  }
+  .cmd .cp{
+    position:absolute;top:8px;right:8px;
+    border:1px solid var(--line);background:var(--card);color:var(--sub);
+    border-radius:7px;padding:5px 10px;font:500 11px/1 "IBM Plex Sans",sans-serif;cursor:pointer
+  }
+  .cmd .cp:hover{color:var(--act);border-color:var(--act)}
+  .cmd .cp:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+  .cmd .cp[data-done="1"]{color:var(--p);border-color:var(--p)}
+
+  .note-line{
+    display:flex;gap:8px;align-items:flex-start;
+    background:var(--warn-soft);border:1px solid var(--line);border-radius:9px;
+    padding:10px 13px;margin:0 0 12px;color:var(--ink);font-size:13.5px;line-height:1.5
+  }
+  .note-line b{color:var(--warn)}
+
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:10px 8px;border-top:1px solid var(--line);vertical-align:top}
+  thead th{
+    border-top:0;font:600 11px/1 "IBM Plex Sans",sans-serif;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--sub);padding-bottom:8px
+  }
+  td.id{
+    width:44px;font:500 13px/1.5 "IBM Plex Mono",monospace;color:var(--act);white-space:nowrap
+  }
+  td.what{font-size:14px}
+  td.what em{font-style:normal;color:var(--sub);display:block;margin-top:3px;font-size:13px}
+  td.v{width:158px;white-space:nowrap}
+
+  .btn{
+    border:1px solid var(--line);background:transparent;color:var(--sub);
+    border-radius:7px;padding:5px 11px;margin-right:4px;cursor:pointer;
+    font:500 12.5px/1 "IBM Plex Sans",sans-serif
+  }
+  .btn:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+  .btn[aria-pressed="true"][data-v="P"]{background:var(--p);border-color:var(--p);color:#fff}
+  .btn[aria-pressed="true"][data-v="F"]{background:var(--f);border-color:var(--f);color:#fff}
+  .btn[aria-pressed="true"][data-v="N"]{background:var(--n);border-color:var(--n);color:#fff}
+  /* ★ Damir, walk S2: "stupid artefact doesnt allow notes if pass" — and the note he
+     could not leave was a real defect. The box used to be display:none until a row
+     FAILED, on the reasoning that a fail needs an explanation. True, and not the same
+     as "a pass has nothing to say": the most valuable notes are the ones on rows that
+     technically passed, because those are the observations no row was written to catch.
+     Always visible now; the fail styling stays. */
+  .nt{
+    width:100%;margin-top:7px;border:1px solid var(--line);border-radius:7px;
+    padding:6px 9px;background:var(--sunk);color:var(--ink);
+    font:400 13px/1.45 "IBM Plex Sans",sans-serif;display:block
+  }
+  tr[data-v="F"] .nt{border-color:var(--f)}
+
+  footer{margin:30px 0 0;color:var(--sub);font-size:13.5px;line-height:1.6}
+  footer b{color:var(--ink)}
+
+  @media (max-width:640px){
+    body{padding:20px 14px 56px}
+    td.v{width:auto}
+    th:nth-child(3),td.v{display:block;padding-top:0;border-top:0}
+    td.id{width:38px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Walk — Session Z: the Y-walk list, the flags on Windows, the glass dial</h1>
+  <p class="lede">Seventeen rows. <strong>Windows first</strong> (§1 — the flags need WebView2, which no machine but yours has), then the phone (§2 — Damir's list from the Y walk, every item rendered in the container before it was pinned). No C# changed. Both themes on both machines.</p>
+  <div class="facts">
+    <span class="fact">records <b>#885–#890</b></span>
+    <span class="fact">smoke <b>BASELINE OK — 4754 pass / the 2 KNOWN</b> (ran whole, in the container)</span>
+    <span class="fact">pins <b>GATE 64 · GATE 65 · 40+ re-based · every mutation killed</b></span>
+    <span class="fact">C# changed <b>NO</b> — pipeline + F5, no obj/bin wipe</span>
+    <span class="fact">credit <b>Twemoji flags — CC-BY 4.0</b></span>
+  </div>
+</header>
+
+<div class="tally">
+  <span class="score" id="score">— / 17</span>
+  <span class="score" style="color:var(--p)">P <i id="cp">0</i></span>
+  <span class="score" style="color:var(--f)">F <i id="cf">0</i></span>
+  <span class="score" style="color:var(--n)">N/A <i id="cn">0</i></span>
+  <span class="sp"></span>
+  <button class="mini" id="copyres">Copy results</button>
+  <button class="mini" id="reset">Reset</button>
+</div>
+
+<main>
+
+<h2><span class="num">§0</span> Build</h2>
+<section>
+  <p><strong>No C# changed.</strong> The generated files are landed; your run is the confirmation (<code>docs/f5-checklist-session-z.md</code> §1). Windows: <strong>F5 in Visual Studio, never <code>dotnet build</code></strong> (#663 — a plain build serves the previous build's shell from <code>Documents\Spixi\html</code> and looks normal). Android: the usual Release deploy; wipe <code>obj</code>/<code>bin</code> only if a row below looks like the old build (#320).</p>
+  <div class="note-line"><b>⚠</b><span><b>Check the build is THIS build before ticking anything:</b> Windows — Account → Language shows colour flags, not two letters. Phone — open any bottom sheet: its last row sits 24 above the bar, not 16 (compare the attach tray, which deliberately stays 16).</span></div>
+</section>
+
+<h2><span class="num">§1</span> Windows (WebView2) — the flags, the foot, the glass</h2>
+<section class="flag">
+  <p><strong>Z.1–Z.3 are the batch's one unverified leg.</strong> The route was proved in Chromium from <code>file://</code>; WebView2 is Chromium, but only your machine can say it. Z.5 is a dial: the frost is OFF by default and has no toggle yet — you set it from F12 and pick.</p>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s1"></tbody></table>
+</section>
+
+<h2><span class="num">§2</span> The phone — your list from the Y walk (#884) and the three #882 dials</h2>
+<section>
+  <p>Each row was rendered in both themes through the C# wire before its pin (<code>docs/sheets/session-z/</code>). The phone must show the SAME thing; anything else is a regression, not a dial.</p>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s2"></tbody></table>
+</section>
+
+<h2><span class="num">§3</span> Nothing else moved</h2>
+<section>
+  <p>The flag font installs ONLY where a flag does not paint; a phone paints its own flags and must be untouched. The notice card is tokenised, not recoloured.</p>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s3"></tbody></table>
+</section>
+
+</main>
+
+<footer>
+  <p>If a row fails, put <b>what you saw</b> in its note: for Z.1 whether the picker shows letters, boxes or flags; for Z.5 which of ON/OFF you prefer (that IS the row's answer); for Z.10 the chooser you prefer (base / trimmed / actions-first — the three renders are in the checklist). A pass with a design note is a pass — write the note.</p>
+  <p><b>Not on this sheet, deliberately:</b> S1 timed (#872 ②), the AND-40 meminfo series, the iOS walk, the translator pass over the drafts, and the #46 loop's recorded dials (the sheet-card hover at 1.103, the member-sheet micro-label, the Downloads/apps-grid screen hover — #890).</p>
+</footer>
+</div>
+<script>
+(function(){
+  var ROWS = {
+    s1: [
+      ["Z.1","Account → Language (Windows)","every row shows a COLOUR flag (Twemoji), not two letters or a box; the row's text and spacing unchanged"],
+      ["Z.2","sign out → the welcome screen's language pill (Windows)","the pill shows the flag too — it was drawn as a PNG a few ms before the font arrived and must have been upgraded in place (review MAJOR-1)"],
+      ["Z.3","a chat: send a message with 🇸🇮 and 😀 in it, and one with 🏴 (Windows)","🇸🇮 draws in Twemoji; 😀 stays Segoe (the range is the 26 regional indicators only); 🏴 draws exactly as before this build (the subset has no tag flags — unchanged, not broken)"],
+      ["Z.4","a chat, keyboard irrelevant (Windows)","the composer pill has a normal foot below it — 12 px — not on the window edge (your report); the messages still pass under the transparent band"],
+      ["Z.5","the glass dial (Windows, F12 console): localStorage.setItem('spixi.chat.glass','1') → close and reopen the chat; then removeItem and reopen","ON: the band under the composer frosts the messages passing under it, band only, both themes; OFF: transparent as before. YOUR PICK: ON or OFF as the default, and whether it gets a toggle in Chat appearance — write it in the note"],
+      ["Z.6","Windows: any bottom sheet, the desktop pane, toasts","the sheets' foot is 24 above the edge (it applies on desktop too — the centred dialog has 24 at its foot); pane, toasts as before"]
+    ],
+    s2: [
+      ["Z.7","contact details, LIGHT — the four cards","the hairlines between rows are a whisper (1.137 on the card — was 1.42, 'much too visible'); the Account hub's hairlines in DARK are now VISIBLE (1.187 — were 1.00, invisible)"],
+      ["Z.8","contact details — the 'Groups you are both in' label","sentence case, not ALL CAPS, on every card label; under Deutsch it is translated (cn/id/it/ja/lt were missing — drafted). Still English under your device's language? note the language CODE the device reports before blaming the dictionary"],
+      ["Z.9","contact details AND Account hub — the nickname pencil","the NAME is centred on the screen (not the name+pencil pair); tap the pencil → the input centres alone; save/cancel → the name centres again"],
+      ["Z.10","any bottom sheet: row menu · tip · address · Add-contact chooser","the last row sits 24 above the bar (was 16); the chooser no longer 'feels too low'. The attach TRAY (⊕) stays at 16 — deliberate (it fills a fixed keyboard slot). Your chooser copy pick (base / trimmed / actions-first) in the note"],
+      ["Z.11","the Add-contact chooser in DARK","the card and the sheet are ONE hue — no grey card on an ink sheet (the 'random colour' was the grey/ink hue break at neutral-500/600); LIGHT unchanged"],
+      ["Z.12","press-and-hold a row inside a card: a contact-details tile, an Account hub row, a contacts-picker action row","a visible pressed fill on the row (was invisible on every card-hosted family — #882 (a)); on release it clears"],
+      ["Z.13","directory → a contact (NOT from a chat): the action tiles","Message · Call · Pay · REQUEST (Request is back on the directory arm; Mute yields there — four-tile rule). From a chat's ⓘ: Message · Call · Pay · Mute, no Request (as Session Y ruled)"],
+      ["Z.14","open a chat and scroll (Android)","the conversation opens and scrolls as before — chat.html lost ~39 KB of dead in-chat info takeover (#882 (c)); the ⓘ still opens contact details as its own page"]
+    ],
+    s3: [
+      ["Z.15","the phone: Account → Language, and the welcome pill","the phone's OWN flags, exactly as before — no font is installed where a flag already paints (the probe answers 'yes'); nothing loads"],
+      ["Z.16","the secure-chat notice card, both themes (a brand-new chat)","white in light, navy in dark — by eye identical to yesterday (tokenised, not recoloured)"],
+      ["Z.17","Windows F5 — the suite line","BASELINE OK — 4754 pass / the 2 KNOWN on your machine; `parser missing` means the npm i line did not run"]
+    ]
+  };
+
+  var KEY = "spixi.walk.session-z";
+  var state = {};
+  try { state = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch(e) { state = {}; }
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){} }
+
+  function build(tbodyId){
+    var tb = document.getElementById(tbodyId);
+    if(!tb) return;
+    ROWS[tbodyId].forEach(function(r){
+      var id = r[0];
+      var tr = document.createElement("tr");
+      tr.dataset.row = id;
+      var td1 = document.createElement("td");
+      td1.className = "id"; td1.textContent = id;
+      var td2 = document.createElement("td");
+      td2.className = "what";
+      td2.appendChild(document.createTextNode(r[1]));
+      if (r[2]) { var em = document.createElement("em"); em.textContent = r[2]; td2.appendChild(em); }
+      var td3 = document.createElement("td");
+      td3.className = "v";
+      ["P","F","N"].forEach(function(v){
+        var b = document.createElement("button");
+        b.className = "btn"; b.dataset.v = v; b.type = "button";
+        b.textContent = v === "N" ? "N/A" : v;
+        b.setAttribute("aria-label", (v==="P"?"Pass":v==="F"?"Fail":"Not applicable") + " " + id);
+        b.setAttribute("aria-pressed", String(state[id] && state[id].v === v));
+        b.addEventListener("click", function(){
+          var cur = state[id] || {};
+          cur.v = (cur.v === v) ? "" : v;
+          state[id] = cur; save(); paint(tr, id); tallyUp();
+        });
+        td3.appendChild(b);
+      });
+      var nt = document.createElement("textarea");
+      nt.className = "nt"; nt.rows = 2;
+      nt.placeholder = "note (optional — on a pass too)";
+      nt.value = (state[id] && state[id].n) || "";
+      nt.setAttribute("aria-label", "Note for " + id);
+      nt.addEventListener("input", function(){
+        var cur = state[id] || {}; cur.n = nt.value; state[id] = cur; save();
+      });
+      td3.appendChild(nt);
+      tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+      tb.appendChild(tr);
+      paint(tr, id);
+    });
+  }
+
+  function paint(tr, id){
+    var v = (state[id] && state[id].v) || "";
+    tr.dataset.v = v;
+    Array.prototype.forEach.call(tr.querySelectorAll(".btn"), function(b){
+      b.setAttribute("aria-pressed", String(b.dataset.v === v));
+    });
+  }
+
+  function tallyUp(){
+    var p=0,f=0,n=0,total=0;
+    Object.keys(ROWS).forEach(function(k){ total += ROWS[k].length; });
+    Object.keys(state).forEach(function(id){
+      var v = state[id] && state[id].v;
+      if (v==="P") p++; else if (v==="F") f++; else if (v==="N") n++;
+    });
+    document.getElementById("cp").textContent = p;
+    document.getElementById("cf").textContent = f;
+    document.getElementById("cn").textContent = n;
+    document.getElementById("score").textContent = (p+f+n) + " / " + total;
+  }
+
+  Object.keys(ROWS).forEach(build);
+  tallyUp();
+
+  function copyText(text, btn, doneLabel){
+    var ok = function(){
+      if(!btn) return;
+      var old = btn.textContent;
+      btn.textContent = doneLabel || "Copied";
+      btn.dataset.done = "1";
+      setTimeout(function(){ btn.textContent = old; btn.dataset.done = ""; }, 1400);
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(ok, function(){ fallback(text, ok); });
+        return;
+      }
+    } catch(e){}
+    fallback(text, ok);
+  }
+  function fallback(text, ok){
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      ok();
+    } catch(e){}
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll(".cmd .cp"), function(btn){
+    btn.type = "button";
+    btn.addEventListener("click", function(){
+      var pre = btn.parentNode.querySelector("pre");
+      copyText(pre ? pre.textContent : "", btn);
+    });
+  });
+
+  document.getElementById("copyres").addEventListener("click", function(){
+    var out = ["Walk — Session Z: the Y-walk list, flags on Windows, the glass dial", ""];
+    var p=0,f=0,n=0;
+    Object.keys(ROWS).forEach(function(k){
+      ROWS[k].forEach(function(r){
+        var id = r[0], s = state[id] || {}, v = s.v || "-";
+        if (v==="P") p++; else if (v==="F") f++; else if (v==="N") n++;
+        out.push(v + "  " + id + "  " + r[1] + (s.n ? "   — " + s.n : ""));
+      });
+    });
+    out.splice(1, 0, p + " pass · " + f + " fail · " + n + " n/a");
+    copyText(out.join("\n"), this, "Copied");
+  });
+
+  document.getElementById("reset").addEventListener("click", function(){
+    if (!window.confirm("Clear every result and note on this sheet?")) return;
+    state = {}; save();
+    Object.keys(ROWS).forEach(function(k){
+      var tb = document.getElementById(k);
+      while (tb.firstChild) tb.removeChild(tb.firstChild);
+      build(k);
+    });
+    tallyUp();
+  });
+})();
+</script>
+</body>
+</html>

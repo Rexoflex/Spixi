@@ -204,6 +204,7 @@
   "createWarnBody": "Without it and your backup file, your account and wallet can’t be recovered, not even by us.",
   "createWarnTitle": "Spixi doesn’t store your password.",
   "created": "Account created",
+  "creditFlags": "Country flags",
   "creditIcons": "Interface icons",
   "creditSounds": "Interface sounds",
   "creditsTitle": "Credits",

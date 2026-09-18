@@ -397,7 +397,7 @@
    radius the bubble itself carries. box-shadow rather than `border` because a
    border would change the box and reflow the bubble under the user's finger. */
 [data-menu-target] {
-  box-shadow: 0 0 0 2px var(--brand-400), 0 0 0 5px rgba(118, 157, 255, 0.28);
+  box-shadow: 0 0 0 2px var(--brand-400), 0 0 0 5px rgba(118, 157, 255, 0.28); /* sanctioned: tokenise-candidate (#884 ③ `--surface-selected-wash` = primary-400 at alpha, Damir deferred) */
   transition: box-shadow 120ms ease-out;
 }
 @media (prefers-reduced-motion: reduce) {

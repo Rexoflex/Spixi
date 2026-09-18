@@ -147,6 +147,7 @@
      ?view= still overrides for demos/tests. -->
 <script>(function(){var c='*SL{LaunchBootView}';var q=new URLSearchParams(location.search).get('view');var ok=/^(welcome|create|restore|retry)$/;window.__LAUNCH_VIEW__=ok.test(q||'')?q:(ok.test(c)?c:'welcome');})();</script>
 <script src="../demo/spixi.iife.js"></script>
+<script>/* ★ L15b (Session Z): the flag font — a device that cannot paint a flag emoji (Windows) gets the flags-only Twemoji face for the regional-indicator block, injected at runtime so the 78 KB is never inlined and never fetched on a phone; flags.js holds the mechanism. Unguarded on purpose: a missing export must fail loudly at boot, not fall silent. */window.Spixi.installFlagFont();</script>
 <script>
   /* —————————————————————————————————————————————————————————————————————————
    * Production Launch / onboarding shell — the redesigned launch-shell wired to

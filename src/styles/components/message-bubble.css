@@ -433,11 +433,11 @@ button.c-bubble__reply { cursor: pointer; -webkit-tap-highlight-color: transpare
    are TOKEN CANDIDATES (same class as the #49 on-hero white washes). */
 .c-bubble-row[data-direction="sent"] .c-bubble__mention {
   color: var(--text-bubble-sent);
-  background: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.22); /* sanctioned: tokenise-candidate (#884 ③ `--surface-on-media-wash`, Damir deferred) — a white wash on the sent gradient, both themes */
 }
 .c-bubble-row[data-direction="sent"] .c-bubble__mention[data-self] {
   color: var(--text-bubble-sent);
-  background: rgba(255, 214, 10, 0.34);
+  background: rgba(255, 214, 10, 0.34); /* sanctioned: tokenise-candidate (#884 ③ `--surface-highlight-wash`, Damir deferred) — the self-mention warning wash on the sent gradient */
 }
 
 /* —— link preview card (§8-gated: sender-composed, Signal-style) —— */

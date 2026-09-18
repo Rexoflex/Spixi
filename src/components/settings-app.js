@@ -70,6 +70,7 @@ function creditLabel(credit, strings) {
   switch (credit.key) {
     case 'creditSounds': return strings.creditSounds || 'Interface sounds';
     case 'creditIcons': return strings.creditIcons || 'Interface icons';
+    case 'creditFlags': return strings.creditFlags || 'Country flags';
     default: return credit.fallback;   // a credit added without its case still renders
   }
 }
@@ -91,6 +92,18 @@ export const ASSET_CREDITS = [
     fallback: 'Interface icons',
     source: 'Tabler Icons — tabler.io/icons, © Paweł Kuna',
     licence: 'MIT',
+  },
+  /* ★ L15b (Session Z): the flags-only Twemoji face used on Windows, where the system
+     emoji font draws no flags (flags.js installFlagFont). Twemoji artwork is CC-BY 4.0 —
+     attribution is REQUIRED, so this row and the notice in
+     docs/legal/third-party-notices.md are the licence's ask, not courtesy. */
+  {
+    key: 'creditFlags',
+    fallback: 'Country flags',
+    /* ★ #46 loop (B-8): CC-BY asks for the licence LINK and a statement of CHANGES on the
+       shipped artifact, not only in a repo doc the device never receives — so both ride here. */
+    source: 'Twemoji — © Twitter, Inc. and other contributors; the Mozilla twemoji-colr build, subset to country flags by TalkJS — creativecommons.org/licenses/by/4.0',
+    licence: 'CC-BY 4.0 (subset)',
   },
 ];
 

@@ -474,6 +474,16 @@ export function createSettingsHub({
       onClick: startNickEdit,
     });
     pencil.classList.add('c-settings__nick-edit');
+    /* ★ Session Z (#884 ⑥, Damir on the Y walk: the pencil pushes the name off centre):
+       the row is `justify-content: center` and the pencil is a flex SIBLING, so the PAIR
+       was centred and the name sat half a pencil (22 px) left of the axis. A symmetric
+       GHOST — the pencil's width, inert, hidden from readers — before the name puts the
+       NAME on the axis. It hides and shows WITH the pencil (an open editor centres its
+       input alone), which is why both toggles below touch it. */
+    const ghost = document.createElement('span');
+    ghost.className = 'c-settings__nick-ghost';
+    ghost.setAttribute('aria-hidden', 'true');
+    nameRow.insertBefore(ghost, nameEl);
     nameRow.append(pencil);
 
     const nickErr = document.createElement('span');
@@ -492,6 +502,7 @@ export function createSettingsHub({
       input.setAttribute('aria-label', strings.nickname || 'Nickname');
       nameEl.hidden = true;
       pencil.hidden = true;
+      ghost.hidden = true;
       nameRow.insertBefore(input, nameEl);
       input.focus();
       let closed = false;
@@ -502,6 +513,7 @@ export function createSettingsHub({
         input.remove();
         nameEl.hidden = false;
         pencil.hidden = false;
+        ghost.hidden = false;
       };
       const showErr = (msg) => {
         committing = false;

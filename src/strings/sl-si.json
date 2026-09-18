@@ -204,6 +204,7 @@
   "createWarnBody": "Brez njega in datoteke varnostne kopije vašega računa in denarnice ni mogoče obnoviti, niti mi tega ne moremo storiti.",
   "createWarnTitle": "Spixi ne shranjuje vašega gesla.",
   "created": "Račun ustvarjen",
+  "creditFlags": "Zastave držav",
   "creditIcons": "Ikone vmesnika",
   "creditSounds": "Zvoki vmesnika",
   "creditsTitle": "Zasluge",

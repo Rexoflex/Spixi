@@ -721,5 +721,6 @@
   "addContactScanLabel": "Escanear código QR",
   "addContactScanHint": "O código QR precisa estar visível em outro dispositivo para você escaneá-lo com este.",
   "addContactEnterLabel": "Digitar ou colar um endereço Spixi",
-  "addContactEnterHint": "Digite ou cole o endereço Spixi (por exemplo 42Spox…M3rci98)."
+  "addContactEnterHint": "Digite ou cole o endereço Spixi (por exemplo 42Spox…M3rci98).",
+  "creditFlags": "Bandeiras de países"
 }

@@ -205,6 +205,7 @@ export const ruru = {
   createWarnBody: "Без него и файла резервной копии ваш аккаунт и кошелёк невозможно восстановить, даже нам.",
   createWarnTitle: "Spixi не хранит ваш пароль.",
   created: "Аккаунт создан",
+  creditFlags: "Флаги стран",
   creditIcons: "Значки интерфейса",
   creditSounds: "Звуки интерфейса",
   creditsTitle: "Благодарности",

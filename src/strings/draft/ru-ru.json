@@ -721,5 +721,6 @@
   "addContactScanLabel": "Сканировать QR-код",
   "addContactScanHint": "QR-код должен быть виден на другом устройстве, чтобы вы могли отсканировать его этим устройством.",
   "addContactEnterLabel": "Ввести или вставить адрес Spixi",
-  "addContactEnterHint": "Введите или вставьте адрес Spixi (например, 42Spox…M3rci98)."
+  "addContactEnterHint": "Введите или вставьте адрес Spixi (например, 42Spox…M3rci98).",
+  "creditFlags": "Флаги стран"
 }

@@ -14,6 +14,7 @@ publisher declares, not verified against the package's own LICENSE file.
 | **UI SFX** — uisfx.com | interface sounds | CC0 1.0 | nothing; credit is courtesy | credit row in the app |
 | **Sora** (Google Fonts) | `src/assets/fonts/sora-latin-wght-normal.woff2` | SIL OFL 1.1 | keep the OFL notice; do not sell the font on its own | notice below |
 | **Source Sans 3** (Adobe) | `src/assets/fonts/source-sans-3-latin-wght-normal.woff2` | SIL OFL 1.1 | as above | notice below |
+| **Twemoji Country Flags** — Twemoji artwork, font subset by TalkJS (`country-flag-emoji-polyfill` 0.1.10) | `src/assets/fonts/TwemojiCountryFlags.woff2` → shipped as `Resources/Raw/html/fonts/TwemojiCountryFlags.js` (a data: URL in a script — a file:// font fetch is CORS-refused), injected at runtime on a device that cannot paint a flag (Windows) — L15b, Session Z | CC-BY 4.0 (artwork) · MIT (the polyfill's code, none of which ships) | give credit, link the licence, state changes (a subset) | credit row in the app (`ASSET_CREDITS`) + the notice below |
 | **The chat doodle pattern** | `src/assets/images/chat-bg-doodles.svg`, `doodle-pattern-aug.svg` | ⚠ **UNKNOWN — Damir's export; origin not recorded in the repo** | depends on the source: original work needs nothing; a marketplace/stock asset may require attribution or forbid redistribution in an app | **OPEN — Damir to state the source** |
 | **Spixi logo, empty-state illustrations** | `src/assets/images/*-es.svg`, `logo.svg` | IXI Labs' own | — | — |
 
@@ -70,6 +71,19 @@ Source Sans 3 © 2010–2020 Adobe (github.com/adobe-fonts/source-sans).
 Both are licensed under the SIL Open Font License, Version 1.1
 (https://openfontlicense.org). The fonts are embedded in the app and are not sold on
 their own; the OFL text ships with the app per the licence.
+
+### Twemoji Country Flags — CC-BY 4.0
+
+The flag glyphs in `TwemojiCountryFlags.woff2` are the Twemoji emoji artwork
+(https://twemoji.twitter.com, Copyright 2019 Twitter, Inc and other contributors),
+licensed under the Creative Commons Attribution 4.0 International License
+(https://creativecommons.org/licenses/by/4.0/). Changes: the artwork is used as a font
+— Mozilla's `twemoji-colr` build (the shipped file's internal family name is "Twemoji
+Mozilla") — subset to the country and sub-national flags by TalkJS as
+`country-flag-emoji-polyfill` 0.1.10 (MIT for the build; https://github.com/talkjs/country-flag-emoji-polyfill).
+Spixi ships the subset unmodified, as a base64 data: URL inside `fonts/TwemojiCountryFlags.js`,
+and loads it only on a platform whose system emoji font draws no flags; the in-app credit row
+(Account → Contributors) carries the licence link and the word "subset".
 
 ### html5-qrcode — Apache License 2.0
 

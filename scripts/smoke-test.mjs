@@ -241,9 +241,20 @@ const prose = (t) => t
   .replace(/\s+/g, ' ')
   .trim();
 
-const load = (file) => new Promise((resolve) => {
+/* ★ Session Z (#888): ONE opt-in a single pin may pass, the default path untouched —
+ *   expectErrors: a RegExp — a jsdomError whose message matches is NOT a suite failure; it is
+ *     pushed to dom.expectedErrors so the pin can assert the miss really happened. A pin that
+ *     exercises a fail-soft path by letting a resource FAIL declares the one miss it means,
+ *     where it means it — never a global allow-list. (A `resources` override was tried and
+ *     dropped: jsdom's interceptors never see file: URLs, so a file: subresource can only be
+ *     served from where the document really is — the built tree, for the success path.) */
+const load = (file, opts = {}) => new Promise((resolve) => {
   const vc = new VirtualConsole();
-  vc.on('jsdomError', (e) => failures.push(file + ' PAGE ERROR: ' + e.message));
+  const expected = [];
+  vc.on('jsdomError', (e) => {
+    if (opts.expectErrors && opts.expectErrors.test(e.message)) expected.push(e.message);
+    else failures.push(file + ' PAGE ERROR: ' + e.message);
+  });
   const dom = new JSDOM(readFileSync(join(root, 'src/demo', file), 'utf8'), {
     runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true,
     url: 'file://' + join(root, 'src/demo', file), virtualConsole: vc,
@@ -257,6 +268,7 @@ const load = (file) => new Promise((resolve) => {
       try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
     },
   });
+  dom.expectedErrors = expected;
   setTimeout(() => resolve(dom), 3000);
 });
 
@@ -1296,11 +1308,13 @@ console.log('chat.html — chat info (#141)');
   // (button = tile; svg glyph + label INSIDE, no inner circle span), and Request is no
   // tile — this host wires Message + Pay (+ Request, ignored) → TWO tiles, Message first.
   const moneyBtns = [...cinfo.querySelectorAll('.c-chat-info__money .c-chat-info__qa')];
-  ok(moneyBtns.length === 2 && moneyBtns[0].classList.contains('c-chat-info__message')
+  /* ★ Session Z (#882 (d)) re-base: Request is a tile on the DIRECTORY arm again (this host
+     passes context 'contact' + onRequest) → THREE tiles, Message first. */
+  ok(moneyBtns.length === 3 && moneyBtns[0].classList.contains('c-chat-info__message')
     && !cinfo.querySelector('.c-chat-info__qa-circle')
     && moneyBtns.every((b) => !!b.querySelector(':scope > svg.c-chat-info__qa-glyph')
       && !!b.querySelector('.c-chat-info__qa-label')),
-    'contact page (Session Y): Message LEADS a row of TILES — glyph + label inside the button, no circle span; Message · Pay for this host (Request is not a tile, #876)');
+    'contact page (Session Y → Z): Message LEADS a row of TILES — glyph + label inside the button, no circle span; Message · Pay · Request for this directory host (#882 (d))');
   const dRows = [...cinfo.querySelectorAll('.c-chat-info__row--action')];
   ok(dRows.length === 2
     && dRows.some((r) => /Delete/i.test(r.textContent))
@@ -7417,8 +7431,14 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
        that a docblock in this very file can spell a rule out, and a positive satisfied by
        prose is exactly the vacuity the [SCROLL] pin was retired for. */
     const noticeNC = stripCssComments(notice);
-    ok(/\[data-theme="dark"\] \.c-sysnotice__card \{[^}]*background: #0c1a4a;[^}]*\}/.test(noticeNC),
-      '★ N82(c): the dark notice card is the deepened #0c1a4a (84% saturation, and still DARKER than the grey-800 it replaces) — Damir asked to go further after seeing the first #141c33 render');
+    /* ★ Session Z (#884 ③) re-base in BOTH halves: the midnight is the DARK value of the role
+       `--surface-notice-card` in tokens.css; the component's dark rule no longer paints a
+       ground (and must not — a second source for the flip is the drift this role removes). */
+    const tokZ = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const tokZdark = tokZ.split('[data-theme="dark"] {')[1].split('\n}')[0];
+    ok(/--surface-notice-card: #0c1a4a;/.test(tokZdark)
+       && !/\[data-theme="dark"\] \.c-sysnotice__card \{[^}]*background/.test(noticeNC),
+      '★ N82(c) → #884 ③: the dark notice card is the deepened #0c1a4a — the dark value of --surface-notice-card, painted by the token and by NO component rule (84% saturation, and still DARKER than the grey-800 it replaces) — Damir asked to go further after seeing the first #141c33 render');
     /* ★ Session J REVERSES the edge pin, on Damir's ruling (2026-09-02, both screenshots: "notice
        no border, white with elevation or dark midnight blue … with some elevation as well —
        because now it looks the same"). The EDGE is gone in both themes; --elevation-2 carries
@@ -7451,13 +7471,14 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     /* ★ Session J re-base (Damir 2026-09-02): the light card is WHITE + --elevation-2, no edge —
        the ground-family card (#E4E1E6 k2 · #dfe6ee AUG · #e8f3ef E1c · #dfe8ff E1b) is the
        superseded line; on the new #E4EAF3 ground it "looked the same" as the ground. */
-    ok(/\.c-sysnotice__card \{[^}]*background: #ffffff;\s*box-shadow: var\(--elevation-2\);/.test(noticeLight)
+    ok(/\.c-sysnotice__card \{[^}]*background: var\(--surface-notice-card\);\s*box-shadow: var\(--elevation-2\);/.test(noticeLight)
+      && /--surface-notice-card: #ffffff;/.test(tokZ.split('[data-theme="dark"] {')[0])
       && !/rgba\(18, 59, 71, 0\.40\)\s*;/.test(noticeLight.replace(/\/\*[\s\S]*?\*\//g, '')),
-      '★★★ Session J: the LIGHT notice card is WHITE with --elevation-2 and NO edge (Damir 2026-09-02). Superseded: AUG GROUND (Damir 2026-08-30): the LIGHT notice card is #dfe6ee with the rgba(18,59,71,0.40) edge. ⚠ THE RELATIONSHIP INVERTED: on a saturated wash the card worked by being LIGHTER (+18.34 ΔL* at the teal end); on a near-white ground there is nothing lighter to be, and #e8f3ef measured −0.91 and DISSOLVED. It is a slightly DARKER tint now, −3.57. ⚠ And it had to change HUE too — the first cut #e4ece0 was picked for the green-leaning #EFF5EB and reads as a green patch (hue 134°) on the cool #EBF0F5 (256°); #dfe6ee is 260°, the ground\'s own family. ★ The GRADIENT option carries its own card (#eaf0fa) in a ground-scoped rule, because there the lighter relationship still holds. Superseded: E1c: the LIGHT notice card is #e8f3ef with a rgba(18,59,71,0.40) edge, re-tuned for the colourful canvas. #dfe8ff was a BLUE card picked for a blue ground; on the teal→green wash it clashed and washed out at the green end (1.088 — it would have vanished into the bottom of the screen). #e8f3ef separates at BOTH ends, 1.655 teal / 1.172 green, AND stays distinct from the white incoming bubble at 1.135, which a paler teal would not. Ink: title 16.25:1 · body 6.50:1 · link 6.15:1');
+      '★★★ Session J → #884 ③: the LIGHT notice card is WHITE (--surface-notice-card = #ffffff in :root) with --elevation-2 and NO edge (Damir 2026-09-02). Superseded: AUG GROUND (Damir 2026-08-30): the LIGHT notice card is #dfe6ee with the rgba(18,59,71,0.40) edge. ⚠ THE RELATIONSHIP INVERTED: on a saturated wash the card worked by being LIGHTER (+18.34 ΔL* at the teal end); on a near-white ground there is nothing lighter to be, and #e8f3ef measured −0.91 and DISSOLVED. It is a slightly DARKER tint now, −3.57. ⚠ And it had to change HUE too — the first cut #e4ece0 was picked for the green-leaning #EFF5EB and reads as a green patch (hue 134°) on the cool #EBF0F5 (256°); #dfe6ee is 260°, the ground\'s own family. ★ The GRADIENT option carries its own card (#eaf0fa) in a ground-scoped rule, because there the lighter relationship still holds. Superseded: E1c: the LIGHT notice card is #e8f3ef with a rgba(18,59,71,0.40) edge, re-tuned for the colourful canvas. #dfe8ff was a BLUE card picked for a blue ground; on the teal→green wash it clashed and washed out at the green end (1.088 — it would have vanished into the bottom of the screen). #e8f3ef separates at BOTH ends, 1.655 teal / 1.172 green, AND stays distinct from the white incoming bubble at 1.135, which a paler teal would not. Ink: title 16.25:1 · body 6.50:1 · link 6.15:1');
     /* ★ Session J REVERSES this pin (Damir: "white with elevation"): the card IS white now, and
        the lift — not a tint — is what separates it from a white incoming bubble. Pinned as a
        reversal: the elevation must be there, or the E1b/E1c objection below comes true. */
-    ok(/background: #ffffff;/.test(noticeLight) && /box-shadow: var\(--elevation-2\);/.test(noticeLight),
+    ok(/background: var\(--surface-notice-card\);/.test(noticeLight) && /box-shadow: var\(--elevation-2\);/.test(noticeLight),
       '★ Session J: the light card IS white — and LIFTED (--elevation-2), which is what keeps it from reading as one more bubble. Superseded: E1b/E1c: the card is NOT white. White IS the incoming bubble in light mode, so a white card would read as one more bubble in the thread rather than as the notice that sits above it — which is the same reason dark went to #0c1a4a rather than to a lighter grey');
     /* ★ Session X (walk V 1.7 + 3.2): the chooser cards sat on --surface-neutral-02 — neutral-800
        on a neutral-700 sheet in dark (RECESSED), and hovered to --surface-interactive-hover =
@@ -7632,11 +7653,14 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
      the ground (AUG) and the TEXT SIZE joined the stamp gate. The pre-warmed blank chat (#800)
      boots before the tap, so a pref read only in the head script is one pick behind for the
      whole conversation; every field readPatternPrefs returns must be in the stamp AND in this
-     listener. Pinned as the exact list so a fifth key cannot be added to one and not the other. */
-  ok(/window\.addEventListener\('storage', \(e\) => \{\s*if \(!e\.key \|\| e\.key === PATTERN_PREF_KEYS\.level \|\| e\.key === PATTERN_PREF_KEYS\.style \|\| e\.key === PATTERN_PREF_KEYS\.ground \|\| e\.key === PATTERN_PREF_KEYS\.text\) refreshPatternPrefsIfChanged\(\);/.test(chatW5)
-    && /const patternStamp = \(p\) => p\.level \+ '\|' \+ p\.style \+ '\|' \+ p\.ground \+ '\|' \+ p\.text;/.test(chatW5)
-    && /return \{ level: p, style: s, ground: gr, text: t \};/.test(chatW5)
-    && /text: 'spixi\.chat\.textscale' \}/.test(chatW5)
+     listener. Pinned as the exact list so a fifth key cannot be added to one and not the other.
+     ★ Session Z re-base in BOTH halves: the FIFTH key arrived — the glass dial (spixi.chat.glass)
+     — and it was added to all three places at once, which is exactly what this pin exists to
+     force (the first cut read it in the head script only and the L1·12 gate went red). */
+  ok(/window\.addEventListener\('storage', \(e\) => \{\s*if \(!e\.key \|\| e\.key === PATTERN_PREF_KEYS\.level \|\| e\.key === PATTERN_PREF_KEYS\.style \|\| e\.key === PATTERN_PREF_KEYS\.ground \|\| e\.key === PATTERN_PREF_KEYS\.text \|\| e\.key === PATTERN_PREF_KEYS\.glass\) refreshPatternPrefsIfChanged\(\);/.test(chatW5)
+    && /const patternStamp = \(p\) => p\.level \+ '\|' \+ p\.style \+ '\|' \+ p\.ground \+ '\|' \+ p\.text \+ '\|' \+ \(p\.glass \? 1 : 0\);/.test(chatW5)
+    && /return \{ level: p, style: s, ground: gr, text: t, glass: gl === '1' \};/.test(chatW5)
+    && /text: 'spixi\.chat\.textscale', glass: 'spixi\.chat\.glass' \}/.test(chatW5)
     && /window\.addEventListener\('focus', refreshPatternPrefsIfChanged\);/.test(chatW5)
     && /if \(document\.visibilityState === 'visible'\) refreshPatternPrefsIfChanged\(\);/.test(chatW5)
     && /setInterval\(\(\) => \{ if \(!document\.hidden\) refreshPatternPrefsIfChanged\(\); \}, 2000\);/.test(chatW5),
@@ -7831,11 +7855,13 @@ console.log('contact details — premium pass');
   //    TILES (button = tile, glyph + label inside), and Request is NOT in the row — this
   //    host (Message · Pay · Request wired, no notifications) renders TWO tiles.
   const qas = [...ci.querySelectorAll('.c-chat-info__money .c-chat-info__qa')];
-  ok(qas.length === 2 && !ci.querySelector('.c-chat-info__money .c-button') && !ci.querySelector('.c-chat-info__qa-circle'),
-    'premium ① (Session Y): the action row is quick-action TILES — no chunky c-buttons, no circle spans; two for this host');
-  ok(qas.map((b) => b.querySelector('.c-chat-info__qa-label').textContent).join() === 'Message,Pay',
-    'premium ① (Session Y): Message · Pay, in that order — Request left the row for the composer ⊕ sheet (#876)');
-  ok(ci.querySelector('.c-chat-info__money').dataset.count === '2',
+  /* ★ Session Z (#882 (d)) re-base: this host passes context 'contact' + onRequest, and
+     Request is a tile on the directory arm again → THREE tiles, Message · Pay · Request. */
+  ok(qas.length === 3 && !ci.querySelector('.c-chat-info__money .c-button') && !ci.querySelector('.c-chat-info__qa-circle'),
+    'premium ① (Session Y → Z): the action row is quick-action TILES — no chunky c-buttons, no circle spans; three for this directory host');
+  ok(qas.map((b) => b.querySelector('.c-chat-info__qa-label').textContent).join() === 'Message,Pay,Request',
+    'premium ① (Session Y → Z): Message · Pay · Request, in that order — Request is back on the directory arm (#882 (d)), still not on the chat arm (#876)');
+  ok(ci.querySelector('.c-chat-info__money').dataset.count === '3',
     'premium ①: the row carries its count so a lone action hugs instead of stretching');
 
   // ② quiet destructive tier — delete-history reads secondary; red stays reserved
@@ -8050,7 +8076,18 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      --safe-bottom docblock, and chat.html by the keyboard-slot correction + its note. ≈ 0.1 ms
      of parse. The dead #249 takeover above is still the number that matters (Damir's dial).
      Headroom after this raise: 1 544 chars. */
-  const CHAT_KB_CEIL = 686, INDEX_KB_CEIL = 528;
+  /* ★ Session Z (#882 (c), Damir's dial): 686 → 648, DOWN, delta stated. The dead #249
+     in-chat info takeover is deleted from chat.html together with the two stylesheets only
+     it linked (chat-info.css 30 792 · txlist-item.css) and its own cover rules + JS: the
+     built chat.html measured 700 920 → 661 147 chars (−39 773, ≈ 3.1 ms of parse at the
+     measured 0.08 ms/KB, on EVERY conversation open). ⚠ search-field.css STAYS: the first
+     cut dropped it too and the W-h gate caught it — the W5 in-chat send compose renders a
+     search field (the link's old comment named the wrong consumer). The glass dial + the
+     flag-font line ride in this number. The #46 loop's fixes then moved it to 662 061
+     (+914: the desktop composer foot, the glass @supports fallback and their comments).
+     Headroom after the lowering: 1 491 chars — the next thing added to chat.html re-bases
+     this pin with ITS delta, exactly as before. */
+  const CHAT_KB_CEIL = 648, INDEX_KB_CEIL = 528;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -11519,20 +11556,26 @@ console.log('R1 identity round — N1 avatar rework (#364) · N34 owner chip (#3
     'N34: the member sheet carries the owner flag (matches the bubble chip)');
   ok(/roleBadge: \(!isSent && mode\.isMulti && !mode\.blind && isOwnerAddr\(rec\.senderAddress\)\)/.test(chat366),
     'N34 ★ (loop MAJOR-1): the chip gate carries !mode.blind — a blind chat must never mark one hidden member as Owner');
-  ok(/if \(isOwnerAddr\(m\.address\)\) m\.owner = true;/.test(chat366),
-    'N34 (loop NIT-3): collectGroupMembers uses the ONE isOwnerAddr predicate, no inline drift copy');
-  // loop r2 MAJOR-1: relation must survive ALL THREE collect steps + the latch —
-  // an ACTIVE contact falling to 'none' re-arms the request button (the D-5 inversion).
-  ok(/relation: prev\.relation \|\| rec\.relation \|\| ''/.test(chat366)
-    && /relation: prev\.relation \|\| ''/.test(chat366)
-    && /requestedMembers\.has\(m\.address\) && \(m\.relation \|\| 'none'\) === 'none'\) m\.relation = 'pending'/.test(chat366),
-    'D-5 ★ (loop r2 MAJOR-1a): collectGroupMembers carries relation through steps 2+3 and applies the latch');
-  const chatOnReq = chat366.indexOf('onContactRequest: (m) => {');
-  /* ⚠ the window is a proximity heuristic, not the property — #623's rationale block sits
-     between the handler and the latch. Keep it generous enough that a comment cannot fail
-     the pin; the `.add(` clause is what actually holds. */
-  ok(chatOnReq >= 0 && /requestedMembers\.add\(m\.address\);/.test(chat366.slice(chatOnReq, chatOnReq + 1200)),
-    'N26 (loop r2 MAJOR-1b): the chat takeover onContactRequest feeds the latch like its two siblings');
+  /* ★ Session Z (#882 (c)) re-base in BOTH halves: the in-chat takeover (openChatInfo /
+     buildChatInfo / collectGroupMembers / refreshChatInfo and its `.chat-info-takeover`
+     cover) is DELETED from chat.html — it had been unreachable since #249. The three pins
+     that read its code now assert (1) that it is gone, with the stylesheets it alone
+     needed, and (2) that the properties it carried live on the surfaces that are live:
+     the ONE isOwnerAddr predicate on the bubble chip + the in-chat member sheet, and the
+     requestedMembers latch on the member sheet (chat.html) + contact_details.html. */
+  {
+    const chatZ = stripCode(chat366);
+    ok(!/function (openChatInfo|buildChatInfo|collectGroupMembers|refreshChatInfo|closeChatInfo|scheduleChatInfoRefresh)\b/.test(chatZ)
+       && !/chatInfoOpen|chatInfoTakeover|chat-info-takeover/.test(chatZ)
+       && !/createChatInfo/.test(chatZ)
+       && !/components\/(chat-info|txlist-item)\.css/.test(chatZ) && /components\/search-field\.css/.test(chatZ),
+      '★★ Session Z (#882 (c)): the dead in-chat info takeover is GONE from chat.html — no function, no state, no cover rule, no createChatInfo destructure, and the two stylesheets only it needed are no longer linked (chat-info · txlist-item); search-field.css STAYS — the W-h gate proved the in-chat send compose renders it');
+    ok(/owner: isOwnerAddr\(rec\.senderAddress\)/.test(chatZ) && (chatZ.match(/isOwnerAddr\(/g) || []).length === 2
+       && (chatZ.match(/=== groupOwner\b/g) || []).length === 1 && /const isOwnerAddr = \(a\) => [^\n]*a === groupOwner\)/.test(chatZ),
+      'N34 (loop NIT-3) → Session Z: every Owner test in the live chat shell goes through the ONE isOwnerAddr predicate — no inline `=== groupOwner` drift copy outside the predicate itself');
+    ok(/requestedMembers\.add\(rec\.senderAddress\);/.test(chatZ) && /requestedMembers\.has\(rec\.senderAddress\)/.test(chatZ) && /requestedMembers\.clear\(\);/.test(chatZ),
+      'D-5/N26 → Session Z: the in-flight request latch lives on the in-chat MEMBER SHEET (add on send, read on open, per-peer clear) — the takeover copy of it went with the takeover');
+  }
   const cdet366 = read('src/shells/contact_details.html');
   ok(/addMember\(address, nick, avatar, role, relation\)/.test(cdet366)
     && /\? 'pending' : \(m\.relation \|\| ''\)/.test(cdet366),
@@ -12049,8 +12092,11 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
   }
 
   /* —— N55: optimistic request-sent toast at the emit sites —— */
-  ok((nc(chatSrc).match(/contactRequestSent \|\| 'Contact request sent'/g) || []).length === 2,
-    'N55: BOTH chat member-sheet emit sites toast (the sender sheet + the chat-info sheet — the latter rides the #249-retained takeover, live again when that surface revives)');
+  /* ★ Session Z (#882 (c)) re-base: the chat-info takeover's emit site went with the takeover;
+     the ONE live in-chat emit site (the sender sheet) toasts. contact_details.html carries
+     the other surface's toast (pinned in its own block). */
+  ok((nc(chatSrc).match(/contactRequestSent \|\| 'Contact request sent'/g) || []).length === 1,
+    'N55 → Session Z: the ONE chat member-sheet emit site (the sender sheet) toasts — the second site was the #249 takeover, deleted in #882 (c)');
   {
     const cdSrc = read('src/shells/contact_details.html');
     const cnSrc = read('src/shells/contact_new.html');
@@ -15888,9 +15934,26 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
       const [r, g, b] = [1, 3, 5].map((i) => parseInt(h.substr(i, 2), 16) / 255);
       return (Math.max(r, g, b) + Math.min(r, g, b)) / 2;
     };
-    const pairs = [['#13171b', '#10151e'], ['#1b1f23', '#161d28'], ['#111213', '#0d1118'], ['#202328', '#19212f']];
+    const pairs = [['#13171b', '#10151e'], ['#1b1f23', '#161d28'], ['#111213', '#0d1118'], ['#202328', '#19212f'],
+      /* ★ Session Z (#884 ②): the two steps the ramp was missing, by the same rule */
+      ['#292d33', '#202b3c'], ['#31343a', '#253246']];
     ok(pairs.every(([oldHex, newHex]) => Math.abs(hexL(oldHex) - hexL(newHex)) < 0.006),
-      '★ DARK SATURATION: every step holds its ORIGINAL lightness (±0.6%), so no text or icon token needs re-checking and no contrast gate can move. Only saturation and hue changed');
+      '★ DARK SATURATION: every step holds its ORIGINAL HSL lightness (±0.6%). ⚠ #46 loop (Session Z A-1): that is NOT "contrast is unchanged" — WCAG contrast follows relative LUMINANCE, which a saturation rise at held L lowers (~9% on 500/600); the ratios that matter are computed below and in the #769/#884 ⑤ block, not inferred from this clause');
+    /* ★ Session Z (#884 ②): the ramp is CONTIGUOUS from 500 to 1000 in dark — every neutral
+       step a dark SURFACE token reads is re-pointed at an ink step, derived from the dark
+       block itself (the surface tokens that read --neutral-5xx/6xx are the property, not a
+       list). A grey step left behind is the hue break Damir saw on the chooser cards. Each
+       ink step is a real hex, its hue in the ramp's band (217° ± 3) and its saturation ≥ 25%. */
+    {
+      const darkBlock2 = tokens2.split('[data-theme="dark"] {')[1].split('\n}')[0];
+      const stepsRead = [...new Set([...darkBlock2.matchAll(/--surface-[\w-]+:\s*var\(--neutral-(\d+)\)/g)].map((m) => m[1]))].filter((n) => Number(n) >= 500);
+      const hsl = (h) => { const [r, g, b] = [1, 3, 5].map((i) => parseInt(h.substr(i, 2), 16) / 255); const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2; if (mx === mn) return { h: 0, s: 0, l }; const d = mx - mn; const sat = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn); let hh = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; return { h: hh * 60, s: sat, l }; };
+      const inkOf = (n) => (new RegExp('--ink-' + n + ':\\s*(#[0-9a-f]{6});').exec(tokens2) || [])[1];
+      const repointed = stepsRead.filter((n) => new RegExp('--neutral-' + n + ': var\\(--ink-' + n + '\\);').test(darkBlock2));
+      const inkOk = stepsRead.every((n) => { const hx = inkOf(n); if (!hx) return false; const c = hsl(hx); return Math.abs(c.h - 217) <= 3 && c.s >= 0.25; });
+      ok(stepsRead.length >= 4 && repointed.length === stepsRead.length && inkOk,
+        '★ Session Z (#884 ②): every neutral step ≥ 500 that a dark surface token reads (' + stepsRead.join('/') + ') is re-pointed at an --ink-* step of the same lightness, hue 217° ± 3, S ≥ 25% — no grey step survives under a dark surface (re-pointed: ' + repointed.join('/') + ')');
+    }
   }
 }
 
@@ -17079,7 +17142,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ok(/if \(state\.sharedGroups === null\) \{ state\.sharedGroups = undefined; scheduleCommit\(\); \}/.test(cdS),
       'A4 SHELL (loop r1): a group ask that is never answered (old exe) hides the strip after 4 s instead of shimmering forever');
     const chatDead = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
-    ok(!/rosterLoading/.test(chatDead), 'A8 (loop r1): no skeleton code on the DEAD in-chat info takeover (chat.html openChatInfo has no caller)');
+    ok(!/rosterLoading/.test(chatDead) && !/openChatInfo/.test(stripCode(chatDead)), 'A8 (loop r1) → Session Z: no skeleton code in chat.html for an in-chat info takeover — the takeover itself is deleted (#882 (c))');
     ok(/bridge\.send\('ixian:sharedGroups'\);/.test(cdS) && /setSharedGroups\(address, \.\.\.pairs\) \{/.test(cdS) && /onOpenGroup: \(g\) => \{ if \(g && g\.address\) bridge\.send\('ixian:openChat:' \+ g\.address\); \}/.test(cdS),
       'A4 SHELL: contact_details asks ixian:sharedGroups at boot, takes setSharedGroups, and a row tap emits ixian:openChat:<addr>');
     const mbcss = stripCssComments(readFileSync(join(root, 'src/styles/components/message-bubble.css'), 'utf8'));
@@ -19814,8 +19877,16 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
         'Spixi/Pages/Wallet/WalletRecipientPage.xaml', 'Spixi/Pages/Wallet/WalletRecipientPage.xaml.cs']
         .every((f) => !existsSync(join(root, f))),
       '★★ Session N: AppsPage · SetLockPage · WalletRecipientPage are deleted (xaml + code-behind)');
-    ok(['css', 'libs', 'fonts'].every((d) => !existsSync(join(rawDir, d))),
-      '★★ Session N: css/ (bootstrap · normalize · spixiui-* · spixi-login · empty-spixiui-*) · libs/ (FontAwesome) · fonts/ (Inter — loaded ONLY through the deleted css/spixiui-*.css; the redesign\'s --font-ui is a system stack and the one embedded face is Sora) are gone');
+    /* ★ Session Z (L15b) re-base in BOTH halves: fonts/ RETURNS with exactly ONE file — the
+       runtime flag font (flags.js installFlagFont; never inlined, fetched only on a device
+       that cannot paint a flag). Inter is still gone; Sora is still embedded in the CSS. */
+    const fontFiles = listFiles(join(rawDir, 'fonts'));
+    const flagJs = existsSync(join(rawDir, 'fonts/TwemojiCountryFlags.js')) ? readFileSync(join(rawDir, 'fonts/TwemojiCountryFlags.js'), 'utf8') : '';
+    const flagB64 = readFileSync(join(root, 'src/assets/fonts/TwemojiCountryFlags.woff2')).toString('base64');
+    ok(['css', 'libs'].every((d) => !existsSync(join(rawDir, d)))
+       && fontFiles.length === 1 && fontFiles[0] === 'fonts/TwemojiCountryFlags.js'
+       && flagJs.includes("window.__spixiFlagFont = 'data:font/woff2;base64," + flagB64 + "';"),
+      '★★ Session N → Session Z: css/ (bootstrap · normalize · spixiui-* · spixi-login · empty-spixiui-*) · libs/ (FontAwesome) are gone; fonts/ holds EXACTLY the runtime flag font AS A SCRIPT (L15b — a file:// font URL is CORS-refused, a script is not), whose data: URL is the source woff2 byte-for-byte — Inter stays gone and Sora stays EMBEDDED. Got: ' + fontFiles.join(','));
     /* B · the ONE legacy-folder file that is LIVE stays — and it is the only one */
     const jsFiles = listFiles(join(rawDir, 'js'));
     ok(jsFiles.length === 1 && jsFiles[0] === 'js/html5-qrcode.min.js',
@@ -21187,12 +21258,15 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       const withCaps = labels(createChatInfo({ ...base, onMessage: () => {}, onPay: () => {}, onRequest: () => {} }));
       ok(!/Pay/.test(noCaps) && !/Request/.test(noCaps),
         '★★★ #46 loop EXECUTED (findings-B MAJOR-2): with no onPay and no onRequest the panel renders NO money action. This is the half the shell gate depends on — a component that rendered a disabled button instead would turn the C# gate into a dead tap. Got: ' + JSON.stringify(noCaps));
-      /* ★ Session Y (#876) REBASE, both halves: Request is NOT an action on this surface any
-         more (the composer ⊕ sheet owns it), so the pair is Pay-only. The gate's property is
-         intact: Pay renders IFF onPay is passed; Request renders NEVER, handler or not — so a
-         shell passing `onRequest` from a stale capability cannot grow a tile. */
-      ok(/Pay/.test(withCaps) && !/Request/.test(withCaps),
-        '★★★ #46 loop EXECUTED PAIR (Session Y rebase): with onPay the Pay action DOES appear, and onRequest renders NOTHING (Request left the row, #876). Without this pair the pin above would pass on a component that renders nothing ever');
+      /* ★ Session Y (#876) → ★ Session Z (#882 (d)) REBASE, both halves: Request is back ON
+         THE DIRECTORY ARM (this base passes context 'contact'), gated on its handler exactly
+         as Pay is on its own. The gate's property is intact: each action renders IFF its
+         handler is passed — a shell passing a handler from a stale capability grows a tile,
+         which is why the shells gate the HANDLER on the capability (#46 loop MAJOR-2). From
+         the chat arm (context 'chat') Request still renders NEVER, handler or not. */
+      const chatArm = labels(createChatInfo({ ...base, context: 'chat', onMessage: () => {}, onPay: () => {}, onRequest: () => {} }));
+      ok(/Pay/.test(withCaps) && /Request/.test(withCaps) && !/Request/.test(chatArm),
+        '★★★ #46 loop EXECUTED PAIR (Session Z rebase): with onPay + onRequest on the DIRECTORY arm both actions appear; on the chat arm the same handlers render Pay only (Request lives in the composer ⊕ sheet there, #876/#882 (d)). Without this pair the pin above would pass on a component that renders nothing ever');
     } catch (e) {
       ok(false, '★★★ #46 loop EXECUTED: chat-info could not be run — ' + e.message);
     } finally {
@@ -21533,8 +21607,8 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     } catch (e) { ciNo = 'threw: ' + e.message; }
     ok(ciNo === 'Message',
       '★★★ #46 loop EXECUTED, ON THE SHIPPED BUNDLE (surviving mutation X6): with NO onPay and NO onRequest the shipped createChatInfo renders neither. The whole C# capability gate rests on this one claim, and round 2 tested it against the SOURCE module only — so the artifact could render a dead Pay button to every contact C# refused with the C# pin, the shell pin and the source component pin all green. Got: ' + JSON.stringify(ciNo));
-    ok(ciYes === 'Message,Pay',
-      '★★★ #46 loop EXECUTED, ON THE SHIPPED BUNDLE PAIR (Session Y rebase): with both handlers the shipped component renders Message · Pay in order and NO Request tile (#876 — it lives in the composer ⊕ sheet). Got: ' + JSON.stringify(ciYes));
+    ok(ciYes === 'Message,Pay,Request',
+      '★★★ #46 loop EXECUTED, ON THE SHIPPED BUNDLE PAIR (Session Z rebase, #882 (d)): with both handlers on the DIRECTORY arm the shipped component renders Message · Pay · Request in order (Request returned to this arm only). Got: ' + JSON.stringify(ciYes));
   }
 
   /* —— ★★★ THE ⊕ WIRE · the writer of the state CALLS the reader ————————————— */
@@ -24248,8 +24322,9 @@ console.log('Session I ③: the premium pass token batch');
     && !/'gradient'|"gradient"/.test(stripCode(rdF('src/shells/settings.html'))),
     '★★ #835 → #855: SOLID is the ONLY light ground, and all three ladders CLOSE on it — chat.html\'s pre-paint script, chat.html\'s live re-resolve, and settings.html\'s readChatPrefs (the #690 three-ladder rule). The NEGATIVE half is the point: no ladder may ADMIT \'gradient\', so a stored gradient falls through to solid instead of stranding the user on a canvas the picker cannot change. Superseded: gradient default-ON everywhere (#835 flipped the default; #855 retired the option)');
   /* ★ Session J re-base (Damir 2026-09-02): the card no longer follows the ground — white + lift in light, midnight + lift in dark, no edge in either. */
-  ok(/\.c-sysnotice__card \{[^}]*background: #ffffff;\s*box-shadow: var\(--elevation-2\);/.test(stripCssComments(rdF('src/styles/components/system-notice.css')).slice(0, 4000)),
-    '★ 4 → Session J: the secure-notice card is WHITE + --elevation-2 (Damir: "no border, white with elevation"). Superseded: the card followed the ground into its family (#E4E1E6, −3.74 ΔL*)');
+  ok(/\.c-sysnotice__card \{[^}]*background: var\(--surface-notice-card\);\s*box-shadow: var\(--elevation-2\);/.test(stripCssComments(rdF('src/styles/components/system-notice.css')).slice(0, 4000))
+     && /--surface-notice-card: #ffffff;/.test(stripCssComments(rdF('src/styles/tokens.css')).split('[data-theme="dark"] {')[0]),
+    '★ 4 → Session J → #884 ③: the secure-notice card is WHITE (the role --surface-notice-card, #ffffff in :root) + --elevation-2 (Damir: "no border, white with elevation"). Superseded: the card followed the ground into its family (#E4E1E6, −3.74 ΔL*)');
   /* 5 = B */
   {
     const cc = stripCssComments(rdF('src/styles/components/composer.css'));
@@ -25746,13 +25821,17 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
     const POISON5 = '/* a docblock explaining the theme coverage necessarily names it: the\n     [data-theme="dark"] .c-sysnotice__card rule below repaints this literal. */\n';
     const poisoned5 = notice5.replace('.c-sysnotice__card {', POISON5 + '.c-sysnotice__card {');
     const commentBlind5 = (css) => css.replace(/\[data-theme="dark"\][^{]*\{[^}]*\}/g, '');
-    const cleanNew5 = (withoutDarkBlocks(notice5).match(/background: #ffffff;/g) || []).length;
-    const poisonNew5 = (withoutDarkBlocks(poisoned5).match(/background: #ffffff;/g) || []).length;
-    const poisonOld5 = (commentBlind5(poisoned5).match(/background: #ffffff;/g) || []).length;
+    /* ★ Session Z (#884 ③): the two literals are ONE role now (`--surface-notice-card`); the
+       trap is unchanged in shape — it counts the two ROLE reads that must survive the light
+       slice, and the two Session Z comments that record why the role is not a bubble alias. */
+    const roleRead5 = /background: var\(--surface-notice-card\);/g;
+    const cleanNew5 = (withoutDarkBlocks(notice5).match(roleRead5) || []).length;
+    const poisonNew5 = (withoutDarkBlocks(poisoned5).match(roleRead5) || []).length;
+    const poisonOld5 = (commentBlind5(poisoned5).match(roleRead5) || []).length;
     ok(poisoned5 !== notice5 && cleanNew5 === 2 && poisonNew5 === 2 && poisonOld5 < 2
-       && /sanctioned: PURE #ffffff, not a token/.test(notice5)
-       && /sanctioned: same literal, same reasoning as the base card rule above/.test(notice5),
-      '★★ #46 r2 C1 (⑤) THE COMMENT-BLINDNESS TRAP: the two SANCTIONED #ffffff literals in system-notice.css (the base notice card and the gradient-ground card, both marked "sanctioned" in the file) survive the light-slice derivation even when a docblock in that file spells out `[data-theme="dark"]` — which fix agent C did, for the honest reason that a comment explaining theme coverage has to name the theme, and two GREEN pins went red against correct code. Asserted DIFFERENTIALLY: the comment-aware derivation keeps ' + poisonNew5 + '/2 on the poisoned copy and the old comment-blind one keeps ' + poisonOld5 + '/2, so this pin cannot pass by both being broken. ⚠ It reads RAW and strips nothing — the trap is the comment');
+       && /the two literals became ONE role, `--surface-notice-card`/.test(notice5)
+       && /the same role as the base card rule/.test(notice5),
+      '★★ #46 r2 C1 (⑤) → #884 ③ THE COMMENT-BLINDNESS TRAP: the two --surface-notice-card reads in system-notice.css (the base notice card and the gradient-ground card, the role that replaced two sanctioned literals) survive the light-slice derivation even when a docblock in that file spells out `[data-theme="dark"]` — which fix agent C did, for the honest reason that a comment explaining theme coverage has to name the theme, and two GREEN pins went red against correct code. Asserted DIFFERENTIALLY: the comment-aware derivation keeps ' + poisonNew5 + '/2 on the poisoned copy and the old comment-blind one keeps ' + poisonOld5 + '/2, so this pin cannot pass by both being broken. ⚠ It reads RAW and strips nothing — the trap is the comment');
   }
 }
 
@@ -26974,7 +27053,7 @@ console.log('★★ Session P — the pre-warm + the batch transport');
     const headKeys = [...headScript.matchAll(/localStorage\.getItem\(\s*(['"])(spixi\.chat\.[^'"]+)\1\s*\)/g)].map((m) => m[2]).filter((k, i, a) => a.indexOf(k) === i).sort();   // the theme key (spixi.appearance) is covered by the theme DROP, not the stamp
     const stampKeys = [...(ch.match(/const PATTERN_PREF_KEYS = \{([^}]*)\}/) || ['', ''])[1].matchAll(/'(spixi\.[^']+)'/g)].map((m) => m[1]).sort();
     const headReadsVar = /localStorage\.getItem\(\s*[^'")]/.test(headScript);
-    ok(headKeys.length === 4 && JSON.stringify(headKeys) === JSON.stringify(stampKeys) && !headReadsVar,
+    ok(headKeys.length === 5 && JSON.stringify(headKeys) === JSON.stringify(stampKeys) && !headReadsVar,   // ★ Session Z: 4 → 5, the glass dial joined the gate
       '★★ Session P L1·12 (' + label + '): EVERY `spixi.chat.*` key the pre-paint head script reads (' + headKeys.join(' · ') + ') is in PATTERN_PREF_KEYS, i.e. under the live stamp gate, and the head script reads no key through a variable (#802 r8: the charset is any `spixi.*` literal now) — a key read at boot only is a key a pre-warmed document shows one pick behind; got stamp keys ' + stampKeys.join(' · '));
     const ocr = ch.slice(ch.indexOf('    onChatScreenReady(address) {'), ch.indexOf('\n    },', ch.indexOf('    onChatScreenReady(address) {')));
     ok(/onChatScreenReady\(address\) \{\s*refreshPatternPrefsIfChanged\(\);/.test(ocr),
@@ -32701,8 +32780,13 @@ console.log('\n— handover gate: the third pin pass (loop C repairs · the thre
     };
   }).filter((h) => h.opens || h.viaInfo);
   const chatHost60 = hosts60.find((h) => h.file === 'chat.html');
-  ok(!!chatHost60 && chatHost60.opens && chatHost60.viaInfo && chatHost60.passes >= 2,
-    '★★ GATE 60 (b) THE HOST ACTUALLY PASSES IT, ON BOTH ROUTES — chat.html opens the sheet directly (from a bubble) and through createChatInfo (from the roster), and supplies onViewContact '
+  /* ★ Session Z (#882 (c)) re-base in BOTH halves: chat.html's SECOND route — the roster of
+     the in-chat info takeover — is deleted with the takeover, so the chat shell has ONE route
+     (the bubble → member sheet) and passes onViewContact ONCE; the roster route lives on
+     contact_details.html (the (b2) sibling below). A `createChatInfo(` reappearing in
+     chat.html is the takeover coming back and must fail here. */
+  ok(!!chatHost60 && chatHost60.opens && !chatHost60.viaInfo && chatHost60.passes === 1,
+    '★★ GATE 60 (b) → Session Z: chat.html opens the member sheet DIRECTLY (from a bubble) and passes onViewContact once; the createChatInfo route is gone with the #249 takeover (#882 (c)). It supplies onViewContact '
     + (chatHost60 ? chatHost60.passes : 0) + ' time(s). Shells that host a member sheet: '
     + JSON.stringify(hosts60.map((h) => h.file + '[' + (h.opens ? 'direct' : '') + (h.viaInfo ? '+info' : '') + ':' + h.passes + ']'))
     + '. A prop that only the DEMOS pass is the shape of this whole defect — the component looked wired from every angle except the shipped one');
@@ -33087,12 +33171,18 @@ console.log('★ Session Y — contact details, the premium pass (#873/#875/#876
   try {
 
   /* ① THE ROW IS AT MOST FOUR EQUALS (#876). Every host configuration, including one that
-     wires EVERY handler this component accepts, renders ≤ 4 tiles; Request is never one.
-     Mutated: a fifth tile appended → the component THROWS (the guard), and this pin reads
-     the throw as red. */
+     wires EVERY handler this component accepts, renders ≤ 4 tiles. ★ Session Z (#882 (d),
+     Damir's dial): on the DIRECTORY arm Request is the fourth tile and MUTE STEPS OUT —
+     the ceiling holds by displacement, never by a fifth tile (59 px at 360 wide, measured
+     and rejected). Without onRequest the directory arm keeps Mute. Mutated: a fifth tile
+     appended → the guard trims it (logged), and this pin reads the wrong set as red. */
   const maxed = mk({ kind: 'contact', context: 'contact', name: 'A', address: 'AD', onMessage() {}, onCall() {}, onPay() {}, onRequest() {}, ...notif });
-  ok(tiles(maxed).join() === 'message,call,pay,mute',
-    '★★ #876: the directory 1:1 with every handler wired renders EXACTLY Message · Call · Pay · Mute — four, Request is not a tile');
+  ok(tiles(maxed).join() === 'message,call,pay,request',
+    '★★ #876 → #882 (d): the directory 1:1 with every handler wired renders EXACTLY Message · Call · Pay · Request — four; Request displaces Mute on this arm');
+  ok(tiles(mk({ kind: 'contact', context: 'contact', name: 'A', address: 'AD', onMessage() {}, onCall() {}, onPay() {}, ...notif })).join() === 'message,call,pay,mute',
+    '★ #882 (d): the directory 1:1 WITHOUT a request handler (no composeRequest cap) keeps Mute as the fourth tile');
+  ok(tiles(mk({ kind: 'contact', context: 'contact', name: 'A', address: 'AD', onMessage() {}, onPay() {}, onRequest() {}, ...notif })).join() === 'message,pay,request,mute',
+    '★ #882 (d) (#46 loop A-5): a directory 1:1 with NO call route (C# never revealed showCallButton) renders Message · Pay · Request · MUTE — Mute yields only when the row is full, never merely because Request rendered');
   ok(tiles(mk({ kind: 'contact', context: 'chat', name: 'A', address: 'AD', onMessage() {}, onCall() {}, onPay() {}, onRequest() {}, ...notif })).join() === 'call,pay,mute',
     '★ #876: from the chat header (context chat) the 1:1 row is Call · Pay · Mute');
   ok(tiles(mk({ kind: 'group', context: 'chat', name: 'R', address: 'g', onCall() {}, onPay() {}, onRequest() {}, onLeave() {}, ...notif })).join() === 'mute',
@@ -33103,8 +33193,13 @@ console.log('★ Session Y — contact details, the premium pass (#873/#875/#876
     const src = stripCode(readFileSync(join(root, 'src/components/chat-info.js'), 'utf8'));
     ok(/const QA_MAX = 4;/.test(src) && /while \(money\.childElementCount > QA_MAX\)/.test(src) && /money\.lastElementChild\.remove\(\)/.test(src) && !/throw new Error\('c-chat-info: action row/.test(src),
       '★ #876: the four-tile rule is ENFORCED in code (QA_MAX: log loudly + TRIM, never a throw — this runs inside the shell\'s rebuild, where a throw is a boot spinner that never ends), not hoped');
-    ok(!/arrow-down-left/.test(src) && !/strings\.request \|\|/.test(src),
-      '★ #876 NEGATIVE (stripped code): no Request glyph and no Request label anywhere in chat-info.js — the tile is gone, not hidden');
+    /* ★ Session Z (#882 (d)) — the #876 negative INVERTED with its reason: the Request tile
+       exists again, and the property is its GATE — rendered only when context is 'contact',
+       the surface is not a room, and a handler is present; and Mute yields to it there. */
+    ok(/const requestTile = context === 'contact' && !roomKind && !!onRequest;/.test(src)
+       && /if \(requestTile\) money\.append\(infoQuickAction\(\{\s*glyph: 'arrow-down-left'/.test(src)
+       && /if \(canMute && money\.childElementCount < QA_MAX\) \{/.test(src),
+      '★ #876 → #882 (d) (stripped code): the Request tile is gated on the DIRECTORY arm + a handler + not-a-room, and Mute renders only while the row has room (a count, not a flag) — the ceiling holds by displacement');
   }
 
   /* ② THE MUTE TILE carries the switch's contract (#875): optimistic flip, one flight, revert
@@ -33212,20 +33307,28 @@ console.log('★ Session Y — contact details, the premium pass (#873/#875/#876
     '★ #875 P4 (css): the error role is a LABEL colour (--text-error) + glyph (--icon-error) — no rule paints a destructive row red, and the action row itself is transparent on the card');
   ok(/\.c-chat-info__row-glyph \{ flex: none; color: var\(--icon-neutral-02\); \}/.test(css),
     '★ #875 P1 (css): the row glyph reads --icon-neutral-02 — monochrome, one role');
-  ok(/\.c-chat-info__label \{[^}]*text-transform: uppercase;[^}]*font-weight: var\(--font-weight-medium\);[^}]*color: var\(--text-neutral-02\);/.test(css),
-    '★ #875 P5 (css): section labels are uppercase, Medium, --text-neutral-02 (iOS grouped headers)');
+  /* ★ Session Z (#884 ④): re-based in BOTH halves (#861). Damir on the Y walk: "not all
+     caps" — the label is SENTENCE CASE now, so the P5 pin asserts the role (label-sm ·
+     Medium · --text-neutral-02 · the token's own tracking) and that NO rule in the sheet
+     transforms case any more (the uppercase's positive tracking went with it). */
+  ok(/\.c-chat-info__label \{[^}]*font-size: var\(--font-size-label-sm\);[^}]*letter-spacing: var\(--tracking-label-sm\);[^}]*font-weight: var\(--font-weight-medium\);[^}]*color: var\(--text-neutral-02\);/.test(css)
+     && !/text-transform/.test(css) && !/letter-spacing: 0\.4px/.test(css),
+    '★ #875 P5 → #884 ④ (css): section labels are SENTENCE CASE — label-sm, Medium, --text-neutral-02, the token tracking; no text-transform and no hand-set tracking anywhere in the sheet');
   ok(/\.c-chat-info__qa \{[^}]*min-height: 64px;[^}]*border-radius: var\(--radius-12\);[^}]*background: var\(--surface-card\);/.test(css)
      && /\.c-chat-info__qa:hover \{ background: var\(--surface-card-hover\); \}/.test(css)
      && /\.c-chat-info__qa:active \{ background: var\(--surface-card-pressed\); \}/.test(css),
     '★ #876 (css): a tile is ≥ 64 tall, radius 12 on --surface-card, and hover/pressed read the NEW card pair (one visible step, the #870 property on the screen ramp)');
   ok(!/--elevation-1/.test(css) && !/--radius-16/.test(css),
     '★ #875 P3/P8 (css): no --elevation-1 and no radius-16 anywhere in the sheet — ONE radius (12) on the screen, no cards float');
-  ok(/background: var\(--outline-neutral-03\);/.test(css) && !/--outline-neutral-01/.test(css)
+  /* ★ Session Z (#884 ⑤): re-based in BOTH halves — the hairline reads the ROLE
+     `--outline-on-card` now (light neutral-200 / dark neutral-600), and NO neutral step is
+     spelled on a hairline in this sheet any more (a step is right on one card only). */
+  ok(/background: var\(--outline-on-card\);/.test(css) && !/--outline-neutral-0[123]/.test(css)
      && /\.c-chat-info__txs-list > \* \+ \*::after \{/.test(css) && !/::before/.test(css)
      && /html:root \.c-txlist-item::before/.test(stripCssComments(readFileSync(join(root, 'src/styles/base.css'), 'utf8')))
      && /\.c-chat-info__row \{[^}]*padding-inline: var\(--spacing-12\);/.test(css) && /--ci-hairline-inset: calc\(var\(--spacing-12\) \+ 22px \+ var\(--spacing-12\)\);/.test(css)
      && /\.c-chat-info__card :focus-visible \{ outline-offset: -2px; \}/.test(css),
-    '★ #875 P2 (css): the in-card hairline is --outline-neutral-03 (computed visible on BOTH grounds: light 1.42 · dark 1.22; -01 is invisible in dark) drawn on ::after — base.css owns ::before on .c-txlist-item for the press layer (#46 loop MAJOR-1) — inset = the row\'s own 12px padding + 22 glyph + 12 gap, and the focus ring draws INSIDE the clipping card (MAJOR-2)');
+    '★ #875 P2 → #884 ⑤ (css): the in-card hairline is the ROLE --outline-on-card (per-theme step: light neutral-200 1.14 · dark neutral-600 1.187 after #884 ②; -03 was 1.42 in light, -01 is 1.00 in dark) drawn on ::after — base.css owns ::before on .c-txlist-item for the press layer (#46 loop MAJOR-1) — inset = the row\'s own 12px padding + 22 glyph + 12 gap, and the focus ring draws INSIDE the clipping card (MAJOR-2)');
   ok(/button\.c-chat-info__hero-addr \{[^}]*color: var\(--text-action-default\)/.test(css) && /button\.c-chat-info__hero-addr > svg \{ color: var\(--icon-action-default\); \}/.test(css)
      && /\.c-chat-info__hero-addr \{[^}]*color: var\(--text-neutral-02\)/.test(css),
     '★ Session Y (Damir, V2 of four rendered variants): the tappable address is ACTION INK on the <button> form; the handler-less span stays neutral — blue means tappable');
@@ -33247,7 +33350,7 @@ console.log('★ Session Y — contact details, the premium pass (#873/#875/#876
     errL: cr(light, '--text-error', '--surface-card'), errD: cr(dark, '--text-error', '--surface-card'),
     glyphL: cr(light, '--icon-neutral-02', '--surface-card'), glyphD: cr(dark, '--icon-neutral-02', '--surface-card'),
     accL: cr(light, '--icon-action-default', '--surface-card'), accD: cr(dark, '--icon-action-default', '--surface-card'),
-    hairL: cr(light, '--outline-neutral-03', '--surface-card'), hairD: cr(dark, '--outline-neutral-03', '--surface-card'),
+    hairL: cr(light, '--outline-on-card', '--surface-card'), hairD: cr(dark, '--outline-on-card', '--surface-card'),
     hovL: cr(light, '--surface-card-hover', '--surface-card'), hovD: cr(dark, '--surface-card-hover', '--surface-card'),
     prsL: cr(light, '--surface-card-pressed', '--surface-card'), prsD: cr(dark, '--surface-card-pressed', '--surface-card'),
   };
@@ -33256,8 +33359,29 @@ console.log('★ Session Y — contact details, the premium pass (#873/#875/#876
     '★ #769 owed: --text-error on --surface-card is text-grade in BOTH themes (light ' + f(r.errL) + ' · dark ' + f(r.errD) + ' ≥ 4.5)');
   ok(r.glyphL >= 3 && r.glyphD >= 3 && r.accL >= 3 && r.accD >= 3,
     '★ #769 owed: --icon-neutral-02 and the accent glyph clear the 3:1 non-text floor on the card in BOTH themes (neutral light ' + f(r.glyphL) + ' · dark ' + f(r.glyphD) + '; accent light ' + f(r.accL) + ' · dark ' + f(r.accD) + ')');
+  /* ★ Session Z (#46 loop A-8): the SHEET-card pair (the #884 ② subject) measured too — the
+     dark card on the ink-700 sheet is a visible step (1.133); the dark HOVER on the card is NOT
+     (1.103, and it was 1.109 BEFORE ② — never above the 1.11 floor; the chooser's hover carries
+     --elevation-2 as its second signal, Session X). Pinned at the honest 1.10 so a further drop
+     is caught; a real step needs an --ink-400 or a hover-by-elevation-only — Damir's dial. */
+  r.sheetCardD = cr(dark, '--surface-sheet-card', '--surface-menu');
+  r.sheetHovD = cr(dark, '--surface-sheet-card-hover', '--surface-sheet-card');
+  ok(r.sheetCardD >= 1.11 && r.sheetHovD >= 1.10,
+    '★ Session Z (#884 ②): the dark chooser card lifts off the ink-700 sheet by ≥ 1.11 (' + f(r.sheetCardD) + ') and its hover is ≥ 1.10 on the card (' + f(r.sheetHovD) + ' — sub-floor since Session X, recorded, Damir\'s dial)');
   ok(r.hairL >= 1.11 && r.hairD >= 1.11 && r.hovL >= 1.11 && r.hovD >= 1.11 && r.prsL > r.hovL && r.prsD > r.hovD,
     '★ Session Y: the hairline and the tile hover are ONE VISIBLE STEP from the card in BOTH themes (≥ 1.11, the #870 floor; hairline ' + f(r.hairL) + '/' + f(r.hairD) + ' · hover ' + f(r.hovL) + '/' + f(r.hovD) + ') and pressed steps past hover (' + f(r.prsL) + '/' + f(r.prsD) + ')');
+  /* ★ Session Z (#884 ⑤ / #882 (b)): the role is ONE token consumed by BOTH card-hosting
+     sheets, visible on both cards (≥ 1.11) and NOT heavy in light (≤ 1.30 — Damir read 1.42
+     as "much too visible"; iOS's separator on white is ~1.30). The Account hub's in-card
+     hairline reads the same role — its -01 was 1.00 in dark. Each clause was mutated. */
+  {
+    const ssHair = stripCssComments(readFileSync(join(root, 'src/styles/components/settings-shell.css'), 'utf8'));
+    ok(!!light['--outline-on-card'] && !!dark['--outline-on-card'] && light['--outline-on-card'] !== dark['--outline-on-card']
+       && r.hairL >= 1.11 && r.hairL <= 1.30 && r.hairD >= 1.11
+       && /\.c-settings__group > \.c-settings__section \+ \.c-settings__section \{[^}]*var\(--outline-on-card\)/.test(ssHair)
+       && !/\.c-settings__group > \.c-settings__section \+ \.c-settings__section \{[^}]*--outline-neutral-0/.test(ssHair),
+      '★ Session Z (#884 ⑤): --outline-on-card is defined per theme (light neutral-200, a different step in dark), lands between 1.11 and 1.30 on the light card (' + f(r.hairL) + ') and ≥ 1.11 on the dark card (' + f(r.hairD) + '), and the Account hub\'s in-card hairline reads the SAME role (no neutral step)');
+  }
   ok(/--surface-card-hover: var\(--neutral-200\);/.test(tokAll) && /--surface-card-pressed: var\(--neutral-300\);/.test(tokAll)
      && /--surface-card-hover: var\(--neutral-600\);/.test(tokAll) && /--surface-card-pressed: var\(--neutral-500\);/.test(tokAll),
     '★ Session Y: the --surface-card-hover/-pressed pair is defined in BOTH modes (light 200/300 · dark 600/500) beside the #870 sheet pair');
@@ -33367,6 +33491,361 @@ console.log('★ AND-45 — the bottom inset travels into the shells');
   }
   ok(chromeMissing.length === 0,
     '★★ AND-45 WALK (positive): every sticky/fixed rule anchored at bottom 0 in the stylesheets and shell <style>s carries --safe-bottom in that rule — the sticky Install bar (apps-details) was fine on Android only because the root padded it (missing: ' + (chromeMissing.join(' · ') || 'none') + ')');
+}
+
+/* ══ GATE 64 — A COLOUR LITERAL IN A COMPONENT STYLESHEET NAMES WHY IT IS NOT A TOKEN ═══
+ * (#884 ③, Session Z.) The sweep that costed the tokenise rows found 64 CSS literals
+ * outside tokens.css; Damir tokenised ONE (the notice card → --surface-notice-card) and
+ * deferred the rest, and the rule going forward is: a literal survives only with a
+ * `sanctioned:` comment that says why (identity data · a fixed-dark surface over camera
+ * or artwork · a mode-agnostic white · a var() fallback of the token's own value · a
+ * tokenise-candidate deferred by name). WHAT IS A LITERAL: a hex colour, a colour FUNCTION
+ * (rgb/rgba/hsl/hsla/hwb/lab/lch/oklab/oklch/color/color-mix, any case) with a NUMERIC first
+ * argument (an hsl(var(--x)) is a token read), or a CSS named colour in a declaration VALUE.
+ * ★ #46 loop (reviewer MAJOR-3): the unit is the DECLARATION, not the line — the stripped
+ * text is split at `;`/`{`/`}` so a literal on a continuation line of a multi-line value
+ * (23 such declarations exist in the swept files) is seen, and a hit maps back to the line
+ * the declaration STARTS on. String contents and url() payloads are blanked before the test
+ * (`content: "white"` / `url(red.png)` are not colours). WHERE THE SANCTION MAY SIT: on any
+ * raw line the declaration spans, or in the comment block DIRECTLY above its first line
+ * (only comment-only or blank lines between — a code line with a trailing comment ENDS the
+ * walk), or — for a run of rules that are one table — a `sanctioned-block:` comment that
+ * covers every declaration down to the next BLANK line. SCOPE: every
+ * src/styles/components/*.css + base.css (tokens.css is the primitives by definition;
+ * chat-pattern.css is generated; the shells' <style> blocks are the pre-token instant-bg
+ * paints and var() fallbacks — named, not swept). ⚠ The literal search runs on the
+ * comment-STRIPPED text with LINES PRESERVED (a comment mentioning #fff is not a
+ * declaration, #771); the sanction search runs on the RAW lines, because the marker IS a
+ * comment — that is the one place prose is the pin's input by design, and the property
+ * that keeps it honest is that a literal with no marker anywhere near it FAILS. */
+{
+  const dir64 = join(root, 'src/styles/components');
+  const files64 = readdirSync(dir64).filter((f) => f.endsWith('.css')).map((f) => 'src/styles/components/' + f).concat(['src/styles/base.css']).sort();
+  // line-preserving strip: comments → spaces; string CONTENTS and url() payloads → spaces (quotes/parens kept); newlines kept
+  const blankComments = (css) => {
+    let out = '', i = 0; const n = css.length;
+    const blank = (t) => t.replace(/[^\n]/g, ' ');
+    while (i < n) {
+      const c = css[i];
+      if (c === '"' || c === "'") { let j = i + 1; while (j < n && css[j] !== c) { if (css[j] === '\\') j++; j++; } out += c + blank(css.slice(i + 1, j)) + (j < n ? c : ''); i = j + 1; continue; }
+      if (css.startsWith('url(', i)) { let k = i + 4; while (k < n && /\s/.test(css[k])) k++; if (css[k] !== '"' && css[k] !== "'") { const j = css.indexOf(')', k); const end = j < 0 ? n : j; out += 'url(' + blank(css.slice(i + 4, end)); i = end; continue; } out += css.slice(i, k); i = k; continue; }
+      if (c === '/' && css[i + 1] === '*') { const j = css.indexOf('*/', i + 2); if (j < 0) throw new Error('unterminated comment in ' + i); out += blank(css.slice(i, j + 2)); i = j + 2; continue; }
+      out += c; i++;
+    }
+    return out;
+  };
+  const NAMED = 'aliceblue|antiquewhite|aqua|aquamarine|azure|beige|bisque|black|blanchedalmond|blue|blueviolet|brown|burlywood|cadetblue|chartreuse|chocolate|coral|cornflowerblue|cornsilk|crimson|cyan|darkblue|darkcyan|darkgoldenrod|darkgray|darkgreen|darkgrey|darkkhaki|darkmagenta|darkolivegreen|darkorange|darkorchid|darkred|darksalmon|darkseagreen|darkslateblue|darkslategray|darkslategrey|darkturquoise|darkviolet|deeppink|deepskyblue|dimgray|dimgrey|dodgerblue|firebrick|floralwhite|forestgreen|fuchsia|gainsboro|ghostwhite|gold|goldenrod|gray|green|greenyellow|grey|honeydew|hotpink|indianred|indigo|ivory|khaki|lavender|lavenderblush|lawngreen|lemonchiffon|lightblue|lightcoral|lightcyan|lightgoldenrodyellow|lightgray|lightgreen|lightgrey|lightpink|lightsalmon|lightseagreen|lightskyblue|lightslategray|lightslategrey|lightsteelblue|lightyellow|lime|limegreen|linen|magenta|maroon|mediumaquamarine|mediumblue|mediumorchid|mediumpurple|mediumseagreen|mediumslateblue|mediumspringgreen|mediumturquoise|mediumvioletred|midnightblue|mintcream|mistyrose|moccasin|navajowhite|navy|oldlace|olive|olivedrab|orange|orangered|orchid|palegoldenrod|palegreen|paleturquoise|palevioletred|papayawhip|peachpuff|peru|pink|plum|powderblue|purple|rebeccapurple|red|rosybrown|royalblue|saddlebrown|salmon|sandybrown|seagreen|seashell|sienna|silver|skyblue|slateblue|slategray|slategrey|snow|springgreen|steelblue|tan|teal|thistle|tomato|turquoise|violet|wheat|white|whitesmoke|yellow|yellowgreen';
+  // applied to ONE declaration's VALUE (the text after its first colon)
+  const LIT_VALUE = new RegExp('(#[0-9a-f]{3,8}\\b|\\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix)\\(\\s*[\\d.]|(?<![-\\w#.])(?:' + NAMED + ')(?![-\\w(]))', 'i');
+  /* split stripped CSS into declarations: a segment between `;`/`{`/`}` that has a colon and
+     does not start a rule; each carries the LINE its first non-space character sits on */
+  const declarations = (stripped) => {
+    const out = []; let seg = '', segStart = -1, line = 1;
+    for (let i = 0; i < stripped.length; i++) {
+      const ch = stripped[i];
+      if (ch === ';' || ch === '{' || ch === '}') {
+        if (ch !== '{') { const t = seg.trim(); const colon = t.indexOf(':'); if (colon > 0) out.push({ line: segStart, prop: t.slice(0, colon).trim(), value: t.slice(colon + 1) }); }
+        seg = ''; segStart = -1;
+      } else { if (segStart < 0 && !/\s/.test(ch)) segStart = line; seg += ch; }
+      if (ch === '\n') line++;
+    }
+    return out;
+  };
+  const hits = (css) => declarations(blankComments(css)).filter((d) => LIT_VALUE.test(d.value));
+  const unsanctioned = [], sanctionedCount = { line: 0, above: 0, block: 0 };
+  for (const f of files64) {
+    const raw = readFileSync(join(root, f), 'utf8');
+    const rawLines = raw.split('\n'), codeLines = blankComments(raw).split('\n');
+    if (rawLines.length !== codeLines.length) throw new Error('GATE 64: line count drifted in ' + f);
+    for (const d of hits(raw)) {
+      const i = d.line - 1;
+      // the declaration's own raw lines: from its first line to the line holding its `;`
+      let last = i; while (last < codeLines.length - 1 && !/;|\}/.test(codeLines[last])) last++;
+      if (rawLines.slice(i, last + 1).some((l) => /sanctioned:/.test(l))) { sanctionedCount.line++; continue; }
+      let k = i - 1, above = false;
+      while (k >= 0 && codeLines[k].trim() === '') { if (/sanctioned:/.test(rawLines[k])) { above = true; break; } k--; }
+      if (above) { sanctionedCount.above++; continue; }
+      let m = i - 1, block = false;
+      while (m >= 0 && rawLines[m].trim() !== '') { if (/sanctioned-block:/.test(rawLines[m])) { block = true; break; } m--; }
+      if (block) { sanctionedCount.block++; continue; }
+      unsanctioned.push(f.replace('src/styles/', '') + ':' + d.line + ' ' + d.prop + ': ' + d.value.trim().slice(0, 50));
+    }
+  }
+  const total = sanctionedCount.line + sanctionedCount.above + sanctionedCount.block;
+  ok(files64.length >= 40 && total >= 20 && unsanctioned.length === 0,
+    '★★ GATE 64 (#884 ③): every colour literal in ' + files64.length + ' component stylesheets + base.css carries a `sanctioned:` reason (' + sanctionedCount.line + ' on the declaration · ' + sanctionedCount.above + ' in the block above · ' + sanctionedCount.block + ' under a sanctioned-block) — unsanctioned: ' + (unsanctioned.join(' · ') || 'none'));
+  /* the gate's own edges — it must SEE a literal wherever a value can hide one, and IGNORE prose,
+     strings, url() payloads, token reads and selectors, or the count above proves nothing (#798) */
+  const probe = (css) => hits(css).map((d) => d.line);
+  ok(JSON.stringify(probe('.a { color: #FFF; }\n.b { color: hsl(var(--x), 1%, 2%); }\n/* #123456 in prose */\n.c { color: white; }\n.d { color: RGB(1, 2, 3); }\n.e-red { color: var(--x); }\n.f { fill: oklch(0.7 0.1 250); }\n.g { color: SILVER; }\n.h { content: "white"; background: url(red.png); }\n.i {\n  box-shadow:\n    0 0 0 1px red;\n}\n.j { background: rgba(\n  255, 0, 0, 0.5); }\na:hover .k, .l gold { color: var(--y); }\n.m { --my-red-token: 1px; }')) === '[1,4,5,7,8,11,14]',
+    '★ GATE 64 fixture: an uppercase hex, a bare `white`, an uppercase RGB(), an oklch(), an uppercase named colour, a `red` on a CONTINUATION line and an rgba( split across lines are FOUND (1 · 4 · 5 · 7 · 8 · 11 · 14); an hsl(var(--x)) read, a hex in prose, `-red`/`gold` in SELECTORS, "white" in a string, url(red.png) and a custom-property NAME are NOT');
+  /* the walk-up edge: a sanctioned comment above rule A must NOT sanction rule B when a code line
+     sits between — even one that carries a trailing comment */
+  {
+    const walk = (css) => { const rl = css.split('\n'), cl = blankComments(css).split('\n'); return hits(css).map((d) => { const i = d.line - 1; if (/sanctioned:/.test(rl[i])) return 0; let k = i - 1; while (k >= 0 && cl[k].trim() === '') { if (/sanctioned:/.test(rl[k])) return 0; k--; } return d.line; }).filter(Boolean); };
+    ok(JSON.stringify(walk('/* sanctioned: a */\n.a { color: #fff; } /* note */\n.b { color: #000; }')) === '[3]' && JSON.stringify(walk('/* sanctioned: a */\n\n.a { color: #fff; }')) === '[]',
+      '★ GATE 64 walk-up fixture: a sanctioned comment above rule A does NOT reach rule B across a code line with a trailing comment (B stays reported), and DOES reach A across a blank line');
+  }
+  ok(/tokenise-candidate \(#884 ③ `--surface-scrim-art`/.test(readFileSync(join(root, 'src/styles/components/apps-details.css'), 'utf8'))
+     && !/#0c1a4a;|#ffffff;/.test(stripCssComments(readFileSync(join(root, 'src/styles/components/system-notice.css'), 'utf8'))),
+    '★ GATE 64 (#884 ③): the deferred rows are NAMED as tokenise-candidates where they sit, and the one row Damir picked (the notice card) carries NO literal any more — it reads --surface-notice-card');
+}
+
+/* ══ GATE 65 — SESSION Z: THE #884 LIST, THE #882 DIALS, THE FLAG FONT (L15b) ═══════════
+ * Every clause below was rendered through the wire before it was pinned (docs/sheets/
+ * session-z/) and killed by its own mutation. Sources are read STRIPPED where a comment
+ * could satisfy them (#771); the built shells are read where the property lives there. */
+{
+  const rdZ = (p) => readFileSync(join(root, p), 'utf8');
+  const cssZ = (p) => stripCssComments(rdZ(p));
+  /* ① every bottom sheet's foot is spacing-24 above the safe region — BOTH mobile rules
+     (resting + the #608 keyboard variant) and the desktop dialog read the same number, so
+     no presentation drifts from the others. Derived: every padding-bottom on a .c-sheet rule. */
+  {
+    const ov = cssZ('src/styles/components/overlay.css');
+    const feet = [...ov.matchAll(/\.c-sheet[^{]*\{[^}]*padding-bottom:\s*([^;]+);/g)].map((m) => m[1].trim());
+    /* the attach TRAY is NOT a sheet: it fills a fixed keyboard-height slot with overflow hidden,
+       so a bigger foot is subtracted from its grid, not added below it (#46 loop reviewer MINOR-10)
+       — it keeps 16, and the pin reads the CASCADED value (no later padding-bottom on the tray). */
+    const trayCss = cssZ('src/styles/components/attach-sheet.css');
+    const trayRules = [...trayCss.matchAll(/\.c-attach-tray \.c-attach \{([^}]*)\}/g)].map((m) => m[1]);
+    const trayFoot = (/padding: var\(--spacing-8\) 0 calc\(var\((--spacing-\d+)\) \+ var\(--safe-bottom, 0px\)\);/.exec(trayRules.join('\n')) || [])[1];
+    ok(feet.length >= 3 && feet.every((f) => /--spacing-24/.test(f)) && !feet.some((f) => /--spacing-16/.test(f))
+       && trayRules.length === 1 && trayFoot === '--spacing-16' && !/padding-bottom/.test(trayRules[0]),
+      '★ Session Z (#884 ①, Damir 24 of 24/32): every padding-bottom on a .c-sheet rule reads --spacing-24 (' + feet.length + ' rules: resting · keyboard · desktop dialog) — none still spells 16; the attach TRAY (a fixed keyboard-height slot, not a sheet) keeps its 16 in its ONE rule with no later override');
+  }
+  /* ⑥ the nickname pencil no longer pushes the name off centre: a ghost the pencil's width
+     sits before the name in BOTH components, hides and shows WITH the pencil, and its CSS
+     width equals the icon-only 44 button's width (read from button.css, not restated). */
+  {
+    const btnW = (/\.c-button\[data-icon-only\]\[data-size="44"\] \{ width: (\d+)px; \}/.exec(cssZ('src/styles/components/button.css')) || [])[1];
+    for (const [js, css, pref] of [['src/components/chat-info.js', 'src/styles/components/chat-info.css', 'c-chat-info'], ['src/components/settings-shell.js', 'src/styles/components/settings-shell.css', 'c-settings']]) {
+      const j = stripCode(rdZ(js)), c = cssZ(css);
+      const ghostW = (new RegExp('\\.' + pref + '__nick-ghost \\{ flex: none; width: (\\d+)px; \\}').exec(c) || [])[1];
+      ok(btnW && ghostW === btnW
+         && new RegExp("ghost\\.className = '" + pref + "__nick-ghost';").test(j) && /ghost\.setAttribute\('aria-hidden', 'true'\);/.test(j)
+         && /nameRow\.insertBefore\(ghost, nameEl\);/.test(j)
+         && (j.match(/ghost\.hidden = true;/g) || []).length === 1 && (j.match(/ghost\.hidden = false;/g) || []).length === 1
+         && (j.match(/pencil\.hidden = true;/g) || []).length === 1 && (j.match(/pencil\.hidden = false;/g) || []).length === 1,
+        '★ Session Z (#884 ⑥): ' + pref + ' — an aria-hidden ghost of the pencil\'s width (' + ghostW + ' = the icon-only 44 button\'s ' + btnW + ') is inserted BEFORE the name, and every pencil hide/show toggles the ghost with it');
+    }
+  }
+  /* ⑥ executed: the name-row order is ghost · name · pencil, and opening the editor hides both */
+  {
+    const domZ = await load('chat.html');
+    try {
+      const SZ = domZ.window.Spixi, DZ = domZ.window.document;
+      const el = SZ.createChatInfo({ kind: 'contact', context: 'contact', name: 'Ana', address: 'AD1', nickname: '', onBack() {}, onNickname: () => {} });
+      DZ.body.append(el);
+      const row = el.querySelector('.c-chat-info__name-row');
+      const order = [...row.children].map((n) => n.classList.contains('c-chat-info__nick-ghost') ? 'nick-ghost' : n.classList.contains('c-chat-info__name') ? 'name' : n.classList.contains('c-chat-info__nick-edit') ? 'nick-edit' : n.className);
+      const pencil = row.querySelector('.c-chat-info__nick-edit'), ghost = row.querySelector('.c-chat-info__nick-ghost');
+      const before = ghost && !ghost.hidden && !pencil.hidden;
+      pencil.click();
+      const during = ghost.hidden && pencil.hidden && !!row.querySelector('.c-chat-info__nick-input');
+      ok(order[0] === 'nick-ghost' && order[1] === 'name' && order[2] === 'nick-edit' && before && during,
+        '★ Session Z (#884 ⑥) EXECUTED: the row is ghost · name · pencil (' + order.join(' · ') + '); tapping the pencil hides the ghost with the pencil while the editor is open');
+      /* the flag font, executed on the shipped bundle: the probe decides (and only an ANSWERED
+         probe may install), the payload arrives as a data: URL from the script global, the face
+         is exactly the 26 regional indicators (the literal, not a value derived from the module —
+         #46 loop B-7), and the install is idempotent. The picker follows the font (B-3). */
+      const W_ = domZ.window;
+      const fake = 'data:font/woff2;base64,AAAA';
+      SZ.setFlagGlyphAvailable(true);
+      DZ.documentElement.removeAttribute('data-flag-font');
+      const noInstall = (await SZ.installFlagFont()) === false && !DZ.documentElement.hasAttribute('data-flag-font') && !DZ.getElementById('spixi-flag-font');
+      SZ.setFlagGlyphAvailable('unknown');
+      const noInstallUnknown = (await SZ.installFlagFont()) === false && !DZ.documentElement.hasAttribute('data-flag-font') && !DZ.getElementById('spixi-flag-font');
+      W_.__spixiFlagFont = fake;
+      SZ.setFlagGlyphAvailable(false);
+      const r1 = await SZ.installFlagFont(), r2 = await SZ.installFlagFont();
+      const st = DZ.getElementById('spixi-flag-font');
+      const styleOk = st && DZ.querySelectorAll('#spixi-flag-font').length === 1
+        && st.textContent === '@font-face{font-family:"Twemoji Country Flags";unicode-range:U+1F1E6-1F1FF;src:url(\'' + fake + '\') format(\'woff2\');font-display:swap;}';
+      const pickerFollows = SZ.isFlagFontInstalled() === true && SZ.createFlag('si') && SZ.createFlag('si').classList.contains('c-flag--emoji');
+      ok(noInstall && noInstallUnknown && r1 === true && r2 === true && styleOk && DZ.documentElement.hasAttribute('data-flag-font') && pickerFollows,
+        '★★ L15b EXECUTED (shipped bundle): a device that CAN paint a flag gets nothing; a probe that could NOT run gets nothing (a phone keeps its native flags); an answered "no" gets data-flag-font + ONE injected @font-face reading the script global\'s data: URL with EXACTLY the 26-indicator range — a second call adds nothing, and the picker then draws the emoji (one artwork per platform)');
+      delete W_.__spixiFlagFont;
+      /* ★ #46 loop (reviewer MAJOR-4): the SCRIPT path itself, executed — the global absent, the
+         install must append <script src=fonts/TwemojiCountryFlags.js>, resolve TRUE on its `load`
+         once the global holds a data: URL (injecting the face), resolve FALSE on `error`, and
+         upgrade a PNG flag already in the document to the emoji (MAJOR-1).
+         ★ Session Z, the suite's own catch: the first cut dispatched SYNTHETIC load/error events
+         and passed — while jsdom, with resources usable, fetched the real path beside the DEMO
+         (which has no fonts/) and the harness failed the whole run on that miss. jsdom cannot
+         be told to serve a file: subresource from elsewhere (its interceptors never see file:
+         URLs — probed), so no synthetic events and no fakes: the SUCCESS path runs in the BUILT
+         chat shell, where fonts/TwemojiCountryFlags.js really sits beside the document and
+         jsdom fetches and executes the shipped payload itself; the ERROR path runs in the demo
+         document, where jsdom really misses, with the one miss declared to the harness and
+         asserted to have happened. */
+      const realDataUrl = 'data:font/woff2;base64,' + readFileSyncRaw(join(root, 'src/assets/fonts/TwemojiCountryFlags.woff2')).toString('base64');
+      const chatShellZ = join(root, 'Spixi/Resources/Raw/html/chat.html');
+      const shellErrs = [];
+      const vcZ = new VirtualConsole();
+      vcZ.on('jsdomError', (e) => shellErrs.push(String(e.message)));
+      const dom2 = new JSDOM(readFileSync(chatShellZ, 'utf8'), {
+        runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true,
+        url: 'file://' + chatShellZ, virtualConsole: vcZ,
+        beforeParse(w) {
+          w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+          try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
+        },
+      });
+      try {
+        await sleep(2000);
+        const S2 = dom2.window.Spixi, D2 = dom2.window.document, W2 = dom2.window;
+        // the shell's own boot call ran with the probe UNANSWERED (no canvas in jsdom) → refused, nothing appended
+        const bootRefused = !D2.querySelector('script[data-spixi-flag-font]') && !D2.getElementById('spixi-flag-font') && typeof W2.__spixiFlagFont === 'undefined';
+        S2.setFlagGlyphAvailable(false);
+        const png = S2.createFlag('si'); D2.body.append(png);   // rendered BEFORE the install resolves — the welcome-pill case
+        const pngFirst = png.tagName === 'IMG' && png.classList.contains('c-flag--img');
+        const pending = S2.installFlagFont();
+        const sc = D2.querySelector('script[data-spixi-flag-font]');
+        const tagOk = sc && sc.getAttribute('src') === 'fonts/TwemojiCountryFlags.js' && !D2.getElementById('spixi-flag-font');
+        const loaded = await Promise.race([pending, new Promise((r) => setTimeout(() => r('timeout'), 8000))]);
+        const st2 = D2.getElementById('spixi-flag-font');
+        const realFace = !!st2 && st2.textContent.includes("src:url('" + realDataUrl + "')") && W2.__spixiFlagFont === realDataUrl;
+        const upgraded = !D2.body.contains(png) && !!D2.querySelector('body > span.c-flag--emoji');
+        const noShellErrs = shellErrs.filter((m) => /TwemojiCountryFlags/.test(m)).length === 0;
+        // the error path: the DEMO document has no fonts/ — jsdom misses for real; the one miss is declared and must be seen
+        const dom3 = await load('chat.html', { expectErrors: /Could not load script: .*\/fonts\/TwemojiCountryFlags\.js/ });
+        let errOk = false;
+        try {
+          const S3 = dom3.window.Spixi, D3 = dom3.window.document;
+          S3.setFlagGlyphAvailable(false);
+          const r3 = await Promise.race([S3.installFlagFont(), new Promise((r) => setTimeout(() => r('timeout'), 8000))]);
+          errOk = r3 === false && !D3.getElementById('spixi-flag-font') && !D3.documentElement.hasAttribute('data-flag-font') && dom3.expectedErrors.length === 1;
+        } finally { dom3.window.close(); }
+        ok(bootRefused && pngFirst && tagOk && loaded === true && realFace && D2.documentElement.hasAttribute('data-flag-font') && upgraded && noShellErrs && errOk,
+          '★★ L15b EXECUTED, the SCRIPT path on the BUILT shell (no synthetic events, no fakes): the shell\'s boot call refused (probe unanswered); on an answered "no" the install appends the fonts/TwemojiCountryFlags.js script and injects nothing yet; jsdom FETCHES and runs the shipped payload → it resolves true, injects a face whose src is the REAL data: URL (the source woff2, base64), sets the attribute and UPGRADES the PNG flag already on screen to the emoji, with no load error; in the demo document (no fonts/) jsdom\'s own miss → it resolves false, leaves the document untouched, and exactly one declared miss was observed');
+      } finally { dom2.window.close(); }
+      SZ.setFlagGlyphAvailable(null);
+    } finally { domZ.window.close(); }
+  }
+  /* (a) rows INSIDE a card hover on the CARD pair — derived per sheet: in chat-info.css the
+     ONLY hover that may read --surface-interactive-hover is the hero address (on the screen);
+     every other hover reads --surface-card-hover and every :active --surface-card-pressed.
+     The hub row and both contact-picker rows (all card-hosted) read the card pair too. */
+  {
+    const ci = cssZ('src/styles/components/chat-info.css');
+    const hovers = [...ci.matchAll(/([^{}]+):hover \{[^}]*background: var\((--surface-[\w-]+)\);/g)].map((m) => [m[1].trim(), m[2]]);
+    const badHover = hovers.filter(([sel, tok]) => tok === '--surface-interactive-hover' ? sel !== 'button.c-chat-info__hero-addr' : tok !== '--surface-card-hover');
+    const actives = [...ci.matchAll(/([^{}\n]+):active \{[^}]*background: var\((--surface-[\w-]+)\);/g)].map((m) => [m[1].trim(), m[2]]);
+    const badActive = actives.filter(([sel, tok]) => tok === '--surface-interactive-pressed' ? sel !== 'button.c-chat-info__hero-addr' : tok !== '--surface-card-pressed');
+    /* #46 loop (A-3): the hover derivation must also see the family this sheet HOSTS from
+       another sheet — the payments rows come from txlist-item.css, whose own hover is the
+       screen pair (right for the wallet list) and wrong inside the card. */
+    const hovers2 = [...ci.matchAll(/([^{}]+):hover(?::not\(\[aria-current\]\))? \{[^}]*background(?:-color)?: var\((--surface-[\w-]+)\);/g)].map((m) => [m[1].trim(), m[2]]);
+    const txHosted = hovers2.find(([sel]) => sel === '.c-chat-info__txs-list .c-txlist-item');
+    ok(hovers.length >= 6 && badHover.length === 0 && actives.length >= 5 && badActive.length === 0 && txHosted && txHosted[1] === '--surface-card-hover',
+      '★ Session Z (#882 (a)): in chat-info.css every hover/active on a card-hosted element reads the CARD pair (' + hovers.length + ' hovers · ' + actives.length + ' actives), the HOSTED payments rows included (a card-scoped override of txlist-item.css); only the on-screen hero address keeps the screen pair (offenders: ' + [...badHover, ...badActive].map((x) => x[0]).join(', ') + ')');
+    /* DERIVED, not listed (#798): every selector in the component sheets that ITSELF declares
+       `background: var(--surface-card)` (or background-color) is a card; a card that is a
+       CONTROL (`cursor: pointer` in its own rule) MUST have a hover, and every hover rule that
+       names it — in any selector list, any pseudo chain — must paint --surface-card-hover and
+       nothing else. ★ #46 loop (reviewer MAJOR-2): the first cut walked past a missing or
+       unparsed hover as "a static card"; now a control with NO hover is a failure, a hover the
+       walk cannot parse is a failure, and a multi-selector hover rule is read. The three row
+       families whose card host is a DOM fact (the hub row, the picker rows, the money picker)
+       stay in the explicit pin below with that reason. */
+    {
+      const files = readdirSync(join(root, 'src/styles/components')).filter((n) => n.endsWith('.css'));
+      const cards = [], bad = [];
+      for (const f of files) {
+        const c = cssZ('src/styles/components/' + f);
+        for (const rule of c.matchAll(/(?:^|\n)([^{}\n][^{}]*?)\s*\{([^}]*)\}/g)) {
+          const sels = rule[1].split(',').map((x) => x.trim()), body = rule[2];
+          if (!/background(?:-color)?:\s*var\(--surface-card\);/.test(body)) continue;
+          for (const sel of sels) {
+            if (!/^\.[\w-]+$/.test(sel)) continue;   // a plain class = the card itself (a descendant rule is not the card)
+            const control = /cursor:\s*pointer;/.test(body);
+            const hoverRules = [...c.matchAll(/(?:^|\n)([^{}\n][^{}]*:hover[^{}]*)\{([^}]*)\}/g)].filter((r) => r[1].split(',').some((x) => new RegExp('^\\s*' + sel.replace(/\./g, '\\.') + '(?::[\\w-]+(?:\\([^)]*\\))?)*:hover(?::[\\w-]+(?:\\([^)]*\\))?)*\\s*$').test(x)));
+            cards.push(f + ' ' + sel + (control ? ' (control)' : ''));
+            if (control && hoverRules.length === 0) { bad.push(f + ' ' + sel + ' → control with NO hover'); continue; }
+            for (const r of hoverRules) {
+              const paints = [...r[2].matchAll(/background(?:-color)?:\s*([^;]+);/g)].map((m) => m[1].trim());
+              if (paints.length !== 1 || paints[0] !== 'var(--surface-card-hover)') bad.push(f + ' ' + sel + ' → ' + (paints.join(' + ') || 'unparsed hover'));
+            }
+          }
+        }
+      }
+      const controls = cards.filter((x) => / \(control\)$/.test(x));
+      ok(cards.length >= 4 && controls.length >= 2 && bad.length === 0,
+        '★ Session Z (#882 (a), derived): every component selector that IS a --surface-card (' + cards.length + ' cards, ' + controls.length + ' of them controls) hovers ONLY on --surface-card-hover when it hovers at all, and every control HAS a hover; offenders: ' + (bad.join(' · ') || 'none') + ' [cards: ' + cards.join(' · ') + ']');
+    }
+    ok(/\.c-settings__row:not\(\.c-settings__row--static\):hover \{ background-color: var\(--surface-card-hover\); \}/.test(cssZ('src/styles/components/settings-shell.css'))
+       && /\.c-contacts__row:not\(:disabled\):hover \{ background-color: var\(--surface-card-hover\); \}/.test(cssZ('src/styles/components/contacts-shell.css'))
+       && /\.c-contacts__action:hover \{ background: var\(--surface-card-hover\); \}/.test(cssZ('src/styles/components/contacts-shell.css'))
+       && /\.c-contacts__action \+ \.c-contacts__action \{\s*border-top: var\(--outline-width-1\) solid var\(--outline-on-card\);/.test(cssZ('src/styles/components/contacts-shell.css'))
+       && /\.c-contact-row:not\(:disabled\):hover \{ background-color: var\(--surface-card-hover\); \}/.test(cssZ('src/styles/components/contact-row.css')),
+      '★ Session Z (#882 (a)/(b)): the Account hub row, the contacts-picker row + its action rows (and their in-card hairline, --outline-on-card) and the shared money-picker row — all hosted on --surface-card by DOM — hover on --surface-card-hover (was --surface-interactive-hover = the card\'s own colour, no hover at all)');
+  }
+  /* L15b — the flag font, by property: the mechanism lives in ONE place, the family the CSS
+     names is the family the JS injects, the face is never inlined into a stylesheet, and every
+     shell that loads the bundle installs it right after the bundle, unguarded (a walk, not a list). */
+  {
+    const fl = stripCode(rdZ('src/components/flags.js'));
+    const fam = (/export const FLAG_FONT_FAMILY = '([^']+)';/.exec(fl) || [])[1];
+    const scriptPath = (/export const FLAG_FONT_SCRIPT = '([^']+)';/.exec(fl) || [])[1];
+    const range = (/export const FLAG_FONT_RANGE = '([^']+)';/.exec(fl) || [])[1];
+    const tok = cssZ('src/styles/tokens.css');
+    ok(fam === 'Twemoji Country Flags' && scriptPath === 'fonts/TwemojiCountryFlags.js' && range === 'U+1F1E6-1F1FF'
+       && /if \(flagGlyphAvailable\(\) \|\| probeState !== 'no'\) return Promise\.resolve\(false\);/.test(fl) && /document\.documentElement\.setAttribute\('data-flag-font', ''\);/.test(fl)
+       && !/url\('fonts\//.test(fl) && /sc\.src = FLAG_FONT_SCRIPT;/.test(fl)
+       && /--font-ui-native: system-ui, -apple-system/.test(tok) && /\n\s*--font-ui: var\(--font-ui-native\);/.test(tok)
+       && new RegExp(':root\\[data-flag-font\\] \\{ --font-ui: "' + fam + '", var\\(--font-ui-native\\); \\}').test(tok),
+      '★★ L15b: installFlagFont installs only on an ANSWERED "no" from the SAME canvas probe the picker uses, the range is EXACTLY the 26 regional indicators (U+1F3F4 out — the pirate-flag base), the payload is a SCRIPT (fonts/TwemojiCountryFlags.js — a file:// font URL is CORS-refused) never a font URL, and tokens.css prepends the SAME family only under :root[data-flag-font] over the native stack held once in --font-ui-native');
+    const inlined = [];
+    for (const f of readdirSync(join(root, 'src/styles/components')).map((n) => 'src/styles/components/' + n).concat(['src/styles/base.css', 'src/styles/tokens.css'])) if (/TwemojiCountryFlags/.test(cssZ(f))) inlined.push(f);
+    for (const f of readdirSync(join(root, 'src/shells')).filter((n) => n.endsWith('.html'))) { const raw = rdZ('src/shells/' + f); if (/@font-face[^}]*Twemoji/.test(raw)) inlined.push('src/shells/' + f); }
+    ok(inlined.length === 0,
+      '★ L15b: NO stylesheet and no shell <style> carries the flag @font-face — it is injected at runtime, so the inliner can never base64 the 78 KB into every document (found: ' + (inlined.join(', ') || 'none') + ')');
+    const shellsZ = readdirSync(join(root, 'src/shells')).filter((n) => n.endsWith('.html')).sort();
+    const withBundle = shellsZ.filter((n) => /<script src="\.\.\/demo\/spixi\.iife\.js"><\/script>/.test(rdZ('src/shells/' + n)));
+    const installing = withBundle.filter((n) => /<script src="\.\.\/demo\/spixi\.iife\.js"><\/script>\n<script>[^<]*window\.Spixi\.installFlagFont\(\);<\/script>/.test(rdZ('src/shells/' + n)));
+    const guarded = withBundle.filter((n) => /installFlagFont\s*&&|Spixi\s*&&\s*window\.Spixi\.installFlagFont/.test(rdZ('src/shells/' + n)));
+    ok(withBundle.length >= 17 && installing.length === withBundle.length && guarded.length === 0 && shellsZ.length - withBundle.length === 1,
+      '★★ L15b WALK: every shell that loads the bundle (' + withBundle.length + '/' + shellsZ.length + '; the one without is the bundle-less welcome pane) calls window.Spixi.installFlagFont() in the script right after it, UNGUARDED — a missing export fails loudly at boot (installing: ' + installing.length + ' · guarded: ' + guarded.length + ')');
+    const builtInstall = withBundle.filter((n) => { const out = n === 'home.html' ? 'index.html' : n === 'launch.html' ? 'intro.html' : n; try { return /window\.Spixi\.installFlagFont\(\);/.test(rdZ('Spixi/Resources/Raw/html/' + out)); } catch (e) { return false; } });
+    ok(builtInstall.length === withBundle.length,
+      '★ L15b: the BUILT shells carry the install call (' + builtInstall.length + '/' + withBundle.length + ') — the source walk above is not the only half');
+    const sa = stripCode(rdZ('src/components/settings-app.js'));
+    /* THE DESKTOP COMPOSER FOOT (Damir, Windows screenshot mid-session: "add normal padding
+       below the composer, it's too low"): a desktop has no bar/indicator inset, so the base
+       rule's foot (6 + 0) sat on the window edge. The desktop rule is a SEPARATE rule AFTER
+       the base one (Session K's trap: a rule inserted inside another closes it early), reads
+       the screen-pad canon 12, and the base rule keeps its 6 + safe-bottom for mobile. */
+    {
+      const comp = cssZ('src/styles/components/composer.css');
+      const base = /\.c-composer \{([^}]*)\}/.exec(comp), dt = /:root\[data-desktop\] \.c-composer \{([^}]*)\}/.exec(comp);
+      ok(base && dt && comp.indexOf(dt[0]) > comp.indexOf(base[0])
+         && /padding-block-end: calc\(var\(--composer-pad-block\) \+ var\(--safe-bottom, 0px\)\);/.test(base[1]) && /z-index: var\(--z-20\);/.test(base[1]) && /background: transparent;/.test(base[1])
+         && dt[1].trim() === 'padding-block-end: calc(var(--spacing-12) + var(--safe-bottom, 0px));',
+        '★ Session Z (Damir, Windows): the DESKTOP composer foot is spacing-12 + safe-bottom in its own rule AFTER the base rule, which still holds its 6 + safe-bottom, its transparent ground and its z-index (the rule was not inserted inside the base block)');
+    }
+    /* THE GLASS DIAL (Damir's question after the AND-45 walk): OFF by default — the bar's
+       #711 transparent ground is untouched — and ON only under html[data-chat-glass], which
+       the chat pre-paint script sets from the spixi.chat.glass preference ('1' and nothing
+       else). Both filter spellings, the token pair in both modes, the [SCROLL] instrument
+       still in place to read the number. */
+    {
+      const comp = cssZ('src/styles/components/composer.css');
+      const glassRule = /html\[data-chat-glass\] \.c-composer \{[^}]*\}/.exec(comp);
+      const chatPre = rdZ('src/shells/chat.html');
+      ok(glassRule && /background: var\(--surface-composer-glass\);/.test(glassRule[0]) && /-webkit-backdrop-filter: blur\(var\(--blur-chat-glass\)\) saturate\(160%\);/.test(glassRule[0]) && /[^-]backdrop-filter: blur\(var\(--blur-chat-glass\)\) saturate\(160%\);/.test(glassRule[0])
+         && /\.c-composer \{[^}]*background: transparent;/.test(comp)
+         && /@supports not \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\) \{\s*html\[data-chat-glass\] \.c-composer \{ background: transparent; \}/.test(comp)
+         && (tok.match(/--surface-composer-glass: rgba\(/g) || []).length === 2 && (tok.match(/--surface-chat-glass: rgba\(/g) || []).length === 2
+         && /var gl='';try\{gl=localStorage\.getItem\('spixi\.chat\.glass'\)\|\|'';\}catch\(e\)\{\}if\(gl==='1'\)document\.documentElement\.setAttribute\('data-chat-glass',''\);/.test(chatPre)
+         && /\[SCROLL\] frames=/.test(chatPre),
+        '★ Session Z GLASS DIAL: the composer keeps its transparent default; html[data-chat-glass] adds the canvas-at-72% ground (--surface-composer-glass, its OWN pair beside the day pill\'s --surface-chat-glass, both defined in BOTH modes) + the day pill\'s blur radius/saturation (both spellings) with the no-backdrop-filter fallback back to the transparent bar; the chat pre-paint sets the attribute only for spixi.chat.glass === \'1\'; the [SCROLL] probe that measures it is still armed');
+    }
+    ok(/key: 'creditFlags',\s*fallback: 'Country flags',\s*source: 'Twemoji — © Twitter, Inc\. and other contributors; the Mozilla twemoji-colr build, subset to country flags by TalkJS — creativecommons\.org\/licenses\/by\/4\.0',\s*licence: 'CC-BY 4\.0 \(subset\)',/.test(sa)
+       && /case 'creditFlags': return strings\.creditFlags \|\| 'Country flags';/.test(sa)
+       && /### Twemoji Country Flags — CC-BY 4\.0/.test(rdZ('docs/legal/third-party-notices.md')) && /creativecommons\.org\/licenses\/by\/4\.0/.test(rdZ('docs/legal/third-party-notices.md')),
+      '★ L15b: CC-BY 4.0 REQUIRES attribution ON THE SHIPPED ARTIFACT — the credit row carries the licence link + "subset" (with its localizable label case), and the repo notice names the Mozilla build and the licence');
+  }
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

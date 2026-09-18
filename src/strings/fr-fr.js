@@ -205,6 +205,7 @@ export const frfr = {
   createWarnBody: "Sans ce mot de passe et votre fichier de sauvegarde, votre compte et votre portefeuille ne pourront pas être récupérés, même pas par nous.",
   createWarnTitle: "Spixi ne conserve pas votre mot de passe.",
   created: "Compte créé",
+  creditFlags: "Drapeaux des pays",
   creditIcons: "Icônes de l’interface",
   creditSounds: "Sons de l'interface",
   creditsTitle: "Crédits",

@@ -50,6 +50,12 @@
      Lists with a 40 avatar override it (member/shared: 12 + 40 + 12); tx rows 12 + 48 + 12. */
   --ci-hairline-inset: calc(var(--spacing-12) + 22px + var(--spacing-12));
 }
+/* ★ Session Z (#882 (a)): every row/option INSIDE a card hovers/presses on the CARD pair
+   (--surface-card-hover/-pressed, #878) — --surface-interactive-hover is the card's own colour
+   on both ramps (light 50/50 · dark 800/800), i.e. no hover; the hero address button stays on
+   the screen pair because it sits on the screen. The payments rows are a family this sheet
+   HOSTS from txlist-item.css (whose own hover is the screen pair, right for the wallet list)
+   — so the card-scoped override below is theirs (#46 loop A-3). */
 /* ★ THE HAIRLINE is a pseudo on every row after the first — a border cannot be inset.
    ⚠ `::after`, NOT `::before`: base.css owns `::before` on `.c-txlist-item` (and the other
    row families) for the 5c-ii compositor PRESS LAYER (`html:root .c-txlist-item::before`,
@@ -57,15 +63,17 @@
    the press layer's `opacity: 0; z-index: -1` (no line) while its own `height: 1px`
    still lands and squashes the press fill to a sliver (#46 loop, Session Y MAJOR-1).
    `::after` is free on every row family this sheet draws (verified: `content: none`).
-   `--outline-neutral-03`, NOT -01 or -02 — COMPUTED against the card, both themes (the
-   suite recomputes these from the resolved ramps):
+   ★ Session Z (#884 ⑤): the colour is the ROLE `--outline-on-card`, not a neutral step.
+   Session Y picked `--outline-neutral-03` because no single step works on both cards
+   (COMPUTED against the card from the resolved ramps; the suite recomputes them):
      -01  light neutral-100 on the neutral-50 card 1.04:1 · dark neutral-800 on neutral-800 = 1.00 (no line)
      -02  light neutral-200 1.137 · dark neutral-700 1.048 (the near-invisible class, #870)
-     -03  light neutral-300 1.423 · dark neutral-600 1.223 — a separator you can see and
-          would not call a border, on BOTH grounds (iOS's separator on white is ~1.30;
-          light sits a shade heavier than that, dark a shade lighter — one token, two ramps).
-   The Account hub draws its in-card hairlines at -01 and is invisible in dark for the
-   same reason — not this batch's screen; named in the handoff. */
+     -03  light neutral-300 1.423 · dark neutral-600 1.223
+   and Damir read the light 1.42 as "much too visible" on the Y walk. `--outline-on-card`
+   resolves per theme to the step that is right on THAT card: light neutral-200 (1.137,
+   a shade under iOS's ~1.30 separator on white), dark neutral-600 (1.187 — ink-600 on ink-800
+   after #884 ②; the 1.223 above was the grey step). The Account hub's in-card hairline reads
+   the same role (#882 (b) — its -01 was invisible in dark). */
 .c-chat-info__card > * + *,
 .c-chat-info__member-list > * + *,
 .c-chat-info__member-fill > * + *,
@@ -81,7 +89,7 @@
   top: 0;
   inset-inline: var(--ci-hairline-inset) 0;
   height: var(--outline-width-1);
-  background: var(--outline-neutral-03);
+  background: var(--outline-on-card);
   pointer-events: none;
 }
 /* a list CONTAINER that follows another card child (the search field, the payments
@@ -111,16 +119,19 @@
   margin: 0;
 }
 
-/* ★ Session Y (#875 P5): the section title sits OUTSIDE the card — label-sm, UPPERCASE,
-   Medium, --text-neutral-02, inset to the card's content edge (iOS grouped headers).
-   Uppercase needs POSITIVE tracking; the label-sm token's is negative, so it is set here. */
+/* ★ Session Y (#875 P5): the section title sits OUTSIDE the card — label-sm, Medium,
+   --text-neutral-02, inset to the card's content edge (iOS grouped headers).
+   ★ Session Z (#884 ④, Damir on the Y walk: "not all caps"): SENTENCE CASE. The
+   `text-transform: uppercase` + the 0.4px positive tracking that uppercase needed are
+   gone; the label reads the label-sm token's own tracking like every other label. A
+   translated title ("Skupne skupine") also survives sentence case where an uppercase
+   transform of a non-Latin or accented string is a known screen-reader/ligature hazard. */
 .c-chat-info__label {
   margin: 0;
   padding-inline: var(--spacing-12);
   font-size: var(--font-size-label-sm);
   line-height: var(--line-height-label-sm);
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
+  letter-spacing: var(--tracking-label-sm);
   font-weight: var(--font-weight-medium);
   color: var(--text-neutral-02);
 }
@@ -178,6 +189,11 @@
   min-width: 0;
   max-width: 100%;
 }
+/* ★ Session Z (#884 ⑥): the ghost mirrors the pencil — a 44 icon-only button is 44 wide
+   (`.c-button[data-icon-only][data-size="44"]`, button.css) — so the NAME is what the
+   row centres, not the name+pencil pair. It hides with the pencil while the editor is
+   open (the input then centres alone). The suite reads both widths from the sheets. */
+.c-chat-info__nick-ghost { flex: none; width: 44px; }
 .c-chat-info__name {
   min-width: 0;                     /* flex item in name-row: without this its
                                        min-width resolves to the NOWRAP content
@@ -372,9 +388,9 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
    bleeds up into a divider gap (Damir: tap area + pressed state were off) */
 .c-chat-info__setting-section > .c-chat-info__card > .c-chat-info__setting { width: 100%; }
 @media (hover: hover) and (pointer: fine) {
-  .c-chat-info__setting:hover { background: var(--surface-interactive-hover); }
+  .c-chat-info__setting:hover { background: var(--surface-card-hover); }
 }
-.c-chat-info__setting:active { background: var(--surface-interactive-pressed); }
+.c-chat-info__setting:active { background: var(--surface-card-pressed); }
 .c-chat-info__setting-value {
   margin-inline-start: auto;
   color: var(--text-neutral-02);
@@ -409,9 +425,9 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   transition: background-color var(--duration-100) var(--easing-standard);
 }
 @media (hover: hover) and (pointer: fine) {
-  .c-chat-info__sd-option:hover { background: var(--surface-interactive-hover); }
+  .c-chat-info__sd-option:hover { background: var(--surface-card-hover); }
 }
-.c-chat-info__sd-option:active { background: var(--surface-interactive-pressed); }
+.c-chat-info__sd-option:active { background: var(--surface-card-pressed); }
 .c-chat-info__sd-option-label {   /* keep the label put; ellipsize if ever long */
   min-width: 0;
   overflow: hidden;
@@ -508,9 +524,9 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   transition: background-color var(--duration-100) var(--easing-standard);
 }
 @media (hover: hover) and (pointer: fine) {
-  .c-chat-info__member:hover { background: var(--surface-interactive-hover); }
+  .c-chat-info__member:hover { background: var(--surface-card-hover); }
 }
-.c-chat-info__member:active { background: var(--surface-interactive-pressed); }
+.c-chat-info__member:active { background: var(--surface-card-pressed); }
 .c-chat-info__member-name {
   flex: 1;
   min-width: 0;
@@ -538,6 +554,9 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   flex-direction: column;
 }
 .c-chat-info__txs-list .c-txlist-item { border-radius: 0; }
+@media (hover: hover) and (pointer: fine) {
+  .c-chat-info__txs-list .c-txlist-item:hover:not([aria-current]) { background-color: var(--surface-card-hover); }   /* ★ Session Z (#46 loop A-3): the card pair for a card-hosted family */
+}
 /* the accordion toggle IS the group's title row — the row grammar (48, 12 inline,
    glyph + label), Medium like every row title (--row-title-weight, Session J) */
 .c-chat-info__txs-toggle {
@@ -558,9 +577,9 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   transition: background-color var(--duration-100) var(--easing-standard);
 }
 @media (hover: hover) and (pointer: fine) {
-  .c-chat-info__txs-toggle:hover { background: var(--surface-interactive-hover); }
+  .c-chat-info__txs-toggle:hover { background: var(--surface-card-hover); }
 }
-.c-chat-info__txs-toggle:active { background: var(--surface-interactive-pressed); }
+.c-chat-info__txs-toggle:active { background: var(--surface-card-pressed); }
 .c-chat-info__txs-chevron {
   margin-inline-start: auto;
   transition: transform var(--duration-200) var(--easing-standard);
@@ -608,9 +627,9 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   transition: background-color var(--duration-100) var(--easing-standard);
 }
 @media (hover: hover) and (pointer: fine) {
-  .c-chat-info__row--action:hover { background: var(--surface-interactive-hover); }
+  .c-chat-info__row--action:hover { background: var(--surface-card-hover); }
 }
-.c-chat-info__row--action:active { background: var(--surface-interactive-pressed); }
+.c-chat-info__row--action:active { background: var(--surface-card-pressed); }
 /* the chevron reads as chrome, like every other row's */
 .c-chat-info__row--action > svg { color: var(--icon-neutral-02); flex: none; }
 /* ★ #875 P4 — RED IS A ROLE, NOT A FILL. The irreversible row (Remove contact · Leave

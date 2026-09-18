@@ -36,7 +36,13 @@
   border-radius: var(--radius-24) var(--radius-24) 0 0;
   box-shadow: var(--elevation-3);
   padding: var(--spacing-8) var(--spacing-16) var(--spacing-16);
-  padding-bottom: calc(var(--spacing-16) + var(--safe-bottom, 0px));
+  /* ★ Session Z (#884 ①, Damir on the Y walk: every sheet "feels too low", "maybe even
+     32px"): the foot is spacing-24 (was 16) ABOVE the safe region — the same 24 the
+     desktop dialog already used (`:root[data-desktop] .c-sheet` below), so one number
+     serves both presentations. Picked over 32: on a 3-button Android bar the sheet now
+     also carries the 48 px bar under it (AND-45), and 32 + 48 read as an empty shelf
+     (the two variants were rendered; 24 is his pick). The keyboard variant mirrors it. */
+  padding-bottom: calc(var(--spacing-24) + var(--safe-bottom, 0px));
   transform: translateY(100%);
   transition: transform var(--duration-200) var(--easing-accelerate);
   outline: none;
@@ -65,7 +71,7 @@
    separately further down this file. */
 :root:not([data-desktop]) .c-sheet {
   bottom: var(--kb-inset, 0px);
-  padding-bottom: calc(var(--spacing-16) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)));
+  padding-bottom: calc(var(--spacing-24) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)));   /* ★ Session Z #884 ①: 24, as the resting sheet */
   max-height: calc(100% - var(--kb-inset, 0px));
   overflow-y: auto;
   overscroll-behavior: contain;

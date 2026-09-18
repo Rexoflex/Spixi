@@ -58,7 +58,7 @@
 /* bottom scrim keeps the overlapping icon/name legible over bright covers (theme-stable) */
 .c-app-hero__scrim {
   position: absolute; inset: 0;
-  background: linear-gradient(180deg, rgba(2, 6, 25, 0) 45%, rgba(2, 6, 25, 0.35) 100%);
+  background: linear-gradient(180deg, rgba(2, 6, 25, 0) 45%, rgba(2, 6, 25, 0.35) 100%); /* sanctioned: tokenise-candidate (#884 ③ `--surface-scrim-art`, Damir deferred) — a theme-stable scrim over third-party cover art */
 }
 
 /* —— header (ONLY the icon overlaps the hero; text stays clear of the cover) —— */

@@ -20,7 +20,7 @@
   text-align: start;
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) and (pointer: fine) { .c-contact-row:not(:disabled):hover { background-color: var(--surface-interactive-hover); } }
+@media (hover: hover) and (pointer: fine) { .c-contact-row:not(:disabled):hover { background-color: var(--surface-card-hover); } }   /* ★ Session Z (#882 (a)): this row sits ON a --surface-card, and --surface-interactive-hover IS the card's colour (light 50 on 50, dark 800 on 800) — no hover at all. The card pair is one visible step (#878). */
 .c-contact-row:disabled { cursor: default; }
 .c-contact-row:disabled > .c-avatar,
 .c-contact-row:disabled .c-contact-row__name { opacity: var(--opacity-disabled); }

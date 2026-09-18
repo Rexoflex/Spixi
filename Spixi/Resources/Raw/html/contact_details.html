@@ -525,6 +525,9 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    untouched, and `.c-disc[data-hue]` cannot collide because its hues are NAMES
    ('accent', 'info', …) and these are indices. */
 
+/* sanctioned-block: IDENTITY HUES ARE DATA, not a theme role — the index is hashed from the
+   address (identityIndex) and the twelve anchors are the palette itself; a token per stop
+   would be twelve names for twelve numbers nobody else reads. Theme-aware S/L live below. */
 .c-avatar[data-hue="0"], .c-idhue[data-hue="0"]  { --av-c1: hsl(0, 62%, 52%);   --av-c2: hsl(25, 58%, 42%);  }
 /* ★ Session I (sheet 2b = D; Damir #735: "our avatars seem a bit off"): the three MUDDY
    anchors re-tuned — 1 was olive-brown, 2 brown, 3 a dull green; they now read orange,
@@ -558,7 +561,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   /* N1 (#364): white ink in BOTH themes — the anchor gradients are dark enough
      everywhere (≥ 4.5:1 computed). Literal #fff on purpose, exactly like
      c-disc (base.css): a theme-flipping token here re-breaks dark mode. */
-  color: #fff; /* initials/glyph over gradient */
+  color: #fff; /* sanctioned: initials/glyph over the gradient — mode-agnostic white (N1), c-disc precedent */
   overflow: visible;
 }
 
@@ -604,6 +607,9 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
      still clears 4.4:1 there under white ink; the 18px+ semibold initials are WCAG
      large text (3:1 floor). The sheet's 28%/55% draft veiled the centre to ≈ 13% and
      failed that arithmetic, so it was dialled down before shipping. */
+  /* sanctioned-block: the specular highlight is a white alpha over a DATA gradient (mode-
+     agnostic, measured above); the two hsl() fallbacks are hue 7's anchors for a row that
+     carries no data-hue — the palette's own value, never a theme role. */
   background-image:
     radial-gradient(100% 100% at 28% 18%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 50%),
     linear-gradient(160deg,
@@ -710,7 +716,13 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   border-radius: var(--radius-24) var(--radius-24) 0 0;
   box-shadow: var(--elevation-3);
   padding: var(--spacing-8) var(--spacing-16) var(--spacing-16);
-  padding-bottom: calc(var(--spacing-16) + var(--safe-bottom, 0px));
+  /* ★ Session Z (#884 ①, Damir on the Y walk: every sheet "feels too low", "maybe even
+     32px"): the foot is spacing-24 (was 16) ABOVE the safe region — the same 24 the
+     desktop dialog already used (`:root[data-desktop] .c-sheet` below), so one number
+     serves both presentations. Picked over 32: on a 3-button Android bar the sheet now
+     also carries the 48 px bar under it (AND-45), and 32 + 48 read as an empty shelf
+     (the two variants were rendered; 24 is his pick). The keyboard variant mirrors it. */
+  padding-bottom: calc(var(--spacing-24) + var(--safe-bottom, 0px));
   transform: translateY(100%);
   transition: transform var(--duration-200) var(--easing-accelerate);
   outline: none;
@@ -739,7 +751,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    separately further down this file. */
 :root:not([data-desktop]) .c-sheet {
   bottom: var(--kb-inset, 0px);
-  padding-bottom: calc(var(--spacing-16) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)));
+  padding-bottom: calc(var(--spacing-24) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)));   /* ★ Session Z #884 ①: 24, as the resting sheet */
   max-height: calc(100% - var(--kb-inset, 0px));
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -1184,6 +1196,12 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      Lists with a 40 avatar override it (member/shared: 12 + 40 + 12); tx rows 12 + 48 + 12. */
   --ci-hairline-inset: calc(var(--spacing-12) + 22px + var(--spacing-12));
 }
+/* ★ Session Z (#882 (a)): every row/option INSIDE a card hovers/presses on the CARD pair
+   (--surface-card-hover/-pressed, #878) — --surface-interactive-hover is the card's own colour
+   on both ramps (light 50/50 · dark 800/800), i.e. no hover; the hero address button stays on
+   the screen pair because it sits on the screen. The payments rows are a family this sheet
+   HOSTS from txlist-item.css (whose own hover is the screen pair, right for the wallet list)
+   — so the card-scoped override below is theirs (#46 loop A-3). */
 /* ★ THE HAIRLINE is a pseudo on every row after the first — a border cannot be inset.
    ⚠ `::after`, NOT `::before`: base.css owns `::before` on `.c-txlist-item` (and the other
    row families) for the 5c-ii compositor PRESS LAYER (`html:root .c-txlist-item::before`,
@@ -1191,15 +1209,17 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    the press layer's `opacity: 0; z-index: -1` (no line) while its own `height: 1px`
    still lands and squashes the press fill to a sliver (#46 loop, Session Y MAJOR-1).
    `::after` is free on every row family this sheet draws (verified: `content: none`).
-   `--outline-neutral-03`, NOT -01 or -02 — COMPUTED against the card, both themes (the
-   suite recomputes these from the resolved ramps):
+   ★ Session Z (#884 ⑤): the colour is the ROLE `--outline-on-card`, not a neutral step.
+   Session Y picked `--outline-neutral-03` because no single step works on both cards
+   (COMPUTED against the card from the resolved ramps; the suite recomputes them):
      -01  light neutral-100 on the neutral-50 card 1.04:1 · dark neutral-800 on neutral-800 = 1.00 (no line)
      -02  light neutral-200 1.137 · dark neutral-700 1.048 (the near-invisible class, #870)
-     -03  light neutral-300 1.423 · dark neutral-600 1.223 — a separator you can see and
-          would not call a border, on BOTH grounds (iOS's separator on white is ~1.30;
-          light sits a shade heavier than that, dark a shade lighter — one token, two ramps).
-   The Account hub draws its in-card hairlines at -01 and is invisible in dark for the
-   same reason — not this batch's screen; named in the handoff. */
+     -03  light neutral-300 1.423 · dark neutral-600 1.223
+   and Damir read the light 1.42 as "much too visible" on the Y walk. `--outline-on-card`
+   resolves per theme to the step that is right on THAT card: light neutral-200 (1.137,
+   a shade under iOS's ~1.30 separator on white), dark neutral-600 (1.187 — ink-600 on ink-800
+   after #884 ②; the 1.223 above was the grey step). The Account hub's in-card hairline reads
+   the same role (#882 (b) — its -01 was invisible in dark). */
 .c-chat-info__card > * + *,
 .c-chat-info__member-list > * + *,
 .c-chat-info__member-fill > * + *,
@@ -1215,7 +1235,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   top: 0;
   inset-inline: var(--ci-hairline-inset) 0;
   height: var(--outline-width-1);
-  background: var(--outline-neutral-03);
+  background: var(--outline-on-card);
   pointer-events: none;
 }
 /* a list CONTAINER that follows another card child (the search field, the payments
@@ -1245,16 +1265,19 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   margin: 0;
 }
 
-/* ★ Session Y (#875 P5): the section title sits OUTSIDE the card — label-sm, UPPERCASE,
-   Medium, --text-neutral-02, inset to the card's content edge (iOS grouped headers).
-   Uppercase needs POSITIVE tracking; the label-sm token's is negative, so it is set here. */
+/* ★ Session Y (#875 P5): the section title sits OUTSIDE the card — label-sm, Medium,
+   --text-neutral-02, inset to the card's content edge (iOS grouped headers).
+   ★ Session Z (#884 ④, Damir on the Y walk: "not all caps"): SENTENCE CASE. The
+   `text-transform: uppercase` + the 0.4px positive tracking that uppercase needed are
+   gone; the label reads the label-sm token's own tracking like every other label. A
+   translated title ("Skupne skupine") also survives sentence case where an uppercase
+   transform of a non-Latin or accented string is a known screen-reader/ligature hazard. */
 .c-chat-info__label {
   margin: 0;
   padding-inline: var(--spacing-12);
   font-size: var(--font-size-label-sm);
   line-height: var(--line-height-label-sm);
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
+  letter-spacing: var(--tracking-label-sm);
   font-weight: var(--font-weight-medium);
   color: var(--text-neutral-02);
 }
@@ -1312,6 +1335,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   min-width: 0;
   max-width: 100%;
 }
+/* ★ Session Z (#884 ⑥): the ghost mirrors the pencil — a 44 icon-only button is 44 wide
+   (`.c-button[data-icon-only][data-size="44"]`, button.css) — so the NAME is what the
+   row centres, not the name+pencil pair. It hides with the pencil while the editor is
+   open (the input then centres alone). The suite reads both widths from the sheets. */
+.c-chat-info__nick-ghost { flex: none; width: 44px; }
 .c-chat-info__name {
   min-width: 0;                     /* flex item in name-row: without this its
                                        min-width resolves to the NOWRAP content
@@ -1506,9 +1534,9 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
    bleeds up into a divider gap (Damir: tap area + pressed state were off) */
 .c-chat-info__setting-section > .c-chat-info__card > .c-chat-info__setting { width: 100%; }
 @media (hover: hover) and (pointer: fine) {
-  .c-chat-info__setting:hover { background: var(--surface-interactive-hover); }
+  .c-chat-info__setting:hover { background: var(--surface-card-hover); }
 }
-.c-chat-info__setting:active { background: var(--surface-interactive-pressed); }
+.c-chat-info__setting:active { background: var(--surface-card-pressed); }
 .c-chat-info__setting-value {
   margin-inline-start: auto;
   color: var(--text-neutral-02);
@@ -1543,9 +1571,9 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   transition: background-color var(--duration-100) var(--easing-standard);
 }
 @media (hover: hover) and (pointer: fine) {
-  .c-chat-info__sd-option:hover { background: var(--surface-interactive-hover); }
+  .c-chat-info__sd-option:hover { background: var(--surface-card-hover); }
 }
-.c-chat-info__sd-option:active { background: var(--surface-interactive-pressed); }
+.c-chat-info__sd-option:active { background: var(--surface-card-pressed); }
 .c-chat-info__sd-option-label {   /* keep the label put; ellipsize if ever long */
   min-width: 0;
   overflow: hidden;
@@ -1642,9 +1670,9 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   transition: background-color var(--duration-100) var(--easing-standard);
 }
 @media (hover: hover) and (pointer: fine) {
-  .c-chat-info__member:hover { background: var(--surface-interactive-hover); }
+  .c-chat-info__member:hover { background: var(--surface-card-hover); }
 }
-.c-chat-info__member:active { background: var(--surface-interactive-pressed); }
+.c-chat-info__member:active { background: var(--surface-card-pressed); }
 .c-chat-info__member-name {
   flex: 1;
   min-width: 0;
@@ -1672,6 +1700,9 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   flex-direction: column;
 }
 .c-chat-info__txs-list .c-txlist-item { border-radius: 0; }
+@media (hover: hover) and (pointer: fine) {
+  .c-chat-info__txs-list .c-txlist-item:hover:not([aria-current]) { background-color: var(--surface-card-hover); }   /* ★ Session Z (#46 loop A-3): the card pair for a card-hosted family */
+}
 /* the accordion toggle IS the group's title row — the row grammar (48, 12 inline,
    glyph + label), Medium like every row title (--row-title-weight, Session J) */
 .c-chat-info__txs-toggle {
@@ -1692,9 +1723,9 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   transition: background-color var(--duration-100) var(--easing-standard);
 }
 @media (hover: hover) and (pointer: fine) {
-  .c-chat-info__txs-toggle:hover { background: var(--surface-interactive-hover); }
+  .c-chat-info__txs-toggle:hover { background: var(--surface-card-hover); }
 }
-.c-chat-info__txs-toggle:active { background: var(--surface-interactive-pressed); }
+.c-chat-info__txs-toggle:active { background: var(--surface-card-pressed); }
 .c-chat-info__txs-chevron {
   margin-inline-start: auto;
   transition: transform var(--duration-200) var(--easing-standard);
@@ -1742,9 +1773,9 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   transition: background-color var(--duration-100) var(--easing-standard);
 }
 @media (hover: hover) and (pointer: fine) {
-  .c-chat-info__row--action:hover { background: var(--surface-interactive-hover); }
+  .c-chat-info__row--action:hover { background: var(--surface-card-hover); }
 }
-.c-chat-info__row--action:active { background: var(--surface-interactive-pressed); }
+.c-chat-info__row--action:active { background: var(--surface-card-pressed); }
 /* the chevron reads as chrome, like every other row's */
 .c-chat-info__row--action > svg { color: var(--icon-neutral-02); flex: none; }
 /* ★ #875 P4 — RED IS A ROLE, NOT A FILL. The irreversible row (Remove contact · Leave
@@ -3112,7 +3143,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    radius the bubble itself carries. box-shadow rather than `border` because a
    border would change the box and reflow the bubble under the user's finger. */
 [data-menu-target] {
-  box-shadow: 0 0 0 2px var(--brand-400), 0 0 0 5px rgba(118, 157, 255, 0.28);
+  box-shadow: 0 0 0 2px var(--brand-400), 0 0 0 5px rgba(118, 157, 255, 0.28); /* sanctioned: tokenise-candidate (#884 ③ `--surface-selected-wash` = primary-400 at alpha, Damir deferred) */
   transition: box-shadow 120ms ease-out;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -3174,7 +3205,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   text-align: start;
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) and (pointer: fine) { .c-contact-row:not(:disabled):hover { background-color: var(--surface-interactive-hover); } }
+@media (hover: hover) and (pointer: fine) { .c-contact-row:not(:disabled):hover { background-color: var(--surface-card-hover); } }   /* ★ Session Z (#882 (a)): this row sits ON a --surface-card, and --surface-interactive-hover IS the card's colour (light 50 on 50, dark 800 on 800) — no hover at all. The card pair is one visible step (#878). */
 .c-contact-row:disabled { cursor: default; }
 .c-contact-row:disabled > .c-avatar,
 .c-contact-row:disabled .c-contact-row__name { opacity: var(--opacity-disabled); }
@@ -3885,6 +3916,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 <script>/* M13 (2026-09-08): the STATIC a11y labels below the boot line. They are in the markup so a screen reader has them on the FIRST paint, which is exactly why they could not be written as getStrings() calls — and so they were English in every locale. One walk over [data-sl-aria] relabels them from the dictionary as soon as the DOM exists; the English in the attribute stays as the fallback for a key the dictionary lacks. */
 (function(){function r(){for(var e of document.querySelectorAll('[data-sl-aria]')){var v=window.SL&&window.SL[e.dataset.slAria];if(v)e.setAttribute('aria-label',v);}}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',r,{once:true});else r();})();</script>
 <script src="spixi.bundle.js"></script>
+<script>/* ★ L15b (Session Z): the flag font — a device that cannot paint a flag emoji (Windows) gets the flags-only Twemoji face for the regional-indicator block, injected at runtime so the 78 KB is never inlined and never fetched on a phone; flags.js holds the mechanism. Unguarded on purpose: a missing export must fail loudly at boot, not fall silent. */window.Spixi.installFlagFont();</script>
 <script>
   /* —————————————————————————————————————————————————————————————————————————
    * Production Contact-details / chat-info shell — the redesigned 1:1 contact

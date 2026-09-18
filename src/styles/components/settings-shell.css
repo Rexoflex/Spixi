@@ -94,6 +94,11 @@
   min-width: 0;
   max-width: 100%;
 }
+/* ★ Session Z (#884 ⑥): the ghost mirrors the pencil — a 44 icon-only button is 44 wide
+   (`.c-button[data-icon-only][data-size="44"]`, button.css) — so the NAME is what the
+   row centres, not the name+pencil pair. It hides with the pencil while the editor is
+   open (the input then centres alone). The suite reads both widths from the sheets. */
+.c-settings__nick-ghost { flex: none; width: 44px; }
 .c-settings__name {
   min-width: 0;                     /* nowrap flex item — the #140③ class */
   font-size: var(--font-size-heading-xs);
@@ -214,9 +219,11 @@
   box-shadow: var(--elevation-1);
   --surface-input: var(--surface-input-on-card);   /* #150③: input === card otherwise */
 }
-/* hairline between rows INSIDE a card, inset past the disc column */
+/* hairline between rows INSIDE a card, inset past the disc column.
+   ★ Session Z (#884 ⑤ / #882 (b)): `--outline-on-card`, the same role chat-info's lists
+   read — -01 was neutral-800 on the neutral-800 card in dark (1.00, no line at all). */
 .c-settings__group > .c-settings__section + .c-settings__section {
-  border-top: var(--outline-width-1) solid var(--outline-neutral-01);
+  border-top: var(--outline-width-1) solid var(--outline-on-card);
 }
 
 /* —— rows: disc · label · value · chevron —— */
@@ -241,7 +248,7 @@
 }
 .c-settings__row--static { cursor: default; }
 @media (hover: hover) and (pointer: fine) {
-  .c-settings__row:not(.c-settings__row--static):hover { background-color: var(--surface-interactive-hover); }
+  .c-settings__row:not(.c-settings__row--static):hover { background-color: var(--surface-card-hover); }   /* ★ Session Z (#882 (a)): this row sits ON a --surface-card, and --surface-interactive-hover IS the card's colour (light 50 on 50, dark 800 on 800) — no hover at all. The card pair is one visible step (#878). */
 }
 /* 5c-i/ii: the :active fill mirror is REMOVED — see chatlist-item.css. */
 .c-settings__row-label {
@@ -575,9 +582,9 @@
   transition: background-color var(--duration-100) var(--easing-standard);
 }
 @media (hover: hover) and (pointer: fine) {
-  .c-settings-danger__card:hover { background: var(--surface-interactive-hover); }
+  .c-settings-danger__card:hover { background: var(--surface-card-hover); }   /* ★ Session Z (#46 loop A-4): the card IS --surface-card — the screen pair was its own colour */
 }
-.c-settings-danger__card:active { background: var(--surface-interactive-pressed); }
+.c-settings-danger__card:active { background: var(--surface-card-pressed); }
 .c-settings-danger__card-title {
   display: flex;
   align-items: center;

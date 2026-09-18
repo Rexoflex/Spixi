@@ -169,8 +169,8 @@ img, svg { display: block; max-width: 100%; }
   justify-content: center;
   border-radius: var(--radius-full);
   background: var(--disc-grad, var(--disc-grad-1));
-  color: #fff;                                   /* white glyph — sanctioned, mode-agnostic */
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  color: #fff;                                   /* sanctioned: a white glyph on a gradient disc — mode-agnostic by design */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16); /* sanctioned: the disc's glass edge, a white alpha over the gradient in both modes */
 }
 /* hue -> default gradient (for discs that set only data-hue, e.g. the scan card) */
 .c-disc[data-hue='primary'] { --disc-grad: var(--disc-grad-1); }

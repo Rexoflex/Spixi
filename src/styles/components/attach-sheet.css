@@ -68,7 +68,7 @@
 .c-attach-tray[data-instant] { transition: none; } /* #721: swapped with the keyboard, not animated */
 .c-attach-tray .c-attach {
   gap: var(--spacing-12) var(--spacing-8);
-  padding: var(--spacing-8) 0 calc(var(--spacing-16) + var(--safe-bottom, 0px));
+  padding: var(--spacing-8) 0 calc(var(--spacing-16) + var(--safe-bottom, 0px));   /* ★ Session Z: STAYS 16 while the sheets went to 24 (#884 ①) — the tray fills a FIXED keyboard-height slot with overflow hidden, so a bigger foot would be subtracted from its grid, not added below it (#46 loop, reviewer MINOR-10) */
 }
 .c-attach-tray .c-attach__medallion { width: 56px; height: 56px; }
 /* the tray owns the home-indicator inset while it is open — the composer above it

@@ -12,6 +12,9 @@
    untouched, and `.c-disc[data-hue]` cannot collide because its hues are NAMES
    ('accent', 'info', …) and these are indices. */
 
+/* sanctioned-block: IDENTITY HUES ARE DATA, not a theme role — the index is hashed from the
+   address (identityIndex) and the twelve anchors are the palette itself; a token per stop
+   would be twelve names for twelve numbers nobody else reads. Theme-aware S/L live below. */
 .c-avatar[data-hue="0"], .c-idhue[data-hue="0"]  { --av-c1: hsl(0, 62%, 52%);   --av-c2: hsl(25, 58%, 42%);  }
 /* ★ Session I (sheet 2b = D; Damir #735: "our avatars seem a bit off"): the three MUDDY
    anchors re-tuned — 1 was olive-brown, 2 brown, 3 a dull green; they now read orange,
@@ -45,7 +48,7 @@
   /* N1 (#364): white ink in BOTH themes — the anchor gradients are dark enough
      everywhere (≥ 4.5:1 computed). Literal #fff on purpose, exactly like
      c-disc (base.css): a theme-flipping token here re-breaks dark mode. */
-  color: #fff; /* initials/glyph over gradient */
+  color: #fff; /* sanctioned: initials/glyph over the gradient — mode-agnostic white (N1), c-disc precedent */
   overflow: visible;
 }
 
@@ -91,6 +94,9 @@
      still clears 4.4:1 there under white ink; the 18px+ semibold initials are WCAG
      large text (3:1 floor). The sheet's 28%/55% draft veiled the centre to ≈ 13% and
      failed that arithmetic, so it was dialled down before shipping. */
+  /* sanctioned-block: the specular highlight is a white alpha over a DATA gradient (mode-
+     agnostic, measured above); the two hsl() fallbacks are hue 7's anchors for a row that
+     carries no data-hue — the palette's own value, never a theme role. */
   background-image:
     radial-gradient(100% 100% at 28% 18%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 50%),
     linear-gradient(160deg,

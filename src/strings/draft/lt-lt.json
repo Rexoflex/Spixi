@@ -642,5 +642,7 @@
   "addContactScanLabel": "Nuskaityti QR kodą",
   "addContactScanHint": "QR kodas turi būti matomas kitame įrenginyje, kad galėtumėte jį nuskaityti šiuo įrenginiu.",
   "addContactEnterLabel": "Įvesti arba įklijuoti Spixi adresą",
-  "addContactEnterHint": "Įveskite arba įklijuokite Spixi adresą (pavyzdžiui, 42Spox…M3rci98)."
+  "addContactEnterHint": "Įveskite arba įklijuokite Spixi adresą (pavyzdžiui, 42Spox…M3rci98).",
+  "creditFlags": "Šalių vėliavos",
+  "sharedGroupsTitle": "Bendros grupės"
 }

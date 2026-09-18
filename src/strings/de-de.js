@@ -205,6 +205,7 @@ export const dede = {
   createWarnBody: "Ohne es und deine Sicherungsdatei können dein Konto und deine Wallet nicht wiederhergestellt werden, auch nicht von uns.",
   createWarnTitle: "Spixi speichert dein Passwort nicht.",
   created: "Konto erstellt",
+  creditFlags: "Länderflaggen",
   creditIcons: "Symbole der Oberfläche",
   creditSounds: "Oberflächentöne",
   creditsTitle: "Danksagungen",

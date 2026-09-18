@@ -77,8 +77,11 @@
      stripper swallow the rule below. That helper now strips comments BEFORE slicing and a
      dedicated differential pin holds it that way, so writing the selector here is safe again.
      The general lesson survives and is the governing one of this loop: a sweep over raw text
-     can be satisfied — or defeated — by the very comment explaining it. */
-  background: #ffffff;
+     can be satisfied — or defeated — by the very comment explaining it.
+     ★ Session Z (#884 ③): the two literals became ONE role, `--surface-notice-card`
+     (light #ffffff · dark #0c1a4a in tokens.css). The reasoning above is why it is its OWN
+     role and not an alias of the bubble/pill/input tokens; the values did not move. */
+  background: var(--surface-notice-card);
   box-shadow: var(--elevation-2);
   /* ⚠ HISTORY, NOT INSTRUCTION (rewritten by the Session F audit). This surface once
      took the same --border-bubble-received hairline the received bubble carries
@@ -173,8 +176,10 @@
   /* ★ Session J (Damir: "dark midnight blue … with some elevation as well", no border):
      the #0c1a4a midnight stays, the rgba(118,157,255,.35) EDGE goes, and the dark
      --elevation-2 (0 2px 6px black .5) lifts it off the #10151e canvas. Reversal = the
-     inset edge in this comment. */
-  background: #0c1a4a;
+     inset edge in this comment.
+     ★ Session Z (#884 ③): the midnight is now the dark value of `--surface-notice-card`
+     (tokens.css), so this rule no longer repaints the ground — it keeps only the dark
+     elevation. */
   box-shadow: var(--elevation-2);
 }
 
@@ -197,5 +202,5 @@
   /* ★ Session J: on the wash too the card is WHITE + elevation (Damir, no per-ground
      family any more — a white card is lighter than any ground it can sit on). The
      rule stays as the reversal hook for a ground-tinted card (#eaf0fa). */
-  background: #ffffff; /* sanctioned: same literal, same reasoning as the base card rule above (#46 C3) */
+  background: var(--surface-notice-card); /* ★ Session Z (#884 ③): the same role as the base card rule */
 }

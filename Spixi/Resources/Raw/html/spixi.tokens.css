@@ -58,6 +58,18 @@
          surface reads as the same family as the accent instead of a neutral grey.
      Reference points: WhatsApp #0b141a is hsl(204, 40%, 7%), Telegram #17212b is
      hsl(210, 30%, 13%) — this ramp lands on Telegram's saturation exactly. */
+  /* ★ Session Z (#884 ②, Damir on the Y walk: the dark chooser cards "seem to have a random
+     colour"): the ramp stopped at 700, so every dark surface that reads neutral-500/600 —
+     the sheet card (#870), the card hover/pressed pair (#878), the composer-pill outline,
+     the disabled fills — stayed GREY (#31343a / #292d33) on an ink-700 sheet: a HUE break,
+     not a random pick. Two more steps by the SAME rule (lightness held to the decimal,
+     S 30 % at 217°; the method reproduces 700/800 exactly), and the dark block re-points
+     500/600 with the rest (measured: 216°, S 30–31 %). ⚠ #46 loop (A-1): HSL lightness is
+     held, RELATIVE LUMINANCE is not — raising saturation at a held L drops Y by ~9 % on both
+     steps, so every dark ratio built on 500/600 moved a little and was re-measured (the numbers
+     beside each consumer below are the post-② values; the suite recomputes them). */
+  --ink-500:  #253246;   /* was #31343a — L 21.0% held; Y 0.0341 → 0.0312 */
+  --ink-600:  #202b3c;   /* was #292d33 — L 18.0% held; Y 0.0259 → 0.0236 */
   --ink-700:  #19212f;   /* was #202328 — L 14.1% held */
   --ink-800:  #161d28;   /* was #1b1f23 — L 12.2% held */
   --ink-900:  #10151e;   /* was #13171b — L  9.0% held */
@@ -159,7 +171,8 @@
      (--font-display: topbar wordmark; hero brand moments opt in explicitly).
      Source Sans 3 RETIRES from the UI (face kept in base.css, nothing references
      it; shell preloads removed). Figma type mirror pending. */
-  --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-ui-native: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-ui: var(--font-ui-native);
   --font-display: "Sora", system-ui, sans-serif; /* brand wordmark/hero ONLY */
   --font-primary: var(--font-ui);               /* headings, display (was Sora) */
   --font-secondary: var(--font-ui);             /* body, labels (was Source Sans 3) */
@@ -518,6 +531,14 @@
      (1.20:1 against the canvas). */
   --surface-composer-pill: #ffffff;
   --outline-composer-pill: var(--neutral-200);
+  /* ★ Session Z (#884 ③): THE SECURE-CHAT NOTICE CARD gets its own role. system-notice.css
+     carried two sanctioned literals (light #ffffff · dark #0c1a4a, the Session J midnight)
+     because no existing role fits: the three tokens that ARE white in light (received bubble,
+     composer pill, input-on-card) are the wrong ROLES — the notice's whole point is to not
+     read as one more bubble, so aliasing them would couple what must stay apart. Its own
+     role keeps that reasoning and moves the theme flip into the tokens, where every other
+     theme flip lives. Values unchanged: the Session J renders still hold. */
+  --surface-notice-card: #ffffff;
   --surface-qr: var(--neutral-10);
   --on-qr: #131415; /* QR module ink — FIXED dark in both themes (scan contrast on the near-white card) */
   --surface-presence-online: var(--success-500);
@@ -744,6 +765,16 @@
   --outline-neutral-02: var(--neutral-200);
   --outline-neutral-03: var(--neutral-300);
   --outline-neutral-04: var(--neutral-400);
+  /* ★ Session Z (#884 ⑤ + #882 (b)): THE HAIRLINE INSIDE A CARD, one role for both themes.
+     A card is --surface-card (light neutral-50 / dark neutral-800), and no neutral-0N step
+     sits right on it in BOTH ramps: -01 is neutral-100 on 50 in light (1.04, fine as a
+     whisper) but neutral-800 on 800 in dark (1.00 — the Account hub's invisible dark
+     hairlines, #882 (b)); -03 is visible in dark (600 on 800, 1.22) but "much too visible in
+     light" (300 on 50, 1.42 — Damir on the Y walk). So the role picks its own step per
+     theme: light neutral-200 (1.137 on the card), dark neutral-600 (1.187 — ink on ink after
+     ②). Measured in the suite from the resolved primitives; consumers: chat-info's four lists +
+     the Account hub + the contacts picker's action rows. */
+  --outline-on-card: var(--neutral-200);
   --outline-neutral-inverse-01: var(--neutral-950);
   --outline-neutral-inverse-02: var(--neutral-800);
   --outline-neutral-disabled: var(--neutral-400);
@@ -767,6 +798,16 @@
   --outline-focus: var(--primary-600);
 }
 
+/* ★★ L15b / Session Z — THE FLAG FONT (flags.js installFlagFont, docs/flags-on-windows-brief.md).
+   `data-flag-font` is set on <html> ONLY by a device that cannot paint a flag emoji (the
+   canvas probe the picker's PNG fallback already uses — Windows/WebView2 in practice), and
+   only then does the flags-only Twemoji face lead the UI stack. Its @font-face is injected
+   at runtime with a `unicode-range` of the regional-indicator block, so it is consulted for
+   flags and nothing else; every other emoji stays Segoe's. A phone or a Mac never carries
+   the attribute — the family is not in its stack and the file is never fetched. The native
+   stack lives ONCE in --font-ui-native so this rule cannot drift from it. */
+:root[data-flag-font] { --font-ui: "Twemoji Country Flags", var(--font-ui-native); }
+
 [data-theme="dark"] {
   /* ★ DARK SURFACE SATURATION (Damir, 2026-08-22) — re-point the neutral ramp at the
      saturated ink-* steps. Done HERE, at the ramp, rather than on --surface-neutral-01
@@ -774,6 +815,8 @@
      topbar, bottombar, composer, input-on-card, inverse-01), and saturating one of them
      would have produced a patchwork where the chat canvas no longer matched the bars above
      and below it. One edit, every dark surface moves together, light mode untouched. */
+  --neutral-500: var(--ink-500);   /* ★ Session Z #884 ②: the two steps the ramp was missing */
+  --neutral-600: var(--ink-600);
   --neutral-700: var(--ink-700);
   --neutral-800: var(--ink-800);
   --neutral-900: var(--ink-900);
@@ -847,8 +890,8 @@
   --surface-sheet-card: var(--neutral-600);          /* ★ Session X: the sheet is neutral-700 — a card LIFTS in dark, it does not outline */
   --surface-sheet-card-hover: var(--neutral-500);
   --surface-sheet-card-pressed: var(--neutral-500);  /* the ramp has no step between 500 and 400 (400 is light) — pressed drops the shadow instead */
-  --surface-card-hover: var(--neutral-600);          /* ★ Session Y: 1.223:1 on the neutral-800 card (700 would be 1.048 — invisible) */
-  --surface-card-pressed: var(--neutral-500);        /* 1.357:1 */
+  --surface-card-hover: var(--neutral-600);          /* ★ Session Y: 1.187:1 on the neutral-800 card after #884 ② (was 1.223 on grey-600; 700 would be 1.048 — invisible) */
+  --surface-card-pressed: var(--neutral-500);        /* 1.309:1 (was 1.357) */
   --surface-bubble-sent: #2160c2;      /* ★ Session I (sheet 1d = A): was #1956b2 — matches --gradient-bubble-sent in both themes */
   /* ★★ AUG (Damir 2026-08-30, ON DEVICE): "incoming bubbles on dark mode need a bit more
      colour tuning so it stands out a bit more". MEASURED, and the number explains the
@@ -866,10 +909,11 @@
   --surface-bubble-received: #1e222b;  /* ★ N81 (#422) — Damir */
   --surface-input: var(--neutral-800);
   /* ★ Session H: the pill on the dark canvas — #1e222b (1.15:1 vs #10151e, the received
-     bubble's own number) + neutral-500 #31343a (1.47:1 vs the canvas, 1.28:1 vs the pill).
+     bubble's own number) + neutral-500 (ink-500 #253246 since #884 ②: 1.41:1 vs #10151e, 1.46 vs the #0D1117 chat canvas, 1.23:1 vs the pill; the grey #31343a read 1.47 / 1.28 vs #10151e / the pill).
      neutral-800/-700 were measured at 1.06/1.02 against the pill: not an edge. */
   --surface-composer-pill: #1e222b;
   --outline-composer-pill: var(--neutral-500);
+  --surface-notice-card: #0c1a4a;   /* ★ Session Z (#884 ③): the Session J midnight (N82(c): 84% sat, 1.140 vs the ground), unchanged */
   --surface-qr: var(--neutral-10); /* stays near-white: QR scan readability */
   --on-qr: #131415; /* module ink stays dark too — the QR pair never theme-flips */
   --surface-presence-online: var(--success-400);
@@ -988,6 +1032,7 @@
   --outline-neutral-02: var(--neutral-700);
   --outline-neutral-03: var(--neutral-600);
   --outline-neutral-04: var(--neutral-500);
+  --outline-on-card: var(--neutral-600);   /* ★ Session Z (#884 ⑤): 1.187 on the neutral-800 card (ink-600 on ink-800 after ②) — see the light block */
   --outline-neutral-inverse-01: var(--neutral-50);
   --outline-neutral-inverse-02: var(--neutral-200);
   --outline-neutral-disabled: var(--neutral-600);
@@ -1321,6 +1366,11 @@
      is text-neutral-01 (#131415) at 10%. */
   --surface-chat-glass: rgba(249, 250, 251, 0.58);
   --outline-chat-glass: rgba(19, 20, 21, 0.10);
+  /* ★ Session Z: the COMPOSER glass band's ground = the chat canvas at 72 % (the composer.css
+     dial, OFF by default). Its own role, NOT --surface-chat-glass: that pair is the day pill's
+     (Damir's B, --surface-screen at 55 % under the pill's own hairline) and the two must be
+     able to move apart — a band the full width of the screen and a chip are not one dial. */
+  --surface-composer-glass: rgba(228, 234, 243, 0.72);   /* = --chat-canvas-base #E4EAF3 @ .72 */
   --chat-canvas-base: #E4EAF3;   /* ★ Session J (#744/A14, Damir 2026-09-02: "light mode background: E4EAF3") — a cool blue-grey again, a step deeper than AUG's #ebf0f5; white bubbles measure 1.22:1 against it. Reversal = #EEECEF (Session I k2); before that #ebf0f5 (AUG) */
   /* ★★ AUG (Damir 2026-08-30, ON DEVICE): "the unread messages strip is not very visible,
      and the Today badge also". MEASURED, and it is a direct consequence of the new ground:
@@ -1598,6 +1648,7 @@
      ⚠ Supersedes the #701 ruling "leave the base at #0f1115" — which he made against a
      measurement about neutral01 LIGHTNESS, with no knowledge of the chrome adjacency. New
      information, not a re-opened argument. */
+  --surface-composer-glass: rgba(13, 17, 23, 0.72);  /* ★ Session Z: = --chat-canvas-base #0D1117 @ .72 (the composer band's own role, see light) */
   --chat-canvas-base: #0D1117;   /* ★ Session J (#758, Damir 2026-09-03: "on dark mode the chat canvas should be #0D1117 and make it a token") — a GitHub-dark neutral, a hair deeper and less blue than the #10151e chrome (ΔL* ≈ −1.3). Reversal = #10151e (= --surface-screen, Session H's three-option pick above) */
   /* ★ AUG: dark's ground did not move, so its chips keep the surface they had. Defined
      here so the token resolves in BOTH themes rather than inheriting light's near-white. */

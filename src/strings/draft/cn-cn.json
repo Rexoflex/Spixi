@@ -642,5 +642,7 @@
   "addContactScanLabel": "扫描 QR 码",
   "addContactScanHint": "对方的 QR 码需要显示在另一台设备上，以便您用这台设备扫描。",
   "addContactEnterLabel": "输入或粘贴 Spixi 地址",
-  "addContactEnterHint": "输入或粘贴对方的 Spixi 地址（例如 42Spox…M3rci98）。"
+  "addContactEnterHint": "输入或粘贴对方的 Spixi 地址（例如 42Spox…M3rci98）。",
+  "creditFlags": "国旗",
+  "sharedGroupsTitle": "共同的群组"
 }

@@ -1,6 +1,15 @@
 # Flag emojis on Windows — brief for a later session (2026-09-18)
 
 Damir's report: 🇸🇮 renders as the letters "SI" on Windows, while Slack shows the flag. Read, not built.
+
+> **STATUS 2026-09-18 — BUILT in Session Z (DECISIONS #888), on Damir's "build it fully".** Two things in this
+> brief did not survive the build: (a) a `@font-face` `url()` beside the shell is CORS-BLOCKED from a `file://`
+> document (Chromium serialises the file: origin as `null`), so the asset ships as a generated classic script
+> carrying a `data:` URL (`fonts/TwemojiCountryFlags.js`, from the committed woff2) — §2's "the browser fetches
+> the woff2" route is wrong for our shells; (b) the font is installed ONLY when the canvas probe says a flag does
+> NOT paint — not scoped to Windows by a platform flag — so a phone that paints flags never loads it. §5 step 1's
+> WebView2 check is the walk row (`docs/walk-artifact-session-z.html`); the container proved the route in
+> Chromium from `file://`, not in WebView2. The rest of the brief is the record of why.
 Everything below was discussed in Session V's wrap-up; the mechanism is stated so the session that builds
 it verifies rather than re-investigates (#215). Windows-only polish; sits AFTER the spare decision in the
 order of `next-session-prompt.md`.

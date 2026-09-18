@@ -607,7 +607,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) and (pointer: fine) { .c-scan__torch:hover { background: rgba(255, 255, 255, 0.2); } } /* sanctioned */
+@media (hover: hover) and (pointer: fine) { .c-scan__torch:hover { background: rgba(255, 255, 255, 0.2); } } /* sanctioned: a white wash on the fixed-dark camera overlay */
 .c-scan__torch[aria-pressed='true'] {
   background: #ffffff;              /* sanctioned: torch lit */
   color: #101214;                   /* sanctioned: matches the camera bed */
@@ -711,7 +711,13 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   border-radius: var(--radius-24) var(--radius-24) 0 0;
   box-shadow: var(--elevation-3);
   padding: var(--spacing-8) var(--spacing-16) var(--spacing-16);
-  padding-bottom: calc(var(--spacing-16) + var(--safe-bottom, 0px));
+  /* ★ Session Z (#884 ①, Damir on the Y walk: every sheet "feels too low", "maybe even
+     32px"): the foot is spacing-24 (was 16) ABOVE the safe region — the same 24 the
+     desktop dialog already used (`:root[data-desktop] .c-sheet` below), so one number
+     serves both presentations. Picked over 32: on a 3-button Android bar the sheet now
+     also carries the 48 px bar under it (AND-45), and 32 + 48 read as an empty shelf
+     (the two variants were rendered; 24 is his pick). The keyboard variant mirrors it. */
+  padding-bottom: calc(var(--spacing-24) + var(--safe-bottom, 0px));
   transform: translateY(100%);
   transition: transform var(--duration-200) var(--easing-accelerate);
   outline: none;
@@ -740,7 +746,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    separately further down this file. */
 :root:not([data-desktop]) .c-sheet {
   bottom: var(--kb-inset, 0px);
-  padding-bottom: calc(var(--spacing-16) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)));
+  padding-bottom: calc(var(--spacing-24) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)));   /* ★ Session Z #884 ①: 24, as the resting sheet */
   max-height: calc(100% - var(--kb-inset, 0px));
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -1006,6 +1012,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 <script>/* M13 (2026-09-08): the STATIC a11y labels below the boot line. They are in the markup so a screen reader has them on the FIRST paint, which is exactly why they could not be written as getStrings() calls — and so they were English in every locale. One walk over [data-sl-aria] relabels them from the dictionary as soon as the DOM exists; the English in the attribute stays as the fallback for a key the dictionary lacks. */
 (function(){function r(){for(var e of document.querySelectorAll('[data-sl-aria]')){var v=window.SL&&window.SL[e.dataset.slAria];if(v)e.setAttribute('aria-label',v);}}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',r,{once:true});else r();})();</script>
 <script src="spixi.bundle.js"></script>
+<script>/* ★ L15b (Session Z): the flag font — a device that cannot paint a flag emoji (Windows) gets the flags-only Twemoji face for the regional-indicator block, injected at runtime so the 78 KB is never inlined and never fetched on a phone; flags.js holds the mechanism. Unguarded on purpose: a missing export must fail loudly at boot, not fall silent. */window.Spixi.installFlagFont();</script>
 <script>
   /* —————————————————————————————————————————————————————————————————————————
    * Production Scan-QR shell — the redesigned ScanPage takeover wired to the

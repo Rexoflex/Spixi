@@ -8,6 +8,8 @@ Everything below already RAN — bundle · 18 shells · `build-shells --check` �
 and the FULL smoke suite in the container on this exact tree: **BASELINE OK — 4754 pass / the 2 KNOWN**. Every landed file's hash read back (#865).
 **No C# changed** — no `obj`/`bin` wipe, no Android rebuild of C#; the Raw/html assets are the change.
 
+**VERDICT (Damir, 2026-09-18 evening, Windows + Android): 15 P · 1 F · 0 N/A, Z.17 not marked; COMMITTED `09f379b1`.** The fail is **Z.5, the glass dial**: "looks ugly, there's a rectangle and cutoff for glass — maybe a gradient / reduced opacity, or even that not" → the backdrop-filter band is OUT (#891). Z.10 passed without a chooser pick — still open. **Three findings on the way, none a walk row:** ① contact details → **Message** returns to the CONTACT LIST instead of opening the chat; ② tapping a **shared group** row ("Groups you are both in") also returns to the contact list; ③ the **call strip is invisible** — during a call there is nothing to answer or decline with. All three → `docs/next-session-prompt.md` §1/§2, verify-first.
+
 ## 1 · The paste (PowerShell, repo root, one line at a time)
 
 ```powershell

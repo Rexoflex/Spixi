@@ -371,6 +371,28 @@ namespace SPIXI
          *
          * The parameter is GONE rather than left unused: an unused exclusion hook on a
          * sweep is an invitation to re-add exactly this bug. */
+#if ANDROID
+        /* ★ AND-45 (Session Y): the nav-bar inset can change at runtime — gesture ⇄ 3-button
+         * mode, a rotation that moves the bar to a side edge (never a keyboard round: the
+         * published value is keyboard-independent, MainActivity.publishBottomInset) — and the
+         * carrier is baked at generatePage time, so every LIVE shell gets the new value
+         * pushed. Same enumerator as the theme push (#421: one list, grown once), push-only,
+         * fenced per page; a page whose document has no `setInsetBottom` global is not in
+         * this list (mini-apps have no generated content). Called from the insets listener
+         * on the UI thread. */
+        public static void pushBottomInsetToAllPages(string dip)
+        {
+            List<SpixiContentPage> pages;
+            try { pages = getLiveShellPages(true); }
+            catch (Exception) { return; }
+            foreach (SpixiContentPage page in pages)
+            {
+                try { Utils.sendUiCommand(page, "setInsetBottom", dip); }
+                catch (Exception) { }
+            }
+        }
+#endif
+
         public static void pushThemeToAllPages()
         {
             string themeName = ThemeManager.getResolvedAppearanceName();

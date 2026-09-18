@@ -69,7 +69,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); // top-level: share
  *
  *     Spixi/Utils/ThemeManager.cs:97   `// instant-bg (src/shells/*: html{…` — the `/`+`*`
  *                                      of `src/shells/*` opened a 2 211-character comment
- *                                      that closed at the `*\/` of the AND-7b docblock,
+ *                                      that closed at the `*\/` of the AND-45 docblock,
  *                                      deleting 14 live lines: getResolvedAppearanceName,
  *                                      getSurfaceColorString and getSurfaceColor, whole.
  *                                      (getHeroColorString survives — it begins AFTER the
@@ -5584,8 +5584,8 @@ console.log('missing-bits Batch B — B2 pattern default · B3 tx-details shell 
     {
       const ma = rd('Spixi/Platforms/Android/MainActivity.cs');
       const listener = ma.slice(ma.indexOf('private class InsetsListener'));
-      ok(/vg\?\.SetPadding\(0, 0, 0, Math\.Max\(imeInsets\.Bottom, sysInsets\.Bottom\)\);/.test(listener),
-        '★ AND-7 (#401): the root view is NO LONGER padded at the top — the page tree, and every WebView with it, reaches y=0. That padding WAS the strip');
+      ok(/int imeLeg = imeInsets\.Bottom > 0 \? Math\.Max\(0, imeInsets\.Bottom - sysInsets\.Bottom\) : 0;\s*vg\?\.SetPadding\(0, 0, 0, imeLeg\);/.test(listener) && !/SetPadding\(0, [^0]/.test(listener),
+        '★ AND-7 (#401) → AND-45: the root view is padded at NEITHER edge — the top since #401, the bottom since AND-45 (only the keyboard\'s height ABOVE the bar stays native; the nav bar is --safe-bottom in CSS). The page tree reaches y=0 and the bottom edge');
       ok(/Math\.Max\(imeInsets\.Bottom, sysInsets\.Bottom\)/.test(listener),
         '★ AND-7: the BOTTOM padding is untouched — it carries the IME inset, and the Android keyboard behaviour was measured on exactly this mechanism (#334/AND-16). Moving it into CSS would double-pad the bottom nav or re-open that round');
       ok(/publishTopInset\(sysInsets\.Top \/ density\)/.test(listener)
@@ -5660,13 +5660,13 @@ console.log('missing-bits Batch B — B2 pattern default · B3 tx-details shell 
           .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
         ok(/protected override string systemBarSurfaceColorString\(\)/.test(hpBar)
           && /currentTab == "tab2"[\s\S]{0,200}?ThemeManager\.getHeroColorString\(\)/.test(hpBar),
-          '★ AND-7b: the WALLET tab reports the HERO colour, so its glyphs stay light over the dark hero (Damir\'s rule: wallet and launch always light, the rest follow the theme)');
+          '★ AND-45: the WALLET tab reports the HERO colour, so its glyphs stay light over the dark hero (Damir\'s rule: wallet and launch always light, the rest follow the theme)');
         const tabBranch = hpBar.slice(hpBar.indexOf('currentTab = current_url.Split'),
           hpBar.indexOf('else if (current_url.Equals("ixian:downloads"'));
         ok(tabBranch.length > 100 && /repaintOwnSystemBars\(\);/.test(tabBranch),
-          '★ AND-7b: the tab switch REPAINTS the bars. A tab change navigates nothing and closes no overlay, so without this the glyph colour would keep the previous tab\'s answer');
+          '★ AND-45: the tab switch REPAINTS the bars. A tab change navigates nothing and closes no overlay, so without this the glyph colour would keep the previous tab\'s answer');
         ok(/getHeroColorString/.test(rd('Spixi/Utils/ThemeManager.cs')),
-          '★ AND-7b: the hero colour has ONE definition, themed, mirroring tokens.css --surface-hero');
+          '★ AND-45: the hero colour has ONE definition, themed, mirroring tokens.css --surface-hero');
       }
       /* ★ AND-7c (#408, Damir F5 2026-08-19): the bar colour must be resolved LIVE.
        * `pageSurfaceColorString` is baked once at loadPage time, so after a theme change
@@ -5727,8 +5727,8 @@ console.log('missing-bits Batch B — B2 pattern default · B3 tx-details shell 
         ok(bare.length === 0,
           '★ AND-7: every --safe-top USE site carries the 0px fallback, so base.css\'s stated degradation holds by construction' + (bare.length ? ' — BARE: ' + bare.join(', ') : ''));
       }
-      ok(!/--safe-bottom|--android-inset-bottom/.test(base),
-        '★ AND-7: there is deliberately NO bottom twin — MainActivity still pads the root bottom (the IME inset), so a bottom variable would double-pad');
+      ok(/--safe-bottom: max\(env\(safe-area-inset-bottom, 0px\), var\(--android-inset-bottom, 0px\)\)/.test(base),
+        '★ AND-7 → AND-45: the bottom twin EXISTS now (base.css --safe-bottom) because MainActivity no longer pads the root bottom by the nav bar — only by the IME; the double-pad the old pin guarded against cannot happen (the listener publishes 0 while the keyboard is up)');
       /* ★ THE STRUCTURAL PIN: no site may reach for the raw top env() again. Android
        * reads 0 there, so a new raw site is invisible on the platform this fixes. */
       /* ★ #412 (Damir's 2026-08-19 log): NO source may contain an EMPTY carrier, even
@@ -6079,9 +6079,9 @@ console.log('#275 composer lock (legacy states) · #276 address-truncation sweep
   // The pending strip / request card REPLACE the composer, so they are the chat's
   // bottom-most chrome and must own the iOS home-indicator inset (#282 edge-to-edge).
   const chat288 = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
-  ok(/padding-block-end: calc\(var\(--spacing-12\) \+ env\(safe-area-inset-bottom, 0px\)\);/.test(chat288)
+  ok(/padding-block-end: calc\(var\(--spacing-12\) \+ var\(--safe-bottom, 0px\)\);/.test(chat288) && !/env\(safe-area-inset-bottom/.test(chat288)
     && /\.chat-request-pane > \.c-contact-request \{/.test(chat288),
-    '#288: the pending strip + request card own the iOS home-indicator inset');
+    '#288 → AND-45: the pending strip + request card own the home-indicator / nav-bar inset through --safe-bottom (iOS env() and the Android carrier resolve into the ONE variable)');
   // The #286 wrap escalation latched data-compact from the PRE-wrap measurement, so a
   // wrapped pill rendered a lone ⓘ with its line otherwise blank (the affordance's NAME
   // invisible — the whole point of #98).
@@ -6399,8 +6399,8 @@ console.log('F5 fix batch (#301) — F1/F2/F3/iOS-29 attempt 4');
     'iOS-29: <body> is NEVER resized — that was the lever #294 proved wrong three times (double-topbar artifact, shipped no-op)');
   ok(/setProperty\('--kb-inset'/.test(chat),
     'iOS-29: the keyboard overlap is published as --kb-inset from visualViewport');
-  ok(/margin-bottom: max\(0px, calc\(var\(--kb-inset, 0px\) - env\(safe-area-inset-bottom, 0px\)\)\)/.test(chat),
-    'iOS-29: the composer margin re-uses the safe-area cushion as keyboard clearance and clamps to 0 closed — env() stays FULL with the keyboard up (#294 measurement)');
+  ok(/margin-bottom: max\(0px, calc\(var\(--kb-inset, 0px\) - var\(--safe-bottom, 0px\)\)\)/.test(chat),
+    'iOS-29 → AND-45: the composer margin re-uses the safe-area cushion (--safe-bottom) as keyboard clearance and clamps to 0 closed — on iOS env() stays FULL with the keyboard up (#294 measurement); on Android the carrier reads 0 with the keyboard up, so the clamp holds by the listener');
   ok(/if \(vv\.offsetTop \|\| window\.scrollY\) window\.scrollTo\(0, 0\);/.test(chat),
     'iOS-29: the pan reset stays — scrollTo(0,0) is the half #283 PROVED works; only the resize half changed lever');
 }
@@ -6741,12 +6741,12 @@ console.log('#314 — polish batch (selectability · mention pill · toast/CTA �
   /* toast + CTA safe-area (Damir screenshots) */
   ok(/toast\.css/.test(settingsSh),
     '#314 toast: settings.html links toast.css — the "Settings saved" toast rendered UNSTYLED in document flow under the bottom bar (the screenshot bug was a missing stylesheet, not z-index)');
-  ok(/bottom: calc\(var\(--layout-bar-bottom\) \+ env\(safe-area-inset-bottom, 0px\) \+ var\(--spacing-16\)\)/.test(toastCss),
-    '#314 toast: the styled toast clears the SAFE-AREA-tall iOS bottom bar (64px token vs 64+env real height)');
-  ok(/c-encpass__footer \{[\s\S]{0,400}?padding-bottom: calc\(var\(--spacing-12\) \+ env\(safe-area-inset-bottom, 0px\)\)/.test(lockCss),
-    '#314 CTA: the Change-password footer clears the iOS home indicator (launch-shell canonical pattern)');
-  ok(/c-contacts__footer \{[\s\S]{0,400}?padding-bottom: calc\(var\(--spacing-12\) \+ env\(safe-area-inset-bottom, 0px\)\)/.test(contactsCss),
-    '#314 CTA: the Add-contact footer had the IDENTICAL latent bug — swept with the same pattern');
+  ok(/bottom: calc\(var\(--layout-bar-bottom\) \+ var\(--safe-bottom, 0px\) \+ var\(--spacing-16\)\)/.test(toastCss),
+    '#314 toast → AND-45: the styled toast clears the SAFE-AREA-tall bottom bar on BOTH platforms (64px token vs 64+inset real height) through --safe-bottom');
+  ok(/c-encpass__footer \{[\s\S]{0,400}?padding-bottom: calc\(var\(--spacing-12\) \+ var\(--safe-bottom, 0px\)\)/.test(lockCss),
+    '#314 CTA → AND-45: the Change-password footer clears the home indicator / nav bar through --safe-bottom (launch-shell canonical pattern)');
+  ok(/c-contacts__footer \{[\s\S]{0,400}?padding-bottom: calc\(var\(--spacing-12\) \+ var\(--safe-bottom, 0px\)\)/.test(contactsCss),
+    '#314 CTA → AND-45: the Add-contact footer had the IDENTICAL latent bug — swept with the same pattern, now on --safe-bottom');
 
   /* iOS-47 — Sora scoped to the wordmark */
   ok(!/\.c-topbar\[data-variant="root"\] \.c-topbar__title \{[^}]*font-display/.test(topbarCss)
@@ -7166,8 +7166,8 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   const mvcss337 = readFileSync(join(root, 'src/styles/components/media-viewer.css'), 'utf8');
   ok(/c-mviewer__foot/.test(mv337) && /c-mviewer__close/.test(mv337),
     '#337 iOS-65: the viewer close is the bottom-centered foot button');
-  ok(/safe-area-inset-bottom/.test(mvcss337) && /var\(--safe-top, 0px\)/.test(mvcss337),
-    '#337 iOS-65: viewer foot + bar carry the safe-area insets (the top-bar ✕ sat under the iOS status bar) — ★ AND-7 (#401) routes the TOP one through --safe-top, since a raw env() reads 0 on Android');
+  ok(/var\(--safe-bottom, 0px\)/.test(mvcss337) && /var\(--safe-top, 0px\)/.test(mvcss337) && !/env\(safe-area-inset/.test(mvcss337),
+    '#337 iOS-65: viewer foot + bar carry the safe-area insets (the top-bar ✕ sat under the iOS status bar) — ★ AND-7 (#401) routes the TOP one through --safe-top and AND-45 the BOTTOM one through --safe-bottom, since a raw env() reads 0 on Android');
   // W1: the bundle-less empty_detail stub DECODES args (base64 bridge convention);
   // contact_details gained its missing setTheme handler.
   const ed337 = readFileSync(join(root, 'src/shells/empty_detail.html'), 'utf8');
@@ -8045,7 +8045,12 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      shows. Removing that link + the dead call is the honest #345 saving (≈ 2.4 ms at the
      measured rate) and it is Damir's call, listed in the Session Y handoff — not folded
      into a batch about a different screen. Headroom after the raise: 500 chars. */
-  const CHAT_KB_CEIL = 684, INDEX_KB_CEIL = 528;
+  /* ★ AND-45 (Session Y, the #46 loop fixes): 684 → 686, delta stated. The built chat.html
+     measured 700 920 chars — 504 OVER 684 KB: base.css (inlined in every shell) grew by the
+     --safe-bottom docblock, and chat.html by the keyboard-slot correction + its note. ≈ 0.1 ms
+     of parse. The dead #249 takeover above is still the number that matters (Damir's dial).
+     Headroom after this raise: 1 544 chars. */
+  const CHAT_KB_CEIL = 686, INDEX_KB_CEIL = 528;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -14240,9 +14245,9 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
      * seed map, ThemeManager.loadTheme calls it during App startup before any page
      * exists, and loadLanguage re-merges customStrings on every language change. So it
      * cannot log the "Unknown localization key" this pin was written to stop. */
-    ok(carriers.length === 4
-      && carriers.join(',') === '*SL{AndroidInsetTop},*SL{LockAuthPending},*SL{SpixiThemeName},*SL{language-code}',
-      '★ N83: the BUILT lock shell carries exactly the four keys the lock page resolves. Pinned on the built artifact, not the source, because that is the file C# actually substitutes — and pinned as a SET so the next stray carrier is caught rather than the one we happened to find');
+    ok(carriers.length === 5
+      && carriers.join(',') === '*SL{AndroidInsetBottom},*SL{AndroidInsetTop},*SL{LockAuthPending},*SL{SpixiThemeName},*SL{language-code}',
+      '★ N83 (+AND-45): the BUILT lock shell carries exactly the FIVE keys the lock page resolves. Pinned on the built artifact, not the source, because that is the file C# actually substitutes — and pinned as a SET so the next stray carrier is caught rather than the one we happened to find');
   }
 }
 
@@ -17439,7 +17444,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   /* r3 (loop E-1): the safe-region + own-scroller cap — a menu that outgrows the
      host with body scroll locked is unreachable UI, and top=8 puts the react row
      under the Dynamic Island (the #288 inset class). */
-  ok(/\.c-sheet\[data-m-anchor\] \{[^}]*max-height: calc\(100% - var\(--safe-top, 0px\) - env\(safe-area-inset-bottom, 0px\)[^}]*overflow-y: auto/.test(ovCssE),
+  ok(/\.c-sheet\[data-m-anchor\] \{[^}]*max-height: calc\(100% - var\(--safe-top, 0px\) - var\(--safe-bottom, 0px\)[^}]*overflow-y: auto/.test(ovCssE),
     '★★ Batch E (a) r3 (E-1) CSS: [data-m-anchor] caps its height inside the SAFE region and scrolls itself');
   {
     const fnE1 = readFileSync(join(root, 'src/components/desktop-anchors.js'), 'utf8');
@@ -17452,9 +17457,9 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        function is the regression. */
     ok(/padding-top:' \+ expr/.test(body) && /getComputedStyle\(probe\)\.paddingTop/.test(body)
        && /resolvePx\('var\(--safe-top, 0px\)'\)/.test(body)
-       && /resolvePx\('env\(safe-area-inset-bottom, 0px\)'\)/.test(body)
+       && /resolvePx\('var\(--safe-bottom, 0px\)'\)/.test(body)
        && !/getPropertyValue\('--safe-top'\)/.test(body),
-      '★★ Batch E (a) r3 (R-1): the safe insets are RESOLVED through a probe element (computed padding-top → px), never getPropertyValue-parsed — top AND bottom');
+      '★★ Batch E (a) r3 (R-1): the safe insets are RESOLVED through a probe element (computed padding-top → px), never getPropertyValue-parsed — top AND bottom (both through the --safe-* variables since AND-45, so the Android carrier reaches the anchor math too)');
     ok(/const minTop = safeTop \+ M_GAP;/.test(body) && /const maxBottom = host2\.height - M_GAP - safeBottom;/.test(body)
        && /if \(above >= minTop\)/.test(body) && /top = Math\.max\(minTop, maxBottom - h\)/.test(body),
       '★★ Batch E (a) r3 (E-1) JS: every vertical placement is bounded by minTop (safe-top floor) and maxBottom (safe-bottom ceiling) — no branch can land under an inset');
@@ -19519,8 +19524,8 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ok(/:root:not\(\[data-desktop\]\) \.c-sheet \{[^}]*bottom: var\(--kb-inset, 0px\)/.test(ovl608)
        && /:root:not\(\[data-desktop\]\) \.c-sheet \{[^}]*max-height: calc\(100% - var\(--kb-inset, 0px\)\)/.test(ovl608),
       '★★ #608 (device row 5a): a bottom sheet RISES for the keyboard and is capped so it can scroll. With the pad up only the tip sheet\'s title row was visible — the amount field it had just focused itself, and the button that commits the payment, were both underneath it');
-    ok(/max\(0px, env\(safe-area-inset-bottom, 0px\) - var\(--kb-inset, 0px\)\)/.test(ovl608),
-      '★ #608: the home-indicator pad is handed back while the keyboard covers that strip anyway — otherwise the sheet floats twice');
+    ok(/max\(0px, var\(--safe-bottom, 0px\) - var\(--kb-inset, 0px\)\)/.test(ovl608),
+      '★ #608 → AND-45: the home-indicator / nav-bar pad (--safe-bottom) is handed back while the keyboard covers that strip anyway — otherwise the sheet floats twice');
     ok(/\.wallet-takeover__body \{[^}]*padding-bottom: calc\(var\(--spacing-16\) \+ var\(--kb-inset, 0px\)\)/.test(stripCssComments(homeSh608)),
       '★★ #608 (device row 5b): the wallet takeover reserves the keyboard height as scroll padding — a `position: fixed; inset: 0` takeover keeps full height under an iOS keyboard, so Review and the recipient list were simply unreachable');
     ok(/\.c-launch__footer \{[^}]*margin-bottom: var\(--kb-inset, 0px\)/.test(lsCss608)
@@ -24372,9 +24377,9 @@ console.log('Session J: the seven walk fixes · Damir\'s evening rulings · the 
   {
     const ch = rdF('src/shells/chat.html');
     ok(/const KB_SLOT_KEY = 'spixi\.kb\.slot';/.test(ch) && /function rememberKbSlot\(px\)/.test(ch) && /if \(!\(px >= 160 && px <= 600\)\) return;/.test(ch)
-       && /if \(shrank\) rememberKbSlot\(lastIH - ih\);/.test(ch) && /if \(px > 60\) rememberKbSlot\(px\);/.test(ch)
+       && /if \(shrank\) rememberKbSlot\(lastIH - ih \+ androidInsetBottomPx\(\)\);/.test(ch) && /if \(px > 60\) rememberKbSlot\(px\);/.test(ch)
        && /\.c-attach-tray\[data-open\] \{ height: var\(--kb-slot-h, 268px\); \}/.test(rdF('src/styles/components/attach-sheet.css')),
-      '★ Session J: the attach tray\'s open height is --kb-slot-h — the keyboard\'s own MEASURED height (Android: the adjustResize shrink; iOS: the native inset push), clamped 160–600, persisted per device, 268 until a keyboard has been seen — so the tray ↔ keyboard swap cannot move the bar by the difference');
+      '★ Session J: the attach tray\'s open height is --kb-slot-h — the keyboard\'s own MEASURED height (Android: the adjustResize shrink + the nav-bar inset the root no longer pads, ★ AND-45; iOS: the native inset push), clamped 160–600, persisted per device, 268 until a keyboard has been seen — so the tray ↔ keyboard swap cannot move the bar by the difference');
     const kbtray = (stripCode(ch).match(/\[KBTRAY\]/g) || []).length;   /* code only — the comment names the set once more */
     ok(kbtray === 5 && /\[KBTRAY\] resize ih=/.test(ch) && /\[KBTRAY\] hold ih=/.test(ch) && /\[KBTRAY\] drop by=/.test(ch) && /\[KBTRAY\] open ih=/.test(ch) && /\[KBTRAY\] reveal by=/.test(ch)
        && (stripCode(rdF('Spixi/Resources/Raw/html/chat.html')).match(/\[KBTRAY\]/g) || []).length === 5,
@@ -25091,7 +25096,7 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
     const rebaseAt = chNC2.indexOf('if (shapeChanged) { lastIW = iw; lastAng = ang; }', guardAt);
     const editableAt = chNC2.indexOf('const editable = kbEditableFocused();', handlerAt);
     const shrankAt = chNC2.indexOf('const shrank = editable && !shapeChanged && ih < lastIH - 60;', handlerAt);
-    const rememberAt = chNC2.indexOf('if (shrank) rememberKbSlot(lastIH - ih);', handlerAt);
+    const rememberAt = chNC2.indexOf('if (shrank) rememberKbSlot(lastIH - ih + androidInsetBottomPx());', handlerAt);   // ★ AND-45: + the nav-bar inset (the root pads ime − navBar now)
     const kbUpAt = chNC2.indexOf('if (shrank) kbUp = true;', handlerAt);
     const handlerBody = handlerAt > 0 ? chNC2.slice(handlerAt, chNC2.indexOf('if (shrank && wasAtBottom) stickDuring(500);', handlerAt)) : '';
     ok(androidAt > 0 && handlerAt > androidAt && guardAt > handlerAt && rebaseAt > guardAt
@@ -25184,7 +25189,7 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
       let drive = null;
       try {
         const runResize = new Function('env',
-          'let { kbUp, lastIH, lastIW, lastAng, wasAtBottom, window, console, performance, kbSlotWidth, kbOrientationAngle, kbEditableFocused, rememberKbSlot, stickDuring } = env;\n'
+          'let { kbUp, lastIH, lastIW, lastAng, wasAtBottom, window, console, performance, kbSlotWidth, kbOrientationAngle, kbEditableFocused, rememberKbSlot, stickDuring, androidInsetBottomPx } = env;\n'
           + body + '\nreturn { kbUp, lastIH, lastIW, lastAng };');
         drive = (o) => {
           const slot = [], stick = [];
@@ -25196,6 +25201,7 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
                here, because this harness is about the HANDLER; the shipped function itself is
                evaluated by the r4 R4-2 pin above, which is what makes the stub honest */
             rememberKbSlot: (px) => slot.push(px), stickDuring: (ms) => stick.push(ms),
+            androidInsetBottomPx: () => o.navBar || 0,   /* ★ AND-45: the nav-bar inset the shell carries; 0 in every case that predates it */
           });
           return { ...r, slot, stick };
         };
@@ -25209,6 +25215,9 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
            keyboard from a window resize under Android adjustResize, where the two are the
            same event shape. */
         const kbOpen = drive({ ...P, kbUp: false, ih: 451, iw: 1080, ang: 0, focused: true });
+        /* ★ AND-45: the same keyboard on a 48px 3-button bar. The root pads (ime − navBar), so the
+           shrink is 275 for a 323px keyboard — the slot must still be the FULL 323. */
+        const kbOpenBar = drive({ ...P, kbUp: false, ih: 499, iw: 1080, ang: 0, focused: true, navBar: 48 });
         const kbShut = drive({ lastIH: 451, lastIW: 1080, lastAng: 0, kbUp: true, ih: 774, iw: 1080, ang: 0, focused: false });
         /* the system Back key hides the IME WITHOUT moving focus: only the grow says so */
         const kbShutBackKey = drive({ lastIH: 451, lastIW: 1080, lastAng: 0, kbUp: true, ih: 774, iw: 1080, ang: 0, focused: true });
@@ -25233,6 +25242,7 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
         ok(/* the keyboard, unchanged shape, an editable focused: latch, sample its exact
               height, hold the bottom */
            kbOpen.kbUp === true && kbOpen.slot.join() === '323' && kbOpen.stick.join() === '500'
+           && kbOpenBar.kbUp === true && kbOpenBar.slot.join() === '323'
            /* the keyboard leaving, unchanged shape: clear, no sample — by focus AND by grow */
            && kbShut.kbUp === false && kbShut.slot.length === 0
            && kbShutBackKey.kbUp === false && kbShutBackKey.slot.length === 0
@@ -33251,6 +33261,112 @@ console.log('★ Session Y — contact details, the premium pass (#873/#875/#876
   ok(/--surface-card-hover: var\(--neutral-200\);/.test(tokAll) && /--surface-card-pressed: var\(--neutral-300\);/.test(tokAll)
      && /--surface-card-hover: var\(--neutral-600\);/.test(tokAll) && /--surface-card-pressed: var\(--neutral-500\);/.test(tokAll),
     '★ Session Y: the --surface-card-hover/-pressed pair is defined in BOTH modes (light 200/300 · dark 600/500) beside the #870 sheet pair');
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════
+ * ★ AND-45 (Session Y, 2026-09-18) — THE TRANSPARENT NAV BAR UNDER THE COMPOSER: the bottom
+ * half of AND-7 (#396/#401). MainActivity pads the IME leg only; the nav-bar inset travels as
+ * *SL{AndroidInsetBottom} + `setInsetBottom` into `--android-inset-bottom`, and base.css folds
+ * it into `--safe-bottom` beside env(). Pins are PROPERTIES over stripped source (#771):
+ * the mechanism, both ends of the wire, and a WALK over every use site (no list, #798).
+ * ══════════════════════════════════════════════════════════════════════════════════ */
+console.log('★ AND-45 — the bottom inset travels into the shells');
+{
+  const baseS = stripCssComments(readFileSync(join(root, 'src/styles/base.css'), 'utf8'));
+  ok(/:root \{ --safe-bottom: max\(env\(safe-area-inset-bottom, 0px\), var\(--android-inset-bottom, 0px\)\); \}/.test(baseS)
+     && /:root \{ --safe-top: max\(env\(safe-area-inset-top, 0px\), var\(--android-inset-top, 0px\)\); \}/.test(baseS),
+    '★ AND-45: base.css defines --safe-bottom as max(env, --android-inset-bottom) — the mirror of --safe-top');
+  /* THE WALK: every stylesheet and every shell — no env(safe-area-inset-bottom) survives outside
+     the one root rule; a site that still reads env() paints under the bar on Android. */
+  const stray = [];
+  const cssFiles = readdirSync(join(root, 'src/styles/components')).filter((f) => f.endsWith('.css')).map((f) => 'src/styles/components/' + f)
+    .concat(readdirSync(join(root, 'src/styles')).filter((f) => f.endsWith('.css')).map((f) => 'src/styles/' + f));
+  for (const f of cssFiles) {
+    const t = stripCssComments(readFileSync(join(root, f), 'utf8')).replace(/:root \{ --safe-bottom: max\(env\(safe-area-inset-bottom, 0px\)[^}]*\}/, '');
+    if (/env\(safe-area-inset-bottom/.test(t)) stray.push(f);
+  }
+  const shellFiles = readdirSync(join(root, 'src/shells')).filter((f) => f.endsWith('.html'));
+  let heads = 0;
+  for (const f of shellFiles) {
+    const raw = readFileSync(join(root, 'src/shells', f), 'utf8');
+    const styles = [...raw.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/g)].map((m) => stripCssComments(m[1])).join('\n');
+    if (/env\(safe-area-inset-bottom/.test(styles)) stray.push('src/shells/' + f);
+    if (/style="[^"]*env\(safe-area-inset-bottom/.test(raw)) stray.push('src/shells/' + f + ' (style attr)');
+    const scripts = [...raw.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]).join('\n');
+    /* the exact head text, as a STRING (a regex of a regex is how a pin stops matching what it reads) */
+    const HEAD_B = "function b(v){if(/^\\d{1,3}(\\.\\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-bottom',v+'px');}b('*SL{AndroidInsetBottom}');window.setInsetBottom=b;";
+    if (scripts.includes(HEAD_B)) heads += 1;
+  }
+  for (const f of readdirSync(join(root, 'src/components')).filter((f) => f.endsWith('.js'))) {
+    if (/env\(safe-area-inset-bottom/.test(stripCode(readFileSync(join(root, 'src/components', f), 'utf8')))) stray.push('src/components/' + f);
+  }
+  ok(stray.length === 0 && (baseS.match(/var\(--safe-bottom, 0px\)/g) || []).length >= 1,
+    '★ AND-45 WALK: no stylesheet under src/styles, shell <style> or style attribute, or component script reads env(safe-area-inset-bottom) directly — every bottom-anchored site reads var(--safe-bottom) (stray: ' + (stray.join(', ') || 'none') + ')');
+  ok(shellFiles.length >= 18 && heads === shellFiles.length,
+    '★ AND-45: EVERY shell head (' + heads + '/' + shellFiles.length + ') validates the value as a plain number, writes the *SL{AndroidInsetBottom} carrier into --android-inset-bottom BEFORE first paint, and then exposes that same setter as window.setInsetBottom for the live push (an undefined bare global would throw before the dispatcher — #258)');
+  /* THE C# END, both halves, on stripped source */
+  const rdCs = (f) => stripCode(readFileSync(join(root, f), 'utf8'));
+  const main = rdCs('Spixi/Platforms/Android/MainActivity.cs');
+  const listenerCs = main.slice(main.indexOf('private class InsetsListener'));
+  ok(/int imeLeg = imeInsets\.Bottom > 0 \? Math\.Max\(0, imeInsets\.Bottom - sysInsets\.Bottom\) : 0;\s*vg\?\.SetPadding\(0, 0, 0, imeLeg\);/.test(listenerCs)
+     && !/SetPadding\(0, 0, 0, (imeInsets\.Bottom|Math\.Max\(imeInsets)/.test(listenerCs),
+    '★★ AND-45 (#46 loop MAJOR-3): the root content view pads the keyboard\'s height ABOVE THE BAR (ime − navBar) and nothing else — the #334/AND-16 adjustResize mechanism stays, and the two legs (root + the shell\'s constant --safe-bottom) add up to the IME with the keyboard up and to the bar with it down, so the composer never jumps by a bar height when the push lands late');
+  ok(/publishBottomInset\(sysInsets\.Bottom \/ density, true\);/.test(listenerCs) && !/publishBottomInset\(imeInsets/.test(main),
+    '★★ AND-45 (#46 loop MAJOR-2/3): the PUBLISHED value is the nav-bar inset and is KEYBOARD-INDEPENDENT — never an "effective 0 while the IME is up", which had to be pushed through the bridge frames after the root re-laid out and was captured stale by a mini-app page');
+  /* the publisher body, as a property: carrier first (a page generated after this bakes the value even
+     when the push is deduped), the dedupe on the last PUSHED string, and the estimate path priming it. */
+  const pub = main.slice(main.indexOf('internal static void publishBottomInset'), main.indexOf('internal static void publishTopInset'));
+  ok(/BottomInsetDip = dip;/.test(pub)
+     && pub.indexOf('SpixiLocalization.addCustomString("AndroidInsetBottom", v);') < pub.indexOf('UIHelpers.pushBottomInsetToAllPages(v);')
+     && /if \(pushLive && v != lastBottomPublished\)\s*\{\s*lastBottomPublished = v;\s*UIHelpers\.pushBottomInsetToAllPages\(v\);/.test(pub)
+     && /else if \(!pushLive\)\s*\{\s*lastBottomPublished = v;/.test(pub)
+     && /if \(dip < 0 \|\| double\.IsNaN\(dip\) \|\| double\.IsInfinity\(dip\)\)\s*\{\s*return;/.test(pub),
+    '★ AND-45: publishBottomInset stores the dip, writes the CARRIER before it pushes, pushes only on a CHANGE of the published string, primes the dedupe from the estimate path, and refuses a negative/NaN/∞ value');
+  ok(/Window\?\.SetNavigationBarColor\(Android\.Graphics\.Color\.Transparent\);/.test(main)
+     && /if \(OperatingSystem\.IsAndroidVersionAtLeast\(29\) && Window != null\)\s*\{\s*Window\.NavigationBarContrastEnforced = false;/.test(main),
+    '★★ AND-45 (#46 loop MAJOR-4): the OS contrast scrim under a transparent nav bar is switched OFF on API 29+ — without it 3-button devices paint a translucent band over the surface the shells now own, and the "transparent bar" is a colour change, not a removal');
+  ok(/\{ "AndroidInsetBottom", "0" \}/.test(rdCs('Spixi/Lang/SpixiLocalization.cs')),
+    '★ AND-45: AndroidInsetBottom is SEEDED "0" so iOS/Mac/Windows resolve the carrier cleanly (the #401 rule)');
+  const scp = rdCs('Spixi/Utils/SpixiContentPage.cs');
+  ok(/new Thickness\(0, MainActivity\.TopInsetDip, 0, MainActivity\.BottomInsetDip\)/.test(scp)
+     && /Utils\.sendUiCommand\(this, "setInsetBottom",\s*MainActivity\.BottomInsetDip\.ToString/.test(scp),
+    '★ AND-45: a mini-app page keeps NATIVE bottom padding (third-party content is told nothing); a generated page gets setInsetBottom on every chrome pass beside setInsetTop');
+  const uih = rdCs('Spixi/Utils/UIHelpers.cs');
+  ok(/public static void pushBottomInsetToAllPages\(string dip\)/.test(uih) && /getLiveShellPages\(true\)/.test(uih.slice(uih.indexOf('pushBottomInsetToAllPages'), uih.indexOf('pushBottomInsetToAllPages') + 900))
+     && /sendUiCommand\(page, "setInsetBottom", dip\)/.test(uih),
+    '★ AND-45: the live push walks the ONE enumerator (#421 getLiveShellPages(true)) — no second list of surfaces to drift');
+  const mapp = rdCs('Spixi/Platforms/Android/MainApplication.cs');
+  ok(/GetIdentifier\("config_navBarInteractionMode", "integer", "android"\)/.test(mapp)
+     && /mode == 2 \? \(Resources\?\.GetIdentifier\("navigation_bar_gesture_height", "dimen", "android"\) \?\? 0\) : 0/.test(mapp)
+     && /if \(idB <= 0\)\s*\{\s*idB = Resources\?\.GetIdentifier\("navigation_bar_height", "dimen", "android"\) \?\? 0;/.test(mapp)
+     && /publishBottomInset\(\(Resources\?\.GetDimensionPixelSize\(idB\) \?\? 0\) \/ density, false\)/.test(mapp),
+    '★ AND-45 (#46 loop minor-5): the bootstrap ESTIMATE lands before the first document is generated (the #401 rule) and reads the GESTURE height when the interaction mode says gesture — navigation_bar_height is the 48dp 3-button bar and would settle the first document down by ~24dp one hop after first paint');
+  /* ★ AND-45 (#46 loop): the chat shell's keyboard slot is the keyboard's FULL height. */
+  const chatKb = stripCode(readFileSync(join(root, 'src/shells/chat.html'), 'utf8'));
+  ok(/if \(shrank\) rememberKbSlot\(lastIH - ih \+ androidInsetBottomPx\(\)\);/.test(chatKb)
+     && /function androidInsetBottomPx\(\) \{[^}]*getPropertyValue\('--android-inset-bottom'\)/.test(chatKb),
+    '★★ AND-45 (Session J invariant): the Android keyboard slot adds the nav-bar inset back onto the innerHeight shrink — the root now pads (ime − navBar), the tray\'s height is the FULL keyboard (its own --safe-bottom pad is inside it), so the bar sits at one screen edge under keyboard and tray alike');
+  /* ★ AND-45 (#46 loop MAJOR-1 + false-green ①): the positive property. Every rule that is
+     bottom-most CHROME — position sticky/fixed with a zero bottom — carries --safe-bottom in
+     that same rule. A full-screen host (inset: 0) is not chrome: its children carry it. Desktop-
+     scoped rules ([data-desktop]) have no inset. Enumerated by property, not by list (#798). */
+  const chromeMissing = [];
+  const ruleWalk = (src, tag) => {
+    for (const m of src.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const sel = m[1].trim().replace(/\s+/g, ' '), body = m[2];
+      if (!/position:\s*(fixed|sticky)/.test(body)) continue;
+      if (!/(^|;|\s)(bottom|inset-block-end):\s*0(px)?\s*(;|$)/.test(body)) continue;
+      if (/\[data-desktop\]/.test(sel)) continue;
+      if (!/--safe-bottom/.test(body)) chromeMissing.push(tag + ' ' + sel.slice(0, 60));
+    }
+  };
+  for (const f of cssFiles) ruleWalk(stripCssComments(readFileSync(join(root, f), 'utf8')), f);
+  for (const f of shellFiles) {
+    const raw = readFileSync(join(root, 'src/shells', f), 'utf8');
+    ruleWalk([...raw.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/g)].map((m) => stripCssComments(m[1])).join('\n'), 'src/shells/' + f);
+  }
+  ok(chromeMissing.length === 0,
+    '★★ AND-45 WALK (positive): every sticky/fixed rule anchored at bottom 0 in the stylesheets and shell <style>s carries --safe-bottom in that rule — the sticky Install bar (apps-details) was fine on Android only because the root padded it (missing: ' + (chromeMissing.join(' · ') || 'none') + ')');
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

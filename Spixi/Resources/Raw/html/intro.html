@@ -17,7 +17,7 @@
      (SpixiLocalization), so --safe-top collapses to env() exactly as before; an
      UNRESOLVED marker also fails the numeric test and leaves the variable unset.
      The value is validated as a plain number before it reaches a style property. -->
-<script>(function(){function a(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-top',v+'px');}a('*SL{AndroidInsetTop}');window.setInsetTop=a;})();</script>
+<script>(function(){function a(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-top',v+'px');}a('*SL{AndroidInsetTop}');window.setInsetTop=a;function b(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-bottom',v+'px');}b('*SL{AndroidInsetBottom}');window.setInsetBottom=b;})();</script>
 <!-- ★ L5 (Damir, 2026-08-31): "while the phone is in dark theme, the terms/languages/
      privacy sheet is in light mode. I think it should follow the phone theme."
      ROOT CAUSE, read at source: of the eighteen shells, this one and lock.html were the
@@ -710,7 +710,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   border-radius: var(--radius-24) var(--radius-24) 0 0;
   box-shadow: var(--elevation-3);
   padding: var(--spacing-8) var(--spacing-16) var(--spacing-16);
-  padding-bottom: calc(var(--spacing-16) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--spacing-16) + var(--safe-bottom, 0px));
   transform: translateY(100%);
   transition: transform var(--duration-200) var(--easing-accelerate);
   outline: none;
@@ -739,7 +739,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    separately further down this file. */
 :root:not([data-desktop]) .c-sheet {
   bottom: var(--kb-inset, 0px);
-  padding-bottom: calc(var(--spacing-16) + max(0px, env(safe-area-inset-bottom, 0px) - var(--kb-inset, 0px)));
+  padding-bottom: calc(var(--spacing-16) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)));
   max-height: calc(100% - var(--kb-inset, 0px));
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -958,7 +958,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      unreachable UI, and a clamp to y=8 puts the react row under the Dynamic
      Island (the #288 inset class). The height cap makes the menu its own
      scroller; the JS clamp (anchorSheetToRow) keeps top ≥ safe-top + 8. */
-  max-height: calc(100% - var(--safe-top, 0px) - env(safe-area-inset-bottom, 0px) - 2 * var(--spacing-8));
+  max-height: calc(100% - var(--safe-top, 0px) - var(--safe-bottom, 0px) - 2 * var(--spacing-8));
   overflow-y: auto;
   transform: none;
   opacity: 0;
@@ -978,7 +978,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   /* #314: + the safe-area inset — the iOS bottom bar is 64px + env() tall
      (bottomnav.css:12); without the env() term the toast's lower edge sat
      BEHIND the nav on notched iPhones. env = 0 everywhere else (#282 grammar). */
-  bottom: calc(var(--layout-bar-bottom) + env(safe-area-inset-bottom, 0px) + var(--spacing-16));
+  bottom: calc(var(--layout-bar-bottom) + var(--safe-bottom, 0px) + var(--spacing-16));
   transform: translate(-50%, var(--spacing-8));
   z-index: var(--z-70);
   display: flex;
@@ -1037,7 +1037,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      whole screen) — content stays clear of the notch/inset, paint doesn't.
      Bottom: the hatch/cancel footer clears the home indicator the same way. */
   padding-top: max(var(--spacing-24), var(--safe-top, 0px));   /* ★ AND-7 */
-  padding-bottom: calc(var(--spacing-24) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--spacing-24) + var(--safe-bottom, 0px));
 }
 /* #160b zones (Damir): brand centers in the UPPER share (1.2fr), the action
    cluster lands in the lower half (form top ≈ 63% of free space with the
@@ -1242,7 +1242,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   padding: var(--spacing-12) var(--spacing-16);
   /* #314 (Damir screenshot): the Change-password CTA sat ON the iOS home
      indicator — clear it (launch-shell.css:281 canonical pattern; env = 0 elsewhere) */
-  padding-bottom: calc(var(--spacing-12) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--spacing-12) + var(--safe-bottom, 0px));
   border-top: var(--outline-width-1) solid var(--outline-neutral-01);
   background: var(--surface-screen);
 }
@@ -2275,7 +2275,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      owns the whole screen) — content stays clear of the inset, paint doesn't.
      Bottom: same for the home indicator (pinned CTAs + fine print stay clear). */
   padding-top: max(var(--spacing-16), var(--safe-top, 0px));   /* ★ AND-7: the launch GRADIENT bleeds to y=0 */
-  padding-bottom: calc(var(--spacing-16) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--spacing-16) + var(--safe-bottom, 0px));
 }
 /* floating top controls: language pill + appearance (glass on the gradient) */
 .c-launch__top {
@@ -2530,7 +2530,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   gap: var(--spacing-12);
   padding: var(--spacing-16) var(--spacing-24) var(--spacing-24);
   /* commit CTA clears the iOS home indicator (edge-to-edge; env = 0 elsewhere) */
-  padding-bottom: calc(var(--spacing-24) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--spacing-24) + var(--safe-bottom, 0px));
   /* ★★ #615 (verdict §2 — SEVERITY 1): THE CTA RISES ABOVE THE KEYBOARD.
      Create and Restore put their commit button in this footer, OUTSIDE the scroller,
      and `html, body { height: 100%; overflow: hidden }` plus a WKWebView that does not
@@ -2543,7 +2543,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      The home-indicator pad is handed back while the keyboard covers that strip, so the
      button does not float twice, and every term is inert at `--kb-inset: 0`. */
   margin-bottom: var(--kb-inset, 0px);
-  padding-bottom: calc(var(--spacing-24) + max(0px, env(safe-area-inset-bottom, 0px) - var(--kb-inset, 0px)));
+  padding-bottom: calc(var(--spacing-24) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)));
 }
 /* consent line sits directly above the commit button (create/restore) */
 .c-launch__footer .c-launch__fineprint { padding-top: 0; }

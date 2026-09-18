@@ -25,7 +25,7 @@
      (SpixiLocalization), so --safe-top collapses to env() exactly as before; an
      UNRESOLVED marker also fails the numeric test and leaves the variable unset.
      The value is validated as a plain number before it reaches a style property. -->
-<script>(function(){function a(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-top',v+'px');}a('*SL{AndroidInsetTop}');window.setInsetTop=a;})();</script>
+<script>(function(){function a(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-top',v+'px');}a('*SL{AndroidInsetTop}');window.setInsetTop=a;function b(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-bottom',v+'px');}b('*SL{AndroidInsetBottom}');window.setInsetBottom=b;})();</script>
 <!-- Preview forcing for the platform flag (?desktop=1 sets / ?mobile=1 clears;
      the app passes no query). MUST run BEFORE the pattern-pref script below —
      since B2 the pattern DEFAULT is platform-aware, so the flag has to be final
@@ -81,7 +81,7 @@
      English-only diagnostics (the #301 precedent). Pinned above the composer. */
   .load-probe {
     position: fixed; left: var(--spacing-8); right: var(--spacing-8);
-    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(72px + var(--safe-bottom, 0px));
     z-index: var(--z-10);
     width: max-content; max-width: calc(100% - 16px);
     padding: 3px var(--spacing-8); border-radius: var(--radius-8, 8px);
@@ -1403,7 +1403,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
      the chat's bottom-most chrome, so it owns the iOS home-indicator inset
      (edge-to-edge, iOS-1/3/4) — env() = 0 everywhere else. */
   padding-block-start: var(--composer-pad-block);   /* ★ Session I (sheet 5 = B): 6, was spacing-8 */
-  padding-block-end: calc(var(--composer-pad-block) + env(safe-area-inset-bottom, 0px));
+  padding-block-end: calc(var(--composer-pad-block) + var(--safe-bottom, 0px));
   /* ★ Session I (#735, sheet 5): the ⊕ is INSIDE the pill again — #705's outside-disc is
      reversed ("more premium", Damir on device), the tray/✕ behaviour is untouched, only the
      housing moved. So the bar's leading edge is a chrome edge again: 12, like the trailing
@@ -2148,7 +2148,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   /* #314: + the safe-area inset — the iOS bottom bar is 64px + env() tall
      (bottomnav.css:12); without the env() term the toast's lower edge sat
      BEHIND the nav on notched iPhones. env = 0 everywhere else (#282 grammar). */
-  bottom: calc(var(--layout-bar-bottom) + env(safe-area-inset-bottom, 0px) + var(--spacing-16));
+  bottom: calc(var(--layout-bar-bottom) + var(--safe-bottom, 0px) + var(--spacing-16));
   transform: translate(-50%, var(--spacing-8));
   z-index: var(--z-70);
   display: flex;
@@ -2227,7 +2227,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   border-radius: var(--radius-24) var(--radius-24) 0 0;
   box-shadow: var(--elevation-3);
   padding: var(--spacing-8) var(--spacing-16) var(--spacing-16);
-  padding-bottom: calc(var(--spacing-16) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--spacing-16) + var(--safe-bottom, 0px));
   transform: translateY(100%);
   transition: transform var(--duration-200) var(--easing-accelerate);
   outline: none;
@@ -2256,7 +2256,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    separately further down this file. */
 :root:not([data-desktop]) .c-sheet {
   bottom: var(--kb-inset, 0px);
-  padding-bottom: calc(var(--spacing-16) + max(0px, env(safe-area-inset-bottom, 0px) - var(--kb-inset, 0px)));
+  padding-bottom: calc(var(--spacing-16) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)));
   max-height: calc(100% - var(--kb-inset, 0px));
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -2475,7 +2475,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      unreachable UI, and a clamp to y=8 puts the react row under the Dynamic
      Island (the #288 inset class). The height cap makes the menu its own
      scroller; the JS clamp (anchorSheetToRow) keeps top ≥ safe-top + 8. */
-  max-height: calc(100% - var(--safe-top, 0px) - env(safe-area-inset-bottom, 0px) - 2 * var(--spacing-8));
+  max-height: calc(100% - var(--safe-top, 0px) - var(--safe-bottom, 0px) - 2 * var(--spacing-8));
   overflow-y: auto;
   transform: none;
   opacity: 0;
@@ -3685,7 +3685,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-attach-tray[data-instant] { transition: none; } /* #721: swapped with the keyboard, not animated */
 .c-attach-tray .c-attach {
   gap: var(--spacing-12) var(--spacing-8);
-  padding: var(--spacing-8) 0 calc(var(--spacing-16) + env(safe-area-inset-bottom, 0px));
+  padding: var(--spacing-8) 0 calc(var(--spacing-16) + var(--safe-bottom, 0px));
 }
 .c-attach-tray .c-attach__medallion { width: 56px; height: 56px; }
 /* the tray owns the home-indicator inset while it is open — the composer above it
@@ -5378,7 +5378,7 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   flex: none;
   display: flex;
   justify-content: center;
-  padding: var(--spacing-12) var(--spacing-8) max(var(--spacing-16), env(safe-area-inset-bottom));
+  padding: var(--spacing-12) var(--spacing-8) max(var(--spacing-16), var(--safe-bottom, 0px));
 }
 .c-mviewer__close {
   width: 56px;
@@ -5807,7 +5807,7 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
      on the PAINTED child, not the wrapper — the wrapper has no background, so padding
      there would open a --surface-screen band under a --surface-neutral-02 card. */
   .chat-request-pane > .c-contact-request {
-    padding-block-end: calc(var(--spacing-12) + env(safe-area-inset-bottom, 0px));
+    padding-block-end: calc(var(--spacing-12) + var(--safe-bottom, 0px));
   }
   /* ⑪ pending-outgoing composer lock: while our contact request awaits the peer's
      accept, the composer is REPLACED by this quiet strip (nothing to type into —
@@ -5821,7 +5821,7 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
        chat's bottom-most chrome and must own the iOS home-indicator inset the way
        composer.css does — otherwise Cancel request, the ONLY escape from a locked
        chat, sits under the indicator. env() resolves to 0 off-iOS. */
-    padding-block-end: calc(var(--spacing-12) + env(safe-area-inset-bottom, 0px));
+    padding-block-end: calc(var(--spacing-12) + var(--safe-bottom, 0px));
     background: var(--surface-neutral-02);
     border-top: var(--outline-width-1) solid var(--outline-neutral-01);   /* composer hairline parity */
   }
@@ -5916,13 +5916,13 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
      pushed above it by a bottom margin driven from visualViewport (--kb-inset,
      set by keyboardViewport()), and .c-chat-canvas (flex:1, min-height:0)
      absorbs the difference — topbar stays, log shrinks, composer lifts.
-     The max(0px, … − env(safe-area-inset-bottom)) does two jobs: WebKit keeps
+     The max(0px, … − var(--safe-bottom, 0px)) does two jobs: WebKit keeps
      reporting the FULL safe-area inset with the keyboard up (#294 measurement),
      so the composer's own inset padding is re-used as keyboard clearance
      (no 34px dead cushion above the keyboard); and with the keyboard closed
      (--kb-inset: 0) the max() clamps the negative result to 0 so the composer
      is never pushed INTO the home indicator. */
-  #chat-composer { margin-bottom: max(0px, calc(var(--kb-inset, 0px) - env(safe-area-inset-bottom, 0px))); }
+  #chat-composer { margin-bottom: max(0px, calc(var(--kb-inset, 0px) - var(--safe-bottom, 0px))); }
   /* iOS-53 r2 (#324): ride the keyboard, don't jump it. The native push lands at
      the keyboard animation's START (WillChangeFrame), so transitioning the margin
      over ~the keyboard's own duration/curve slides the composer in sync with the
@@ -12304,6 +12304,11 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
      * settle-tracked stickDuring — NOT a one-shot — so it holds the bottom across
      * the whole IME animation. Android-only (iOS innerHeight is constant under its
      * keyboard, so the shrink test excludes it; UA-gated as belt). */
+    /* ★ AND-45: the nav-bar inset the head script wrote from the AndroidInsetBottom carrier / setInsetBottom
+       (a validated number + 'px'); 0 when unset. Read from the inline style the shell itself set. */
+    function androidInsetBottomPx() {
+      try { return Math.max(0, parseFloat(document.documentElement.style.getPropertyValue('--android-inset-bottom')) || 0); } catch (_) { return 0; }
+    }
     if (/Android/i.test(navigator.userAgent || '')) {
       let wasAtBottom = nearBottom();
       box.addEventListener('scroll', () => { wasAtBottom = nearBottom(); }, { passive: true });
@@ -12421,7 +12426,12 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
            the next session is already right; 268 stays the fallback until a keyboard has
            been seen. The stamps are TEMPORARY ([KBTRAY], console.warn → logcat W chromium),
            a set with the ones on focus / tray drop below — the next capture shows the order. */
-        if (shrank) rememberKbSlot(lastIH - ih);
+        /* ★ AND-45 (Session Y): on Android the root view pads (ime − navBar) — the shell adds the
+           bar itself through --safe-bottom — so the innerHeight shrink is the keyboard's height
+           ABOVE the bar. The tray must be the keyboard's FULL height (its own inset padding is
+           inside that height, attach-sheet.css), so the bar sits at the same screen edge whether
+           the keyboard or the tray is under it (Session J): add the published inset back. */
+        if (shrank) rememberKbSlot(lastIH - ih + androidInsetBottomPx());
         if (shrank) kbUp = true; else if (!editable || ih > lastIH + 60) kbUp = false;   // ★ #756: the keyboard's own state; ★★ R2-1: the CLEAR is NOT shape-gated; ★★ R3-2: and NOT grow-only
         try { console.warn('[KBTRAY] resize ih=' + ih + ' d=' + (lastIH - ih) + ' t=' + Math.round(performance.now())); } catch (_) {}
         lastIH = ih;

@@ -88,6 +88,50 @@ public class MainActivity : MauiAppCompatActivity
      * same reason — that hack goes with this change.) */
     public static double TopInsetDip = 0;
 
+    /* ★ AND-45 (Session Y, Damir 2026-09-18 — "the transparent notch below the composer";
+     * #872 ① recipe, #875 reopened by his word). THE BOTTOM HALF OF THE SAME MOVE. The
+     * InsetsListener padded the root content view by max(ime, navBar), which painted a
+     * root-coloured band under every shell where the gesture pill sits. Now the root pads
+     * the IME LEG ONLY (the AND-16/#334 keyboard mechanism — adjustResize shrinking the
+     * content view through this padding — is untouched), and the NAVIGATION-BAR inset
+     * travels into the shells as *SL{AndroidInsetBottom} + a `setInsetBottom` push, where
+     * base.css folds it into `--safe-bottom` beside env(safe-area-inset-bottom) (which
+     * Android reports as 0). The composer, the bottom nav, every sheet and toast then pad
+     * THEMSELVES and paint their own surface under the transparent bar — the iOS-#282 rule,
+     * on Android, at the bottom.
+     * ⚠ The published value is the NAV-BAR inset and NOTHING ELSE — constant across a
+     * keyboard round. The root view pads the part of the keyboard that rises ABOVE the
+     * bar (ime − navBar), the shells pad the bar; the two legs add up to the IME height
+     * with the keyboard up and to the bar with it down, so no push is needed when the
+     * IME moves (the #46 loop on this batch: an effective "0 while the keyboard is up"
+     * value had to be PUSHED through the bridge one to three frames after the root
+     * re-laid out — a visible one-bar jump of the composer on every open and close — and
+     * a mini-app page captured the 0 at its chrome pass and kept it). It changes only
+     * when the system bar itself does (gesture ⇄ 3-button, rotation), and then it is
+     * pushed to every live shell. */
+    public static double BottomInsetDip = 0;
+    private static string lastBottomPublished = "";
+
+    internal static void publishBottomInset(double dip, bool pushLive)
+    {
+        if (dip < 0 || double.IsNaN(dip) || double.IsInfinity(dip))
+        {
+            return;
+        }
+        BottomInsetDip = dip;
+        string v = dip.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+        SpixiLocalization.addCustomString("AndroidInsetBottom", v);
+        if (pushLive && v != lastBottomPublished)
+        {
+            lastBottomPublished = v;
+            UIHelpers.pushBottomInsetToAllPages(v);
+        }
+        else if (!pushLive)
+        {
+            lastBottomPublished = v;
+        }
+    }
+
     // Publish the inset as a generatePage carrier (*SL{AndroidInsetTop}). Same grammar
     // as *SL{SpixiThemeName} and *SL{LaunchBootView}: it lands in the FIRST FRAME of
     // every document, so no shell ever paints one frame under the status bar.
@@ -123,6 +167,16 @@ public class MainActivity : MauiAppCompatActivity
 
         Window?.SetStatusBarColor(Android.Graphics.Color.Transparent);
         Window?.SetNavigationBarColor(Android.Graphics.Color.Transparent);
+        /* ★ AND-45 (Session Y, the #46 loop): a TRANSPARENT nav-bar colour is not a transparent
+         * bar on API 29+ — the OS enforces contrast by default and paints its own translucent
+         * scrim under a fully transparent bar in 3-button mode, so the shell's surface under it
+         * would still be banded. The shells now paint their own surface there (`--safe-bottom`),
+         * and SPlatformUtils.setEdgeToEdge picks the glyph tone from that surface, so the OS
+         * scrim is switched off. */
+        if (OperatingSystem.IsAndroidVersionAtLeast(29) && Window != null)
+        {
+            Window.NavigationBarContrastEnforced = false;
+        }
 
         // AND-6 (#334): bar icon appearance (light/dark) now lives in
         // SPlatformUtils.setEdgeToEdge() below, theme-driven — the hardcoded
@@ -477,14 +531,18 @@ public class MainActivity : MauiAppCompatActivity
                      * and each shell's own topbar surface paint under the status bar.
                      * The inset is published below and consumed in CSS.
                      *
-                     * ⚠ The BOTTOM padding is deliberately UNCHANGED. It carries the IME
-                     * inset, and the Android keyboard behaviour was measured and settled
-                     * in #334/AND-16 on exactly this mechanism (adjustResize shrinks
-                     * innerHeight because this padding shrinks the content view). Moving
-                     * the bottom into CSS as well would either double-pad the bottom nav
-                     * or re-open the keyboard round; neither is what "full bleed to the
-                     * top" asked for. */
-                    vg?.SetPadding(0, 0, 0, Math.Max(imeInsets.Bottom, sysInsets.Bottom));
+                     * ⚠ The IME leg of the bottom padding is deliberately KEPT. The Android
+                     * keyboard behaviour was measured and settled in #334/AND-16 on exactly
+                     * this mechanism (adjustResize shrinks innerHeight because this padding
+                     * shrinks the content view). ★ AND-45 (Session Y) moved ONLY the nav-bar
+                     * leg into CSS (`--safe-bottom`, a CONSTANT the shells add themselves), so
+                     * the root pads the keyboard's height ABOVE the bar: with the keyboard up
+                     * root (ime − navBar) + shell (navBar) = ime, with it down 0 + navBar. The
+                     * bottom chrome sits at the same screen edge in both states and nothing
+                     * is pushed on a keyboard round. (An IME inset always covers the bar;
+                     * Math.Max is the belt for a ROM that reports otherwise.) */
+                    int imeLeg = imeInsets.Bottom > 0 ? Math.Max(0, imeInsets.Bottom - sysInsets.Bottom) : 0;
+                    vg?.SetPadding(0, 0, 0, imeLeg);
                 }
 
                 Insets = new Thickness(sysInsets.Left, sysInsets.Top, sysInsets.Right, Math.Max(imeInsets.Bottom, sysInsets.Bottom));
@@ -496,6 +554,8 @@ public class MainActivity : MauiAppCompatActivity
                 catch (Exception) { density = 1f; }
                 if (density <= 0f) density = 1f;
                 publishTopInset(sysInsets.Top / density);
+                // ★ AND-45 (Session Y): the nav-bar inset, keyboard-independent (see publishBottomInset).
+                publishBottomInset(sysInsets.Bottom / density, true);
             }
 
             return WindowInsetsCompat.Consumed; // We've handled insets manually

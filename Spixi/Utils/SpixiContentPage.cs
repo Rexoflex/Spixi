@@ -566,7 +566,12 @@ namespace SPIXI
              * call surface and scan pad themselves in CSS like every other shell. */
             if (!hasGeneratedContent)
             {
-                this.Padding = new Thickness(0, MainActivity.TopInsetDip, 0, 0);
+                // ★ AND-45 (Session Y): a mini-app page keeps NATIVE padding at the bottom too —
+                // third-party content is never asked to handle an inset it was not told about.
+                // BottomInsetDip is the nav-bar CONSTANT (keyboard-independent): with the keyboard
+                // up the root pads (ime − navBar) and this pads navBar, so the page ends at the
+                // keyboard in both states with no refresh (the #46 loop on this batch).
+                this.Padding = new Thickness(0, MainActivity.TopInsetDip, 0, MainActivity.BottomInsetDip);
             }
             else
             {
@@ -584,6 +589,10 @@ namespace SPIXI
                  * not covered — see docs/android-findings.md. */
                 Utils.sendUiCommand(this, "setInsetTop",
                     MainActivity.TopInsetDip.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture));
+                // ★ AND-45 (Session Y): the bottom rides the same chrome pass (page load, re-present,
+                // OnAppearing); the LIVE keyboard edge is pushed by the insets listener itself.
+                Utils.sendUiCommand(this, "setInsetBottom",
+                    MainActivity.BottomInsetDip.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture));
             }
             this.BackgroundColor = pageSurfaceColor;
 #endif

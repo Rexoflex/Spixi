@@ -25,10 +25,21 @@
  * is what this batch removed). Every use site writes `var(--safe-top, 0px)`, so the
  * degradation holds even if this declaration itself never arrives.
  *
- * Nothing equivalent exists for the BOTTOM on purpose: MainActivity still pads the
- * root there (it carries the IME inset, and the Android keyboard behaviour was
- * measured on that mechanism in #334/AND-16), so a bottom variable would double-pad. */
+ * The BOTTOM had no twin until ★ AND-45 (Session Y): MainActivity padded the root by
+ * max(IME, nav bar), so a bottom variable would have double-padded. It now pads the IME
+ * leg only, and `--safe-bottom` below carries the nav-bar leg the same way. */
 :root { --safe-top: max(env(safe-area-inset-top, 0px), var(--android-inset-top, 0px)); }
+/* ★ AND-45 (Session Y, Damir: "the transparent notch below the composer"): the SAME
+ * rule for the bottom. Android's env(safe-area-inset-bottom) is 0 (cutout-only, like the
+ * top), so the navigation-bar inset arrives as `--android-inset-bottom` from the
+ * *SL{AndroidInsetBottom} carrier + the `setInsetBottom` push (MainActivity publishes the
+ * EFFECTIVE value: 0 while the keyboard covers the bar, because the root view still pads
+ * the IME leg natively — #334/AND-16). Every bottom-anchored surface reads
+ * `var(--safe-bottom, 0px)` and paints ITS OWN surface under the transparent bar; no
+ * root-coloured band is left. iOS/Mac/Windows: the carrier is seeded "0", so the max()
+ * collapses to the env() value the platform already populates. ⚠ Use sites must read the
+ * variable, never env() directly — the suite sweeps for a stray env(safe-area-inset-bottom). */
+:root { --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--android-inset-bottom, 0px)); }
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -519,7 +530,7 @@ html:root .c-app-item[data-pressfade] .c-app-item__open[aria-current]::before {
      own gap. Reversal = var(--spacing-8). */
   margin-block-start: auto;
   padding-block: var(--spacing-12);
-  padding-block-end: calc(var(--spacing-12) + env(safe-area-inset-bottom, 0px));
+  padding-block-end: calc(var(--spacing-12) + var(--safe-bottom, 0px));
   background: var(--surface-screen);
   border-block-start: var(--outline-width-1) solid var(--outline-neutral-01);
 }

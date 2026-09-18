@@ -226,7 +226,7 @@ export function anchorSheetToRow(sheet, row, { host = document.body, align = nul
   };
     const safeTop = Math.max(0, resolvePx('var(--safe-top, 0px)') - Math.max(0, host2.top));
     const winH = (window.innerHeight || host2.height);
-    const safeBottom = Math.max(0, resolvePx('env(safe-area-inset-bottom, 0px)') - Math.max(0, winH - host2.bottom));
+    const safeBottom = Math.max(0, resolvePx('var(--safe-bottom, 0px)') - Math.max(0, winH - host2.bottom));
     const minTop = safeTop + M_GAP;
     const maxBottom = host2.height - M_GAP - safeBottom;
   // vertical: measure AFTER the width + the [data-m-anchor] max-height land

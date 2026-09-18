@@ -1,0 +1,23 @@
+AND-45 — the transparent navigation bar under the composer (#883): the root pads only the keyboard above the bar, the nav-bar inset travels into the shells as --safe-bottom; the #46 loop's four MAJORs fixed the same session
+
+FIXES (Android, walk-visible — every bottom chrome, both navigation modes)
+- MainActivity: the InsetsListener no longer pads the root content view by max(ime, navBar). It pads the keyboard's height ABOVE the bar (ime − navBar; the #334/AND-16 adjustResize mechanism is untouched) and publishes the nav-bar inset — KEYBOARD-INDEPENDENT — as the *SL{AndroidInsetBottom} carrier + a setInsetBottom push to every live shell (UIHelpers.pushBottomInsetToAllPages over the one enumerator, #421). Window.NavigationBarContrastEnforced = false on API 29+ (the OS scrim under a "transparent" bar in 3-button mode).
+- MainApplication: a bootstrap estimate from navigation_bar_gesture_height under gesture nav (config_navBarInteractionMode == 2), navigation_bar_height otherwise, so the first document's first frame is right.
+- SpixiLocalization: { "AndroidInsetBottom", "0" } seeded — iOS/Mac/Windows resolve the carrier to 0 and --safe-bottom collapses to env().
+- SpixiContentPage: setInsetBottom pushed beside setInsetTop on every chrome pass; a mini-app page keeps NATIVE bottom padding (Thickness(0, TopInsetDip, 0, BottomInsetDip)).
+- base.css: --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--android-inset-bottom, 0px)); the 28 env(safe-area-inset-bottom) sites (composer · bottomnav · attach tray · sheets · toast · call strip · scan · lock · launch · media viewer · chat.html/home.html inline · desktop-anchors.js) read var(--safe-bottom, 0px); every one of the 18 shell heads validates the carrier, writes --android-inset-bottom before first paint and exposes window.setInsetBottom.
+- apps-details.css: the sticky Install bar carries --safe-bottom (it was fine on Android only because the root padded it — Opus MAJOR-1).
+- chat.html: rememberKbSlot adds the nav-bar inset back onto the innerHeight shrink, so the tray is the keyboard's FULL height and the bar sits at one edge under keyboard and tray alike (Session J).
+
+THE LOOP (Opus): a keyboard-dependent "effective 0" pushed late = a one-bar jump per keyboard round, and a mini-app capturing that 0 → the value is a constant (MAJOR-2/3); the OS contrast scrim (MAJOR-4); the Install bar (MAJOR-1); the gesture-nav estimate (minor); the B1 comment's arithmetic (minor).
+
+GATES
+- smoke-test.mjs: the AND-45 block as PROPERTIES (the publisher body; the head as an exact string, ordered; a negative walk over every src/styles/*.css, shell <style>/style attribute and component script; a POSITIVE walk: every sticky/fixed rule anchored at bottom 0 carries --safe-bottom); 12 pre-existing env()-spelled pins re-based in both halves (#861) + Session J + B3 + the R2-1 behavioural harness driving the 48px-bar case; CHAT_KB_CEIL 684 → 686, delta stated. 23/23 mutations killed.
+- The FULL suite in the container on this tree: BASELINE OK — 4727 / the 2 KNOWN (#882 ①). cs-syntax-check 138 clean. build-shells --check ✓ on both machines, built artifacts hash-identical.
+
+RECORDS
+- DECISIONS #883–#884 (Session Z list) · docs/android-findings.md AND-45 · docs/handoff-2026-09-18.md · docs/f5-checklist-and-45.md · docs/walk-artifact-and-45.html · CLAUDE.md status · security-handover-gate.md AND-45 (one new C# push, setInsetBottom, carrying a number) · next-session-prompt.md.
+- Consumed → docs/archive: handoff-2026-09-17b.md, f5-checklist-session-y.md, commit-message-session-y.txt.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01VUEf78ip825WSfqMZ4D6kg

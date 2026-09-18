@@ -15,7 +15,7 @@
      the chat's bottom-most chrome, so it owns the iOS home-indicator inset
      (edge-to-edge, iOS-1/3/4) — env() = 0 everywhere else. */
   padding-block-start: var(--composer-pad-block);   /* ★ Session I (sheet 5 = B): 6, was spacing-8 */
-  padding-block-end: calc(var(--composer-pad-block) + env(safe-area-inset-bottom, 0px));
+  padding-block-end: calc(var(--composer-pad-block) + var(--safe-bottom, 0px));
   /* ★ Session I (#735, sheet 5): the ⊕ is INSIDE the pill again — #705's outside-disc is
      reversed ("more premium", Damir on device), the tray/✕ behaviour is untouched, only the
      housing moved. So the bar's leading edge is a chrome edge again: 12, like the trailing

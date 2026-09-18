@@ -264,7 +264,10 @@
   margin-inline: calc(-1 * var(--spacing-16));
   margin-block-end: calc(-1 * var(--spacing-16));
   padding-inline: var(--spacing-16);
-  padding-block: var(--spacing-12) var(--spacing-16);
+  /* ★ AND-45 (Session Y, the #46 loop MAJOR-1): the bar sticks to the SCROLLPORT's bottom
+     edge, which is the screen edge now that nothing pads the root — so it carries the
+     home-indicator / nav-bar inset itself, like every other bottom-most chrome. */
+  padding-block: var(--spacing-12) calc(var(--spacing-16) + var(--safe-bottom, 0px));
   background: var(--surface-screen);
   border-block-start: var(--outline-width-1) solid var(--outline-neutral-02);
 }

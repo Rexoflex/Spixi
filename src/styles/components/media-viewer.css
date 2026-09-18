@@ -24,7 +24,7 @@
   flex: none;
   display: flex;
   justify-content: center;
-  padding: var(--spacing-12) var(--spacing-8) max(var(--spacing-16), env(safe-area-inset-bottom));
+  padding: var(--spacing-12) var(--spacing-8) max(var(--spacing-16), var(--safe-bottom, 0px));
 }
 .c-mviewer__close {
   width: 56px;

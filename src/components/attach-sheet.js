@@ -217,18 +217,21 @@ export function openAttachTray({ composerEl, media = false, apps = true, payment
 }
 
 /* ★★ B1 (#46 loop, MAJOR on iPhone X-class) — WHO CARRIES THE HOME-INDICATOR INSET.
- * The contract: composer.css pads the bar by `--composer-pad-block + env(safe-area-inset-bottom)`;
+ * The contract: composer.css pads the bar by `--composer-pad-block + var(--safe-bottom)`;
  * attach-sheet.css `.c-composer[data-tray-open]` drops that to a flat `--spacing-8` because the
  * TRAY is bottom-most chrome then and carries the inset itself (`.c-attach-tray .c-attach` pads
- * `--spacing-16 + env(safe-area-inset-bottom)`).
+ * `--spacing-16 + var(--safe-bottom)`).
  * THE DEFECT: the attribute was written at MOUNT. On the Session-K `hold` path the mount is up
  * to 450 ms before the tray gets a height, and a held tray is `height:0; overflow:hidden` — its
  * env() padding is CLIPPED, so for that whole window nobody carried the inset. Measured on an
  * iPhone with a home indicator, portrait: the bar's bottom pad went 6+34=40 → 8, i.e. the pill
  * AND (through --composer-h → #messages) the whole bottom of the conversation dropped 32 px at
  * the instant of the ⊕ tap, sat there for the keyboard-hide window, then the tray arrived.
- * (Android is 6 → 8 and no defect: env(safe-area-inset-bottom) is 0 there — the root view is
- * padded by the insets listener instead.) Before K1 the `instant` path set both attributes in
+ * (Android WAS 6 → 8 and no defect while `--safe-bottom` read 0 there — the root view was
+ * padded by the insets listener instead. Since ★ AND-45 (Session Y) the shell carries the
+ * nav-bar inset itself, so Android behaves exactly like iOS here: the drop is
+ * `--composer-pad-block + --safe-bottom` → `--spacing-8` (6+48 → 8 on a 3-button bar), and a
+ * held tray clips its inset for the same window. The rule below protects both.) Before K1 the `instant` path set both attributes in
  * one frame, so the change was swallowed inside the ~268 px swap.
  * THE RULE: THE COMPOSER SURRENDERS THE INSET ONLY IN THE FRAME SOMETHING ELSE TAKES IT — the
  * non-hold paths above (which open in that same frame), and revealAttachTray for a held tray.

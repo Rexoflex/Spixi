@@ -68,7 +68,7 @@
 .c-attach-tray[data-instant] { transition: none; } /* #721: swapped with the keyboard, not animated */
 .c-attach-tray .c-attach {
   gap: var(--spacing-12) var(--spacing-8);
-  padding: var(--spacing-8) 0 calc(var(--spacing-16) + env(safe-area-inset-bottom, 0px));
+  padding: var(--spacing-8) 0 calc(var(--spacing-16) + var(--safe-bottom, 0px));
 }
 .c-attach-tray .c-attach__medallion { width: 56px; height: 56px; }
 /* the tray owns the home-indicator inset while it is open — the composer above it

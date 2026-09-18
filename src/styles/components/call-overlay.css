@@ -13,7 +13,7 @@
   /* iOS edge-to-edge: the full-window ring (CallPage) bleeds under the status bar +
      home indicator — keep identity/actions clear of both. env() = 0 elsewhere. */
   padding-top: var(--safe-top, 0px);   /* ★ AND-7 */
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: var(--safe-bottom, 0px);
   background: var(--surface-scrim); /* + overlay scrim ⇒ near-black stage */
 }
 

@@ -16,7 +16,7 @@
      (SpixiLocalization), so --safe-top collapses to env() exactly as before; an
      UNRESOLVED marker also fails the numeric test and leaves the variable unset.
      The value is validated as a plain number before it reaches a style property. -->
-<script>(function(){function a(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-top',v+'px');}a('*SL{AndroidInsetTop}');window.setInsetTop=a;})();</script>
+<script>(function(){function a(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-top',v+'px');}a('*SL{AndroidInsetTop}');window.setInsetTop=a;function b(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-bottom',v+'px');}b('*SL{AndroidInsetBottom}');window.setInsetBottom=b;})();</script>
 <!-- ★ L5 (2026-08-31), the SAME defect Damir reported on the launch sheets, found here
      while fixing that one: this shell and launch.html were the ONLY two of eighteen with
      no root data-theme, so every token-driven surface resolved the LIGHT :root block on
@@ -240,7 +240,7 @@
   border-radius: var(--radius-24) var(--radius-24) 0 0;
   box-shadow: var(--elevation-3);
   padding: var(--spacing-8) var(--spacing-16) var(--spacing-16);
-  padding-bottom: calc(var(--spacing-16) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--spacing-16) + var(--safe-bottom, 0px));
   transform: translateY(100%);
   transition: transform var(--duration-200) var(--easing-accelerate);
   outline: none;
@@ -269,7 +269,7 @@
    separately further down this file. */
 :root:not([data-desktop]) .c-sheet {
   bottom: var(--kb-inset, 0px);
-  padding-bottom: calc(var(--spacing-16) + max(0px, env(safe-area-inset-bottom, 0px) - var(--kb-inset, 0px)));
+  padding-bottom: calc(var(--spacing-16) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)));
   max-height: calc(100% - var(--kb-inset, 0px));
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -488,7 +488,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      unreachable UI, and a clamp to y=8 puts the react row under the Dynamic
      Island (the #288 inset class). The height cap makes the menu its own
      scroller; the JS clamp (anchorSheetToRow) keeps top ≥ safe-top + 8. */
-  max-height: calc(100% - var(--safe-top, 0px) - env(safe-area-inset-bottom, 0px) - 2 * var(--spacing-8));
+  max-height: calc(100% - var(--safe-top, 0px) - var(--safe-bottom, 0px) - 2 * var(--spacing-8));
   overflow-y: auto;
   transform: none;
   opacity: 0;
@@ -517,7 +517,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      whole screen) — content stays clear of the notch/inset, paint doesn't.
      Bottom: the hatch/cancel footer clears the home indicator the same way. */
   padding-top: max(var(--spacing-24), var(--safe-top, 0px));   /* ★ AND-7 */
-  padding-bottom: calc(var(--spacing-24) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--spacing-24) + var(--safe-bottom, 0px));
 }
 /* #160b zones (Damir): brand centers in the UPPER share (1.2fr), the action
    cluster lands in the lower half (form top ≈ 63% of free space with the
@@ -722,7 +722,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   padding: var(--spacing-12) var(--spacing-16);
   /* #314 (Damir screenshot): the Change-password CTA sat ON the iOS home
      indicator — clear it (launch-shell.css:281 canonical pattern; env = 0 elsewhere) */
-  padding-bottom: calc(var(--spacing-12) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--spacing-12) + var(--safe-bottom, 0px));
   border-top: var(--outline-width-1) solid var(--outline-neutral-01);
   background: var(--surface-screen);
 }

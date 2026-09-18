@@ -72,6 +72,29 @@ public class MainApplication : MauiApplication
 			{
 				MainActivity.publishTopInset((Resources?.GetDimensionPixelSize(id) ?? 0) / density);
 			}
+			/* ★ AND-45 (Session Y): the same estimate for the BOTTOM. `navigation_bar_height` is
+			 * the 3-BUTTON bar (48dp on AOSP) and most ROMs report it under gesture navigation
+			 * too, where the real inset is the ~24dp `navigation_bar_gesture_height` — so the
+			 * interaction mode (`config_navBarInteractionMode`, 2 = gesture, API 29+) picks the
+			 * dimen; the listener's authoritative value replaces either at the first layout
+			 * pass (re-pushed on page load). The first document then does not settle by one
+			 * bar height after its first paint (the #46 loop on this batch). No estimate → the
+			 * first frame of the first document sits under the bar by that height. */
+			int mode = 0;
+			int idMode = Resources?.GetIdentifier("config_navBarInteractionMode", "integer", "android") ?? 0;
+			if (idMode > 0)
+			{
+				mode = Resources?.GetInteger(idMode) ?? 0;
+			}
+			int idB = mode == 2 ? (Resources?.GetIdentifier("navigation_bar_gesture_height", "dimen", "android") ?? 0) : 0;
+			if (idB <= 0)
+			{
+				idB = Resources?.GetIdentifier("navigation_bar_height", "dimen", "android") ?? 0;
+			}
+			if (idB > 0)
+			{
+				MainActivity.publishBottomInset((Resources?.GetDimensionPixelSize(idB) ?? 0) / density, false);
+			}
 		}
 		catch (Exception)
 		{

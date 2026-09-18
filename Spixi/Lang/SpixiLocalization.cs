@@ -67,7 +67,10 @@ namespace SPIXI.Lang
          * Android ever overwrites it. */
         private static Dictionary<string, string> customStrings = new Dictionary<string, string>()
         {
-            { "AndroidInsetTop", "0" }
+            { "AndroidInsetTop", "0" },
+            // ★ AND-45 (Session Y): same seeding rule for the bottom — iOS/Mac/Windows resolve to 0
+            // and read env(safe-area-inset-bottom) through `--safe-bottom`; only Android overwrites it.
+            { "AndroidInsetBottom", "0" }
         };
 
         public static bool loadLanguage(string lang)

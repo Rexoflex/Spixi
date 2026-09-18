@@ -42,7 +42,7 @@
      owns the whole screen) — content stays clear of the inset, paint doesn't.
      Bottom: same for the home indicator (pinned CTAs + fine print stay clear). */
   padding-top: max(var(--spacing-16), var(--safe-top, 0px));   /* ★ AND-7: the launch GRADIENT bleeds to y=0 */
-  padding-bottom: calc(var(--spacing-16) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--spacing-16) + var(--safe-bottom, 0px));
 }
 /* floating top controls: language pill + appearance (glass on the gradient) */
 .c-launch__top {
@@ -297,7 +297,7 @@
   gap: var(--spacing-12);
   padding: var(--spacing-16) var(--spacing-24) var(--spacing-24);
   /* commit CTA clears the iOS home indicator (edge-to-edge; env = 0 elsewhere) */
-  padding-bottom: calc(var(--spacing-24) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--spacing-24) + var(--safe-bottom, 0px));
   /* ★★ #615 (verdict §2 — SEVERITY 1): THE CTA RISES ABOVE THE KEYBOARD.
      Create and Restore put their commit button in this footer, OUTSIDE the scroller,
      and `html, body { height: 100%; overflow: hidden }` plus a WKWebView that does not
@@ -310,7 +310,7 @@
      The home-indicator pad is handed back while the keyboard covers that strip, so the
      button does not float twice, and every term is inert at `--kb-inset: 0`. */
   margin-bottom: var(--kb-inset, 0px);
-  padding-bottom: calc(var(--spacing-24) + max(0px, env(safe-area-inset-bottom, 0px) - var(--kb-inset, 0px)));
+  padding-bottom: calc(var(--spacing-24) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)));
 }
 /* consent line sits directly above the commit button (create/restore) */
 .c-launch__footer .c-launch__fineprint { padding-top: 0; }

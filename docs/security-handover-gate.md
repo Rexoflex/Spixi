@@ -1459,3 +1459,18 @@ One question per row: does this exposure exist at the baseline?
 
 Nothing in Session Y adds a verb, a `spixi.*` key, an HTML sink or a network fetch. The
 introduced-vs-inherited census (the Session R sweep) is unchanged by it.
+
+## AND-45 (#883) — the transparent navigation bar under the composer (2026-09-18)
+
+One question per row: does this exposure exist at the baseline?
+
+| item | verb / key / sink / fetch / log? | verdict |
+|---|---|---|
+| `MainActivity.publishBottomInset` · `UIHelpers.pushBottomInsetToAllPages` · `SpixiContentPage` chrome pass | **ONE new C# → WebView push, `setInsetBottom`**, the exact twin of `setInsetTop` (#401): the argument is a dip formatted `"0.##"` invariant — a NUMBER, never an address, a name or a path — and the shell head validates it against `/^\d{1,3}(\.\d{1,2})?$/` before it reaches a style property (the same guard as the top). Push-only, fenced `#if ANDROID`, over the ONE enumerator `getLiveShellPages(true)` (#421); a throw per page is swallowed by design (a dead page must not stop the walk — the #869 rule is about a silent catch that HIDES a failure; here the failure is "that page is gone", and the next chrome pass re-pushes). No verb, no key, no fetch, no log line. | one new push, numeric, validated at the sink |
+| `*SL{AndroidInsetBottom}` carrier · `SpixiLocalization.customStrings` seed | a new **localisation carrier**, seeded `"0"`, overwritten only by the number above; substituted into every generated document exactly as `AndroidInsetTop` is. The built lock shell's carrier SET is pinned as five (N83 re-based). | none |
+| `Window.NavigationBarContrastEnforced = false` | window flag, API 29+ — visual only | none |
+| `base.css` `--safe-bottom` · 28 CSS use sites · `apps-details.css` · `desktop-anchors.js` `resolvePx('var(--safe-bottom, 0px)')` | CSS + a computed-style probe (the R-1 pin: never `getPropertyValue`-parsed). | none |
+| `chat.html` `androidInsetBottomPx()` | reads `documentElement.style.getPropertyValue('--android-inset-bottom')` — a value the SAME shell wrote from the validated carrier, `parseFloat` + `Math.max(0, …)`; feeds `rememberKbSlot`, whose 160–600 band still applies. Not a new key: the persisted `spixi.kb.slot` is unchanged in shape (`px@w`). | none |
+
+AND-45 adds one numeric push and one numeric carrier, both validated where they land; no verb, no
+`spixi.*` key, no HTML sink, no fetch. The introduced-vs-inherited census is unchanged by it.

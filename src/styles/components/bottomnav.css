@@ -9,8 +9,8 @@
      paints under it, items stay above (border-box height grows by the inset).
      env() = 0 on Windows/desktop/Android; the --rail desktop variant overrides
      height anyway and env() is 0 there. */
-  height: calc(var(--layout-bar-bottom) + env(safe-area-inset-bottom, 0px));
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  height: calc(var(--layout-bar-bottom) + var(--safe-bottom, 0px));
+  padding-bottom: var(--safe-bottom, 0px);
   padding-inline: var(--spacing-8);
   background: var(--surface-bottombar);
   border-top: var(--outline-width-1) solid var(--outline-neutral-01);

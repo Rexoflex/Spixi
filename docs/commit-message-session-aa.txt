@@ -1,0 +1,119 @@
+Session AA — the glass dial retired (#892–#895) and the desktop wallet pane fixed (#896–#898)
+
+Damir walked the Session Z glass dial and rejected it (Z.5, #891): "looks ugly, there's a
+rectangle and cutoff for glass". The band was the composer's own rect, so it read as a slab.
+
+RETIRED (#892)
+- composer.css: the html[data-chat-glass] rule and its @supports fallback
+- tokens.css: --surface-composer-glass, both modes
+- chat.html: the spixi.chat.glass key in all four readers (pre-paint head script,
+  PATTERN_PREF_KEYS, readPatternPrefs/patternStamp/applyPatternPrefs, the storage listener)
+- security-handover-gate.md: the row is marked RETIRED, not deleted. Nothing to migrate —
+  the pref never shipped a toggle, so no device holds a value.
+- CHAT_KB_CEIL 648 -> 645, delta stated: built chat.html 662 061 -> 659 155 chars (-2 906).
+
+The retirement found a pin a grep could not. Searching the suite for the key found the two
+pins that NAME it (both re-based). The one it missed only COUNTS: Session P L1-12
+never spells the key — it DERIVES the head
+script's key list and asserts headKeys.length === 5. It went red in both halves on the first
+full run, which is exactly its job. Re-based to 4, with that trap written into its comment.
+
+The #889 pin was INVERTED rather than deleted (#835 idiom), because the property worth
+holding is a naming trap: --surface-composer-glass (retired) and --surface-chat-glass (LIVE,
+the day pill and unread strip, GATE 48) differ by one word. It asserts both directions.
+7 mutation runs, 8 clause-kills, zero survivors.
+
+RENDERED, NOT LANDED (#893)
+The one alternative Damir asked for: a mask-image on the message scroller whose fade zone
+sits ABOVE the pill, so a bubble dissolves as it arrives rather than being sliced mid-word.
+The newest message is never dimmed — the log already pads its bottom by --composer-h.
+Both themes, on the real built shell, through the live wire: docs/sheets/session-aa/.
+
+RULED OUT AT SOURCE, NOT BUILT (#894)
+#891 prescribed a one-line revert of installFlagFont() in call.html as the cheapest test for
+the dead call UI. It is falsified: that function returns immediately on any device that can
+paint a flag emoji, so on Android it is a no-op — and Damir's answer was "both blind, nothing
+at all". Also ruled out in the tree: the built call.html boots clean under the suite's own
+jsdom harness; CallPage has a 1500 ms reveal backstop; the call stylesheets were untouched by
+Session Z. What remains is the reading nobody had written down: a call showing no UI on either
+side is also what a call that never connected looks like.
+docs/diagnostic-session-aa-findings.md holds the capture steps and the decision tables —
+all three findings are settled by one log capture per device, with lines that already ship.
+
+THE #46 REVIEW ON OPUS (#895) — 1 MAJOR, 5 MINOR, all fixed
+Residue, the derived pin, the numbers and stale comments came back explicitly clean. The
+MAJOR was in the diagnostic: its table named `lockUp: ...` as the exclusion firing, but that
+string only exists in a catch — the exclusion ACTUALLY firing returned null in SILENCE, while
+the other three refusals in ensureSurface all name themselves. A reader finds three reasons,
+sees none, and walks past the lock the table flagged two rows earlier — and that branch is
+the one a stranded lock takes, which is Damir's report verbatim.
+
+Fixed in the table and in the code: TWO Logging lines in CallPage.xaml.cs, no behaviour
+change, the only C# in this batch. The pin written for it WALKS every `return null` in the
+method rather than listing the four I knew about, and it immediately found a FIFTH silent
+refusal nobody had seen (`if (content == null)`) — #798 paying off in the same session that
+quoted it. An existing pin asserting the lock branch's two statements were ADJACENT went red
+on the insertion and was re-based to the property (the re-arm), not the spelling.
+
+The reviewer also killed a clause I had written to PREVENT claim-beyond-assertion: the
+day-pill survival half counted declarations file-wide while claiming "both themes", so both
+copies in the light block passed it. Theme-scoped now, on the file's own withoutDarkBlocks
+helper; the counter-example dies. And "the grep returned ONE site" was itself a wrong count
+(five lines, two pins) — corrected in every record, because #660 is this project's record of
+what a wrong number does three handoffs later.
+
+C# CHANGED (two Logging lines) — this batch needs a build. Windows: F5, never `dotnet build`
+(#663). Suite in one container on this exact tree: BEFORE 4752 -> AFTER 4753, the same 2
+KNOWN; the +1 is the new walk pin. cs-syntax-check 138 clean + 1 known gap. Both new pins
+killed by their own mutations, including the reviewer's exact counter-example.
+No Ixian-Core sibling in that container (the M1 gate is +1 with one, so a local run reads
+4754). Session Z recorded 4754 for the BEFORE tree on a byte-identical scripts/ — one of the
+two numbers is off by one; the local run settles which.
+
+
+THE DESKTOP WALLET PANE (#896-#898) - Damir's report, traced and fixed the same day
+"clicking through transactions they weirdly fade in in the pane, briefly revealing
+the actual chat screen of some chat below", then: "there should be no flash at all
+on desktop ... each other you open just changes instantly."
+
+Three causes, and only the first was where I kept looking.
+
+#896/#897 - WHAT WAS UNDERNEATH. The ixian:tab: sweep closed the Account pane, the
+chat-info pane, the add-contact/add-app form pane and the tx detail - each by name -
+and NOT the conversation. So a chat opened on Chats stayed live and pinned in the
+detail column across the whole app. It closes now, gated off tab1 (a tap on the tab
+you are already on, and home.html's Fix #8 boot echo, both arrive as ixian:tab:tab1).
+The sweep was already making this argument: closeTxDetailOverlays is in that branch
+because "the tx detail belongs to the wallet tab" (#263).
+L6 had pinned the OPPOSITE ("a plain tab switch does NOT close the conversation"), so
+that pin is INVERTED WITH ITS REASON rather than quietly flipped - L6 fixed the same
+defect from a different trigger and scoped its negative before the wallet case existed.
+closeChatOverlaysForContacts -> closeChatOverlays; 3 L6 pins re-based.
+
+#898 - THE FLASH ITSELF, and both #896 candidates were WRONG. WalletSentPage.onLoad
+ended with webView.FadeTo(1, 150): the page fading its OWN WebView in on every
+construction, translucent for 150 ms, so whatever was pinned under the detail column
+showed straight through. One line in the page, under two rounds of theory about the
+overlay machinery and WebView2 compositing. The discriminator #896 proposed would have
+split two mechanisms that were both wrong. Instant reveal now; the ctor's Opacity = 0
+stays, and the shell's bridge.painted() already gates the present, so the ramp hid
+nothing it was blamed for.
+
+#898 - THE INSTANT SWAP. Every tap built a new page and a new WebView. An open detail
+is REUSED: showTransaction(tx) swaps the field and re-renders, and onTransaction takes
+that path before construct-and-present. The page draws entirely from that one field and
+the shell commits a burst atomically (#289), so the new transaction paints in one frame.
+The swap's risk is the latches, not the rendering - a stale isConfirmedDisplayed from a
+CONFIRMED previous tx silently stops the 1 Hz poll for the new one - so that pin is
+DERIVED from the class's own field declarations with a stated carve-out, and its
+mutation proved it names the missing field.
+
+Pin (1) failed on its own explanation before it was fixed: its negative sweeps for
+FadeTo, and the docblock quotes FadeTo(1, 150) to say what was removed. Third time
+that class appeared in one session (#771).
+
+C# in THREE files (CallPage, HomePage, WalletSentPage) - this batch needs a build.
+Windows: F5, never `dotnet build` (#663). Suite 4752 -> 4756 in one container across
+the session; cs-syntax-check 138 clean + 1 known gap; every pin added or changed was
+killed by its own mutation.
+

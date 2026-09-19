@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Walk — Session AA: the glass dial retired, the fade, the three findings</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --bg:#eef1f6; --card:#ffffff; --sunk:#f5f7fa;
+    --ink:#141b23; --sub:#5b6672; --line:#dfe5ec;
+    --act:#1956b2; --act-soft:#e5edf9;
+    --p:#1a7f4b; --f:#b12525; --n:#8b95a1;
+    --warn:#884b00; --warn-soft:#fbf1e2;
+    --shadow:0 1px 2px rgba(20,27,35,.05), 0 2px 8px rgba(20,27,35,.05);
+  }
+  :root:not([data-theme="light"]) { }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0d1117; --card:#161b22; --sunk:#0f141b;
+      --ink:#e6edf3; --sub:#9aa7b4; --line:#252c36;
+      --act:#5a8dee; --act-soft:#16233a;
+      --p:#3fb27a; --f:#f08a80; --n:#7d8794;
+      --warn:#e0a458; --warn-soft:#241c10;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0d1117; --card:#161b22; --sunk:#0f141b;
+    --ink:#e6edf3; --sub:#9aa7b4; --line:#252c36;
+    --act:#5a8dee; --act-soft:#16233a;
+    --p:#3fb27a; --f:#f08a80; --n:#7d8794;
+    --warn:#e0a458; --warn-soft:#241c10;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.3);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.55 "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding:28px 20px 64px;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1000px;margin:0 auto}
+
+  header{margin:0 0 18px}
+  h1{font-size:27px;line-height:1.2;margin:0 0 6px;font-weight:700;letter-spacing:-.015em;text-wrap:balance}
+  .lede{color:var(--sub);margin:0 0 14px;max-width:64ch}
+  .facts{display:flex;flex-wrap:wrap;gap:8px}
+  .fact{
+    font:500 12px/1 "IBM Plex Mono", ui-monospace, Consolas, monospace;
+    background:var(--card);border:1px solid var(--line);border-radius:999px;
+    padding:7px 12px;color:var(--sub);white-space:nowrap
+  }
+  .fact b{color:var(--ink);font-weight:500}
+
+  .tally{
+    position:sticky;top:0;z-index:5;background:var(--bg);
+    padding:12px 0 10px;margin:0 0 18px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap
+  }
+  .tally .score{font:600 15px/1 "IBM Plex Mono", monospace;letter-spacing:.02em}
+  .tally .score i{font-style:normal;padding:0 2px}
+  .tally .sp{flex:1}
+  .mini{
+    border:1px solid var(--line);background:var(--card);color:var(--ink);
+    border-radius:8px;padding:7px 13px;font:500 13px/1 "IBM Plex Sans",sans-serif;cursor:pointer
+  }
+  .mini:hover{border-color:var(--act);color:var(--act)}
+  .mini:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+
+  h2{
+    font-size:13px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--sub);margin:26px 0 10px;display:flex;align-items:baseline;gap:10px
+  }
+  h2 .num{
+    font-family:"IBM Plex Mono",monospace;color:var(--act);font-weight:500;
+    letter-spacing:0;font-size:12px
+  }
+  section{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:16px 18px;margin:0 0 4px;box-shadow:var(--shadow)
+  }
+  section.flag{border-left:3px solid var(--act)}
+  section > p{margin:0 0 12px;color:var(--sub);max-width:70ch}
+  section > p:last-child{margin-bottom:0}
+  section > p strong{color:var(--ink);font-weight:600}
+  code{
+    font:500 13px/1.4 "IBM Plex Mono",ui-monospace,Consolas,monospace;
+    background:var(--sunk);border:1px solid var(--line);border-radius:5px;padding:1px 5px
+  }
+
+  .cmd{position:relative;margin:0 0 12px}
+  .cmd pre{
+    margin:0;background:var(--sunk);border:1px solid var(--line);border-radius:10px;
+    padding:13px 15px;overflow-x:auto;
+    font:400 12.5px/1.65 "IBM Plex Mono",ui-monospace,Consolas,monospace;
+    color:var(--ink)
+  }
+  .cmd .cp{
+    position:absolute;top:8px;right:8px;
+    border:1px solid var(--line);background:var(--card);color:var(--sub);
+    border-radius:7px;padding:5px 10px;font:500 11px/1 "IBM Plex Sans",sans-serif;cursor:pointer
+  }
+  .cmd .cp:hover{color:var(--act);border-color:var(--act)}
+  .cmd .cp:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+  .cmd .cp[data-done="1"]{color:var(--p);border-color:var(--p)}
+
+  .note-line{
+    display:flex;gap:8px;align-items:flex-start;
+    background:var(--warn-soft);border:1px solid var(--line);border-radius:9px;
+    padding:10px 13px;margin:0 0 12px;color:var(--ink);font-size:13.5px;line-height:1.5
+  }
+  .note-line b{color:var(--warn)}
+
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:10px 8px;border-top:1px solid var(--line);vertical-align:top}
+  thead th{
+    border-top:0;font:600 11px/1 "IBM Plex Sans",sans-serif;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--sub);padding-bottom:8px
+  }
+  td.id{
+    width:44px;font:500 13px/1.5 "IBM Plex Mono",monospace;color:var(--act);white-space:nowrap
+  }
+  td.what{font-size:14px}
+  td.what em{font-style:normal;color:var(--sub);display:block;margin-top:3px;font-size:13px}
+  td.v{width:158px;white-space:nowrap}
+
+  .btn{
+    border:1px solid var(--line);background:transparent;color:var(--sub);
+    border-radius:7px;padding:5px 11px;margin-right:4px;cursor:pointer;
+    font:500 12.5px/1 "IBM Plex Sans",sans-serif
+  }
+  .btn:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+  .btn[aria-pressed="true"][data-v="P"]{background:var(--p);border-color:var(--p);color:#fff}
+  .btn[aria-pressed="true"][data-v="F"]{background:var(--f);border-color:var(--f);color:#fff}
+  .btn[aria-pressed="true"][data-v="N"]{background:var(--n);border-color:var(--n);color:#fff}
+  /* ★ Damir, walk S2: "stupid artefact doesnt allow notes if pass" — and the note he
+     could not leave was a real defect. The box used to be display:none until a row
+     FAILED, on the reasoning that a fail needs an explanation. True, and not the same
+     as "a pass has nothing to say": the most valuable notes are the ones on rows that
+     technically passed, because those are the observations no row was written to catch.
+     Always visible now; the fail styling stays. */
+  .nt{
+    width:100%;margin-top:7px;border:1px solid var(--line);border-radius:7px;
+    padding:6px 9px;background:var(--sunk);color:var(--ink);
+    font:400 13px/1.45 "IBM Plex Sans",sans-serif;display:block
+  }
+  tr[data-v="F"] .nt{border-color:var(--f)}
+
+  footer{margin:30px 0 0;color:var(--sub);font-size:13.5px;line-height:1.6}
+  footer b{color:var(--ink)}
+
+  @media (max-width:640px){
+    body{padding:20px 14px 56px}
+    td.v{width:auto}
+    th:nth-child(3),td.v{display:block;padding-top:0;border-top:0}
+    td.id{width:38px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Walk — Session AA: the glass dial retired, the fade, the three findings</h1>
+  <p class="lede">Ten rows, and only the first six are a walk. <strong>§2 is a decision</strong> (the fade — nothing has landed) and <strong>§3 is three log captures</strong>, which are the rows that actually move the open findings. ★ <strong>AA.3 is the row that matters</strong>: the retired token and the live one differ by one word, so the day pill's frost surviving is the real test of the deletion.</p>
+  <div class="facts">
+    <span class="fact">records <b>#892–#895</b></span>
+    <span class="fact">smoke <b>4755 / the 2 KNOWN</b> — measured on your machine, Session Z + 1</span>
+    <span class="fact">C# changed <b>YES</b> — CallPage + HomePage + WalletSentPage, so this one needs a build</span>
+    <span class="fact">mutations <b>7 runs · 8 clause-kills · 0 survivors</b></span>
+    <span class="fact">review <b>Opus: 1 MAJOR · 5 MINOR, all fixed</b></span>
+  </div>
+</header>
+
+<div class="tally">
+  <span class="score" id="score">— / 13</span>
+  <span class="score" style="color:var(--p)">P <i id="cp">0</i></span>
+  <span class="score" style="color:var(--f)">F <i id="cf">0</i></span>
+  <span class="score" style="color:var(--n)">N/A <i id="cn">0</i></span>
+  <span class="sp"></span>
+  <button class="mini" id="copyres">Copy results</button>
+  <button class="mini" id="reset">Reset</button>
+</div>
+
+<main>
+
+<h2><span class="num">§0</span> Build</h2>
+<section>
+  <p><strong>C# changed</strong> — two <code>Logging</code> lines in <code>CallPage.xaml.cs</code>, no behaviour change. Windows: <strong>F5 in Visual Studio, never <code>dotnet build</code></strong> (#663 — a plain build serves the previous build&rsquo;s shell from <code>Documents\Spixi\html</code> and looks completely normal). Android: point at the <strong>project</strong>, not the solution.</p>
+  <div class="cmd"><button class="cp">Copy</button><pre>dotnet build Spixi\Spixi.csproj -f net10.0-android -c Debug
+dotnet build Spixi\Spixi.csproj -f net10.0-android -c Debug -t:Run</pre></div>
+  <div class="note-line"><b>⚠</b><span><code>dotnet build -t:Run -f net10.0-android</code> from the repo root targets <code>SPIXI.sln</code>, so MSBuild runs all four projects: <code>Spixi-UnitTests</code> gets <code>dotnet exec</code>&rsquo;d (MSB3073) and <code>Spixi-PushService</code> fails MSB3072/MSB6011. Neither is a real failure and neither touches this batch. No <code>obj</code>/<code>bin</code> wipe needed.</span></div>
+  <div class="note-line"><b>⚠</b><span><b>Confirm it is THIS build before ticking anything:</b> open a chat and set <code>localStorage.setItem('spixi.chat.glass','1')</code> in F12, then reopen. On the new build <b>nothing happens</b> — the key is dead. On the old build the composer frosts.</span></div>
+</section>
+
+<h2><span class="num">§1</span> The retirement — the glass is gone, nothing else moved</h2>
+<section class="flag">
+  <p>Six rows. The dial is deleted in all three files and the pref key has no readers left; these rows check that the deletion took <em>only</em> what it was meant to. <strong>AA.3 is the one that matters</strong> — <code>--surface-composer-glass</code> (deleted) and <code>--surface-chat-glass</code> (live, the day pill) differ by one word. The pin asserts both directions, but your eye is the second check.</p>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s1"></tbody></table>
+</section>
+
+<h2><span class="num">§2</span> The fade — your pick, nothing has landed</h2>
+<section>
+  <p>The glass is out either way. This is the one alternative you asked for, rendered on the real built shell with two bubbles genuinely under the pill: <code>docs/sheets/session-aa/composer-edge-fade.png</code>. Left panels are today&rsquo;s hard cut (a bubble sliced mid-word at the pill&rsquo;s edge); right panels dissolve it. The newest message is never dimmed — the log already pads its bottom by the composer height, so at rest the last bubble sits above the fade zone.</p>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s2"></tbody></table>
+</section>
+
+<h2><span class="num">§3</span> The three findings — log captures, not a walk</h2>
+<section>
+  <p>These are the rows that move things. <code>docs/diagnostic-session-aa-findings.md</code> has the decision tables; every line they look for already ships. ★ <strong>#891&rsquo;s prescribed one-line revert for the call bug is falsified</strong> — <code>installFlagFont()</code> returns immediately on any device that can paint a flag, so on Android it is a no-op and cannot explain &ldquo;both blind&rdquo;. Do not spend a build on it.</p>
+  <div class="cmd"><button class="cp">Copy</button><pre>Select-String -Path ixian.log -Pattern "SND call-tone|Call surface|Chat page for"</pre></div>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s3"></tbody></table>
+</section>
+
+<h2><span class="num">§4</span> The wallet: the flash and the chat underneath — both fixed (#897, #898)</h2>
+<section class="flag">
+  <p>Your report: clicking through transactions on desktop &ldquo;weirdly fade in in the pane, briefly revealing the actual chat screen of some chat below&rdquo;. The conversation really was still there &mdash; the <code>ixian:tab:</code> sweep closed the Account pane, the chat-info pane, the form pane and the tx detail <em>each by name</em>, and not the conversation. It does now.</p>
+  <div class="note-line"><b>★</b><span><b>The fade is answered, and it was neither thing I guessed.</b> <code>WalletSentPage.onLoad</code> ended with <code>webView.FadeTo(1, 150)</code> &mdash; the page fading its own WebView in on every construction, translucent for 150&nbsp;ms, so whatever sat under the detail column showed through. It is an instant reveal now, and an already-open detail is <b>reused</b> rather than rebuilt, so every tap after the first swaps with no new WebView at all.</span></div>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s4"></tbody></table>
+</section>
+
+</main>
+
+<footer>
+  <p>A pass with a design note is a pass — write the note. For <b>AA.7</b> the note IS the answer (ship / shorter / longer / no). For <b>AA.8–AA.10</b> paste the matching log lines verbatim rather than summarising them: the whole point of those rows is that one line picks between two fixes that are not interchangeable.</p>
+  <p><b>Still open, deliberately not on this sheet:</b> the Z.10 chooser copy pick (unpicked two sessions running), S1 timed (#872 ②, which gates #864 and the spare), the AND-40 meminfo series, the iOS walk, the translator pass over <code>src/strings/draft/*.json</code>, and the #890 recorded dials. Also unanswered: whether the ASD-STE100 rule in <code>CLAUDE.md</code> still stands (#512 flagged it; recent docs do not follow it).</p>
+</footer>
+</div>
+<script>
+(function(){
+  var ROWS = {
+    s1: [
+      ["AA.1","open any chat and scroll (either platform)","exactly as before this batch — the composer bar is transparent and messages pass under it. The retirement removed a dial that was OFF by default, so nothing here should have moved"],
+      ["AA.2","F12: localStorage.setItem('spixi.chat.glass','1') → close and reopen the chat","NOTHING happens. The key is dead: the rule, its @supports fallback, the token in both modes and all four readers are gone. (This was the Z.5 dial you rejected.) If the composer frosts, you are on the old build"],
+      ["AA.3","★ scroll a chat and watch the day pill / the unread strip","STILL FROSTED, both themes. This is the row that matters: --surface-composer-glass (deleted) and --surface-chat-glass (live, this pill) differ by ONE WORD, and a careless cleanup takes the wrong one. The pin now proves one declaration in light and one in dark; your eye is the second check"],
+      ["AA.4","Account → Chat appearance: change the pattern, the ground, the text size → reopen a chat","all three still apply live. The stamp gate lost a key (5 → 4) and must have kept every remaining reader — a pref that only applies after a restart is the failure this row looks for"],
+      ["AA.5","desktop: any chat","the composer pill still has its 12 px foot below it (#889 ②, deliberately kept — it was the other half of that batch)"],
+      ["AA.6","place a call to a device that is UNLOCKED and awake, then pull ixian.log","a normal call. Then grep the log: 'Call surface: REFUSED' must be ABSENT. This row exists only to prove the two new Logging lines do not fire on the happy path"]
+    ],
+    s2: [
+      ["AA.7","open docs/sheets/session-aa/composer-edge-fade.png — both themes, hard cut beside the fade","YOUR PICK, and the note IS the answer: ship it · shorter fade · longer fade · no, leave the edge as it is. The only knob is the depth (80 px today). Nothing lands without a yes"]
+    ],
+    s3: [
+      ["AA.8","③ place a call that shows NO UI on either device, then pull ixian.log from BOTH","paste the lines matching 'SND call-tone' and 'Call surface'. The first question the log answers is whether the callee saw the call at all: no 'SND call-tone' line at all = the call never arrived, which is DELIVERY, not the shell, and a different project. If it rang, the new 'Call surface: REFUSED, a lock is up or staging' line is the most likely reading — it was silent before this batch, which is why nothing has explained this yet"],
+      ["AA.9","①/② open a contact from the DIRECTORY → tap Message → pull the log","does the chat open? Then grep for 'Chat page for … already open.' PRESENT = the enumerator counted a page that is not on screen. ABSENT = the spare push was refused or presented under the closing overlay. That one line picks between two fixes that are NOT interchangeable — paste it verbatim"],
+      ["AA.10","①/② from a CHAT's ⓘ → Message; and tap a 'Groups you are both in' row","same question, different entry point — note WHICH you used. ⚠ From a chat's header, pop-with-no-open is CORRECT behaviour (you came from that chat), so the same symptom has two different causes depending on where you opened the screen from"]
+    ],
+    s4: [
+      ["AA.11","★ desktop: Wallet → click a transaction, then click through several more","NO fade, NO flash, NO anything. The first opens in the right pane; every one after that CHANGES INSTANTLY, with no new WebView built (#898). ⚠ THE TRADE from #897: switching back to Chats lands on the empty pane, NOT the conversation you left — the same trade you made for Contacts. Say if it bites and the follow-up is to PARK it instead of closing"],
+      ["AA.13","desktop: open a PENDING transaction, leave the detail open, wait ~30 s","its status still updates live. This is the one thing the in-place swap could quietly break: the reused page carries latches that decide whether the 1 Hz poll runs, and a stale one from a CONFIRMED transaction would stop the new one updating — with nothing visibly wrong until you notice a pending tx that never moves"],
+      ["AA.12","desktop: tap the Chats tab while a conversation is open; then restart the app standing on Chats","the conversation STAYS OPEN both times. The close is gated off tab1, and home.html's Fix #8 boot echo arrives as ixian:tab:tab1 — if a conversation vanishes on either, the gate is wrong and that is a worse bug than the one being fixed"]
+    ]
+  };
+
+  var KEY = "spixi.walk.session-aa";
+  var state = {};
+  try { state = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch(e) { state = {}; }
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){} }
+
+  function build(tbodyId){
+    var tb = document.getElementById(tbodyId);
+    if(!tb) return;
+    ROWS[tbodyId].forEach(function(r){
+      var id = r[0];
+      var tr = document.createElement("tr");
+      tr.dataset.row = id;
+      var td1 = document.createElement("td");
+      td1.className = "id"; td1.textContent = id;
+      var td2 = document.createElement("td");
+      td2.className = "what";
+      td2.appendChild(document.createTextNode(r[1]));
+      if (r[2]) { var em = document.createElement("em"); em.textContent = r[2]; td2.appendChild(em); }
+      var td3 = document.createElement("td");
+      td3.className = "v";
+      ["P","F","N"].forEach(function(v){
+        var b = document.createElement("button");
+        b.className = "btn"; b.dataset.v = v; b.type = "button";
+        b.textContent = v === "N" ? "N/A" : v;
+        b.setAttribute("aria-label", (v==="P"?"Pass":v==="F"?"Fail":"Not applicable") + " " + id);
+        b.setAttribute("aria-pressed", String(state[id] && state[id].v === v));
+        b.addEventListener("click", function(){
+          var cur = state[id] || {};
+          cur.v = (cur.v === v) ? "" : v;
+          state[id] = cur; save(); paint(tr, id); tallyUp();
+        });
+        td3.appendChild(b);
+      });
+      var nt = document.createElement("textarea");
+      nt.className = "nt"; nt.rows = 2;
+      nt.placeholder = "note (optional — on a pass too)";
+      nt.value = (state[id] && state[id].n) || "";
+      nt.setAttribute("aria-label", "Note for " + id);
+      nt.addEventListener("input", function(){
+        var cur = state[id] || {}; cur.n = nt.value; state[id] = cur; save();
+      });
+      td3.appendChild(nt);
+      tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+      tb.appendChild(tr);
+      paint(tr, id);
+    });
+  }
+
+  function paint(tr, id){
+    var v = (state[id] && state[id].v) || "";
+    tr.dataset.v = v;
+    Array.prototype.forEach.call(tr.querySelectorAll(".btn"), function(b){
+      b.setAttribute("aria-pressed", String(b.dataset.v === v));
+    });
+  }
+
+  function tallyUp(){
+    var p=0,f=0,n=0,total=0;
+    Object.keys(ROWS).forEach(function(k){ total += ROWS[k].length; });
+    Object.keys(state).forEach(function(id){
+      var v = state[id] && state[id].v;
+      if (v==="P") p++; else if (v==="F") f++; else if (v==="N") n++;
+    });
+    document.getElementById("cp").textContent = p;
+    document.getElementById("cf").textContent = f;
+    document.getElementById("cn").textContent = n;
+    document.getElementById("score").textContent = (p+f+n) + " / " + total;
+  }
+
+  Object.keys(ROWS).forEach(build);
+  tallyUp();
+
+  function copyText(text, btn, doneLabel){
+    var ok = function(){
+      if(!btn) return;
+      var old = btn.textContent;
+      btn.textContent = doneLabel || "Copied";
+      btn.dataset.done = "1";
+      setTimeout(function(){ btn.textContent = old; btn.dataset.done = ""; }, 1400);
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(ok, function(){ fallback(text, ok); });
+        return;
+      }
+    } catch(e){}
+    fallback(text, ok);
+  }
+  function fallback(text, ok){
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      ok();
+    } catch(e){}
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll(".cmd .cp"), function(btn){
+    btn.type = "button";
+    btn.addEventListener("click", function(){
+      var pre = btn.parentNode.querySelector("pre");
+      copyText(pre ? pre.textContent : "", btn);
+    });
+  });
+
+  document.getElementById("copyres").addEventListener("click", function(){
+    var out = ["Walk — Session AA: the glass dial retired, the fade, the three findings", ""];
+    var p=0,f=0,n=0;
+    Object.keys(ROWS).forEach(function(k){
+      ROWS[k].forEach(function(r){
+        var id = r[0], s = state[id] || {}, v = s.v || "-";
+        if (v==="P") p++; else if (v==="F") f++; else if (v==="N") n++;
+        out.push(v + "  " + id + "  " + r[1] + (s.n ? "   — " + s.n : ""));
+      });
+    });
+    out.splice(1, 0, p + " pass · " + f + " fail · " + n + " n/a");
+    copyText(out.join("\n"), this, "Copied");
+  });
+
+  document.getElementById("reset").addEventListener("click", function(){
+    if (!window.confirm("Clear every result and note on this sheet?")) return;
+    state = {}; save();
+    Object.keys(ROWS).forEach(function(k){
+      var tb = document.getElementById(k);
+      while (tb.firstChild) tb.removeChild(tb.firstChild);
+      build(k);
+    });
+    tallyUp();
+  });
+})();
+</script>
+</body>
+</html>

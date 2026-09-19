@@ -61,7 +61,7 @@ planning any security work.
 |---|---|---|
 | **`maxLogCount = 5`** | `Spixi/Meta/Config.cs` (`maxLogCount`) | carries a literal `RELEASE BLOCKER — REDUCE TO 1 BEFORE LAUNCH` marker on the first line of its docblock. Five logs feed a file DevPage renders and shares. ⚠ **The flip now edits this file alone.** Gate 23 asserts the legal PAIR — 5 with the marker, or 1 without it — and the old `>= 5` pin, which the flip would have had to edit, is deleted. Gate row **O-18** |
 | **live diagnostic verbs / log sets** | `HomePage.xaml.cs` (`ixian:landtabprobe:`, `[EXCERPTDIAG]`), the `[CDPERF]` set, `[SCROLL]`, `[PAINTDIAG]` | all designed to retire as sets; none has |
-| **the Privacy Policy** | `docs/legal/privacy-policy.md` | HELD on a `⟨PLACEHOLDER⟩`, a "DAMIR TO CONFIRM" note and a session annotation. Needs counsel, not a batch |
+| ~~**the Privacy Policy**~~ | `docs/legal/privacy-policy.md` | ✅ **CLOSED — and it was already closed when this row was written.** Session S (`9e099ee7`, 08 September 2026) removed ALL THREE markers this row names: the ⟨PLACEHOLDER⟩ for the undelivered-message retention period in §4.3, the second one in the §11 table, and the Session G/#708 annotation. Damir confirmed the period with whoever operates `ipn.ixian.io` — **30 days**, stated twice and consistently. ⚠ This page's own §0 already said the privacy doc BAKES; §1 said HELD. The two contradicted each other for eleven days (the #660 class). ⚠ Session AA also corrected the header date, which still read 29 August while the retention clause was written on 08 September — the date a user or a reviewer relies on. ⚠ **A lawyer has still not read it**; that is a separate judgement from "nothing is held", and it is not one this repo can record for itself |
 
 ### Gates that have never run
 
@@ -155,7 +155,7 @@ A decision, a dial, an asset, or one device test. Several of these unblock more 
 | **iOS-67 Inspector call** | one call gates a broken core flow on iOS |
 | **AND-25 / AND-27 logcats** | two crash-class defects nobody has characterised |
 | **iOS-32 thermal measurement** | a stated ship gate |
-| **the Privacy Policy text** | a store-submission blocker |
+| ~~**the Privacy Policy text**~~ | ✅ **no longer blocked on Damir** — the retention period he owed landed in Session S and the document carries no marker. What remains for a store track is a counsel read, not an answer from him |
 | **the #232 BE walkthrough** | unblocks the live money path, L8, and MAJOR #4/#6 in one engagement |
 | **the translator pass** | ~585 machine-drafted keys per locale across 12 locales, in `src/strings/draft/*.todo.json` |
 | **R4 backup-reminder dial** | the reminder is dead AND silently burning its own intervals — on a self-custodial wallet |

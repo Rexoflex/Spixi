@@ -430,6 +430,22 @@ namespace SPIXI
             // the ring/bar (the call itself keeps running + ringing meanwhile).
             if (lockUp(rootNav))
             {
+                /* ★ Session AA (#894) — THIS REFUSAL USED TO BE SILENT, and a silent refusal
+                 * here is indistinguishable from the report it most likely explains: the callee
+                 * logs "SND call-tone: ringing", no call surface appears on EITHER device, and
+                 * nothing in ixian.log says why. Every other branch of ensureSurface already
+                 * names itself (staging failed · host covered · modal fallback failed); this one
+                 * did not, so the diagnostic table had no row that could ever match and sent the
+                 * reader past the lock it had flagged two rows earlier.
+                 * ⚠ It is also the branch most worth seeing: lockUp() is true for a STRANDED
+                 * lock — exactly what #505's sweepStrandedCover() exists to heal — and for the
+                 * ~1.3 s isLockStaging() window, and its test is NOT App.isAppLockActive (the
+                 * flag the ring gate uses), so the two can disagree.
+                 * Diagnostic only: no behaviour change, both predicates are side-effect free.
+                 * Both false in the line below = the rootNav ModalStack/NavigationStack test is
+                 * what matched. Retire this line once ③ is settled. */
+                Logging.info("Call surface: REFUSED, a lock is up or staging — modalOverlay={0} lockStaging={1} (#894)",
+                    hasModalOverlay(), isLockStaging());
                 UIHelpers.refreshAppRequests = true;
                 return null;
             }
@@ -445,6 +461,11 @@ namespace SPIXI
                 View? content = page.Content;
                 if (content == null)
                 {
+                    /* ★ Session AA (#894): found by the walk pin, not by reading — this refusal was
+                     * silent too, and it is the same class as the lock one: the call runs, the
+                     * callee rings, and no surface appears with nothing in the log to say why.
+                     * Reachable if the XAML ever fails to materialise a Content. */
+                    Logging.error("Call surface: REFUSED, the page has no Content — the XAML did not materialise (#894)");
                     return null;
                 }
                 ContentView stage = new ContentView

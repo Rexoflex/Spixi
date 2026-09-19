@@ -1,25 +1,75 @@
-Next session — three findings from the Z walk (verify-first), the glass dial OUT, then the queue
+Next session — commit Session AA, then the bubble gap + the tail (which is NOT a token edit)
 
-0 · Before anything else (#215) Read `docs/handoff-2026-09-18b.md`, then DECISIONS #891 (the walk verdict + the three findings, with the C# lines already located). Check `device_bash` (node 22 / git / npm on the VM). Use `git --no-optional-locks status` (a plain `git status` leaves an undeletable `.git/index.lock`, #882 ②). Run `node scripts/generate-icons.mjs --check`, `node scripts/build-shells.mjs --check` and `node scripts/extract-strings.mjs --check` on the real tree before believing any statement about it. CHECK DECISIONS before accepting any "owed" row from this prompt (#660). ★ The FULL suite runs in the container (#882 ①, recipe in the handoff §4 — tar from `git ls-files`, install jsdom/eslint/globals/tree-sitter TOGETHER, ~6 min when nothing competes) — run it on the tree you inherit BEFORE and AFTER your change; "predicted" is not an acceptable last line. ★ Reviews run on Opus (Damir: "so we don't waste Fable tokens") — pin the model explicitly. Session Z is COMMITTED (`09f379b1`); the tree you inherit should be clean.
+0 · Before anything else (#215)
+Read `docs/handoff-2026-09-19.md`, then DECISIONS #892–#900. ★ §2 of that handoff matters most:
+TWO of Session AA's walk rows look like closures and are not — AA.8 is N/A because finding ③ did
+not reproduce (the diagnostic stays armed; nothing was fixed), and AA.9/AA.10 pass for a reason
+that is a HYPOTHESIS, not a proven fix. Do not close either.
 
-1 · ★★ Ask first — every one of these is a REPRO question, not a design one
-* Finding ①/②: contact details → Message, and a shared-group row, both RETURN TO THE CONTACT LIST. On which device (Windows / Android), and from which entry (the directory, or a chat's ⓘ)? Does `ixian.log`/logcat show `Chat page for … already open.` right after the tap? That one line splits the mechanism in two (#891): both verbs run `popPageAsync()` THEN `HomePage.onChat()` (`ContactDetails.xaml.cs:629` / `:524`), and `onChat` (`HomePage.xaml.cs:2404`) returns silently on `Utils.getChatPage(friend) != null`, else takes the #800 spare path (`:2468`). Did it work in Session Y's walk (Message on the directory arm shipped at #878, walked 12/12) — and on which machine? That fixes the regression window.
-* Finding ③: the call strip is invisible — which side is blind (caller / callee), which platform each, incoming or outgoing? AND-45's walk PASSED A.11 on Android this morning, so the window is Session Z's delta, and `call.html` changed by exactly one line (the `installFlagFont()` call, #888). Ask whether he can do the one-line test himself (checklist below) before you read anything else.
-* Z.10's chooser pick (base / trimmed / actions-first, `docs/sheets/session-z/chooser-grid.png`) — passed without a pick.
-* The glass alternative: does he want to SEE the one render (a soft fade of the message scroller's bottom edge, no filter, no rect), or just delete? "Or even that not" was his last word — a single render, both themes, and nothing lands without a yes.
-* S1 timed? (#872 ②) — #864 and the spare stay as they are until a number exists. The #890 dials (sheet-card hover 1.103 · member-sheet micro-label · Downloads/apps-grid screen hover · MINOR-6) stay recorded unless he picks.
+Check `device_bash` (node 22 / git / npm on the VM). Use `git --no-optional-locks status`. Run
+`node scripts/generate-icons.mjs --check`, `node scripts/build-shells.mjs --check`,
+`node scripts/extract-strings.mjs --check` and `node scripts/build-legal-docs.mjs --check` on the
+real tree before believing any statement about it. CHECK DECISIONS before accepting any "owed" row
+from this prompt (#660). ★ The FULL suite runs in the container (#882 ①; recipe in the previous
+handoff §4 — which paths to exclude, and that `local-nuget/` must be KEPT) — BEFORE and AFTER;
+"predicted" is not an acceptable last line. ★ Reviews run on Opus — pin the model explicitly.
 
-2 · Build — in this order, each rendered BOTH themes through the wire before pins, the suite's existing gates on every change
-① Finding ③ first, it is the cheapest and the most serious (a call you cannot answer): one-line revert of `installFlagFont()` in `src/shells/call.html` → `build-shells call` → the same call again. Survives → read `CallPage` `setCallUi` and the `[callui]` log on the blind side; the fix is what the log names (#215), and it gets an EXECUTED pin (the call shell booted in jsdom with the push through the wire, the strip's computed visibility asserted — no regex).
-② Findings ①/②: ONE fix for both, on the C# path the log line names — either `getChatPage` is counting a page that is not on screen (the spare, or the page mid-pop — then the enumerator gets the same "is it attached AND presented" test the #800 loop wrote for the spare), or the spare push is refused/presented under the popping page (then the order is onChat first, pop after, or the pop awaited). A pin in both halves (#861): the shell's two emits + the C# handler's order, walked not listed (#798). `cs-syntax-check` in the container. ⚠ #221 untouched: the chat stays its own WebView; this is routing, not composition.
-③ The glass dial OUT (#891): delete `html[data-chat-glass]` rules + `@supports` fallback in composer.css, `--surface-composer-glass` (both themes), the `spixi.chat.glass` key from chat.html's `PATTERN_PREF_KEYS`/pre-paint read/`patternStamp`/storage listener, the security-gate row's key (mark it RETIRED, do not delete the row), and re-base the Session P L1·12 count 5 → 4 and the #889 pins — every pin, both halves. `CHAT_KB_CEIL` moves DOWN with its delta stated. If he said yes to the fade render: `mask-image` on the scroller only, no filter, its own token-free rule, one pin.
-④ Z.10 if he picked: the chooser copy lands from the render (`contacts-shell.js`), drafts ×12, `extract-strings --check`.
-★ Each fix walked the same day on the device that showed it; a fix nobody re-walked is a prediction.
+★ Session AA's own lesson, and it applies to item 2 directly: a prescribed plan in a handoff is a
+hypothesis. #891 prescribed a one-line revert as "the cheapest test" and reading the code falsified
+it before it could spend a build. Check the plan against the tree first.
+
+1 · Item 0 — Session AA is walked and ready
+It is UNCOMMITTED and it needs a build (C# in three files). If Damir has not committed it, that is
+the first thing: `docs/commit-message-session-aa.txt`, and the `git add` list is in the previous
+handoff §7. Local smoke should read **4758** (container 4756 + the measured +2 on his machine).
+
+2 · Build — the bubble gap, then the tail
+① THE GAP — a one-token dial and a REVERT. `--bubble-gap-inner: 1px` (`tokens.css:1135`) → `2px`.
+   It was 2px at dial C and 3px before that; the token's own comment carries the history. ONE pin
+   re-bases (`smoke-test.mjs:24264` asserts the literal `'1px'`) — EXTEND its comment, which holds
+   the Session T story, rather than overwrite it.
+
+② ★★ THE TAIL IS NOT A TOKEN EDIT. `--bubble-tail: 8px` / `--bubble-tail-h: 13px` set the BOX; the
+   SHAPE is four hard-coded `clip-path` values in absolute pixels, drawn for a 9 × 13 box
+   (width = tail + 1, the seam overlap into the bubble): LTR received, LTR sent, and both mirrored
+   for RTL (`message-bubble.css:190`, `:196`, `:199`, `:201`). Shrink the tokens without redrawing
+   all four and you get a 9 × 13 shape clipped inside a smaller box — a cut-off flag, not a smaller
+   tail. All four are pinned at `smoke-test.mjs:24303` together with
+   `width: calc(var(--bubble-tail) + 1px)`.
+   ⚠ RENDER IT. This is a shape, in two directions and two themes, and "slightly reduce" is a
+   judgement Damir makes with his eyes — a number in a docblock is not evidence about a shape.
+   Render before pinning (#893), and ASSERT THE SUBJECT IS IN FRAME before shooting (#811).
+   ⚠ Read `message-bubble.css:46-58` first — it records why the row inset no longer carries a tail
+   term (Damir's dial), and GATE 49 (`smoke-test.mjs:31605`) fails if it comes back. The tail is
+   positioned at `-1 × --bubble-tail`, so it follows the body on its own.
+
+③ Then, from `release-readiness.md` §3 — buildable now, no decision needed. Treat it as a MENU and
+   re-verify a row before building it (two of its entries were already built when it last ran):
+   iOS-44 attach sheet under the composer · iOS-55 untranslated tx timestamps · iOS-43 clipped
+   button label · AND-28 existing contacts show no avatar · AND-35 chat-appearance copy + order ·
+   R7 share-sheet home leg · the four landscape rows. ⚠ AND-36 is verify-first and #897 may have
+   moved it.
+
+★ Each fix walked the same day, on the device that shows it.
 
 3 · Then
-* The #46 loop on the batch (Opus). Records (#892+), the handoff, the checklist + walk artifact, the commit message.
-* #864 after S1 · AND-40 (needs a run that kills) · AND-36/39 (repro first) · the #881 latent gate holes (recorded) · the freeze (#825) last · the BE cutover (`be-cutover-brief.md`, `security-review-for-be-engineer.md` first — §1a CLOSED, #874) · then pre-release per `docs/release-readiness.md`. The translator pass over `src/strings/draft/*.json` is Damir's.
+* The #46 loop on the batch (Opus). Records (#901+), handoff, checklist + walk artifact, commit
+  message.
+* The shipping path, since Damir has now answered it: real mainnet money · Android + iOS + Windows ·
+  TestFlight / Play. That is a soft launch. The two long-lead items depend on other people and
+  should already be moving: the **#232/#523 money-path review** and **counsel on the privacy
+  policy** (#899 closed the content, not the legal read). Then AND-25 / AND-27 logcats, the iOS-67
+  Inspector call, and an iOS walk — none since ~2026-08-27.
+* Still open and unasked-for: the Z.10 chooser copy pick (three sessions now), S1 timed (#872 ②,
+  which gates #864 and the spare), AND-40, the #890 dials, the translator pass over
+  `src/strings/draft/*.json`, the freeze (#825), the BE cutover.
 
-Rules #215 · #294 · #663 (F5, never dotnet build on Windows) · #771 · #798 · #828 · #861 (both halves) · #865/#882 ③ (a file is landed when its hash reads back) · #880 ⑪ (never `throw` in a render path) · #881 (ask every gate the loud/silent question) · #883 (a one-sided walk is a false green) · #890 (a runner whose harness differs from the suite's proves less than the suite; jsdom's interceptors never see `file:` URLs; a `file://` document cannot fetch a font beside itself but can run a script) · ★ #891: a one-line diff with a same-day passing walk on the other side of it is a bisect, not a hunt — do the one-line test before reading code.
+Rules #215 · #294 · #660 · #663 · #771 (it appeared THREE times in Session AA, twice inside pins
+written by the author quoting it) · #798 · #811 · #828 · #861 · #865/#882 ③ · #881 · #890 ·
+★ #892: a grep for a retired token finds the pins that NAME it and misses the pins that COUNT it ·
+★ #898: the mechanism may be in the page, not the layer above it — two rounds of theory about
+overlays and compositors sat on top of one line of `FadeTo`.
 
-Files: `DECISIONS.md` (554 rows, #885–#891) · `docs/handoff-2026-09-18b.md` · `docs/f5-checklist-session-z.md` (verdict at the top) · `docs/walk-artifact-session-z.html` · `docs/security-handover-gate.md` (Session Z section) · `docs/sheets/session-z/` · `docs/release-readiness.md` (unchanged since 09-17).
+Files: `DECISIONS.md` (563 rows, #892–#900) · `docs/handoff-2026-09-19.md` ·
+`docs/diagnostic-session-aa-findings.md` (LIVE — the call finding is not closed) ·
+`docs/release-readiness.md` · `docs/security-handover-gate.md` · `docs/sheets/session-aa/`.

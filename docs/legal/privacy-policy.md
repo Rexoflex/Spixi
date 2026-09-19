@@ -1,6 +1,6 @@
 # Spixi — Privacy Policy
 
-**Last updated: 29 August 2026** · Supersedes the version of 07 December 2025.
+**Last updated: 08 September 2026** · Supersedes the version of 07 December 2025.
 
 ---
 

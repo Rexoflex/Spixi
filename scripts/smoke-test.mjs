@@ -5460,8 +5460,35 @@ console.log('native call surface (Q4-③/#270) — call.html contract + the call
   ok(/hasModalOverlay\(\) \|\| isLockStaging\(\)/.test(callPage)
     && /public static bool isLockStaging\(\)/.test(scp),
     '★ lockUp ALSO sees a lock that is STAGING (pushModalLoaded, ~1.3s) — a ring admitted there would land UNDER the lock as an unpoppable modal');
-  ok(/if \(lockUp\(rootNav\)\)\s*\{\s*UIHelpers\.refreshAppRequests = true;\s*return null;/.test(callPage),
-    '★ ensureSurface refuses to present over a lock, and re-arms the refresh flag so the ring returns after the unlock');
+  /* ★★ Session AA (#894) — NO REFUSAL IN ensureSurface IS SILENT.
+     The lock branch used to `return null` without a word, and a silent refusal there is
+     indistinguishable from the report it most likely explains: the callee rings, no surface
+     appears on either device, and ixian.log says nothing. The three other refusals already
+     named themselves, which is precisely why the gap was invisible — a reader scanning the
+     log for a reason finds three and concludes the fourth never ran.
+     ⚠ WALKED, NOT LISTED (#798). This slices the METHOD and requires every `return null` in
+     it to have a Logging call above it, so a FIFTH refusal added later is caught by the same
+     assertion rather than by someone remembering to extend a list. Comments stripped, because
+     the docblock beside the new line quotes the log string it asserts (#771). */
+  {
+    const mStart = callPage.indexOf('private static CallPage? ensureSurface(bool allowModalFallback)');
+    const mEnd = callPage.indexOf('\n        private ', mStart + 40);
+    const body = stripCode(callPage.slice(mStart, mEnd > 0 ? mEnd : callPage.length));
+    const refusals = body.split('return null;').slice(0, -1);   // the text BEFORE each `return null;`
+    const silent = refusals.filter((seg) => !/Logging\.(info|warn|error)\(/.test(seg.slice(-620)));
+    ok(mStart > 0 && refusals.length >= 4 && silent.length === 0,
+      '★★ Session AA (#894): every refusal path in ensureSurface NAMES itself in the log (' + refusals.length + ' `return null` sites, ' + silent.length + ' silent). A call that shows no UI on either device is settled from ixian.log or it is not settled at all — the lock refusal was the one branch that said nothing, and it is the branch a stranded lock (#505) takes');
+  }
+  /* ⚠ Session AA re-base: this asserted the two statements were ADJACENT, and #894's diagnostic
+     line now sits between them. Adjacency was never the property — re-arming the flag on the
+     refusal is — so the pin slices the branch and requires both inside it. A `return null` that
+     skipped the re-arm would still be caught, which is what it was always for. */
+  {
+    const lb = callPage.indexOf('if (lockUp(rootNav))');
+    const branch = lb > 0 ? callPage.slice(lb, callPage.indexOf('return null;', lb) + 12) : '';
+    ok(lb > 0 && /UIHelpers\.refreshAppRequests = true;/.test(branch) && /return null;$/.test(branch),
+      '★ ensureSurface refuses to present over a lock, and re-arms the refresh flag so the ring returns after the unlock');
+  }
   // #234 rebased the constructor call here to the app-lock overload. The ORDER is what
   // this pin is about, and it is unchanged.
   /* ★ REBASED 2026-08-21: a LOG-ONLY startCycle() marker now sits between these two
@@ -7654,13 +7681,16 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
      boots before the tap, so a pref read only in the head script is one pick behind for the
      whole conversation; every field readPatternPrefs returns must be in the stamp AND in this
      listener. Pinned as the exact list so a fifth key cannot be added to one and not the other.
-     ★ Session Z re-base in BOTH halves: the FIFTH key arrived — the glass dial (spixi.chat.glass)
-     — and it was added to all three places at once, which is exactly what this pin exists to
-     force (the first cut read it in the head script only and the L1·12 gate went red). */
-  ok(/window\.addEventListener\('storage', \(e\) => \{\s*if \(!e\.key \|\| e\.key === PATTERN_PREF_KEYS\.level \|\| e\.key === PATTERN_PREF_KEYS\.style \|\| e\.key === PATTERN_PREF_KEYS\.ground \|\| e\.key === PATTERN_PREF_KEYS\.text \|\| e\.key === PATTERN_PREF_KEYS\.glass\) refreshPatternPrefsIfChanged\(\);/.test(chatW5)
-    && /const patternStamp = \(p\) => p\.level \+ '\|' \+ p\.style \+ '\|' \+ p\.ground \+ '\|' \+ p\.text \+ '\|' \+ \(p\.glass \? 1 : 0\);/.test(chatW5)
-    && /return \{ level: p, style: s, ground: gr, text: t, glass: gl === '1' \};/.test(chatW5)
-    && /text: 'spixi\.chat\.textscale', glass: 'spixi\.chat\.glass' \}/.test(chatW5)
+     ★ Session Z added a FIFTH key (the glass dial) and this pin is what forced it into all
+     three places at once — the first cut read it in the head script only and went red here.
+     ★★ Session AA re-base, BOTH halves: Damir walked the glass dial and REJECTED it (Z.5,
+     #891), so the fifth key is retired and the list is FOUR again. The pin's job did not
+     change with it — it still holds the three-places-or-none property, which is the only
+     reason the retirement could be done in one pass without leaving a reader behind. */
+  ok(/window\.addEventListener\('storage', \(e\) => \{\s*if \(!e\.key \|\| e\.key === PATTERN_PREF_KEYS\.level \|\| e\.key === PATTERN_PREF_KEYS\.style \|\| e\.key === PATTERN_PREF_KEYS\.ground \|\| e\.key === PATTERN_PREF_KEYS\.text\) refreshPatternPrefsIfChanged\(\);/.test(chatW5)
+    && /const patternStamp = \(p\) => p\.level \+ '\|' \+ p\.style \+ '\|' \+ p\.ground \+ '\|' \+ p\.text;/.test(chatW5)
+    && /return \{ level: p, style: s, ground: gr, text: t \};/.test(chatW5)
+    && /text: 'spixi\.chat\.textscale' \}/.test(chatW5)
     && /window\.addEventListener\('focus', refreshPatternPrefsIfChanged\);/.test(chatW5)
     && /if \(document\.visibilityState === 'visible'\) refreshPatternPrefsIfChanged\(\);/.test(chatW5)
     && /setInterval\(\(\) => \{ if \(!document\.hidden\) refreshPatternPrefsIfChanged\(\); \}, 2000\);/.test(chatW5),
@@ -8087,7 +8117,13 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      (+914: the desktop composer foot, the glass @supports fallback and their comments).
      Headroom after the lowering: 1 491 chars — the next thing added to chat.html re-bases
      this pin with ITS delta, exactly as before. */
-  const CHAT_KB_CEIL = 648, INDEX_KB_CEIL = 528;
+  /* ★ Session AA (#891, Z.5): 648 → 645, DOWN, delta stated. Damir walked the glass dial and
+     rejected it, so composer.css loses the html[data-chat-glass] rule and its @supports
+     fallback, tokens.css loses --surface-composer-glass in both modes, and chat.html loses
+     the pref in all four of its readers — all three files are inlined here, so the built
+     chat.html measured 662 061 → 659 155 chars (−2 906, ≈ 0.23 ms of parse at the measured
+     0.08 ms/KB, on every conversation open). Headroom after the lowering: 1 325 chars. */
+  const CHAT_KB_CEIL = 645, INDEX_KB_CEIL = 528;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -13728,6 +13764,48 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   const wsShell = readFileSync(join(root, 'src/shells/wallet_sent.html'), 'utf8');
   ok(/\[WALLETDIAG\] setHideBalance push/.test(wsPage) && /\[WALLETDIAG\] setHideBalance arrived/.test(wsShell),
     '★ F7: BOTH halves are logged — C# logs the value it pushed, the shell logs that the push arrived and what both flags then read. hideKnown is set by the ARRIVAL and walletHidden by the VALUE, so only the pair says which one is false');
+
+  /* ★★ #898 — THE DESKTOP TX DETAIL OPENS WITH NO ANIMATION AND SWAPS IN PLACE.
+     Damir, 2026-09-18: "there should be no flash at all on desktop — no fade no flash no
+     nothing. each other you open just changes instantly." Two causes, both pinned here.
+     ① The page faded its OWN WebView in over 150 ms (`webView.FadeTo(1, 150)`) at the end of
+     onLoad. For those 150 ms the WebView is translucent, so whatever is pinned under the
+     detail column shows through it — that IS the flash. The ramp is redundant now: the shell
+     calls `bridge.painted()` and presentPreload holds the stage until that lands, so it has
+     already painted. The ctor's `Opacity = 0` stays (it keeps an empty WebView off screen);
+     only the ramp goes.
+     ② Every tap built a NEW page and a NEW WebView. An open detail is reused instead. */
+  {
+    /* ⚠ STRIPPED FIRST, and this pin failed on its own explanation before it was (#771, the
+       third time this class appeared in one session): the docblock beside the fix QUOTES
+       `webView.FadeTo(1, 150)` to say what was removed, so a raw-text negative for "FadeTo"
+       is defeated by the sentence explaining why FadeTo is gone. Only code may satisfy or
+       defeat these clauses. */
+    const wsCode = wsPage.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    const reveal = wsCode.slice(wsCode.indexOf('private void onLoad()'), wsCode.indexOf('private void checkTransaction()'));
+    ok(/webView\.Opacity = 1;/.test(reveal) && !/FadeTo/.test(wsCode) && /webView\.Opacity = 0;/.test(wsCode),
+      '★★ #898 ①: the tx detail reveals its WebView INSTANTLY (Opacity = 1) and nothing in the page animates — the 150 ms self-fade was the flash, because a translucent WebView shows whatever is pinned under the detail column. The ctor still starts it hidden, so an empty WebView is never on screen');
+    /* ⚠ DERIVED, not listed (#798). The swap must reset EVERY per-transaction field, and the
+       real hazard is a field added LATER and not reset: `isConfirmedDisplayed` left true from a
+       confirmed previous tx silently stops the 1 Hz poll for the new one, and a stale
+       `lastActivityStatus`/`burstPushed` makes checkTransaction skip its first burst as
+       "unchanged". So this reads the class's own field declarations and requires each to be
+       assigned in showTransaction — a new field fails here until it is reset or added to the
+       carve-out WITH a reason. Comments stripped: the docblock beside the method names the
+       fields it assigns (#771). */
+    const NOT_PER_TX = ['viewOnly', 'homePage'];   // set once at construction; a swap keeps the same page and the same host
+    const fields = [...wsCode.matchAll(/^\s*private\s+(?:readonly\s+)?[\w.<>?\[\]]+\s+(\w+)\s*(?:=|;)/gm)].map((m) => m[1]);
+    const swap = wsCode.slice(wsCode.indexOf('public void showTransaction(Transaction tx)'), wsCode.indexOf('public override void updateScreen()'));
+    const perTx = fields.filter((f) => !NOT_PER_TX.includes(f));
+    const unreset = perTx.filter((f) => !new RegExp('\\b' + f + '\\s*=').test(swap));
+    ok(fields.length >= 5 && swap.length > 0 && /checkTransaction\(\);/.test(swap) && unreset.length === 0,
+      '★★ #898 ② (derived): showTransaction resets EVERY per-transaction field the class declares and then re-renders — fields ' + JSON.stringify(perTx) + ', carve-out ' + JSON.stringify(NOT_PER_TX) + ', NOT reset: ' + JSON.stringify(unreset) + '. A latch carried over from a confirmed transaction stops the poll for the new one, which looks like a detail that never updates');
+    const hpTx = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
+    const branch = hpTx.slice(hpTx.indexOf('public void onTransaction('), hpTx.indexOf('private void loadContacts()'));
+    ok(branch.indexOf('detail.showTransaction(activity.transaction);') > 0
+      && branch.indexOf('detail.showTransaction(activity.transaction);') < branch.indexOf('pushPageLoaded(new WalletSentPage('),
+      '★★ #898 ②: an ALREADY-OPEN tx detail is reused BEFORE the construct-and-present path is reached, so every tap after the first swaps in place — no second WebView to boot, nothing staged, nothing closed behind it. Order is the property: construct-first with a reuse after it would never run');
+  }
 }
 
 
@@ -22651,13 +22729,30 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     const hpCode = hp.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     const iVerb = hpCode.indexOf('ixian:cleardetail');
     const verb = hpCode.slice(iVerb, hpCode.indexOf('ixian:homeoverlay:', iVerb));
-    ok(/if \(rightContent\.IsVisible\)/.test(verb) && /closeChatOverlaysForContacts\(\);/.test(verb),
+    ok(/if \(rightContent\.IsVisible\)/.test(verb) && /closeChatOverlays\(\);/.test(verb),
       '★★ L6, THE GATE: the WHOLE verb is wide-only. The first cut gated one of its four sweeps while the shell\'s comment promised "a no-op on a narrow window" of all of them — and a narrow window has no detail column for any of them to be beside');
-    const helper = hpCode.slice(hpCode.indexOf('private void closeChatOverlaysForContacts()'), hpCode.indexOf('private void closeTxDetailOverlays()'));
+    const helper = hpCode.slice(hpCode.indexOf('private void closeChatOverlays()'), hpCode.indexOf('private void closeTxDetailOverlays()'));
     ok(/if \(!rightContent\.IsVisible\)/.test(helper) && /p is SingleChatPage/.test(helper),
       '★ L6: …and the conversation close keeps its own belt. Narrow has no detail column — a conversation there is the full screen, and closing one would shut the screen the user is standing on');
-    ok(!/closeChatOverlaysForContacts/.test(hpCode.slice(hpCode.indexOf('ixian:tab:'), hpCode.indexOf('ixian:tab:') + 2000)),
-      '★ L6: a plain tab switch does NOT close the conversation. Only the Account hand-off does — the pane it replaces was the one hiding it');
+    /* ★★ #897 INVERTS L6's NEGATIVE — written down, not quietly flipped (superseded
+       decisions are marked, never deleted). L6 pinned "a plain tab switch does NOT close the
+       conversation", and scoped it that way because no one had yet seen a tab switch REVEAL
+       one. Damir's 2026-09-18 report is exactly that: on desktop, clicking through wallet
+       transactions flashed "the actual chat screen of some chat below" while the tx detail
+       staged over the same column. That is the SAME defect L6 fixed — a pane that stopped
+       hiding a pinned conversation — so L6's own rule now reaches its second case.
+       ⚠ The tab1 gate is HALF the property, not a detail: a tap on the tab you are already
+       standing on, and home.html's Fix #8 boot echo, both arrive here as ixian:tab:tab1, and
+       closing the conversation on either would shut a screen the user is looking at.
+       ⚠ Sliced to repaintOwnSystemBars rather than a character window — the window the old
+       pin used (+2000) no longer reaches the end of the branch. */
+    {
+      const iTab = hpCode.indexOf('ixian:tab:');
+      const tabSweep = hpCode.slice(iTab, hpCode.indexOf('repaintOwnSystemBars', iTab));
+      ok(/closeTxDetailOverlays\(\);/.test(tabSweep)
+        && /if \(currentTab != "tab1"\)\s*\{\s*closeChatOverlays\(\);\s*\}/.test(tabSweep),
+        '★★ #897: leaving the chats tab closes the CONVERSATION, beside the tx detail the sweep already closed — so nothing belonging to another tab stays pinned under this one\'s detail column, which is what let the wallet flash a chat while its tx detail staged. Gated off tab1: the tab you are already on, and the Fix #8 boot echo, must not close it');
+    }
   }
 }
 
@@ -27053,7 +27148,7 @@ console.log('★★ Session P — the pre-warm + the batch transport');
     const headKeys = [...headScript.matchAll(/localStorage\.getItem\(\s*(['"])(spixi\.chat\.[^'"]+)\1\s*\)/g)].map((m) => m[2]).filter((k, i, a) => a.indexOf(k) === i).sort();   // the theme key (spixi.appearance) is covered by the theme DROP, not the stamp
     const stampKeys = [...(ch.match(/const PATTERN_PREF_KEYS = \{([^}]*)\}/) || ['', ''])[1].matchAll(/'(spixi\.[^']+)'/g)].map((m) => m[1]).sort();
     const headReadsVar = /localStorage\.getItem\(\s*[^'")]/.test(headScript);
-    ok(headKeys.length === 5 && JSON.stringify(headKeys) === JSON.stringify(stampKeys) && !headReadsVar,   // ★ Session Z: 4 → 5, the glass dial joined the gate
+    ok(headKeys.length === 4 && JSON.stringify(headKeys) === JSON.stringify(stampKeys) && !headReadsVar,   // ★ Session Z took it 4 → 5 (the glass dial joined the gate); ★★ Session AA takes it back to 4 — Damir rejected the dial (Z.5, #891) and the key is retired. ⚠ THE COUNT IS THE HALF A GREP CANNOT FIND: this pin never spells the key it guards, so searching for `spixi.chat.glass` finds the pins that NAME it and misses this one, which only COUNTS. It went red in both halves on the retirement, which is exactly its job.
       '★★ Session P L1·12 (' + label + '): EVERY `spixi.chat.*` key the pre-paint head script reads (' + headKeys.join(' · ') + ') is in PATTERN_PREF_KEYS, i.e. under the live stamp gate, and the head script reads no key through a variable (#802 r8: the charset is any `spixi.*` literal now) — a key read at boot only is a key a pre-warmed document shows one pick behind; got stamp keys ' + stampKeys.join(' · '));
     const ocr = ch.slice(ch.indexOf('    onChatScreenReady(address) {'), ch.indexOf('\n    },', ch.indexOf('    onChatScreenReady(address) {')));
     ok(/onChatScreenReady\(address\) \{\s*refreshPatternPrefsIfChanged\(\);/.test(ocr),
@@ -33824,22 +33919,54 @@ console.log('★ AND-45 — the bottom inset travels into the shells');
          && dt[1].trim() === 'padding-block-end: calc(var(--spacing-12) + var(--safe-bottom, 0px));',
         '★ Session Z (Damir, Windows): the DESKTOP composer foot is spacing-12 + safe-bottom in its own rule AFTER the base rule, which still holds its 6 + safe-bottom, its transparent ground and its z-index (the rule was not inserted inside the base block)');
     }
-    /* THE GLASS DIAL (Damir's question after the AND-45 walk): OFF by default — the bar's
-       #711 transparent ground is untouched — and ON only under html[data-chat-glass], which
-       the chat pre-paint script sets from the spixi.chat.glass preference ('1' and nothing
-       else). Both filter spellings, the token pair in both modes, the [SCROLL] instrument
-       still in place to read the number. */
+    /* ★★ Session AA — THE GLASS DIAL IS RETIRED, AND THIS PIN IS ITS INVERSE (#835 idiom).
+       Damir walked it (Z.5, #891): "looks ugly, there's a rectangle and cutoff for glass".
+       The frosted band IS the composer's own rect, so it reads as a slab laid over the canvas
+       rather than a scrim over what passes under it. Deleted: the html[data-chat-glass] rule
+       and its @supports fallback (composer.css), --surface-composer-glass in BOTH modes
+       (tokens.css), and the spixi.chat.glass key in all four of its readers (chat.html).
+       Nothing to migrate — the pref never shipped a toggle, so no user holds it.
+       ⚠⚠ THE TRAP THIS PIN EXISTS FOR IS A NAMING TRAP. --surface-composer-glass (retired,
+       the band) and --surface-chat-glass (LIVE — the day pill and the unread strip, GATE 48)
+       differ by ONE WORD. A later cleanup aiming at the retired name that takes the pill's
+       pair instead would strip the frost off two chips in both themes, and no other pin here
+       reads tokens.css for it. So this asserts BOTH directions: the band's dial is gone
+       everywhere, and the pill's three tokens are still declared.
+       ⚠ Comments stripped on every read (#771) — but NOT for the reason a first draft of this
+       note gave. The paragraph you are reading lives in this file, which none of the three reads
+       touch; the real reason is that the THREE FILES carry their own prose, and a commented-out
+       rule or a docblock naming the retired token is not live code. ★★ And the pin is theme-SCOPED,
+       not merely counted: an earlier cut matched `--surface-chat-glass: rgba(` file-wide, so
+       deleting the DARK declaration and duplicating the light one passed while dark lost its
+       frost — the exact claim-beyond-assertion shape (#798) this project keeps paying for, and
+       the hazard tokens.css's own L18 pin warns about (three `:root` blocks sit AFTER the dark
+       one). `withoutDarkBlocks` is the file's existing answer: one in the light-side text and two
+       in total means exactly one inside the dark block, which is what "both themes" claims. */
     {
-      const comp = cssZ('src/styles/components/composer.css');
-      const glassRule = /html\[data-chat-glass\] \.c-composer \{[^}]*\}/.exec(comp);
-      const chatPre = rdZ('src/shells/chat.html');
-      ok(glassRule && /background: var\(--surface-composer-glass\);/.test(glassRule[0]) && /-webkit-backdrop-filter: blur\(var\(--blur-chat-glass\)\) saturate\(160%\);/.test(glassRule[0]) && /[^-]backdrop-filter: blur\(var\(--blur-chat-glass\)\) saturate\(160%\);/.test(glassRule[0])
-         && /\.c-composer \{[^}]*background: transparent;/.test(comp)
-         && /@supports not \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\) \{\s*html\[data-chat-glass\] \.c-composer \{ background: transparent; \}/.test(comp)
-         && (tok.match(/--surface-composer-glass: rgba\(/g) || []).length === 2 && (tok.match(/--surface-chat-glass: rgba\(/g) || []).length === 2
-         && /var gl='';try\{gl=localStorage\.getItem\('spixi\.chat\.glass'\)\|\|'';\}catch\(e\)\{\}if\(gl==='1'\)document\.documentElement\.setAttribute\('data-chat-glass',''\);/.test(chatPre)
-         && /\[SCROLL\] frames=/.test(chatPre),
-        '★ Session Z GLASS DIAL: the composer keeps its transparent default; html[data-chat-glass] adds the canvas-at-72% ground (--surface-composer-glass, its OWN pair beside the day pill\'s --surface-chat-glass, both defined in BOTH modes) + the day pill\'s blur radius/saturation (both spellings) with the no-backdrop-filter fallback back to the transparent bar; the chat pre-paint sets the attribute only for spixi.chat.glass === \'1\'; the [SCROLL] probe that measures it is still armed');
+      const compAA = cssZ('src/styles/components/composer.css');
+      const tokRawAA = rdZ('src/styles/tokens.css');
+      const tokAA  = stripCssComments(tokRawAA);
+      const tokLightAA = withoutDarkBlocks(tokRawAA);   // the dark blocks REMOVED, comments already stripped
+      const chatAA = stripCode(rdZ('src/shells/chat.html'));
+      const gone = [];
+      if (/data-chat-glass/.test(compAA)) gone.push('composer.css still selects data-chat-glass');
+      if (/--surface-composer-glass/.test(compAA)) gone.push('composer.css still reads --surface-composer-glass');
+      if (/--surface-composer-glass/.test(tokAA)) gone.push('tokens.css still declares --surface-composer-glass');
+      if (/spixi\.chat\.glass/.test(chatAA)) gone.push('chat.html still reads the spixi.chat.glass pref');
+      if (/data-chat-glass/.test(chatAA)) gone.push('chat.html still sets data-chat-glass');
+      /* the bar's own ground is #711's transparent one — the retirement must not have moved it */
+      if (!/\.c-composer \{[^}]*background: transparent;/.test(compAA)) gone.push('the composer lost its transparent default');
+      /* the LIVE pair, both modes — the half a careless cleanup takes by mistake */
+      for (const t of ['--surface-chat-glass', '--outline-chat-glass']) {
+        const re = () => new RegExp(t + ': rgba\\(', 'g');
+        const total = (tokAA.match(re()) || []).length;
+        const light = (tokLightAA.match(re()) || []).length;
+        if (total !== 2) gone.push(t + ' declared ' + total + '× in all, expected 2');
+        else if (light !== 1) gone.push(t + ' has ' + light + ' declaration(s) outside the dark block, expected 1 — both copies sit in ONE theme, so the other lost its frost');
+      }
+      if (!/--blur-chat-glass: /.test(tokAA)) gone.push('--blur-chat-glass is gone — the day pill blurs by it');
+      ok(gone.length === 0,
+        "★★ Session AA: the composer GLASS DIAL is retired in all three files (rule, @supports fallback, token in both modes, pref in all four readers) while the day pill's --surface/--outline/--blur-chat-glass survive in both themes — the two names differ by one word and only one of them was rejected. Failing: [" + gone.join(' · ') + ']');
     }
     ok(/key: 'creditFlags',\s*fallback: 'Country flags',\s*source: 'Twemoji — © Twitter, Inc\. and other contributors; the Mozilla twemoji-colr build, subset to country flags by TalkJS — creativecommons\.org\/licenses\/by\/4\.0',\s*licence: 'CC-BY 4\.0 \(subset\)',/.test(sa)
        && /case 'creditFlags': return strings\.creditFlags \|\| 'Country flags';/.test(sa)

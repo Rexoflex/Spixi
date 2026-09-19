@@ -109,7 +109,18 @@ namespace SPIXI
 
             try
             {
-                webView.FadeTo(1, 150);
+                /* ★★ #898 (Damir, 2026-09-18: "there should be no flash at all on desktop — no
+                 * fade no flash no nothing"). This was `webView.FadeTo(1, 150)`, and it WAS the
+                 * flash: for 150 ms the WebView is translucent, so whatever is pinned under the
+                 * detail column shows straight through it.
+                 * The fade is a legacy reveal that predates the paint gate and is now redundant:
+                 * `wallet_sent.html` calls `bridge.painted()` (:390), and `presentPreload` holds
+                 * the stage until that signal arrives, so on the overlay path the shell has
+                 * ALREADY painted before anything is on screen. A ramp from 0 never hid an
+                 * unpainted frame anyway — it showed the same frame, dimmed.
+                 * The ctor's `Opacity = 0` stays: it is what keeps an empty WebView off screen
+                 * until the data push completes. Only the RAMP is gone. */
+                webView.Opacity = 1;
             }
             catch (Exception e)
             {
@@ -322,6 +333,33 @@ namespace SPIXI
                 lastActivityStatus = activity.status;   // loop MINOR-3: latch WITH the arm
             }
             return;
+        }
+
+        /* ★★ #898 — THE INSTANT SWAP. Damir: "each other you open just changes instantly".
+         * Before this, every transaction tap constructed a NEW WalletSentPage and therefore a
+         * new WebView, which had to boot, load the shell and paint before the overlay could be
+         * presented — and the old detail was closed behind it. Nothing about that is instant.
+         *
+         * The page renders ENTIRELY from `transaction` via checkTransaction(), and the shell
+         * commits a burst atomically (clearEntries/addEntry stage, setData commits — #289), so
+         * swapping the field and re-rendering paints the new transaction in ONE frame with no
+         * blank in between. The host reuses an open detail instead of building another.
+         *
+         * ⚠ EVERY per-transaction field is reset here, and that is the whole risk: these are
+         * the #289/#334 latches that decide whether the 1 Hz poll runs at all. Leaving
+         * `isConfirmedDisplayed` true from a CONFIRMED previous transaction would silently stop
+         * `updateScreen` polling the new one, so a pending transaction would never update; a
+         * stale `lastActivityStatus`/`burstPushed` would make checkTransaction skip its first
+         * burst as "unchanged". A field added later and not reset here is the same bug again,
+         * which is what the suite pin derives rather than lists. */
+        public void showTransaction(Transaction tx)
+        {
+            transaction = tx;
+            lastActivityStatus = 0;
+            isConfirmedDisplayed = false;
+            burstPushed = false;
+            lastActivityMissing = false;
+            checkTransaction();
         }
 
         public override void updateScreen()

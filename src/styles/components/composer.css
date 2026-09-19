@@ -48,34 +48,6 @@
 :root[data-desktop] .c-composer {
   padding-block-end: calc(var(--spacing-12) + var(--safe-bottom, 0px));
 }
-/* ★ Session Z (Damir, after the AND-45 walk: "we now have transparency under the composer,
-   so messages go by — how expensive is a glass effect / blur and reduced opacity for the
-   messages that pass under it?") — THE GLASS DIAL, OFF BY DEFAULT, MEASURED BEFORE DECIDED
-   (#294). `html[data-chat-glass]` is set by the chat pre-paint script from the
-   `spixi.chat.glass` preference ('1'), flippable from the WebView console; the [SCROLL]
-   instrument in chat.html reads frames/drop/max with it on and off on the same phone, and
-   that number decides whether it ships on (and on which platforms). What it costs by
-   mechanism: `backdrop-filter` makes the bar its own render surface and the compositor
-   re-samples and blurs the pixels BEHIND it on EVERY frame the canvas moves — a per-frame
-   GPU pass over the band's area (full width × composer height, ~1080 × 300 device px on
-   the Motorola). Chromium blurs at a downscaled resolution so a 16 px radius is not 16×
-   the cost of 1 px, but it is never free; Telegram Android ships its chat blur as a
-   SETTING for exactly this reason. The translucent GROUND on its own (the "reduced
-   opacity" half) is a static composited layer and costs nothing per frame — it is the
-   fallback if the blur's number is bad. `-webkit-` twin for WKWebView (iOS/Mac), which
-   implements it as UIVisualEffectView-class work. The bar keeps its transparent default so
-   every existing render and pin holds; the dial adds, it does not change. */
-html[data-chat-glass] .c-composer {
-  background: var(--surface-composer-glass);
-  -webkit-backdrop-filter: blur(var(--blur-chat-glass)) saturate(160%);   /* the day pill's own radius + saturation (message-bubble.css) — one glass grammar */
-  backdrop-filter: blur(var(--blur-chat-glass)) saturate(160%);
-}
-/* the fallback the glass depends on (the day pill's rule, verbatim in shape): an engine with no
-   backdrop-filter must NOT get a 72%-translucent band over the messages — that is worse than
-   the transparent bar it replaces, so it falls back to exactly that bar. Both spellings tested. */
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  html[data-chat-glass] .c-composer { background: transparent; }
-}
 
 /* —— bot-chat cost hint (#86): standing money fact above the field —— */
 .c-composer__cost {

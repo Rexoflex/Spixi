@@ -1366,11 +1366,6 @@
      is text-neutral-01 (#131415) at 10%. */
   --surface-chat-glass: rgba(249, 250, 251, 0.58);
   --outline-chat-glass: rgba(19, 20, 21, 0.10);
-  /* ★ Session Z: the COMPOSER glass band's ground = the chat canvas at 72 % (the composer.css
-     dial, OFF by default). Its own role, NOT --surface-chat-glass: that pair is the day pill's
-     (Damir's B, --surface-screen at 55 % under the pill's own hairline) and the two must be
-     able to move apart — a band the full width of the screen and a chip are not one dial. */
-  --surface-composer-glass: rgba(228, 234, 243, 0.72);   /* = --chat-canvas-base #E4EAF3 @ .72 */
   --chat-canvas-base: #E4EAF3;   /* ★ Session J (#744/A14, Damir 2026-09-02: "light mode background: E4EAF3") — a cool blue-grey again, a step deeper than AUG's #ebf0f5; white bubbles measure 1.22:1 against it. Reversal = #EEECEF (Session I k2); before that #ebf0f5 (AUG) */
   /* ★★ AUG (Damir 2026-08-30, ON DEVICE): "the unread messages strip is not very visible,
      and the Today badge also". MEASURED, and it is a direct consequence of the new ground:
@@ -1648,7 +1643,6 @@
      ⚠ Supersedes the #701 ruling "leave the base at #0f1115" — which he made against a
      measurement about neutral01 LIGHTNESS, with no knowledge of the chrome adjacency. New
      information, not a re-opened argument. */
-  --surface-composer-glass: rgba(13, 17, 23, 0.72);  /* ★ Session Z: = --chat-canvas-base #0D1117 @ .72 (the composer band's own role, see light) */
   --chat-canvas-base: #0D1117;   /* ★ Session J (#758, Damir 2026-09-03: "on dark mode the chat canvas should be #0D1117 and make it a token") — a GitHub-dark neutral, a hair deeper and less blue than the #10151e chrome (ΔL* ≈ −1.3). Reversal = #10151e (= --surface-screen, Session H's three-option pick above) */
   /* ★ AUG: dark's ground did not move, so its chips keep the surface they had. Defined
      here so the token resolves in BOTH themes rather than inheriting light's near-white. */

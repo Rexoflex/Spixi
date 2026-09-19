@@ -1153,6 +1153,17 @@ namespace SPIXI
                     closeContactDetailsOverlays();
                     closeFormPaneOverlays();   // Batch C: add-contact/add-app pane too
                     closeTxDetailOverlays();   // #263: the tx detail belongs to the wallet tab
+                    /* ★★ #897: …and by that same rule the CONVERSATION belongs to the chats
+                     * tab. Leaving it closes the conversation, so nothing that belongs to
+                     * another tab sits pinned under this one's detail column — which is what
+                     * let the wallet's tx detail flash someone's chat while it staged.
+                     * NOT on tab1: a tap on the tab you are already standing on, and
+                     * home.html's Fix #8 boot echo, both arrive here as ixian:tab:tab1.
+                     * Wide-only — the helper carries that belt itself. */
+                    if (currentTab != "tab1")
+                    {
+                        closeChatOverlays();
+                    }
                 }
                 // ★ AND-7b (#407): the surface under the status bar changed with the tab,
                 // and NOTHING navigates on a tab switch — so nothing else repaints it.
@@ -1336,7 +1347,7 @@ namespace SPIXI
                 // ★ L6 (2026-08-31): the shell is about to cover column 0 with a
                 // full-shell takeover that belongs to the ACCOUNT context — clear the
                 // detail column so a conversation from the chats context does not sit
-                // beside it. See closeChatOverlaysForContacts for why the pane "jumped"
+                // beside it. See closeChatOverlays for why the pane "jumped"
                 // and why nothing is restored afterwards.
                 // ⚠ NOT reusing ixian:homeoverlay: that one also fires for ordinary
                 // sheets (a tx sheet, a row menu — home.html mirrors
@@ -1349,7 +1360,7 @@ namespace SPIXI
                  * narrow window has no detail column for any of these to be beside. */
                 if (rightContent.IsVisible)
                 {
-                    closeChatOverlaysForContacts();
+                    closeChatOverlays();
                     closeContactDetailsOverlays();
                     closeFormPaneOverlays();
                     closeTxDetailOverlays();
@@ -1760,8 +1771,34 @@ namespace SPIXI
          * standing on. The caller gates it and this gate is the belt.
          *
          * A conversation holds no unsaved state — a half-typed message lives in the
-         * shell's own draft store (spixi.draft.<addr>, CH7) and survives. */
-        private void closeChatOverlaysForContacts()
+         * shell's own draft store (spixi.draft.<addr>, CH7) and survives.
+         *
+         * ★★ #897 — A SECOND CALLER, AND IT SUPERSEDES L6's NEGATIVE (renamed with it:
+         * "ForContacts" would now be a lie). Damir, 2026-09-18: clicking through wallet
+         * transactions on desktop "weirdly fade in in the pane, briefly revealing the actual
+         * chat screen of some chat below".
+         *
+         * It is THE SAME DEFECT L6 fixed, with a different trigger. L6's reasoning was that
+         * the Account pane HID a pinned conversation, so closing that pane REVEALED one the
+         * user never opened. The wallet's tx detail covers the same column: while it stages,
+         * swaps or repaints, the conversation underneath shows through. L6 scoped its
+         * decision to "a plain tab switch does NOT close the conversation" only because no
+         * one had yet seen a tab switch reveal one — the wallet case was not in front of it.
+         *
+         * ★ And the sweep was already making this argument. `closeTxDetailOverlays` sits in
+         * the same tab branch because "the tx detail belongs to the wallet tab" (#263). By
+         * exactly that rule the conversation belongs to the CHATS tab; the list was simply
+         * missing an entry, and it reads like it was meant to be exhaustive.
+         *
+         * ⚠ THE TRADE IS DAMIR'S OWN, MADE TWICE NOW: leaving and returning lands on an
+         * empty right pane rather than the conversation. He chose that for Contacts over
+         * carrying restore-what-was-there state; this extends it to the other tabs.
+         * ⚠ NOT on tab1 — tapping Chats while a conversation is open (and home.html's Fix #8
+         * boot echo, which sends ixian:tab:tab1) must leave it alone.
+         * ⚠ A conversation that is CLOSED is one `Utils.getChatPage` no longer finds, so an
+         * arriving message notifies instead of rendering silently into a hidden page
+         * (Node.cs:1164) — which is the correct behaviour for a chat that is not open. */
+        private void closeChatOverlays()
         {
             if (!rightContent.IsVisible)
             {
@@ -2392,6 +2429,22 @@ namespace SPIXI
                 // whose ixian:dismiss pops the overlay (popPageAsync is overlay-aware)
                 // and reveals whatever sat beneath (conversation / empty detail).
                 // Live status holds: OnUpdateUI ticks the TOP overlay every second.
+                /* ★★ #898 (Damir: "when you click on tx, it opens in right pane, no fade no
+                 * flash no nothing — each other you open just changes instantly"): if a tx
+                 * detail is ALREADY open, swap its transaction in place. No second page, no
+                 * second WebView, no stage, no present, no close of the previous one — the
+                 * shell re-renders from the new burst in one frame (#289 commits atomically).
+                 * This is the path taken for every tap after the first, which is the one the
+                 * report was about. The construct-and-present below is the FIRST open only. */
+                foreach (SpixiContentPage open in SpixiContentPage.getOverlayPages())
+                {
+                    if (open is WalletSentPage detail)
+                    {
+                        detail.showTransaction(activity.transaction);
+                        Utils.sendUiCommand(this, "selectTx", activity.transaction.getTxIdString());
+                        return;
+                    }
+                }
                 pushPageLoaded(new WalletSentPage(activity.transaction), 4000, "txdetail", 1,
                     navKey: "txdetail:" + activity.transaction);   // ★★ V-19
                 Utils.sendUiCommand(this, "selectTx", activity.transaction.getTxIdString());

@@ -207,9 +207,7 @@ merged into two.
 
 **Still stale elsewhere, and not re-synced by that pass:**
 
-* `docs/legacy-parity-audit.md` has never been updated, and its prose count (13) disagrees with
-  its own tables (14).
-* `docs/ios-sim-findings.md` carries three rows marked OPEN that the same file later records as
-  device passes.
+* ~~`docs/legacy-parity-audit.md`~~ ✅ **already corrected** — checked 2026-09-19: the prose reads 14 and carries its own note ("earlier copies of this paragraph said 13, which never matched its own tables — corrected 2026-09-06"). This bullet was itself stale, in the paragraph warning about stale rows.
+* `docs/ios-sim-findings.md` — ⚙ **two of them closed 2026-09-19**: iOS-42 and iOS-45 both said the real legal documents were "not in this repo" and the app showed placeholder copy. Both have been false since #733 baked the full documents into `LEGAL_DOCS`; `TERMS_DEFAULT`/`PRIVACY_DEFAULT` no longer exist. Any remaining OPEN-but-passed rows still want a sweep before he opens the file.
 
 Fix those two before he opens them, or he spends a morning on rows that are already in his tree.

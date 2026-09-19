@@ -18,10 +18,21 @@ handoff §4 — which paths to exclude, and that `local-nuget/` must be KEPT) �
 hypothesis. #891 prescribed a one-line revert as "the cheapest test" and reading the code falsified
 it before it could spend a build. Check the plan against the tree first.
 
-1 · Item 0 — Session AA is walked and ready
+1 · Item 0 — Session AA is walked and ready, and ★ THE #46 LOOP IS OWED
 It is UNCOMMITTED and it needs a build (C# in three files). If Damir has not committed it, that is
-the first thing: `docs/commit-message-session-aa.txt`, and the `git add` list is in the previous
-handoff §7. Local smoke should read **4758** (container 4756 + the measured +2 on his machine).
+the first thing: `docs/commit-message-session-aa.txt`, and the `git add` list is in the handoff §8.
+Local smoke should read **4758** (container 4756 + the measured +2 on his machine).
+
+★★ **Then the loop, and its scope is NOT the whole batch.** `#895` reviewed **#892–#894 only**.
+Everything after it has had the author's own review and mutation testing and **no independent pass**:
+the tab sweep (#897), the tx-detail reuse and the `FadeTo` removal (#898), the privacy finalisation
+(#899). Two reasons that matters here rather than being a formality: **#895 found a MAJOR self-review
+had missed** (a refusal branch returning `null` in silence while its three siblings named themselves),
+and the pin written for it then found a FIFTH silent branch nobody had seen; and **#898 changed the
+lifecycle of a money-adjacent screen** — the tx detail is REUSED now, and its correctness rests on
+`showTransaction` resetting every per-transaction latch. The derived pin covers the fields that exist
+today; an independent reader is what covers the reasoning. Run it before item 2, or alongside it —
+but do not stack a second batch on unreviewed lifecycle work. Pin the model explicitly (Opus).
 
 2 · Build — the bubble gap, then the tail
 ① THE GAP — a one-token dial and a REVERT. `--bubble-gap-inner: 1px` (`tokens.css:1135`) → `2px`.
@@ -43,18 +54,21 @@ handoff §7. Local smoke should read **4758** (container 4756 + the measured +2 
    term (Damir's dial), and GATE 49 (`smoke-test.mjs:31605`) fails if it comes back. The tail is
    positioned at `-1 × --bubble-tail`, so it follows the body on its own.
 
-③ Then, from `release-readiness.md` §3 — buildable now, no decision needed. Treat it as a MENU and
-   re-verify a row before building it (two of its entries were already built when it last ran):
+③ Then, from `release-readiness.md` §3 — buildable now, no decision needed. ★★ **TREAT IT AS A MENU AND
+   RE-VERIFY EACH ROW BEFORE BUILDING IT.** This is not caution, it is measured: two of its entries were
+   already built when it last ran (#826), and on 2026-09-19 two MORE rows turned out to be answered
+   (#901 — iOS-42/iOS-45 claimed the legal documents were not in the repo, two months after they were).
+   Expect roughly one in three of these to be done already. The rest:
    iOS-44 attach sheet under the composer · iOS-55 untranslated tx timestamps · iOS-43 clipped
-   button label · AND-28 existing contacts show no avatar · AND-35 chat-appearance copy + order ·
+   button label (a one-line overflow fix, and the cheapest row on the list) · AND-28 existing contacts show no avatar · AND-35 chat-appearance copy + order ·
    R7 share-sheet home leg · the four landscape rows. ⚠ AND-36 is verify-first and #897 may have
    moved it.
 
 ★ Each fix walked the same day, on the device that shows it.
 
 3 · Then
-* The #46 loop on the batch (Opus). Records (#901+), handoff, checklist + walk artifact, commit
-  message.
+* Records (#902+), handoff, checklist + walk artifact, commit message. (The #46 loop is item 1 —
+  it is owed over #896–#900, not over whatever this session builds.)
 * The shipping path, since Damir has now answered it: real mainnet money · Android + iOS + Windows ·
   TestFlight / Play. That is a soft launch. The two long-lead items depend on other people and
   should already be moving: the **#232/#523 money-path review** and **counsel on the privacy

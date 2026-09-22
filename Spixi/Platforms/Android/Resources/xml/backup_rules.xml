@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- #912 (APP-1) — Android 11 and below (android:fullBackupContent). Android 12+ reads
+     data_extraction_rules.xml instead; the two lists MUST stay identical.
+     `file` = the app's files dir = Environment.SpecialFolder.Personal, so "Spixi/…"
+     is Config.spixiUserFolder. Chat history is plaintext on disk (be-cutover CORE-11)
+     and a system backup taken before a delete keeps the deleted text for good — so
+     the history, the offline send queue and the logs stay OUT of Google / adb backups.
+     The wallet, the account (Acc), the avatar and the preferences are NOT excluded:
+     a restore that brings back wallet.ixi is what backups are for. No wildcards exist
+     in this format, so the log rotation is listed by name (Config.maxLogCount = 5). -->
+<full-backup-content>
+    <exclude domain="file" path="Spixi/Chats" />
+    <exclude domain="file" path="Spixi/MsgQueue" />
+    <exclude domain="file" path="Spixi/ixian.log" />
+    <exclude domain="file" path="Spixi/ixian.1.log" />
+    <exclude domain="file" path="Spixi/ixian.2.log" />
+    <exclude domain="file" path="Spixi/ixian.3.log" />
+    <exclude domain="file" path="Spixi/ixian.4.log" />
+    <exclude domain="file" path="Spixi/ixian.5.log" />
+</full-backup-content>

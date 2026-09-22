@@ -1,0 +1,77 @@
+Session AB — the owed #46 loop over #896–#900 (3 MAJOR, all fixed), the bubble gap 2px + the tail 7×11, "Show older" after deletes (#902–#912)
+
+THE LOOP (Opus, three rounds: 3 auditors → fixes → break-my-verdict → fixes → r3 → fixes)
+
+#902 the tab sweep. #897 closed the conversation when the chats TAB is left, but a conversation can
+enter the detail column without a tab verb (contact details → Message from Account → Contacts, a
+notification tap). onTransaction now closes it too — onTransaction(…, bool fromConversation = false)
+— except for the ONE caller that must not: a conversation's own payment card (SingleChatPage passes
+fromConversation: true; the reviewer's unconditional one-liner would have closed the chat Details
+was tapped in). Also: a null activity.transaction is refused ABOVE the sweeps; closeChatOverlays and
+closeTxDetailOverlays drop a page that is still STAGING (activePreload is not in getOverlayPages);
+the rating prompt and the chats-after-close frame probe are gated on the chats list being on screen
+(currentTab == tab1 && !homeShellTakeoverOpen) — the spare warm deliberately is not.
+
+#903 the reused tx detail.
+ · "Show amounts" outlived its transaction: the reused pane kept `revealed`, so with the wallet hidden
+   tx B opened fully unmasked with no eye. wallet_sent.html drops the reveal when the committed txid
+   CHANGES (never on the same tx's status re-burst). Reproduced on the built #898 shell, pinned there.
+ · Two threads, one money card: the pool tick and the UI tap both ran checkTransaction, the body read
+   the field three times, and BeginInvokeOnMainThread is inline on the main thread and a post off it
+   — A could paint last under B's latches. txLock; the UI thread hands off to the pool and never takes
+   the lock; one field read; showTransaction null-guards, sequences and swaps inside the lock;
+   shownTransaction for the explorer verb; paneHosted (set by the one pane construct site) picks the
+   instant reveal — the PUSHED page gets its pre-#898 fade back; SpixiContentPage.sendMessage
+   re-checks a volatile pageLoaded after enqueue and POSTS the drain (one drainer thread).
+
+#904 --bubble-gap-inner 1px → 2px (dial C's gap; D's 4px corner stays). --bubble-tail 8×13 → 7×11:
+the tokens size only the box, so all four clip-path() values (LTR/RTL × received/sent) were redrawn
+from the 8×13 master. Rendered on the built shell, both directions × both themes, subject asserted
+before every shot (docs/sheets/session-ab/, generator included; 6×10 is on the sheet). New derived
+pin: every tail path fits (tail + 1) × tail-h, absolute commands only, sent mirrors received, RTL swaps.
+
+#905 the "buildable now" menu re-verified: iOS-43, iOS-44, iOS-55, AND-35, R7 were already built —
+findings rows, legacy-parity-audit and release-readiness §3 corrected with evidence.
+
+#906 privacy vs the CODE: §4.8 describes the Mini Apps catalog, not installed Mini Apps (which run
+in-app); §4 omits the sender-triggered GIF auto-load. PROPOSED text only
+(docs/legal/proposed-amendments-2026-09-19.md) — the policy is unchanged. Built: the hold gate learned
+NEEDS DAMIR / TODO / TBD / FIXME / XXX; the demo copy the claims sweep rated FALSE is replaced.
+The pins: 8 holes in r1+r2 and 6 more in r3, all in pins the author had mutation-tested — raw-text
+positives, a "derived" field list that matched one declaration form (then one formatting), a brace
+COUNT for "inside the lock", fixed character windows reaching into the next method. 69 mutations
+through the real pin text, one intended survivor.
+
+#907 "Show older messages" on every open after deleting messages (Damir, with a screenshot). Core's
+delete is a TOMBSTONE (fm.message = "", the row stays in storage — Friend.cs:949 @ 097341a), and
+loadMessages counted tombstones toward its 50-row window: delete 45 of the newest 50 and the chat
+opens with five bubbles and the pill, for ever. The window now counts VISIBLE rows — a widening read
+(want + 1, doubling, 8 passes, the D-18 step over 100 inside) — and "show older" / the skip derive
+from visible rows through one rendersNothing predicate (tied by a pin to insertMessage's own
+branches: Core blanks ANY type, so deleted files / canceled invites / canceled requests count too;
+call rows are excluded — an empty call row IS a missed call, so a deleted call card returns, CORE-9); the + 1 also ends the pill that loaded nothing on
+a chat of exactly 50. CSS: the pill takes the free space above itself (it replaces the secure notice,
+whose auto margins were the only thing seating a short log — 680 px of empty canvas before, 4 after).
+One Session P pin re-based with its delta (loadMessages takes lock (messages) twice now). BE: CORE-9.
+#908 self-destructing messages: scoped, not built.
+#909 storage findings from the delete investigation LOGGED as cutoff items, nothing built:
+CORE-11 chat history unencrypted at rest (with why it is hard), APP-1 Android backup
+exclusion (ours, small), L8 wallet password status block (BE signs off), CORE-9 extended
+(delete the file with its message), one proposed policy sentence on what delete does.
+#910 delete-for-everyone measured against the industry (mechanism standard; the one gap is
+CORE-10, rule proposed to BE). All of #909/#910 DEFERRED past the testing build.
+#911 WALKED 2026-09-22: 15 P / 0 F / 2 N. The draft survives the tab-sweep close (AB.9);
+7×11 is the tail (AB.11); call cards cannot be deleted BY DESIGN, so the deleted-call case
+is unreachable from the UI (AB.17). AB.5 not walked — open.
+#912 the easy app-side fixes: Android + iOS backup exclusion for chat history, the send
+queue and the logs (APP-1; iOS half uncompiled); the Windows html copy skips unchanged
+files; five [STARTDIAG] cold-start milestones; the Release build command in the checklist.
+
+Suite (container, snapshot copies): 4756 → 4774 / the same 2 KNOWN; 4776 with an Ixian-Core sibling
+(the two M1 #448 gates run instead of skipping — that is the "+2" a local run shows). cs-syntax-check 138 clean + 1.
+generate-icons / build-shells / extract-strings / build-legal-docs --check green.
+C# changed in FOUR files (HomePage, WalletSentPage, SingleChatPage, SpixiContentPage) — needs a build,
+and that build is the first compile this code has had.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01CuFt48sssbLuoRzebrqjr3

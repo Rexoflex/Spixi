@@ -1152,7 +1152,6 @@ namespace SPIXI
                     // closes the pane (direct close is safe: its edits commit per-action).
                     closeContactDetailsOverlays();
                     closeFormPaneOverlays();   // Batch C: add-contact/add-app pane too
-                    closeTxDetailOverlays();   // #263: the tx detail belongs to the wallet tab
                     /* ★★ #897: …and by that same rule the CONVERSATION belongs to the chats
                      * tab. Leaving it closes the conversation, so nothing that belongs to
                      * another tab sits pinned under this one's detail column — which is what
@@ -1164,6 +1163,12 @@ namespace SPIXI
                     {
                         closeChatOverlays();
                     }
+                    /* #902: listed after the conversation only so the two read in stacking
+                     * order (a chat's own "Details" puts the tx detail OVER the conversation).
+                     * ⚠ The order is NOT load-bearing, and the first cut of this comment said it
+                     * was: both closes run in this one UI turn, and closeOverlay's hide is
+                     * synchronous up to its first await, so no frame commits between them. */
+                    closeTxDetailOverlays();   // #263: the tx detail belongs to the wallet tab
                 }
                 // ★ AND-7b (#407): the surface under the status bar changed with the tab,
                 // and NOTHING navigates on a tab switch — so nothing else repaints it.
@@ -1811,6 +1816,23 @@ namespace SPIXI
                     removePage(p);   // #225: removing an open overlay = closeOverlay
                 }
             }
+            /* ★ #902 (the #46 loop over #897, MINOR): A CONVERSATION THAT IS STILL STAGING IS
+             * NOT IN THE LIST ABOVE. `getOverlayPages()` enumerates presented overlays; between
+             * the row tap and the present (~110-400 ms on the spare path, up to the 4 s
+             * failsafe on the fallback) the page is `activePreload` — which is exactly why
+             * `Utils.getChatPage` checks BOTH. Tap a chat row, then Wallet inside that window,
+             * and the sweep found nothing to close; the conversation then presented pinned in
+             * the detail column on the wallet tab — the state #897 exists to forbid — and sat
+             * there until the next switch.
+             * `popPageAsync()` on a staging page = mark abandoned + cancelPreload (its own
+             * second branch); it never pops a real page. A blank pre-warm spare has no friend
+             * and is never `activePreload` while idle — the friend test is the belt.
+             * REVERSAL: delete this and a fast chat-then-Wallet double tap strands a live
+             * conversation under the wallet again. */
+            if (SpixiContentPage.getStagingPage() is SingleChatPage staging && staging.friend != null)
+            {
+                staging.popPageAsync();
+            }
         }
 
         // #263: same close-audit for the tx-detail overlay ("txdetail", pinned col 1
@@ -1823,6 +1845,18 @@ namespace SPIXI
                 {
                     removePage(p);   // #225: removing an open overlay = closeOverlay
                 }
+            }
+            /* #902 r2: the SAME staging hole closeChatOverlays closed, with the roles swapped —
+             * tap a wallet row, then Chats inside the present window, and the detail presented
+             * pinned on the chats tab. Safe for every caller: the others (onChat, the
+             * contact-details router) push a page of their own straight after, which supersedes
+             * a staging one anyway.
+             * ⚠ NOT extended to closeContactDetailsOverlays / closeFormPaneOverlays: those run
+             * from onOverlayClosed during a tag-replace, where a page of the same type can be
+             * LEGITIMATELY staging — dropping it there would eat the user's tap. Logged (#902). */
+            if (SpixiContentPage.getStagingPage() is WalletSentPage stagingTx)
+            {
+                stagingTx.popPageAsync();
             }
         }
 
@@ -2200,6 +2234,8 @@ namespace SPIXI
                 Logging.error("Exception occured while setting HomePage as root: {0}", e);
             }
         }
+        private static bool startDiagLogged = false;
+
         private void onLoaded()
         {
             // #337 audit MAJOR (AND-29): every ixian:onload = a FRESH home document —
@@ -2212,6 +2248,14 @@ namespace SPIXI
             // …and a FRESH document holds no app rows either — the next tab3 entry must
             // force one push (PERF latch, see appsPushedToShell).
             appsPushedToShell = false;
+
+            // #912: the last cold-start milestone — the first home document is live.
+            // Once per process: a theme/language reload lands here too and is not a start.
+            if (!startDiagLogged)
+            {
+                startDiagLogged = true;
+                App.startDiag("home shell loaded");
+            }
 
             setAsRoot();
 
@@ -2401,12 +2445,36 @@ namespace SPIXI
 
         // #263: no longer async — the old rightContent swap awaited FadeTo; the
         // overlay route stages/presents on its own thread machinery.
-        public void onTransaction(byte[] txid, WebNavigatingEventArgs e)
+        /* ★★ #902 (the #46 loop over #897, MAJOR) — `fromConversation`.
+         * #897 closed the conversation when the chats TAB is left. That anchors the rule to
+         * the tab VERB, and a conversation can enter the detail column without one:
+         * `onChat` never touches `currentTab`, and it has C#-side callers that run while the
+         * user is on Wallet or Apps — contact details → Message / a shared-group row
+         * (reached from Account → Contacts, which deliberately sends NO tab verb since L6),
+         * and a notification tap (`App.startingScreen`). The tx detail then staged over that
+         * conversation and its back button REVEALED it on the wallet tab — Damir's report,
+         * by a second route.
+         * So the wallet's own tap closes it too, wherever it came from. The ONE caller that
+         * must not is the conversation itself: a payment card's "Details"
+         * (SingleChatPage.onViewPayment) stacks the detail OVER the chat the user is in, and
+         * back must return to it. That caller says so; nobody else can.
+         * REVERSAL: drop the close and any conversation opened while currentTab != tab1 is
+         * one tx tap + one back away from showing on the wallet tab. Drop the parameter and
+         * a chat's Details button closes the chat it was tapped in. */
+        public void onTransaction(byte[] txid, WebNavigatingEventArgs? e, bool fromConversation = false)
         {
             var activity = Node.activityStorage.getActivityById(txid, null, true);
-            if (activity == null)
+            /* #902 r2: `activity.transaction` is nullable (WalletSentPage's W9(a) note says so),
+             * and every use below dereferenced it — AFTER the sweeps had already closed the
+             * conversation. A tap that cannot be shown must change nothing, so it is refused
+             * here, above the first side effect, and `tx` is the one name used from here on. */
+            Transaction? tx = activity?.transaction;
+            if (activity == null || tx == null)
             {
-                e.Cancel = true;
+                if (e != null)   // #902: the conversation caller passes null — this line NRE'd for it
+                {
+                    e.Cancel = true;
+                }
                 return;
             }
 
@@ -2416,6 +2484,10 @@ namespace SPIXI
             requestSettingsOverlayExit();
             closeContactDetailsOverlays();   // #247: same reasoning for the info pane
             closeFormPaneOverlays();         // Batch C: the tx detail takes the column
+            if (!fromConversation)
+            {
+                closeChatOverlays();         // #902: …and so does a conversation it was not opened from (wide-only belt inside)
+            }
 
             if (rightContent.IsVisible)
             {
@@ -2427,8 +2499,10 @@ namespace SPIXI
                 // tag-replaces the previous detail). Constructed WITHOUT the home ref
                 // → hideBackButton is never pushed → the shell keeps its back button,
                 // whose ixian:dismiss pops the overlay (popPageAsync is overlay-aware)
-                // and reveals whatever sat beneath (conversation / empty detail).
-                // Live status holds: OnUpdateUI ticks the TOP overlay every second.
+                // and reveals what sat beneath: the empty detail pane, or — ONLY when the
+                // detail was opened from a conversation's own payment card (#902,
+                // fromConversation) — that conversation.
+                // Live status holds: OnUpdateUI ticks the TOP overlay (Node.updateUILoop, every 2 s).
                 /* ★★ #898 (Damir: "when you click on tx, it opens in right pane, no fade no
                  * flash no nothing — each other you open just changes instantly"): if a tx
                  * detail is ALREADY open, swap its transaction in place. No second page, no
@@ -2440,18 +2514,18 @@ namespace SPIXI
                 {
                     if (open is WalletSentPage detail)
                     {
-                        detail.showTransaction(activity.transaction);
-                        Utils.sendUiCommand(this, "selectTx", activity.transaction.getTxIdString());
+                        detail.showTransaction(tx);
+                        Utils.sendUiCommand(this, "selectTx", tx.getTxIdString());
                         return;
                     }
                 }
-                pushPageLoaded(new WalletSentPage(activity.transaction), 4000, "txdetail", 1,
-                    navKey: "txdetail:" + activity.transaction);   // ★★ V-19
-                Utils.sendUiCommand(this, "selectTx", activity.transaction.getTxIdString());
+                pushPageLoaded(new WalletSentPage(tx) { paneHosted = true }, 4000, "txdetail", 1,   // #903 r2: the pane says it is a pane
+                    navKey: "txdetail:" + tx);   // ★★ V-19
+                Utils.sendUiCommand(this, "selectTx", tx.getTxIdString());
                 return;
             }
 
-            Navigation.PushAsync(new WalletSentPage(activity.transaction), Config.defaultXamarinAnimations);
+            Navigation.PushAsync(new WalletSentPage(tx), Config.defaultXamarinAnimations);
         }
 
         public void onChat(Address friend_address, WebNavigatingEventArgs? ev)
@@ -4092,7 +4166,21 @@ namespace SPIXI
                 // without this the "Draft:" excerpt lagged until the next natural
                 // flush (~10s+). Same one-liner the SettingsPage branch above ships.
                 UIHelpers.shouldRefreshContacts = true;
-                checkForRating();
+                /* #902 (the #46 loop over #897, MINOR): before #897 a conversation closed only
+                 * because the user closed it, on the chats list. The tab sweep now closes one
+                 * while the user is ARRIVING on Wallet or Apps — and the "rate the app" prompt
+                 * and the chats-list frame probe both rode that close. A prompt over the
+                 * wallet the user just opened is wrong, and a probe labelled
+                 * `chats-after-close` that measures 600 ms of the WALLET tab poisons the very
+                 * number the pre-warm decision (#864) waits on. Both want the chats list on
+                 * screen. The spare warm below is deliberately NOT gated: skipping it makes
+                 * the next conversation open cold, and whether it costs the wallet's paint
+                 * anything is unmeasured (#294). */
+                bool chatsListOnScreen = currentTab == "tab1" && !homeShellTakeoverOpen;   // r2: the L6 hand-off closes a chat on tab1 UNDER a full-shell takeover — the same predicate the hero colour already uses
+                if (chatsListOnScreen)
+                {
+                    checkForRating();
+                }
                 /* ★ Session O [CDPERF] — TEMPORARY. The pre-warm's BEFORE number (prewarm-chat-spec
                  * §4 row 1, #780's one warning): the 600 ms after a conversation closes is when the
                  * user scrolls the chats list, and it is where warm() is scheduled (Session P, below
@@ -4105,7 +4193,10 @@ namespace SPIXI
 #if ANDROID
                     try
                     {
-                        SingleChatPage.CdperfFrameProbe.start(System.Diagnostics.Stopwatch.StartNew(), "chats-after-close");
+                        if (chatsListOnScreen)   // #902: the label says CHATS — measure only the chats list
+                        {
+                            SingleChatPage.CdperfFrameProbe.start(System.Diagnostics.Stopwatch.StartNew(), "chats-after-close");
+                        }
                     }
                     catch (Exception ex)
                     {

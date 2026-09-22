@@ -225,11 +225,10 @@
     box-shadow: 0 0 0 2px var(--surface-topbar);
     pointer-events: none;
   }
-  /* A1 (#302): "Show older messages" pill, first child of the log. It only ever
-     renders when ≥100 messages exist, so it never coexists with the #181
-     centered-when-short layout above (auto margins have collapsed by then).
-     flex:none so it can't be stretched by the column. */
-  .chat-older { flex: none; display: flex; justify-content: center; padding: var(--spacing-8) 0 var(--spacing-4); }
+  /* A1 (#302): "Show older messages" pill, first child of the log. #907: margin-top:auto —
+     the pill REPLACES the secure notice, whose auto margins seat a short log at the bottom;
+     without it a short window with older history hung from the top (DECISIONS #907). */
+  .chat-older { flex: none; display: flex; justify-content: center; padding: var(--spacing-8) 0 var(--spacing-4); margin-top: auto; }
   .chat-older__btn {
     display: inline-flex; align-items: center; gap: var(--spacing-8);
     min-height: 32px; padding: 0 var(--spacing-16);

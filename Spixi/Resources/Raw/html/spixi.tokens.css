@@ -1129,15 +1129,26 @@
      They have their own token now: tightening a chat run must not move a chip or a card, and
      a future --radius-8 dial must not move the chat.
      ★ PICKED D, same day, on the rendered sheet: gap 1px, corner 4px (C was 2/4).
-     Reversal ladder: 1px (D, shipped) · 2px (C) · 3px (Session I) · var(--spacing-2). */
+     ★ Damir 2026-09-19 (#904): "fix the gap between grouped messages from the same user 2px
+     instead of 1px" — back to C's GAP after eleven days of living with D. The corner stays
+     at D's 4px: he asked for the gap, not the pair.
+     Reversal ladder: 2px (shipped) · 1px (D, 09-08 → 09-19) · 3px (Session I) · var(--spacing-2). */
   --bubble-radius-group: 4px;                         /* the corners a same-sender run shares; was var(--radius-8) */
   --bubble-gap-group: 10px;                           /* between groups (row margin-top); was var(--spacing-12) */
-  --bubble-gap-inner: 1px;                            /* inside a same-sender group; was 2px (dial C), 3px before that, var(--spacing-2) before that */
+  --bubble-gap-inner: 2px;                            /* inside a same-sender group; ★ #904: 1px (dial D) → 2px, Damir's ask; 3px before D, var(--spacing-2) before that */
   --bubble-meta-margin-top: 4px;                      /* the floated time/ticks tail; was var(--spacing-8) — must stay ≤ line-height − meta line-height */
   --bubble-meta-size: 11px;                           /* ★ Damir: "reduce the timestamp" — was var(--font-size-body-xs) = 12. Measured: TG/WA/ours digits are the SAME 21 px on his phone; the width of " PM" was the difference (fixed by hourCycle) — the 1px step is his call on top */
   --bubble-meta-line-height: 14px;                    /* was var(--line-height-body-xs) = 16 */
-  --bubble-tail: 8px;                                 /* ★ sheet 1c: the tail on the group-start bubble (WA grammar, #735④); 0 = off */
-  --bubble-tail-h: 13px;
+  /* ★ #904 (Damir 2026-09-19: "slightly reduce the size of the tail"): 8×13 → 7×11.
+     ⚠ THESE TWO TOKENS SET ONLY THE BOX. The SHAPE is four clip-path() values in absolute
+     px in message-bubble.css (path() takes no var() and no calc()), drawn for a box of
+     (tail + 1) × tail-h. Change a number here WITHOUT redrawing all four and the old shape
+     is clipped inside the new box — a cut-off flag, not a smaller tail. The suite derives
+     each path's extents and requires them to equal these tokens, so that fails loudly.
+     The paths are the 8×13 master scaled (x by tail/8 up to the seam column, y by h/13);
+     sheet docs/sheets/session-ab/ holds NOW · 7×11 (shipped) · 6×10 (the next step down). */
+  --bubble-tail: 7px;                                 /* ★ sheet 1c: the tail on the group-start bubble (WA grammar, #735④); 0 = off. Was 8px until #904 */
+  --bubble-tail-h: 11px;                              /* was 13px until #904 */
   --bubble-avatar-size: 32px;                         /* ★ Session K (walk J2 T1, Damir: "a bit bigger"): the group sender avatar beside the first bubble — sheet 28 / 32 / 36, 32 ships until he picks; reversal var(--size-avatar-24) */
   --bubble-avatar-inset: var(--spacing-8);            /* ★ Session K (walk J2 T1: "left aligned with the left edge of the composer"): the avatar row's inline inset = the composer's own (composer.css padding-inline-start). ★ 2026-09-08: moved 12 → 8 WITH that padding — measured, moving only the bar left the avatar 4px inboard and broke the alignment the token exists for. Reversals in step: --spacing-12 here + --spacing-12 there; before Session K it was the plain row inset */
   --bubble-elevation: 0 1px 0.5px rgba(0, 0, 0, 0.13);  /* ★ sheet 1c: the WA/TG faint lift (light); dark re-dials below. Reversal = `0 0 0 0 transparent` (a no-op shadow, never `none`: it sits in a shadow LIST beside the hairline hook) */

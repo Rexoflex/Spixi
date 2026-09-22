@@ -1,0 +1,112 @@
+import { chromium } from 'playwright';
+import { writeFileSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+const root = process.cwd();
+const shell = join(root, 'Spixi/Resources/Raw/html/chat.html');
+const out = join(root, 'docs/sheets/session-ab');
+const r2 = (n) => String(Math.round(n * 100) / 100);
+// the tail path, scaled from the 8×13 master; the 1px seam overlap stays absolute
+function paths(w, h) {
+  const sx = w / 8, sy = h / 13, W = w + 1;
+  const P = [[2.2, 0], [0, 0.2], [0.5, 2.2], [3.4, 8.2], [8, 13]].map(([x, y]) => [x * sx, y * sy]);
+  const recv = `M${W} 0 L${r2(P[0][0])} 0 Q${r2(P[1][0])} ${r2(P[1][1])} ${r2(P[2][0])} ${r2(P[2][1])} Q${r2(P[3][0])} ${r2(P[3][1])} ${r2(P[4][0])} ${r2(P[4][1])} L${W} ${r2(h)} Z`;
+  const m = (x) => r2(W - x);
+  const sent = `M0 0 L${m(P[0][0])} 0 Q${m(P[1][0])} ${r2(P[1][1])} ${m(P[2][0])} ${r2(P[2][1])} Q${m(P[3][0])} ${r2(P[3][1])} ${m(P[4][0])} ${r2(P[4][1])} L0 ${r2(h)} Z`;
+  return { recv, sent };
+}
+const CANDS = [
+  { id: 'now', label: 'NOW  tail 8x13 · gap 1', w: 8, h: 13, gap: 1 },
+  { id: 'a', label: 'A  tail 7x11 · gap 2', w: 7, h: 11, gap: 2 },
+  { id: 'b', label: 'B  tail 6x10 · gap 2', w: 6, h: 10, gap: 2 },
+];
+const css = (c) => { const p = paths(c.w, c.h); const F = '.c-bubble-row[data-position="first"] .c-bubble::before', S = '.c-bubble-row[data-position="single"] .c-bubble::before';
+  const sel = (dir, rtl) => [F, S].map((x) => (rtl ? '[dir="rtl"] ' : '') + x.replace('.c-bubble-row', `.c-bubble-row[data-direction="${dir}"]`)).join(',');
+  return `:root,[data-theme="dark"]{--bubble-tail:${c.w}px;--bubble-tail-h:${c.h}px;--bubble-gap-inner:${c.gap}px}
+${sel('received', false)}{clip-path:path('${p.recv}')}
+${sel('sent', false)}{clip-path:path('${p.sent}')}
+${sel('received', true)}{clip-path:path('${p.sent}')}
+${sel('sent', true)}{clip-path:path('${p.recv}')}`; };
+if (process.argv[2] === 'paths') { for (const c of CANDS) console.log(c.id, JSON.stringify(paths(c.w, c.h))); process.exit(0); }
+
+const b64 = (s) => Buffer.from(String(s), 'utf8').toString('base64');
+const browser = await chromium.launch();
+{ const warm = await browser.newContext(); await (await warm.newPage()).goto('about:blank'); await warm.close(); }   // #882 ④
+const shots = [];
+for (const theme of ['light', 'dark']) for (const dir of ['ltr', 'rtl']) for (const c of CANDS) {
+  const ctx = await browser.newContext({ viewport: { width: 412, height: 560 }, deviceScaleFactor: 2.5, colorScheme: theme, reducedMotion: 'no-preference',
+    userAgent: 'Mozilla/5.0 (Linux; Android 14; moto g84) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36' });
+  const page = await ctx.newPage();
+  await page.addInitScript(({ theme }) => { try { localStorage.setItem('spixi.theme', theme); } catch (e) {} }, { theme });
+  await page.goto('file://' + shell + '?mobile=1');
+  await page.waitForFunction(() => typeof window.executeUiCommand === 'function' && typeof window.addMe === 'function');
+  await page.evaluate(({ theme, dir, b64s }) => {
+    const push = (fn, ...a) => window.executeUiCommand(window[fn], ...a);
+    document.documentElement.setAttribute('dir', dir);
+    push('setTheme', b64s.theme);
+    push('onChatScreenReady', b64s.addr);
+  }, { theme, dir, b64s: { theme: b64(theme), addr: b64('4aB7peerAddress') } });
+  const now = Math.floor(Date.now() / 1000) - 3600;
+  const msgs = [
+    ['them', 'Are we still on for Friday?'], ['them', 'I can bring the projector'], ['them', 'and the long cable'],
+    ['me', 'Yes — 18:00 at mine'], ['me', 'Bring both'], ['me', 'I will sort the food'],
+    ['them', 'Perfect'],
+    ['me', 'See you then'],
+  ];
+  await page.evaluate(({ msgs, now, enc }) => {
+    const push = (fn, ...a) => window.executeUiCommand(window[fn], ...a.map((v) => btoa(unescape(encodeURIComponent(String(v))))));
+    msgs.forEach(([who, text], k) => {
+      const t = String(now + k * 20);
+      if (who === 'me') push('addMe', 'm' + k, 'meAddr', 'Me', 'img/spixiavatar.png', text, t, 'True', 'True', 'True', 'False', 'False', 'self', '');
+      else push('addThem', 'm' + k, '4aB7peerAddress', 'Alice', 'img/spixiavatar.png', text, t, 'True', 'True', 'True', 'False', 'False', 'contact', '');
+    });
+    if (window.onChatScreenLoaded) push('onChatScreenLoaded');
+  }, { msgs, now });
+  await page.addStyleTag({ content: css(c) });
+  await page.waitForTimeout(700);
+  // ★ #811/#893: ASSERT THE SUBJECT before shooting
+  const facts = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('.c-bubble-row')];
+    const vis = (el) => { const r = el.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight && r.width > 0; };
+    const tails = rows.filter((r) => /first|single/.test(r.dataset.position) && vis(r));
+    const tw = tails.map((r) => { const cs = getComputedStyle(r.querySelector('.c-bubble'), '::before'); return [r.dataset.direction, cs.width, cs.height, cs.clipPath]; });
+    const gaps = []; rows.forEach((r, i) => { if (i && /middle|last/.test(r.dataset.position)) gaps.push(Math.round((r.querySelector('.c-bubble').getBoundingClientRect().top - rows[i - 1].querySelector('.c-bubble').getBoundingClientRect().bottom) * 100) / 100); });
+    return { rows: rows.length, tails: tw, gaps, theme: document.documentElement.dataset.theme, dir: document.documentElement.dir };
+  });
+  const okSubject = facts.rows === 8 && facts.tails.length === 4 && facts.tails.every((t) => t[1] === (c.w + 1) + 'px' && t[2] === c.h + 'px' && /path/.test(t[3]))
+    && facts.gaps.length === 4 && facts.gaps.every((g) => Math.abs(g - c.gap) < 0.26) && facts.theme === theme && facts.dir === dir;
+  if (!okSubject) { console.error('SUBJECT NOT IN FRAME', theme, dir, c.id, JSON.stringify(facts)); process.exit(2); }
+  const name = `tail-${theme}-${dir}-${c.id}.png`;
+  await page.screenshot({ path: join(out, name) });
+  // zoom crops of one received-first and one sent-first tail, 8x
+  const boxes = await page.evaluate(() => ['received', 'sent'].map((d) => { const r = document.querySelector(`.c-bubble-row[data-direction="${d}"][data-position="first"] .c-bubble`).getBoundingClientRect(); return { d, x: r.left, y: r.top, w: r.width, h: r.height }; }));
+  for (const b of boxes) {
+    const tailOnLeft = (b.d === 'received') !== (dir === 'rtl');
+    const x = tailOnLeft ? Math.max(0, b.x - 14) : Math.min(412 - 96, b.x + b.w - 82);
+    await page.screenshot({ path: join(out, `.z-${theme}-${dir}-${c.id}-${b.d}.tmp.png`), clip: { x, y: b.y - 6, width: 96, height: 92 } });
+  }
+  shots.push({ theme, dir, c, name, boxes, facts });
+  await ctx.close();
+}
+writeFileSync(join(out, '.facts.tmp.json'), JSON.stringify(shots, null, 1));
+// montage: one sheet per theme — rows = direction × side, columns = candidates, crops shown 3x pixelated
+for (const theme of ['light', 'dark']) {
+  const ctx = await browser.newContext({ viewport: { width: 1140, height: 1340 }, deviceScaleFactor: 1 });
+  const page = await ctx.newPage();
+  const img = (f) => 'data:image/png;base64,' + readFileSync(join(out, f)).toString('base64');
+  const rows = [];
+  for (const dir of ['ltr', 'rtl']) for (const d of ['received', 'sent']) {
+    rows.push(`<tr><th>${dir.toUpperCase()} · ${d}</th>` + CANDS.map((c) => `<td><img src="${img(`.z-${theme}-${dir}-${c.id}-${d}.tmp.png`)}"></td>`).join('') + '</tr>');
+  }
+  await page.setContent(`<style>body{margin:0;padding:24px;font:600 15px system-ui;background:${theme === 'dark' ? '#0b0e13' : '#f3f5f9'};color:${theme === 'dark' ? '#e8ecf3' : '#16202e'}}
+    table{border-collapse:separate;border-spacing:14px 12px}th{font-weight:600;text-align:left;white-space:nowrap}thead th{text-align:center}
+    img{display:block;width:288px;height:276px;image-rendering:pixelated;border-radius:8px}</style>
+    <div style="margin:0 0 6px 14px">Session AB · bubble tail + same-sender gap · ${theme} · crops of the BUILT chat shell at 2.5 dpr, shown 3x</div>
+    <table><thead><tr><th></th>${CANDS.map((c) => `<th>${c.label}</th>`).join('')}</tr></thead>${rows.join('')}</table>`);
+  await page.waitForTimeout(200);
+  const h = await page.evaluate(() => document.documentElement.scrollHeight);
+  await page.setViewportSize({ width: 1140, height: h });
+  await page.screenshot({ path: join(out, `tail-sheet-${theme}.png`) });
+  await ctx.close();
+}
+await browser.close();
+console.log('ok', shots.length, 'shots');

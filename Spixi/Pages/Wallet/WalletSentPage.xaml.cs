@@ -10,6 +10,8 @@ using SPIXI.Lang;
 using SPIXI.Meta;
 using System;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Web;
 
 namespace SPIXI
@@ -17,14 +19,20 @@ namespace SPIXI
     [XamlCompilation(XamlCompilationOptions.Compile)]
     public partial class WalletSentPage : SpixiContentPage
     {
-        private Transaction transaction;
+        /* #903: `volatile` because the field is now SWAPPED on a pool thread (showTransaction)
+         * and read on the UI thread (the explorer verb). Every render reads it ONCE, under
+         * txLock — see checkTransactionLocked. */
+        private volatile Transaction transaction;
         private ActivityStatus lastActivityStatus = 0;
 
         private bool viewOnly = true;
 
         private HomePage? homePage;
 
-        private bool isConfirmedDisplayed = false;
+        // #903 r2: `volatile` — every WRITER now runs on a pool thread under txLock, while
+        // updateScreen reads it unlocked; a stale `true` from a confirmed transaction would
+        // silently stop the poll for the pending one that replaced it.
+        private volatile bool isConfirmedDisplayed = false;
 
         // #334 W9(b): true only after a FULL burst (through setData) reached the
         // shell. lastActivityStatus used to latch BEFORE the pushes, so any
@@ -39,6 +47,40 @@ namespace SPIXI
         // unchanged-status skip when the activity appears later (lastActivityStatus
         // is stale across a null gap).
         private bool lastActivityMissing = false;
+
+        /* ★★ #903 (the #46 loop over #898, MAJOR) — ONE LOCK, AND THE UI THREAD NEVER TAKES IT.
+         * checkTransaction has two callers on two threads: Node.updateUILoop's POOL tick
+         * (updateScreen, every 2 s while the transaction is not Final) and the UI thread
+         * (onLoad — and, since #898, showTransaction on EVERY tap, on a page that now lives
+         * for the whole pane session). Unsynchronised, that is two defects on a money card:
+         *  (1) the body read the `transaction` field THREE times (the activity lookup, the
+         *      fallback, and setData's txid). A swap between them committed transaction A's
+         *      amount, fee and counterparty under transaction B's id.
+         *  (2) MainThread.BeginInvokeOnMainThread RUNS INLINE when it is already on the main
+         *      thread and POSTS otherwise. So a tick's burst for A, posted a moment before the
+         *      tap, landed AFTER the tap's inline burst for B: A painted last, while every
+         *      latch said B — and an unchanged status then never corrected it.
+         * The fix is the one HomePage.loadTransactions already carries for the same class
+         * (its ROUND 2 note): the UI thread hands the work to the pool and returns. Every
+         * burst is then POSTED, from under this lock, so bursts reach the shell whole and in
+         * lock order; and the UI thread cannot freeze behind a tick that is itself waiting on
+         * Ixian-Core's storage lock. */
+        private readonly object txLock = new object();
+        // #903: a swap that a LATER tap has superseded is dropped, not rendered — two pool
+        // tasks may start in either order, and the last tap must be the one that shows.
+        private int swapSeq = 0;
+        /* #903 r2 (break-my-verdict, MINOR): WHAT THE SHELL WAS LAST GIVEN. The swap assigns
+         * `transaction` inside the lock BEFORE the burst is built and posted, so for that window
+         * the card on screen is still A while the field already says B — and the explorer verb
+         * reads on the UI thread. It opens what the user is LOOKING at, which is this. Written
+         * by the burst itself, so a swap never has to reset it. */
+        private volatile Transaction? shownTransaction;
+        /* #903 r2 (MINOR): HOW THIS PAGE IS PRESENTED, decided by the one site that knows —
+         * HomePage's pane construct sets it. The first cut asked `getStagingPage() == this` at
+         * onLoad, which is a PROXY: a shell slower than the 4 s failsafe is presented by the
+         * timeout, is no longer "staging" when onLoad fires, and took the fade arm while ALREADY
+         * VISIBLE in the detail column — Damir's flash again, by the slow path. */
+        public bool paneHosted = false;
 
         public WalletSentPage(Transaction tx, bool view_only = true, HomePage? home = null)
         {
@@ -76,8 +118,9 @@ namespace SPIXI
             // theme flip reloadAllPages reboots it with an empty staging buffer) —
             // an armed burstPushed would early-return the re-burst and leave a
             // PENDING tx's card permanently blank. Reset with the document.
-            burstPushed = false;
-            lastActivityMissing = false;
+            // #903: the reset itself moved INTO the locked pass (checkTransaction(true)) —
+            // written here, unlocked, a tick finishing a moment later re-armed burstPushed and
+            // the fresh document's burst early-returned as "unchanged": the blank card again.
 
             // #334 W9(c): hideBackButton FIRST — it rebuilds the shell's topbar, so
             // pushing it after setHideBalance + the data burst re-shaped chrome under
@@ -105,7 +148,7 @@ namespace SPIXI
             bool hideBalancePref = Preferences.Default.Get("hidebalance", false);
             Logging.info("[WALLETDIAG] setHideBalance push · hidebalance=" + hideBalancePref);
             Utils.sendUiCommand(this, "setHideBalance", hideBalancePref.ToString());
-            checkTransaction();
+            checkTransaction(true);   // #903: fresh document → the latches reset under the lock
 
             try
             {
@@ -119,8 +162,25 @@ namespace SPIXI
                  * ALREADY painted before anything is on screen. A ramp from 0 never hid an
                  * unpainted frame anyway — it showed the same frame, dimmed.
                  * The ctor's `Opacity = 0` stays: it is what keeps an empty WebView off screen
-                 * until the data push completes. Only the RAMP is gone. */
-                webView.Opacity = 1;
+                 * until the data push completes. Only the RAMP is gone.
+                 * ★ #903 (the #46 loop, MINOR): …ON THE OVERLAY PATH, which is the only path the
+                 * argument above covers. This page is also PUSHED — a narrow window and every
+                 * phone (HomePage.onTransaction's tail, ContactDetails, SingleChatPage) — and a
+                 * pushed page has no stage and no paint gate: it is on screen when onLoad runs,
+                 * so an instant reveal shows the shell's boot spinner for the frames before the
+                 * burst lands. The ramp was covering exactly that, over the page's own opaque
+                 * ground (nothing shows through a pushed page). #898 removed it there unmeasured;
+                 * the pushed path gets its pre-#898 reveal back, byte for byte.
+                 * Which path this is comes from `paneHosted` (set by the pane's one construct
+                 * site), not from asking whether the page is still staging — see the field. */
+                if (paneHosted)
+                {
+                    webView.Opacity = 1;
+                }
+                else
+                {
+                    webView.FadeTo(1, 150);
+                }
             }
             catch (Exception e)
             {
@@ -167,7 +227,11 @@ namespace SPIXI
                  * the WebView could never load `ixian:viewexplorer`. The second said an
                  * unhandled escape "takes the process down on Android and iOS": also FALSE,
                  * disproved by the two catches named above (#772). */
-                Utils.openExternal(String.Format("{0}?p=transaction&id={1}", Config.explorerUrl, transaction.getTxIdString()));
+                Transaction? onScreen = shownTransaction ?? transaction;   // #903 r2: the transaction the CARD shows, not the one a swap is about to show
+                if (onScreen != null)
+                {
+                    Utils.openExternal(String.Format("{0}?p=transaction&id={1}", Config.explorerUrl, onScreen.getTxIdString()));
+                }
             }
             else if (current_url.Trim().StartsWith("file:", StringComparison.OrdinalIgnoreCase))
             {
@@ -180,14 +244,49 @@ namespace SPIXI
         }
 
         // Retrieve the transaction from local cache storage
-        private void checkTransaction()
+        // #903: never runs its body on the UI thread, and never outside txLock — see the
+        // field's docblock. `freshDocument` = onLoad: the shell document is new and empty.
+        private void checkTransaction(bool freshDocument = false)
         {
+            if (MainThread.IsMainThread)
+            {
+                Task.Run(() =>
+                {
+                    try
+                    {
+                        checkTransaction(freshDocument);
+                    }
+                    catch (Exception e)
+                    {
+                        Logging.error("Exception occurred in checkTransaction: " + e.GetType().Name);
+                    }
+                });
+                return;
+            }
+            lock (txLock)
+            {
+                if (freshDocument)
+                {
+                    burstPushed = false;
+                    lastActivityMissing = false;
+                }
+                checkTransactionLocked();
+            }
+        }
+
+        private void checkTransactionLocked()
+        {
+            Transaction tx = transaction;   // #903: ONE read — a swap mid-pass cannot mix two transactions
+            if (tx == null)
+            {
+                return;
+            }
             Utils.sendUiCommand(this, "clearEntries");
 
             string confirmed = "error";
 
-            var activity = Node.activityStorage.getActivityById(transaction.id, null, true);
-            Transaction? ctransaction = transaction;
+            var activity = Node.activityStorage.getActivityById(tx.id, null, true);
+            Transaction? ctransaction = tx;
             if (activity != null)
             {
                 // #334 W9(b): early-return only when the previous burst actually
@@ -206,7 +305,7 @@ namespace SPIXI
                 // forever with the old card shown.
                 // #334 W9(a) class: a null activity.transaction previously NRE'd at
                 // the amount read below — fall back to the constructor transaction.
-                ctransaction = activity.transaction ?? transaction;
+                ctransaction = activity.transaction ?? tx;
                 if (activity.status == IXICore.Activity.ActivityStatus.Final)
                 {
                     isConfirmedDisplayed = true;
@@ -323,10 +422,11 @@ namespace SPIXI
             fee += ctransaction.fee;
 
             Utils.sendUiCommand(this, "setData", amount.ToString(), fee.ToString(),
-                time, transaction.getTxIdString(), confirmed);
+                time, tx.getTxIdString(), confirmed);
             // #334 W9(b): the burst is only now COMPLETE (setData commits the shell's
             // #289 staging buffer) — arm the unchanged-status early return.
             burstPushed = true;
+            shownTransaction = tx;   // #903 r2: the explorer verb follows the card
             lastActivityMissing = (activity == null);
             if (activity != null)
             {
@@ -346,7 +446,7 @@ namespace SPIXI
          * blank in between. The host reuses an open detail instead of building another.
          *
          * ⚠ EVERY per-transaction field is reset here, and that is the whole risk: these are
-         * the #289/#334 latches that decide whether the 1 Hz poll runs at all. Leaving
+         * the #289/#334 latches that decide whether the poll (every 2 s) runs at all. Leaving
          * `isConfirmedDisplayed` true from a CONFIRMED previous transaction would silently stop
          * `updateScreen` polling the new one, so a pending transaction would never update; a
          * stale `lastActivityStatus`/`burstPushed` would make checkTransaction skip its first
@@ -354,12 +454,38 @@ namespace SPIXI
          * which is what the suite pin derives rather than lists. */
         public void showTransaction(Transaction tx)
         {
-            transaction = tx;
-            lastActivityStatus = 0;
-            isConfirmedDisplayed = false;
-            burstPushed = false;
-            lastActivityMissing = false;
-            checkTransaction();
+            /* #903 (the #46 loop, MINOR): `activity.transaction` is nullable and this file says
+             * so (W9(a)). A null here used to NRE inside the pass AFTER its clearEntries — and
+             * the pane then kept showing the PREVIOUS transaction under the new row's
+             * highlight. A tap that cannot be shown changes nothing. */
+            if (tx == null)
+            {
+                return;
+            }
+            int seq = Interlocked.Increment(ref swapSeq);
+            Task.Run(() =>
+            {
+                try
+                {
+                    lock (txLock)
+                    {
+                        if (seq != Volatile.Read(ref swapSeq))
+                        {
+                            return;   // a later tap owns the pane
+                        }
+                        transaction = tx;
+                        lastActivityStatus = 0;
+                        isConfirmedDisplayed = false;
+                        burstPushed = false;
+                        lastActivityMissing = false;
+                        checkTransactionLocked();
+                    }
+                }
+                catch (Exception e)
+                {
+                    Logging.error("Exception occurred in showTransaction: " + e.GetType().Name);
+                }
+            });
         }
 
         public override void updateScreen()

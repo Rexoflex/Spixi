@@ -864,7 +864,7 @@
 
   const secureNotice = (who) => createSystemNotice({
     title: 'Encrypted. Peer-to-peer. Yours alone.',
-    text: 'Messages go straight from device to device, sealed with post-quantum encryption. No server carries or stores them. Every message exists only with ' + who + ', nowhere else.',
+    text: 'Messages are sealed on your device and can be opened only by the person you sent them to. Nobody in between can read them, not even us.',   // #902: the production copy (secureNoticeText) — the old demo sentence is the one claim docs/legal/claims-sweep.md A1 rated FALSE
     linkLabel: 'How it works',
     // 2026-07-06c ⑥ — the real shell routes this through the external-link confirm
     onLink: () => window.open('https://www.spixi.io/help-center.html', '_blank', 'noopener'),

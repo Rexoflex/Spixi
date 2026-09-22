@@ -25,7 +25,7 @@ newer than `docs/archive/handoff-post-freeze.md`, so where the two disagree, #29
 |---|---|
 | polish + platform fixes | continuous; no defined end — §3 lists what is left |
 | Android bring-up | ✅ built, run, walked (Walk N, 15 P · 0 F) |
-| real Terms + Privacy | ✅ **both bake** (2026-09-17 check: privacy 17 942 chars / 18 sections, `build-legal-docs --check` green). ⚠ This row read HELD until 2026-09-17 |
+| real Terms + Privacy | ✅ **both bake** (2026-09-17 check: privacy 17 945 chars / 18 sections as of 2026-09-19 — +3 is the #899 header date; it read 17 942 on 09-17, `build-legal-docs --check` green). ⚠ This row read HELD until 2026-09-17 |
 | dev-mode / send-log | ✅ #321 |
 | the redesigned SEND flow | ✅ built (#523), legacy pages retired (#640), `composeSend` pushed **unconditionally** at `HomePage.xaml.cs:1965` — ⚠ but see the review gate in §1 |
 | the security MAJORs | ⚙ **the three OURS rows moved 2026-09-06** — two closed, one partly closed. The inherited ones are still his. §1 |
@@ -129,13 +129,20 @@ these are a scope decision, not a defect list.
 
 ## §3 · Ours, buildable today, no decision needed
 
-iOS-44 attach sheet under the composer · iOS-56b edge-swipe in subscreens · iOS-55 untranslated
-tx timestamps · iOS-18 multi-user picker still on the old design · iOS-43 clipped button label ·
-AND-28 existing contacts show no avatar · AND-36 rotation leaves a row highlighted (mechanism
-narrowed in #826 — the highlight only clears when a conversation CLOSES, and a rotation re-homes
-rather than closes; one repro decides it) · the four landscape rows (AND-31/32/33/34) · AND-35
-chat-appearance copy + order · R7 share-sheet home leg · Q1 restore file-set state · the wallet
-sync/block-height surface.
+iOS-56b edge-swipe in subscreens · iOS-18 multi-user picker still on the old design ·
+AND-28 existing contacts show no avatar (verify-first, needs the phone) · AND-36 rotation leaves a
+row highlighted (mechanism narrowed in #826 — the highlight only clears when a conversation CLOSES,
+and a rotation re-homes rather than closes; one repro decides it, and #897 may have moved it) ·
+the four landscape rows (AND-31/32/33/34 — one render-first round) · Q1 restore file-set state ·
+the wallet sync/block-height surface.
+
+⚠ **FIVE MORE rows left this list on 2026-09-19 because they were already built (#905, the #660
+class — 7 of the 17 rows this list has carried were already built when someone checked):** **iOS-43** (Session J removed the
+ellipsis; the action row wraps, `typed-bubbles.css:108-123`) · **iOS-44** (the attach tray under a
+pinned composer, #705/#749/#761) · **iOS-55** (#325/#328, W1 landed — raw epoch + `formatTxTimestamp`)
+· **AND-35** (Session U #845; its own findings row already said so) · **R7** (both legs: `home.html`
+`shareAddress` → `ixian:share`, and `SettingsPage:318` handles the same verb). The three iOS rows
+need an **iPhone re-verify, not a build** — there has been no iOS walk since ~2026-08-27.
 
 ⚠ **Two rows left this list on 2026-09-08 because they were already built** (#826, the #660
 class): **AND-30** — the member sheet has been relation-aware since #366/#370/#613 and C# sends

@@ -480,7 +480,7 @@
   let olderPages = 2;
   const secureNotice = () => createSystemNotice({
     title: 'Encrypted. Peer-to-peer. Yours alone.',
-    text: 'Messages go straight from device to device, sealed with post-quantum encryption. No server carries or stores them. Every message exists only with you two, nowhere else.',
+    text: 'Messages are sealed on your device and can be opened only by the person you sent them to. Nobody in between can read them, not even us.',   // #902: the production copy (secureNoticeText) — the old demo sentence is the one claim docs/legal/claims-sweep.md A1 rated FALSE
     linkLabel: 'How it works',
     onLink: () => confirmLink(phoneDirect)('https://ixian.io/security'),
   });

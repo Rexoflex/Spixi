@@ -1868,7 +1868,7 @@ namespace SPIXI
 
                 if (homePage != null)
                 {
-                    homePage.onTransaction(b_id, null);
+                    homePage.onTransaction(b_id, null, fromConversation: true);   // #902: back must return to THIS conversation
                     return;
                 }
 
@@ -2629,9 +2629,98 @@ namespace SPIXI
             Utils.sendUiCommand(this, cmd, args);
         }
 
+        /* ★★ #907 — A DELETED MESSAGE IS A TOMBSTONE, AND THE WINDOW WAS COUNTING TOMBSTONES.
+         * Damir, 2026-09-19: "I deleted in chat by selecting and deleting messages, and I ended
+         * up with 5 messages before 'show older', and now each time I get into the chat it shows
+         * 5 messages ... it doesn't paint the last 50, like there is a cutoff."
+         * Ixian-Core does not remove a deleted message. `Friend.deleteMessage` (Friend.cs:949,
+         * 097341a — read, not assumed) sets `fm.message = ""` and writes the list back, so the
+         * row stays in storage for good. `readLastMessages` then hands back the last N STORED
+         * rows, tombstones included, and the loop below skips them at render. Delete 45 of the
+         * newest 50 and the window holds 5 visible rows + 45 tombstones: five bubbles, and
+         * `messages.Count < messagesToShow` is false, so "show older" is offered — on EVERY
+         * open, because the tombstones never leave. Inherited (the baseline skips the same
+         * rows and counts the same way); multi-select delete is what made it easy to reach.
+         * `messagesToShow` now means what its name says: VISIBLE messages. The window is widened
+         * until it holds that many PLUS ONE (the proof that more exists), or storage is exhausted (Count < window is exhaustion —
+         * readLastMessages stops only when it runs out of files). Doubling keeps the re-reads
+         * logarithmic; the pass cap bounds a history that is almost entirely tombstones.
+         * ⚠ Every widened read REPLACES Core's cached channel list (`msg_count != 100`), the
+         * CORE-8 hazard the batch comment below describes — this adds passes to that window only
+         * for a chat that has tombstones in its newest rows. The real fix is Core's: either
+         * delete the row, or let readLastMessages skip tombstones (be-cutover CORE-9). */
+        private const int LOAD_WINDOW_MAX_PASSES = 8;   // want 50: 51 → 6528 stored rows (it scales with `want`)
+        /* THE ONE PREDICATE: does this stored row put NOTHING in the log? The first cut asked only
+         * "standard and empty", which is the old inline test — and `Friend.deleteMessage` blanks ANY
+         * type. A deleted FILE, a canceled app invite, a canceled payment request and a deleted
+         * payment are all rows insertMessage (or the shell's #529 ghost guard) renders nothing for,
+         * so 20 deleted files in the newest 50 still opened the chat 20 bubbles short. Two arms:
+         *  · types insertMessage has NO bubble for at all (it has no branch, or the branch only
+         *    returns) — the contact-request bookkeeping rows, kicked/banned, appSessionEnd, reaction;
+         *  · types that render only while they still carry their payload.
+         * ⚠ voiceCall / voiceCallEnd are deliberately NOT here, and cannot be: an EMPTY call row is
+         * how Core stores a call nobody answered, so a DELETED call row is indistinguishable from
+         * a missed one — it comes back as "No answer" on the next open. That is CORE-9's second
+         * consequence, and only real deletion fixes it.
+         * The suite ties both arms to insertMessage's own branches, so a type that gains or loses a
+         * bubble there fails until this agrees. */
+        private bool rendersNothing(FriendMessage m)
+        {
+            switch (m.type)
+            {
+                case FriendMessageType.requestAdd:
+                    // No bubble — but on a contact that is NOT yet approved insertMessage raises the
+                    // contact-request pane from this row, so there it must still be delivered.
+                    return friend.state == FriendState.Approved;
+                case FriendMessageType.requestAddSent:
+                case FriendMessageType.kicked:
+                case FriendMessageType.banned:
+                case FriendMessageType.appSessionEnd:
+                case FriendMessageType.reaction:
+                    return true;
+                case FriendMessageType.standard:
+                case FriendMessageType.fileHeader:
+                case FriendMessageType.appSession:
+                case FriendMessageType.requestFunds:
+                case FriendMessageType.sentFunds:
+                    return string.IsNullOrEmpty(m.message);
+                default:
+                    return false;
+            }
+        }
+
         public void loadMessages()
         {
-            var messages = friend.getMessages(selectedChannel, (int)messagesToShow);
+            int want = (int)messagesToShow;
+            /* One row MORE than wanted: finding it is the only honest proof that older history
+             * exists. The baseline asked for exactly `want` and offered "show older" whenever it
+             * got that many — so a chat of exactly 50 messages showed a pill that loaded nothing. */
+            int window = want + 1;
+            bool exhausted = false;
+            List<FriendMessage>? messages = null;
+            for (int pass = 0; pass < LOAD_WINDOW_MAX_PASSES; pass++)
+            {
+                if (window == 100)
+                {
+                    window++;   // D-18 (#354): exactly 100 returns Core's STALE cache instead of reading storage
+                }
+                messages = friend.getMessages(selectedChannel, window);
+                if (messages == null || messages.Count == 0)
+                {
+                    break;
+                }
+                int visibleNow;
+                lock (messages)
+                {
+                    visibleNow = messages.Count(m => !rendersNothing(m));
+                    exhausted = messages.Count < window;
+                }
+                if (visibleNow > want || exhausted)
+                {
+                    break;
+                }
+                window = Math.Max(window * 2, window + (want + 1 - visibleNow));
+            }
             if (messages == null
                 || messages.Count == 0)
             {
@@ -2645,9 +2734,8 @@ namespace SPIXI
                 return;
             }
 
+            // #907: decided under the lock below, from VISIBLE rows — see the method's docblock.
             string show_more = "true";
-            if (messages.Count < messagesToShow)
-                show_more = "false";
             /* ★ Session P (#802 r4 MAJOR-1): clearMessages is pushed AFTER the batch is built,
              * adjacent to addMessages and messagesDone, still inside the lock — see the three
              * pushes below. The shell arms a 250 ms safety timer at clearMessages; when that push
@@ -2665,10 +2753,13 @@ namespace SPIXI
             System.Diagnostics.Stopwatch buildClock = System.Diagnostics.Stopwatch.StartNew();
             lock (messages)
             {
-                int skip_messages = 0;
-                if(messages.Count > messagesToShow)
+                // #907: skip the oldest VISIBLE rows beyond the window. The loop below passes
+                // over tombstones BEFORE it spends a skip, so this must count what it counts.
+                int visible = messages.Count(m => !rendersNothing(m));
+                int skip_messages = Math.Max(0, visible - want);
+                if (exhausted && skip_messages == 0)
                 {
-                    skip_messages = messages.Count() - (int)messagesToShow;
+                    show_more = "false";   // storage ran out and everything visible is on screen
                 }
                 if (friend.metaData.unreadMessageCount > 0)
                 {
@@ -2691,9 +2782,11 @@ namespace SPIXI
                 lastLoadPushed = 0;   // ★ Session I [CDPERF]
                 foreach (FriendMessage message in messages)
                 {
-                    if (message.type == FriendMessageType.standard
-                       && string.IsNullOrEmpty(message.message))
+                    if (rendersNothing(message))
                     {
+                        // Passed BEFORE a skip is spent (the skip counts what this counts), and
+                        // before insertMessage — which renders nothing for these rows anyway (a
+                        // blanked sentFunds used to reach txIdLegacyToV8("") and log a throw per open).
                         continue;
                     }
 

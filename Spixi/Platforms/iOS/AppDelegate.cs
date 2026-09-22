@@ -4,6 +4,7 @@ using Microsoft.Maui;
 using Microsoft.Maui.Hosting;
 using SPIXI.Lang;
 using SPIXI.Meta;
+using System;
 using System.IO;
 using UIKit;
 
@@ -35,6 +36,7 @@ public class AppDelegate : MauiUIApplicationDelegate
         UIApplication.SharedApplication.SetMinimumBackgroundFetchInterval(UIApplication.BackgroundFetchIntervalMinimum);
 
         prepareStorage();
+        excludeHistoryFromBackup();
 
      //   NSNotificationCenter.DefaultCenter.AddObserver(MPMusicPlayerController.VolumeDidChangeNotification, onVolumeChanged);
 
@@ -45,6 +47,40 @@ public class AppDelegate : MauiUIApplicationDelegate
         //    prepareBackgroundService();
 
         return base.FinishedLaunching(app, options);
+    }
+
+    /* ★ #912 (APP-1, iOS half — UNCOMPILED here, first compile is the next iOS build).
+     * Config.spixiUserFolder is Documents/Spixi on iOS, and Documents is in every
+     * iCloud / Finder backup. Chat history is plaintext on disk (be-cutover CORE-11), so
+     * the history folder and the offline send queue get NSURLIsExcludedFromBackupKey —
+     * Apple's own mechanism for "recreatable or sensitive, do not back up". The wallet,
+     * the account and the avatar are NOT touched: they are what a restore is for. The
+     * folders may not exist yet on a first launch (Core creates Chats in LocalStorage's
+     * constructor, later than this) — a missing folder is skipped, and the flag is set
+     * again on every launch, so the second launch catches it. Never throws: a backup
+     * flag is not worth a crash at FinishedLaunching. */
+    private static void excludeHistoryFromBackup()
+    {
+        foreach (string name in new[] { "Chats", "MsgQueue" })
+        {
+            try
+            {
+                string path = Path.Combine(Config.spixiUserFolder, name);
+                if (!Directory.Exists(path))
+                {
+                    continue;
+                }
+                using var url = NSUrl.FromFilename(path);
+                if (!url.SetResource(NSUrl.IsExcludedFromBackupKey, NSNumber.FromBoolean(true), out NSError err))
+                {
+                    Logging.warn("excludeHistoryFromBackup: {0} — {1}", name, err?.LocalizedDescription ?? "unknown error");
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("excludeHistoryFromBackup: {0} — {1}", name, e.GetType().Name);
+            }
+        }
     }
 
     private void prepareStorage()

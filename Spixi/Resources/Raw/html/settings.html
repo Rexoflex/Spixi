@@ -3454,6 +3454,8 @@ button.c-settings-howto__join:disabled {
      ⚠ NOTE for the dial: the composer pill's own edge is 12 px (composer.css
      padding-inline), so at 16 the tail TIP now sits 4 px OUTSIDE that line. WhatsApp does
      the same; if it reads wrong, 20px puts the tip exactly on the composer edge instead.
+     ★ #904: the tail is 7 wide now, so the tip sits at 16 − 7 = 9 px (it was 8). The BODY
+     line is what this rule owns and it did not move; the tip follows the token.
      Reversal: calc(var(--spacing-16) + var(--bubble-tail)). */
   --bubble-row-inset: var(--spacing-16);
   padding-inline: var(--bubble-row-inset);   /* Session I: the tail sits inside the gutter */
@@ -3585,19 +3587,25 @@ button.c-settings-howto__join:disabled {
   /* ★ Session J (#756, Damir: "less sharp and curved, think WhatsApp"): a rounded tip
      (the Q at x 0–2) and a convex outer sweep back to the bubble edge, instead of the
      straight-to-a-point wedge; the path still runs 1px INTO the bubble (x 8→9) so the
-     seam Damir saw stays covered. RTL mirror below. */
-  clip-path: path('M9 0 L2.2 0 Q0 0.2 0.5 2.2 Q3.4 8.2 8 13 L9 13 Z');
+     seam Damir saw stays covered. RTL mirror below.
+     ★ #904 (Damir: "slightly reduce the size of the tail"): the SAME curve, scaled from the
+     8×13 master to 7×11 — x by 7/8 up to the seam column, y by 11/13; the 1px overlap stays
+     absolute (x 7→8). All FOUR paths were redrawn together with the two tokens: path()
+     takes no var(), so the tokens cannot move the shape on their own. Master, for the next
+     dial: 'M9 0 L2.2 0 Q0 0.2 0.5 2.2 Q3.4 8.2 8 13 L9 13 Z'; the sent path is its mirror
+     about x = tail + 1. */
+  clip-path: path('M8 0 L1.93 0 Q0 0.17 0.44 1.86 Q2.98 6.94 7 11 L8 11 Z');
 }
 .c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble::before,
 .c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble::before {
   inset-inline-end: calc(-1 * var(--bubble-tail));
   background: var(--surface-bubble-sent);
-  clip-path: path('M0 0 L6.8 0 Q9 0.2 8.5 2.2 Q5.6 8.2 1 13 L0 13 Z');   /* ★ Session J (#756): the WhatsApp tail, mirrored (see received) */
+  clip-path: path('M0 0 L6.07 0 Q8 0.17 7.56 1.86 Q5.03 6.94 1 11 L0 11 Z');   /* ★ Session J (#756): the WhatsApp tail, mirrored (see received) */
 }
 [dir="rtl"] .c-bubble-row[data-direction="received"][data-position="first"] .c-bubble::before,
-[dir="rtl"] .c-bubble-row[data-direction="received"][data-position="single"] .c-bubble::before { clip-path: path('M0 0 L6.8 0 Q9 0.2 8.5 2.2 Q5.6 8.2 1 13 L0 13 Z'); }   /* ★ Session J (#756): mirrored, overlap at x 0→1 */
+[dir="rtl"] .c-bubble-row[data-direction="received"][data-position="single"] .c-bubble::before { clip-path: path('M0 0 L6.07 0 Q8 0.17 7.56 1.86 Q5.03 6.94 1 11 L0 11 Z'); }   /* ★ Session J (#756): mirrored, overlap at x 0→1 · #904: 7×11 */
 [dir="rtl"] .c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble::before,
-[dir="rtl"] .c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble::before { clip-path: path('M9 0 L2.2 0 Q0 0.2 0.5 2.2 Q3.4 8.2 8 13 L9 13 Z'); }   /* ★ Session J (#756): mirrored, overlap at x 8→9 */
+[dir="rtl"] .c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble::before { clip-path: path('M8 0 L1.93 0 Q0 0.17 0.44 1.86 Q2.98 6.94 7 11 L8 11 Z'); }   /* ★ Session J (#756): mirrored, overlap at x 7→8 since #904 */
 /* the emoji-only "sticker" carries no bubble and so no tail.
    ⚠ Specificity, learned on Damir's walk: the first/single tail rules above are
    (0,3,1) — row class + position attribute + bubble class + pseudo — so a (0,2,1)

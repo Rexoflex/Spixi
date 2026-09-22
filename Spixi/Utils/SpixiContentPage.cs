@@ -41,7 +41,9 @@ namespace SPIXI
     public class SpixiContentPage : ContentPage, IDisposable
     {
         public bool CancelsTouchesInView = true;
-        public bool pageLoaded = false;
+        // #903 r2: `volatile` — sendMessage reads it from POOL threads (the 2 s tick, and since
+        // #903 every tx-detail burst) while the UI thread flips it and drains the queue.
+        public volatile bool pageLoaded = false;
         /* ★ V-10 (#46 loop 2026-08-29): written from the loader thread (loadMessages runs
          * on a Task.Run and pushes through sendMessage) and drained on the main thread,
          * with no lock. PRE-EXISTING — #619 added no new thread pair — but a plain Queue
@@ -452,6 +454,22 @@ namespace SPIXI
             else
             {
                 messageQueue.Enqueue(msg);
+                /* #903 r2 (break-my-verdict, HYPOTHESIS-grade window, certain consequence): a pool
+                 * thread that read `pageLoaded == false` a moment before the UI thread flipped it
+                 * and DRAINED the queue enqueues into a queue nothing drains again — the message
+                 * is stranded for the page's life. For a tx detail that is the first burst of a
+                 * Final transaction: a permanently blank card. Re-check after the enqueue.
+                 * r3: the drain is POSTED to the main thread, never run here. A second drainer on
+                 * THIS thread is memory-safe (concurrent queue, TryDequeue) and NOT order-safe:
+                 * its deliveries are posted while the UI thread's are inline, so the drainer that
+                 * dequeues the EARLIER message can deliver it LATER — `addEntry` before
+                 * `clearEntries` = the staged row wiped and an empty card committed. Posting the
+                 * drain keeps every dequeue on one thread, in queue order, and anything this
+                 * thread sends directly afterwards is posted behind it. */
+                if (pageLoaded && _webView != null)
+                {
+                    MainThread.BeginInvokeOnMainThread(processMessageQueue);
+                }
             }
         }
 

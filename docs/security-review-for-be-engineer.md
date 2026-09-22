@@ -440,6 +440,23 @@ in `Spixi/**/*.cs`.
   correct key, so nothing is stranded by it. **A dead line, not a leak.** Worth deleting
   while the file is open, but it is not the finding.
 
+## Status at the cutoff (2026-09-20, DECISIONS #909)
+
+Damir asked whether the app side could do this and what it entails; the answer is recorded here so it
+is not re-derived. **Ruling unchanged: yours to sign off. Logged as a cutoff item, NOT built.** An
+app-side patch is feasible (no Core change) and can be prepared for your review on request. The parts
+that make it more than a find-and-replace: `SecureStorage` is ASYNC and `Node.loadWallet` reads the
+password synchronously at startup; the migration must be verify-then-remove (write secure → read back →
+compare → only then `Remove`), because many users have never retyped their password and a lost value is
+a locked wallet; the failure path must be the existing retry screen (`ixian:proceed:`), never a silent
+fall back to plaintext; iOS Keychain SURVIVES an uninstall (a reinstall can find a stale password);
+Android Keystore entries do NOT survive a backup-restore to a new phone (see APP-1 in the cutover
+brief); and `SecureStorage` on our unpackaged Windows build is unverified. It also does not change the
+design fact that the app stores the password so it can unlock itself — that is a product decision
+(prompt / biometric per launch), separate from where the value lives. ⚠ Related and ordered AFTER this:
+CORE-11 (chat history unencrypted at rest) — encrypting history while its only possible key sits in a
+plaintext preference gains nothing.
+
 ## The ask
 
 Move `walletpass` to `SecureStorage` (Keychain / Android Keystore-backed), with:

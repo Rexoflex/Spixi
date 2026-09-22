@@ -228,6 +228,12 @@ public partial class App : Application
             flushStartupDiagnostics();
             Logging.info("Starting Spixi {0} ({1})", Config.version, CoreConfig.version);
             Logging.info("Operating System is {0}", IXICore.Platform.getOSNameAndVersion());
+            startDiag("logger up");
+            if (IXICore.Platform.onWindows())
+            {
+                // #912: the html copy is per-file now (see copyContents); this is its receipt.
+                Logging.info("copyResources: {0} copied, {1} unchanged", htmlCopied, htmlUnchanged);
+            }
 
             // Init fatal exception handlers
             AppDomain.CurrentDomain.UnhandledException += CurrentDomainOnUnhandledException;
@@ -345,6 +351,7 @@ public partial class App : Application
 
             // Start Ixian code
             _ = new Node();
+            startDiag("node constructed");
 
             // Attempt to load a pre-existing wallet
             bool wallet_found = Node.checkForExistingWallet();
@@ -362,6 +369,8 @@ public partial class App : Application
                 {
                     wallet_decrypted = Node.loadWallet();
                 }
+
+                startDiag(wallet_decrypted ? "wallet decrypted" : "wallet NOT decrypted");
 
                 if (wallet_decrypted == false)
                 {
@@ -394,6 +403,7 @@ public partial class App : Application
                 }
             }
             NavigationPage.SetHasNavigationBar(MainPage, false);
+            startDiag("root page set");
         }
         else if (IxianHandler.status == NodeStatus.stopped
                 || IxianHandler.status == NodeStatus.stopping)
@@ -1535,6 +1545,24 @@ public partial class App : Application
      * `Node.Instance != null` flush and it is dropped on every construction after the first. */
     private static string? startupDiagnostic = null;   // ★ r3 R3-6: <Nullable>enable</Nullable> — null IS the empty state
 
+    /* ★ #912 (Damir 2026-09-21: "why is Spixi startup significantly longer than other
+     * chat apps") — THE COLD START IS MEASURED, NOT GUESSED. Five [STARTDIAG] lines, all
+     * on the launch path, all relative to the process's first managed instruction here:
+     * logger up (= Config.init + the Windows html copy), node constructed (two RocksDB
+     * opens, the contact list, the stream processor), wallet decrypted, root page set,
+     * and the home shell's first ixian:onload (HomePage.onLoaded). One launch log then
+     * says WHERE the seconds go before anyone moves the node boot off the UI thread —
+     * that is the expensive change, and it is not made blind. Remove with [CDPERF]'s
+     * discipline (#663) once the numbers are in a DECISIONS row. */
+    private static readonly System.Diagnostics.Stopwatch startClock = System.Diagnostics.Stopwatch.StartNew();
+    private static int htmlCopied = 0;
+    private static int htmlUnchanged = 0;
+
+    public static void startDiag(string stage)
+    {
+        Logging.info("[STARTDIAG] {0} at +{1} ms", stage, startClock.ElapsedMilliseconds);
+    }
+
     private static void recordStartupDiagnostic(string message)
     {
         startupDiagnostic = message;
@@ -1600,7 +1628,21 @@ public partial class App : Application
         foreach (string file in Directory.GetFiles(sourceDirectory))
         {
             string destFile = Path.Combine(targetDirectory, Path.GetFileName(file));
+            /* ★ #912: 51 files / ~7 MB were rewritten into Documents on EVERY Windows
+             * launch. Win32 CopyFile (what File.Copy is on Windows) preserves the
+             * source's last-write time, so an unchanged file is one whose length AND
+             * last-write time match — a stat, not a write. Either differs → copied,
+             * which is exactly the F5-after-a-shell-edit case: the staged source is
+             * newer, so it is taken. A missing file is copied too. */
+            var src = new FileInfo(file);
+            var dst = new FileInfo(destFile);
+            if (dst.Exists && dst.Length == src.Length && dst.LastWriteTimeUtc == src.LastWriteTimeUtc)
+            {
+                htmlUnchanged++;
+                continue;
+            }
             File.Copy(file, destFile, true); // overwrite existing files
+            htmlCopied++;
         }
 
         foreach (string subdir in Directory.GetDirectories(sourceDirectory))

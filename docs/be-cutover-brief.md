@@ -497,6 +497,86 @@ run inside the list lock) but cannot reach the pre-read holder — the dictionar
 Ask: do not replace the list on a re-read (merge the read into the existing list under the
 dictionary lock, or hand the loader a COPY), and take the write from the live list.
 
+**CORE-9 (Session AB #907) · a deleted message is a TOMBSTONE that never leaves storage, and
+`readLastMessages` counts it.** `Friend.deleteMessage` (`Friend.cs:949`) sets `fm.message = ""` and
+writes the list back; the row stays in the `.ixi` file for good, and
+`readLastMessages(friend, channel, 0, msg_count)` returns the last N STORED rows, tombstones
+included. Spixi skips them at render, so "the last 50" can be five bubbles — Damir's report
+2026-09-19: after a multi-select delete the chat opened with five messages and "Show older" on
+EVERY open. **Worked around in the app (#907):** `SingleChatPage.loadMessages` widens its window
+until it holds `messagesToShow + 1` VISIBLE rows or storage is exhausted (doubling, 8 passes).
+⚠ That costs extra storage reads on exactly the chats that have tombstones in their newest rows,
+and every widened read is one more CORE-8 replacement of the channel list. It also cannot reclaim
+the space: a chat whose history was deleted row by row keeps every row on disk, empty.
+Ask, either one: (a) remove the row on delete (and on the remote `msgDelete`), or (b) give
+`readLastMessages` a "skip empty standard rows" mode so N means N renderable messages. (a) also
+answers a privacy question a user would reasonably assume is already true — that deleting a
+message removes its record (id, timestamps, sender) and not only its text. Inherited: the baseline
+deletes and counts the same way.
+⚠ **Also part of "real deletion" (Damir agreed 2026-09-20):** deleting a FILE message leaves the file
+itself in Downloads and its path + size in the row. Delete the file with the message, or ask. App-side
+half is possible today (the delete branch in `SingleChatPage` already special-cases own unfinished
+offers); it was NOT built, so that "delete" changes meaning once, with CORE-9, not twice.
+⚠ **Second consequence, not workable-around in the app:** an EMPTY `voiceCall`/`voiceCallEnd` row
+is how Core stores a call nobody answered (`SingleChatPage.insertMessage` renders it as "No
+answer" / "Missed call"), so a DELETED call row is indistinguishable from a missed one and
+comes back on the next open. Only real deletion, or a tombstone FLAG distinct from the empty
+payload, fixes that.
+⚠ **Amplified by the workaround:** `SpixiLocalStorageCallbacks.processMessage` opens a `FileStream`
+for every unfinished outgoing `fileHeader` on EVERY re-read and `TransferManager.prepareFileTransfer`
+returns `null` on a duplicate uid without disposing it — one leaked handle per re-read, now up
+to 8 per open on a tombstone-heavy chat (fix belongs in `prepareFileTransfer`).
+⚠ **Re-scoped 2026-09-22 (walk AB.17, #911):** the "deleted CALL card returns as No answer" case is UNREACHABLE from Spixi's own UI — call rows are excluded from the long-press menu and from select mode by design (`isMenuableRec`, chat.html). It can only arrive from a modified counterpart client, which is CORE-10's check. Keep it in the rule ("a real delete removes the row"), drop it as a user-facing bug.
+
+**CORE-10 (Session AB #908, a QUESTION) · `handleMsgDelete` does not check authorship.**
+`CoreStreamProcessor.cs:1665` calls `friend.deleteMessage(msg_id_to_del, channel)` for whatever id
+the peer names (bots verify the signature; nothing verifies that the sender WROTE the target). In a
+1:1 chat the other side can therefore blank MY messages on MY device. Intended ("delete for
+everyone" of the whole thread) or an oversight? It decides what a disappearing-messages feature
+(#908) can honestly promise, and it belongs in `security-review-for-be-engineer.md` if unintended.
+⚠ **Proposed rule + two relay questions (2026-09-20, #910 — DEFERRED by Damir to a post-testing update;
+nothing here blocks the testing build).** Rule, no setting and no new UI: *you can delete your OWN
+messages for everyone; a group's owner/admin can also remove messages in their group.* In
+`handleMsgDelete`: look up the target; 1:1 → honour only if the target is NOT `localSender`; group →
+only if the target's stored sender == the requester (resolved the way `handleMsgReaction` beside it
+already does) or the requester is owner/admin; bot rooms unchanged (signature path). ★ A REFUSED delete
+must still be ACKNOWLEDGED, then dropped and logged — a plain `return false` leaves it unconfirmed and
+the sender's pending queue retries it for ever. The app already offers "delete for everyone" only on own
+messages, so users see no change; this closes a modified client. The Telegram-style "either side clears
+anything" was considered and DROPPED as not worth its complexity. **Relay, read not changed:** `msgDelete`
+is `add_to_pending_messages + send_to_server`, so the SENDER'S device is a durable mailbox that retries
+until confirmed (my earlier "shorter safety net" was overstated — it fails mainly if the sender's device
+is wiped first). Questions: (1) how long does the push server hold an undelivered message — the policy
+sentence rests on it; (2) a delete that arrives BEFORE its original (both queued offline) — it looks
+self-healing because the unconfirmed delete is retried; confirm. (3) `processMessage` fires
+`onMessageExpired` at 5 days and then still sends — intended?
+
+**CORE-11 (Session AB #909) · chat history is stored UNENCRYPTED at rest.** `LocalStorage.writeMessages`
+serialises every `FriendMessage` straight into `Chats/<address>/<channel>/*.ixi`; the write path carries a
+literal `// TODO: encrypt written data`. Messages are end-to-end encrypted in TRANSIT and plain on DISK.
+On a phone the app sandbox is the only protection; on Windows the folder is
+`%USERPROFILE%\Documents\Spixi\Chats` — readable by any program running as the user, and inside the
+folder OneDrive backs up by default (with version history, so a DELETED message's earlier text is
+retrievable there). Inherited. **Damir, 2026-09-20: "a tough nut to crack" — logged as a CUTOFF item, not
+scheduled.** Why it is hard, so nobody starts it as a small job: the key has to come from somewhere (the
+wallet password is the only secret the user has, and it is itself stored in plaintext today — L8 — so
+fixing this BEFORE L8 encrypts the diary and tapes the key to the cover); the app auto-unlocks at launch,
+so the key must be available with no prompt; every existing install needs a one-way migration of its whole
+history with a verify step and a crash-safe resume; `writeMessages` rewrites up to 1000-message files on
+every flag change (read receipts), so the cipher sits on a hot path; and the backup/restore format and the
+"heal" loop both read these files. Order if it is ever done: L8 → key derivation + storage → migration →
+the write path. App-side there is NOTHING to build: the files are written inside Core.
+
+**APP-1 — ✅ BUILT 2026-09-22 (#912): Android `backup_rules.xml` + `data_extraction_rules.xml` exclude `Spixi/Chats`, `Spixi/MsgQueue` and the six log files; iOS sets `NSURLIsExcludedFromBackupKey` on the same two folders (uncompiled until the next iOS build). The wallet, `Acc`, the avatar and the preferences are still backed up — so the plaintext `walletpass` preference still travels with a Google backup until L8. Restore test on a second phone still owed.** Original row kept below for the reasoning.
+
+**APP-1 (Session AB #909, OURS, small, not built) · exclude chat history and logs from Android system
+backup.** `AndroidManifest.xml` has `android:allowBackup="true"` with no `fullBackupContent` /
+`dataExtractionRules`, so Google / ADB backup takes the whole private directory: plaintext chat history
+(CORE-11), `ixian.log*`, and the plaintext `walletpass` preference (L8). A backup taken before a delete
+keeps the deleted text. Fix is a manifest rule + one XML file, app-side, no Core. Needs a restore test on a
+second phone (a restore that brings back `wallet.ixi` without its password must land on the retry screen,
+not crash).
+
 **CORE-7b (nicety, same review) · `BotUsers` mutators serialise the WHOLE roster to disk
 while holding `lock(contacts)`** (`writeContactsToFile` inside the lock, every setter).
 Any UI-thread reader taking that lock (ContactDetails' roster snapshot) can block behind
@@ -694,7 +774,7 @@ branch, not by a bare line number (rule #773 — a line number rots).
 | AV1 avatar history · AND-15-BE payload typing | OPEN — dials, not defects |
 | RC1 cancel family | OPEN — `SpixiMessage` at `097341a` has no withdraw code |
 | N-BADGE · N-LOCALTAP | OPEN — both correctly filed as "cannot be fixed in the app" |
-| CORE-1 … CORE-8 · CORE-7b · the membership question | OPEN — Ixian-Core is frozen at `097341a`. CORE-1 re-read and confirmed: `kickUser` and `banUser` are still `return true;` |
+| CORE-1 … CORE-11 · APP-1 · CORE-7b · the membership question | OPEN — Ixian-Core is frozen at `097341a`. CORE-9 (tombstoned deletes, #907) added 2026-09-19 with an app-side workaround. CORE-1 re-read and confirmed: `kickUser` and `banUser` are still `return true;` |
 
 **Coverage: 116 of 116 rows checked against the tree** — 106 table and bullet rows, plus the ten
 prose rows (`PA1`, `CORE-1`…`CORE-8`, `CORE-7b`, and the membership question). `release-readiness.md`

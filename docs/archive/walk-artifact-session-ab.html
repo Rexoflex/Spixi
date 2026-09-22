@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Walk — Session AB</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --bg:#eef1f6; --card:#ffffff; --sunk:#f5f7fa;
+    --ink:#141b23; --sub:#5b6672; --line:#dfe5ec;
+    --act:#1956b2; --act-soft:#e5edf9;
+    --p:#1a7f4b; --f:#b12525; --n:#8b95a1;
+    --warn:#884b00; --warn-soft:#fbf1e2;
+    --shadow:0 1px 2px rgba(20,27,35,.05), 0 2px 8px rgba(20,27,35,.05);
+  }
+  :root:not([data-theme="light"]) { }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0d1117; --card:#161b22; --sunk:#0f141b;
+      --ink:#e6edf3; --sub:#9aa7b4; --line:#252c36;
+      --act:#5a8dee; --act-soft:#16233a;
+      --p:#3fb27a; --f:#f08a80; --n:#7d8794;
+      --warn:#e0a458; --warn-soft:#241c10;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0d1117; --card:#161b22; --sunk:#0f141b;
+    --ink:#e6edf3; --sub:#9aa7b4; --line:#252c36;
+    --act:#5a8dee; --act-soft:#16233a;
+    --p:#3fb27a; --f:#f08a80; --n:#7d8794;
+    --warn:#e0a458; --warn-soft:#241c10;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.3);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.55 "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding:28px 20px 64px;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1000px;margin:0 auto}
+
+  header{margin:0 0 18px}
+  h1{font-size:27px;line-height:1.2;margin:0 0 6px;font-weight:700;letter-spacing:-.015em;text-wrap:balance}
+  .lede{color:var(--sub);margin:0 0 14px;max-width:64ch}
+  .facts{display:flex;flex-wrap:wrap;gap:8px}
+  .fact{
+    font:500 12px/1 "IBM Plex Mono", ui-monospace, Consolas, monospace;
+    background:var(--card);border:1px solid var(--line);border-radius:999px;
+    padding:7px 12px;color:var(--sub);white-space:nowrap
+  }
+  .fact b{color:var(--ink);font-weight:500}
+
+  .tally{
+    position:sticky;top:0;z-index:5;background:var(--bg);
+    padding:12px 0 10px;margin:0 0 18px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap
+  }
+  .tally .score{font:600 15px/1 "IBM Plex Mono", monospace;letter-spacing:.02em}
+  .tally .score i{font-style:normal;padding:0 2px}
+  .tally .sp{flex:1}
+  .mini{
+    border:1px solid var(--line);background:var(--card);color:var(--ink);
+    border-radius:8px;padding:7px 13px;font:500 13px/1 "IBM Plex Sans",sans-serif;cursor:pointer
+  }
+  .mini:hover{border-color:var(--act);color:var(--act)}
+  .mini:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+
+  h2{
+    font-size:13px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--sub);margin:26px 0 10px;display:flex;align-items:baseline;gap:10px
+  }
+  h2 .num{
+    font-family:"IBM Plex Mono",monospace;color:var(--act);font-weight:500;
+    letter-spacing:0;font-size:12px
+  }
+  section{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:16px 18px;margin:0 0 4px;box-shadow:var(--shadow)
+  }
+  section.flag{border-left:3px solid var(--act)}
+  section > p{margin:0 0 12px;color:var(--sub);max-width:70ch}
+  section > p:last-child{margin-bottom:0}
+  section > p strong{color:var(--ink);font-weight:600}
+  code{
+    font:500 13px/1.4 "IBM Plex Mono",ui-monospace,Consolas,monospace;
+    background:var(--sunk);border:1px solid var(--line);border-radius:5px;padding:1px 5px
+  }
+
+  .cmd{position:relative;margin:0 0 12px}
+  .cmd pre{
+    margin:0;background:var(--sunk);border:1px solid var(--line);border-radius:10px;
+    padding:13px 15px;overflow-x:auto;
+    font:400 12.5px/1.65 "IBM Plex Mono",ui-monospace,Consolas,monospace;
+    color:var(--ink)
+  }
+  .cmd .cp{
+    position:absolute;top:8px;right:8px;
+    border:1px solid var(--line);background:var(--card);color:var(--sub);
+    border-radius:7px;padding:5px 10px;font:500 11px/1 "IBM Plex Sans",sans-serif;cursor:pointer
+  }
+  .cmd .cp:hover{color:var(--act);border-color:var(--act)}
+  .cmd .cp:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+  .cmd .cp[data-done="1"]{color:var(--p);border-color:var(--p)}
+
+  .note-line{
+    display:flex;gap:8px;align-items:flex-start;
+    background:var(--warn-soft);border:1px solid var(--line);border-radius:9px;
+    padding:10px 13px;margin:0 0 12px;color:var(--ink);font-size:13.5px;line-height:1.5
+  }
+  .note-line b{color:var(--warn)}
+
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:10px 8px;border-top:1px solid var(--line);vertical-align:top}
+  thead th{
+    border-top:0;font:600 11px/1 "IBM Plex Sans",sans-serif;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--sub);padding-bottom:8px
+  }
+  td.id{
+    width:44px;font:500 13px/1.5 "IBM Plex Mono",monospace;color:var(--act);white-space:nowrap
+  }
+  td.what{font-size:14px}
+  td.what em{font-style:normal;color:var(--sub);display:block;margin-top:3px;font-size:13px}
+  td.v{width:158px;white-space:nowrap}
+
+  .btn{
+    border:1px solid var(--line);background:transparent;color:var(--sub);
+    border-radius:7px;padding:5px 11px;margin-right:4px;cursor:pointer;
+    font:500 12.5px/1 "IBM Plex Sans",sans-serif
+  }
+  .btn:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+  .btn[aria-pressed="true"][data-v="P"]{background:var(--p);border-color:var(--p);color:#fff}
+  .btn[aria-pressed="true"][data-v="F"]{background:var(--f);border-color:var(--f);color:#fff}
+  .btn[aria-pressed="true"][data-v="N"]{background:var(--n);border-color:var(--n);color:#fff}
+  /* ★ Damir, walk S2: "stupid artefact doesnt allow notes if pass" — and the note he
+     could not leave was a real defect. The box used to be display:none until a row
+     FAILED, on the reasoning that a fail needs an explanation. True, and not the same
+     as "a pass has nothing to say": the most valuable notes are the ones on rows that
+     technically passed, because those are the observations no row was written to catch.
+     Always visible now; the fail styling stays. */
+  .nt{
+    width:100%;margin-top:7px;border:1px solid var(--line);border-radius:7px;
+    padding:6px 9px;background:var(--sunk);color:var(--ink);
+    font:400 13px/1.45 "IBM Plex Sans",sans-serif;display:block
+  }
+  tr[data-v="F"] .nt{border-color:var(--f)}
+
+  footer{margin:30px 0 0;color:var(--sub);font-size:13.5px;line-height:1.6}
+  footer b{color:var(--ink)}
+
+  @media (max-width:640px){
+    body{padding:20px 14px 56px}
+    td.v{width:auto}
+    th:nth-child(3),td.v{display:block;padding-top:0;border-top:0}
+    td.id{width:38px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Walk — Session AB: the owed review loop, and the bubble gap + tail</h1>
+  <p class="lede">Seventeen rows. <strong>§1 and §2 are last session's wallet fix, re-walked after an independent review found three real defects in it</strong> — the two starred rows (AB.1, AB.5) are those defects. §3 is the bubble work you asked for; <strong>AB.11 is a pick, not a pass</strong>. §4 is one decision about the privacy policy. <strong>§5 is your report from the same evening</strong> — “Show older” on every open after deleting messages.</p>
+  <div class="facts">
+    <span class="fact">records <b>#902–#908</b></span>
+    <span class="fact">smoke <b>4756 → 4768 / the 2 KNOWN</b> (container) — expect <b>4770</b> locally (the Core sibling adds 2)</span>
+    <span class="fact">C# changed <b>YES — four files</b>, and your F5 is the first compile</span>
+    <span class="fact">review <b>Opus ×3 rounds: 3 MAJOR · all fixed</b></span>
+    <span class="fact">mutations <b>69 · 1 intended survivor</b></span>
+  </div>
+</header>
+
+<div class="tally">
+  <span class="score" id="score">— / 17</span>
+  <span class="score" style="color:var(--p)">P <i id="cp">0</i></span>
+  <span class="score" style="color:var(--f)">F <i id="cf">0</i></span>
+  <span class="score" style="color:var(--n)">N/A <i id="cn">0</i></span>
+  <span class="sp"></span>
+  <button class="mini" id="copyres">Copy results</button>
+  <button class="mini" id="reset">Reset</button>
+</div>
+
+<main>
+
+<h2><span class="num">§0</span> Build</h2>
+<section>
+  <p><strong>C# changed in four files</strong> — <code>HomePage</code>, <code>WalletSentPage</code>, <code>SingleChatPage</code> and one <code>if</code> in the shared base <code>SpixiContentPage</code>. Nothing on my side compiles C#, so <strong>your F5 is the first compile</strong>: if it fails, send me the first error. Windows: <strong>F5 in Visual Studio, never <code>dotnet build</code></strong> (#663).</p>
+  <div class="cmd"><button class="cp">Copy</button><pre>dotnet build Spixi\Spixi.csproj -f net10.0-android -c Debug
+dotnet build Spixi\Spixi.csproj -f net10.0-android -c Debug -t:Run</pre></div>
+</section>
+
+<h2><span class="num">§1</span> The transaction detail — hidden amounts and two threads (#903)</h2>
+<section class="flag">
+  <p>Last session made the desktop detail pane <em>reuse</em> itself instead of rebuilding per click. That was right, and it quietly moved two things the rebuild had been doing for free. <strong>AB.1 is the one that matters</strong>: with the wallet hidden, revealing one transaction left every later one in that pane unmasked.</p>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s1"></tbody></table>
+</section>
+
+<h2><span class="num">§2</span> The conversation under the wallet — the other way in (#902)</h2>
+<section class="flag">
+  <p>Last session closed the conversation when you <em>leave the Chats tab</em>. The review found a conversation can arrive in that column <em>without</em> a tab switch — so the wallet's own transaction tap now closes it too, except when the tap came from that conversation's own payment card.</p>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s2"></tbody></table>
+</section>
+
+<h2><span class="num">§3</span> The bubbles — gap 2 px, tail 7×11 (#904)</h2>
+<section>
+  <p>The gap is a one-token change. The tail is not: its two tokens size only the box, and the shape is four hand-drawn paths (left/right × LTR/RTL) that all had to be redrawn together. They were rendered on the real built shell in both directions and both themes before anything was pinned.</p>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s3"></tbody></table>
+</section>
+
+<h2><span class="num">§4</span> The privacy policy, checked against the code (#906)</h2>
+<section>
+  <p>#899 established that the policy has no open markers. This session checked whether it is <em>true of the app</em>. Two places are not, and the next reader is counsel. Nothing in the policy was changed — the wording is yours.</p>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s4"></tbody></table>
+</section>
+
+<h2><span class="num">§5</span> “Show older” after deleting messages (#907)</h2>
+<section class="flag">
+  <p>Ixian-Core does not remove a deleted message — it blanks its text and keeps the row. The chat asked storage for “the last 50 rows” and then skipped the blank ones, so after you deleted 45 of them it showed five and offered “Show older”, on every open. The window now counts only messages you can see. The odd positioning was a second bug the first one exposed: with the pill on screen nothing pushed a short log down to the composer.</p>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s5"></tbody></table>
+</section>
+
+</main>
+
+<footer>
+  <p>A pass with a note is a pass — write the note. For <b>AB.9</b>, <b>AB.11</b> and <b>AB.14</b> the note IS the answer.</p>
+  <p><b>Still open, deliberately not on this sheet:</b> AA.8 (the call with no UI did not reproduce — the diagnostic stays armed), the Z.10 chooser copy pick, S1 timed (#872 ②), AND-40, the #890 dials, the translator pass, and an <b>iPhone walk</b>: three iOS rows were found already built and never walked (#905).</p>
+</footer>
+</div>
+<script>
+(function(){
+  var ROWS = {
+    "s1": [
+      [
+        "AB.1",
+        "★ desktop: hide the wallet balance (the eye on the hero) → open transaction A → Show amounts → click transaction B in the list",
+        "B opens MASKED — amount, fiat, fee, name and address all dotted — and the Show amounts button is BACK. Before this batch B opened fully unmasked with no button at all, for as long as the pane lived."
+      ],
+      [
+        "AB.2",
+        "desktop: same setup, but A is a PENDING transaction — reveal it and leave it open ~30 s",
+        "its status keeps updating AND it stays revealed. The reveal drops only when the transaction CHANGES, never on A's own status refresh."
+      ],
+      [
+        "AB.3",
+        "desktop: click through 8–10 transactions as fast as you can",
+        "every card matches the row that is highlighted — never one transaction's amount under another's highlight. No fade, no flash (AA.11 must still hold)."
+      ],
+      [
+        "AB.4",
+        "desktop: on transaction B, use View in explorer",
+        "the explorer opens B — the one on screen."
+      ],
+      [
+        "AB.10",
+        "PHONE (or a desktop window narrower than the split): Wallet → a transaction",
+        "the detail page opens with its old soft reveal and NO spinner flash; Show amounts works there too. This path got its pre-#898 fade back — only the desktop pane is instant."
+      ]
+    ],
+    "s2": [
+      [
+        "AB.5",
+        "★ desktop: stand on the WALLET tab → Account → Contacts → open a contact → Message → close Contacts. A chat is now open beside the wallet. Tap a transaction, then its back arrow",
+        "the detail opens, and back lands on the EMPTY pane — not on that chat. This is the second route into your original report: the conversation got into the column without any tab switch."
+      ],
+      [
+        "AB.6",
+        "desktop: inside a conversation, a payment card → Details → back",
+        "you are back IN THAT CONVERSATION. This is the one caller that must NOT close the chat, and the reviewer's first proposed fix would have."
+      ],
+      [
+        "AB.7",
+        "desktop: tap a chat row and IMMEDIATELY tap Wallet (inside about a quarter second)",
+        "no conversation appears on the wallet tab a moment later. Same in reverse: tap a transaction, immediately tap Chats — no tx detail appears over the chats tab."
+      ],
+      [
+        "AB.8",
+        "desktop: leave Chats with a conversation open by tapping Wallet or Apps",
+        "no rate-the-app prompt rises over the tab you arrived on. (Closing a chat ON the chats list can still raise it, as before.)"
+      ],
+      [
+        "AB.9",
+        "desktop: type a few characters into a chat and tap Wallet within half a second → back to Chats → reopen that chat",
+        "is the draft COMPLETE, or are the last keystrokes missing? Either answer is a result — write which. The draft saves on a 400 ms debounce and the tab switch now closes the chat."
+      ]
+    ],
+    "s3": [
+      [
+        "AB.11",
+        "★ open docs/sheets/session-ab/tail-sheet-light.png and tail-sheet-dark.png — NOW · 7×11 · 6×10, both directions",
+        "YOUR PICK, and the note is the answer: 7×11 (what this build ships) · 6×10 · something else."
+      ],
+      [
+        "AB.12",
+        "both platforms: a run of 3+ messages from one sender, received and sent",
+        "the in-run gap reads as 2 px (it was 1). The tail on the first bubble is WHOLE — a clean curve into the bubble's top edge, no cut-off or flat side — on both sides, both themes."
+      ],
+      [
+        "AB.13",
+        "phone: an emoji-only sticker, a media tile, and select mode",
+        "sticker and media still carry NO tail; the selection tick still lines up with the row."
+      ]
+    ],
+    "s4": [
+      [
+        "AB.14",
+        "read docs/legal/proposed-amendments-2026-09-19.md",
+        "accept / reword / reject EACH of the two: §4.8 Mini Apps (the policy describes the catalog, not the installed apps) and the GIF auto-load paragraph. The Mini Apps draft has two sentences the BE engineer should confirm first."
+      ]
+    ],
+    "s5": [
+      [
+        "AB.15",
+        "★ open the chat from your screenshot — the one you deleted messages in",
+        "it opens with a FULL window of messages, not five. “Show older messages” appears only if there really is older history, and pressing it loads more. Reopen it twice: same result each time."
+      ],
+      [
+        "AB.16",
+        "open a chat with fewer than 50 messages (and one with exactly a handful)",
+        "NO “Show older” pill at all, the secure notice at the top, and the messages sitting against the composer — not hanging from the top of the canvas."
+      ],
+      [
+        "AB.17",
+        "delete a CALL card (a completed call with a duration, if you have one) → close and reopen the chat",
+        "does it COME BACK as “No answer” / “Missed call”? I expect YES, and it is not fixable in the app: Core stores a deleted message as an empty row, and an empty call row is exactly how it stores a call nobody answered. It is on the BE list (CORE-9). Write what you see — the three “No answer” cards in your screenshot may be this."
+      ]
+    ]
+  };
+
+  var KEY = "spixi.walk.session-ab";
+  var state = {};
+  try { state = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch(e) { state = {}; }
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){} }
+
+  function build(tbodyId){
+    var tb = document.getElementById(tbodyId);
+    if(!tb) return;
+    ROWS[tbodyId].forEach(function(r){
+      var id = r[0];
+      var tr = document.createElement("tr");
+      tr.dataset.row = id;
+      var td1 = document.createElement("td");
+      td1.className = "id"; td1.textContent = id;
+      var td2 = document.createElement("td");
+      td2.className = "what";
+      td2.appendChild(document.createTextNode(r[1]));
+      if (r[2]) { var em = document.createElement("em"); em.textContent = r[2]; td2.appendChild(em); }
+      var td3 = document.createElement("td");
+      td3.className = "v";
+      ["P","F","N"].forEach(function(v){
+        var b = document.createElement("button");
+        b.className = "btn"; b.dataset.v = v; b.type = "button";
+        b.textContent = v === "N" ? "N/A" : v;
+        b.setAttribute("aria-label", (v==="P"?"Pass":v==="F"?"Fail":"Not applicable") + " " + id);
+        b.setAttribute("aria-pressed", String(state[id] && state[id].v === v));
+        b.addEventListener("click", function(){
+          var cur = state[id] || {};
+          cur.v = (cur.v === v) ? "" : v;
+          state[id] = cur; save(); paint(tr, id); tallyUp();
+        });
+        td3.appendChild(b);
+      });
+      var nt = document.createElement("textarea");
+      nt.className = "nt"; nt.rows = 2;
+      nt.placeholder = "note (optional — on a pass too)";
+      nt.value = (state[id] && state[id].n) || "";
+      nt.setAttribute("aria-label", "Note for " + id);
+      nt.addEventListener("input", function(){
+        var cur = state[id] || {}; cur.n = nt.value; state[id] = cur; save();
+      });
+      td3.appendChild(nt);
+      tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+      tb.appendChild(tr);
+      paint(tr, id);
+    });
+  }
+
+  function paint(tr, id){
+    var v = (state[id] && state[id].v) || "";
+    tr.dataset.v = v;
+    Array.prototype.forEach.call(tr.querySelectorAll(".btn"), function(b){
+      b.setAttribute("aria-pressed", String(b.dataset.v === v));
+    });
+  }
+
+  function tallyUp(){
+    var p=0,f=0,n=0,total=0;
+    Object.keys(ROWS).forEach(function(k){ total += ROWS[k].length; });
+    Object.keys(state).forEach(function(id){
+      var v = state[id] && state[id].v;
+      if (v==="P") p++; else if (v==="F") f++; else if (v==="N") n++;
+    });
+    document.getElementById("cp").textContent = p;
+    document.getElementById("cf").textContent = f;
+    document.getElementById("cn").textContent = n;
+    document.getElementById("score").textContent = (p+f+n) + " / " + total;
+  }
+
+  Object.keys(ROWS).forEach(build);
+  tallyUp();
+
+  function copyText(text, btn, doneLabel){
+    var ok = function(){
+      if(!btn) return;
+      var old = btn.textContent;
+      btn.textContent = doneLabel || "Copied";
+      btn.dataset.done = "1";
+      setTimeout(function(){ btn.textContent = old; btn.dataset.done = ""; }, 1400);
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(ok, function(){ fallback(text, ok); });
+        return;
+      }
+    } catch(e){}
+    fallback(text, ok);
+  }
+  function fallback(text, ok){
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      ok();
+    } catch(e){}
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll(".cmd .cp"), function(btn){
+    btn.type = "button";
+    btn.addEventListener("click", function(){
+      var pre = btn.parentNode.querySelector("pre");
+      copyText(pre ? pre.textContent : "", btn);
+    });
+  });
+
+  document.getElementById("copyres").addEventListener("click", function(){
+    var out = ["Walk — Session AB: the owed review loop, and the bubble gap + tail", ""];
+    var p=0,f=0,n=0;
+    Object.keys(ROWS).forEach(function(k){
+      ROWS[k].forEach(function(r){
+        var id = r[0], s = state[id] || {}, v = s.v || "-";
+        if (v==="P") p++; else if (v==="F") f++; else if (v==="N") n++;
+        out.push(v + "  " + id + "  " + r[1] + (s.n ? "   — " + s.n : ""));
+      });
+    });
+    out.splice(1, 0, p + " pass · " + f + " fail · " + n + " n/a");
+    copyText(out.join("\n"), this, "Copied");
+  });
+
+  document.getElementById("reset").addEventListener("click", function(){
+    if (!window.confirm("Clear every result and note on this sheet?")) return;
+    state = {}; save();
+    Object.keys(ROWS).forEach(function(k){
+      var tb = document.getElementById(k);
+      while (tb.firstChild) tb.removeChild(tb.firstChild);
+      build(k);
+    });
+    tallyUp();
+  });
+})();
+</script>
+</body>
+</html>

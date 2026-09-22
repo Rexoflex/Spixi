@@ -41,6 +41,10 @@ export const HOLD_MARKERS = [
   [/[⟨⟩]/, 'a ⟨PLACEHOLDER⟩ is still in the text'],
   [/PLACEHOLDER|DAMIR TO CONFIRM/, 'a PLACEHOLDER / DAMIR TO CONFIRM note is still in the text'],
   [/\(Updated Session [A-Z]\b|Session [A-Z]\/#\d+/, 'a session/decision annotation ("Updated Session …/#…") is still in the text'],
+  // #902 (the #46 loop): the vocabulary this project ACTUALLY writes its open questions in.
+  // `NEEDS DAMIR` is the verdict word docs/legal/claims-sweep.md defines; a note in that
+  // spelling, or an ordinary TODO, used to bake straight into a user-facing legal document.
+  [/\bNEEDS DAMIR\b|\bTODO\b|\bTBD\b|\bFIXME\b|\bXXX\b/, 'an open editorial note (NEEDS DAMIR / TODO / TBD / FIXME / XXX) is still in the text'],
 ];
 
 /** Every hold reason for a markdown text, with the first offending line number. */

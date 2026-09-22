@@ -1,6 +1,11 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-	<application android:allowBackup="true" android:supportsRtl="true">
+	<!-- #912 (APP-1): backups stay ON (the wallet file is what a restore is for) but chat
+	     history, the offline send queue and the logs are excluded — see Resources/xml/backup_rules.xml
+	     (Android ≤11) and data_extraction_rules.xml (12+). A smoke pin holds the two lists equal. -->
+	<application android:allowBackup="true" android:supportsRtl="true"
+	             android:fullBackupContent="@xml/backup_rules"
+	             android:dataExtractionRules="@xml/data_extraction_rules">
 		<provider
 		   android:name="androidx.core.content.FileProvider"
 		   android:authorities="${applicationId}.provider"

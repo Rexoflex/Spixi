@@ -424,6 +424,17 @@
     // Closes every burst → the one render/re-render point (live status flips).
     // #288 F5: COMMIT the staged burst before rendering (see the staging docblock).
     setData(amount, fee, time, txid, confirmed) {
+      /* ★★ #903 (the #46 loop over #898, MAJOR): THE REVEAL IS PER TRANSACTION, NOT PER
+         DOCUMENT. "Show amounts" reveals THIS view only (#285) — and until #898 a view WAS
+         a document: every tx tap built a new page, so `revealed` started false. #898 reuses
+         the open pane, so with the wallet hidden, one reveal on transaction A left every
+         LATER transaction in that pane fully unmasked — amount, fiat, fee, counterparty and
+         the full address — with no eye on screen to say so (canReveal() is false once
+         revealed). Fourth member of the masking class (#263 → #285 → #288 → this).
+         Keyed on the txid CHANGING, not on "any setData": the live status re-burst of the
+         SAME transaction must keep the reveal, which is the property setHideBalance's
+         unchanged-value early return exists to protect. */
+      if (model.data && model.data.txid !== (txid || '')) revealed = false;
       model.entries = staging.entries.slice();
       model.received = staging.received;
       model.data = {

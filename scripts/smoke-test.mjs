@@ -5475,7 +5475,21 @@ console.log('native call surface (Q4-③/#270) — call.html contract + the call
     const mEnd = callPage.indexOf('\n        private ', mStart + 40);
     const body = stripCode(callPage.slice(mStart, mEnd > 0 ? mEnd : callPage.length));
     const refusals = body.split('return null;').slice(0, -1);   // the text BEFORE each `return null;`
-    const silent = refusals.filter((seg) => !/Logging\.(info|warn|error)\(/.test(seg.slice(-620)));
+    /* ★ #902 (the #46 loop on Opus): "a Logging call somewhere in the previous 620 characters"
+       was satisfied by an UNRELATED log. The reviewer deleted the no-Content refusal's own
+       line, added `Logging.info("…staging")` a few statements above the `if`, and the walk
+       reported 0 silent. The property is that the refusal's OWN BLOCK names it: walk back
+       from each `return null;` to the brace that opens its enclosing block, and require the
+       Logging call inside that span. */
+    const ownBlock = (seg) => {
+      let depth = 0;
+      for (let k = seg.length - 1; k >= 0; k--) {
+        if (seg[k] === '}') depth++;
+        else if (seg[k] === '{') { if (depth === 0) return seg.slice(k); depth--; }
+      }
+      return '';
+    };
+    const silent = refusals.filter((seg) => !/Logging\.(info|warn|error)\(/.test(ownBlock(seg)));
     ok(mStart > 0 && refusals.length >= 4 && silent.length === 0,
       '★★ Session AA (#894): every refusal path in ensureSurface NAMES itself in the log (' + refusals.length + ' `return null` sites, ' + silent.length + ' silent). A call that shows no UI on either device is settled from ixian.log or it is not settled at all — the lock refusal was the one branch that said nothing, and it is the branch a stranded lock (#505) takes');
   }
@@ -13781,30 +13795,225 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
        `webView.FadeTo(1, 150)` to say what was removed, so a raw-text negative for "FadeTo"
        is defeated by the sentence explaining why FadeTo is gone. Only code may satisfy or
        defeat these clauses. */
-    const wsCode = wsPage.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-    const reveal = wsCode.slice(wsCode.indexOf('private void onLoad()'), wsCode.indexOf('private void checkTransaction()'));
-    ok(/webView\.Opacity = 1;/.test(reveal) && !/FadeTo/.test(wsCode) && /webView\.Opacity = 0;/.test(wsCode),
-      '★★ #898 ①: the tx detail reveals its WebView INSTANTLY (Opacity = 1) and nothing in the page animates — the 150 ms self-fade was the flash, because a translucent WebView shows whatever is pinned under the detail column. The ctor still starts it hidden, so an empty WebView is never on screen');
-    /* ⚠ DERIVED, not listed (#798). The swap must reset EVERY per-transaction field, and the
-       real hazard is a field added LATER and not reset: `isConfirmedDisplayed` left true from a
-       confirmed previous tx silently stops the 1 Hz poll for the new one, and a stale
-       `lastActivityStatus`/`burstPushed` makes checkTransaction skip its first burst as
-       "unchanged". So this reads the class's own field declarations and requires each to be
-       assigned in showTransaction — a new field fails here until it is reset or added to the
-       carve-out WITH a reason. Comments stripped: the docblock beside the method names the
-       fields it assigns (#771). */
-    const NOT_PER_TX = ['viewOnly', 'homePage'];   // set once at construction; a swap keeps the same page and the same host
-    const fields = [...wsCode.matchAll(/^\s*private\s+(?:readonly\s+)?[\w.<>?\[\]]+\s+(\w+)\s*(?:=|;)/gm)].map((m) => m[1]);
+    /* ★ #903 (the #46 loop on Opus over #898): this block shipped with the NAIVE two-regex
+       stripper, which removes block comments BEFORE line comments — so a `/*` inside a `//`
+       comment blanks live code (Session R, #806). The reviewer hid a restored
+       `webView.FadeTo(1, 150)` between two ordinary comments and ① stayed green. `stripCode`
+       is the suite's one-pass tokenizer; every clause below reads ITS output. */
+    const wsCode = stripCode(wsPage);
+    /* r3: a brace-balanced METHOD slice. Two of r2's new clauses used fixed character windows
+       (900 / 700) that reached ~470 chars into the NEXT method, so the fix could be gutted and
+       its shape planted next door with both green. */
+    const methodBody = (src, sig) => { const i = src.indexOf(sig); if (i < 0) return ''; let d = 0; for (let k = src.indexOf('{', i); k >= 0 && k < src.length; k++) { if (src[k] === '{') d++; else if (src[k] === '}' && --d === 0) return src.slice(i, k + 1); } return ''; };
+    const reveal = wsCode.slice(wsCode.indexOf('private void onLoad()'), wsCode.indexOf('private void checkTransaction('));
+    /* ★ #903 RE-BASE, and the property got MORE exact, not looser. #898 banned `FadeTo` from
+       the whole page; the review showed that was one path too many: this page is also PUSHED
+       (narrow windows, every phone), where there is no stage and no paint gate, and the ramp
+       was covering the boot spinner over the page's own opaque ground. So:
+         · the STAGED page (the desktop pane — the path Damir's report was about) reveals
+           instantly, and that arm holds no animation of any spelling;
+         · the ramp exists ONCE, in the else arm of that same test, and nowhere else in the page. */
+    const ANIM = /\b(?:FadeTo|ScaleTo|ScaleXTo|ScaleYTo|TranslateTo|RotateTo|RelScaleTo|RelRotateTo|LayoutTo)\s*\(|\.Animate\s*\(|new\s+Animation\s*\(/g;
+    /* r2 (break-my-verdict): the arm's test is `paneHosted`, set by the ONE site that builds the
+       pane — not `getStagingPage() == this`, which is a proxy that goes false when the 4 s
+       failsafe presents a slow shell, sending an already-visible pane down the fade arm. */
+    const arm = reveal.match(/if \(paneHosted\)\s*\{([^{}]*)\}\s*else\s*\{([^{}]*)\}/);
+    const allCs = ['Spixi/Pages/Home/HomePage.xaml.cs', 'Spixi/Pages/Chat/SingleChatPage.xaml.cs', 'Spixi/Pages/Contacts/ContactDetails.xaml.cs']
+      .map((f) => stripCode(readFileSync(join(root, f), 'utf8'))).join('\n');
+    const constructs = [...allCs.matchAll(/new WalletSentPage\(([^;]*);/g)].map((m) => m[0]);
+    const paneConstructs = constructs.filter((c) => /\{\s*paneHosted = true\s*\}/.test(c));
+    const animCalls = (wsCode.match(ANIM) || []).length;
+    ok(!!arm && /^\s*webView\.Opacity = 1;\s*$/.test(arm[1]) && /^\s*webView\.FadeTo\(1, 150\);\s*$/.test(arm[2])
+      && animCalls === 1 && /webView\.Opacity = 0;/.test(wsCode)
+      && !/\bpaneHosted\s*=(?!=)/.test(wsCode.slice(wsCode.indexOf('public WalletSentPage(')))   /* r3: the page never writes it — one `paneHosted = true;` in the ctor sent every PUSHED page down the instant arm */
+      && constructs.length === 4 && paneConstructs.length === 1 && /pushPageLoaded\(new WalletSentPage\(tx\) \{ paneHosted = true \}/.test(paneConstructs[0] ? allCs : ''),
+      '★★ #898 ① (re-based #903): the STAGED tx detail — the desktop pane — reveals its WebView INSTANTLY and that arm animates nothing; the 150 ms self-fade was the flash, because a translucent WebView shows whatever is pinned under the detail column. The ramp survives ONCE, in the else arm, for the PUSHED page (no stage, no paint gate, its own opaque ground). Animation calls in the page: ' + animCalls + ' (must be 1). The ctor still starts it hidden. WHICH arm is decided by `paneHosted`, and exactly ONE of the ' + constructs.length + ' construct sites sets it — the pushPageLoaded pane (' + paneConstructs.length + ')');
+    /* ⚠ DERIVED, not listed (#798) — and #903 re-derived it, because the first derivation was
+       itself a list in disguise: its regex matched ONE declaration form
+       (`private <SimpleType> name =|;`). The reviewer added an unreset latch five ordinary
+       ways — a second declarator on an existing line, a property, `static`, a generic type
+       with a comma, no access modifier — and all five stayed green. Fields are now found by
+       SHAPE, not spelling: a line at CLASS-MEMBER indentation (8 spaces) that ends in `;` or
+       opens an accessor block is a field or property whatever its modifiers, and every
+       declarator on it counts. And "assigned" means `=` that is not `==`: the reviewer
+       replaced a reset with `if (… isConfirmedDisplayed == true)` and it passed. */
+    const NOT_PER_TX = {
+      viewOnly: 'set once at construction; every caller constructs the page view-only',
+      homePage: 'set once at construction; a swap keeps the same page and the same host',
+      txLock: 'the lock object itself — readonly, never per transaction',
+      swapSeq: 'the swap counter: showTransaction INCREMENTS it (asserted separately below); resetting it would un-supersede a stale swap',
+      shownTransaction: 'written by the burst itself (checkTransactionLocked) — it IS the record of what the shell was last given, so a swap has nothing to reset',
+      paneHosted: 'set once by the construct site; how a page is presented never changes',
+    };
+    /* r2 (break-my-verdict): the member-LINE filter was an enumeration of FORMATTING — a
+       declaration wrapped over two lines, an initializer on the next line and a tab-indented
+       line were all invisible, and the count could not notice because the member was never
+       counted. Members are now read as LOGICAL declarations: walk the class body character by
+       character, and at class depth a run that ends in `;` is a field (whatever lines it
+       spans, whatever its initializer contains), a `{` that follows no `=` and opens on an
+       accessor is a property, and any other block is a method and is skipped. */
+    const fields = [];
+    {
+      const iClass = wsCode.indexOf('public partial class WalletSentPage');
+      let depth = 0, cur = '', skipTo = -1;
+      for (let k = wsCode.indexOf('{', iClass); k >= 0 && k < wsCode.length; k++) {
+        const ch = wsCode[k];
+        if (ch === '{') {
+          if (depth === 1 && !/=/.test(cur)) {
+            if (/^\s*(?:get|set|init)\b/.test(wsCode.slice(k + 1))) fields.push(['prop', cur]);
+            cur = '\u0000';                                   // a block member: nothing before its close is a field
+          }
+          depth++; continue;
+        }
+        if (ch === '}') { depth--; if (depth === 0) break; if (depth === 1 && cur === '\u0000') cur = ''; continue; }
+        if (depth !== 1 || cur === '\u0000') continue;
+        if (ch === ';') { fields.push(['field', cur]); cur = ''; continue; }
+        cur += ch;
+      }
+    }
+    const names = [];
+    for (const [kind, raw] of fields) {
+      let t = raw.replace(/\s+/g, ' ').trim();
+      while (/^\[[^\]]*\]/.test(t)) t = t.replace(/^\[[^\]]*\]\s*/, '');   // attributes
+      while (/<[^<>]*>/.test(t)) t = t.replace(/<[^<>]*>/g, '');             // generic arguments carry commas
+      const head = t.split('=')[0];
+      if (/\(/.test(head) || /^(?:using|namespace|event|const)\b/.test(t) || /\bdelegate\b/.test(head)) continue;   // expression-bodied method / not state
+      const toks = head.trim().split(/\s+/);
+      if (toks.length < 2) continue;
+      names.push(toks[toks.length - 1]);
+      if (kind === 'field') {
+        let d = 0, part = '';                                              // further declarators: split the REST on depth-0 commas
+        const rest = t.slice(t.indexOf(toks[toks.length - 1]) + toks[toks.length - 1].length);
+        for (const c of rest + ',') {
+          if ('([{'.includes(c)) d++; else if (')]}'.includes(c)) d--;
+          if (c === ',' && d === 0) { const m = part.match(/^\s*([A-Za-z_]\w*)\s*(?:=|$)/); if (m && part !== rest.split(',')[0]) names.push(m[1]); part = ''; } else part += c;
+        }
+      }
+    }
     const swap = wsCode.slice(wsCode.indexOf('public void showTransaction(Transaction tx)'), wsCode.indexOf('public override void updateScreen()'));
-    const perTx = fields.filter((f) => !NOT_PER_TX.includes(f));
-    const unreset = perTx.filter((f) => !new RegExp('\\b' + f + '\\s*=').test(swap));
-    ok(fields.length >= 5 && swap.length > 0 && /checkTransaction\(\);/.test(swap) && unreset.length === 0,
-      '★★ #898 ② (derived): showTransaction resets EVERY per-transaction field the class declares and then re-renders — fields ' + JSON.stringify(perTx) + ', carve-out ' + JSON.stringify(NOT_PER_TX) + ', NOT reset: ' + JSON.stringify(unreset) + '. A latch carried over from a confirmed transaction stops the poll for the new one, which looks like a detail that never updates');
-    const hpTx = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
-    const branch = hpTx.slice(hpTx.indexOf('public void onTransaction('), hpTx.indexOf('private void loadContacts()'));
-    ok(branch.indexOf('detail.showTransaction(activity.transaction);') > 0
-      && branch.indexOf('detail.showTransaction(activity.transaction);') < branch.indexOf('pushPageLoaded(new WalletSentPage('),
+    const perTx = names.filter((f) => !(f in NOT_PER_TX));
+    const reEsc = (v) => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    /* r3: each reset must sit INSIDE the lock, before the locked pass — "somewhere in the method"
+       let `burstPushed = false;` be hoisted onto the UI thread, where a tick finishing a moment
+       later re-arms it and the swap's burst early-returns as "unchanged": A stays on screen
+       under B's highlight. */
+    const swapLock = swap.slice(swap.indexOf('lock (txLock)'), swap.indexOf('checkTransactionLocked();'));
+    const unreset = perTx.filter((f) => !new RegExp('\\b' + reEsc(f) + '\\s*=(?!=)').test(swapLock));
+    const staleCarve = Object.keys(NOT_PER_TX).filter((f) => !names.includes(f));
+    ok(names.length === 11 && swap.length > 0 && /checkTransactionLocked\(\);/.test(swap) && unreset.length === 0 && staleCarve.length === 0,
+      '★★ #898 ② (derived, re-derived #903): showTransaction resets EVERY per-transaction member the class declares — found as LOGICAL declarations at class depth, in any form and over any number of lines — and then re-renders. Members ' + JSON.stringify(names) + ' (must be 11: a new one in ANY form moves this count), carve-out ' + JSON.stringify(Object.keys(NOT_PER_TX)) + ', NOT reset: ' + JSON.stringify(unreset) + ', carve-out names that no longer exist: ' + JSON.stringify(staleCarve) + '. A latch carried over from a confirmed transaction stops the poll for the new one, which looks like a detail that never updates');
+    /* ★★ #903 — THE TWO-THREAD PROPERTY (the review's MAJOR on this money card). Read as
+       STRUCTURE, since no jsdom can run C#:
+         a · checkTransaction hands off the UI thread FIRST (the IsMainThread test precedes the
+             lock) — the UI thread must never wait on a tick that is waiting on Core's storage;
+         b · the locked body is entered ONLY under txLock: every call to checkTransactionLocked
+             sits inside a `lock (txLock)` block;
+         c · that body reads the `transaction` FIELD exactly once, into its local;
+         d · showTransaction swaps the field INSIDE the lock, after the superseded test, in a
+             pool task — and refuses null before anything else. */
+    const ct = wsCode.slice(wsCode.indexOf('private void checkTransaction('), wsCode.indexOf('private void checkTransactionLocked()'));
+    const body = wsCode.slice(wsCode.indexOf('private void checkTransactionLocked()'), wsCode.indexOf('public void showTransaction(Transaction tx)'));
+    const lockedCalls = [...wsCode.matchAll(/checkTransactionLocked\(\);/g)].map((m) => m.index);
+    /* r2 (break-my-verdict, MAJOR on this pin): "count braces back to the last `lock (txLock)`"
+       called a call LOCKED whenever any block had opened after the lock CLOSED —
+       `lock (…) { … } if (x) { checkTransactionLocked(); }` printed "outside the lock: 0", and a
+       `{` inside a string did the same. The shape is asserted instead: walk back from each call
+       to the brace that opens its OWN enclosing block, and that brace must be the lock's. A
+       stray brace in a string makes the walk land somewhere that is not the lock → RED. */
+    const unlocked = lockedCalls.filter((at) => {
+      let depth = 0;
+      for (let k = at - 1; k >= 0; k--) {
+        if (wsCode[k] === '}') depth++;
+        else if (wsCode[k] === '{') { if (depth === 0) return !/lock \(txLock\)\s*$/.test(wsCode.slice(0, k)); depth--; }
+      }
+      return true;
+    });
+    const fieldReads = (body.match(/(?:(?<![\w.])|\bthis\.)transaction\b(?!\s*\()/g) || []).length;   // r2: `this.transaction` is the same field
+    ok(ct.indexOf('MainThread.IsMainThread') > 0 && ct.indexOf('MainThread.IsMainThread') < ct.indexOf('lock (txLock)') && /Task\.Run\(/.test(ct)
+      && lockedCalls.length === 2 && unlocked.length === 0
+      && fieldReads === 1 && /Transaction tx = transaction;/.test(body) && /shownTransaction = tx;/.test(body)
+      && body.indexOf('shownTransaction = tx;') > body.indexOf('Utils.sendUiCommand(this, "setData"')   /* r3: AFTER the commit — written earlier it records what we are about to try, not what the shell was given */
+      && /private volatile bool isConfirmedDisplayed = false;/.test(wsCode)
+      && /Transaction\? onScreen = shownTransaction \?\? transaction;/.test(wsCode) && !/Config\.explorerUrl, transaction\.getTxIdString\(\)/.test(wsCode)
+      && /^[^{]*\{\s*if \(tx == null\)\s*\{\s*return;\s*\}/.test(swap)
+      && /Interlocked\.Increment\(ref swapSeq\)/.test(swap) && /Task\.Run\(/.test(swap)
+      && swap.indexOf('lock (txLock)') > 0 && swap.indexOf('lock (txLock)') < swap.indexOf('Volatile.Read(ref swapSeq)')
+      && swap.indexOf('Volatile.Read(ref swapSeq)') < swap.indexOf('transaction = tx;'),
+      '★★ #903: the tx detail renders from TWO threads (the 2 s pool tick and the UI tap) and a money card must never mix them — the UI thread hands off before the lock; the body runs only under txLock (calls: ' + lockedCalls.length + ', outside the lock: ' + unlocked.length + '); it reads the `transaction` field ONCE (reads: ' + fieldReads + ') so a swap mid-pass cannot put A\'s amount under B\'s id; the explorer verb opens the transaction the CARD shows (shownTransaction, written by the burst) rather than the one a swap is about to show; and the swap is null-safe, pooled, superseded-checked and performed inside the lock. Posted-after-inline was the second half: a tick\'s burst for A used to land AFTER the tap\'s inline burst for B');
+    /* ★ #903 r2 — THE ONE PLACE THE THREAD MOVE IS NOT ORDER-PRESERVING BY ITSELF. sendMessage
+       enqueues while the page is not loaded and the UI thread drains the queue ONCE, when it
+       flips pageLoaded. A pool thread that read the flag a moment before the flip enqueues
+       AFTER the drain — into a queue nothing drains again. Since #903 the tx detail's FIRST
+       burst comes from a pool thread, so that strand is a permanently blank money card. The
+       flag is volatile and the enqueue re-checks it. */
+    {
+      const scp903 = stripCode(readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8'));
+      const sm = methodBody(scp903, 'public void sendMessage(string msg)');
+      ok(/public volatile bool pageLoaded = false;/.test(scp903)
+        && /messageQueue\.Enqueue\(msg\);\s*if \(pageLoaded && _webView != null\)\s*\{\s*MainThread\.BeginInvokeOnMainThread\(processMessageQueue\);\s*\}/.test(sm)
+        && (sm.match(/processMessageQueue/g) || []).length === 1,   /* r3: POSTED, and never drained on the calling thread — a pool-side drainer delivers posted while the UI drainer delivers inline, so one burst could arrive out of order */
+        '★ #903 r2/r3: sendMessage RE-CHECKS pageLoaded after it enqueues (the flag is volatile) and POSTS the drain to the main thread rather than draining on the pool thread — a pool-thread burst that lost the race with the UI thread\'s one drain is otherwise stranded for the page\'s life');
+    }
+    /* ★ #903: comment-stripped (the reviewer commented the reuse loop OUT and the raw-text
+       positive stayed green on the comment — #771 a fourth time), and the close that guards
+       the column is asserted with its one exemption. */
+    const hpTxCode = stripCode(readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8'));
+    const branch = hpTxCode.slice(hpTxCode.indexOf('public void onTransaction('), hpTxCode.indexOf('public void onChat('));
+    ok(branch.indexOf('detail.showTransaction(tx);') > 0
+      && branch.indexOf('detail.showTransaction(tx);') < branch.indexOf('pushPageLoaded(new WalletSentPage('),
       '★★ #898 ②: an ALREADY-OPEN tx detail is reused BEFORE the construct-and-present path is reached, so every tap after the first swaps in place — no second WebView to boot, nothing staged, nothing closed behind it. Order is the property: construct-first with a reuse after it would never run');
+    const scChat = stripCode(readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8'));
+    const txCallers = [...stripCode(readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8')).matchAll(/(?<!void )\bonTransaction\(([^;]*)\);/g)].map((m) => m[1])
+      .concat([...scChat.matchAll(/\bonTransaction\(([^;]*)\);/g)].map((m) => m[1]));
+    ok(/bool fromConversation = false\)/.test(branch)
+      && /if \(!fromConversation\)\s*\{\s*closeChatOverlays\(\);/.test(branch)
+      && branch.indexOf('closeChatOverlays();') < branch.indexOf('if (rightContent.IsVisible)')
+      && /if \(e != null\)\s*\{\s*e\.Cancel = true;/.test(branch)
+      && /Transaction\? tx = activity\?\.transaction;\s*if \(activity == null \|\| tx == null\)/.test(branch)
+      && branch.indexOf('tx == null') < branch.indexOf('requestSettingsOverlayExit();') && !/activity\.transaction/.test(branch.slice(branch.indexOf('requestSettingsOverlayExit();')))   // r2: refused ABOVE the first side effect; one name below it
+      && txCallers.length === 2 && txCallers.filter((a) => /fromConversation: true/.test(a)).length === 1
+      && /homePage\.onTransaction\(b_id, null, fromConversation: true\);/.test(scChat),
+      '★★ #902: the wallet\'s tx tap closes a conversation it was not opened FROM, before anything stages — #897 anchored the rule to the tab verb, and a conversation can enter the detail column without one (contact details → Message from Account → Contacts, a notification tap), after which the detail\'s back button revealed it on the wallet tab. Exactly ONE caller is exempt and says so: a conversation\'s own payment card, whose back must return to it (callers: ' + JSON.stringify(txCallers) + '). The null `e` that caller passes is guarded, and a null activity.transaction is refused ABOVE the sweeps — it used to NRE one line after the conversation had already been closed');
+    /* ★★ #903 — BEHAVIOURAL, ON THE BUILT SHELL: the reveal is per TRANSACTION. Reproduced on
+       the #898 build before it was fixed: hide the wallet, open A, "Show amounts", swap to B —
+       B rendered its amount, fiat, fee and the full counterparty address, with no eye on
+       screen. Two halves, and the second is why the reset is keyed on the txid rather than on
+       "any setData": the live status re-burst of the SAME transaction must KEEP the reveal. */
+    {
+      const wsBuilt = join(root, 'Spixi/Resources/Raw/html/wallet_sent.html');
+      const domW = new JSDOM(readFileSync(wsBuilt, 'utf8'), {
+        runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true,
+        url: 'file://' + wsBuilt, virtualConsole: new VirtualConsole(),
+        beforeParse(w) {
+          w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+          try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
+        },
+      });
+      await sleep(1500);
+      const Ww = domW.window, dw = Ww.document;
+      const b64w = (v) => Buffer.from(String(v), 'utf8').toString('base64');
+      const pushW = (fn, ...a) => Ww.executeUiCommand(Ww[fn], ...a.map(b64w));
+      const burstW = (txid, amt) => {
+        pushW('clearEntries');
+        pushW('addEntry', 'addrOf' + txid, 'Alice', 'img/spixiavatar.png', amt, '1.00', '1700000000', 'send', 'true');
+        pushW('setData', amt, '0.01', '1700000000', txid, 'true');
+      };
+      const seen = (t) => dw.body.textContent.includes(t);
+      const eyeW = () => dw.querySelector('.tx-reveal button');
+      pushW('setHideBalance', 'True');
+      burstW('TXA', '111.11'); await sleep(100);
+      const aMasked = !seen('111.11') && !!eyeW();
+      if (eyeW()) eyeW().click();
+      await sleep(50);
+      const aRevealed = seen('111.11') && !eyeW();
+      burstW('TXA', '111.11'); await sleep(50);
+      const aKept = seen('111.11');
+      burstW('TXB', '222.22'); await sleep(50);
+      const bMasked = !seen('222.22') && !seen('addrOfTXB') && !!eyeW();
+      ok(aMasked && aRevealed && aKept && bMasked,
+        '★★ #903 (built shell, real pushes): with the wallet hidden, "Show amounts" reveals ONE transaction — A masked+eye: ' + aMasked + ' · A revealed: ' + aRevealed + ' · A\'s own status re-burst KEEPS the reveal: ' + aKept + ' · swapping the reused pane to B re-masks amount AND address and offers the eye again: ' + bMasked + '. Before #898 a view was a document, so this held for free; the reused pane made one reveal unmask every later transaction');
+      try { Ww.close(); } catch (e) {}
+    }
   }
 }
 
@@ -22747,11 +22956,51 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        ⚠ Sliced to repaintOwnSystemBars rather than a character window — the window the old
        pin used (+2000) no longer reaches the end of the branch. */
     {
-      const iTab = hpCode.indexOf('ixian:tab:');
-      const tabSweep = hpCode.slice(iTab, hpCode.indexOf('repaintOwnSystemBars', iTab));
-      ok(/closeTxDetailOverlays\(\);/.test(tabSweep)
-        && /if \(currentTab != "tab1"\)\s*\{\s*closeChatOverlays\(\);\s*\}/.test(tabSweep),
+      /* ★ #902 (the #46 loop on Opus): the first cut pinned both halves as TEXT anywhere in
+         the slice, and two mutations that gut the fix stayed green — the gated close hoisted
+         ABOVE the `currentTab =` assignment (the gate then reads the tab being LEFT, "tab1",
+         and never fires: #896 verbatim), and the gated close moved into the suppress branch,
+         where currentTab is "tab1" by construction. Position is the property: inside the
+         ELSE arm, after the assignment, and BEFORE the tx-detail close (a chat's own Details
+         stacks the detail over the conversation; closing the cover first leaves the
+         conversation topmost for the hide interval). `hpCode` is re-read through stripCode —
+         the block's older two-regex strip is the #806 class. */
+      const hpSafe = stripCode(hp);
+      const iTab = hpSafe.indexOf('ixian:tab:');
+      const tabSweep = hpSafe.slice(iTab, hpSafe.indexOf('repaintOwnSystemBars', iTab));
+      const iAssign = tabSweep.indexOf('currentTab = current_url');
+      const iElse = tabSweep.search(/\}\s*else\s*\{/);
+      const iGate = tabSweep.search(/if \(currentTab != "tab1"\)\s*\{\s*closeChatOverlays\(\);\s*\}/);
+      const iTx = tabSweep.indexOf('closeTxDetailOverlays();');
+      ok(iAssign >= 0 && iElse > iAssign && iGate > iElse && iTx > iElse   /* r2: tx-vs-chat ORDER is not load-bearing (one UI turn, no frame between) — both must be in the else arm */
+        && (tabSweep.match(/closeChatOverlays\(\);/g) || []).length === 1,
         '★★ #897: leaving the chats tab closes the CONVERSATION, beside the tx detail the sweep already closed — so nothing belonging to another tab stays pinned under this one\'s detail column, which is what let the wallet flash a chat while its tx detail staged. Gated off tab1: the tab you are already on, and the Fix #8 boot echo, must not close it');
+      /* ★ #902 — the two things the sweep's new reach dragged in, both found by the loop.
+         (a) A conversation between TAP and PRESENT is `activePreload`, not an overlay, so the
+             sweep walked past it and it then presented ON the wallet tab. The helper drops it
+             too — AFTER its wide-only belt, and only a page that HAS a friend (a blank pre-warm
+             spare has none).
+         (b) onOverlayClosed(SingleChatPage) raised the rating prompt and started the
+             `chats-after-close` frame probe; a tab-sweep close is the user ARRIVING on another
+             tab, so both are gated on the chats list being on screen — and the spare warm is
+             deliberately NOT (ungated = the next open stays warm; its cost there is unmeasured). */
+      const methodBody902 = (src, sig) => { const i = src.indexOf(sig); if (i < 0) return ''; let d = 0; for (let k = src.indexOf('{', i); k >= 0 && k < src.length; k++) { if (src[k] === '{') d++; else if (src[k] === '}' && --d === 0) return src.slice(i, k + 1); } return ''; };
+      const helper902 = hpSafe.slice(hpSafe.indexOf('private void closeChatOverlays()'), hpSafe.indexOf('private void closeTxDetailOverlays()'));
+      ok(helper902.indexOf('if (!rightContent.IsVisible)') > 0
+        && helper902.indexOf('if (!rightContent.IsVisible)') < helper902.indexOf('SpixiContentPage.getStagingPage() is SingleChatPage staging && staging.friend != null')
+        && /staging\.friend != null\)\s*\{\s*staging\.popPageAsync\(\);\s*\}/.test(helper902)
+        && (helper902.match(/popPageAsync\(/g) || []).length === 1 && (helper902.match(/getStagingPage\(/g) || []).length === 1
+        && /if \(p is SingleChatPage\)\s*\{\s*removePage\(p\);\s*\}/.test(helper902) && (helper902.match(/return;/g) || []).length === 1   /* r2: nothing asserted that the helper REMOVES — a log in place of removePage, or a second early return after the belt, left #897 and #902 inert with every pin green */
+        && /if \(p is WalletSentPage\)\s*\{\s*removePage\(p\);\s*\}\s*\}\s*if \(SpixiContentPage\.getStagingPage\(\) is WalletSentPage stagingTx\)\s*\{\s*stagingTx\.popPageAsync\(\);\s*\}/.test(methodBody902(hpSafe, 'private void closeTxDetailOverlays()')),   /* r3: the METHOD, not a 900-char window that reached into the next one */   // ONE drop, and it is the belted one — a second above the belt survived the first cut of this pin
+        '★ #902: closeChatOverlays also drops a conversation that is still STAGING (activePreload is not in getOverlayPages) — behind the same wide-only belt, and never a friendless pre-warm spare. Without it a chat-row tap followed by a Wallet tap inside the present window strands a live conversation under the wallet');
+      const iClosed = hpSafe.indexOf('else if (overlay is SingleChatPage)');
+      const closed902 = hpSafe.slice(iClosed, hpSafe.indexOf('else if (overlay is AppDetailsPage)', iClosed));
+      const gated = (needle) => new RegExp('if \\(chatsListOnScreen\\)\\s*\\{\\s*' + needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(closed902);
+      ok(/bool chatsListOnScreen = currentTab == "tab1" && !homeShellTakeoverOpen;/.test(closed902)   /* r2: the L6 hand-off closes a chat on tab1 UNDER a takeover */
+        && gated('checkForRating();') && (closed902.match(/checkForRating\(\);/g) || []).length === 1
+        && gated('SingleChatPage.CdperfFrameProbe.start(') && (closed902.match(/CdperfFrameProbe\.start\(/g) || []).length === 1
+        && /scheduleChatSpareWarm\(CHAT_SPARE_WARM_AFTER_CLOSE_MS\);/.test(closed902) && !gated('scheduleChatSpareWarm('),
+        '★ #902: a conversation closed BY THE TAB SWEEP neither raises the rating prompt over the wallet nor starts the `chats-after-close` frame probe on a tab that is not the chats list (that probe feeds the #864 pre-warm decision — a mislabelled capture poisons it). The spare warm stays ungated');
     }
   }
 }
@@ -24261,9 +24510,9 @@ console.log('Session I ③: the premium pass token batch');
   const val = (name, block = dial) => ((block.match(new RegExp('--' + name + ': ([^;]+);')) || [])[1] || '').trim();
   /* 1a = A (TG-tight): the bubble role is its OWN dial set — body-md (≈90 riders) is untouched */
   ok(val('bubble-line-height') === '20px' && val('bubble-pad-y') === '6px' && val('bubble-pad-x') === '11px' && val('bubble-radius') === '18px'
-     && val('bubble-gap-group') === '10px' && val('bubble-gap-inner') === '1px' && val('bubble-meta-margin-top') === '4px'   /* ★ Session T: 3 → 1, DECISIONS #813 dial D ("gap 1 / corner 4"), walked. The pin lagged because Session S predicted a smoke number instead of running the suite */
+     && val('bubble-gap-group') === '10px' && val('bubble-gap-inner') === '2px' && val('bubble-meta-margin-top') === '4px'   /* ★ Session T: 3 → 1, DECISIONS #813 dial D ("gap 1 / corner 4"), walked. The pin lagged because Session S predicted a smoke number instead of running the suite. ★ #904 (Damir 2026-09-19, after eleven days on D): 1 → 2 — dial C's GAP comes back, D's 4px corner stays (he asked for the gap, not the pair). GATE 46 still holds the inequality that IS the feature: inner < group */
      && /--font-size-body-md: 16px;\s*--line-height-body-md: 24px;/.test(light),
-    '★★ 1a = A: bubble 16/20 · pad 6×11 · radius 18 · in-group 1 (#813 dial D) · group 10 · meta tail 4 (single-line 32 CSS = 80 px on the Motorola; was 40 = 100) — and body-md itself is UNTOUCHED at 16/24 (the #423 lesson: ~90 riders)');
+    '★★ 1a = A: bubble 16/20 · pad 6×11 · radius 18 · in-group 2 (#904; was 1 at #813 dial D) · group 10 · meta tail 4 (single-line 32 CSS = 80 px on the Motorola; was 40 = 100) — and body-md itself is UNTOUCHED at 16/24 (the #423 lesson: ~90 riders)');
   ok(/padding: var\(--bubble-pad-y\) var\(--bubble-pad-x\);/.test(bub) && /border-radius: var\(--bubble-radius\);/.test(bub)
      && /line-height: calc\(var\(--bubble-line-height\) \* var\(--chat-text-scale, 1\)\);/.test(bub)
      && /margin-top: var\(--bubble-gap-group\);/.test(bub) && /\.c-bubble-row\[data-position="last"\] \{ margin-top: var\(--bubble-gap-inner\); \}/.test(bub)
@@ -24295,17 +24544,52 @@ console.log('Session I ③: the premium pass token batch');
     }
   }
   /* 1c = tail + elevation */
-  ok(val('bubble-tail') === '8px' && val('bubble-tail-h') === '13px' && val('bubble-elevation') === '0 1px 0.5px rgba(0, 0, 0, 0.13)'
+  ok(val('bubble-tail') === '7px' && val('bubble-tail-h') === '11px' && val('bubble-elevation') === '0 1px 0.5px rgba(0, 0, 0, 0.13)'   /* ★ #904: 8×13 → 7×11 (Damir: "slightly reduce the size of the tail") */
      && /--bubble-elevation: 0 1px 1px rgba\(0, 0, 0, 0\.45\);/.test(tok.slice(tok.indexOf('[data-theme="dark"] {'))),
-    '★★ 1c = tail + elevation: an 8×13 tail on the group-start bubble, a 0 1px 0.5px @.13 lift in light and 0 1px 1px @.45 in dark (the 1.12:1 canvas, #427)');
+    '★★ 1c = tail + elevation: a 7×11 tail (#904; 8×13 before) on the group-start bubble, a 0 1px 0.5px @.13 lift in light and 0 1px 1px @.45 in dark (the 1.12:1 canvas, #427)');
   ok(/\.c-bubble-row\[data-position="first"\] \.c-bubble::before,\s*\.c-bubble-row\[data-position="single"\] \.c-bubble::before \{/.test(bub)
      && /filter: drop-shadow\(var\(--bubble-elevation\)\);/.test(bub)
-     && /clip-path: path\('M9 0 L2\.2 0 Q0 0\.2 0\.5 2\.2 Q3\.4 8\.2 8 13 L9 13 Z'\);/.test(bub) && /clip-path: path\('M0 0 L6\.8 0 Q9 0\.2 8\.5 2\.2 Q5\.6 8\.2 1 13 L0 13 Z'\);/.test(bub) && /width: calc\(var\(--bubble-tail\) \+ 1px\);/.test(bub)   /* ★ Session J #756: the WhatsApp tail (rounded tip, convex sweep), 1px INTO the bubble (the seam) */
+     && /clip-path: path\('M8 0 L1\.93 0 Q0 0\.17 0\.44 1\.86 Q2\.98 6\.94 7 11 L8 11 Z'\);/.test(bub) && /clip-path: path\('M0 0 L6\.07 0 Q8 0\.17 7\.56 1\.86 Q5\.03 6\.94 1 11 L0 11 Z'\);/.test(bub) && /width: calc\(var\(--bubble-tail\) \+ 1px\);/.test(bub)   /* ★ Session J #756: the WhatsApp tail (rounded tip, convex sweep), 1px INTO the bubble (the seam) */
      && /\[dir="rtl"\] \.c-bubble-row\[data-direction="received"\]\[data-position="first"\] \.c-bubble::before/.test(bub)
      && /--bubble-row-inset: var\(--spacing-16\);\s*padding-inline: var\(--bubble-row-inset\);/.test(bub)   /* ★ Session T: the `+ tail` is gone — #817 (Damir: "reduce the side padding so that the tails would be closer to the edge"), so the tail TIP now sits 4px outside the body line, the WhatsApp shape. The inset still has ONE home; chat-select positions the tick from it */
      && /\.c-bubble-row \.c-bubble\[data-emoji-only\]::before \{ content: none !important; \}/.test(bub)
      && /\[data-position="single"\] \.c-bubble \{ border-start-end-radius: 0; \}/.test(bub) && /\[data-position="single"\] \.c-bubble \{ border-start-start-radius: 0; \}/.test(bub),
     '★ 1c: the tail is a ::before on FIRST/SINGLE bubbles only, in the bubble\'s own surface, RTL-mirrored, carrying the lift as a drop-shadow, inside a widened row inset; the tail corner is SQUARE (Damir\'s walk: 4px read as a flag beside a rounded box); the emoji sticker has none — at (0,3,1)+!important, because the (0,3,1) tail rules beat the first (0,2,1) cut and a sent sticker grew a tail');
+  /* ★★ #904 — THE TAIL'S SHAPE FITS ITS BOX, DERIVED. The literal-path clause above pins what
+     shipped; THIS pins the trap the handoff named, which a literal cannot: `--bubble-tail` /
+     `--bubble-tail-h` size only the ::before BOX, while the shape is four clip-path() values in
+     absolute px (path() takes neither var() nor calc()). Move a token and leave the paths and
+     the old shape is CLIPPED inside the new box (smaller box) or floats short of the bubble's
+     edge (larger box) — and every literal pin is still green if someone "helpfully" updates
+     the token clause alone. So: parse every tail path in the stylesheet and require
+       · exactly four, two distinct shapes, each used once LTR and once under [dir="rtl"];
+       · each path's extent = (tail + 1) × tail-h — the +1 is the seam column INTO the bubble;
+       · the received path starts at the bubble edge (x = W) with its tip at x = 0, and the sent
+         path is its MIRROR about x = W (tolerance 0.011: two-decimal rounding);
+       · RTL swaps them — received takes the sent shape and sent the received one. */
+  {
+    const tailW = parseFloat(val('bubble-tail')), tailH = parseFloat(val('bubble-tail-h')), boxW = tailW + 1;
+    const rules = [...bub.matchAll(/((?:\[dir="rtl"\] )?)\.c-bubble-row\[data-direction="(received|sent)"\]\[data-position="single"\] \.c-bubble::before \{[^}]*?clip-path: path\('([^']+)'\)/g)]
+      .map((m) => ({ rtl: !!m[1], dir: m[2], d: m[3], pts: [...m[3].matchAll(/(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)/g)].map((q) => [Number(q[1]), Number(q[2])]) }));
+    const allPaths = (bub.match(/clip-path: path\(/g) || []).length;
+    const ext = (r) => [Math.max(...r.pts.map((q) => q[0])), Math.max(...r.pts.map((q) => q[1])), Math.min(...r.pts.map((q) => q[0])), Math.min(...r.pts.map((q) => q[1]))];
+    const find = (rtl, dir) => rules.find((r) => r.rtl === rtl && r.dir === dir);
+    const recv = find(false, 'received'), sent = find(false, 'sent'), rRecv = find(true, 'received'), rSent = find(true, 'sent');
+    const bad904 = [];
+    for (const r of rules) { const cmds = r.d.replace(/[\d.\s-]/g, ''); if (!/^[MLQZ]+$/.test(cmds)) bad904.push('a path uses commands outside absolute M/L/Q/Z (' + cmds + ') — extents are only meaningful for ABSOLUTE coordinates; a relative (lowercase) rewrite with the same numbers is a different shape'); }
+    if (rules.length !== 4 || allPaths !== 4) bad904.push('expected 4 tail paths (LTR+RTL × received+sent), found ' + rules.length + ' matched of ' + allPaths + ' in the file');
+    for (const r of rules) {
+      const [mx, my, nx, ny] = ext(r);
+      if (mx !== boxW || my !== tailH || nx !== 0 || ny !== 0) bad904.push((r.rtl ? 'rtl ' : 'ltr ') + r.dir + ': extent ' + nx + '…' + mx + ' × ' + ny + '…' + my + ', box is 0…' + boxW + ' × 0…' + tailH);
+    }
+    if (recv && sent) {
+      if (recv.pts.length !== sent.pts.length || recv.pts.some((q, k) => Math.abs((boxW - q[0]) - sent.pts[k][0]) > 0.011 || q[1] !== sent.pts[k][1])) bad904.push('the sent path is not the mirror of the received path about x = ' + boxW);
+      if (recv.pts[0][0] !== boxW || sent.pts[0][0] !== 0) bad904.push('the paths do not START on the bubble edge (received x = ' + boxW + ', sent x = 0) — the seam column is gone');
+    }
+    if (recv && sent && rRecv && rSent && (rRecv.d !== sent.d || rSent.d !== recv.d)) bad904.push('[dir="rtl"] does not swap the two shapes');
+    ok(Number.isFinite(tailW) && Number.isFinite(tailH) && tailW > 0 && bad904.length === 0,
+      '★★ #904 (derived): every tail clip-path FITS the box its tokens make — (' + tailW + ' + 1) × ' + tailH + ' — starts on the bubble edge, the sent shape mirrors the received one, and RTL swaps them. Failures: [' + (bad904.join(' | ') || 'none') + ']. path() takes no var(), so a token edit alone leaves the old shape cut off inside the new box; this is the pin that says so');
+  }
   /* EXECUTED (the walk defect): a SENT, SINGLE, emoji-only message has no tail, and its reactions pill sits at the far corner from the time chip */
   {
     const dom = await load('chat.html');
@@ -27248,12 +27532,19 @@ console.log('★★ Session P — the pre-warm + the batch transport');
     const iDone = b.indexOf('Utils.sendUiCommand(this, "messagesDone");', iAdd);
     const between = iClear >= 0 && iDone > iClear ? b.slice(iClear, iDone) : 'X';
     const firstClearAfterEmpty = b.indexOf('"clearMessages"', iDoneEmpty);
-    const msgLock = csSliceP(b, 'lock (messages)');
+    /* ★ #907 re-base, delta stated: loadMessages now takes `lock (messages)` TWICE. The first is
+       the window loop's COUNT (visible rows, exhaustion) — it sits ABOVE the empty-history
+       block and pushes nothing. The second is THE lock this pin is about, so it is sliced
+       from after that block instead of "the first one in the method", and the count moves
+       1 → 2 with the first one's emptiness asserted. */
+    const countLock = csSliceP(b, 'lock (messages)');
+    const msgLock = csSliceP(b, 'lock (messages)', iDoneEmpty);
+    const countLockClean = countLock.b > countLock.a && countLock.b < iClearEmpty && !/sendUiCommand|sendMessage\(|insertMessage|updateReactions/.test(b.slice(countLock.a, countLock.b));
     const inMsgLock = (i) => i > msgLock.a && i < msgLock.b;
     ok(iClearEmpty >= 0 && iDoneEmpty > iClearEmpty && iBatch > iDoneEmpty && iIns > iBatch && iRx > iIns && iJson > iRx && iCatchB > iJson && iClear > iCatchB && iAdd > iClear && iDone > iAdd
       && count(b, /Utils\.sendUiCommand\(this, "clearMessages", show_more\);/g) === 1 && count(b, /"clearMessages"/g) === 2
       && firstClearAfterEmpty >= 0 && b.indexOf('Utils.sendUiCommand(this, "clearMessages"', iDoneEmpty + 1) === iClear
-      && msgLock.b > msgLock.a && inMsgLock(iIns) && inMsgLock(iJson) && inMsgLock(iClear) && inMsgLock(iDone) && count(b, /lock \(messages\)/g) === 1
+      && msgLock.b > msgLock.a && inMsgLock(iIns) && inMsgLock(iJson) && inMsgLock(iClear) && inMsgLock(iDone) && count(b, /lock \(messages\)/g) === 2 && countLockClean
       && count(b, /if \(batch\.items\.Count > 0\)\s*\{\s*json = batch\.toJson\(\);\s*\}/g) === 1 && rxInRowTry
       && count(b.slice(iDoneEmpty, iClear), /sendUiCommand\(this|sendMessage\(|evaluateJavascript\(|executeUiCommand/g) === 1
       && count(between, /Utils\.sendUiCommand\(/g) === 2 && !/lock \(|foreach|toJson|insertMessage|updateReactions/.test(between)
@@ -31615,7 +31906,7 @@ console.log('\n— handover gate: the third pin pass (loop C repairs · the thre
   if (!/inset-inline-start:\s*calc\(-1 \* var\(--bubble-tail\)\)/.test(mb49)
       || !/inset-inline-end:\s*calc\(-1 \* var\(--bubble-tail\)\)/.test(mb49)) bad49.push('the tail is no longer offset by -1 × --bubble-tail from the bubble, so the tip is not inset − tail');
   ok(bad49.length === 0,
-    '★★ GATE 49: the chat row inset is the BARE --spacing-16 (bubble body 16 px, tail tip 8 px at 411 CSS px), the gutter row\'s end edge takes the same value rather than its own copy of the calc, chat-select still derives the selection tick from the same token (Session J\'s ONE home), and the tail is still offset -1 × --bubble-tail so the tip follows the body. Failing: ['
+    '★★ GATE 49: the chat row inset is the BARE --spacing-16 (bubble body 16 px; the tail tip sits at 16 − --bubble-tail: 8 px with the 8-wide tail it was measured on, 9 px since the 7-wide tail of #904), the gutter row\'s end edge takes the same value rather than its own copy of the calc, chat-select still derives the selection tick from the same token (Session J\'s ONE home), and the tail is still offset -1 × --bubble-tail so the tip follows the body. Failing: ['
     + (bad49.join(' | ') || 'none') + ']. The reversal, calc(--spacing-16 + --bubble-tail), is the shape this refuses: it reads like the tidy answer and silently returns 8px to both edges of every row');
 }
 
@@ -31770,6 +32061,85 @@ console.log('\n— handover gate: the third pin pass (loop C repairs · the thre
     + (srcDecl ? srcDecl[1].trim() : 'ABSENT') + ') AND in the BUILT spixi.tokens.css the shells load ('
     + (builtDecl ? builtDecl[1].trim() : 'ABSENT — every grouped corner would compute to 0px and render SQUARE, silently: an undefined custom property makes the declaration invalid, it does not fall back')
     + '). And the run gap is tighter than the between-runs gap: inner ' + inner46 + 'px < group ' + group46 + 'px — the inequality IS the feature');
+}
+
+/* ══ #907 — THE HISTORY WINDOW COUNTS VISIBLE MESSAGES, NOT TOMBSTONES ═══════════════
+   Damir, 2026-09-19: after deleting messages a chat opened with five bubbles and "Show older
+   messages" on every open. Ixian-Core's delete is a TOMBSTONE (`fm.message = ""`, the row stays
+   in storage — Friend.cs:949 at 097341a, read not assumed), readLastMessages returns the last N
+   STORED rows, and loadMessages skipped the tombstones at render while counting them toward
+   the window. Two halves, both pinned:
+     C#  · the window is widened until it holds `want` VISIBLE rows or storage is exhausted;
+           show-more and the skip are both derived from visible rows; ONE tombstone predicate.
+     CSS · the pill takes the free space above itself, so a short window that still has older
+           history sits against the composer (the pill replaces the secure notice, whose auto
+           margins were the only thing seating a short log — measured on the built shell:
+           680 px of empty canvas under three bubbles before, 4 px after). */
+console.log('#907: the history window counts visible messages');
+{
+  const sc907 = stripCode(readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8'));
+  const iLoad = sc907.indexOf('public void loadMessages()');
+  let d907 = 0, load907 = '';
+  for (let k = sc907.indexOf('{', iLoad); k >= 0 && k < sc907.length; k++) { if (sc907[k] === '{') d907++; else if (sc907[k] === '}' && --d907 === 0) { load907 = sc907.slice(iLoad, k + 1); break; } }
+  /* ★ r4 (an Opus read of this one method, after the fact): the first cut's predicate was the
+     old inline test under a new name — "standard and empty" — while Friend.deleteMessage blanks
+     ANY type, and insertMessage renders nothing for several more. Twenty deleted FILES in the
+     newest 50 still opened the chat twenty bubbles short. The predicate is now tied to
+     insertMessage's OWN branches, so the two cannot drift:
+       · every type in the "only while it carries a payload" arm HAS a branch in insertMessage;
+       · every type in the "never a bubble" arm has NO branch there — except requestAdd, whose
+         branch only returns (and, unapproved, raises the request pane: the predicate says so);
+       · voiceCall / voiceCallEnd are in NEITHER arm: an empty call row is a MISSED call. */
+  const methodBody907 = (src, sig) => { const i = src.indexOf(sig); if (i < 0) return ''; let d = 0; for (let k = src.indexOf('{', i); k >= 0 && k < src.length; k++) { if (src[k] === '{') d++; else if (src[k] === '}' && --d === 0) return src.slice(i, k + 1); } return ''; };
+  const pred = methodBody907(sc907, 'private bool rendersNothing(FriendMessage m)');
+  const insBody = methodBody907(sc907, 'private void insertMessage(FriendMessage message, int channel, UiBatch? batch)');
+  const armOf = (re) => { const m = pred.match(re); return m ? [...m[1].matchAll(/case FriendMessageType\.(\w+):/g)].map((x) => x[1]) : []; };
+  const neverArm = ['requestAdd'].concat(armOf(/return friend\.state == FriendState\.Approved;((?:\s*case FriendMessageType\.\w+:)+)\s*return true;/));
+  const emptyArm = armOf(/return true;((?:\s*case FriendMessageType\.\w+:)+)\s*return string\.IsNullOrEmpty\(m\.message\);/);
+  const branched = [...new Set([...insBody.matchAll(/message\.type == FriendMessageType\.(\w+)/g)].map((x) => x[1]))];
+  const emptyNoBranch = emptyArm.filter((t) => !branched.includes(t));
+  const neverWithBranch = neverArm.filter((t) => t !== 'requestAdd' && branched.includes(t));
+  const callInArm = neverArm.concat(emptyArm).filter((t) => /^voiceCall/.test(t));
+  const loop = (load907.match(/for \(int pass = 0; pass < LOAD_WINDOW_MAX_PASSES; pass\+\+\)\s*\{([\s\S]*?)\n            \}/) || [])[1] || '';
+  const tomb = pred.length > 0 && /case FriendMessageType\.requestAdd:\s*return friend\.state == FriendState\.Approved;/.test(pred) && /default:\s*return false;/.test(pred);
+  ok(tomb && insBody.length > 0 && emptyArm.length === 5 && neverArm.length === 6
+    && emptyNoBranch.length === 0 && neverWithBranch.length === 0 && callInArm.length === 0
+    && branched.includes('voiceCall') && branched.includes('voiceCallEnd'),
+    '★★ #907 r4 (derived): rendersNothing is TIED to insertMessage — payload-only types ' + JSON.stringify(emptyArm) + ' each have a branch there (missing: ' + JSON.stringify(emptyNoBranch) + '), never-a-bubble types ' + JSON.stringify(neverArm) + ' have none (has one: ' + JSON.stringify(neverWithBranch) + '), and the call types are in neither arm (' + JSON.stringify(callInArm) + ') because an EMPTY call row is a missed call, not a deleted one');
+  /* ★ r4: the pass cap's VALUE was unpinned — `= 1` restored the bug verbatim and `= 0` opened
+     EVERY conversation empty (the loop never runs, `messages` stays null), both with every
+     #907 pin green. And the window sequence is EXECUTED, not read: it never asks for exactly
+     100 (D-18: Core answers 100 from its stale cache) and always has room to widen. */
+  const cap907 = Number((sc907.match(/private const int LOAD_WINDOW_MAX_PASSES = (\d+);/) || [])[1]);
+  const seqs907 = [50, 150, 200, 250, 300].map((want) => { const seq = []; let w = want + 1; for (let p = 0; p < cap907; p++) { if (w === 100) w++; seq.push(w); w = Math.max(w * 2, w + (want + 1)); } return seq; });
+  ok(cap907 >= 4 && seqs907.every((q) => q.length === cap907 && !q.includes(100) && q[q.length - 1] >= 64 * q[0] / 2),
+    '★★ #907 r4: LOAD_WINDOW_MAX_PASSES = ' + cap907 + ' (≥ 4 — at 1 the window never widens = the original bug; at 0 the loop never runs and EVERY chat opens empty), and the executed window sequences ' + JSON.stringify(seqs907.map((q) => q[0] + '…' + q[q.length - 1])) + ' never request exactly 100');
+  ok(tomb && iLoad > 0 && load907.length > 0
+    && /int want = \(int\)messagesToShow;\s*int window = want \+ 1;/.test(load907)                 // one row MORE than wanted = the only honest proof that older history exists
+    && /if \(window == 100\)\s*\{\s*window\+\+;/.test(loop)                                     // D-18: exactly 100 returns Core's stale cache
+    && /messages = friend\.getMessages\(selectedChannel, window\);/.test(loop)
+    && /visibleNow = messages\.Count\(m => !rendersNothing\(m\)\);\s*exhausted = messages\.Count < window;/.test(loop)
+    && /if \(visibleNow > want \|\| exhausted\)\s*\{\s*break;\s*\}/.test(loop)
+    && /window = Math\.Max\(window \* 2, window \+ \(want \+ 1 - visibleNow\)\);/.test(loop)
+    && !/getMessages\(selectedChannel, \(int\)messagesToShow\)/.test(load907),
+    '★★ #907: loadMessages widens its window until it holds messagesToShow VISIBLE rows or storage is exhausted (Count < window) — Core keeps a deleted message as an empty tombstone, so "the last 50 stored rows" can be five bubbles. It asks for ONE MORE than wanted, because finding it is the only proof older history exists (the baseline showed a pill that loaded nothing on a chat of exactly 50). The D-18 step over exactly 100 lives inside the loop; the old fixed-size read is gone');
+  ok(/int visible = messages\.Count\(m => !rendersNothing\(m\)\);\s*int skip_messages = Math\.Max\(0, visible - want\);/.test(load907)
+    && /if \(exhausted && skip_messages == 0\)\s*\{\s*show_more = "false";/.test(load907)
+    && !/messages\.Count < messagesToShow/.test(load907) && !/messages\.Count\(\) - \(int\)messagesToShow/.test(load907)
+    && load907.indexOf('if (rendersNothing(message))') > 0 && load907.indexOf('if (rendersNothing(message))') < load907.indexOf('if (skip_messages > 0)')
+    && /if \(rendersNothing\(message\)\)\s*\{\s*continue;\s*\}/.test(load907)
+    && (load907.match(/string\.IsNullOrEmpty\(message\.message\)/g) || []).length === 0,
+    '★★ #907: "show older" and the skip are both derived from VISIBLE rows — show_more goes false only when storage ran out AND nothing visible is being skipped; the raw-count forms are gone; the render loop passes a row that renders nothing BEFORE it spends a skip (so the skip must count what the loop counts), through the ONE rendersNothing predicate');
+  const chat907 = stripCode(readFileSync(join(root, 'src/shells/chat.html'), 'utf8'));
+  const built907 = readFileSync(join(root, 'Spixi/Resources/Raw/html/chat.html'), 'utf8');
+  const olderRule = (chat907.match(/\.chat-older \{([^}]*)\}/) || [])[1] || '';
+  const olderMargins = [...chat907.matchAll(/([^{}]*\.chat-older(?![\w-])[^{}]*)\{([^}]*)\}/g)].filter((m) => /margin(?:-top|-block(?:-start)?)?\s*:/.test(m[2]));
+  ok(/margin-top: auto;/.test(olderRule) && /flex: none;/.test(olderRule)
+    && olderMargins.length === 1   /* r4: the first cut read the FIRST rule only — `#messages > .chat-older { margin-top: 0 }` appended later won the cascade with the pin green */
+    && /#messages > \.c-sysnotice \{ margin-top: auto; margin-bottom: auto; \}/.test(chat907)
+    && /\.chat-older \{[^}]*margin-top: auto;/.test(built907)
+    && /if \(showOlder\) frag\.append\(buildOlderPill\(\)\);/.test(chat907) && /if \(!showOlder\) frag\.append\(createSecureNotice\(\)\);/.test(chat907),
+    '★ #907: the "Show older" pill takes the free space ABOVE itself (margin-top: auto, source AND built shell). The pill REPLACES the secure notice, and the notice\'s auto margins were the only thing seating a short log at the bottom — so a short window with older history hung from the top of the canvas. On an overflowing log the auto margin collapses to 0');
 }
 
 /* ══ GATE 45 — THE STATIC a11y LABELS ARE TRANSLATED (M13) ════════════════════════
@@ -33973,6 +34343,93 @@ console.log('★ AND-45 — the bottom inset travels into the shells');
        && /### Twemoji Country Flags — CC-BY 4\.0/.test(rdZ('docs/legal/third-party-notices.md')) && /creativecommons\.org\/licenses\/by\/4\.0/.test(rdZ('docs/legal/third-party-notices.md')),
       '★ L15b: CC-BY 4.0 REQUIRES attribution ON THE SHIPPED ARTIFACT — the credit row carries the licence link + "subset" (with its localizable label case), and the repo notice names the Mozilla build and the licence');
   }
+}
+
+/* ══ #912 — THE EASY STORAGE + STARTUP FIXES (app side, nothing in Core) ═══════════════
+   Damir, 2026-09-21/22: "do the easy ones we can do on the app end". Four things, each pinned:
+     ① Android: chat history, the offline send queue and the logs are EXCLUDED from system backup
+        (APP-1). Two XML files because Android 12+ reads a different one from ≤11; the pin holds
+        the THREE lists (≤11, 12+ cloud, 12+ transfer) byte-identical and derived from ONE source,
+        and checks the folder names against the Core sibling when it is there (LocalStorage's
+        "Chats", PendingMessageProcessor's "MsgQueue") — a renamed Core folder would leave a rule
+        excluding nothing, in silence.
+     ② iOS: the same two folders get NSURLIsExcludedFromBackupKey from FinishedLaunching, never
+        throwing (UNCOMPILED here — the next iOS build is its first compile).
+     ③ Windows: the per-launch html copy skips a file whose length AND last-write time match
+        (Win32 CopyFile preserves the source's write time) — a stat instead of ~7 MB of writes.
+        The A2 pin above still holds copyResources' shape; this one holds the skip rule AND that
+        File.Copy is still reached, so "skip everything" cannot go green.
+     ④ [STARTDIAG]: five cold-start milestones in launch order, the last one once per process. */
+console.log('#912: backup exclusions, the html copy skip, and the start clock');
+{
+  const rd912 = (f) => readFileSync(join(root, f), 'utf8');
+  const listOf = (xml, section) => {
+    const m = section ? xml.match(new RegExp('<' + section + '>([\\s\\S]*?)</' + section + '>')) : [null, xml];
+    return m ? [...m[1].matchAll(/<exclude domain="(\w+)" path="([^"]+)"\s*\/>/g)].map((x) => x[1] + ':' + x[2]) : [];
+  };
+  const legacy = listOf(rd912('Spixi/Platforms/Android/Resources/xml/backup_rules.xml'), 'full-backup-content');
+  const der = rd912('Spixi/Platforms/Android/Resources/xml/data_extraction_rules.xml');
+  const cloud = listOf(der, 'cloud-backup'), transfer = listOf(der, 'device-transfer');
+  const manifest = rd912('Spixi/Platforms/Android/AndroidManifest.xml');
+  const same = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+  // The folder names, from Core when it is beside the repo (its literals, read not assumed).
+  const coreDir912 = join(root, '..', 'Ixian-Core');
+  let coreChats = 'Chats', coreQueue = 'MsgQueue', coreRead = false;
+  if (existsSync(join(coreDir912, 'Streaming/Storage/LocalStorage.cs'))) {
+    const ls = rd912('../Ixian-Core/Streaming/Storage/LocalStorage.cs');
+    const pm = rd912('../Ixian-Core/Streaming/PendingMessageProcessor.cs');
+    const mc = ls.match(/Path\.Combine\(documentsPath, "(\w+)"\)\)\)\s*\{\s*Directory\.CreateDirectory/);
+    const mq = pm.match(/string storagePath = "(\w+)";/);
+    if (mc && mq) { coreChats = mc[1]; coreQueue = mq[1]; coreRead = true; }
+  }
+  const must = ['file:Spixi/' + coreChats, 'file:Spixi/' + coreQueue, 'file:Spixi/ixian.log'];
+  const logRotation = legacy.filter((e) => /^file:Spixi\/ixian\.\d\.log$/.test(e)).length;
+  ok(legacy.length >= 3 && same(legacy, cloud) && same(legacy, transfer)
+     && must.every((e) => legacy.includes(e)) && logRotation === 5
+     && !legacy.some((e) => /wallet|\/Acc$|\.ixi$|html|headers|activity/.test(e))
+     && /android:allowBackup="true"/.test(manifest)
+     && /android:fullBackupContent="@xml\/backup_rules"/.test(manifest)
+     && /android:dataExtractionRules="@xml\/data_extraction_rules"/.test(manifest),
+    '★ #912 ① (APP-1): Android system backup EXCLUDES the plaintext chat history, the offline send queue and the six log files, in all three rule lists (≤11 · 12+ cloud · 12+ transfer), which are byte-identical; the wallet, the account, the avatar and the preferences are NOT excluded (a restore that brings back wallet.ixi is what a backup is for); the manifest keeps allowBackup=true and references BOTH files. Folder names ' + (coreRead ? 'READ from the Ixian-Core sibling' : 'assumed (no Ixian-Core sibling beside the repo)') + ': ' + coreChats + ' · ' + coreQueue + '. Got legacy=' + legacy.length + ' cloud=' + cloud.length + ' transfer=' + transfer.length + ' rotation=' + logRotation);
+
+  const ad = stripCode(rd912('Spixi/Platforms/iOS/AppDelegate.cs'));
+  const mb912 = (src, sig) => { const i = src.indexOf(sig); if (i < 0) return ''; let d = 0; for (let k = src.indexOf('{', i); k >= 0 && k < src.length; k++) { if (src[k] === '{') d++; else if (src[k] === '}' && --d === 0) return src.slice(i, k + 1); } return ''; };
+  const fl = mb912(ad, 'public override bool FinishedLaunching(UIApplication app, NSDictionary options)');
+  const ex = mb912(ad, 'private static void excludeHistoryFromBackup()');
+  const iosNames = (ex.match(/new\[\] \{ ([^}]+) \}/) || [, ''])[1].match(/"(\w+)"/g)?.map((x) => x.replace(/"/g, '')) || [];
+  ok(fl.indexOf('prepareStorage();') >= 0 && fl.indexOf('excludeHistoryFromBackup();') > fl.indexOf('prepareStorage();')
+     && same(iosNames, [coreChats, coreQueue])
+     && /foreach \(string name in new\[\][\s\S]*?\{\s*try\s*\{/.test(ex)
+     && /if \(!Directory\.Exists\(path\)\)\s*\{\s*continue;\s*\}/.test(ex)
+     && /url\.SetResource\(NSUrl\.IsExcludedFromBackupKey, NSNumber\.FromBoolean\(true\), out NSError err\)/.test(ex)
+     && /catch \(Exception e\)\s*\{\s*Logging\.warn\(/.test(ex) && !/throw\b/.test(ex),
+    '★ #912 ② (APP-1, iOS): FinishedLaunching sets NSURLIsExcludedFromBackupKey on the SAME two folders (' + coreChats + ' · ' + coreQueue + '), after prepareStorage, per folder inside its own try, skipping a folder that does not exist yet, warning and never throwing. ⚠ UNCOMPILED in this tree — the next iOS build is its first compile. Got names=' + iosNames.join(','));
+
+  const app912 = stripCode(rd912('Spixi/App.xaml.cs'));
+  const cc = mb912(app912, 'private void copyContents(string sourceDirectory, string targetDirectory)');
+  const loop = (cc.match(/foreach \(string file in Directory\.GetFiles\(sourceDirectory\)\)\s*\{([\s\S]*?)\n\s*\}\s*foreach \(string subdir/) || [, ''])[1];
+  ok(loop.length > 0
+     && /var src = new FileInfo\(file\);\s*var dst = new FileInfo\(destFile\);/.test(loop)
+     && /if \(dst\.Exists && dst\.Length == src\.Length && dst\.LastWriteTimeUtc == src\.LastWriteTimeUtc\)\s*\{\s*htmlUnchanged\+\+;\s*continue;\s*\}/.test(loop)
+     && /continue;\s*\}\s*File\.Copy\(file, destFile, true\);[^\n]*\n\s*htmlCopied\+\+;/.test(loop)
+     && /Logging\.info\("copyResources: \{0\} copied, \{1\} unchanged", htmlCopied, htmlUnchanged\);/.test(app912)
+     && app912.indexOf('Logging.info("copyResources: {0} copied') > app912.indexOf('if (!Logging.start(Config.spixiUserFolder, Config.logVerbosity))'),
+    '★ #912 ③: the Windows html copy is PER FILE — a file is skipped only when it EXISTS with the same length AND the same UTC last-write time (both, on FileInfo, not one), otherwise File.Copy(…, true) still runs and is counted; the copied/unchanged receipt is logged AFTER Logging.start (a log line above it is dropped — the #46 r2 lesson). Got loop=' + loop.length);
+
+  const ctor = mb912(app912, 'public App()');
+  const stages = [...ctor.matchAll(/startDiag\(([^)]*)\)/g)].map((m) => m[1]);
+  const expect = ['"logger up"', '"node constructed"', 'wallet_decrypted ? "wallet decrypted" : "wallet NOT decrypted"', '"root page set"'];
+  const hp912 = stripCode(rd912('Spixi/Pages/Home/HomePage.xaml.cs'));
+  const onl = mb912(hp912, 'private void onLoaded()');
+  ok(same(stages, expect)
+     && ctor.indexOf('startDiag("logger up")') > ctor.indexOf('Logging.start(')
+     && ctor.indexOf('startDiag("node constructed")') > ctor.indexOf('_ = new Node();')
+     && ctor.indexOf('startDiag("root page set")') > ctor.lastIndexOf('NavigationPage.SetHasNavigationBar(MainPage, false);')
+     && /private static readonly System\.Diagnostics\.Stopwatch startClock = System\.Diagnostics\.Stopwatch\.StartNew\(\);/.test(app912)
+     && /Logging\.info\("\[STARTDIAG\] \{0\} at \+\{1\} ms", stage, startClock\.ElapsedMilliseconds\);/.test(app912)
+     && /if \(!startDiagLogged\)\s*\{\s*startDiagLogged = true;\s*App\.startDiag\("home shell loaded"\);\s*\}/.test(onl)
+     && (hp912.match(/App\.startDiag\(/g) || []).length === 1,
+    '★ #912 ④: the cold start is MEASURED — four [STARTDIAG] milestones in the App() constructor in launch order (logger up AFTER Logging.start · node constructed AFTER new Node() · wallet decrypted/NOT · root page set AFTER the root is assigned), one Stopwatch started at the first managed instruction, and a fifth "home shell loaded" in HomePage.onLoaded behind a once-per-process latch (a theme reload lands there too and is not a start). Got stages=' + stages.join(' | '));
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

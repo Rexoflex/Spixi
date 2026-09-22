@@ -1,6 +1,6 @@
 # Spixi — Privacy Policy
 
-**Last updated: 08 September 2026** · Supersedes the version of 07 December 2025.
+**Last updated: 22 September 2026** · Supersedes the version of 07 December 2025.
 
 ---
 
@@ -112,9 +112,13 @@ This has a consequence we cannot engineer around: **on-chain records cannot be c
 
 The app contacts `resources.ixian.io` about **once an hour** to check for a newer version, and about **every thirty minutes** to retrieve an IXI price. These requests carry no personal data, but like any web request they reveal your **IP address** and the fact that a Spixi client is running.
 
+**Images and GIFs in chats.** When a message contains a link to an image or GIF hosted by Tenor, Giphy or `apps.spixi.io`, the app loads it when you open the conversation. Like any web request, this reveals your **IP address** to that host, and the time you opened the conversation. Links to any other host are never loaded automatically; they open only when you tap them and confirm. You can turn this off in Account → Privacy ("Load pictures and GIFs"); it then applies to every conversation you open afterwards.
+
 ### 4.8 Mini Apps
 
-Mini Apps are listed at `apps.spixi.io` and open in your device's browser. Once you leave the app, this Policy stops applying and the operator's own terms and privacy practices govern.
+**The catalog.** Mini Apps are listed at `apps.spixi.io`. The catalog opens in your device's browser; once you are there, this Policy stops applying and the website's own terms govern.
+
+**An installed Mini App.** When you install a Mini App it is downloaded to your device and runs inside Spixi, in a separate web view. It is third-party software: its author, not Ixian, decides what it does with anything you enter into it, and the author's own terms and privacy practices apply to that. A Mini App cannot read your wallet keys or your password. It can exchange data with the other participants of a session you start or join, and it can make network requests of its own, which reveal your IP address to whoever it contacts. Install Mini Apps only from authors you trust, and remove one from Apps → the app → Uninstall.
 
 ### 4.9 Logs
 
@@ -198,6 +202,7 @@ OneSignal and some infrastructure providers are located outside the EEA, princip
 | Website log and analytics data | per our analytics provider's configured retention |
 | Support correspondence | as long as needed to resolve your matter and for a reasonable period afterwards |
 | Your messages, contacts and keys | **on your device only, for as long as you keep them.** Deleting the app deletes them |
+| A message you delete | Deleting a message removes its content from your device and asks the other participant's device to remove it too, which happens once that device is online. A record that a message was exchanged, and any file that was transferred, remain on the device until you delete the conversation or the app |
 | On-chain records | **permanently, and beyond our control** |
 
 ## 12. Your rights

@@ -1,12 +1,12 @@
 # Walk AB — results (2026-09-22, Windows F5 + Android dev-coexist Debug build)
 
-**15 pass · 0 fail · 2 n/a** — pasted from the sheet by Damir.
+**15 pass · 0 fail · 2 n/a** — pasted from the sheet by Damir. **AB.5 confirmed P the same day (16 · 0 · 1).**
 
 | row | result | reads as |
 |---|---|---|
 | AB.1 ★ · AB.2 · AB.3 · AB.4 | P | #903 holds on the device: B opens MASKED after A was revealed, a pending A keeps its reveal while its status updates, 8–10 fast clicks give no mixed card, the explorer opens the transaction on screen |
 | AB.10 | P | the pushed (phone) path kept its soft reveal — `paneHosted` only skips the fade on the pane |
-| AB.5 ★ | **N** — not walked | the one starred row without a result. The setup (Wallet → Account → Contacts → Message → close → tap a tx) was not reached; it stays OPEN and is the first row of the next walk. The pin (#902 helper) is green; the device has not said so |
+| AB.5 ★ | **P** (confirmed 2026-09-22, after the paste: "it always defaults to the empty pane") | the #902 helper holds on the device: after Message-from-Contacts, a tx tap + back lands on the empty pane, never the chat |
 | AB.6 · AB.7 · AB.8 | P | Details from a payment card returns to the chat (`fromConversation`); the race tap leaves no chat on the wallet tab; no "rate the app" over the wallet |
 | AB.9 | P | **the draft SURVIVES the tab-sweep close inside the 400 ms debounce** — `webView.Source = null` does deliver `pagehide`. The #902 HYPOTHESIS is closed as "no draft loss"; no flush needed |
 | AB.11 ★ | P, no note | **7×11 stays** — the shipped tail is the pick; 6×10 stays on the sheet as the other dial |
@@ -20,4 +20,4 @@
 * Session AB's four C# files **compiled** (Windows F5 and the Android build — the first compile the code had).
 * #903's two-thread and reveal fixes, #902's tab sweep, #904's bubbles and #907's window are all walked green.
 * The draft-loss hypothesis is closed (AB.9). The tail is 7×11 (AB.11).
-* Open from this walk: **AB.5** (not walked). Nothing failed.
+* Nothing open from this walk. Nothing failed.

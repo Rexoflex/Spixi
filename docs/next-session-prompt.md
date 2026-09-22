@@ -1,4 +1,4 @@
-Next session — commit Session AB, read the startup numbers, walk AB.5, then the landscape round
+Next session — Session AB is committed; the startup lever is the WebView leg, walk AB.5, then the landscape round
 
 0 · Before anything else (#215)
 Read `docs/handoff-2026-09-22.md`, then DECISIONS #911–#912 (and #902–#910 if the loop or the delete
@@ -8,22 +8,29 @@ FULL suite runs in the container on a SNAPSHOT COPY (handoff §5), BEFORE and AF
 an acceptable last line. Reviews run on Opus — pin the model explicitly. A file edited directly on the
 VM must be staged back before the next tar lands (handoff §5).
 
-1 · Item 0 — Session AB is walked (15 P · 0 F · 2 N) and UNCOMMITTED
-If Damir has committed: verify with `git log -1`, then archive `docs/commit-message-session-ab.txt`
-and `docs/f5-checklist-session-ab.md`. If not: #912 (four small app-side fixes) landed AFTER the walk
-and needs ONE more F5 + Android build — checklist §1b. `App.xaml.cs` and `AppDelegate.cs` have not
-been compiled; a compile error there is item 0 and it is this session's bug.
+1 · Item 0 — Session AB is walked (15 P · 0 F · 2 N) and COMMITTED as `bef1be21`
+Verify with `git --no-optional-locks log -1`. Three doc files were edited AFTER that commit (#913:
+DECISIONS, the handoff, this prompt) — they ride the next commit. Archive
+`docs/commit-message-session-ab.txt` and `docs/f5-checklist-session-ab.md` (consumed). `App.xaml.cs`
+compiled on Windows + Android; `AppDelegate.cs` (#912 ②) still waits for an iOS build.
 Local smoke should read 4776 (container 4774 + the two M1 gates when Ixian-Core sits beside the repo).
 
-2 · Read the [STARTDIAG] numbers (#912 ④) before touching startup
-Damir was asked to paste five `[STARTDIAG] … at +N ms` lines from a cold launch (Debug, and the
-Release build the checklist names). Write them into a DECISIONS row FIRST. Then, and only then:
- · "node constructed" is the bulk → plan the node boot off the UI thread WITH BE: grep every page
-   that touches `Node.Instance` / `IxianHandler` before HomePage is up; the retry/lock/launch roots
-   assume a node. Do not build it blind (#294).
- · "home shell loaded" is the bulk → the WebView + the 540 KB home shell; ours.
- · Release is already ~1.5 s or under → it was the Debug build. Record that and STOP.
-Windows second launch must read `copyResources: 0 copied, 51 unchanged` (#912 ③).
+2 · Startup — the numbers are in (#913); the lever is the WebView leg, NOT the node
+Relaunch on Android Debug: logger up +609 · node +700 · wallet +958 · root page +1244 · home shell
+loaded +2455 ms. The node boot is 91 ms — do NOT plan the off-thread boot. The leg to work on is
+root page set → home shell loaded = 1.21 s (WebView cold spin-up + the 543 KB home shell to `load`),
+which a Release build will not shrink. Steps, in order, none blind (#294):
+ · Ask Damir for the dev-HUD `rdy` mark (10 taps on the chats logotype, restart): it is ms from
+   document start to the ready verb, so it splits the 1.21 s into WebView spin-up vs shell load.
+ · If `rdy` is the bulk: `signalReady` fires on window `load`, which waits for fonts and
+   illustrations (#177 — the ready verb's timing is a CONTRACT with C#'s first flush; read #177
+   before moving it). Measure DOMContentLoaded vs load on the built shell first (jsdom or Playwright
+   on `Spixi/Resources/Raw/html/index.html`), then decide between: ready at DOMContentLoaded + first
+   paint; deferring the 105 KB flag font past first paint; slimming the first document.
+ · If the WebView spin-up is the bulk: it is the platform's; the only lever is warming it earlier
+   (a WebView created while the node constructs) — check with BE, it touches lifecycle.
+ · Ask for the Release numbers too (checklist §1 command) so the projection (~1.8–2.0 s) is a fact.
+Windows second launch must read `copyResources: 0 copied, 51 unchanged` (#912 ③) — ask.
 
 3 · Walk AB.5 (the one starred row with no device result)
 Wallet tab → Account → Contacts → a contact → Message → close Contacts → tap a transaction → its back

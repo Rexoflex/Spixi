@@ -43,10 +43,33 @@ subject asserted before each shot (#811/#893), fix what the renders show, then t
  · AND-33 tx details: cut off, no scroll · AND-34 chat appearance: the preview squeezes
 ⚠ AND-36 (rotation leaves a row highlighted) is verify-first; #897/#902 may have moved it.
 
-5 · Then
- · The privacy policy is TRUE of the app now (#914) — the remaining step is counsel, not ours.
+5 · THE OFFICE DAY (iPhone) — Damir's plan: this session first, then the office. Prepare it here:
  · An iPhone build: it compiles `AppDelegate.excludeHistoryFromBackup` for the first time (#912 ②),
-   and there has been no iOS walk since ~2026-08-27.
+   and there has been no iOS walk since ~2026-08-27. Write the iOS walk sheet in THIS session
+   (rows: the three iOS rows #905 found built-and-never-walked — iOS-43/44/55 — plus a smoke of every
+   main screen, the keyboard family, scan, lock, and one call) so the office day starts from a sheet.
+ · ★ iOS PUSH NOTIFICATIONS ON PAR WITH ANDROID — BUILD THE EXTENSION CODE IN THIS SESSION (#915;
+   uncompiled until the Mac). READ FIRST: DECISIONS #915, `docs/ios-nse-spec.md` §2/§3, the office
+   findings `docs/ios-push-findings-2026-08-24-office.md` §9/§14, and Android's `SPushService.decidePush`
+   (#510) — the iOS extension mirrors it. The project EXISTS: `Spixi-PushService/` (bundle id
+   `com.ixilabs.spixi.Spixi-PushService`, `SupportedOSPlatformVersion 15.0`), its reference commented
+   out at `Spixi.csproj:373`. Do: (a) `NotificationService.cs` — sender name from the App-Group-shared
+   store, thread id for grouping, the mute gate; a MUTED push is rewritten to EMPTY content (no
+   title/body/sound) — iOS may show nothing or a blank row, the office test decides, do NOT invent a
+   cancel; (b) `com.apple.security.application-groups` = `group.com.ixilabs.spixi` in BOTH
+   Entitlements.plist (the app's one says why it was withheld — that reason ends now); (c) the app
+   writes what the extension reads (nick map + mute set) into the App Group container — C#, app side;
+   (d) un-comment the csproj reference; (e) pin: the two bundle ids parent/child, the group string
+   equal in both plists, `SupportedOSPlatformVersion` ≤ the app's MinimumOSVersion (the silent-drop
+   trap), the mute rewrite empties ALL THREE of title/body/sound. ⚠ Nothing here compiles iOS —
+   write it for the Mac, with an F5 row per item. Apple portal + OneSignal are Damir's, AFTER this
+   session, with guidance: (1) App Group `group.com.ixilabs.spixi` (the only new artifact) · (2)+(3)
+   enable App Groups on both App IDs · (4) regenerate both dev profiles (the extension's expired
+   2026-08-11), download. OneSignal: nothing (live since 08-24).
+ · Write the iOS walk sheet (see the first bullet) INCLUDING the mute test row: mute a chat, message
+   it from another device → "nothing" or "blank row"; a blank row → the server-side mute is the
+   BE cutover row (half a day BE + an afternoon app), not a blocker.
+ · The privacy policy is TRUE of the app now (#914) — the remaining step is counsel, not ours.
  · APP-1 restore test on a second phone (owed, not blocking).
  · DEFERRED past the testing build, in this order, none ours to start: CORE-10 (authorship check on
    delete, rule proposed) → CORE-9 (real deletion) → L8 (wallet password → SecureStorage) → the Windows

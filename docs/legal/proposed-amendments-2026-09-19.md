@@ -1,6 +1,6 @@
 # Privacy Policy — two proposed amendments (2026-09-19, DECISIONS #906)
 
-**Status: PROPOSED. Nothing in `privacy-policy.md` was changed.** The policy is legal copy and the
+**Status: RULED 2026-09-22 (Damir, interview, DECISIONS #914) and BAKED: §1 honest minimum (no "cannot read your conversations" sentence) · §2 added with the toggle pointer · §3 both sentences, as a Retention row. `privacy-policy.md` Last updated → 22 September 2026; legal-docs rebaked (19 420 chars). Next reader: counsel.** Original proposal kept below. The policy is legal copy and the
 wording is Damir's. #899 established that the document carries no open markers; the #46 review then
 checked whether the text is TRUE of the app that ships. Two places are not. Both matter more now than
 a week ago, because the next reader is counsel, who will take the document as final.

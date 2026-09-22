@@ -1,7 +1,7 @@
-Next session — Session AB is committed; the startup lever is the WebView leg, walk AB.5, then the landscape round
+Next session — Session AB is committed and fully walked; the privacy policy is baked; build the landscape round, then the startup WebView leg
 
 0 · Before anything else (#215)
-Read `docs/handoff-2026-09-22.md`, then DECISIONS #911–#912 (and #902–#910 if the loop or the delete
+Read `docs/handoff-2026-09-22.md`, then DECISIONS #911–#914 (and #902–#910 if the loop or the delete
 thread comes up). Check `device_bash`; use `git --no-optional-locks status`. Run the four `--check`
 gates on the real tree. CHECK DECISIONS before accepting any "owed" row from this prompt (#660). The
 FULL suite runs in the container on a SNAPSHOT COPY (handoff §5), BEFORE and AFTER — predicted is not
@@ -9,8 +9,10 @@ an acceptable last line. Reviews run on Opus — pin the model explicitly. A fil
 VM must be staged back before the next tar lands (handoff §5).
 
 1 · Item 0 — Session AB is walked (15 P · 0 F · 2 N) and COMMITTED as `bef1be21`
-Verify with `git --no-optional-locks log -1`. Three doc files were edited AFTER that commit (#913:
-DECISIONS, the handoff, this prompt) — they ride the next commit. Archive
+Verify with `git --no-optional-locks log -1`. After that commit: #913 (three docs) and #914 (the
+privacy policy baked → `docs/legal/privacy-policy.md`, `src/components/legal-docs.js`, the bundle and
+all 18 built shells, plus DECISIONS/handoff/prompt/walk-results) — Damir commits them as a docs+bake
+commit; if `git status` shows them still uncommitted, that commit is item 0. Archive
 `docs/commit-message-session-ab.txt` and `docs/f5-checklist-session-ab.md` (consumed). `App.xaml.cs`
 compiled on Windows + Android; `AppDelegate.cs` (#912 ②) still waits for an iOS build.
 Local smoke should read 4776 (container 4774 + the two M1 gates when Ixian-Core sits beside the repo).
@@ -32,9 +34,7 @@ which a Release build will not shrink. Steps, in order, none blind (#294):
  · Ask for the Release numbers too (checklist §1 command) so the projection (~1.8–2.0 s) is a fact.
 Windows second launch must read `copyResources: 0 copied, 51 unchanged` (#912 ③) — ask.
 
-3 · Walk AB.5 (the one starred row with no device result)
-Wallet tab → Account → Contacts → a contact → Message → close Contacts → tap a transaction → its back
-arrow → expected: EMPTY pane, not the chat (#902 helper; pin green, device unheard). Ten seconds.
+3 · AB.5 is DONE (P, 2026-09-22) — the AB walk is closed at 16 · 0 · 1. Nothing to walk.
 
 4 · Build — the landscape round (AND-31 / AND-32 / AND-33 / AND-34)
 Unchanged from the last prompt: RENDER FIRST on the built shells at a landscape phone viewport,
@@ -44,8 +44,7 @@ subject asserted before each shot (#811/#893), fix what the renders show, then t
 ⚠ AND-36 (rotation leaves a row highlighted) is verify-first; #897/#902 may have moved it.
 
 5 · Then
- · Damir's rulings on the THREE privacy wordings (`docs/legal/proposed-amendments-2026-09-19.md`) →
-   rebake → counsel.
+ · The privacy policy is TRUE of the app now (#914) — the remaining step is counsel, not ours.
  · An iPhone build: it compiles `AppDelegate.excludeHistoryFromBackup` for the first time (#912 ②),
    and there has been no iOS walk since ~2026-08-27.
  · APP-1 restore test on a second phone (owed, not blocking).

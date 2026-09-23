@@ -1,7 +1,7 @@
 Next session — Session AC is built (startup lever · landscape + the Android landscape rail · the iOS extension written · route B prepared) and awaits Damir's walk + commit; the office iPhone day is next; the endgame after it
 
 0 · Before anything else (#215)
-Read `docs/handoff-2026-09-22b.md`, then DECISIONS #916–#924. Check `device_bash`; use
+Read `docs/handoff-2026-09-22b.md`, then DECISIONS #916–#925. Check `device_bash`; use
 `git --no-optional-locks status`. Run the four `--check` gates on the real tree. CHECK DECISIONS before
 accepting any "owed" row from this prompt (#660). The FULL suite runs in the container on a SNAPSHOT
 COPY (handoff §5), BEFORE and AFTER — predicted is not an acceptable last line. Reviews run on Opus —
@@ -19,15 +19,15 @@ time, PLUS `HomePage.xaml.cs` (#923: a phone is one pane in every posture — ev
 Housekeeping Damir owes locally: `git rm --cached crash-logcat.txt mem-*.txt` + gitignore them;
 delete `_to_delete/`.
 
-2 · Startup — the phone half (#913 → #917)
-The container closed the WebView-leg question it could answer: DCL and `load` are 4 ms apart, the flag
-probe is off the boot path on a phone, and the measured `load` delta on the shipped shell is −13/−20 ms
-at ×4 (small; `docs/sheets/session-ac/perf-ab-load.txt`). What is still owed is the PHONE's split of the
-1.21 s (root page → home shell): the dev-HUD `rdy` mark, the Release STARTDIAG line, and Windows'
-`copyResources: 0 copied, 51 unchanged`. Ask for them; do not build on the container number (#294).
-If `rdy` says WebView creation is the bulk, the levers are #800's pre-warm shape (a home WebView created
-while the node constructs — lifecycle, check with BE) or nothing; if the shell load is the bulk, the
-next candidate is the 273 KB inline CSS + 264 KB main script (a split document), measured before built.
+2 · Startup — the numbers are in (#913 → #917 → #925)
+Release Android: logger 102 · node 216 · wallet 384 · root page 532 · home shell 1973 ms. Windows: 131 · 276 ·
+374 · 491 · 1960. The WebView leg (root page → home shell) is ~1.45 s on BOTH and does not shrink in Release;
+the shell's own boot is 380 ms (`rdy`) and a WARM WebView parses a same-size document in 81 ms (#800's chat
+spare, same log). So ~1 s is the first WebView of the process initialising, serialised after a 0.5 s native
+boot. The lever is parallelism — the #800 shape on the FIRST WebView (created at process start beside the
+node boot) — and it is a DESIGN step first: the lifecycle of a WebView that exists before the root page, on
+Android and WinUI, with BE. Not a lighter document, not a comment strip (#294: the parse is 80 ms warm).
+Measure the same five lines after.
 
 3 · THE OFFICE DAY (iPhone) — Damir, with `docs/walk-artifact-ios-office.html` (31 rows)
 Order: the four portal steps (#915) → the first compile (three app files + `Spixi-PushService/`) →

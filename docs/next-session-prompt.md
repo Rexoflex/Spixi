@@ -1,7 +1,7 @@
 Next session — Session AC is built (startup lever · landscape + the Android landscape rail · the iOS extension written · route B prepared) and awaits Damir's walk + commit; the office iPhone day is next; the endgame after it
 
 0 · Before anything else (#215)
-Read `docs/handoff-2026-09-22b.md`, then DECISIONS #916–#925. Check `device_bash`; use
+Read `docs/handoff-2026-09-22b.md`, then DECISIONS #916–#926. Check `device_bash`; use
 `git --no-optional-locks status`. Run the four `--check` gates on the real tree. CHECK DECISIONS before
 accepting any "owed" row from this prompt (#660). The FULL suite runs in the container on a SNAPSHOT
 COPY (handoff §5), BEFORE and AFTER — predicted is not an acceptable last line. Reviews run on Opus —
@@ -43,8 +43,8 @@ When the office results come back: findings → rows, the extension's first-comp
 AC's bugs, and iO.7's answer decides whether the server-side mute becomes a cutover row.
 
 4 · Owed loop
-None from Session AC — the r2 reviewer (Opus) over its fixes ran CLEAN (0 MAJOR, #921). The next #46
-loop is over whatever the office day produces (first-compile errors, iO.7's answer, findings).
+None from Session AC — #921 (over #917–#920) and #926 (over #922–#924, 3 MAJOR fixed, r2 holds) both
+ran on Opus. The next #46 loop is over whatever the office day produces (first-compile errors, iO.7's answer, findings).
 
 5 · Still open, unchanged (do not re-derive)
  · the Android memory kill (511 MB, Release: `dumpsys meminfo`, `SpixiContentPage.Dispose()`,

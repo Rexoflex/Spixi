@@ -777,7 +777,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-bottomnav--rail .c-bottomnav__item[aria-current] .c-bottomnav__icon--filled { transform: none; }
 
 /* ★ #922 (Session AC): THE LANDSCAPE RAIL — the same variant class, toggled at RUNTIME by
-   attachLandscapeRail (bottomnav.js) on an Android phone under the #918 landscape query, with
+   attachLandscapeRail (bottomnav.js) on an Android phone under the DEVICE flag (#922), with
    the root carrying data-landscape-rail for the shell's layout. The desktop rail is chrome
    with no system bars beside it; this one sits between three: the status bar above (the top
    inset), the gesture/nav bar below (--safe-bottom) and, on a rotation that puts the 3-button
@@ -789,6 +789,8 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   padding-block: calc(var(--spacing-8) + var(--safe-top, 0px)) calc(var(--spacing-8) + var(--safe-bottom, 0px));
   padding-inline: calc(var(--spacing-4) + var(--safe-left, 0px)) var(--spacing-4);
   justify-content: center;      /* four items float mid-column, not a top-heavy stack */
+  justify-content: safe center; /* #926 (r-review MINOR-3): with the keyboard up the column is ~200 px — plain center overflows BOTH ends */
+  overflow-y: auto;
 }
 
 </style>
@@ -5499,10 +5501,10 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
      the sticky tools keep sticking — against the view now. attachWalletScroll's hero collapse
      is dormant here by design (the hero scrolls away instead), which also sidesteps the
      recorded "the list must always be allowed to minimize the hero" — a landscape-only dial.
-     APPS keeps its portrait mechanics (inner scroller, search row in view) and only HIDES the
-     Explore banner: a sticky search row inside a header that scrolls away can stick no further
-     than that header's box, so "let the header ride away" would have taken the active search
-     filter with it (the BUG-3 invariant). The banner is a website link; it returns in portrait.
+     APPS keeps its portrait mechanics (inner scroller, search row in view) and turns the
+     Explore banner into ONE LINE beside the search (#924): a sticky search row inside a header
+     that scrolls away can stick no further than that header's box, so "let the header ride
+     away" would have taken the active search filter with it (the BUG-3 invariant).
      ★ #922 (r-review MAJOR-1): the rules key on the DEVICE flag `:root[data-landscape]`
      (landscape-runtime.js — screen.orientation + a phone-sized short side), NOT on a viewport
      media query. On Android landscape HomePage goes TWO-PANE at ≥ 700 DIP and this shell lives
@@ -5527,6 +5529,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   :root[data-landscape] #apps-header .c-apps-explore { flex: 0 0 auto; width: 46%; min-height: 0; padding-block: 0; align-items: center; }
   :root[data-landscape] #apps-header .c-apps-explore__text { padding-block-end: 0; }
   :root[data-landscape] #apps-header .c-apps-explore__title, :root[data-landscape] #apps-header .c-apps-explore__illo { display: none; }
+  :root[data-landscape] #apps-header .c-apps-explore__cta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }   /* #926 NIT-9: a 16:9 phone with a side bar leaves ~246 px — one line, never two */
   /* selected tx row (two-pane selectTx) — W4a (#348): the rule moved INTO
      txlist-item.css so it sits beside the chat row's identical rule and cannot
      drift again. This shell override is deliberately gone; do not re-add it. */
@@ -5597,6 +5600,8 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     background: var(--surface-screen);
     display: flex; flex-direction: column;
   }
+  /* #926 (r-review MAJOR-1): a full-viewport cover draws under a side-edge nav bar in landscape — pad both takeovers by the side insets (0 on a gesture phone) */
+  .contacts-takeover, .wallet-takeover { padding-inline: var(--safe-left, 0px) var(--safe-right, 0px); }
   .contacts-takeover > .c-contacts { flex: 1; min-height: 0; }
   /* Wallet Receive/Send takeover — full-viewport cover mounted OVER the wallet view
      (same z-30 boundary as the contacts takeover: above the bars, below any sheet/
@@ -5662,8 +5667,8 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   /* nav → far-left column, full height */
   :root[data-desktop] #chats-nav { order: -1; flex: none; display: flex; }
   /* ★ #922 (Session AC): the LANDSCAPE RAIL on an Android phone — the same three layout rules,
-     gated on the RUNTIME flag attachLandscapeRail sets under the #918 landscape query (never on
-     a viewport query alone: the JS refuses desktop and non-Android). The FAB stays (it is a
+     gated on the RUNTIME flag attachLandscapeRail sets from the DEVICE flag (#922; the JS
+     refuses desktop and non-Android). The FAB stays (it is a
      mobile affordance; only the desktop moved it into the topbar), the views pad their
      inline-END by --safe-right so a 3-button bar on the right edge never covers a row. */
   :root[data-landscape-rail] body { flex-direction: row; }
@@ -5672,7 +5677,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   /* the FAB is position:fixed — the view's inline-end padding cannot move it, and its bottom
      reserved the bar that is gone in rail mode (r-review MINOR-3) */
   :root[data-landscape-rail] .fab { right: calc(var(--spacing-16) + var(--safe-right, 0px)); bottom: calc(var(--spacing-16) + var(--safe-bottom, 0px)); }
-  :root[data-landscape-rail] .dev-hud { left: calc(var(--layout-rail-width) + var(--safe-left, 0px) + var(--spacing-8)); }
+  :root[data-landscape-rail] .dev-hud { left: calc(var(--layout-rail-width) + var(--safe-left, 0px) + var(--spacing-8)); bottom: calc(var(--spacing-8) + var(--safe-bottom, 0px)); }   /* #926 NIT-11: no bar to clear in rail mode */
   /* active view fills the space beside the rail */
   :root[data-desktop] .view { min-width: 0; }
   /* FAB is a MOBILE affordance — hidden on desktop (Damir F5 r2, TG practice);

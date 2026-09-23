@@ -589,7 +589,10 @@ namespace SPIXI
                 // BottomInsetDip is the nav-bar CONSTANT (keyboard-independent): with the keyboard
                 // up the root pads (ime − navBar) and this pads navBar, so the page ends at the
                 // keyboard in both states with no refresh (the #46 loop on this batch).
-                this.Padding = new Thickness(0, MainActivity.TopInsetDip, 0, MainActivity.BottomInsetDip);
+                // #926 (r-review MINOR-6): the SIDES too — a side-edge nav bar or a landscape cutout
+                // was never padded for third-party content. Still a chrome-pass value (a mini-app
+                // rotated in place keeps it until its next chrome pass — logged, AND-48).
+                this.Padding = new Thickness(MainActivity.LeftInsetDip, MainActivity.TopInsetDip, MainActivity.RightInsetDip, MainActivity.BottomInsetDip);
             }
             else
             {
@@ -612,6 +615,11 @@ namespace SPIXI
                 // OnAppearing); the LIVE keyboard edge is pushed by the insets listener itself.
                 Utils.sendUiCommand(this, "setInsetBottom",
                     MainActivity.BottomInsetDip.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture));
+                // ★ #926 (r-review MINOR-5): the sides ride the same chrome pass — a document built
+                // between two live pushes (a staging Account, a spare) otherwise keeps its carrier.
+                Utils.sendUiCommand(this, "setInsetSides",
+                    MainActivity.LeftInsetDip.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture),
+                    MainActivity.RightInsetDip.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture));
             }
             this.BackgroundColor = pageSurfaceColor;
 #endif

@@ -4988,7 +4988,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      composer pins to the bottom. Element ids/classes MATCH the demo so the
      component CSS applies unchanged. */
   html, body { margin: 0; height: 100%; background: var(--surface-screen); }
-  body { display: flex; flex-direction: column; overflow: hidden; }
+  body { display: flex; flex-direction: column; overflow: hidden; padding-inline: var(--safe-left, 0px) var(--safe-right, 0px); }   /* #926 (r-review MAJOR-1): a landscape 3-button bar sits on a side edge; the conversation is full-width since #923 */
   #chat-topbar { flex: none; }
   .c-banner { flex: none; }              /* connectivity strip pins under the topbar */
   .chat-request-pane { flex: none; }     /* incoming-request pane pins above the composer */
@@ -5096,7 +5096,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      desktop column centres the slot with max-width + auto margins (align-self cannot
      reach an absolute box). ⚠ NO stacking-context property on the slot or the canvas —
      the message-menu row lift rule (message-menu.css) still holds. */
-  #chat-composer { position: absolute; inset-inline: 0; inset-block-end: 0; }   /* the log's matching padding rides the #messages rule above */
+  #chat-composer { position: absolute; inset-inline: var(--safe-left, 0px) var(--safe-right, 0px); inset-block-end: 0; }   /* #926: the slot's containing block is the viewport, so it pads itself */   /* the log's matching padding rides the #messages rule above */
   /* ★ #711: the @ FAB sits ABOVE the floating composer — --composer-h is written on the
      canvas by a ResizeObserver over #chat-composer (the chevron reads it in
      scroll-latest.css). Falls back to 0 where nothing writes it. */

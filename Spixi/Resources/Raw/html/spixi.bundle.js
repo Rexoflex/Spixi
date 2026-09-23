@@ -2692,11 +2692,14 @@ function setTopbarSub(el, text) {
 /**
  * ★ #922 (Session AC) — PHONE-IN-LANDSCAPE, DECIDED FROM THE DEVICE, NOT THE VIEWPORT.
  *
- * The obvious query, `(orientation: landscape)`, reads the VIEWPORT — and on an Android phone
- * in landscape the home WebView is not the window: `HomePage.OnPageSizeChanged` goes two-pane
- * at ≥ 700 DIP, so the home shell lives in a ~400 × 412 column and its viewport reports
- * PORTRAIT while the phone is on its side (the #46 reviewer's MAJOR-1 on the first cut of
- * #922; #918's block had the same blind spot). `screen.orientation` reports the DEVICE, and
+ * The obvious query, `(orientation: landscape)`, reads the VIEWPORT — and the viewport is not
+ * the device: when this was written `HomePage.OnPageSizeChanged` went two-pane at ≥ 700 DIP on
+ * a landscape phone too, so the home shell lived in a ~400 × 412 column whose viewport reported
+ * PORTRAIT while the phone was on its side (the #46 reviewer's MAJOR-1 on the first cut of
+ * #922; #918's block had the same blind spot). #923 has since made a phone single-pane in every
+ * posture (HomePage.isPhoneDisplay, the SAME 600 dp short-side rule as PHONE_SHORT_SIDE_MAX
+ * below — a pin holds them equal), but the flag stays the DEVICE's: a keyboard, a split-screen
+ * window or a pane can still shrink the viewport without turning the phone. `screen.orientation` reports the DEVICE, and
  * `screen.width/height` the device too, so the flag below is true exactly when the phone is
  * held landscape — inside a pane, full-window, keyboard up or down (a keyboard shrinks the
  * viewport, never the screen: the portrait-plus-keyboard case that the height-only query got
@@ -2719,13 +2722,23 @@ function isPhoneLandscape(w = typeof window !== 'undefined' ? window : null) {
   if (Math.min(sw, sh) >= PHONE_SHORT_SIDE_MAX) return false;   // tablet / desktop-sized
   const o = w.screen.orientation && typeof w.screen.orientation.type === 'string' ? w.screen.orientation.type : '';
   if (o) return o.indexOf('landscape') === 0;
-  return sw > sh;   // no orientation API: the screen's own aspect
+  // #926 (r-review MINOR-2): WKWebView before 16.4 has no screen.orientation AND reports
+  // screen.width/height in portrait whatever the posture — the aspect fallback is always
+  // false there. The deprecated window.orientation (±90 = landscape) is what those versions do have.
+  if (typeof w.orientation === 'number') return Math.abs(w.orientation) === 90;
+  return sw > sh;   // no orientation API at all: the screen's own aspect
 }
+
+/* #926 (r-review NIT-10): home attaches the flag once for the #918 rules and once more inside
+ * attachLandscapeRail — a detach must not pull the flag from under the other attachment, so the
+ * attribute is owned by a per-root COUNT and removed only when the last attachment goes. */
+const flagRefs = new WeakMap();
 
 function attachPhoneLandscape({ root = typeof document !== 'undefined' ? document.documentElement : null, w = typeof window !== 'undefined' ? window : null, onChange } = {}) {
   if (!root || !w) return () => {};
   if (root.hasAttribute('data-desktop')) return () => {};
-  let last = null;
+  flagRefs.set(root, (flagRefs.get(root) || 0) + 1);
+  let last = null, detached = false;
   const apply = () => {
     const on = isPhoneLandscape(w);
     if (on) root.setAttribute(LANDSCAPE_FLAG, ''); else root.removeAttribute(LANDSCAPE_FLAG);
@@ -2737,9 +2750,13 @@ function attachPhoneLandscape({ root = typeof document !== 'undefined' ? documen
   if (hasSo) so.addEventListener('change', apply);
   w.addEventListener('resize', apply);   // the belt: a WebView without screen.orientation still rotates
   return () => {
+    if (detached) return;
+    detached = true;
     if (hasSo) so.removeEventListener('change', apply);
     w.removeEventListener('resize', apply);
-    root.removeAttribute(LANDSCAPE_FLAG);
+    const left = (flagRefs.get(root) || 1) - 1;
+    flagRefs.set(root, left);
+    if (left <= 0) root.removeAttribute(LANDSCAPE_FLAG);   // the last attachment clears the flag
   };
 }
 
@@ -2869,9 +2886,8 @@ function setNavBadge(nav, id, count, strings = getStrings()) {
  * LANDSCAPE RAIL. Material 3 puts a navigation RAIL on a medium-width window and a phone in
  * landscape is one (915 dp wide, 412 tall on the Motorola): the bottom bar took 56 px + the
  * nav-bar inset out of 412 — the axis #918 fought for — while a 72 px rail takes 8 % of a width
- * with room to spare (18 % of the ~400 px LIST COLUMN the home shell actually gets on Android
- * landscape, where HomePage goes two-pane at ≥ 700 DIP — the same rail | list | detail grammar
- * as the desktop). The HIG keeps the tab bar at the bottom on iPhone, so this is gated on the
+ * with room to spare (the phone is ONE pane in landscape since #923; the first cut lived in a
+ * ~400 px list column beside a detail pane, which is why the flag reads the device). The HIG keeps the tab bar at the bottom on iPhone, so this is gated on the
  * Android CONVENTION flag (`data-platform="android"`, a compile-time carrier) and never on a
  * capability; iOS keeps the bar. Desktop already has the rail through `data-desktop` (#236) and
  * is refused here so the two mechanisms never fight over one element.

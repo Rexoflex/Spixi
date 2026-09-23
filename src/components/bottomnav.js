@@ -123,9 +123,8 @@ export function setNavBadge(nav, id, count, strings = getStrings()) {
  * LANDSCAPE RAIL. Material 3 puts a navigation RAIL on a medium-width window and a phone in
  * landscape is one (915 dp wide, 412 tall on the Motorola): the bottom bar took 56 px + the
  * nav-bar inset out of 412 — the axis #918 fought for — while a 72 px rail takes 8 % of a width
- * with room to spare (18 % of the ~400 px LIST COLUMN the home shell actually gets on Android
- * landscape, where HomePage goes two-pane at ≥ 700 DIP — the same rail | list | detail grammar
- * as the desktop). The HIG keeps the tab bar at the bottom on iPhone, so this is gated on the
+ * with room to spare (the phone is ONE pane in landscape since #923; the first cut lived in a
+ * ~400 px list column beside a detail pane, which is why the flag reads the device). The HIG keeps the tab bar at the bottom on iPhone, so this is gated on the
  * Android CONVENTION flag (`data-platform="android"`, a compile-time carrier) and never on a
  * capability; iOS keeps the bar. Desktop already has the rail through `data-desktop` (#236) and
  * is refused here so the two mechanisms never fight over one element.

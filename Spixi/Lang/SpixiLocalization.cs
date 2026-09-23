@@ -216,6 +216,18 @@ namespace SPIXI.Lang
 
         public static void addCustomString(string key, string value)
         {
+            /* ★ #926 (r-review MAJOR-1 on #922–#924): an UNCHANGED value must not bump the
+             * dictionary version. The insets listener calls this four times per event (top,
+             * bottom, left, right) and fires on every keyboard open/close; each bump threw
+             * away Session K's localized-document cache, so the next generatePage — the
+             * spare chat warmed in the `chats-after-close` window #799/#864 measure — ran
+             * the 640 KB localizeHtml again on the UI thread. Same value → nothing changes,
+             * the version stays, the cache stays. */
+            if (customStrings.TryGetValue(key, out string? existing) && existing == value
+                && localizedStrings.TryGetValue(key, out string? live) && live == value)   // r2 NIT-2: both dictionaries already hold it
+            {
+                return;
+            }
             customStrings.AddOrReplace(key, value);
             localizedStrings.AddOrReplace(key, value);
             System.Threading.Interlocked.Increment(ref dictionaryVersion);   // ★ Session K: a carrier changed — see getDictionaryVersion · #46 A5: atomic

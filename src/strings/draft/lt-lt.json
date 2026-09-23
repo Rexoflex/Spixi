@@ -644,5 +644,10 @@
   "addContactEnterLabel": "Įvesti arba įklijuoti Spixi adresą",
   "addContactEnterHint": "Įveskite arba įklijuokite Spixi adresą (pavyzdžiui, 42Spox…M3rci98).",
   "creditFlags": "Šalių vėliavos",
-  "sharedGroupsTitle": "Bendros grupės"
+  "sharedGroupsTitle": "Bendros grupės",
+  "favorite": "Pridėti prie mėgstamų",
+  "unfavorite": "Pašalinti iš mėgstamų",
+  "appFetchHttp": "Programėlės nepavyko atsisiųsti iš šios nuorodos.",
+  "appFetchTimeout": "Nuoroda neatsakė. Patikrinkite ryšį ir bandykite dar kartą.",
+  "appFetchTooLarge": "Šis programėlės paketas per didelis."
 }

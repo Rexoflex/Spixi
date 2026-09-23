@@ -645,5 +645,10 @@
   "addContactEnterLabel": "Spixi アドレスを入力または貼り付け",
   "addContactEnterHint": "相手の Spixi アドレスを入力または貼り付けます（例：42Spox…M3rci98）。",
   "creditFlags": "国旗",
-  "sharedGroupsTitle": "共通のグループ"
+  "sharedGroupsTitle": "共通のグループ",
+  "favorite": "お気に入りに追加",
+  "unfavorite": "お気に入りから削除",
+  "appFetchHttp": "このリンクからアプリをダウンロードできませんでした。",
+  "appFetchTimeout": "リンクが応答しませんでした。接続を確認して、もう一度お試しください。",
+  "appFetchTooLarge": "このアプリのパッケージは大きすぎます。"
 }

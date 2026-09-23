@@ -1847,6 +1847,597 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
 .c-chat-info__shared-row:disabled { cursor: default; }
 
 </style>
+<style data-src="../styles/components/contacts-shell.css">
+/* c-contacts — FAB picker · add-contact · group setup (docs/contacts-spec.md).
+   Reuses the settings card/row grammar (settings-shell.css precedent) with
+   LOCAL class names — merge-safety: settings files are untouched (PC batch). */
+
+.c-contacts,
+.c-contacts-add,
+.c-contacts-group,
+.c-contacts-pending {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface-screen);
+}
+.c-contacts__body,
+.c-contacts-add__body,
+.c-contacts-group__body,
+.c-contacts-pending__body {
+  flex: 1;
+  min-height: 0;                    /* flex-column scroll rule (#136①) */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+  padding: var(--spacing-16) var(--spacing-16) var(--spacing-32);
+}
+/* scrolling flex column: children never shrink (#148③/#150① class) */
+.c-contacts__body > *,
+.c-contacts-add__body > *,
+.c-contacts-group__body > *,
+.c-contacts-pending__body > * { flex: none; }
+
+/* —— card group (settings §180 grammar) —— */
+.c-contacts__group {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-card);
+  border-radius: var(--radius-16);
+  padding: var(--spacing-4);
+  box-shadow: var(--elevation-1);
+  --surface-input: var(--surface-input-on-card);   /* #150③ */
+}
+
+/* —— picker: top action rows —— */
+.c-contacts__action {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: 52px;
+  padding: var(--spacing-4) var(--spacing-8);
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-12);
+  cursor: pointer;
+  text-align: start;
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) { .c-contacts__action:hover { background: var(--surface-card-hover); } }   /* ★ Session Z (#46 loop A-4): a card-hosted row hovers/presses on the CARD pair — the screen pair is the card's own colour */
+.c-contacts__action:active { background: var(--surface-card-pressed); }
+.c-contacts__action + .c-contacts__action {
+  border-top: var(--outline-width-1) solid var(--outline-on-card);   /* ★ Session Z (#46 loop A-7): -01 was 800-on-800 in dark, no line (#884 ⑤'s role) */
+}
+.c-contacts__action-label { min-width: 0; }
+
+/* iOS-26: People/Groups filter chips (exclusive, chats-header #218 grammar).
+   Scrolls horizontally on narrow screens rather than wrapping the row. */
+/* ★ #841 OPT-OUT — this row SCROLLS horizontally (see the rule below), so its chips must
+   not cap at 100% of the visible width the way a wrapping row's do. Same deliberate
+   opposite as .c-chats-header__filters and .c-apps-discover__cats.
+   ⚠ FOUND BY GATE 58's OWN DERIVATION, not by reading: the first cut of that gate only
+   checked that existing opt-outs were JUSTIFIED, which is one direction. This row is a
+   chip-holding scroller that had no opt-out at all, and nothing would have said so —
+   the gate now derives the chip containers from the components and requires the two sets
+   to agree, so a scroller that forgets and a wrapping row that borrows both fail. */
+.c-contacts__kinds > .c-chip { max-width: none; }
+
+.c-contacts__kinds {
+  display: flex;
+  gap: var(--spacing-8);
+  /* ★★ #600 (row B4.1, Damir 2026-08-27): THE CHIP ROW WAS DRAGGABLE VERTICALLY and
+     ended up cut off at the top or the bottom.
+     Mechanism, and it is a spec rule rather than a bug in this file: when one axis of
+     `overflow` is not `visible`, the other's `visible` COMPUTES TO `auto`. So
+     `overflow-x: auto` alone makes this a scroll container on BOTH axes. It only
+     matters because something overflows the block axis — `.c-chip::after`, the 44px
+     extended tap area (chip.css), which hangs 7-8px below a 28-30px chip.
+     The fix is the chats-header's, which never had this defect for exactly this
+     reason: bottom padding deeper than the overhang, so the pseudo lands INSIDE the
+     padding box and `scrollHeight === clientHeight`.
+     ⚠ Not `overflow-y: hidden` — that clips hit-testing too, and would silently take
+     back the 44px target the pseudo exists to provide. */
+  padding-block: 0 var(--spacing-12);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.c-contacts__kinds::-webkit-scrollbar { display: none; }
+.c-contacts__kinds > * { flex: none; }
+
+/* —— picker: contact rows —— */
+/* iOS-30 (Damir): the contacts list sits 16px inside the screen edge while the
+   chats list is full-bleed, so it read as "narrower" — an accident, not a
+   surface. Keeping the inset is the call; what was missing is the CARD that
+   justifies it. Same grammar as .c-contacts__group above (the actions card), so
+   the whole picker body is now one consistent card stack instead of a card
+   floating over loose rows. */
+.c-contacts__list {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-card);
+  border-radius: var(--radius-16);
+  padding: var(--spacing-4);
+  box-shadow: var(--elevation-1);
+}
+.c-contacts__list:empty { display: none; }   /* no empty card behind the empty state */
+.c-contacts__row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: 64px;                 /* sanctioned: 48 avatar + breathing room */
+  padding: var(--spacing-8);
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-12);
+  cursor: pointer;
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+  /* 5c-ii (2026-08-24): the press fill MOVED to the compositor ::before layer in
+     base.css — see chatlist-item.css. State rules set background-COLOR only. */
+}
+@media (hover: hover) and (pointer: fine) { .c-contacts__row:not(:disabled):hover { background-color: var(--surface-card-hover); } }   /* ★ Session Z (#882 (a)): this row sits ON a --surface-card, and --surface-interactive-hover IS the card's colour (light 50 on 50, dark 800 on 800) — no hover at all. The card pair is one visible step (#878). */
+/* 5c-i/ii: the :active fill mirror is REMOVED — see chatlist-item.css. */
+/* F7: dim only the avatar + name — the Pending badge and the reason sub-text
+   ("Can't be added to groups") must stay legible, they're the whole point of
+   a disabled row (explaining WHY it's blocked). */
+.c-contacts__row:disabled { cursor: default; }
+.c-contacts__row:disabled > .c-avatar,
+.c-contacts__row:disabled .c-contacts__name { opacity: var(--opacity-disabled); }
+.c-contacts__col {
+  flex: 1;
+  min-width: 0;                     /* nowrap children ellipsize (#140③ class) */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+.c-contacts__name {
+  min-width: 0;
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-contacts__sub {
+  min-width: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-contacts__badge { flex: none; }
+
+/* multi-select check circle (trailing) */
+.c-contacts__check {
+  flex: none;
+  width: 24px;                      /* sanctioned: select-circle dim */
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  /* ICON ink, not a hairline OUTLINE token (Damir F5: "the circles are too muted
+     while unselected, and almost invisible"). The empty circle is the AFFORDANCE
+     ("this row can be picked"), not a card edge — and --outline-neutral-02 sits at
+     1.14:1 on --surface-card in light and 1.05:1 in dark, i.e. invisible. Stepping
+     inside the outline ladder does not fix it (outline-03 = 1.42/1.20,
+     outline-04 = 1.63/1.33 — all below the 3:1 non-text floor), so the step is one
+     rung UP into the muted-icon ladder: --icon-neutral-03 = 4.30:1 light /
+     5.69:1 dark. Same class of fix as the chat selection circle
+     (chat-select.css), one rung softer because this circle sits on a CARD next to
+     text rather than on the patterned chat canvas — visibly present, still
+     clearly unselected against the filled --surface-action-default + tick. */
+  border: var(--outline-width-2) solid var(--icon-neutral-03);
+  color: transparent;
+  transition: background-color var(--duration-200) var(--easing-standard),
+              border-color var(--duration-200) var(--easing-standard),
+              color var(--duration-200) var(--easing-standard);
+}
+.c-contacts__row[aria-checked='true'] .c-contacts__check {
+  background: var(--surface-action-default);
+  border-color: var(--surface-action-default);
+  color: var(--icon-neutral-on-action);
+}
+
+/* —— empty states ——
+   Two DIFFERENT objects: `__empty` = a search/chip that matched nothing (one
+   quiet line, roster intact), `__zero` = the shared c-empty block for a roster
+   that is genuinely empty (illustration + copy + Add-contact CTA). */
+.c-contacts__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-12);
+  padding: var(--spacing-32) var(--spacing-16);
+  text-align: center;
+}
+.c-contacts__zero {
+  /* the takeover body is a scroll column; let the block settle off the actions
+     row rather than hug it (the picker has no hero to push against) */
+  padding-top: var(--spacing-16);
+}
+.c-contacts__empty-text {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+}
+
+/* #265: multi-select rule line — says WHY the topbar ✓ is inert below 2 members
+   (the picker's own footer CTA was retired; the confirm lives in the topbar). */
+.c-contacts__minhint {
+  margin: 0 0 var(--spacing-8);
+  padding-inline: var(--spacing-4);
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+
+/* —— footer CTA (outside the scroll body — always visible) —— */
+.c-contacts__footer {
+  flex: none;
+  padding: var(--spacing-12) var(--spacing-16);
+  /* #314: same latent bug as the encpass footer (Damir's CTA screenshot) — the
+     Add-contact CTA sat on the iOS home indicator (launch-shell.css:281 pattern) */
+  padding-bottom: calc(var(--spacing-12) + var(--safe-bottom, 0px));
+  border-top: var(--outline-width-1) solid var(--outline-neutral-01);
+  background: var(--surface-screen);
+}
+
+/* —— add-contact —— */
+.c-contacts-add__note {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  padding-inline: var(--spacing-4);
+}
+.c-contacts-add__group { padding: var(--spacing-12); gap: var(--spacing-8); }
+.c-contacts-add__field { display: flex; gap: var(--spacing-8); }
+.c-contacts-add__input {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: var(--spacing-12) var(--spacing-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: var(--surface-input);
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+}
+.c-contacts-add__input:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;              /* #51 text-field focus grammar */
+  border-color: var(--outline-action-default);
+}
+.c-contacts-add__input:disabled { opacity: var(--opacity-disabled); }
+.c-contacts-add__scan {
+  flex: none;
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: transparent;
+  color: var(--icon-action-default);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) { .c-contacts-add__scan:not(:disabled):hover { background: var(--surface-interactive-hover); } }
+.c-contacts-add__scan:not(:disabled):active { background: var(--surface-interactive-pressed); }
+.c-contacts-add__scan:disabled { opacity: var(--opacity-disabled); cursor: default; }
+.c-contacts-add__valid {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-contacts-add__valid-glyph { color: var(--icon-success); flex: none; }   /* #145③ pair */
+.c-contacts-add__error {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-error);
+}
+/* #435(b): the already-a-contact answer. Deliberately NEUTRAL, not an error tone —
+   an address you already know is a different outcome, not a failure. */
+.c-contacts-add__known {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-8);
+}
+.c-contacts-add__known-text {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+
+/* —— group setup —— */
+.c-contacts-group__hero {
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-16);
+}
+.c-contacts-group__avatar {
+  flex: none;
+  width: 80px;                      /* sanctioned: group-avatar dim (avatar-80, settings hero parity) */
+  height: 80px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  padding: 0;
+  border-radius: var(--radius-full);
+  background: var(--disc-primary-bg);
+  color: var(--disc-primary-ink);
+  cursor: pointer;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-contacts-group__avatar-img { width: 100%; height: 100%; object-fit: cover; }
+.c-contacts-group__avatar-hint {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-contacts-group__name {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--spacing-12) var(--spacing-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-12);
+  background: var(--surface-input);
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  text-align: center;
+}
+.c-contacts-group__name:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+  border-color: var(--outline-action-default);
+}
+.c-contacts-group__members { padding: var(--spacing-12); gap: var(--spacing-8); }
+.c-contacts-group__members-head {
+  margin: 0;
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  letter-spacing: var(--tracking-label-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
+.c-contacts-group__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+}
+
+/* —— pending contact profile (minimal + cancel, Damir pick) —— */
+.c-contacts-pending__hero {
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-24) var(--spacing-16);
+  text-align: center;
+}
+.c-contacts-pending__name {
+  margin: 0;
+  min-width: 0;                     /* #140③ class */
+  max-width: 100%;
+  font-size: var(--font-size-heading-xs);
+  line-height: var(--line-height-heading-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-contacts-pending__addr {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  word-break: break-all;            /* addresses have no natural wrap points */
+}
+.c-contacts-pending__note {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+
+/* blind-group row + switch (settings switch grammar, LOCAL copy — merge-safety.
+   ⚠ knob travel shares the #151 RTL caveat: translateX is not direction-aware;
+   fold into the whole-app RTL pass alongside .c-settings__switch-knob). */
+.c-contacts-group__blind {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: 52px;
+  padding: var(--spacing-8);
+}
+.c-contacts-group__blind-sub { white-space: normal; }   /* explainer wraps — never ellipsized */
+.c-contacts-group__switch {
+  flex: none;
+  position: relative;
+  width: 48px;
+  height: 28px;
+  border: var(--outline-width-1) solid var(--outline-neutral-01);
+  border-radius: var(--radius-full);
+  background: var(--switch-track-off);   /* #148① shared pair */
+  cursor: pointer;
+  transition: background-color var(--duration-200) var(--easing-standard),
+              border-color var(--duration-200) var(--easing-standard);
+  -webkit-tap-highlight-color: transparent;
+}
+.c-contacts-group__switch::after {       /* 44px target on a 28px control */
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+.c-contacts-group__switch[aria-checked='true'] {
+  background: var(--surface-action-default);
+  border-color: var(--surface-action-default);
+}
+.c-contacts-group__switch-knob {
+  position: absolute;
+  top: 2px;
+  inset-inline-start: 2px;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  background: var(--switch-knob);        /* #148① shared pair */
+  box-shadow: var(--elevation-1);
+  transition: transform var(--duration-200) var(--easing-standard);
+}
+.c-contacts-group__switch[aria-checked='true'] .c-contacts-group__switch-knob {
+  transform: translateX(20px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c-contacts__check,
+  .c-contacts-group__switch,
+  .c-contacts-group__switch-knob { transition: none; }
+}
+
+/* F19: shared keyboard-focus ring — these rows/controls otherwise rely on the
+   UA default outline while the inputs above get an explicit token outline.
+   Same outline grammar as .c-contacts-add__input:focus-visible. */
+.c-contacts__row:focus-visible,
+.c-contacts__action:focus-visible,
+.c-contacts-group__switch:focus-visible,
+.c-contacts-group__avatar:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+}
+
+/* ★★ #863 — THE ADD-CONTACT CHOOSER SHEET (Figma 11751:1401). Mounted by createSheet, so
+   the surface, handle, radius and elevation are the c-sheet's own (overlay.css); this
+   is only the content. Every value is the design's, read through the token it names:
+   surface-menu sheet · 12px inset around the hero copy · 128px art · 24 between hero
+   and options · 8 between the two items · item = surface-neutral-02 card, radius-12,
+   16 pad, 12 gap, 40px surface-neutral-04 medallion, label/md + body/sm copy. */
+.c-sheet--add-contact .c-sheet__title { text-align: center; }
+.c-contacts-addsheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-24);
+}
+.c-contacts-addsheet__hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-16);
+  padding: 0 var(--spacing-12);
+}
+.c-contacts-addsheet__art {
+  width: 128px;
+  height: 128px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.c-contacts-addsheet__art-img { width: 100%; height: 100%; object-fit: contain; }
+/* art missing/blocked → the empty-state glyph tile grammar, never a hole */
+.c-contacts-addsheet__art[data-placeholder] {
+  width: 96px; height: 96px;
+  border-radius: var(--radius-24);
+  background: var(--surface-neutral-02);
+  color: var(--text-neutral-02);
+}
+.c-contacts-addsheet__lead {
+  margin: 0;
+  text-align: center;
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  letter-spacing: var(--tracking-body-md);
+}
+.c-contacts-addsheet__options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+}
+.c-contacts-addsheet__item {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-12);
+  padding: var(--spacing-16);
+  border: 0;
+  border-radius: var(--radius-12);
+  /* ★ Session X (walk V 1.7 "dark styles are off" · 3.2 "we need hover on the cards"):
+     the card rode --surface-neutral-02 + a neutral-01 top hairline + the generic hover.
+     In dark that is neutral-800 on a neutral-700 sheet (RECESSED), a hairline the same
+     tone as the card (invisible) and a hover the same tone as the card (invisible); in
+     light the hover was neutral-50 on a neutral-50 card — no hover on any pointer. The
+     sheet-card pair (tokens.css) lifts one step from the sheet in BOTH modes; hover = one
+     more step + elevation-2; pressed = the top step, shadow dropped. No hairline: a card
+     in dark lifts by tone, it does not outline (the same rule the brief's dark-mode read
+     states). The medallion tints tonal on hover — the attach-sheet grammar. */
+  background: var(--surface-sheet-card);
+  box-shadow: var(--elevation-1);
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) ease, box-shadow var(--duration-100) ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .c-contacts-addsheet__item:hover { background: var(--surface-sheet-card-hover); box-shadow: var(--elevation-2); }
+  .c-contacts-addsheet__item:hover .c-contacts-addsheet__medallion { background: var(--surface-action-tonal-default); color: var(--icon-action-default); }
+}
+.c-contacts-addsheet__item:active { background: var(--surface-sheet-card-pressed); box-shadow: none; }
+.c-contacts-addsheet__item:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 1px;
+}
+.c-contacts-addsheet__medallion {
+  position: relative;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-12);
+  background: var(--surface-neutral-04);
+  color: var(--text-neutral-01);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* the scan medallion is a composite: the frame, with the small qrcode centred inside it */
+.c-contacts-addsheet__glyph--inset { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+.c-contacts-addsheet__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+.c-contacts-addsheet__label { color: var(--text-neutral-01); }
+.c-contacts-addsheet__hint { color: var(--text-neutral-02); }
+
+</style><!-- ★ C17 (Session AD): createPendingContact (.c-contacts-pending / __footer) for a request-sent contact -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 <style data-src="../styles/components/search-field.css">
 /* c-search-field — text-field/large specialization (docs/chip-search-spec.md,
@@ -3981,6 +4572,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    * ————————————————————————————————————————————————————————————————————————— */
   const {
     createChatInfo, setChatInfoPresence, formatIxiAmount,
+    createPendingContact,   // ★ C17 (Session AD): the minimal profile for a contact whose request is still out
     createNativeBridge, installExecuteUiCommand,
     attachEdgeBack,   // ★ L3 (#706): the iOS back signal + the one-level chain
     attachPressFeedback,
@@ -4086,6 +4678,10 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     // #248: entry-dependent context — 'chat' (header/row-menu → "Chat info"/"Group
     // info", no Message action) vs 'contact' (directory → "Contact details").
     context: 'contact',
+    // ★ C17 (Session AD): the relation C# pushes (contactRelationFor): contact · pending ·
+    // pending-in · self · none · '' (not yet / a room). 'pending' = OUR request is out.
+    relation: '',
+    undoCtrl: null,      // the pending profile's Cancel ctrl, resolved by undoRequestResult
     // #248 GROUP surface: ContactDetails now carries group info too (setGroupInfo +
     // clearMembers/addMember roster — same contract family as SingleChatPage CI1).
     isGroup: false,
@@ -4115,6 +4711,14 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    * ask). Compare against the shell's own localized words, then a multilingual
    * "received" stem, else default to outgoing. The row LABEL always shows the
    * verbatim C# string, so a wrong arrow never mislabels the row. */
+  /** ★ CI2: the wallet tab's status mapping (home.html walletStatus), one line each. */
+  function activityStatus(confirmed) {
+    const c = String(confirmed == null ? '' : confirmed);
+    if (c === 'true' || c === 'True') return 'confirmed';
+    if (c === 'unknown') return 'unknown';
+    if (c === 'error') return 'failed';
+    return 'pending';
+  }
   function txDirection(typeText) {
     const t = String(typeText || '').trim().toLowerCase();
     if (!t) return 'out';
@@ -4192,6 +4796,19 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   }
 
   function buildPanel() {
+    /* ★ C17 (Session AD): a contact whose request WE sent and they have not accepted gets
+       the minimal pending profile (#153's createPendingContact — built, never mounted in
+       production until now): identity + "Request sent" + ONE action, Cancel request →
+       `ixian:undorequest`, which ContactDetails answers with undoRequestResult and pops
+       on success. Every other action a full page would offer (Message, Call, Pay, the
+       nickname edit, the history rows) is one C# refuses for this relation. */
+    if (!state.isGroup && state.relation === 'pending') {
+      return createPendingContact({
+        name: state.name, address: state.address, avatar: state.avatarPath, strings,
+        onBack: () => bridge.send('ixian:back'),
+        onCancelRequest: (ctrl) => { state.undoCtrl = ctrl; bridge.send('ixian:undorequest'); },
+      });
+    }
     // #248 GROUP surface: kind 'group' renders name/avatar + notifications toggle +
     // the full member list (owner chip, admin kick/ban) + Leave — no money, no
     // Message, no nickname override (group rename = a BE ask, no verb exists).
@@ -4468,6 +5085,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       // ★ #591: the Call reveal MUST be in the signature or scheduleCommit is decorative
       // — the exact defect the NOTIF-2 note above records, one push later.
       callable: state.callable,
+      relation: state.relation,      // ★ C17 (#46 loop C-9): a relation pushed AFTER the first build must rebuild
       /* ★★ #46 loop (MAJOR-2): the two money CAPABILITIES decide whether Pay and Request
          are rendered at all, so they must be in the signature. C# pushes setCaps inside
          the onLoad burst, which normally precedes the first coalesced commit — but a
@@ -4690,6 +5308,19 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     setPaneMode(col) { document.body.dataset.pane = (col === '2') ? '2' : '1'; },
     // #248: entry-dependent surface — pushed before setAddress in onLoad.
     setContext(c) { state.context = (c === 'chat') ? 'chat' : 'contact'; scheduleCommit(); },
+    // ★ C17 (Session AD): the relation (rebuilds the panel when it changes the surface)
+    setRelation(r) { const v = String(r || ''); if (v !== state.relation) { state.relation = v; scheduleCommit(); } },
+    /* ★ C17: the Cancel-request verdict. "ok" → C# pops this page (nothing to do but
+       release the ctrl); anything else → the button un-latches with the failure line. */
+    undoRequestResult(address, status) {
+      const c = state.undoCtrl; state.undoCtrl = null;
+      if (String(status || '') === 'ok') {
+        forgetPeerStorage(String(address || ''), 'contact');   // the record is gone — so are its per-peer keys (the chat shell's rule)
+        if (c) { try { c.done(); } catch (e) {} }
+        return;
+      }
+      if (c) { try { c.fail(); } catch (e) {} }
+    },
     /* ★★ #591: the SAME verb the chat header uses (SingleChatPage:891). C# sends it only
        when the peer can actually be called — codecs present, 1:1, FriendState.Approved —
        so the action appears rather than being offered and refused. Idempotent: an exe
@@ -4810,16 +5441,21 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     // tx list is cleared + fully re-pushed every second. Buffer between clear and
     // the settle so a partial list never commits.
     clearRecentActivity() { state.txsBuf = []; scheduleCommit(); },
-    addPaymentActivity(txid, type, time, amount, confirmed) {
-      const dir = txDirection(type);
+    // ★ CI2 (Session AD): the 6th arg is the DIRECTION enum (`in` | `out`) and the 5th
+    // is the wallet tab's four-state status (`true` · `false` · `unknown` · `error`).
+    // An old exe sends neither the 6th nor the four states: the localized-label
+    // derivation and the true/other split stay as its fallback.
+    addPaymentActivity(txid, type, time, amount, confirmed, direction) {
+      const d = String(direction || '');
+      const newExe = d === 'in' || d === 'out';   // the 6th arg exists only since CI2
+      const dir = d === 'in' ? 'in' : (d === 'out' ? 'out' : txDirection(type));
       if (state.txsBuf === null) state.txsBuf = [];
       state.txsBuf.push({
         txid: txid || '',
         direction: dir,
-        // confirmed "true" → confirmed; anything else ("error" = ActivityStatus
-        // != Final) → pending (still confirming). C# collapses pending+error into
-        // one "error" string — a real status enum is a BE ask.
-        status: asBool(confirmed) ? 'confirmed' : 'pending',
+        // an OLD exe sends "error" for everything that is not Final (incl. Pending) — so
+        // without the 6th arg the split stays true/other → confirmed/pending (loop C-10)
+        status: newExe ? activityStatus(confirmed) : (String(confirmed) === 'true' || String(confirmed) === 'True' ? 'confirmed' : 'pending'),
         name: type || '',                                   // verbatim localized "Sent"/"Received" label
         amount: (dir === 'in' ? '+' : '-') + formatIxiAmount(amount),
         // iOS-55/#328 (W1 class): C# now pushes raw EPOCH SECONDS — all-digits

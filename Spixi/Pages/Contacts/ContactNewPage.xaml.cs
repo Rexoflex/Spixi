@@ -265,7 +265,9 @@ namespace SPIXI
                         routing.ToString(), known.nickname == null ? "" : known.nickname, address);
                     return;
                 }
-                Utils.sendUiCommand(page, "onValidAddress");
+                // ★ CO4 (Session AD): the string we were ASKED about, echoed back (the
+                // onKnownAddress grammar) so a slow answer for A cannot show ✓ on B.
+                Utils.sendUiCommand(page, "onValidAddress", address);
             }
             catch (Exception ex)
             {
@@ -292,18 +294,25 @@ namespace SPIXI
                 outcome = AddContactOutcome.Sent;
             }
 
+            /* ★ CO3 (Session AD): every refusal ANSWERS the shell — `onRequestResult("0",
+             * msg)`, the push HomePage's in-shell host has answered with since Session T —
+             * so the Send button un-latches on the verdict instead of a 6 s guess. The
+             * native alert stays: it is the page's own surface. */
             if (outcome == AddContactOutcome.InvalidAddress)
             {
+                Utils.sendUiCommand(this, "onRequestResult", "0", SpixiLocalization._SL("global-invalid-address-text"));
                 displaySpixiAlert(SpixiLocalization._SL("global-invalid-address-title"), SpixiLocalization._SL("global-invalid-address-text"), SpixiLocalization._SL("global-dialog-ok"));
                 return;
             }
             if (outcome == AddContactOutcome.SelfAddress)
             {
+                Utils.sendUiCommand(this, "onRequestResult", "0", SpixiLocalization._SL("contact-new-invalid-address-self-text"));
                 displaySpixiAlert(SpixiLocalization._SL("global-invalid-address-title"), SpixiLocalization._SL("contact-new-invalid-address-self-text"), SpixiLocalization._SL("global-dialog-ok"));
                 return;
             }
             if (outcome == AddContactOutcome.AlreadyContact)
             {
+                Utils.sendUiCommand(this, "onRequestResult", "0", SpixiLocalization._SL("contact-new-invalid-address-exists-text"));
                 displaySpixiAlert(SpixiLocalization._SL("global-invalid-address-title"), SpixiLocalization._SL("contact-new-invalid-address-exists-text"), SpixiLocalization._SL("global-dialog-ok"));
                 return;
             }

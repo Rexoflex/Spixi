@@ -181,6 +181,7 @@ export function mountContacts({
    * ContactNewPage's own core, so the two screens cannot disagree. */
   let addPanel = null;
   let addValidCtrl = null;     // the in-flight live-validation ctrl (checkAddress)
+  let addValidFor = '';        // ★ CO4: the address that ctrl asked about
   let addSendCtrl = null;      // the in-flight send ctrl (request)
 
   const closeAddContact = () => {
@@ -207,7 +208,7 @@ export function mountContacts({
       strings,
       onBack: closeAddContact,
       // live validity — HomePage answers with onValidAddress / onKnownAddress.
-      onCheckAddress: (addr, ctrl) => { addValidCtrl = ctrl; bridge.send('ixian:checkAddress:' + addr); },
+      onCheckAddress: (addr, ctrl) => { addValidCtrl = ctrl; addValidFor = addr; bridge.send('ixian:checkAddress:' + addr); },
       /* ★ NO 6-SECOND GUESS. The standalone page has to arm one, because a rejection
        * there is a native alert with no push back and the button would latch in loading
        * for ever. HomePage answers this host with `onRequestResult`, so the ctrl is
@@ -294,8 +295,14 @@ export function mountContacts({
     /* ★ Session T — the add-contact screen's four C# answers, forwarded by the host
      * shell. Each is a no-op when the panel is not open, so a late push after the user
      * backed out cannot throw or resurrect anything. */
-    addValidAddress() {
-      if (addValidCtrl) { try { addValidCtrl.done(); } catch (e) {} addValidCtrl = null; }
+    /* ★ CO4 (Session AD): C# echoes the address it validated. Resolve ONLY the ctrl
+       that asked about it — a slow answer for A must not show ✓ on B. An old exe
+       sends no argument; that form resolves the current ctrl as before. */
+    addValidAddress(checked) {
+      if (!addValidCtrl) return;
+      if (checked != null && String(checked) !== '' && String(checked) !== addValidFor) return;
+      try { addValidCtrl.done(); } catch (e) {}
+      addValidCtrl = null;
     },
     addKnownAddress(kind, address, nick, checked) {
       if (!addPanel) return;

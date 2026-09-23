@@ -588,14 +588,37 @@ namespace SPIXI
             }
         }
 
+        /* ★ C16 re-read (Session AD): the REMOTE delete IS persisted — the app's
+         * StreamProcessor.receiveData calls base.receiveData FIRST, and Core's
+         * handleMsgDelete → Friend.deleteMessage tombstones the row and recomputes
+         * metaData.lastMessage before this method ever runs (a miss there returns null
+         * and this path is never reached). What this method does is the UI half: drop
+         * the bubble in the open conversation and re-push the chats row from Core's
+         * recomputed lastMessage. The LOCAL delete (SingleChatPage's deleteMessage
+         * context action) did the same store mutation but only the bubble half — the
+         * chats row kept the deleted text until the next full flush, which is the gap
+         * the shells' `spixi.exdel` hint used to paper over. refreshChatRow is that
+         * missing half, shared by both paths. */
         public static void deleteMessage(Friend friend, int channel, byte[] msgId)
         {
             Utils.getChatPage(friend)?.deleteMessage(msgId, channel);
+            refreshChatRow(friend);
+        }
+
+        /// <summary>
+        /// Re-push one chats-list row from Core's CURRENT metaData.lastMessage — a lone
+        /// addChat upsert when HomePage is the live root (an overlay-hosted conversation
+        /// keeps it there), plus the refresh flag as the belt (the next 1 Hz tick runs a
+        /// full flush if the lone push found no HomePage).
+        /// </summary>
+        public static void refreshChatRow(Friend friend)
+        {
             Page? page = Application.Current?.MainPage?.Navigation?.NavigationStack?.LastOrDefault();
             if (page != null && page is HomePage)
             {
                 ((HomePage)page).updateChat(friend);
             }
+            shouldRefreshContacts = true;
         }
 
         public static void updateReactions(Friend friend, int channel, byte[] msgId)

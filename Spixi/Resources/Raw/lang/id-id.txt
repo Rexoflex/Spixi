@@ -705,3 +705,4 @@ notification-payment-request = Permintaan pembayaran
 notification-app-invite = Undangan aplikasi
 notification-file = File diterima
 notification-contact-request = Permintaan kontak
+chat-new-norecipient-text = Pilih penerima untuk memulai obrolan.

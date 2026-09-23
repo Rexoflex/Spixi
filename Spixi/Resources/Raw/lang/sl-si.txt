@@ -708,3 +708,4 @@ notification-payment-request = Zahteva za plačilo
 notification-app-invite = Povabilo v aplikacijo
 notification-file = Datoteka prejeta
 notification-contact-request = Zahteva za stik
+chat-new-norecipient-text = Izberite prejemnika, da začnete klepet.

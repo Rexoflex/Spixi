@@ -253,6 +253,33 @@ namespace SPIXI
             }
         }
 
+        /* ★ CH3 (Session AD): is a FULL path a file INSIDE the Downloads root? The
+         * containment leg of resolveDownloadPath, split out so the media purge (SContacts.
+         * collectReceivedMedia) can ask it about a path C# WROTE at receive time
+         * (FriendMessage.filePath, set at TransferManager.completeFileTransfer) — that path is
+         * not WebView-supplied, but the purge deletes files, so it still refuses anything that
+         * canonicalises outside the root (a corrupt or hand-edited history file must not turn
+         * "delete my media" into "delete this path"). Fail-closed: null/empty, a relative path,
+         * an escape and an exception all read false. */
+        public static bool isInsideDownloadsRoot(string full_path)
+        {
+            if (string.IsNullOrEmpty(full_path)) return false;
+            // a RELATIVE path would resolve against the process's current directory, which can
+            // itself sit inside the root — refuse it before GetFullPath gets to guess (#772)
+            if (!Path.IsPathRooted(full_path)) return false;
+            try
+            {
+                string root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(downloadsPath));
+                string full = Path.GetFullPath(full_path);
+                return full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+                    && full.Length > root.Length + 1;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         public static void start()
         {
             if (running)

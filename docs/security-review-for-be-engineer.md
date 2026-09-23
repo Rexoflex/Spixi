@@ -720,3 +720,42 @@ a one-file pull request is the attack, not a nuget.org push.
 
 **The fix is the same either way, and it is three lines**: `<clear/>`, a
 `<packageSourceMapping>` that scopes the local feed to `RocksDB` alone, and the recorded sha512.
+
+## Session AD addenda (2026-09-23, #928–#930) — one fixed, three inherited notes
+
+### ✅ W11 — `requestFundsResponse` row lookup was PEER-WRITABLE (INTRODUCED in-session, FIXED in-loop)
+
+`Network/StreamProcessor.cs`, the `requestFundsResponse` case. Session AD moved the store
+mutation and its write OUT of the chat-page gate (the response was dropped whenever no
+conversation was open — W11). The first cut found the row with
+`Find(x => x.id.SequenceEqual(msg_id))`: any message with that id, so a peer's response could
+rewrite a row it never requested, in the store, on disk. The loop's round-1 reviewer found it;
+the row is now found by the payer side's own rule (id · `requestFunds` · `localSender` ·
+unanswered — `SPayments.cs:146` is the writer of that shape), the txid is parsed
+(`Transaction.txIdLegacyToV8`) BEFORE it is stored and a miss BREAKS before any push. The
+predicate is pinned as a whole, canonical string. Nothing is signed or broadcast on this path:
+the store records the txid the PAYER sent.
+
+### ⚠ NIT (inherited) — the `mutechat` warn line prints the URL token
+
+`Pages/Home/HomePage.xaml.cs`, the `ixian:mutechat:` branch: a malformed state token is
+echoed into `ixian.log`. A wire value can forge log lines (O-25). The Session AD twin
+(`ixian:favchat:`) prints the TYPE only; the mute line is unchanged and is yours.
+
+### ⚠ NIT (Ixian-Core) — `FriendList.removeFriend` logs the full wallet address when it refuses
+
+Core `Streaming/Friends/FriendList.cs:433`: `removeFriend` refuses a friend who is a participant
+in a group and logs `friend.walletAddress` in clear, into the shareable log. Reachable from every
+app-side removal path, Session AD's `ixian:undorequest` on ContactDetails included (the guard
+there is ours; the line is Core's).
+
+### ⚠ CH3 (INTRODUCED, accepted with guards) — a new filesystem DELETE path
+
+`Utils/SContacts.cs` `purgeFiles` + `Data/TransferManager.cs` `isInsideDownloadsRoot`. A
+"delete media" checkbox on the three delete verbs now deletes RECEIVED, completed files whose
+recorded path (`FriendMessage.filePath`, written by C# at `completeFileTransfer`) canonicalises
+inside the Downloads root; every path is re-checked before `File.Delete`, another contact's
+history protects a shared path, the walk runs off the UI thread, and a recorded path with any
+`.`/`..` segment never re-roots (the leaf is the peer's name while **S16** — `transfer.fileName`
+uncleaned at receive time — is open; **S16 is still yours**). One residual, recorded:
+an orphaned file (owning history already gone) is not protected; deletion stays inside the root.

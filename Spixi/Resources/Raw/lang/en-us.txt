@@ -689,3 +689,4 @@ notification-payment-request = Payment request
 notification-app-invite = App invite
 notification-file = File received
 notification-contact-request = Contact request
+chat-new-norecipient-text = Please select a recipient to start the chat.

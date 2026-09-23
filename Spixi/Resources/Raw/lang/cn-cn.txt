@@ -705,3 +705,4 @@ notification-payment-request = 付款请求
 notification-app-invite = 应用邀请
 notification-file = 收到文件
 notification-contact-request = 联系人请求
+chat-new-norecipient-text = 请选择一个收件人以开始聊天。

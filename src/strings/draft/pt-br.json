@@ -722,5 +722,10 @@
   "addContactScanHint": "O código QR precisa estar visível em outro dispositivo para você escaneá-lo com este.",
   "addContactEnterLabel": "Digitar ou colar um endereço Spixi",
   "addContactEnterHint": "Digite ou cole o endereço Spixi (por exemplo 42Spox…M3rci98).",
-  "creditFlags": "Bandeiras de países"
+  "creditFlags": "Bandeiras de países",
+  "favorite": "Adicionar aos favoritos",
+  "unfavorite": "Remover dos favoritos",
+  "appFetchHttp": "Não foi possível baixar o app por esse link.",
+  "appFetchTimeout": "O link não respondeu. Verifique sua conexão e tente novamente.",
+  "appFetchTooLarge": "Esse pacote de app é grande demais."
 }

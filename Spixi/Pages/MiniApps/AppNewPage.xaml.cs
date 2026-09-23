@@ -197,13 +197,20 @@ namespace SPIXI
 
         public static async System.Threading.Tasks.Task<MiniApp?> fetchAppCore(string url)
         {
-            MiniApp? app = await Node.MiniAppManager.fetch(url);
+            var (app, _) = await fetchAppCoreWithReason(url);
+            return app;
+        }
+
+        /// <summary>★ A4 (Session AD): the fetch plus WHY it failed, for `showUrlError(reason)`.</summary>
+        public static async System.Threading.Tasks.Task<(MiniApp? app, string reason)> fetchAppCoreWithReason(string url)
+        {
+            var (app, failure) = await Node.MiniAppManager.fetchWithReason(url);
             if (app == null)
             {
-                return null;
+                return (null, MiniAppManager.fetchFailureName(failure));
             }
             app.url = url;
-            return app;
+            return (app, "");
         }
 
         /* ★★ Session T walk A12 — CANCEL IS NOT A FAILURE, and it used to be.
@@ -276,10 +283,10 @@ namespace SPIXI
 
         private async void onFetch(string url)
         {
-            MiniApp? app = await fetchAppCore(url);
+            var (app, reason) = await fetchAppCoreWithReason(url);
             if (app == null)
             {
-                Utils.sendUiCommand(this, "showUrlError");
+                Utils.sendUiCommand(this, "showUrlError", reason);   // ★ A4: the reason, appended
                 return;
             }
 

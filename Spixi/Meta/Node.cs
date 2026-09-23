@@ -1190,7 +1190,7 @@ namespace SPIXI.Meta
                                 // DECISIONS row, not silently inherited.
                                 if (SNotificationPrefs.shouldNotify(friend))
                                 {
-                                    int unreadCount = FriendList.getUnreadMessageCount();
+                                    int unreadCount = SChatPrefs.unreadTotalForBadge();   // CH4: the OS badge count, mute-aware like the in-app one
                                     // AND-15 (#334): per-type copy — payments, app invites and
                                     // INCOMING CALLS all read "New Message" before (calls were
                                     // lost entirely). kind routes calls to the Android

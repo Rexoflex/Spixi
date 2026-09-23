@@ -705,3 +705,4 @@ notification-payment-request = 支払いリクエスト
 notification-app-invite = アプリ招待
 notification-file = ファイルを受信しました
 notification-contact-request = 連絡先リクエスト
+chat-new-norecipient-text = チャットを開始するには受信者を選択してください。

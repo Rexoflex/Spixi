@@ -652,5 +652,10 @@
   "addContactEnterLabel": "Inserisci o incolla un indirizzo Spixi",
   "addContactEnterHint": "Digita o incolla il suo indirizzo Spixi (ad esempio 42Spox…M3rci98).",
   "creditFlags": "Bandiere dei paesi",
-  "sharedGroupsTitle": "Gruppi in comune"
+  "sharedGroupsTitle": "Gruppi in comune",
+  "favorite": "Aggiungi ai preferiti",
+  "unfavorite": "Rimuovi dai preferiti",
+  "appFetchHttp": "Impossibile scaricare l'app da quel link.",
+  "appFetchTimeout": "Il link non ha risposto. Controlla la connessione e riprova.",
+  "appFetchTooLarge": "Il pacchetto dell'app è troppo grande."
 }

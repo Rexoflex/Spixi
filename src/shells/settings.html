@@ -194,7 +194,7 @@
   const {
     createSettingsHub, createSettingsDanger,
     createSettingsAbout, createSettingsHowTo,
-    createSettingsContributors, createSettingsBackup,
+    createSettingsContributors, createSettingsBackup, setBackupScreenStatus,
     createSettingsDownloads, setDownloads,
     createChatAppearance, setSettingsSaveVisible,
     createNotificationsScreen,       // ★ NOTIF-2: built since #147, dark until now
@@ -629,8 +629,8 @@
     }, EXIT_HEAL_MS);
   }
   /* ★ Session I — L14 COVER HANDSHAKE (#731's measured 56/88 ms way-in flash).
-     `reason === 'handoff'` is the Account → Contacts route: the shell has just written
-     the spixi.landtab hand-off and home.html is about to mount the directory cover.
+     `reason === 'handoff'` is the Account → Contacts route: the shell has just sent
+     `ixian:landtab:contacts` (S11) and home.html is about to mount the directory cover.
      [PAINTDIAG] measured that C# tore this pane down 20–50 ms into a 104–109 ms cover
      build, so the chat list showed through the gap. This route now leaves with
      `ixian:handoff` instead of `ixian:back`: SettingsPage runs the identical cleanup
@@ -708,86 +708,31 @@
    *   peer pane (data-pane): hub = the LIST-column slot, sublevel = the DETAIL
    *     region ('hub' = detail empty; a sublevel's back EMPTIES the detail).
    * Screens are stateless builders. */
-  /* #274: ixian:language makes C# RELOAD settings.html (SettingsPage:289 loadPage)
-   * — in the pane the fresh boot landed on hub + EMPTY detail (Damir F5: a
-   * language pick "resets the panel to the Account empty state"). Persist the
-   * open picker across that ONE reload — same localStorage-handshake class as
-   * #238 spixi.landtab (15s staleness guard, consumed on read). Only 'language'
-   * is ever stashed/restored: it is the only verb left that reloads the page
-   * (theme applies live since the flicker round, SettingsPage:318-327).
-   * SECURITY (#254 premise): the stash is a VIEW NAME only — no user data. */
-  const VIEW_RESUME_KEY = 'spixi.settings.view';
-  function stashViewForReload() {
-    try { localStorage.setItem(VIEW_RESUME_KEY, JSON.stringify({ v: currentView, t: Date.now() })); } catch (e) {}
-  }
-  function takeResumeView() {
-    try {
-      const raw = localStorage.getItem(VIEW_RESUME_KEY);
-      if (!raw) return null;
-      localStorage.removeItem(VIEW_RESUME_KEY);          // one-shot, always consumed
-      const o = JSON.parse(raw);
-      return (o && o.v === 'language' && o.t && Date.now() - o.t < 15000) ? o.v : null;
-    } catch (e) { return null; }
-  }
-  /* iOS-19 (#283) — backup status via a LOCAL stamp. There is still no C#
-   * backup-status push (S2), so the hub's Backup row showed "Action needed"
-   * FOREVER, even right after a successful backup (Damir: "remove it or fix
-   * it"). Interim zero-C# fix: stamp localStorage when a backup share is
-   * fired — from the inline pane sublevel here AND from the standalone
-   * settings_backup.html shell (same file:// localStorage origin). Honest
-   * caveat (accepted): the stamp marks the share-sheet LAUNCH — a user who
-   * cancels the share sheet still clears the nudge until S2 lands with the
-   * real signal. The stamp carries a timestamp only (no addresses/content —
-   * #254 storage-partition rule). dirtyCount stays 0 (unknowable FE-side). */
-  const BACKUP_STAMP_KEY = 'spixi.backup.last';
-  function stampBackup() {
-    try {
-      const v = String(Date.now());
-      localStorage.setItem(BACKUP_STAMP_KEY, v);
-      seenBackupStamp = v;                   // our own write — don't re-fire on focus
-    } catch (e) { /* private mode */ }
-    scheduleRebuild();                       // hub Backup row re-derives its status
-  }
-  // Mobile path: the stamp is written by the standalone settings_backup.html shell
-  // (BackupPage takeover, its own WebView) — the storage event + a focus fallback
-  // (the #238 landtab grammar; WKWebView doesn't reliably fire cross-WebView
-  // storage events) refresh this hub when it comes back into view. Guarded on an
-  // ACTUAL stamp change so a mere focus never rebuilds under a mid-edit nickname.
-  let seenBackupStamp = (() => { try { return localStorage.getItem(BACKUP_STAMP_KEY); } catch (e) { return null; } })();
-  function refreshBackupStampIfChanged() {
-    let cur = null;
-    try { cur = localStorage.getItem(BACKUP_STAMP_KEY); } catch (e) { return; }
-    if (cur !== seenBackupStamp) { seenBackupStamp = cur; scheduleRebuild(); }
-  }
-  window.addEventListener('storage', (e) => { if (e.key === BACKUP_STAMP_KEY) refreshBackupStampIfChanged(); });
-  window.addEventListener('focus', refreshBackupStampIfChanged);
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshBackupStampIfChanged(); });
-  /* #314 (Damir F5: the nudge badge SURVIVED a backup on iOS) — the three
-   * listeners above all miss on iOS: WKWebView fires no cross-WebView storage
-   * event, and popping the BackupPage overlay changes neither visibilityState
-   * nor window focus for the WebView that sat beneath it (it was "visible" the
-   * whole time). C-9 (#311) proved the stamp itself crosses ll_* files fine —
-   * the gap was purely REFRESH. A visibility-guarded 2s poll (home.html tick
-   * cadence precedent) closes it deterministically on every platform; the
-   * change-guard in refreshBackupStampIfChanged keeps it from ever rebuilding
-   * under a mid-edit nickname. Also carries the B2 warm-Account world, where
-   * this page LIVES across closes and re-presents (no reboot re-read). */
-  // #46 r1 MINOR-4: `!exiting` pauses the poll while the page is PARKED (#315 —
-  // document.hidden stays false for an attached opacity-0 WKWebView, so the
-  // visibility guard alone never trips); onRepresented resets the latch → resumes.
-  setInterval(() => { if (!document.hidden && !exiting) refreshBackupStampIfChanged(); }, 2000);
+  /* ★ #274's stash RETIRED (Session AD). `spixi.settings.view` carried the open
+   * Language picker across the reload C# used to do on a language pick. Since #334
+   * the pick surface re-localizes IN PLACE (`setLocale` push, below) and NO path
+   * reloads this document on a pick — `reloadAllPages` has no live caller, the
+   * theme paths push `setTheme` (N71). A one-shot stash with no reload to survive is
+   * dead code, so the key, its writer, its reader and its three removal sites are
+   * gone; `langBuilt` STAYS — it is the rebuild guard for the N65 corrective
+   * `setLanguage` echo (a refused pick snaps the picker back), not a reload artefact. */
+  /* ★ S2 (Session AD): the Backup row's status is a C# PUSH — `setLastBackup(<unix
+   * seconds>)`, sent by SettingsPage at onLoad, after each forwarded backup verb, and
+   * on a warm re-present (BackupPage records the stamp when a backup file is handed to
+   * the OS sheet). The iOS-19 interim it replaces — a `spixi.backup.last` localStorage
+   * stamp written by two shells, synced by a storage event, a focus fallback, a
+   * visibility fallback and a 2 s poll — is gone with all of its readers; the home
+   * shell's 30-day nudge gate moved into HomePage.displayBackupReminder. */
+  let backupLastSecs = 0;
   function backupStatus() {
-    try {
-      const t = Number(localStorage.getItem(BACKUP_STAMP_KEY));
-      if (t > 0) {
-        return { last: new Date(t).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) };
-      }
-    } catch (e) { /* fall through */ }
+    const t = Number(backupLastSecs) || 0;
+    if (t > 0) {
+      return { last: new Date(t * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) };
+    }
     return {};
   }
   let hubEl = null, currentView = 'hub';
   let hubScrollTop = 0;   // #336 (Damir F5 #15): preserve hub scroll across takeover sublevels
-  currentView = takeResumeView() || 'hub';
 
   const masterWrap = document.createElement('div');
   masterWrap.className = 'sd-master';
@@ -1007,7 +952,10 @@
         changePassword: bridge.cap('encpass'),
         globalNotifications: bridge.cap('globalNotifications'),
         paymentAuth: bridge.cap('paymentAuth'),   // PA1 (#525): SettingsPage pushes the cap + the verb
+        dev: bridge.cap('dev'),                   // ★ S9 (Session AD): SettingsPage grants it only while devMode is on
       },
+      // ★ S9: the Developer row → DevPage (SettingsPage `ixian:dev`, Equals-matched)
+      onDev: () => bridge.send('ixian:dev'),
       paymentAuth: state.paymentAuth,
       // PA1: ON = optimistic instant-persist + echo. OFF = WEAKENING — C# round-trips
       // a LockPage auth (loop MAJOR fix) and the echo lands on BOTH outcomes, so a
@@ -1050,14 +998,14 @@
       // (settings-shell.js:338), so auto-save simply has no check icon.
       onSave: autoSaveOn() ? undefined : commitSave,
 
-      /* ★ N42 (#443, Damir): Contacts, reachable from Account. There is no C# verb
-         for "go home and open the contacts directory" — the same gap S11 names for
-         landing on a tab — so it rides the SAME #238 localStorage hand-off the
-         bottom-nav/rail taps already use, with 'contacts' as the id. home.html
-         consumes it, lands on Chats and opens the directory takeover.
-         The write is a fixed keyword and a timestamp: no user data, no new key. */
+      /* ★ N42 (#443, Damir): Contacts, reachable from Account. ★ S11 (Session AD):
+         the hand-off is a VERB — `ixian:landtab:contacts` → SettingsPage →
+         HomePage.landOnTab → the home shell's `landOnTab` push, sent BEFORE the exit
+         verb so home opens the directory takeover while it is still covered (the
+         localStorage key + storage-event + focus/visibility fallbacks + the 15 s
+         guard it replaced are gone). A fixed keyword, no user data. */
       onContacts: () => {
-        try { localStorage.setItem('spixi.landtab', 'contacts:' + Date.now()); } catch (e) {}
+        bridge.send('ixian:landtab:contacts');
         exitSettings('handoff');   // ★ Session I: the pane closes ON the painted cover, not before it
       },
 
@@ -1276,9 +1224,10 @@
       markSelected(currentView === 'hub' ? null : currentView);
       // #274: the language picker is a STATELESS state-keyed builder — refresh
       // it when the pushed current differs from the one it was built with (the
-      // restored-across-reload boot builds it before setLanguage lands). Every
-      // other sublevel keeps its live node (downloads buffers, backup flow —
-      // the original "keep the sublevel" rule).
+      // N65 corrective setLanguage echo after a REFUSED pick, Session AD: the
+      // reload this guard was first written for is gone). Every other sublevel
+      // keeps its live node (downloads buffers, backup flow — the original
+      // "keep the sublevel" rule).
       if (currentView === 'language' && detailWrap.dataset.langBuilt !== state.language) {
         detailWrap.replaceChildren(buildScreen('language'));
         detailWrap.dataset.langBuilt = state.language;
@@ -1345,10 +1294,7 @@
 
   // View switches — one-liners into the mode-aware renderer (#240). showHub as a
   // screen's onBack = "detail → empty" in split mode, "takeover → hub" otherwise.
-  // #274 review MINOR-3: user nav drops an un-consumed reload stash — if the language
-  // reload never happened (old exe / failed send), the stale key must not re-open the
-  // picker on the next Account boot inside the 15 s window.
-  function showHub() { try { localStorage.removeItem(VIEW_RESUME_KEY); } catch (e) {} currentView = 'hub'; renderLayout(); }
+  function showHub() { currentView = 'hub'; renderLayout(); }
   function showDanger() { currentView = 'danger'; renderLayout(); }
   /* iOS-21 — external links from About / How-to. The WebView never navigates to
      http(s) itself (iOSWebViewHandler.DecidePolicy Cancel-blocks it, and the
@@ -1628,11 +1574,9 @@
           hint: langHint(state.language),      // A4: only when the fallback row is present
           options: langOptions(state.language),
           current: state.language, strings, inline: true,
-          // C# persists + RELOADS settings.html on this verb — #274: stash the
-          // open picker first so the reloaded pane re-lands HERE (the fresh boot
-          // consumes the stash; the setLanguage push repaints the check via
-          // rebuildHub's picker refresh) instead of the empty Account detail.
-          commit: (code, ctrl) => { state.language = code; stashViewForReload(); bridge.send('ixian:language:' + code); ctrl.done(); },
+          // C# persists the pick and re-localizes this document IN PLACE (the
+          // setLocale push, #334); the corrective setLanguage echo repaints the check.
+          commit: (code, ctrl) => { state.language = code; bridge.send('ixian:language:' + code); ctrl.done(); },
         }));
       // #243 · #804: Backup as a SUBLEVEL on every form factor — the SAME c-settings-backup screen the
       // standalone settings_backup.html shell mounts, with SettingsPage now
@@ -1646,8 +1590,8 @@
         // src/demo/images → html/images; fail-soft to the shield placeholder).
         illustration: 'images/backup.png',
         onBack: showHub,
-        onBackup: (_payload, ctrl) => { stampBackup(); bridge.send('ixian:backupAccount'); ctrl.done(); },
-        onExportWallet: (ctrl) => { stampBackup(); bridge.send('ixian:backupWallet'); ctrl.done(); },
+        onBackup: (_payload, ctrl) => { bridge.send('ixian:backupAccount'); ctrl.done(); },   // ★ S2: C# pushes setLastBackup after it
+        onExportWallet: (ctrl) => { bridge.send('ixian:backupWallet'); ctrl.done(); },
         strings,
       });
       // Q1-② (#267, S16a) · #804: Downloads as a SUBLEVEL on every form factor — the SAME
@@ -1815,10 +1759,6 @@
     if (!native()) copyAddressFallback(addr);          // Android WebView: no Web Share API
   }
 
-  // #274 review MAJOR-1: renderLayout, NOT showHub — showHub() re-set currentView to
-  // 'hub', clobbering the just-restored takeResumeView() value and making the whole
-  // restore dead code (the pane landed on the empty detail after every language
-  // pick — Damir's "NOT fixed" F5). currentView is already correct here.
   renderLayout();   // render immediately; C# fills it after ixian:onload
 
   /* —————————————————————————————————————————————————————————————————————————
@@ -1832,9 +1772,8 @@
     // #334 iOS-61: the Account tab's nav replica was BLIND to unread (the count
     // was pushed to the home WebView only) — SettingsPage.updateScreen now fans
     // it here, VALUE-latched C#-side (never the chat push's edge-latch, whose
-    // number is documented-dishonest — chat.html:2745). NOTE: C#'s total is
-    // mute-BLIND while home's badge is mute-aware (CH4 FE-interim) → the two can
-    // differ on muted unread; accepted, logged as a dial. `nav` is declared
+    // number is documented-dishonest — chat.html:2745). C#'s total is mute-aware
+    // since CH4 (Session AD: SChatPrefs.unreadTotalForBadge) — the two agree. `nav` is declared
     // later in this script — safe: C# pushes only after ixian:onload.
     setUnreadIndicator(n) { lastNavUnread = parseInt(n, 10) || 0; try { setNavBadge(nav, 'chats', lastNavUnread); } catch (e) {} },
 
@@ -1844,8 +1783,8 @@
     // re-localize on re-render), the cached hub is dropped (its text carries the
     // old dict), the nav replica rebuilds, and renderLayout re-renders the
     // current view — the picker stays exactly where it was and dirty nick/avatar
-    // state SURVIVES (better than the #274 stash, which stays as belt for any
-    // residual reload path). Components read strings at render time
+    // state SURVIVES (the #274 stash this used to fall back on is retired —
+    // Session AD — no reload path remains). Components read strings at render time
     // (getStrings → window.SL) — no further plumbing. KNOWN residuals
     // (accepted, DECISIONS #334): C#-pushed verbatim text + generatePage carriers
     // keep the old language until the next natural regenerate.
@@ -1871,11 +1810,6 @@
       hubScrollTop = hb ? hb.scrollTop : hubScrollTop;
       hubEl = null;
       emptyEl = null;      // loop MINOR-4: the memoized sd-empty pane baked the old dict
-      // loop MINOR-5: the pane picker still arms the #274 reload-stash before the
-      // verb — this push IS the proof no reload is coming; a stranded stash would
-      // boot the NEXT pane open into the Language sublevel. The stash stays as
-      // the belt for any genuine residual reload (which never delivers setLocale).
-      try { localStorage.removeItem(VIEW_RESUME_KEY); } catch (e) {}
       buildPeerNav();
       renderLayout();
     },
@@ -2128,6 +2062,32 @@
     // PANE (wide window). Arrives in the onLoad burst BEFORE the overlay presents
     // (pushes coalesce ahead of the #225 present), so the pane never flashes the
     // takeover layout; re-pushed by the language-change reload. Display-only.
+    // ★ S2 (Session AD): the C#-owned last-backup stamp (unix seconds; "" = never)
+    /* named `setLastBackup`, NOT `setBackupStatus`: the bundle exports a free function of
+       that name (settings-shell.js), and a bare-global handler that shadows an export trips
+       both the destructure gate and the L15b flag walk — the push name is the C# contract */
+    setLastBackup(ts) {
+      const t = Number(ts) || 0;
+      if (t === backupLastSecs) return;
+      backupLastSecs = t;
+      scheduleRebuild();                     // the hub's Backup row re-derives
+      // an OPEN Backup sublevel keeps its live node through rebuildHub (the "keep the
+      // sublevel" rule) — patch its status line in place (#46 loop C-12: it used to stay
+      // "Not backed up yet" after the push until the screen was re-entered)
+      try {
+        const scr = (paneMode ? detailWrap : root).querySelector('.c-settings-backup');
+        if (scr) setBackupScreenStatus(scr, backupStatus());
+      } catch (e) { dbg('setLastBackup: sublevel patch', e && e.name); }
+    },
+    /* ★ S9 (loop m6): the `dev` cap is re-granted/revoked on every warm re-present —
+       dev mode is toggled on the HOME shell, so a parked Account would otherwise show
+       yesterday's answer. "1" grants, anything else revokes; the hub re-derives. */
+    setCapDev(on) {
+      const grant = String(on || '') === '1';
+      if (!!bridge.capabilities.dev === grant) return;
+      bridge.capabilities.dev = grant;
+      scheduleRebuild();
+    },
     setPaneMode(v) {
       const on = (v === '1' || v === 'true' || v === true);
       if (on === paneMode) return;
@@ -2275,8 +2235,7 @@
       state.savedName = state.name;
       state.dirtyNick = state.dirtyAvatar = state.dirtyLock = false;
       avatarPickPending = false;
-      refreshBackupStampIfChanged();   // a backup may have happened while parked
-      renderLayout();
+      renderLayout();   // ★ S2: C# re-pushes setLastBackup on the re-present (onRepresentedNative)
       /* ★★ #601 (row A1.1, Damir 2026-08-27): RETURNING FROM A PEER TAB STARTS AT THE TOP.
        * Restoring the scroll anchor is right when you come back from an Account
        * SUBSCREEN — you were reading a row and you left to change one thing. It is wrong
@@ -2346,13 +2305,13 @@
       // the way out, exactly like the topbar/hardware back (audit m1 — the raw back
       // dropped the edit + let C# delete avatar-tmp).
       // r3 QUIRK fix (Damir: "from Account you always land on whatever tab you left
-      // on"): there's still no C# land-on-tab verb (S11), so the TAPPED tab rides
-      // localStorage (same origin) — home consumes it via the storage event while
-      // it sits under this pushed page (+ a focus fallback). Timestamped so a
-      // stranded key can't switch tabs minutes later.
+      // on"): ★ S11 (Session AD) — the TAPPED tab is a VERB, `ixian:landtab:<id>`,
+      // forwarded by SettingsPage to HomePage.landOnTab and pushed into the home
+      // shell BEFORE the exit verb below reaches C# (bridge.send serialises them),
+      // so home switches while still covered. The localStorage hand-off is gone.
       onChange: (id) => {
         if (id === 'account') return;
-        try { localStorage.setItem('spixi.landtab', id + ':' + Date.now()); } catch (e) {}
+        bridge.send('ixian:landtab:' + id);
         exitSettings();
         // #320 (Damir F5 of #315): bottomnav moves the highlight on tap BEFORE
         // onChange runs — the exit-tap left e.g. Wallet selected, the page PARKED

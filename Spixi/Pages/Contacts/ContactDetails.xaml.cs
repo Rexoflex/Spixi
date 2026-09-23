@@ -81,6 +81,14 @@ namespace SPIXI
             // #248: entry-dependent context (chat header/row-menu = 'chat' → "Chat
             // info"/"Group info", no Message action; contacts directory = 'contact').
             Utils.sendUiCommand(this, "setContext", chatContext ? "chat" : "contact");
+            /* ★ C17 (Session AD): the RELATION, so a PENDING contact (our request sent, not
+             * yet accepted) gets the minimal pending profile — one "Cancel request" action —
+             * instead of a full contact page whose every action C# would refuse. The same
+             * predicate the directory push and the group roster use. Rooms send nothing. */
+            if (!isGroup)
+            {
+                Utils.sendUiCommand(this, "setRelation", contactRelationFor(friend.walletAddress));
+            }
 
             /* ★★ #591 (audit MAJOR): the Call action is REVEALED, never assumed.
              * The shell has no notion of relation state, so an unconditional button
@@ -464,6 +472,56 @@ namespace SPIXI
             else if (current_url.Equals("ixian:back", StringComparison.Ordinal))
             {
                 popPageAsync();
+            }
+            /* ★ C17 (Session AD): Cancel request from the pending profile. The SAME rule
+             * as HomePage.onUndoRequestFor (RequestSent only, 1:1 only, removeFriend
+             * without a leave) — a result is pushed either way so the button un-latches
+             * on the verdict; on success this page pops, the directory re-flushes. */
+            else if (current_url.Equals("ixian:undorequest", StringComparison.Ordinal))
+            {
+                /* The guard is EXACTLY the set contactRelationFor renders as "pending" (a 1:1
+                 * that is not (approved && Approved) and not RequestReceived) — the #46 loop
+                 * (auditor B, M2) found the first cut guarded on RequestSent alone, so a legacy
+                 * `Unknown`-state contact (a pre-v6 friend file, #273/#275's rows) got a pane
+                 * whose only action always answered "fail". SingleChatPage's own undorequest
+                 * (its request pane's Decline) guards on nothing; HomePage's row twin guards
+                 * on RequestSent because the row is BUILT from that marker. Here the pane is
+                 * built from the relation, so the verb accepts what the relation shows.
+                 * ⚠ removeFriend deletes files (Core LocalStorage.deleteMessages / the avatar)
+                 * and can throw on a locked file — the removal AND the push sit in ONE try so
+                 * every outcome answers (a throw before the push would latch Cancel for ever;
+                 * loop m1). The open conversation, if any, is popped on success (m2). */
+                string status = "fail";
+                SingleChatPage? openChat = null;
+                try
+                {
+                    bool pendingOut = !friend.bot && friend.type != FriendType.Group
+                        && !(friend.approved && friend.state == FriendState.Approved)
+                        && friend.state != FriendState.RequestReceived;
+                    openChat = Utils.getChatPage(friend);
+                    if (pendingOut && FriendList.removeFriend(friend))
+                    {
+                        status = "ok";
+                        UIHelpers.shouldRefreshContacts = true;
+                        SChatPrefs.setFavorite(friend.walletAddress.ToString(), false);   // CH4: the preference leaves with the record
+                    }
+                    // the answer rides the SAME block as the removal (the gate-5 axis walk reads it there)
+                    Utils.sendUiCommand(this, "undoRequestResult", friend.walletAddress.ToString(), status);
+                }
+                catch (Exception ex)
+                {
+                    Logging.error("ixian:undorequest (contact details) failed: " + ex.GetType().Name);
+                    // a throw is an outcome too — the shell's Cancel must un-latch
+                    try { Utils.sendUiCommand(this, "undoRequestResult", friend.walletAddress.ToString(), "fail"); } catch (Exception) { }
+                }
+                if (status == "ok")
+                {
+                    if (openChat != null)
+                    {
+                        try { openChat.popPageAsync(); } catch (Exception) { }
+                    }
+                    popPageAsync();
+                }
             }
             else if (current_url.StartsWith("ixian:removecontact:", StringComparison.Ordinal))
             {
@@ -875,24 +933,45 @@ namespace SPIXI
             {
                 Transaction transaction = Node.activityStorage.getActivityById(activity.id, null, true).transaction;
                 
-                string tx_type = SpixiLocalization._SL("global-received");
-                if (activity.type == IXICore.Activity.ActivityType.TransactionSent
-                    || activity.type == IXICore.Activity.ActivityType.IxiName)
-                {
-                    tx_type = SpixiLocalization._SL("global-sent");
-                }
+                /* ★ CI2 (Session AD): the DIRECTION and the STATUS are pushed as ENUMS, the
+                 * way the wallet tab has pushed them since W1 — the shell used to derive the
+                 * direction from the LOCALIZED label with a stem regex (German "ERHALTEN"
+                 * never matched: every received payment showed as sent with a "-"), and the
+                 * status collapsed Pending/Expired/Reverted/Rejected/Unknown into "error",
+                 * which the shell showed as pending for ever. The localized label still
+                 * rides for DISPLAY; the decisions are the two trailing args (new args LAST):
+                 *   direction  `in` | `out`
+                 *   status     `true` (Final) · `false` (Pending) · `unknown` · `error`
+                 * A received amount is the NET amount, as the wallet tab shows it. */
+                bool outgoing = activity.type == IXICore.Activity.ActivityType.TransactionSent
+                    || activity.type == IXICore.Activity.ActivityType.IxiName;
+                string tx_type = SpixiLocalization._SL(outgoing ? "global-sent" : "global-received");
                 // iOS-55/#328 (W1 class): raw epoch seconds — the shell numeric-detects
                 // and formats via formatTxTimestamp/docLocale (translated month names);
                 // the old unixTimeStampToString was a hard-coded US "MM/dd/yyyy HH:mm:ss".
                 string time = activity.timestamp.ToString();
 
-                string confirmed = "true";
-                if (activity.status != IXICore.Activity.ActivityStatus.Final)
+                string confirmed = "error";
+                if (activity.status == IXICore.Activity.ActivityStatus.Final)
                 {
-                    confirmed = "error";
+                    confirmed = "true";
+                }
+                else if (activity.status == IXICore.Activity.ActivityStatus.Pending)
+                {
+                    confirmed = "false";
+                }
+                else if (activity.status == IXICore.Activity.ActivityStatus.Unknown)
+                {
+                    confirmed = "unknown";
                 }
 
-                Utils.sendUiCommand(this, "addPaymentActivity", transaction.getTxIdString(), tx_type, time, transaction.amount.ToString(), confirmed);
+                IxiNumber amount = transaction.amount;
+                if (!outgoing)
+                {
+                    amount = HomePage.calculateReceivedAmount(transaction);
+                }
+
+                Utils.sendUiCommand(this, "addPaymentActivity", transaction.getTxIdString(), tx_type, time, amount.ToString(), confirmed, outgoing ? "out" : "in");
             }
         }
 

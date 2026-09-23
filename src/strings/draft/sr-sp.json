@@ -722,5 +722,10 @@
   "addContactScanHint": "QR kod mora biti vidljiv na drugom uređaju da biste ga skenirali ovim uređajem.",
   "addContactEnterLabel": "Unesi ili nalepi Spixi adresu",
   "addContactEnterHint": "Ukucajte ili nalepite Spixi adresu (na primer 42Spox…M3rci98).",
-  "creditFlags": "Zastave država"
+  "creditFlags": "Zastave država",
+  "favorite": "Dodaj u omiljene",
+  "unfavorite": "Ukloni iz omiljenih",
+  "appFetchHttp": "Aplikacija nije mogla da se preuzme sa tog linka.",
+  "appFetchTimeout": "Link nije odgovorio. Proveri vezu i pokušaj ponovo.",
+  "appFetchTooLarge": "Taj paket aplikacije je prevelik."
 }

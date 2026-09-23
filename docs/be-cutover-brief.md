@@ -567,6 +567,15 @@ every flag change (read receipts), so the cipher sits on a hot path; and the bac
 "heal" loop both read these files. Order if it is ever done: L8 → key derivation + storage → migration →
 the write path. App-side there is NOTHING to build: the files are written inside Core.
 
+**CORE-12 (Session AD #935) · group TYPING is never fanned out to the members.** `CoreStreamProcessor.sendTyping`
+(`:2889`, `097341a`) builds a `StreamMessageCode.info` / `msgTyping` message addressed to `friend.walletAddress` —
+for a group that is the GROUP address; on the device a non-blind group of three shows no typing pill on anyone's
+screen (walk AD.14), so the host is not forwarding it to the members — the relay path is Core's and was NOT read
+line by line here (verify-first before any Core patch). The app half is BUILT and waits:
+`StreamProcessor.handle…` passes the typist (`group_sender_address`) and `chat.html` names them in non-blind rooms
+(C21, #928). Fix is Core's: relay `msgTyping` like a chat message (rate-limited — it is sent per keystroke burst),
+or drop the feature for groups and say so.
+
 **APP-1 — ✅ BUILT 2026-09-22 (#912): Android `backup_rules.xml` + `data_extraction_rules.xml` exclude `Spixi/Chats`, `Spixi/MsgQueue` and the six log files; iOS sets `NSURLIsExcludedFromBackupKey` on the same two folders (uncompiled until the next iOS build). The wallet, `Acc`, the avatar and the preferences are still backed up — so the plaintext `walletpass` preference still travels with a Google backup until L8. Restore test on a second phone still owed.** Original row kept below for the reasoning.
 
 **APP-1 (Session AB #909, OURS, small, not built) · exclude chat history and logs from Android system
@@ -660,27 +669,27 @@ branch, not by a bare line number (rule #773 — a line number rots).
 
 | row | state | anchor |
 |---|---|---|
-| C1 statusEnum + kind | OPEN | `SingleChatPage.loadMessages` still pushes `addPaymentRequest` with a localized `_SL` title, a `status` string and a `status_icon` string |
-| C2 fiat + insufficient | OPEN | same push, neither field present |
+| C1 statusEnum + kind | ✅ LANDED (Session AD, DECISIONS #928) | `SingleChatPage.insertMessage` — all four `addPaymentRequest` pushes append `kind` (`request`/`payment`) + `statusEnum` (`pending`/`completed`/`declined`) as args 16–17; `updateTransactionStatus` (4th) and `updateRequestFundsStatus` (6th) carry the enum; the shell decides by the enum and keeps the icon as the old-exe fallback (`paymentStatusFrom`). The `*SL{}` payment-title carriers are deleted |
+| C2 fiat + insufficient | ✅ LANDED (Session AD, #928) | same pushes, args 18–19: `paymentFiatFor` (amount × `Node.fiatPrice`, "" until a price is known) + `paymentInsufficient` (balance < the requested AMOUNT — the fee is deliberately excluded: the native review page prices it; incoming pending unpaid requests only) |
 | C3 inline Pay | ✅ LANDED #523 | `ixian:payRequest:` → `SPayments.handlePayRequest` |
-| C4 calls enriched | ✅ LANDED #208 | `addCall` now pushes 8 args (outgoing · missed · durationSecs · declinedLocally). ⚠ the open sub-item — "Tap to call back" shows while the call is still ACTIVE — is unchanged |
+| C4 calls enriched | ✅ LANDED #208 + Session AD (#928) | `addCall` pushes 9 args — the 9th `callActive` (`VoIPManager.hasSession(message.id)` on a live, undeclined voiceCall) hides the call-back link on the card. Also fixed in passing: `VoIPManager.endVoIPSession`'s "answered & not last" arm re-added a message under the call's own id, which Core refuses as a duplicate — the duration never reached the store; one in-place branch now |
 | C5 reaction own-flag | ✅ LANDED #208 | `updateReactions` trailing own-keys arg |
-| C6 tip token | OPEN | still `"tip:" + txForTip.id` at both the `addReaction` and the `sendReaction` sites |
+| C6 tip token | ✅ LANDED (Session AD, #928) | both sites write `tip:<amount>` (`txForTip.amount.ToString()` — the old token was `tip:System.Byte[]`, the `Transaction.id` byte[] stringified); `updateReactions` sums the per-sender amounts into a 4th `addReactions` arg (`tipTotal`, batched and live); the pill reads `Tipped <n> IXI ×N` |
 | C7 app decline + install URL | ✅ LANDED #214 | ⚠ the OPEN half is the decline-**notify** variant; no `declineApp` exists in `SingleChatPage`, correctly — decline is FE-local by design |
 | C8 arbitrary emoji | OPEN — Ixian-Core | frozen at `097341a` |
 | C9 tip in bots | ✅ **LANDED #348** — changed at this verification | see the row |
-| C10 fulfilled request = two cards | OPEN | `updateRequestFundsStatus` exists; no linkage is pushed |
+| C10 fulfilled request = two cards | 🟡 VERIFY-FIRST (Session AD read, #928) | the tree ALREADY links them on the newer protocol: `StreamProcessor` (`transactionSend`) and `Node.sendTransaction` (Node.cs, `addMessageWithType(requestId, sentFunds, …)`) store the fulfilling payment UNDER THE REQUEST'S OWN id — and Core's `FriendList.addMessageWithType` REFUSES a duplicate id at an equal sequence, so on the payer side that call returns null (⚠ `friend_message.id` right after it = a possible NRE) and on the requester side the second card can only come from the LEGACY `sentFunds` code path. Damir's 2026-07-08 scenario predates this Core; reproduce on two devices at `097341a` BEFORE any build (#215): either the two-card symptom is gone, or the linkage is silently refused and the payer path throws |
 | C11 group delivery ticks | ✅ LANDED #213 | F5-confirmed |
 | C12 paste-to-send image | OPEN | no `attachData` / `attachClipboard` branch exists |
 | C13 SelfNick | ✅ LANDED #213 | `setSelfNick` push |
-| C14 link previews | OPEN — security-flagged | no `linkPreview` anywhere in the C# or the shell |
+| C14 link previews | ⏸ DEFERRED to a later update (Damir by interview 2026-09-23, DECISIONS #931) — the sender-composed (Signal-model) design in the row stays written; nothing built | no `linkPreview` anywhere in the C# or the shell |
 | C15 link-open spoof | ✅ **LANDED 2026-09-06** — changed at this verification | see the row and security MAJOR #3 |
-| C16 remote delete not persisted | **OPEN — BLOCKER** | `UIHelpers.deleteMessage` pushes UI only |
-| C17 pending-contact state flag | OPEN | `HomePage`'s `addContact` still takes 5 args |
+| C16 remote delete not persisted | ✅ RE-READ + LANDED (Session AD, #928) | The premise was FALSE: `StreamProcessor.receiveData` calls `base.receiveData` FIRST, and Core's `handleMsgDelete` → `Friend.deleteMessage` tombstones + recomputes `lastMessage` before the app's handler runs. The real gap was the LOCAL delete never refreshing the chats row → `UIHelpers.refreshChatRow(friend)` (a lone `addChat` upsert + the refresh flag), called from the remote path AND the local `deleteMessage` context action. The shells' `spixi.exdel` hint is retired (a one-shot boot sweep removes legacy keys). CORE-10 (authorship) stays open, his |
+| C17 pending-contact state flag | ✅ LANDED (Session AD, #928) | `HomePage.loadContacts` pushes `addContact(addr, nick, avatar, online, unread, relation, kind)` — args 6–7 from `contactRelationFor` (contact · pending · pending-in · self · none) and `bot`/`group`/""; `ContactDetails.onLoad` pushes `setRelation` and gained `ixian:undorequest` (1:1 in RequestSent → `removeFriend` → `undoRequestResult`, pop on ok) so the pending pane's Cancel works from the directory |
 | C18 / C18b call delivery | ✅ CLOSED — four rows merged into two at this verification | `CallPage` owns the surface |
 | C19 outgoing call bar | ✅ LANDED #270 | |
-| C20 mini-app session UX | OPEN — decision | the 4-arg `addAppRequest` push is gone from `SpixiContentPage`, as the row says |
-| C21 group typing attribution | OPEN | `Utils.sendUiCommand(this, "showUserTyping")` takes no sender argument |
+| C20 mini-app session UX | ⛔ DROPPED for v0.9.30 (Damir 2026-09-23, #931) — app INVITES keep working; session requests = a later feature | the 4-arg `addAppRequest` push is gone from `SpixiContentPage`, as the row says |
+| C21 group typing attribution | ✅ LANDED app-side (Session AD, #928) — ⚠ walk AD.14 FAIL: a non-blind group shows NO typing pill; the app half is unreachable until Core fans `msgTyping` out to group members → **CORE-12** (#935) | `StreamProcessor` passes `group_sender_address` to `handleFriendIsTyping(friend, typist)` → `SingleChatPage.showTyping(typist)` → `showUserTyping(who, nick)` (nick from `friend.users`, else the contact's nickname; NEVER under `hidesParticipants`); the pill names the typist or its truncated address. ⚠ relay verify (does a typing event reach every member through the creator?) is still an on-device question |
 | C22 return-to-call route | OPEN | no `callReturn` string anywhere in the tree |
 | GJ1 "added to a group" message | OPEN | the `createGroup` case still only sets `shouldRefreshContacts` |
 
@@ -690,12 +699,12 @@ branch, not by a bare line number (rule #773 — a line number rots).
 |---|---|---|
 | CH1 groups filter | ✅ LANDED #208 | `addChat` arg 9 |
 | CH2 request feed | ✅ LANDED #218 + #219 | `clearRequests` / `addRequest`, `ixian:acceptRequest:` / `ixian:declineRequest:` |
-| CH3 delete / mark-read | ⚙ **PARTIAL** — changed at this verification | delete landed; mark-read and the media purge are open |
-| CH4 pin / mute / favorites | ⚙ **PARTIAL** — changed at this verification | mute landed; pin is FE-local, favorites gated, the unread total is NOT mute-aware |
+| CH3 delete / mark-read | ✅ LANDED (Session AD, #928) — mark-read RULED OUT | media purge: the delete modal's "Delete media & files" box rides the SAME verb as a trailing `:media` token (`ixian:removehistory:<addr>[:media]` · `removecontact:<addr>:<leave>[:media]` · `leavegroup:<addr>[:media]`); `HomePage.takeMediaFlag` strips it, `SContacts.collectReceivedMedia` LISTS completed received `fileHeader` rows inside the Downloads root (read-only, whole history) BEFORE the deletion, `purgeFiles` deletes them only AFTER it succeeded. Mark-read persistence was REMOVED by ruling (the #46 loop of 2026-08-27: no markRead verb; a read receipt the counterpart never sent) — this row's mark-read half is closed as ruled, not built |
+| CH4 pin / mute / favorites | ✅ LANDED (Session AD, #928) — pin stays FE-local | favorites = an APP preference (`Spixi/Meta/SChatPrefs.cs`, the mute shape): `ixian:favchat:<addr>:on\|off` → `setFavorite` → the `setChatFavorite` echo (also pushed beside `setChatMuted` in the roster flush); `capabilities.favorites` ON. The unread TOTAL is mute-aware at all three sites through `SChatPrefs.unreadTotalForBadge()` (HomePage's flush sum inline, SingleChatPage + SettingsPage) — one predicate, `SNotificationPrefs.isChatMuted`. Pin persistence (`spixi.pins`) is unchanged: a pin is display order, not data |
 | CH5 mention flag | ✅ LANDED #208 (heuristic) | the structured payload is still the end-state |
-| CH6 excerpt kind | OPEN | `addChat` still carries a pre-composed localized excerpt |
+| CH6 excerpt kind | ✅ LANDED (Session AD, #928) | `getFriendMessageHelper(friend, out excerptKind)` names the kind in the branch that picks the phrase (typing · request-sent · request · request-done · payment · app-invite · file · call · call-missed · call-declined · connected · reaction · text); both `addChat` pushes carry it as the 12th arg. The shell's `excerptFromRaw` reverse-map, its 14 `*SL{}` equality carriers and the `#sl-carriers` block are DELETED; `excerptFromPush` keeps only the locale-independent GIF-URL and B4 address/URL canon |
 | CH7 drafts | ✅ FE DONE #192 | the durable/cross-device store stays optional |
-| CH8 reaction excerpt | ⚙ PARTIAL | the push landed at #208; the OPEN half is confirmed — `HomePage.updateChatReaction` still sends `nick = ""` when the reactor is not in `friend.users` |
+| CH8 reaction excerpt | ✅ LANDED (Session AD, #928) | `updateChatReaction` appends the reactor ADDRESS as a 5th arg (never under `hidesParticipants`) and falls back to the contact's nickname when `friend.users` has none; the shell renders the nick, else the middle-truncated address (the #194 nameless-sender treatment) |
 
 ## Wallet · Settings · Apps · Launch
 
@@ -704,20 +713,20 @@ branch, not by a bare line number (rule #773 — a line number rots).
 | W1 raw epoch | ✅ LANDED #325 | |
 | W2 · W3 · W4 | OPTIONAL since #259 | unchanged |
 | W5 signSend · W6 fee query | ✅ LANDED #523 | ⚠ still gated on the #232 human money review |
-| W7 share verb | ⚙ **PARTIAL** — changed at this verification | `ixian:share` on both hosts; the address-format confirmation is owed |
+| W7 share verb | ✅ CLOSED (Damir 2026-09-23, #931): BARE ADDRESS confirmed — `setAddress` hands the bare base58, the shell shares it verbatim and appends `:ixi` only for the QR | `ixian:share` on both hosts |
 | W8 request from contact | ✅ LANDED #268 | |
 | W9 WalletSentPage hardening | ✅ **LANDED #334** — changed at this verification | |
 | W10 legacy money pages | ✅ **LANDED #640** — changed at this verification | only `WalletSentPage` remains |
-| W11 `requestFundsResponse` dropped | **OPEN — BLOCKER** | the mutation is still inside `if (chat_page != null)` |
+| W11 `requestFundsResponse` dropped | ✅ LANDED (Session AD, #928) | `StreamProcessor.receiveData` (requestFundsResponse): the `msg.message` mutation + `requestWriteMessages(friend.walletAddress, 0)` run UNCONDITIONALLY; only `updateRequestFundsStatus` is gated on an open page; `refreshChatRow` follows either way. Nothing signed — the requester records the payer's txid/decline |
 | S1 · S3 · S4 | ✅ LANDED #208 | |
-| S2 backup status push | OPEN | no push; the shell uses a local stamp (`spixi.backup.last`) as an interim |
+| S2 backup status push | ✅ LANDED (Session AD, #928) | `BackupPage.recordBackup()` (`lastBackupTimestamp` preference, set right before the share sheet in both backups) + `pushBackupStatus(page)` → `setLastBackup(<unix secs>\|"")`, pushed at `SettingsPage.onLoad`, after each forwarded backup verb and on the warm re-present (`SpixiContentPage.onRepresentedNative`, new virtual); `HomePage.displayBackupReminder` skips the nudge inside `Config.backupReminder` of it. The `spixi.backup.last` stamp + storage event + focus/visibility fallbacks + 2 s poll are deleted from all three shells. ("dirty-since count" was not built — no signal exists for it) |
 | S5 live locale | ✅ **LANDED #257** — changed at this verification | the `*SL{language-code}` boot carrier |
 | S6 lock cancel push | ✅ **LANDED** — changed at this verification | |
 | S7 change-password verb | ✅ **LANDED #283 / #341** — changed at this verification | |
 | S8 downloads | ✅ LANDED #264 | ⚠ and the owed traversal guard LANDED too — `TransferManager.resolveDownloadPath`, used at all four open/delete sites |
-| S9 developer verb | OPEN | `SettingsPage` dispatches `ixian:devseed` but no `ixian:dev`; the hub row stays gated |
+| S9 developer verb | ✅ LANDED (Session AD, #928) | `SettingsPage.onNavigating` `ixian:dev` → `HomePage.InstanceOrNull()?.Navigation.PushModalAsync(new DevPage())` (the IN-STACK page presents it — an overlay-presented SettingsPage's own modal never shows, loop r1 MAJOR) ONLY when the persisted `devMode` preference is on (else a refusal log line); the `dev` capability is granted on the same preference and the hub row is offered on the cap |
 | S10 contributors | OBSOLETE | static component |
-| S11 Account as a peer tab | ✅ LANDED #315 | `ixian:tab:` exists and Account parks rather than disposing |
+| S11 Account as a peer tab | ✅ LANDED #315 + the hand-off verb (Session AD, #928) | `ixian:tab:` exists and Account parks rather than disposing. The tapped-tab hand-off is a VERB now: `ixian:landtab:<id>` (SettingsPage) → `HomePage.landOnTab` (a fixed id set: chats · wallet · apps · contacts) → the `landOnTab` push into the home document — the `spixi.landtab` localStorage handshake, its storage/focus/visibility listeners, the 15 s guard and the [LANDTAB] probe are deleted |
 | S12 backup password arg | OPEN | `BackupPage.backupAccount()` takes no parameter |
 | S13 open external link | ✅ **LANDED** — changed at this verification | and hardened with C15's two guards |
 | S14 save without pop | ✅ LANDED #242 | |
@@ -725,9 +734,9 @@ branch, not by a bare line number (rule #773 — a line number rots).
 | S16 downloads sublevel | ✅ LANDED #267 | ⚠ the receive-time residual is CONFIRMED OPEN and is now known to be amplified on Android |
 | A1 apps uninstall | ✅ LANDED #216 | |
 | A2 discover | RESOLVED — decision | |
-| A3 verified flag | OPEN | `AppDetailsPage` still assigns `bool app_verified = false` |
-| A4 fetch failure push | OPEN | only `showUrlError`, five call sites |
-| A5b installed casing | OPEN | `installing ? "false" : app_installed.ToString()` |
+| A3 verified flag | ⛔ NOT BUILDABLE — verified at source (Session AD, #928) | there is NO signature or publisher-trust check anywhere in `MiniAppManager`/`MiniApp` — a "verified" flag would be a value with no verifier behind it (the #772 class: a claim the code does not enforce). Needs a trust model (a signed manifest or a publisher allow-list) first — a decision row, not a verb |
+| A4 fetch failure push | ✅ LANDED (Session AD, #928) | `MiniAppManager.fetchWithReason` returns `(app, FetchFailure)` (Url · Http · Size · Timeout · Invalid · Error; `HttpClient.Timeout` = 15 s, `TaskCanceledException` → Timeout); `AppNewPage.fetchAppCoreWithReason` threads it; both hosts push `showUrlError(reason)` (the arg appended — an older shell ignores it); the shell maps timeout/http/size to their own copy and its grace timer (20 s) outlasts the timeout |
+| A5b installed casing | ✅ ALREADY FIXED (#840; comments were stale — corrected Session AD) | the push normalises the casing; the row had outlived its fix |
 | L1 create-failure release | ✅ **LANDED #334** — changed at this verification | |
 | L2 password parse | OPEN | branch SELECTION hardened at #399; the PARSES are deliberately unchanged. Pairs with security MAJOR #8 |
 | L3 onboarding tail backup | ⛔ **MOOT (N76)** — changed at this verification | the page is deleted |
@@ -742,17 +751,17 @@ branch, not by a bare line number (rule #773 — a line number rots).
 | row | state | anchor |
 |---|---|---|
 | CI1 group roster | ✅ FE DONE; the two optional halves are OPEN | `addContact` on `SingleChatPage` now carries `role` and `relation`; a numeric member count and the admin SEMANTICS of `role` are still owed |
-| CI2 activity enum | OPEN | `ContactDetails` still pushes a localized type and a `"true"/"error"` string |
+| CI2 activity enum | ✅ LANDED (Session AD, #928) | `ContactDetails.loadTransactions` pushes `addPaymentActivity(txid, type, time, amount, confirmed, direction)` — `confirmed` is the wallet tab's four-state string (`true` · `false` · `unknown` · `error`), `direction` = `in`\|`out`, both appended LAST; the received amount is the NET (`HomePage.calculateReceivedAmount`), as the wallet tab shows it |
 | CI3 1:1 mute | ✅ **LANDED (NOTIF-2)** — changed at this verification | |
-| CI4 bot destructive | OPEN — decision, and the row's anchor was corrected | |
+| CI4 bot destructive | ✅ BUILT (Batch A: "Leave group" on the bot info pane, `chat-info.js` `kind === 'bot'` = leave notice + local removal) — Damir confirmed 2026-09-23 that is the intended meaning (#931); the row was stale (#660) | |
 | CI5 hero polish | ✅ **LANDED** — changed at this verification | it was always an FE row |
 | CI6 shared media feed | OPEN | no `addSharedMedia` anywhere |
 | CI7 group rename / bot info | ⚙ PARTIAL | the pane landed at #248; rename and re-avatar need a protocol message |
-| CO1 roster flags | OPEN | `addContact` still 5 args; the shell ignores the 5th |
+| CO1 roster flags | ✅ LANDED with C17 (Session AD, #928) | args 6–7 = relation + kind |
 | CO2 group create host | ✅ **LANDED #265** — changed at this verification | `ixian:creategroup:` |
-| CO3 add-contact failure push | OPEN | no failure push exists |
-| CO4 checkAddress correlation | OPEN | `onValidAddress` still carries no address |
-| CO5 dual-nick | OPEN | one resolved nickname |
+| CO3 add-contact failure push | ✅ LANDED (Session AD, #928) | `ContactNewPage` pushes `onRequestResult("0", <localized reason>)` before each of its three refusals (invalid · self · exists); the shell un-latches Send on it, the 6 s timer stays as the old-exe belt |
+| CO4 checkAddress correlation | ✅ LANDED (Session AD, #928) | `onValidAddress(address)` echoes the checked address; `contacts-page.js addValidAddress(checked)` resolves only the matching pending check |
+| CO5 dual-nick | ⛔ CORE (re-filed Session AD) | `Friend` exposes no public getter for the wire nick under a user-set override (`_nick` is private in Ixian-Core) — the app cannot push what it cannot read. His, not ours |
 
 ## Cross-cutting
 
@@ -764,8 +773,8 @@ branch, not by a bare line number (rule #773 — a line number rots).
 | N1 chat-open flash | ✅ **LANDED (#222 · #800)** — changed at this verification |
 | N3 pushed-page flash | ✅ **LANDED (#222 · #224 · #225)** — recovered from truncation and closed at this verification |
 | A8 media flag · reveal verb | OPEN — `addFile` carries no media flag; no `revealfile` verb |
-| #82 remote media posture | OPEN — a decision, and the 2026-09-06 sweep sharpened it: the host constraint had been widened to ANY host and the opt-out key had no writer. Both were fixed FE-side in that batch; the POSTURE question is still yours |
-| i18n-C# hardcoded English | OPEN — `HomePage` still has `displaySpixiAlert("No recipient selected", …, "OK")`, and `LockPage` still passes a hardcoded `"Cancel"` |
+| #82 remote media posture | ✅ DECIDED — KEEP AS IS (Damir 2026-09-23, #931): the three-host allow-list (Tenor · Giphy · apps.spixi.io), auto-load ON by default, the Account → Privacy toggle; the policy states it (#914). The 2026-09-06 sweep's two FE fixes (host widening, no writer) stand |
+| i18n-C# hardcoded English | ✅ LANDED (Session AD, #928) — both strings read `SpixiLocalization._SL(...)` keys present in all 13 `lang/*.txt` (`HomePage` "No recipient selected"/"OK" · `LockPage` "Cancel") |
 | SPLASH-ART | ⚙ **MOSTLY LANDED** — changed at this verification |
 | PV1 privacy toggles | ⚙ **PARTIAL** — changed at this verification |
 | NT1 notification grouping | ⚙ **PARTIAL (a) landed** — changed at this verification |
@@ -774,7 +783,7 @@ branch, not by a bare line number (rule #773 — a line number rots).
 | AV1 avatar history · AND-15-BE payload typing | OPEN — dials, not defects |
 | RC1 cancel family | OPEN — `SpixiMessage` at `097341a` has no withdraw code |
 | N-BADGE · N-LOCALTAP | OPEN — both correctly filed as "cannot be fixed in the app" |
-| CORE-1 … CORE-11 · APP-1 · CORE-7b · the membership question | OPEN — Ixian-Core is frozen at `097341a`. CORE-9 (tombstoned deletes, #907) added 2026-09-19 with an app-side workaround. CORE-1 re-read and confirmed: `kickUser` and `banUser` are still `return true;` |
+| CORE-1 … CORE-12 · APP-1 · CORE-7b · the membership question | OPEN — CORE-12 (group typing fan-out, #935) added 2026-09-23. Ixian-Core is frozen at `097341a`. CORE-9 (tombstoned deletes, #907) added 2026-09-19 with an app-side workaround. CORE-1 re-read and confirmed: `kickUser` and `banUser` are still `return true;` |
 
 **Coverage: 116 of 116 rows checked against the tree** — 106 table and bullet rows, plus the ten
 prose rows (`PA1`, `CORE-1`…`CORE-8`, `CORE-7b`, and the membership question). `release-readiness.md`

@@ -555,9 +555,9 @@
          at boot (Utils.deviceHourCycle) — the shell boot below copies it onto <html
          data-hour-cycle> and every time format (timestamp.js timeOpts) follows it. -->
     <span id="sl-hourcycle">*SL{hourCycle}</span>
-    <span id="sl-payment-received">*SL{chat-payment-received}</span>
-    <span id="sl-payment-request-received">*SL{chat-payment-request-received}</span>
-    <span id="sl-payment-request-sent">*SL{chat-payment-request-sent}</span>
+    <!-- ★ C1 (Session AD): the three payment-title carriers are GONE — C# pushes the
+         card's KIND (`request` | `payment`) and STATUS ENUM beside the 14 legacy
+         addPaymentRequest args, so the shell no longer decides from a localized title. -->
     <span id="sl-connecting-s2">*SL{global-connecting-s2}</span>
     <span id="sl-connecting-dlt">*SL{global-connecting-dlt}</span>
     <span id="sl-request-connected">*SL{global-friend-request-connected}</span>
@@ -656,6 +656,8 @@
     attachContextMenuAnchors, anchorSheetAbove,   // Batch C (M6): desktop sheet grammar (no-op on mobile)
     isPseudoAddressNick,            // D-19b (#370): blind roster "x"+address pseudo-keys never display
     isAddressShaped,                // ★ #589: the ONE address-shape test — a NICK is never middle-truncated
+    groupAmountDisplay,             // ★ C2 (Session AD): the fiat sub-line groups like the wallet tab (money.js)
+    formatIxiAmount,                // ★ C6 (Session AD): the tip total ("Tipped 5 IXI"), the #77 amount rule
     createNativeBridge, installExecuteUiCommand,
     /* ★ N81 (#422) — MISSED IN THE FIRST CUT, caught by the #46 audit executing the
      * BUILT artifact. readPatternPrefs() runs at module top level, so an unimported
@@ -849,15 +851,21 @@
     return (!t || t.indexOf(MARK) !== -1) ? fallback : t;
   }
 
-  /* Q4: the DIRECT-payment "received" title — the request-vs-payment signal for
-   * the signed-amount grammar (component canon: received payments show '+',
-   * requests stay bare — src/demo/chat.html states matrix). The request title is
-   * carried too, purely as a COLLISION GUARD (audit A-1): if a locale ever
-   * translated both keys to the identical string, the sign must NOT fire. */
-  const PAY_RECEIVED_TITLE = slCarrier('sl-payment-received', 'Payment Received');
-  const PAY_REQUEST_RECEIVED_TITLE = slCarrier('sl-payment-request-received', 'New Payment Request');
-  const PAY_REQUEST_SENT_TITLE = slCarrier('sl-payment-request-sent', 'Payment Request Sent');
-  const isRequestTitle = (t) => t === PAY_REQUEST_RECEIVED_TITLE || t === PAY_REQUEST_SENT_TITLE;
+  /* ★ C1 (Session AD): request-vs-payment is a PUSHED FACT now — `rec.prole` is
+   * addPaymentRequest's 15th argument (`request` | `payment`), so the Q4 title
+   * carriers, the translation-collision guard and `isRequestTitle` are gone. */
+  const isRequestRec = (r) => !!r && r.prole === 'request';
+
+  /* ★ C2: the fiat sub-line. C# pushes the raw human-format number (amount × the
+   * last known price, "" when unknown) — the SAME shape the wallet tab receives in
+   * addPaymentActivity, so it takes the same display: grouped per the app language
+   * and a "$" in front (USD is the only fiat the price feed knows). Anything that is
+   * not a plain number renders nothing — a fiat line is never worth a wrong number. */
+  function fiatDisplay(fiat) {
+    const f = String(fiat == null ? '' : fiat).trim();
+    if (!f || !/^\d+(\.\d+)?$/.test(f)) return '';
+    try { return '$' + groupAmountDisplay(f); } catch (e) { return ''; }
+  }
 
   /* #264 (Damir nice-to-have ⑤): "{0} has accepted your contact request" arrives
    * as a PLAIN TEXT message (StreamProcessor:337/:354, string.Format over the
@@ -1537,13 +1545,23 @@
   function keepTypingLast() {
     if (typingActive && typingRow) box.append(typingRow);
   }
-  function showTyping() {
-    if (!typingRow) {
-      // #264: in a MULTI chat the pill stays GENERIC ("typing…") — showUserTyping
-      // carries no sender, and the old `{ name: identity.name }` would have
-      // captioned it with the GROUP's name, misattributing the typist. Sender
-      // attribution = a BE arg-append ask (be-cutover C21).
-      typingRow = createTypingIndicator({});
+  let typingWho = '';
+  function showTyping(who, nick) {
+    /* ★ C21 (Session AD): the typist rides the push (address + nick, rooms only, never
+       blind). Name from the nick → this shell's roster maps → the truncated address;
+       a 1:1 (or an old exe) names nobody. The pill is REBUILT when the typist changes
+       (the row was built once and reused, which was right while it was generic). */
+    let name = '';
+    const addr = String(who || '');
+    if (addr && mode.isMulti) {
+      const rosterName = ((groupRoster.get(addr) || {}).name || '');
+      name = String(nick || '') || groupNicks.get(addr) || ((rosterName && !isPseudoAddressNick(rosterName)) ? rosterName : '');
+      if (!name && isAddressShaped(addr)) name = truncateAddressMiddle(addr);
+    }
+    if (!typingRow || name !== typingWho) {
+      if (typingRow && typingRow.parentNode) typingRow.remove();
+      typingRow = createTypingIndicator(name ? { name } : {});
+      typingWho = name;
     }
     typingActive = true;
     box.append(typingRow);
@@ -2156,25 +2174,18 @@
    * On an old exe (no caps) the view-only behavior below is unchanged. The
    * C#-localized `title` is passed verbatim because role alone can't tell a
    * REQUEST from a completed PAYMENT (the C1 enum gap — a best-effort interim). */
-  /* Q4: signed-amount grammar. The component/demo canon (states matrix): a
-   * RECEIVED direct payment shows a leading '+' (tone 'positive' when
-   * completed); requests stay BARE on both sides. Request-vs-payment can only
-   * be told apart by the C#-LOCALIZED title (the C1 enum gap) — matching the
-   * *SL-SUBSTITUTED carrier makes that check hold in whatever locale C# runs.
-   * Money-path safety: sign ONLY on a positive title match + a purely numeric
-   * amount — an unrecognized title (unmapped locale drift), the '?' placeholder
-   * (tx not yet fetched) or an already-signed amount stays bare/untouched
-   * (today's rendering, never a WRONG sign). Display-only: rec.amount is kept
-   * as pushed. Own/sent amounts keep the matrix's bare grammar; formatIxiAmount
-   * (#77) still runs inside createPaymentBubble. */
+  /* Q4 (Damir): received DIRECT payments show a SIGNED amount — a leading '+'
+   * (tone 'positive' when completed); requests stay BARE on both sides. ★ C1:
+   * request-vs-payment is the pushed `prole`, no longer the localized title.
+   * Money-path safety: sign ONLY on a purely numeric amount — the '?' placeholder
+   * (tx not yet fetched) or an already-signed amount stays bare/untouched (never a
+   * WRONG sign). Display-only: rec.amount is kept as pushed. Own/sent amounts keep
+   * the matrix's bare grammar; formatIxiAmount (#77) still runs inside
+   * createPaymentBubble. */
   function displayPaymentAmount(rec) {
     const a = String(rec.amount == null ? '' : rec.amount);
     if (rec.direction !== 'received') return a;
-    const title = String(rec.title || '').trim();
-    if (title !== PAY_RECEIVED_TITLE) return a;
-    // translation-collision guard (audit A-1): if this locale renders the request
-    // title identically to the payment title, the signal is ambiguous → never sign
-    if (title === PAY_REQUEST_RECEIVED_TITLE) return a;
+    if (rec.prole !== 'payment') return a;            // requests (and an unknown role) stay bare
     if (!/^[\d,]+(\.\d+)?$/.test(a)) return a;
     return '+' + a;
   }
@@ -2228,7 +2239,7 @@
      * loadMessages re-flush rebuilds the card — the #72 shell contract). */
     const view = (rec.enableView && rec.id) ? () => bridge.send('ixian:viewPayment:' + rec.id) : null;
     const pendingIncomingRequest = rec.direction === 'received'
-      && rec.title === PAY_REQUEST_RECEIVED_TITLE
+      && isRequestRec(rec)
       && rec.enableView && !rec.txid;
     if (pendingIncomingRequest && view) {
       /* #526: Pay + Details ONLY — no Decline in v1 (Damir).
@@ -2274,6 +2285,7 @@
           status: 'pending',
           title: rec.title || '',
           amount: displayPaymentAmount(rec),
+          fiat: rec.fiat || '',
           timestamp: rec.ts,
           gutter: mode.isMulti,
           strings: window.SL || {},
@@ -2284,6 +2296,10 @@
         status: 'actionable',
         title: rec.title || '',
         amount: displayPaymentAmount(rec),
+        fiat: rec.fiat || '',
+        // C2: C# judged the balance against the amount (fee excluded — the review
+        // sheet's live quote is the fee's home); Pay disables + the caption shows.
+        insufficient: !!rec.insufficient,
         timestamp: rec.ts,
         gutter: mode.isMulti,
         onPay: () => openPayRequestReview(rec),
@@ -2298,7 +2314,7 @@
      * modal → the EXISTING delete path (msgDelete, both ends). Paid/declined
      * requests fall through to the plain card below. */
     const pendingOutgoingRequest = rec.direction === 'sent'
-      && rec.title === PAY_REQUEST_SENT_TITLE
+      && isRequestRec(rec)
       && !rec.txid && rec.pstatus === 'pending';
     if (pendingOutgoingRequest && rec.id) {
       return createPaymentBubble({
@@ -2306,6 +2322,7 @@
         status: 'pending',
         title: rec.title || '',
         amount: displayPaymentAmount(rec),
+        fiat: rec.fiat || '',
         timestamp: rec.ts,
         gutter: mode.isMulti,
         onCancel: () => confirmCancelRequest(rec),
@@ -2317,6 +2334,7 @@
       role: rec.direction === 'sent' ? 'sent' : 'received',
       title: rec.title || '',
       amount: displayPaymentAmount(rec),
+      fiat: rec.fiat || '',
       status: rec.pstatus,
       timestamp: rec.ts,
       gutter: mode.isMulti && rec.direction === 'received',
@@ -2337,7 +2355,7 @@
       actions: [
         { label: s.keepRequest || 'Keep it', type: 'text', autofocus: true },
         { label: s.cancelRequestConfirm || 'Cancel request', type: 'fill', onClick: () => {
-          sendDeleteMessage(rec.id);                   // latches pendingLocalDeletes + emits the verb
+          sendDeleteMessage(rec.id);                   // emits the verb (C# echoes deleteMessage back)
         } },
       ],
     }));
@@ -2346,11 +2364,15 @@
     renderLog();
   }
 
-  /* map the legacy FontAwesome status_icon → the redesigned card status enum.
-   * C# emits only these three for payments (xaml.cs:1249/1265/1284/1325/1331/
-   * 1336): fa-check-circle → completed · fa-exclamation-circle → declined ·
-   * fa-clock (waiting/pending) → pending. */
-  function paymentStatusFrom(statusIcon) {
+  /* ★ C1: the card status is the PUSHED ENUM (`pending` | `completed` | `declined` —
+   * addPaymentRequest arg 16, updatePaymentRequestStatus arg 6, updateTransactionStatus
+   * arg 4). The legacy FontAwesome `status_icon` is read ONLY when no enum arrived (an
+   * older exe): fa-check-circle → completed · fa-exclamation-circle → declined · else
+   * pending. C# derives both from the same branch, so they cannot disagree. */
+  const PAYMENT_STATUS_ENUM = new Set(['pending', 'completed', 'declined']);
+  function paymentStatusFrom(statusEnum, statusIcon) {
+    const e = String(statusEnum || '');
+    if (PAYMENT_STATUS_ENUM.has(e)) return e;
     const s = String(statusIcon || '');
     if (s.indexOf('check') !== -1) return 'completed';
     if (s.indexOf('exclamation') !== -1) return 'declined';
@@ -2413,7 +2435,9 @@
       title: rec.label || '',
       duration: rec.duration || '',
       timestamp: rec.ts,
-      onCallBack: callVisible ? callBackFromCard : null,
+      // ★ C4 (Session AD): no "Call back" on the card of a call that is LIVE — the tap
+      // sent ixian:callback into C#'s busy refusal. The re-push at call end restores it.
+      onCallBack: (callVisible && !rec.active) ? callBackFromCard : null,
     });
   }
 
@@ -2424,7 +2448,7 @@
    * (heart-handshake glyph + "Tipped", Damir F5) so a tip is visible on the
    * bubble. C5: the bridge's trailing own arg (";"-joined keys I reacted with) is
    * authoritative; myLikes stays as the optimistic/old-exe fallback. */
-  function parseReactions(str, id, ownStr) {
+  function parseReactions(str, id, ownStr, tipTotal) {
     const reactions = [];
     let tipCount = 0;
     /* ★★ L2 (#641): the SAME push carries the receipt counts. C# emits every reaction
@@ -2450,7 +2474,7 @@
       const count = parseInt(parts[parts.length - 1], 10) || 0;
       if (count <= 0) continue;
       if (tok.startsWith('like')) reactions.push({ emoji: '❤️', count, own: likedByMe });
-      else if (tok.startsWith('tip')) tipCount += count;   // txid, not amount → count only
+      else if (tok.startsWith('tip')) tipCount += count;   // ★ C6: the SUM rides the 4th arg (tipTotal)
       // ★★ L2 (#641): read + download, per DISTINCT member (Core de-duplicates by sender).
       // `received:` falls through this chain on purpose — see the note above.
       else if (tok.startsWith('seen')) seenCount = count;
@@ -2460,8 +2484,15 @@
       else if (tok.startsWith('fileReceived')) downloadedCount = count;
     }
     const sl = window.SL || {};
+    /* ★ C6 (Session AD): C# sums the per-sender tip AMOUNTS (the token is `tip:<amount>`
+       now) and pushes the total as the 4th argument. "Tipped 5 IXI", "Tipped 12 IXI ×3"
+       when several tipped; an empty total (an old exe, or only pre-C6 `System.Byte[]`
+       tokens) keeps the count-only label. The total is what the tippers' clients
+       CLAIMED — a display fact; it is never read as a balance. */
+    const total = String(tipTotal == null ? '' : tipTotal).trim();
+    const totalLabel = /^\d+(\.\d+)?$/.test(total) ? ' ' + formatIxiAmount(total) + ' IXI' : '';
     const tip = tipCount > 0
-      ? (tipCount > 1 ? (sl.tipped || 'Tipped') + ' ×' + tipCount : (sl.tipped || 'Tipped'))
+      ? (sl.tipped || 'Tipped') + totalLabel + (tipCount > 1 ? ' ×' + tipCount : '')
       : '';
     return { reactions, tip, seenCount, downloadedCount };
   }
@@ -2665,14 +2696,11 @@
   /* ONE delete path. C# has a SINGLE-message verb only
    * (ixian:contextAction:deleteMessage:<id> → SingleChatPage → friend.deleteMessage,
    * which echoes deleteMessage(id) back). Bulk delete is therefore an FE LOOP over
-   * that verb — no new bridge command, nothing invented on the C# side. Each id
-   * gets its own local-delete latch so the Q12 exdel hint stays correct (A-1). */
+   * that verb — no new bridge command, nothing invented on the C# side.
+   * ★ Q12 RETIRED (Session AD): the local-delete latch that fed the `spixi.exdel`
+   * chats-row hint is gone — C# re-pushes the row itself from Core's recomputed
+   * lastMessage on BOTH delete paths (UIHelpers.refreshChatRow). */
   function sendDeleteMessage(id) {
-    if (!mode.isBot) {
-      const lid = String(id);
-      pendingLocalDeletes.add(lid);
-      setTimeout(() => pendingLocalDeletes.delete(lid), 10000);
-    }
     bridge.send('ixian:contextAction:deleteMessage:' + id);
   }
 
@@ -2861,9 +2889,6 @@
     }
     if (action === 'select') { if (row) startChatSelect(row); return; }
     if (action === 'delete') {
-      // Q12 (A-1): the local-delete latch lives in sendDeleteMessage — only a LOCAL
-      // delete may write an exdel hint, and the latch self-expires so an id C# never
-      // echoes can't be consumed later by a REMOTE delete of the same id.
       sendDeleteMessage(id);
       return;
     }
@@ -3685,7 +3710,7 @@
          ★ The marker below is the SAME cross-WebView grammar this codebase already uses for
          exactly this problem — one file:// localStorage origin, a namespaced key, read by
          the other shell on its storage event + focus/visibility fallback (spixi.backup.last
-         #314, and Q12's spixi.exdel.<addr>). No bridge verb, no shared JS.
+         #314). No bridge verb, no shared JS.
          ⚠ NO PEER TEXT IS STORED, only an address and a timestamp — the #254 rule, because
          mini-apps share this storage partition. */
       onAccept: () => {
@@ -3855,11 +3880,11 @@
     const requestTxids = new Set();
     for (const oid of order) {
       const r = model.get(oid);
-      if (r && r.kind === 'payment' && r.txid && isRequestTitle(r.title)) requestTxids.add(r.txid);
+      if (r && r.kind === 'payment' && r.txid && isRequestRec(r)) requestTxids.add(r.txid);
     }
     const ids = !requestTxids.size ? order : order.filter((oid) => {
       const r = model.get(oid);
-      return !(r && r.kind === 'payment' && r.txid && !isRequestTitle(r.title) && requestTxids.has(r.txid));
+      return !(r && r.kind === 'payment' && r.txid && !isRequestRec(r) && requestTxids.has(r.txid));
     });
     const pos = positionsFor(ids);
     let lastDay = null;
@@ -4235,10 +4260,6 @@
       rec.eventChip = !!acceptedEventSubject(rec.text);
     }
     if (direction) rec.direction = direction;
-    // Q12 (A-3): a robustness-created row carries a WALL-CLOCK ts (tsSynthetic) that C#
-    // can never push back. A DIFFERENT ts arriving here is a real C#-pushed one (updateMessage
-    // re-passes the existing ts, so it can't clear the flag) → the row is hint-safe again.
-    if (ts && rec.tsSynthetic && ts !== rec.ts) rec.tsSynthetic = false;
     if (ts) rec.ts = ts;
     if (extra) {
       if (extra.senderNick !== undefined) rec.senderNick = extra.senderNick || '';
@@ -4344,7 +4365,10 @@
     if (ts) rec.ts = ts;
     if (extra) {
       if (extra.title !== undefined) rec.title = extra.title || '';
+      if (extra.prole !== undefined) rec.prole = extra.prole;          // C1: 'request' | 'payment'
       if (extra.amount !== undefined) rec.amount = extra.amount;
+      if (extra.fiat !== undefined) rec.fiat = extra.fiat || '';       // C2
+      if (extra.insufficient !== undefined) rec.insufficient = !!extra.insufficient;   // C2
       if (extra.pstatus !== undefined) rec.pstatus = extra.pstatus;
       if (extra.txid !== undefined) {
         rec.txid = extra.txid || '';
@@ -4355,8 +4379,8 @@
         if (rec.txid) {
           const owner = txIndex.get(rec.txid);
           const ownerRec = owner ? model.get(owner) : null;
-          const ownerIsRequest = !!(ownerRec && isRequestTitle(ownerRec.title));
-          if (!ownerIsRequest || isRequestTitle(rec.title)) txIndex.set(rec.txid, id);
+          const ownerIsRequest = isRequestRec(ownerRec);
+          if (!ownerIsRequest || isRequestRec(rec)) txIndex.set(rec.txid, id);
         }
       }
       if (extra.enableView !== undefined) rec.enableView = extra.enableView;
@@ -4373,7 +4397,7 @@
   /* CREATE a call event row (legacy addCall). missed = the bridge `declined`
    * flag (rang out / no answer); label = the C#-localized wording verbatim;
    * duration is a preformatted "m:ss" or empty. */
-  function upsertCall(id, ts, missed, label, duration, outgoing, declinedLocal) {
+  function upsertCall(id, ts, missed, label, duration, outgoing, declinedLocal, active) {
     id = String(id);
     const existing = model.get(id);
     const rec = existing || { id, kind: 'call' };
@@ -4387,6 +4411,7 @@
     if (outgoing !== undefined) rec.direction = outgoing ? 'sent' : 'received';
     // #572 ④: the user declined this call. Undefined (old exe) leaves the flag off.
     if (declinedLocal !== undefined) rec.declinedLocal = !!declinedLocal;
+    rec.active = !!active;   // ★ C4: re-pushed false when the call ends (endVoIPSession → insertMessage)
     model.set(id, rec);
     orderInsert(id);
     hideTyping();
@@ -4653,7 +4678,7 @@
             const args = item.a.map((x) => (x == null ? '' : (typeof x === 'number' ? String(strs[x] == null ? '' : strs[x]) : String(x))));
             handlers[item.f].apply(null, args);
             if (Array.isArray(item.r)) {
-              handlers.addReactions(args[0], item.r[0] == null ? '' : String(item.r[0]), item.r[1] == null ? '' : String(item.r[1]));
+              handlers.addReactions(args[0], item.r[0] == null ? '' : String(item.r[0]), item.r[1] == null ? '' : String(item.r[1]), item.r[2] == null ? '' : String(item.r[2]));   // ★ C6: the third slot = the tip total
             }
             n += 1;
           } catch (e) { dropped += 1; }
@@ -4745,11 +4770,6 @@
       const dir = existing ? undefined : (asBool(sent) ? 'sent' : 'received');
       upsertText(key, message, dir, existing ? existing.ts : Date.now(),
         { sent, confirmed, read, paid, errorSending });
-      // Q12 (A-3): the robustness-create above stamps a WALL-CLOCK ts C# can never
-      // push back as a lastMessage ts → an exdel hint built on it could never expire.
-      // Mark the row so writeExdelHint fails safe (writes nothing) if it's later
-      // deleted as the tail.
-      if (!existing) { const fresh = model.get(key); if (fresh) fresh.tsSynthetic = true; }
     },
 
 
@@ -4781,13 +4801,12 @@
 
     // Remove a row and re-render so #63 grouping repairs around the gap. C# pushes
     // the SAME command for a local menu delete and a remote (peer-initiated) one —
-    // the row goes either way; only the Q12 hint is latched to local deletes (A-1).
+    // the row goes either way (both are persisted by Core; the chats row is
+    // re-pushed by C#, Session AD).
     deleteMessage(id) {
       id = String(id);
       const rec = model.get(id);
-      const localDelete = pendingLocalDeletes.delete(id);   // consume the latch (this is the only ack)
       if (!rec) { dbg('deleteMessage: unknown', id); return; }
-      const wasTail = order.length > 0 && order[order.length - 1] === id;   // Q12: was this the last message?
       if (rec.kind === 'file' && rec.fileid) fileIndex.delete(rec.fileid);
       if (rec.kind === 'payment' && rec.txid) txIndex.delete(rec.txid);
       // A3: deleting the boundary row would leave the id pointing at a dead row →
@@ -4804,12 +4823,11 @@
       }
       model.delete(id);
       order = order.filter((x) => x !== id);
-      writeExdelHint(rec, wasTail && localDelete);   // after removal — the order tail IS the new last message
       renderLog();
     },
 
     // Peer is typing — show the pill briefly (auto-hides after 5s).
-    showUserTyping() { showTyping(); },
+    showUserTyping(who, nick) { showTyping(who, nick); },   // ★ C21: (address, nick) appended
 
     // Clear the composer input (C# echoes this after a successful send).
     clearInput() { if (composerEl) clearComposer(composerEl); },
@@ -4848,9 +4866,6 @@
       resetLoadedMedia();                  // per-peer reset, and drop any set an older build persisted
       loadDeclinedApps();                  // restore which app invites the user declined (per-peer, C7)
       loadCanceledApps();                  // ★ B2: …and which own invites they canceled
-      pendingLocalDeletes.clear();         // Q12 per-peer reset: a never-echoed local delete (e.g. the bot
-                                           // branch, SingleChatPage:1152 gates on !friend.bot) must not leak
-                                           // its id into the next peer and mis-latch a remote delete there
       groupRoster.clear();                 // per-peer reset: don't leak peer A's roster into B (desktop reparent)
       groupNicks.clear();                  // per-peer reset (repopulated by this peer's updateGroupChatNicks burst)
       groupOwner = '';                     // #248 per-peer reset (re-pushed by this peer's setGroupOwner)
@@ -5075,23 +5090,34 @@
       renderTopbar();
     },
 
-    /* ——— payments (view-only, wired) ————————————————————————————————————————
-     * addPaymentRequest is the 14-arg legacy shape (xaml.cs:1310/1361):
+    /* ——— payments ————————————————————————————————————————————————————————————
+     * addPaymentRequest is the 14-arg legacy shape (xaml.cs loadMessages) plus the
+     * ★ C1/C2 tail (new args LAST):
      *   (id, txid, address, nick, avatar, title, amount, status, statusIcon,
-     *    time, localSender, confirmed, read, enableView)
-     * `title` + `status` are C#-LOCALIZED strings; `statusIcon` is the stable
-     * signal we map to the status enum. localSender ("True"/"") → direction. */
-    addPaymentRequest(id, txid, address, nick, avatar, title, amount, status, statusIcon, time, localSender, confirmed, read, enableView) {
+     *    time, localSender, confirmed, read, enableView,
+     *    kind, statusEnum, fiat, insufficient)
+     * `kind` (`request` | `payment`) and `statusEnum` (`pending` | `completed` |
+     * `declined`) are the DECISIONS; `title` / `status` ride along for display.
+     * localSender ("True"/"") → direction. An older exe sends 14 args: the kind is
+     * then unknown (no request card is ever offered a Pay) and the status falls back
+     * to the icon. */
+    addPaymentRequest(id, txid, address, nick, avatar, title, amount, status, statusIcon, time, localSender, confirmed, read, enableView, kind, statusEnum, fiat, insufficient) {
+      // undefined = a 14-arg OLD exe (never '' — a re-push over an 18-arg card must not
+      // erase the role it already carries, loop C-11); '' = an unknown 15th arg
+      const prole = kind === undefined ? undefined : (String(kind || '') === 'request' ? 'request' : (String(kind || '') === 'payment' ? 'payment' : ''));
       /* #529 ghost guard: a CANCELED (msgDelete-blanked) request re-pushes with an
        * EMPTY amount and no txid on reload — render nothing, not an empty card.
        * ('?' = live tx-fetch placeholder, NOT empty — untouched.) */
-      if (isRequestTitle(title || '') && !String(amount == null ? '' : amount).trim() && !txid) {
+      if (prole === 'request' && !String(amount == null ? '' : amount).trim() && !txid) {
         dbg('addPaymentRequest: blanked request skipped', id);
         return;
       }
       upsertPayment(id, toMs(time), asBool(localSender) ? 'sent' : 'received', {
         title: title || '', amount: amount,
-        pstatus: paymentStatusFrom(statusIcon),
+        prole,
+        pstatus: paymentStatusFrom(statusEnum, statusIcon),
+        fiat: fiatDisplay(fiat),
+        insufficient: asBool(insufficient),
         txid: txid || '', enableView: asBool(enableView),
         senderNick: resolveNick(address, nick), senderAddress: address || '',
       });
@@ -5165,13 +5191,14 @@
       }
     },
 
-    // Request-status update (xaml.cs:1665): (msg_id, txid, status, statusIcon,
-    // enableView). Patches the card in place (re-render); ignores unknown ids.
-    updatePaymentRequestStatus(id, txid, status, statusIcon, enableView) {
+    // Request-status update (updateRequestFundsStatus): (msg_id, txid, status,
+    // statusIcon, enableView, statusEnum). Patches the card in place (re-render);
+    // ignores unknown ids.
+    updatePaymentRequestStatus(id, txid, status, statusIcon, enableView, statusEnum) {
       id = String(id);
       const rec = model.get(id);
       if (!rec || rec.kind !== 'payment') { dbg('updatePaymentRequestStatus: unknown', id); return; }
-      rec.pstatus = paymentStatusFrom(statusIcon);
+      rec.pstatus = paymentStatusFrom(statusEnum, statusIcon);
       if (txid) {
         if (rec.txid && rec.txid !== String(txid)) txIndex.delete(rec.txid); // drop stale key on re-key (N1)
         rec.txid = String(txid); txIndex.set(rec.txid, id);
@@ -5180,13 +5207,13 @@
       renderLog();
     },
 
-    // Direct-payment status update (xaml.cs:1648): (txid, status, statusIcon) —
-    // keyed by TXID, so resolve via txIndex.
-    updateTransactionStatus(txid, status, statusIcon) {
+    // Direct-payment status update (updateTransactionStatus): (txid, status,
+    // statusIcon, statusEnum) — keyed by TXID, so resolve via txIndex.
+    updateTransactionStatus(txid, status, statusIcon, statusEnum) {
       const id = txIndex.get(String(txid));
       const rec = id && model.get(id);
       if (!rec) { dbg('updateTransactionStatus: unknown txid', txid); return; }
-      rec.pstatus = paymentStatusFrom(statusIcon);
+      rec.pstatus = paymentStatusFrom(statusEnum, statusIcon);
       renderLog();
     },
 
@@ -5237,7 +5264,7 @@
     // seconds, "" unless answered+ended). Old exe → all three undefined: side
     // defaults to received and the duration falls back to the "(m:ss)" embedded
     // in the localized label, exactly as before.
-    addCall(id, text, declined, time, outgoing, missed, durationSecs, declinedLocally) {
+    addCall(id, text, declined, time, outgoing, missed, durationSecs, declinedLocally, active) {
       const isDeclined = asBool(declined);
       /* ★ #572 ④: the 8th arg (ADDITIVE) says THIS device turned the call down.
        * The 3rd arg `declined` is C#'s lossy "never connected" — true for a call
@@ -5255,8 +5282,11 @@
       // strip a trailing "(m:ss)" so the label is just the wording; the duration
       // is rendered separately by the card
       const label = raw.replace(/\s*\(\d+:\d{2}\)\s*$/, '').trim();
+      // ★ C4 (Session AD): the 9th arg — this card's session is LIVE. An old exe sends
+      // none → false (the card behaves as before).
       upsertCall(id, toMs(time), isDeclined, label, dur,
-        outgoing === undefined ? undefined : asBool(outgoing), isDeclinedLocal);
+        outgoing === undefined ? undefined : asBool(outgoing), isDeclinedLocal,
+        active === undefined ? false : asBool(active));
     },
 
     // REACTIONS (chat.js addReactions:549) — ;-joined "key:count". Store on the
@@ -5264,10 +5294,10 @@
     // bridge re-emits the FULL list each time, so parse-replace is correct.
     // C5: trailing `own` arg = ;-joined keys the local user reacted with
     // (undefined on an old exe → myLikes fallback inside parseReactions).
-    addReactions(id, reactions, own) {
+    addReactions(id, reactions, own, tipTotal) {
       const rec = model.get(String(id));
       if (!rec) { dbg('addReactions: unknown', id); return; }
-      const parsed = parseReactions(reactions, id, own);
+      const parsed = parseReactions(reactions, id, own, tipTotal);
       rec.reactions = parsed.reactions;
       rec.tip = parsed.tip;
       rec.seenCount = parsed.seenCount;               // ★★ L2 (#641): the long-press detail
@@ -5759,7 +5789,8 @@
    * with the result commands HomePage already pushes, and these handlers do the sweep.
    * ⚠ Prefix-driven, not a list: every `spixi.*` key whose name ENDS with `.<address>`
    * goes, which is the shape every per-peer family in this shell shares (draft · likes ·
-   * mentions.seen · exdel · app.declined · app.canceled · hidereq · hsstage), so a family
+   * mentions.seen · app.declined · app.canceled · hidereq · hsstage — and any legacy
+   * exdel key a pre-Session-AD build left behind), so a family
    * added later is covered by construction. THIS BODY IS A TWIN of the one in
    * contact_details.html — keep the two in step.
    * ⚠ The length guard is load-bearing: an empty address makes the suffix "." and matches
@@ -5831,56 +5862,12 @@
     input.dispatchEvent(new Event('input'));    // grow + action sync; isTrusted=false → no spurious ixian:typing
   }
 
-  /* —— Q12: deleted-tail excerpt hint (shared contract with home.html, which
-   * reads spixi.exdel.<addr>). Deleting the LAST message leaves the chats list
-   * stale: the delete path never re-pushes HomePage (SingleChatPage:1150-1159
-   * pushes only THIS WebView), and C#'s friend.metaData.lastMessage may keep the
-   * deleted message (Ixian-Core is outside this tree — unverifiable, #215; the
-   * hint self-expires if C# turns out to correct itself). So on a delete of the
-   * tail row we write a per-address hint home.html folds into the row.
-   *
-   * LOCAL DELETES ONLY (A-1). C# pushes the IDENTICAL deleteMessage(id) command
-   * for both paths, but only the local menu delete mutates core (SingleChatPage:
-   * 1146/1154 → friend.deleteMessage); the REMOTE msgDelete path (StreamProcessor:
-   * 459-462 → UIHelpers.deleteMessage:69-77 → SingleChatPage:1727) just drops the
-   * bubble — core keeps the message, so C# keeps pushing the same lastMessage ts
-   * (hint could never expire) while the next open re-shows the row. Hence the
-   * writer is latched: onMenuAction registers the id in pendingLocalDeletes and
-   * the deleteMessage handler consumes it. Remote deletes still remove the row —
-   * they just write no hint.
-   *
-   * Shape: { del: ms ts of the C#-VISIBLE lastMessage (max over sequential tail
-   * deletes — C#'s stale lastMessage keeps the newest ts it ever saw), t: ms ts of
-   * the new tail or 0, kind }. NO message text (DECISIONS #254 security ruling:
-   * shells + mini-apps share the file:// storage partition, so untrusted publisher
-   * code may read localStorage — we never widen it with counterpart-authored text).
-   * home expires the hint when C# pushes a lastMessage ts ≠ del. Crosses the #221
-   * wall via same-origin localStorage ONLY (the #238 landtab precedent) — no shared
-   * JS, no bridge. SKIPPED: bots (lastMessage may live in another channel than the
-   * visible order[], accepted edge) · rows with a synthetic wall-clock ts (A-3) ·
-   * deletes arriving mid-load-burst, where order[] is still partial (A-6). */
-  const EXDEL_PREFIX = 'spixi.exdel.';
-  const pendingLocalDeletes = new Set();   // ids sent by the local delete menu, awaiting C#'s echo
-  function writeExdelHint(deletedRec, wasTail) {
-    if (!wasTail || !identity.address || mode.isBot) return;
-    if (bursting) return;                              // A-6: partial log mid-load-burst → tail is not final
-    if (deletedRec.tsSynthetic) return;                // A-3: wall-clock ts C# can't push → hint could never expire
-    const k = EXDEL_PREFIX + identity.address;
-    let del = deletedRec.ts || 0;
-    try {   // sequential tail deletes: keep the NEWEST ts C# ever saw as lastMessage
-      const prev = JSON.parse(localStorage.getItem(k) || 'null');
-      if (prev && prev.del) del = Math.max(del, prev.del);
-    } catch (_) {}
-    if (!del) return;                                  // no comparable ts → no safe hint
-    const tailId = order[order.length - 1];
-    const tail = tailId ? model.get(tailId) : null;
-    const hint = {
-      del,
-      t: tail ? (tail.ts || 0) : 0,
-      kind: tail ? tail.kind : '',
-    };
-    try { localStorage.setItem(k, JSON.stringify(hint)); } catch (_) {}
-  }
+  /* ★ Q12 RETIRED (Session AD): the `spixi.exdel.<addr>` writer that lived here — a
+   * per-address hint the chats list folded into a row after a LOCAL tail delete —
+   * is gone. Its premise was "the local-delete path never re-pushes HomePage"; C#
+   * now re-pushes the row from Core's recomputed lastMessage on both delete paths
+   * (UIHelpers.refreshChatRow), so the list is authoritative again. No key of that
+   * family is written any more; home.html sweeps the legacy ones once at boot. */
 
   /* —— own-reaction persistence (C5 interim). The bridge's addReactions re-emit
    * carries NO per-user flag, so "I reacted" is FE-remembered in myLikes. A C#

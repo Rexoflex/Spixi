@@ -659,8 +659,9 @@ namespace SPIXI
             {
                 // #457: the prompt is done and it did not let the user in — the password
                 // field is the way forward, so stop holding it behind the boot spinner.
+                // (i18n-C#, Session AD: the alert's button only dismisses it — the localized Ok)
                 revealPasswordForm();
-                _ = displaySpixiAlert(SpixiLocalization._SL("global-lock-invalidpassword-title"), SpixiLocalization._SL("global-lock-invalidpassword-text"), "Cancel");
+                _ = displaySpixiAlert(SpixiLocalization._SL("global-lock-invalidpassword-title"), SpixiLocalization._SL("global-lock-invalidpassword-text"), SpixiLocalization._SL("global-dialog-ok"));
             }
 
             return Task.CompletedTask;

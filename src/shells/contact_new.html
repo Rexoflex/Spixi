@@ -169,13 +169,15 @@
   // component's own stale-reply guard (input value unchanged, not in-flight) decides
   // whether the ✓ actually shows.
   let pendingValidCtrl = null;
+  let pendingValidFor = '';   // ★ CO4: the address that ctrl asked about
+  let sendCtrl = null, sendGuard = null;   // ★ CO3: the Send ctrl + its old-exe belt timer
 
   const addEl = createAddContact({
     strings,
     onBack: () => bridge.send('ixian:back'),
 
     // live validity — ixian:checkAddress:<addr>. Success → onValidAddress() → ✓.
-    onCheckAddress: (addr, ctrl) => { pendingValidCtrl = ctrl; bridge.send('ixian:checkAddress:' + addr); },
+    onCheckAddress: (addr, ctrl) => { pendingValidCtrl = ctrl; pendingValidFor = addr; bridge.send('ixian:checkAddress:' + addr); },
 
     // send request — ixian:request:<addr>. Success = C# pops this page (WebView torn
     // down → the guard timer below never fires). A C# rejection (self / already a
@@ -184,6 +186,7 @@
     // that restores the button with soft copy. (A proper onRequestFailed(msg) push
     // is the clean BE fix — be-cutover.)
     onSendRequest: (addr, ctrl) => {
+      sendCtrl = ctrl;   // ★ CO3: resolved by onRequestResult; the timer below is the old-exe belt
       bridge.send('ixian:request:' + addr);
       // N55 → #376 loop B-2 (MAJOR): NO optimistic toast on THIS surface. C#
       // returns WITHOUT sending on three paths (malformed / own address /
@@ -193,7 +196,10 @@
       // the SUCCESS path C# pops this page — the pop itself is the feedback.
       // Post-pop landing feedback = a logged Damir dial (C# push or a storage
       // handshake; neither built).
-      setTimeout(() => {
+      sendGuard = setTimeout(() => {
+        sendGuard = null;
+        if (sendCtrl !== ctrl) return;     // already answered by onRequestResult
+        sendCtrl = null;
         try { ctrl.fail(strings.requestMaybeFailed
           || 'If nothing happened, that address may already be a contact or invalid.'); } catch (_) {}
       }, 6000);
@@ -226,9 +232,26 @@
     setAddress(address) { setAddContactAddress(addEl, address || ''); },
     // checkAddress success — reveal the ✓ affordance via the pending ctrl, then
     // NULL it so a second (stale) onValidAddress can't re-resolve a consumed ctrl.
-    // Exact correlation (which address C# validated) needs a BE onValidAddress(addr)
-    // — logged; the component's own input-unchanged guard covers the common case.
-    onValidAddress() { if (pendingValidCtrl) { pendingValidCtrl.done(); pendingValidCtrl = null; } },
+    // ★ CO4 (Session AD): C# echoes the address it validated — resolve ONLY when it is
+    // the one this ctrl asked about (an old exe sends none → resolve as before).
+    onValidAddress(checked) {
+      if (!pendingValidCtrl) return;
+      if (checked != null && String(checked) !== '' && String(checked) !== pendingValidFor) return;
+      pendingValidCtrl.done(); pendingValidCtrl = null;
+    },
+    /* ★ CO3 (Session AD): ContactNewPage answers every refusal with the verdict now
+       (`onRequestResult("0", msg)`, the in-shell host's push), so the Send button
+       un-latches on the real reason. The 6 s timer below is the old-exe belt only. */
+    onRequestResult(ok, message) {
+      if (sendGuard) { clearTimeout(sendGuard); sendGuard = null; }
+      if (!sendCtrl) return;
+      const c = sendCtrl; sendCtrl = null;
+      if (String(ok) === '1') { try { c.done(); } catch (_) {} return; }
+      try {
+        c.fail(String(message || '')
+          || (strings.requestMaybeFailed || 'If nothing happened, that address may already be a contact or invalid.'));
+      } catch (_) {}
+    },
     /* #435(b): checkAddress now answers WHICH outcome an address has. 'contact' and
        'self' are not failures, so they never resolve pendingValidCtrl (which would
        show the ✓) — they are consumed and dropped, and the panel is the answer.

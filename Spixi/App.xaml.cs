@@ -228,7 +228,6 @@ public partial class App : Application
             flushStartupDiagnostics();
             Logging.info("Starting Spixi {0} ({1})", Config.version, CoreConfig.version);
             Logging.info("Operating System is {0}", IXICore.Platform.getOSNameAndVersion());
-            startDiag("logger up");
             if (IXICore.Platform.onWindows())
             {
                 // #912: the html copy is per-file now (see copyContents); this is its receipt.
@@ -351,7 +350,6 @@ public partial class App : Application
 
             // Start Ixian code
             _ = new Node();
-            startDiag("node constructed");
 
             // Attempt to load a pre-existing wallet
             bool wallet_found = Node.checkForExistingWallet();
@@ -369,8 +367,6 @@ public partial class App : Application
                 {
                     wallet_decrypted = Node.loadWallet();
                 }
-
-                startDiag(wallet_decrypted ? "wallet decrypted" : "wallet NOT decrypted");
 
                 if (wallet_decrypted == false)
                 {
@@ -403,7 +399,6 @@ public partial class App : Application
                 }
             }
             NavigationPage.SetHasNavigationBar(MainPage, false);
-            startDiag("root page set");
         }
         else if (IxianHandler.status == NodeStatus.stopped
                 || IxianHandler.status == NodeStatus.stopping)
@@ -1554,23 +1549,14 @@ public partial class App : Application
      * `Node.Instance != null` flush and it is dropped on every construction after the first. */
     private static string? startupDiagnostic = null;   // ★ r3 R3-6: <Nullable>enable</Nullable> — null IS the empty state
 
-    /* ★ #912 (Damir 2026-09-21: "why is Spixi startup significantly longer than other
-     * chat apps") — THE COLD START IS MEASURED, NOT GUESSED. Five [STARTDIAG] lines, all
-     * on the launch path, all relative to the process's first managed instruction here:
-     * logger up (= Config.init + the Windows html copy), node constructed (two RocksDB
-     * opens, the contact list, the stream processor), wallet decrypted, root page set,
-     * and the home shell's first ixian:onload (HomePage.onLoaded). One launch log then
-     * says WHERE the seconds go before anyone moves the node boot off the UI thread —
-     * that is the expensive change, and it is not made blind. Remove with [CDPERF]'s
-     * discipline (#663) once the numbers are in a DECISIONS row. */
-    private static readonly System.Diagnostics.Stopwatch startClock = System.Diagnostics.Stopwatch.StartNew();
+    /* ★ #912 → RETIRED (Session AD). The five [STARTDIAG] cold-start milestones did their
+     * job: the numbers are in DECISIONS #913 (Debug) and #925 (Release, Android + Windows +
+     * the `rdy` mark), and the lever they point at (the first WebView in parallel with the
+     * node boot) is a design step with BE, not a blind change. Removed with [CDPERF]'s
+     * discipline (#663): the calls, the method and the Stopwatch are gone together, so no
+     * half-instrument logs a number nobody reads. */
     private static int htmlCopied = 0;
     private static int htmlUnchanged = 0;
-
-    public static void startDiag(string stage)
-    {
-        Logging.info("[STARTDIAG] {0} at +{1} ms", stage, startClock.ElapsedMilliseconds);
-    }
 
     private static void recordStartupDiagnostic(string message)
     {

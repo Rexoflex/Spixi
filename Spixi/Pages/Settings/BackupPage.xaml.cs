@@ -32,7 +32,9 @@ namespace SPIXI
 
         private void onLoad()
         {
-
+            // ★ S2 (loop m3): the standalone Backup page (the home nudge, the mobile takeover)
+            // must open with the recorded stamp, not "not backed up yet"
+            pushBackupStatus(this);
         }
 
 
@@ -78,14 +80,16 @@ namespace SPIXI
 
         }
 
-        private void onBackupWallet()
+        private async void onBackupWallet()
         {
-            _ = backupWallet();
+            await backupWallet();
+            pushBackupStatus(this);   // ★ S2: the standalone page's own row
         }
 
-        private void onBackupAccount()
+        private async void onBackupAccount()
         {
-            _ = backupAccount();
+            await backupAccount();
+            pushBackupStatus(this);   // ★ S2
         }
 
         /* #243: the two backup operations are SELF-CONTAINED (no page state; C#
@@ -93,6 +97,60 @@ namespace SPIXI
          * so SettingsPage can forward ixian:backupAccount/backupWallet and render
          * the backup screen as a SUBLEVEL inside the Account pane (be-cutover S15).
          * Bodies unchanged from the instance handlers they replace. */
+
+        /* ★ S2 (Session AD): the LAST-BACKUP stamp is C#-OWNED now. Three shells used to
+         * keep it in localStorage (`spixi.backup.last`) — written at the share-sheet launch,
+         * read by the Account hub's Backup row, the standalone backup page and the home
+         * shell's 30-day nudge gate, synced across WebViews by a storage event, a focus
+         * fallback and a 2 s poll. The preference below records the moment the OS
+         * share/save sheet RETURNED without throwing for a produced backup file (#46 loop
+         * m4 moved it after the await: a throw records nothing). ⚠ A user CANCEL is still
+         * recorded — the shared `share` signature returns no outcome (Windows' FileSaver
+         * result never reaches the caller: `Task<Task<bool>>`, true even on !IsSuccessful),
+         * so "confirmed written" is NOT claimed; the old shell stamp had the same blind spot.
+         * The stamp reaches the shells as ONE push, `setLastBackup(<unix seconds>)`, while the
+         * home nudge reads the preference directly (HomePage.displayBackupReminder). */
+        private const string LAST_BACKUP_PREF = "lastBackupTimestamp";
+
+        public static long lastBackupTimestamp()
+        {
+            try
+            {
+                return long.Parse(Preferences.Default.Get(LAST_BACKUP_PREF, "0"));
+            }
+            catch (Exception)
+            {
+                return 0;
+            }
+        }
+
+        private static void recordBackup()
+        {
+            try
+            {
+                Preferences.Default.Set(LAST_BACKUP_PREF, Clock.getTimestamp().ToString());
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("recordBackup failed: " + ex.GetType().Name);
+            }
+        }
+
+        /// <summary>The push every backup surface renders its status from ("" = never).</summary>
+        public static void pushBackupStatus(SpixiContentPage page)
+        {
+            // fenced HERE, once: two of its callers are `async void` handlers (onBackupWallet /
+            // onBackupAccount), where a throw is an unobserved crash, not a caught exception
+            try
+            {
+                long ts = lastBackupTimestamp();
+                Utils.sendUiCommand(page, "setLastBackup", ts > 0 ? ts.ToString() : "");
+            }
+            catch (Exception e)
+            {
+                Logging.warn("pushBackupStatus: " + e.GetType().Name);
+            }
+        }
 
         public static async Task backupWallet()
         {
@@ -102,6 +160,7 @@ namespace SPIXI
                 string docpath = Config.spixiUserFolder;
                 string filepath = Path.Combine(docpath, Config.walletFile);
                 await SFileOperations.share(filepath, "Backup Spixi Wallet");
+                recordBackup();   // ★ S2: AFTER the sheet returned without throwing (loop m4)
             }
             catch (Exception ex)
             {
@@ -161,6 +220,7 @@ namespace SPIXI
                 File.Delete(backup_file_name);
                 File.WriteAllBytes(backup_file_name, encrypted_backup);
                 await SFileOperations.share(backup_file_name, "Share Spixi Account Backup File");
+                recordBackup();   // ★ S2: AFTER the sheet returned without throwing (loop m4)
             }
             catch (Exception ex)
             {

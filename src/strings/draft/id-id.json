@@ -645,5 +645,10 @@
   "addContactEnterLabel": "Masukkan atau tempel alamat Spixi",
   "addContactEnterHint": "Ketik atau tempel alamat Spixi mereka (misalnya 42Spox…M3rci98).",
   "creditFlags": "Bendera negara",
-  "sharedGroupsTitle": "Grup bersama"
+  "sharedGroupsTitle": "Grup bersama",
+  "favorite": "Tambahkan ke favorit",
+  "unfavorite": "Hapus dari favorit",
+  "appFetchHttp": "Aplikasi tidak dapat diunduh dari tautan itu.",
+  "appFetchTimeout": "Tautan tidak merespons. Periksa koneksi Anda dan coba lagi.",
+  "appFetchTooLarge": "Paket aplikasi itu terlalu besar."
 }

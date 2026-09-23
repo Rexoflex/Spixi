@@ -686,3 +686,4 @@ notification-payment-request = Запрос платежа
 notification-app-invite = Приглашение в приложение
 notification-file = Файл получен
 notification-contact-request = Запрос в контакты
+chat-new-norecipient-text = Выберите получателя, чтобы начать чат.

@@ -46,7 +46,7 @@ import { createEmptyState } from './empty-state.js';
 export function chatMatchesFilter(chat, filter) {
   switch (filter) {
     case 'unread': return (chat.unread || 0) > 0 || !!chat.mention;
-    case 'favorites': return !!chat.favorite;          // BE-gated (§8) — empty until then
+    case 'favorites': return !!chat.favorite;          // ★ CH4 (Session AD): fed by C#'s setChatFavorite echo
     case 'groups': return chat.type === 'group';
     // M5: OUTGOING pending-request rows ride the Requests chip beside the
     // incoming request CARDS (orderedRequests). `chat.request` = shell flag
@@ -344,6 +344,7 @@ export function applyChatRowAction(listEl, state, chat, action, opts = {}, detai
   switch (action) {
     case 'pin': chat.pinned = !chat.pinned; break;
     case 'mute': chat.muted = !chat.muted; break;
+    case 'favorite': chat.favorite = !chat.favorite; break;   // ★ CH4 (Session AD): C# persists, echoes setChatFavorite
     /* 'markRead' is REMOVED (Damir, #46 loop 2026-08-27). The chats row menu no
        longer offers it. There is no backend verb, so the badge came back on the next
        flush and the counterpart got no read receipt. Do not add this case back. */

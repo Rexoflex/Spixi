@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Net.Http;
 using System.Text;
@@ -22,7 +23,32 @@ namespace SPIXI.MiniApps
         Dictionary<string, MiniApp> appList = new Dictionary<string, MiniApp>();
 
         private Dictionary<byte[], MiniAppPage> appPages = new Dictionary<byte[], MiniAppPage>(new ByteArrayComparer());
-        private static readonly HttpClient httpClient = new HttpClient();
+        /* ★ A4 (Session AD): a BOUNDED fetch. The default HttpClient timeout is 100 s; the
+         * shells' "maybe failed" grace timer used to fire at 8 s while the fetch was still
+         * running, and a success up to 92 s later then closed the panel under the user.
+         * 15 s is the ceiling; the shells' timer sits ABOVE it, so it only ever fires when
+         * no signal came at all. */
+        private static readonly HttpClient httpClient = new HttpClient() { Timeout = TimeSpan.FromSeconds(15) };
+
+        /// <summary>★ A4: why a fetch returned null — a fixed vocabulary the shell maps to a
+        /// localized line: url · http · size · timeout · invalid · error.</summary>
+        public enum FetchFailure { None, Url, Http, Size, Timeout, Invalid, Error }
+        /// <summary>The whole-fetch deadline (HEAD + GET); the shells' 20 s grace must stay above it.</summary>
+        public const int FETCH_DEADLINE_SECONDS = 15;
+
+        public static string fetchFailureName(FetchFailure f)
+        {
+            switch (f)
+            {
+                case FetchFailure.Url: return "url";
+                case FetchFailure.Http: return "http";
+                case FetchFailure.Size: return "size";
+                case FetchFailure.Timeout: return "timeout";
+                case FetchFailure.Invalid: return "invalid";
+                case FetchFailure.Error: return "error";
+                default: return "";
+            }
+        }
 
         bool started = false;
 
@@ -90,29 +116,41 @@ namespace SPIXI.MiniApps
 
         public async Task<MiniApp?> fetch(string url, long maxSizeBytes = 1 * 1024 * 1024) // 1 MB default limit
         {
+            var (app, _) = await fetchWithReason(url, maxSizeBytes);
+            return app;
+        }
+
+        /// <summary>★ A4 (Session AD): the same fetch, with the REASON a null carries.</summary>
+        public async Task<(MiniApp? app, FetchFailure failure)> fetchWithReason(string url, long maxSizeBytes = 1 * 1024 * 1024)
+        {
             if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out Uri uri) || uri.Scheme != Uri.UriSchemeHttps)
             {
                 Logging.error("Invalid or insecure app URL: " + url);
-                return null;
+                return (null, FetchFailure.Url);
             }
 
+            // ★ A4 (#46 loop m5): ONE deadline over BOTH round trips (HEAD + GET). Each request
+            // also has the client's per-request ceiling, so the whole fetch is bounded by
+            // FETCH_DEADLINE_SECONDS — and the shells' fallback timer (20 s) fires AFTER it,
+            // so a slow server never closes the panel under a late success.
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(FETCH_DEADLINE_SECONDS));
             try
             {
                 using var headRequest = new HttpRequestMessage(HttpMethod.Head, url);
 
                 httpClient.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue() { NoCache = true, NoStore = true, MustRevalidate = true };
 
-                using HttpResponseMessage headResponse = await httpClient.SendAsync(headRequest);
+                using HttpResponseMessage headResponse = await httpClient.SendAsync(headRequest, deadline.Token);
                 headResponse.EnsureSuccessStatusCode();
 
                 long contentLength = headResponse.Content.Headers.ContentLength ?? 0;
                 if (contentLength > maxSizeBytes)
                 {
                     Logging.error("App content size exceeds limit: " + contentLength + " bytes");
-                    return null;
+                    return (null, FetchFailure.Size);
                 }
 
-                byte[] data = await httpClient.GetByteArrayAsync(url);
+                byte[] data = await httpClient.GetByteArrayAsync(url, deadline.Token);
 
                 string content = Encoding.UTF8.GetString(data);
                 string[] app_info = content.Replace("\r\n", "\n").Split('\n');
@@ -120,20 +158,27 @@ namespace SPIXI.MiniApps
                 var app = new MiniApp(app_info, url);
                 if (app.id == "")
                 {
-                    return null;
+                    return (null, FetchFailure.Invalid);
                 }
-                return app;
+                return (app, FetchFailure.None);
+            }
+            catch (OperationCanceledException e)
+            {
+                // the deadline above, or the client's per-request ceiling — HttpClient reports
+                // both as a cancellation (TaskCanceledException derives from this one)
+                Logging.error("App fetch timed out: " + e.GetType().Name);
+                return (null, FetchFailure.Timeout);
             }
             catch (HttpRequestException e)
             {
                 Logging.error("HTTP request exception occurred: " + e.Message);
+                return (null, FetchFailure.Http);
             }
             catch (Exception e)
             {
                 Logging.error("Exception occurred while downloading app data: " + e.Message);
+                return (null, FetchFailure.Error);
             }
-
-            return null;
         }
 
         public string? installFromUrl(MiniApp fetchedAppInfo)

@@ -2854,11 +2854,17 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
      is verified by source markers (shells aren't jsdom-loaded here). */
   const chat = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
   const home = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
-  ok(/id="sl-payment-received">\*SL\{chat-payment-received\}/.test(chat)
-    && /function displayPaymentAmount/.test(chat) && /return '\+' \+ a;/.test(chat),
-    'Q4: received direct payments signed via the star-SL title carrier');
-  ok(/=== PAY_REQUEST_RECEIVED_TITLE\) return a;/.test(chat),
-    'Q4: translation-collision guard — a request title never signs (audit A-1)');
+  /* ★ Session AD (C1): the sign no longer rides a localized TITLE through a *SL{}
+     equality carrier — C# pushes the payment KIND (`request` | `payment`, the 16th
+     addPaymentRequest arg) and the shell signs by that. The carriers, the title
+     constants and the collision guard are deleted with the mechanism; the property
+     they guarded (a request never signs, a received payment always does) is now the
+     `prole` test, and the old carrier spelling must be GONE. */
+  ok(!/id="sl-payment-received"/.test(chat) && !/PAY_REQUEST_RECEIVED_TITLE/.test(chat)
+    && /function displayPaymentAmount/.test(chat) && /if \(rec\.prole !== 'payment'\) return a;/.test(chat) && /return '\+' \+ a;/.test(chat),
+    'Q4 → C1: received direct payments are signed by the pushed KIND (prole === payment); the star-SL title carriers are gone');
+  ok(/const isRequestRec = \(r\) => !!r && r\.prole === 'request';/.test(chat) && !/PAY_REQUEST_(?:RECEIVED|SENT)_TITLE/.test(chat),
+    'Q4 → C1: a request is a request by KIND (isRequestRec reads prole), never by a translated title — the audit A-1 collision class cannot recur');
   ok(/if \(channelDropdown\) \{ closeChannelSelector\(\); return; \}/.test(chat),
     'Q9: channel-selector title tap toggles closed');
   /* ★ Session I re-base (#733①, Damir: "caret WITHOUT the keyboard"): desktop keeps the plain
@@ -2894,80 +2900,54 @@ console.log('chats-list polish batch — Q12 / Q5 / M5 (2026-07-11)');
   /* static guards — shell wiring isn't jsdom-loaded; verify source markers. */
   const chat = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
   const home = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
-  // Q12 writer (chat side): hint written on a C#-confirmed delete of the tail row,
-  // AFTER the row is removed (order tail = the new last message); bots skipped; and
-  // ONLY for a LOCALLY-initiated delete (C# pushes the IDENTICAL deleteMessage(id)
-  // for a remote msgDelete, which never mutates core → such a hint could never expire).
-  ok(/const EXDEL_PREFIX = 'spixi\.exdel\.';/.test(chat)
-    && /const wasTail = order\.length > 0 && order\[order\.length - 1\] === id;/.test(chat)
-    && /writeExdelHint\(rec, wasTail && localDelete\);/.test(chat)
-    && /if \(!wasTail \|\| !identity\.address \|\| mode\.isBot\) return;/.test(chat),
-    'Q12: chat.html writes the deleted-tail hint (post-removal, tail-only, bots skipped, LOCAL deletes only)');
-  // Q12 local-delete latch (A-1): registered where the delete verb is SENT, consumed
-  // in the deleteMessage bridge handler (the only ack), cleared per peer. NOT latched for
-  // bots (no core delete → no echo) and SELF-EXPIRING (R-4: an id C# never echoes must not
-  // be consumed later by a REMOTE delete of the same id → a hint that could never expire).
-  ok(/const pendingLocalDeletes = new Set\(\);/.test(chat)
-    && /if \(!mode\.isBot\) \{[\s\S]{0,240}?pendingLocalDeletes\.add\(lid\);/.test(chat)
-    && /setTimeout\(\(\) => pendingLocalDeletes\.delete\(lid\), \d+\);/.test(chat)
-    && /bridge\.send\('ixian:contextAction:deleteMessage:' \+ id\);/.test(chat)
-    && /const localDelete = pendingLocalDeletes\.delete\(id\);/.test(chat)
-    && /pendingLocalDeletes\.clear\(\);/.test(chat),
-    'Q12: local-delete latch — the hint writer fires only for deletes THIS shell initiated (remote msgDelete writes none), bot-skipped + self-expiring');
-  // Q12 (A-3/R-5): a robustness-created row carries a wall-clock ts C# can never push →
-  // marked tsSynthetic (writer fails safe); a real C#-pushed ts clears the mark.
-  ok(/fresh\.tsSynthetic = true;/.test(chat)
-    && /if \(ts && rec\.tsSynthetic && ts !== rec\.ts\) rec\.tsSynthetic = false;/.test(chat)
-    && /if \(deletedRec\.tsSynthetic\) return;/.test(chat),
-    'Q12: synthetic-ts rows write no hint (and the mark clears once a real C# ts lands)');
-  // ★ SECURITY (DECISIONS #254): the hint shape is { del, t, kind } — NO message text.
-  // The shells and third-party mini-apps share the file:// localStorage partition, so
-  // counterpart-authored text must never be persisted there. Guard the writer's body.
-  const wxBody = (chat.match(/function writeExdelHint\([\s\S]*?\n  \}/) || [''])[0];
-  ok(wxBody.length > 0
-    && !/\btext\s*:/.test(wxBody)
-    && !/\.slice\(0,\s*\d+\)/.test(wxBody)
-    && /kind: tail \? tail\.kind : '',/.test(wxBody),
-    'Q12/#254: the exdel hint persists { del, t, kind } ONLY — no counterpart message TEXT in the shared file:// storage partition');
-  // Q12 reader (home side): fold-in on addChat with ts-equality expiry + the
-  // #238 live trio (storage event + focus/visibility fallback).
-  ok(/const EXDEL_PREFIX = 'spixi\.exdel\.';/.test(home)
-    && /if \(t && t !== dh\.del\) dropExdelHint\(wallet\);/.test(home)
-    && /e\.key\.indexOf\(EXDEL_PREFIX\) === 0 && e\.newValue\) applyExdelHints\(\)/.test(home)
-    && /window\.addEventListener\('focus', applyExdelHints\)/.test(home),
-    'Q12: home.html folds the hint in (addChat expiry on a different pushed ts + live storage/focus trio)');
-  // ★ #254 reader half: no `.text` is read back — a TEXT tail degrades to an EMPTY
-  // excerpt (row keeps the corrected timestamp; the next real push heals the line).
-  const exBody = (home.match(/function excerptFromExdel\([\s\S]*?\n  \}/) || [''])[0];
-  ok(exBody.length > 0
-    && !/h\.text/.test(exBody)
-    && /return \{ type: 'text', text: '' \};/.test(exBody),
-    'Q12/#254: excerptFromExdel reads { kind } only — a text tail degrades to an empty excerpt (nothing cached to read)');
-  // Q12 precedence (audit B-1/B-2): the hint must not clobber a live typing line
-  // (a typing event re-flushes the UNCHANGED stale lastMessage ts → hint not expired)
-  // nor a CH8 sticky reaction excerpt (newer info).
-  const apBody = (home.match(/function applyExdelHints\([\s\S]*?\n  \}/) || [''])[0];
-  ok(apBody.length > 0
-    && /c\.excerpt\.type === 'draft' \|\| c\.excerpt\.type === 'typing'\)\) continue;/.test(apBody)
-    && /if \(reactionExcerpts\.has\(c\.address\)\) continue;/.test(apBody),
-    'Q12: applyExdelHints yields to draft/typing rows and to a CH8 sticky reaction excerpt (audit B-1/B-2)');
-  // Q12/M5 flush-done path: orphan-hint prune (B-7, a natively removed contact never
-  // gets another addChat to expire its hint) + the Requests-filter leave guard (B-3),
-  // both BEFORE the authoritative render.
+  /* ★ Session AD — Q12 RETIRED WITH ITS PREMISE. The `spixi.exdel.*` hint existed
+     because a LOCAL delete never refreshed the chats row (C# pushed only to the chat
+     WebView) — a shell-side handshake between two documents papered over a missing C#
+     push. C16 landed the push: UIHelpers.refreshChatRow re-pushes the row from Core's
+     recomputed lastMessage on BOTH the local and the remote delete, so the shells hold
+     no hint, write no key and read none. What survives is a ONE-TIME boot sweep in
+     home.html that REMOVES the legacy keys a device may still carry (#254: an unread
+     key is a key that should not exist). The nine Q12 pins below are INVERTED with
+     their reason, never deleted (#835): the mechanism must stay gone, and its two
+     replacements must be present. */
+  ok(!/EXDEL_PREFIX = 'spixi\.exdel\.';/.test(chat) && !/writeExdelHint/.test(chat) && !/pendingLocalDeletes/.test(chat) && !/tsSynthetic/.test(chat)
+    && /function sendDeleteMessage\(id\) \{\s*bridge\.send\('ixian:contextAction:deleteMessage:' \+ id\);\s*\}/.test(chat),
+    'Q12 → C16: chat.html writes NO deleted-tail hint and holds no local-delete latch — the delete verb is sent bare, and the chats row is C#\'s to refresh');
+  ok(!/const EXDEL_PREFIX/.test(home) && !/applyExdelHints|excerptFromExdel|pruneExdelHints|dropExdelHint/.test(home)
+    && /const LEGACY_EXDEL_PREFIX = 'spixi\.exdel\.';/.test(home)
+    && /\(function sweepLegacyExdelKeys\(\) \{[\s\S]*?localStorage\.removeItem\(k\);[\s\S]*?\}\)\(\);/.test(home)
+    && (stripCode(home).match(/spixi\.exdel\./g) || []).length === 1   // the LITERAL, once (auditor C item 5: the const name counted nothing)
+    && (stripCode(home).match(/LEGACY_EXDEL_PREFIX/g) || []).length === 2 && /k\.indexOf\(LEGACY_EXDEL_PREFIX\) === 0\) keys\.push\(k\);/.test(stripCode(home))   // …and the const has ONE use: the sweep's own test (loop r2 NIT: a reader through the const)
+    && !/spixi\.exdel\./.test(stripCode(chat)),
+    'Q12 → C16: home.html reads NO hint; the ONE `spixi.exdel.` literal in the code is the boot sweep\'s const (chat.html has none) and the sweep REMOVES legacy keys');
+  const uihAD = readFileSync(join(root, 'Spixi/Utils/UIHelpers.cs'), 'utf8');
+  const scpAD = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8');
+  ok(/public static void refreshChatRow\(Friend friend\)/.test(uihAD)
+    && /shouldRefreshContacts = true;/.test((uihAD.match(/public static void refreshChatRow\(Friend friend\)[\s\S]*?\n        \}/) || [''])[0])
+    && /updateChat\(friend\)/.test((uihAD.match(/public static void refreshChatRow\(Friend friend\)[\s\S]*?\n        \}/) || [''])[0])
+    && /refreshChatRow\(friend\);/.test((uihAD.match(/public static void deleteMessage\([\s\S]*?\n        \}/) || [''])[0]),
+    'C16 (the C# half): refreshChatRow exists, re-pushes the row through HomePage.updateChat AND arms the refresh flag as the belt, and the REMOTE-delete path (UIHelpers.deleteMessage) calls it');
+  {
+    // the LOCAL delete: the contextAction branch calls refreshChatRow after Core's deleteMessage succeeds
+    const at = scpAD.indexOf('case "deleteMessage"');
+    const branch = at >= 0 ? scpAD.slice(at, scpAD.indexOf('break;', at)) : '';
+    ok(branch.length > 0 && /friend\.deleteMessage\(/.test(branch) && /UIHelpers\.refreshChatRow\(friend\);/.test(branch),
+      'C16 (the C# half): the LOCAL delete branch (contextAction deleteMessage) refreshes the chats row too — the gap the exdel hint used to paper over');
+  }
+  // Q12/M5 flush-done path: the Requests-filter leave guard (B-3) still runs BEFORE the
+  // authoritative render (the orphan-hint prune it used to sit beside is gone with Q12).
   const doneBody = (home.match(/clearChatsDone\(\) \{[\s\S]*?\n    \},/) || [''])[0];
-  ok(/function pruneExdelHints\(\)/.test(home)
-    && doneBody.length > 0
-    && /pruneExdelHints\(\);/.test(doneBody)
+  ok(doneBody.length > 0
     && /leaveRequestsFilterIfEmpty\(\);/.test(doneBody)
-    && /renderChatsNow\(\);/.test(doneBody),
-    'Q12/M5: flush-done prunes orphan hints (B-7) + runs the Requests leave guard (B-3) before the authoritative render');
-  // Q12/M5 onPersist delete path: the deleted row sheds its hint, and deleting the
-  // LAST outgoing request row re-runs the leave guard (the chip hides at 0).
+    && /renderChatsNow\(\);/.test(doneBody)
+    && doneBody.indexOf('leaveRequestsFilterIfEmpty();') < doneBody.indexOf('renderChatsNow();'),
+    'Q12/M5: flush-done runs the Requests leave guard (B-3) before the authoritative render');
+  // Q12/M5 onPersist delete path: deleting the LAST outgoing request row re-runs the
+  // leave guard (the chip hides at 0).
   const persistBody = (home.match(/onPersist: \(action, chat, detail\) => \{[\s\S]*?\n    \},/) || [''])[0];
   ok(persistBody.length > 0
-    && /dropExdelHint\(chat\.address\);/.test(persistBody)
     && /leaveRequestsFilterIfEmpty\(\);/.test(persistBody),
-    'Q12/M5: a row delete sheds its exdel hint + re-runs the Requests leave guard (onPersist)');
+    'Q12/M5: a row delete re-runs the Requests leave guard (onPersist)');
   // iOS-26 SUPERSEDES Q5 (Damir 2026-07-29): groups are back IN the directory and
   // the 'start' picker — a wiped chat history must not make a group unreachable —
   // and the People/Groups chips separate them instead. Both hand-off points still
@@ -2976,7 +2956,7 @@ console.log('chats-list polish batch — Q12 / Q5 / M5 (2026-07-11)');
   ok(/contactsView\.setContacts\(directoryRoster\(\)\)/.test(home)
     && /getRoster: \(\) => directoryRoster\(\)/.test(home)
     && /groupAddrs\.add\(wallet\)/.test(home)
-    && /isGroup: avatar === 'img\/spixi-group-avatar\.png'/.test(home)
+    && /isGroup: k === 'group' \|\| k === 'bot' \|\| avatar === 'img\/spixi-group-avatar\.png'/.test(home)   // ★ Session AD C17: the pushed KIND first, the sentinel as the old-exe fallback
     && /const isGroupContact = /.test(home)
     && !/\.filter\(\(c\) => c && !c\.isGroup && !groupAddrs\.has\(c\.address\)\)/.test(home),
     'iOS-26: directory/picker roster KEEPS groups (isGroup normalized; Q5 drop-filter gone)');
@@ -3004,10 +2984,15 @@ console.log('chats-list polish batch — Q12 / Q5 / M5 (2026-07-11)');
   // (For the record, the old comment's premise was also wrong: the C# branch is
   // `state == Approved && !friend.approved` — reachable for an OUTGOING request the
   // peer accepted, before any real message arrives. So the key CAN reach a row.)
-  ok(/<span id="sl-waiting-response">\*SL\{chat-waiting-for-response\}<\/span>/.test(home)
-    && /canonEntry\('sl-ex-contact-request', 'Contact Request', 'request'\);/.test(home)
-    && /if \(statusType && trimmed && trimmed === REQUEST_SENT_TEXT\) return \{ type: 'request'/.test(home),
-    'M5: outgoing request = waiting-for-response carrier + direction guard (contact-request key belongs to the Q2 canon, not to M5)');
+  /* ★ Session AD (CH6): the carrier + direction guard are RETIRED — C# names the row's
+     kind itself (`request-sent` = the waiting branch with `localSender && type !=
+     voiceCallEnd`, getFriendMessageHelper), so the shell no longer compares a localized
+     string against a substituted span. The carrier spellings must be GONE (a stale span
+     in the markup would be a string the localizer still substitutes for nothing). */
+  ok(!/id="sl-waiting-response"/.test(home) && !/canonEntry\(/.test(home) && !/REQUEST_SENT_TEXT/.test(home)
+    && /function isRequestSentPush\(excerptKind\)/.test(home)
+    && /return String\(excerptKind \|\| ''\) === 'request-sent';/.test(home),
+    'M5 → CH6: the outgoing request row is the PUSHED kind `request-sent` (isRequestSentPush) — no carrier, no direction guard, no localized comparison');
   /* ★★ M5 — RE-READ AT #837, AND IT WAS RED FOR THE WRONG REASON.
      This pin has been one of the three KNOWN pre-existers. Evaluating its five clauses
      one at a time shows FOUR PASS and only the picker-badge clause fails — and the
@@ -3027,7 +3012,7 @@ console.log('chats-list polish batch — Q12 / Q5 / M5 (2026-07-11)');
   const rosterFn = home.slice(home.indexOf('const directoryRoster = ()'), home.indexOf('const peopleRoster = ()'));
   const pendingByProperty = /requestAddrs\.has\(c\.address\)/.test(rosterFn) && /pending/.test(rosterFn)
     && /Object\.assign\(\{\}, c,/.test(rosterFn);
-  ok(/const isReqRow = isRequestSentPush\(excerpt_msg, type\);/.test(home)
+  ok(/const isReqRow = isRequestSentPush\(excerptKind\);/.test(home)   // ★ Session AD CH6: the pushed kind, not the raw excerpt
     && /chat\.request = isReqRow;/.test(home)
     && /chats\.filter\(isRequestRow\)\.length/.test(home)
     && /\(state\.chats \|\| \[\]\)\.some\(isRequestRow\)\) return;/.test(home)
@@ -3150,9 +3135,17 @@ console.log('chatlist-item / chats-shell — M5 request grammar');
     && W.Spixi.chatMatchesFilter({ excerpt: { type: 'request-done', text: 'Contact Accepted' } }, 'requests') === false,
     '#273: request-done keeps the glyph but is EXCLUDED from the Requests filter');
   const homeSrc = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
-  ok(/canonEntry\('sl-ex-contact-accepted', 'Contact Accepted', 'request-done'\);/.test(homeSrc)
-    && /canonEntry\('sl-ex-contact-request', 'Contact Request', 'request'\);/.test(homeSrc),
-    '#273: canon types Contact Accepted as request-done; Contact Request stays request (genuinely pending)');
+  /* ★ Session AD (CH6): the shell-side canon is gone; the two kinds are named by C# in
+     the ONE branch that picks the phrase (getFriendMessageHelper, requestAdd arm): the
+     approved friend → `request-done`, the unapproved → `request`. Read from the C# so a
+     swap there (the #273 phantom-requests bug in reverse) is caught. */
+  const hpAD273 = stripCode(readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8'));   // CODE (#771)
+  const reqArm = (hpAD273.match(/else if \(lastmsg\.type == FriendMessageType\.requestAdd\)[\s\S]{0,900}?\n                \}/) || [''])[0];
+  ok(!/canonEntry\(/.test(homeSrc) && reqArm.length > 0
+    && /if \(friend\.approved\)[\s\S]{0,300}?excerptKind = "request-done";/.test(reqArm)
+    && /else[\s\S]{0,300}?excerptKind = "request";/.test(reqArm.slice(reqArm.indexOf('excerptKind = "request-done";')))
+    && /'request-sent', 'request', 'request-done'/.test(homeSrc),
+    '#273 → CH6: C# types Contact Accepted as request-done (approved) and Contact Request as request (unapproved) in the requestAdd arm, and the shell admits both kinds');
 
   // #274a: the inline (pane sublevel) option picker must NOT carry the sheet's
   // 56vh/480px cap — the pickerScreen body owns scrolling there; the mobile
@@ -3169,12 +3162,19 @@ console.log('chatlist-item / chats-shell — M5 request grammar');
   // reload; boot consumes the stash (language-only, 15s guard) + rebuildHub
   // refreshes a stale restored picker once setLanguage lands.
   const setSrc = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
-  ok(/const VIEW_RESUME_KEY = 'spixi\.settings\.view';/.test(setSrc)
-    && /stashViewForReload\(\);[\s\S]{0,240}?bridge\.send\('ixian:language:' \+ code\)/.test(setSrc)
-    && /currentView = takeResumeView\(\) \|\| 'hub';/.test(setSrc)
-    && /o\.v === 'language'/.test(setSrc)
-    && /detailWrap\.dataset\.langBuilt !== state\.language/.test(setSrc),
-    '#274b: language pick survives the C# settings reload (view stash + restored-picker refresh)');
+  /* ★ Session AD: the #274b stash is RETIRED with its premise. SettingsPage stopped
+     reloading settings.html on a language pick at iOS-58/#334 (it pushes `setLocale`
+     and the shell re-localizes in place), so the view stash (`spixi.settings.view`)
+     had nothing left to survive; `langBuilt` STAYS — it is the rebuild guard for the
+     N65 corrective `setLanguage` echo, a different mechanism. Inverted, not deleted. */
+  const spAD274 = readFileSync(join(root, 'Spixi/Pages/Settings/SettingsPage.xaml.cs'), 'utf8');
+  const langBranch = (spAD274.match(/else if \(current_url\.StartsWith\("ixian:language:"[\s\S]*?\n            \}/) || [''])[0];
+  ok(!/VIEW_RESUME_KEY|spixi\.settings\.view|stashViewForReload|takeResumeView/.test(stripCode(setSrc))   // CODE, not the retirement note (#771)
+    && /bridge\.send\('ixian:language:' \+ code\)/.test(setSrc)
+    && /detailWrap\.dataset\.langBuilt !== state\.language/.test(setSrc)
+    && langBranch.length > 0 && /Utils\.sendUiCommand\(this, "setLocale", lang\);/.test(langBranch)
+    && !/loadPage\(webView/.test(langBranch),
+    '#274b → Session AD: no view stash (the page re-localizes in place: the ixian:language branch pushes setLocale and never reloads this WebView); the langBuilt echo guard stays');
   /* ★★ #589 (Damir F5 2026-08-26): "changing language — the rail jumps to Chats but
      Account is still open." The pane SURVIVES the re-bake (#285/#288 keep it pinned);
      the regenerated home document had no way to know.
@@ -6326,8 +6326,24 @@ console.log('parity batch A (#302) — A1..A11 + W1/W2');
     'A11: toggleAnimatedSlider checks its ID — legacy used the verb generically and also to CLOSE the prompt');
   ok(/function nudgeContextClear/.test(home) && /nudgeTabId !== 'chats'/.test(home) && /contactsView \|\| walletTakeover/.test(home),
     'A5/A11: context gates — C# can push both in the same frame, and neither push knows about takeovers (z-30, below sheets)');
-  ok(/backedUpRecently/.test(home) && /BACKUP_STAMP_KEY = 'spixi\.backup\.last'/.test(home),
-    'A11: suppressed for someone who already backed up — there is NO C# backup-done pref (be-cutover S2); this stamp is the only signal that exists');
+  /* ★ Session AD (S2): the "already backed up" gate MOVED to C#. BackupPage records
+     `lastBackupTimestamp` when a backup file is handed to the OS sheet, and
+     HomePage.displayBackupReminder does not push the nudge inside Config.backupReminder
+     of it — so the shell's localStorage stamp (`spixi.backup.last`, two writers, a storage
+     event, a focus fallback, a poll) is gone with all of its readers. Inverted with its
+     reason (#835): the stamp must stay gone, and the C# gate must exist. */
+  const hpS2 = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
+  const bpS2 = readFileSync(join(root, 'Spixi/Pages/Settings/BackupPage.xaml.cs'), 'utf8');
+  const remBody = (hpS2.match(/void displayBackupReminder\(\)[\s\S]*?\n        \}/) || [''])[0];
+  ok(!/backedUpRecently|BACKUP_STAMP_KEY|spixi\.backup\.last/.test(stripCode(home))   // CODE, any quoting (#771)
+    && remBody.length > 0 && /long lastBackup = BackupPage\.lastBackupTimestamp\(\);/.test(remBody)
+    && /if \(lastBackup > 0 && Clock\.getTimestamp\(\) - lastBackup <= Config\.backupReminder\)\s*\{\s*return;/.test(remBody)
+    && remBody.indexOf('lastBackupTimestamp()') < remBody.indexOf('toggleAnimatedSlider')
+    && /public static long lastBackupTimestamp\(\)/.test(bpS2) && /private static void recordBackup\(\)/.test(bpS2)
+    && (bpS2.match(/recordBackup\(\);/g) || []).length === 2
+    && (stripCode(bpS2).match(/await SFileOperations\.share\([^;]*\);\s*recordBackup\(\);/g) || []).length === 2   // AFTER the sheet returned (loop m4)
+    && /private void onLoad\(\)\s*\{\s*pushBackupStatus\(this\);/.test(stripCode(bpS2)),
+    'A11 → S2: the backed-up-recently gate is C#\'s (displayBackupReminder returns inside the reminder window of BackupPage.lastBackupTimestamp, BEFORE the push) and BOTH backup paths record the stamp; the shell holds no spixi.backup.last');
   ok(/RATING_SNOOZE_KEY/.test(home),
     'A5: a light-dismiss snoozes locally — the component sends no verb and C# re-pushes on EVERY chat exit, which is an endless nag without this');
   ok(/backup-nudge\.css/.test(home) && /rating-nudge\.css/.test(home), 'A5/A11: both nudge stylesheets are linked (neither was)');
@@ -6825,8 +6841,18 @@ console.log('#314 — polish batch (selectability · mention pill · toast/CTA �
     '#314 sweep: nav/rows/topbars/chips/FAB suppress selection AND the iOS callout on touch surfaces only (desktop drag-select intact; message TEXT rules untouched)');
 
   /* backup badge — the REFRESH gap (C-9 cleared storage; iOS fires none of the 3 listeners) */
-  ok(/setInterval\(\(\) => \{ if \(!document\.hidden && !exiting\) refreshBackupStampIfChanged\(\); \}, 2000\)/.test(settingsSh),
-    '#314 backup: a visibility+park-guarded 2s stamp poll closes the iOS refresh gap (no cross-WebView storage event, no focus/visibility on overlay pop) — change-guarded so it never rebuilds mid-edit');
+  /* ★ Session AD (S2): the 2 s stamp poll is RETIRED — the status is a C# push now
+     (`setLastBackup`), sent at onLoad, after each forwarded backup verb and on the warm
+     re-present (SpixiContentPage.onRepresentedNative → SettingsPage → BackupPage.pushBackupStatus),
+     so there is no cross-WebView gap left to poll for. Inverted with its reason. */
+  const spS2 = readFileSync(join(root, 'Spixi/Pages/Settings/SettingsPage.xaml.cs'), 'utf8');
+  const bpS2 = readFileSync(join(root, 'Spixi/Pages/Settings/BackupPage.xaml.cs'), 'utf8');
+  ok(!/refreshBackupStampIfChanged|BACKUP_STAMP_KEY/.test(settingsSh)
+    && /setLastBackup\(ts\) \{/.test(settingsSh) && /backupLastSecs = /.test(settingsSh)
+    && /protected internal override void onRepresentedNative\(\)\s*\{\s*BackupPage\.pushBackupStatus\(this\);/.test(spS2)
+    && (spS2.match(/BackupPage\.pushBackupStatus\(this\);/g) || []).length >= 2
+    && /Utils\.sendUiCommand\(page, "setLastBackup", /.test(bpS2),
+    '#314 backup → S2: NO stamp poll — the backup status is a C# push (setLastBackup) re-sent on the warm re-present through onRepresentedNative');
 
   /* landtab — consumed on the deterministic C# close push */
   /* ★ #589 rebase: the line gained `clearAccountPaneFlag()` in front. The ORDER is the
@@ -6842,8 +6868,15 @@ console.log('#314 — polish batch (selectability · mention pill · toast/CTA �
      but the argument is pinned too, because 'settingsclosed' is the one value that tells
      the measurement the LATE path won, and a probe that cannot name its own caller
      answers nothing. ⚠ When the probe goes, this reverts to `consumeLandTab()`. */
-  ok(/onSettingsClosed\(\) \{ clearAccountPaneFlag\(\); consumeLandTab\('settingsclosed'\); syncNav\(\); \}/.test(homeSh),
-    '#314 landtab (iOS-46 leg): onSettingsClosed consumes the tab hand-off BEFORE the highlight re-sync — the storage/focus listeners never fire on iOS overlay close');
+  /* ★ Session AD (S11): the localStorage hand-off (`spixi.landtab` + storage event +
+     focus/visibility fallbacks + the 15 s guard + consumeLandTab) is RETIRED — the
+     Account page tells HomePage the tapped tab over the bridge (`ixian:landtab:<id>`)
+     and HomePage PUSHES `landOnTab(id)` into this document, deterministic on every
+     WebView. onSettingsClosed only clears the pane flag and re-asks the rail. */
+  ok(/onSettingsClosed\(\) \{ clearAccountPaneFlag\(\); syncNav\(\); \}/.test(homeSh)
+    && !/consumeLandTab|LANDTAB_KEY|spixi\.landtab/.test(homeSh)
+    && /landOnTab\(id\) \{ landOnTabNow\(id\); \}/.test(homeSh),
+    '#314 landtab → S11: onSettingsClosed no longer consumes a storage hand-off — the tab arrives as the landOnTab PUSH, and the storage/focus/visibility trio is gone');
 
   /* R6 — full-detail tx sheet via roster join, hide fail-safe FIRST */
   ok(/enrichTx: \(tx\) => \{\s*\n?\s*if \(walletHidden \|\| !tx \|\| !tx\._raw\) return tx;/.test(homeSh),
@@ -6930,7 +6963,7 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
    * vacuity this loop retired the [SCROLL] pin for. Stripped, the {0,200} window also stops
    * being a measure of how long the docblock is. */
   const scpNCr2 = stripCode(scp);
-  ok(/Utils\.sendUiCommand\(op\.target, "onRepresented"\);\s*op\.stage\.InputTransparent = true;\s*revealStage\(op\);/.test(scpNCr2)
+  ok(/onRepresentedNative\(\);[\s\S]{0,160}?Utils\.sendUiCommand\(op\.target, "onRepresented"\);\s*op\.stage\.InputTransparent = true;\s*revealStage\(op\);/.test(scpNCr2)   // ★ Session AD S2: the page's native re-present pushes go out first
     && !/Utils\.sendUiCommand\(op\.target, "onRepresented"\);[\s\S]{0,200}?op\.stage\.InputTransparent = false;/.test(scpNCr2)
     && /onRepresented\(\) \{[\s\S]{0,300}?exiting = false;/.test(settingsSh)
     && /onRepresented\(\) \{[\s\S]{0,1600}?renderLayout\(\);/.test(settingsSh)
@@ -6956,8 +6989,8 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     && /stillParked = parkedOverlay == op;/.test(scp)
     && /op\.parkOnClose && op\.target\.pageLoaded/.test(scp),
     '#46 r1 MINOR-1 (+r2): the park claim sits between the stack-Remove and the lock CLOSE (r2 pin: anchored on the un-relocatable neighbors — moving the claim outside the lock breaks the brace run before MainThread), the deferred hide re-checks it, and only a BOOTED shell parks (pageLoaded gate — a wedged shell takes the pre-#315 dispose self-heal)');
-  ok(/if \(!document\.hidden && !exiting\) refreshBackupStampIfChanged\(\)/.test(settingsSh),
-    '#46 r1 MINOR-4: the backup poll pauses while PARKED (document.hidden stays false at opacity 0) and resumes via onRepresented');
+  ok(!/refreshBackupStampIfChanged/.test(settingsSh) && /onRepresented\(\) \{[\s\S]{0,1600}?renderLayout\(\);/.test(settingsSh),
+    '#46 r1 MINOR-4 → Session AD: there is no backup poll to pause any more; the re-present re-renders from the pushed stamp (setLastBackup precedes onRepresented)');
   ok(/hasModalOverlay\(\)\)\s*\r?\n?\s*\{\s*\r?\n?\s*return;/.test(hp),
     '#46 r1 NIT-2: a lock-refused re-present keeps the warm instance for after the unlock (the fresh push would be dropped by the same #230 gate anyway)');
 
@@ -7133,8 +7166,8 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   const set334 = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
   // reviewer r2: co-location pin — the bare greps matched the DECLARATION and the
   // pre-existing stash sites, so reverting the setLocale hygiene stayed green.
-  ok(/setLocale\(code\)[\s\S]{0,1200}emptyEl = null;[\s\S]{0,900}removeItem\(VIEW_RESUME_KEY\)[\s\S]{0,600}buildPeerNav\(\);/.test(set334),
-    '#334 loop: setLocale ITSELF drops the memoized empty pane + the stranded #274 reload-stash (co-located pin)');
+  ok(/setLocale\(code\)[\s\S]{0,1200}emptyEl = null;[\s\S]{0,200}buildPeerNav\(\);/.test(set334) && !/VIEW_RESUME_KEY/.test(set334),
+    '#334 loop → Session AD: setLocale ITSELF drops the memoized empty pane (co-located pin); the #274 reload-stash it also cleared is retired, so there is no stash to drop');
   const home334 = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
   ok(/headerQuery === '' && header\.contains\(document\.activeElement\)/.test(home334),
     '#334 AND-23: an empty-query touch scroll blurs the search field (Android sticky-header release)');
@@ -12115,7 +12148,7 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
 
   /* —— N54: typing scroll gate —— */
   {
-    const body = chatNc.slice(chatNc.indexOf('function showTyping()'), chatNc.indexOf('function hideTyping()'));
+    const body = chatNc.slice(chatNc.indexOf('function showTyping(who, nick)'), chatNc.indexOf('function hideTyping()'));
     ok(/if \(nearBottom\(\)\) box\.scrollTop = box\.scrollHeight;/.test(body)
       && !/\n\s*box\.scrollTop = box\.scrollHeight;/.test(body),
       '★ N54: showTyping scrolls ONLY when already at the bottom — the unconditional jump yanked the view away from older messages mid-read');
@@ -12138,7 +12171,7 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
   ok((chatNc.match(/resetOlder\(\);\s*setStlUnread\(0\);/g) || []).length === 2
     && /if \(stlUnread && box\.scrollHeight - box\.scrollTop - box\.clientHeight <= 200\) setStlUnread\(0\);/.test(chatNc),
     'N53: the counter resets per peer + per bot channel (ADJACENT to each resetOlder — loop B-10a pins placement, not just presence) and clears at the CHEVRON\'s 200px threshold (loop B-5: nearBottom\'s half-viewport cleared the badge with three bubbles still unread)');
-  ok(/if \(nearBottom\(\)\) box\.scrollTop = box\.scrollHeight;/.test(nc(chatBuilt).slice(nc(chatBuilt).indexOf('function showTyping()'), nc(chatBuilt).indexOf('function hideTyping()'))),
+  ok(/if \(nearBottom\(\)\) box\.scrollTop = box\.scrollHeight;/.test(nc(chatBuilt).slice(nc(chatBuilt).indexOf('function showTyping(who, nick)'), nc(chatBuilt).indexOf('function hideTyping()'))),
     'N54 (built): the typing gate reached the shipped shell (loop B-10b — the partial-rebuild class)');
 
   /* —— N52: the @-jump pulse actually READS —— */
@@ -13076,8 +13109,8 @@ console.log('#441–#447 — reply-to · privacy shield · banked bugs · wallet
 
   /* —— N42 + the Account address explainer ——————————————————————————————— */
   const set443 = read4('Spixi/Resources/Raw/html/settings.html');
-  ok(/localStorage\.setItem\('spixi\.landtab', 'contacts:' \+ Date\.now\(\)\)/.test(set443),
-    '★ N42 (#443): Contacts is reachable from Account. There is no C# verb for "go home and open the directory" — the same gap S11 names — so it rides the #238 hand-off the nav taps already use');
+  ok(/bridge\.send\('ixian:landtab:contacts'\);/.test(set443) && !/spixi\.landtab/.test(stripCode(set443)),   // CODE — the retirement note names the key (#771)
+    '★ N42 (#443) → S11 (Session AD): Contacts is reachable from Account — and now over a VERB (`ixian:landtab:contacts` → SettingsPage → HomePage.landOnTab → the landOnTab push), the C# route the old row said did not exist; the localStorage hand-off spelling is gone');
   ok(/if \(id === 'contacts'\) \{/.test(home443) && /openContacts\('directory', '', \{ returnTo: 'account' \}\);/.test(home443),   // C4 (#547): …and Back returns to Account
     '★ N42 (#443): home consumes the hand-off, lands on Chats and opens the directory takeover');
   ok(/onAddressInfo:/.test(set443) && /addressInfoSafety/.test(set443),
@@ -14821,11 +14854,16 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   {
     // ★ The app-wide SUM must NOT change: a muted chat should not inflate the launcher
     // badge. Row count yes, app badge no — the split Damir actually asked for.
-    const sumBlock = homeCs3.split('int unread = 0;')[1] || '';
-    ok(/friend\.getUnreadMessageCount\(\)/.test(sumBlock.slice(0, 400)),
-      '★ THE BADGE DIAL: the app-wide SUM still excludes muted chats. Only the per-ROW count changed');
+    const sumBlock = stripCode(homeCs3.split('int unread = 0;')[1] || '');
+    /* ★ CH4 (Session AD) REVERSES this dial with Damir's ask: the app-wide sum SKIPS a
+       muted chat (the shell's own total already did — chats-shell.js chatsUnreadTotal
+       skips `c.muted` — so the two badges disagreed on every muted 1:1). One predicate,
+       SNotificationPrefs.isChatMuted; the #572 heal still runs on the muted friend. */
+    ok(/bool mutedForBadge = friend\.pendingDeletion \|\| SNotificationPrefs\.isChatMuted\(friend\);/.test(sumBlock.slice(0, 400))   // + pendingDeletion (loop A-8: the SAME skip unreadTotalForBadge makes)
+      && /int umc = friend\.getUnreadMessageCount\(\);\s*if \(mutedForBadge\)\s*\{\s*continue;/.test(sumBlock.slice(0, 600)),
+      '★ THE BADGE DIAL → CH4: the app-wide SUM now EXCLUDES muted chats, through the one mute predicate, read AFTER the #572 heal has run');
   }
-  ok(/capabilities: \{ pin: true, mute: true, favorites: false, delete: true \}/.test(homeHtml3),
+  ok(/capabilities: \{ pin: true, mute: true, favorites: true, delete: true \}/.test(homeHtml3),   // ★ CH4 (Session AD): favorites live (an app preference, the mute shape)
     '★ MUTE-UX: `mute` is enabled. The row menu item, the swipe action and the muted row treatment have all been built since #67/#108 and were unreachable only because no verb existed behind the flag');
   ok(/bridge\.send\('ixian:mutechat:' \+ chat\.address \+ ':' \+ \(chat\.muted \? 'on' : 'off'\)\)/.test(homeHtml3),
     '★ MUTE-UX: the onPersist slot that has carried a "when BE ships the verbs, they slot in here" comment since #67 is finally filled');
@@ -16428,10 +16466,11 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     '★ W5: the chat onSend never resolves optimistically either');
   ok(/role: 'request-out',/.test(chatS) && /onCancel: \(\) => confirmCancelRequest\(rec\),/.test(chatS),
     '#529: the outgoing pending request renders request-out with Cancel');
-  ok(/sendDeleteMessage\(rec\.id\);[\s\S]{0,80}latches pendingLocalDeletes/.test(chatS),
-    '#529: Cancel rides the EXISTING delete path (msgDelete both ends) — no invented verb');
-  ok(/isRequestTitle\(title \|\| ''\) && !String\(amount == null \? '' : amount\)\.trim\(\) && !txid/.test(chatS),
-    '#529: a blanked (canceled) request re-push renders NOTHING (the ghost guard)');
+  ok(/onCancel: \(\) => confirmCancelRequest\(rec\),/.test(chatS) && /sendDeleteMessage\(rec\.id\);/.test((chatS.match(/function confirmCancelRequest\(rec\)[\s\S]*?\n  \}/) || [''])[0])
+    && /function sendDeleteMessage\(id\) \{\s*bridge\.send\('ixian:contextAction:deleteMessage:' \+ id\);\s*\}/.test(chatS),
+    '#529: Cancel rides the EXISTING delete path (msgDelete both ends) — no invented verb (Session AD: the exdel latch that used to sit beside the send is retired with Q12)');
+  ok(/prole === 'request' && !String\(amount == null \? '' : amount\)\.trim\(\) && !txid/.test(chatS) && !/isRequestTitle/.test(stripCode(chatS)),   // CODE (#771)
+    '#529 → C1: a blanked (canceled) request re-push renders NOTHING (the ghost guard) — keyed on the pushed KIND, not a translated title');
   /* ★★ REBASED BY DECISION 4: there is no native review page to keep. The cap gate
      still decides whether the card is actionable at all, but the false branch renders
      a plain record now instead of routing to a page that has been deleted. */
@@ -16471,12 +16510,16 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     'PA1 (loop): the echo RE-READS the stored value — a failed write cannot lie');
   /* the #529 carrier: Cancel + the ghost guard both key on this span; without it every
      non-English locale silently loses Cancel AND regrows ghost cards (loop B-16) */
-  ok(/<span id="sl-payment-request-sent">\*SL\{chat-payment-request-sent\}<\/span>/.test(chatS),
-    '★ #529: the request-sent carrier span exists in the chat shell source');
+  /* ★ Session AD (C1): the carrier is RETIRED — Cancel and the ghost guard key on the
+     pushed KIND (`request`, the 16th addPaymentRequest arg), which every locale carries
+     identically; a stale span would be a string the localizer still substitutes for
+     nothing. Inverted in both halves (source + built). */
+  ok(!/id="sl-payment-request-sent"/.test(chatS) && /"request", statusEnum, fiat, insufficient\.ToString\(\)\)/.test(readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8')),
+    '★ #529 → C1: no request-sent carrier span in the chat shell source — C# pushes the kind "request" on both request pushes');
   {
     const builtChat = readFileSync(join(root, 'Spixi/Resources/Raw/html/chat.html'), 'utf8');
-    ok(/<span id="sl-payment-request-sent">\*SL\{chat-payment-request-sent\}<\/span>/.test(builtChat),
-      '★ #529: …and survives into the BUILT shell (C# substitutes it at load)');
+    ok(!/id="sl-payment-request-sent"/.test(builtChat) && !/PAY_REQUEST_(?:SENT|RECEIVED)_TITLE/.test(builtChat),
+      '★ #529 → C1: …and the BUILT shell carries neither the span nor the title constants');
   }
 
   /* —— behavioural (loop B-13): the fee gate on a LIVE component — a regex cannot
@@ -17208,9 +17251,10 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
 
   /* ★★ A6 — THE DATA BUG, at source: the chats-list delete/deleteContact now DISPATCH */
   ok(!/no HomePage dispatch yet — intent only/.test(homeA)
-    && /else if \(action === 'delete'\) bridge\.send\('ixian:removehistory:' \+ chat\.address\);/.test(homeA)
-    && /else bridge\.send\('ixian:removecontact:' \+ chat\.address \+ ':' \+ \(\(detail && detail\.leaveGroups && detail\.leaveGroups\.length\) \? '1' : '0'\)\);/.test(homeA),
-    '★★ A6 SHELL: the chats-list delete emits ixian:removehistory:<addr>, and delete-contact emits ixian:removecontact:<addr>:<leave> — the "intent only" tombstone that left the contact on disk is GONE');
+    && /else if \(action === 'delete'\) bridge\.send\('ixian:removehistory:' \+ chat\.address \+ mediaFlag\);/.test(homeA)
+    && /else bridge\.send\('ixian:removecontact:' \+ chat\.address \+ ':' \+ \(\(detail && detail\.leaveGroups && detail\.leaveGroups\.length\) \? '1' : '0'\) \+ mediaFlag\);/.test(homeA)
+    && /const mediaFlag = \(detail && detail\.media\) \? ':media' : '';/.test(homeA),
+    '★★ A6 SHELL: the chats-list delete emits ixian:removehistory:<addr>[:media], and delete-contact emits ixian:removecontact:<addr>:<leave>[:media] — the "intent only" tombstone that left the contact on disk is GONE (Session AD CH3: the media box rides the same verb as a trailing token)');
   ok(/StartsWith\("ixian:removehistory:", StringComparison\.Ordinal\)/.test(hpA) && /StartsWith\("ixian:removecontact:", StringComparison\.Ordinal\)/.test(hpA) && /StartsWith\("ixian:sharedGroups:", StringComparison\.Ordinal\)/.test(hpA),
     '★★ A6 C#: HomePage dispatches the three address-scoped verbs (StartsWith + Ordinal + colon)');
   /* ★ #46 r2 NIT-4 REBASE: the end anchor was `current_url.Contains("ixian:qrresult:")`, and
@@ -18324,12 +18368,12 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       '★★ #572 ④ (review MAJOR-1): the chats row reads a DEEP COPY. Ixian-Core setLastMessage stores `new FriendMessage(msg.getBytes())`, so mutating the message reaches the log and NOT the row — without this refresh the bubble said "Call declined" and the row said "Missed call", and the stale copy is what persists');
     ok(/bool declinedLocally = VoIPManager\.isDeclinedLocally\(message\);/.test(scp)
        && /text = SpixiLocalization\._SL\("chat-call-declined"\) \?\? "Call declined";/.test(scp)
-       && /duration_secs, declinedLocally\.ToString\(\)\);/.test(scp),
-      '★ #572 ④: the bubble writer labels it "Call declined" and passes the flag as the 8th addCall arg — new args go LAST, so an older shell is unaffected');
+       && /duration_secs, declinedLocally\.ToString\(\), callActive\.ToString\(\)\);/.test(scp),
+      '★ #572 ④: the bubble writer labels it "Call declined" and passes the flag as the 8th addCall arg — new args go LAST, so an older shell is unaffected (Session AD C4: the 9th is the ACTIVE flag, after it)');
     ok(/bool declinedLocally = VoIPManager\.isDeclinedLocally\(lastmsg\);/.test(hp)
        && /\? \(SpixiLocalization\._SL\("chat-call-declined"\) \?\? "Call declined"\)/.test(hp),
       '★ #572 ④: the chats-list excerpt reads the SAME evidence — one call cannot say "Missed call" in the list and "Call declined" in the chat');
-    ok(/addCall\(id, text, declined, time, outgoing, missed, durationSecs, declinedLocally\)/.test(ch)
+    ok(/addCall\(id, text, declined, time, outgoing, missed, durationSecs, declinedLocally, active\)/.test(ch)   // Session AD C4: 9th arg
        && /declinedLocally === undefined \? false : asBool\(declinedLocally\)/.test(ch)
        && /declined: !!rec\.declinedLocal,/.test(ch),
       '★ #572 ④: the shell prefers the 8th arg and treats UNDEFINED as false, so an old exe keeps its present rendering; the card gets the declined variant (phone-x, no call-back nudge — #87⑦)');
@@ -18467,8 +18511,23 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        && /if \(age > VoIPManager\.RING_TIMEOUT_SECONDS \+ VoIPManager\.STALE_CALL_MARGIN_SECONDS\)/.test(sp)
        && /public const int STALE_CALL_MARGIN_SECONDS = 120;/.test(read('Spixi/VoIP/VoIPManager.cs')),
       '★ #574 ① (review MAJOR-2): the gate is the CALLER\'s own ring budget PLUS a skew margin, both read from VoIPManager. Clock.networkTimeDifference is 0 until a time-synced client connects — which on a cold boot is exactly when this runs — so a receiver whose clock is fast would otherwise refuse a call that is ringing right now');
-    ok(/SPushService\.showLocalNotification\([\s\S]{0,600}?"call"\);/.test(sp)
-       && /notification-missed-call/.test(sp),
+    /* Session AD re-base: the old clause read a 600-char RAW window from the call's
+     * open paren to its "call" kind — a comment inside the argument list (the CH4
+     * badge note) pushed it to 651 and turned the pin red with the behaviour intact
+     * (#771). Now: the SLICE is the stale-call branch (from the age gate to the
+     * refreshAppRequests line), comments stripped, and the property is that ONE
+     * showLocalNotification call in that slice ends in the "call" kind and names
+     * the missed-call string. */
+    const staleSlice = (() => {
+      const s = stripCode(sp);
+      const a = s.indexOf('if (age > VoIPManager.RING_TIMEOUT_SECONDS + VoIPManager.STALE_CALL_MARGIN_SECONDS)');
+      const b = a < 0 ? -1 : s.indexOf('UIHelpers.refreshAppRequests = true;', a);
+      return (a < 0 || b < 0) ? '' : s.slice(a, b);
+    })();
+    const staleCalls = staleSlice.match(/SPushService\.showLocalNotification\(([^;]*)\);/g) || [];
+    ok(staleCalls.length === 1
+       && /,\s*"call"\)\s*;$/.test(staleCalls[0])
+       && /notification-missed-call/.test(staleCalls[0]),
       '★ #574 ① (review MINOR-6): a gated call is ANNOUNCED. The missed-call row it would otherwise rely on is posted by endVoIPSession, which by construction never ran — so a call that arrived entirely while the app was down would leave no notification at all');
     ok(/if \(SPIXI\.Meta\.SNotificationPrefs\.shouldNotify\(friend\)\s*&& !VoIPManager\.isInitiated\(\)\)/.test(sp),
       '★★ #574 ① (round-2 MAJOR-3 + MINOR-5): that push goes THROUGH THE GATE — showLocalNotification applies no policy, so posting straight would raise a row for a muted chat or with notifications globally off, and it would overwrite a LIVE call\'s row (same notification id)');
@@ -19975,9 +20034,15 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     const home602 = rdf('src/shells/home.html');
     ok(/'call-declined': 'phone-off'/.test(cli602) && /'call-missed': 'phone-x'/.test(cli602),
       '★ #602 + #621 (Damir on the device, re-confirmed 2026-08-29): a declined call has its OWN excerpt glyph, and this is the pair he reads on the phone — the phone with the small x belongs to the call NOBODY ANSWERED, the crossed phone belongs to the one that was TURNED DOWN');
-    ok(/canonEntry\('sl-ex-call-declined', 'Call declined', 'call-declined'\)/.test(home602)
-       && /<span id="sl-ex-call-declined">\*SL\{chat-call-declined\}<\/span>/.test(home602),
-      '★★ #602: registered through the *SL{} CARRIER, so it works in every locale. The phrase was simply missing from the reverse-map — it fell through to plain text, and plain text has no glyph. A missing map row, not a missing icon');
+    /* ★ Session AD (CH6): the reverse-map and its carriers are RETIRED — the KIND is
+       pushed by the ONE C# branch that picks the phrase, so no locale can fall through
+       to plain text. The property moves to the C#: the declined-locally arm names
+       `call-declined`, the other arm `call-missed`, and the shell admits both kinds. */
+    const hp602 = stripCode(rdf('Spixi/Pages/Home/HomePage.xaml.cs'));   // CODE (#771)
+    ok(!/canonEntry\(|id="sl-ex-call-declined"/.test(home602)
+       && /excerptKind = declinedLocally \? "call-declined" : "call-missed";/.test(hp602)
+       && /'call-missed', 'call-declined'/.test(home602),
+      '★★ #602 → CH6: the declined call is a PUSHED kind (`call-declined`, chosen beside the phrase in HomePage), never a reverse-mapped phrase — it works in every locale by construction');
     ok(/"phone-x"/.test(rdf('src/components/icons.js')),
       '★ #602: and the glyph is in the registry — createExcerpt degrades silently when it is not, which is how this would have shipped looking fixed');
     /* ★★ #46 loop (2026-08-29) — ONE EVENT, TWO SURFACES, ONE GLYPH. The chats row and
@@ -22076,7 +22141,10 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        while C# changes its mind about the room. */
     const chSrc = rdf('src/shells/chat.html');
     const chB = rdf('Spixi/Resources/Raw/html/chat.html');
-    const shellAsks = (t) => /onCallBack: callVisible \? callBackFromCard : null,/.test(t)
+    /* ★ Session AD (C4): the paint gate gained a second clause — an ACTIVE call (the
+       9th addCall arg, C# reads VoIPManager.hasSession) paints no call-back link. The
+       property (callVisible is read at paint AND re-read at tap) is unchanged. */
+    const shellAsks = (t) => /onCallBack: \(callVisible && !rec\.active\) \? callBackFromCard : null,/.test(t)
       && /function callBackFromCard\(\) \{\s*\r?\n\s*if \(!callVisible\) \{ showCallRefusal\('unavailable'\); return; \}/.test(t)
       && /bridge\.send\('ixian:callback'\);/.test(t);
     ok(shellAsks(chSrc) && shellAsks(chB),
@@ -22920,8 +22988,8 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
      * answers "what should the rail say" and every writer asks it. */
     ok(/function railTarget\(\)/.test(home) && /return inAccountContext\(\) \? 'account' : activeNav;/.test(home),
       '★★ L6, ONE ANSWER: railTarget() is the single place that decides the rail. Four writers is how the Account highlight got clobbered by the stale tab one line later');
-    ok(/onSettingsClosed\(\) \{ clearAccountPaneFlag\(\); consumeLandTab\('settingsclosed'\); syncNav\(\); \}/.test(home),
-      '★★ L6: …and the handler that clobbered it now ASKS. It used to end setNavActive(nav, activeNav) unconditionally, with a comment calling that "a consistent no-op" — true only for the tab-id branch it was written for');
+    ok(/onSettingsClosed\(\) \{ clearAccountPaneFlag\(\); syncNav\(\); \}/.test(home) && !/setNavActive\(nav, activeNav\)/.test((home.match(/onSettingsClosed\(\) \{[^\n]*/) || [''])[0]),
+      '★★ L6: …and the handler that clobbered it now ASKS. It used to end setNavActive(nav, activeNav) unconditionally, with a comment calling that "a consistent no-op" — true only for the tab-id branch it was written for (Session AD S11: the consumeLandTab call between them is retired with the storage hand-off)');
     ok(/accountPaneOpen\(\) \|\| contactsFromAccount/.test(home),
       '★ L6, ONE PREDICATE: the Account pane and the Account-launched directory answer "is the user inside Account" in one place');
 
@@ -23078,8 +23146,8 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   }
 
   /* —— the shell, at source ————————————————————————————————————————————————— */
-  ok(/if \(action === 'delete' && detail && detail\.leaveGroup\) bridge\.send\('ixian:leavegroup:' \+ chat\.address\);/.test(home13)
-    && /else if \(action === 'delete'\) bridge\.send\('ixian:removehistory:' \+ chat\.address\);/.test(home13),
+  ok(/if \(action === 'delete' && detail && detail\.leaveGroup\) bridge\.send\('ixian:leavegroup:' \+ chat\.address \+ mediaFlag\);/.test(home13)
+    && /else if \(action === 'delete'\) bridge\.send\('ixian:removehistory:' \+ chat\.address \+ mediaFlag\);/.test(home13),   // Session AD CH3: the :media token rides both
     '★★ L13 SHELL: a ticked leave sends ixian:leavegroup: INSTEAD of removehistory, not as well. Core\'s removeFriend deletes the history file itself, so two sends would race for one intent and the loser would answer "fail" about a friend the winner had already removed — un-tombstoning a row that is correctly gone');
   {
     /* ⚠⚠ THIS SLICE WAS `home13.slice(at, at + 1200)` AND A MUTATION WALKED STRAIGHT
@@ -23132,19 +23200,16 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
    * leaves a verb nothing sends, or an emit nothing answers. Pinning the trio means the
    * removal is one edit that fails loudly if it is half done. */
   {
-    const hpProbe = stripCode(hp13);           // ⚠ the removal note NAMES the verb
-    ok(/StartsWith\("ixian:landtabprobe:", StringComparison\.Ordinal\)/.test(hpProbe)
-      && /\[LANDTAB\] consumer=/.test(hpProbe)
-      && /bridge\.send\('ixian:landtabprobe:' \+ \(via \|\| 'unknown'\)/.test(home13)
-      && /consumeLandTab\('settingsclosed'\)/.test(home13) && /consumeLandTab\('storage'\)/.test(home13),
-      '⏱ L14 (#677) THE TRIO: the shell emits the probe from consumeLandTab with the consumer that called it, and C# logs it. TEMPORARY — remove the handler, the emit and this pin together, the way [CDPERF] went');
-    const probeAt = hpProbe.indexOf('StartsWith("ixian:landtabprobe:"');
-    const probeBody = probeAt < 0 ? '' : hpProbe.slice(probeAt, hpProbe.indexOf('StartsWith("ixian:leavegroup:"', probeAt));
-    ok(probeAt > 0 && probeBody.length > 0
-      && /Logging\.info\("\[LANDTAB\] consumer=" \+ via \+ " age=" \+ ageMs \+ "ms"\)/.test(probeBody)
-      && /via != "storage" && via != "visibility" && via != "focus" && via != "settingsclosed"/.test(probeBody)
-      && !/Logging\.[a-z]+\([^;]*current_url/.test(probeBody),
-      '⏱ L14: the probe logs a word from a FIXED SET and an integer, and no Logging call in the handler touches current_url — never the raw payload, never a tab id, never an address. A diagnostic that leaks is a diagnostic nobody may run twice');
+    /* ★ Session AD (S11): the [LANDTAB] probe and the whole consumer it measured are
+       RETIRED TOGETHER — the trio rule (#663) says a probe leaves as one edit, and this
+       pin is the edit's witness. The hand-off is one PUSH now (HomePage.landOnTab →
+       landOnTab(id) in the shell); no verb, no storage key, no consumer names remain. */
+    const hpProbe = stripCode(hp13);
+    ok(!/ixian:landtabprobe:|\[LANDTAB\] consumer=/.test(hpProbe)
+      && !/landtabprobe|consumeLandTab\(|LANDTAB_KEY|spixi\.landtab/.test(stripCode(home13))
+      && /StartsWith\("ixian:landtab:", StringComparison\.Ordinal\)/.test(stripCode(rdL13('Spixi/Pages/Settings/SettingsPage.xaml.cs')))
+      && /public void landOnTab\(string id\)/.test(hpProbe) && /sendUiCommand\(this, "landOnTab", /.test(hpProbe),
+      '⏱ L14 (#677) THE TRIO → RETIRED with S11 (Session AD): no probe verb, no [LANDTAB] log line, no consumeLandTab and no spixi.landtab key remain in either half; the hand-off is the ixian:landtab verb (SettingsPage) → HomePage.landOnTab → the landOnTab push');
   }
 
   /* —— behavioural, against the built bundle ———————————————————————————————— */
@@ -23841,8 +23906,9 @@ console.log('#713–#721: the walk fixes');
       '★★ #720 EXECUTED: when the row already has a real nickname it REPLACES the address in the connected line — the text was written before the nick arrived, the list knows the name now. Got: ' + b);
     ok(canon('plain text with no address', 'Androoo') === 'plain text with no address',
       '#720: text without an address is untouched (fast path)');
-    ok(/excerpt: excerptFor\(wallet, excerpt_msg, type, from\),/.test(home) && /return \{ type: 'connected', text: canonExcerptText\(decoded, name\) \};/.test(home),
-      '#720: the pushed name reaches the canon through excerptFor → excerptFromRaw, and ONLY the connected branch substitutes it');
+    ok(/excerpt: excerptFor\(wallet, excerpt_msg, type, from, excerptKind\),/.test(home) && /if \(k === 'connected'\) return \{ type: 'connected', text: canonExcerptText\(decoded, name\) \};/.test(home)
+      && (home.match(/canonExcerptText\(decoded, name\)/g) || []).length === 1,
+      '#720 → CH6 (Session AD): the pushed name reaches the canon through excerptFor → excerptFromPush, and ONLY the `connected` KIND substitutes it (one call site with the name)');
   }
   /* #717 — the @ picker never offers me */
   {
@@ -24122,9 +24188,13 @@ console.log('Session I ②: [PAINTDIAG] retired · the L14 cover handshake');
   ok(/requestAnimationFrame\(\(\) => requestAnimationFrame\(\(\) => \{\s*try \{ bridge\.send\('ixian:coverpainted'\); \} catch \(e\) \{\}\s*\}\)\);/.test(home.replace(/\r/g, ''))
      && /requestAnimationFrame\(\(\) => requestAnimationFrame\(\(\) => \{\s*try \{ bridge\.send\('ixian:coverpainted'\); \} catch \(e\) \{\}\s*\}\)\);/.test(builtHome.replace(/\r/g, '')),
     '★ L14 handshake ⑤: home.html reports the cover at the SECOND rAF after the directory mount (the frame the probe timed — on glass, not the swap), in source and in the built shell');
-  ok(/onHandoff\(\) \{ consumeLandTab\('handoff'\); \}/.test(home) && /onHandoff\(\) \{ consumeLandTab\('handoff'\); \}/.test(builtHome)
-     && /via != "handoff"/.test(hp),
-    '★ L14 handshake ⑥: the C#-pushed consumer (onHandoff → consumeLandTab) — deterministic on WKWebView too, which drops cross-WebView storage events; the [LANDTAB] vocabulary admits the new word');
+  /* ★ Session AD (S11): the tab itself is a PUSH now (landOnTab), so onHandoff no longer
+     consumes a storage hand-off — it re-reports the cover (a second rAF×2 coverpainted)
+     ONLY when the directory takeover is on screen, else it is a no-op; the waiter treats
+     a cover painted ≤ 600 ms earlier as already answered (③), so the double report is safe. */
+  const handoffRe = /onHandoff\(\) \{\s*if \(!document\.querySelector\('\.contacts-takeover'\)\) return;\s*requestAnimationFrame\(\(\) => requestAnimationFrame\(\(\) => \{\s*try \{ bridge\.send\('ixian:coverpainted'\); \} catch \(e\) \{\}\s*\}\)\);\s*\}/;
+  ok(handoffRe.test(home.replace(/\r/g, '')) && handoffRe.test(builtHome.replace(/\r/g, '')) && !/consumeLandTab/.test(home),
+    '★ L14 handshake ⑥ → S11: the C#-pushed onHandoff re-reports the cover only while the directory takeover exists — the tab arrived earlier as the landOnTab push, deterministic on every WebView (no storage event anywhere)');
   ok(!/paintdiag|PAINTDIAG/.test(stripCode(rdF('docs/security-handover-gate.md')).slice(0, 0)) && /ixian:handoff/.test(rdF('docs/security-handover-gate.md')) && /ixian:coverpainted/.test(rdF('docs/security-handover-gate.md')),
     '★ L14 handshake ⑦: the two new verbs have their rows in docs/security-handover-gate.md (a verb without a gate row is the #46 sweep\'s first finding)');
 }
@@ -27173,7 +27243,7 @@ console.log('★★ Session P — the pre-warm + the batch transport');
     sliceOk(g, 'Utils.getChatPages');
     const isCount = count(g.body, /is SingleChatPage \w+/g);
     const guardCount = count(g.body, /\w+\.friend != null/g);
-    ok(isCount >= 4 && guardCount === isCount,
+    ok(isCount >= 3 && guardCount === isCount && !/getDetailContent/.test(stripCode(g.body)),   // Session AD: the dead #284 detail-content branch is gone (3 tests remain)
       '★★ Session P L1·4 belt A: EVERY `is SingleChatPage` test in Utils.getChatPages (' + isCount + ') is paired with a `.friend != null` guard (' + guardCount + ') — every consumer of that list dereferences `p.friend` (Node.onLowMemory, the language sweep, delete-all), so a friend-less page reaching it would NRE the whole sweep');
     const add = csSliceP(uhP, 'void add(Page? p)');
     sliceOk(add, 'UIHelpers.getLiveShellPages.add');
@@ -27592,10 +27662,10 @@ console.log('★★ Session P — the pre-warm + the batch transport');
       '★★ Session P L2·12: `push` is the ONE fork — into the batch when the loader handed one AND RETURNS, else the live wire with the SAME command and the SAME argument array (exclusive: #802 r8 — a deleted `return` sent every row twice, per-row THEN batched, and the capture still read batch=1)');
     const rx1 = csSliceP(scsP, 'private void updateReactions(FriendMessage fm)');
     const rx2 = csSliceP(scsP, 'private void updateReactions(FriendMessage fm, UiBatch? batch)');
-    ok(/updateReactions\(fm, null\);/.test(rx1.body) && /batch\.addReactions\(Crypto\.hashToString\(fm\.id\), reactions_str, own_reactions_str\);/.test(rx2.body)
-      && /if \(batch != null\)\s*\{\s*batch\.addReactions\(Crypto\.hashToString\(fm\.id\), reactions_str, own_reactions_str\);\s*return;\s*\}\s*Utils\.sendUiCommand\(this, "addReactions", Crypto\.hashToString\(fm\.id\), reactions_str, own_reactions_str\);/.test(rx2.body)
-      && /Utils\.sendUiCommand\(this, "addReactions", Crypto\.hashToString\(fm\.id\), reactions_str, own_reactions_str\);/.test(rx2.body),
-      '★ Session P L2·12: updateReactions folds into the batch when given one and pushes the live `addReactions` otherwise — the live reaction path (a like arriving) is unchanged');
+    ok(/updateReactions\(fm, null\);/.test(rx1.body) && /batch\.addReactions\(Crypto\.hashToString\(fm\.id\), reactions_str, own_reactions_str, tip_total_str\);/.test(rx2.body)
+      && /if \(batch != null\)\s*\{\s*batch\.addReactions\(Crypto\.hashToString\(fm\.id\), reactions_str, own_reactions_str, tip_total_str\);\s*return;\s*\}\s*Utils\.sendUiCommand\(this, "addReactions", Crypto\.hashToString\(fm\.id\), reactions_str, own_reactions_str, tip_total_str\);/.test(rx2.body)
+      && /Utils\.sendUiCommand\(this, "addReactions", Crypto\.hashToString\(fm\.id\), reactions_str, own_reactions_str, tip_total_str\);/.test(rx2.body),
+      '★ Session P L2·12: updateReactions folds into the batch when given one and pushes the live `addReactions` otherwise — the live reaction path (a like arriving) is unchanged (Session AD C6: the tip TOTAL is the 4th arg on both legs)');
   }
 
   /* ═══ LEVER 2 · pin 13 — C#: the wire shape (strs first · ints intern only long data: URIs · r folded onto the row's own item · never the raw fast path) ═══ */
@@ -27613,9 +27683,9 @@ console.log('★★ Session P — the pre-warm + the batch transport');
       && /if \(!strIndex\.TryGetValue\(s, out int idx\)\)\s*\{\s*idx = strs\.Count;\s*strs\.Add\(s\);\s*strIndex\[s\] = idx;\s*\}\s*return idx;/.test(b),
       '★★ Session P L2·13 args (auditor C): UiBatch.add copies EVERY argument, in order, through intern() only — the wire\'s "same argument strings, same order" is asserted, not assumed (C# is not compiled here; this is the structural half) — and intern() DEDUPES through `strIndex` (#802 r10: without the lookup a 1:1 history repeats its avatar once per received row and the single eval grows with it)');
     ok(/a\[0\] is string lastId && lastId == id/.test(b) && /f != "showContactRequest"/.test(b) && /!last\.ContainsKey\("r"\)/.test(b)
-      && /add\("addReactions", new string\?\[\] \{ id, reactions, own \}\);/.test(b)
-      && /last\["r"\] = new string\[\] \{ reactions, own \};/.test(b)
-      && /public void addReactions\(string id, string reactions, string own\)\s*\{\s*if \(items\.Count > 0\)\s*\{\s*var last = items\[items\.Count - 1\];/.test(b),
+      && /add\("addReactions", new string\?\[\] \{ id, reactions, own, tipTotal \}\);/.test(b)
+      && /last\["r"\] = new string\[\] \{ reactions, own, tipTotal \};/.test(b)
+      && /public void addReactions\(string id, string reactions, string own, string tipTotal\)\s*\{\s*if \(items\.Count > 0\)\s*\{\s*var last = items\[items\.Count - 1\];/.test(b),
       '★ Session P L2·13: reactions fold onto the LAST item only when it is this message\'s own ROW (same id, not the showContactRequest marker, no `r` yet); otherwise a standalone addReactions item — the shell\'s per-row state is byte-identical to the per-row transport — and the folded pair is `{ reactions, own }` in THAT order, the order the shell reads `item.r[0]`/`item.r[1]` in, and the fold reads `items[Count - 1]` only under `items.Count > 0` (#802 r11: the first row of most histories is a requestAdd that pushes nothing — an unguarded read threw out of loadMessages before the triple and every such conversation opened EMPTY) (#802 r4: a swap rendered own-keys as reactions on every open while the live path stayed right)');
   }
 
@@ -28854,8 +28924,25 @@ console.log('★★ handover-gate fix batch — the security pins');
       }
     }
     const stor = storHandlers.filter((h) => /PINS_KEY/.test(h)).join('\n');
-    ok(storHandlers.length >= 5 && stor.length > 40 && /e\.key !== PINS_KEY/.test(stor) && /pinnedChats\.clear\(\)/.test(stor),
-      '★ gate 5: home.html re-seeds pinnedChats from the `storage` event keyed on PINS_KEY. A storage event never fires in the document that wrote the value, so this cannot fight savePins — and without it a home document that was open during a contact-details removal writes the address back');
+    /* ★ Session AD: home.html owns THREE `storage` listeners now (hsstage · hidereq · this
+       one) — the landtab and exdel ones retired with S11 and Q12/C16. The count is DERIVED
+       from the tree (every `window.addEventListener('storage'` in the shell) and pinned
+       EQUAL, so a listener that returns or leaves is a red row with a reason. */
+    /* auditor C item 6: the count plus one spelling let a double-quoted `"storage"` listener
+       for an exdel key through. Every spelling is walked and the KEYS each handler tests are
+       derived; a retired key family reappearing in any handler is a red row. */
+    const storAll = [];
+    for (const m of homeCode.matchAll(/addEventListener\s*\(\s*(['"`])storage\1/g)) {   // r3 NIT: `addEventListener ('storage'` (a space before the paren) walked past the old spelling
+      let depth = 0, started = false, body = '';
+      for (let k = m.index; k < homeCode.length; k++) { if (homeCode[k] === '{') { depth++; started = true; } else if (homeCode[k] === '}') { depth--; if (started && depth === 0) { body = homeCode.slice(m.index, k + 1); break; } } }
+      storAll.push(body);
+    }
+    const onstorage = /\bonstorage\s*=/.test(homeCode);
+    const keysTested = storAll.map((h) => [...h.matchAll(/([A-Z_]+_KEY|[A-Z_]+_PREFIX|'spixi\.[a-z.]+')/g)].map((x) => x[1]).join('+'));
+    const retiredKey = storAll.some((h) => /spixi\.exdel|spixi\.landtab|spixi\.backup|LANDTAB|EXDEL|BACKUP_STAMP/.test(h));
+    const storAnyForm = (homeCode.match(/addEventListener\s*\(\s*(['"`])storage\1/g) || []).length;   // every spelling incl. the spaced one
+    ok(storAll.length === 3 && storHandlers.length === 3 && storAnyForm === 3 && !onstorage && !retiredKey && stor.length > 40 && /e\.key !== PINS_KEY/.test(stor) && /pinnedChats\.clear\(\)/.test(stor),
+      '★ gate 5 (derived: ' + storAll.length + ' storage listeners, keys ' + keysTested.join(' · ') + '; retired families absent): home.html re-seeds pinnedChats from the `storage` event keyed on PINS_KEY. A storage event never fires in the document that wrote the value, so this cannot fight savePins — and without it a home document that was open during a contact-details removal writes the address back');
   }
 
   /* ─── 6 · the account wipe reaches the ONE unprefixed key in the store ────────────*/
@@ -34558,20 +34645,17 @@ console.log('#912: backup exclusions, the html copy skip, and the start clock');
      && app912.indexOf('Logging.info("copyResources: {0} copied') > app912.indexOf('if (!Logging.start(Config.spixiUserFolder, Config.logVerbosity))'),
     '★ #912 ③: the Windows html copy is PER FILE — a file is skipped only when it EXISTS with the same length AND the same UTC last-write time (both, on FileInfo, not one), otherwise File.Copy(…, true) still runs and is counted; the copied/unchanged receipt is logged AFTER Logging.start (a log line above it is dropped — the #46 r2 lesson). Got loop=' + loop.length);
 
-  const ctor = mb912(app912, 'public App()');
-  const stages = [...ctor.matchAll(/startDiag\(([^)]*)\)/g)].map((m) => m[1]);
-  const expect = ['"logger up"', '"node constructed"', 'wallet_decrypted ? "wallet decrypted" : "wallet NOT decrypted"', '"root page set"'];
+  /* ★ #912 ④ → RETIRED (Session AD). The five [STARTDIAG] milestones measured the cold
+     start (DECISIONS #913 Debug · #925 Release, both platforms) and left with [CDPERF]'s
+     discipline (#663): the calls, the method, the Stopwatch and HomePage's once-per-process
+     latch went in ONE edit. Inverted with its reason (#835): a half-removed instrument —
+     a call with no method, a method with no caller, a latch with nothing to latch — is
+     exactly what this pin now catches. */
   const hp912 = stripCode(rd912('Spixi/Pages/Home/HomePage.xaml.cs'));
-  const onl = mb912(hp912, 'private void onLoaded()');
-  ok(same(stages, expect)
-     && ctor.indexOf('startDiag("logger up")') > ctor.indexOf('Logging.start(')
-     && ctor.indexOf('startDiag("node constructed")') > ctor.indexOf('_ = new Node();')
-     && ctor.indexOf('startDiag("root page set")') > ctor.lastIndexOf('NavigationPage.SetHasNavigationBar(MainPage, false);')
-     && /private static readonly System\.Diagnostics\.Stopwatch startClock = System\.Diagnostics\.Stopwatch\.StartNew\(\);/.test(app912)
-     && /Logging\.info\("\[STARTDIAG\] \{0\} at \+\{1\} ms", stage, startClock\.ElapsedMilliseconds\);/.test(app912)
-     && /if \(!startDiagLogged\)\s*\{\s*startDiagLogged = true;\s*App\.startDiag\("home shell loaded"\);\s*\}/.test(onl)
-     && (hp912.match(/App\.startDiag\(/g) || []).length === 1,
-    '★ #912 ④: the cold start is MEASURED — four [STARTDIAG] milestones in the App() constructor in launch order (logger up AFTER Logging.start · node constructed AFTER new Node() · wallet decrypted/NOT · root page set AFTER the root is assigned), one Stopwatch started at the first managed instruction, and a fifth "home shell loaded" in HomePage.onLoaded behind a once-per-process latch (a theme reload lands there too and is not a start). Got stages=' + stages.join(' | '));
+  const app912NC = stripCode(app912);
+  ok(!/startDiag\(/.test(app912NC) && !/\[STARTDIAG\]/.test(app912NC) && !/startClock/.test(app912NC)
+     && !/startDiag|startDiagLogged|STARTDIAG/.test(hp912),
+    '★ #912 ④ → RETIRED: no [STARTDIAG] call, method, Stopwatch or latch remains in App.xaml.cs or HomePage.xaml.cs (code, not prose — the retirement note names the tag)');
 }
 
 /* ★ Session AC — THE LANDSCAPE ROUND (#918: AND-31 / AND-32 / AND-33 / AND-34).
@@ -35157,6 +35241,350 @@ console.log('#912: backup exclusions, the html copy skip, and the start clock');
   const paneReads = (hp.match(/rightContent\.IsVisible/g) || []).length;
   ok(thresholdSites.length === 1 && thresholdSites[0] === 'Spixi/Pages/Home/HomePage.xaml.cs' && (hp.match(/Width\s*<\s*700\b/g) || []).length === 1 && paneReads >= 15,
     '★ #923 ③ (derived): the 700 dp threshold is compared in exactly ONE C# file and once there (' + thresholdSites.join(', ') + '); every other pane decision reads rightContent.IsVisible (' + paneReads + ' sites) — the phone rule reaches all of them through the one branch');
+}
+
+console.log('★ Session AD — the ours/his cutover rows: batch 1 (CH6 · C1/C2 · S11 · C16 · W11), batch 3, the sweep');
+{
+  const rdAD = (f) => readFileSync(join(root, f), 'utf8').replace(/\r\n/g, '\n');
+  const csAD = (f) => stripCode(rdAD(f));
+  const hpAD = csAD('Spixi/Pages/Home/HomePage.xaml.cs');
+  const scpAD = csAD('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+  const spAD = csAD('Spixi/Network/StreamProcessor.cs');
+  const setPAD = csAD('Spixi/Pages/Settings/SettingsPage.xaml.cs');
+  const cdAD = csAD('Spixi/Pages/Contacts/ContactDetails.xaml.cs');
+  const cnAD = csAD('Spixi/Pages/Contacts/ContactNewPage.xaml.cs');
+  const scAD = csAD('Spixi/Utils/SContacts.cs');
+  const tmAD = csAD('Spixi/Data/TransferManager.cs');
+  const homeAD = stripCode(rdAD('src/shells/home.html'));
+  const chatAD = stripCode(rdAD('src/shells/chat.html'));
+  const cdShAD = stripCode(rdAD('src/shells/contact_details.html'));
+  const braceBlock = (t, at) => { if (at < 0) return ''; let d = 0; for (let k = t.indexOf('{', at); k < t.length; k++) { if (t[k] === '{') d++; else if (t[k] === '}' && --d === 0) return t.slice(at, k + 1); } return ''; };
+  const methodAD = (t, head) => { const i = t.indexOf(head); if (i < 0) return ''; let d = 0; for (let k = t.indexOf('{', i); k < t.length; k++) { if (t[k] === '{') d++; else if (t[k] === '}' && --d === 0) return t.slice(i, k + 1); } return ''; };
+
+  /* ── CH6: the excerpt KIND is pushed, and the shell's admitted set is DERIVED from the
+     C# assignments — a kind C# names that the shell does not admit renders as text
+     (silently wrong glyph = the #602 class), so the two sets are pinned EQUAL. */
+  const helper = methodAD(hpAD, 'private FriendMessageHelper? getFriendMessageHelper(Friend friend, out string excerptKind)');
+  /* ★ #46 loop (auditor C, item 1): the first cut collected ONE spelling of the assignment
+     (`excerptKind = "…";`) and a kind written any other way — a constant, a conditional
+     assignment, `excerpt_kinds[...] = "…"` in loadChats — escaped the set and reached the
+     shell as text. Every WRITE to the kind (the out param and the dictionary) is walked; a
+     right-hand side that is not a string literal or a ternary of two literals FAILS. */
+  const csKinds = new Set();
+  const badWrites = [];
+  for (const m of (helper + hpAD).matchAll(/(?:\bexcerptKind|excerpt_kinds\[[^\]]+\])\s*=(?!=)\s*([^;]+);/g)) {
+    const rhs = m[1].trim();
+    if (/^"([a-z-]+)"$/.test(rhs)) { csKinds.add(rhs.slice(1, -1)); continue; }
+    const tern = /^[A-Za-z_][\w.!]*\s*\?\s*"([a-z-]+)"\s*:\s*"([a-z-]+)"$/.exec(rhs);
+    if (tern) { csKinds.add(tern[1]); csKinds.add(tern[2]); continue; }
+    if (/^excerptKind$/.test(rhs)) continue;   // the flush copies the out param into the dictionary
+    badWrites.push(rhs);
+  }
+  const shellKindsM = homeAD.match(/const PUSHED_EXCERPT_KINDS = new Set\(\[([\s\S]*?)\]\);/);
+  const shellKinds = new Set(shellKindsM ? [...shellKindsM[1].matchAll(/'([a-z-]+)'/g)].map((m) => m[1]) : []);
+  const csOnly = [...csKinds].filter((k) => !shellKinds.has(k)), shellOnly = [...shellKinds].filter((k) => !csKinds.has(k));
+  ok(helper.length > 0 && csKinds.size >= 12 && csOnly.length === 0 && shellOnly.length === 0 && badWrites.length === 0
+     && !/getFriendMessageHelper\(Friend friend\)\s*\{/.test(hpAD),
+    '★ CH6 ① (derived): every excerpt kind getFriendMessageHelper assigns (' + [...csKinds].sort().join(', ') + ') is admitted by home.html\'s PUSHED_EXCERPT_KINDS and vice versa (C#-only: ' + (csOnly.join(', ') || 'none') + ' · shell-only: ' + (shellOnly.join(', ') || 'none') + ' · non-literal writes: ' + (badWrites.join(' | ') || 'none') + '); the kind-less overload is gone');
+  const addChatSites = [...hpAD.matchAll(/sendUiCommand\(this, "addChat", ([^;]*)\);/g)].map((m) => m[1]);
+  ok(addChatSites.length === 2 && addChatSites.every((a) => a.split(',').length === 11 && /excerpt_kinds\[helper_msg\.walletAddress\]$|excerptKind$/.test(a.trim())),
+    '★ CH6 ②: BOTH addChat pushes (the flush and the lone updateChat) carry the kind as the 11th argument after the command (' + addChatSites.length + ' sites, LAST — an older shell ignores it)');
+  ok(/addChat\(wallet, from, timestamp, avatar, online, excerpt_msg, type, unread, kind, mention, excerptKind\)/.test(homeAD)
+     && /function excerptFromPush\(raw, statusType, name, excerptKind\)/.test(homeAD)
+     && !/function excerptFromRaw|canonEntry\(|#sl-carriers|sl-ex-/.test(homeAD)
+     && !/id="sl-ex-/.test(rdAD('src/shells/home.html')),
+    '★ CH6 ③: the shell handler takes the kind as its 11th parameter, the reverse-map (excerptFromRaw, canonEntry, the #sl-carriers spans) is GONE from code AND markup');
+  {
+    const conn = methodAD(hpAD, 'private static bool isConnectedEventMessage(FriendMessage msg)');
+    ok((hpAD.match(/isConnectedEventMessage\(/g) || []).length >= 2 && conn.length > 0
+       && /msg\.id == null \|\| msg\.id\.Length != 1 \|\| msg\.id\[0\] != 1/.test(conn)
+       && /_SL\("global-friend-request-connected"\)/.test(conn) && /if \(prefix\.Length > 0\)\s*\{\s*return msg\.message != null && msg\.message\.StartsWith\(prefix, StringComparison\.Ordinal\);/.test(conn)
+       && conn.indexOf('return false;') < conn.indexOf('_SL("global-friend-request-connected")'),
+      '★ CH6 ④: the "connected" kind needs BOTH the fixed id {1} every writer uses AND the connected template\'s fixed prefix in the current dictionary (the loop\'s peer-chosen-id spoof: id alone let a peer message render as a system line)');
+  }
+
+  /* ── C1/C2: the payment pushes carry KIND · enum · fiat · insufficient, LAST */
+  /* every site that names the command, whatever the call shape (auditor C, item 2) */
+  const payPushes = [...scpAD.matchAll(/"addPaymentRequest",\s*([^;]*)\);/g)].map((m) => m[1]);
+  const payPushesElsewhere = [...(hpAD + spAD + cdAD + setPAD).matchAll(/"addPaymentRequest"/g)].length;
+  const argc = (a) => { let d = 0, n = 1; for (const c of a) { if (c === '(') d++; else if (c === ')') d--; else if (c === ',' && d === 0) n++; } return n; };
+  ok(payPushes.length === 4 && payPushesElsewhere === 0 && payPushes.every((a) => argc(a) === 18)
+     && payPushes.filter((a) => /, "request", statusEnum, fiat, insufficient\.ToString\(\)$/.test(a.trim())).length === 2
+     && payPushes.filter((a) => /, "payment", statusEnum, fiat, "False"$/.test(a.trim())).length === 2,
+    '★ C1/C2 ①: all FOUR addPaymentRequest pushes carry 18 args after the command — the two request pushes end `"request", statusEnum, fiat, insufficient`, the two payment pushes `"payment", statusEnum, fiat, "False"` (a payment is never "insufficient")');
+  ok(/sendUiCommand\(this, "updateTransactionStatus", txid, status, status_icon, statusEnum\)/.test(scpAD)
+     && /sendUiCommand\(this, "updatePaymentRequestStatus", Crypto\.hashToString\(msg_id\), txid_string, status, status_icon, enableView\.ToString\(\), statusEnum\)/.test(scpAD)
+     && /updatePaymentRequestStatus\(id, txid, status, statusIcon, enableView, statusEnum\)/.test(chatAD)
+     && /updateTransactionStatus\(txid, status, statusIcon, statusEnum\)/.test(chatAD)
+     && /function paymentStatusFrom\(statusEnum, statusIcon\)/.test(chatAD),
+    '★ C1 ②: both status updaters append the enum LAST (C#) and the shell reads it as the last parameter, falling back to the icon (paymentStatusFrom) for an older exe');
+  /* ★ auditor C item 3: the enum is DERIVED from every `statusEnum = "…"` write and pinned
+     equal to the shell's PAYMENT_STATUS_ENUM, and each write is paired with the icon arm it
+     sits in — the shell prefers the enum, so a swapped literal would mislabel a card while
+     the icon still said the truth. Pairing: the nearest status_icon write ABOVE the enum
+     write inside the same block (they are written together in every arm). */
+  const ICON_OF = { pending: 'fa-clock', completed: 'fa-check-circle', declined: 'fa-exclamation-circle' };
+  const enumWrites = [...scpAD.matchAll(/statusEnum = "([a-z]+)";/g)];
+  const csEnum = new Set(enumWrites.map((m) => m[1]));
+  const shellEnumM = chatAD.match(/const PAYMENT_STATUS_ENUM = new Set\(\[([^\]]*)\]\)/);
+  const shellEnum = new Set(shellEnumM ? [...shellEnumM[1].matchAll(/'([a-z]+)'/g)].map((m) => m[1]) : []);
+  const mispaired = [];
+  for (const m of enumWrites) {
+    const before = scpAD.slice(Math.max(0, m.index - 400), m.index);
+    const iconM = [...before.matchAll(/status_icon = "([a-z-]+)";/g)].pop();
+    const declared = /string statusEnum = /.test(before.slice(-20));   // the initialiser line, not an arm
+    if (!iconM) { if (!declared) mispaired.push(m[1] + ' (no icon above)'); continue; }
+    if (ICON_OF[m[1]] !== iconM[1] && !declared) mispaired.push(m[1] + '↔' + iconM[1]);
+  }
+  ok(csEnum.size === 3 && [...csEnum].every((v) => shellEnum.has(v)) && shellEnum.size >= 3 && mispaired.length === 0,
+    '★ C1 ③ (derived): the C# status enum {' + [...csEnum].sort().join(', ') + '} is admitted by the shell\'s PAYMENT_STATUS_ENUM, and every enum write sits under the icon that says the same thing (mispaired: ' + (mispaired.join(', ') || 'none') + ')');
+  const insuf = methodAD(scpAD, 'private static bool paymentInsufficient(string amount)');
+  const fiatF = methodAD(scpAD, 'private static string paymentFiatFor(string amount)');
+  ok(insuf.length > 0 && /Node\.getAvailableBalance\(\) < need/.test(insuf) && /return false;/.test(insuf) && (insuf.match(/return false;/g) || []).length >= 3
+     && /bool anyVerified = false;/.test(insuf) && (insuf.match(/anyVerified = true;/g) || []).length === 1   // r3: `= true` at the declaration deleted the gate with the loop and the `if` intact
+     && /if \(b\.Value != null && b\.Value\.verified\)\s*\{\s*anyVerified = true;/.test(insuf) && /if \(!anyVerified\)\s*\{\s*return false;/.test(insuf)
+     && insuf.indexOf('if (!anyVerified)') < insuf.indexOf('Node.getAvailableBalance() < need')   // an UNVERIFIED balance never locks Pay (loop C-13)
+     && fiatF.length > 0 && /Node\.fiatPrice == 0/.test(fiatF) && /return "";/.test(fiatF) && /new IxiNumber\(amount\) \* Node\.fiatPrice/.test(fiatF)
+     && /bool insufficient = !message\.localSender && statusEnum == "pending" && txid == ""\s*&& paymentInsufficient\(amount\);/.test(scpAD),
+    '★ C2: insufficient = balance < the requested amount, ONLY for an incoming pending unpaid request, and every parse failure reads false (a card is never locked by a bad number); fiat is "" until a price is known');
+
+  /* ── S11: the land-on-tab hand-off is a VERB + a PUSH (no storage anywhere) */
+  const landM = methodAD(hpAD, 'public void landOnTab(string id)');
+  ok(landM.length > 0 && /LAND_TAB_IDS/.test(landM) && /sendUiCommand\(this, "landOnTab", id\)/.test(landM)
+     && /"chats", "wallet", "apps", "contacts"/.test(hpAD)
+     && /HomePage\.InstanceOrNull\(\)\?\.landOnTab\(current_url\.Substring\("ixian:landtab:"\.Length\)\)/.test(setPAD)
+     && !/spixi\.landtab|LANDTAB_KEY|consumeLandTab|landtabprobe/.test(homeAD + stripCode(rdAD('src/shells/settings.html')) + hpAD + setPAD)
+     && /function landOnTabNow\(id\)/.test(homeAD) && /landOnTab\(id\) \{ landOnTabNow\(id\); \}/.test(homeAD),
+    '★ S11: SettingsPage forwards ixian:landtab:<id> → HomePage.landOnTab (a fixed id set, refused otherwise) → the landOnTab push → the shell\'s landOnTabNow — and NO landtab storage key, consumer or probe survives in any of the four files');
+
+  /* ── W11: the requester records the payer's answer WITHOUT an open conversation */
+  const rfr = spAD.slice(spAD.indexOf('case SpixiMessageCode.requestFundsResponse:'), spAD.indexOf('case SpixiMessageCode.fileHeader:'));
+  const gateAt = rfr.indexOf('var chat_page = Utils.getChatPage(friend);');
+  ok(rfr.length > 0 && gateAt > 0
+     && rfr.indexOf('msg.message = ":" + tx_id;') < gateAt && rfr.indexOf('msg.message = "::" + msg.message;') < gateAt
+     && rfr.indexOf('IxianHandler.localStorage.requestWriteMessages(friend.walletAddress, 0);') > 0 && rfr.indexOf('IxianHandler.localStorage.requestWriteMessages(friend.walletAddress, 0);') < gateAt
+     && rfr.indexOf('msg.message = ":" + tx_id;') > 0 && rfr.indexOf('msg.message = "::" + msg.message;') > 0
+     && rfr.indexOf('UIHelpers.refreshChatRow(friend);') > gateAt
+     && /if \(chat_page != null\)\s*\{[^}]*updateRequestFundsStatus\(msg_id, b_tx_id, status\);\s*\}/.test(rfr),
+    '★ W11: in requestFundsResponse the store mutation AND its write happen BEFORE the chat-page gate; only the UI push sits inside it, and the chats row refreshes after either way');
+  /* ★ loop r2 M2: the PREDICATE is the fix and nothing pinned it. The Find must require all
+     four clauses of the payer side's own rule, a miss must change nothing (break before any
+     push), and the peer's txid must be parsed before it is stored. */
+  {
+    const findM = rfr.match(/FriendMessage\? msg = friend\.getMessages\(0\)\?\.Find\(([\s\S]*?)\);/);
+    const pred = findM ? findM[1].replace(/\s+/g, ' ') : '';
+    const iStore = rfr.indexOf('msg.message = ":" + tx_id;');
+    const missArm = rfr.match(/if \(msg == null\)\s*\{[^}]*\}/);
+    const iValidate = rfr.indexOf('Transaction.txIdLegacyToV8(tx_id);');
+    /* ★ loop r3 pin-1/pin-2: the r2 clauses matched each clause as a SUBSTRING, so
+     * `x.localSender == false` (the requester side inverted) and a trailing `|| true`
+     * (any id rewrites any row — the r2 MAJOR back in full) both stayed green. The
+     * predicate is now compared WHOLE, whitespace removed, against its canonical form;
+     * and the txid validation must be the ONLY statement of its try, with no guard
+     * between `if (tx_id != null) {` and the call (r3: `if (tx_id.Length == 0)` in front
+     * of it would have passed the old "exists and precedes the store" clause). */
+    const PRED_CANON = 'x=>x.id!=null&&x.id.SequenceEqual(msg_id)&&x.type==FriendMessageType.requestFunds&&x.localSender&&x.message!=null&&!x.message.StartsWith(":")';
+    const validateShape = /if \(tx_id != null\)\s*\{\s*try\s*\{\s*Transaction\.txIdLegacyToV8\(tx_id\);\s*\}\s*catch \(Exception\)\s*\{\s*Logging\.warn\("requestFundsResponse: unparseable txid, ignored\."\);\s*break;\s*\}\s*\}/;
+    ok(pred.length > 0
+       && pred.replace(/\s+/g, '') === PRED_CANON
+       && !!missArm && /break;/.test(missArm[0]) && !/sendUiCommand|updateRequestFundsStatus|refreshChatRow/.test(missArm[0])
+       && iValidate > 0 && iStore > 0 && iValidate < iStore && validateShape.test(rfr)
+       && (rfr.match(/Transaction\.txIdLegacyToV8\(tx_id\);/g) || []).length === 1,
+      '★ W11 (the predicate, loop r2 M2 · r3 canonical): the Find accepts ONLY my own unanswered requestFunds row (id · type · localSender · not yet answered — the payer side\'s own rule, SPayments), a miss BREAKS before any push (a peer cannot flip a card by id in an open chat), and the txid is parsed BEFORE anything is stored (a garbage txid used to erase my request card on every open). Predicate: ' + pred);
+  }
+
+  /* ── S9: the Developer row is CAP-gated on the persisted devMode, and the verb refuses without it */
+  const devBranch = methodAD(setPAD, 'else if (current_url.Equals("ixian:dev", StringComparison.Ordinal))');
+  ok(devBranch.length > 0 && /if \(Preferences\.Default\.Get\("devMode", false\)\)\s*\{\s*HomePage\.InstanceOrNull\(\)\?\.Navigation\.PushModalAsync\(new DevPage\(\)\);\s*\}/.test(devBranch)
+     && !/\bNavigation\.PushModalAsync\(new DevPage/.test(devBranch.replace(/HomePage\.InstanceOrNull\(\)\?\.Navigation\.PushModalAsync/g, ''))   // never THIS page's own Navigation (loop B M1)
+     && !/pushPageLoaded\(new DevPage/.test(setPAD)   // and not a fourth overlay page either (#804 PIN 6, loop r2 M1.3)
+     && (devBranch.match(/new DevPage\(\)/g) || []).length === 1 && (setPAD.match(/new DevPage\(\)/g) || []).length === 1
+     && /sendUiCommand\(this, "setCapDev", Preferences\.Default\.Get\("devMode", false\) \? "1" : "0"\)/.test(methodAD(setPAD, 'protected internal override void onRepresentedNative()'))
+     && /setCapDev\(on\) \{\s*const grant = String\(on \|\| ''\) === '1';[\s\S]{0,200}?bridge\.capabilities\.dev = grant;/.test(stripCode(rdAD('src/shells/settings.html')))
+     && /if \(Preferences\.Default\.Get\("devMode", false\)\)\s*\{\s*caps \+= ",dev";/.test(setPAD)
+     && /dev: bridge\.cap\('dev'\)/.test(stripCode(rdAD('src/shells/settings.html'))),
+    '★ S9: ixian:dev opens DevPage as a MODAL through the in-stack HomePage\'s Navigation (SettingsPage is overlay-presented, so its OWN modal push never shows; a pushPageLoaded would be a fourth cold WebView, #804 PIN 6) ONLY under the persisted devMode preference; the cap is re-granted on every re-present (setCapDev, "1" grants) and the hub row is offered on it');
+
+  /* ── CH4: favorites are an APP preference; the badge total is mute-aware at every site */
+  const favBranch = methodAD(hpAD, 'else if (current_url.StartsWith("ixian:favchat:", StringComparison.Ordinal))');
+  ok(favBranch.length > 0 && /SChatPrefs\.setFavorite\(ff\.walletAddress\.ToString\(\), fav\)/.test(favBranch)
+     && /sendUiCommand\(this, "setChatFavorite", favAddr,/.test(favBranch)
+     && favBranch.indexOf('sendUiCommand(this, "setChatFavorite"') > favBranch.lastIndexOf('catch (Exception ex)')
+     && !/Logging\.[a-z]+\([^;]*\bverb\b/.test(favBranch),
+    '★ CH4 ①: ixian:favchat:<addr>:on|off persists through SChatPrefs on the CANONICAL address and echoes setChatFavorite from the STORED value, outside the try (a refusal still answers); no log line carries the URL token');
+  /* the blind reads that REMAIN feed the OS notification shade (SPushService.clearNotifications), whose
+     count is a different quantity — walked, not listed: every surviving call must sit in a
+     statement that ends in clearNotifications, or in a variable consumed only by it */
+  const blindReads = [];
+  const csWalkAD = (function walk(d) { let out = []; for (const e of readdirSync(join(root, d), { withFileTypes: true })) { if (['obj', 'bin', 'node_modules'].includes(e.name)) continue; const rel = d + '/' + e.name; if (e.isDirectory()) out = out.concat(walk(rel)); else if (e.name.endsWith('.cs')) out.push(rel); } return out; })('Spixi');
+  for (const [f, t] of csWalkAD.map((f) => [f, csAD(f)])) {
+    for (const m of t.matchAll(/FriendList\.getUnreadMessageCount\(\)/g)) {
+      const stmt = t.slice(t.lastIndexOf('\n', m.index) + 1, t.indexOf(';', m.index) + 1).trim();
+      const feedsShade = /SPushService\.clearNotifications\(FriendList\.getUnreadMessageCount\(\)\)/.test(stmt)
+        || (/int unreadCount = FriendList\.getUnreadMessageCount\(\);/.test(stmt) && /SPushService\.clearNotifications\(unreadCount\)/.test(t.slice(m.index, m.index + 200)) && !/setUnreadIndicator|sendUiCommand/.test(t.slice(m.index, m.index + 200)));
+      if (!feedsShade) blindReads.push(f + ': ' + stmt);
+    }
+  }
+  ok(blindReads.length === 0 && (scpAD.match(/SChatPrefs\.unreadTotalForBadge\(\)/g) || []).length >= 1 && (setPAD.match(/SChatPrefs\.unreadTotalForBadge\(\)/g) || []).length >= 1
+     && /if \(SNotificationPrefs\.isChatMuted\(friend\)\)\s*\{\s*continue;/.test(methodAD(csAD('Spixi/Meta/SChatPrefs.cs'), 'public static int unreadTotalForBadge()')),
+    '★ CH4 ② (walk over ' + csWalkAD.length + ' C# files): nothing feeds a BADGE — in-app OR the OS icon badge through showLocalNotification (auditor C item 8) — from FriendList.getUnreadMessageCount() any more; the surviving reads only clear the OS shade. Every badge total goes through SChatPrefs.unreadTotalForBadge, which skips the one mute predicate. Blind: ' + (blindReads.join(' | ') || 'none'));
+  ok(/'favorite'/.test(stripCode(rdAD('src/components/chats-row-menu.js'))) && /case 'favorite':/.test(stripCode(rdAD('src/components/chats-shell.js')))
+     && /setChatFavorite\(address, on\)/.test(homeAD) && /bridge\.send\('ixian:favchat:' \+ /.test(homeAD),
+    '★ CH4 ③: the row menu offers favorite/unfavorite, the shell action maps to the verb, and the echo handler exists');
+
+  /* ── C6: the tip token carries the AMOUNT (it was the Transaction byte[] → "tip:System.Byte[]") and the total is summed once */
+  ok((scpAD.match(/string tipToken = "tip:" \+ txForTip\.amount\.ToString\(\);/g) || []).length === 1 && (scpAD.match(/\btipToken\b/g) || []).length === 3 && !/"tip:" \+ txForTip\.id/.test(scpAD)
+     && /if \(reaction\.Key == "tip"\)/.test(scpAD) && /tipTotal \+= a;/.test(scpAD) && /tip_total_str = anyTip \? tipTotal\.ToString\(\) : "";/.test(scpAD),
+    '★ C6: ONE tip token (`tip:<amount>`, declared once, used at both the addReaction and the sendReaction site — never the byte[] id), and updateReactions sums the per-sender amounts into the 4th addReactions arg');
+  ok(/addReactions\(id, reactions, own, tipTotal\)/.test(chatAD)
+     && /handlers\.addReactions\(args\[0\], item\.r\[0\] == null \? '' : String\(item\.r\[0\]\), item\.r\[1\] == null \? '' : String\(item\.r\[1\]\), item\.r\[2\] == null \? '' : String\(item\.r\[2\]\)\)/.test(chatAD)
+     && /function parseReactions\(str, id, ownStr, tipTotal\)/.test(chatAD),
+    '★ C6 (shell half, auditor C item 7): BOTH transports deliver the tip total — the live handler takes it as its 4th parameter and the BATCH path reads `item.r[2]` (the fold\'s third slot) — so the amount cannot vanish on a chat open while surviving live');
+
+  /* ── C21: the typist reaches the pill by address+nick, never for a blind room */
+  ok(/handleFriendIsTyping\(friend, group_sender_address\)/.test(spAD) && /protected void handleFriendIsTyping\(Friend friend, Address\? typist = null\)/.test(spAD)
+     && /public void showTyping\(Address\? typist = null\)/.test(scpAD)
+     && /if \(typist != null && \(friend\.bot \|\| friend\.type == FriendType\.Group\) && !Utils\.hidesParticipants\(friend\)\)/.test(scpAD)
+     && /sendUiCommand\(this, "showUserTyping", who, nick\)/.test(scpAD) && /showUserTyping\(who, nick\)/.test(chatAD),
+    '★ C21: the group-sender address rides the typing event to showTyping, which names the typist ONLY in a non-blind room, and the push carries (address, nick) that the shell reads');
+
+  /* ── CH8: the reactor address is the 5th arg and never leaves a blind room */
+  const rxM = methodAD(hpAD, 'public void updateChatReaction(Friend friend, Address reactor_address, string reaction)');
+  ok(rxM.length > 0 && /string reactor = "";/.test(rxM) && /if \(!Utils\.hidesParticipants\(friend\)\)\s*\{\s*reactor = reactor_address\.ToString\(\);/.test(rxM)
+     && /sendUiCommand\(this, "addChatReaction", friend\.walletAddress\.ToString\(\), nick, reaction, Clock\.getTimestamp\(\)\.ToString\(\), reactor\)/.test(rxM)
+     && /addChatReaction\(wallet, nick, reaction, timestamp, reactor\)/.test(homeAD) && /truncateAddressMiddle\(/.test(methodAD(homeAD, 'addChatReaction(wallet, nick, reaction, timestamp, reactor)')),
+    '★ CH8: the reactor address is appended LAST and stays "" under hidesParticipants; the shell falls back to its middle-truncated form when no nick resolves');
+
+  /* ── CO3 / CO4 */
+  ok((cnAD.match(/sendUiCommand\(this, "onRequestResult", "0", /g) || []).length === 3 && /sendUiCommand\(page, "onValidAddress", address\)/.test(cnAD)
+     && /onRequestResult\(ok, message\)/.test(stripCode(rdAD('src/shells/contact_new.html'))) && /addValidAddress\(checked\)/.test(stripCode(rdAD('src/bridge/contacts-page.js'))),
+    '★ CO3/CO4: ContactNewPage answers all three refusals with onRequestResult("0", …) and echoes the checked address on onValidAddress; the shell consumes both');
+
+  /* ── CI2: the activity push carries the four-state status + a direction enum, LAST */
+  ok(/sendUiCommand\(this, "addPaymentActivity", transaction\.getTxIdString\(\), tx_type, time, amount\.ToString\(\), confirmed, outgoing \? "out" : "in"\)/.test(cdAD)
+     && /addPaymentActivity\(txid, type, time, amount, confirmed, direction\)/.test(cdShAD) && /function activityStatus\(confirmed\)/.test(cdShAD),
+    '★ CI2: ContactDetails pushes the wallet tab\'s four-state status and an in|out direction as the 5th/6th args; the shell maps the status and prefers the direction over the label');
+
+  /* ── C17 / CO1: the directory row carries the relation and the kind from ONE predicate */
+  ok(/string relation = contactRelationFor\(friend\.walletAddress\);/.test(hpAD) && /string contactKind = friend\.bot \? "bot" : \(friend\.type == FriendType\.Group \? "group" : ""\);/.test(hpAD)
+     && /sendUiCommand\(this, "addContact", friend\.walletAddress\.ToString\(\), friend\.nickname, avatar, str_online, friend\.getUnreadMessageCount\(\)\.ToString\(\), relation, contactKind\)/.test(hpAD)
+     && /addContact\(address, nickname, avatar, online, _unread, relation, kind\)/.test(homeAD)
+     && /sendUiCommand\(this, "setRelation", contactRelationFor\(friend\.walletAddress\)\)/.test(cdAD) && /setRelation\(r\)/.test(cdShAD) && /createPendingContact/.test(cdShAD),
+    '★ C17/CO1: addContact carries relation (contactRelationFor — the one predicate) and kind as args 6–7; ContactDetails pushes setRelation and renders the pending pane from it');
+  const undoB = methodAD(cdAD, 'else if (current_url.Equals("ixian:undorequest", StringComparison.Ordinal))');
+  {
+    // the guard is the SAME predicate contactRelationFor renders as "pending" (loop B M2) — read both
+    const relFn = methodAD(csAD('Spixi/Utils/SpixiContentPage.cs'), 'public static string contactRelationFor(Address address)');
+    const tryBlock = braceBlock(undoB, undoB.indexOf('try'));
+    ok(undoB.length > 0 && relFn.length > 0
+       && /if \(fr\.approved && fr\.state == FriendState\.Approved\) return "contact";/.test(relFn) && /if \(fr\.state == FriendState\.RequestReceived\) return "pending-in";/.test(relFn)
+       && /bool pendingOut = !friend\.bot && friend\.type != FriendType\.Group\s*&& !\(friend\.approved && friend\.state == FriendState\.Approved\)\s*&& friend\.state != FriendState\.RequestReceived;/.test(undoB)
+       && tryBlock.length > 0 && /if \(pendingOut && FriendList\.removeFriend\(friend\)\)/.test(tryBlock) && !/FriendList\.removeFriend/.test(undoB.replace(tryBlock, ''))
+       && /openChat = Utils\.getChatPage\(friend\);/.test(tryBlock) && tryBlock.indexOf('openChat = Utils.getChatPage(friend);') < tryBlock.indexOf('FriendList.removeFriend(friend)')
+       && (undoB.match(/sendUiCommand\(this, "undoRequestResult", friend\.walletAddress\.ToString\(\), (?:status|"fail")\)/g) || []).length === 2
+       && /sendUiCommand\(this, "undoRequestResult", friend\.walletAddress\.ToString\(\), status\)/.test(tryBlock)
+       && /catch \(Exception ex\)\s*\{[^}]*sendUiCommand\(this, "undoRequestResult", friend\.walletAddress\.ToString\(\), "fail"\)/.test(undoB)
+       && /if \(status == "ok"\)\s*\{\s*if \(openChat != null\)/.test(undoB) && /openChat\.popPageAsync\(\);/.test(undoB)
+       // r3: the removal's success arm must be the one place `status` becomes "ok" — `status = "fail"`
+       // there removed the record while the shell heard "fail" (no sweep, no close), suite green
+       && /if \(pendingOut && FriendList\.removeFriend\(friend\)\)\s*\{\s*status = "ok";/.test(tryBlock)
+       && (undoB.match(/status = "ok";/g) || []).length === 1 && /string status = "fail";/.test(undoB),
+      '★ C17 (ContactDetails ixian:undorequest): the guard is EXACTLY the relation "pending" set AND it gates the removal (not RequestSent alone — a legacy Unknown-state contact got a pane whose only action always failed, loop B M2), the open conversation is resolved BEFORE the removal and popped on ok (m2), and the result is pushed on BOTH arms — inside the try beside the removal (the gate-5 axis walk reads it there) and again in the catch (every outcome answers, m1)');
+  }
+
+  /* ── A4: the fetch failure has a REASON, and the timeout is bounded */
+  const mam = csAD('Spixi/MiniApps/MiniAppManager.cs');
+  ok(/Timeout = TimeSpan\.FromSeconds\(15\)/.test(mam) && /public enum FetchFailure \{ None, Url, Http, Size, Timeout, Invalid, Error \}/.test(mam)
+     && /public const int FETCH_DEADLINE_SECONDS = 15;/.test(mam)
+     && /new CancellationTokenSource\(TimeSpan\.FromSeconds\(FETCH_DEADLINE_SECONDS\)\)/.test(mam)
+     && /httpClient\.SendAsync\(headRequest, deadline\.Token\)/.test(mam) && /httpClient\.GetByteArrayAsync\(url, deadline\.Token\)/.test(mam)   // ONE deadline over BOTH round trips (loop B m5)
+     && Number((homeAD.match(/APP_FETCH_GRACE_MS = (\d+)/) || [])[1]) > 15000
+     && /catch \(OperationCanceledException e?\)/.test(mam) && /FetchFailure\.Timeout/.test(mam)
+     && (csAD('Spixi/Pages/MiniApps/AppNewPage.xaml.cs').match(/sendUiCommand\(this, "showUrlError", reason\)/g) || []).length === 1
+     && (hpAD.match(/sendUiCommand\(this, "showUrlError", reason\)/g) || []).length === 1
+     && /showUrlError\(reason\)/.test(stripCode(rdAD('src/shells/app_new.html'))) && /APP_FETCH_GRACE_MS = 20000/.test(homeAD),
+    '★ A4: ONE 15 s deadline spans the HEAD and the GET (the per-request ceiling was 30 s end to end, under the shells\' 20 s grace — loop B m5), a cancellation is its own FetchFailure, both hosts push the reason, and the shell grace outlasts the deadline so the reason arrives first');
+
+  /* ── CH3: the media purge — listed BEFORE, deleted AFTER success, received files INSIDE the Downloads root only */
+  const collect = methodAD(scAD, 'public static List<string> collectReceivedMedia(Friend friend)');
+  const purge = methodAD(scAD, 'public static int purgeFiles(List<string> paths, Address? owner)');
+  {
+    const rawRead = methodAD(scAD, 'private static List<FriendMessage> readMessagesRaw(string path)');
+    const pathOf = methodAD(scAD, 'private static string? receivedMediaPathOf(FriendMessage fm)');
+    ok(collect.length > 0 && rawRead.length > 0 && pathOf.length > 0
+       && /fm\.type != FriendMessageType\.fileHeader \|\| fm\.localSender \|\| !fm\.completed/.test(pathOf)
+       && /TransferManager\.isInsideDownloadsRoot\(fm\.filePath\)/.test(pathOf) && /TransferManager\.isInsideDownloadsRoot\(rerooted\)/.test(pathOf)
+       && !/readLastMessages|getMessages\(/.test(scAD.slice(scAD.indexOf('readMessagesRaw'), scAD.indexOf('public static int purgeFiles')))   // never Core's reader (it re-arms outgoing transfers with open handles — loop A MINOR-3)
+       && /new FriendMessage\(reader\.ReadBytes\(msg_len\)\)/.test(rawRead) && /FileShare\.ReadWrite/.test(rawRead)
+       && /paths\.Remove\(full\);/.test(purge)
+       // another contact's history keeps its file (A MINOR-4) — inside the PURGE, off-thread; r3: the
+       // EXACT skip line, because `!other.walletAddress.SequenceEqual(owner)` still contained the
+       // substring and walked every contact but the owner's — protecting nothing
+       && /if \(other == null \|\| other\.walletAddress == null \|\| \(owner != null && other\.walletAddress\.SequenceEqual\(owner\)\)\)\s*\{\s*continue;/.test(purge)
+       && (purge.match(/SequenceEqual\(owner\)/g) || []).length === 1
+       && /if \(paths\.Count == 0\)\s*\{\s*return 0;/.test(purge) && purge.indexOf('paths.Remove(full);') < purge.indexOf('File.Delete(path);')
+       && /FileShare\.ReadWrite \| FileShare\.Delete/.test(rawRead)   // Core's File.Replace must not be refused by our handle (loop r2)
+       // re-root only from a Downloads-named parent (loop r2 security); r3: the gate is the NEGATED
+       // equality in the refusal `||` chain — the r2 clause matched the un-negated call too, and
+       // dropping the `!` re-rooted exactly the peer-shaped parents it exists to refuse
+       && /if \(string\.IsNullOrEmpty\(leaf\) \|\| string\.IsNullOrEmpty\(parent\) \|\| !string\.Equals\(parent, rootName, StringComparison\.Ordinal\)\)\s*\{\s*return null;/.test(pathOf)
+       // r3 M-1: a recorded path with a `.`/`..` segment never re-roots (the leaf is the peer's name
+       // while S16 is open; a `..\..\Downloads\x` name puts a Downloads parent in front of a
+       // file that is not this peer's); the check reads the RAW string before any canonicalising
+       && /if \(hasDotSegment\(fm\.filePath\)\)\s*\{\s*return null;/.test(pathOf) && pathOf.indexOf('hasDotSegment(fm.filePath)') < pathOf.indexOf('Path.GetFileName(fm.filePath)')
+       && /foreach \(string seg in path\.Split\(new\[\] \{ '\/', '\\\\' \}\)\)\s*\{\s*if \(seg == "\." \|\| seg == "\.\."\) return true;/.test(methodAD(scAD, 'private static bool hasDotSegment(string path)'))
+       && purge.length > 0 && /if \(!TransferManager\.isInsideDownloadsRoot\(path\)\)\s*\{\s*continue;/.test(purge) && /File\.Delete\(path\);/.test(purge)
+       && !/File\.Delete\(|File\.Move\(|File\.Create\(/.test(collect + rawRead + pathOf),
+      '★ CH3 ①: collectReceivedMedia is READ-ONLY for real — its own raw parser of Core\'s history format (never readLastMessages/getMessages, which fire processMessage and re-arm outgoing offers with OPEN handles), lists completed RECEIVED rows inside the Downloads root (an old-container path re-rooted by leaf name), drops any path another contact\'s history also names; purgeFiles re-checks the root per file before File.Delete');
+  }
+  const inside = methodAD(tmAD, 'public static bool isInsideDownloadsRoot(string full_path)');
+  ok(inside.length > 0 && /full\.StartsWith\(root \+ Path\.DirectorySeparatorChar, StringComparison\.Ordinal\)/.test(inside) && /return false;/.test(inside) && (inside.match(/return false;/g) || []).length >= 3
+     && /if \(!Path\.IsPathRooted\(full_path\)\) return false;/.test(inside) && inside.indexOf('Path.IsPathRooted(full_path)') < inside.indexOf('Path.GetFullPath(full_path)'),   // r3 NIT: "relative reads false" was a CLAIM — GetFullPath resolves a relative path against the cwd, which can sit inside the root; now it is a check
+    '★ CH3 ②: isInsideDownloadsRoot is fail-closed (empty, RELATIVE — refused before GetFullPath can resolve it, escaping and throwing paths all read false) and anchors on root + separator');
+  /* ★ auditor C item 4: ORDER was not the property — a purge placed after the op but
+     OUTSIDE the success branch deletes on a refused delete with the order intact. The
+     purge must sit INSIDE the block the success opens, there must be exactly ONE listing
+     (before the op) and ONE purge (inside), and nothing else may call purgeFiles. */
+  for (const [name, head, op, successHead] of [
+    ['removehistory', 'private void onRemoveHistoryFor(string address)', 'SContacts.removeHistory(f)', 'if (SContacts.removeHistory(f))'],
+    ['removecontact', 'private void onRemoveContactFor(string payload)', 'SContacts.removeContact(f, leave, out blockers)', 'if ((status == "ok" || status == "left") && media)'],
+    ['leavegroup', 'private void onLeaveGroupFor(string address)', 'SContacts.leaveGroup(f)', 'if (SContacts.leaveGroup(f))']]) {
+    const b = methodAD(hpAD, head);
+    const lists = (b.match(/SContacts\.collectReceivedMedia\(f\)/g) || []).length;
+    const purges = (b.match(/schedulePurge\("/g) || []).length;
+    const iList = b.indexOf('SContacts.collectReceivedMedia(f)'), iOp = b.indexOf(op);
+    const succ = braceBlock(b, b.indexOf(successHead));
+    const purgeInside = succ.length > 0 && new RegExp('schedulePurge\\("' + name + '", files, f\\.walletAddress\\);').test(succ)
+      && (name === 'removecontact' || new RegExp('if \\(media\\)\\s*\\{[^}]*schedulePurge\\("' + name + '"').test(succ));
+    ok(b.length > 0 && /= takeMediaFlag\(ref /.test(b) && lists === 1 && purges === 1 && iList > 0 && iOp > iList && purgeInside,
+      '★ CH3 ③ ' + name + ': the :media token is stripped first, the files are LISTED once before the deletion, and the ONE purge sits INSIDE the success branch `' + successHead + '` (a purge outside it would delete on a refused delete)');
+  }
+  {
+    const sched = methodAD(hpAD, 'private static void schedulePurge(string verb, List<string> files, Address? owner)');
+    ok((hpAD.match(/schedulePurge\("/g) || []).length === 3 && (hpAD.match(/SContacts\.purgeFiles\(/g) || []).length === 1
+       && sched.length > 0 && /Task\.Run\(\(\) =>/.test(sched) && /SContacts\.purgeFiles\(files, owner\)/.test(braceBlock(sched, sched.indexOf('Task.Run(() =>')))   // INSIDE the lambda's block
+       && !/Logging\.[a-z]+\([^;]*(?:owner|files\[|path)/.test(sched),
+      '★ CH3 ③ (walk): schedulePurge has exactly the three callers above and is the ONE caller of purgeFiles — OFF the UI thread (Task.Run: the other-contact walk is not onNavigating work, loop r2) — and its log lines carry counts, never a path or an address');
+  }
+  ok(/private const string MEDIA_FLAG = ":media";/.test(hpAD) && /private static bool takeMediaFlag\(ref string payload\)/.test(hpAD) && (hpAD.match(/= takeMediaFlag\(ref /g) || []).length === 3,
+    '★ CH3 ④: ONE flag spelling, one stripper, three callers — the three delete verbs and no other');
+
+  /* ── C4 (VoIP): one branch; the duplicate-id arm that Core refused is gone */
+  const vmAD = csAD('Spixi/VoIP/VoIPManager.cs');
+  const endM = methodAD(vmAD, 'private static void endVoIPSession()');
+  ok(endM.length > 0 && !/Node\.addMessageWithType\(currentCallSessionId, FriendMessageType\.voiceCallEnd/.test(endM) && /fm\.message = callDuration\.ToString\(\);/.test(endM),
+    '★ C4 (VoIP): endVoIPSession mutates the call row in place on every path — the arm that re-added a message under the call\'s own id (refused by Core as a duplicate) is gone');
+
+  /* ── #490: the iOS clearRemoteNotifications is an EMPTY method, not a return over dead code */
+  const iosPush = csAD('Spixi/Platforms/iOS/SPushService.cs');
+  const crn = methodAD(iosPush, 'public static void clearRemoteNotifications(int unreadCount)');
+  ok(crn.length > 0 && !/ClearAll\(\)/.test(crn) && !/return;/.test(crn) && crn.replace(/\s/g, '').endsWith('){}') && !/clearRemoteNotificationsAfterInit/.test(iosPush),
+    '★ #490 → Session AD: the iOS clearRemoteNotifications body is EMPTY (the unreachable ClearAll + badge code and its latch are deleted; the SDK ClearAll would wipe the app\'s own rows — MAJOR-4), and the reason is in the docblock');
+
+  /* ── i18n-C#: the two hardcoded English strings are gone */
+  ok(!/displaySpixiAlert\("No recipients"/.test(hpAD) && /_SL\("wallet-send-norecipients"\), SpixiLocalization\._SL\("chat-new-norecipient-text"\)/.test(hpAD)
+     && !/displaySpixiAlert\([^;]*"Cancel"\)/.test(csAD('Spixi/Pages/Launch/LockPage.xaml.cs')),
+    '★ i18n-C#: HomePage\'s no-recipients alert and LockPage\'s invalid-password button read the dictionary, not English literals');
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

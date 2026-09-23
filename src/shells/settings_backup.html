@@ -97,8 +97,8 @@
    *      OPTIMISTICALLY right after the send — "Backed up" reflects "the OS share
    *      sheet opened", not confirmed completion (backup-ux §5.4). BE ask: an
    *      explicit completion signal + last-backup timestamp (S2).
-   *   3. No backup-status push exists → the screen shows the standing "Not backed
-   *      up yet" state (S2).
+   *   3. ★ S2 (Session AD): BackupPage pushes `setLastBackup(<unix seconds>)` after
+   *      each backup → the screen re-mounts with the recorded date.
    * ————————————————————————————————————————————————————————————————————————— */
   const {
     createSettingsBackup,
@@ -135,32 +135,35 @@
    * while the arguments are evaluated — before the dispatcher's own try/catch can
    * run (the #258 addAppRequest lesson). Shared body: theme-runtime.js. */
   window.setTheme = function (name) { applyPushedTheme(name); };
+  /* ★ S2 (Session AD): the C#-owned last-backup stamp — a bare global for the same
+     reason as setTheme above (this shell exposes no handler map). BackupPage pushes it
+     after each backup; the screen is remounted with the new status. */
+  window.setLastBackup = function (ts) {
+    const t = Number(ts) || 0;
+    if (t === backupLastSecs) return;
+    backupLastSecs = t;
+    mountBackup();
+  };
 
   // Q4-③ (#270): the Batch-A call-ui wiring is GONE — calls present on the ONE
   // native CallPage surface; no shell receives call pushes anymore.
 
   const root = document.getElementById('backup-root');
 
-  /* iOS-19 (#283): local backup stamp — the settings hub (settings.html, same
-   * file:// localStorage origin) reads this to retire the standing "Action
-   * needed" nudge. Marks the share-sheet LAUNCH (no completion signal exists —
-   * S2); timestamp only, no user data (#254 storage rule). */
-  const BACKUP_STAMP_KEY = 'spixi.backup.last';
-  function stampBackup() {
-    try { localStorage.setItem(BACKUP_STAMP_KEY, String(Date.now())); } catch (e) { /* private mode */ }
-  }
+  /* ★ S2 (Session AD): the status is a C# PUSH — `setLastBackup(<unix seconds>)`,
+   * sent by BackupPage after each backup (the stamp is recorded when the file is handed
+   * to the OS sheet). The iOS-19 localStorage stamp this shell used to write is gone. */
+  let backupLastSecs = 0;
   function backupStatus() {
-    try {
-      const t = Number(localStorage.getItem(BACKUP_STAMP_KEY));
-      if (t > 0) {
-        return { last: new Date(t).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) };
-      }
-    } catch (e) { /* fall through */ }
+    const t = Number(backupLastSecs) || 0;
+    if (t > 0) {
+      return { last: new Date(t * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) };
+    }
     return {};
   }
-
+  function mountBackup() {
   root.replaceChildren(createSettingsBackup({
-    status: backupStatus(),                      // iOS-19 (#283): local stamp (was: standing "Action needed", S2)
+    status: backupStatus(),                      // ★ S2: from the push
     illustration: 'images/backup.png',          // Damir: build-shells copies src/demo/images → …/html/images
     host: document.body,
     strings,
@@ -168,11 +171,13 @@
 
     // ixian:backupAccount — C# zips + encrypts (stored walletpass) + OS-shares.
     // No password arg, no completion callback → optimistic done (see realities #1/#2).
-    onBackup: (_payload, ctrl) => { stampBackup(); bridge.send('ixian:backupAccount'); ctrl.done(); },
+    onBackup: (_payload, ctrl) => { bridge.send('ixian:backupAccount'); ctrl.done(); },
 
     // ixian:backupWallet — raw wallet.ixi OS share. Same optimistic done.
-    onExportWallet: (ctrl) => { stampBackup(); bridge.send('ixian:backupWallet'); ctrl.done(); },
+    onExportWallet: (ctrl) => { bridge.send('ixian:backupWallet'); ctrl.done(); },
   }));
+  }
+  mountBackup();
 
   /* —— page ready — fire ixian:onload on the window LOAD event (#177 load-timing
    *    invariant): firing during parse races C#'s first push. ————————————————— */

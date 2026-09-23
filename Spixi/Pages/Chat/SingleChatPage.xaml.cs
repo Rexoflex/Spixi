@@ -843,6 +843,10 @@ namespace SPIXI
             {
                 // Remove friend from list and go back to the main screen
                 bool requestRemoved = FriendList.removeFriend(friend);
+                if (requestRemoved)
+                {
+                    SChatPrefs.setFavorite(friend.walletAddress.ToString(), false);   // CH4: the preference leaves with the record
+                }
 
                 /* ★ #46 loop B, MAJOR-1 — THE RECORD IS GONE, SO SAY SO.
                  * chat.html's request pane Decline emits this verb (the only live emitter
@@ -2279,10 +2283,19 @@ namespace SPIXI
                                     sendTipResultFor("cancel", "", tipIdForAnswer);
                                     return;
                                 }
-                                if (friend.addReaction(IxianHandler.getWalletStorage().getPrimaryAddress(), new ReactionMessage(msgIdForTip, "tip:" + txForTip.id), channelForTip))
+                                /* ★ C6 (Session AD): the tip token carries the AMOUNT. It used to be
+                                 * `"tip:" + txForTip.id` — and `Transaction.id` is a byte[], so every
+                                 * tip ever stored or sent read `tip:System.Byte[]` (the baseline had
+                                 * the same line). Core keeps the text after the first ':' as the
+                                 * reaction's per-sender data (≤ 32 chars in total; an IxiNumber
+                                 * string fits, a txid string never did), so the recipient can now
+                                 * show "Tipped 5 IXI". The amount is what the TIPPER's client claims —
+                                 * a display fact, never a balance; the real transfer is the tx. */
+                                string tipToken = "tip:" + txForTip.amount.ToString();
+                                if (friend.addReaction(IxianHandler.getWalletStorage().getPrimaryAddress(), new ReactionMessage(msgIdForTip, tipToken), channelForTip))
                                 {
                                     updateReactions(msgIdForTip, channelForTip);
-                                    StreamProcessor.sendReaction(friend, msgIdForTip, "tip:" + txForTip.id, channelForTip);
+                                    StreamProcessor.sendReaction(friend, msgIdForTip, tipToken, channelForTip);
                                     IxianHandler.addTransaction(txForTip, relaysForTip, new() { senderForTip }, null, true);
                                     // D-10: the SHEET reports the result — it morphs and closes,
                                     // and the tip pill lands over the message via addReactions.
@@ -2449,6 +2462,9 @@ namespace SPIXI
                         if (friend.deleteMessage(msg_id, selectedChannel))
                         {
                             deleteMessage(msg_id, selectedChannel);
+                            // ★ C16 / Q12 (Session AD): Core just recomputed lastMessage —
+                            // the chats row learns it NOW, not at the next full flush.
+                            UIHelpers.refreshChatRow(friend);
                         }
                     }
                     break;
@@ -2597,7 +2613,7 @@ namespace SPIXI
             /** Fold the reactions into the LAST item when it is this message's own row;
              *  otherwise a standalone addReactions item (a row insertMessage skipped — the shell
              *  admits it and no-ops on the unknown id, exactly as the per-row push did). */
-            public void addReactions(string id, string reactions, string own)
+            public void addReactions(string id, string reactions, string own, string tipTotal)
             {
                 if (items.Count > 0)
                 {
@@ -2605,11 +2621,11 @@ namespace SPIXI
                     if (!last.ContainsKey("r") && last["a"] is object[] a && a.Length > 0 && a[0] is string lastId && lastId == id
                         && last["f"] is string f && f != "showContactRequest")
                     {
-                        last["r"] = new string[] { reactions, own };
+                        last["r"] = new string[] { reactions, own, tipTotal };   // ★ C6: the third slot
                         return;
                     }
                 }
-                add("addReactions", new string?[] { id, reactions, own });
+                add("addReactions", new string?[] { id, reactions, own, tipTotal });
             }
 
             public string toJson()
@@ -3119,6 +3135,19 @@ namespace SPIXI
             {
                 string status = SpixiLocalization._SL("chat-payment-status-waiting-confirmation");
                 string status_icon = "fa-clock";
+                /* ★ C1/C2 (Session AD): the card's DECISIONS come from a STATUS ENUM and a
+                 * KIND pushed beside the legacy 14 args (new args go LAST — never reorder):
+                 *   kind       `request` | `payment`     — the shell used to read this off
+                 *                                           the LOCALIZED title (#187)
+                 *   statusEnum `pending` | `completed` | `declined`
+                 *   fiat       the amount in fiat at the last known price ("" when unknown)
+                 *   insufficient "True" when the available balance cannot cover the amount
+                 *              — a request-in card disables Pay + shows the caption. It is
+                 *              amount-only: the fee needs a signed discarded tx per card
+                 *              (SPayments.estimateFee), which a history burst must not pay;
+                 *              the review sheet's live quote catches the amount+fee case.
+                 * `title` / `status` / `status_icon` still ride along for DISPLAY. */
+                string statusEnum = "pending";
 
                 string amount = message.message.Trim(':');
 
@@ -3135,6 +3164,7 @@ namespace SPIXI
                 {
                     status = SpixiLocalization._SL("chat-payment-status-declined");
                     status_icon = "fa-exclamation-circle";
+                    statusEnum = "declined";
                     txid = Crypto.hashToString(message.id);
                     enableView = false;
                 }else if(message.message.StartsWith(":"))
@@ -3147,6 +3177,7 @@ namespace SPIXI
 
                     status = SpixiLocalization._SL("chat-payment-status-declined");
                     status_icon = "fa-exclamation-circle";
+                    statusEnum = "declined";
 
                     if (activity != null)
                     {
@@ -3154,11 +3185,13 @@ namespace SPIXI
                         {
                             status = SpixiLocalization._SL("chat-payment-status-confirmed");
                             status_icon = "fa-check-circle";
+                            statusEnum = "completed";
                         }
                         else if (activity.status == IXICore.Activity.ActivityStatus.Pending)
                         {
                             status = SpixiLocalization._SL("chat-payment-status-pending");
                             status_icon = "fa-clock";
+                            statusEnum = "pending";
                         }
                     }
 
@@ -3176,14 +3209,18 @@ namespace SPIXI
                     enableView = true;
                 }
 
+                string fiat = paymentFiatFor(amount);
+                // C2: only a PENDING INCOMING request is payable, so only it is judged.
+                bool insufficient = !message.localSender && statusEnum == "pending" && txid == ""
+                    && paymentInsufficient(amount);
 
                 if (message.localSender)
                 {
-                    push(batch, "addPaymentRequest", Crypto.hashToString(message.id), txid, address, nick, avatar, SpixiLocalization._SL("chat-payment-request-sent"), amount, status, status_icon, message.timestamp.ToString(), message.localSender.ToString(), message.confirmed.ToString(), message.read.ToString(), enableView.ToString());
+                    push(batch, "addPaymentRequest", Crypto.hashToString(message.id), txid, address, nick, avatar, SpixiLocalization._SL("chat-payment-request-sent"), amount, status, status_icon, message.timestamp.ToString(), message.localSender.ToString(), message.confirmed.ToString(), message.read.ToString(), enableView.ToString(), "request", statusEnum, fiat, insufficient.ToString());
                 }
                 else
                 {
-                    push(batch, "addPaymentRequest", Crypto.hashToString(message.id), txid, address, nick, avatar, SpixiLocalization._SL("chat-payment-request-received"), amount, status, status_icon, message.timestamp.ToString(), "", message.confirmed.ToString(), message.read.ToString(), enableView.ToString());
+                    push(batch, "addPaymentRequest", Crypto.hashToString(message.id), txid, address, nick, avatar, SpixiLocalization._SL("chat-payment-request-received"), amount, status, status_icon, message.timestamp.ToString(), "", message.confirmed.ToString(), message.read.ToString(), enableView.ToString(), "request", statusEnum, fiat, insufficient.ToString());
                 }
             }
 
@@ -3195,17 +3232,20 @@ namespace SPIXI
 
                 string status = SpixiLocalization._SL("chat-payment-status-declined");
                 string status_icon = "fa-exclamation-circle";
+                string statusEnum = "declined";   // C1: see the requestFunds block
                 if (activity != null)
                 {
                     if (activity.status == IXICore.Activity.ActivityStatus.Final)
                     {
                         status = SpixiLocalization._SL("chat-payment-status-confirmed");
                         status_icon = "fa-check-circle";
+                        statusEnum = "completed";
                     }
                     else if (activity.status == IXICore.Activity.ActivityStatus.Pending)
                     {
                         status = SpixiLocalization._SL("chat-payment-status-pending");
                         status_icon = "fa-clock";
+                        statusEnum = "pending";
                     }
                 }
 
@@ -3227,14 +3267,16 @@ namespace SPIXI
                     CoreProtocolMessage.broadcastGetTransaction(Transaction.txIdLegacyToV8(message.message), 0, null);
                 }
 
+                string fiat = paymentFiatFor(amount);
+
                 // Call webview methods on the main UI thread only
                 if (message.localSender)
                 {
-                    push(batch, "addPaymentRequest", Crypto.hashToString(message.id), message.message, address, nick, avatar, SpixiLocalization._SL("chat-payment-sent"), amount, status, status_icon, message.timestamp.ToString(), message.localSender.ToString(), message.confirmed.ToString(), message.read.ToString(), "True");
+                    push(batch, "addPaymentRequest", Crypto.hashToString(message.id), message.message, address, nick, avatar, SpixiLocalization._SL("chat-payment-sent"), amount, status, status_icon, message.timestamp.ToString(), message.localSender.ToString(), message.confirmed.ToString(), message.read.ToString(), "True", "payment", statusEnum, fiat, "False");
                 }
                 else
                 {
-                    push(batch, "addPaymentRequest", Crypto.hashToString(message.id), message.message, address, nick, avatar, SpixiLocalization._SL("chat-payment-received"), amount, status, status_icon, message.timestamp.ToString(), "", message.confirmed.ToString(), message.read.ToString(), "True");
+                    push(batch, "addPaymentRequest", Crypto.hashToString(message.id), message.message, address, nick, avatar, SpixiLocalization._SL("chat-payment-received"), amount, status, status_icon, message.timestamp.ToString(), "", message.confirmed.ToString(), message.read.ToString(), "True", "payment", statusEnum, fiat, "False");
                 }
             }
 
@@ -3439,7 +3481,12 @@ namespace SPIXI
                  * an OLDER shell reading only 7 args must keep its present behaviour;
                  * the new shell prefers the 8th and renders the declined card
                  * (phone-x, no call-back nudge — the #87⑦ grammar). */
-                push(batch, "addCall", Crypto.hashToString(message.id), text, declined.ToString(), message.timestamp.ToString(), message.localSender.ToString(), (declined && !message.localSender).ToString(), duration_secs, declinedLocally.ToString());
+                /* ★ C4 (Session AD): a 9th arg, `active` — the session this card belongs to is
+                 * LIVE right now. The shell hides "Call back" while it is (the link sent
+                 * ixian:callback into a busy refusal); the card re-pushes with false when the
+                 * call ends (VoIPManager.endVoIPSession → insertMessage). */
+                bool callActive = message.type == FriendMessageType.voiceCall && !declined && VoIPManager.hasSession(message.id);
+                push(batch, "addCall", Crypto.hashToString(message.id), text, declined.ToString(), message.timestamp.ToString(), message.localSender.ToString(), (declined && !message.localSender).ToString(), duration_secs, declinedLocally.ToString(), callActive.ToString());
             }
 
             updateMessageReadStatus(message, channel);
@@ -3530,9 +3577,40 @@ namespace SPIXI
             }
         }
 
-        public void showTyping()
+        /* ★ C21 (Session AD): WHO is typing, appended (new args LAST). In a room the
+         * typist is the group-sender address; the nick is resolved from the roster the
+         * same way the reaction excerpt resolves it (HomePage.updateChatReaction), and
+         * the address rides too so the shell can fall back to its truncated form. A
+         * 1:1 needs neither (the pill is the peer's). A BLIND room sends nothing —
+         * naming a typist there is an identity hint the room's mode forbids. */
+        public void showTyping(Address? typist = null)
         {
-            Utils.sendUiCommand(this, "showUserTyping");
+            string who = "";
+            string nick = "";
+            try
+            {
+                if (typist != null && (friend.bot || friend.type == FriendType.Group) && !Utils.hidesParticipants(friend))
+                {
+                    who = typist.ToString();
+                    if (friend.users.hasUser(typist) && friend.users.getUser(typist).getNick() != "")
+                    {
+                        nick = friend.users.getUser(typist).getNick();
+                    }
+                    else
+                    {
+                        Friend? asContact = FriendList.getFriend(typist);
+                        if (asContact != null && !string.IsNullOrEmpty(asContact.nickname))
+                        {
+                            nick = asContact.nickname;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("showTyping: typist lookup failed: " + ex.GetType().Name);
+            }
+            Utils.sendUiCommand(this, "showUserTyping", who, nick);
         }
 
         public void updateReactions(byte[] msg_id, int channel)
@@ -3598,6 +3676,10 @@ namespace SPIXI
 
             var reactions_str = "";
             var own_reactions_str = "";
+            // ★ C6 (Session AD): the summed tip amounts (the per-sender `data` after "tip:"),
+            // pushed as a 4th, trailing argument. "" when no tip parses as a number — an
+            // older `tip:System.Byte[]` entry counts (the shell's ×N) but adds nothing.
+            string tip_total_str = "";
             /* ★★ MINOR-4 (#46 loop r2) — THE LOCK THE deliveryTicks HEADER ALREADY PROMISED.
              * That header says the tick derivation "reads `reactions` under the same lock
              * discipline the reaction push uses". It was true of the three derivation sites
@@ -3622,6 +3704,32 @@ namespace SPIXI
                     foreach (var reaction in fm.reactions)
                     {
                         reactions_str += reaction.Key + ":" + reaction.Value.Count() + ";";
+                        if (reaction.Key == "tip")
+                        {
+                            IxiNumber tipTotal = 0;
+                            bool anyTip = false;
+                            foreach (var rd in reaction.Value)
+                            {
+                                if (rd == null || string.IsNullOrEmpty(rd.data))
+                                {
+                                    continue;
+                                }
+                                try
+                                {
+                                    IxiNumber a = new IxiNumber(rd.data);
+                                    if (a > (long)0)
+                                    {
+                                        tipTotal += a;
+                                        anyTip = true;
+                                    }
+                                }
+                                catch (Exception)
+                                {
+                                    // `System.Byte[]` from a pre-C6 client, or garbage — a count-only tip
+                                }
+                            }
+                            tip_total_str = anyTip ? tipTotal.ToString() : "";
+                        }
                         // C5: which reaction keys the local user has added (trailing arg — never reorder)
                         if (reaction.Value.Find(x => x.sender.SequenceEqual(own_address)) != null)
                         {
@@ -3637,10 +3745,10 @@ namespace SPIXI
             }
             if (batch != null)
             {
-                batch.addReactions(Crypto.hashToString(fm.id), reactions_str, own_reactions_str);   // ★ Session P: folded into the row's item
+                batch.addReactions(Crypto.hashToString(fm.id), reactions_str, own_reactions_str, tip_total_str);   // ★ Session P: folded into the row's item
                 return;
             }
-            Utils.sendUiCommand(this, "addReactions", Crypto.hashToString(fm.id), reactions_str, own_reactions_str);
+            Utils.sendUiCommand(this, "addReactions", Crypto.hashToString(fm.id), reactions_str, own_reactions_str, tip_total_str);
         }
 
         /* ═══ ★★ L2 (#641) — THE GROUP DELIVERY TICKS ═════════════════════════════
@@ -3786,23 +3894,31 @@ namespace SPIXI
         {
             string status = SpixiLocalization._SL("chat-payment-status-pending");
             string status_icon = "fa-clock";
+            string statusEnum = "pending";   // C1: the enum rides as the 4th arg (new args LAST)
 
             if (verified)
             {
                 status = SpixiLocalization._SL("chat-payment-status-confirmed");
                 status_icon = "fa-check-circle";
+                statusEnum = "completed";
             }
 
-            Utils.sendUiCommand(this, "updateTransactionStatus", txid, status, status_icon);
+            Utils.sendUiCommand(this, "updateTransactionStatus", txid, status, status_icon, statusEnum);
         }
 
+        /* C1: `status` is the LOCALIZED phrase the StreamProcessor composes
+         * (chat-payment-status-pending / -declined). The enum is derived from the same
+         * comparison the icon already made, so the 6th argument names the decision the
+         * shell used to infer from the icon's spelling. */
         public void updateRequestFundsStatus(byte[] msg_id, byte[]? txid, string status)
         {
             string status_icon = "fa-clock";
+            string statusEnum = "pending";
             bool enableView = true;
             if(status == SpixiLocalization._SL("chat-payment-status-declined"))
             {
                 status_icon = "fa-exclamation-circle";
+                statusEnum = "declined";
                 enableView = false;
             }
 
@@ -3810,7 +3926,69 @@ namespace SPIXI
             if (txid != null)
                 txid_string = Transaction.getTxIdString(txid);
 
-            Utils.sendUiCommand(this, "updatePaymentRequestStatus", Crypto.hashToString(msg_id), txid_string, status, status_icon, enableView.ToString());
+            Utils.sendUiCommand(this, "updatePaymentRequestStatus", Crypto.hashToString(msg_id), txid_string, status, status_icon, enableView.ToString(), statusEnum);
+        }
+
+        /* C2: the fiat sub-line for a payment card — the wallet tab's own arithmetic
+         * (HomePage addPaymentActivity: amount × Node.fiatPrice, human-formatted).
+         * "" when the amount is unknown ("?" until the tx is fetched) or no price is
+         * known yet (fiatPrice 0 at boot); the shell hides an empty sub-line. */
+        private static string paymentFiatFor(string amount)
+        {
+            try
+            {
+                if (amount == null || amount == "" || amount == "?" || Node.fiatPrice == 0)
+                {
+                    return "";
+                }
+                return Utils.amountToHumanFormatString(new IxiNumber(amount) * Node.fiatPrice);
+            }
+            catch (Exception)
+            {
+                return "";
+            }
+        }
+
+        /* C2: can the available balance cover this amount? Amount-only, deliberately
+         * (see the requestFunds block). Unknown amount / balance → false: the card
+         * must not disable Pay on a guess; the review sheet has the real quote. */
+        private static bool paymentInsufficient(string amount)
+        {
+            try
+            {
+                if (amount == null || amount == "" || amount == "?")
+                {
+                    return false;
+                }
+                // ★ #46 loop (auditor C, item 13): the flag is a SNAPSHOT at chat load and the
+                // shell disables Pay on it — judged before the wallet has synced (every
+                // balance 0, none verified) it would have locked every request card until the
+                // chat was reopened. An UNVERIFIED balance answers "not insufficient": the
+                // native review page is the authority and prices the fee on a live quote.
+                bool anyVerified = false;
+                foreach (var b in IxianHandler.balances)
+                {
+                    if (b.Value != null && b.Value.verified)
+                    {
+                        anyVerified = true;
+                        break;
+                    }
+                }
+                if (!anyVerified)
+                {
+                    return false;
+                }
+                IxiNumber need = new IxiNumber(amount);
+                if (need <= (long)0)
+                {
+                    return false;
+                }
+                return Node.getAvailableBalance() < need;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
 
         public void convertToBot()
@@ -4004,7 +4182,7 @@ namespace SPIXI
             }
 
             // Show the messages indicator
-            int msgCount = FriendList.getUnreadMessageCount();
+            int msgCount = SChatPrefs.unreadTotalForBadge();   // ★ CH4 (Session AD): mute-aware, one predicate
             if(msgCount > 0)
             {
                 if (!unreadIndicatorDisplayed)

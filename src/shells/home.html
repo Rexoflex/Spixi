@@ -372,29 +372,12 @@
     <span id="sl-hourcycle">*SL{hourCycle}</span>
     <span id="sl-connecting-s2">*SL{global-connecting-s2}</span>
     <span id="sl-connecting-dlt">*SL{global-connecting-dlt}</span>
-    <span id="sl-waiting-response">*SL{chat-waiting-for-response}</span>
-    <!-- Q2-④ (#268): the EXCERPT CANON phrases (getFriendMessageHelper) — carried
-         so the reverse-map is LOCALE-PROOF (was English-literal, CH6 best-effort;
-         a non-en locale lost every excerpt glyph). One span per _SL key. -->
-    <span id="sl-ex-file">*SL{index-excerpt-file}</span>
-    <span id="sl-ex-call">*SL{index-excerpt-voice-call}</span>
-    <span id="sl-ex-call-noanswer">*SL{chat-call-no-answer}</span>
-    <span id="sl-ex-call-missed">*SL{chat-call-missed}</span>
-    <span id="sl-ex-call-declined">*SL{chat-call-declined}</span>
-    <span id="sl-ex-pay-req-sent">*SL{index-excerpt-payment-request-sent}</span>
-    <span id="sl-ex-pay-req-recv">*SL{index-excerpt-payment-request-received}</span>
-    <span id="sl-ex-pay-sent">*SL{index-excerpt-payment-sent}</span>
-    <span id="sl-ex-pay-recv">*SL{index-excerpt-payment-received}</span>
-    <span id="sl-ex-app-sent">*SL{chat-app-invite-sent}</span>
-    <span id="sl-ex-app-recv">*SL{chat-app-invite-received}</span>
-    <span id="sl-ex-contact-accepted">*SL{index-excerpt-contact-accepted}</span>
-    <span id="sl-ex-contact-request">*SL{index-excerpt-contact-request}</span>
-    <!-- The OWN-message excerpt prefix ("You:"). C# prepends it + " " to the canon
-         phrase for a localSender last-message (HomePage.xaml.cs:1670-1673), so the
-         reverse-map must be able to strip it before the lookup. EMPTY in en-us (a
-         bare leading space) — but NOT in id-id ("Saya:"), and any locale may fill
-         it in, which would silently kill every outgoing event glyph. -->
-    <span id="sl-ex-self">*SL{index-excerpt-self}</span>
+    <!-- ★ CH6 (Session AD): the fourteen EXCERPT-CANON carriers that used to live here
+         (`sl-ex-*`, `sl-ex-self`, `sl-waiting-response`) are GONE. C# pushes the excerpt
+         KIND as addChat's 11th argument (HomePage.getFriendMessageHelper), so the shell no
+         longer reverse-maps localized phrases. The carriers that remain are the ones no
+         push can replace: strings a C# push carries VERBATIM that the shell must
+         recognise (connectivity), or that name a template with a {0} hole. -->
     <!-- iOS-22 (#314): devMode is a CUSTOM string HomePage registers at boot
          (addCustomString, xaml:136 — "true"/"false"), the legacy index.html
          carrier grammar. Lets the dev affordance survive restarts; browser
@@ -921,26 +904,17 @@
     'Connecting to Ixian Platform...',
   ]);
   CONNECTIVITY_TEXTS.delete('');
-  /* M5 (corrected mechanism — see DECISIONS #253 amend): outgoing pending
+  /* M5 (mechanism, DECISIONS #253 amend → CH6 Session AD): the OUTGOING pending
    * contact request. For ANY unapproved non-bot friend the helper OVERRIDES the
-   * excerpt to _SL(chat-waiting-for-response) (xaml:1273-1279) — that is the
-   * ONLY string an outgoing pending row ever carries (the requestAdd/
-   * index-excerpt branch sits inside the Approved-state else and never reaches
-   * a chat row). The sender row exists because ContactNewPage:203 adds a LOCAL
-   * requestAddSent marker (localSender) → its pushed status-type arg is
-   * NON-EMPTY (read/confirmed/pending/default, xaml:1360-1378); the rare
-   * INCOMING unapproved fall-through (#219 MINOR: a follow-up message before
-   * accept — same override string) pushes type='' → the direction guard below
-   * keeps it a plain text row, never a false "Request sent". Locale-proof via
-   * the carrier; a user literally typing the same string is the accepted CH6
-   * false-positive class. Once accepted, the excerpt becomes a real message →
-   * falls through to text and the request state clears everywhere. */
-  const REQUEST_SENT_TEXT = slCarrier('sl-waiting-response', 'Waiting for response');
+   * excerpt to _SL(chat-waiting-for-response); the sender row exists because
+   * ContactNewPage adds a LOCAL requestAddSent marker (localSender). C# now names
+   * that exact case as excerpt kind `request-sent` (the same direction guard it
+   * used to imply through the status-type argument), so the carrier match + guard
+   * this shell carried are gone — and with them the false-positive class of a user
+   * literally typing the phrase. An incoming unapproved fall-through pushes `text`. */
   /** True when a chats push is the OUTGOING pending-request marker row. */
-  function isRequestSentPush(raw, statusType) {
-    if (!statusType || statusType === 'typing') return false;   // outgoing markers always carry a localSender tick type
-    const trimmed = decodeEntities(raw || '').trim();
-    return !!trimmed && trimmed === REQUEST_SENT_TEXT;
+  function isRequestSentPush(excerptKind) {
+    return String(excerptKind || '') === 'request-sent';
   }
   // root title node: every root title now carries an inner <span> (topbar.js
   // iOS-47/48 build — wordmark on mobile, plain span on desktop); the holder
@@ -1225,8 +1199,9 @@
     .filter((c) => !!c)
     .map((c) => {
       const flagged = isGroupContact(c);
-      const pending = requestAddrs.has(c.address);
-      return (flagged !== !!c.isGroup || pending)
+      // ★ C17: the pushed relation wins; requestAddrs (the chats-row signal) is the old-exe fallback
+      const pending = !!c.pending || (!c.relation && requestAddrs.has(c.address));
+      return (flagged !== !!c.isGroup || pending !== !!c.pending)
         ? Object.assign({}, c, { isGroup: flagged, pending: pending || undefined })
         : c;
     });
@@ -1463,7 +1438,7 @@
   }
   /* ★★ L6 review MAJOR-1. The rail highlight had FOUR writers and they did not agree:
    * `onSettingsClosed` ends with an unconditional `setNavActive(nav, activeNav)`, and
-   * it runs `consumeLandTab()` on the line before — so the Account highlight this row
+   * it ran the land-on-tab consumer on the line before — so the Account highlight this row
    * exists to set was overwritten by the stale tab a microsecond later, on the exact
    * path Damir reported. The comment above that handler even asserted the overwrite
    * was "a consistent no-op", which had been true only for the tab-id branch.
@@ -1479,79 +1454,33 @@
     setNavActive(nav, railTarget());
   }
 
-  /* ═══ ⏱ [LANDTAB] — A TEMPORARY PROBE. L14 · #677. REMOVE IT WITH ITS THREE PARTS. ═══
-   * Damir's ruling 2026-08-28: MEASURE BEFORE BUILDING (#294). The L14/L6③ flicker is
-   * traced at source — the park branch reveals this WebView (`op.stage.Opacity = 0`,
-   * SpixiContentPage.cs) BEFORE `onOverlayClosed` pushes `onSettingsClosed`, so the old
-   * tab is painted first, structurally. What is NOT known is which consumer below actually
-   * wins on Android, and that is what decides whether the C# fix is the right one:
-   *   · `storage`        — the cross-WebView event fires at settings.html's setItem, i.e.
-   *                        BEFORE the reveal. If this wins, the tab is already switched
-   *                        and the traced mechanism CANNOT be the flicker. That result
-   *                        FALSIFIES the theory and the fix must not be built.
-   *   · `settingsclosed` — the late push. If this wins, the theory holds.
-   *   · `visibility` / `focus` — the platform fallbacks.
-   * `age` is Date.now() minus the timestamp settings.html already writes INTO the key, so
-   * the probe costs no new plumbing on the shell side — the number was always there.
-   * ⚠ IT IS A DIAGNOSTIC, NOT A RECEIPT. It cannot prove a fix works: the flicker is
-   * (tab swapped) − (stage revealed) and neither end observes the other's paint. A fix has
-   * to ship its own discriminator (the L10 rule).
-   * ⚠ REMOVE ALL THREE TOGETHER, the way [CDPERF] was: this emit, HomePage's
-   * `ixian:landtabprobe:` handler, and the smoke pin that holds the trio. */
-  function consumeLandTab(via) {
-    let raw = null;
-    try {
-      raw = localStorage.getItem('spixi.landtab');
-      if (raw) localStorage.removeItem('spixi.landtab');
-    } catch (e) {}
-    if (!raw) return;
-    const sep = raw.lastIndexOf(':');
-    const id = sep > 0 ? raw.slice(0, sep) : raw;
-    const ts = sep > 0 ? Number(raw.slice(sep + 1)) : 0;
-    // ⏱ [LANDTAB] probe — before the staleness gate, so a stale hand-off is reported too
-    // (a 15 s+ age is itself the answer to "which consumer won"). No tab id, no address:
-    // the payload is one word from a fixed set plus an integer.
-    try { bridge.send('ixian:landtabprobe:' + (via || 'unknown') + ':' + Math.max(0, Date.now() - ts)); } catch (e) {}
-    if (!ts || Date.now() - ts > 15000) return;             // stranded/stale → ignore
-    /* ★ N42 (#443): the Account screen gained a Contacts row, and there is no C#
-       verb for "go home and open the contacts directory" either — so it rides the
-       SAME hand-off. 'contacts' means: land on Chats, then open the directory
-       takeover. Nothing else about the trio changes. */
+  /* ★ S11's store retired (Session AD) — "land on the tab I tapped in Account" is ONE
+   * PUSH now. settings.html sends `ixian:landtab:<id>` before its exit verb; SettingsPage
+   * forwards it to HomePage.landOnTab, which pushes `landOnTab(id)` into THIS document
+   * while it is still covered — the earliest of the old consumers, deterministic on
+   * every platform. Gone with the key: the storage-event / visibility / focus fallbacks,
+   * the 15 s staleness guard, the consumed-on-read one-shot, and the [LANDTAB] probe
+   * (its HomePage handler and its pin went with it — all three, as the probe asked).
+   * `id` is validated C#-side against a fixed set; the switch below validates again. */
+  /* ⚠ NOT named `landOnTab`: the main script is a classic top-level script, so a
+     function declaration here is `window.landOnTab` — and bridge.exposeAll then
+     REPLACES that global with the wrapped handler of the same name, which would make
+     the handler's own body call itself (the first cut did exactly that — a stack
+     overflow at the first push). The handler is the bridge name; this is the work. */
+  function landOnTabNow(id) {
+    id = String(id || '');
+    /* ★ N42 (#443): the Account screen's Contacts row rides the same hand-off.
+       'contacts' means: stay on the current tab, open the directory takeover with
+       Back returning to Account (★ L6 — the rail says Account meanwhile, syncNav).
+       ★ Session I — THE L14 COVER HANDSHAKE: at the second rAF after the mount the
+       takeover is on glass, and `ixian:coverpainted` tells HomePage to release the
+       deferred Account pop (SettingsPage left with `ixian:handoff` and waits for
+       this, 400 ms backstop; a cover painted BEFORE the waiter registered counts if
+       ≤ 600 ms old — SpixiContentPage.popOnCoverPainted). Fixed verb, no payload;
+       harmless when nothing waits. */
     if (id === 'contacts') {
-      /* ★ L6 (2026-08-31). Four lines went, and each was doing damage.
-       *   activeNav / setNavActive('chats') — lit Chats while Back went to Account.
-       *     Damir's report. The rail now says Account, via the flag + syncAccountRail.
-       *   showView('chats') — switched the tab UNDERNEATH the takeover for no reason.
-       *     ⚠ AND IT IS NOT THE FLICKER, though a first draft of this comment said it
-       *     was. This runs in ONE task with the mount below, and .contacts-takeover is
-       *     opaque, fixed inset:0, with no enter transition — so the browser paints
-       *     once, already covered. It could not flash. What it did do is leave the
-       *     shell on a tab the user never chose, which is wrong on its own and is what
-       *     the rail was reporting.
-       *   ixian:tab:chats — told C# to load tab1 AND ran its overlay-exit sweep. The
-       *     sweep is redundant (settings.html already called exitSettings before
-       *     writing the hand-off) and the tab is not changing any more.
-       *
-       * ⚠ SO "Contacts on mobile causes flickering" IS NOT ADDRESSED HERE, and saying
-       * otherwise would be the worse outcome. The mechanism that fits: on mobile
-       * Account is a PARKED peer tab (#315), so C# re-presents this WebView showing
-       * whatever tab it left, and consumeLandTab cannot run until a LATER task — it is
-       * driven by the onSettingsClosed push (or the storage/visibility/focus fallback),
-       * every one of which arrives after the re-present. At least one frame of the old
-       * tab is therefore unavoidable from inside this document. That is the same
-       * mechanism L14 describes, and the two want ONE fix, in C#, not two guesses.
-       * activeNav and the visible view are deliberately untouched: they are what the
-       * rail falls back to when the directory closes. */
       openContacts('directory', '', { returnTo: 'account' });   // ★ C4: Back returns to Account, never Chats
       syncNav();                                                // ★ L6: …and the rail says so
-      /* ★ Session I — THE L14 COVER HANDSHAKE (the fix the comment above asked for, in C#).
-         [PAINTDIAG] (#727/#731) measured the way-in: this shell consumed the hand-off
-         BEFORE C# hid the Account pane, but the cover took 104–109 ms to reach glass and
-         C# hid the pane 20–50 ms into that build — 56/88 ms of chat list. The probe's
-         `cover` emit is now a REAL VERB: at the second rAF after the mount the takeover
-         is on glass, and `ixian:coverpainted` tells HomePage to release the deferred
-         Account pop (settings.html left with `ixian:handoff`, SettingsPage waits for
-         this, 400 ms backstop). Fixed verb, no payload; harmless when nothing waits. */
       requestAnimationFrame(() => requestAnimationFrame(() => {
         try { bridge.send('ixian:coverpainted'); } catch (e) {}
       }));
@@ -1563,9 +1492,6 @@
     showView(id);
     bridge.send('ixian:tab:' + NAV_TO_TAB[id]);             // C# loads tab2/tab3 data
   }
-  window.addEventListener('storage', (e) => { if (e && e.key === 'spixi.landtab' && e.newValue) consumeLandTab('storage'); });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) consumeLandTab('visibility'); });
-  window.addEventListener('focus', () => consumeLandTab('focus'));
 
   /* —— chats model + list ——————————————————————————————————————————————————
    * Starts empty; C# flushes clearChats → addChat* → clearChatsDone after
@@ -1623,6 +1549,7 @@
      be the source of truth for it. C# pushes `setChatMuted` for every chat in the contacts
      flush, and again as the echo of every toggle. */
   const mutedChats = new Set();
+  const favoriteChats = new Set();   // ★ CH4 (Session AD): fed by C#'s setChatFavorite echo (the mutedChats shape)
   try {
     const arr = JSON.parse(localStorage.getItem(PINS_KEY) || '[]');
     if (Array.isArray(arr)) for (const a of arr) if (typeof a === 'string') pinnedChats.add(a);
@@ -1669,11 +1596,10 @@
     // verb, the badge returned on the next flush, and the counterpart got no read
     // receipt. Do not add a markRead branch here.
     // delete/deleteContact → tombstone the address (row already removed by
-    // applyChatRowAction). `detail.media` + the deeper wipe (history/files) and
-    // contact removal are the BE intent (CH3); recorded here for when the verbs land:
-    //   delete {media:false} → row only (→ ixian:removehistory soft)
-    //   delete {media:true}  → + on-device media/files purge
-    //   deleteContact        → also remove the contact (→ ixian:remove)
+    // applyChatRowAction). The wipe granularity (CH3, all landed):
+    //   delete {media:false} → ixian:removehistory:<addr>          (history)
+    //   delete {media:true}  → ixian:removehistory:<addr>:media    (+ received files purged)
+    //   deleteContact        → ixian:removecontact:<addr>:<leave>[:media]
     // ★ Batch A (#539) A4/A5: the remove-contact sheet asks for the shared groups;
     // C# answers with `setSharedGroups(addr, name, addr, …)` (below).
     onNeedGroups: (addr) => { if (addr) bridge.send('ixian:sharedGroups:' + addr); },
@@ -1704,8 +1630,8 @@
                                                                   shared group FIRST — Core refuses a group member)
            Both answer with a result push (removeHistoryResult / removeContactResult) so a
            refusal UN-tombstones the row: a row that vanished while the data stayed is the
-           lie this fixes. `detail.media` (on-device media purge) still has no verb — noted
-           in the handoff as a BE row, not faked. */
+           lie this fixes. `detail.media` (on-device media purge) rides the same verbs as a
+           `:media` suffix since CH3 (Session AD). */
         /* ★ L13 (#676): a ROOM row whose "Leave group" box was ticked sends ONE verb, and
            it is not removehistory. Core's FriendList.removeFriend deletes the history file
            and the avatar before it drops the record (FriendList.cs:436-440, read at
@@ -1713,9 +1639,15 @@
            own. Sending both would be two location.href sends racing for one intent — and
            the second would arrive at a friend the first had already removed and answer
            "fail", un-tombstoning a row that is correctly gone. */
-        if (action === 'delete' && detail && detail.leaveGroup) bridge.send('ixian:leavegroup:' + chat.address);
-        else if (action === 'delete') bridge.send('ixian:removehistory:' + chat.address);
-        else bridge.send('ixian:removecontact:' + chat.address + ':' + ((detail && detail.leaveGroups && detail.leaveGroups.length) ? '1' : '0'));
+        /* ★ CH3 (Session AD): "Delete media & files" finally has its verb — the SAME verb
+           as the deletion, with a trailing `:media` token (HomePage.takeMediaFlag strips it
+           before parsing). One send per intent; C# lists the received files before the
+           deletion and removes them only after it succeeded, so a refused delete (the
+           un-tombstone path below) keeps every file. */
+        const mediaFlag = (detail && detail.media) ? ':media' : '';
+        if (action === 'delete' && detail && detail.leaveGroup) bridge.send('ixian:leavegroup:' + chat.address + mediaFlag);
+        else if (action === 'delete') bridge.send('ixian:removehistory:' + chat.address + mediaFlag);
+        else bridge.send('ixian:removecontact:' + chat.address + ':' + ((detail && detail.leaveGroups && detail.leaveGroups.length) ? '1' : '0') + mediaFlag);
         // (the unsent draft is purged on the SUCCESS answer — removeHistoryResult ok — loop r2 R2-4:
         //  a refused delete un-tombstones the row and must not have destroyed the draft)
         // Capture the tail the user deleted (timestamp + unread) so a LATER message can
@@ -1723,7 +1655,6 @@
         deletedChats.set(chat.address, { ts: Number(chat.timestamp) || 0, unread: Number(chat.unread) || 0 });
         hideReqClear(chat.address);              // #562: a REAL delete sheds any durable hide key (one tombstone owner at a time)
         reactionExcerpts.delete(chat.address);   // CH8: drop sticky excerpt with the row (no stale re-apply on resurrect)
-        dropExdelHint(chat.address);      // Q12: a deleted ROW sheds its deleted-tail hint too
         if (pinnedChats.delete(chat.address)) savePins();   // 6e.3: a deleted chat sheds its pin
         // B-3: deleting the LAST outgoing "Request sent" row (M5) can empty the
         // Requests filter — the chip then hides at count 0 and there's no chip left
@@ -1746,6 +1677,13 @@
       if (action === 'mute' && chat && chat.address) {
         if (chat.muted) mutedChats.add(chat.address); else mutedChats.delete(chat.address);
         bridge.send('ixian:mutechat:' + chat.address + ':' + (chat.muted ? 'on' : 'off'));
+      }
+      /* ★ CH4 (Session AD): favorites — the mute shape exactly. applyChatRowAction has
+         toggled `chat.favorite`; mirror it locally so the flush cannot blink it off, and
+         tell C#, which owns the preference and echoes setChatFavorite with the STORED truth. */
+      if (action === 'favorite' && chat && chat.address) {
+        if (chat.favorite) favoriteChats.add(chat.address); else favoriteChats.delete(chat.address);
+        bridge.send('ixian:favchat:' + chat.address + ':' + (chat.favorite ? 'on' : 'off'));
       }
     },
     // CH2: Accept an incoming contact request. Emit the verb (C# approves + sends
@@ -1791,7 +1729,7 @@
        item that chats-shell has always been able to render are finally reachable. The
        muted ROW treatment (a toned-down count badge PLUS the bell-off glyph) needs nothing
        new either: createIndicators has rendered both since Damir's review on 2026-07-02. */
-    capabilities: { pin: true, mute: true, favorites: false, delete: true },
+    capabilities: { pin: true, mute: true, favorites: true, delete: true },   // ★ CH4 (Session AD): favorites live
     // onModelChange fires on EVERY re-render — including row-menu delete/accept that
     // re-render directly (not via renderChatsNow) — so update the nav badge AND the
     // chip counts here so a delete or an accept never leaves a stale chip count.
@@ -1836,7 +1774,7 @@
    * away. Desktop keeps the outside placement + triggered collapse. */
   let headerQuery = '';
   const header = createChatsHeader({
-    activeFilter: 'all', strings, favorites: false,
+    activeFilter: 'all', strings, favorites: true,   // ★ CH4 (Session AD): the Favorites chip
     onFilter: (f) => setChatsFilter(list, state, f, opts),
     onQuery: (q) => {
       headerQuery = String(q || '');
@@ -2034,6 +1972,7 @@
        Ixian-Core and may not be extended here), so without this the bell-off would blink
        off on the next message. Same shape as the pin re-application below. */
     chat.muted = mutedChats.has(chat.address);
+    chat.favorite = favoriteChats.has(chat.address);   // ★ CH4: same re-seed, same reason
     const i = state.chats.findIndex((c) => c && c.address === chat.address);
     if (i === -1) state.chats.push(chat);
     else state.chats[i] = { ...state.chats[i], ...chat };
@@ -2046,105 +1985,20 @@
       if (c && c.address) c.muted = mutedChats.has(c.address);
     }
   }
+  function applyFavoritesToModel() {
+    for (const c of (state.chats || [])) {
+      if (c && c.address) c.favorite = favoriteChats.has(c.address);
+    }
+  }
 
-  /* —— excerpt canon (CH6, best-effort en-us). C# composes the last-message
-   * excerpt as a LOCALIZED string (getFriendMessageHelper, HomePage.xaml.cs:907-970):
-   * for a typed message it's the message text; for a typed EVENT (file / payment /
-   * app invite / voice call) it's a fixed `_SL` phrase. We can't get the structured
-   * KIND over the frozen bridge (that's the BE end-state, CH6), so we reverse-match
-   * the known ENGLISH phrases back to a chatlist-item excerpt kind → the canon glyph
-   * (📄 File · phone · wallet · apps). A localSender message is prefixed with
-   * `index-excerpt-self` + " " — EMPTY in en-us (a bare leading space, en-us.txt:305)
-   * but NOT in every locale, so the lookup retries with that prefix stripped
-   * (SELF_PREFIX / selfStrippedKey below). Unknown → plain text (graceful
-   * degrade). Coincidental exact matches (a user literally types "File") are an
-   * accepted best-effort false-positive.
-   * Q2-④ (#268): the canon is now built from the #sl-carriers block → LOCALE-PROOF
-   * (the English literals were CH6's best-effort; every non-en locale lost its
-   * glyphs — exactly the item-⑦ bug class). The en-us fallback stays registered
-   * beside the carrier value as a safety net (plain-browser preview / stale shell
-   * against a newer lang file). #265's no-answer/missed strings are mapped (they
-   * fell through as glyph-less text — Damir's "call excerpts have no icon"), and
-   * the two contact-request phrases get the user-plus treatment for completeness. */
-  // Prototype-LESS map: the keys are arbitrary user/bridge text, so a plain {} let a
-  // message of literally "toString"/"constructor" resolve to an INHERITED function —
-  // a truthy "kind" that would have been handed to the chatlist item as an excerpt
-  // type. Object.create(null) has no prototype chain → a miss is a miss.
-  const EXCERPT_CANON = Object.create(null);
-  /* Register text → kind, REFUSING to type an ambiguous phrase. The old shape was
-   * asymmetric (carrier last-wins / fallback first-wins): a carrier value could
-   * silently CLOBBER an entry of a DIFFERENT kind, so one translation collision
-   * (or a future canon key) could render e.g. a payment excerpt with a call glyph.
-   * #252 (chat.html audit A-1) precedent: when a translation collision makes a
-   * signal ambiguous, do NOT act on it. A `null` entry degrades cleanly — the
-   * `if (kind)` gate in excerptFromRaw falls through to plain text. Same-kind
-   * repeats are no-ops, so the shipped en-us set is unchanged (no collision today,
-   * all 13 lang files verified). */
-  function setCanonKind(text, kind) {
-    if (!text) return;
-    if (!(text in EXCERPT_CANON)) { EXCERPT_CANON[text] = kind; return; }
-    if (EXCERPT_CANON[text] === kind) return;
-    EXCERPT_CANON[text] = null;                       // ambiguous → no glyph (#252 posture)
-  }
-  function canonEntry(id, fallback, kind) {
-    setCanonKind(slCarrier(id, fallback), kind);      // the LIVE locale phrase
-    setCanonKind(fallback, kind);                     // en-us safety net (preview / stale shell)
-  }
-  canonEntry('sl-ex-file', 'File', 'file');                                     // index-excerpt-file
-  canonEntry('sl-ex-call', 'Voice Call', 'call');                               // index-excerpt-voice-call (answered/connected)
-  canonEntry('sl-ex-call-noanswer', 'No answer', 'call-missed');                // chat-call-no-answer (#265, outgoing unanswered)
-  canonEntry('sl-ex-call-missed', 'Missed call', 'call-missed');                // chat-call-missed (#265, incoming missed)
-  /* ★ #602 (row 16): the declined phrase was never registered, so `excerptFromRaw`
-     fell through to plain text — and plain text has no entry in EXCERPT_GLYPHS.
-     That is the whole defect: a missing map row, not a missing glyph. */
-  canonEntry('sl-ex-call-declined', 'Call declined', 'call-declined');          // chat-call-declined (HomePage:2205)
-  canonEntry('sl-ex-pay-req-sent', 'Payment Request Sent', 'payment');          // index-excerpt-payment-request-sent
-  canonEntry('sl-ex-pay-req-recv', 'Payment Request Received', 'payment');      // index-excerpt-payment-request-received
-  canonEntry('sl-ex-pay-sent', 'Payment Sent', 'payment');                      // index-excerpt-payment-sent
-  canonEntry('sl-ex-pay-recv', 'Payment Received', 'payment');                  // index-excerpt-payment-received
-  canonEntry('sl-ex-app-sent', 'Invite Sent', 'app-invite');                    // chat-app-invite-sent
-  canonEntry('sl-ex-app-recv', 'Invite Received', 'app-invite');                // chat-app-invite-received
-  /* #273: 'request-done' NOT 'request' — "Contact Accepted" is a SETTLED event
-   * (C# emits it only when friend.approved, HomePage.xaml.cs:1650-1652). The
-   * excerpt kind doubles as the Requests-filter/chip predicate (isRequestRow +
-   * chatMatchesFilter key on type==='request'), so typing this phrase 'request'
-   * dragged every long-settled legacy contact whose LAST message is still the
-   * requestAdd event into the Requests filter + count (Damir F5: 21 phantom
-   * "requests" on a legacy account). Same user-plus glyph + tint via
-   * chatlist-item (EXCERPT_GLYPHS + CSS carry both kinds); only the pending
-   * semantics differ. 'Contact Request' stays 'request' — C# emits it only
-   * when !approved (:1654-1656), i.e. genuinely pending. */
-  canonEntry('sl-ex-contact-accepted', 'Contact Accepted', 'request-done');     // index-excerpt-contact-accepted
-  canonEntry('sl-ex-contact-request', 'Contact Request', 'request');            // index-excerpt-contact-request
-  /* OWN-message prefix (`index-excerpt-self` + " ", HomePage.xaml.cs:1670-1673).
-   * It wraps SEVEN of the canon phrases (file · voice-call · payment-request-sent ·
-   * payment-sent · app-invite-sent · contact-accepted · contact-request), so a
-   * locale that fills the key in pushes e.g. "Saya: Berkas" — which never equals
-   * the carrier "Berkas" → the canon misses → EVERY outgoing event row loses its
-   * glyph (the exact bug ④ exists to kill). EMPTY in en-us (bare leading space,
-   * en-us.txt:305 → trims to ''), NON-empty in id-id ("Saya:", id-id.txt:305), and
-   * a landmine in the other 11 locales the moment a translator fills it in.
-   * `selfStrippedKey` below removes it from the LOOKUP KEY only — the DISPLAYED
-   * text stays exactly as C# sent it (dropping "You:" from the display would be a
-   * copy change, not a fix — noted as a dial, not done). */
-  const SELF_PREFIX = slCarrier('sl-ex-self', '');
-  /* Own-message canon key, or '' when the prefix doesn't apply. SAFETY POSTURE: we
-   * only strip when the STRIPPED key hits a canon entry, so a counterpart message
-   * that merely starts with the same word can never have its text altered (a miss
-   * changes nothing at all). This is deliberately NOT gated on the statusType
-   * direction signal: statusType is non-empty ⇒ own, but NOT the converse — an own
-   * voiceCallEnd (a connected call that ended) pushes type="" (xaml:1695) while C#
-   * still prefixes its excerpt, so a direction gate would keep losing that glyph.
-   * The canon-hit guard covers every own push, including that one. A counterpart
-   * literally typing "Saya: Berkas" is the accepted CH6 false-positive class (same
-   * as one typing "File"), and even then only the GLYPH changes, never the text. */
-  function selfStrippedKey(trimmed) {
-    if (!SELF_PREFIX || !trimmed) return '';
-    if (trimmed.slice(0, SELF_PREFIX.length) !== SELF_PREFIX) return '';
-    const rest = trimmed.slice(SELF_PREFIX.length);
-    if (!/^\s/.test(rest)) return '';                 // C# joins with " " — require the boundary
-    return rest.trim();
-  }
+  /* —— excerpt kinds (CH6, Session AD). C# pushes the last-message excerpt as a
+   * LOCALIZED string AND its KIND (addChat's 11th argument, getFriendMessageHelper —
+   * the branch that picked the phrase names it). The reverse-map that used to live
+   * here (fourteen star-SL equality carriers, a "You:" prefix strip, an ambiguity table, a
+   * false-positive class for a user who literally typed "File") is gone with it.
+   * What survives is locale-INDEPENDENT: a lone GIF URL becomes the GIF chip, and
+   * the B4 address/URL canon still runs over text. An unknown or missing kind (an
+   * older exe, a browser preview) renders as plain text — never a wrong glyph. */
   // Lone GIF URL → "GIF" chip (keeps a raw tenor/giphy link out of the list).
   // GIF-ONLY: chatlist-item has no image glyph, so a .png/.jpg link would be
   // mislabelled "GIF" — leave those as plain text. Whole-excerpt-is-a-URL only.
@@ -2154,20 +2008,6 @@
     const host = u.hostname.toLowerCase();
     if (/\.gif(\?|#|$)/i.test(u.pathname)) return true;
     return /^media\d*\.(tenor|giphy)\.com$/.test(host) || /^c\.tenor\.com$/.test(host);
-  }
-  // A LIKE reaction surfaces in the excerpt as a lone heart (the bridge supports
-  // only `like`; C# re-pushes updateChat after a reaction, xaml UIHelpers:75). Show
-  // the heart GLYPH + "Reacted" instead of a bare ❤️ (Damir F5). Best-effort: a
-  // literal lone "❤️" text message is an accepted false-positive (like CH6's canon
-  // string matches); the clean end-state is a structured reaction signal from C#
-  // (reactor + "reacted to your message") — a BE row. Match the heart with/without
-  // the emoji variation selector.
-  // char-code based (NO literal emoji/escape in source → robust through the
-  // inline/build pipeline): a lone U+2764 heart with an optional trailing
-  // emoji variation selector U+FE0F.
-  function isHeartOnly(s) {
-    const t = (s.charCodeAt(s.length - 1) === 0xFE0F) ? s.slice(0, -1) : s;
-    return t.length === 1 && t.charCodeAt(0) === 0x2764;
   }
   /* —— B4 excerpt canon extension (#231): NEVER show a full base58 address or a
    * full URL on the excerpt line — extends the #211/#212 address canon (names/
@@ -2211,64 +2051,38 @@
     });
     return changed ? out.join('') : s;
   }
-  /* ★★ AUG (2026-08-30) — the "now connected" event, recognised from its TEMPLATE.
-     Same mechanism chat.html uses to draw the event chip (tplParts/EVENT_TPLS), kept
-     local because the #221 wall means these two shells share no JS. */
-  const CONNECTED_TPLS = [
-    slCarrier('sl-request-connected', 'You are now connected with {0}.'),
-    slCarrier('sl-request-accepted', '{0} has accepted your contact request.'),
-  ].map((tpl) => {
-    const i = String(tpl || '').indexOf('{0}');
-    return i === -1 ? null : [tpl.slice(0, i), tpl.slice(i + 3)];
-  }).filter(Boolean)
-    .sort((a, b) => (b[0].length + b[1].length) - (a[0].length + a[1].length));
-  /** @returns {boolean} true when `text` is one of the connected/accepted sentences. */
-  function connectedEventText(text) {
-    const s = String(text || '');
-    for (const [pfx, sfx] of CONNECTED_TPLS) {
-      // a template with an EMPTY prefix and suffix would match everything — refuse it
-      if (!pfx && !sfx) continue;
-      if (s.length > pfx.length + sfx.length && s.startsWith(pfx) && s.endsWith(sfx)) return true;
-    }
-    return false;
-  }
+  /* ★ CH6: the "now connected" line arrives as kind `connected` — C# recognises it
+     STRUCTURALLY (every writer stores it under the fixed message id { 1 }, legacy and
+     current sentence alike), so the template carriers this shell used to match
+     (`sl-request-connected` / `sl-request-accepted`) are gone. ⚠ They had never been
+     substituted in THIS document — only chat.html carried the spans — so the row's
+     action-coloured "connected" excerpt was English-only until this batch. */
 
-  function excerptFromRaw(raw, statusType, name) {
+  /** The pushed excerpt kinds this shell renders (the C# vocabulary, one entry each).
+   *  Anything else falls through to `text`. */
+  const PUSHED_EXCERPT_KINDS = new Set([
+    'typing', 'request-sent', 'request', 'request-done', 'payment', 'app-invite',
+    'file', 'call', 'call-missed', 'call-declined', 'connected', 'reaction', 'text',
+  ]);
+
+  /** raw excerpt + pushed kind → chatlist excerpt { type, text }. */
+  function excerptFromPush(raw, statusType, name, excerptKind) {
     const decoded = decodeEntities(raw);
     if (statusType === 'typing') return { type: 'typing', text: decoded };
     const trimmed = (decoded || '').trim();
-    let kind = EXCERPT_CANON[trimmed];
-    if (kind) return { type: kind, text: trimmed };
-    // Own-message push in a locale with a non-empty "You:" prefix → retry the canon
-    // with the prefix stripped from the KEY. The displayed text keeps the prefix.
-    if (!(trimmed in EXCERPT_CANON)) {               // an AMBIGUOUS (null) hit stays a miss
-      const selfKey = selfStrippedKey(trimmed);
-      kind = selfKey ? EXCERPT_CANON[selfKey] : undefined;
-      if (kind) return { type: kind, text: trimmed };
-    }
-    // M5: outgoing pending contact request → styled "Request sent" row. Carrier
-    // match + DIRECTION guard: only a localSender push (non-empty statusType)
-    // qualifies — see REQUEST_SENT_TEXT above. ('typing' already returned.)
-    if (statusType && trimmed && trimmed === REQUEST_SENT_TEXT) return { type: 'request', text: (window.SL && window.SL.requestSent) || 'Request sent' };
-    if (trimmed && isHeartOnly(trimmed)) return { type: 'reaction', text: (window.SL && window.SL.reacted) || 'Reacted' };
+    const k = PUSHED_EXCERPT_KINDS.has(String(excerptKind || '')) ? String(excerptKind) : 'text';
+    // M5: the OUTGOING pending request → the styled "Request sent" row (the pushed
+    // text is the "Waiting for response" phrase; the row shows its own copy).
+    if (k === 'request-sent') return { type: 'request', text: (window.SL && window.SL.requestSent) || 'Request sent' };
+    if (k === 'reaction') return { type: 'reaction', text: (window.SL && window.SL.reacted) || 'Reacted' };
+    /* "You are now connected with X." reads in the ACTION colour. #720: the row's own
+       nickname fills the {0} — the sentence was written with the ADDRESS because the
+       nick had not arrived yet. ⚠ canonExcerptText, never the raw text — B4 (#231):
+       addresses are NEVER shown in full in an excerpt. */
+    if (k === 'connected') return { type: 'connected', text: canonExcerptText(decoded, name) };
+    if (k === 'typing') return { type: 'typing', text: decoded };
+    if (k !== 'text') return { type: k, text: trimmed };
     if (trimmed && isGifExcerptUrl(trimmed)) return { type: 'gif', text: 'GIF' };   // parity w/ chat.html buildMediaRow
-    /* ★★ AUG (Damir 2026-08-30): "You are now connected with X." reads in the ACTION
-       colour, so a brand-new contact stands out in the list instead of looking like any
-       other text tail.
-       ★ Matched by TEMPLATE, never by a substring: the sentence is localised, so a
-       hardcoded English test would light up for English users only — the exact failure
-       ONLINE_TEXT was rewritten to avoid in chat.html. The carrier gives us the live
-       locale phrase, and the {0} split lets any contact name fill the hole.
-       ★ BOTH templates, longest-prefix-first, mirroring chat.html's EVENT_TPLS: the live
-       direction-neutral sentence AND the legacy "has accepted your contact request", so an
-       existing history renders the same as a new one.
-       ⚠ Placed AFTER the canon lookups on purpose — if a phrase ever earns a canon kind,
-       that kind wins and this stays out of its way. */
-    /* ⚠ canonExcerptText, NOT the raw text — B4 (#231): addresses are NEVER shown in full
-       in an excerpt. Returning `trimmed` here shipped the whole 48-char wallet address into
-       the row (Damir, desktop, 2026-08-30) where the chat's own chip had been rendering the
-       9…6 canon all along. Same sentence, two surfaces, two different answers. */
-    if (trimmed && connectedEventText(trimmed)) return { type: 'connected', text: canonExcerptText(decoded, name) };   // #720: the row's nickname fills the {0}
     return { type: 'text', text: canonExcerptText(decoded) };                       // B4 (#231)
   }
 
@@ -2283,96 +2097,34 @@
     if (!addr) return '';
     try { return (localStorage.getItem(DRAFT_PREFIX + addr) || '').trim(); } catch (_) { return ''; }
   }
-  /** Excerpt for a chat row: a pending draft wins, else the canon reverse-map. */
-  function excerptFor(address, raw, statusType, name) {
+  /** Excerpt for a chat row: a pending draft wins, else the pushed kind. */
+  function excerptFor(address, raw, statusType, name, excerptKind) {
     const draft = getDraft(address);
     if (draft) return { type: 'draft', text: draft };
-    return excerptFromRaw(raw, statusType, name);
+    return excerptFromPush(raw, statusType, name, excerptKind);
   }
 
-  /* —— Q12: deleted-tail excerpt hints (shared contract with chat.html). Deleting
-   * the LAST message leaves this list stale: the local-delete path never re-pushes
-   * HomePage (SingleChatPage:1150-1159 pushes only the chat WebView;
-   * UIHelpers.deleteMessage:69 fires for REMOTE deletes only, and only while
-   * HomePage is top-of-stack) and C#'s friend.metaData.lastMessage may keep the
-   * deleted message. chat.html writes spixi.exdel.<addr> on a LOCALLY-initiated,
-   * C#-CONFIRMED delete of its tail row — { del: ms ts of the C#-visible
-   * lastMessage, t: ms ts of the new tail or 0, kind }. NO MESSAGE TEXT is
-   * persisted (DECISIONS #254): the shells load from a bare local path (file://)
-   * and mini-apps load from file://<app_entry_point> (MiniAppPage.xaml.cs:58), so
-   * third-party publisher code shares this storage partition — counterpart-authored
-   * text must never be cached here. We fold the hint into the row LIVE via the
-   * storage event (+ focus/visibility fallback — the #238 landtab trio) and on
-   * every addChat, and EXPIRE it when C# pushes a lastMessage timestamp ≠ del (a
-   * new message arrived, or C# corrected itself → its excerpt is authoritative
-   * again). Crosses the #221 wall via same-origin localStorage only — no shared
-   * JS, no bridge. */
-  const EXDEL_PREFIX = 'spixi.exdel.';
-  function getExdelHint(addr) {
-    if (!addr) return null;
-    try {
-      const h = JSON.parse(localStorage.getItem(EXDEL_PREFIX + addr) || 'null');
-      return (h && typeof h === 'object' && h.del) ? h : null;
-    } catch (_) { return null; }
-  }
-  function dropExdelHint(addr) { try { localStorage.removeItem(EXDEL_PREFIX + addr); } catch (_) {} }
-  /** hint → chatlist excerpt. The hint carries only { del, t, kind } — no message
-   *  text is persisted (see the ruling above), so the NON-text kinds map to the
-   *  chatlist grammar and a TEXT tail degrades to an EMPTY excerpt: the row still
-   *  shows the correct new timestamp, and the next real C# push heals the line. */
-  function excerptFromExdel(h) {
-    const sl = window.SL || {};
-    if (h.kind === 'file') return { type: 'file', text: sl.file || 'File' };
-    if (h.kind === 'call') return { type: 'call', text: sl.voiceCall || 'Voice call' };
-    if (h.kind === 'payment') return { type: 'payment', text: sl.payment || 'Payment' };
-    if (h.kind === 'app') return { type: 'app-invite', text: sl.appInvite || 'App invite' };
-    return { type: 'text', text: '' };               // text tail (no text cached) / chat emptied
-  }
-  /** B-7: drop orphan hints. A contact removed NATIVELY never gets another addChat,
-   *  so its hint would never expire (only the row-menu delete sheds one, onPersist).
-   *  At the end of a full flush the chats model is authoritative → any
-   *  spixi.exdel.<addr> with no row is dead metadata. Snapshot the keys first (never
-   *  mutate localStorage while iterating it); fail-soft — nothing here may throw
-   *  during a flush. Also bounds how long hint metadata is retained. */
-  function pruneExdelHints() {
+  /* ★ Q12 RETIRED (Session AD) — the `spixi.exdel.<addr>` hint family. It existed
+   * because a LOCAL tail delete never re-pushed this list (C# only re-pushed on the
+   * REMOTE path), so chat.html wrote a per-address hint and this document folded it
+   * into the row via the storage event + focus/visibility fallbacks, expired it on a
+   * changed timestamp and pruned orphans after every flush. C# now re-pushes the row
+   * from Core's recomputed lastMessage on BOTH delete paths (UIHelpers.refreshChatRow),
+   * so the pushed excerpt is authoritative again and every reader is gone. A store
+   * written by a pre-Session-AD build may still hold keys of the family: they are
+   * swept ONCE at boot below (they carried no message text — #254 — only timestamps
+   * and a kind, but an unread key is a key that should not exist). */
+  const LEGACY_EXDEL_PREFIX = 'spixi.exdel.';
+  (function sweepLegacyExdelKeys() {
     try {
       const keys = [];
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && k.indexOf(EXDEL_PREFIX) === 0) keys.push(k);
+        if (k && k.indexOf(LEGACY_EXDEL_PREFIX) === 0) keys.push(k);
       }
-      if (!keys.length) return;
-      const live = new Set();
-      for (const c of (state.chats || [])) if (c && c.address) live.add(c.address);
-      for (const k of keys) if (!live.has(k.slice(EXDEL_PREFIX.length))) localStorage.removeItem(k);
+      for (const k of keys) localStorage.removeItem(k);   // remove AFTER the walk (re-indexing)
     } catch (_) {}
-  }
-  /** Re-apply hints over the live model (storage/focus path). No fresh C# push here,
-   *  so no expiry judgment — addChat owns expiry (it sees the pushed ts). Precedence
-   *  mirrors addChat EXACTLY: draft > reaction > hint > pushed excerpt.
-   *  - draft (CH7) and a live `typing` excerpt outrank the hint. Typing matters: a
-   *    typing event sets shouldRefreshContacts (StreamProcessor:548) → a full flush
-   *    whose addChat carries the UNCHANGED stale lastMessage ts, so the hint has NOT
-   *    expired and would otherwise clobber the typing line (audit B-1).
-   *  - a held #109 handshake row renders as typing too → skip it as well.
-   *  - a CH8 sticky reaction excerpt is NEWER info and wins over the hint (audit B-2). */
-  function applyExdelHints() {
-    let changed = false;
-    for (const c of (state.chats || [])) {
-      if (!c || !c.address) continue;
-      if (c.excerpt && (c.excerpt.type === 'draft' || c.excerpt.type === 'typing')) continue;
-      if (c.handshaking || handshakeHold.has(c.address)) continue;
-      if (reactionExcerpts.has(c.address)) continue;
-      const h = getExdelHint(c.address);
-      if (!h) continue;
-      c.excerpt = excerptFromExdel(h);
-      if (h.t) c.timestamp = h.t;
-      changed = true;
-    }
-    if (changed) scheduleChatsRender();
-  }
-  window.addEventListener('storage', (e) => { if (e && e.key && e.key.indexOf(EXDEL_PREFIX) === 0 && e.newValue) applyExdelHints(); });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) applyExdelHints(); });
+  })();
 
   /* ★★ AUG (Damir 2026-08-30, ON DEVICE) — ACCEPTING FROM INSIDE THE CHAT MUST STAGE THE
      SAME "Establishing…" ROW THE REQUEST CARD STAGES.
@@ -2383,7 +2135,7 @@
      shells share no JS (#221) and C# returns nothing on accept — so the row sat blank and
      then snapped straight to "You are now connected", which is what Damir photographed.
      ★ chat.html now writes `spixi.hsstage.<addr>` and this reads it, over the SAME
-     one-origin localStorage grammar the exdel hints and spixi.backup.last (#314) use.
+     one-origin localStorage grammar spixi.backup.last (#314) uses.
      ⚠ STALE-GUARDED: a marker older than the hold window is dropped rather than applied —
      otherwise a stored key from a previous session would stage a handshake on every boot.
      ⚠ The key is CONSUMED on read, so the 3s hold runs exactly once per accept. */
@@ -2475,18 +2227,17 @@
   }
   window.addEventListener('storage', (e) => { if (e && e.key && e.key.indexOf(HIDEREQ_PREFIX) === 0 && e.newValue) consumeHideReqs(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) consumeHideReqs(); });
-  window.addEventListener('focus', applyExdelHints);
 
   /* ★★ security sweep C-3 / C-4 — FORGET A PEER.
-   * Nine key families carry a peer's wallet ADDRESS in the key name — draft ·
-   * exdel · likes · mentions.seen · app.declined · app.canceled · hidereq ·
-   * hsstage, plus the retired media.loaded — and spixi.pins holds an address
+   * Eight key families carry a peer's wallet ADDRESS in the key name — draft ·
+   * likes · mentions.seen · app.declined · app.canceled · hidereq ·
+   * hsstage, plus the retired media.loaded and exdel — and spixi.pins holds an address
    * ARRAY in its value. Until this helper, "Contact removed" cleared none of them:
    * the address, the user's own unsent plaintext and the per-conversation message
    * ids stayed until "delete account". Two of the three result handlers cleared
    * only the draft.
    * ⚠ THE SWEEP IS PREFIX-DRIVEN, NOT A LIST. It removes every `spixi.*` key whose
-   * name ENDS with `.<address>`, which is the shape all nine share, so a family
+   * name ENDS with `.<address>`, which is the shape all of them share, so a family
    * added later is forgotten by construction and nobody has to remember this
    * function. Forgetting is the safe default; retention is the exception and has to
    * be named.
@@ -3308,6 +3059,17 @@
     syncHomeOverlay();
   }
 
+  /* ★ A4 (Session AD): the fetch-failure REASON → one localized line. The vocabulary
+     is MiniAppManager.fetchFailureName; anything else (an old exe sends nothing) is
+     the generic "not a valid mini app". */
+  const APP_FETCH_GRACE_MS = 20000;   // > C#'s 15 s HttpClient ceiling — the no-signal belt only
+  function appFetchErrorText(reason) {
+    const r = String(reason || '');
+    if (r === 'timeout') return strings.appFetchTimeout || 'The link did not respond. Check your connection and try again.';
+    if (r === 'http') return strings.appFetchHttp || 'The app could not be downloaded from that link.';
+    if (r === 'size') return strings.appFetchTooLarge || 'That app package is too large.';
+    return strings.appUrlInvalid || 'That link or file isn’t a valid mini app.';
+  }
   function openAppsAdd() {
     /* ★★ #836 / AND-41 — THE FORK. With a detail pane on screen the page push is the
        RIGHT answer: it is the #256 M7 routing that lands this screen beside the list
@@ -3338,16 +3100,16 @@
         if (!url) { setAddError(appsAddEl, strings.enterAppUrl || 'Enter an app link.'); return; }
         if (appsGetBtn) setLoading(appsGetBtn, true);
         bridge.send('ixian:fetch:' + url);
-        /* The grace timer stays, and it is SHORTER than the standalone page's 8 s: there
-           both outcomes were silent (success navigated the WebView away), so it had to
-           wait out a network fetch before guessing. Here failure pushes showUrlError and
-           success pushes closeAddApp, so this only covers a genuine no-signal case. */
+        /* ★ A4 (Session AD): the grace timer sits ABOVE C#'s 15 s fetch ceiling
+           (MiniAppManager httpClient.Timeout) — failure pushes showUrlError(reason) and
+           success pushes closeAddApp, so this only covers a genuine no-signal case. It
+           was 8 s, i.e. it fired "maybe failed" while the fetch was still running. */
         clearTimeout(appsFetchGrace);
         appsFetchGrace = setTimeout(() => {
           if (appsGetBtn) setLoading(appsGetBtn, false);
           setAddError(appsAddEl, strings.fetchMaybeFailed
             || 'If nothing happened, that link may be invalid or unreachable.');
-        }, 8000);
+        }, APP_FETCH_GRACE_MS);
       },
       onScan: () => bridge.send('ixian:appscan'),        // NOT quickscan: see HomePage
       onPickFile: () => bridge.send('ixian:selectAppFile'),
@@ -3487,9 +3249,10 @@
 
   const RATING_SNOOZE_KEY = 'spixi.rating.snooze';   // ms timestamp; UI throttle only
   const RATING_SNOOZE_MS = 7 * 24 * 60 * 60 * 1000;
-  const BACKUP_STAMP_KEY = 'spixi.backup.last';      // WRITTEN by settings.html:424 /
-                                                     // settings_backup.html:124 — read-only here
-  const BACKUP_SUPPRESS_MS = 30 * 24 * 60 * 60 * 1000;
+  /* ★ S2 (Session AD): the 30-day "backed up recently" gate that read the
+     `spixi.backup.last` localStorage stamp here moved into C# —
+     HomePage.displayBackupReminder reads BackupPage.lastBackupTimestamp() and does not
+     push the nudge at all inside the reminder period. */
   const NUDGE_GAP_MS = 600;                          // no back-to-back scrims
 
   const nudgeQueue = [];               // kinds waiting for a clear context
@@ -3505,10 +3268,6 @@
    * Documented caveat (settings.html:420-423): it stamps the share-sheet LAUNCH, not
    * a confirmed success. Accepted — over-suppressing by one interval beats nagging a
    * user who just backed up. */
-  function backedUpRecently() {
-    const t = Number(lsGet(BACKUP_STAMP_KEY) || 0);
-    return t > 0 && (Date.now() - t) < BACKUP_SUPPRESS_MS;
-  }
   function ratingSnoozed() {
     const t = Number(lsGet(RATING_SNOOZE_KEY) || 0);
     return t > 0 && (Date.now() - t) < RATING_SNOOZE_MS;
@@ -3584,7 +3343,6 @@
     if (!nudgeQueue.length || !nudgeContextClear()) return;
     const kind = nudgeQueue.shift();
     if (kind === 'backup') {
-      if (backedUpRecently()) { pumpNudges(); return; }   // re-checked at SHOW time, not at push
       nudgeOpen = 'backup';
       showBackupNudge({
         host: document.body,
@@ -3708,24 +3466,30 @@
 
     // #245: the Account pane closed (HomePage.onOverlayClosed) — the rail
     // highlight falls back from Account to the real in-page tab.
-    // #314 (iOS-46 leg): consume the landtab hand-off HERE too — this push is the
-    // one deterministic "Account just closed" signal on iOS, where the storage
-    // event never crosses WebViews and focus/visibility don't fire on overlay
-    // close (the settings shell's exit-tap write raced listeners that never ran).
-    // consumeLandTab sets activeNav itself for a TAB hand-off, so the sync after it
-    // is a no-op there, and the real fallback when there was no hand-off at all.
+    // #314 (iOS-46 leg) → S11 (Session AD): the land-on-tab hand-off no longer rides
+    // this push — it arrives as its own `landOnTab` push BEFORE the pane closes.
+    // landOnTabNow sets activeNav itself for a TAB hand-off, so the sync here is a
+    // no-op there, and the real fallback when there was no hand-off at all.
     // ★ L6 review MAJOR-1: it used to end `setNavActive(nav, activeNav)` — an
     // unconditional write that clobbered the Account highlight the CONTACTS hand-off
     // had just set one line above, which is the "rail jumps to CHATS" Damir reported.
     // railTarget() answers the same question for every writer.
-    onSettingsClosed() { clearAccountPaneFlag(); consumeLandTab('settingsclosed'); syncNav(); },
+    onSettingsClosed() { clearAccountPaneFlag(); syncNav(); },
+    /* ★ S11 (Session AD): the land-on-tab push — see landOnTab above. Arrives from
+       HomePage.landOnTab while this document is still covered by the Account page. */
+    landOnTab(id) { landOnTabNow(id); },
     /* ★ Session I (L14 handshake): C# pushes this the moment SettingsPage receives
-       `ixian:handoff` — a DETERMINISTIC consumer for the Account → Contacts hand-off on
-       every platform (WKWebView does not reliably fire cross-WebView storage events, so
-       iOS used to wait for onSettingsClosed, i.e. AFTER the pane was gone). Idempotent:
-       the key is consumed on read, so whichever of storage/handoff runs first mounts
-       the cover and the other finds nothing. */
-    onHandoff() { consumeLandTab('handoff'); },
+       `ixian:handoff`. The hand-off itself already arrived as `landOnTab('contacts')`
+       (settings.html sends the verb FIRST), so this only re-signals a cover that is
+       already on glass — the waiter releases on the first `ixian:coverpainted` it sees
+       and a second one is a no-op (SpixiContentPage.coverPainted). Kept as the belt for
+       a cover that mounted before the waiter registered by more than its freshness. */
+    onHandoff() {
+      if (!document.querySelector('.contacts-takeover')) return;
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        try { bridge.send('ixian:coverpainted'); } catch (e) {}
+      }));
+    },
 
     // Multi-user mini-app launch STARTED ON ANOTHER SURFACE (AppDetailsPage): that
     // page has no contacts roster of its own, so C# hands the target pick back to
@@ -3776,14 +3540,14 @@
     // render here; (2) a LONE call from updateChat on a message event — upsert
     // patches the existing row (no duplicate) + schedules a coalesced render so
     // the new excerpt/timestamp/unread surface immediately.
-    addChat(wallet, from, timestamp, avatar, online, excerpt_msg, type, unread, kind, mention) {
+    addChat(wallet, from, timestamp, avatar, online, excerpt_msg, type, unread, kind, mention, excerptKind) {
       // Q5: remember group/bot addresses (CH1 kind, 9th arg) for the contacts-
       // directory filter — BEFORE the tombstone gate, so a session-deleted group
       // chat still filters out of the directory takeover.
       if (kind === 'group' || kind === 'bot' || kind === 'True') groupAddrs.add(wallet);
       // M5: track outgoing pending-request rows — also BEFORE the tombstone gate
       // (the CONTACT stays pending in the picker even if its row was deleted).
-      const isReqRow = isRequestSentPush(excerpt_msg, type);
+      const isReqRow = isRequestSentPush(excerptKind);
       if (isReqRow) requestAddrs.add(wallet); else requestAddrs.delete(wallet);
       let t = Number(timestamp);
       if (t && t < 1e12) t *= 1000;              // legacy may send Unix seconds → ms
@@ -3842,8 +3606,8 @@
         // bump (chatMatchesFilter/chatsUnreadTotal read chat.mention). Always set —
         // a re-flush after read must CLEAR a stale mention.
         mention: mention === 'True' || mention === 'true',
-        // canon reverse-map (CH6) + draft override (CH7); a pending draft wins.
-        excerpt: excerptFor(wallet, excerpt_msg, type, from),   // #720: the name reaches the canon
+        // the pushed excerpt kind (CH6, 11th arg) + draft override (CH7); a pending draft wins.
+        excerpt: excerptFor(wallet, excerpt_msg, type, from, excerptKind),   // #720: the name reaches the canon
         unread: n,
         // clear any leftover outgoing tick; re-set below when unread === 0
         status: undefined,
@@ -3889,24 +3653,6 @@
          signal. Fix it there, not here. Do not re-open this gate. */
       const st = statusFromType(type);
       if (st && (n === 0 || st === 'failed')) chat.status = st;
-      // Q12: a confirmed delete of the chat's tail message left C#'s lastMessage
-      // stale. While the pushed timestamp still equals the recorded deleted one,
-      // show the hint's replacement excerpt (+ its timestamp so ordering/time
-      // track the real tail); ANY other pushed timestamp means C# moved on (a
-      // new message, or a corrected lastMessage) → the hint expires for good.
-      // Draft keeps priority; a sticky reaction (below) is newer info and wins.
-      // A LIVE `typing` push also outranks the hint (audit B-1): typing triggers a
-      // full flush (shouldRefreshContacts, StreamProcessor:548) that re-pushes the
-      // UNCHANGED stale lastMessage ts — so the hint hasn't expired and would
-      // otherwise overwrite the "typing…" line. Mirrored in applyExdelHints.
-      const dh = getExdelHint(wallet);
-      if (dh) {
-        if (t && t !== dh.del) dropExdelHint(wallet);
-        else if (chat.excerpt.type !== 'draft' && chat.excerpt.type !== 'typing') {
-          chat.excerpt = excerptFromExdel(dh);
-          if (dh.t) chat.timestamp = dh.t;
-        }
-      }
       // CH8: re-apply a sticky reaction excerpt (see reactionExcerpts above);
       // read chats / newer real messages clear it, drafts keep priority.
       const rx = reactionExcerpts.get(wallet);
@@ -3931,9 +3677,6 @@
       chatsFlushing = false;
       disarmChatsFlushWatchdog();
       chatsZero.open();                 // the roster is authoritative now — an empty one may say so
-      // B-7: the model is authoritative now → drop hints for addresses that no
-      // longer have a row (contact removed natively — no addChat ever expires it).
-      pruneExdelHints();
       // B-3: an OUTGOING request row can settle on this very re-flush (the peer
       // accepted → the excerpt is no longer the "request sent" carrier), which can
       // empty the Requests filter with no chip left to escape it. Run the guard on
@@ -3995,9 +3738,10 @@
       // CH8: likewise drop any sticky reaction excerpt on read, so the live-tick
       // read path clears it now instead of lingering until the next structural flush.
       if (c.unread === 0) { c.mention = false; reactionExcerpts.delete(address); }
-      // A live status tick is normally excerpt="" (pure online/unread refresh); when
-      // it does carry text, run it through the same canon+draft path as addChat.
-      { const ex = excerptFor(address, excerpt, undefined); if (excerpt || ex.type === 'draft') c.excerpt = ex; }
+      // A live status tick is normally excerpt="" (pure online/unread refresh — every C#
+      // caller passes ""); when it does carry text it has no kind, so it renders as text
+      // through the same draft-first path as addChat.
+      { const ex = excerptFor(address, excerpt, undefined, undefined, 'text'); if (excerpt || ex.type === 'draft') c.excerpt = ex; }
       const t = Number(timestamp);
       if (t) c.timestamp = t < 1e12 ? t * 1000 : t;
       scheduleChatsRender();
@@ -4009,7 +3753,7 @@
     // built reaction glyph + "Reacted"/"Tipped" and remembers it (sticky — see
     // reactionExcerpts) across the C# re-flush that follows. Replaces the #193
     // lone-heart best-effort for new exes; that path stays as the old-exe fallback.
-    addChatReaction(wallet, nick, reaction, timestamp) {
+    addChatReaction(wallet, nick, reaction, timestamp, reactor) {
       if (!wallet) return;
       const c = state.chats.find((x) => x && x.address === wallet);
       if (!c) return;                                   // no conversation row → ignore
@@ -4018,7 +3762,11 @@
       const sl = window.SL || {};
       const text = String(reaction || '').startsWith('tip')
         ? (sl.tipped || 'Tipped') : (sl.reacted || 'Reacted');
-      const ex = { type: 'reaction', text, sender: nick || null };
+      // ★ CH8 (Session AD): no nick → the reactor's TRUNCATED address (5th arg, groups
+      // only, never blind) — the #211 canon; a 1:1 sends the peer's nick, an old exe
+      // sends neither and the line stays "Reacted".
+      const who = nick || (reactor && isAddressShaped(String(reactor)) ? truncateAddressMiddle(String(reactor)) : '');
+      const ex = { type: 'reaction', text, sender: who || null };
       reactionExcerpts.set(wallet, { excerpt: ex, ts: t });
       if (!c.excerpt || c.excerpt.type !== 'draft') c.excerpt = ex;
       scheduleChatsRender();
@@ -4044,7 +3792,7 @@
          re-bake that echo lands with the Account pane still pinned — so it re-lit
          Chats over the top of any boot-time correction. The highlight is corrected
          HERE, after the push has had its say.
-         ⚠ NOT "the last writer in the document" — `consumeLandTab` and `pickAppTargets`
+         ⚠ NOT "the last writer in the document" — `landOnTabNow` and `pickAppTargets`
          also write the highlight and do not re-sync. Both are correct not to: each runs
          only when the user has just chosen a different destination, which means Account
          is on its way out. This is the last writer ON THIS PATH. */
@@ -4338,6 +4086,19 @@
       applyMutedToModel();
       scheduleChatsRender();
     },
+    // ★ CH4 (Session AD): the favorite echo — C# pushes it beside every roster row and
+    // after the ixian:favchat verb (the setChatMuted grammar, one line each).
+    setChatFavorite(address, on) {
+      const addr = address || '';
+      if (!addr) return;
+      const fav = (on === '1' || on === 'true' || on === 'True' || on === true);
+      const had = favoriteChats.has(addr);
+      if (fav) favoriteChats.add(addr); else favoriteChats.delete(addr);
+      if (had === fav) return;
+      applyFavoritesToModel();
+      if (opts.onModelChange) opts.onModelChange(state);   // the nav badge + chip counts follow the model
+      scheduleChatsRender();
+    },
 
     addApp(id, name, icon, publisher, isSingleUser, isMultiUser) {
       appsState.apps.push({
@@ -4363,7 +4124,7 @@
      * and HomePage answers its verbs against ContactNewPage's own core.
      * Same guard shape as loadGroupAvatar above: a push that arrives after the user
      * backed out finds no panel and is dropped. */
-    onValidAddress() { if (contactsView && contactsView.addValidAddress) contactsView.addValidAddress(); },
+    onValidAddress(checked) { if (contactsView && contactsView.addValidAddress) contactsView.addValidAddress(checked); },   // ★ CO4: the echoed address
     onKnownAddress(kind, address, nick, checked) {
       if (contactsView && contactsView.addKnownAddress) contactsView.addKnownAddress(kind, address, nick, checked);
     },
@@ -4377,10 +4138,12 @@
      * push app_new.html has always consumed; `closeAddApp` is new and only exists
      * because there is no page to navigate away from here — C# opens AppDetailsPage
      * over this WebView, so the panel underneath has to be told to go. */
-    showUrlError() {
+    // ★ A4 (Session AD): the REASON rides the push (url · http · size · timeout ·
+    // invalid · error); an old exe sends none → the generic line.
+    showUrlError(reason) {
       clearTimeout(appsFetchGrace);
       if (appsGetBtn) setLoading(appsGetBtn, false);
-      if (appsAddEl) setAddError(appsAddEl, strings.appUrlInvalid || 'That link or file isn’t a valid mini app.');
+      if (appsAddEl) setAddError(appsAddEl, appFetchErrorText(reason));
     },
     closeAddApp() { closeAppsAdd(); },
     setScannedData(url) {
@@ -4460,23 +4223,29 @@
     // (getFriendMessageHelper returns null, xaml:869). The redesign routes the
     // directory to the contacts takeover (FAB purpose 'start' + topbar Contacts
     // purpose 'directory'), NOT tab1 — so these fill contactsRoster, not state.chats.
-    //   addContact(address, nickname, avatar, online, unreadCount)  (HomePage
-    //   signature — NOTE: 5th arg is unreadCount, NOT the WalletRecipientPage
-    //   `type`; so the directory carries no group/bot type and no pending flag —
-    //   §9 asks. Unread is not surfaced in the picker → ignored.)
+    //   addContact(address, nickname, avatar, online, unreadCount, relation, kind)
+    //   ★ C17 / CO1 (Session AD): args 6–7 are the RELATION (contact · pending ·
+    //   pending-in · self · none — contactRelationFor) and the KIND (group · bot · "").
+    //   Unread (5th) is not surfaced in the picker → ignored. An old exe sends five:
+    //   the avatar-sentinel and chats-row fallbacks below still apply.
     clearContacts() { contactsRoster = []; scheduleContactsRender(); },
-    addContact(address, nickname, avatar, online, _unread) {
+    addContact(address, nickname, avatar, online, _unread, relation, kind) {
       if (!address) return;
+      const rel = String(relation || '');
+      const k = String(kind || '');
       contactsRoster.push({
         address,
         name: nickname || '',
-        // Q5: the C# default group avatar is a reliable group marker — checked
-        // BEFORE resolveAvatar (which maps sentinels to null); custom-avatar
-        // groups are caught by groupAddrs (CH1 kind via the chats flush).
-        isGroup: avatar === 'img/spixi-group-avatar.png',
+        // the pushed kind first; the C# default group avatar (checked BEFORE
+        // resolveAvatar, which maps sentinels to null) and groupAddrs (CH1 kind via
+        // the chats flush) stay as the old-exe fallbacks.
+        isGroup: k === 'group' || k === 'bot' || avatar === 'img/spixi-group-avatar.png',
         avatar: resolveAvatar(avatar),
         online: online === 'true' || online === 'True',
-        // type/pending absent from the HomePage roster (§9) → normal row, no badge
+        // ★ C17: pushed pending state — an outgoing request with NO chat row (never
+        // reachable through requestAddrs) gets its badge too
+        pending: rel === 'pending' || undefined,
+        relation: rel || undefined,
       });
       scheduleContactsRender();
     },

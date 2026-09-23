@@ -722,5 +722,10 @@
   "addContactScanHint": "Der QR-Code muss auf einem anderen Gerät sichtbar sein, damit du ihn mit diesem Gerät scannen kannst.",
   "addContactEnterLabel": "Spixi-Adresse eingeben oder einfügen",
   "addContactEnterHint": "Tippe oder füge die Spixi-Adresse ein (zum Beispiel 42Spox…M3rci98).",
-  "creditFlags": "Länderflaggen"
+  "creditFlags": "Länderflaggen",
+  "favorite": "Zu Favoriten hinzufügen",
+  "unfavorite": "Aus Favoriten entfernen",
+  "appFetchHttp": "Die App konnte über diesen Link nicht heruntergeladen werden.",
+  "appFetchTimeout": "Der Link hat nicht geantwortet. Prüfe deine Verbindung und versuche es erneut.",
+  "appFetchTooLarge": "Dieses App-Paket ist zu groß."
 }

@@ -76,7 +76,7 @@ namespace SPIXI
         {
             base.updateScreen();
 
-            int unread = FriendList.getUnreadMessageCount();
+            int unread = SChatPrefs.unreadTotalForBadge();   // ★ CH4 (Session AD): mute-aware, one predicate
             if (unread != lastPushedUnread)
             {
                 Utils.sendUiCommand(this, "setUnreadIndicator", unread.ToString());
@@ -194,7 +194,15 @@ namespace SPIXI
             {
                 caps += ",pushProvider";
             }
+            /* ★ S9 (Session AD): the Developer row. The cap is granted ONLY while dev mode
+             * is on (HomePage's 10-tap toggle persists `devMode`) — the row renders where
+             * the affordance already exists, and never for a user who has not opted in. */
+            if (Preferences.Default.Get("devMode", false))
+            {
+                caps += ",dev";
+            }
             Utils.sendUiCommand(this, "setCaps", caps);
+            BackupPage.pushBackupStatus(this);   // ★ S2 (Session AD): the Backup row's status
 
             // ★ NOTIF-2: the current values, so the switches render in the right position
             // rather than at the component defaults. Three bools, one push each — the
@@ -284,6 +292,36 @@ namespace SPIXI
             if (current_url.Equals("ixian:onload", StringComparison.Ordinal))
             {
                 onLoad();
+            }
+            /* ★ S9 (Session AD): the Developer row → DevPage, the SAME page and push HomePage's
+             * topbar action opens (HomePage `ixian:dev`). Equals, not StartsWith: `ixian:devseed`
+             * (the SPIXI_DEV_COEXIST harness above) must never fall into this branch. */
+            else if (current_url.Equals("ixian:dev", StringComparison.Ordinal))
+            {
+                if (Preferences.Default.Get("devMode", false))
+                {
+                    /* ★ #46 loop (auditor B, M1 + the break-my-verdict round): SettingsPage
+                     * is ALWAYS overlay-presented (#225) and an overlay page is not in the
+                     * navigation tree — ITS OWN `Navigation.PushModalAsync` queues a modal
+                     * nobody ever shows, silently. The first repair pushed DevPage as a
+                     * fourth overlay page and tripped #804 PIN 6 (a fourth cold WebView boot
+                     * on the main thread must be argued for). It is not worth arguing for:
+                     * DevPage is a MODAL everywhere else (HomePage's own ixian:dev), so it is
+                     * presented the same way here — through the in-stack HomePage's
+                     * navigation. DevPage's back (PopModalAsync) then works unchanged. */
+                    HomePage.InstanceOrNull()?.Navigation.PushModalAsync(new DevPage());
+                }
+                else
+                {
+                    Logging.warn("ixian:dev refused: developer mode is off");
+                }
+            }
+            /* ★ S11 (Session AD): the land-on-tab hand-off is a VERB now — see
+             * HomePage.landOnTab. The shell sends it right before its exit verb (back /
+             * save / handoff), so the home shell switches while still covered. */
+            else if (current_url.StartsWith("ixian:landtab:", StringComparison.Ordinal))
+            {
+                HomePage.InstanceOrNull()?.landOnTab(current_url.Substring("ixian:landtab:".Length));
             }
             else if (current_url.Equals("ixian:back", StringComparison.Ordinal)
                 || current_url.Equals("ixian:handoff", StringComparison.Ordinal))
@@ -635,12 +673,12 @@ namespace SPIXI
             {
                 // #243 (S15): the Backup SUBLEVEL inside the Account pane — same
                 // self-contained operation BackupPage runs (static; C# names all
-                // paths, the verb is a bare trigger).
-                _ = BackupPage.backupAccount();
+                // paths, the verb is a bare trigger). ★ S2: the status is pushed after it.
+                runBackupThenPush(BackupPage.backupAccount);
             }
             else if (current_url.Equals("ixian:backupWallet", StringComparison.Ordinal))
             {
-                _ = BackupPage.backupWallet();
+                runBackupThenPush(BackupPage.backupWallet);
             }
             /* ★ Item 6 (#397/#400): the permanent door into the Spixi community. The
              * chat-list empty-state CTA disappears the moment the user adds any ordinary
@@ -1020,6 +1058,40 @@ namespace SPIXI
             // every Account exit double-booted Home in front of the user. Appearance is
             // applied LIVE at pick time (ixian:appearance above); nothing to do on save.
             // (#285: the language reload moved to pick time too — see ixian:language.)
+        }
+
+        /* ★ S2 (Session AD): run a backup, then push its recorded stamp to THIS page.
+         * async void, fenced: a throw inside the backup must not escape the navigation
+         * handler (the backups fence their own bodies; this fences the push). */
+        private async void runBackupThenPush(Func<Task> backup)
+        {
+            try
+            {
+                await backup();
+                BackupPage.pushBackupStatus(this);
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("backup push failed: " + ex.GetType().Name);
+            }
+        }
+
+        /* ★ S2: a PARKED Account (#315) re-presents without an onLoad — the stamp may have
+         * moved meanwhile (the home nudge's BackupPage). Re-push on the re-present. */
+        protected internal override void onRepresentedNative()
+        {
+            BackupPage.pushBackupStatus(this);
+            // ★ S9 (loop m6): dev mode is toggled on the HOME shell; a parked Account keeps
+            // the caps of its onLoad. Re-grant the `dev` cap on every re-present so the row
+            // appears (or leaves) with the preference, not with the next cold load.
+            try
+            {
+                Utils.sendUiCommand(this, "setCapDev", Preferences.Default.Get("devMode", false) ? "1" : "0");
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("setCapDev: " + ex.GetType().Name);
+            }
         }
 
         // review NIT-3 — a value that came from a WebView URL, made safe for ixian.log

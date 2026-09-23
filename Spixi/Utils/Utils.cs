@@ -362,20 +362,11 @@ namespace SPIXI
                 }
             }
 
-            var homeDetail = HomePage.InstanceOrNull();   // AND-1 (#329): read-only lookup
-            if (homeDetail != null
-                && homeDetail.getDetailContent() != null)
-            {
-                var item = homeDetail.getDetailContent();
-                if (item is SingleChatPage)
-                {
-                    if (((SingleChatPage)item).friend == friend)
-                    {
-                        return (SingleChatPage)item;
-                    }
-                }
-            }
-
+            /* ★ Session AD: the `HomePage.getDetailContent()` branch that used to sit here was
+             * DEAD — `HomePage.detailContent` is only ever assigned null (the #288 finding, the
+             * #284 branch). The open desktop conversation is an OVERLAY (#225) and is found by
+             * the overlay walk below. Deleted here and in getChatPages() so a reader cannot
+             * take the branch for coverage it never gave. */
             // #225: an OPEN conversation overlay is a live surface outside the
             // NavigationStack — message routing must find it.
             foreach (var overlay in SpixiContentPage.getOverlayPages())
@@ -414,18 +405,7 @@ namespace SPIXI
                     chatPages.Add(stackChat);
                 }
             }
-            // Desktop split-pane: the open conversation lives as HomePage DETAIL CONTENT,
-            // outside the NavigationStack — getChatPage() covers that surface but this
-            // enumerator didn't, so page-wide sweeps (onLowMemory eviction exclusion,
-            // reloadScreen-all, delete-all history) missed the most-visible desktop chat.
-            var homeLive = HomePage.InstanceOrNull();     // AND-1 (#329): read-only sweep
-            if (homeLive != null
-                && homeLive.getDetailContent() is SingleChatPage detailChat
-                && detailChat.friend != null
-                && !chatPages.Contains(detailChat))
-            {
-                chatPages.Add(detailChat);
-            }
+            // (the #284 "detail content" branch that lived here was dead code — see getChatPage)
             foreach (var overlay in SpixiContentPage.getOverlayPages())   // #225
             {
                 if (overlay is SingleChatPage overlayChat && overlayChat.friend != null && !chatPages.Contains(overlayChat))

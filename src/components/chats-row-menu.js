@@ -197,7 +197,7 @@ export function liftedRowAddress() {
  * openChatRowMenu({ chat, row, host, onAction, strings, capabilities, handshaking }) → sheet
  *   row (★ Batch E (a), #557): the pressed row element — on mobile the menu
  *   anchors to it (dropdown above the row); absent → bottom sheet, unchanged.
- *   onAction(action) — 'pin' | 'mute' | 'info' | 'delete' | 'cancelHandshake' | 'revokeRequest' (B1)
+ *   onAction(action) — 'pin' | 'mute' | 'favorite' | 'info' | 'delete' | 'cancelHandshake' | 'revokeRequest' (B1)
  * attachChatRowMenu(row, opts) — wires long-press + right-click on the row
  */
 import { getStrings } from './strings-runtime.js';
@@ -287,6 +287,15 @@ export function openChatRowMenu({ chat = {}, row = null, host, onAction, onNeedG
     item(chat.muted ? 'bell' : 'bell-off',
          chat.muted ? (strings.unmute || 'Unmute') : (strings.mute || 'Mute'),
          () => act('mute'));
+  }
+  /* ★ CH4 (Session AD): favorites — persisted as an app preference by C#
+     (`ixian:favchat:<addr>:on|off`, echoed back as setChatFavorite). The glyph is the
+     registry's heart-plus for both states until a `star` / `star-off` pair is exported
+     (the B2 icon queue); the LABEL is the state. */
+  if (capabilities.favorites) {
+    item('heart-plus',
+         chat.favorite ? (strings.unfavorite || 'Remove from favorites') : (strings.favorite || 'Add to favorites'),
+         () => act('favorite'));
   }
   /* ★★ "Mark as read" IS REMOVED (Damir, #46 loop 2026-08-27): *"we decided to remove
      the mark as read from chat row menu, no need to force it."* There is no backend verb.

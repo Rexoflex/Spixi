@@ -86,7 +86,7 @@ These go to him untouched by the gate's rule. "Inherited" answers *whose*, not *
 | **MAJOR #10** | `MiniAppManager.remove` builds a delete path from a downloaded `app.id` — arbitrary directory delete, and the account wipe became a second caller |
 | **L6** | restore mutates the lock flags and overwrites `walletpass` **before** verifying the password |
 | **S16 residual** | receive-time `Path.Combine(downloadsPath, transfer.fileName)` — a **remote peer's** filename composed into a path |
-| **C16 · W11 · Q1-ESC · N57? · CORE-1 · CORE-4 · CORE-8 · the membership question** | part of the **15** rows `be-cutover-brief.md` classes as blockers. ⚠ **That set is now ENUMERATED**, in that file's § Blockers, and every row was re-checked against the tree. The count 13 came from this page and was never derived. `C15` is off the list — it is fixed. `CH3` is demoted. Most notable of what remains: a remote delete never persists and the message comes back · a paid request stays "pending" for ever if the requester's chat was closed · Core may not verify room membership on a reaction, which would make a delivery double-check forgeable |
+| **C16 · W11 · Q1-ESC · N57? · CORE-1 · CORE-4 · CORE-8 · the membership question** | part of the **15** rows `be-cutover-brief.md` classes as blockers. ⚠ **That set is now ENUMERATED**, in that file's § Blockers, and every row was re-checked against the tree. The count 13 came from this page and was never derived. `C15` is off the list — it is fixed. `CH3` is demoted. Most notable of what remains: a remote delete never persists and the message comes back · a paid request stays "pending" for ever if the requester's chat was closed · Core may not verify room membership on a reaction, which would make a delivery double-check forgeable. ⚠ **Session AD (2026-09-23, #928) moved two of these:** **W11** is LANDED (the response is stored before the chat-page gate; the row lookup is the payer side's own rule — loop r1 MAJOR fixed) and **C16**'s premise was REFUTED at Core `097341a` (the remote delete DOES persist; the app-side gap was the local delete's list row, fixed). **L6 is still open and still OURS** — named for its own mini-session, not built (walked past by order, #927). |
 
 ### Crash-class, open, and nobody has captured the log
 
@@ -218,3 +218,15 @@ merged into two.
 * `docs/ios-sim-findings.md` — ⚙ **two of them closed 2026-09-19**: iOS-42 and iOS-45 both said the real legal documents were "not in this repo" and the app showed placeholder copy. Both have been false since #733 baked the full documents into `LEGAL_DOCS`; `TERMS_DEFAULT`/`PRIVACY_DEFAULT` no longer exist. Any remaining OPEN-but-passed rows still want a sweep before he opens the file.
 
 Fix those two before he opens them, or he spends a morning on rows that are already in his tree.
+
+## Addendum 2026-09-23 (DECISIONS #931–#933) — three rows on this page moved
+
+* **S1 is CLOSED** (Damir: keep the chat spare); **#864** (contact details in the home shell) is an ordinary
+  later-update item, no longer gated on a timing.
+* **The strip (§5's freeze → sweep → strip)** is SHAPED (#933): ONE branch, one cleanup — code comments in
+  three tiers (session prose removed · a present-tense "why" kept where it guards something non-obvious ·
+  nothing else), a scripted first pass then a reading pass per site then the #46 loop; everything that is
+  history (handoffs, walk sheets, checklists, verdicts, sheets, CLAUDE.md's status log) moves to a private
+  `spixi-workshop` repo; `DECISIONS.md` rewritten by area to the CURRENT design (~80 entries). A tag
+  `pre-strip` marks the last full commit. L6 sits at the start of that run, before the freeze.
+* **The Apple portal steps are DONE (#932)** — the office iPhone day is the next physical step.

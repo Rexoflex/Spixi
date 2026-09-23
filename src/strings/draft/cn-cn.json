@@ -644,5 +644,10 @@
   "addContactEnterLabel": "输入或粘贴 Spixi 地址",
   "addContactEnterHint": "输入或粘贴对方的 Spixi 地址（例如 42Spox…M3rci98）。",
   "creditFlags": "国旗",
-  "sharedGroupsTitle": "共同的群组"
+  "sharedGroupsTitle": "共同的群组",
+  "favorite": "添加到收藏",
+  "unfavorite": "从收藏中移除",
+  "appFetchHttp": "无法从该链接下载应用。",
+  "appFetchTimeout": "链接没有响应。请检查网络连接后重试。",
+  "appFetchTooLarge": "该应用包过大。"
 }

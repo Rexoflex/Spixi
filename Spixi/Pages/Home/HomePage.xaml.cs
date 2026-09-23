@@ -720,38 +720,6 @@ namespace SPIXI
             {
                 onUndoRequestFor(current_url.Substring("ixian:undorequest:".Length));
             }
-            /* ⏱ [LANDTAB] — A TEMPORARY PROBE. L14 · #677, Damir 2026-08-28: MEASURE
-             * BEFORE BUILDING (#294). Payload is `<consumer>:<ageMs>`, both from a fixed
-             * shape — one word out of four, and an integer. NO tab id and NO address ever
-             * reach this line, so the handover-gate log rule is kept by construction.
-             * ⚠ REMOVE THIS WITH ITS TWO SIBLINGS the way [CDPERF] went (#663): this
-             * handler, home.html's emit in consumeLandTab, and the smoke pin holding the
-             * trio — one batch, all three, once Damir has taken the measurement. */
-            else if (current_url.StartsWith("ixian:landtabprobe:", StringComparison.Ordinal))
-            {
-                try
-                {
-                    string[] probe = current_url.Substring("ixian:landtabprobe:".Length).Split(':');
-                    string via = probe.Length > 0 ? probe[0] : "";
-                    // fixed vocabulary — anything else is logged as "other", never echoed
-                    if (via != "storage" && via != "visibility" && via != "focus" && via != "settingsclosed" && via != "handoff")
-                    {
-                        via = "other";
-                    }
-                    long ageMs = 0;
-                    if (probe.Length > 1)
-                    {
-                        long.TryParse(probe[1], out ageMs);
-                    }
-                    IXICore.Meta.Logging.info("[LANDTAB] consumer=" + via + " age=" + ageMs + "ms");
-                }
-                catch (Exception)
-                {
-                    Logging.error("ixian:landtabprobe failed (malformed payload)");
-                }
-                e.Cancel = true;
-                return;
-            }
             /* ★ Session I — the L14 cover handshake's return leg. home.html sends this at the
              * second rAF after the directory takeover mounted (= on glass). No payload,
              * nothing parsed, nothing echoed. Releases the Account pop SettingsPage deferred
@@ -1126,6 +1094,53 @@ namespace SPIXI
                 catch (Exception ex2)
                 {
                     Logging.error("ixian:mutechat echo failed: " + ex2);
+                }
+            }
+            /* ★ CH4 (Session AD): FAVORITES — the row-menu toggle, persisted as an app
+             * preference (SChatPrefs; Ixian-Core has no field). Payload `<address>:on|off`,
+             * the exact mutechat grammar above, parsed the same defensive way, and the
+             * ECHO reports the STORED truth in every outcome so an optimistic row cannot
+             * keep lying after a write that did not take. */
+            else if (current_url.StartsWith("ixian:favchat:", StringComparison.Ordinal))
+            {
+                string favAddr = "";
+                Friend? ff = null;
+                try
+                {
+                    string payload = current_url.Substring("ixian:favchat:".Length);
+                    int sep = payload.LastIndexOf(':');
+                    if (sep > 0)
+                    {
+                        favAddr = payload.Substring(0, sep);
+                        string verb = payload.Substring(sep + 1).Trim();
+                        bool fav = verb.Equals("on", StringComparison.OrdinalIgnoreCase);
+                        if (!fav && !verb.Equals("off", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Logging.warn("ixian:favchat: unrecognised state token — treating as off");   // never the URL token itself (O-25: a wire value can forge log lines)
+                        }
+                        ff = FriendList.getFriend(new Address(favAddr));
+                        if (ff != null)
+                        {
+                            // the CANONICAL address, never the URL token (the mutechat rule)
+                            SChatPrefs.setFavorite(ff.walletAddress.ToString(), fav);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.error("ixian:favchat failed: " + ex.GetType().Name);   // no ex — new Address(favAddr) formats the token into its message
+                }
+                try
+                {
+                    if (!string.IsNullOrEmpty(favAddr))
+                    {
+                        Utils.sendUiCommand(this, "setChatFavorite", favAddr,
+                            (ff != null && SChatPrefs.isFavorite(ff.walletAddress.ToString())) ? "1" : "0");
+                    }
+                }
+                catch (Exception ex2)
+                {
+                    Logging.error("ixian:favchat echo failed: " + ex2.GetType().Name);
                 }
             }
             else if (current_url.StartsWith("ixian:chatinfo:", StringComparison.Ordinal))
@@ -2119,7 +2134,8 @@ namespace SPIXI
         {
             if (addresses.Count == 0)
             {
-                await displaySpixiAlert("No recipient selected", "Please select a recipient to start the chat.", "OK");
+                // i18n-C# (Session AD): was raw English in every locale
+                await displaySpixiAlert(SpixiLocalization._SL("wallet-send-norecipients"), SpixiLocalization._SL("chat-new-norecipient-text"), SpixiLocalization._SL("global-dialog-ok"));
                 return;
             }
 
@@ -2273,7 +2289,6 @@ namespace SPIXI
                 Logging.error("Exception occured while setting HomePage as root: {0}", e);
             }
         }
-        private static bool startDiagLogged = false;
 
         private void onLoaded()
         {
@@ -2287,14 +2302,6 @@ namespace SPIXI
             // …and a FRESH document holds no app rows either — the next tab3 entry must
             // force one push (PERF latch, see appsPushedToShell).
             appsPushedToShell = false;
-
-            // #912: the last cold-start milestone — the first home document is live.
-            // Once per process: a theme/language reload lands here too and is not a start.
-            if (!startDiagLogged)
-            {
-                startDiagLogged = true;
-                App.startDiag("home shell loaded");
-            }
 
             setAsRoot();
 
@@ -2688,10 +2695,22 @@ namespace SPIXI
                      * on the CHAT-LIST path — getFriendMessageHelper below, plus the live
                      * setContactStatus ticks — so this site keeps the original call rather than
                      * carrying a change that does nothing while reading like it does. */
-                    Utils.sendUiCommand(this, "addContact", friend.walletAddress.ToString(), friend.nickname, avatar, str_online, friend.getUnreadMessageCount().ToString());
+                    /* ★ C17 / CO1 (Session AD): the row's RELATION and KIND, appended (new args
+                     * LAST). relation = contactRelationFor (contact · pending · pending-in ·
+                     * self · none), the ONE predicate the group roster and the member sheet
+                     * already use; kind = group · bot · "" from the live friend. The shell used
+                     * to infer "pending" from the chats list's "Request sent" row and "group"
+                     * from an avatar sentinel, so a pending contact with no chat row got no
+                     * badge and a group with a custom avatar and no messages was not a group. */
+                    string relation = contactRelationFor(friend.walletAddress);
+                    string contactKind = friend.bot ? "bot" : (friend.type == FriendType.Group ? "group" : "");
+                    Utils.sendUiCommand(this, "addContact", friend.walletAddress.ToString(), friend.nickname, avatar, str_online, friend.getUnreadMessageCount().ToString(), relation, contactKind);
                     // ★ MUTE-UX: the row's muted state, additive — an older shell ignores it.
                     Utils.sendUiCommand(this, "setChatMuted", friend.walletAddress.ToString(),
                         SNotificationPrefs.isChatMuted(friend) ? "1" : "0");
+                    // ★ CH4 (Session AD): the row's favorite state, same grammar, same site.
+                    Utils.sendUiCommand(this, "setChatFavorite", friend.walletAddress.ToString(),
+                        SChatPrefs.isFavorite(friend.walletAddress.ToString()) ? "1" : "0");
                 }
             }
         }
@@ -2737,8 +2756,64 @@ namespace SPIXI
             return false;
         }
 
-        private FriendMessageHelper? getFriendMessageHelper(Friend friend)
+        /* ★ CH6 (Session AD): the excerpt KIND, pushed BESIDE the localized excerpt.
+         *
+         * The chats row renders a glyph per kind (file · call · payment · app invite …).
+         * Until this batch the shell derived the kind by REVERSE-MAPPING the localized
+         * excerpt string against `*SL{}` carriers of every phrase this method can emit —
+         * fourteen spans, a "You:" prefix strip, an ambiguity table, and a false-positive
+         * class for a user who types "File". This method already KNOWS the kind: it is the
+         * branch that picked the phrase. So the branch writes the kind and the row pushes
+         * it as the ELEVENTH `addChat` argument (new args go LAST — never reorder).
+         *
+         * `FriendMessageHelper` lives in Ixian-Core and cannot carry the field, so the
+         * kind rides an `out` beside the helper, the way `chat_kinds` rides the CH1 kind.
+         * Both callers (updateChat, loadChats) take it; there is no kind-less overload,
+         * so a new caller cannot push a row without its kind.
+         *
+         * The vocabulary is the shell's `chatlist-item` excerpt grammar:
+         *   typing · request-sent · request · request-done · payment · app-invite ·
+         *   file · call · call-missed · call-declined · connected · reaction · text
+         * `request-sent` is the OUTGOING pending request (the M5 "Request sent" row and
+         * the contacts-picker pending badge key on it); `request` is Core's own
+         * "Contact Request" phrase. `connected` is the "You are now connected with {0}"
+         * line, which every writer stores under the FIXED id `{ 1 }` (StreamProcessor
+         * requestAdd/acceptAdd/acceptAddBot + the local accept in this file) — a
+         * structural signal, not a text match. `text` is everything else; the shell
+         * keeps only its locale-independent heuristics on it (a lone GIF URL). */
+        private static bool isConnectedEventMessage(FriendMessage msg)
         {
+            if (msg.type != FriendMessageType.standard
+                || msg.id == null || msg.id.Length != 1 || msg.id[0] != 1)
+            {
+                return false;
+            }
+            /* ★ #46 loop (auditor A, MINOR-6): a peer chooses its message ids, and Core's
+             * duplicate check only sees the LOADED window — so a peer message under id {1}
+             * would have been typed `connected` and rendered as a system line in the action
+             * colour. Belt: the text must also open with the connected template's fixed
+             * prefix (the part before `{0}`) in the CURRENT dictionary — the same test the
+             * shell's carrier made before this batch, so a language switch demotes an old
+             * line to plain text exactly as it always did, never to a wrong glyph. */
+            try
+            {
+                string template = SpixiLocalization._SL("global-friend-request-connected") ?? "";
+                int slot = template.IndexOf("{0}", StringComparison.Ordinal);
+                string prefix = slot > 0 ? template.Substring(0, slot).Trim() : "";
+                if (prefix.Length > 0)
+                {
+                    return msg.message != null && msg.message.StartsWith(prefix, StringComparison.Ordinal);
+                }
+            }
+            catch (Exception)
+            {
+            }
+            return true;
+        }
+
+        private FriendMessageHelper? getFriendMessageHelper(Friend friend, out string excerptKind)
+        {
+            excerptKind = "text";
             FriendMessage? lastmsg = friend.metaData.lastMessage;
 
             if (lastmsg == null)
@@ -2806,12 +2881,22 @@ namespace SPIXI
                 if (friend.bot == false)
                 {
                     excerpt = SpixiLocalization._SL("chat-waiting-for-response");
+                    /* CH6: the OUTGOING pending request row (M5). The shell used to
+                     * recognise it by the carrier text AND a direction guard on the
+                     * status type (non-empty = a localSender tick type, xaml below) —
+                     * the same condition, written once, here. An incoming unapproved
+                     * fall-through (a follow-up before accept) stays plain text. */
+                    if (lastmsg.localSender && lastmsg.type != FriendMessageType.voiceCallEnd)
+                    {
+                        excerptKind = "request-sent";
+                    }
                 }
             }
             else
             {
                 if (lastmsg.type == FriendMessageType.requestFunds)
                 {
+                    excerptKind = "payment";
                     if (lastmsg.localSender)
                     {
                         excerpt = SpixiLocalization._SL("index-excerpt-payment-request-sent");
@@ -2823,6 +2908,7 @@ namespace SPIXI
                 }
                 else if (lastmsg.type == FriendMessageType.sentFunds)
                 {
+                    excerptKind = "payment";
                     if (lastmsg.localSender)
                     {
                         excerpt = SpixiLocalization._SL("index-excerpt-payment-sent");
@@ -2834,6 +2920,7 @@ namespace SPIXI
                 }
                 else if (lastmsg.type == FriendMessageType.appSession)
                 {
+                    excerptKind = "app-invite";
                     if (lastmsg.localSender)
                     {
                         excerpt = SpixiLocalization._SL("chat-app-invite-sent");
@@ -2847,16 +2934,31 @@ namespace SPIXI
                 {
                     if (friend.approved)
                     {
+                        // #273: a SETTLED event — never the Requests filter's key
                         excerpt = SpixiLocalization._SL("index-excerpt-contact-accepted");
+                        excerptKind = "request-done";
                     }
                     else
                     {
                         excerpt = SpixiLocalization._SL("index-excerpt-contact-request");
+                        excerptKind = "request";
                     }
                 }
                 else if (lastmsg.type == FriendMessageType.fileHeader)
                 {
                     excerpt = SpixiLocalization._SL("index-excerpt-file");
+                    excerptKind = "file";
+                }
+                else if (lastmsg.type == FriendMessageType.reaction)
+                {
+                    // CH8's lastMessage shape (Core handleMsgReaction writes a heart glyph
+                    // as the text) — the row shows the reaction glyph + "Reacted", never
+                    // the raw entity. The shell used to sniff a lone U+2764 for this.
+                    excerptKind = "reaction";
+                }
+                else if (isConnectedEventMessage(lastmsg))
+                {
+                    excerptKind = "connected";
                 }
                 else if (lastmsg.type == FriendMessageType.voiceCall || lastmsg.type == FriendMessageType.voiceCallEnd)
                 {
@@ -2867,6 +2969,7 @@ namespace SPIXI
                     // "Missed call" (incoming) / "No answer" (outgoing). A duration
                     // means it connected → the plain call label.
                     excerpt = SpixiLocalization._SL("index-excerpt-voice-call");
+                    excerptKind = "call";
                     // #572 ④: the row keys on the SAME evidence the bubble does, so a
                     // declined call cannot say "Missed call" in one place and not the other.
                     bool declinedLocally = VoIPManager.isDeclinedLocally(lastmsg);
@@ -2878,6 +2981,8 @@ namespace SPIXI
                             : lastmsg.localSender
                             ? SpixiLocalization._SL("chat-call-no-answer")
                             : SpixiLocalization._SL("chat-call-missed");
+                        // CH6: no-answer (outgoing) and missed (incoming) share one glyph
+                        excerptKind = declinedLocally ? "call-declined" : "call-missed";
                         // review NIT: "You: No answer" reads wrong — the label already
                         // says whose side it was. Skip the self-prefix for this one.
                         skipSelfPrefix = true;
@@ -2908,6 +3013,7 @@ namespace SPIXI
             {
                 excerpt = SpixiLocalization._SL("index-excerpt-typing");
                 type = "typing";
+                excerptKind = "typing";   // CH6: typing outranks every kind above (the shell's first test)
             }
             else if (lastmsg.localSender && lastmsg.type != FriendMessageType.voiceCallEnd)
             {
@@ -2996,7 +3102,7 @@ namespace SPIXI
         {
             lock (refreshLock)
             {
-                var fmh = getFriendMessageHelper(friend);
+                var fmh = getFriendMessageHelper(friend, out string excerptKind);
                 if (fmh == null)
                 {
                     return;
@@ -3014,9 +3120,9 @@ namespace SPIXI
                     return;
                 }
 
-                // CH1: trailing chat kind (group/bot/1:1) · CH5: unread @-mention flag.
-                // New args go LAST — never reorder.
-                Utils.sendUiCommand(this, "addChat", fmh.walletAddress, fmh.nickname, fmh.timestamp.ToString(), fmh.avatar, fmh.onlineString, fmh.excerpt, fmh.type, fmh.unreadCount.ToString(), friend.bot ? "bot" : (friend.type == FriendType.Group ? "group" : ""), hasUnreadMention(friend).ToString());
+                // CH1: trailing chat kind (group/bot/1:1) · CH5: unread @-mention flag ·
+                // CH6: the excerpt kind. New args go LAST — never reorder.
+                Utils.sendUiCommand(this, "addChat", fmh.walletAddress, fmh.nickname, fmh.timestamp.ToString(), fmh.avatar, fmh.onlineString, fmh.excerpt, fmh.type, fmh.unreadCount.ToString(), friend.bot ? "bot" : (friend.type == FriendType.Group ? "group" : ""), hasUnreadMention(friend).ToString(), excerptKind);
             }
         }
 
@@ -3033,16 +3139,38 @@ namespace SPIXI
             lock (refreshLock)
             {
                 string nick = friend.nickname;
+                // ★ CH8 (Session AD): the reactor's ADDRESS, appended (new args LAST) so the
+                // shell can fall back to its truncated form when no nick resolves — the
+                // chat bubbles' nameless-sender treatment (#194). NEVER for a blind room.
+                string reactor = "";
                 if (friend.bot || friend.type == FriendType.Group)
                 {
+                    // the NICK is what a room shows on every bubble, blind or not (the roster
+                    // hides ADDRESSES, not names) — #46 loop auditor A MINOR-2: the first cut
+                    // gated the nick with the address and every room lost its names until
+                    // botInfo arrived (hidesParticipants fails closed on a null botInfo)
                     nick = "";
                     if (friend.users.hasUser(reactor_address) && friend.users.getUser(reactor_address).getNick() != "")
                     {
                         nick = friend.users.getUser(reactor_address).getNick();
                     }
+                    else
+                    {
+                        // CH8: a member who is also a CONTACT has a nick this device knows
+                        Friend? asContact = FriendList.getFriend(reactor_address);
+                        if (asContact != null && !string.IsNullOrEmpty(asContact.nickname))
+                        {
+                            nick = asContact.nickname;
+                        }
+                    }
+                    // only the ADDRESS is withheld in a blind room
+                    if (!Utils.hidesParticipants(friend))
+                    {
+                        reactor = reactor_address.ToString();
+                    }
                 }
 
-                Utils.sendUiCommand(this, "addChatReaction", friend.walletAddress.ToString(), nick, reaction, Clock.getTimestamp().ToString());
+                Utils.sendUiCommand(this, "addChatReaction", friend.walletAddress.ToString(), nick, reaction, Clock.getTimestamp().ToString(), reactor);
             }
         }
 
@@ -3108,10 +3236,24 @@ namespace SPIXI
                 int unread = 0;
                 foreach (Friend friend in friends)
                 {
+                    // ★ CH4 (Session AD): a MUTED chat does not count toward the badge —
+                    // the shell's own total already skipped it (chats-shell.js), so the
+                    // two badges disagreed on every muted 1:1 with unread messages. The
+                    // predicate is SNotificationPrefs.isChatMuted, the one the settings and
+                    // conversation sites also use through SChatPrefs.unreadTotalForBadge.
+                    // The #572 heal below still runs for a muted friend: it repairs the
+                    // STORED count, which the row and the chip read regardless of mute.
+                    // pendingDeletion is skipped like unreadTotalForBadge skips it (loop A-8):
+                    // a leaving bot is not a chat row and must not feed the badge either
+                    bool mutedForBadge = friend.pendingDeletion || SNotificationPrefs.isChatMuted(friend);
                     // #572 ①: heal the stale count BEFORE it is read, so the same flush
                     // that hides the row also stops feeding the indicator.
                     healOutgoingRequestUnread(friend);
                     int umc = friend.getUnreadMessageCount();
+                    if (mutedForBadge)
+                    {
+                        continue;
+                    }
                     if (umc > 0)
                     {
                         unread += umc;
@@ -3141,6 +3283,8 @@ namespace SPIXI
                 Dictionary<string, string> chat_kinds = new Dictionary<string, string>();
                 // CH5: unread @-mention flag per wallet address
                 Dictionary<string, bool> mention_flags = new Dictionary<string, bool>();
+                // CH6: excerpt kind per wallet address (same reason as chat_kinds)
+                Dictionary<string, string> excerpt_kinds = new Dictionary<string, string>();
 
                 foreach (Friend friend in friends)
                 {
@@ -3149,7 +3293,7 @@ namespace SPIXI
                         continue;
                     }
 
-                    var helper_msg = getFriendMessageHelper(friend);
+                    var helper_msg = getFriendMessageHelper(friend, out string excerptKind);
                     if (helper_msg == null)
                     {
                         continue;
@@ -3172,6 +3316,7 @@ namespace SPIXI
                     helper_msgs.Add(helper_msg);
                     chat_kinds[helper_msg.walletAddress] = friend.bot ? "bot" : (friend.type == FriendType.Group ? "group" : "");
                     mention_flags[helper_msg.walletAddress] = hasUnreadMention(friend);
+                    excerpt_kinds[helper_msg.walletAddress] = excerptKind;
                 }
 
                 // Sort the helper messages
@@ -3182,8 +3327,8 @@ namespace SPIXI
                 // Add the messages visually
                 foreach (FriendMessageHelper helper_msg in sorted_msgs)
                 {
-                    // CH1: trailing chat kind · CH5: mention flag. New args go LAST — never reorder.
-                    Utils.sendUiCommand(this, "addChat", helper_msg.walletAddress, helper_msg.nickname, helper_msg.timestamp.ToString(), helper_msg.avatar, helper_msg.onlineString, helper_msg.excerpt, helper_msg.type, helper_msg.unreadCount.ToString(), chat_kinds[helper_msg.walletAddress], mention_flags[helper_msg.walletAddress].ToString());
+                    // CH1: trailing chat kind · CH5: mention flag · CH6: excerpt kind. New args go LAST — never reorder.
+                    Utils.sendUiCommand(this, "addChat", helper_msg.walletAddress, helper_msg.nickname, helper_msg.timestamp.ToString(), helper_msg.avatar, helper_msg.onlineString, helper_msg.excerpt, helper_msg.type, helper_msg.unreadCount.ToString(), chat_kinds[helper_msg.walletAddress], mention_flags[helper_msg.walletAddress].ToString(), excerpt_kinds[helper_msg.walletAddress]);
                 }
 
                 // CH2: incoming contact requests (newest first) — the FE renders these as
@@ -3680,6 +3825,13 @@ namespace SPIXI
             {
                 return;
             }
+            // ★ S2 (Session AD): a backup made within the reminder period suppresses the
+            // nudge HERE (the home shell used to gate this on its localStorage stamp).
+            long lastBackup = BackupPage.lastBackupTimestamp();
+            if (lastBackup > 0 && Clock.getTimestamp() - lastBackup <= Config.backupReminder)
+            {
+                return;
+            }
 
             Utils.sendUiCommand(this, "toggleAnimatedSlider", "backup-prompt");
             Preferences.Default.Set("backupReminderTimestamp", Clock.getTimestamp().ToString());
@@ -4169,6 +4321,28 @@ namespace SPIXI
         protected internal override void onCoverHandoff()
         {
             Utils.sendUiCommand(this, "onHandoff");
+        }
+
+        /* ★ S11's store retired (Session AD). The Account page used to hand "land on the
+         * tab I tapped" to this shell through a localStorage key (`spixi.landtab`, #238:
+         * a storage event + focus/visibility fallbacks + a 15 s staleness guard + the
+         * [LANDTAB] probe that measured which consumer won). It is ONE PUSH now:
+         * SettingsPage receives `ixian:landtab:<id>` from its shell and forwards it here
+         * BEFORE it sends its own exit verb, so the home document switches its tab while
+         * it is still covered — the earliest of the old consumers, on every platform,
+         * WKWebView included (which never fired the cross-document storage event).
+         * `id` is one word from a FIXED set (the shell's nav ids); anything else is
+         * dropped here and logged as "other" — no free text reaches the log or the push. */
+        private static readonly string[] LAND_TAB_IDS = { "chats", "wallet", "apps", "contacts" };
+
+        public void landOnTab(string id)
+        {
+            if (id == null || Array.IndexOf(LAND_TAB_IDS, id) < 0)
+            {
+                Logging.warn("landOnTab: unknown tab id (other) — ignored");
+                return;
+            }
+            Utils.sendUiCommand(this, "landOnTab", id);
         }
 
         public override void onOverlayClosed(SpixiContentPage overlay)
@@ -5058,9 +5232,10 @@ namespace SPIXI
         private async void onShellFetchApp(string url)
         {
             MiniApp? app = null;
+            string reason = "error";
             try
             {
-                app = await AppNewPage.fetchAppCore(url);
+                (app, reason) = await AppNewPage.fetchAppCoreWithReason(url);
             }
             catch (Exception ex)
             {
@@ -5068,7 +5243,7 @@ namespace SPIXI
             }
             if (app == null)
             {
-                Utils.sendUiCommand(this, "showUrlError");
+                Utils.sendUiCommand(this, "showUrlError", reason);   // ★ A4 (Session AD): the reason, appended
                 return;
             }
             Utils.sendUiCommand(this, "closeAddApp");
@@ -5280,17 +5455,72 @@ namespace SPIXI
          * vanished while the data stayed is exactly the lie this batch removes.
          * The address is peer-supplied through the shell: parsed defensively, never
          * thrown inside onNavigating (the A-4 rule). */
+        /* ★ CH3 (Session AD): the delete modal's "Delete media & files" box rides the SAME
+         * verb as the deletion it belongs to, as a trailing `:media` token —
+         *   ixian:removehistory:<addr>[:media] · ixian:removecontact:<addr>:<leave>[:media] ·
+         *   ixian:leavegroup:<addr>[:media]
+         * — so the two intents cannot race as two location.href sends (the L13 rule). The token
+         * is stripped BEFORE the payload is parsed, the files are LISTED before the deletion
+         * (read-only) and DELETED only after it reported success, so a refused deletion keeps
+         * every file. Outgoing files are never touched (SContacts.collectReceivedMedia). */
+        private const string MEDIA_FLAG = ":media";
+
+        /// <summary>The purge runs OFF the UI thread (it walks every other contact's history
+        /// before it deletes — loop r2: not onNavigating work); counts only reach the log.</summary>
+        private static void schedulePurge(string verb, List<string> files, Address? owner)
+        {
+            int listed = files == null ? 0 : files.Count;
+            if (listed == 0)
+            {
+                Logging.info(verb + ": media purge — nothing listed");
+                return;
+            }
+            Task.Run(() =>
+            {
+                try
+                {
+                    int deleted = SContacts.purgeFiles(files, owner);
+                    Logging.info(verb + ": media purge deleted " + deleted + " of " + listed + " files");
+                }
+                catch (Exception ex)
+                {
+                    Logging.error(verb + ": media purge failed (" + ex.GetType().Name + ")");
+                }
+            });
+        }
+
+        private static bool takeMediaFlag(ref string payload)
+        {
+            string p = payload ?? "";
+            if (p.EndsWith(MEDIA_FLAG, StringComparison.Ordinal))
+            {
+                payload = p.Substring(0, p.Length - MEDIA_FLAG.Length);
+                return true;
+            }
+            payload = p;
+            return false;
+        }
+
         private void onRemoveHistoryFor(string address)
         {
             string status = "fail";
             string addr = "";
             try
             {
+                bool media = takeMediaFlag(ref address);
                 addr = (address ?? "").Trim();
                 Friend? f = FriendList.getFriend(new Address(addr));
-                if (f != null && SContacts.removeHistory(f))
+                if (f != null)
                 {
-                    status = "ok";
+                    List<string> files = media ? SContacts.collectReceivedMedia(f) : new List<string>();
+                    if (SContacts.removeHistory(f))
+                    {
+                        status = "ok";
+                        if (media)
+                        {
+                            schedulePurge("removehistory", files, f.walletAddress);
+                        }
+                    }
                 }
             }
             catch (Exception)
@@ -5312,6 +5542,7 @@ namespace SPIXI
             try
             {
                 string p = (payload ?? "").Trim();
+                bool media = takeMediaFlag(ref p);
                 int sep = p.LastIndexOf(':');
                 bool leave = false;
                 if (sep > 0)
@@ -5340,13 +5571,19 @@ namespace SPIXI
                      * async turn (the checklist says so). "dispatched", not "done":
                      * popPageAsync is fire-and-forget (A-4). status is the fixed
                      * ok/left/blocked/fail vocabulary — no user data. */
-                    IXICore.Meta.Logging.info("[CRASHDIAG] removecontact: start (leave=" + leave + ", openChat=" + (chat_page != null) + ")");
+                    IXICore.Meta.Logging.info("[CRASHDIAG] removecontact: start (leave=" + leave + ", media=" + media + ", openChat=" + (chat_page != null) + ")");
+                    // CH3: listed BEFORE the removal (the history goes with the record), deleted only on success
+                    List<string> files = media ? SContacts.collectReceivedMedia(f) : new List<string>();
                     status = SContacts.removeContact(f, leave, out blockers);
                     IXICore.Meta.Logging.info("[CRASHDIAG] removecontact: status=" + status + ", closing the open chat");
                     IXICore.Meta.Logging.flush();
                     if ((status == "ok" || status == "left") && chat_page != null)
                     {
                         try { chat_page.popPageAsync(); } catch (Exception) { }
+                    }
+                    if ((status == "ok" || status == "left") && media)
+                    {
+                        schedulePurge("removecontact", files, f.walletAddress);
                     }
                     IXICore.Meta.Logging.info("[CRASHDIAG] removecontact: teardown dispatched");
                 }
@@ -5399,17 +5636,23 @@ namespace SPIXI
             string addr = "";
             try
             {
+                bool media = takeMediaFlag(ref address);
                 addr = (address ?? "").Trim();
                 Friend? f = FriendList.getFriend(new Address(addr));
                 if (f != null)
                 {
                     var chat_page = Utils.getChatPage(f);
+                    List<string> files = media ? SContacts.collectReceivedMedia(f) : new List<string>();   // CH3
                     if (SContacts.leaveGroup(f))
                     {
                         status = "left";
                         if (chat_page != null)
                         {
                             try { chat_page.popPageAsync(); } catch (Exception) { }
+                        }
+                        if (media)
+                        {
+                            schedulePurge("leavegroup", files, f.walletAddress);
                         }
                     }
                 }
@@ -5452,6 +5695,7 @@ namespace SPIXI
                     if (outgoingPending && FriendList.removeFriend(f))
                     {
                         UIHelpers.shouldRefreshContacts = true;
+                        SChatPrefs.setFavorite(f.walletAddress.ToString(), false);   // CH4: the preference leaves with the record
                         status = "ok";
                         var chat_page = Utils.getChatPage(f);
                         if (chat_page != null)
@@ -5513,6 +5757,7 @@ namespace SPIXI
                     if (FriendList.removeFriend(friend))
                     {
                         status = "ok";
+                        SChatPrefs.setFavorite(friend.walletAddress.ToString(), false);   // CH4: the preference leaves with the record
                     }
                     // R2-3: a REFUSED removal re-flushes too, so the request card comes back
                     UIHelpers.shouldRefreshContacts = true;

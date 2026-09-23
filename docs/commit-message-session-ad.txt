@@ -1,0 +1,98 @@
+Session AD — the ours rows: eleven verbs and pushes, one media purge, four localStorage keys retired; three Opus loop rounds; walked 22·2·3 (#928–#935)
+
+Damir (#927): "finalize the C# verbs if easy to do and just do them all in a session". A cutover
+row is OURS when the fix is app-side C# or a shell; HIS only in Ixian-Core's storage or wire.
+Ixian-Core 097341a untouched. NO wallet-password work (L8 · L2/MAJOR #8 OUT by his call);
+CORE-10 stays his; L6 waits for its own mini-session.
+
+BATCH 1 — the rows that DELETE a workaround (#928)
+- CH6: addChat carries the excerpt KIND (11th arg, HomePage.getFriendMessageHelper out param);
+  home.html's locale-carrier reverse map + 14 *SL{} carriers DELETED. An old exe degrades to text.
+- C1/C2: addPaymentRequest +4 (kind · statusEnum pending/paid/declined · fiat · insufficient);
+  the two status updaters carry the enum; the card's decision comes from the enum, never the
+  localized title. paymentInsufficient reads balance < amount and returns FALSE until a
+  balance is `verified` (a syncing wallet never locks Pay); the fee is excluded (dial).
+- S11: ixian:landtab:<id> -> HomePage.landOnTab -> landOnTab push (id checked against the three
+  tab names). The spixi.landtab handshake + [LANDTAB] probe deleted.
+- #274: the spixi.settings.view stash deleted (no reload survives it since #334).
+- C16 — PREMISE REFUTED: Core's handleMsgDelete persists the remote delete. The real gap was the
+  LOCAL delete's chats row -> UIHelpers.refreshChatRow on both paths; spixi.exdel.* retired
+  (boot sweep removes stale keys).
+- W11: requestFundsResponse mutates the store and WRITES before the chat-page gate (the response
+  was dropped whenever no chat page was open). The row is found by the payer side's own rule
+  (id · requestFunds · localSender · unanswered); the txid is parsed BEFORE storing (garbage ->
+  warn + break); a miss breaks before any push.
+
+BATCH 3 — the small verbs and pushes (#928)
+- S2: BackupPage.recordBackup/lastBackupTimestamp/pushBackupStatus -> setLastBackup push, written
+  AFTER the share sheet returns (a cancel records too — dial #930); C# gates the nudge;
+  spixi.backup.last + its poll deleted from 3 shells; SpixiContentPage.onRepresentedNative
+  (new virtual, fenced, before the shell's onRepresented) re-pushes on a warm re-present.
+- S9: ixian:dev on SettingsPage under the persisted devMode (cap `dev`, setCapDev re-push);
+  DevPage presented by the IN-STACK HomePage (an overlay page's own PushModalAsync never shows).
+- CH4: favorites = an app preference (Spixi/Meta/SChatPrefs.cs NEW: fav.<addr>);
+  ixian:favchat:<addr>:on|off + setChatFavorite echo; cleared on every app-side removal path;
+  the unread TOTAL mute-aware at the 3 OS-badge sites (unreadTotalForBadge, pendingDeletion
+  skipped). Pins stay FE-local.
+- C6: tip token = tip:<amount> (was tip:System.Byte[]) + the tip TOTAL as addReactions' 4th arg.
+- C21: showUserTyping(who, nick) — the typist, never under hidesParticipants.
+- CH8: addChatReaction 5th arg = the reactor (never blind); nick falls back to the contact.
+- CI2: addPaymentActivity +2 (four-state status · in/out) on ContactDetails.
+- C4: addCall 9th arg callActive; VoIPManager.endVoIPSession one branch (the dup-id arm was dead).
+- CO3/CO4: onRequestResult("0", reason) on the three refusals; onValidAddress(address) echo.
+- C17/CO1: addContact +2 (relation · kind); setRelation push; ixian:undorequest on
+  ContactDetails guarded by EXACTLY the relation's "pending" set, the answer pushed on both arms
+  inside the try, the open conversation popped on ok.
+- A4: MiniAppManager.fetchWithReason under ONE 15 s deadline (HEAD + GET); showUrlError(reason)
+  from both hosts, a fixed vocabulary, never the URL.
+- i18n-C#: the last two hardcoded English strings -> lang keys (present in all 13 lang/*.txt).
+- CH3: the media purge. ":media" suffix on removehistory/removecontact/leavegroup;
+  SContacts.collectReceivedMedia (READ-ONLY, its own raw parser of Core's history format —
+  getMessages fires processMessage and re-arms outgoing offers with open handles) lists
+  RECEIVED completed files inside the Downloads root BEFORE the op; purgeFiles runs AFTER
+  success, off the UI thread, spares any path another contact's history names, re-checks the
+  root per file; a recorded path with any ./.. segment never re-roots; isInsideDownloadsRoot
+  is fail-closed (empty · relative via IsPathRooted · escaping · throwing -> false).
+
+BATCH 4 — the cheap sweep: [STARTDIAG] retired (#913/#925 hold its numbers) · the dead
+getDetailContent branch in getChatPages/getChatPage · iOS clearRemoteNotifications dead body (#490).
+
+NOT built, recorded (#928): A3 (no trust model) · A5b (already #840) · CO5 (no Core getter) ·
+CH3 mark-read (ruled out 08-27) · C10 (verify-first: Core already refuses the duplicate id) ·
+batch 4's CI6/C22/A8/FC1/C12/NT1(b)/PV1 not reached.
+
+THE LOOP (#929) — three rounds on Opus, 3 + 2 + 0 MAJOR, CLEAN NOT CLAIMED (no fourth reader):
+- r1: W11's lookup PEER-WRITABLE by id · S9's DevPage never showed · C17 dead on a legacy
+  Unknown-state contact — plus ~20 pin findings (Session AD's own pins spelled from the
+  author's list, #798).
+- r2: CH3's other-contact walk ON the UI thread + a read failure deleting a shared file ·
+  the re-root accepting ANY recorded parent.
+- r3: the re-root trusted a parent NAME whose leaf the peer controls (S16 open) -> hasDotSegment;
+  six one-token mutations left green (W11 predicate substring-matched -> canonical EQUALS ·
+  txid guardable -> exact try shape · CH3 owner skip inside `!other…` · re-root gate un-negated ·
+  C17 status="fail" in the success arm · C2 anyVerified=true) -> all re-pinned; #574 ①'s pin
+  went RED on this batch's own comment (a 600-char raw window, #771) -> branch-sliced property.
+- 13 r3 mutations through the real pin text, zero survivors.
+
+Suite (container, with the Ixian-Core sibling): BEFORE 4817 -> AFTER 4848 / the 2 KNOWN (+31).
+cs-syntax-check 184 clean + 3 known gaps. NOTHING here compiles C# — F5 is the first compile of
+19 files + SChatPrefs.cs (git add it).
+
+WALKED (#935, Windows F5 + Android Debug): 22 P · 2 F · 3 N/A. AD.0b = AC.3 closed. F: AD.13 a
+second tip refused (send-side, unverified) · AD.14 no group typing pill — Core does not fan
+msgTyping out to members (CORE-12; the app half waits). New: the attach sheet opens partially
+until a keyboard round (next FE round, with #934 b).
+
+Also landed: the parallel session's addendum as DECISIONS #931–#934 (nine dials closed by
+interview incl. #82/W7/CI4/C14/C20 + ASD-STE100 scoped to chat · the Apple portal steps DONE ·
+the strip SHAPED · the invite-picker later note + the bot-room Delete bug for the next FE round);
+its file docs/addendum-2026-09-23-decisions.md goes to _to_delete/.
+
+Docs: DECISIONS #928–#934 · security-handover-gate.md (Session AD section) ·
+security-review-for-be-engineer.md (W11 fixed · two inherited NITs · CH3) · ARCHITECTURE §4 ·
+be-cutover-brief.md (22 rows -> LANDED with anchors) · opus-review-brief-session-ad.md (verdict §6) ·
+f5-checklist-session-ad.md · walk-artifact-session-ad.html (27 rows) · handoff-2026-09-23b.md ·
+next-session-prompt.md.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_012cSRSn6gs63bJe34p9AHKj

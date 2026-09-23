@@ -705,3 +705,4 @@ notification-payment-request = Mokėjimo užklausa
 notification-app-invite = Programėlės kvietimas
 notification-file = Gautas failas
 notification-contact-request = Kontakto prašymas
+chat-new-norecipient-text = Pasirinkite gavėją, kad pradėtumėte pokalbį.

@@ -1221,6 +1221,11 @@ namespace SPIXI
                     // WebView's queue BEFORE the stage becomes visible/interactive.
                     // (★ Session I: the [PAINTDIAG] re-present stamp that sat here retired with
                     // its set — #731 measured the way-back clean, 9→4 ms.)
+                    // ★ S2 (Session AD): a page's own re-present pushes (SettingsPage: the backup
+                    // stamp) go out BEFORE the shell's onRepresented, so the re-render that
+                    // onRepresented triggers already reads the fresh value.
+                    try { op.target.onRepresentedNative(); }
+                    catch (Exception ex) { Logging.warn("onRepresentedNative: " + ex.GetType().Name); }
                     Utils.sendUiCommand(op.target, "onRepresented");
                     /* ★ #46 A3: input-DEAD through the reveal on this path too — `revealStage`
                      * clears it when the animation settles (or immediately, when there is no
@@ -2424,6 +2429,10 @@ namespace SPIXI
 
         /// <summary>The overlay host's hook: push the hand-off consumer to the home shell.</summary>
         protected internal virtual void onCoverHandoff() { }
+
+        /// <summary>★ S2 (Session AD): a PARKED page is re-presented (no onLoad) — a page that
+        /// shows state another page may have changed re-pushes it here.</summary>
+        protected internal virtual void onRepresentedNative() { }
 
         /// <summary>
         /// Pop this overlay when the home shell reports its cover painted (or at the backstop).

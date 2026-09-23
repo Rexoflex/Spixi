@@ -19,7 +19,6 @@ namespace Spixi
         private static bool isInitialized = false;
 
         private static bool clearNotificationsAfterInit = false;
-        private static bool clearRemoteNotificationsAfterInit = false;
         /* iOS-27 (device crash on receiving a contact request) — ROOT CAUSE + FIX, 2026-07-29.
          *
          * The custom UNUserNotificationCenterDelegate that used to live here is DELETED.
@@ -153,11 +152,6 @@ namespace Spixi
                         clearNotificationsAfterInit = false;
                         clearNotifications(0);
                     }
-                    else if (clearRemoteNotificationsAfterInit)
-                    {
-                        clearRemoteNotificationsAfterInit = false;
-                        clearRemoteNotifications(0);
-                    }
                     return Task.CompletedTask;
                 });
             }
@@ -250,42 +244,19 @@ namespace Spixi
             OneSignal.User.AddTag("ixi", tag);
         }
 
+        /* ★ #490 → Session AD: this method has been a bare `return;` on iOS since the
+         * fork, with thirty unreachable lines below it (the SDK `ClearAll()` + a badge-count
+         * write). The dead body is DELETED; the early return STAYS, and it stays for a reason
+         * that was found after #490 asked for one: OneSignal's iOS `Notifications.ClearAll()`
+         * is `removeAllDeliveredNotifications` for the WHOLE app (opus-review-batch-bcd-r1-cs
+         * MAJOR-4), so re-enabling it would wipe the app's own message and call rows — the
+         * Android twin only touches SDK rows, which is why it is live there. What is LOST on
+         * iOS is the app-icon badge count; that is a separate `SetBadgeCount` call with no
+         * clear, and it is an iOS walk row (an iOS build is needed to see it), not a blind
+         * re-enable here. The `unreadCount` argument is kept for the shared call site. */
         public static void clearRemoteNotifications(int unreadCount)
         {
-            return;
-            if (!isInitialized)
-            {
-                clearRemoteNotificationsAfterInit = true;
-                Logging.warn("Cannot clear notifications, OneSignal is not initialized yet.");
-                return;
-            }
-
-            try
-            {
-                OneSignalNative.Notifications.ClearAll();
-
-                if (UIDevice.CurrentDevice.CheckSystemVersion(16, 0))
-                {
-                    // For iOS 16+, use UNUserNotificationCenter
-                    UNUserNotificationCenter.Current.SetBadgeCount(unreadCount, (err) =>
-                    {
-                        if (err != null)
-                        {
-                            Logging.warn("Set badge count failed");
-                            Logging.warn(err.ToString());
-                        }
-                    });
-                }
-                else
-                {
-                    // For older versions, use UIApplication
-                    UIApplication.SharedApplication.ApplicationIconBadgeNumber = unreadCount;
-                }
-            }
-            catch (Exception e)
-            {
-                Logging.error("Exception while clearing all notifications: {0}.", e);
-            }
+            // intentionally empty on iOS — see the docblock
         }
 
 
@@ -313,7 +284,6 @@ namespace Spixi
         {
             if (!isInitialized)
             {
-                clearRemoteNotificationsAfterInit = true;
                 clearNotificationsAfterInit = true;
                 Logging.warn("Cannot clear notifications, OneSignal is not initialized yet.");
                 return;

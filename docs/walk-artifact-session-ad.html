@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Walk — Session AD: the ours rows — eleven verbs and pushes, one purge, four keys retired</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --bg:#eef1f6; --card:#ffffff; --sunk:#f5f7fa;
+    --ink:#141b23; --sub:#5b6672; --line:#dfe5ec;
+    --act:#1956b2; --act-soft:#e5edf9;
+    --p:#1a7f4b; --f:#b12525; --n:#8b95a1;
+    --warn:#884b00; --warn-soft:#fbf1e2;
+    --shadow:0 1px 2px rgba(20,27,35,.05), 0 2px 8px rgba(20,27,35,.05);
+  }
+  :root:not([data-theme="light"]) { }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0d1117; --card:#161b22; --sunk:#0f141b;
+      --ink:#e6edf3; --sub:#9aa7b4; --line:#252c36;
+      --act:#5a8dee; --act-soft:#16233a;
+      --p:#3fb27a; --f:#f08a80; --n:#7d8794;
+      --warn:#e0a458; --warn-soft:#241c10;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0d1117; --card:#161b22; --sunk:#0f141b;
+    --ink:#e6edf3; --sub:#9aa7b4; --line:#252c36;
+    --act:#5a8dee; --act-soft:#16233a;
+    --p:#3fb27a; --f:#f08a80; --n:#7d8794;
+    --warn:#e0a458; --warn-soft:#241c10;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.3);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.55 "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding:28px 20px 64px;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1000px;margin:0 auto}
+
+  header{margin:0 0 18px}
+  h1{font-size:27px;line-height:1.2;margin:0 0 6px;font-weight:700;letter-spacing:-.015em;text-wrap:balance}
+  .lede{color:var(--sub);margin:0 0 14px;max-width:64ch}
+  .facts{display:flex;flex-wrap:wrap;gap:8px}
+  .fact{
+    font:500 12px/1 "IBM Plex Mono", ui-monospace, Consolas, monospace;
+    background:var(--card);border:1px solid var(--line);border-radius:999px;
+    padding:7px 12px;color:var(--sub);white-space:nowrap
+  }
+  .fact b{color:var(--ink);font-weight:500}
+
+  .tally{
+    position:sticky;top:0;z-index:5;background:var(--bg);
+    padding:12px 0 10px;margin:0 0 18px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap
+  }
+  .tally .score{font:600 15px/1 "IBM Plex Mono", monospace;letter-spacing:.02em}
+  .tally .score i{font-style:normal;padding:0 2px}
+  .tally .sp{flex:1}
+  .mini{
+    border:1px solid var(--line);background:var(--card);color:var(--ink);
+    border-radius:8px;padding:7px 13px;font:500 13px/1 "IBM Plex Sans",sans-serif;cursor:pointer
+  }
+  .mini:hover{border-color:var(--act);color:var(--act)}
+  .mini:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+
+  h2{
+    font-size:13px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--sub);margin:26px 0 10px;display:flex;align-items:baseline;gap:10px
+  }
+  h2 .num{
+    font-family:"IBM Plex Mono",monospace;color:var(--act);font-weight:500;
+    letter-spacing:0;font-size:12px
+  }
+  section{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:16px 18px;margin:0 0 4px;box-shadow:var(--shadow)
+  }
+  section.flag{border-left:3px solid var(--act)}
+  section > p{margin:0 0 12px;color:var(--sub);max-width:70ch}
+  section > p:last-child{margin-bottom:0}
+  section > p strong{color:var(--ink);font-weight:600}
+  code{
+    font:500 13px/1.4 "IBM Plex Mono",ui-monospace,Consolas,monospace;
+    background:var(--sunk);border:1px solid var(--line);border-radius:5px;padding:1px 5px
+  }
+
+  .cmd{position:relative;margin:0 0 12px}
+  .cmd pre{
+    margin:0;background:var(--sunk);border:1px solid var(--line);border-radius:10px;
+    padding:13px 15px;overflow-x:auto;
+    font:400 12.5px/1.65 "IBM Plex Mono",ui-monospace,Consolas,monospace;
+    color:var(--ink)
+  }
+  .cmd .cp{
+    position:absolute;top:8px;right:8px;
+    border:1px solid var(--line);background:var(--card);color:var(--sub);
+    border-radius:7px;padding:5px 10px;font:500 11px/1 "IBM Plex Sans",sans-serif;cursor:pointer
+  }
+  .cmd .cp:hover{color:var(--act);border-color:var(--act)}
+  .cmd .cp:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+  .cmd .cp[data-done="1"]{color:var(--p);border-color:var(--p)}
+
+  .note-line{
+    display:flex;gap:8px;align-items:flex-start;
+    background:var(--warn-soft);border:1px solid var(--line);border-radius:9px;
+    padding:10px 13px;margin:0 0 12px;color:var(--ink);font-size:13.5px;line-height:1.5
+  }
+  .note-line b{color:var(--warn)}
+
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:10px 8px;border-top:1px solid var(--line);vertical-align:top}
+  thead th{
+    border-top:0;font:600 11px/1 "IBM Plex Sans",sans-serif;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--sub);padding-bottom:8px
+  }
+  td.id{
+    width:44px;font:500 13px/1.5 "IBM Plex Mono",monospace;color:var(--act);white-space:nowrap
+  }
+  td.what{font-size:14px}
+  td.what em{font-style:normal;color:var(--sub);display:block;margin-top:3px;font-size:13px}
+  td.v{width:158px;white-space:nowrap}
+
+  .btn{
+    border:1px solid var(--line);background:transparent;color:var(--sub);
+    border-radius:7px;padding:5px 11px;margin-right:4px;cursor:pointer;
+    font:500 12.5px/1 "IBM Plex Sans",sans-serif
+  }
+  .btn:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+  .btn[aria-pressed="true"][data-v="P"]{background:var(--p);border-color:var(--p);color:#fff}
+  .btn[aria-pressed="true"][data-v="F"]{background:var(--f);border-color:var(--f);color:#fff}
+  .btn[aria-pressed="true"][data-v="N"]{background:var(--n);border-color:var(--n);color:#fff}
+  /* ★ Damir, walk S2: "stupid artefact doesnt allow notes if pass" — and the note he
+     could not leave was a real defect. The box used to be display:none until a row
+     FAILED, on the reasoning that a fail needs an explanation. True, and not the same
+     as "a pass has nothing to say": the most valuable notes are the ones on rows that
+     technically passed, because those are the observations no row was written to catch.
+     Always visible now; the fail styling stays. */
+  .nt{
+    width:100%;margin-top:7px;border:1px solid var(--line);border-radius:7px;
+    padding:6px 9px;background:var(--sunk);color:var(--ink);
+    font:400 13px/1.45 "IBM Plex Sans",sans-serif;display:block
+  }
+  tr[data-v="F"] .nt{border-color:var(--f)}
+
+  footer{margin:30px 0 0;color:var(--sub);font-size:13.5px;line-height:1.6}
+  footer b{color:var(--ink)}
+
+  @media (max-width:640px){
+    body{padding:20px 14px 56px}
+    td.v{width:auto}
+    th:nth-child(3),td.v{display:block;padding-top:0;border-top:0}
+    td.id{width:38px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Walk — Session AD: the ours rows — eleven verbs and pushes, one purge, four keys retired</h1>
+  <p class="lede">Twenty-seven rows. <strong>§1 is batch 1</strong> — the rows that deleted a workaround (CH6 · C1/C2 · S11 · #274 · C16) and the money-adjacent blocker W11; <strong>§2 is batch 3</strong> — the small verbs and pushes, ending in the media purge (★ AD.22/AD.23 are the only rows that DELETE files); §3 is two reads. ★ Rows marked ★ are the ones the loop changed most. Two devices for AD.2/AD.4/AD.13/AD.14/AD.17/AD.22.</p>
+  <div class="facts"><span class="fact">records <b>#928–#930</b></span><span class="fact">smoke <b>BEFORE 4817 → AFTER see the checklist / the 2 KNOWN</b> (container, with the Core sibling)</span><span class="fact">C# changed <b>YES — 19 files + SChatPrefs.cs NEW; nothing compiled here</b></span><span class="fact">Core <b>097341a untouched</b></span><span class="fact">loop <b>Opus, 3 rounds, CLEAN NOT CLAIMED</b></span></div>
+</header>
+<div class="tally">
+  <span class="score" id="score">— / 27</span>
+  <span class="score" style="color:var(--p)">P <i id="cp">0</i></span>
+  <span class="score" style="color:var(--f)">F <i id="cf">0</i></span>
+  <span class="score" style="color:var(--n)">N/A <i id="cn">0</i></span>
+  <span class="sp"></span>
+  <button class="mini" id="copyres">Copy results</button>
+  <button class="mini" id="reset">Reset</button>
+</div>
+<main>
+<h2><span class="num">§0</span> Build</h2>
+<section>
+  <p><strong>Components, strings and shells changed</strong> → the FULL sequence, bundle BEFORE shells. <strong>C# changed in 19 files</strong> (HomePage · SingleChatPage · SettingsPage · BackupPage · SpixiContentPage · UIHelpers · Utils · StreamProcessor · ContactNewPage · ContactDetails · LockPage · VoIPManager · MiniAppManager · AppNewPage · Node · App.xaml.cs · TransferManager · SContacts · Platforms/iOS/SPushService) and <code>Spixi/Meta/SChatPrefs.cs</code> is NEW — wipe <code>obj</code>/<code>bin</code>. Every platform compiles all of it except the iOS push-service line (#490, iOS only).</p>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s0"></tbody></table>
+</section>
+
+<h2><span class="num">§1</span> Batch 1 — the workaround-deleting rows + W11 (#928)</h2>
+<section class="flag">
+  <p>Five shell mechanisms were DELETED because C# now pushes the fact: the locale-carrier reverse map (CH6), the <code>spixi.landtab</code> handshake (S11), the <code>spixi.settings.view</code> stash (#274), the <code>spixi.exdel.*</code> hint (C16), the <code>spixi.backup.last</code> stamp (S2, §2). Each row here is "the feature still works, and the key is gone". <strong>W11</strong> is the one money-adjacent row: a payment response used to be DROPPED when no chat page was open; now it is stored and written first. The loop's r1 MAJOR was that the first cut let a PEER pick the row by id — AD.4 exercises the fixed path.</p>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s1"></tbody></table>
+</section>
+
+<h2><span class="num">§2</span> Batch 3 — the small verbs and pushes, and the media purge</h2>
+<section class="flag">
+  <p>Eleven rows, each a widened push or a new verb. ★ <strong>AD.22/AD.23 delete files</strong> — the purge lists RECEIVED, completed files inside the Downloads root BEFORE the op and deletes AFTER it succeeded, off-thread, sparing any file another contact's history also names. Test on a device with files you can afford to lose.</p>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s2"></tbody></table>
+</section>
+
+<h2><span class="num">§3</span> Records</h2>
+<section>
+  <p>Two reads.</p>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s3"></tbody></table>
+</section>
+
+</main>
+<footer>
+<p>A pass with a note is a pass — write the note. For <b>AD.3</b>, <b>AD.8</b> and <b>AD.19</b> the note IS the answer.</p><p><b>Not on this sheet, deliberately:</b> L8 · L2/MAJOR #8 (wallet-password work, OUT by your call) · CORE-10 (his) · L6 (its own mini-session) · CI6/C22/A8/FC1/C12/NT1(b)/PV1 (batch 4, not reached) · the iPhone day (its own sheet) · AA.8 · S1 timed · the translator pass · the freeze (#825).</p>
+</footer>
+</div>
+<script>
+(function(){
+  var ROWS = {
+  "s0": [
+    [
+      "AD.0",
+      "FULL pipeline: node scripts/extract-strings.mjs → build-locales → build-strings-iife → build-demo-bundle → build-shells → smoke-test (with Ixian-Core beside the repo) — then wipe obj/bin, F5 Windows (never dotnet build, #663) and the Android Debug deploy",
+      "smoke reads your Session AC number + the AFTER delta from the checklist (#895: the DELTA, never the absolute). ★ C# changed in 19 files + Spixi/Meta/SChatPrefs.cs is NEW (git add it) — NOTHING in the container compiles C#: a build error on either platform is this session's bug, paste it whole."
+    ],
+    [
+      "AD.0b",
+      "Windows: second launch, ixian.log",
+      "the line `copyResources: 0 copied, 51 unchanged` — AC.3, still owed from Session AC (#912 ③)."
+    ]
+  ],
+  "s1": [
+    [
+      "AD.1",
+      "★ CH6 — Chats list under Deutsch (Account → Sprache): rows whose last message is a file, a payment, a call, a contact event, a sticker/GIF",
+      "each row shows its canon GLYPH + phrase (file · payment · call …) exactly as under English. The shell no longer reverse-maps localized text — C# pushes the KIND. A row that reads as raw text where English showed a glyph is a FAIL (name the kind)."
+    ],
+    [
+      "AD.2",
+      "★ C1/C2 — 2 devices: A requests 5 IXI from B; B has LESS than 5 (or hide-balance on); then B pays it",
+      "B's card: status badge from the ENUM (pending → paid), the fiat line under the amount (\"\" until a price is known), and an \"insufficient\" hint on the request-in card while B's balance is short — but Pay stays offered (the native review page decides; the fee is NOT counted — #930 dial). After the pay both cards flip to paid on the next open AND live."
+    ],
+    [
+      "AD.3",
+      "★ C2 — cold start B (fresh launch, node still syncing), open the chat with the pending request BEFORE the balance is verified",
+      "NO \"insufficient\" hint while the balance is unverified (the hint appears only once a verified balance arrives). A hint shown on a syncing wallet is a FAIL."
+    ],
+    [
+      "AD.4",
+      "★ W11 — 2 devices, the blocker: A requests from B; B PAYS while A has NO conversation open (A on the Wallet tab, or A's chat with B closed)",
+      "A's chats row for B refreshes (excerpt/kind) and A's request card reads PAID the next time the chat opens — it used to stay pending forever when the response arrived with no chat page open. Then repeat with A's chat OPEN: the card flips live."
+    ],
+    [
+      "AD.5",
+      "S11 — Windows AND Android: Account → tap a different tab's row… no: open Account from CHATS, back out; open it from WALLET, back out",
+      "you land on the tab you came from, both times (the verb + push replaced the localStorage handshake; the old `spixi.landtab` key is gone — F12 → Application → Local Storage: no `spixi.landtab`, no `spixi.settings.view`, no `spixi.backup.last`, no `spixi.exdel.*` on any shell)."
+    ],
+    [
+      "AD.6",
+      "#274 — Account → Language → pick a language → the pane returns",
+      "returns ON the Language picker with the new check (the stash is gone; the pick re-localizes in place). Windows pane AND phone."
+    ],
+    [
+      "AD.7",
+      "C16 — delete one of YOUR messages from the menu (single) and a multi-select delete; reopen the chat; check the chats-list excerpt",
+      "the chat reopens WITHOUT them; the list excerpt updates to the new last message at once (both local-delete paths refresh the row; the exdel hint is retired). Then have the PEER delete one: it stays gone on reopen (Core persists it — the refuted premise)."
+    ]
+  ],
+  "s2": [
+    [
+      "AD.8",
+      "★ S2 — Account → Backup: note the \"last backup\" line; run a backup; CANCEL the share sheet; run one and complete it",
+      "the line updates after the sheet returns — ⚠ including after a CANCEL (#930 dial: the sheet reports no outcome). Back out to the hub: the Backup row's status matches. Then: kill + relaunch → the stamp survives (a C# preference now). The backup NUDGE on the chats list: gone after a backup, present before one (C# gates it)."
+    ],
+    [
+      "AD.9",
+      "S2 — Windows: Account pane open → switch tab → re-open Account (a WARM re-present)",
+      "the Backup status is still current (re-pushed on re-present via onRepresentedNative). Same for the Developer row (AD.10)."
+    ],
+    [
+      "AD.10",
+      "★ S9 — Account hub: no Developer row; 10-tap the Chats logotype (dev mode ON) → Account",
+      "the Developer row appears WITHOUT restarting (setCapDev push); tap it → DevPage opens (send log · share · HUD) — from the Windows Account PANE too (the in-stack HomePage presents it; this was the r1 MAJOR). Android back closes DevPage, not the app. 10-tap again (OFF) → the row goes."
+    ],
+    [
+      "AD.11",
+      "★ CH4 — favorite a chat from the row menu; kill + relaunch; the Favorites chip; then delete that contact",
+      "the star survives the relaunch (an app PREFERENCE now, not localStorage); the Favorites chip lists it; after the delete the star is cleared (no ghost when the address is re-added). Windows: the same from the pane."
+    ],
+    [
+      "AD.12",
+      "CH4 — mute a chat with unread, background the app, receive a message in it and in an unmuted chat",
+      "the OS badge / notification count counts ONLY the unmuted chat's unread (3 sites: Node · StreamProcessor · VoIPManager). Windows toast count too."
+    ],
+    [
+      "AD.13",
+      "C6 — 2 devices: tip a message twice (two amounts)",
+      "the reaction pill shows the tip TOTAL (was `tip:System.Byte[]` — a literal type name), on both sides, live and after reopen."
+    ],
+    [
+      "AD.14",
+      "C21 — a non-blind group of 3: one member types",
+      "the typing pill NAMES the typist (nick); in a 1:1 no name; in a BLIND group no name. Never a raw address."
+    ],
+    [
+      "AD.15",
+      "CH8 — a reaction on your message in a group; on the chats list",
+      "the excerpt reads \"<nick> reacted\" with the reactor's nick (address → contact nick fallback), never blank; in a blind group no name."
+    ],
+    [
+      "AD.16",
+      "CI2 — Contact details → recent activity (a contact you paid AND who paid you, one pending)",
+      "each row shows direction (in/out) and a four-state status badge (pending/confirmed/…); old rows unchanged otherwise."
+    ],
+    [
+      "AD.17",
+      "C4 — 2 devices: while a call is ACTIVE, open the chat with the caller",
+      "the call card shows NO call-back nudge during the active call (`callActive`); after hang-up the nudge returns on the missed/declined card."
+    ],
+    [
+      "AD.18",
+      "CO3/CO4 — Add contact: paste your OWN address; paste a malformed address; paste a contact already added",
+      "each refusal names itself in the form (the three reasons), the form is not wedged (L1), and a VALID paste shows the resolved address echo before Send."
+    ],
+    [
+      "AD.19",
+      "★ C17 — a legacy contact stuck in a non-Approved state (if you have one) and a fresh outgoing request: open contact details",
+      "the pending profile shows ONE action, Cancel request — and it WORKS on the legacy one too (the r1 MAJOR: the guard was RequestSent alone). Cancel → the record goes, the open conversation closes, the list row goes; Android: no navigation to `ixian:undorequest` as a page (#797)."
+    ],
+    [
+      "AD.20",
+      "A4 — Add app: an https URL that does not answer (a black-holed host) · a URL that 404s · a 20 MB file URL",
+      "each fails INSIDE 15 s with its own reason line (timeout · http · size), never a silent spinner past the 20 s grace; from HomePage's add-app pane AND the standalone page."
+    ],
+    [
+      "AD.21",
+      "i18n-C# — under Deutsch: Chats FAB → New chat with NO recipient selected → Start; wrong app-lock password",
+      "both alerts are German (title/body/OK; the lock alert's button) — the last two hardcoded English strings."
+    ],
+    [
+      "AD.22",
+      "★ CH3 — receive 2 files (images) from contact X and 1 from contact Y; then delete X's chat with \"Delete media & files\" ticked",
+      "X's two files are gone from Downloads (Account → Downloads); Y's file stays; the app does not stall (the purge is off-thread). Repeat WITHOUT the tick: files stay. Then the same for a GROUP leave with the tick. A file you SENT is never touched."
+    ],
+    [
+      "AD.23",
+      "★ CH3 — a file you received from X that you ALSO received from Y (same file, both histories) → delete X with media",
+      "the file STAYS (another contact's history names it). Then delete Y with media → now it goes."
+    ]
+  ],
+  "s3": [
+    [
+      "AD.24",
+      "read DECISIONS #928–#930 and the verdict in docs/opus-review-brief-session-ad.md §6",
+      "three rounds on Opus, CLEAN NOT CLAIMED (no fourth reader over the r3 fixes) — you are the fourth reader."
+    ],
+    [
+      "AD.25",
+      "docs/be-cutover-brief.md — the ✅ LANDED (Session AD, #928) rows vs what you walked",
+      "every row you passed above matches its ledger line; a row that reads LANDED and failed here is a #660 in the making — name it."
+    ]
+  ]
+};
+
+  var KEY = "spixi.walk.session-ad";
+  var state = {};
+  try { state = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch(e) { state = {}; }
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){} }
+
+  function build(tbodyId){
+    var tb = document.getElementById(tbodyId);
+    if(!tb) return;
+    ROWS[tbodyId].forEach(function(r){
+      var id = r[0];
+      var tr = document.createElement("tr");
+      tr.dataset.row = id;
+      var td1 = document.createElement("td");
+      td1.className = "id"; td1.textContent = id;
+      var td2 = document.createElement("td");
+      td2.className = "what";
+      td2.appendChild(document.createTextNode(r[1]));
+      if (r[2]) { var em = document.createElement("em"); em.textContent = r[2]; td2.appendChild(em); }
+      var td3 = document.createElement("td");
+      td3.className = "v";
+      ["P","F","N"].forEach(function(v){
+        var b = document.createElement("button");
+        b.className = "btn"; b.dataset.v = v; b.type = "button";
+        b.textContent = v === "N" ? "N/A" : v;
+        b.setAttribute("aria-label", (v==="P"?"Pass":v==="F"?"Fail":"Not applicable") + " " + id);
+        b.setAttribute("aria-pressed", String(state[id] && state[id].v === v));
+        b.addEventListener("click", function(){
+          var cur = state[id] || {};
+          cur.v = (cur.v === v) ? "" : v;
+          state[id] = cur; save(); paint(tr, id); tallyUp();
+        });
+        td3.appendChild(b);
+      });
+      var nt = document.createElement("textarea");
+      nt.className = "nt"; nt.rows = 2;
+      nt.placeholder = "note (optional — on a pass too)";
+      nt.value = (state[id] && state[id].n) || "";
+      nt.setAttribute("aria-label", "Note for " + id);
+      nt.addEventListener("input", function(){
+        var cur = state[id] || {}; cur.n = nt.value; state[id] = cur; save();
+      });
+      td3.appendChild(nt);
+      tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+      tb.appendChild(tr);
+      paint(tr, id);
+    });
+  }
+
+  function paint(tr, id){
+    var v = (state[id] && state[id].v) || "";
+    tr.dataset.v = v;
+    Array.prototype.forEach.call(tr.querySelectorAll(".btn"), function(b){
+      b.setAttribute("aria-pressed", String(b.dataset.v === v));
+    });
+  }
+
+  function tallyUp(){
+    var p=0,f=0,n=0,total=0;
+    Object.keys(ROWS).forEach(function(k){ total += ROWS[k].length; });
+    Object.keys(state).forEach(function(id){
+      var v = state[id] && state[id].v;
+      if (v==="P") p++; else if (v==="F") f++; else if (v==="N") n++;
+    });
+    document.getElementById("cp").textContent = p;
+    document.getElementById("cf").textContent = f;
+    document.getElementById("cn").textContent = n;
+    document.getElementById("score").textContent = (p+f+n) + " / " + total;
+  }
+
+  Object.keys(ROWS).forEach(build);
+  tallyUp();
+
+  function copyText(text, btn, doneLabel){
+    var ok = function(){
+      if(!btn) return;
+      var old = btn.textContent;
+      btn.textContent = doneLabel || "Copied";
+      btn.dataset.done = "1";
+      setTimeout(function(){ btn.textContent = old; btn.dataset.done = ""; }, 1400);
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(ok, function(){ fallback(text, ok); });
+        return;
+      }
+    } catch(e){}
+    fallback(text, ok);
+  }
+  function fallback(text, ok){
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      ok();
+    } catch(e){}
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll(".cmd .cp"), function(btn){
+    btn.type = "button";
+    btn.addEventListener("click", function(){
+      var pre = btn.parentNode.querySelector("pre");
+      copyText(pre ? pre.textContent : "", btn);
+    });
+  });
+
+  document.getElementById("copyres").addEventListener("click", function(){
+    var out = ["Walk — Session AD: the ours rows — eleven verbs and pushes, one purge, four keys retired", ""];
+    var p=0,f=0,n=0;
+    Object.keys(ROWS).forEach(function(k){
+      ROWS[k].forEach(function(r){
+        var id = r[0], s = state[id] || {}, v = s.v || "-";
+        if (v==="P") p++; else if (v==="F") f++; else if (v==="N") n++;
+        out.push(v + "  " + id + "  " + r[1] + (s.n ? "   — " + s.n : ""));
+      });
+    });
+    out.splice(1, 0, p + " pass · " + f + " fail · " + n + " n/a");
+    copyText(out.join("\n"), this, "Copied");
+  });
+
+  document.getElementById("reset").addEventListener("click", function(){
+    if (!window.confirm("Clear every result and note on this sheet?")) return;
+    state = {}; save();
+    Object.keys(ROWS).forEach(function(k){
+      var tb = document.getElementById(k);
+      while (tb.firstChild) tb.removeChild(tb.firstChild);
+      build(k);
+    });
+    tallyUp();
+  });
+})();
+</script>
+</body>
+</html>

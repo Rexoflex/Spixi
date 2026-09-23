@@ -36,6 +36,7 @@
 <link rel="stylesheet" href="../styles/components/overlay.css"><!-- c-modal (delete-history / remove-contact confirms) + c-sheet -->
 <link rel="stylesheet" href="../styles/components/txlist-item.css"><!-- payments accordion rows -->
 <link rel="stylesheet" href="../styles/components/chat-info.css">
+<link rel="stylesheet" href="../styles/components/contacts-shell.css"><!-- ★ C17 (Session AD): createPendingContact (.c-contacts-pending / __footer) for a request-sent contact -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 <link rel="stylesheet" href="../styles/components/search-field.css"><!-- #251: group-surface member filter (≥8 members) -->
 <link rel="stylesheet" href="../styles/components/member-sheet.css"><!-- #251: member identity sheet (roster row tap) -->
@@ -217,6 +218,7 @@
    * ————————————————————————————————————————————————————————————————————————— */
   const {
     createChatInfo, setChatInfoPresence, formatIxiAmount,
+    createPendingContact,   // ★ C17 (Session AD): the minimal profile for a contact whose request is still out
     createNativeBridge, installExecuteUiCommand,
     attachEdgeBack,   // ★ L3 (#706): the iOS back signal + the one-level chain
     attachPressFeedback,
@@ -322,6 +324,10 @@
     // #248: entry-dependent context — 'chat' (header/row-menu → "Chat info"/"Group
     // info", no Message action) vs 'contact' (directory → "Contact details").
     context: 'contact',
+    // ★ C17 (Session AD): the relation C# pushes (contactRelationFor): contact · pending ·
+    // pending-in · self · none · '' (not yet / a room). 'pending' = OUR request is out.
+    relation: '',
+    undoCtrl: null,      // the pending profile's Cancel ctrl, resolved by undoRequestResult
     // #248 GROUP surface: ContactDetails now carries group info too (setGroupInfo +
     // clearMembers/addMember roster — same contract family as SingleChatPage CI1).
     isGroup: false,
@@ -351,6 +357,14 @@
    * ask). Compare against the shell's own localized words, then a multilingual
    * "received" stem, else default to outgoing. The row LABEL always shows the
    * verbatim C# string, so a wrong arrow never mislabels the row. */
+  /** ★ CI2: the wallet tab's status mapping (home.html walletStatus), one line each. */
+  function activityStatus(confirmed) {
+    const c = String(confirmed == null ? '' : confirmed);
+    if (c === 'true' || c === 'True') return 'confirmed';
+    if (c === 'unknown') return 'unknown';
+    if (c === 'error') return 'failed';
+    return 'pending';
+  }
   function txDirection(typeText) {
     const t = String(typeText || '').trim().toLowerCase();
     if (!t) return 'out';
@@ -428,6 +442,19 @@
   }
 
   function buildPanel() {
+    /* ★ C17 (Session AD): a contact whose request WE sent and they have not accepted gets
+       the minimal pending profile (#153's createPendingContact — built, never mounted in
+       production until now): identity + "Request sent" + ONE action, Cancel request →
+       `ixian:undorequest`, which ContactDetails answers with undoRequestResult and pops
+       on success. Every other action a full page would offer (Message, Call, Pay, the
+       nickname edit, the history rows) is one C# refuses for this relation. */
+    if (!state.isGroup && state.relation === 'pending') {
+      return createPendingContact({
+        name: state.name, address: state.address, avatar: state.avatarPath, strings,
+        onBack: () => bridge.send('ixian:back'),
+        onCancelRequest: (ctrl) => { state.undoCtrl = ctrl; bridge.send('ixian:undorequest'); },
+      });
+    }
     // #248 GROUP surface: kind 'group' renders name/avatar + notifications toggle +
     // the full member list (owner chip, admin kick/ban) + Leave — no money, no
     // Message, no nickname override (group rename = a BE ask, no verb exists).
@@ -704,6 +731,7 @@
       // ★ #591: the Call reveal MUST be in the signature or scheduleCommit is decorative
       // — the exact defect the NOTIF-2 note above records, one push later.
       callable: state.callable,
+      relation: state.relation,      // ★ C17 (#46 loop C-9): a relation pushed AFTER the first build must rebuild
       /* ★★ #46 loop (MAJOR-2): the two money CAPABILITIES decide whether Pay and Request
          are rendered at all, so they must be in the signature. C# pushes setCaps inside
          the onLoad burst, which normally precedes the first coalesced commit — but a
@@ -926,6 +954,19 @@
     setPaneMode(col) { document.body.dataset.pane = (col === '2') ? '2' : '1'; },
     // #248: entry-dependent surface — pushed before setAddress in onLoad.
     setContext(c) { state.context = (c === 'chat') ? 'chat' : 'contact'; scheduleCommit(); },
+    // ★ C17 (Session AD): the relation (rebuilds the panel when it changes the surface)
+    setRelation(r) { const v = String(r || ''); if (v !== state.relation) { state.relation = v; scheduleCommit(); } },
+    /* ★ C17: the Cancel-request verdict. "ok" → C# pops this page (nothing to do but
+       release the ctrl); anything else → the button un-latches with the failure line. */
+    undoRequestResult(address, status) {
+      const c = state.undoCtrl; state.undoCtrl = null;
+      if (String(status || '') === 'ok') {
+        forgetPeerStorage(String(address || ''), 'contact');   // the record is gone — so are its per-peer keys (the chat shell's rule)
+        if (c) { try { c.done(); } catch (e) {} }
+        return;
+      }
+      if (c) { try { c.fail(); } catch (e) {} }
+    },
     /* ★★ #591: the SAME verb the chat header uses (SingleChatPage:891). C# sends it only
        when the peer can actually be called — codecs present, 1:1, FriendState.Approved —
        so the action appears rather than being offered and refused. Idempotent: an exe
@@ -1046,16 +1087,21 @@
     // tx list is cleared + fully re-pushed every second. Buffer between clear and
     // the settle so a partial list never commits.
     clearRecentActivity() { state.txsBuf = []; scheduleCommit(); },
-    addPaymentActivity(txid, type, time, amount, confirmed) {
-      const dir = txDirection(type);
+    // ★ CI2 (Session AD): the 6th arg is the DIRECTION enum (`in` | `out`) and the 5th
+    // is the wallet tab's four-state status (`true` · `false` · `unknown` · `error`).
+    // An old exe sends neither the 6th nor the four states: the localized-label
+    // derivation and the true/other split stay as its fallback.
+    addPaymentActivity(txid, type, time, amount, confirmed, direction) {
+      const d = String(direction || '');
+      const newExe = d === 'in' || d === 'out';   // the 6th arg exists only since CI2
+      const dir = d === 'in' ? 'in' : (d === 'out' ? 'out' : txDirection(type));
       if (state.txsBuf === null) state.txsBuf = [];
       state.txsBuf.push({
         txid: txid || '',
         direction: dir,
-        // confirmed "true" → confirmed; anything else ("error" = ActivityStatus
-        // != Final) → pending (still confirming). C# collapses pending+error into
-        // one "error" string — a real status enum is a BE ask.
-        status: asBool(confirmed) ? 'confirmed' : 'pending',
+        // an OLD exe sends "error" for everything that is not Final (incl. Pending) — so
+        // without the 6th arg the split stays true/other → confirmed/pending (loop C-10)
+        status: newExe ? activityStatus(confirmed) : (String(confirmed) === 'true' || String(confirmed) === 'True' ? 'confirmed' : 'pending'),
         name: type || '',                                   // verbatim localized "Sent"/"Received" label
         amount: (dir === 'in' ? '+' : '-') + formatIxiAmount(amount),
         // iOS-55/#328 (W1 class): C# now pushes raw EPOCH SECONDS — all-digits

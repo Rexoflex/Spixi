@@ -335,7 +335,7 @@ namespace SPIXI.VoIP
                             SpixiLocalization._SL("notification-missed-call") ?? "Missed call",
                             endedWith.walletAddress.ToString(),
                             false,      // alert: silent — the ring already happened
-                            FriendList.getUnreadMessageCount(),
+                            SChatPrefs.unreadTotalForBadge(),   // CH4: mute-aware
                             "call");
                     }
                 }
@@ -383,13 +383,14 @@ namespace SPIXI.VoIP
                     Logging.warn("Cannot end call, no message with session ID exists.");
                 } else
                 {
-                    var tmp_messages = currentCallContact.getMessages(0);
-                    if (callAccepted == true && tmp_messages.Last() != fm)
-                    {
-                        fm.message = callDuration.ToString();
-                        Node.addMessageWithType(currentCallSessionId, FriendMessageType.voiceCallEnd, currentCallContact.walletAddress, 0, fm.message, currentCallInitiator, null, 0);
-                    }
-                    else
+                    /* ★ C4 (Session AD): ONE branch. The "answered, and messages were sent during
+                     * the call" arm used to call Node.addMessageWithType with the SAME id as the
+                     * call's own message — and Ixian-Core refuses a duplicate id at an equal
+                     * sequence (FriendList.addMessageWithType, "already in message list"), so
+                     * that arm wrote NOTHING: the card kept its in-call label and its "Call back"
+                     * link, the duration never reached the store, and only a chat re-open showed
+                     * a stale voiceCall row with no duration. The in-place mutation below is what
+                     * the other arm always did, and it is correct for both. */
                     {
                         fm.type = FriendMessageType.voiceCallEnd;
                         if (callAccepted)

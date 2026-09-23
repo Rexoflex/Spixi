@@ -1210,8 +1210,8 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     discover: false,
     // Paste-link "Get app" → ixian:fetch:<url>. Indefinite loading resolved by
     // NAVIGATION on success (C# → AppDetailsPage, this WebView torn down) or by a
-    // showUrlError push on failure; the grace timeout only unwedges the rare
-    // no-signal case (same wedge as add-contact #185 L1 — BE: onFetchFailed(msg)).
+    // showUrlError(reason) push on failure (★ A4); the grace timeout only unwedges
+    // the rare no-signal case, above C#'s 15 s fetch ceiling.
     onFetchUrl: (url) => {
       if (!url) { setAddError(addEl, strings.enterAppUrl || 'Enter an app link.'); return; }
       if (getBtn) setLoading(getBtn, true);
@@ -1221,7 +1221,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
         if (getBtn) setLoading(getBtn, false);
         setAddError(addEl, strings.fetchMaybeFailed
           || 'If nothing happened, that link may be invalid or unreachable.');
-      }, 8000);
+      }, 20000);   // ★ A4 (Session AD): above C#'s 15 s fetch ceiling — the no-signal belt only
     },
     // Scan QR → native ScanPage; the decoded URL returns via setScannedData.
     onScan: () => bridge.send('ixian:quickscan'),
@@ -1250,9 +1250,14 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
       setAddUrl(addEl, url || '');
     },
     // fetch / file-pick / invalid-package failure → clear loading + inline error.
-    showUrlError() {
+    // ★ A4 (Session AD): the REASON rides the push (url · http · size · timeout · invalid · error)
+    showUrlError(reason) {
       clearTimeout(fetchGrace);
+      const r = String(reason || '');
       if (getBtn) setLoading(getBtn, false);
+      if (r === 'timeout') { setAddError(addEl, strings.appFetchTimeout || 'The link did not respond. Check your connection and try again.'); return; }
+      if (r === 'http') { setAddError(addEl, strings.appFetchHttp || 'The app could not be downloaded from that link.'); return; }
+      if (r === 'size') { setAddError(addEl, strings.appFetchTooLarge || 'That app package is too large.'); return; }
       setAddError(addEl, strings.appUrlInvalid || 'That link or file isn’t a valid mini app.');
     },
   };

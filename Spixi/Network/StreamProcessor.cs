@@ -284,64 +284,114 @@ namespace SPIXI
                 {
                     case SpixiMessageCode.requestFundsResponse:
                         {
+                            /* ★ W11 (Session AD, blocker): the payer's answer to MY payment request.
+                             * The whole body used to sit inside `if (chat_page != null)`, so an
+                             * answer that arrived while this conversation was NOT open changed
+                             * nothing — the request stayed "pending" for ever on the requester's
+                             * side. (Core's handleRequestFundsResponse already requests the channel
+                             * write before this runs, so an OPEN conversation's mutation was
+                             * persisted; the closed one never happened — loop r2 corrected the
+                             * first draft of this note, #772.) The store is now mutated whenever
+                             * the id names MY OWN UNANSWERED REQUEST; only the UI push is gated on
+                             * an open page, and the chats row is refreshed either way. Nothing is
+                             * signed or broadcast here: this is the requester recording the payer's
+                             * txid (or decline) against the request.
+                             * ★ F3 GUARD 1 of 3. A garbage packet leaves `data` null and
+                             * `Encoding.UTF8.GetString(null)` throws ArgumentNullException on
+                             * the NETWORK thread. That is the exception in Damir's crash log. */
+                            string msg_id_tx_id = safeString(spixi_message.data);
+                            if (msg_id_tx_id.Length == 0)
+                            {
+                                Logging.warn("requestFundsResponse: empty payload, ignored.");
+                                break;
+                            }
+                            string[] msg_id_tx_id_split = msg_id_tx_id.Split(':');
+                            byte[] msg_id;
+                            string? tx_id = null;
+                            if (msg_id_tx_id_split.Length == 2)
+                            {
+                                msg_id = Crypto.stringToHash(msg_id_tx_id_split[0]);
+                                tx_id = msg_id_tx_id_split[1];
+                            }
+                            else
+                            {
+                                msg_id = Crypto.stringToHash(msg_id_tx_id);
+                            }
+
+                            /* ★ F3 GUARD 2 of 3. `msg` is DECLARED nullable and was then
+                             * dereferenced twice. `getMessages` can also return null. A peer
+                             * that answers a request we no longer hold took the whole
+                             * receiveData switch down on the network thread.
+                             * ⚠ The status push below needs no message. It runs either way,
+                             * so a missing local copy costs the UI update of nothing.
+                             * Requests are 1:1 messages on channel 0 (SPayments refuses groups),
+                             * which is why this reads channel 0 and not the wire channel. */
+                            /* ★ #46 loop (auditor A, MAJOR-1): the baseline ran this mutation only
+                             * while the chat was open, and W11 removed that gate — so the id-only
+                             * Find became a peer-writable slot on disk: a packet naming ANY of my
+                             * channel-0 message ids (a text of mine, an already-answered request)
+                             * would have rewritten that row's text with the peer's string, or
+                             * marked a request "paid" with an unrelated txid from my activity
+                             * store. The predicate is now the PAYER side's own (SPayments
+                             * sendRequestFundsResponse): a requestFunds row, MINE, still
+                             * unanswered. Anything else is a miss → logged as no local message. */
+                            FriendMessage? msg = friend.getMessages(0)?.Find(x => x.id != null && x.id.SequenceEqual(msg_id)
+                                && x.type == FriendMessageType.requestFunds && x.localSender
+                                && x.message != null && !x.message.StartsWith(":"));
+
+                            /* ★ loop r2 (break-my-verdict): a txid the peer sent is STORED and then
+                             * parsed by every later render (`Transaction.txIdLegacyToV8`, which throws
+                             * on garbage) — the per-row catch dropped MY request card on every open
+                             * and the live path skipped the row refresh. Validate BEFORE anything is
+                             * stored or pushed; a txid that does not parse is a garbage packet. */
+                            if (tx_id != null)
+                            {
+                                try
+                                {
+                                    Transaction.txIdLegacyToV8(tx_id);
+                                }
+                                catch (Exception)
+                                {
+                                    Logging.warn("requestFundsResponse: unparseable txid, ignored.");
+                                    break;
+                                }
+                            }
+                            string status = SpixiLocalization._SL("chat-payment-status-pending");
+                            if (tx_id != null)
+                            {
+                                if (msg != null)
+                                {
+                                    msg.message = ":" + tx_id;
+                                }
+                            }
+                            else
+                            {
+                                tx_id = "";
+                                status = SpixiLocalization._SL("chat-payment-status-declined");
+                                if (msg != null)
+                                {
+                                    msg.message = "::" + msg.message; // declined
+                                }
+                            }
+                            if (msg == null)
+                            {
+                                // loop r2: a miss changes NOTHING — not the store, not the card. The
+                                // baseline pushed the status regardless ("needs no message"), which let
+                                // a peer flip any request card by id in an OPEN conversation.
+                                Logging.warn("requestFundsResponse: no local unanswered request for this id.");
+                                break;
+                            }
+                            // W11: the answer survives a chat re-open and an app restart (Core requests
+                            // the same write in handleRequestFundsResponse; this one is the belt)
+                            IxianHandler.localStorage.requestWriteMessages(friend.walletAddress, 0);
+
                             var chat_page = Utils.getChatPage(friend);
                             if (chat_page != null)
                             {
-                                /* ★ F3 GUARD 1 of 3. A garbage packet leaves `data` null and
-                                 * `Encoding.UTF8.GetString(null)` throws ArgumentNullException on
-                                 * the NETWORK thread. That is the exception in Damir's crash log. */
-                                string msg_id_tx_id = safeString(spixi_message.data);
-                                if (msg_id_tx_id.Length == 0)
-                                {
-                                    Logging.warn("requestFundsResponse: empty payload, ignored.");
-                                    break;
-                                }
-                                string[] msg_id_tx_id_split = msg_id_tx_id.Split(':');
-                                byte[] msg_id;
-                                string? tx_id = null;
-                                if (msg_id_tx_id_split.Length == 2)
-                                {
-                                    msg_id = Crypto.stringToHash(msg_id_tx_id_split[0]);
-                                    tx_id = msg_id_tx_id_split[1];
-                                }
-                                else
-                                {
-                                    msg_id = Crypto.stringToHash(msg_id_tx_id);
-                                }
-
-                                /* ★ F3 GUARD 2 of 3. `msg` is DECLARED nullable and was then
-                                 * dereferenced twice. `getMessages` can also return null. A peer
-                                 * that answers a request we no longer hold took the whole
-                                 * receiveData switch down on the network thread.
-                                 * ⚠ The status push below needs no message. It runs either way,
-                                 * so a missing local copy costs the UI update of nothing. */
-                                FriendMessage? msg = friend.getMessages(0)?.Find(x => x.id != null && x.id.SequenceEqual(msg_id));
-
-                                string status = SpixiLocalization._SL("chat-payment-status-pending");
-                                if (tx_id != null)
-                                {
-                                    if (msg != null)
-                                    {
-                                        msg.message = ":" + tx_id;
-                                    }
-                                }
-                                else
-                                {
-                                    tx_id = "";
-                                    status = SpixiLocalization._SL("chat-payment-status-declined");
-                                    if (msg != null)
-                                    {
-                                        msg.message = "::" + msg.message; // declined
-                                    }
-                                }
-                                if (msg == null)
-                                {
-                                    Logging.warn("requestFundsResponse: no local message for this id.");
-                                }
-
                                 byte[]? b_tx_id = !string.IsNullOrEmpty(tx_id) ? Transaction.txIdLegacyToV8(tx_id) : null;
                                 chat_page.updateRequestFundsStatus(msg_id, b_tx_id, status);
                             }
+                            UIHelpers.refreshChatRow(friend);
                         }
                         break;
 
@@ -461,7 +511,8 @@ namespace SPIXI
                         break;
 
                     case SpixiMessageCode.msgTyping:
-                        handleFriendIsTyping(friend);
+                        // ★ C21 (Session AD): in a room the TYPIST is the group-sender, not the room
+                        handleFriendIsTyping(friend, group_sender_address);
                         break;
 
                     case SpixiMessageCode.avatar:
@@ -676,7 +727,7 @@ namespace SPIXI
             return rdr;
         }
 
-        protected void handleFriendIsTyping(Friend friend)
+        protected void handleFriendIsTyping(Friend friend, Address? typist = null)
         {
             friend.isTyping = true;
             UIHelpers.shouldRefreshContacts = true;
@@ -690,7 +741,7 @@ namespace SPIXI
             }, timer, 5000, Timeout.Infinite);
 
             _typingTimers.Add(timer);
-            Utils.getChatPage(friend)?.showTyping();
+            Utils.getChatPage(friend)?.showTyping(typist);
         }
 
         private static void handleAppProtocols(Address sender_address, AppProtocolsMessage data)
@@ -908,7 +959,7 @@ namespace SPIXI
                                             SpixiLocalization._SL("notification-missed-call") ?? "Missed call",
                                             friend.walletAddress.ToString(),
                                             false,      // silent: nothing rang, so nothing needs correcting
-                                            FriendList.getUnreadMessageCount(),
+                                            SChatPrefs.unreadTotalForBadge(),   // CH4: mute-aware
                                             "call");
                                     }
                                 }

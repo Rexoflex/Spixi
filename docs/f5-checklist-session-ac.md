@@ -1,6 +1,6 @@
 # F5 checklist — Session AC (2026-09-22): the startup lever · the landscape round · the iOS extension written · route B prepared
 
-Walked 2026-09-23: **17 P · 2 F · 1 N/A** (#924) — the two fails (AC.7/AC.8, one cause: the top inset was not pushed on rotation) are fixed; **re-walk AC.7 and AC.8 on Android after a redeploy**, then commit.
+Walked 2026-09-23: **17 P · 2 F · 1 N/A** (#924) → re-walked 19 P; AC.1/AC.2/AC.3 numbers recorded in **#925** (⚠ Release logcat tag is `DOTNET`, not `mono-stdout`: `adb logcat | Select-String STARTDIAG`) — the two fails (AC.7/AC.8, one cause: the top inset was not pushed on rotation) are fixed; **re-walk AC.7 and AC.8 on Android after a redeploy**, then commit.
 
 Rows: DECISIONS **#916** (Damir's addendum, folded in — BSD-2-Clause, not MIT) · **#917** (the flag probe
 off the phone's boot path, measured twice) · **#918** (AND-31/32/33/34, rendered first) · **#919** (the iOS

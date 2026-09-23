@@ -81,7 +81,9 @@ cs-syntax-check 184 clean + 3 known gaps. NOTHING here compiles C# — F5 is the
 WALKED (#935, Windows F5 + Android Debug): 22 P · 2 F · 3 N/A. AD.0b = AC.3 closed. F: AD.13 a
 second tip refused (send-side, unverified) · AD.14 no group typing pill — Core does not fan
 msgTyping out to members (CORE-12; the app half waits). New: the attach sheet opens partially
-until a keyboard round (next FE round, with #934 b).
+until a keyboard round (next FE round, with #934 b). ★ After the walk: Windows Debug FROZE on
+remove-contact -> leave-group + delete media — undiagnosed (log + Break-All stack owed); first
+suspect the synchronous collectReceivedMedia listing on the UI thread (#935).
 
 Also landed: the parallel session's addendum as DECISIONS #931–#934 (nine dials closed by
 interview incl. #82/W7/CI4/C14/C20 + ASD-STE100 scoped to chat · the Apple portal steps DONE ·

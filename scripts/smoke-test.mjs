@@ -5643,7 +5643,7 @@ console.log('missing-bits Batch B — B2 pattern default · B3 tx-details shell 
         '★ AND-7 (#401) → AND-45: the root view is padded at NEITHER edge — the top since #401, the bottom since AND-45 (only the keyboard\'s height ABOVE the bar stays native; the nav bar is --safe-bottom in CSS). The page tree reaches y=0 and the bottom edge');
       ok(/Math\.Max\(imeInsets\.Bottom, sysInsets\.Bottom\)/.test(listener),
         '★ AND-7: the BOTTOM padding is untouched — it carries the IME inset, and the Android keyboard behaviour was measured on exactly this mechanism (#334/AND-16). Moving it into CSS would double-pad the bottom nav or re-open that round');
-      ok(/publishTopInset\(sysInsets\.Top \/ density\)/.test(listener)
+      ok(/publishTopInset\(sysInsets\.Top \/ density, true\)/.test(listener)   // #924: the second arg = the live push
         && /DisplayMetrics\?\.Density/.test(listener),
         '★ AND-7: the inset is published in CSS px — Android insets are PHYSICAL pixels and CSS px are DIPs (the removed Android-15 modal hack divided by a hardcoded 3 for the same reason)');
       ok(/addCustomString\("AndroidInsetTop"/.test(ma)
@@ -8137,7 +8137,23 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      the pref in all four of its readers — all three files are inlined here, so the built
      chat.html measured 662 061 → 659 155 chars (−2 906, ≈ 0.23 ms of parse at the measured
      0.08 ms/KB, on every conversation open). Headroom after the lowering: 1 325 chars. */
-  const CHAT_KB_CEIL = 645, INDEX_KB_CEIL = 528;
+  /* ★ Session AC (#922, the landscape rail): 645 → 646, delta stated. Every shell head gained
+     the `setInsetSides` push handler + the two side-inset carriers (+288 chars, MEASURED as the
+     head-script delta against the pristine snapshot — the bare-global push must have a handler in
+     EVERY generated document, #258; chat.html consumes neither inset today but must not throw on
+     the push). The session's whole delta on the built chat.html is 659 859 → 660 494 (+635); the
+     other +347 is #917's deferred flag install in the inlined bundle. 14 chars over 645 KB, ≈ 0.02 ms
+     of parse; headroom under 646 is 1 010. The next growth pays its own delta here. */
+  /* ★ Session AC (#922, the landscape rail): INDEX_KB_CEIL 528 → 530, delta stated. index.html
+     grew 534 900 → 542 034 chars (+7 134: the head handler + carriers, the platform script, the
+     landscape-runtime module in the inlined bundle, the #918 rules re-keyed on the device flag,
+     the landscape-rail layout rules incl. the FAB, and the rail CSS inlined from bottomnav.css)
+     and measured 338 chars over 529 KB; headroom under 530 is 686. ≈ 0.6 ms of parse. (The first
+     cut's 529 was set before the reviewer's MAJOR-1 replaced the media query with the runtime.)
+     ★ #924 (walk AC.8): 530 → 531. The landscape apps banner rules (five declarations + a two-line
+     comment, +679 chars) left 7 chars under 530 — a ceiling with no headroom fails the next
+     honest edit, so it moves by one: 542 713 measured, headroom under 531 is 1 031. */
+  const CHAT_KB_CEIL = 646, INDEX_KB_CEIL = 531;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -14578,9 +14594,12 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
      * seed map, ThemeManager.loadTheme calls it during App startup before any page
      * exists, and loadLanguage re-merges customStrings on every language change. So it
      * cannot log the "Unknown localization key" this pin was written to stop. */
-    ok(carriers.length === 5
-      && carriers.join(',') === '*SL{AndroidInsetBottom},*SL{AndroidInsetTop},*SL{LockAuthPending},*SL{SpixiThemeName},*SL{language-code}',
-      '★ N83 (+AND-45): the BUILT lock shell carries exactly the FIVE keys the lock page resolves. Pinned on the built artifact, not the source, because that is the file C# actually substitutes — and pinned as a SET so the next stray carrier is caught rather than the one we happened to find');
+    /* ★ #922 (Session AC) added AndroidInsetLeft/Right on every head — and this pin caught it
+     * again, as designed. Admitted on the same rule as the others: both keys are SEEDED "0" in
+     * SpixiLocalization.customStrings, so they resolve on every page of every platform. */
+    ok(carriers.length === 7
+      && carriers.join(',') === '*SL{AndroidInsetBottom},*SL{AndroidInsetLeft},*SL{AndroidInsetRight},*SL{AndroidInsetTop},*SL{LockAuthPending},*SL{SpixiThemeName},*SL{language-code}',
+      '★ N83 (+AND-45, +#922): the BUILT lock shell carries exactly the SEVEN keys the lock page resolves. Pinned on the built artifact, not the source, because that is the file C# actually substitutes — and pinned as a SET so the next stray carrier is caught rather than the one we happened to find');
   }
 }
 
@@ -16940,7 +16959,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     /* ★ round-2 MINOR-4: the flex chain has to reach the REAL flex item. createSheet
        wraps the content in `.c-sheet__content`, so `flex`/`min-height` on the
        grandchild alone are inert and a short host still overflowed. */
-    ok(/:root:not\(\[data-desktop\]\) \.c-sheet--addr \{[^}]*max-height: calc\(100% - var\(--kb-inset, 0px\)\)/.test(wrc)
+    ok(/:root:not\(\[data-desktop\]\) \.c-sheet--addr \{[^}]*max-height: calc\(100% - var\(--safe-top, 0px\) - var\(--kb-inset, 0px\)\)/.test(wrc)
       && /:root:not\(\[data-desktop\]\) \.c-sheet--addr > \.c-sheet__content \{[^}]*flex: 1 1 auto;[^}]*min-height: 0/.test(wrc),
       '★★ #575 (round-2 MINOR-4): the sheet is capped at 100% of its HOST and the cap reaches the element that can actually shrink — an unbounded preferred height grew the sheet past the host and clipped the handle, the title and the dismiss button');
     /* ★ F5-5 ①/② (#556) CSS pins: the QR card is at Account proportions (padding 0 —
@@ -19872,7 +19891,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
         '★ #608 (' + pair[0] + '): the document is still never RESIZED. That lever was tried three times and falsified on device; #294 allows a re-attempt only with a CHANGED lever, and this is the changed one');
     }
     ok(/:root:not\(\[data-desktop\]\) \.c-sheet \{[^}]*bottom: var\(--kb-inset, 0px\)/.test(ovl608)
-       && /:root:not\(\[data-desktop\]\) \.c-sheet \{[^}]*max-height: calc\(100% - var\(--kb-inset, 0px\)\)/.test(ovl608),
+       && /:root:not\(\[data-desktop\]\) \.c-sheet \{[^}]*max-height: calc\(100% - var\(--safe-top, 0px\) - var\(--kb-inset, 0px\)\)/.test(ovl608),
       '★★ #608 (device row 5a): a bottom sheet RISES for the keyboard and is capped so it can scroll. With the pad up only the tip sheet\'s title row was visible — the amount field it had just focused itself, and the button that commits the payment, were both underneath it');
     ok(/max\(0px, var\(--safe-bottom, 0px\) - var\(--kb-inset, 0px\)\)/.test(ovl608),
       '★ #608 → AND-45: the home-indicator / nav-bar pad (--safe-bottom) is handed back while the keyboard covers that strip anyway — otherwise the sheet floats twice');
@@ -22818,9 +22837,15 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
      * own prose, and the rule was already written down when I wrote this one. Strip
      * before you sweep, every time, without deciding whether it matters. */
     const flagsCode = stripJs(flagsSrc);
-    ok(/getContext\('2d'\)/.test(flagsCode) && /getImageData/.test(flagsCode)
-      && !/data-desktop/.test(flagsCode) && !/navigator\.userAgent/.test(flagsCode),
-      '★★ L15, THE TEST ASKS THE DEVICE: can it PAINT a flag glyph, measured once on a canvas — a real flag paints colour, a missing one paints two black letters. Not a user-agent string and not data-desktop, because macOS has the glyphs and Windows does not');
+    /* #917 re-base: the DETECTION (flagGlyphAvailable) must not read the platform; the SCHEDULER
+       (installFlagFontLater, #917) legitimately reads data-desktop to decide WHEN to run the same
+       detection (synchronous on desktop, after load on a phone) — so the ban is scoped to the
+       detection's own body, extracted by brace depth, not to the whole file */
+    const fnBody = (code, name) => { const i = code.indexOf('function ' + name + '('); if (i < 0) return null; const b = code.indexOf('{', i); let d = 0, j = b; for (; j < code.length; j++) { if (code[j] === '{') d++; else if (code[j] === '}' && --d === 0) break; } return code.slice(b, j + 1); };
+    const detect = fnBody(flagsCode, 'flagGlyphAvailable') || '';
+    ok(/getContext\('2d'\)/.test(detect) && /getImageData/.test(detect)
+      && !/data-desktop/.test(detect) && !/navigator\.userAgent/.test(detect) && !/navigator\.userAgent/.test(flagsCode),
+      '★★ L15, THE TEST ASKS THE DEVICE: can it PAINT a flag glyph, measured once on a canvas — a real flag paints colour, a missing one paints two black letters. Not a user-agent string and not data-desktop INSIDE THE DETECTION (flagGlyphAvailable, ' + detect.length + ' chars), because macOS has the glyphs and Windows does not; #917\'s scheduler may read data-desktop to pick WHEN, never WHETHER');
     ok(/glyphSupport = false;/.test(flagsCode) && /catch \(e\) \{\s*\n\s*glyphSupport = false;/.test(flagsCode),
       '★ L15: the detection FAILS SAFE to the asset. A wrong "true" is Damir\'s original bug back; a wrong "false" is a correct flag from a different set. Those are not the same size of mistake');
 
@@ -34268,13 +34293,129 @@ console.log('★ AND-45 — the bottom inset travels into the shells');
       '★ L15b: NO stylesheet and no shell <style> carries the flag @font-face — it is injected at runtime, so the inliner can never base64 the 78 KB into every document (found: ' + (inlined.join(', ') || 'none') + ')');
     const shellsZ = readdirSync(join(root, 'src/shells')).filter((n) => n.endsWith('.html')).sort();
     const withBundle = shellsZ.filter((n) => /<script src="\.\.\/demo\/spixi\.iife\.js"><\/script>/.test(rdZ('src/shells/' + n)));
-    const installing = withBundle.filter((n) => /<script src="\.\.\/demo\/spixi\.iife\.js"><\/script>\n<script>[^<]*window\.Spixi\.installFlagFont\(\);<\/script>/.test(rdZ('src/shells/' + n)));
-    const guarded = withBundle.filter((n) => /installFlagFont\s*&&|Spixi\s*&&\s*window\.Spixi\.installFlagFont/.test(rdZ('src/shells/' + n)));
-    ok(withBundle.length >= 17 && installing.length === withBundle.length && guarded.length === 0 && shellsZ.length - withBundle.length === 1,
-      '★★ L15b WALK: every shell that loads the bundle (' + withBundle.length + '/' + shellsZ.length + '; the one without is the bundle-less welcome pane) calls window.Spixi.installFlagFont() in the script right after it, UNGUARDED — a missing export fails loudly at boot (installing: ' + installing.length + ' · guarded: ' + guarded.length + ')');
-    const builtInstall = withBundle.filter((n) => { const out = n === 'home.html' ? 'index.html' : n === 'launch.html' ? 'intro.html' : n; try { return /window\.Spixi\.installFlagFont\(\);/.test(rdZ('Spixi/Resources/Raw/html/' + out)); } catch (e) { return false; } });
-    ok(builtInstall.length === withBundle.length,
-      '★ L15b: the BUILT shells carry the install call (' + builtInstall.length + '/' + withBundle.length + ') — the source walk above is not the only half');
+    /* ★ #917 (Session AC): the walk is a SPLIT, and the split is DERIVED, not listed. A shell
+       whose FIRST screen draws a flag must have the face in the document BEFORE that paint
+       (Windows would otherwise show a PNG that #888's upgrade then swaps for a glyph — one
+       frame of the wrong artwork on the welcome pill); every other shell defers the probe past
+       the ready verb, because the probe is the boot's single largest JS self-time (37 of 400 ms,
+       Chromium ×4, home shell) and 15 shells never draw a flag. The synchronous set is computed
+       from the tree: the components that call createFlag → their exported factories → the shells
+       whose source references one. A third component that starts drawing flags, or a shell that
+       starts hosting one, moves between the sets here and the author must choose a form. */
+    const flagComponents = readdirSync(join(root, 'src/components')).filter((n) => n.endsWith('.js') && n !== 'flags.js' && /\bcreateFlag\(/.test(stripCode(rdZ('src/components/' + n))));
+    /* seeded with createFlag ITSELF (a shell may call it directly — it is on window.Spixi) plus every
+       export of a component that calls it; the set is deliberately BROAD (a loud false red when a
+       shell adopts a non-flag export of those files is the acceptable side, #46 reviewer MINOR-4) */
+    const flagFactories = ['createFlag'].concat(flagComponents.flatMap((n) => [...rdZ('src/components/' + n).matchAll(/^export\s+function\s+([A-Za-z_$][\w$]*)/gm)].map((m) => m[1])));
+    const hostsFlag = (n) => flagFactories.some((f) => new RegExp('\\b' + f + '\\b').test(stripCode(rdZ('src/shells/' + n))));
+    const syncExpected = withBundle.filter(hostsFlag), laterExpected = withBundle.filter((n) => !hostsFlag(n));
+    const bootLine = (n) => (/<script src="\.\.\/demo\/spixi\.iife\.js"><\/script>\n<script>([^<]*)<\/script>/.exec(rdZ('src/shells/' + n)) || [])[1] || '';
+    /* the boot line is read STRIPPED and must EQUAL the call — the comment on the two
+       synchronous shells names the deferred form, and a raw-text negative read that as
+       the call itself (#771, caught by this pin's own first run) */
+    const bootCode = (n) => stripCode(bootLine(n)).trim();
+    const callsSync = withBundle.filter((n) => bootCode(n) === 'window.Spixi.installFlagFont();');
+    const callsLater = withBundle.filter((n) => bootCode(n) === 'window.Spixi.installFlagFontLater();');
+    const guarded = withBundle.filter((n) => /installFlagFont(?:Later)?\s*&&|Spixi\s*&&\s*window\.Spixi\.installFlagFont/.test(stripCode(rdZ('src/shells/' + n))));
+    const same = (a, b) => a.length === b.length && a.every((x, k) => x === b[k]);
+    ok(withBundle.length >= 17 && shellsZ.length - withBundle.length === 1 && guarded.length === 0
+       && flagComponents.length === 2 && same(flagComponents.sort(), ['launch-shell.js', 'settings-shell.js'])
+       && syncExpected.length === 2 && same(callsSync.sort(), syncExpected.sort()) && same(callsLater.sort(), laterExpected.sort())
+       && callsSync.length + callsLater.length === withBundle.length,
+      '★★ L15b WALK (#917 split): every shell that loads the bundle (' + withBundle.length + '/' + shellsZ.length + '; the one without is the bundle-less welcome pane) calls, UNGUARDED, in the script right after it, EITHER window.Spixi.installFlagFont() — exactly the shells hosting a component that calls createFlag (' + syncExpected.join(', ') + ' ← ' + flagComponents.join(', ') + ') — OR window.Spixi.installFlagFontLater() (' + callsLater.length + '); a missing export fails loudly at boot (sync: ' + callsSync.length + ' · later: ' + callsLater.length + ' · guarded: ' + guarded.length + ')');
+    const builtOf = (n) => n === 'home.html' ? 'index.html' : n === 'launch.html' ? 'intro.html' : n;
+    const builtSync = syncExpected.filter((n) => { try { const b = rdZ('Spixi/Resources/Raw/html/' + builtOf(n)); return /window\.Spixi\.installFlagFont\(\);/.test(b) && !/window\.Spixi\.installFlagFontLater\(\);/.test(b); } catch (e) { return false; } });
+    const builtLater = laterExpected.filter((n) => { try { const b = rdZ('Spixi/Resources/Raw/html/' + builtOf(n)); return /window\.Spixi\.installFlagFontLater\(\);/.test(b) && !/window\.Spixi\.installFlagFont\(\);/.test(b); } catch (e) { return false; } });
+    ok(builtSync.length === syncExpected.length && builtLater.length === laterExpected.length,
+      '★ L15b: the BUILT shells carry the SAME split (sync ' + builtSync.length + '/' + syncExpected.length + ' · later ' + builtLater.length + '/' + laterExpected.length + ') — the source walk above is not the only half');
+    /* ★ #917 behavioural: the deferred form must not touch a canvas until AFTER load → one
+       animation frame → a macrotask (the verb leaves in that frame), and it must resolve with
+       the synchronous form's own answer. Driven on a fresh jsdom with a spied createElement:
+       a probe that ran early would create its canvas synchronously — that is the regression. */
+    {
+      /* on a LOADED demo document (the suite's own boot convention: icons, strings and the
+         bundle all in place, canvas getContext stubbed to null → the probe answers 'unknown'
+         → the install resolves false, which is the boolean the pin expects) */
+      const domAC = await load('components.html');
+      const w9 = domAC.window; const canvasMade = [];
+      const origCE = w9.document.createElement.bind(w9.document);
+      w9.document.createElement = function (tag, ...rest) { if (String(tag).toLowerCase() === 'canvas') canvasMade.push(w9.__phase || 'sync'); return origCE(tag, ...rest); };
+      w9.Spixi.setFlagGlyphAvailable(null);            // re-arm the probe for this document
+      const complete = w9.document.readyState === 'complete';
+      w9.__phase = 'sync';
+      const pLater = w9.Spixi.installFlagFontLater();
+      const untouchedSync = canvasMade.length === 0;   // the regression: a probe that runs on the call
+      w9.__phase = 'frame';
+      await new Promise((r) => w9.requestAnimationFrame(r));
+      const untouchedInFrame = canvasMade.length === 0; // the frame the ready verb leaves in — still untouched
+      w9.__phase = 'after-frame';
+      const res = await Promise.race([pLater, new Promise((r) => setTimeout(() => r('timeout'), 4000))]);
+      ok(complete && untouchedSync && untouchedInFrame && canvasMade.length >= 1 && canvasMade[0] === 'after-frame' && res !== 'timeout' && typeof res === 'boolean',
+        '★★ #917: on a complete document installFlagFontLater touches NO canvas on the call and none inside the next animation frame (the frame the ready verb leaves in) — the probe runs in the macrotask after it, and the promise resolves with the install\'s own boolean (complete: ' + complete + ' · canvas phases: ' + JSON.stringify(canvasMade) + ' · result: ' + String(res) + ')');
+      w9.close();
+      /* ★ the PRODUCTION branch (#46 reviewer MAJOR-3): a shell calls installFlagFontLater DURING
+         PARSE, on the `loading` branch — the leg above never drove it, and a mutant that ran the
+         probe synchronously whenever readyState !== 'complete' passed every #917 pin. This document
+         boots the bundle the way a shell does (icons · strings · bundle · the boot line) with the
+         spy installed BEFORE parse; the phases are stamped by the document's own events. */
+      const bundleSrcAC = rdZ('src/demo/spixi.iife.js');
+      const bootDoc = (attrs) => '<!doctype html><html' + attrs + '><head></head><body>'
+        + '<script>' + rdZ('src/components/icons.iife.js') + '</script>'
+        + '<script>' + rdZ('src/demo/strings.iife.js') + '</script>'
+        + '<script>' + bundleSrcAC + '</script>'
+        + '<script>window.Spixi.setFlagGlyphAvailable(null); window.__phase = "parse"; window.__pLater = window.Spixi.installFlagFontLater(); window.__afterCall = window.__canvas.length;</script>'
+        + '</body></html>';
+      const bootWin = (attrs) => {
+        const D = new JSDOM(bootDoc(attrs), { runScripts: 'dangerously', pretendToBeVisual: true, beforeParse(w) {
+          w.__canvas = [];
+          const ce = w.document.createElement.bind(w.document);
+          w.document.createElement = function (tag, ...rest) { if (String(tag).toLowerCase() === 'canvas') w.__canvas.push(w.__phase || '?'); return ce(tag, ...rest); };
+          try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
+          w.addEventListener('load', () => { w.__phase = 'load'; w.__atLoad = w.__canvas.length; });
+        } });
+        return D.window;
+      };
+      {
+        const wL = bootWin('');
+        await new Promise((r) => (wL.document.readyState === 'complete' ? r() : wL.addEventListener('load', r, { once: true })));
+        wL.__phase = 'frame';
+        await new Promise((r) => wL.requestAnimationFrame(r));
+        const inFrame = wL.__canvas.length;
+        wL.__phase = 'after-frame';
+        const resL = await Promise.race([wL.__pLater, new Promise((r) => setTimeout(() => r('timeout'), 4000))]);
+        ok(wL.__afterCall === 0 && wL.__atLoad === 0 && inFrame === 0 && wL.__canvas.length >= 1 && wL.__canvas[0] === 'after-frame' && typeof resL === 'boolean',
+          '★★ #917 (the loading branch): a document that calls installFlagFontLater DURING PARSE touches no canvas at the call, none by `load`, none inside the first frame after it, and one after (phases: ' + JSON.stringify(wL.__canvas) + ' · result ' + String(resL) + ') — the reviewer\'s synchronous-when-loading mutant is red here');
+        wL.close();
+      }
+      {
+        /* DESKTOP is synchronous by design (the text case — a nick with a flag must not paint
+           as letters and swap): the probe runs INSIDE the call */
+        const wD = bootWin(' data-desktop');
+        ok(wD.__afterCall >= 1 && wD.__canvas[0] === 'parse',
+          '★ #917 (desktop): with :root[data-desktop] the same call probes SYNCHRONOUSLY during parse (canvases at return: ' + wD.__afterCall + ', phase ' + wD.__canvas[0] + ') — Windows keeps the pre-#917 timing byte for byte');
+        wD.close();
+      }
+      {
+        /* a HIDDEN document never fires requestAnimationFrame (#800's pre-warmed spare): the timer
+           fallback still probes, off-screen, instead of in the first visible frame */
+        const wH = bootWin('');
+        wH.requestAnimationFrame = () => 0;   // paused, as in a hidden WebView
+        await new Promise((r) => (wH.document.readyState === 'complete' ? r() : wH.addEventListener('load', r, { once: true })));
+        wH.__phase = 'hidden';
+        const t0 = Date.now();
+        const resH = await Promise.race([wH.__pLater, new Promise((r) => setTimeout(() => r('timeout'), 2000))]);
+        const dt = Date.now() - t0;
+        ok(resH !== 'timeout' && typeof resH === 'boolean' && wH.__canvas.length >= 1 && wH.__canvas[0] === 'hidden' && dt < 1500,
+          '★ #917 (hidden): with requestAnimationFrame paused the probe still runs on the HIDDEN_PROBE_MS timer (' + dt + ' ms after load, phase ' + (wH.__canvas[0] || 'none') + ') — the pre-warmed chat spare probes while hidden, not in its first visible frame');
+        wH.close();
+      }
+      const later = stripCode(rdZ('src/components/flags.js'));
+      ok(/export function installFlagFontLater\(\)/.test(later) && /if \(document\.readyState === 'complete'\) afterFrame\(\);\s*else w\.addEventListener\('load', afterFrame, \{ once: true \}\);/.test(later)
+         && /w\.requestAnimationFrame\(\(\) => setTimeout\(run, 0\)\)/.test(later) && /setTimeout\(run, HIDDEN_PROBE_MS\)/.test(later) && /export const HIDDEN_PROBE_MS = 300;/.test(later)
+         && /if \(document\.documentElement\.hasAttribute\('data-desktop'\)\) return installFlagFont\(\);/.test(later)
+         && /resolve\(installFlagFont\(\)\)/.test(later) && /export function installFlagFont\(\)[\s\S]*?return installFlagFontNow\(\);/.test(later),
+        '★ #917: the deferred form is load → requestAnimationFrame → setTimeout(run, 0), raced by a HIDDEN_PROBE_MS (300) timer, → the SAME installFlagFont (one gate, one body — installFlagFontNow is the shared tail); desktop returns installFlagFont() synchronously; a complete document schedules at once');
+    }
     const sa = stripCode(rdZ('src/components/settings-app.js'));
     /* THE DESKTOP COMPOSER FOOT (Damir, Windows screenshot mid-session: "add normal padding
        below the composer, it's too low"): a desktop has no bar/indicator inset, so the base
@@ -34430,6 +34571,526 @@ console.log('#912: backup exclusions, the html copy skip, and the start clock');
      && /if \(!startDiagLogged\)\s*\{\s*startDiagLogged = true;\s*App\.startDiag\("home shell loaded"\);\s*\}/.test(onl)
      && (hp912.match(/App\.startDiag\(/g) || []).length === 1,
     '★ #912 ④: the cold start is MEASURED — four [STARTDIAG] milestones in the App() constructor in launch order (logger up AFTER Logging.start · node constructed AFTER new Node() · wallet decrypted/NOT · root page set AFTER the root is assigned), one Stopwatch started at the first managed instruction, and a fifth "home shell loaded" in HomePage.onLoaded behind a once-per-process latch (a theme reload lands there too and is not a start). Got stages=' + stages.join(' | '));
+}
+
+/* ★ Session AC — THE LANDSCAPE ROUND (#918: AND-31 / AND-32 / AND-33 / AND-34).
+ * Every clause was rendered on the BUILT shells at 915×412 @2.5 through the wire before it
+ * was pinned (docs/sheets/session-ac/, `render-landscape.mjs.txt`), and the numbers in the
+ * messages are those renders. Sources are read STRIPPED (#771). */
+{
+  const rdAC = (p) => readFileSync(join(root, p), 'utf8');
+  const cssAC = (p) => stripCssComments(rdAC(p));
+  const homeAC = rdAC('src/shells/home.html');
+  const homeCssAC = stripCssComments((homeAC.match(/<style>([\s\S]*?)<\/style>/g) || []).join('\n'));
+  /* ① AND-31/32: the short-LANDSCAPE rules — the wallet VIEW scrolls, its inner scroller is a
+     block, the wallet tools carry the status inset while stuck, the apps Explore banner hides
+     (apps KEEPS its inner scroller — a sticky row inside a scrolling header cannot stick past
+     its own box). ★ #922 (r-review MAJOR-1): the rules key on the DEVICE flag
+     `:root[data-landscape]` (landscape-runtime.js: screen.orientation + a phone-sized short
+     side), NOT on a viewport media query — on Android landscape HomePage goes two-pane at
+     ≥ 700 DIP and this shell's viewport is a ~400 × 412 column that reports PORTRAIT while the
+     phone is on its side, so the block's first query never matched on the phone it was built
+     for. The device flag is keyboard-immune by construction (the viewport shrinks, the screen
+     does not) and is never set on desktop. So the property is now: EVERY short-landscape rule
+     for wallet/apps geometry rides the flag, and NO @media block anywhere touches that geometry
+     with a height or orientation term — a viewport query on these ids is the regression. */
+  const landRules = [...homeCssAC.matchAll(/:root\[data-landscape\] ([^{]+)\{([^}]*)\}/g)].map((m) => ({ sel: m[1].trim(), body: m[2] }));
+  const landSel = (sel) => landRules.filter((r) => r.sel === sel).map((r) => r.body).join(' ');
+  const mediaBlocks = (css) => { const out = []; const re = /@media ([^{]+)\{/g; let m; while ((m = re.exec(css))) { let depth = 1, i = re.lastIndex; while (i < css.length && depth) { if (css[i] === '{') depth++; else if (css[i] === '}') depth--; i++; } out.push({ cond: m[1].trim(), body: css.slice(re.lastIndex, i - 1) }); } return out; };
+  const geoRe = /#wallet-(view|scroll)\b|#apps-(view|scroll|header)\b/;
+  const sweepCss = [homeCssAC, ...readdirSync(join(root, 'src/styles/components')).filter((f) => f.endsWith('.css')).map((f) => cssAC('src/styles/components/' + f))].join('\n');   // every component sheet, not a named pair
+  const viewportGeo = mediaBlocks(sweepCss).filter((b) => /max-height|min-height|orientation/.test(b.cond) && geoRe.test(b.body));
+  const landUngated = landRules.filter((r) => !/^#(wallet|apps)-/.test(r.sel));
+  ok(landRules.length >= 4 && viewportGeo.length === 0 && landUngated.length === 0
+     && /overflow-y: auto/.test(landSel('#wallet-view')) && !landRules.some((r) => r.sel === '#apps-view')
+     && /flex: none;[^}]*min-height: auto;[^}]*overflow-y: visible/.test(landSel('#wallet-scroll')) && !landRules.some((r) => r.sel === '#apps-scroll')
+     && /padding-block-start: calc\(var\(--spacing-12\) \+ var\(--safe-top, 0px\)\);/.test(landSel('#wallet-scroll .c-wallet-tools'))
+     && !/display: none;/.test(landSel('#apps-header .c-apps-explore')) && /flex-direction: row;/.test(landSel('#apps-header .c-apps-header')) && /flex: 1 1 50%;[^}]*min-width: 0;/.test(landSel('#apps-header .c-apps-header__row'))
+     && /width: 46%;[^}]*min-height: 0;[^}]*padding-block: 0;/.test(landSel('#apps-header .c-apps-explore')) && /display: none;/.test(landSel('#apps-header .c-apps-explore__title, :root[data-landscape] #apps-header .c-apps-explore__illo'))
+     && !landRules.some((r) => /#apps-topbar/.test(r.sel))
+     && /#chat-scroll, #wallet-scroll, #apps-scroll \{ flex: 1; min-height: 0; overflow-y: auto;/.test(homeCssAC),
+    '★★ #918 AND-31/AND-32 (re-keyed by #922): home.html\'s short-landscape rules ride the DEVICE flag :root[data-landscape] (' + landRules.length + ' rules, all on wallet/apps ids) — the WALLET view scrolls and #wallet-scroll is a plain block (apps keeps its inner scroller), the wallet tools carry --safe-top, the apps Explore banner is ONE LINE beside the search row (#924 walk AC.8: never hidden — the eyebrow and the art go, the CTA stays; rendered 44 px tall, the list keeps 276 px) — and NO @media block in the shell or any component sheet touches that geometry with a height/orientation term (found: ' + viewportGeo.length + '); portrait keeps the shared scroller rule');
+  /* ② AND-34: the preview is content-sized. The property has two halves and the pin asserts
+     the RELATION: as long as message-bubble.css's `.c-chat-canvas` says `flex: 1` / `min-height: 0`
+     (the real canvas needs it), the double-class override must exist with `flex: none` and
+     the 148 px floor; if the canvas rule ever drops those, the override may go too. */
+  const mbCss = cssAC('src/styles/components/message-bubble.css');
+  const ssCss = cssAC('src/styles/components/settings-screens.css');
+  /* every rule whose selector list names .c-chat-canvas, any spelling of "grows and may shrink to 0" */
+  const canvasRules = [...mbCss.matchAll(/([^{}]*\.c-chat-canvas[^{}]*)\{([^}]*)\}/g)].map((m) => m[2]).join('\n');
+  const canvasFills = /(?:^|;|\s)flex(?:-grow)?:\s*1\b/.test(canvasRules) && /min-height:\s*0(?:px)?\s*;/.test(canvasRules);
+  const override = /\.c-chat-canvas\.c-settings-appearance__preview \{([^}]*)\}/.exec(ssCss);
+  const overrideOk = !!override && /flex: none;/.test(override[1]) && /min-height: 148px;/.test(override[1]);
+  const single = /\n\.c-settings-appearance__preview \{([^}]*)\}/.exec(ssCss);
+  ok(!!single && /min-height: 148px;/.test(single[1]) && (!canvasFills || overrideOk),
+    '★★ #918 AND-34: the chat-appearance preview keeps its 148 px floor AGAINST the .c-chat-canvas rule it also wears — that rule says flex: 1 / min-height: 0 (' + canvasFills + '), so the double-class override .c-chat-canvas.c-settings-appearance__preview { flex: none; min-height: 148px } must exist (' + overrideOk + '). Rendered: 60 px (bubbles clipped) → 148 px in landscape; a leftover-filling slab → content-sized in portrait');
+  /* ③ AND-33: both mobile sheet caps subtract the status inset, and they are the SAME
+     expression (wallet-receive.css out-orders overlay.css at equal specificity, #608 r2). */
+  /* the cascade decides, not the first rule found: the LAST max-height declared for the selector
+     wins within a file, and a later component sheet could re-declare it — walk every stylesheet
+     under src/styles/components for a mobile `.c-sheet` max-height and require each one to
+     SUBTRACT --safe-top (the two bottom sheets must be the exact cap; the anchored menu has
+     its own safe-region cap) — a later re-declaration without the inset fails here */
+  const capsOf = (css, sel) => { const re = new RegExp(sel.replace(/[.\-\[\]()]/g, '\\$&') + ' \\{([^}]*)\\}', 'g'); const out = []; let m; while ((m = re.exec(css))) { const v = (/max-height: ([^;]+);/.exec(m[1]) || [])[1]; if (v) out.push(v); } return out; };
+  const capOf = (css, sel) => { const c = capsOf(css, sel); return c.length ? c[c.length - 1] : null; };
+  const capSheet = capOf(cssAC('src/styles/components/overlay.css'), ':root:not([data-desktop]) .c-sheet');
+  const capAddr = capOf(cssAC('src/styles/components/wallet-receive.css'), ':root:not([data-desktop]) .c-sheet--addr');
+  const strayCaps = readdirSync(join(root, 'src/styles/components')).filter((f) => f.endsWith('.css')).flatMap((f) => { const css = cssAC('src/styles/components/' + f); const re = /([^{}]*\.c-sheet[^{}]*)\{([^}]*max-height: ([^;]+);[^}]*)\}/g; const out = []; let m; while ((m = re.exec(css))) { const sel = m[1].trim(); if (/data-desktop\]/.test(sel) && !/:not\(\[data-desktop\]\)/.test(sel)) continue; if (!/var\(--safe-top, 0px\)/.test(m[3])) out.push(f + ' → ' + sel + ' = ' + m[3]); } return out; });   // the PROPERTY every mobile sheet cap must hold: it subtracts the status inset (the bottom sheets carry the exact cap above; the anchored [data-m-anchor] dropdown carries its own safe-region cap, which also subtracts it)
+  ok(capSheet === 'calc(100% - var(--safe-top, 0px) - var(--kb-inset, 0px))' && capAddr === capSheet && strayCaps.length === 0,
+    '★★ #918 AND-33 (stray mobile .c-sheet caps: ' + strayCaps.length + '): the mobile bottom-sheet cap is calc(100% - --safe-top - --kb-inset) in overlay.css AND the identical expression in wallet-receive.css (which out-orders it): sheet=' + capSheet + ' · addr=' + capAddr + '. Rendered: the full-detail tx sheet (494 px content in a 412 px viewport) rose to y=0 under the status bar; the anchored menu already subtracted the inset, the bottom sheet did not');
+  /* ④ the BUILT shells carry ① and ② (the source walk is not the only half) */
+  const builtHome = stripCssComments(rdAC('Spixi/Resources/Raw/html/index.html'));
+  const builtSettings = stripCssComments(rdAC('Spixi/Resources/Raw/html/settings.html'));
+  ok(/:root\[data-landscape\] #apps-header \.c-apps-header \{ flex-direction: row; align-items: stretch; \}/.test(builtHome) && !/:root\[data-landscape\] #apps-header \.c-apps-explore \{ display: none; \}/.test(builtHome) && /:root\[data-landscape\] #wallet-view \{[^}]*overflow-y: auto/.test(builtHome)
+     && /\.c-chat-canvas\.c-settings-appearance__preview \{[^}]*flex: none;[^}]*min-height: 148px;/.test(builtSettings)
+     && /:root:not\(\[data-desktop\]\) \.c-sheet \{[^}]*max-height: calc\(100% - var\(--safe-top, 0px\) - var\(--kb-inset, 0px\)\)/.test(builtHome),
+    '★ #918: the BUILT index.html carries the device-flag short-landscape rules and the sheet cap, the BUILT settings.html carries the preview override — a rebuild that was skipped cannot pass');
+}
+
+/* ★ Session AC — THE iOS NOTIFICATION SERVICE EXTENSION (#919, the #915 plan built;
+ * UNCOMPILED here — the office iPhone build is its first compile). Every pin below JOINS
+ * two files, because every one of these properties fails SILENTLY when the two drift:
+ * a bundle id that is not the app's child, a group string that differs by a character, a
+ * SupportedOSPlatformVersion above the app's MinimumOSVersion (iOS silently drops
+ * mutable-content pushes — docs/ios-nse-spec.md §1), a mute rewrite that forgets one of
+ * title/body/sound. C# is read STRIPPED (#771). */
+{
+  const rdX = (p) => readFileSync(join(root, p), 'utf8');
+  const csX = (p) => stripCode(rdX(p));
+  const plistString = (xml, key) => { const m = new RegExp('<key>' + key.replace(/\./g, '\\.') + '</key>\\s*<string>([^<]*)</string>').exec(xml); return m ? m[1] : null; };
+  const plistArray = (xml, key) => { const m = new RegExp('<key>' + key.replace(/\./g, '\\.') + '</key>\\s*<array>([\\s\\S]*?)</array>').exec(xml); return m ? [...m[1].matchAll(/<string>([^<]*)<\/string>/g)].map((x) => x[1]) : null; };
+  const appCsproj = rdX('Spixi/Spixi.csproj'), extCsproj = rdX('Spixi-PushService/Spixi-PushService.csproj');
+  const appEnt = rdX('Spixi/Platforms/iOS/Entitlements.plist'), extEnt = rdX('Spixi-PushService/Entitlements.plist');
+  const extInfo = rdX('Spixi-PushService/Info.plist');
+  const gate = csX('Spixi-PushService/SpixiPushGate.cs'), share = csX('Spixi/Platforms/iOS/SPushPrefsShare.cs'), svc = csX('Spixi-PushService/NotificationService.cs');
+  /* ① the bundle ids: the extension's is the app's + ".Spixi-PushService", in BOTH places
+     the extension declares it (csproj ApplicationId, Info.plist CFBundleIdentifier) */
+  const appId = (/<ApplicationId>([^<]+)<\/ApplicationId>/.exec(appCsproj) || [])[1];
+  const extId = (/<ApplicationId>([^<]+)<\/ApplicationId>/.exec(extCsproj) || [])[1];
+  const extInfoId = plistString(extInfo, 'CFBundleIdentifier');
+  ok(appId === 'com.ixilabs.spixi' && extId === appId + '.Spixi-PushService' && extInfoId === extId,
+    '★★ #919 ①: the extension bundle id is the app\'s CHILD — ' + extId + ' = ' + appId + ' + ".Spixi-PushService", and Info.plist agrees (' + extInfoId + ')');
+  /* ② ONE App Group string in four homes: both Entitlements.plist arrays and both C# constants */
+  const grpApp = plistArray(appEnt, 'com.apple.security.application-groups'), grpExt = plistArray(extEnt, 'com.apple.security.application-groups');
+  const grpGate = (/public const string APP_GROUP = "([^"]+)";/.exec(gate) || [])[1], grpShare = (/public const string APP_GROUP = "([^"]+)";/.exec(share) || [])[1];
+  const appInfo = rdX('Spixi/Platforms/iOS/Info.plist');
+  const osKeyApp = plistString(appInfo, 'OneSignal_app_groups_key'), osKeyExt = plistString(extInfo, 'OneSignal_app_groups_key');
+  ok(grpApp && grpApp.length === 1 && grpExt && grpExt.length === 1 && grpApp[0] === 'group.com.ixilabs.spixi'
+     && grpExt[0] === grpApp[0] && grpGate === grpApp[0] && grpShare === grpApp[0] && osKeyApp === grpApp[0] && osKeyExt === grpApp[0],
+    '★★ #919 ②: the App Group is ONE string in SIX homes — app entitlements ' + JSON.stringify(grpApp) + ' · extension entitlements ' + JSON.stringify(grpExt) + ' · SpixiPushGate.APP_GROUP ' + grpGate + ' · SPushPrefsShare.APP_GROUP ' + grpShare + ' · OneSignal_app_groups_key in both Info.plists (' + osKeyApp + ' / ' + osKeyExt + ' — the SDK reads THAT key for its shared suite, and without it the extension reports no delivery)');
+  /* ②b the extension is FOUND by name: [Register] must equal NSExtensionPrincipalClass (#510 pinned the
+     Android equivalent; a drift here kills the lane silently) — and the versions match the app's */
+  const registered = (/\[Register\("([^"]+)"\)\]\s*public class NotificationService/.exec(svc) || [])[1];
+  const principal = plistString(extInfo, 'NSExtensionPrincipalClass');
+  /* the EFFECTIVE version is the plist's when the plist carries the key (the app manifest task
+     fills CFBundleShortVersionString/CFBundleVersion from MSBuild only when the plist has none —
+     the app's plist DOES carry both), else the csproj's; App Store validation wants the extension's
+     CFBundleShortVersionString equal to the app's, so both bundles are compared on that basis */
+  const effVer = (plist, csproj) => [plistString(plist, 'CFBundleShortVersionString') || (/<ApplicationDisplayVersion>([^<]+)</.exec(csproj) || [])[1], plistString(plist, 'CFBundleVersion') || (/<ApplicationVersion>([^<]+)</.exec(csproj) || [])[1]];
+  const verApp = effVer(appInfo, appCsproj), verExt = effVer(extInfo, extCsproj);
+  const noRid = !/<RuntimeIdentifier>/.test(extCsproj);
+  const signCond = /<PropertyGroup Condition="'\$\(TargetFramework\)'=='net10\.0-ios' AND '\$\(RuntimeIdentifier\)' != '' AND !\$\(RuntimeIdentifier\.StartsWith\('iossimulator'\)\)">\s*<CodesignKey>/.test(extCsproj);
+  ok(registered === 'NotificationService' && principal === registered && verApp[0] && verApp[0] === verExt[0] && verApp[1] === verExt[1] && noRid && signCond,
+    '★★ #919 ②b: [Register("' + registered + '")] = NSExtensionPrincipalClass (' + principal + '); the extension carries the app\'s EFFECTIVE versions (plist over csproj: ' + verExt.join(' / ') + '); it pins NO RuntimeIdentifier (a fixed ios-arm64 broke the simulator build) and signs manually only for a DEVICE RID');
+  /* ③ the silent-drop trap: extension SupportedOSPlatformVersion ≤ the app's iOS
+     SupportedOSPlatformVersion (which is what MAUI writes as MinimumOSVersion) — and the
+     extension's own Info.plist MinimumOSVersion agrees */
+  const num = (v) => v ? v.split('.').map(Number) : null;
+  const leq = (a, b) => { if (!a || !b) return false; for (let k = 0; k < Math.max(a.length, b.length); k++) { const x = a[k] || 0, y = b[k] || 0; if (x !== y) return x < y; } return true; };
+  const extMin = (/<SupportedOSPlatformVersion>([^<]+)<\/SupportedOSPlatformVersion>/.exec(extCsproj) || [])[1];
+  const appMin = (/<SupportedOSPlatformVersion Condition="[^"]*'ios'">([^<]+)<\/SupportedOSPlatformVersion>/.exec(appCsproj) || [])[1];
+  const extInfoMin = plistString(extInfo, 'MinimumOSVersion');
+  ok(extMin && appMin && leq(num(extMin), num(appMin)) && extInfoMin === extMin,
+    '★★ #919 ③: the extension\'s SupportedOSPlatformVersion (' + extMin + ') is ≤ the app\'s iOS minimum (' + appMin + ') and its Info.plist MinimumOSVersion agrees (' + extInfoMin + ') — the SDK\'s own warning: a higher value makes iOS refuse to bind the extension and SILENTLY drop mutable-content pushes');
+  /* ④ the mute rewrite empties ALL of title / subtitle / body / sound (and leaves the badge alone),
+     and the Suppress branch delivers WITHOUT OneSignal and disarms TimeWillExpire */
+  const emptyBody = (/public static void empty\(UNMutableNotificationContent content\)\s*\{([\s\S]*?)\n        \}/.exec(gate) || [])[1] || '';
+  const suppress = (/if \(verdict\.action == SpixiPushGate\.Action\.Suppress\)\s*\{([\s\S]*?)\n            \}/.exec(svc) || [])[1] || '';
+  const osCalls = [...svc.matchAll(/NotificationServiceExtension\.DidReceiveNotificationExtensionRequest\(/g)].map((m) => m.index);
+  const suppressAt = svc.indexOf('if (verdict.action == SpixiPushGate.Action.Suppress)');
+  ok(/content\.Title = string\.Empty;/.test(emptyBody) && /content\.Body = string\.Empty;/.test(emptyBody) && /content\.Subtitle = string\.Empty;/.test(emptyBody)
+     && /content\.Sound = null;/.test(emptyBody) && /content\.Badge = null;/.test(emptyBody)
+     && /content\.InterruptionLevel = UNNotificationInterruptionLevel\.Passive2;/.test(emptyBody) && /content\.RelevanceScore = 0;/.test(emptyBody) && !/\.Passive;/.test(emptyBody)
+     && /SpixiPushGate\.empty\(BestAttemptContent\);/.test(suppress) && /ContentHandler = null;/.test(suppress) && /contentHandler\(BestAttemptContent\);/.test(suppress) && /return;/.test(suppress)
+     && osCalls.length === 1 && suppressAt > 0 && osCalls[0] > suppressAt
+     && /SpixiPushGate\.apply\(BestAttemptContent, verdict\);\s*NotificationServiceExtension\.DidReceiveNotificationExtensionRequest\(request, BestAttemptContent, contentHandler\);/.test(svc)
+     && /if \(ContentHandler == null \|\| ReceivedRequest == null\) return;/.test((/public override void TimeWillExpire\(\)\s*\{([\s\S]*?)\n        \}/.exec(svc) || [])[1] || ''),   // r2 MINOR-2: a null request cannot be forwarded (CS8604 under TreatWarningsAsErrors)
+    '★★ #919 ④: the mute rewrite clears title, subtitle, body AND sound, drops the level to Passive2 (not the [Obsolete] Passive) with zero relevance, badge = null; OneSignal\'s handler is called EXACTLY ONCE in the file (' + osCalls.length + '), AFTER the Suppress branch\'s return — the Suppress branch delivers the emptied content itself and disarms TimeWillExpire, which then returns early (and also on a null ReceivedRequest)');
+  /* ⑤ the two halves speak the same store: FILE_NAME and SCHEMA equal, the Store shapes
+     field-for-field identical, both serialisers source-generated (reflection JSON is IL2026
+     under iOS trimming and the extension treats warnings as errors), the csproj reference
+     is LIVE, and the SDK versions match */
+  const fileGate = (/public const string FILE_NAME = "([^"]+)";/.exec(gate) || [])[1], fileShare = (/public const string FILE_NAME = "([^"]+)";/.exec(share) || [])[1];
+  const schemaGate = (/public const int SCHEMA = (\d+);/.exec(gate) || [])[1], schemaShare = (/public const int SCHEMA = (\d+);/.exec(share) || [])[1];
+  const fields = (src) => { const m = /class Store\s*\{([\s\S]*?)\n        \}/.exec(src); return m ? [...m[1].matchAll(/public ([\w<>, ]+?) (\w+) \{ get; set; \}/g)].map((x) => x[1].replace(/\s+/g, '') + ' ' + x[2]) : null; };
+  const fGate = fields(gate), fShare = fields(share);
+  const sameFields = fGate && fShare && fGate.length === 5 && fGate.join('|') === fShare.join('|');
+  const refLive = /<ItemGroup Condition="\$\(TargetFramework\.Contains\('-ios'\)\)">\s*<ProjectReference Include="\.\.\/Spixi-PushService\/Spixi-PushService\.csproj">\s*<IsAppExtension>true<\/IsAppExtension>/.test(appCsproj) && !/<!--\s*<ItemGroup[^>]*>\s*<ProjectReference Include="\.\.\/Spixi-PushService/.test(appCsproj);
+  const sdkApp = (/<PackageReference Include="OneSignalSDK\.DotNet" Version="([^"]+)"/.exec(appCsproj) || [])[1], sdkExt = (/<PackageReference Include="OneSignalSDK\.DotNet" Version="([^"]+)"/.exec(extCsproj) || [])[1];
+  const noRename = !/JsonPropertyName|JsonSourceGenerationOptions|PropertyNamingPolicy/.test(gate) && !/JsonPropertyName|JsonSourceGenerationOptions|PropertyNamingPolicy/.test(share);
+  ok(fileGate === fileShare && fileGate === 'spixi-push.json' && schemaGate === schemaShare && sameFields && noRename
+     && /JsonSerializer\.Deserialize\(json, SpixiPushStoreContext\.Default\.Store\)/.test(gate) && /\[JsonSerializable\(typeof\(SpixiPushGate\.Store\)\)\]/.test(gate)
+     && /JsonSerializer\.Serialize\(store, SPushPrefsStoreContext\.Default\.Store\)/.test(share) && /\[JsonSerializable\(typeof\(SPushPrefsShare\.Store\)\)\]/.test(share)
+     && refLive && sdkApp && sdkApp === sdkExt,
+    '★★ #919 ⑤: writer and reader agree — FILE_NAME ' + fileGate + ' · SCHEMA ' + schemaGate + ' · Store fields identical (' + (fGate || []).join(', ') + ') with NO renaming attribute or naming policy on either side · both JSON paths source-generated · the Spixi.csproj ProjectReference is LIVE (not commented) · OneSignalSDK.DotNet ' + sdkApp + ' in both projects');
+  /* ⑥ the app writes on the three toggles and on OnSleep — the whole write contract — and
+     only GENUINE 1:1 mutes travel (the shouldDisplayRawPush audit MAJOR, mirrored) */
+  const prefs = csX('Spixi/Meta/SNotificationPrefs.cs'), app = csX('Spixi/App.xaml.cs');
+  const setterCalls = (prefs.match(/shareForPushExtension\(\);/g) || []).length;
+  const onSleep = (/protected override void OnSleep\(\)\s*\{([\s\S]*?)\n    \}/.exec(app) || [])[1] || '';
+  const syncBody = (/public static bool sync\(\)\s*\{([\s\S]*?)\n        \}/.exec(share) || [])[1] || '';
+  const lockBody = (/lock \(writeLock\)\s*\{([\s\S]*?)\n                \}/.exec(syncBody) || [])[1] || '';
+  const settings = csX('Spixi/Pages/Settings/SettingsPage.xaml.cs');
+  const wipe = (/private void wipeEverything\(\)\s*\{([\s\S]*?)\n        \}/.exec(settings) || [])[1] || '';
+  ok(/set \{ setBool\(KEY_ENABLED, value\); shareForPushExtension\(\); \}/.test(prefs) && /set \{ setBool\(KEY_SENDER_NAME, value\); shareForPushExtension\(\); \}/.test(prefs)
+     && /Preferences\.Default\.Remove\(muteKey\(address\)\);\s*\}\s*shareForPushExtension\(\);/.test(prefs) && setterCalls === 3
+     && /#if IOS\s*Spixi\.SPushPrefsShare\.syncLater\(\);\s*#endif/.test(prefs) && /^\s*base\.OnSleep\(\);\s*#if IOS\s*Spixi\.SPushPrefsShare\.sync\(\);\s*#endif/.test(onSleep)
+     && /if \(!Node\.isRunning\)\s*\{\s*return false;/.test(syncBody)
+     /* r2 MINOR-4: the running check is repeated INSIDE the lock (a syncLater task that passed the
+        outer gate before the wipe must not rebuild the wiped store from the old roster), and the
+        wipe deletes the store AFTER FriendList.clear() so a rebuild in that window finds it empty */
+     && /if \(!Node\.isRunning\)\s*\{\s*return false;/.test(lockBody)
+     && wipe.indexOf('Spixi.SPushPrefsShare.clear();') > wipe.indexOf('FriendList.clear();') && wipe.indexOf('FriendList.clear();') > 0
+     && /Store store = build\(\);/.test(lockBody) && /JsonSerializer\.Serialize\(/.test(lockBody) && /File\.Move\(tmp, path, true\);/.test(lockBody) && /excludeFromBackup\(path\);/.test(lockBody)
+     && /bool isOneToOne = friend\.type != FriendType\.Group\s*&& !friend\.bot\s*&& \(friend\.metaData == null \|\| friend\.metaData\.botInfo == null\);\s*if \(isOneToOne && SNotificationPrefs\.isContactMuted\(address\)\)/.test(share)
+     && /if \(store\.senderName\)\s*\{\s*string name = SNotificationPrefs\.displayNameFor\(friend\);/.test(share)
+     && /NSUrl\.IsExcludedFromBackupKey/.test(share)
+     && /#if IOS\s*try \{ Spixi\.SPushPrefsShare\.clear\(\); \}/.test(wipe),
+    '★ #919 ⑥: the store is written on the master, sender-name and per-chat mute toggles (3 setter calls, iOS-only by #if) and FIRST in App.OnSleep; never with no wallet loaded (Node.isRunning); the running check REPEATED inside the lock; build → serialise → temp → move → backup-exclude all under ONE lock; only a GENUINE 1:1 contact\'s mute travels; names only while the sender-name switch is on; the account wipe deletes the store AFTER FriendList.clear()');
+}
+
+/* ★ Session AC — ROUTE B: MAC CATALYST WITHOUT THE BE ENGINEER, PREPARED (#920, from Damir's
+ * #916 addendum). Nothing here compiles the maccatalyst TFM; these pins hold the SHAPE the
+ * office build depends on, every one derived from the files rather than listed. */
+{
+  const rdM = (p) => readFileSync(join(root, p), 'utf8');
+  const dir = 'Spixi/Platforms/MacCatalyst/RocksDbSharp';
+  const walkCs = (d, out = []) => { for (const n of readdirSync(join(root, d))) { const p = d + '/' + n; if (statSync(join(root, p)).isDirectory()) walkCs(p, out); else if (n.endsWith('.cs')) out.push(p); } return out; };
+  const vendored = walkCs(dir);
+  const COMMIT = 'f1cf0ba0306fa01b55efa2292c1cc44ee3192b88';
+  /* ① every vendored file: the header names the pinned upstream commit AND ends in #nullable disable
+     before any code (the app builds with Nullable=enable and the wrapper is unannotated) */
+  /* the header is DERIVED, not counted: every leading `//` line up to and including the
+     `#nullable disable` line (a fixed line count broke the moment the banner grew a line) */
+  const headerOf = (t) => { const ls = t.split('\n'); const i = ls.indexOf('#nullable disable'); return i < 0 || ls.slice(0, i).some((l) => !l.startsWith('//')) ? null : ls.slice(0, i + 1); };
+  const badHeader = vendored.filter((p) => { const h = headerOf(rdM(p)); const first = h ? h.join('\n') : ''; return !(h && first.includes('VENDORED — DO NOT EDIT BY HAND (#920') && first.includes('rocksdb-sharp @ ' + COMMIT)); });
+  ok(vendored.length >= 40 && badHeader.length === 0 && vendored.some((p) => p.endsWith('/Native.cs')) && vendored.some((p) => p.endsWith('/AutoNativeImport.cs')),
+    '★★ #920 ①: ' + vendored.length + ' vendored RocksDbSharp files, every one headed by the #920 vendoring banner naming upstream commit ' + COMMIT.slice(0, 7) + ' and `#nullable disable` (bad: ' + badHeader.length + ')');
+  /* ② the Catalyst patch, both lines, in the ONE file the banner allows to differ from upstream */
+  const ani = stripCode(rdM(dir + '/AutoNativeImport.cs'));
+  const importFn = (/public static T Import<T>\(string name, string version, bool suppressUnload = false\) where T : class\s*\{([\s\S]*?)\n        \}/.exec(ani) || [])[1] || '';
+  const catalystBranch = /else if \(OperatingSystem\.IsMacCatalyst\(\)\)\s*return Importers\.Import<T>\(Importers\.Posix, name, version, suppressUnload\);/.test(importFn);
+  const windowsLast = importFn.lastIndexOf('Importers.Windows') > importFn.indexOf('OperatingSystem.IsMacCatalyst()');
+  const rid = /OperatingSystem\.IsMacCatalyst\(\) \? "osx" :/.test(ani);
+  const edited = vendored.filter((p) => { const t = rdM(p); const h = headerOf(t); return h && /#920/.test(t.split('\n').slice(h.length).join('\n')); });
+  ok(catalystBranch && windowsLast && rid && edited.length === 1 && edited[0].endsWith('/AutoNativeImport.cs'),
+    '★★ #920 ②: Auto.Import routes OperatingSystem.IsMacCatalyst() to the POSIX importer BEFORE the Windows fall-through (the July kernel32 crash), GetRuntimeId names the osx folder for it, and AutoNativeImport.cs is the ONLY vendored file with a #920 edit below its banner (edited: ' + edited.map((p) => p.split('/').pop()).join(', ') + ')');
+  /* ③ the csproj: maccatalyst compiles the folder ALONE (the Remove for every other TFM stays),
+     gets AllowUnsafeBlocks, and no longer references the public RocksDB package (twice-defined types) */
+  /* the csproj is XML: a `<!-- -->` block satisfies (or defeats) a raw sweep exactly as a
+     JS comment does (#771) — every clause below reads the COMMENT-STRIPPED document */
+  const csproj = rdM('Spixi/Spixi.csproj').replace(/<!--[\s\S]*?-->/g, '');
+  const removeOthers = /<ItemGroup Condition="\$\(TargetFramework\.Contains\('-maccatalyst'\)\) != true">\s*<Compile Remove="\*\*\\MacCatalyst\\\*\*\\\*\.cs" \/>/.test(csproj);
+  const unsafeCat = /<PropertyGroup Condition="\$\(TargetFramework\.Contains\('-maccatalyst'\)\)">\s*<AllowUnsafeBlocks>true<\/AllowUnsafeBlocks>\s*<\/PropertyGroup>/.test(csproj);
+  const unsafeElsewhere = (csproj.match(/<AllowUnsafeBlocks>/g) || []).length;
+  /* EVERY live RocksDB package reference (the dev's 0.0.42 for android/ios AND the public
+     10.4.2.64152) must keep maccatalyst out — a walk over the elements, not a count of one
+     spelling: a condition excludes catalyst when it negates it explicitly, or when it is a
+     pure whitelist (no `!`) that never names it; an unconditional line, or one whose
+     whitelist names maccatalyst, re-introduces the twice-defined types on that TFM */
+  const pkgRefs = [...csproj.matchAll(/<PackageReference Include="RocksDB"([^>]*?)\/?>/gi)].map((m) => m[1]);   // NuGet ids are case-insensitive: `rocksdb` is the same package
+  const condOf = (attrs) => (/Condition="([^"]*)"/.exec(attrs) || [])[1] ?? null;
+  const excludesCat = (cond) => cond !== null && (/!\$\(TargetFramework\.Contains\('-maccatalyst'\)\)/.test(cond) || (!/!/.test(cond) && !/maccatalyst/.test(cond)));
+  const leakyRefs = pkgRefs.filter((a) => !excludesCat(condOf(a)));
+  const pkgLine = (/<PackageReference Include="RocksDB" Version="10\.4\.2\.64152" Condition="([^"]+)" \/>/.exec(csproj) || [])[1] || '';
+  const pkgExcludesCat = pkgRefs.length >= 2 && leakyRefs.length === 0 && /!\$\(TargetFramework\.Contains\('-android'\)\)/.test(pkgLine) && /!\$\(TargetFramework\.Contains\('-ios'\)\)/.test(pkgLine);
+  const nativeVersion = (/Auto\.Import<Native>\("rocksdb", "([^"]+)"/.exec(stripCode(rdM(dir + '/Native.Load.cs'))) || [])[1];
+  ok(removeOthers && unsafeCat && unsafeElsewhere === 1 && pkgExcludesCat && nativeVersion === '10.4.2' && pkgLine.length > 0,
+    '★★ #920 ③: on the comment-stripped csproj, Platforms/MacCatalyst/**/*.cs is removed from every non-catalyst TFM (so the vendored source compiles for maccatalyst ALONE), AllowUnsafeBlocks is set for that TFM only (' + unsafeElsewhere + ' occurrence), every live RocksDB package reference keeps maccatalyst out (' + pkgRefs.length + ' refs, leaky: ' + leakyRefs.length + ') with the public 10.4.2.64152 line excluding android/ios/maccatalyst, and the vendored loader binds native ' + nativeVersion + ' = the public package\'s own version');
+  /* ③b provenance: the upstream LICENSE travels with the vendored source (BSD-2-Clause asks for
+     it), the notices doc names it, and MANIFEST.sha256 pins every file's body BELOW its header
+     — recomputed here, so a hand edit to a vendored file (the "byte-identical to upstream"
+     claim in every header) fails the suite instead of hiding; AutoNativeImport.cs is recorded
+     PATCHED, which is why ② and this pin agree on the one edited file */
+  const lic = rdM(dir + '/LICENSE');
+  const manifest = rdM(dir + '/MANIFEST.sha256').split('\n').filter((l) => l && !l.startsWith('#')).map((l) => l.split(/\s+/));
+  const manifestMap = new Map(manifest.map(([h, rel]) => [rel, h]));
+  const { createHash } = await import('node:crypto');
+  const bodyHash = (p) => { const t = rdM(p); const i = t.indexOf('#nullable disable\n'); return i < 0 ? null : createHash('sha256').update(t.slice(i + '#nullable disable\n'.length), 'utf8').digest('hex'); };
+  const relOf = (p) => p.slice((dir + '/').length);
+  const drift = vendored.filter((p) => manifestMap.get(relOf(p)) !== bodyHash(p)).map(relOf);
+  const orphan = [...manifestMap.keys()].filter((rel) => !vendored.some((p) => relOf(p) === rel));
+  ok(/^BSD-2-Clause/.test(lic) && /Warren Falk/.test(lic) && /Curiosity GmbH/.test(lic)
+     && /RocksDbSharp\/LICENSE/.test(rdM('docs/legal/third-party-notices.md')) && /### RocksDbSharp \(vendored managed wrapper, Mac Catalyst only\) — BSD-2-Clause/.test(rdM('docs/legal/third-party-notices.md'))
+     && manifest.length === vendored.length && vendored.length === 43 && drift.length === 0 && orphan.length === 0,
+    '★ #920 ③b: the upstream BSD-2-Clause LICENSE is vendored beside the source and named in third-party-notices.md, and MANIFEST.sha256 (' + manifest.length + ' entries) matches the body hash of every vendored file (drift: ' + drift.join(', ') + '; orphans: ' + orphan.join(', ') + ')');
+  /* ④ the README beside the gitignored shim folder is committed and carries the vtool line.
+     ⚠ The ignore pattern must be `NativeLibraries/*` (the CONTENTS), never `NativeLibraries/` (the
+     DIRECTORY): git does not descend into an excluded directory, so a later `!README.md` can never
+     re-include a file under it — the first cut asserted the `/` spelling and shipped a README no
+     `git add` could see (found at Damir's commit, 2026-09-23). The negation must follow the pattern. */
+  const gi = rdM('.gitignore'), readme = rdM('Spixi/Platforms/MacCatalyst/NativeLibraries/README.md');
+  const giLines = gi.split('\n').map((l) => l.trim());
+  const patIdx = giLines.indexOf('Spixi/Platforms/MacCatalyst/NativeLibraries/*'), negIdx = giLines.indexOf('!Spixi/Platforms/MacCatalyst/NativeLibraries/README.md');
+  const dirExcluded = giLines.some((l) => /^\/?Spixi\/Platforms\/MacCatalyst\/NativeLibraries\/?$/.test(l));
+  ok(patIdx >= 0 && negIdx > patIdx && !dirExcluded
+     && /xcrun vtool -set-build-version maccatalyst 15\.0 15\.0/.test(readme) && readme.includes(COMMIT) && /prepareStorageInternal/.test(readme),
+    '★ #920 ④: the shim folder\'s CONTENTS are gitignored (`NativeLibraries/*`, never the directory — an excluded directory cannot be reached by a `!` rule), the README negation FOLLOWS the pattern (pattern line ' + patIdx + ', negation line ' + negIdx + ', directory excluded: ' + dirExcluded + '), and the README carries the exact vtool line, the pinned commit and the boot check (prepareStorageInternal)');
+  /* ⑤ the C# checker learned the vendored code's one grammar gap AND stopped reading comments
+     for gap shapes (a doc comment `L1..L3 will` and a `Status...Working on` comment had
+     each convicted a whole file) */
+  const chk = stripCode(rdM('scripts/cs-syntax-check.mjs'));
+  const gapIds = [...chk.matchAll(/id: '([^']+)'/g)].map((m) => m[1]);
+  ok(gapIds.some((id) => /pointer dereference of a cast/.test(id))
+     && /re: \/\(\?<!\\\.\)\\\.\\\.\(\?!\\\.\)/.test(chk)
+     && /function commentMask\(src, rootNode\)/.test(chk) && /if \(n\.type === 'comment'\)/.test(chk)
+     && /function neutraliseGaps\(src, rootNode\)/.test(chk) && /neutraliseGaps\(src, tree\.rootNode\)/.test(chk) && /mask\.replace\(g\.re,/.test(chk),
+    '★ #920 ⑤: cs-syntax-check knows the pointer-dereference-of-a-cast gap (' + gapIds.length + ' constructs), refuses a `..` beside a third dot for the slice gap, and matches every gap construct on a COMMENT-MASKED shadow of the file built from the first parse\'s comment nodes (neutraliseGaps takes the root; the regexes run on the mask, the rewrites land in the text)');
+  /* ⑥ (B12) the checker walks BOTH C# projects — the extension's two files (#919) have no
+     compiler here either; the roots are read out of the script, and each named root must
+     exist and hold a .cs file, so a typo in the list is a red pin, not a silent skip */
+  /* r2 MINOR-5: the roots are DERIVED by the checker (every top-level folder with a *.csproj) —
+     so this pin derives the same set independently from the tree and requires the checker's
+     declaration to be that derivation, not a list; the set must include the app, the push
+     extension and the unit tests today */
+  const csprojDirs = readdirSync(join(root)).filter((d) => { try { return statSync(join(root, d)).isDirectory() && readdirSync(join(root, d)).some((f) => f.endsWith('.csproj')); } catch (e) { return false; } }).sort();
+  const rootsDerived = /const PROJECT_ROOTS = readdirSync\(root\)\.filter\(/.test(chk) && /\.some\(\(f\) => f\.endsWith\('\.csproj'\)\)/.test(chk) && !/const PROJECT_ROOTS = \[/.test(chk);
+  const rootsHoldCs = csprojDirs.map((d) => { try { return walkCs(d).length; } catch (e) { return 0; } });
+  ok(rootsDerived && csprojDirs.includes('Spixi') && csprojDirs.includes('Spixi-PushService') && csprojDirs.includes('Spixi-UnitTests') && rootsHoldCs.every((n) => n > 0)
+     && /PROJECT_ROOTS\.flatMap\(\(d\) => walk\(join\(root, d\)\)\)/.test(chk),
+    '★ #920 ⑥ (B12, r2): cs-syntax-check DERIVES its roots from every top-level *.csproj folder (' + csprojDirs.join(', ') + ' → ' + rootsHoldCs.join('/') + ' .cs files) — the app, the iOS push extension and the unit tests, with no list to forget');
+}
+
+/* ★★ #922 (Session AC, Damir: "landscape makes the rail on the left — good practice? … do
+ * the fix on Android") — THE LANDSCAPE RAIL. Material 3 puts a navigation rail on a
+ * medium-width window and a phone in landscape is one; the HIG keeps the tab bar, so the
+ * rail is gated on the Android CONVENTION flag (`data-platform`, a compile-time carrier).
+ * ★ The landscape decision is the DEVICE's (landscape-runtime.js: screen.orientation + a
+ * phone-sized short side), because on Android landscape HomePage goes two-pane at ≥ 700 DIP
+ * and the home viewport is a ~400 × 412 column that reports PORTRAIT (the reviewer's MAJOR-1
+ * on the first cut, which used a viewport query). Side insets travel like the bottom one
+ * (#883): carriers + a `setInsetSides` push into `--android-inset-left/right`, folded into
+ * `--safe-left/right` by base.css. Every clause below is derived from the tree (the push name
+ * from C#, the platform set from the C# constants, the shells from their own calls) and the
+ * head handler is EXECUTED, not grepped (r-review MINOR-4: a commented-out script matched). */
+{
+  const rdR = (p) => readFileSync(join(root, p), 'utf8');
+  const shells = readdirSync(join(root, 'src/shells')).filter((f) => f.endsWith('.html')).sort();
+  const scriptsOf = (raw) => [...stripCode(raw).matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);   // stripCode first: an HTML-commented script is NOT a script
+  /* ① base.css: both side vars are max(env(), var()) — the SAME rule as top and bottom */
+  const baseR = stripCssComments(rdR('src/styles/base.css'));
+  const sideL = /:root \{ --safe-left: max\(env\(safe-area-inset-left, 0px\), var\(--android-inset-left, 0px\)\); \}/.test(baseR);
+  const sideRt = /:root \{ --safe-right: max\(env\(safe-area-inset-right, 0px\), var\(--android-inset-right, 0px\)\); \}/.test(baseR);
+  ok(sideL && sideRt, '★ #922 ①: base.css folds env(safe-area-inset-left/right) and the Android carriers into --safe-left / --safe-right by the AND-7/AND-45 rule (left ' + sideL + ' · right ' + sideRt + ')');
+  /* ② THE PUSH NAME IS READ FROM C#, and every shell's FIRST head script is EXECUTED in jsdom
+     with the carriers substituted the way generatePage does: the handler must exist under the
+     C# name, write two valid numbers into the two custom properties, and refuse junk — a WALK
+     over every shell, no list, and a comment cannot satisfy it (#771) */
+  const uih = stripCode(rdR('Spixi/Utils/UIHelpers.cs'));
+  const pushFn = (/public static void pushSideInsetsToAllPages\(string leftDip, string rightDip\)\s*\{([\s\S]*?)\n        \}/.exec(uih) || [])[1] || '';
+  const pushName = (/Utils\.sendUiCommand\(page, "([A-Za-z]+)", leftDip, rightDip\);/.exec(pushFn) || [])[1];
+  const headFails = [];
+  for (const f of shells) {
+    const raw = rdR('src/shells/' + f);
+    const head = scriptsOf(raw).find((sc) => /AndroidInsetTop/.test(sc));
+    if (!head) { headFails.push(f + ': no inset head script'); continue; }
+    try {
+      const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', { runScripts: 'outside-only' });
+      const w = dom.window;
+      w.eval(head.split('*SL{AndroidInsetTop}').join('24').split('*SL{AndroidInsetBottom}').join('20').split('*SL{AndroidInsetLeft}').join('48').split('*SL{AndroidInsetRight}').join('0'));
+      const st = w.document.documentElement.style;
+      const carried = st.getPropertyValue('--android-inset-left') === '48px' && st.getPropertyValue('--android-inset-right') === '0px';
+      if (typeof w[pushName] !== 'function') { headFails.push(f + ': window.' + pushName + ' missing'); continue; }
+      w[pushName]('12.5', '7');
+      const pushed = st.getPropertyValue('--android-inset-left') === '12.5px' && st.getPropertyValue('--android-inset-right') === '7px';
+      w[pushName]('x', '1e9');
+      const refused = st.getPropertyValue('--android-inset-left') === '12.5px' && st.getPropertyValue('--android-inset-right') === '7px';
+      if (!(carried && pushed && refused)) headFails.push(f + ': carried=' + carried + ' pushed=' + pushed + ' refused=' + refused);
+    } catch (e) { headFails.push(f + ': ' + e.message); }
+  }
+  const fenceOpen = uih.lastIndexOf('#if ANDROID', uih.indexOf('pushSideInsetsToAllPages')), fenceClose = uih.indexOf('#endif', uih.indexOf('pushSideInsetsToAllPages'));
+  const insideFence = fenceOpen >= 0 && fenceClose > 0 && uih.slice(fenceOpen, fenceClose).includes('pushSideInsetsToAllPages') && !uih.slice(fenceOpen, fenceClose).includes('#endif');
+  ok(pushName === 'setInsetSides' && /getLiveShellPages\(true\)/.test(pushFn) && /SpixiContentPage\.disposeParkedOverlay\(\);/.test(pushFn) && insideFence && shells.length >= 18 && headFails.length === 0,
+    '★★ #922 ② EXECUTED: C# pushes `' + pushName + '` (read from UIHelpers, inside ONE #if ANDROID fence with no #endif between, over getLiveShellPages, and drops the PARKED Account so it cannot re-present with a stale inset — r-review MAJOR-2) and EVERY shell head (' + (shells.length - headFails.length) + '/' + shells.length + ') run in jsdom with substituted carriers writes 48/0 into --android-inset-left/right, accepts a live push of 12.5/7 and refuses x/1e9 (fails: ' + (headFails.join(' · ') || 'none') + ')');
+  /* ③ the C# publish: seeded carriers + the listener publishes sysInsets.Left/Right ÷ density
+     live; the latch keeps a keyboard frame from re-pushing an unchanged pair (r-review NIT-9) */
+  const loc = stripCode(rdR('Spixi/Lang/SpixiLocalization.cs'));
+  const seedL = /\{ "AndroidInsetLeft", "0" \}/.test(loc), seedRt = /\{ "AndroidInsetRight", "0" \}/.test(loc), seedP = /\{ "SpixiPlatform", PLATFORM_NAME \}/.test(loc);
+  const platNames = [...loc.matchAll(/private const string PLATFORM_NAME = "([a-z]*)";/g)].map((m) => m[1]);
+  const ma = stripCode(rdR('Spixi/Platforms/Android/MainActivity.cs'));
+  const listener = (/public WindowInsetsCompat\? OnApplyWindowInsets\(View\? v, WindowInsetsCompat\? insets\)\s*\{([\s\S]*?)\n        \}/.exec(ma) || [])[1] || '';
+  const pubBody = (/internal static void publishSideInsets\(double leftDip, double rightDip, bool pushLive\)\s*\{([\s\S]*?)\n    \}/.exec(ma) || [])[1] || '';
+  const bottomPush = (/public static void pushBottomInsetToAllPages\(string dip\)\s*\{([\s\S]*?)\n        \}/.exec(uih) || [])[1] || '';
+  ok(seedL && seedRt && seedP && platNames.includes('android') && platNames.includes('ios') && platNames.includes('windows') && platNames.includes('maccatalyst')
+     && /publishSideInsets\(sysInsets\.Left \/ density, sysInsets\.Right \/ density, true\);/.test(listener)
+     && /SpixiLocalization\.addCustomString\("AndroidInsetLeft", l\);/.test(pubBody) && /SpixiLocalization\.addCustomString\("AndroidInsetRight", r\);/.test(pubBody) && /UIHelpers\.pushSideInsetsToAllPages\(l, r\);/.test(pubBody)
+     && pubBody.indexOf('addCustomString("AndroidInsetRight"') < pubBody.indexOf('pushSideInsetsToAllPages')
+     && /if \(pushLive && key != lastSidesPublished\)\s*\{\s*lastSidesPublished = key;\s*UIHelpers\.pushSideInsetsToAllPages\(l, r\);/.test(pubBody) && /else if \(!pushLive\)\s*\{\s*lastSidesPublished = key;/.test(pubBody)
+     && /if \(leftDip < 0 \|\| rightDip < 0 \|\| double\.IsNaN\(leftDip\)/.test(pubBody)
+     && /SpixiContentPage\.disposeParkedOverlay\(\);/.test(bottomPush),
+    '★ #922 ③: SpixiLocalization seeds AndroidInsetLeft/Right = "0" and SpixiPlatform = the compile-time PLATFORM_NAME (' + platNames.join('/') + '); MainActivity\'s insets listener publishes sysInsets.Left/Right ÷ density LIVE, carriers written BEFORE the push, the push only on a CHANGED pair (latched both ways), negative/NaN refused; the bottom push drops the parked Account too');
+  /* ④ the platform flag: DERIVED — every shell whose (stripped) main script attaches the rail
+     must read the carrier into data-platform with EXACTLY the C# set, and no other shell may
+     carry the attribute writer (r-review MINOR-5: the list was the author's) */
+  const railShells = shells.filter((f) => /attachLandscapeRail\(/.test(stripCode(rdR('src/shells/' + f))));
+  const platWriter = (f) => { const m = scriptsOf(rdR('src/shells/' + f)).map((sc) => /var p='\*SL\{SpixiPlatform\}';if\(\/\^\(([a-z|]+)\)\$\/\.test\(p\)\)document\.documentElement\.setAttribute\('data-platform',p\);/.exec(sc)).find(Boolean); return m ? m[1].split('|') : null; };
+  const platBad = shells.filter((f) => { const allowed = platWriter(f); const needs = railShells.includes(f); if (!needs) return allowed !== null; if (!allowed) return true; const names = platNames.filter(Boolean); return !(names.every((n) => allowed.includes(n)) && allowed.every((n) => names.includes(n))); });
+  ok(railShells.length >= 2 && railShells.includes('home.html') && railShells.includes('settings.html') && platBad.length === 0,
+    '★ #922 ④ (derived): the shells that attach the rail (' + railShells.join(', ') + ') set data-platform from *SL{SpixiPlatform} for EXACTLY the C# PLATFORM_NAME set, and no other shell writes the attribute (bad: ' + (platBad.join(', ') || 'none') + ')');
+  /* ⑤ landscape-runtime + attachLandscapeRail: the flag is the DEVICE's (screen.orientation,
+     phone-sized short side), the rail refuses desktop and non-Android, toggles the class + the
+     root flag through the runtime's onChange, and detaches both */
+  const lr = stripCode(rdR('src/components/landscape-runtime.js'));
+  const bn = stripCode(rdR('src/components/bottomnav.js'));
+  const isPL = (/export function isPhoneLandscape\([^)]*\) \{([\s\S]*?)\n\}/.exec(lr) || [])[1] || '';
+  const fnBody = (/export function attachLandscapeRail\(nav, \{[^}]*\} = \{\}\) \{([\s\S]*?)\n\}/.exec(bn) || [])[1] || '';
+  const attachPL = (/export function attachPhoneLandscape\(\{[^}]*\} = \{\}\) \{([\s\S]*?)\n\}/.exec(lr) || [])[1] || '';
+  ok(/export const PHONE_SHORT_SIDE_MAX = 600;/.test(lr)
+     && /w\.screen\.orientation/.test(isPL) && /indexOf\('landscape'\) === 0/.test(isPL) && /Math\.min\(sw, sh\) >= PHONE_SHORT_SIDE_MAX\) return false;/.test(isPL) && !/matchMedia/.test(lr) && !/innerWidth|innerHeight/.test(isPL)
+     && /if \(root\.hasAttribute\('data-desktop'\)\) return \(\) => \{\};/.test(attachPL) && /so\.addEventListener\('change', apply\)/.test(attachPL) && /w\.addEventListener\('resize', apply\)/.test(attachPL) && /root\.setAttribute\(LANDSCAPE_FLAG, ''\)/.test(attachPL) && /root\.removeAttribute\(LANDSCAPE_FLAG\)/.test(attachPL)
+     && /if \(root\.hasAttribute\('data-desktop'\)\) return \(\) => \{\};/.test(fnBody)
+     && /if \(root\.getAttribute\('data-platform'\) !== 'android'\) return \(\) => \{\};/.test(fnBody)
+     && /attachPhoneLandscape\(\{ root, w, onChange: apply \}\)/.test(fnBody)
+     && /root\.setAttribute\('data-landscape-rail', ''\)/.test(fnBody) && /root\.removeAttribute\('data-landscape-rail'\)/.test(fnBody) && /nav\.classList\.toggle\('c-bottomnav--rail', !!on\)/.test(fnBody)
+     && /detachFlag\(\);/.test(fnBody) && !/matchMedia/.test(bn),
+    '★★ #922 ⑤: isPhoneLandscape reads the DEVICE (screen.orientation, the screen\'s short side < 600 = a phone; never matchMedia / inner sizes), attachPhoneLandscape refuses desktop and listens to orientation change + resize, attachLandscapeRail refuses desktop and any platform but android, rides the runtime\'s onChange to toggle c-bottomnav--rail + data-landscape-rail, and detaches both');
+  /* ⑥ BEHAVIOURAL: a stubbed DEVICE (screen size + orientation with its own change event) flips
+     the flag and the rail; a viewport-only change never does; desktop and iOS never engage;
+     a tablet-sized short side never engages */
+  const bundleR = rdR('src/demo/spixi.iife.js'), iconsR = rdR('src/components/icons.iife.js'), stringsR = rdR('src/demo/strings.iife.js');
+  const scenario = (attrs, device) => {
+    const dom = new JSDOM('<!doctype html><html' + attrs + '><body><nav class="c-bottomnav"></nav></body></html>', { runScripts: 'outside-only' });
+    const w = dom.window; const listeners = [];
+    const so = { get type() { return device.landscape ? 'landscape-primary' : 'portrait-primary'; }, addEventListener: (t, fn) => listeners.push(fn), removeEventListener: (t, fn) => { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); } };
+    Object.defineProperty(w.screen, 'width', { get: () => (device.landscape ? device.long : device.short), configurable: true });
+    Object.defineProperty(w.screen, 'height', { get: () => (device.landscape ? device.short : device.long), configurable: true });
+    Object.defineProperty(w.screen, 'orientation', { get: () => so, configurable: true });
+    w.eval(iconsR); w.eval(stringsR); w.eval(bundleR);
+    const nav = w.document.querySelector('nav');
+    const detachFlagOnly = w.Spixi.attachPhoneLandscape({ root: w.document.documentElement, w });
+    const detach = w.Spixi.attachLandscapeRail(nav, { root: w.document.documentElement, w });
+    const state = () => ({ flag: w.document.documentElement.hasAttribute('data-landscape'), rail: w.document.documentElement.hasAttribute('data-landscape-rail') && nav.classList.contains('c-bottomnav--rail') });
+    const s0 = state();
+    device.landscape = !device.landscape; listeners.slice().forEach((fn) => fn());   // the DEVICE rotates
+    const s1 = state();
+    w.dispatchEvent(new w.Event('resize'));   // a viewport-only change with the device unchanged: no flip
+    const s2 = state();
+    detach(); detachFlagOnly();
+    const s3 = state();
+    return { s0, s1, s2, s3, listened: listeners.length };
+  };
+  let b1 = null, b2 = null, b3 = null, b4 = null, b5 = null;
+  try {
+    b1 = scenario(' data-platform="android"', { long: 915, short: 412, landscape: true });    // landscape phone → flag + rail; rotate → both off
+    b2 = scenario(' data-platform="android"', { long: 915, short: 412, landscape: false });   // portrait → off; rotate → both on
+    b3 = scenario(' data-platform="ios"', { long: 915, short: 412, landscape: true });        // iOS: the flag yes (#918 rules), the rail NEVER
+    b4 = scenario(' data-platform="android" data-desktop', { long: 1920, short: 1080, landscape: true });   // desktop: nothing
+    b5 = scenario(' data-platform="android"', { long: 1280, short: 800, landscape: true });   // a tablet: no flag, no rail
+  } catch (e) { console.log('   (#922 ⑥ scenario threw: ' + e.message + ')'); }
+  const eq = (a, b) => a && a.flag === b.flag && a.rail === b.rail;
+  ok(b1 && eq(b1.s0, { flag: true, rail: true }) && eq(b1.s1, { flag: false, rail: false }) && eq(b1.s2, { flag: false, rail: false }) && eq(b1.s3, { flag: false, rail: false })
+     && b2 && eq(b2.s0, { flag: false, rail: false }) && eq(b2.s1, { flag: true, rail: true }) && eq(b2.s2, { flag: true, rail: true })
+     && b3 && eq(b3.s0, { flag: true, rail: false }) && eq(b3.s1, { flag: false, rail: false })
+     && b4 && eq(b4.s0, { flag: false, rail: false }) && b4.listened === 0
+     && b5 && eq(b5.s0, { flag: false, rail: false }) && eq(b5.s1, { flag: false, rail: false }),
+    '★★ #922 ⑥ EXECUTED (jsdom, the DEVICE stubbed): android landscape → flag + rail, the device rotates → both off, a resize alone changes nothing, detach clears; android portrait → rotate → both on; iOS landscape → the flag (the #918 rules) but NEVER the rail; desktop → nothing and no listener; a tablet → nothing (' + JSON.stringify({ b1, b2, b3, b4, b5 }) + ')');
+  /* ⑦ the two shells' layout rules + the attach calls; the rail geometry reads the side inset;
+     the FAB (position:fixed) rides --safe-right/--safe-bottom itself (r-review MINOR-3) */
+  const homeCss = stripCssComments((rdR('src/shells/home.html').match(/<style>([\s\S]*?)<\/style>/g) || []).join('\n'));
+  const setCss = stripCssComments((rdR('src/shells/settings.html').match(/<style>([\s\S]*?)<\/style>/g) || []).join('\n'));
+  const homeMain = stripCode(rdR('src/shells/home.html')), setMain = stripCode(rdR('src/shells/settings.html'));
+  const bnCss = stripCssComments(rdR('src/styles/components/bottomnav.css'));
+  const railRule = (/:root\[data-landscape-rail\] \.c-bottomnav--rail \{([^}]*)\}/.exec(bnCss) || [])[1] || '';
+  const fabRule = (/:root\[data-landscape-rail\] \.fab \{([^}]*)\}/.exec(homeCss) || [])[1] || '';
+  ok(/:root\[data-landscape-rail\] body \{ flex-direction: row; \}/.test(homeCss) && /:root\[data-landscape-rail\] #chats-nav \{ order: -1; flex: none; display: flex; \}/.test(homeCss) && /:root\[data-landscape-rail\] \.view \{ min-width: 0; padding-inline-end: var\(--safe-right, 0px\); \}/.test(homeCss)
+     && /right: calc\(var\(--spacing-16\) \+ var\(--safe-right, 0px\)\);/.test(fabRule) && /bottom: calc\(var\(--spacing-16\) \+ var\(--safe-bottom, 0px\)\);/.test(fabRule)
+     && /:root\[data-landscape-rail\] body \{ flex-direction: row; \}/.test(setCss) && /:root\[data-landscape-rail\] #settings-nav \{ order: -1; display: flex; \}/.test(setCss) && /:root\[data-landscape-rail\] #settings-root \{ min-width: 0; padding-inline-end: var\(--safe-right, 0px\); \}/.test(setCss)
+     && /attachPhoneLandscape\(\)/.test(homeMain) && /attachLandscapeRail\(nav\)/.test(homeMain) && homeMain.indexOf('attachLandscapeRail(nav)') > homeMain.indexOf("document.getElementById('chats-nav').append(nav);")
+     && /detachLandscapeRail = attachLandscapeRail\(nav\)/.test(setMain) && /if \(detachLandscapeRail\) detachLandscapeRail\(\);/.test(setMain) && setMain.indexOf('detachLandscapeRail = attachLandscapeRail(nav)') > setMain.indexOf('nav = fresh;')
+     && /width: calc\(var\(--layout-rail-width\) \+ var\(--safe-left, 0px\)\)/.test(railRule) && /padding-inline: calc\(var\(--spacing-4\) \+ var\(--safe-left, 0px\)\)/.test(railRule) && /var\(--safe-top, 0px\)/.test(railRule) && /var\(--safe-bottom, 0px\)/.test(railRule),
+    '★ #922 ⑦: home + settings carry the :root[data-landscape-rail] layout rules (body row · nav first · the view/root pads its inline-end by --safe-right · the fixed FAB rides --safe-right and --safe-bottom itself), home attaches the device flag then the rail AFTER mounting the nav, settings detaches the previous one on a rebuild; the rail rule adds --safe-left to its width and inline-start padding and clears the status bar and the nav bar');
+  /* ⑧ the BUILT shells carry ⑦ and the runtime */
+  const builtIdx = stripCssComments(rdR('Spixi/Resources/Raw/html/index.html')), builtSet = stripCssComments(rdR('Spixi/Resources/Raw/html/settings.html'));
+  ok(/:root\[data-landscape-rail\] body \{ flex-direction: row; \}/.test(builtIdx) && /:root\[data-landscape-rail\] \.c-bottomnav--rail \{/.test(builtIdx) && /:root\[data-landscape-rail\] #settings-nav \{ order: -1; display: flex; \}/.test(builtSet) && /window\.setInsetSides=c;/.test(rdR('Spixi/Resources/Raw/html/chat.html')) && /isPhoneLandscape/.test(rdR('Spixi/Resources/Raw/html/spixi.bundle.js')),
+    '★ #922 ⑧: the BUILT index.html / settings.html carry the landscape-rail rules, the built bundle carries the device runtime and the built chat.html defines the setInsetSides handler — a skipped rebuild cannot pass');
+}
+/* ★ #924 (walk AC.7/AC.8) — THE TOP INSET IS PUSHED LIVE. AND-7 baked `AndroidInsetTop` as a
+ * carrier and logged the residual (a rotation while a page is on screen); on a cutout phone the
+ * status bar is ~48 dp in portrait and ~24 in landscape, so after #918/#922 made rotation a
+ * feature the wallet tools and the apps topbar kept the portrait value — Damir's 60 dp band.
+ * The listener now pushes `setInsetTop` on a CHANGED value through the same enumerator the
+ * bottom (AND-45) and the sides (#922) use; the boot estimate stays carrier-only. */
+{
+  const rdR = (p) => readFileSync(join(root, p), 'utf8');
+  const ma = stripCode(rdR('Spixi/Platforms/Android/MainActivity.cs')), uih = stripCode(rdR('Spixi/Utils/UIHelpers.cs')), mapp = stripCode(rdR('Spixi/Platforms/Android/MainApplication.cs'));
+  const listener = (/public WindowInsetsCompat\? OnApplyWindowInsets\(View\? v, WindowInsetsCompat\? insets\)\s*\{([\s\S]*?)\n        \}/.exec(ma) || [])[1] || '';
+  const pubTop = (/internal static void publishTopInset\(double dip, bool pushLive\)\s*\{([\s\S]*?)\n    \}/.exec(ma) || [])[1] || '';
+  const pushTop = (/public static void pushTopInsetToAllPages\(string dip\)\s*\{([\s\S]*?)\n        \}/.exec(uih) || [])[1] || '';
+  const pushName = (/Utils\.sendUiCommand\(page, "([A-Za-z]+)", dip\);/.exec(pushTop) || [])[1];
+  const fenceOpen = uih.lastIndexOf('#if ANDROID', uih.indexOf('pushTopInsetToAllPages')), fenceClose = uih.indexOf('#endif', uih.indexOf('pushTopInsetToAllPages'));
+  const insideFence = fenceOpen >= 0 && fenceClose > 0 && !uih.slice(fenceOpen, fenceClose).includes('#endif');
+  /* every publishTopInset call site says whether it is live: the listener YES, the boot estimate NO */
+  const callSites = [...(ma + '\n' + mapp).matchAll(/publishTopInset\(([^;]*)\);/g)].map((m) => m[1]);
+  ok(/publishTopInset\(sysInsets\.Top \/ density, true\);/.test(listener)
+     && /SpixiLocalization\.addCustomString\("AndroidInsetTop", v\);/.test(pubTop) && pubTop.indexOf('addCustomString("AndroidInsetTop"') < pubTop.indexOf('pushTopInsetToAllPages')
+     && /if \(pushLive && v != lastTopPublished\)\s*\{\s*lastTopPublished = v;\s*UIHelpers\.pushTopInsetToAllPages\(v\);/.test(pubTop) && /else if \(!pushLive\)\s*\{\s*lastTopPublished = v;/.test(pubTop)
+     && /if \(dip < 0 \|\| double\.IsNaN\(dip\) \|\| double\.IsInfinity\(dip\)\)/.test(pubTop)
+     && pushName === 'setInsetTop' && /getLiveShellPages\(true\)/.test(pushTop) && /SpixiContentPage\.disposeParkedOverlay\(\);/.test(pushTop) && insideFence
+     && callSites.length === 2 && callSites.some((c) => /, true$/.test(c)) && callSites.some((c) => /, false/.test(c)),
+    '★ #924 ①: the insets listener publishes sysInsets.Top ÷ density LIVE, the carrier is written BEFORE the push, the push fires only on a CHANGED value (latched both ways), refuses negative/NaN, goes through getLiveShellPages inside the ANDROID fence under the name `' + pushName + '` and drops the parked Account; the two call sites are the listener (live) and the boot estimate (carrier only): ' + callSites.map((c) => c.replace(/\s+/g, ' ')).join(' · '));
+  /* ② the handler EVERY shell head defines is executed: the pushed value lands in --android-inset-top,
+     junk is refused — the same walk as #922 ②, for the top */
+  const shells = readdirSync(join(root, 'src/shells')).filter((f) => f.endsWith('.html')).sort();
+  const scriptsOf = (raw) => [...stripCode(raw).matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+  const fails = [];
+  for (const f of shells) {
+    const head = scriptsOf(rdR('src/shells/' + f)).find((sc) => /AndroidInsetTop/.test(sc));
+    if (!head) { fails.push(f + ': no inset head script'); continue; }
+    try {
+      const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', { runScripts: 'outside-only' });
+      const w = dom.window; const st = w.document.documentElement.style;
+      w.eval(head.split('*SL{AndroidInsetTop}').join('48').split('*SL{AndroidInsetBottom}').join('20').split('*SL{AndroidInsetLeft}').join('0').split('*SL{AndroidInsetRight}').join('0'));
+      if (typeof w[pushName] !== 'function') { fails.push(f + ': no window.' + pushName); continue; }
+      const carried = st.getPropertyValue('--android-inset-top') === '48px';
+      w[pushName]('24'); const rotated = st.getPropertyValue('--android-inset-top') === '24px';
+      w[pushName]('x'); w[pushName]('-5'); const refused = st.getPropertyValue('--android-inset-top') === '24px';
+      if (!(carried && rotated && refused)) fails.push(f + ': carried=' + carried + ' rotated=' + rotated + ' refused=' + refused);
+    } catch (e) { fails.push(f + ': ' + e.message); }
+  }
+  ok(shells.length >= 18 && fails.length === 0,
+    '★ #924 ② EXECUTED: every shell head (' + (shells.length - fails.length) + '/' + shells.length + ') carries the portrait 48 into --android-inset-top, takes the landscape push to 24 and refuses x / -5 (fails: ' + (fails.join(' · ') || 'none') + ')');
+  /* ③ the AND-7 residual text is gone from the base class (a comment saying "not covered" beside
+     code that covers it is #772) */
+  const scp = rdR('Spixi/Utils/SpixiContentPage.cs');
+  ok(!/a rotation while a page is on screen is\s*\* not covered/.test(scp) && /publishTopInset/.test(scp),
+    '★ #924 ③: SpixiContentPage no longer claims the rotation residual and names the live publisher — the per-page re-push stays as the belt for a document that was not live at the change');
+}
+/* ★ #923 (Damir: "single pane on landscape") — A PHONE IS ONE PANE IN EVERY POSTURE. The #922
+ * review found HomePage splitting a landscape phone into a ~400 dp list column + a detail slot
+ * (`Width < 700` alone). Now the DEVICE decides: a display whose short side is under 600 dp is a
+ * phone and stays single-pane at any width; tablets and desktop keep the split. The 600 is the
+ * shells' PHONE_SHORT_SIDE_MAX — the rail and the pane must agree on what a phone is. */
+{
+  const hp = stripCode(readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8'));
+  const lr = stripCode(readFileSync(join(root, 'src/components/landscape-runtime.js'), 'utf8'));
+  const handler = (/private void OnPageSizeChanged\(object\? sender, EventArgs\? e\)\s*\{\s*if \(([^)]*\([^)]*\)[^)]*|[^)]*)\)/.exec(hp) || [])[1] || '';
+  const fnBody = (/private static bool isPhoneDisplay\(\)\s*\{([\s\S]*?)\n        \}/.exec(hp) || [])[1] || '';
+  const csConst = (/private const double PHONE_SHORT_SIDE_DIP = ([0-9.]+);/.exec(hp) || [])[1];
+  const jsConst = (/export const PHONE_SHORT_SIDE_MAX = ([0-9.]+);/.exec(lr) || [])[1];
+  const tryBody = (/try\s*\{([\s\S]*?)\}\s*catch \(Exception\)\s*\{([\s\S]*?)\}/.exec(fnBody) || []);
+  ok(handler.replace(/\s+/g, ' ') === 'Width < 700 || isPhoneDisplay()'
+     && /var d = DeviceDisplay\.MainDisplayInfo;/.test(tryBody[1] || '') && /if \(d\.Density <= 0 \|\| d\.Width <= 0 \|\| d\.Height <= 0\) return false;/.test(tryBody[1] || '')
+     && /return Math\.Min\(d\.Width, d\.Height\) \/ d\.Density < PHONE_SHORT_SIDE_DIP;/.test(tryBody[1] || '') && /^\s*return false;\s*$/.test(tryBody[2] || ''),
+    '★ #923 ①: HomePage\'s pane branch is `Width < 700 || isPhoneDisplay()` (read: "' + handler.replace(/\s+/g, ' ') + '"), and isPhoneDisplay reads DeviceDisplay.MainDisplayInfo, refuses a zero density/size, compares the SHORT side ÷ density against PHONE_SHORT_SIDE_DIP (rotation cannot flip it), and a throw is NOT a phone (a desktop never loses its panes to a missing display record)');
+  ok(csConst !== undefined && jsConst !== undefined && Number(csConst) === Number(jsConst) && Number(csConst) === 600,
+    '★ #923 ②: the C# PHONE_SHORT_SIDE_DIP (' + csConst + ') EQUALS the shells\' PHONE_SHORT_SIDE_MAX (' + jsConst + ') — the rail (#922) and the pane agree on what a phone is; a drift here gives a device a rail without a full-width pane, or the reverse');
+  /* ③ the threshold lives ONCE: a WALK over every C# file finds no other `Width` comparison
+     against 700, and every pane-dependent decision reads rightContent.IsVisible */
+  const csFiles = (function walk(d) { let out = []; for (const e of readdirSync(join(root, d), { withFileTypes: true })) { if (e.name === 'obj' || e.name === 'bin') continue; const rel = d + '/' + e.name; if (e.isDirectory()) out = out.concat(walk(rel)); else if (e.name.endsWith('.cs')) out.push(rel); } return out; })('Spixi');
+  const thresholdSites = csFiles.filter((f) => /Width\s*(<|>=|>|<=)\s*700\b/.test(stripCode(readFileSync(join(root, f), 'utf8'))));
+  const paneReads = (hp.match(/rightContent\.IsVisible/g) || []).length;
+  ok(thresholdSites.length === 1 && thresholdSites[0] === 'Spixi/Pages/Home/HomePage.xaml.cs' && (hp.match(/Width\s*<\s*700\b/g) || []).length === 1 && paneReads >= 15,
+    '★ #923 ③ (derived): the 700 dp threshold is compared in exactly ONE C# file and once there (' + thresholdSites.join(', ') + '); every other pane decision reads rightContent.IsVisible (' + paneReads + ' sites) — the phone rule reaches all of them through the one branch');
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

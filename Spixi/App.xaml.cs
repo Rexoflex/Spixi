@@ -1305,6 +1305,15 @@ public partial class App : Application
     protected override void OnSleep()
     {
         base.OnSleep();
+        /* ★ #919/#915 (Session AC): the last moment before a push can arrive while the app is
+         * not in the foreground — the iOS Notification Service Extension reads the mute set
+         * and the display names from the App Group store this writes. FIRST in this method so
+         * nothing that throws below can skip it; synchronous and small (a JSON of addresses
+         * and, when opted in, names); fail-soft inside; a no-op with no wallet loaded. iOS only
+         * by the #if. */
+#if IOS
+        Spixi.SPushPrefsShare.sync();
+#endif
         /* ★ #438, the OTHER half. Android captures a snapshot of the visible window for
          * the task switcher when the app goes to the background, and that snapshot is
          * what it draws during the app-open animation — BEFORE OnResume runs. No

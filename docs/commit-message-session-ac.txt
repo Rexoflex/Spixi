@@ -1,0 +1,136 @@
+Session AC — the startup lever, the landscape round + the Android landscape rail, a phone is one pane, the iOS push extension written, route B prepared (#916–#924)
+
+STARTUP (#917) — measured before moved. On the built home shell in headless Chromium at CPU x4,
+DOMContentLoaded and load are 4 ms apart (the document is parse + 273 KB inline CSS + 264 KB
+inline script), so "ready at DOMContentLoaded" buys nothing and the ready verb stays on load
+(#177). The one JS cost above the noise was the flag-font canvas probe (25–71 ms self time at x4,
+the moment the engine loads its colour-emoji font), running on all 17 shells, 15 of which never
+draw a flag first.
+- flags.js: installFlagFontLater() — on a phone the probe runs after load + one frame (rAF ->
+  setTimeout 0; a hidden document fires no rAF, so a 300 ms timer is the belt for #800's spare);
+  on desktop the install stays SYNCHRONOUS (the face makes a flag inside TEXT render — a
+  paint-then-swap is the L15b flash; reviewer MAJOR-2).
+- 15 shells call the deferred form; launch.html (welcome pill flag) and settings.html (#274
+  restore) keep installFlagFont().
+- Honest number: an interleaved A/B on the SHIPPED shell (Android UA, x4, 10 runs, twice) moved
+  load by -13/-20 ms median. An earlier 440 -> 375 read came from an instrumented copy and is
+  corrected in the docblock. The phone's split is the walk's (AC.1).
+
+LANDSCAPE (#918) — AND-31/32/33/34, rendered NOW/AFTER at 915x412 both themes through the real
+wire, subject asserted before every shot (docs/sheets/session-ac/).
+- home.html: one media block, phone only, (max-height: 500px) AND (orientation: landscape) —
+  the wallet VIEW scrolls and the hero scrolls away; the tools row clears the status bar by
+  --safe-top; the apps Explore banner hides (apps keeps its inner scroller: a sticky row inside
+  a scrolling header cannot stick past its own box). The orientation term is REQUIRED: portrait
+  with the keyboard up is under 500 px too (reviewer MAJOR).
+- overlay.css + wallet-receive.css: the mobile sheet cap subtracts --safe-top and --kb-inset in
+  BOTH (the address sheet out-orders overlay); rendered with a 24 px inset — header below the
+  bar, every button reachable.
+- settings-screens.css: .c-chat-canvas.c-settings-appearance__preview { flex:none;
+  min-height:148px } — .c-chat-canvas { flex:1; min-height:0 } had beaten the floor. NOT
+  landscape-gated: the portrait preview is content-sized now (AC.11, Damir's pick).
+- chat.html sat 63 chars over the #345 ceiling -> comments shortened, headroom 274.
+
+LANDSCAPE RAIL, ANDROID (#922) — Damir: "landscape makes the rail on the left — good practice?"
+-> yes on Android (Material: a rail for a medium-width window; the HIG keeps the tab bar, iOS
+untouched). A RUNTIME toggle, not a boot choice: attachLandscapeRail (bottomnav.js) flips the
+c-bottomnav--rail class + data-landscape-rail, refuses data-desktop (the #236 rail) and any
+platform but android (data-platform, from a new compile-time *SL{SpixiPlatform} carrier — a
+convention flag, never a capability).
+- THE FINDING THAT CHANGED THE DESIGN (reviewer MAJOR-1): the first cut toggled on the #918
+  media query and would never have fired on the phone — HomePage.OnPageSizeChanged goes
+  two-pane at >= 700 dp on EVERY platform, so a landscape phone's home WebView is the ~400 x 412
+  list column and its viewport reports PORTRAIT. New src/components/landscape-runtime.js reads
+  the DEVICE (screen.orientation + a phone-sized short side) into data-landscape; the #918
+  rules are re-keyed on :root[data-landscape] (no @media on that geometry); the rail rides it.
+  Damir's answer: single pane -> #923 below.
+- SIDE INSETS, the real new item: MainActivity publishes sysInsets.Left/Right (carriers
+  AndroidInsetLeft/Right + a setInsetSides push every shell head handles, latched on a changed
+  pair), base.css folds them into --safe-left/right, the rail pads its inline-start by it and
+  clears the status + nav bars, the views pad inline-end by --safe-right; both inset pushes
+  dispose a PARKED Account (MAJOR-2) so a stale inset cannot re-present; the fixed FAB rides
+  --safe-right/--safe-bottom in rail mode (MINOR-3).
+- Rendered on the BUILT shells with the carriers substituted the way generatePage does and the
+  device emulated: rail 72 wide at x=0, view at 72; at the REAL pane geometry (400 x 412, left
+  inset 48) rail 120; iOS control keeps the bar; a rotation round-trip reads rail/bar/rail/bar.
+- CHAT_KB_CEIL 645 -> 646 (+288 chars of head handler, measured), INDEX_KB_CEIL 528 -> 531 (#924 took the last step)
+  (+7 134), both deltas stated. Pins: 8, every shell head EXECUTED in jsdom, the platform set
+  DERIVED, a jsdom leg with the device stubbed; 17 mutations killed (three of the first cut only
+  after the mutant root got docs/legal — #906 again; the harness now asserts its own baseline).
+
+A PHONE IS ONE PANE (#923) — Damir: "single pane on landscape". HomePage.OnPageSizeChanged split on
+Width < 700 alone; isPhoneDisplay() (DeviceDisplay.MainDisplayInfo, the SHORT side / density under
+600 dp) keeps a phone single-pane at any width; tablets and desktop keep the split at 700; a failed
+display read is NOT a phone. The 600 is pinned EQUAL to the shells' PHONE_SHORT_SIDE_MAX; the
+threshold is compared once (a walk over every .cs), every pane decision reads rightContent.IsVisible.
+7 mutations killed. C# on EVERY platform — Windows F5 is the first compile. Walk AC.19.
+
+THE TOP INSET PUSHED LIVE + THE LANDSCAPE BANNER (#924) — walk AC 17 P / 2 F / 1 N/A; the two fails
+were AND-7's own logged residual: the top inset was a boot carrier, and a cutout phone's status bar
+is ~48 dp portrait / ~24 landscape, so the wallet tools and the apps topbar padded by the portrait
+value after a rotation (a 60 dp band). publishTopInset(dip, pushLive) + UIHelpers.pushTopInsetToAllPages
+(latched, fenced, drops the parked Account); the boot estimate stays carrier-only. The apps Explore
+banner is one line beside the search in landscape (never hidden; the list keeps 276 px). AND-36
+closed (did not reproduce). 3 pins, 7 mutations killed.
+
+iOS PUSH EXTENSION (#919) — written to Android decidePush parity, UNCOMPILED (the office iPhone
+build is the first compile).
+- Spixi-PushService/SpixiPushGate.cs (new): the App Group store spixi-push.json (enabled,
+  senderName, muted 1:1 addresses, nick map); decide(): null store -> Show, !enabled -> Suppress,
+  no fa -> Show, muted -> Suppress, else Show with the nick as title (when senderName) and
+  threadIdentifier = fa; empty() clears title/subtitle/body, sound, badge, Passive2 interruption
+  (Passive is obsolete), relevance 0; [SPUSH] trace prints fa=none|present, never the address.
+- NotificationService.cs: the gate BEFORE OneSignal; Suppress = rewrite to EMPTY (an extension
+  cannot cancel) -> deliver -> return; Show = apply, then the one SDK call; TimeWillExpire guards
+  on a null handler.
+- Spixi/Platforms/iOS/SPushPrefsShare.cs (new): writes the store under a lock, temp + move,
+  excluded from backup, refused while !Node.isRunning (a pre-unlock write would EMPTY it);
+  sync() first in OnSleep, syncLater() from every SNotificationPrefs setter, clear() on wipe;
+  nicks written only when senderName.
+- App Group group.com.ixilabs.spixi in BOTH Entitlements.plist; OneSignal_app_groups_key in BOTH
+  Info.plist (delivery receipts); the extension ProjectReference LIVE for the ios TFM; the
+  extension csproj carries no fixed RID (ios-arm64 broke simulator builds) and signs only for a
+  device RID; versions mirror the app.
+- THE DIAL, STATED: the payload carries the SENDER's address only, so the extension mutes by
+  sender — a muted contact is silenced in every chat including groups; a muted GROUP is not
+  silenced. Per-chat needs the group id in the payload = server-side. Walk rows iO.11/iO.11b.
+- cs-syntax-check derives its roots from every *.csproj folder (183 files: app, extension, tests).
+
+ROUTE B (#920) — Mac Catalyst without the BE engineer, prepared as files, never before the
+iPhone walk.
+- Spixi/Platforms/MacCatalyst/RocksDbSharp/**: csharp/src of curiosity-ai/rocksdb-sharp @
+  f1cf0ba0 (the commit the dev's nupkg names; native 10.4.2 = the public package the Windows
+  TFM ships), 43 files, each banner ending in #nullable disable, byte-identical below it EXCEPT
+  AutoNativeImport.cs: OperatingSystem.IsMacCatalyst() -> the POSIX importer before the Windows
+  fall-through (the July kernel32 crash), and the osx runtimes folder. LICENSE (BSD-2-Clause)
+  vendored; MANIFEST.sha256 recomputed by the suite; third-party-notices.md entry.
+- Spixi.csproj: Compile Remove of Platforms/MacCatalyst/** on every non-catalyst TFM,
+  AllowUnsafeBlocks for maccatalyst, the public RocksDB package excluded from maccatalyst.
+- NativeLibraries/README.md (the one committed file in the gitignored shim folder): the vtool
+  line, the nuget download line (the TFM no longer restores the package), Release = universal ->
+  both slices lipo'd, the boot check, and that the July stamp NEVER reached dlopen — the first
+  run is that test.
+- .gitattributes: the vendored folder linguist-vendored -diff. .gitignore: scripts/_*.tmp.mjs.
+
+RECORDS: DECISIONS #916–#923 — #916 (Damir's addendum — the endgame: office -> freeze -> sweep -> strip
+[C# comments = a new one-time step on the merge branch] -> gate re-run -> merge -> TestFlight)
+… #921 (the loop: three Opus reviewers, ten MAJOR-class findings, all fixed; an r2 reviewer over
+the fixes: 0 MAJOR, 5 MINOR — the extension plist versions, a CS8604, the #918 pin's one
+spelling, the isRunning check outside the lock + the wipe order, the checker's listed roots —
+all fixed, 12 mutations killed; L15 re-based to the detection's body). security-handover-gate.md Session AC section (three #919 rows + the
+#920 row, accepted with reasons). android-findings AND-31..34 BUILT. ios-nse-spec §4 status.
+Walk sheets: session-ac (19 rows) + the office iPhone sheet (31 rows).
+
+PINS: #917 stripped boot-line equality + behavioural legs (complete/loading/desktop/hidden);
+#918 the block with its orientation term, the two sheet caps, the preview floor; #919 sixteen
+mutations killed (plist drift, principal class, versions, RID, signing, the obsolete enum, a
+second SDK call before the gate, the guards, the lock, the backup exclusion, the wipe, OnSleep
+order); #920 the banner DERIVED not counted, the csproj on the XML-comment-stripped document
+with every live RocksDB reference walked, the manifest, the README lines, the checker's roots
+(13 mutations killed).
+
+Suite (container, snapshot copies, with the Core sibling): BEFORE 4774 / the 2 KNOWN ->
+AFTER BASELINE OK — 4811 pass / the 2 KNOWN (+37) / the same 2 KNOWN.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01PyXtNL8sdeA1Uuwn4JGZBC

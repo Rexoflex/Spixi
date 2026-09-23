@@ -46,6 +46,17 @@
   overflow: hidden;                 /* the pattern layer stays inside the tile */
   box-shadow: var(--elevation-1);
 }
+/* ★ #918 (Session AC — AND-34): THE PREVIEW IS CONTENT-SIZED, NEVER "WHAT IS LEFT".
+   The preview carries `.c-chat-canvas` for the real canvas paint, and that rule
+   (message-bubble.css, same specificity, later in the cascade) says `flex: 1;
+   min-height: 0` — so the 148 px floor above was DEAD and the tile was whatever the
+   settings body had left after the two cards: 60 px in landscape (measured on the built
+   shell at 915×412 — the bubbles clipped mid-line), and a stretched slab in portrait.
+   The double class wins the cascade on specificity, not on order. */
+.c-chat-canvas.c-settings-appearance__preview {
+  flex: none;
+  min-height: 148px;                /* sanctioned: preview canvas dim */
+}
 .c-settings-appearance__bubble {
   max-width: 80%;
   padding: var(--spacing-8) var(--spacing-12);

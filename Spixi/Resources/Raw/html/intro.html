@@ -17,7 +17,7 @@
      (SpixiLocalization), so --safe-top collapses to env() exactly as before; an
      UNRESOLVED marker also fails the numeric test and leaves the variable unset.
      The value is validated as a plain number before it reaches a style property. -->
-<script>(function(){function a(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-top',v+'px');}a('*SL{AndroidInsetTop}');window.setInsetTop=a;function b(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-bottom',v+'px');}b('*SL{AndroidInsetBottom}');window.setInsetBottom=b;})();</script>
+<script>(function(){function a(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-top',v+'px');}a('*SL{AndroidInsetTop}');window.setInsetTop=a;function b(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-bottom',v+'px');}b('*SL{AndroidInsetBottom}');window.setInsetBottom=b;function c(l,r){var n=/^\d{1,3}(\.\d{1,2})?$/,d=document.documentElement.style;if(n.test(String(l)))d.setProperty('--android-inset-left',l+'px');if(n.test(String(r)))d.setProperty('--android-inset-right',r+'px');}c('*SL{AndroidInsetLeft}','*SL{AndroidInsetRight}');window.setInsetSides=c;})();</script>
 <!-- ★ L5 (Damir, 2026-08-31): "while the phone is in dark theme, the terms/languages/
      privacy sheet is in light mode. I think it should follow the phone theme."
      ROOT CAUSE, read at source: of the eighteen shells, this one and lock.html were the
@@ -752,7 +752,9 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 :root:not([data-desktop]) .c-sheet {
   bottom: var(--kb-inset, 0px);
   padding-bottom: calc(var(--spacing-24) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)));   /* ★ Session Z #884 ①: 24, as the resting sheet */
-  max-height: calc(100% - var(--kb-inset, 0px));
+  /* #918 (AND-33): the cap clears the status bar too — a sheet taller than a landscape
+     viewport rose to y=0 under it; the anchored menu already subtracted --safe-top. */
+  max-height: calc(100% - var(--safe-top, 0px) - var(--kb-inset, 0px));
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -2006,6 +2008,17 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   overflow: hidden;                 /* the pattern layer stays inside the tile */
   box-shadow: var(--elevation-1);
 }
+/* ★ #918 (Session AC — AND-34): THE PREVIEW IS CONTENT-SIZED, NEVER "WHAT IS LEFT".
+   The preview carries `.c-chat-canvas` for the real canvas paint, and that rule
+   (message-bubble.css, same specificity, later in the cascade) says `flex: 1;
+   min-height: 0` — so the 148 px floor above was DEAD and the tile was whatever the
+   settings body had left after the two cards: 60 px in landscape (measured on the built
+   shell at 915×412 — the bubbles clipped mid-line), and a stretched slab in portrait.
+   The double class wins the cascade on specificity, not on order. */
+.c-chat-canvas.c-settings-appearance__preview {
+  flex: none;
+  min-height: 148px;                /* sanctioned: preview canvas dim */
+}
 .c-settings-appearance__bubble {
   max-width: 80%;
   padding: var(--spacing-8) var(--spacing-12);
@@ -2826,7 +2839,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
      ?view= still overrides for demos/tests. -->
 <script>(function(){var c='*SL{LaunchBootView}';var q=new URLSearchParams(location.search).get('view');var ok=/^(welcome|create|restore|retry)$/;window.__LAUNCH_VIEW__=ok.test(q||'')?q:(ok.test(c)?c:'welcome');})();</script>
 <script src="spixi.bundle.js"></script>
-<script>/* ★ L15b (Session Z): the flag font — a device that cannot paint a flag emoji (Windows) gets the flags-only Twemoji face for the regional-indicator block, injected at runtime so the 78 KB is never inlined and never fetched on a phone; flags.js holds the mechanism. Unguarded on purpose: a missing export must fail loudly at boot, not fall silent. */window.Spixi.installFlagFont();</script>
+<script>/* ★ L15b (Session Z): the flag font — a device that cannot paint a flag emoji (Windows) gets the flags-only Twemoji face for the regional-indicator block, injected at runtime so the 78 KB is never inlined and never fetched on a phone; flags.js holds the mechanism. Unguarded on purpose: a missing export must fail loudly at boot, not fall silent.  ★ #917: SYNCHRONOUS on purpose — the welcome pill draws a flag on the first paint, so the face must be in the document before it; the other shells defer (installFlagFontLater). */window.Spixi.installFlagFont();</script>
 <script>
   /* —————————————————————————————————————————————————————————————————————————
    * Production Launch / onboarding shell — the redesigned launch-shell wired to

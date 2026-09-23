@@ -21,6 +21,7 @@
 import { getStrings } from './strings-runtime.js';
 import { icon, ICONS } from './icons.js';
 import { formatCount } from './chatlist-item.js';
+import { attachPhoneLandscape } from './landscape-runtime.js';
 
 export function createBottomNav({ items = [], active, strings = getStrings(), ariaLabel = strings.mainNav || 'Main', variant, logo, onChange } = {}) {
   const el = document.createElement('nav');
@@ -116,4 +117,37 @@ export function setNavBadge(nav, id, count, strings = getStrings()) {
     badge.hidden = true;
     badge.removeAttribute('aria-label');
   }
+}
+
+/* ★ #922 (Session AC, Damir: "landscape makes the rail on the left — good practice?") — THE
+ * LANDSCAPE RAIL. Material 3 puts a navigation RAIL on a medium-width window and a phone in
+ * landscape is one (915 dp wide, 412 tall on the Motorola): the bottom bar took 56 px + the
+ * nav-bar inset out of 412 — the axis #918 fought for — while a 72 px rail takes 8 % of a width
+ * with room to spare (18 % of the ~400 px LIST COLUMN the home shell actually gets on Android
+ * landscape, where HomePage goes two-pane at ≥ 700 DIP — the same rail | list | detail grammar
+ * as the desktop). The HIG keeps the tab bar at the bottom on iPhone, so this is gated on the
+ * Android CONVENTION flag (`data-platform="android"`, a compile-time carrier) and never on a
+ * capability; iOS keeps the bar. Desktop already has the rail through `data-desktop` (#236) and
+ * is refused here so the two mechanisms never fight over one element.
+ *
+ * Runtime, not boot: rotation flips the DEVICE flag (`data-landscape`, landscape-runtime.js —
+ * read from screen.orientation, because the viewport lies inside a pane), and the SAME nav
+ * toggles the component's rail variant class (`c-bottomnav--rail`, all rail styling in
+ * bottomnav.css) while the root gets `data-landscape-rail` for the shell's layout rules (body
+ * row, nav first). Returns the detach function. */
+export function attachLandscapeRail(nav, { root = typeof document !== 'undefined' ? document.documentElement : null, w = typeof window !== 'undefined' ? window : null } = {}) {
+  if (!nav || !root || !w) return () => {};
+  if (root.hasAttribute('data-desktop')) return () => {};             // desktop: the boot-time rail (#236) owns it
+  if (root.getAttribute('data-platform') !== 'android') return () => {};   // the HIG keeps the tab bar (a dial, not a capability)
+  const apply = (on) => {
+    if (on) root.setAttribute('data-landscape-rail', ''); else root.removeAttribute('data-landscape-rail');
+    nav.classList.toggle('c-bottomnav--rail', !!on);
+  };
+  const detachFlag = attachPhoneLandscape({ root, w, onChange: apply });
+  apply(root.hasAttribute('data-landscape'));
+  return () => {
+    detachFlag();
+    root.removeAttribute('data-landscape-rail');
+    nav.classList.remove('c-bottomnav--rail');
+  };
 }

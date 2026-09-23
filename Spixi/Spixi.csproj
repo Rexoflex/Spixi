@@ -103,6 +103,12 @@
 		</AndroidNativeLibrary>
 	</ItemGroup>
 
+	<!-- #920 (Session AC, route B): the vendored RocksDbSharp source (Platforms/MacCatalyst/RocksDbSharp/)
+	     has 275 `unsafe` sites; this TFM alone may compile them. The other TFMs never see the folder
+	     (the Compile Remove below) and keep the app's default. -->
+	<PropertyGroup Condition="$(TargetFramework.Contains('-maccatalyst'))">
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+	</PropertyGroup>
 	<!-- #273-#281 review D2: the dylib is a machine-local shim (gitignored) — gate on Exists so a
 	     clean clone still builds the other TFMs; catalyst then fails at RocksDB init (documented in
 	     mac-bringup-log.md) instead of dying at link time on a missing file. -->
@@ -262,8 +268,13 @@
 		<PackageReference Include="RocksDB" Version="0.0.42" Condition="$(TargetFramework.Contains('-android')) or $(TargetFramework.Contains('-ios'))">
 			<ExcludeAssets>native</ExcludeAssets>
 		</PackageReference>
-		<!-- Other platforms: normal -->
-		<PackageReference Include="RocksDB" Version="10.4.2.64152" Condition="!$(TargetFramework.Contains('-android')) and !$(TargetFramework.Contains('-ios'))" />
+		<!-- Other platforms: normal.
+		     #920 (Session AC, route B): NOT maccatalyst any more — that TFM compiles the VENDORED wrapper
+		     source under Platforms/MacCatalyst/RocksDbSharp/ (upstream rocksdb-sharp at the commit the dev's
+		     nuspec names, binding native 10.4.2 like this package, with the Catalyst patch), because the
+		     package's own loader mis-detects Catalyst as Windows (docs/mac-bringup-log.md). Keeping the package here too would compile
+		     every RocksDbSharp type twice. -->
+		<PackageReference Include="RocksDB" Version="10.4.2.64152" Condition="!$(TargetFramework.Contains('-android')) and !$(TargetFramework.Contains('-ios')) and !$(TargetFramework.Contains('-maccatalyst'))" />
 	</ItemGroup>
 	<ItemGroup Condition="$(TargetFramework.Contains('-windows'))">
 		<PackageReference Include="NAudio" Version="2.3.0" />
@@ -370,13 +381,17 @@
 		<None Include="**\Windows\**\*.cs" Exclude="$(DefaultItemExcludes);$(DefaultExcludesInProjectFolder)" />
 	</ItemGroup>
 	<Import Project="..\..\Ixian-Core\IXICore.projitems" Label="Shared" />
-	<!-- iOS Push Service-->
-	<!-- <ItemGroup Condition="$(TargetFramework.Contains('-ios'))">
-    <ProjectReference Include="../Spixi-PushService/Spixi-PushService.csproj">
-      <IsAppExtension>true</IsAppExtension>
-      <IsWatchApp>false</IsWatchApp>
-    </ProjectReference>
-  </ItemGroup>-->
+	<!-- iOS Push Service — #919/#915 (Session AC): LIVE. The extension is a separate signed
+	     binary; its bundle id is a child of the app's, its SupportedOSPlatformVersion must be
+	     ≤ this project's iOS MinimumOSVersion (a higher one makes iOS silently drop
+	     mutable-content pushes — docs/ios-nse-spec.md §1), and both bundles carry the same
+	     App Group. Uncompiled until the office iPhone build. -->
+	<ItemGroup Condition="$(TargetFramework.Contains('-ios'))">
+		<ProjectReference Include="../Spixi-PushService/Spixi-PushService.csproj">
+			<IsAppExtension>true</IsAppExtension>
+			<IsWatchApp>false</IsWatchApp>
+		</ProjectReference>
+	</ItemGroup>
 	<ProjectExtensions>
 		<VisualStudio>
 			<UserProperties XamarinHotReloadWrongLinkerErrorInfoBarSpixiHideInfoBar="True" />

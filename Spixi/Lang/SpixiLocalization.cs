@@ -70,8 +70,28 @@ namespace SPIXI.Lang
             { "AndroidInsetTop", "0" },
             // ★ AND-45 (Session Y): same seeding rule for the bottom — iOS/Mac/Windows resolve to 0
             // and read env(safe-area-inset-bottom) through `--safe-bottom`; only Android overwrites it.
-            { "AndroidInsetBottom", "0" }
+            { "AndroidInsetBottom", "0" },
+            // ★ #922 (Session AC, the landscape rail): the SIDE insets — a display cutout or the
+            // 3-button navigation bar on a side edge in landscape. Same seeding rule: 0 everywhere
+            // but Android, where MainActivity overwrites them (iOS reads env(safe-area-inset-left/right)).
+            { "AndroidInsetLeft", "0" },
+            { "AndroidInsetRight", "0" },
+            // ★ #922: the platform, as a compile-time constant (no DeviceInfo at static-init time). The
+            // shells read it into `data-platform` and use it ONLY for platform CONVENTIONS (Material's
+            // rail-in-landscape vs the HIG's tab bar) — never for a capability, which stays a probe (L15).
+            { "SpixiPlatform", PLATFORM_NAME }
         };
+#if ANDROID
+        private const string PLATFORM_NAME = "android";
+#elif IOS
+        private const string PLATFORM_NAME = "ios";
+#elif MACCATALYST
+        private const string PLATFORM_NAME = "maccatalyst";
+#elif WINDOWS
+        private const string PLATFORM_NAME = "windows";
+#else
+        private const string PLATFORM_NAME = "";
+#endif
 
         public static bool loadLanguage(string lang)
         {

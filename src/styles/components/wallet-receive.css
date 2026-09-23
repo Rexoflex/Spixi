@@ -217,8 +217,11 @@
      ⚠ Reachable, and not a corner case: Wallet → Receive → type an amount → "Show my
      address". That tap is on a BUTTON, which #609 deliberately exempts from
      tap-to-dismiss, so the keyboard is positively still up when this sheet mounts.
-     Inert at `--kb-inset: 0`, like every other term this batch added. */
-  max-height: calc(100% - var(--kb-inset, 0px));
+     Inert at `--kb-inset: 0`, like every other term this batch added.
+     ★ #918 (Session AC — AND-33): and the STATUS BAR, for the same reason this rule
+     exists at all — it out-orders overlay.css's cap, so a term added there alone would
+     never reach this sheet. Same expression, both files; the pin holds them equal. */
+  max-height: calc(100% - var(--safe-top, 0px) - var(--kb-inset, 0px));
   box-sizing: border-box;
 }
 /* ⚠ round-2 MINOR-4: createSheet wraps the content in `.c-sheet__content`, so THAT is

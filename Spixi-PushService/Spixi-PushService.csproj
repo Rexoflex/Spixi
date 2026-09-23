@@ -3,12 +3,17 @@
 		<TargetFrameworks>net10.0-ios</TargetFrameworks>
 		<OutputType>Library</OutputType>
 
-		<RuntimeIdentifier>ios-arm64</RuntimeIdentifier>
+		<!-- #919: NO fixed RuntimeIdentifier — the app's simulator RID is a PROJECT property and
+		     does not reach a referenced extension, so a hard `ios-arm64` here broke every Debug
+		     simulator build the moment the ProjectReference went live (#46 reviewer MAJOR-2). The
+		     device build passes its RID globally. -->
 
 		<ApplicationId>com.ixilabs.spixi.Spixi-PushService</ApplicationId>
 
-		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
-		<ApplicationVersion>1</ApplicationVersion>
+		<!-- #919: the SAME versions as the app (Spixi.csproj) — a mismatch is W0071/W0073 at build
+		     and a rejection at App Store Connect; the pin holds them equal. -->
+		<ApplicationDisplayVersion>0.9.22</ApplicationDisplayVersion>
+		<ApplicationVersion>160009220</ApplicationVersion>
 
 		<Nullable>enable</Nullable>
 		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
@@ -21,9 +26,15 @@
 		<IsWatchExtension>False</IsWatchExtension>
 	</PropertyGroup>
 
-	<PropertyGroup Condition="'$(TargetFramework)'=='net10.0-ios'">
+	<!-- #919: DEVICE builds only (the OneSignal SDK's own demo extension does the same, "no profile
+	     is issued for simulator"); a simulator RID skips manual signing entirely. -->
+	<PropertyGroup Condition="'$(TargetFramework)'=='net10.0-ios' AND '$(RuntimeIdentifier)' != '' AND !$(RuntimeIdentifier.StartsWith('iossimulator'))">
 		<CodesignKey>iPhone Developer</CodesignKey>
 		<ProvisioningType>manual</ProvisioningType>
+		<!-- #919: the regenerated development profile for com.ixilabs.spixi.Spixi-PushService
+		     (the one that expired 2026-08-11; it must carry the App Group). Empty = the toolchain
+		     auto-selects the best-matching installed profile; put the name here to PIN it after the
+		     portal steps (DECISIONS #915). -->
 		<CodesignProvision></CodesignProvision>
 	</PropertyGroup>
 
@@ -36,6 +47,8 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="OneSignalSDK.DotNet" Version="5.2.2" />
+		<!-- #919 (Session AC): the SAME version the app pins (Spixi.csproj) — two SDK versions in one
+		     bundle is a build conflict; the pin holds them equal. -->
+		<PackageReference Include="OneSignalSDK.DotNet" Version="6.1.9" />
 	</ItemGroup>
 </Project>

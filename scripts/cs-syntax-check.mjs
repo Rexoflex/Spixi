@@ -56,7 +56,7 @@
  * GAP_CONSTRUCTS, which carries the broken file that got a tick before test 2 existed.
  * GRAMMAR_GAPS keeps its per-file note for the one file in this tree.
   */
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -84,7 +84,11 @@ function walk(dir, out = []) {
 }
 
 const args = process.argv.slice(2);
-const files = args.length ? args : walk(join(root, 'Spixi'));
+/* #920 (B12, r2): every top-level folder holding a `*.csproj` is a project root — the app, the
+   iOS push extension (#919), the unit tests, and any project added later, with no list to
+   forget to extend (#798). None of them has a compiler in the container. */
+const PROJECT_ROOTS = readdirSync(root).filter((d) => { try { const p = join(root, d); return statSync(p).isDirectory() && !['node_modules', '.git', 'obj', 'bin'].includes(d) && readdirSync(p).some((f) => f.endsWith('.csproj')); } catch (e) { return false; } }).sort();
+const files = args.length ? args : PROJECT_ROOTS.flatMap((d) => walk(join(root, d)));
 
 const parser = new Parser();
 parser.setLanguage(CSharp);
@@ -158,7 +162,12 @@ const GAP_CONSTRUCTS = [
     id: 'C# 11 named slice pattern (`[.. var rest]`)',
     /* `..` followed by TWO tokens — a type or `var`, then a name. The range operator
        `n[1..]`, `n[..2]`, `n[a..b]` carries at most one token and never matches. */
-    re: /\.\.\s*(?:var|[A-Za-z_][A-Za-z0-9_.]*(?:<[^<>()]*>)?(?:\[\s*\])?)\s+[A-Za-z_][A-Za-z0-9_]*/g,
+    /* ★ #920: NOT a `..` that is part of an ELLIPSIS — the vendored BinaryComparer.cs carries the
+       comment `Status...Working on verification`, and `..Working on` matched here; the rewrite
+       then landed in a comment, acceptance test 2 refused it, and the whole file was reported
+       as unparsable for a construct it does not contain (#771: a raw-text sweep and the comment
+       that happens to spell its shape). A slice pattern never sits beside a third dot. */
+    re: /(?<!\.)\.\.(?!\.)\s*(?:var|[A-Za-z_][A-Za-z0-9_.]*(?:<[^<>()]*>)?(?:\[\s*\])?)\s+[A-Za-z_][A-Za-z0-9_]*/g,
     /* `.. var rest` → `_` and spaces — a DISCARD pattern of the same length.
        ⚠ Not `..` and spaces: a lone `[..]` is itself rejected by this grammar, so
        blanking the name would trade one gap for another. `[_]` and `[_, _]` parse. */
@@ -167,6 +176,24 @@ const GAP_CONSTRUCTS = [
        becomes a `declaration_expression` in an `argument`; in `nums[.. var rest]` it
        becomes an `identifier` in a `bracketed_argument_list`. Both are refused. */
     accept: (node) => node.type === 'discard' && hasAncestor(node, 'list_pattern', false),
+  },
+  {
+    id: 'pointer dereference of a cast (`*((T*)p)` / `*(T*)p`)',
+    /* ★ #920 (Session AC): the vendored RocksDbSharp source (Platforms/MacCatalyst/) is
+       `unsafe` code, and this grammar cannot read a DEREFERENCE of a POINTER CAST — probed
+       minimally: `if (*((long*)x) != 0)` → ERROR; the cast alone `(long*)x` → clean; a
+       dereference of a plain pointer `*(x)` → clean. The `*` immediately before `(` or `((`,
+       a type name, `*` and `)` is the construct; a multiplication never has a pointer type
+       inside its right operand's parentheses. */
+    re: /\*(?=\(\(?\s*[A-Za-z_][A-Za-z0-9_.]*\s*\*+\s*\))/g,
+    /* `*` → `+`: a prefix unary of the same length that the grammar reads. (Unary plus on a
+       pointer is not legal C#, and that is fine — the rewrite exists to be PARSED, not
+       compiled, and acceptance test 2 requires it to land exactly where a dereference sat.) */
+    rewrite: () => '+',
+    /* The `+` must now BE the operator of a prefix unary expression whose operand is a
+       cast or a parenthesized cast — the shape a dereference of a cast has. */
+    accept: (node) => node.type === '+' && node.parent && node.parent.type === 'prefix_unary_expression'
+      && (() => { const op = node.parent.namedChildren[0]; if (!op) return false; if (op.type === 'cast_expression') return true; if (op.type !== 'parenthesized_expression') return false; return (op.namedChildren[0] || {}).type === 'cast_expression'; })(),
   },
 ];
 
@@ -179,22 +206,49 @@ function hasAncestor(node, type, self) {
 /* Rewrites each known gap construct in place, same length, so that every later line and
    column is unchanged. Returns the rewritten text, the ids that fired, and the SPAN of
    every rewrite, which acceptance test 2 checks in the re-parsed tree. */
-function neutraliseGaps(src) {
+/* ★ #920 (Session AC): THE CONSTRUCTS ARE MATCHED OUTSIDE COMMENTS. The gap regexes ran on
+   the raw file, and a doc comment in the vendored RocksDbSharp source (`L1..L3 will be
+   empty`) spelled the slice-pattern shape: the rewrite landed in the comment, acceptance
+   test 2 refused it, and a file that parses cleanly once its ONE real gap is rewritten was
+   reported as unparsable — #771 inside the instrument. The first parse (errors and all)
+   still yields `comment` nodes with correct ranges, so a same-length shadow with every
+   comment blanked is what the regexes see; the rewrites are applied at those offsets in the
+   real text. Strings are left alone: the constructs' shapes are not English. */
+function commentMask(src, rootNode) {
+  const chars = src.split('');
+  (function walk(n) {
+    if (n.type === 'comment') {
+      for (let i = n.startIndex; i < n.endIndex; i++) if (chars[i] !== '\n') chars[i] = ' ';
+      return;
+    }
+    for (const c of n.children) walk(c);
+  })(rootNode);
+  return chars.join('');
+}
+
+function neutraliseGaps(src, rootNode) {
   let text = src;
+  let mask = rootNode ? commentMask(src, rootNode) : src;
   const hits = [];
   const spans = [];
   for (const g of GAP_CONSTRUCTS) {
     let fired = false;
-    text = text.replace(g.re, (m, ...rest) => {
+    const edits = [];
+    mask.replace(g.re, (m, ...rest) => {
       const at = rest[rest.length - 2];              // match offset, before the whole string
       const out = g.rewrite(m);
       /* Same length, always. A rewrite that changes the length would move every later
          line and column, and the findings would point at the wrong place. */
       if (out.length !== m.length) return m;
-      fired = true;
-      spans.push({ start: at, end: at + m.length, gap: g });
+      edits.push({ at, len: m.length, out });
       return out;
     });
+    for (const e of edits) {
+      fired = true;
+      text = text.slice(0, e.at) + e.out + text.slice(e.at + e.len);
+      mask = mask.slice(0, e.at) + e.out + mask.slice(e.at + e.len);
+      spans.push({ start: e.at, end: e.at + e.len, gap: g });
+    }
     if (fired) hits.push(g.id);
   }
   return { text, hits, spans };
@@ -619,7 +673,7 @@ for (const f of files) {
   let trusted = errs.length === 0 ? first : null;
   let gapHits = null;
   if (errs.length) {
-    const { text, hits, spans } = neutraliseGaps(src);
+    const { text, hits, spans } = neutraliseGaps(src, tree.rootNode);
     if (hits.length) {
       const retryTree = parser.parse(text);
       const retry = analyseTree(retryTree.rootNode, rel);

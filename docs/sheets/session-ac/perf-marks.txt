@@ -1,0 +1,13 @@
+# [PERF] home shell boot marks — Chromium, CPU ×4, 432×900 @2.5, file://, 5 runs each
+# BEFORE = the pristine snapshot (bef21be1 tree, pre-#917); AFTER = this session's built shell
+# (the per-segment split lived on an INSTRUMENTED copy of the shell — the shipped shell carries no performance.mark, so only load/fp are recorded here; the segment numbers are in the DECISIONS #917 row)
+## BEFORE
+CPU ×4, 5 runs, medians (ms from navigationStart):
+  load                       360
+  fp                         160
+
+## AFTER
+CPU ×4, 5 runs, medians (ms from navigationStart):
+  load                       377
+  fp                         168
+

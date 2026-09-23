@@ -441,7 +441,11 @@ Thumbs.db
 ._.DS_Store
 
 **/Properties/launchSettings.json
-Spixi/Platforms/MacCatalyst/NativeLibraries/
+# #920: the machine-local dylib shim is ignored, but the README beside it IS committed (it says how
+# to make the dylib). ⚠ The pattern must be `/*`, not `/`: git cannot re-include a file whose parent
+# DIRECTORY is excluded, so the first landing's `NativeLibraries/` silently ignored the README too.
+Spixi/Platforms/MacCatalyst/NativeLibraries/*
+!Spixi/Platforms/MacCatalyst/NativeLibraries/README.md
 
 # session-sandbox delete-quarantine (Cowork VM cannot delete files; trash this folder manually)
 _to_delete/
@@ -470,3 +474,5 @@ _to_delete_*
 /_deliveries/
 /spixi-*.tar.gz
 /twin*.tar.gz
+# session scratch runners (isolated pin slices, render/measure harnesses) — never tracked (#337 debris class)
+scripts/_*.tmp.mjs

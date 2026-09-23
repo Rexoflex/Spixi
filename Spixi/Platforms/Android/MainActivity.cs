@@ -132,18 +132,74 @@ public class MainActivity : MauiAppCompatActivity
         }
     }
 
+    /* ★ #922 (Session AC, the landscape rail): the SIDE insets, published like the bottom one —
+     * carriers (*SL{AndroidInsetLeft}/{AndroidInsetRight}) for the first frame + a `setInsetSides`
+     * push to every live shell when they change. They change on ROTATION (the 3-button bar moves to
+     * a side edge; a display cutout lands left or right depending on the rotation direction) and
+     * they are keyboard-independent by construction (system bars only, never the IME). The root is
+     * NOT padded by them (the app draws edge-to-edge) — the shells consume them: the landscape rail
+     * pads its inline-start by --safe-left, the views their inline-end by --safe-right. */
+    public static double LeftInsetDip = 0, RightInsetDip = 0;
+    private static string lastSidesPublished = "";
+
+    internal static void publishSideInsets(double leftDip, double rightDip, bool pushLive)
+    {
+        if (leftDip < 0 || rightDip < 0 || double.IsNaN(leftDip) || double.IsNaN(rightDip) || double.IsInfinity(leftDip) || double.IsInfinity(rightDip))
+        {
+            return;
+        }
+        LeftInsetDip = leftDip;
+        RightInsetDip = rightDip;
+        string l = leftDip.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+        string r = rightDip.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+        SpixiLocalization.addCustomString("AndroidInsetLeft", l);
+        SpixiLocalization.addCustomString("AndroidInsetRight", r);
+        string key = l + "|" + r;
+        if (pushLive && key != lastSidesPublished)
+        {
+            lastSidesPublished = key;
+            UIHelpers.pushSideInsetsToAllPages(l, r);
+        }
+        else if (!pushLive)
+        {
+            lastSidesPublished = key;
+        }
+    }
+
     // Publish the inset as a generatePage carrier (*SL{AndroidInsetTop}). Same grammar
     // as *SL{SpixiThemeName} and *SL{LaunchBootView}: it lands in the FIRST FRAME of
     // every document, so no shell ever paints one frame under the status bar.
-    internal static void publishTopInset(double dip)
+    /* ★ #924 (walk AC.7/AC.8, Damir 2026-09-23): the TOP inset is now pushed LIVE, exactly
+     * like the bottom (AND-45) and the sides (#922). AND-7 baked it as a carrier only and
+     * logged the residual — "a rotation while a page is on screen is not covered" — which
+     * was acceptable while nobody rotated. #918/#922 made rotation a feature, and on a
+     * phone with a display cutout the status bar is ~48 dp in PORTRAIT (it clears the
+     * punch-hole) and ~24 dp in LANDSCAPE: the wallet tools row and the apps topbar kept
+     * padding by the portrait value after the turn (his screenshot: a 60 dp band where
+     * 12 + 24 was expected). The listener already fires on every inset change, so the
+     * push rides it with the same "changed value only" latch as the other two. The
+     * per-page re-push in SpixiContentPage.applyPlatformPageChrome stays: it heals a
+     * document that was not live at the time of the change. */
+    private static string lastTopPublished = "";
+
+    internal static void publishTopInset(double dip, bool pushLive)
     {
         if (dip < 0 || double.IsNaN(dip) || double.IsInfinity(dip))
         {
             return;
         }
         TopInsetDip = dip;
-        SpixiLocalization.addCustomString("AndroidInsetTop",
-            dip.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture));
+        string v = dip.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+        SpixiLocalization.addCustomString("AndroidInsetTop", v);
+        if (pushLive && v != lastTopPublished)
+        {
+            lastTopPublished = v;
+            UIHelpers.pushTopInsetToAllPages(v);
+        }
+        else if (!pushLive)
+        {
+            lastTopPublished = v;
+        }
     }
     protected override void OnCreate(Bundle? bundle)
     {
@@ -553,9 +609,11 @@ public class MainActivity : MauiAppCompatActivity
                 try { density = v?.Resources?.DisplayMetrics?.Density ?? 1f; }
                 catch (Exception) { density = 1f; }
                 if (density <= 0f) density = 1f;
-                publishTopInset(sysInsets.Top / density);
+                publishTopInset(sysInsets.Top / density, true);
                 // ★ AND-45 (Session Y): the nav-bar inset, keyboard-independent (see publishBottomInset).
                 publishBottomInset(sysInsets.Bottom / density, true);
+                // ★ #922: the side insets (a side-edge nav bar / a cutout in landscape), pushed live on change.
+                publishSideInsets(sysInsets.Left / density, sysInsets.Right / density, true);
             }
 
             return WindowInsetsCompat.Consumed; // We've handled insets manually

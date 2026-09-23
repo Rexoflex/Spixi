@@ -1,0 +1,112 @@
+// Session AC — the landscape round (AND-31 / AND-32 / AND-33 / AND-34), render-first.
+// Boots the BUILT shells from file:// in Chromium at a landscape phone viewport (moto g84 class:
+// 915×412 logical, 2.5 dpr, Android UA, ?mobile=1) and drives them through the real
+// executeUiCommand wire. ★ #811/#893: every shot asserts its SUBJECT before it is taken.
+// Usage (from the repo root, playwright installed):  node docs/sheets/session-ac/render-landscape.mjs.txt [tag]
+import { chromium } from 'playwright';
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+const root = process.cwd();
+const RAW = join(root, 'Spixi/Resources/Raw/html');
+const out = join(root, 'docs/sheets/session-ac'); mkdirSync(out, { recursive: true });
+const tag = process.argv[2] || 'now';
+const VP = { width: 915, height: 412 };
+const UA = 'Mozilla/5.0 (Linux; Android 14; moto g84) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36';
+const b64 = (s) => Buffer.from(String(s), 'utf8').toString('base64');
+const exe = process.env.PW_CHROME || undefined;
+const browser = await chromium.launch(exe ? { executablePath: exe } : {});
+{ const warm = await browser.newContext(); await (await warm.newPage()).goto('about:blank'); await warm.close(); }
+const facts = {};
+async function open(shell, theme) {
+  const ctx = await browser.newContext({ viewport: VP, deviceScaleFactor: 2.5, colorScheme: theme, reducedMotion: 'reduce', userAgent: UA });
+  const page = await ctx.newPage();
+  await page.addInitScript(({ theme }) => { try { localStorage.setItem('spixi.theme', theme); } catch (e) {} }, { theme });
+  await page.goto('file://' + join(RAW, shell) + '?mobile=1');
+  await page.waitForFunction(() => typeof window.executeUiCommand === 'function');
+  await page.evaluate(({ theme }) => { window.__push = (fn, ...a) => window.executeUiCommand(window[fn], ...a.map((v) => btoa(unescape(encodeURIComponent(String(v)))))); window.__push('setTheme', theme); }, { theme });
+  return { ctx, page };
+}
+const shot = async (page, name) => { await page.waitForTimeout(500); await page.screenshot({ path: join(out, `${name}-${tag}.png`) }); };
+const now = Math.floor(Date.now() / 1000);
+for (const theme of ['light', 'dark']) {
+  // ——— A · AND-31 wallet tab ———————————————————————————————————————————————
+  {
+    const { ctx, page } = await open('index.html', theme);
+    await page.evaluate(({ now }) => {
+      const p = window.__push;
+      p('clearChats'); p('clearChatsDone');
+      p('selectTab', 'tab2');
+      p('setBalance', '1234.56789', '$98.76', 'Damir');
+      p('clearPaymentActivity', 'all');
+      const rows = [['t1', 'True', 'Alice', '12:04', '25.5', '$2.04', '1'], ['t2', 'False', 'Bob', 'Yesterday', '100', '$8.00', '1'], ['t3', 'True', '4aB7peerAddressLongBase58StringXYZ', 'Mon', '3.25', '$0.26', '0'], ['t4', 'False', 'Carol', 'Sun', '0.5', '$0.04', '1'], ['t5', 'True', 'Dan', 'Sat', '9', '$0.72', '1'], ['t6', 'False', 'Eve', 'Fri', '42', '$3.36', '1'], ['t7', 'True', 'Frank', 'Thu', '1.1', '$0.09', '1']];
+      for (const r of rows) p('addPaymentActivity', ...r);
+      p('clearPaymentActivityDone');
+    }, { now });
+    await page.waitForTimeout(600);
+    const f = await page.evaluate(() => {
+      const hero = document.querySelector('.c-wallet-hero'), tools = document.querySelector('.c-wallet-tools');
+      const rows = [...document.querySelectorAll('.c-txlist-item')];
+      const list = rows[0] && rows[0].closest('.u-scroll, [class*="scroll"], .c-wallet-list, main, section');
+      const r = (el) => el && (({ top, bottom, height }) => ({ top: Math.round(top), bottom: Math.round(bottom), height: Math.round(height) }))(el.getBoundingClientRect());
+      const scroller = (() => { let el = rows[0]; while (el && el !== document.body) { const cs = getComputedStyle(el); if (/auto|scroll/.test(cs.overflowY) && el.scrollHeight > el.clientHeight) return el; el = el.parentElement; } return null; })();
+      return { tab: document.querySelector('.view:not([hidden])')?.id || null, hero: r(hero), heroCompact: hero && hero.hasAttribute('data-compact'), tools: r(tools), rows: rows.length, firstRow: r(rows[0]), scroller: scroller ? { cls: scroller.className, clientH: scroller.clientHeight, scrollH: scroller.scrollHeight, top: Math.round(scroller.getBoundingClientRect().top) } : null, vh: innerHeight, vw: innerWidth, theme: document.documentElement.dataset.theme };
+    });
+    if (!(f.rows === 7 && f.hero && f.theme === theme && f.vh === VP.height)) { console.error('SUBJECT NOT IN FRAME wallet', JSON.stringify(f)); process.exit(2); }
+    facts[`wallet-${theme}`] = f; await shot(page, `wallet-${theme}`); await ctx.close();
+  }
+  // ——— B · AND-32 apps tab, zero apps ———————————————————————————————————————
+  {
+    const { ctx, page } = await open('index.html', theme);
+    await page.evaluate(() => { const p = window.__push; p('clearChats'); p('clearChatsDone'); p('selectTab', 'tab3'); p('clearApps'); p('clearAppsDone'); });
+    await page.waitForTimeout(600);
+    const f = await page.evaluate(() => {
+      const banner = document.querySelector('.c-apps-explore'), empty = document.querySelector('.c-apps-empty-state'), header = document.querySelector('.c-apps-header');
+      const r = (el) => el && (({ top, bottom, height }) => ({ top: Math.round(top), bottom: Math.round(bottom), height: Math.round(height) }))(el.getBoundingClientRect());
+      const sticky = (el) => { let e = el; while (e && e !== document.body) { const cs = getComputedStyle(e); if (cs.position === 'sticky') return e.className; e = e.parentElement; } return null; };
+      const scroller = (() => { let el = empty; while (el && el !== document.body) { const cs = getComputedStyle(el); if (/auto|scroll/.test(cs.overflowY)) return { cls: el.className, clientH: el.clientHeight, scrollH: el.scrollHeight }; el = el.parentElement; } return null; })();
+      return { tab: document.querySelector('.view:not([hidden])')?.id || null, banner: r(banner), bannerSticky: banner && sticky(banner), header: r(header), empty: r(empty), scroller, vh: innerHeight, theme: document.documentElement.dataset.theme };
+    });
+    if (!(f.banner && f.empty && f.theme === theme)) { console.error('SUBJECT NOT IN FRAME apps', JSON.stringify(f)); process.exit(2); }
+    facts[`apps-${theme}`] = f; await shot(page, `apps-${theme}`);
+    // and scrolled to the bottom of whatever scrolls, to see the sticky banner over the empty state
+    await page.evaluate(() => { const e = document.querySelector('.c-apps-empty-state'); let el = e; while (el && el !== document.body) { const cs = getComputedStyle(el); if (/auto|scroll/.test(cs.overflowY)) { el.scrollTop = el.scrollHeight; break; } el = el.parentElement; } window.scrollTo(0, document.body.scrollHeight); });
+    await shot(page, `apps-scrolled-${theme}`); await ctx.close();
+  }
+  // ——— C · AND-33 tx details ———————————————————————————————————————————————
+  {
+    const { ctx, page } = await open('wallet_sent.html', theme);
+    await page.evaluate(() => { const p = window.__push; p('setHideBalance', 'False'); p('clearEntries'); p('addEntry', '4aB7peerAddressLongBase58StringXYZ1234567890abcdefghijk', 'Alice', '', '25.5', '$2.04', '12:04', 'send', '1'); p('setData', '25.5', '0.00005', 'Mon 22 Sep 12:04', 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', '1'); });
+    await page.waitForTimeout(600);
+    const f = await page.evaluate(() => {
+      const card = document.querySelector('.c-tx-detail, .c-wallet-sent, [class*="tx-detail"], main');
+      const all = [...document.body.querySelectorAll('*')].filter((e) => e.getBoundingClientRect().height > 0);
+      const maxBottom = Math.max(...all.map((e) => Math.round(e.getBoundingClientRect().bottom)));
+      const scroller = (() => { for (const e of all) { const cs = getComputedStyle(e); if (/auto|scroll/.test(cs.overflowY) && e.scrollHeight > e.clientHeight + 1) return { cls: e.className, clientH: e.clientHeight, scrollH: e.scrollHeight }; } return null; })();
+      return { docScrollH: document.documentElement.scrollHeight, bodyScrollH: document.body.scrollHeight, vh: innerHeight, maxBottom, scroller, htmlOverflow: getComputedStyle(document.documentElement).overflowY, bodyOverflow: getComputedStyle(document.body).overflowY, txid: !!document.body.textContent.match(/e3b0c442/), theme: document.documentElement.dataset.theme };
+    });
+    if (!(f.txid && f.theme === theme)) { console.error('SUBJECT NOT IN FRAME tx', JSON.stringify(f)); process.exit(2); }
+    facts[`tx-${theme}`] = f; await shot(page, `tx-${theme}`);
+    await page.evaluate(() => { for (const e of document.body.querySelectorAll('*')) { const cs = getComputedStyle(e); if (/auto|scroll/.test(cs.overflowY)) e.scrollTop = e.scrollHeight; } window.scrollTo(0, 99999); });
+    await shot(page, `tx-scrolled-${theme}`); await ctx.close();
+  }
+  // ——— D · AND-34 chat appearance ————————————————————————————————————————
+  {
+    const { ctx, page } = await open('settings.html', theme);
+    await page.evaluate(() => { const p = window.__push; p('setNickname', 'Damir'); p('setAppearance', '0'); p('setLockEnabled', 'False'); p('showRemoveAvatar', '0'); p('setCaps', 'settingsApply,downloadsInline,backupInline'); });
+    await page.waitForTimeout(400);
+    const clicked = await page.evaluate(() => { const row = document.querySelector('[data-setting-key="chatappearance"]'); if (!row) return false; row.click(); return true; });
+    await page.waitForTimeout(700);
+    const f = await page.evaluate(() => {
+      const prev = document.querySelector('.c-settings-appearance__preview');
+      const r = (el) => el && (({ top, bottom, height, width }) => ({ top: Math.round(top), bottom: Math.round(bottom), height: Math.round(height), width: Math.round(width) }))(el.getBoundingClientRect());
+      const bubbles = prev ? [...prev.querySelectorAll('.c-bubble')].map((b) => r(b)) : [];
+      const scroller = (() => { let el = prev; while (el && el !== document.body) { const cs = getComputedStyle(el); if (/auto|scroll/.test(cs.overflowY)) return { cls: el.className, clientH: el.clientHeight, scrollH: el.scrollHeight }; el = el.parentElement; } return null; })();
+      return { clicked: true, preview: r(prev), previewCS: prev && { height: getComputedStyle(prev).height, minHeight: getComputedStyle(prev).minHeight, maxHeight: getComputedStyle(prev).maxHeight, overflow: getComputedStyle(prev).overflowY }, bubbles, scroller, vh: innerHeight, theme: document.documentElement.dataset.theme };
+    });
+    if (!(clicked && f.preview && f.theme === theme)) { console.error('SUBJECT NOT IN FRAME appearance', clicked, JSON.stringify(f)); process.exit(2); }
+    facts[`appearance-${theme}`] = f; await shot(page, `appearance-${theme}`); await ctx.close();
+  }
+}
+await browser.close();
+writeFileSync(join(out, `facts-${tag}.json`), JSON.stringify(facts, null, 1));
+console.log(JSON.stringify(facts, null, 1));

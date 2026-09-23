@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Walk — Session AC: the startup leg, the landscape round, and the iOS extension written</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --bg:#eef1f6; --card:#ffffff; --sunk:#f5f7fa;
+    --ink:#141b23; --sub:#5b6672; --line:#dfe5ec;
+    --act:#1956b2; --act-soft:#e5edf9;
+    --p:#1a7f4b; --f:#b12525; --n:#8b95a1;
+    --warn:#884b00; --warn-soft:#fbf1e2;
+    --shadow:0 1px 2px rgba(20,27,35,.05), 0 2px 8px rgba(20,27,35,.05);
+  }
+  :root:not([data-theme="light"]) { }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0d1117; --card:#161b22; --sunk:#0f141b;
+      --ink:#e6edf3; --sub:#9aa7b4; --line:#252c36;
+      --act:#5a8dee; --act-soft:#16233a;
+      --p:#3fb27a; --f:#f08a80; --n:#7d8794;
+      --warn:#e0a458; --warn-soft:#241c10;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0d1117; --card:#161b22; --sunk:#0f141b;
+    --ink:#e6edf3; --sub:#9aa7b4; --line:#252c36;
+    --act:#5a8dee; --act-soft:#16233a;
+    --p:#3fb27a; --f:#f08a80; --n:#7d8794;
+    --warn:#e0a458; --warn-soft:#241c10;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.3);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.55 "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding:28px 20px 64px;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1000px;margin:0 auto}
+
+  header{margin:0 0 18px}
+  h1{font-size:27px;line-height:1.2;margin:0 0 6px;font-weight:700;letter-spacing:-.015em;text-wrap:balance}
+  .lede{color:var(--sub);margin:0 0 14px;max-width:64ch}
+  .facts{display:flex;flex-wrap:wrap;gap:8px}
+  .fact{
+    font:500 12px/1 "IBM Plex Mono", ui-monospace, Consolas, monospace;
+    background:var(--card);border:1px solid var(--line);border-radius:999px;
+    padding:7px 12px;color:var(--sub);white-space:nowrap
+  }
+  .fact b{color:var(--ink);font-weight:500}
+
+  .tally{
+    position:sticky;top:0;z-index:5;background:var(--bg);
+    padding:12px 0 10px;margin:0 0 18px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap
+  }
+  .tally .score{font:600 15px/1 "IBM Plex Mono", monospace;letter-spacing:.02em}
+  .tally .score i{font-style:normal;padding:0 2px}
+  .tally .sp{flex:1}
+  .mini{
+    border:1px solid var(--line);background:var(--card);color:var(--ink);
+    border-radius:8px;padding:7px 13px;font:500 13px/1 "IBM Plex Sans",sans-serif;cursor:pointer
+  }
+  .mini:hover{border-color:var(--act);color:var(--act)}
+  .mini:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+
+  h2{
+    font-size:13px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--sub);margin:26px 0 10px;display:flex;align-items:baseline;gap:10px
+  }
+  h2 .num{
+    font-family:"IBM Plex Mono",monospace;color:var(--act);font-weight:500;
+    letter-spacing:0;font-size:12px
+  }
+  section{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:16px 18px;margin:0 0 4px;box-shadow:var(--shadow)
+  }
+  section.flag{border-left:3px solid var(--act)}
+  section > p{margin:0 0 12px;color:var(--sub);max-width:70ch}
+  section > p:last-child{margin-bottom:0}
+  section > p strong{color:var(--ink);font-weight:600}
+  code{
+    font:500 13px/1.4 "IBM Plex Mono",ui-monospace,Consolas,monospace;
+    background:var(--sunk);border:1px solid var(--line);border-radius:5px;padding:1px 5px
+  }
+
+  .cmd{position:relative;margin:0 0 12px}
+  .cmd pre{
+    margin:0;background:var(--sunk);border:1px solid var(--line);border-radius:10px;
+    padding:13px 15px;overflow-x:auto;
+    font:400 12.5px/1.65 "IBM Plex Mono",ui-monospace,Consolas,monospace;
+    color:var(--ink)
+  }
+  .cmd .cp{
+    position:absolute;top:8px;right:8px;
+    border:1px solid var(--line);background:var(--card);color:var(--sub);
+    border-radius:7px;padding:5px 10px;font:500 11px/1 "IBM Plex Sans",sans-serif;cursor:pointer
+  }
+  .cmd .cp:hover{color:var(--act);border-color:var(--act)}
+  .cmd .cp:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+  .cmd .cp[data-done="1"]{color:var(--p);border-color:var(--p)}
+
+  .note-line{
+    display:flex;gap:8px;align-items:flex-start;
+    background:var(--warn-soft);border:1px solid var(--line);border-radius:9px;
+    padding:10px 13px;margin:0 0 12px;color:var(--ink);font-size:13.5px;line-height:1.5
+  }
+  .note-line b{color:var(--warn)}
+
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:10px 8px;border-top:1px solid var(--line);vertical-align:top}
+  thead th{
+    border-top:0;font:600 11px/1 "IBM Plex Sans",sans-serif;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--sub);padding-bottom:8px
+  }
+  td.id{
+    width:44px;font:500 13px/1.5 "IBM Plex Mono",monospace;color:var(--act);white-space:nowrap
+  }
+  td.what{font-size:14px}
+  td.what em{font-style:normal;color:var(--sub);display:block;margin-top:3px;font-size:13px}
+  td.v{width:158px;white-space:nowrap}
+
+  .btn{
+    border:1px solid var(--line);background:transparent;color:var(--sub);
+    border-radius:7px;padding:5px 11px;margin-right:4px;cursor:pointer;
+    font:500 12.5px/1 "IBM Plex Sans",sans-serif
+  }
+  .btn:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+  .btn[aria-pressed="true"][data-v="P"]{background:var(--p);border-color:var(--p);color:#fff}
+  .btn[aria-pressed="true"][data-v="F"]{background:var(--f);border-color:var(--f);color:#fff}
+  .btn[aria-pressed="true"][data-v="N"]{background:var(--n);border-color:var(--n);color:#fff}
+  /* ★ Damir, walk S2: "stupid artefact doesnt allow notes if pass" — and the note he
+     could not leave was a real defect. The box used to be display:none until a row
+     FAILED, on the reasoning that a fail needs an explanation. True, and not the same
+     as "a pass has nothing to say": the most valuable notes are the ones on rows that
+     technically passed, because those are the observations no row was written to catch.
+     Always visible now; the fail styling stays. */
+  .nt{
+    width:100%;margin-top:7px;border:1px solid var(--line);border-radius:7px;
+    padding:6px 9px;background:var(--sunk);color:var(--ink);
+    font:400 13px/1.45 "IBM Plex Sans",sans-serif;display:block
+  }
+  tr[data-v="F"] .nt{border-color:var(--f)}
+
+  footer{margin:30px 0 0;color:var(--sub);font-size:13.5px;line-height:1.6}
+  footer b{color:var(--ink)}
+
+  @media (max-width:640px){
+    body{padding:20px 14px 56px}
+    td.v{width:auto}
+    th:nth-child(3),td.v{display:block;padding-top:0;border-top:0}
+    td.id{width:38px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Walk — Session AC: the startup leg, the landscape round, and the iOS extension written</h1>
+  <p class="lede">Twenty-three rows. <strong>§1 wants three numbers from you</strong> and checks that the flag-probe deferral changed nothing visible. <strong>§2 is the landscape round</strong> — four rows on the phone, one dial for you (AC.11). The iOS extension has its own sheet for the office.</p>
+  <div class="facts"><span class="fact">records <b>#916–#922</b></span><span class="fact">smoke <b>4774 → 4797 / the 2 KNOWN</b> (container, with the Core sibling)</span><span class="fact">C# changed <b>YES — 6 app files (iOS-only blocks) + 3 Android-side files (#922: SpixiLocalization · MainActivity · UIHelpers) + 2 extension files + 43 vendored Catalyst files</b></span><span class="fact">review <b>Opus: see #921</b></span><span class="fact">mutations <b>36 · 0 survivors</b></span></div>
+</header>
+<div class="tally">
+  <span class="score" id="score">— / 23</span>
+  <span class="score" style="color:var(--p)">P <i id="cp">0</i></span>
+  <span class="score" style="color:var(--f)">F <i id="cf">0</i></span>
+  <span class="score" style="color:var(--n)">N/A <i id="cn">0</i></span>
+  <span class="sp"></span>
+  <button class="mini" id="copyres">Copy results</button>
+  <button class="mini" id="reset">Reset</button>
+</div>
+<main>
+<h2><span class="num">§0</span> Build</h2>
+<section>
+  <p><strong>Components changed</strong> (flags.js) → the FULL sequence, bundle BEFORE shells. Two C# files changed with iOS-only code under <code>#if IOS</code>; Windows and Android see no-ops. One new C# file lives under <code>Platforms/iOS</code>.</p>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s0"></tbody></table>
+</section>
+
+<h2><span class="num">§1</span> Startup — the WebView leg (#913 → #917)</h2>
+<section class="flag">
+  <p>The container measured the built home document: <strong>DOMContentLoaded and <code>load</code> are 4 ms apart</strong>, so 'ready at DOMContentLoaded' buys nothing; the document is parse + inline CSS + one main script, and the single largest JS cost at boot was the flag-font canvas probe — the moment the engine loads its colour-emoji font — running on all 17 shells, 15 of which never draw a flag. It now runs AFTER the ready verb on those 15 (load 440 → 375 ms at 4× throttling, 7-run medians). <strong>AC.1 is the number that splits the phone's 1.21 s.</strong></p>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s1"></tbody></table>
+</section>
+
+<h2><span class="num">§2</span> The landscape round (#918 — AND-31 / 32 / 33 / 34)</h2>
+<section class="flag">
+  <p>Rendered first on the built shells at 915×412 (docs/sheets/session-ac/), then fixed, then re-rendered. Three CSS changes: a height-only media block in home.html that lets the wallet and apps tabs scroll as a whole; the chat-appearance preview's 148 px floor restored against the canvas rule that had silently beaten it; the bottom sheet's cap now subtracts the status inset. <strong>AC.11 is a visible portrait change and your pick.</strong></p>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s2"></tbody></table>
+</section>
+
+<h2><span class="num">§3</span> Records</h2>
+<section>
+  <p>Two reads.</p>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s3"></tbody></table>
+</section>
+
+</main>
+<footer>
+<p>A pass with a note is a pass — write the note. For <b>AC.1</b>, <b>AC.2</b>, <b>AC.9</b>, <b>AC.11</b> and <b>AC.12</b> the note IS the answer.</p><p><b>Still open, deliberately not on this sheet:</b> the iPhone day (its own sheet), AA.8, the Z.10 chooser copy, S1 timed (#872 ②), AND-40, the #890 dials, the translator pass, the freeze (#825), the BE cutover, the #232/#523 money-path review.</p>
+</footer>
+</div>
+<script>
+(function(){
+  var ROWS = {
+  "s0": [
+    [
+      "AC.0",
+      "FULL pipeline: node scripts/build-demo-bundle.mjs → build-shells → smoke-test (with Ixian-Core beside the repo) — then wipe obj/bin, F5 Windows (never dotnet build, #663) and the Android Debug deploy",
+      "smoke reads 4774 + 23 = 4797 locally if the container's 4774 → 4797 / the 2 KNOWN holds in your environment (#895: compare the DELTA, not the absolute). C# changed: SNotificationPrefs.cs + App.xaml.cs + SettingsPage.xaml.cs carry #if IOS blocks (no-ops on Windows/Android) · Platforms/iOS/SPushPrefsShare.cs is NEW (iOS only) · Spixi.csproj: the extension ProjectReference is LIVE for the ios TFM, the RocksDB package excluded from maccatalyst, AllowUnsafeBlocks for maccatalyst, the Compile Remove of Platforms/MacCatalyst/** on every other TFM · Spixi-PushService/ is a NEW project (NotificationService.cs + SpixiPushGate.cs, uncompiled) · Platforms/MacCatalyst/RocksDbSharp/** = 43 vendored files compiled ONLY for maccatalyst · both Info.plist/Entitlements.plist gained the App Group + OneSignal key · cs-syntax-check parsed all 182 files. Windows F5 and Android compile NONE of the new C# — the first iOS/Catalyst build is the first compile."
+    ]
+  ],
+  "s1": [
+    [
+      "AC.1",
+      "★ the dev HUD's rdy mark: 10 taps on the Chats logotype → swipe away → relaunch → read rdy on the HUD",
+      "paste the number. It is ms from the home document's start to the ready verb, so it splits the 1.21 s WebView leg into spin-up (before) and document (rdy). The container says the document is ~400 ms at 4× CPU throttling with DOMContentLoaded and load 4 ms apart."
+    ],
+    [
+      "AC.2",
+      "Release STARTDIAG: dotnet build -f net10.0-android -c Release -p:SpixiDevCoexist=true, deploy, swipe-away relaunch, the five [STARTDIAG] lines",
+      "paste them. The projection was ~1.8–2.0 s to the chats screen; the numbers make it a fact."
+    ],
+    [
+      "AC.3",
+      "Windows: second launch, ixian.log",
+      "the line copyResources: 0 copied, 51 unchanged (#912 ③)."
+    ],
+    [
+      "AC.4",
+      "Windows: Account → Language — and the launch/welcome screen's language pill (log out or a fresh install to see it)",
+      "flags still render as Twemoji glyphs in BOTH (these two shells keep the SYNCHRONOUS probe on purpose — #917); no PNG-then-glyph flicker on first paint."
+    ],
+    [
+      "AC.5",
+      "Windows: open a conversation; a contact-details page; the wallet",
+      "nothing visible changed — these shells now probe AFTER the ready verb (#917); the probe was the boot's single largest JS cost and none of them draws a flag."
+    ],
+    [
+      "AC.6",
+      "Android: open 5 conversations in a row, watch for anything new on entry",
+      "no change in what you see; the [CDPERF] chat-open stamps, if you read them, should not be worse (the probe left the boot path of chat.html too)."
+    ]
+  ],
+  "s2": [
+    [
+      "AC.7",
+      "★ Android, LANDSCAPE, Wallet tab with 6+ transactions",
+      "RE-WALK (#924): with the hero scrolled away the search field sits 12 dp under the STATUS BAR — the band above it is the bar's own height (~24 dp in landscape), not the portrait bar's ~48. Rotate portrait → landscape → portrait twice: the gap must follow the bar each time (the top inset is pushed live now). If the 60 dp band is back, write which rotation produced it."
+    ],
+    [
+      "AC.8",
+      "Android, landscape, Apps tab (zero or few apps)",
+      "RE-WALK (#924): the Explore banner is VISIBLE in landscape as ONE LINE beside the search field (same height as the field, no illustration, no \"Not sure where to start?\"); tap it → the website opens. The topbar sits under the status bar with no extra band (same fix as AC.7). Portrait keeps the full banner with the art."
+    ],
+    [
+      "AC.9",
+      "★ Android, landscape, Wallet → a transaction → See details",
+      "the sheet's handle and header sit BELOW the status bar (the cap now subtracts it). AND: does the sheet SCROLL BY TOUCH down to Close? Write yes/no — the code says yes (passive listeners, overflow auto) and the container scrolls it; only a phone can say."
+    ],
+    [
+      "AC.10",
+      "Android, landscape, Account → Chat appearance",
+      "the preview is 148 px tall with both bubbles whole (it was 60 px with the bubbles clipped mid-line)."
+    ],
+    [
+      "AC.11",
+      "★ Android, PORTRAIT, Account → Chat appearance — YOUR PICK",
+      "the preview is now CONTENT-SIZED (148 px floor, both bubbles + a little air), where it used to stretch to fill the leftover screen as a tall slab. The 148 floor was the rule's stated intent; the slab was a cascade accident (.c-chat-canvas's flex:1 won). If you preferred the slab, say so — it is one token (flex: 1) back."
+    ],
+    [
+      "AC.12",
+      "AND-36 verify-first: portrait, open a chat → rotate to landscape → rotate back → back out of the chat",
+      "is the row you were in still HIGHLIGHTED on the list? Write yes/no. #897/#902 changed what closes a conversation; nothing was built for this row."
+    ],
+    [
+      "AC.13",
+      "Windows: resize the window very short (under ~500 px tall) on Wallet and Apps",
+      "NO change on desktop — the landscape block is gated on :root:not([data-desktop]); the desktop pane geometry is untouched."
+    ],
+    [
+      "AC.16",
+      "Windows (or any desktop window): Account → Chat appearance",
+      "the preview is 148 px tall, both bubbles whole — the AND-34 floor is NOT gated to the phone (the .c-chat-canvas flex:1 cascade accident lost on every platform). If the desktop preview looks different from before, say how."
+    ],
+    [
+      "AC.17",
+      "Android, PORTRAIT, a 360-wide phone if you have one: Wallet → tap the search field → keyboard up",
+      "the wallet still scrolls its own list under the keyboard and the hero does NOT collapse — a portrait viewport shrunk by the keyboard (adjustResize) is under 500 px tall but is not landscape, and the #918 block requires BOTH. If the hero collapses with the keyboard up, the orientation term is not taking."
+    ],
+    [
+      "AC.18",
+      "Android, landscape, Wallet at rest (not scrolled) — a DIAL",
+      "the tools row sits a status-bar's height below the top edge (the block pads the first row by --safe-top so it clears the bar when the hero scrolls away). At rest that reads as a small gap under the hero. Keep, or want the hero to collapse instead? Write which."
+    ],
+    [
+      "AC.19",
+      "★ Android: open the app on Chats in portrait, rotate to landscape",
+      "ONE pane, full width (#923 — before this batch a landscape phone split into a ~400 dp list column + a detail pane; the split is now tablets/desktop only). The bottom bar becomes a 72 px RAIL on the LEFT (Chats · Apps · Wallet · Account stacked, the selected pill), the list fills the rest, the FAB stays bottom-right, the topbar keeps the logotype. Rotate back → the bar returns at the bottom. Do it twice; nothing should be left half-way. If you see a second column with a welcome pane, #923 did not take — write it."
+    ],
+    [
+      "AC.20",
+      "Android, landscape: tap Apps, Wallet, Account on the rail; then Account → a sublevel (About)",
+      "each tab switches as before; Account opens with the SAME rail on its left (the peer nav); inside a sublevel the rail HIDES (a sublevel owns its exit — the #334 rule, unchanged); back → the rail returns."
+    ],
+    [
+      "AC.21",
+      "Android, PORTRAIT: Chats → tap the search field so the keyboard is up (the viewport is under 500 px tall now)",
+      "the BAR stays at the bottom (behind the keyboard) — the rail must NOT appear: the rail follows the DEVICE's orientation (screen.orientation), never the viewport's height. If a rail flashes in with the keyboard, the device flag is misreading."
+    ],
+    [
+      "AC.22",
+      "Android, landscape, a device with 3-BUTTON navigation (or the cutout side): rotate both directions",
+      "the rail (left) and the list clear the system bar and the camera cutout on either edge — the side insets are new; before this batch content drew under a side bar. The rail widens by the left inset (rendered: 72 + 48 = 120 dp with a 48 dp left inset). Write the device + nav mode. N/A on a gesture-nav phone with no cutout on the side."
+    ]
+  ],
+  "s3": [
+    [
+      "AC.14",
+      "read DECISIONS #916 (your addendum, folded in) and #920 (route B prepared)",
+      "the Catalyst route is prepared as files only: Spixi/Platforms/MacCatalyst/RocksDbSharp/ (the vendored wrapper + its LICENSE + MANIFEST.sha256), the csproj's TFM-scoped Compile Remove so it compiles for maccatalyst ALONE, and NativeLibraries/README.md with the exact vtool line, the nuget download URL (the TFM no longer restores the package) and the Release lipo note. Nothing compiles it here; it is the office's optional last item, never before the iPhone walk."
+    ],
+    [
+      "AC.15",
+      "read docs/walk-artifact-ios-office.html (the office sheet, 29 rows)",
+      "it starts with the four portal steps, then the first compile, then the mute test (iO.7) — the one question no document can answer."
+    ]
+  ]
+};
+
+  var KEY = "spixi.walk.session-ac";
+  var state = {};
+  try { state = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch(e) { state = {}; }
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){} }
+
+  function build(tbodyId){
+    var tb = document.getElementById(tbodyId);
+    if(!tb) return;
+    ROWS[tbodyId].forEach(function(r){
+      var id = r[0];
+      var tr = document.createElement("tr");
+      tr.dataset.row = id;
+      var td1 = document.createElement("td");
+      td1.className = "id"; td1.textContent = id;
+      var td2 = document.createElement("td");
+      td2.className = "what";
+      td2.appendChild(document.createTextNode(r[1]));
+      if (r[2]) { var em = document.createElement("em"); em.textContent = r[2]; td2.appendChild(em); }
+      var td3 = document.createElement("td");
+      td3.className = "v";
+      ["P","F","N"].forEach(function(v){
+        var b = document.createElement("button");
+        b.className = "btn"; b.dataset.v = v; b.type = "button";
+        b.textContent = v === "N" ? "N/A" : v;
+        b.setAttribute("aria-label", (v==="P"?"Pass":v==="F"?"Fail":"Not applicable") + " " + id);
+        b.setAttribute("aria-pressed", String(state[id] && state[id].v === v));
+        b.addEventListener("click", function(){
+          var cur = state[id] || {};
+          cur.v = (cur.v === v) ? "" : v;
+          state[id] = cur; save(); paint(tr, id); tallyUp();
+        });
+        td3.appendChild(b);
+      });
+      var nt = document.createElement("textarea");
+      nt.className = "nt"; nt.rows = 2;
+      nt.placeholder = "note (optional — on a pass too)";
+      nt.value = (state[id] && state[id].n) || "";
+      nt.setAttribute("aria-label", "Note for " + id);
+      nt.addEventListener("input", function(){
+        var cur = state[id] || {}; cur.n = nt.value; state[id] = cur; save();
+      });
+      td3.appendChild(nt);
+      tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+      tb.appendChild(tr);
+      paint(tr, id);
+    });
+  }
+
+  function paint(tr, id){
+    var v = (state[id] && state[id].v) || "";
+    tr.dataset.v = v;
+    Array.prototype.forEach.call(tr.querySelectorAll(".btn"), function(b){
+      b.setAttribute("aria-pressed", String(b.dataset.v === v));
+    });
+  }
+
+  function tallyUp(){
+    var p=0,f=0,n=0,total=0;
+    Object.keys(ROWS).forEach(function(k){ total += ROWS[k].length; });
+    Object.keys(state).forEach(function(id){
+      var v = state[id] && state[id].v;
+      if (v==="P") p++; else if (v==="F") f++; else if (v==="N") n++;
+    });
+    document.getElementById("cp").textContent = p;
+    document.getElementById("cf").textContent = f;
+    document.getElementById("cn").textContent = n;
+    document.getElementById("score").textContent = (p+f+n) + " / " + total;
+  }
+
+  Object.keys(ROWS).forEach(build);
+  tallyUp();
+
+  function copyText(text, btn, doneLabel){
+    var ok = function(){
+      if(!btn) return;
+      var old = btn.textContent;
+      btn.textContent = doneLabel || "Copied";
+      btn.dataset.done = "1";
+      setTimeout(function(){ btn.textContent = old; btn.dataset.done = ""; }, 1400);
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(ok, function(){ fallback(text, ok); });
+        return;
+      }
+    } catch(e){}
+    fallback(text, ok);
+  }
+  function fallback(text, ok){
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      ok();
+    } catch(e){}
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll(".cmd .cp"), function(btn){
+    btn.type = "button";
+    btn.addEventListener("click", function(){
+      var pre = btn.parentNode.querySelector("pre");
+      copyText(pre ? pre.textContent : "", btn);
+    });
+  });
+
+  document.getElementById("copyres").addEventListener("click", function(){
+    var out = ["Walk — Session AC: the startup leg, the landscape round, and the iOS extension written", ""];
+    var p=0,f=0,n=0;
+    Object.keys(ROWS).forEach(function(k){
+      ROWS[k].forEach(function(r){
+        var id = r[0], s = state[id] || {}, v = s.v || "-";
+        if (v==="P") p++; else if (v==="F") f++; else if (v==="N") n++;
+        out.push(v + "  " + id + "  " + r[1] + (s.n ? "   — " + s.n : ""));
+      });
+    });
+    out.splice(1, 0, p + " pass · " + f + " fail · " + n + " n/a");
+    copyText(out.join("\n"), this, "Copied");
+  });
+
+  document.getElementById("reset").addEventListener("click", function(){
+    if (!window.confirm("Clear every result and note on this sheet?")) return;
+    state = {}; save();
+    Object.keys(ROWS).forEach(function(k){
+      var tb = document.getElementById(k);
+      while (tb.firstChild) tb.removeChild(tb.firstChild);
+      build(k);
+    });
+    tallyUp();
+  });
+})();
+</script>
+</body>
+</html>

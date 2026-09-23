@@ -72,7 +72,9 @@
 :root:not([data-desktop]) .c-sheet {
   bottom: var(--kb-inset, 0px);
   padding-bottom: calc(var(--spacing-24) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)));   /* ★ Session Z #884 ①: 24, as the resting sheet */
-  max-height: calc(100% - var(--kb-inset, 0px));
+  /* #918 (AND-33): the cap clears the status bar too — a sheet taller than a landscape
+     viewport rose to y=0 under it; the anchored menu already subtracted --safe-top. */
+  max-height: calc(100% - var(--safe-top, 0px) - var(--kb-inset, 0px));
   overflow-y: auto;
   overscroll-behavior: contain;
 }

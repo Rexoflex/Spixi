@@ -43,6 +43,7 @@ const FILES = [
   'src/components/button.js',
   'src/components/empty-state.js', // shared zero state (chats/wallet/contacts) — needs button.js
   'src/components/topbar.js',
+  'src/components/landscape-runtime.js',   // #922: the device-orientation flag (before bottomnav, which imports it)
   'src/components/bottomnav.js',
   'src/components/chip.js',
   'src/components/search-field.js',

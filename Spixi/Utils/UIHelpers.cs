@@ -380,6 +380,25 @@ namespace SPIXI
          * fenced per page; a page whose document has no `setInsetBottom` global is not in
          * this list (mini-apps have no generated content). Called from the insets listener
          * on the UI thread. */
+        /* ★ #924: the TOP inset's live push — the mirror of the bottom's below. The status bar
+         * changes height on rotation on a cutout phone (portrait clears the punch-hole, landscape
+         * does not), and every open document must follow or its chrome pads by the old value.
+         * Every redesigned shell defines window.setInsetTop in its head script (AND-7). The parked
+         * Account (#315) is dropped for the same reason as in the other two pushes: it would
+         * re-present with a stale inset. */
+        public static void pushTopInsetToAllPages(string dip)
+        {
+            List<SpixiContentPage> pages;
+            try { pages = getLiveShellPages(true); }
+            catch (Exception) { return; }
+            foreach (SpixiContentPage page in pages)
+            {
+                try { Utils.sendUiCommand(page, "setInsetTop", dip); }
+                catch (Exception) { }
+            }
+            SpixiContentPage.disposeParkedOverlay();
+        }
+
         public static void pushBottomInsetToAllPages(string dip)
         {
             List<SpixiContentPage> pages;
@@ -390,6 +409,27 @@ namespace SPIXI
                 try { Utils.sendUiCommand(page, "setInsetBottom", dip); }
                 catch (Exception) { }
             }
+            /* #922 (r-review MAJOR-2): the PARKED warm Account (#315) is in none of the collections
+             * — it would re-present with yesterday's inset, and a value that has not changed since
+             * is never re-pushed. Same answer as the theme path: drop it, the next open rebuilds. */
+            SpixiContentPage.disposeParkedOverlay();
+        }
+
+        /* ★ #922 (Session AC): the side insets ride the same enumerator and the same fence — every
+         * generated document defines `setInsetSides` in its head (a bare-global push into a document
+         * without the handler throws before the dispatcher can catch it, #258), mini-apps are not in
+         * this list. Called from the insets listener on the UI thread, only on a CHANGE. */
+        public static void pushSideInsetsToAllPages(string leftDip, string rightDip)
+        {
+            List<SpixiContentPage> pages;
+            try { pages = getLiveShellPages(true); }
+            catch (Exception) { return; }
+            foreach (SpixiContentPage page in pages)
+            {
+                try { Utils.sendUiCommand(page, "setInsetSides", leftDip, rightDip); }
+                catch (Exception) { }
+            }
+            SpixiContentPage.disposeParkedOverlay();   // #922: the parked Account holds the OLD side insets (see the bottom push)
         }
 #endif
 

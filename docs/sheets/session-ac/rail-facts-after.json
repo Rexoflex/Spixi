@@ -1,0 +1,482 @@
+{
+ "home-landscape-light": {
+  "landscapeFlag": true,
+  "wallet": "auto",
+  "fab": {
+   "x": 843,
+   "y": 320,
+   "w": 56,
+   "h": 56
+  },
+  "rail": true,
+  "navClass": "c-bottomnav c-bottomnav--rail",
+  "nav": {
+   "x": 0,
+   "y": 0,
+   "w": 72,
+   "h": 412
+  },
+  "view": {
+   "x": 72,
+   "y": 0,
+   "w": 843,
+   "h": 412
+  },
+  "items": [
+   {
+    "x": 4,
+    "y": 78,
+    "w": 63,
+    "h": 56
+   },
+   {
+    "x": 4,
+    "y": 146,
+    "w": 63,
+    "h": 56
+   },
+   {
+    "x": 4,
+    "y": 214,
+    "w": 63,
+    "h": 56
+   },
+   {
+    "x": 4,
+    "y": 282,
+    "w": 63,
+    "h": 56
+   }
+  ],
+  "bodyDir": "row",
+  "vw": 915,
+  "vh": 412,
+  "platform": "android"
+ },
+ "home-landscape-ios-light": {
+  "landscapeFlag": true,
+  "wallet": "auto",
+  "fab": {
+   "x": 843,
+   "y": 276,
+   "w": 56,
+   "h": 56
+  },
+  "rail": false,
+  "navClass": "c-bottomnav",
+  "nav": {
+   "x": 0,
+   "y": 348,
+   "w": 915,
+   "h": 64
+  },
+  "view": {
+   "x": 0,
+   "y": 0,
+   "w": 915,
+   "h": 348
+  },
+  "items": [
+   {
+    "x": 72,
+    "y": 356,
+    "w": 96,
+    "h": 50
+   },
+   {
+    "x": 297,
+    "y": 356,
+    "w": 96,
+    "h": 50
+   },
+   {
+    "x": 522,
+    "y": 356,
+    "w": 96,
+    "h": 50
+   },
+   {
+    "x": 747,
+    "y": 356,
+    "w": 96,
+    "h": 50
+   }
+  ],
+  "bodyDir": "column",
+  "vw": 915,
+  "vh": 412,
+  "platform": "ios"
+ },
+ "home-portrait-light": {
+  "landscapeFlag": false,
+  "wallet": "visible",
+  "fab": {
+   "x": 340,
+   "y": 759,
+   "w": 56,
+   "h": 56
+  },
+  "rail": false,
+  "navClass": "c-bottomnav",
+  "nav": {
+   "x": 0,
+   "y": 831,
+   "w": 412,
+   "h": 84
+  },
+  "view": {
+   "x": 0,
+   "y": 0,
+   "w": 412,
+   "h": 831
+  },
+  "items": [
+   {
+    "x": 10,
+    "y": 839,
+    "w": 96,
+    "h": 50
+   },
+   {
+    "x": 109,
+    "y": 839,
+    "w": 96,
+    "h": 50
+   },
+   {
+    "x": 208,
+    "y": 839,
+    "w": 96,
+    "h": 50
+   },
+   {
+    "x": 307,
+    "y": 839,
+    "w": 96,
+    "h": 50
+   }
+  ],
+  "bodyDir": "column",
+  "vw": 412,
+  "vh": 915,
+  "platform": "android"
+ },
+ "settings-landscape-light": {
+  "landscapeFlag": true,
+  "wallet": null,
+  "fab": null,
+  "rail": true,
+  "navClass": "c-bottomnav c-bottomnav--rail",
+  "nav": {
+   "x": 0,
+   "y": 0,
+   "w": 72,
+   "h": 412
+  },
+  "view": {
+   "x": 72,
+   "y": 0,
+   "w": 843,
+   "h": 412
+  },
+  "items": [
+   {
+    "x": 4,
+    "y": 78,
+    "w": 63,
+    "h": 56
+   },
+   {
+    "x": 4,
+    "y": 146,
+    "w": 63,
+    "h": 56
+   },
+   {
+    "x": 4,
+    "y": 214,
+    "w": 63,
+    "h": 56
+   },
+   {
+    "x": 4,
+    "y": 282,
+    "w": 63,
+    "h": 56
+   }
+  ],
+  "bodyDir": "row",
+  "vw": 915,
+  "vh": 412,
+  "platform": "android"
+ },
+ "home-landscape-dark": {
+  "landscapeFlag": true,
+  "wallet": "auto",
+  "fab": {
+   "x": 843,
+   "y": 320,
+   "w": 56,
+   "h": 56
+  },
+  "rail": true,
+  "navClass": "c-bottomnav c-bottomnav--rail",
+  "nav": {
+   "x": 0,
+   "y": 0,
+   "w": 72,
+   "h": 412
+  },
+  "view": {
+   "x": 72,
+   "y": 0,
+   "w": 843,
+   "h": 412
+  },
+  "items": [
+   {
+    "x": 4,
+    "y": 78,
+    "w": 63,
+    "h": 56
+   },
+   {
+    "x": 4,
+    "y": 146,
+    "w": 63,
+    "h": 56
+   },
+   {
+    "x": 4,
+    "y": 214,
+    "w": 63,
+    "h": 56
+   },
+   {
+    "x": 4,
+    "y": 282,
+    "w": 63,
+    "h": 56
+   }
+  ],
+  "bodyDir": "row",
+  "vw": 915,
+  "vh": 412,
+  "platform": "android"
+ },
+ "home-landscape-ios-dark": {
+  "landscapeFlag": true,
+  "wallet": "auto",
+  "fab": {
+   "x": 843,
+   "y": 276,
+   "w": 56,
+   "h": 56
+  },
+  "rail": false,
+  "navClass": "c-bottomnav",
+  "nav": {
+   "x": 0,
+   "y": 348,
+   "w": 915,
+   "h": 64
+  },
+  "view": {
+   "x": 0,
+   "y": 0,
+   "w": 915,
+   "h": 348
+  },
+  "items": [
+   {
+    "x": 72,
+    "y": 356,
+    "w": 96,
+    "h": 50
+   },
+   {
+    "x": 297,
+    "y": 356,
+    "w": 96,
+    "h": 50
+   },
+   {
+    "x": 522,
+    "y": 356,
+    "w": 96,
+    "h": 50
+   },
+   {
+    "x": 747,
+    "y": 356,
+    "w": 96,
+    "h": 50
+   }
+  ],
+  "bodyDir": "column",
+  "vw": 915,
+  "vh": 412,
+  "platform": "ios"
+ },
+ "home-portrait-dark": {
+  "landscapeFlag": false,
+  "wallet": "visible",
+  "fab": {
+   "x": 340,
+   "y": 759,
+   "w": 56,
+   "h": 56
+  },
+  "rail": false,
+  "navClass": "c-bottomnav",
+  "nav": {
+   "x": 0,
+   "y": 831,
+   "w": 412,
+   "h": 84
+  },
+  "view": {
+   "x": 0,
+   "y": 0,
+   "w": 412,
+   "h": 831
+  },
+  "items": [
+   {
+    "x": 10,
+    "y": 839,
+    "w": 96,
+    "h": 50
+   },
+   {
+    "x": 109,
+    "y": 839,
+    "w": 96,
+    "h": 50
+   },
+   {
+    "x": 208,
+    "y": 839,
+    "w": 96,
+    "h": 50
+   },
+   {
+    "x": 307,
+    "y": 839,
+    "w": 96,
+    "h": 50
+   }
+  ],
+  "bodyDir": "column",
+  "vw": 412,
+  "vh": 915,
+  "platform": "android"
+ },
+ "settings-landscape-dark": {
+  "landscapeFlag": true,
+  "wallet": null,
+  "fab": null,
+  "rail": true,
+  "navClass": "c-bottomnav c-bottomnav--rail",
+  "nav": {
+   "x": 0,
+   "y": 0,
+   "w": 72,
+   "h": 412
+  },
+  "view": {
+   "x": 72,
+   "y": 0,
+   "w": 843,
+   "h": 412
+  },
+  "items": [
+   {
+    "x": 4,
+    "y": 78,
+    "w": 63,
+    "h": 56
+   },
+   {
+    "x": 4,
+    "y": 146,
+    "w": 63,
+    "h": 56
+   },
+   {
+    "x": 4,
+    "y": 214,
+    "w": 63,
+    "h": 56
+   },
+   {
+    "x": 4,
+    "y": 282,
+    "w": 63,
+    "h": 56
+   }
+  ],
+  "bodyDir": "row",
+  "vw": 915,
+  "vh": 412,
+  "platform": "android"
+ },
+ "rotation": [
+  {
+   "vw": 400,
+   "vh": 412,
+   "rail": true,
+   "landscapeFlag": true,
+   "bodyDir": "row",
+   "nav": {
+    "x": 0,
+    "y": 0,
+    "w": 120,
+    "h": 412
+   },
+   "wallet": "auto"
+  },
+  {
+   "vw": 412,
+   "vh": 915,
+   "rail": false,
+   "landscapeFlag": false,
+   "bodyDir": "column",
+   "nav": {
+    "x": 0,
+    "y": 831,
+    "w": 412,
+    "h": 84
+   },
+   "wallet": "visible"
+  },
+  {
+   "vw": 400,
+   "vh": 412,
+   "rail": true,
+   "landscapeFlag": true,
+   "bodyDir": "row",
+   "nav": {
+    "x": 0,
+    "y": 0,
+    "w": 120,
+    "h": 412
+   },
+   "wallet": "auto"
+  },
+  {
+   "vw": 412,
+   "vh": 480,
+   "rail": false,
+   "landscapeFlag": false,
+   "bodyDir": "column",
+   "nav": {
+    "x": 0,
+    "y": 396,
+    "w": 412,
+    "h": 84
+   },
+   "wallet": "visible"
+  }
+ ]
+}

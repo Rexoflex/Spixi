@@ -1,0 +1,188 @@
+{
+ "wallet-light": {
+  "tab": "wallet-view",
+  "hero": {
+   "top": 0,
+   "bottom": 282,
+   "height": 282
+  },
+  "heroCompact": false,
+  "tools": {
+   "top": 282,
+   "bottom": 402,
+   "height": 120
+  },
+  "rows": 7,
+  "firstRow": {
+   "top": 402,
+   "bottom": 482,
+   "height": 80
+  },
+  "scroller": {
+   "cls": "view",
+   "clientH": 348,
+   "scrollH": 962,
+   "top": 0
+  },
+  "vh": 412,
+  "vw": 915,
+  "theme": "light"
+ },
+ "apps-light": {
+  "tab": "apps-view",
+  "banner": {
+   "top": 120,
+   "bottom": 228,
+   "height": 108
+  },
+  "bannerSticky": null,
+  "header": {
+   "top": 56,
+   "bottom": 232,
+   "height": 176
+  },
+  "empty": {
+   "top": 240,
+   "bottom": 704,
+   "height": 464
+  },
+  "scroller": {
+   "cls": "view",
+   "clientH": 348,
+   "scrollH": 712
+  },
+  "vh": 412,
+  "theme": "light"
+ },
+ "tx-light": {
+  "docScrollH": 412,
+  "bodyScrollH": 412,
+  "vh": 412,
+  "maxBottom": 575,
+  "scroller": {
+   "cls": "u-scroll",
+   "clientH": 356,
+   "scrollH": 519
+  },
+  "htmlOverflow": "hidden",
+  "bodyOverflow": "hidden",
+  "txid": true,
+  "theme": "light"
+ },
+ "appearance-light": {
+  "clicked": true,
+  "preview": {
+   "top": 68,
+   "bottom": 216,
+   "height": 148,
+   "width": 873
+  },
+  "previewCS": {
+   "height": "148px",
+   "minHeight": "148px",
+   "maxHeight": "none",
+   "overflow": "hidden"
+  },
+  "bubbles": [],
+  "scroller": {
+   "cls": "c-settings__body u-scroll",
+   "clientH": 356,
+   "scrollH": 444
+  },
+  "vh": 412,
+  "theme": "light"
+ },
+ "wallet-dark": {
+  "tab": "wallet-view",
+  "hero": {
+   "top": 0,
+   "bottom": 282,
+   "height": 282
+  },
+  "heroCompact": false,
+  "tools": {
+   "top": 282,
+   "bottom": 402,
+   "height": 120
+  },
+  "rows": 7,
+  "firstRow": {
+   "top": 402,
+   "bottom": 482,
+   "height": 80
+  },
+  "scroller": {
+   "cls": "view",
+   "clientH": 348,
+   "scrollH": 962,
+   "top": 0
+  },
+  "vh": 412,
+  "vw": 915,
+  "theme": "dark"
+ },
+ "apps-dark": {
+  "tab": "apps-view",
+  "banner": {
+   "top": 120,
+   "bottom": 228,
+   "height": 108
+  },
+  "bannerSticky": null,
+  "header": {
+   "top": 56,
+   "bottom": 232,
+   "height": 176
+  },
+  "empty": {
+   "top": 240,
+   "bottom": 704,
+   "height": 464
+  },
+  "scroller": {
+   "cls": "view",
+   "clientH": 348,
+   "scrollH": 712
+  },
+  "vh": 412,
+  "theme": "dark"
+ },
+ "tx-dark": {
+  "docScrollH": 412,
+  "bodyScrollH": 412,
+  "vh": 412,
+  "maxBottom": 575,
+  "scroller": {
+   "cls": "u-scroll",
+   "clientH": 356,
+   "scrollH": 519
+  },
+  "htmlOverflow": "hidden",
+  "bodyOverflow": "hidden",
+  "txid": true,
+  "theme": "dark"
+ },
+ "appearance-dark": {
+  "clicked": true,
+  "preview": {
+   "top": 68,
+   "bottom": 216,
+   "height": 148,
+   "width": 873
+  },
+  "previewCS": {
+   "height": "148px",
+   "minHeight": "148px",
+   "maxHeight": "none",
+   "overflow": "hidden"
+  },
+  "bubbles": [],
+  "scroller": {
+   "cls": "c-settings__body u-scroll",
+   "clientH": 356,
+   "scrollH": 444
+  },
+  "vh": 412,
+  "theme": "dark"
+ }
+}

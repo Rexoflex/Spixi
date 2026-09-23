@@ -17,7 +17,11 @@
      (SpixiLocalization), so --safe-top collapses to env() exactly as before; an
      UNRESOLVED marker also fails the numeric test and leaves the variable unset.
      The value is validated as a plain number before it reaches a style property. -->
-<script>(function(){function a(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-top',v+'px');}a('*SL{AndroidInsetTop}');window.setInsetTop=a;function b(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-bottom',v+'px');}b('*SL{AndroidInsetBottom}');window.setInsetBottom=b;})();</script>
+<script>(function(){function a(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-top',v+'px');}a('*SL{AndroidInsetTop}');window.setInsetTop=a;function b(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-bottom',v+'px');}b('*SL{AndroidInsetBottom}');window.setInsetBottom=b;function c(l,r){var n=/^\d{1,3}(\.\d{1,2})?$/,d=document.documentElement.style;if(n.test(String(l)))d.setProperty('--android-inset-left',l+'px');if(n.test(String(r)))d.setProperty('--android-inset-right',r+'px');}c('*SL{AndroidInsetLeft}','*SL{AndroidInsetRight}');window.setInsetSides=c;})();</script>
+<!-- ★ #922: the platform CONVENTION flag (a compile-time carrier, SpixiLocalization.PLATFORM_NAME).
+     Read for conventions only — Material's rail-in-landscape vs the HIG's tab bar — never for a
+     capability, which stays a probe (L15). Unknown/unsubstituted → no attribute. -->
+<script>(function(){var p='*SL{SpixiPlatform}';if(/^(android|ios|maccatalyst|windows)$/.test(p))document.documentElement.setAttribute('data-platform',p);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Spixi — Account</title>
 <style>
@@ -766,7 +770,9 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 :root:not([data-desktop]) .c-sheet {
   bottom: var(--kb-inset, 0px);
   padding-bottom: calc(var(--spacing-24) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)));   /* ★ Session Z #884 ①: 24, as the resting sheet */
-  max-height: calc(100% - var(--kb-inset, 0px));
+  /* #918 (AND-33): the cap clears the status bar too — a sheet taller than a landscape
+     viewport rose to y=0 under it; the anchored menu already subtracted --safe-top. */
+  max-height: calc(100% - var(--safe-top, 0px) - var(--kb-inset, 0px));
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -2618,6 +2624,17 @@ button.c-settings-howto__join:disabled {
   overflow: hidden;                 /* the pattern layer stays inside the tile */
   box-shadow: var(--elevation-1);
 }
+/* ★ #918 (Session AC — AND-34): THE PREVIEW IS CONTENT-SIZED, NEVER "WHAT IS LEFT".
+   The preview carries `.c-chat-canvas` for the real canvas paint, and that rule
+   (message-bubble.css, same specificity, later in the cascade) says `flex: 1;
+   min-height: 0` — so the 148 px floor above was DEAD and the tile was whatever the
+   settings body had left after the two cards: 60 px in landscape (measured on the built
+   shell at 915×412 — the bubbles clipped mid-line), and a stretched slab in portrait.
+   The double class wins the cascade on specificity, not on order. */
+.c-chat-canvas.c-settings-appearance__preview {
+  flex: none;
+  min-height: 148px;                /* sanctioned: preview canvas dim */
+}
 .c-settings-appearance__bubble {
   max-width: 80%;
   padding: var(--spacing-8) var(--spacing-12);
@@ -4313,6 +4330,21 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-bottomnav--rail .c-bottomnav__icon--filled,
 .c-bottomnav--rail .c-bottomnav__item[aria-current] .c-bottomnav__icon--filled { transform: none; }
 
+/* ★ #922 (Session AC): THE LANDSCAPE RAIL — the same variant class, toggled at RUNTIME by
+   attachLandscapeRail (bottomnav.js) on an Android phone under the #918 landscape query, with
+   the root carrying data-landscape-rail for the shell's layout. The desktop rail is chrome
+   with no system bars beside it; this one sits between three: the status bar above (the top
+   inset), the gesture/nav bar below (--safe-bottom) and, on a rotation that puts the 3-button
+   bar or a cutout on the LEFT edge, --safe-left at its inline-start. Tighter than the desktop
+   dials (gap 24 → 12, block padding 16 → 8): 412 px of height holds four items only so. */
+:root[data-landscape-rail] .c-bottomnav--rail {
+  width: calc(var(--layout-rail-width) + var(--safe-left, 0px));
+  gap: var(--spacing-12);
+  padding-block: calc(var(--spacing-8) + var(--safe-top, 0px)) calc(var(--spacing-8) + var(--safe-bottom, 0px));
+  padding-inline: calc(var(--spacing-4) + var(--safe-left, 0px)) var(--spacing-4);
+  justify-content: center;      /* four items float mid-column, not a top-heavy stack */
+}
+
 </style><!-- peer-tab chrome (Account active) -->
 <style data-src="../styles/components/toast.css">
 /* c-toast — transient feedback, bottom-anchored above the bottom bar.
@@ -4584,8 +4616,11 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
      ⚠ Reachable, and not a corner case: Wallet → Receive → type an amount → "Show my
      address". That tap is on a BUTTON, which #609 deliberately exempts from
      tap-to-dismiss, so the keyboard is positively still up when this sheet mounts.
-     Inert at `--kb-inset: 0`, like every other term this batch added. */
-  max-height: calc(100% - var(--kb-inset, 0px));
+     Inert at `--kb-inset: 0`, like every other term this batch added.
+     ★ #918 (Session AC — AND-33): and the STATUS BAR, for the same reason this rule
+     exists at all — it out-orders overlay.css's cap, so a term added there alone would
+     never reach this sheet. Same expression, both files; the pin holds them equal. */
+  max-height: calc(100% - var(--safe-top, 0px) - var(--kb-inset, 0px));
   box-sizing: border-box;
 }
 /* ⚠ round-2 MINOR-4: createSheet wraps the content in `.c-sheet__content`, so THAT is
@@ -4879,6 +4914,12 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
      LEFT RAIL (c-bottomnav--rail variant), first in the row. Mobile untouched. */
   :root[data-desktop] body { flex-direction: row; }
   :root[data-desktop] #settings-nav { order: -1; display: flex; }
+  /* ★ #922 (Session AC): the LANDSCAPE RAIL — the peer-tab nav as a left column on an Android
+     phone in landscape (attachLandscapeRail sets the flag under the #918 query; mirrors home.html).
+     The #334 iOS-59 sublevel hide below still applies: a sublevel owns its exit, rail or bar. */
+  :root[data-landscape-rail] body { flex-direction: row; }
+  :root[data-landscape-rail] #settings-nav { order: -1; display: flex; }
+  :root[data-landscape-rail] #settings-root { min-width: 0; padding-inline-end: var(--safe-right, 0px); }
   /* #334 iOS-59: SUB-screens are hub-only surfaces — hide the peer-tab bottom
      nav while a sublevel is open (its back affordance owns the exit). Desktop
      full-window keeps the RAIL: it is the sole exit there (#237, no topbar back). */
@@ -4958,7 +4999,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
      preview the marker stays un-substituted → SpixiStrings.get() falls back to en-us. -->
 <script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || '*SL{language-code}');</script>
 <script src="spixi.bundle.js"></script>
-<script>/* ★ L15b (Session Z): the flag font — a device that cannot paint a flag emoji (Windows) gets the flags-only Twemoji face for the regional-indicator block, injected at runtime so the 78 KB is never inlined and never fetched on a phone; flags.js holds the mechanism. Unguarded on purpose: a missing export must fail loudly at boot, not fall silent. */window.Spixi.installFlagFont();</script>
+<script>/* ★ L15b (Session Z): the flag font — a device that cannot paint a flag emoji (Windows) gets the flags-only Twemoji face for the regional-indicator block, injected at runtime so the 78 KB is never inlined and never fetched on a phone; flags.js holds the mechanism. Unguarded on purpose: a missing export must fail loudly at boot, not fall silent.  ★ #917: SYNCHRONOUS on purpose — after a language-pick reload this shell boots straight into the Language picker (#274), a first screen made of flags; the other shells defer (installFlagFontLater). */window.Spixi.installFlagFont();</script>
 <script>
   /* —————————————————————————————————————————————————————————————————————————
    * Production Account/Settings shell — the redesigned settings hub wired to the
@@ -4994,7 +5035,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     settingsThemeSheet, settingsOptionSheet, createTopbar,
     dismissOverlay,   // ★ review MINOR-4: tear an open sheet down before a theme-flip rebuild
     openAddressSheet, closeAddressSheet,   // ★ Batch E (d) (#557): the ONE address surface — createSheet/openSheet left with the hand-built #443 explainer; close rides exitSettings (C-8, this document PARKS)
-    createBottomNav, setNavActive, setNavBadge, showToast,
+    createBottomNav, setNavActive, setNavBadge, attachLandscapeRail, showToast,
     createNativeBridge, installExecuteUiCommand,
     attachEdgeBack,   // ★ L3 (#706): the iOS back signal + the one-level chain
     slideSubscreenIn, slideSubscreenOut, settleSubscreenSlide,   // ★ Session H: the in-shell subscreen slide (walk row 31)
@@ -7115,6 +7156,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    * lastNavUnread — C#'s push is value-latched and won't repeat. */
   let nav = null;
   let lastNavUnread = 0;
+  let detachLandscapeRail = null;   // #922: the current nav's landscape-rail detach fn
   function buildPeerNav() {
     const items = [
       { id: 'chats', label: strings.chats || 'Chats', icon: 'messages' },
@@ -7155,6 +7197,11 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     else document.getElementById('settings-nav').append(fresh);
     nav = fresh;
     if (lastNavUnread) setNavBadge(nav, 'chats', lastNavUnread);
+    // ★ #922: the landscape rail — buildPeerNav REBUILDS the element (a language pick), so the
+    // previous attachment is detached first and the fresh nav gets its own (the listener would
+    // otherwise toggle a detached element while the live one kept its bar shape).
+    try { if (detachLandscapeRail) detachLandscapeRail(); } catch (e) { }
+    try { detachLandscapeRail = attachLandscapeRail(nav); } catch (e) { detachLandscapeRail = null; console.warn('[nav] landscape rail: ' + (e && e.message)); }
   }
   buildPeerNav();
 

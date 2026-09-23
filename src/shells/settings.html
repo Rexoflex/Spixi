@@ -17,7 +17,11 @@
      (SpixiLocalization), so --safe-top collapses to env() exactly as before; an
      UNRESOLVED marker also fails the numeric test and leaves the variable unset.
      The value is validated as a plain number before it reaches a style property. -->
-<script>(function(){function a(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-top',v+'px');}a('*SL{AndroidInsetTop}');window.setInsetTop=a;function b(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-bottom',v+'px');}b('*SL{AndroidInsetBottom}');window.setInsetBottom=b;})();</script>
+<script>(function(){function a(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-top',v+'px');}a('*SL{AndroidInsetTop}');window.setInsetTop=a;function b(v){if(/^\d{1,3}(\.\d{1,2})?$/.test(String(v)))document.documentElement.style.setProperty('--android-inset-bottom',v+'px');}b('*SL{AndroidInsetBottom}');window.setInsetBottom=b;function c(l,r){var n=/^\d{1,3}(\.\d{1,2})?$/,d=document.documentElement.style;if(n.test(String(l)))d.setProperty('--android-inset-left',l+'px');if(n.test(String(r)))d.setProperty('--android-inset-right',r+'px');}c('*SL{AndroidInsetLeft}','*SL{AndroidInsetRight}');window.setInsetSides=c;})();</script>
+<!-- ★ #922: the platform CONVENTION flag (a compile-time carrier, SpixiLocalization.PLATFORM_NAME).
+     Read for conventions only — Material's rail-in-landscape vs the HIG's tab bar — never for a
+     capability, which stays a probe (L15). Unknown/unsubstituted → no attribute. -->
+<script>(function(){var p='*SL{SpixiPlatform}';if(/^(android|ios|maccatalyst|windows)$/.test(p))document.documentElement.setAttribute('data-platform',p);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Spixi — Account</title>
 <style>
@@ -79,6 +83,12 @@
      LEFT RAIL (c-bottomnav--rail variant), first in the row. Mobile untouched. */
   :root[data-desktop] body { flex-direction: row; }
   :root[data-desktop] #settings-nav { order: -1; display: flex; }
+  /* ★ #922 (Session AC): the LANDSCAPE RAIL — the peer-tab nav as a left column on an Android
+     phone in landscape (attachLandscapeRail sets the flag under the #918 query; mirrors home.html).
+     The #334 iOS-59 sublevel hide below still applies: a sublevel owns its exit, rail or bar. */
+  :root[data-landscape-rail] body { flex-direction: row; }
+  :root[data-landscape-rail] #settings-nav { order: -1; display: flex; }
+  :root[data-landscape-rail] #settings-root { min-width: 0; padding-inline-end: var(--safe-right, 0px); }
   /* #334 iOS-59: SUB-screens are hub-only surfaces — hide the peer-tab bottom
      nav while a sublevel is open (its back affordance owns the exit). Desktop
      full-window keeps the RAIL: it is the sole exit there (#237, no topbar back). */
@@ -157,7 +167,7 @@
      preview the marker stays un-substituted → SpixiStrings.get() falls back to en-us. -->
 <script>window.SL = window.SpixiStrings.get(new URLSearchParams(location.search).get('lang') || '*SL{language-code}');</script>
 <script src="../demo/spixi.iife.js"></script>
-<script>/* ★ L15b (Session Z): the flag font — a device that cannot paint a flag emoji (Windows) gets the flags-only Twemoji face for the regional-indicator block, injected at runtime so the 78 KB is never inlined and never fetched on a phone; flags.js holds the mechanism. Unguarded on purpose: a missing export must fail loudly at boot, not fall silent. */window.Spixi.installFlagFont();</script>
+<script>/* ★ L15b (Session Z): the flag font — a device that cannot paint a flag emoji (Windows) gets the flags-only Twemoji face for the regional-indicator block, injected at runtime so the 78 KB is never inlined and never fetched on a phone; flags.js holds the mechanism. Unguarded on purpose: a missing export must fail loudly at boot, not fall silent.  ★ #917: SYNCHRONOUS on purpose — after a language-pick reload this shell boots straight into the Language picker (#274), a first screen made of flags; the other shells defer (installFlagFontLater). */window.Spixi.installFlagFont();</script>
 <script>
   /* —————————————————————————————————————————————————————————————————————————
    * Production Account/Settings shell — the redesigned settings hub wired to the
@@ -193,7 +203,7 @@
     settingsThemeSheet, settingsOptionSheet, createTopbar,
     dismissOverlay,   // ★ review MINOR-4: tear an open sheet down before a theme-flip rebuild
     openAddressSheet, closeAddressSheet,   // ★ Batch E (d) (#557): the ONE address surface — createSheet/openSheet left with the hand-built #443 explainer; close rides exitSettings (C-8, this document PARKS)
-    createBottomNav, setNavActive, setNavBadge, showToast,
+    createBottomNav, setNavActive, setNavBadge, attachLandscapeRail, showToast,
     createNativeBridge, installExecuteUiCommand,
     attachEdgeBack,   // ★ L3 (#706): the iOS back signal + the one-level chain
     slideSubscreenIn, slideSubscreenOut, settleSubscreenSlide,   // ★ Session H: the in-shell subscreen slide (walk row 31)
@@ -2314,6 +2324,7 @@
    * lastNavUnread — C#'s push is value-latched and won't repeat. */
   let nav = null;
   let lastNavUnread = 0;
+  let detachLandscapeRail = null;   // #922: the current nav's landscape-rail detach fn
   function buildPeerNav() {
     const items = [
       { id: 'chats', label: strings.chats || 'Chats', icon: 'messages' },
@@ -2354,6 +2365,11 @@
     else document.getElementById('settings-nav').append(fresh);
     nav = fresh;
     if (lastNavUnread) setNavBadge(nav, 'chats', lastNavUnread);
+    // ★ #922: the landscape rail — buildPeerNav REBUILDS the element (a language pick), so the
+    // previous attachment is detached first and the fresh nav gets its own (the listener would
+    // otherwise toggle a detached element while the live one kept its bar shape).
+    try { if (detachLandscapeRail) detachLandscapeRail(); } catch (e) { }
+    try { detachLandscapeRail = attachLandscapeRail(nav); } catch (e) { detachLandscapeRail = null; console.warn('[nav] landscape rail: ' + (e && e.message)); }
   }
   buildPeerNav();
 

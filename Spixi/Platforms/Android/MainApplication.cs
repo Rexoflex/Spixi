@@ -70,7 +70,7 @@ public class MainApplication : MauiApplication
 			if (density <= 0f) density = 1f;
 			if (id > 0)
 			{
-				MainActivity.publishTopInset((Resources?.GetDimensionPixelSize(id) ?? 0) / density);
+				MainActivity.publishTopInset((Resources?.GetDimensionPixelSize(id) ?? 0) / density, false);   // boot estimate: carrier only, no document is live yet (#924)
 			}
 			/* ★ AND-45 (Session Y): the same estimate for the BOTTOM. `navigation_bar_height` is
 			 * the 3-BUTTON bar (48dp on AOSP) and most ROMs report it under gesture navigation

@@ -603,8 +603,9 @@ namespace SPIXI
                  * Reaches only pages that loaded a redesigned shell — every one defines
                  * window.setInsetTop in its head script; mini-app WebViews do not, and
                  * they keep native padding anyway (the branch above).
-                 * ⚠ RESIDUAL, logged not hidden: a rotation while a page is on screen is
-                 * not covered — see docs/android-findings.md. */
+                 * #924: a rotation while a page is on screen IS covered now — the insets
+                 * listener pushes the top inset live (MainActivity.publishTopInset); this
+                 * pass remains the belt for a document that was not live at the change. */
                 Utils.sendUiCommand(this, "setInsetTop",
                     MainActivity.TopInsetDip.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture));
                 // ★ AND-45 (Session Y): the bottom rides the same chrome pass (page load, re-present,

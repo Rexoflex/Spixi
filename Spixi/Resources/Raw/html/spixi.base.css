@@ -40,6 +40,10 @@
  * collapses to the env() value the platform already populates. ⚠ Use sites must read the
  * variable, never env() directly — the suite sweeps for a stray env(safe-area-inset-bottom). */
 :root { --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--android-inset-bottom, 0px)); }
+/* ★ #922: the SIDE insets by the same rule (a cutout / the 3-button bar on a side edge in
+ * landscape): env() on iOS, the *SL{AndroidInsetLeft/Right} carriers + `setInsetSides` on Android. */
+:root { --safe-left: max(env(safe-area-inset-left, 0px), var(--android-inset-left, 0px)); }
+:root { --safe-right: max(env(safe-area-inset-right, 0px), var(--android-inset-right, 0px)); }
 
 *, *::before, *::after { box-sizing: border-box; }
 

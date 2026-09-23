@@ -106,13 +106,25 @@ namespace SPIXI.Meta
         public static bool notificationsEnabled
         {
             get { return getBool(KEY_ENABLED, true); }
-            set { setBool(KEY_ENABLED, value); }
+            set { setBool(KEY_ENABLED, value); shareForPushExtension(); }
         }
 
         public static bool showSenderName
         {
             get { return getBool(KEY_SENDER_NAME, false); }
-            set { setBool(KEY_SENDER_NAME, value); }
+            set { setBool(KEY_SENDER_NAME, value); shareForPushExtension(); }
+        }
+
+        /* ★ #919/#915 (Session AC): the iOS Notification Service Extension is a separate
+         * process and cannot read these preferences. Every setter that changes what the
+         * extension must decide on re-writes the shared App Group store
+         * (Spixi/Platforms/iOS/SPushPrefsShare.cs) — off the UI thread, fail-soft. The other
+         * platforms have no such process: a no-op there, by the #if, not by a runtime check. */
+        private static void shareForPushExtension()
+        {
+#if IOS
+            Spixi.SPushPrefsShare.syncLater();
+#endif
         }
 
         // ★ #597 (Damir, 2026-08-27): the one-shot #589 migration is DELETED with the row
@@ -236,6 +248,7 @@ namespace SPIXI.Meta
                     // they have ever opened.
                     Preferences.Default.Remove(muteKey(address));
                 }
+                shareForPushExtension();   // #919: the extension's copy of the mute set
             }
             catch (Exception e)
             {

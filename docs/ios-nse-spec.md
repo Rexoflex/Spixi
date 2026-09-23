@@ -86,6 +86,17 @@ package change is needed.
    the server?
 3. Then the code above, in one sitting, with its own audit.
 
+**Status 2026-09-22 (#919): step 3 is WRITTEN, uncompiled** — `Spixi-PushService/SpixiPushGate.cs`
++ `NotificationService.cs` (the gate runs before OneSignal; Suppress = rewrite to EMPTY, never
+cancel), `Spixi/Platforms/iOS/SPushPrefsShare.cs` (the app writes `spixi-push.json` into the App
+Group container `group.com.ixilabs.spixi`: enabled · senderName · muted 1:1 addresses · nick map),
+both `Entitlements.plist` carry the group, both `Info.plist` carry `OneSignal_app_groups_key`, the
+csproj reference is live for the ios TFM. Step 1 is Damir's (the four portal steps in DECISIONS
+#915); step 2 is answered by the office test iO.7 (`docs/walk-artifact-ios-office.html`).
+⚠ The mute is BY SENDER (the payload carries `fa` only): a muted 1:1 contact is silenced in every
+chat including groups, and a muted GROUP is not silenced by the extension at all — Damir's dial
+(iO.11 / iO.11b); per-chat behaviour needs the group id in the payload = server-side.
+
 ⚠ Until then iOS behaves exactly as it does today. Nothing in #510 changes iOS: the Android
 extension is a Windows/Android-side file and the shared decision it calls
 (`SPushService.decidePush`) lives in the **Android** `SPushService`, not in shared code.

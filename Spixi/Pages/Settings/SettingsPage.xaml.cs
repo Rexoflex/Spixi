@@ -1348,6 +1348,12 @@ namespace SPIXI
             try { FriendList.deleteEntireHistory(); } catch (Exception ex) { Logging.error("wipe: history threw: " + ex); }
             try { FriendList.deleteAccounts(); } catch (Exception ex) { Logging.error("wipe: accounts threw: " + ex); }
             try { FriendList.clear(); } catch (Exception ex) { Logging.error("wipe: friend list threw: " + ex); }
+#if IOS
+            // #919: the extension's roster copy goes with the account — AFTER FriendList.clear(), so a
+            // syncLater() task that passed the isRunning gate before step 1 finds an EMPTY roster if it
+            // rebuilds; sync() also re-checks isRunning inside its lock (the r2 reviewer's MINOR-4)
+            try { Spixi.SPushPrefsShare.clear(); } catch (Exception ex) { Logging.error("wipe: push store threw: " + ex.GetType().Name); }
+#endif
 
             // 4. the wallet — file, list, balances
             try

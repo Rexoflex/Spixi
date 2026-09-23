@@ -34,6 +34,13 @@ Concentus (BSD-3) · Microsoft.Maui.* (MIT) · Mono.Nat (MIT) · NAudio (MIT) ·
 Newtonsoft.Json (MIT) · OneSignalSDK.DotNet (MIT) · Plugin.Fingerprint (MIT) ·
 RocksDB / RocksDbSharp (Apache-2.0 / BSD) · Ixian-Core (see its LICENSE).
 
+**Vendored source (not a package):** `Spixi/Platforms/MacCatalyst/RocksDbSharp/**` — the
+managed RocksDbSharp wrapper from `curiosity-ai/rocksdb-sharp` @ `f1cf0ba0`, compiled for the
+maccatalyst TFM only (#920). BSD-2-Clause; the upstream `LICENSE` is vendored beside it
+(`RocksDbSharp/LICENSE`) and the notice is below. `AutoNativeImport.cs` inside it carries
+its own MIT notice (warrenfalk). The native `librocksdb` it loads is the public package's
+build, Apache-2.0 / GPL-2.0 dual — the same binary the Windows TFM already ships.
+
 ---
 
 ## Notices
@@ -90,3 +97,12 @@ and loads it only on a platform whose system emoji font draws no flags; the in-a
 Copyright (c) 2020 Minhaz. Licensed under the Apache License, Version 2.0; you may obtain
 a copy at http://www.apache.org/licenses/LICENSE-2.0. Distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND.
+
+### RocksDbSharp (vendored managed wrapper, Mac Catalyst only) — BSD-2-Clause
+
+Copyright (c) 2015, Warren Falk, Copyright (c) 2022, Curiosity GmbH. All rights reserved.
+Redistribution and use in source and binary forms, with or without modification, are
+permitted provided that the conditions in `Spixi/Platforms/MacCatalyst/RocksDbSharp/LICENSE`
+are met (retain the copyright notice, this list of conditions and the disclaimer). THIS
+SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
+IMPLIED WARRANTIES ARE DISCLAIMED.

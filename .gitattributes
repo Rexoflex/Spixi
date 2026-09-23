@@ -79,3 +79,5 @@ local-nuget/README.md                    -linguist-vendored diff
 # project ships changes to the owner's machine as patches — use `git diff --binary`
 # or `git format-patch --binary` for any hand-off that touches a marked file, or a
 # tarball, which is what the workflow already does for generated output.
+# #920: vendored upstream source (linguist + diff noise)
+Spixi/Platforms/MacCatalyst/RocksDbSharp/** linguist-vendored=true -diff

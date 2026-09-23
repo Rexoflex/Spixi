@@ -17,11 +17,16 @@
 	<key>CFBundlePackageType</key>
 	<string>XPC!</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
+	<string>0.9.22</string>
 	<key>CFBundleVersion</key>
-	<string>1.0</string>
+	<string>0.9.22.11</string>
 	<key>MinimumOSVersion</key>
 	<string>15.0</string>
+	<!-- #919: OneSignal's SDK reads THIS key to find its shared UserDefaults suite; without it the
+	     extension cannot report confirmed delivery (office findings §11). Pinned equal to the App
+	     Group in both entitlements. -->
+	<key>OneSignal_app_groups_key</key>
+	<string>group.com.ixilabs.spixi</string>
 	<key>NSExtension</key>
   <dict>
     <key>NSExtensionPointIdentifier</key>

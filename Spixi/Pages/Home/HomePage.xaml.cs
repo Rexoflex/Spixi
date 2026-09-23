@@ -495,9 +495,38 @@ namespace SPIXI
             Utils.sendUiCommand(this, "setPaneAvailable", now.ToString());
         }
 
+        /* ★ #923 (Damir, 2026-09-22: "single pane on landscape") — A PHONE IS ONE PANE IN EVERY
+         * POSTURE. The split below keyed on the page WIDTH alone (`Width < 700` dp), and a phone
+         * held landscape is 915 dp wide: the chats list dropped into a ~400 dp column beside the
+         * welcome pane, and a conversation opened as a ~515 × 412 dp slot (the #922 review found
+         * it — nobody had rotated a phone against this line). The rule is now the DEVICE's: a
+         * display whose SHORT side is under PHONE_SHORT_SIDE_DIP is a phone and stays single-pane
+         * at any width; tablets (short side ≥ 600) and desktop windows keep the split at 700.
+         * ★ 600 is the SAME constant the shells use (`landscape-runtime.js` PHONE_SHORT_SIDE_MAX)
+         * so the rail and the pane agree on what a phone is — a pin holds the two equal.
+         * ⓘ Read from `DeviceDisplay.MainDisplayInfo` in device-independent units (pixels ÷
+         * density), the short side so rotation does not flip the answer. Any failure to read the
+         * display is NOT a phone (the old width rule then decides) — a desktop must never lose
+         * its panes to a missing display record. */
+        private const double PHONE_SHORT_SIDE_DIP = 600;
+
+        private static bool isPhoneDisplay()
+        {
+            try
+            {
+                var d = DeviceDisplay.MainDisplayInfo;
+                if (d.Density <= 0 || d.Width <= 0 || d.Height <= 0) return false;
+                return Math.Min(d.Width, d.Height) / d.Density < PHONE_SHORT_SIDE_DIP;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         private void OnPageSizeChanged(object? sender, EventArgs? e)
         {
-            if (Width < 700)
+            if (Width < 700 || isPhoneDisplay())
             {
                 // Show only main pane
                 mainGrid.ColumnDefinitions[0].Width = GridLength.Star;

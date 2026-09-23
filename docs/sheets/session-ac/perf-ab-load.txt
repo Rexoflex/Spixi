@@ -1,0 +1,32 @@
+# [PERF] interleaved A/B of the SHIPPED home shell: A = pristine snapshot (pre-#917), B = this session's build
+# Chromium CPU ×4, Android UA, 432×900 @2.5, file://, 10 runs each, A/B alternated per run
+A runs 10 load med 401 min 361 | dcl med 400 | fp med 160 | flag font present after 500ms: 0/10
+B runs 10 load med 381 min 341 | dcl med 375 | fp med 168 | flag font present after 500ms: 0/10
+
+# profiler self-time (top rows), one run each — the probe (flagGlyphAvailable) still runs in B, AFTER load
+== /home/claude/snap-before/Spixi/Resources/Raw/html
+total sampled 435 ms
+  248 ms  (program) @:-1
+   49 ms  (idle) @:-1
+   33 ms  flagGlyphAvailable @spixi.bundle.js:662
+   28 ms  fit @spixi.bundle.js:11925
+   11 ms  (anon) @spixi.strings.js:3
+   11 ms  (anon) @index.html:5756
+    8 ms  icon @spixi.icons.js:101
+    6 ms  (anon) @index.html:6
+    3 ms  closeChatRowSwipe @spixi.bundle.js:8806
+    2 ms  createAppsHeader @spixi.bundle.js:10220
+    2 ms  (anon) @spixi.bundle.js:3
+== Spixi/Resources/Raw/html
+total sampled 511 ms
+  309 ms  (program) @:-1
+   57 ms  (idle) @:-1
+   33 ms  flagGlyphAvailable @spixi.bundle.js:662
+   24 ms  fit @spixi.bundle.js:11995
+   11 ms  (anon) @index.html:5792
+   10 ms  (anon) @spixi.strings.js:3
+    9 ms  (anon) @index.html:6
+    7 ms  drain @spixi.bundle.js:25609
+    6 ms  icon @spixi.icons.js:101
+    6 ms  addEventListener @:-1
+    4 ms  (anon) @index.html:6158

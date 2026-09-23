@@ -1,0 +1,79 @@
+import { chromium } from 'playwright'; import { join } from 'node:path'; import { writeFileSync } from 'node:fs';
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const UA = 'Mozilla/5.0 (Linux; Android 14; moto g84) AppleWebKit/537.36 Chrome/126.0 Mobile Safari/537.36';
+const facts = {};
+const root = process.argv[2] || 'Spixi/Resources/Raw/html'; const tag = process.argv[3] || 'after';
+const shot = (page, name) => page.screenshot({ path: `docs/sheets/session-ac/rail-${name}-${tag}.png` });
+import { readFileSync, unlinkSync } from 'node:fs';
+const temps = [];
+/* generatePage's carriers, substituted the way C# does it: a temp copy beside the built shell so
+   every relative asset resolves; *SL{SpixiPlatform} + the four inset carriers */
+function localized(file, platform, insets) {
+  let html = readFileSync(join(process.cwd(), root, file), 'utf8');
+  html = html.split('*SL{SpixiPlatform}').join(platform || '');
+  const ins = insets || { top: 0, bottom: 0, left: 0, right: 0 };
+  html = html.split('*SL{AndroidInsetTop}').join(String(ins.top)).split('*SL{AndroidInsetBottom}').join(String(ins.bottom)).split('*SL{AndroidInsetLeft}').join(String(ins.left)).split('*SL{AndroidInsetRight}').join(String(ins.right));
+  const out = join(process.cwd(), root, '_rail-' + platform + '-' + file);
+  writeFileSync(out, html); temps.push(out); return out;
+}
+async function boot(ctx, file, platform, insets, device) {
+  const page = await ctx.newPage();
+  if (device) await page.addInitScript((d) => {
+    // the DEVICE, as landscape-runtime.js reads it: screen.width/height + screen.orientation
+    const listeners = [];
+    const so = { get type() { return d.landscape ? 'landscape-primary' : 'portrait-primary'; }, addEventListener: (t, fn) => listeners.push(fn), removeEventListener: (t, fn) => { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); } };
+    Object.defineProperty(window.screen, 'width', { get: () => d.landscape ? d.long : d.short, configurable: true });
+    Object.defineProperty(window.screen, 'height', { get: () => d.landscape ? d.short : d.long, configurable: true });
+    Object.defineProperty(window.screen, 'orientation', { get: () => so, configurable: true });
+    window.__rotate = (landscape) => { d.landscape = landscape; listeners.slice().forEach((fn) => fn()); };
+  }, device);
+  await page.goto('file://' + localized(file, platform, insets) + '?mobile=1');
+  await page.waitForFunction(() => typeof window.executeUiCommand === 'function');
+  return page;
+}
+const feedHome = () => { const p = (fn, ...a) => window.executeUiCommand(window[fn], ...a.map((v) => btoa(unescape(encodeURIComponent(String(v)))))); p('clearChats'); for (let i = 0; i < 8; i++) p('addChat', 'addr' + i + 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'Contact ' + i, 'Hello from ' + i, String(1700000000 + i * 1000), i % 3 === 0 ? '2' : '0', '', 'False'); p('clearChatsDone'); };
+const measure = ({ navSel, viewSel }) => { const nav = document.querySelector(navSel); const view = document.querySelector(viewSel); const r = (e) => e ? (({ x, y, width, height }) => ({ x: Math.round(x), y: Math.round(y), w: Math.round(width), h: Math.round(height) }))(e.getBoundingClientRect()) : null; const items = nav ? [...nav.querySelectorAll('.c-bottomnav__item')].map((b) => r(b)) : []; return { landscapeFlag: document.documentElement.hasAttribute('data-landscape'), wallet: (() => { const wv = document.querySelector('#wallet-view'); return wv ? getComputedStyle(wv).overflowY : null; })(), fab: r(document.querySelector('.fab')), rail: document.documentElement.hasAttribute('data-landscape-rail'), navClass: nav ? nav.className : null, nav: r(nav), view: r(view), items, bodyDir: getComputedStyle(document.body).flexDirection, vw: innerWidth, vh: innerHeight, platform: document.documentElement.getAttribute('data-platform') }; };
+for (const theme of ['light', 'dark']) {
+  // landscape, Android
+  let ctx = await browser.newContext({ viewport: { width: 915, height: 412 }, deviceScaleFactor: 2.5, colorScheme: theme, reducedMotion: 'reduce', userAgent: UA });
+  let page = await boot(ctx, 'index.html', 'android', { top: 24, bottom: 20, left: 0, right: 0 }, { long: 915, short: 412, landscape: true });
+  await page.evaluate(feedHome); await page.waitForTimeout(500);
+  let f = await page.evaluate(measure, { navSel: '.c-bottomnav', viewSel: '#chats-view' });
+  if (!(f.nav && f.view && f.platform === 'android' && f.rail)) { console.error('SUBJECT NOT IN FRAME', JSON.stringify(f)); process.exit(2); }
+  facts[`home-landscape-${theme}`] = f; await shot(page, `home-landscape-${theme}`); await ctx.close();
+  // landscape, iOS control (must keep the bar)
+  ctx = await browser.newContext({ viewport: { width: 915, height: 412 }, deviceScaleFactor: 2.5, colorScheme: theme, reducedMotion: 'reduce', userAgent: UA });
+  page = await boot(ctx, 'index.html', 'ios', null, { long: 915, short: 412, landscape: true });
+  await page.evaluate(feedHome); await page.waitForTimeout(300);
+  facts[`home-landscape-ios-${theme}`] = await page.evaluate(measure, { navSel: '.c-bottomnav', viewSel: '#chats-view' }); await ctx.close();
+  // portrait, Android (control)
+  ctx = await browser.newContext({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 2.5, colorScheme: theme, reducedMotion: 'reduce', userAgent: UA });
+  page = await boot(ctx, 'index.html', 'android', { top: 24, bottom: 20, left: 0, right: 0 }, { long: 915, short: 412, landscape: false });
+  await page.evaluate(feedHome); await page.waitForTimeout(300);
+  facts[`home-portrait-${theme}`] = await page.evaluate(measure, { navSel: '.c-bottomnav', viewSel: '#chats-view' }); if (theme === 'light') await shot(page, `home-portrait-${theme}`); await ctx.close();
+  // settings, landscape Android
+  ctx = await browser.newContext({ viewport: { width: 915, height: 412 }, deviceScaleFactor: 2.5, colorScheme: theme, reducedMotion: 'reduce', userAgent: UA });
+  page = await boot(ctx, 'settings.html', 'android', { top: 24, bottom: 20, left: 0, right: 0 }, { long: 915, short: 412, landscape: true });
+  await page.evaluate(() => { const p = (fn, ...a) => window.executeUiCommand(window[fn], ...a.map((v) => btoa(unescape(encodeURIComponent(String(v)))))); p('setNickname', 'Damir'); p('setVersion', '0.9.22'); }); await page.waitForTimeout(400);
+  facts[`settings-landscape-${theme}`] = await page.evaluate(measure, { navSel: '.c-bottomnav', viewSel: '#settings-root' }); await shot(page, `settings-landscape-${theme}`); await ctx.close();
+}
+// rotation round-trip in one context, AT THE REAL ANDROID GEOMETRY: in landscape HomePage goes two-pane,
+// so the home viewport is the ~400-wide LIST COLUMN (412 tall) while the DEVICE is 915x412. The device flag
+// must read landscape there although the viewport is portrait-shaped; portrait = 412x915 full-window.
+{
+  const ctx = await browser.newContext({ viewport: { width: 400, height: 412 }, deviceScaleFactor: 2.5, colorScheme: 'light', reducedMotion: 'reduce', userAgent: UA });
+  const page = await boot(ctx, 'index.html', 'android', { top: 24, bottom: 20, left: 48, right: 0 }, { long: 915, short: 412, landscape: true });
+  await page.evaluate(feedHome); await page.waitForTimeout(300);
+  const seq = [await page.evaluate(measure, { navSel: '.c-bottomnav', viewSel: '#chats-view' })];
+  await shot(page, 'home-pane-landscape-left48');
+  await page.setViewportSize({ width: 412, height: 915 }); await page.evaluate(() => window.__rotate(false)); await page.waitForTimeout(200); seq.push(await page.evaluate(measure, { navSel: '.c-bottomnav', viewSel: '#chats-view' }));
+  await page.setViewportSize({ width: 400, height: 412 }); await page.evaluate(() => window.__rotate(true)); await page.waitForTimeout(200); seq.push(await page.evaluate(measure, { navSel: '.c-bottomnav', viewSel: '#chats-view' }));
+  // portrait + keyboard: the VIEWPORT shrinks to 412x480, the DEVICE stays portrait -> NO rail
+  await page.setViewportSize({ width: 412, height: 480 }); await page.evaluate(() => window.__rotate(false)); await page.waitForTimeout(200); seq.push(await page.evaluate(measure, { navSel: '.c-bottomnav', viewSel: '#chats-view' }));
+  facts.rotation = seq.map((s) => ({ vw: s.vw, vh: s.vh, rail: s.rail, landscapeFlag: s.landscapeFlag, bodyDir: s.bodyDir, nav: s.nav, wallet: s.wallet }));
+  await ctx.close();
+}
+await browser.close();
+for (const t of temps) { try { unlinkSync(t); } catch (e) {} }
+writeFileSync(`docs/sheets/session-ac/rail-facts-${tag}.json`, JSON.stringify(facts, null, 1));
+console.log(JSON.stringify(facts, null, 1));

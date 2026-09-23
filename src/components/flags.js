@@ -213,13 +213,86 @@ function injectFlagFace(dataUrl) {
  * Install the flag font on a device whose probe RAN and said it cannot paint a flag; a
  * no-op everywhere else (a probe that could not run installs nothing). Idempotent: one
  * script, one style element, one attribute. Resolves true when the face is in the document.
- * Called once per shell right after the bundle loads, before the first paint that could
- * carry a flag (the picker, a nick, a message).
+ * Called once per shell right after the bundle loads. The two shells whose FIRST screen
+ * draws a flag (launch: the welcome pill · settings: the hub's language row) call it
+ * synchronously, so Windows never paints a PNG that a font then replaces; every other
+ * shell calls installFlagFontLater() below — see its docblock for why.
  */
 export function installFlagFont() {
   try {
     if (typeof document === 'undefined' || !document.documentElement) return Promise.resolve(false);
     if (flagGlyphAvailable() || probeState !== 'no') return Promise.resolve(false);
+    return installFlagFontNow();
+  } catch (e) {
+    return Promise.resolve(false);   // a probe or DOM failure leaves the platform's own rendering — the safe side
+  }
+}
+
+/**
+ * ★ Session AC (#917): the SAME install, scheduled OFF THE BOOT PATH on a phone.
+ *
+ * The canvas probe is the one place a shell's boot rasterizes an emoji — which is where the
+ * engine first resolves its colour-emoji font. Measured on the built home shell in headless
+ * Chromium at CPU ×4 (docs/sheets/session-ac/perf-*.txt): the probe was the single largest
+ * JS self-time at boot (25–71 ms across profiles, against a ~400 ms document), and it ran on
+ * all 17 bundle shells — 15 of which never draw a flag on their first screen (a conversation,
+ * the lock, the scanner, a call…). #890 MINOR-6 logged it "not measured". ⚠ The `load` stamp
+ * moves LESS than the probe's self time suggests: an interleaved A/B on the SHIPPED shells
+ * (Android UA, ×4, 10 runs each, two runs of the harness; perf-ab-load.txt holds the second)
+ * read a median 394 → 381 and 401 → 381 ms (−13 / −20), minimum −16 / −20 — the probe still
+ * runs, just after `load`, and part of its cost was overlapping other work. An earlier 7-run figure (440 → 375) came from an INSTRUMENTED
+ * copy of the shell and overstated the move. The phone's own numbers are the walk's.
+ *
+ * TWO PLATFORMS, TWO ANSWERS (the #46 reviewer's MAJOR-2):
+ *   · DESKTOP (`:root[data-desktop]`, set in the head before this runs) keeps the SYNCHRONOUS
+ *     install. On Windows the face is what makes a flag INSIDE TEXT — a nick, a message, a
+ *     caller name — render as a glyph, through `:root[data-flag-font]` (tokens.css), and the
+ *     parse-time install put that attribute in place before `load` and before C#'s first data
+ *     paint. Deferring it there would paint "SI" letters and swap them a frame later. The
+ *     desktop's own emoji font is not the phone's cost.
+ *   · A PHONE defers: on `load` (or at once when the document is already complete) it waits
+ *     one animation frame and then a macrotask, so the shell's own `load` work — including
+ *     home's `requestAnimationFrame(() => bridge.ready())` — has run first. ⚠ That is the whole
+ *     guarantee: "not before load, and not inside the first frame after it". Which side of
+ *     `ixian:onload` the probe lands on varies by shell (chat sends the verb synchronously in
+ *     `load`; contact_details in a double rAF, AFTER this macrotask) — none of those is a
+ *     regression, because the baseline probe ran before every verb. A HIDDEN document (the
+ *     pre-warmed chat spare, #800; a backgrounded WebView) never fires rAF, so a 300 ms timer
+ *     races it: the spare probes while still hidden instead of in its first visible frame.
+ *   The answer is cached, so a flag drawn later pays nothing; a PNG flag drawn before the
+ *   install lands is upgraded in place (#888, `img.c-flag--img` only — the text case is why
+ *   desktop stays synchronous). The two shells that draw a flag on their FIRST screen call
+ *   `installFlagFont()` directly on every platform (the pin holds that set).
+ *
+ * Resolves with installFlagFont's own result; never throws (the DOM-less and no-window cases
+ * resolve false, as the synchronous form does).
+ */
+export function installFlagFontLater() {
+  try {
+    if (typeof document === 'undefined' || !document.documentElement) return Promise.resolve(false);
+    if (document.documentElement.hasAttribute('data-desktop')) return installFlagFont();   // desktop: the text case, synchronous
+    const w = typeof window !== 'undefined' ? window : globalThis;
+    return new Promise((resolve) => {
+      let started = false;
+      const run = () => { if (started) return; started = true; try { resolve(installFlagFont()); } catch (e) { resolve(false); } };
+      const afterFrame = () => {
+        if (typeof w.requestAnimationFrame === 'function') w.requestAnimationFrame(() => setTimeout(run, 0));
+        else setTimeout(run, 0);
+        setTimeout(run, HIDDEN_PROBE_MS);   // a hidden document fires no rAF (#800's spare); the timer is the belt
+      };
+      if (document.readyState === 'complete') afterFrame();
+      else w.addEventListener('load', afterFrame, { once: true });
+    });
+  } catch (e) {
+    return Promise.resolve(false);
+  }
+}
+/** The hidden-document fallback for installFlagFontLater: longer than any visible frame, shorter than a present. */
+export const HIDDEN_PROBE_MS = 300;
+
+/* the body of installFlagFont past its probe gate — split out so the deferred form shares it */
+function installFlagFontNow() {
+  try {
     if (flagFontInstalled) return Promise.resolve(true);
     const w = typeof window !== 'undefined' ? window : globalThis;
     if (typeof w[FLAG_FONT_GLOBAL] === 'string' && w[FLAG_FONT_GLOBAL].startsWith('data:')) {

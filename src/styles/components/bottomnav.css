@@ -233,3 +233,18 @@
    BOTH states so the twin can't slide against the pill on first paint */
 .c-bottomnav--rail .c-bottomnav__icon--filled,
 .c-bottomnav--rail .c-bottomnav__item[aria-current] .c-bottomnav__icon--filled { transform: none; }
+
+/* ★ #922 (Session AC): THE LANDSCAPE RAIL — the same variant class, toggled at RUNTIME by
+   attachLandscapeRail (bottomnav.js) on an Android phone under the #918 landscape query, with
+   the root carrying data-landscape-rail for the shell's layout. The desktop rail is chrome
+   with no system bars beside it; this one sits between three: the status bar above (the top
+   inset), the gesture/nav bar below (--safe-bottom) and, on a rotation that puts the 3-button
+   bar or a cutout on the LEFT edge, --safe-left at its inline-start. Tighter than the desktop
+   dials (gap 24 → 12, block padding 16 → 8): 412 px of height holds four items only so. */
+:root[data-landscape-rail] .c-bottomnav--rail {
+  width: calc(var(--layout-rail-width) + var(--safe-left, 0px));
+  gap: var(--spacing-12);
+  padding-block: calc(var(--spacing-8) + var(--safe-top, 0px)) calc(var(--spacing-8) + var(--safe-bottom, 0px));
+  padding-inline: calc(var(--spacing-4) + var(--safe-left, 0px)) var(--spacing-4);
+  justify-content: center;      /* four items float mid-column, not a top-heavy stack */
+}

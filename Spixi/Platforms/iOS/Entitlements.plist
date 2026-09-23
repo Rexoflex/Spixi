@@ -10,13 +10,19 @@
 	  `development` pairs with an iOS App Development profile. A distribution/TestFlight
 	  build needs `production` here — see the IsPublish PropertyGroup in Spixi.csproj.
 
-	  DELIBERATELY NOT ADDED: com.apple.security.application-groups. The Notification
-	  Service Extension (Spixi-PushService, written but commented out of Spixi.csproj)
-	  will need an App Group to read mute state from a separate process. Adding the
-	  entitlement before the profile carries it makes codesign FAIL, so it lands with
-	  that batch, not this one.
+	  #919/#915 (Session AC): com.apple.security.application-groups IS ADDED NOW — the
+	  Notification Service Extension (Spixi-PushService, referenced from Spixi.csproj since
+	  this batch) reads the mute set and the display names from the App Group container
+	  (SPushPrefsShare.cs writes it). ⚠ codesign FAILS until the development profile for
+	  com.ixilabs.spixi carries the group: create `group.com.ixilabs.spixi` in the portal,
+	  enable App Groups on BOTH App IDs, regenerate BOTH profiles (DECISIONS #915). The
+	  string is pinned equal to the extension's Entitlements.plist and both C# constants.
 	-->
 	<key>aps-environment</key>
 	<string>development</string>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.ixilabs.spixi</string>
+	</array>
 </dict>
 </plist>

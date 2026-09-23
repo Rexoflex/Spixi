@@ -321,6 +321,15 @@ namespace SPIXI
                  * live call is precisely the risk that kept the modal stack out of the
                  * reload sweep in the first place (#385 MINOR-2). */
                 add(CallPage.getLiveSurface());
+                /* ★ #926 (r-review MINOR-3): the LIVE LOCK. An in-place lock is in no navigation
+                 * collection at all (the modalOverlayOp slot). The inset pushes need it: a rotation
+                 * with the lock up left lock.html on the portrait top inset and a 0 bottom. The
+                 * theme push now reaches it too, and that is safe AND wanted: lock.html defines
+                 * setTheme, its own surface is pinned dark, and the "Use a different wallet?"
+                 * dialog mounted on body outside the dark pin now follows an OS theme flip while
+                 * the lock is up (r2 NIT-1). Push-only, like the two slots above; a reload here is
+                 * the #385 MINOR-2 risk on the one surface that must stay up. */
+                add(SpixiContentPage.liveLockPage());
             }
 
             return pages;
@@ -386,33 +395,47 @@ namespace SPIXI
          * Every redesigned shell defines window.setInsetTop in its head script (AND-7). The parked
          * Account (#315) is dropped for the same reason as in the other two pushes: it would
          * re-present with a stale inset. */
+        /* #922 (r-review MAJOR-2): every inset push drops the PARKED warm Account (#315) — it is in
+         * none of the collections, it would re-present with yesterday's inset, and a value that
+         * has not changed since is never re-pushed. Same answer as the theme path: the next open
+         * rebuilds. */
         public static void pushTopInsetToAllPages(string dip)
         {
-            List<SpixiContentPage> pages;
-            try { pages = getLiveShellPages(true); }
-            catch (Exception) { return; }
-            foreach (SpixiContentPage page in pages)
+            try
             {
-                try { Utils.sendUiCommand(page, "setInsetTop", dip); }
-                catch (Exception) { }
+                foreach (SpixiContentPage page in getLiveShellPages(true))
+                {
+                    try { Utils.sendUiCommand(page, "setInsetTop", dip); }
+                    catch (Exception) { }
+                }
             }
-            SpixiContentPage.disposeParkedOverlay();
+            catch (Exception) { }
+            finally
+            {
+                SpixiContentPage.disposeParkedOverlay();   // #926 NIT-9: ALWAYS — the latch already holds the value, a throw must not strand a parked page on a stale inset
+            }
+            /* ★ #926 (r-review MINOR-4): the in-call strip's NATIVE height is 64 + TopInsetDip
+             * (CallPage.applyStageLayout), re-read only on a host-grid size change; call.html's
+             * --safe-top now moves on this push, a separate event with no guaranteed order.
+             * Re-assert the stage here so the two cannot disagree across a rotation. */
+            CallPage.relayoutStageForInsets();
         }
 
         public static void pushBottomInsetToAllPages(string dip)
         {
-            List<SpixiContentPage> pages;
-            try { pages = getLiveShellPages(true); }
-            catch (Exception) { return; }
-            foreach (SpixiContentPage page in pages)
+            try
             {
-                try { Utils.sendUiCommand(page, "setInsetBottom", dip); }
-                catch (Exception) { }
+                foreach (SpixiContentPage page in getLiveShellPages(true))
+                {
+                    try { Utils.sendUiCommand(page, "setInsetBottom", dip); }
+                    catch (Exception) { }
+                }
             }
-            /* #922 (r-review MAJOR-2): the PARKED warm Account (#315) is in none of the collections
-             * — it would re-present with yesterday's inset, and a value that has not changed since
-             * is never re-pushed. Same answer as the theme path: drop it, the next open rebuilds. */
-            SpixiContentPage.disposeParkedOverlay();
+            catch (Exception) { }
+            finally
+            {
+                SpixiContentPage.disposeParkedOverlay();   // #926 NIT-9: ALWAYS — the latch already holds the value, a throw must not strand a parked page on a stale inset
+            }
         }
 
         /* ★ #922 (Session AC): the side insets ride the same enumerator and the same fence — every
@@ -421,15 +444,19 @@ namespace SPIXI
          * this list. Called from the insets listener on the UI thread, only on a CHANGE. */
         public static void pushSideInsetsToAllPages(string leftDip, string rightDip)
         {
-            List<SpixiContentPage> pages;
-            try { pages = getLiveShellPages(true); }
-            catch (Exception) { return; }
-            foreach (SpixiContentPage page in pages)
+            try
             {
-                try { Utils.sendUiCommand(page, "setInsetSides", leftDip, rightDip); }
-                catch (Exception) { }
+                foreach (SpixiContentPage page in getLiveShellPages(true))
+                {
+                    try { Utils.sendUiCommand(page, "setInsetSides", leftDip, rightDip); }
+                    catch (Exception) { }
+                }
             }
-            SpixiContentPage.disposeParkedOverlay();   // #922: the parked Account holds the OLD side insets (see the bottom push)
+            catch (Exception) { }
+            finally
+            {
+                SpixiContentPage.disposeParkedOverlay();   // #926 NIT-9: ALWAYS — the latch already holds the value, a throw must not strand a parked page on a stale inset
+            }
         }
 #endif
 

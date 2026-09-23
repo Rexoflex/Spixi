@@ -613,7 +613,17 @@ public class MainActivity : MauiAppCompatActivity
                 // ★ AND-45 (Session Y): the nav-bar inset, keyboard-independent (see publishBottomInset).
                 publishBottomInset(sysInsets.Bottom / density, true);
                 // ★ #922: the side insets (a side-edge nav bar / a cutout in landscape), pushed live on change.
-                publishSideInsets(sysInsets.Left / density, sysInsets.Right / density, true);
+                // ★ #926 (r-review MINOR-7): SystemBars() does NOT include the display cutout, and with
+                // target SDK 35 the window draws into a landscape cutout — so the "cutout lands left or
+                // right" case #922 described was never published. Max of the bar and the cutout, per side.
+                int cutLeft = 0, cutRight = 0;
+                try
+                {
+                    var cut = insets.GetInsets(WindowInsetsCompat.Type.DisplayCutout());
+                    if (cut != null) { cutLeft = cut.Left; cutRight = cut.Right; }
+                }
+                catch (Exception) { }
+                publishSideInsets(Math.Max(sysInsets.Left, cutLeft) / density, Math.Max(sysInsets.Right, cutRight) / density, true);
             }
 
             return WindowInsetsCompat.Consumed; // We've handled insets manually

@@ -24514,8 +24514,9 @@ console.log('Session I ①: the bot address row + the desktop unread strip');
   const div = /:root\[data-desktop\] \.c-unread-divider \{ margin-inline: calc\(-1 \* max\(0px, \(100vw - (\d+)px\) \/ 2\)\); \}/.exec(ch);
   ok(pad && div && pad[1] === div[1] && pad[1] === '760',
     '★ Session I (Damir, Windows): the unread strip pulls back over the 760 gutters on desktop — its 100vw term carries the SAME column literal as the .messages padding (' + (pad && pad[1]) + ' / ' + (div && div[1]) + '); phones untouched (data-desktop only, max floors at 0)');
-  ok(div && ch.indexOf(div[0]) > ch.indexOf(pad[0]) && /html, body \{ margin: 0; height: 100%;/.test(ch) && /body \{ display: flex; flex-direction: column; overflow: hidden; \}/.test(ch),
-    '★ Session I unread strip: the 100vw == .messages-width assumption holds — body is margin 0 / overflow hidden (the pane IS the viewport)');
+  ok(div && ch.indexOf(div[0]) > ch.indexOf(pad[0]) && /html, body \{ margin: 0; height: 100%;/.test(ch) && /body \{ display: flex; flex-direction: column; overflow: hidden; padding-inline: var\(--safe-left, 0px\) var\(--safe-right, 0px\); \}/.test(ch)
+     && /\{ "AndroidInsetLeft", "0" \}/.test(rdF('Spixi/Lang/SpixiLocalization.cs')) && /\{ "AndroidInsetRight", "0" \}/.test(rdF('Spixi/Lang/SpixiLocalization.cs')),
+    '★ Session I unread strip: the 100vw == .messages-width assumption holds ON DESKTOP — body is margin 0 / overflow hidden and its only inline padding is the two side insets (#926), which are the seeded "0" carriers on Windows/Mac and env() = 0 in WebView2, so the pane IS the viewport there; on a phone the strip sits under a side bar by exactly the inset');
   ok(/scrollbar-gutter: stable/.test(rdF('src/styles/base.css')),
     '★ Session I unread strip: .u-scroll keeps scrollbar-gutter stable, so the strip ends at the scrollbar edge instead of running under a scrollbar that appears later');
 }
@@ -24741,7 +24742,7 @@ console.log('Session I ③: the premium pass token batch');
     ok(/field\.append\(attach\);/.test(stripCode(rdF('src/components/composer.js'))) && !/el\.append\(attach\);/.test(stripCode(rdF('src/components/composer.js'))),
       '★ 5: composer.js parents the ⊕ to the FIELD (reverses #705\'s outside-disc; the tray/✕ behaviour is untouched and pinned in the #705 block)');
     const ch = rdF('src/shells/chat.html'), chB = rdF('Spixi/Resources/Raw/html/chat.html');
-    ok(/#chat-composer \{ position: absolute; inset-inline: 0; inset-block-end: 0; \}/.test(ch) && /#chat-composer \{ position: absolute; inset-inline: 0; inset-block-end: 0; \}/.test(chB)
+    ok(/#chat-composer \{ position: absolute; inset-inline: var\(--safe-left, 0px\) var\(--safe-right, 0px\); inset-block-end: 0; \}/.test(ch) && /#chat-composer \{ position: absolute; inset-inline: var\(--safe-left, 0px\) var\(--safe-right, 0px\); inset-block-end: 0; \}/.test(chB)   // #926: the slot pads itself by the side insets
        && /#messages \{ flex: 1; min-height: 0; padding-bottom: calc\(var\(--composer-h, 0px\) \+ var\(--spacing-4\)\);/.test(ch) && /padding-bottom: calc\(var\(--composer-h, 0px\) \+ var\(--spacing-4\)\);/.test(chB),
       '★★ 5 FLOATING (#731 "messages pass under the pill"): the slot is absolute at the canvas bottom and the log pads by the published --composer-h — source AND built shell');
     ok(!/#chat-composer \{[^}]*(z-index|transform|contain|will-change)/.test(ch),
@@ -33942,9 +33943,9 @@ console.log('★ AND-45 — the bottom inset travels into the shells');
   ok(/\{ "AndroidInsetBottom", "0" \}/.test(rdCs('Spixi/Lang/SpixiLocalization.cs')),
     '★ AND-45: AndroidInsetBottom is SEEDED "0" so iOS/Mac/Windows resolve the carrier cleanly (the #401 rule)');
   const scp = rdCs('Spixi/Utils/SpixiContentPage.cs');
-  ok(/new Thickness\(0, MainActivity\.TopInsetDip, 0, MainActivity\.BottomInsetDip\)/.test(scp)
+  ok(/new Thickness\(MainActivity\.LeftInsetDip, MainActivity\.TopInsetDip, MainActivity\.RightInsetDip, MainActivity\.BottomInsetDip\)/.test(scp)   // #926: all four edges
      && /Utils\.sendUiCommand\(this, "setInsetBottom",\s*MainActivity\.BottomInsetDip\.ToString/.test(scp),
-    '★ AND-45: a mini-app page keeps NATIVE bottom padding (third-party content is told nothing); a generated page gets setInsetBottom on every chrome pass beside setInsetTop');
+    '★ AND-45: a mini-app page keeps NATIVE bottom padding — and since #926 native SIDE padding (third-party content is told nothing); a generated page gets setInsetBottom on every chrome pass beside setInsetTop');
   const uih = rdCs('Spixi/Utils/UIHelpers.cs');
   ok(/public static void pushBottomInsetToAllPages\(string dip\)/.test(uih) && /getLiveShellPages\(true\)/.test(uih.slice(uih.indexOf('pushBottomInsetToAllPages'), uih.indexOf('pushBottomInsetToAllPages') + 900))
      && /sendUiCommand\(page, "setInsetBottom", dip\)/.test(uih),
@@ -34605,7 +34606,8 @@ console.log('#912: backup exclusions, the html copy skip, and the start clock');
      && /overflow-y: auto/.test(landSel('#wallet-view')) && !landRules.some((r) => r.sel === '#apps-view')
      && /flex: none;[^}]*min-height: auto;[^}]*overflow-y: visible/.test(landSel('#wallet-scroll')) && !landRules.some((r) => r.sel === '#apps-scroll')
      && /padding-block-start: calc\(var\(--spacing-12\) \+ var\(--safe-top, 0px\)\);/.test(landSel('#wallet-scroll .c-wallet-tools'))
-     && !/display: none;/.test(landSel('#apps-header .c-apps-explore')) && /flex-direction: row;/.test(landSel('#apps-header .c-apps-header')) && /flex: 1 1 50%;[^}]*min-width: 0;/.test(landSel('#apps-header .c-apps-header__row'))
+     && landRules.filter((r) => /\.c-apps-explore(__text|__cta)?$/.test(r.sel.split(',')[0].trim())).every((r) => !/display: none|(?<![\w-])width: 0|max-height: 0|visibility: hidden/.test(r.body))   // #926 (5): a WALK — any selector spelling that hides the banner, its text or its CTA fails
+     && /flex-direction: row;/.test(landSel('#apps-header .c-apps-header')) && /flex: 1 1 50%;[^}]*min-width: 0;/.test(landSel('#apps-header .c-apps-header__row'))
      && /width: 46%;[^}]*min-height: 0;[^}]*padding-block: 0;/.test(landSel('#apps-header .c-apps-explore')) && /display: none;/.test(landSel('#apps-header .c-apps-explore__title, :root[data-landscape] #apps-header .c-apps-explore__illo'))
      && !landRules.some((r) => /#apps-topbar/.test(r.sel))
      && /#chat-scroll, #wallet-scroll, #apps-scroll \{ flex: 1; min-height: 0; overflow-y: auto;/.test(homeCssAC),
@@ -34909,7 +34911,7 @@ console.log('#912: backup exclusions, the html copy skip, and the start clock');
     } catch (e) { headFails.push(f + ': ' + e.message); }
   }
   const fenceOpen = uih.lastIndexOf('#if ANDROID', uih.indexOf('pushSideInsetsToAllPages')), fenceClose = uih.indexOf('#endif', uih.indexOf('pushSideInsetsToAllPages'));
-  const insideFence = fenceOpen >= 0 && fenceClose > 0 && uih.slice(fenceOpen, fenceClose).includes('pushSideInsetsToAllPages') && !uih.slice(fenceOpen, fenceClose).includes('#endif');
+  const insideFence = fenceOpen >= 0 && fenceClose > 0 && uih.slice(fenceOpen, fenceClose).includes('pushSideInsetsToAllPages') && !/#endif|#else|#elif/.test(uih.slice(fenceOpen, fenceClose));   // #926 NIT-12: an #else branch is outside the fence too
   ok(pushName === 'setInsetSides' && /getLiveShellPages\(true\)/.test(pushFn) && /SpixiContentPage\.disposeParkedOverlay\(\);/.test(pushFn) && insideFence && shells.length >= 18 && headFails.length === 0,
     '★★ #922 ② EXECUTED: C# pushes `' + pushName + '` (read from UIHelpers, inside ONE #if ANDROID fence with no #endif between, over getLiveShellPages, and drops the PARKED Account so it cannot re-present with a stale inset — r-review MAJOR-2) and EVERY shell head (' + (shells.length - headFails.length) + '/' + shells.length + ') run in jsdom with substituted carriers writes 48/0 into --android-inset-left/right, accepts a live push of 12.5/7 and refuses x/1e9 (fails: ' + (headFails.join(' · ') || 'none') + ')');
   /* ③ the C# publish: seeded carriers + the listener publishes sysInsets.Left/Right ÷ density
@@ -34922,7 +34924,7 @@ console.log('#912: backup exclusions, the html copy skip, and the start clock');
   const pubBody = (/internal static void publishSideInsets\(double leftDip, double rightDip, bool pushLive\)\s*\{([\s\S]*?)\n    \}/.exec(ma) || [])[1] || '';
   const bottomPush = (/public static void pushBottomInsetToAllPages\(string dip\)\s*\{([\s\S]*?)\n        \}/.exec(uih) || [])[1] || '';
   ok(seedL && seedRt && seedP && platNames.includes('android') && platNames.includes('ios') && platNames.includes('windows') && platNames.includes('maccatalyst')
-     && /publishSideInsets\(sysInsets\.Left \/ density, sysInsets\.Right \/ density, true\);/.test(listener)
+     && /publishSideInsets\(Math\.Max\(sysInsets\.Left, cutLeft\) \/ density, Math\.Max\(sysInsets\.Right, cutRight\) \/ density, true\);/.test(listener)   // #926 ⑤: max(bar, cutout)
      && /SpixiLocalization\.addCustomString\("AndroidInsetLeft", l\);/.test(pubBody) && /SpixiLocalization\.addCustomString\("AndroidInsetRight", r\);/.test(pubBody) && /UIHelpers\.pushSideInsetsToAllPages\(l, r\);/.test(pubBody)
      && pubBody.indexOf('addCustomString("AndroidInsetRight"') < pubBody.indexOf('pushSideInsetsToAllPages')
      && /if \(pushLive && key != lastSidesPublished\)\s*\{\s*lastSidesPublished = key;\s*UIHelpers\.pushSideInsetsToAllPages\(l, r\);/.test(pubBody) && /else if \(!pushLive\)\s*\{\s*lastSidesPublished = key;/.test(pubBody)
@@ -34961,39 +34963,47 @@ console.log('#912: backup exclusions, the html copy skip, and the start clock');
   const scenario = (attrs, device) => {
     const dom = new JSDOM('<!doctype html><html' + attrs + '><body><nav class="c-bottomnav"></nav></body></html>', { runScripts: 'outside-only' });
     const w = dom.window; const listeners = [];
-    const so = { get type() { return device.landscape ? 'landscape-primary' : 'portrait-primary'; }, addEventListener: (t, fn) => listeners.push(fn), removeEventListener: (t, fn) => { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); } };
-    Object.defineProperty(w.screen, 'width', { get: () => (device.landscape ? device.long : device.short), configurable: true });
-    Object.defineProperty(w.screen, 'height', { get: () => (device.landscape ? device.short : device.long), configurable: true });
+    const so = device.noApi ? undefined : { get type() { return device.landscape ? 'landscape-primary' : 'portrait-primary'; }, addEventListener: (t, fn) => listeners.push(fn), removeEventListener: (t, fn) => { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); } };
+    Object.defineProperty(w.screen, 'width', { get: () => (device.noApi ? device.short : (device.landscape ? device.long : device.short)), configurable: true });   // noApi = the pre-16.4 WebKit shape: portrait numbers whatever the posture
+    Object.defineProperty(w.screen, 'height', { get: () => (device.noApi ? device.long : (device.landscape ? device.short : device.long)), configurable: true });
     Object.defineProperty(w.screen, 'orientation', { get: () => so, configurable: true });
+    if (device.noApi) Object.defineProperty(w, 'orientation', { get: () => (device.landscape ? 90 : 0), configurable: true });
+    let resizeCount = 0; const origAdd = w.addEventListener.bind(w), origRemove = w.removeEventListener.bind(w);
+    w.addEventListener = (t, fn, o) => { if (t === 'resize') resizeCount++; return origAdd(t, fn, o); };
+    w.removeEventListener = (t, fn, o) => { if (t === 'resize') resizeCount--; return origRemove(t, fn, o); };
     w.eval(iconsR); w.eval(stringsR); w.eval(bundleR);
     const nav = w.document.querySelector('nav');
     const detachFlagOnly = w.Spixi.attachPhoneLandscape({ root: w.document.documentElement, w });
     const detach = w.Spixi.attachLandscapeRail(nav, { root: w.document.documentElement, w });
     const state = () => ({ flag: w.document.documentElement.hasAttribute('data-landscape'), rail: w.document.documentElement.hasAttribute('data-landscape-rail') && nav.classList.contains('c-bottomnav--rail') });
     const s0 = state();
-    device.landscape = !device.landscape; listeners.slice().forEach((fn) => fn());   // the DEVICE rotates
+    device.landscape = !device.landscape; listeners.slice().forEach((fn) => fn()); if (device.noApi) w.dispatchEvent(new w.Event('resize'));   // the DEVICE rotates (a no-API WebView only has the resize belt)
     const s1 = state();
     w.dispatchEvent(new w.Event('resize'));   // a viewport-only change with the device unchanged: no flip
     const s2 = state();
-    detach(); detachFlagOnly();
+    detach();                                  // the RAIL detaches — the shell's own flag attachment must survive (#926 NIT-10 refcount)
     const s3 = state();
-    return { s0, s1, s2, s3, listened: listeners.length };
+    detachFlagOnly();                          // the last attachment clears the flag
+    const s4 = state();
+    return { s0, s1, s2, s3, s4, listened: listeners.length, resizeLeft: resizeCount };
   };
-  let b1 = null, b2 = null, b3 = null, b4 = null, b5 = null;
+  let b1 = null, b2 = null, b3 = null, b4 = null, b5 = null, b6 = null;
   try {
     b1 = scenario(' data-platform="android"', { long: 915, short: 412, landscape: true });    // landscape phone → flag + rail; rotate → both off
-    b2 = scenario(' data-platform="android"', { long: 915, short: 412, landscape: false });   // portrait → off; rotate → both on
+    b2 = scenario(' data-platform="android"', { long: 915, short: 412, landscape: false });   // portrait → off; rotate → both on; rail detach keeps the flag; both detached → all off
     b3 = scenario(' data-platform="ios"', { long: 915, short: 412, landscape: true });        // iOS: the flag yes (#918 rules), the rail NEVER
     b4 = scenario(' data-platform="android" data-desktop', { long: 1920, short: 1080, landscape: true });   // desktop: nothing
     b5 = scenario(' data-platform="android"', { long: 1280, short: 800, landscape: true });   // a tablet: no flag, no rail
+    b6 = scenario(' data-platform="ios"', { long: 896, short: 414, landscape: true, noApi: true });   // WebKit < 16.4: no screen.orientation, portrait screen numbers, window.orientation = ±90 (#926 MINOR-2)
   } catch (e) { console.log('   (#922 ⑥ scenario threw: ' + e.message + ')'); }
   const eq = (a, b) => a && a.flag === b.flag && a.rail === b.rail;
-  ok(b1 && eq(b1.s0, { flag: true, rail: true }) && eq(b1.s1, { flag: false, rail: false }) && eq(b1.s2, { flag: false, rail: false }) && eq(b1.s3, { flag: false, rail: false })
-     && b2 && eq(b2.s0, { flag: false, rail: false }) && eq(b2.s1, { flag: true, rail: true }) && eq(b2.s2, { flag: true, rail: true })
+  ok(b1 && eq(b1.s0, { flag: true, rail: true }) && eq(b1.s1, { flag: false, rail: false }) && eq(b1.s2, { flag: false, rail: false }) && eq(b1.s4, { flag: false, rail: false })
+     && b2 && eq(b2.s0, { flag: false, rail: false }) && eq(b2.s1, { flag: true, rail: true }) && eq(b2.s2, { flag: true, rail: true }) && eq(b2.s3, { flag: true, rail: false }) && eq(b2.s4, { flag: false, rail: false }) && b2.listened === 0 && b2.resizeLeft === 0
      && b3 && eq(b3.s0, { flag: true, rail: false }) && eq(b3.s1, { flag: false, rail: false })
-     && b4 && eq(b4.s0, { flag: false, rail: false }) && b4.listened === 0
-     && b5 && eq(b5.s0, { flag: false, rail: false }) && eq(b5.s1, { flag: false, rail: false }),
-    '★★ #922 ⑥ EXECUTED (jsdom, the DEVICE stubbed): android landscape → flag + rail, the device rotates → both off, a resize alone changes nothing, detach clears; android portrait → rotate → both on; iOS landscape → the flag (the #918 rules) but NEVER the rail; desktop → nothing and no listener; a tablet → nothing (' + JSON.stringify({ b1, b2, b3, b4, b5 }) + ')');
+     && b4 && eq(b4.s0, { flag: false, rail: false }) && b4.listened === 0 && b4.resizeLeft === 0
+     && b5 && eq(b5.s0, { flag: false, rail: false }) && eq(b5.s1, { flag: false, rail: false })
+     && b6 && eq(b6.s0, { flag: true, rail: false }) && eq(b6.s1, { flag: false, rail: false }),
+    '★★ #922 ⑥ EXECUTED (jsdom, the DEVICE stubbed): android landscape → flag + rail, the device rotates → both off, a resize alone changes nothing; android portrait → rotate → both on, the RAIL detaching keeps the shell\'s own flag (refcounted, #926 NIT-10), the last detach clears it and leaves ZERO listeners (orientation + resize); iOS landscape → the flag (the #918 rules) but NEVER the rail; desktop → nothing and no listener; a tablet → nothing; a WebKit with no screen.orientation and portrait screen numbers still flips on window.orientation (' + JSON.stringify({ b1, b2, b3, b4, b5, b6 }) + ')');
   /* ⑦ the two shells' layout rules + the attach calls; the rail geometry reads the side inset;
      the FAB (position:fixed) rides --safe-right/--safe-bottom itself (r-review MINOR-3) */
   const homeCss = stripCssComments((rdR('src/shells/home.html').match(/<style>([\s\S]*?)<\/style>/g) || []).join('\n'));
@@ -35006,7 +35016,10 @@ console.log('#912: backup exclusions, the html copy skip, and the start clock');
      && /right: calc\(var\(--spacing-16\) \+ var\(--safe-right, 0px\)\);/.test(fabRule) && /bottom: calc\(var\(--spacing-16\) \+ var\(--safe-bottom, 0px\)\);/.test(fabRule)
      && /:root\[data-landscape-rail\] body \{ flex-direction: row; \}/.test(setCss) && /:root\[data-landscape-rail\] #settings-nav \{ order: -1; display: flex; \}/.test(setCss) && /:root\[data-landscape-rail\] #settings-root \{ min-width: 0; padding-inline-end: var\(--safe-right, 0px\); \}/.test(setCss)
      && /attachPhoneLandscape\(\)/.test(homeMain) && /attachLandscapeRail\(nav\)/.test(homeMain) && homeMain.indexOf('attachLandscapeRail(nav)') > homeMain.indexOf("document.getElementById('chats-nav').append(nav);")
-     && /detachLandscapeRail = attachLandscapeRail\(nav\)/.test(setMain) && /if \(detachLandscapeRail\) detachLandscapeRail\(\);/.test(setMain) && setMain.indexOf('detachLandscapeRail = attachLandscapeRail(nav)') > setMain.indexOf('nav = fresh;')
+     && homeMain.indexOf('attachLandscapeRail(nav)') >= 0 && homeMain.indexOf("document.getElementById('chats-nav').append(nav);") >= 0
+     && /detachLandscapeRail = attachLandscapeRail\(nav\)/.test(setMain) && /if \(detachLandscapeRail\) detachLandscapeRail\(\);/.test(setMain)
+     && setMain.indexOf('nav = fresh;') >= 0 && setMain.indexOf('detachLandscapeRail = attachLandscapeRail(nav)') > setMain.indexOf('nav = fresh;')
+     && setMain.indexOf('if (detachLandscapeRail) detachLandscapeRail();') > setMain.indexOf('nav = fresh;') && setMain.indexOf('if (detachLandscapeRail) detachLandscapeRail();') < setMain.indexOf('detachLandscapeRail = attachLandscapeRail(nav)')   // #926 4C: detach BEFORE attach, both after the rebuild (indexOf −1 is guarded above)
      && /width: calc\(var\(--layout-rail-width\) \+ var\(--safe-left, 0px\)\)/.test(railRule) && /padding-inline: calc\(var\(--spacing-4\) \+ var\(--safe-left, 0px\)\)/.test(railRule) && /var\(--safe-top, 0px\)/.test(railRule) && /var\(--safe-bottom, 0px\)/.test(railRule),
     '★ #922 ⑦: home + settings carry the :root[data-landscape-rail] layout rules (body row · nav first · the view/root pads its inline-end by --safe-right · the fixed FAB rides --safe-right and --safe-bottom itself), home attaches the device flag then the rail AFTER mounting the nav, settings detaches the previous one on a rebuild; the rail rule adds --safe-left to its width and inline-start padding and clears the status bar and the nav bar');
   /* ⑧ the BUILT shells carry ⑦ and the runtime */
@@ -35065,6 +35078,57 @@ console.log('#912: backup exclusions, the html copy skip, and the start clock');
   ok(!/a rotation while a page is on screen is\s*\* not covered/.test(scp) && /publishTopInset/.test(scp),
     '★ #924 ③: SpixiContentPage no longer claims the rotation residual and names the live publisher — the per-page re-push stays as the belt for a document that was not live at the change');
 }
+/* ★ #926 — THE OPUS REVIEW OVER #922–#924 (2 MAJOR · 6 MINOR · 2 NIT, all fixed here). */
+{
+  const rdR = (p) => readFileSync(join(root, p), 'utf8');
+  const loc = stripCode(rdR('Spixi/Lang/SpixiLocalization.cs')), uih = stripCode(rdR('Spixi/Utils/UIHelpers.cs')), scp = stripCode(rdR('Spixi/Utils/SpixiContentPage.cs')), ma = stripCode(rdR('Spixi/Platforms/Android/MainActivity.cs')), cp = stripCode(rdR('Spixi/Pages/Call/CallPage.xaml.cs'));
+  /* ① MAJOR-1: addCustomString is a NO-OP on an unchanged value — the version bump is what
+     invalidates Session K's localized-document cache, and the insets listener calls this four
+     times per keyboard round */
+  const acs = (/public static void addCustomString\(string key, string value\)\s*\{([\s\S]*?)\n        \}/.exec(loc) || [])[1] || '';
+  const guardIdx = acs.search(/if \(customStrings\.TryGetValue\(key, out string\? existing\) && existing == value\s*&& localizedStrings\.TryGetValue\(key, out string\? live\) && live == value\)\s*\{\s*return;\s*\}/);
+  ok(guardIdx >= 0 && guardIdx < acs.indexOf('AddOrReplace') && guardIdx < acs.indexOf('Interlocked.Increment(ref dictionaryVersion)'),
+    '★★ #926 ① (MAJOR-1): addCustomString returns BEFORE the store and the version bump when the value is unchanged — every insets event (four carriers, on every keyboard open/close) was throwing away the localized-document cache, so the spare chat warmed in the chats-after-close window re-ran the 640 KB localize on the UI thread');
+  /* ② MINOR-3: the live lock is in the push-only list */
+  const enumBody = (/private static List<SpixiContentPage> getLiveShellPages\(bool includeModal\)\s*\{([\s\S]*?)\n        \}/.exec(uih) || [])[1] || '';
+  const modalBlock = (/if \(includeModal\)\s*\{([\s\S]*?)\n            \}/.exec(enumBody) || [])[1] || '';
+  ok(/add\(SpixiContentPage\.liveLockPage\(\)\);/.test(modalBlock) && /add\(CallPage\.getLiveSurface\(\)\);/.test(modalBlock) && /add\(SpixiContentPage\.getStagingPage\(\)\);/.test(modalBlock),
+    '★ #926 ② (MINOR-3): the LIVE LOCK joins the push-only (includeModal) list beside the staging slot and the call surface — a rotation with the lock up left lock.html on the portrait top inset and a 0 bottom');
+  /* ③ NIT-9 + MINOR-4: every inset push enumerates inside try and disposes the parked Account in
+     finally; the top push re-asserts the call stage, whose native height carries TopInsetDip */
+  const pushes = ['pushTopInsetToAllPages', 'pushBottomInsetToAllPages', 'pushSideInsetsToAllPages'].map((n) => ({ n, body: (new RegExp('public static void ' + n + '\\([^)]*\\)\\s*\\{([\\s\\S]*?)\\n        \\}')).exec(uih)?.[1] || '' }));
+  const shaped = pushes.filter((p) => /try\s*\{\s*foreach \(SpixiContentPage page in getLiveShellPages\(true\)\)/.test(p.body) && /finally\s*\{\s*SpixiContentPage\.disposeParkedOverlay\(\);/.test(p.body));
+  const topBody = pushes[0].body;
+  ok(shaped.length === 3 && /CallPage\.relayoutStageForInsets\(\);/.test(topBody) && topBody.indexOf('CallPage.relayoutStageForInsets') > topBody.indexOf('finally')
+     && /public static void relayoutStageForInsets\(\)\s*\{\s*applyStageLayout\(\);\s*\}/.test(cp) && /stripHeight \+= Spixi\.MainActivity\.TopInsetDip;/.test(cp),
+    '★ #926 ③ (NIT-9 · MINOR-4): all three inset pushes (' + shaped.map((p) => p.n).join(', ') + ') enumerate inside try and drop the parked Account in FINALLY (the latch already holds the value — a throw must not strand a stale inset), and the top push re-asserts the in-call stage (64 + TopInsetDip) after the documents got theirs');
+  /* ④ MINOR-5 · MINOR-6: the chrome pass pushes the sides; a mini-app is natively padded on all four edges */
+  const chrome = (/internal void applyPlatformPageChrome\(\)\s*\{([\s\S]*?)\n        \}/.exec(scp) || [])[1] || '';
+  ok(/Utils\.sendUiCommand\(this, "setInsetSides",\s*MainActivity\.LeftInsetDip\.ToString\([^)]*\),\s*MainActivity\.RightInsetDip\.ToString\([^)]*\)\);/.test(chrome)
+     && /this\.Padding = new Thickness\(MainActivity\.LeftInsetDip, MainActivity\.TopInsetDip, MainActivity\.RightInsetDip, MainActivity\.BottomInsetDip\);/.test(chrome)
+     && chrome.split('Utils.sendUiCommand(this, "setInsetSides"').length === 2,
+    '★ #926 ④ (MINOR-5 · MINOR-6): the page-chrome pass re-pushes the SIDES beside top and bottom (a document built between two live pushes keeps its carrier otherwise), exactly once, and a mini-app page is natively padded on all four edges');
+  /* ⑤ MINOR-7: the display cutout is folded into the sides */
+  const listener = (/public WindowInsetsCompat\? OnApplyWindowInsets\(View\? v, WindowInsetsCompat\? insets\)\s*\{([\s\S]*?)\n        \}/.exec(ma) || [])[1] || '';
+  ok(/insets\.GetInsets\(WindowInsetsCompat\.Type\.DisplayCutout\(\)\)/.test(listener) && /publishSideInsets\(Math\.Max\(sysInsets\.Left, cutLeft\) \/ density, Math\.Max\(sysInsets\.Right, cutRight\) \/ density, true\);/.test(listener),
+    '★ #926 ⑤ (MINOR-7): the side insets are max(system bar, DISPLAY CUTOUT) per side — SystemBars() alone never published a landscape cutout, so the case #922 described was unreachable');
+  /* ⑥ the JS/CSS half of the review: the chat body and its absolute composer slot pad by the side
+     insets (MAJOR-1: the conversation is full-width since #923 and a 3-button bar sits on a side
+     edge), both home takeovers too; the runtime has the window.orientation leg (MINOR-2); the rail
+     column cannot overflow both ends under a keyboard (MINOR-3); the pane belt rule (NIT-6) */
+  const chatCss = stripCssComments((rdR('src/shells/chat.html').match(/<style>([\s\S]*?)<\/style>/g) || []).join('\n'));
+  const homeCss6 = stripCssComments((rdR('src/shells/home.html').match(/<style>([\s\S]*?)<\/style>/g) || []).join('\n'));
+  const setCss6 = stripCssComments((rdR('src/shells/settings.html').match(/<style>([\s\S]*?)<\/style>/g) || []).join('\n'));
+  const lrun = stripCode(rdR('src/components/landscape-runtime.js'));
+  const bnCss6 = stripCssComments(rdR('src/styles/components/bottomnav.css'));
+  const railRule6 = (/:root\[data-landscape-rail\] \.c-bottomnav--rail \{([^}]*)\}/.exec(bnCss6) || [])[1] || '';
+  ok(/\n\s*body \{[^}]*padding-inline: var\(--safe-left, 0px\) var\(--safe-right, 0px\);/.test(chatCss) && /#chat-composer \{ position: absolute; inset-inline: var\(--safe-left, 0px\) var\(--safe-right, 0px\); inset-block-end: 0; \}/.test(chatCss)
+     && /\.contacts-takeover, \.wallet-takeover \{ padding-inline: var\(--safe-left, 0px\) var\(--safe-right, 0px\); \}/.test(homeCss6)
+     && /if \(typeof w\.orientation === 'number'\) return Math\.abs\(w\.orientation\) === 90;/.test(lrun) && lrun.indexOf("typeof w.orientation === 'number'") < lrun.indexOf('return sw > sh;')
+     && /justify-content: safe center;/.test(railRule6) && /overflow-y: auto;/.test(railRule6) && railRule6.indexOf('justify-content: center;') < railRule6.indexOf('justify-content: safe center;')
+     && /:root\[data-landscape-rail\] body\[data-pane\] #settings-nav \{ display: none; \}/.test(setCss6),
+    '★ #926 ⑥ (MAJOR-1 · MINOR-2 · MINOR-3 · NIT-6): chat.html\'s body and its absolute composer slot pad by --safe-left/right (a side-edge nav bar in landscape), both home takeovers too; isPhoneLandscape reads window.orientation before the aspect fallback (WebKit < 16.4 reports portrait screen numbers in every posture); the rail column is `safe center` + overflow-y auto (the plain `center` stays first as the fallback); the rail can never show inside the settings pane');
+}
 /* ★ #923 (Damir: "single pane on landscape") — A PHONE IS ONE PANE IN EVERY POSTURE. The #922
  * review found HomePage splitting a landscape phone into a ~400 dp list column + a detail slot
  * (`Width < 700` alone). Now the DEVICE decides: a display whose short side is under 600 dp is a
@@ -35078,10 +35142,12 @@ console.log('#912: backup exclusions, the html copy skip, and the start clock');
   const csConst = (/private const double PHONE_SHORT_SIDE_DIP = ([0-9.]+);/.exec(hp) || [])[1];
   const jsConst = (/export const PHONE_SHORT_SIDE_MAX = ([0-9.]+);/.exec(lr) || [])[1];
   const tryBody = (/try\s*\{([\s\S]*?)\}\s*catch \(Exception\)\s*\{([\s\S]*?)\}/.exec(fnBody) || []);
+  const platGate = /if \(DeviceInfo\.Platform != DevicePlatform\.Android && DeviceInfo\.Platform != DevicePlatform\.iOS\)\s*\{\s*return false;\s*\}/.exec(fnBody);
   ok(handler.replace(/\s+/g, ' ') === 'Width < 700 || isPhoneDisplay()'
+     && platGate && platGate.index < fnBody.indexOf('DeviceDisplay.MainDisplayInfo')   // #926 MAJOR-2: a MOBILE rule — a 1080p laptop at 200 % reads a 540 dp short side
      && /var d = DeviceDisplay\.MainDisplayInfo;/.test(tryBody[1] || '') && /if \(d\.Density <= 0 \|\| d\.Width <= 0 \|\| d\.Height <= 0\) return false;/.test(tryBody[1] || '')
      && /return Math\.Min\(d\.Width, d\.Height\) \/ d\.Density < PHONE_SHORT_SIDE_DIP;/.test(tryBody[1] || '') && /^\s*return false;\s*$/.test(tryBody[2] || ''),
-    '★ #923 ①: HomePage\'s pane branch is `Width < 700 || isPhoneDisplay()` (read: "' + handler.replace(/\s+/g, ' ') + '"), and isPhoneDisplay reads DeviceDisplay.MainDisplayInfo, refuses a zero density/size, compares the SHORT side ÷ density against PHONE_SHORT_SIDE_DIP (rotation cannot flip it), and a throw is NOT a phone (a desktop never loses its panes to a missing display record)');
+    '★ #923 ①: HomePage\'s pane branch is `Width < 700 || isPhoneDisplay()` (read: "' + handler.replace(/\s+/g, ' ') + '"), and isPhoneDisplay refuses every platform but Android/iOS BEFORE it reads the display (#926: WinUI reports the monitor, a laptop at 200 % is 540 dp), then reads DeviceDisplay.MainDisplayInfo, refuses a zero density/size, compares the SHORT side ÷ density against PHONE_SHORT_SIDE_DIP (rotation cannot flip it), and a throw is NOT a phone (a desktop never loses its panes to a missing display record)');
   ok(csConst !== undefined && jsConst !== undefined && Number(csConst) === Number(jsConst) && Number(csConst) === 600,
     '★ #923 ②: the C# PHONE_SHORT_SIDE_DIP (' + csConst + ') EQUALS the shells\' PHONE_SHORT_SIDE_MAX (' + jsConst + ') — the rail (#922) and the pane agree on what a phone is; a drift here gives a device a rail without a full-width pane, or the reverse');
   /* ③ the threshold lives ONCE: a WALK over every C# file finds no other `Width` comparison

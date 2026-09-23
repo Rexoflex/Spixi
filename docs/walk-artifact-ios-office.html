@@ -203,7 +203,7 @@
 
 <h2><span class="num">§4</span> Landscape (#918, built on Android renders — the iPhone leg)</h2>
 <section>
-  <p>The four landscape fixes were rendered at a 915×412 Android viewport. An iPhone in landscape has a notch inset on the SIDE and the home indicator below; the rules are height-only, so they apply.</p>
+  <p>The four landscape fixes were rendered at a 915×412 Android viewport. An iPhone in landscape has a notch inset on the SIDE and the home indicator below; the rules key on the DEVICE flag (#922, screen.orientation — on iOS < 16.4 the window.orientation leg), so they apply; the rail does not (Android only).</p>
   <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s4"></tbody></table>
 </section>
 
@@ -357,13 +357,13 @@
   "s4": [
     [
       "iO.24",
-      "rotate to LANDSCAPE on Wallet",
-      "the whole tab scrolls (hero rides away), the search/filter tools stick under the status bar, the list has real room — AND-31 on iOS."
+      "rotate to LANDSCAPE on Wallet — and first, on Chats",
+      "★ ONE pane, full width, the TAB BAR stays at the bottom (no rail on iPhone — the HIG; #923 makes every phone single-pane in landscape, iPhone included — before it a landscape iPhone split into a list column + detail pane). Then Wallet: the whole tab scrolls (hero rides away), the search/filter tools stick under the status bar, the list has real room — AND-31 on iOS. If you see two columns, write it: #923 did not take on iOS."
     ],
     [
       "iO.25",
       "landscape on Apps with no apps installed (or few)",
-      "the Explore banner scrolls away, the title bar stays, the empty state's button is reachable — AND-32."
+      "the Explore banner is ONE LINE beside the search field (#924 — no illustration), the title bar stays, the empty state's button is reachable — AND-32. Also open a chat in landscape and bring the keyboard up: the composer must stay above it with a usable log (iPhone landscape is single-pane and ~390 px tall with the keyboard)."
     ],
     [
       "iO.26",

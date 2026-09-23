@@ -1,4 +1,4 @@
-Session AC — the startup lever, the landscape round + the Android landscape rail, a phone is one pane, the iOS push extension written, route B prepared (#916–#924)
+Session AC — the startup lever, the landscape round + the Android landscape rail, a phone is one pane, the iOS push extension written, route B prepared (#916–#926)
 
 STARTUP (#917) — measured before moved. On the built home shell in headless Chromium at CPU x4,
 DOMContentLoaded and load are 4 ms apart (the document is parse + 273 KB inline CSS + 264 KB
@@ -73,6 +73,16 @@ value after a rotation (a 60 dp band). publishTopInset(dip, pushLive) + UIHelper
 banner is one line beside the search in landscape (never hidden; the list keeps 276 px). AND-36
 closed (did not reproduce). 3 pins, 7 mutations killed.
 
+THE #46 LOOP OVER #922–#924 (#926) — two Opus auditors + a break-my-verdict round: 3 MAJOR fixed —
+addCustomString bumped the dictionary version on every call (four per keyboard round → the localized
+cache thrown away, the spare chat re-localizing 640 KB on the UI thread); isPhoneDisplay on WinUI read
+the monitor (a 1080p laptop at 200 % = "a phone", single-pane everywhere) → a mobile-only rule; content
+under a side-edge nav bar in landscape (chat body + composer slot, both home takeovers pad by
+--safe-left/right). Nine MINORs fixed (the live lock in the push list, the call stage re-asserted,
+sides on the chrome pass + mini-apps, the display cutout, the WebKit < 16.4 orientation leg, the rail
+column under a keyboard, four unenforced pin claims, the banner walk); residuals = AND-48. r2 holds;
+20 mutations killed. C# in six files.
+
 iOS PUSH EXTENSION (#919) — written to Android decidePush parity, UNCOMPILED (the office iPhone
 build is the first compile).
 - Spixi-PushService/SpixiPushGate.cs (new): the App Group store spixi-push.json (enabled,
@@ -130,7 +140,7 @@ with every live RocksDB reference walked, the manifest, the README lines, the ch
 (13 mutations killed).
 
 Suite (container, snapshot copies, with the Core sibling): BEFORE 4774 / the 2 KNOWN ->
-AFTER BASELINE OK — 4811 pass / the 2 KNOWN (+37) / the same 2 KNOWN.
+AFTER BASELINE OK — 4817 pass / the 2 KNOWN (+43) / the same 2 KNOWN.
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01PyXtNL8sdeA1Uuwn4JGZBC

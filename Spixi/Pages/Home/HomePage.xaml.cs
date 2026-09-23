@@ -512,6 +512,16 @@ namespace SPIXI
 
         private static bool isPhoneDisplay()
         {
+            /* ★ #926 (r-review MAJOR-2): a MOBILE rule. On WinUI MainDisplayInfo is the
+             * monitor in pixels with Density = DPI ÷ 96, so a 1920 × 1080 laptop at 200 %
+             * reads a short side of 540 and would have been "a phone" — single-pane at every
+             * width, no chat beside the list, no Account pane. Same platform test the #348
+             * review chose (MAJOR-10: platform, never Idiom); the shells' half already
+             * refuses `data-desktop`. */
+            if (DeviceInfo.Platform != DevicePlatform.Android && DeviceInfo.Platform != DevicePlatform.iOS)
+            {
+                return false;
+            }
             try
             {
                 var d = DeviceDisplay.MainDisplayInfo;

@@ -16,7 +16,7 @@ Renders + numbers: `docs/sheets/session-ac/` (`perf-ab-load.txt` is the honest s
 maccatalyst RocksDB exclusion, `AllowUnsafeBlocks`, `Compile Remove` of `Platforms/MacCatalyst/**` on every other
 TFM) · `Spixi-PushService/` (NEW project: `NotificationService.cs`, `SpixiPushGate.cs`, csproj, Info.plist,
 Entitlements.plist) · `Platforms/iOS/Info.plist` + `Entitlements.plist` (App Group + OneSignal key) ·
-`Platforms/MacCatalyst/RocksDbSharp/**` (43 vendored files, maccatalyst only) · **#922 (ANDROID paths — YOUR Android build is their first compile):** `Lang/SpixiLocalization.cs` (three seeded carriers + `PLATFORM_NAME`), `Platforms/Android/MainActivity.cs` (`publishSideInsets` from the insets listener), `Utils/UIHelpers.cs` (`pushSideInsetsToAllPages`) · **#924 (Android; the walk's AC.7/AC.8 fix):** `Platforms/Android/MainActivity.cs` + `MainApplication.cs` (the top inset pushed LIVE on change), `Utils/UIHelpers.cs` (`pushTopInsetToAllPages`, inside the Android fence), `Utils/SpixiContentPage.cs` (a comment) · **#923 (ALL platforms — Windows F5 AND Android compile it):** `Pages/Home/HomePage.xaml.cs` (`isPhoneDisplay()` in the pane branch — a desktop window must still split at 700 dp; a phone must not split at any width). **Windows F5 (never `dotnet
+`Platforms/MacCatalyst/RocksDbSharp/**` (43 vendored files, maccatalyst only) · **#922 (ANDROID paths — YOUR Android build is their first compile):** `Lang/SpixiLocalization.cs` (three seeded carriers + `PLATFORM_NAME`), `Platforms/Android/MainActivity.cs` (`publishSideInsets` from the insets listener), `Utils/UIHelpers.cs` (`pushSideInsetsToAllPages`) · **#924 (Android; the walk's AC.7/AC.8 fix):** `Platforms/Android/MainActivity.cs` + `MainApplication.cs` (the top inset pushed LIVE on change), `Utils/UIHelpers.cs` (`pushTopInsetToAllPages`, inside the Android fence), `Utils/SpixiContentPage.cs` (a comment) · **#926 (the review's fixes — ALL platforms):** `Lang/SpixiLocalization.cs` (`addCustomString` no-op on an unchanged value) · `Pages/Home/HomePage.xaml.cs` (`isPhoneDisplay` mobile-only) · `Utils/UIHelpers.cs` (the lock in the push list, `finally`) · `Utils/SpixiContentPage.cs` (sides on the chrome pass) · `Pages/Call/CallPage.xaml.cs` (`relayoutStageForInsets`) · `Platforms/Android/MainActivity.cs` (the cutout) · **#923 (ALL platforms — Windows F5 AND Android compile it):** `Pages/Home/HomePage.xaml.cs` (`isPhoneDisplay()` in the pane branch — a desktop window must still split at 700 dp; a phone must not split at any width). **Windows F5 (never `dotnet
 build`, #663) and Android compile NONE of the iOS/Catalyst code** — a green build here proves the fences hold, nothing
 more. The first iOS build at the office is the first compile of #919; the first Catalyst build (optional, last)
 is the first compile of #920. A build error there is this session's bug — paste it whole.
@@ -29,7 +29,7 @@ clean + 3 known grammar gaps** (roots derived from every `*.csproj` folder) · t
 | | result |
 |---|---|
 | BEFORE (pristine snapshot of `bef1be21` + `020ba24a`) | `BASELINE OK — 4774 pass / the 2 KNOWN` |
-| AFTER (this batch) | `BASELINE OK — 4811 pass / the 2 KNOWN (+37)` |
+| AFTER (this batch) | `BASELINE OK — 4817 pass / the 2 KNOWN (+43)` |
 
 Compare the DELTA in your environment, never the absolute (#895).
 

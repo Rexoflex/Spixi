@@ -84,11 +84,12 @@
   :root[data-desktop] body { flex-direction: row; }
   :root[data-desktop] #settings-nav { order: -1; display: flex; }
   /* ★ #922 (Session AC): the LANDSCAPE RAIL — the peer-tab nav as a left column on an Android
-     phone in landscape (attachLandscapeRail sets the flag under the #918 query; mirrors home.html).
+     phone in landscape (attachLandscapeRail sets the flag from the DEVICE flag; mirrors home.html).
      The #334 iOS-59 sublevel hide below still applies: a sublevel owns its exit, rail or bar. */
   :root[data-landscape-rail] body { flex-direction: row; }
   :root[data-landscape-rail] #settings-nav { order: -1; display: flex; }
   :root[data-landscape-rail] #settings-root { min-width: 0; padding-inline-end: var(--safe-right, 0px); }
+  :root[data-landscape-rail] body[data-pane] #settings-nav { display: none; }   /* #926 NIT-6: the rail must never show inside the pane (the #242 specificity class — unreachable today, pinned anyway) */
   /* #334 iOS-59: SUB-screens are hub-only surfaces — hide the peer-tab bottom
      nav while a sublevel is open (its back affordance owns the exit). Desktop
      full-window keeps the RAIL: it is the sole exit there (#237, no topbar back). */

@@ -235,7 +235,7 @@
 .c-bottomnav--rail .c-bottomnav__item[aria-current] .c-bottomnav__icon--filled { transform: none; }
 
 /* ★ #922 (Session AC): THE LANDSCAPE RAIL — the same variant class, toggled at RUNTIME by
-   attachLandscapeRail (bottomnav.js) on an Android phone under the #918 landscape query, with
+   attachLandscapeRail (bottomnav.js) on an Android phone under the DEVICE flag (#922), with
    the root carrying data-landscape-rail for the shell's layout. The desktop rail is chrome
    with no system bars beside it; this one sits between three: the status bar above (the top
    inset), the gesture/nav bar below (--safe-bottom) and, on a rotation that puts the 3-button
@@ -247,4 +247,6 @@
   padding-block: calc(var(--spacing-8) + var(--safe-top, 0px)) calc(var(--spacing-8) + var(--safe-bottom, 0px));
   padding-inline: calc(var(--spacing-4) + var(--safe-left, 0px)) var(--spacing-4);
   justify-content: center;      /* four items float mid-column, not a top-heavy stack */
+  justify-content: safe center; /* #926 (r-review MINOR-3): with the keyboard up the column is ~200 px — plain center overflows BOTH ends */
+  overflow-y: auto;
 }

@@ -605,6 +605,14 @@ namespace SPIXI
             applyStageLayout();   // re-assert the strip after a window/pane resize
         }
 
+        /* ★ #926 (r-review MINOR-4): the top inset is pushed live (#924) and the in-call strip's
+         * native height carries TopInsetDip — re-assert the stage whenever that value moves so a
+         * rotation cannot leave an 88 dp stage holding 48 + 64 of content under overflow:hidden. */
+        public static void relayoutStageForInsets()
+        {
+            applyStageLayout();
+        }
+
         private static void applyStageLayout()
         {
             MainThread.BeginInvokeOnMainThread(() =>

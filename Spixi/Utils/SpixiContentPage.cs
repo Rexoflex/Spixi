@@ -4786,6 +4786,7 @@ namespace SPIXI
                 if (new_friend != null)
                 {
                     new_friend.save();
+                    SRequestIgnore.remove(address.ToString());   // ★ #985 (r3): the user's own request is their latest word — take it off the ignore list BEFORE the send (a throwing send must not leave it listed)
 
                     UIHelpers.shouldRefreshContacts = true;
 

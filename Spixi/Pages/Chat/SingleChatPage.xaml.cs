@@ -850,21 +850,27 @@ namespace SPIXI
                  * because that is the only pane that can send this verb. */
                 if (friend == null)
                 {
-                    return;   // ★ #984 (r2 NIT-9): the #800 spare page carries no friend; nothing to decline
+                    return;   // ★ #984 (r2 NIT-9) — a BELT: the spare-page branch above already drops every verb while friend is null (#985 r3 NIT-6)
                 }
                 bool declinedIncoming = friend.type == FriendType.Normal && !friend.bot
                     && friend.state != FriendState.RequestSent && friend.state != FriendState.Approved;
                 // ★ #984 (r2 MINOR-6): remembered BEFORE the removal; a refused removal takes it back off
                 string declinedAddr = friend.walletAddress.ToString();
                 bool listed = declinedIncoming && SRequestIgnore.add(declinedAddr);
-                bool requestRemoved = FriendList.removeFriend(friend);
+                bool requestRemoved = false;
+                try
+                {
+                    requestRemoved = FriendList.removeFriend(friend);
+                }
+                finally
+                {
+                    // ★ #985 (r3 MINOR-2): a THROWING removal (Core's I/O runs before friends.Remove)
+                    // must not leave the address listed while the contact stays
+                    if (!requestRemoved && listed) SRequestIgnore.remove(declinedAddr);
+                }
                 if (requestRemoved)
                 {
                     SChatPrefs.setFavorite(friend.walletAddress.ToString(), false);   // CH4: the preference leaves with the record
-                }
-                else if (listed)
-                {
-                    SRequestIgnore.remove(declinedAddr);
                 }
 
                 /* ★ #46 loop B, MAJOR-1 — THE RECORD IS GONE, SO SAY SO.
@@ -2411,6 +2417,7 @@ namespace SPIXI
                     if (new_friend != null)
                     {
                         new_friend.save();
+                        SRequestIgnore.remove(new_friend_address.ToString());   // ★ #985 (r3): the user's own request is their latest word — take it off the ignore list BEFORE the send (a throwing send must not leave it listed)
 
                         UIHelpers.shouldRefreshContacts = true;
 

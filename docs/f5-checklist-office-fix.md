@@ -32,9 +32,9 @@ A compile error is this batch's bug — paste it verbatim into the next session.
 1. Console.app → select the iPhone → **Start streaming**.
 2. Search: `spush` (or `subsystem:com.ixilabs.spixi.push`).
 3. Kill Spixi on the phone, send it a message.
-4. Expect two lines per push:
+4. Expect, per push (a Suppress push writes only the first line — it returns before OneSignal):
    * `[SPUSH] store=ok age=<s> muted=<n> fa=present faLen=<n> hit=muted|nick|none tag=<6 hex> verdict=Show|Suppress name=yes|no thread=yes|no`
-   * `[SPUSH] final thread=kept|lost|changed|none`
+   * `[SPUSH] final thread=kept|lost|changed|none|error` (or `[SPUSH] final repeat=dropped` — a second delivery after the TimeWillExpire belt)
 5. The app's own line (ixian.log, Account → Developer → share log): `[SPUSH-APP] store written: … muted=<n> nicks=<n> mutedTags=<tags> keyLens=<lens> mutedNot1to1=<n>`.
 
 **iO.11 procedure:** mute M off → on inside M's chat info; the tag that appears in the second

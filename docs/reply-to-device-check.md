@@ -20,18 +20,23 @@ at `097341a`) and `docs/be-cutover-ixian-core-reply-carrier.md` (the patch, thre
 A DEBUG-only, devMode-only verb on `SingleChatPage` — it is how a reply gets sent without the feature:
 
 ```csharp
+// ⚠ needs `using IXICore.Streaming.Models;` at the top of SingleChatPage.xaml.cs (ImplicitUsings is off)
 #if DEBUG
 else if (current_url.StartsWith("ixian:devReply:", StringComparison.Ordinal) && Preferences.Default.Get("devMode", false))
 {
-    // ixian:devReply:<targetIdHex>:<text> — sends ONE chatStream carrying ReplyToId = the target id
+    // ixian:devReply:<targetIdHex>:<text> — stores A's OWN row (as a normal send does) and sends ONE
+    // chatStream carrying ReplyToId = the target id. ★ #985 (r3 MAJOR): without the store step there is
+    // no sender row at all, and test (c) would record a false carrier failure.
     string rest = current_url.Substring("ixian:devReply:".Length);
     int c = rest.IndexOf(':');
     byte[] target = Crypto.stringToHash(rest.Substring(0, c));
     string text = rest.Substring(c + 1);
     byte[] id = Guid.NewGuid().ToByteArray();
     var csm = new ChatStreamMessage(id, text, 0, false, target);
+    var stored = FriendList.addMessageWithType(FriendMessageType.standard, friend.walletAddress, selectedChannel, csm, true);
+    if (stored.message != null) insertMessage(stored.message, selectedChannel);
     CoreStreamProcessor.sendChatStreamMessage(friend, csm, selectedChannel);
-    Logging.info("[REPLYDIAG] sent len=" + csm.getBytes().Length + " reply=" + (target.Length));
+    Logging.info("[REPLYDIAG] sent bytes=" + csm.getBytes().Length + " hasReply=" + (target.Length > 0) + " stored=" + (stored.message != null));
 }
 #endif
 ```
@@ -43,7 +48,7 @@ Fire it from Safari/Edge dev tools on the chat WebView: `location.href = 'ixian:
 
 | # | Where (after the patch) | Line |
 |---|---|---|
-| L1 | sender, `sendChatStreamMessage` after `getBytes()` | `sent bytes=<n> hasReply=<bool>` (the harness line above covers it) |
+| L1 | sender, the harness | `sent bytes=<n> hasReply=<bool> stored=<bool>` (the harness line above, word for word) |
 | L2 | receiver, `CoreStreamProcessor.receiveData` `case SpixiMessageCode.chatStream` after the `ChatStreamMessage` parse | `recv hasReply=<ReplyToId != null> replyLen=<n>` |
 | L3 | receiver, `FriendList.addMessage` after `friend_message.replyToId = …` | `stored hasReply=<bool>` |
 | L4 | BOTH devices, `SingleChatPage.insertMessage` standard branch, before the push | `render id=<first 4 hex> hasReply=<message.replyToId != null && Length > 0>` |

@@ -228,6 +228,7 @@ namespace SPIXI
             if (friend != null)
             {
                 friend.save();
+                SRequestIgnore.remove(recipient_address.ToString());   // ★ #985 (r3): the user's own request is their latest word — take it off the ignore list BEFORE the send (a throwing send must not leave it listed)
 
                 StreamProcessor.sendContactRequest(friend);
 

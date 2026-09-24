@@ -32619,7 +32619,8 @@ console.log('\n— handover gate: the third pin pass (loop C repairs · the thre
        the friend is a participant in a group, and a hard-coded "ok" would tell the shell
        to delete the data for a record that is still there. */
     const scp43 = stripCode(rd3('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
-    ok(/bool requestRemoved = FriendList\.removeFriend\(friend\);/.test(scp43)
+    ok(/(?:bool )?requestRemoved = FriendList\.removeFriend\(friend\);/.test(scp43)   // ★ #985 re-base: the assignment now sits inside the try whose finally rolls the ignore list back — the value pushed is still removeFriend's own
+       && !/requestRemoved = true;/.test(scp43)
        && /"undoRequestResult", friend\.walletAddress\.ToString\(\), requestRemoved \? "ok" : "fail"/.test(scp43),
       '★★ GATE 43 ⑤ at source: SingleChatPage READS removeFriend\'s return value and pushes it. Core refuses to remove a friend who is a participant in a group, so a hard-coded "ok" would tell the shell to forget a contact the app still has — the fail-OPEN direction on a delete');
   }
@@ -36412,7 +36413,8 @@ console.log('Office fix round (#974–#981)');
      the trace body, with the allowed wrappers removed, must name none of the address-bearing identifiers. */
   const traceBody = bodyO(gate, 'public static void trace(Store? store, string? fa, Verdict verdict)');
   const scrub = (t) => t
-    .replace(/"[^"]*"/g, '""')   // the WORDS in the literals are the vocabulary itself ("fa=", "thread=") — a label is not a value
+    .replace(/[$@]+"/g, 'INTERP"')   // ★ #985 (r3 MINOR-4): an interpolated/verbatim literal can carry a value inside its braces — it survives as a letter and fails
+    .replace(/"(?:[^"\\]|\\.)*"/g, '""')   // the WORDS in the literals are the vocabulary itself ("fa=", "thread=") — a label is not a value; escaped quotes stay inside
     .replace(/tagOf\([^()]*\)/g, 'TAG')
     .replace(/string\.IsNullOrEmpty\([^()]*\)/g, 'EMPTY')
     .replace(/threadState\([^()]*\)/g, 'STATE')
@@ -36444,7 +36446,7 @@ console.log('Office fix round (#974–#981)');
         the sanctioned expressions go, nothing may remain (a raw muted list or an address would) */
      && [...share.matchAll(/Logging\.\w+\(([^;]*)\);/g)].map((m) => m[1]).every((a) => { let r = a;
           for (const x of ['string.Join(",", store.muted.ConvertAll(a => tagOf(store.tagSalt, a)))', 'string.Join(",", store.muted.ConvertAll(a => a.Length))', 'store.enabled', 'store.senderName', 'store.muted.Count', 'store.nicks.Count', 'lastMutedNotOneToOne', 'e.GetType().Name', 'SPIXI.Utils.logSafe(e.Message)', 'SPIXI.Utils.logSafe(err.LocalizedDescription)']) r = r.split(x).join('');
-          return !/[A-Za-z_]/.test(r.replace(/"[^"]*"/g, '')); }),
+          return !/[$@]"/.test(r) && !/[A-Za-z_]/.test(r.replace(/"(?:[^"\\]|\\.)*"/g, '')); }),   // ★ #985 (r3 MINOR-4): no interpolated literal; escaped quotes stay inside
     '★★ #974 ③: tagOf is the SAME body in the extension and in SPushPrefsShare (HMAC-SHA256, first 3 bytes); every store write stamps `written` + the per-install salt and logs the muted set as TAGS; the salt itself is never logged');
 
   /* ── #975 iO.5 the thread survives OneSignal: a once-only wrapper re-applies it on the FINAL content */
@@ -36582,8 +36584,14 @@ console.log('Office fix round (#974–#981)');
   /* ★ #984 (r2): BOTH decline sites carry the SAME state predicate, list the address BEFORE the removal
      (a re-sent request landing in between finds it listed), and take it back off when the removal is REFUSED */
   const PRED = /bool declinedIncoming = friend\.type == FriendType\.Normal && !friend\.bot\s*&& friend\.state != FriendState\.RequestSent && friend\.state != FriendState\.Approved;/;
-  const SHAPE = /bool listed = declinedIncoming && SRequestIgnore\.add\(declinedAddr\);\s*(?:bool requestRemoved = )?(?:if \()?FriendList\.removeFriend\(friend\)\)?;?[\s\S]*?else if \(listed\)\s*\{\s*SRequestIgnore\.remove\(declinedAddr\);\s*\}/;
-  const siteOk = (t) => PRED.test(t) && SHAPE.test(t) && t.search(PRED) < t.indexOf('FriendList.removeFriend(friend)') && t.indexOf('SRequestIgnore.add(') < t.indexOf('FriendList.removeFriend(friend)');
+  /* ★ #985 (r3 MINOR-3): the WHOLE structure, no lazy span — listed, then the removal inside a try whose
+     finally takes the address back off on a refused OR throwing removal, then the success branch on the
+     same boolean (an inverted test or a detached rollback fails the match) */
+  const SHAPE = /bool listed = declinedIncoming && SRequestIgnore\.add\(declinedAddr\);\s*bool (\w+) = false;\s*try\s*\{\s*\1 = FriendList\.removeFriend\(friend\);\s*\}\s*finally\s*\{\s*if \(!\1 && listed\) SRequestIgnore\.remove\(declinedAddr\);\s*\}\s*if \(\1\)\s*\{/;
+  const siteOk = (t) => PRED.test(t) && SHAPE.test(t) && t.search(PRED) < t.indexOf('FriendList.removeFriend(friend)');
+  /* ★ #985 (r3 MINOR-5/NIT-7): the un-list is DERIVED too — EVERY user-sent request (`FriendList.addFriend(... FriendState.RequestSent`)
+     takes the address off the list BEFORE its send. A new request path without it fails here. */
+  let unlistSites = 0; const unlistMisses = [];
   /* ★ #984 (r2 NIT-8): the call sites are DERIVED over every .cs, not counted in two files the author knew */
   const walkCsO = (d, out = []) => { for (const n of readdirSync(join(root, d))) { if (n === 'obj' || n === 'bin') continue; const q = d + '/' + n; if (statSync(join(root, q)).isDirectory()) walkCsO(q, out); else if (n.endsWith('.cs')) out.push(q); } return out; };
   const sites = { add: [], remove: [], clear: [] };
@@ -36591,13 +36599,17 @@ console.log('Office fix round (#974–#981)');
     if (f.endsWith('/SRequestIgnore.cs')) continue;
     const t = csO(f);
     for (const k of Object.keys(sites)) if (new RegExp('SRequestIgnore\\.' + k + '\\(').test(t)) sites[k].push(f.split('/').pop() + '×' + (t.match(new RegExp('SRequestIgnore\\.' + k + '\\(', 'g')) || []).length);
+    for (const m of t.matchAll(/FriendList\.addFriend\(FriendType\.Normal, FriendState\.RequestSent,/g)) {
+      unlistSites++;
+      const after = t.slice(m.index, m.index + 2500), send = after.search(/sendContactRequest\(/), un = after.search(/SRequestIgnore\.remove\(/);
+      if (!(un > 0 && send > 0 && un < send)) unlistMisses.push(f.split('/').pop());
+    }
   }
   ok(siteOk(dec) && siteOk(undo) && /if \(friend == null\)\s*\{\s*return;/.test(undo)
      && JSON.stringify(sites.add.sort()) === JSON.stringify(['HomePage.xaml.cs×1', 'SingleChatPage.xaml.cs×1'])
-     && JSON.stringify(sites.remove.sort()) === JSON.stringify(['HomePage.xaml.cs×2', 'SettingsPage.xaml.cs×1', 'SingleChatPage.xaml.cs×1'])
      && JSON.stringify(sites.clear.sort()) === JSON.stringify(['SettingsPage.xaml.cs×2'])
-     && /public static void writeRequestSentMarker\(Address address\)\s*\{\s*try \{ SRequestIgnore\.remove\(address\?\.ToString\(\)\); \} catch \(Exception\) \{ \}/.test(hp),
-    '★★ #978/#984: an address is REMEMBERED only on an incoming decline (both sites: the same state predicate — never RequestSent, never Approved, never a room — listed BEFORE the removal, taken back off when it is refused); the user\'s OWN request (writeRequestSentMarker) takes it off; derived call sites over every .cs — add ' + JSON.stringify(sites.add) + ' · remove ' + JSON.stringify(sites.remove) + ' · clear ' + JSON.stringify(sites.clear));
+     && unlistMisses.length === 0 && unlistSites >= 4,
+    '★★ #978/#984/#985: an address is REMEMBERED only on an incoming decline (both sites: the same state predicate — never RequestSent, never Approved, never a room — listed BEFORE the removal, taken back off in a finally when the removal is refused OR throws); EVERY user-sent request (' + unlistSites + ' RequestSent addFriend sites; misses ' + JSON.stringify(unlistMisses) + ') takes it off BEFORE its send; derived call sites over every .cs — add ' + JSON.stringify(sites.add) + ' · remove ' + JSON.stringify(sites.remove) + ' · clear ' + JSON.stringify(sites.clear));
 
   const st = csO('Spixi/Pages/Settings/SettingsPage.xaml.cs');
   const un = (st.match(/else if \(current_url\.StartsWith\("ixian:unignore:", StringComparison\.Ordinal\)\)\s*\{([\s\S]*?)\n            \}/) || [])[1] || '';

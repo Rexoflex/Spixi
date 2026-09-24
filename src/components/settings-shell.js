@@ -106,7 +106,9 @@ export function settingsOptionSheet({ title, hint, options, current, host, strin
   // sheet cap CLIPPED the list mid-column with an invisible-until-hover thumb
   // (Damir F5: languages cut off) — inline, the pickerScreen body
   // (.c-settings__body.u-scroll) owns the scrolling, so the list just flows.
-  if (!inline && options.length > 6) wrap.classList.add('c-settings__opts--scroll', 'u-scroll');
+  // #965: a long picker gets a drawn scroll indicator and opens TALL on a phone.
+  const longList = !inline && options.length > 6;
+  if (longList) wrap.classList.add('c-settings__opts--scroll');
   wrap.setAttribute('role', 'radiogroup');
   wrap.setAttribute('aria-label', title);
   if (hint) {
@@ -196,9 +198,68 @@ export function settingsOptionSheet({ title, hint, options, current, host, strin
     wrap.append(opt);
   }
   if (inline) return wrap;                    // #242: a pane detail screen hosts the list
-  const sheet = createSheet({ content: wrap, host, title, strings });
+  let content = wrap;
+  if (longList) {
+    content = document.createElement('div');
+    content.className = 'c-settings__opts-frame';
+    content.append(wrap);
+    attachScrollIndicator(content, wrap);
+  }
+  const sheet = createSheet({ content, host, title, strings });
+  if (longList) sheet.dataset.tall = '';
   openSheet(sheet);
   return sheet;
+}
+
+/* #965: an always-visible, draggable scroll indicator for a long list (touch bars
+   show only while scrolling; the desktop thumb only on hover). */
+export function attachScrollIndicator(frame, scroller) {
+  const track = document.createElement('span');
+  track.className = 'c-scrollind';
+  track.setAttribute('aria-hidden', 'true');
+  const thumb = document.createElement('span');
+  thumb.className = 'c-scrollind__thumb';
+  track.append(thumb);
+  frame.append(track);
+  let thumbH = 0;
+  const paint = () => {
+    const ch = scroller.clientHeight;
+    const sh = scroller.scrollHeight;
+    const over = sh - ch > 1;
+    if (over) frame.setAttribute('data-overflow', '');
+    else frame.removeAttribute('data-overflow');
+    if (!over) return;
+    const th = track.clientHeight;
+    thumbH = Math.min(th, Math.max(32, Math.round((th * ch) / sh)));
+    const y = Math.round(((th - thumbH) * scroller.scrollTop) / (sh - ch));
+    thumb.style.height = thumbH + 'px';
+    thumb.style.transform = 'translateY(' + y + 'px)';
+  };
+  scroller.addEventListener('scroll', paint, { passive: true });
+  if (typeof ResizeObserver === 'function') {
+    const ro = new ResizeObserver(paint);
+    ro.observe(scroller);
+    ro.observe(track);
+  }
+  requestAnimationFrame(() => requestAnimationFrame(paint));
+  setTimeout(paint, 320);
+  let drag = null;
+  thumb.addEventListener('pointerdown', (e) => {
+    drag = { y: e.clientY, top: scroller.scrollTop };
+    try { thumb.setPointerCapture(e.pointerId); } catch { /* old engine */ }
+    thumb.setAttribute('data-drag', '');
+    e.preventDefault();
+  });
+  thumb.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const room = track.clientHeight - thumbH;
+    if (room <= 0) return;
+    scroller.scrollTop = drag.top + ((e.clientY - drag.y) * (scroller.scrollHeight - scroller.clientHeight)) / room;
+  });
+  const end = () => { drag = null; thumb.removeAttribute('data-drag'); };
+  thumb.addEventListener('pointerup', end);
+  thumb.addEventListener('pointercancel', end);
+  return { paint };
 }
 
 /* theme sheet (#147): VISUAL PREVIEW TILES — light/dark painted with the FIXED

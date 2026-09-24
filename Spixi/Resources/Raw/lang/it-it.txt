@@ -165,6 +165,7 @@ chat-modal-tip-pay-button = Paga
 chat-modal-tip-confirmation-body = Stai per offrire una mancia a '{0}' di {1}. L'importo sarà dedotto dal tuo portafoglio.
 chat-modal-tip-confirmed-body = Hai offerto una mancia a '{0}' di {1}. L'importo è stato dedotto dal tuo portafoglio.
 chat-modal-tip-error-body = Si è verificato un errore sconosciuto durante l'invio della mancia.
+chat-modal-tip-already-body = Hai già lasciato una mancia per questo messaggio.
 
 chat-bot-details-info = Info Gruppo
 chat-bot-address = Indirizzo del Gruppo
@@ -305,6 +306,7 @@ index-excerpt-contact-request = Richiesta di Contatto
 index-excerpt-file = File
 index-excerpt-voice-call = Chiamata Vocale
 index-excerpt-self = 
+index-excerpt-you = Tu
 index-excerpt-typing = Sta scrivendo...
 index-side-settings-subtitle = Temi, lingua, soprannome e dati
 index-side-password-subtitle = Cambia la password di Spixi

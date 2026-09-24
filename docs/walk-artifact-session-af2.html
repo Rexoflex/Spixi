@@ -1,0 +1,438 @@
+<title>Walk AF2</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --bg:#eef1f6; --card:#ffffff; --sunk:#f5f7fa;
+    --ink:#141b23; --sub:#5b6672; --line:#dfe5ec;
+    --act:#1956b2; --act-soft:#e5edf9;
+    --p:#1a7f4b; --f:#b12525; --n:#8b95a1;
+    --warn:#884b00; --warn-soft:#fbf1e2;
+    --shadow:0 1px 2px rgba(20,27,35,.05), 0 2px 8px rgba(20,27,35,.05);
+  }
+  :root:not([data-theme="light"]) { }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0d1117; --card:#161b22; --sunk:#0f141b;
+      --ink:#e6edf3; --sub:#9aa7b4; --line:#252c36;
+      --act:#5a8dee; --act-soft:#16233a;
+      --p:#3fb27a; --f:#f08a80; --n:#7d8794;
+      --warn:#e0a458; --warn-soft:#241c10;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.3);
+      color-scheme:dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme:dark;
+    --bg:#0d1117; --card:#161b22; --sunk:#0f141b;
+    --ink:#e6edf3; --sub:#9aa7b4; --line:#252c36;
+    --act:#5a8dee; --act-soft:#16233a;
+    --p:#3fb27a; --f:#f08a80; --n:#7d8794;
+    --warn:#e0a458; --warn-soft:#241c10;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.3);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.55 "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding:28px 20px 64px;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1000px;margin:0 auto}
+
+  header{margin:0 0 18px}
+  h1{font-size:27px;line-height:1.2;margin:0 0 6px;font-weight:700;letter-spacing:-.015em;text-wrap:balance}
+  .lede{color:var(--sub);margin:0 0 14px;max-width:64ch}
+  .facts{display:flex;flex-wrap:wrap;gap:8px}
+  .fact{
+    font:500 12px/1 "IBM Plex Mono", ui-monospace, Consolas, monospace;
+    background:var(--card);border:1px solid var(--line);border-radius:999px;
+    padding:7px 12px;color:var(--sub);max-width:100%;overflow-wrap:anywhere;line-height:1.35
+  }
+  .fact b{color:var(--ink);font-weight:500}
+
+  .tally{
+    position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);
+    padding:12px 0 10px;margin:0 0 18px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap
+  }
+  .tally .score{font:600 15px/1 "IBM Plex Mono", monospace;letter-spacing:.02em}
+  .tally .score i{font-style:normal;padding:0 2px}
+  .tally .sp{flex:1}
+  .mini{
+    border:1px solid var(--line);background:var(--card);color:var(--ink);
+    border-radius:8px;padding:7px 13px;font:500 13px/1 "IBM Plex Sans",sans-serif;cursor:pointer
+  }
+  .mini:hover{border-color:var(--act);color:var(--act)}
+  .mini:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+
+  h2{
+    font-size:13px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--sub);margin:26px 0 10px;display:flex;align-items:baseline;gap:10px
+  }
+  h2 .num{
+    font-family:"IBM Plex Mono",monospace;color:var(--act);font-weight:500;
+    letter-spacing:0;font-size:12px
+  }
+  section{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:16px 18px;margin:0 0 4px;box-shadow:var(--shadow)
+  }
+  section.flag{border-left:3px solid var(--act)}
+  section > p{margin:0 0 12px;color:var(--sub);max-width:70ch}
+  section > p:last-child{margin-bottom:0}
+  section > p strong{color:var(--ink);font-weight:600}
+  code{
+    font:500 13px/1.4 "IBM Plex Mono",ui-monospace,Consolas,monospace;
+    background:var(--sunk);border:1px solid var(--line);border-radius:5px;padding:1px 5px
+  }
+
+  .cmd{position:relative;margin:0 0 12px}
+  .cmd pre{
+    margin:0;background:var(--sunk);border:1px solid var(--line);border-radius:10px;
+    padding:13px 15px;overflow-x:auto;
+    font:400 12.5px/1.65 "IBM Plex Mono",ui-monospace,Consolas,monospace;
+    color:var(--ink)
+  }
+  .cmd .cp{
+    position:absolute;top:8px;right:8px;
+    border:1px solid var(--line);background:var(--card);color:var(--sub);
+    border-radius:7px;padding:5px 10px;font:500 11px/1 "IBM Plex Sans",sans-serif;cursor:pointer
+  }
+  .cmd .cp:hover{color:var(--act);border-color:var(--act)}
+  .cmd .cp:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+  .cmd .cp[data-done="1"]{color:var(--p);border-color:var(--p)}
+
+  .note-line{
+    display:flex;gap:8px;align-items:flex-start;
+    background:var(--warn-soft);border:1px solid var(--line);border-radius:9px;
+    padding:10px 13px;margin:0 0 12px;color:var(--ink);font-size:13.5px;line-height:1.5
+  }
+  .note-line b{color:var(--warn)}
+
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:10px 8px;border-top:1px solid var(--line);vertical-align:top}
+  thead th{
+    border-top:0;font:600 11px/1 "IBM Plex Sans",sans-serif;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--sub);padding-bottom:8px
+  }
+  td.id{
+    width:44px;font:500 13px/1.5 "IBM Plex Mono",monospace;color:var(--act);white-space:nowrap
+  }
+  td.what{font-size:14px}
+  td.what em{font-style:normal;color:var(--sub);display:block;margin-top:3px;font-size:13px}
+  td.v{width:158px;white-space:nowrap}
+
+  .btn{
+    border:1px solid var(--line);background:transparent;color:var(--sub);
+    border-radius:7px;padding:5px 11px;margin-right:4px;cursor:pointer;
+    font:500 12.5px/1 "IBM Plex Sans",sans-serif
+  }
+  .btn:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+  .btn[aria-pressed="true"][data-v="P"]{background:var(--p);border-color:var(--p);color:#fff}
+  .btn[aria-pressed="true"][data-v="F"]{background:var(--f);border-color:var(--f);color:#fff}
+  .btn[aria-pressed="true"][data-v="N"]{background:var(--n);border-color:var(--n);color:#fff}
+  /* ★ Damir, walk S2: "stupid artefact doesnt allow notes if pass" — and the note he
+     could not leave was a real defect. The box used to be display:none until a row
+     FAILED, on the reasoning that a fail needs an explanation. True, and not the same
+     as "a pass has nothing to say": the most valuable notes are the ones on rows that
+     technically passed, because those are the observations no row was written to catch.
+     Always visible now; the fail styling stays. */
+  .nt{
+    width:100%;margin-top:7px;border:1px solid var(--line);border-radius:7px;
+    padding:6px 9px;background:var(--sunk);color:var(--ink);
+    font:400 13px/1.45 "IBM Plex Sans",sans-serif;display:block
+  }
+  tr[data-v="F"] .nt{border-color:var(--f)}
+
+  footer{margin:30px 0 0;color:var(--sub);font-size:13.5px;line-height:1.6}
+  footer b{color:var(--ink)}
+
+  @media (max-width:640px){
+    body{padding:20px 14px 56px}
+    td.v{width:auto}
+    th:nth-child(3),td.v{display:block;padding-top:0;border-top:0}
+    td.id{width:38px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+<div class="wrap">
+<header>
+  <h1>Walk AF2 — today's fixes and the open AF rows</h1>
+  <p class="lede">18 rows. <strong>§1–§4</strong> are the four changes made after walk AF (#962 · #963 · #965 · #966). <strong>§5</strong> is what walk AF could not set up. Mark each row P, F or N/A; a pass may carry a note too.</p>
+  <div class="facts"><span class="fact">records <b>#962–#966</b></span><span class="fact">smoke <b>4883 / the 2 KNOWN</b></span><span class="fact">C# changed <b>Ixian-Core only</b> (local, uncommitted there)</span></div>
+</header>
+<div class="tally">
+  <span class="score" id="score">— / 18</span>
+  <span class="score" style="color:var(--p)">P <i id="cp">0</i></span>
+  <span class="score" style="color:var(--f)">F <i id="cf">0</i></span>
+  <span class="score" style="color:var(--n)">N/A <i id="cn">0</i></span>
+  <span class="sp"></span>
+  <button class="mini" id="copyres">Copy results</button>
+  <button class="mini" id="reset">Reset</button>
+</div>
+<main>
+<h2><span class="num">§0</span> Build</h2>
+<section><table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s0"></tbody></table></section>
+<h2><span class="num">§1</span> #963 — the select circle at the top</h2>
+<section><table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s1"></tbody></table></section>
+<h2><span class="num">§2</span> #965 — the language sheet</h2>
+<section><table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s2"></tbody></table></section>
+<h2><span class="num">§3</span> #966 — the reaction pill</h2>
+<section class="flag"><p>You need a message with a reaction near the bottom of a chat.</p><table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s3"></tbody></table></section>
+<h2><span class="num">§4</span> #962 — the late accept (Windows Debug)</h2>
+<section><table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s4"></tbody></table></section>
+<h2><span class="num">§5</span> Still open from walk AF</h2>
+<section class="flag"><p>AF.1–AF.3 need a fresh outgoing request and an incoming request from a second device.</p><table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s5"></tbody></table></section>
+<h2><span class="num">§6</span> Dials</h2>
+<section><table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s6"></tbody></table></section>
+</main>
+<footer>
+<p>When you finish, tap <b>Copy results</b> and paste them in the chat. Then commit with <code>git commit -F docs/commit-message-session-af.txt</code>.</p>
+</footer>
+</div>
+<script>
+(function(){
+  var ROWS = {
+ "s0": [
+  [
+   "R0",
+   "Build and deploy: F5 on Windows (never dotnet build, #663) · Android Debug deploy to the Motorola",
+   "The app opens on both. The built shells are already in the repo (build-shells --check green on your PC); suite 4883 / the 2 KNOWN."
+  ]
+ ],
+ "s1": [
+  [
+   "R1",
+   "★ #963 — long-press a message → Select. Tick a TALL message (3–4 lines) and a one-line message. Both themes.",
+   "The circle sits level with the FIRST line of text, not in the middle of the bubble. The tick is inside the circle. A one-line bubble looks as before."
+  ],
+  [
+   "R2",
+   "#963 — in select mode, tick a message that has a reaction pill",
+   "The circle and tick stay at the top; nothing moves when the row is selected."
+  ]
+ ],
+ "s2": [
+  [
+   "R3",
+   "★ #965 — Account → Language on the phone",
+   "The sheet opens just below the top bar. If not all languages fit, a thin scrollbar is VISIBLE before you touch the list. If all fit, no scrollbar."
+  ],
+  [
+   "R4",
+   "#965 — drag the scrollbar thumb with a finger; then scroll the list normally",
+   "Both work; the thumb follows the list and reaches the bottom at the last language."
+  ],
+  [
+   "R5",
+   "#965 — the language pill on the welcome screen (a fresh install, or N/A if you cannot get there)",
+   "Same tall sheet and scrollbar as R3."
+  ],
+  [
+   "R6",
+   "#965 — Windows: a language sheet outside the Account pane (the welcome pill), if you can reach it",
+   "Still the centred dialog; the drawn scrollbar shows when the list overflows. The Account pane's inline list is unchanged."
+  ]
+ ],
+ "s3": [
+  [
+   "R7",
+   "★ #966 — put a ❤ on a message; look at it at rest. Both themes.",
+   "The pill sits lower: clear of the text and the time; only its top edge touches the bubble. The next message does not collide with it."
+  ],
+  [
+   "R8",
+   "★ #966 — scroll that message slowly down under the composer",
+   "The pill fades out together with its bubble. It is never shown CUT OFF at a hard edge."
+  ],
+  [
+   "R9",
+   "#966 — a sticker (emoji-only) message with a reaction, sent and received",
+   "The pill still takes the corner away from the time chip."
+  ]
+ ],
+ "s4": [
+  [
+   "R10",
+   "★ #962 — Windows F5 Debug: wait for the contact whose request you cancelled to come online (or restart the app)",
+   "Visual Studio does NOT stop on the NullReferenceException. ixian.log shows: \"Received an accept for a contact request that no longer exists; ignored.\" (The fix is in your Ixian-Core folder, uncommitted there.)"
+  ]
+ ],
+ "s5": [
+  [
+   "AF.1",
+   "#947 — send a contact request to a NEW address → open that contact's profile (directory AND chat info)",
+   "No Cancel request button; the \"Request sent\" badge shows; Back works."
+  ],
+  [
+   "AF.2",
+   "#947 — the chats row menu and the chat's waiting strip for that outgoing request",
+   "Both still offer Hide request; hiding still hides."
+  ],
+  [
+   "AF.3",
+   "★ #959 — RECEIVE a contact request (second device) → open that chat → tap Decline",
+   "The request is removed: the chat closes and the list row goes."
+  ],
+  [
+   "AF.16",
+   "#944 — a group's chats row on Windows desktop, both themes",
+   "\"George: hi there\" — nothing overlaps the time or the unread badge."
+  ],
+  [
+   "AF.18",
+   "AE.14 carried — Add app: a black-holed https host · a 404 URL · a 20 MB file URL",
+   "Each fails inside 15 s with its own reason."
+  ],
+  [
+   "AF.19",
+   "AE.15 carried — a file received from X and ALSO from Y → delete X with media",
+   "The file STAYS; delete Y with media → now it goes."
+  ]
+ ],
+ "s6": [
+  [
+   "R11",
+   "Your dials — write the answers in the note",
+   "(a) delete HomePage's dead ixian:undorequest:<addr> handler, or keep? (b) admin buttons: stacked (built) or two-up? (c) no lines inside a group also for Groups-in-common / Payments / contact-details actions? (d) a localized \"You:\" for own tails in rooms?"
+  ]
+ ]
+};
+
+  var KEY = "spixi.walk.session-af2";
+  var state = {};
+  try { state = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch(e) { state = {}; }
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){} }
+
+  function build(tbodyId){
+    var tb = document.getElementById(tbodyId);
+    if(!tb) return;
+    ROWS[tbodyId].forEach(function(r){
+      var id = r[0];
+      var tr = document.createElement("tr");
+      tr.dataset.row = id;
+      var td1 = document.createElement("td");
+      td1.className = "id"; td1.textContent = id;
+      var td2 = document.createElement("td");
+      td2.className = "what";
+      td2.appendChild(document.createTextNode(r[1]));
+      if (r[2]) { var em = document.createElement("em"); em.textContent = r[2]; td2.appendChild(em); }
+      var td3 = document.createElement("td");
+      td3.className = "v";
+      ["P","F","N"].forEach(function(v){
+        var b = document.createElement("button");
+        b.className = "btn"; b.dataset.v = v; b.type = "button";
+        b.textContent = v === "N" ? "N/A" : v;
+        b.setAttribute("aria-label", (v==="P"?"Pass":v==="F"?"Fail":"Not applicable") + " " + id);
+        b.setAttribute("aria-pressed", String(state[id] && state[id].v === v));
+        b.addEventListener("click", function(){
+          var cur = state[id] || {};
+          cur.v = (cur.v === v) ? "" : v;
+          state[id] = cur; save(); paint(tr, id); tallyUp();
+        });
+        td3.appendChild(b);
+      });
+      var nt = document.createElement("textarea");
+      nt.className = "nt"; nt.rows = 2;
+      nt.placeholder = "note (optional — on a pass too)";
+      nt.value = (state[id] && state[id].n) || "";
+      nt.setAttribute("aria-label", "Note for " + id);
+      nt.addEventListener("input", function(){
+        var cur = state[id] || {}; cur.n = nt.value; state[id] = cur; save();
+      });
+      td3.appendChild(nt);
+      tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+      tb.appendChild(tr);
+      paint(tr, id);
+    });
+  }
+
+  function paint(tr, id){
+    var v = (state[id] && state[id].v) || "";
+    tr.dataset.v = v;
+    Array.prototype.forEach.call(tr.querySelectorAll(".btn"), function(b){
+      b.setAttribute("aria-pressed", String(b.dataset.v === v));
+    });
+  }
+
+  function tallyUp(){
+    var p=0,f=0,n=0,total=0;
+    Object.keys(ROWS).forEach(function(k){ total += ROWS[k].length; });
+    Object.keys(state).forEach(function(id){
+      var v = state[id] && state[id].v;
+      if (v==="P") p++; else if (v==="F") f++; else if (v==="N") n++;
+    });
+    document.getElementById("cp").textContent = p;
+    document.getElementById("cf").textContent = f;
+    document.getElementById("cn").textContent = n;
+    document.getElementById("score").textContent = (p+f+n) + " / " + total;
+  }
+
+  Object.keys(ROWS).forEach(build);
+  tallyUp();
+
+  function copyText(text, btn, doneLabel){
+    var ok = function(){
+      if(!btn) return;
+      var old = btn.textContent;
+      btn.textContent = doneLabel || "Copied";
+      btn.dataset.done = "1";
+      setTimeout(function(){ btn.textContent = old; btn.dataset.done = ""; }, 1400);
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(ok, function(){ fallback(text, ok); });
+        return;
+      }
+    } catch(e){}
+    fallback(text, ok);
+  }
+  function fallback(text, ok){
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      ok();
+    } catch(e){}
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll(".cmd .cp"), function(btn){
+    btn.type = "button";
+    btn.addEventListener("click", function(){
+      var pre = btn.parentNode.querySelector("pre");
+      copyText(pre ? pre.textContent : "", btn);
+    });
+  });
+
+  document.getElementById("copyres").addEventListener("click", function(){
+    var out = ["Walk AF2 — #962 · #963 · #965 · #966 + the open AF rows", ""];
+    var p=0,f=0,n=0;
+    Object.keys(ROWS).forEach(function(k){
+      ROWS[k].forEach(function(r){
+        var id = r[0], s = state[id] || {}, v = s.v || "-";
+        if (v==="P") p++; else if (v==="F") f++; else if (v==="N") n++;
+        out.push(v + "  " + id + "  " + r[1] + (s.n ? "   — " + s.n : ""));
+      });
+    });
+    out.splice(1, 0, p + " pass · " + f + " fail · " + n + " n/a");
+    copyText(out.join("\n"), this, "Copied");
+  });
+
+  document.getElementById("reset").addEventListener("click", function(){
+    var btn = this;
+    if (!btn.dataset.arm) { btn.dataset.arm = "1"; btn.textContent = "Tap again to clear"; setTimeout(function(){ btn.dataset.arm = ""; btn.textContent = "Reset"; }, 3000); return; }
+    btn.dataset.arm = ""; btn.textContent = "Reset";
+    state = {}; save();
+    Object.keys(ROWS).forEach(function(k){
+      var tb = document.getElementById(k);
+      while (tb.firstChild) tb.removeChild(tb.firstChild);
+      build(k);
+    });
+    tallyUp();
+  });
+})();
+</script>

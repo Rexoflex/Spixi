@@ -594,6 +594,18 @@ Core's, one line, and only this one works: `if (sender_friend != null)` before t
 `removeMessage` alone would NOT stop it (the later reads throw). No app change — a second removal order (remove
 first, then leave) would strand the leave notice, so the flow stays as it is.
 
+**CORE-13 sibling (Session AF #947, Damir's AE walk) · an ACCEPT from a peer whose request we already cancelled.**
+Damir cancelled an outgoing contact request on desktop (the contact-details Cancel, since removed by #947) and the
+Debug session broke on a `NullReferenceException` at `IXICore.Streaming.CoreStreamProcessor.receiveData` **line 1260**
+(← `SPIXI.StreamProcessor.receiveData:211` ← `ProtocolMessage.parseProtocolMessage:127`). Read at `097341a`: `:1260`
+is the `acceptAdd2` case, `if (friend.lastReceivedHandshakeMessageTimestamp < message.timestamp)` — `friend` is null
+because the cancel ran `FriendList.removeFriend`, and nothing in that case null-checks it (the `acceptAdd` case at
+`:1213` reads `friend.walletAddress` the same way). Same class as CORE-13: Core CATCHES it at `:1593` and logs
+`Exception occured in StreamProcessor.receiveData` (`:1595`) — a Release build continues and only the late accept is
+dropped; the "crash" is the debugger's first-chance break. INHERITED. Fix is Core's: `if (friend == null) return null;`
+at the top of both accept cases (a cancelled request should ignore a late accept). The app no longer offers Cancel
+from contact details (#947); the chat's waiting strip and the chats row still do, so the path stays reachable.
+
 **APP-1 — ✅ BUILT 2026-09-22 (#912): Android `backup_rules.xml` + `data_extraction_rules.xml` exclude `Spixi/Chats`, `Spixi/MsgQueue` and the six log files; iOS sets `NSURLIsExcludedFromBackupKey` on the same two folders (uncompiled until the next iOS build). The wallet, `Acc`, the avatar and the preferences are still backed up — so the plaintext `walletpass` preference still travels with a Google backup until L8. Restore test on a second phone still owed.** Original row kept below for the reasoning.
 
 **APP-1 (Session AB #909, OURS, small, not built) · exclude chat history and logs from Android system
@@ -703,7 +715,7 @@ branch, not by a bare line number (rule #773 — a line number rots).
 | C14 link previews | ⏸ DEFERRED to a later update (Damir by interview 2026-09-23, DECISIONS #931) — the sender-composed (Signal-model) design in the row stays written; nothing built | no `linkPreview` anywhere in the C# or the shell |
 | C15 link-open spoof | ✅ **LANDED 2026-09-06** — changed at this verification | see the row and security MAJOR #3 |
 | C16 remote delete not persisted | ✅ RE-READ + LANDED (Session AD, #928) | The premise was FALSE: `StreamProcessor.receiveData` calls `base.receiveData` FIRST, and Core's `handleMsgDelete` → `Friend.deleteMessage` tombstones + recomputes `lastMessage` before the app's handler runs. The real gap was the LOCAL delete never refreshing the chats row → `UIHelpers.refreshChatRow(friend)` (a lone `addChat` upsert + the refresh flag), called from the remote path AND the local `deleteMessage` context action. The shells' `spixi.exdel` hint is retired (a one-shot boot sweep removes legacy keys). CORE-10 (authorship) stays open, his |
-| C17 pending-contact state flag | ✅ LANDED (Session AD, #928) | `HomePage.loadContacts` pushes `addContact(addr, nick, avatar, online, unread, relation, kind)` — args 6–7 from `contactRelationFor` (contact · pending · pending-in · self · none) and `bot`/`group`/""; `ContactDetails.onLoad` pushes `setRelation` and gained `ixian:undorequest` (1:1 in RequestSent → `removeFriend` → `undoRequestResult`, pop on ok) so the pending pane's Cancel works from the directory |
+| C17 pending-contact state flag | ✅ LANDED (Session AD, #928) | `HomePage.loadContacts` pushes `addContact(addr, nick, avatar, online, unread, relation, kind)` — args 6–7 from `contactRelationFor` (contact · pending · pending-in · self · none) and `bot`/`group`/""; `ContactDetails.onLoad` pushes `setRelation` and gained `ixian:undorequest` (1:1 in RequestSent → `removeFriend` → `undoRequestResult`, pop on ok) so the pending pane's Cancel works from the directory — ★ **that verb and the pane's Cancel were REMOVED by Session AF #947** (Damir's ruling on AE.13); the relation push stays |
 | C18 / C18b call delivery | ✅ CLOSED — four rows merged into two at this verification | `CallPage` owns the surface |
 | C19 outgoing call bar | ✅ LANDED #270 | |
 | C20 mini-app session UX | ⛔ DROPPED for v0.9.30 (Damir 2026-09-23, #931) — app INVITES keep working; session requests = a later feature | the 4-arg `addAppRequest` push is gone from `SpixiContentPage`, as the row says |

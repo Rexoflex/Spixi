@@ -165,6 +165,7 @@ chat-modal-tip-pay-button = Оплатить
 chat-modal-tip-confirmation-body = Вы собираетесь подарить'{0}' {1}. Сумма будет списана с текущего баланса.
 chat-modal-tip-confirmed-body = Вы только что подарили '{0}' с {1}. Сумма будет списана с текущего баланса.
 chat-modal-tip-error-body = Неизвестная ошибка обнаружена при попытке отправить подарок пользователю.
+chat-modal-tip-already-body = Вы уже отправили чаевые за это сообщение.
 
 chat-bot-details-info = Информация о группе
 chat-bot-address = Адрес группы
@@ -307,6 +308,7 @@ index-excerpt-contact-request = Запрошен контакт
 index-excerpt-file = Файл
 index-excerpt-voice-call = Голосовой Вызов
 index-excerpt-self = 
+index-excerpt-you = Вы
 index-excerpt-typing = Печатает...
 index-side-settings-subtitle = Темы, язык, никнейм и данные
 index-side-password-subtitle = Изменить пароль Spixi

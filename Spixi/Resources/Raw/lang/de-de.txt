@@ -165,6 +165,7 @@ chat-modal-tip-pay-button = Bezahlen
 chat-modal-tip-confirmation-body = Sie sind dabei, {1} als Trinkgeld an '{0}' zu senden. Dieser Betrag wird von Ihrer Wallet abgezogen.
 chat-modal-tip-confirmed-body = Sie haben erfolgreich {1} als Trinkgeld an '{0}' gesendet. Der Betrag wurde von Ihrer Wallet abgezogen.
 chat-modal-tip-error-body = Ein unbekannter Fehler ist während der Spende aufgetreten.
+chat-modal-tip-already-body = Du hast für diese Nachricht bereits Trinkgeld gegeben.
 
 chat-bot-details-info = Gruppen Info
 chat-bot-address = Gruppen Adresse
@@ -307,6 +308,7 @@ index-excerpt-contact-request = Kontaktanfrage
 index-excerpt-file = Datei
 index-excerpt-voice-call = Sprachanruf
 index-excerpt-self = 
+index-excerpt-you = Du
 index-excerpt-typing = Tippt...
 index-side-settings-subtitle = Themen, Sprache, Spitzname und Daten
 index-side-password-subtitle = Spixi-Passwort ändern

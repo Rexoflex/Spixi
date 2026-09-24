@@ -1548,6 +1548,19 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+/* #965: a long picker opens just below the top bar on a phone; its list scrolls. */
+:root:not([data-desktop]) .c-sheet[data-tall] {
+  top: calc(var(--layout-bar-top) + var(--safe-top, 0px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+:root:not([data-desktop]) .c-sheet[data-tall] > .c-sheet__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 /* —— #46 loop MAJOR-3: A CLOSING SHEET MUST NOT TAKE TAPS ————————————————————
    The sheet is z-44 and every scrim is z-40, so a sheet paints above a scrim that
    opens LATER. dismissOverlay does not remove the sheet at once: it drops
@@ -7508,7 +7521,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     if (draft) return { type: 'draft', text: draft };
     const ex = excerptFromPush(raw, statusType, name, excerptKind);
     /* ★ #944: who wrote the tail of a GROUP / BOT-room row ("George: hi there").
-       C# decides WHETHER (rooms only, never an own message, never an event kind —
+       C# decides WHETHER (rooms only, never an event kind; an own tail = "You", #969 —
        HomePage.getFriendMessageHelper); this only decides HOW. A status the shell
        paints itself (typing, the request rows, the connected line) never carries
        it, whatever arrives. An address-shaped name is shortened (#211 — never a
@@ -9432,11 +9445,10 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     undoRequestResult(address, status) {
       const addr = String(address || '');
       const s = window.SL || {};
-      /* ★ #46 loop B, MAJOR-1: this answer now has TWO emitters — the chats-row revoke
-         (HomePage.onUndoRequestFor) and the request-card DECLINE
-         (HomePage.onDeclineRequest), which used to answer nothing at all. Both remove the
-         same record, so both end here; only the revoke speaks, because only the revoke
-         has no other feedback. */
+      /* ★ #46 loop B, MAJOR-1: this answer had TWO emitters — the chats-row revoke and the
+         request-card DECLINE (HomePage.onDeclineRequest). #967 DELETED the revoke (no sender
+         since #562), so the Decline is the only emitter and every answer is `silent`; the
+         spoken (non-silent) arms below are kept as a harmless fallback. */
       const silent = silentRequestRemovals.delete(addr);
       if (String(status || '') === 'ok') {
         // the pending record is gone — and so is everything this device kept under that

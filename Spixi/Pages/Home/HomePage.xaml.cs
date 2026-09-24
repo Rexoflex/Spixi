@@ -716,10 +716,6 @@ namespace SPIXI
             {
                 onSharedGroupsFor(current_url.Substring("ixian:sharedGroups:".Length));
             }
-            else if (current_url.StartsWith("ixian:undorequest:", StringComparison.Ordinal))
-            {
-                onUndoRequestFor(current_url.Substring("ixian:undorequest:".Length));
-            }
             /* ★ Session I — the L14 cover handshake's return leg. home.html sends this at the
              * second rAF after the directory takeover mounted (= on glass). No payload,
              * nothing parsed, nothing echoed. Releases the Account pop SettingsPage deferred
@@ -2990,27 +2986,41 @@ namespace SPIXI
                     }
                 }
 
-                if (lastmsg.localSender && !skipSelfPrefix)
+                /* ★ #969 (Damir, dial (d)): in a ROOM an own tail no longer bakes the
+                 * index-excerpt-self text prefix — it travels as the excerpt SENDER below
+                 * ("You: hi", the same styled span as "George: hi"). 1:1 rows keep the old
+                 * baked prefix (empty in most locales). */
+                bool isRoomRow = friend.type == FriendType.Group || friend.bot;
+                if (lastmsg.localSender && !skipSelfPrefix && !isRoomRow)
                 {
                     excerpt = SpixiLocalization._SL("index-excerpt-self") + " " + excerpt;
                 }
 
                 /* ★ #944 (Damir 2026-09-24): in a GROUP or a BOT room the row said "hi there"
                  * with no hint of WHO wrote it — the row name is the room, not the person.
-                 * Own messages already carry "You:" (above); every other member now travels
+                 * Own messages in a room travel as the localized "You" (#969, Damir's dial
+                 * (d)); every other member now travels
                  * as its own addChat argument, so the shell renders the styled
                  * c-excerpt__sender span instead of baking it into the text.
                  * ⚠ The same name the bubble shows: resolveExcerptSender mirrors
                  * SingleChatPage.resolveNick (message nick → room roster → contact list).
                  * An unresolvable sender travels as the ADDRESS and the shell shortens it
-                 * (#211 — never a full base58 in an excerpt).
+                 * (#211 — never a full base58 in an excerpt) — except in a BLIND room,
+                 * where it travels as "" (no prefix; #946).
                  * ⚠ Event kinds keep their own sentence and get NO prefix: a request, the
                  * "connected" line. Typing overrides below and clears it. */
-                if ((friend.type == FriendType.Group || friend.bot)
-                    && !lastmsg.localSender
+                if (isRoomRow
                     && excerptKind != "request" && excerptKind != "request-done" && excerptKind != "connected")
                 {
-                    excerptSender = resolveExcerptSender(friend, lastmsg);
+                    if (!lastmsg.localSender)
+                    {
+                        excerptSender = resolveExcerptSender(friend, lastmsg);
+                    }
+                    else if (!skipSelfPrefix)
+                    {
+                        // #969: an own tail in a room reads "You: …" (localized; never the nick).
+                        excerptSender = SpixiLocalization._SL("index-excerpt-you");
+                    }
                 }
             }
 
@@ -3124,7 +3134,8 @@ namespace SPIXI
          * the room's roster → the local contact list → the address (the shell shortens
          * it, #211). An own message never reaches here (the caller skips localSender),
          * and a message from this wallet on another device returns "" rather than the
-         * local nick, because "You:" is the row's own grammar for that. */
+         * local nick: the caller names an own room tail with the localized "You" instead
+         * (#969, index-excerpt-you). A BLIND room never returns an address. */
         private static string resolveExcerptSender(Friend friend, FriendMessage msg)
         {
             try
@@ -3151,6 +3162,14 @@ namespace SPIXI
                 if (contact != null && !string.IsNullOrEmpty(contact.nickname))
                 {
                     return contact.nickname;
+                }
+                /* ★ Session AF (#946, review E-1): a BLIND room never shows an address — the
+                 * bubble's ladder renders "Hidden member" there (#369), and on the owner's
+                 * device this address is the member's REAL one. Fails closed like CH8's
+                 * reactor push: a room whose info has not arrived counts as blind. */
+                if (Utils.hidesParticipants(friend))
+                {
+                    return "";
                 }
                 return addr.ToString();
             }
@@ -5735,52 +5754,9 @@ namespace SPIXI
             updateScreen();
         }
 
-        /* ★ Batch B (#543) B1 — REVOKE an OUTGOING pending contact request from the chats
-         * list: the address-scoped twin of SingleChatPage's `ixian:undorequest` (xaml:414:
-         * FriendList.removeFriend, no notification to the other party — "TODO" there since
-         * the legacy). Guarded to the outgoing-pending shape the "Request sent" row is built
-         * from (updateChat: the last message is MY requestAdd and they have not accepted):
-         * anything else answers "fail" and the shell un-tombstones the row. The peer is NOT
-         * told (the protocol has no withdraw verb — RC1, BE): the shell's copy says so. */
-        private void onUndoRequestFor(string address)
-        {
-            string status = "fail";
-            string addr = "";
-            try
-            {
-                addr = (address ?? "").Trim();
-                Friend? f = FriendList.getFriend(new Address(addr));
-                if (f != null && !f.bot && f.type != FriendType.Group)
-                {
-                    /* ★ loop r1 (the #399 lesson, caught again): `approved` DEFAULTS TRUE and
-                     * every OUTGOING request site never clears it (Friend.cs:233 `approve = true`;
-                     * ContactNewPage:256 / SpixiContentPage:3129 pass state only) — a `!approved`
-                     * guard is DEAD for the exact rows this verb serves. The real signal is the
-                     * STATE the outgoing sites set and the "Waiting for response" row is built
-                     * from (HomePage:2122 `state != Approved`): FriendState.RequestSent. */
-                    bool outgoingPending = f.state == FriendState.RequestSent;
-                    if (outgoingPending && FriendList.removeFriend(f))
-                    {
-                        UIHelpers.shouldRefreshContacts = true;
-                        SChatPrefs.setFavorite(f.walletAddress.ToString(), false);   // CH4: the preference leaves with the record
-                        status = "ok";
-                        var chat_page = Utils.getChatPage(f);
-                        if (chat_page != null)
-                        {
-                            try { chat_page.popPageAsync(); } catch (Exception) { }
-                        }
-                    }
-                }
-            }
-            catch (Exception)
-            {
-                Logging.error("ixian:undorequest failed (malformed payload or address)");   // no ex.Message — carries the token
-            }
-            try { Utils.sendUiCommand(this, "undoRequestResult", addr, status); } catch (Exception) { }
-            UIHelpers.shouldRefreshContacts = true;   // loop r2 R2-3: the refused revoke's row must come back on THIS flush
-            updateScreen();
-        }
-
+        /* #967 (Damir, dial (a)): the B1 revoke verb `ixian:undorequest:<address>` and its
+         * handler onUndoRequestFor are DELETED — no shell has sent it since #562 made the
+         * outgoing "Request sent" row HIDE instead of remove (#947 removed the ContactDetails twin). */
         // A4/A5: read-only — the groups both of you are in, as name/address pairs.
         private void onSharedGroupsFor(string address)
         {
@@ -5838,7 +5814,7 @@ namespace SPIXI
              * Declining removed the friend and pushed nothing, so the shell kept every
              * localStorage key that carries this address. `undoRequestResult` is the command
              * name this class already uses for the same outcome on the same record
-             * (onUndoRequestFor) — a second call site, not a new push. The address is echoed
+             * (the B1 revoke, deleted by #967) — a second call site, not a new push. The address is echoed
              * exactly as the shell sent it, so the shell can match its own emit.
              * ⚠ The status reports the LOCAL removal only. "fail" sweeps nothing. */
             try { Utils.sendUiCommand(this, "undoRequestResult", addr, status); } catch (Exception) { }

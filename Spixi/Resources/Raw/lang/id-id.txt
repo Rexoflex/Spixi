@@ -165,6 +165,7 @@ chat-modal-tip-pay-button = Bayar
 chat-modal-tip-confirmation-body = Anda akan memberi tip '{0}' {1}. Jumlah ini akan dipotong dari dompet Anda.
 chat-modal-tip-confirmed-body = Anda baru saja memberi tip '{0}' dengan {1}. Jumlah tersebut telah dipotong dari dompet Anda. 
 chat-modal-tip-error-body = Terjadi kesalahan tidak dikenal saat mencoba memberi tip kepada pengguna.
+chat-modal-tip-already-body = Anda sudah memberi tip untuk pesan ini.
 
 chat-bot-details-info = Info Bot
 chat-bot-address = Alamat Bot
@@ -305,6 +306,7 @@ index-excerpt-contact-request = Permintaan Kontak
 index-excerpt-file = Berkas
 index-excerpt-voice-call = Panggilan Suara
 index-excerpt-self = Saya:
+index-excerpt-you = Anda
 index-excerpt-typing = Mengetik...
 index-side-settings-subtitle = Tema, bahasa, nama panggilan, dan data
 index-side-password-subtitle = Ubah kata sandi Spixi

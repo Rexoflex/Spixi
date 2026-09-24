@@ -49,7 +49,7 @@
 | Q15 | @-mention list scrollbar clunky | **✅ #252** — picker rides `.u-scroll` (#41) |
 | Q16 | Delete account: wipe all data + land on welcome | Verify C# `ixian:delete*` flows actually purge + navigate; likely **BE** (settings danger zone) — add to S-rows after F5 check |
 | Q17 | Restore flow: skip backup nudge; community node when connected | Onboarding tail logic — C# knows restored-vs-created (L-row family); **BE L** amend |
-| Q18 | Reject contact request → row returns with request | **BE CH2 amend**: `declineRequest` removes the friend but the counterpart's pending request re-adds on next contact; needs a decline tombstone/ignore list C#-side |
+| Q18 | Reject contact request → row returns with request | **BE CH2 amend**: `declineRequest` removes the friend but the counterpart's pending request re-adds on next contact; needs a decline tombstone/ignore list C#-side · **re-confirmed on device 2026-09-24 (walk AF2 AF.3, #970)** |
 
 ## Suggested batch order (small, review-friendly)
 

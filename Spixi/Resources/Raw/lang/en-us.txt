@@ -165,6 +165,7 @@ chat-modal-tip-pay-button = Pay
 chat-modal-tip-confirmation-body = You are about to tip '{0}' {1}. This amount will be deducted from your wallet.
 chat-modal-tip-confirmed-body = You have just tipped '{0}' with {1}. The amount has been deducted from your wallet.
 chat-modal-tip-error-body = An unknown error occurred while sending your tip.
+chat-modal-tip-already-body = You already tipped this message.
 
 chat-bot-details-info = Group Info
 chat-bot-address = Group Address
@@ -307,6 +308,7 @@ index-excerpt-contact-request = Contact Request
 index-excerpt-file = File
 index-excerpt-voice-call = Voice Call
 index-excerpt-self = 
+index-excerpt-you = You
 index-excerpt-typing = Typing...
 index-side-settings-subtitle = Appearance, language, nick, and data
 index-side-password-subtitle = Change Spixi password

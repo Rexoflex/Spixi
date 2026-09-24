@@ -100,6 +100,21 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 .c-member__copy:active { background: var(--surface-interactive-pressed); }
 
 .c-member__request { margin-top: var(--spacing-8); align-self: stretch; }
+/* capability-injected admin actions (#141: Remove / Ban from group).
+   ★ Session AF (#948): moved here from chat-info.css — chat.html never loaded that file, so
+   the in-chat sheet had no rule (hugging, no gap). STACKED, full width, --spacing-8 apart:
+   the #150② two-up split clips "Ban from group" at phone width (rendered,
+   docs/sheets/session-af/member-actions-sheet.png); stacked reads the same at every width
+   and matches the sheet's other full-width actions. The sheet centres its children, so the
+   row must claim the width itself. */
+.c-member__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  margin-top: var(--spacing-8);
+  align-self: stretch;
+  width: 100%;          /* a column flex STRETCHES its buttons — no per-button width (measured: 333/333 of 333) */
+}
 .c-member__relation { margin-top: var(--spacing-4); }
 
 /* —— blind-group state: identity withheld by design —— */

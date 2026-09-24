@@ -168,7 +168,7 @@
   <div class="facts"><span class="fact">records <b>#915 · #919</b></span><span class="fact">C# changed <b>YES — first compile of 3 files + the extension project</b></span><span class="fact">portal <b>4 steps, all Damir</b></span><span class="fact">the one question <b>iO.7: nothing, or a blank row?</b></span></div>
 </header>
 <div class="tally">
-  <span class="score" id="score">— / 31</span>
+  <span class="score" id="score">— / 39</span>
   <span class="score" style="color:var(--p)">P <i id="cp">0</i></span>
   <span class="score" style="color:var(--f)">F <i id="cf">0</i></span>
   <span class="score" style="color:var(--n)">N/A <i id="cn">0</i></span>
@@ -211,6 +211,12 @@
 <section>
   <p>Not blocking the testing build.</p>
   <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s5"></tbody></table>
+</section>
+
+<h2><span class="num">§6</span> Sessions AE–AF on the iPhone (walked on Windows/Android only)</h2>
+<section>
+  <p>These passed on Windows and the Motorola. This is their iPhone leg. You need a group with a few messages, one message with a ❤, and a second device for iAF.7.</p>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s6"></tbody></table>
 </section>
 
 </main>
@@ -387,6 +393,16 @@
       "OPTIONAL, only if time is left and the iPhone walk is DONE (#916 / #920 route B): the Mac Catalyst build per Spixi/Platforms/MacCatalyst/NativeLibraries/README.md (make the stamped dylib first — the maccatalyst TFM no longer restores the public package, the README has the download line)",
       "the app BOOTS past RocksDBStorage.prepareStorageInternal on the Mac (the July crash was the wrapper misreading Catalyst as Windows; the vtool stamp has never been tested at load time — this run is that test). A compile error INSIDE Platforms/MacCatalyst/RocksDbSharp/ is a vendoring finding; anywhere else is the app's. Anything past boot is a finding for the next session, not today's job."
     ]
+  ],
+  "s6": [
+    ["iAF.1","#944 · #969 — the chats list: a group where someone else sent last, then a group where YOU sent last","\"George: hi\" and \"You: hi\" in the same styled prefix; a missed call in a group has no prefix; a 1:1 row has no prefix."],
+    ["iAF.2","#965 — Account → Language","the sheet opens just below the top bar; if the list does not fit (small iPhone, or larger text), a thin scrollbar is VISIBLE before you touch it."],
+    ["iAF.3","#966 — a message with a ❤ at rest, then scrolled slowly under the composer","the pill sits clear of the text; under the composer it fades with its bubble, never cut off at a hard edge."],
+    ["iAF.4","#963 — long-press → Select; tick a tall message and a one-line message","the circle is level with the first text line; the tick is inside the circle."],
+    ["iAF.5","#968 — a contact's Chat info (Groups in common, Payments, actions) and a group's member list","no lines between rows inside a card; a line only under the search field / payments toggle."],
+    ["iAF.6","#948 — a bot room where you are admin → tap a member","Remove / Ban are full-width, stacked, with a gap."],
+    ["iAF.7","#950 — tip a message, then tip the SAME message again","the second tip is refused with \"You already tipped this message.\" BEFORE any payment dialog."],
+    ["iAF.8","#947 — send a request to a new address → open that contact's profile","no Cancel request button; the \"Request sent\" badge shows."]
   ]
 };
 

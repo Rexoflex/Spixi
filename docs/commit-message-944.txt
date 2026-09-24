@@ -1,0 +1,25 @@
+#944 group/bot-room excerpt names its sender · AE walk logged (#945) · Session AF ordered
+
+#944 (Damir, during the AE walk): a group row said "Hi there" with no hint of who wrote it.
+The component already rendered a sender; the shell never passed one; C# never sent one.
+- HomePage.getFriendMessageHelper: out excerptSender — group or bot room only, never an own
+  message, never an event kind (request / request-done / connected), cleared by typing.
+- New resolveExcerptSender: the bubble's own name order (message nick → room roster →
+  contact list → address); another device of this wallet → "" ("You:" is that grammar);
+  a throw logs the exception type only.
+- Both addChat pushes carry it as the 12th argument, appended last (older shells ignore it).
+- home.html excerptFor: never on typing/draft/request/connected; address → truncated (#211).
+- chatlist-item: the sender leads the glyph; the name ellipsizes, the colon stays.
+- 10 smoke pins (7 on the built shell through the base64 wire, 3 C# by property);
+  4 C# mutations killed. Gates green. C# changed → F5 + Android deploy. UNWALKED.
+
+#945: Session AE walked 13 pass · 3 fail · 3 n/a. Logged for Session AF: remove "Cancel request"
+from contact details / chat info (+ the receiveData:1260 NRE as a CORE-13 sibling) · the
+member-sheet admin buttons (no .c-member__actions rule) · no hairlines inside a group ·
+duplicate-tip "Unknown error" · the reaction pill at the composer band.
+
+Docs: handoff-2026-09-24.md (new entry point) · next-session-prompt.md · ARCHITECTURE §4 ·
+security-handover-gate #944 · AE verdict into its checklist · four AE docs + 09-23c → archive.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_012kFKB7osg5xdnKGJnNLXGk

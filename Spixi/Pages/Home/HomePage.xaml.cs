@@ -2811,9 +2811,10 @@ namespace SPIXI
             return true;
         }
 
-        private FriendMessageHelper? getFriendMessageHelper(Friend friend, out string excerptKind)
+        private FriendMessageHelper? getFriendMessageHelper(Friend friend, out string excerptKind, out string excerptSender)
         {
             excerptKind = "text";
+            excerptSender = "";   // #944: the group/bot-room tail's sender ("George: hi"); "" = no prefix
             FriendMessage? lastmsg = friend.metaData.lastMessage;
 
             if (lastmsg == null)
@@ -2993,6 +2994,24 @@ namespace SPIXI
                 {
                     excerpt = SpixiLocalization._SL("index-excerpt-self") + " " + excerpt;
                 }
+
+                /* ★ #944 (Damir 2026-09-24): in a GROUP or a BOT room the row said "hi there"
+                 * with no hint of WHO wrote it — the row name is the room, not the person.
+                 * Own messages already carry "You:" (above); every other member now travels
+                 * as its own addChat argument, so the shell renders the styled
+                 * c-excerpt__sender span instead of baking it into the text.
+                 * ⚠ The same name the bubble shows: resolveExcerptSender mirrors
+                 * SingleChatPage.resolveNick (message nick → room roster → contact list).
+                 * An unresolvable sender travels as the ADDRESS and the shell shortens it
+                 * (#211 — never a full base58 in an excerpt).
+                 * ⚠ Event kinds keep their own sentence and get NO prefix: a request, the
+                 * "connected" line. Typing overrides below and clears it. */
+                if ((friend.type == FriendType.Group || friend.bot)
+                    && !lastmsg.localSender
+                    && excerptKind != "request" && excerptKind != "request-done" && excerptKind != "connected")
+                {
+                    excerptSender = resolveExcerptSender(friend, lastmsg);
+                }
             }
 
             string? avatar = IxianHandler.localStorage.getAvatarPath(friend.walletAddress.ToString());
@@ -3012,6 +3031,7 @@ namespace SPIXI
             if (friend.isTyping)
             {
                 excerpt = SpixiLocalization._SL("index-excerpt-typing");
+                excerptSender = "";   // #944: the typing line is not the tail message — no sender prefix
                 type = "typing";
                 excerptKind = "typing";   // CH6: typing outranks every kind above (the shell's first test)
             }
@@ -3098,11 +3118,55 @@ namespace SPIXI
             return helper_msg;
         }
 
+        /* #944 — the name a group/bot-room excerpt shows for the tail's sender. The SAME
+         * order SingleChatPage.resolveNick uses for the bubble, so the list and the
+         * conversation never name one person two ways: the nick the message carries →
+         * the room's roster → the local contact list → the address (the shell shortens
+         * it, #211). An own message never reaches here (the caller skips localSender),
+         * and a message from this wallet on another device returns "" rather than the
+         * local nick, because "You:" is the row's own grammar for that. */
+        private static string resolveExcerptSender(Friend friend, FriendMessage msg)
+        {
+            try
+            {
+                Address? addr = msg.senderAddress;
+                if (addr != null && addr.SequenceEqual(IxianHandler.primaryWalletAddress))
+                {
+                    return "";
+                }
+                if (!string.IsNullOrEmpty(msg.senderNick))
+                {
+                    return msg.senderNick;
+                }
+                if (addr == null)
+                {
+                    return "";
+                }
+                var rosterNick = friend.users?.getUser(addr)?.getNick();
+                if (!string.IsNullOrEmpty(rosterNick))
+                {
+                    return rosterNick;
+                }
+                var contact = FriendList.getFriend(addr);
+                if (contact != null && !string.IsNullOrEmpty(contact.nickname))
+                {
+                    return contact.nickname;
+                }
+                return addr.ToString();
+            }
+            catch (Exception e)
+            {
+                // A name is decoration — a failure must never cost the row.
+                Logging.warn("resolveExcerptSender: {0}", e.GetType().Name);
+                return "";
+            }
+        }
+
         public void updateChat(Friend friend)
         {
             lock (refreshLock)
             {
-                var fmh = getFriendMessageHelper(friend, out string excerptKind);
+                var fmh = getFriendMessageHelper(friend, out string excerptKind, out string excerptSender);
                 if (fmh == null)
                 {
                     return;
@@ -3121,8 +3185,8 @@ namespace SPIXI
                 }
 
                 // CH1: trailing chat kind (group/bot/1:1) · CH5: unread @-mention flag ·
-                // CH6: the excerpt kind. New args go LAST — never reorder.
-                Utils.sendUiCommand(this, "addChat", fmh.walletAddress, fmh.nickname, fmh.timestamp.ToString(), fmh.avatar, fmh.onlineString, fmh.excerpt, fmh.type, fmh.unreadCount.ToString(), friend.bot ? "bot" : (friend.type == FriendType.Group ? "group" : ""), hasUnreadMention(friend).ToString(), excerptKind);
+                // CH6: the excerpt kind · #944: the excerpt sender. New args go LAST — never reorder.
+                Utils.sendUiCommand(this, "addChat", fmh.walletAddress, fmh.nickname, fmh.timestamp.ToString(), fmh.avatar, fmh.onlineString, fmh.excerpt, fmh.type, fmh.unreadCount.ToString(), friend.bot ? "bot" : (friend.type == FriendType.Group ? "group" : ""), hasUnreadMention(friend).ToString(), excerptKind, excerptSender);
             }
         }
 
@@ -3285,6 +3349,8 @@ namespace SPIXI
                 Dictionary<string, bool> mention_flags = new Dictionary<string, bool>();
                 // CH6: excerpt kind per wallet address (same reason as chat_kinds)
                 Dictionary<string, string> excerpt_kinds = new Dictionary<string, string>();
+                // #944: excerpt sender per wallet address (same reason as chat_kinds)
+                Dictionary<string, string> excerpt_senders = new Dictionary<string, string>();
 
                 foreach (Friend friend in friends)
                 {
@@ -3293,7 +3359,7 @@ namespace SPIXI
                         continue;
                     }
 
-                    var helper_msg = getFriendMessageHelper(friend, out string excerptKind);
+                    var helper_msg = getFriendMessageHelper(friend, out string excerptKind, out string excerptSender);
                     if (helper_msg == null)
                     {
                         continue;
@@ -3317,6 +3383,7 @@ namespace SPIXI
                     chat_kinds[helper_msg.walletAddress] = friend.bot ? "bot" : (friend.type == FriendType.Group ? "group" : "");
                     mention_flags[helper_msg.walletAddress] = hasUnreadMention(friend);
                     excerpt_kinds[helper_msg.walletAddress] = excerptKind;
+                    excerpt_senders[helper_msg.walletAddress] = excerptSender;
                 }
 
                 // Sort the helper messages
@@ -3327,8 +3394,8 @@ namespace SPIXI
                 // Add the messages visually
                 foreach (FriendMessageHelper helper_msg in sorted_msgs)
                 {
-                    // CH1: trailing chat kind · CH5: mention flag · CH6: excerpt kind. New args go LAST — never reorder.
-                    Utils.sendUiCommand(this, "addChat", helper_msg.walletAddress, helper_msg.nickname, helper_msg.timestamp.ToString(), helper_msg.avatar, helper_msg.onlineString, helper_msg.excerpt, helper_msg.type, helper_msg.unreadCount.ToString(), chat_kinds[helper_msg.walletAddress], mention_flags[helper_msg.walletAddress].ToString(), excerpt_kinds[helper_msg.walletAddress]);
+                    // CH1: trailing chat kind · CH5: mention flag · CH6: excerpt kind · #944: excerpt sender. New args go LAST — never reorder.
+                    Utils.sendUiCommand(this, "addChat", helper_msg.walletAddress, helper_msg.nickname, helper_msg.timestamp.ToString(), helper_msg.avatar, helper_msg.onlineString, helper_msg.excerpt, helper_msg.type, helper_msg.unreadCount.ToString(), chat_kinds[helper_msg.walletAddress], mention_flags[helper_msg.walletAddress].ToString(), excerpt_kinds[helper_msg.walletAddress], excerpt_senders[helper_msg.walletAddress]);
                 }
 
                 // CH2: incoming contact requests (newest first) — the FE renders these as

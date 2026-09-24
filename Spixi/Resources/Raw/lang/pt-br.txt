@@ -165,6 +165,7 @@ chat-modal-tip-pay-button = Pagar
 chat-modal-tip-confirmation-body = Você está prestes a enviar uma gorjeta de {1} para '{0}'. O valor será deduzido da sua carteira.
 chat-modal-tip-confirmed-body = Você enviou com sucesso uma gorjeta de {1} para '{0}'. O valor foi deduzido da sua carteira.
 chat-modal-tip-error-body = Ocorreu um erro desconhecido ao enviar a gorjeta.
+chat-modal-tip-already-body = Você já deu uma gorjeta por esta mensagem.
 
 chat-bot-details-info = Informações do grupo
 chat-bot-address = Endereço do grupo
@@ -307,6 +308,7 @@ index-excerpt-contact-request = Pedido de contato
 index-excerpt-file = Arquivo
 index-excerpt-voice-call = Chamada de voz
 index-excerpt-self = 
+index-excerpt-you = Você
 index-excerpt-typing = Digitando...
 index-side-settings-subtitle = Temas, idioma, apelido e dados
 index-side-password-subtitle = Alterar senha do Spixi

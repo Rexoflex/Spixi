@@ -1067,9 +1067,11 @@ export function createGroupSetup({
  * until accepted (accepted contacts open the full createChatInfo
  * context:'contact' profile instead).
  *
- * ONE action: Cancel request → onCancelRequest(ctrl). Bridge: ixian:undorequest
- * already REMOVES the friend (FriendList.removeFriend, bridge-audit-A.md:86) —
- * a separate Remove row would duplicate it.
+ * At most ONE action: Cancel request → onCancelRequest(ctrl), rendered ONLY when the
+ * caller passes onCancelRequest (a dead control is worse than a missing one).
+ * ★ Session AF (#947): production (contact_details.html) passes none — Damir ruled the
+ * action off the profile (AE.13); the demo still passes one. Bridge, where used:
+ * ixian:undorequest REMOVES the friend (FriendList.removeFriend, bridge-audit-A.md:86).
  */
 export function createPendingContact({
   name = '', address = '', avatar = null, onCancelRequest, onBack, strings = getStrings(),
@@ -1113,6 +1115,8 @@ export function createPendingContact({
   body.append(hero);
   el.append(body);
 
+  if (typeof onCancelRequest !== 'function') return el;   // #947: no action → no footer, no button
+
   const footer = document.createElement('div');
   footer.className = 'c-contacts__footer';
   const cancelBtn = createButton({
@@ -1138,7 +1142,7 @@ export function createPendingContact({
       },
     );
     try {
-      if (onCancelRequest) onCancelRequest(ctrl); else ctrl.done();
+      onCancelRequest(ctrl);
     } catch { ctrl.fail(); }                            // #141-m4
   });
 

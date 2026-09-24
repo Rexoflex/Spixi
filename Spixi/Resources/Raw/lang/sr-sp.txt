@@ -165,6 +165,7 @@ chat-modal-tip-pay-button = Plati
 chat-modal-tip-confirmation-body = Poslaćete '{0}' IXI u iznosu od {1}. Iznos će biti oduzet od vašeg novčanika.
 chat-modal-tip-confirmed-body = Uspešno ste poslali IXI korisniku '{0}' u iznosu od {1}. Iznos je oduzet iz vašeg novčanika.
 chat-modal-tip-error-body = Došlo je do nepoznate greške prilikom slanja napojnice.
+chat-modal-tip-already-body = Već ste poslali napojnicu za ovu poruku.
 
 chat-bot-details-info = Podaci o grupi
 chat-bot-address = Adresa grupe
@@ -307,6 +308,7 @@ index-excerpt-contact-request = Zahtev za kontakt
 index-excerpt-file = Datoteka
 index-excerpt-voice-call = Poziv
 index-excerpt-self = 
+index-excerpt-you = Vi
 index-excerpt-typing = Piše...
 index-side-settings-subtitle = Teme, jezik, nadimak i podaci
 index-side-password-subtitle = Promeni Spixi šifru

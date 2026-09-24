@@ -2104,7 +2104,7 @@
     if (draft) return { type: 'draft', text: draft };
     const ex = excerptFromPush(raw, statusType, name, excerptKind);
     /* ★ #944: who wrote the tail of a GROUP / BOT-room row ("George: hi there").
-       C# decides WHETHER (rooms only, never an own message, never an event kind —
+       C# decides WHETHER (rooms only, never an event kind; an own tail = "You", #969 —
        HomePage.getFriendMessageHelper); this only decides HOW. A status the shell
        paints itself (typing, the request rows, the connected line) never carries
        it, whatever arrives. An address-shaped name is shortened (#211 — never a
@@ -4028,11 +4028,10 @@
     undoRequestResult(address, status) {
       const addr = String(address || '');
       const s = window.SL || {};
-      /* ★ #46 loop B, MAJOR-1: this answer now has TWO emitters — the chats-row revoke
-         (HomePage.onUndoRequestFor) and the request-card DECLINE
-         (HomePage.onDeclineRequest), which used to answer nothing at all. Both remove the
-         same record, so both end here; only the revoke speaks, because only the revoke
-         has no other feedback. */
+      /* ★ #46 loop B, MAJOR-1: this answer had TWO emitters — the chats-row revoke and the
+         request-card DECLINE (HomePage.onDeclineRequest). #967 DELETED the revoke (no sender
+         since #562), so the Decline is the only emitter and every answer is `silent`; the
+         spoken (non-silent) arms below are kept as a harmless fallback. */
       const silent = silentRequestRemovals.delete(addr);
       if (String(status || '') === 'ok') {
         // the pending record is gone — and so is everything this device kept under that

@@ -2292,6 +2292,19 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+/* #965: a long picker opens just below the top bar on a phone; its list scrolls. */
+:root:not([data-desktop]) .c-sheet[data-tall] {
+  top: calc(var(--layout-bar-top) + var(--safe-top, 0px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+:root:not([data-desktop]) .c-sheet[data-tall] > .c-sheet__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 /* —— #46 loop MAJOR-3: A CLOSING SHEET MUST NOT TAKE TAPS ————————————————————
    The sheet is z-44 and every scrim is z-40, so a sheet paints above a scrim that
    opens LATER. dismissOverlay does not remove the sheet at once: it drops
@@ -2550,11 +2563,13 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    overhang so the next row never collides (data-reactions="overlap"). —— */
 .c-reactions[data-placement="overlap"] {
   position: absolute;
-  inset-block-end: calc(-1 * var(--spacing-12));
+  /* #966 (Damir, AF walk): LOWER — the pill (≈22 px) overlapped the bubble by ~10 px and
+     crowded the last text line; it now hangs 18 px, so only ~4 px sit on the bubble. */
+  inset-block-end: calc(-1 * (var(--spacing-16) + var(--spacing-2)));
 }
 .c-bubble-row[data-direction="received"] .c-reactions[data-placement="overlap"] { inset-inline-start: var(--spacing-8); }
 .c-bubble-row[data-direction="sent"] .c-reactions[data-placement="overlap"] { inset-inline-end: var(--spacing-8); }
-.c-bubble-row[data-reactions="overlap"] { margin-bottom: var(--spacing-16); } /* overhang reserve · ★ Session AE (#940): a MARGIN on purpose — the composer fade masks the ROW and a mask paints nothing outside the border box, so the pill's 12 px overhang pops rather than dissolves the frame the row's bottom crosses the bar; the alternative (padding) moved the select-mode tick 8 px off its disc (round-2 MAJOR-1) — the pop is the recorded residual */
+.c-bubble-row[data-reactions="overlap"] { padding-bottom: var(--spacing-20); } /* overhang reserve · ★ #966 (Damir, AF walk — #951 option B): PADDING, not margin. The composer fade masks the ROW and a mask paints nothing outside the border box, so with a margin the pill hung outside the box and showed CROPPED under the composer; inside the box it dissolves with its bubble. The #940 round-2 cost (the select tick 8 px off its disc) is gone since #963 — the circle and tick are measured from the row TOP, which padding-bottom does not move. */
 /* ★ Session I (Damir's walk): on an emoji-only STICKER the meta sits in a chip at the
    bottom-right — exactly where the overlap pill lands — so the pill covered the time.
    On a sticker the pill goes to the OTHER bottom corner (inline-start), both directions;
@@ -3297,7 +3312,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 [data-selecting] .c-bubble-row[role="checkbox"]::before {
   content: '';
   flex: none;
-  align-self: center;
+  /* ★ #963 (Damir, AF walk): TOP-aligned, not centred. The circle centres on the
+     FIRST text line (a one-line bubble is 32 px, the circle 24 px -> 4 px down), so a
+     one-line bubble looks as before and a tall bubble keeps its circle at the top. */
+  align-self: flex-start;
+  margin-top: var(--spacing-4);
   width: var(--size-avatar-24);
   height: var(--size-avatar-24);
   margin-inline-end: var(--spacing-8);
@@ -3329,7 +3348,9 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   content: '';
   position: absolute;
   inset-inline-start: calc(var(--bubble-row-inset, var(--spacing-16)) + 6px);
-  top: 50%;
+  /* #963: the tick follows the circle — its centre = the circle's margin-top + half
+     its size, so a change to either moves both. */
+  top: calc(var(--spacing-4) + var(--size-avatar-24) / 2);
   width: 10px;
   height: 5px;
   border-left: var(--outline-width-2) solid var(--icon-select-check, var(--icon-neutral-on-action));
@@ -4152,6 +4173,21 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 .c-member__copy:active { background: var(--surface-interactive-pressed); }
 
 .c-member__request { margin-top: var(--spacing-8); align-self: stretch; }
+/* capability-injected admin actions (#141: Remove / Ban from group).
+   ★ Session AF (#948): moved here from chat-info.css — chat.html never loaded that file, so
+   the in-chat sheet had no rule (hugging, no gap). STACKED, full width, --spacing-8 apart:
+   the #150② two-up split clips "Ban from group" at phone width (rendered,
+   docs/sheets/session-af/member-actions-sheet.png); stacked reads the same at every width
+   and matches the sheet's other full-width actions. The sheet centres its children, so the
+   row must claim the width itself. */
+.c-member__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  margin-top: var(--spacing-8);
+  align-self: stretch;
+  width: 100%;          /* a column flex STRETCHES its buttons — no per-button width (measured: 333/333 of 333) */
+}
 .c-member__relation { margin-top: var(--spacing-4); }
 
 /* —— blind-group state: identity withheld by design —— */
@@ -8615,6 +8651,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    * :1900-1904 pushes "0" the moment the state flips to Approved — an EXPLICIT
    * unlock, chosen over inferring from the accepted-system-message or the
    * showCallButton side-channel (states, not messages; codec-independent).
+   * ⚠ SUPERSEDED by #562 (the strip HIDES now — see the note in the strip below);
+   * the two lines about "THE CANCEL" and "waiting strip + Cancel" are history.
    * THE CANCEL: ixian:undorequest (xaml:353 — removeFriend + pop + clear detail
    * pane; already the incoming-decline verb). No confirm on Cancel: it's
    * reversible (re-send the request) and ⑩ just made Decline single-click —

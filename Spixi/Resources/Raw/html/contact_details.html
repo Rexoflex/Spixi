@@ -758,6 +758,19 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+/* #965: a long picker opens just below the top bar on a phone; its list scrolls. */
+:root:not([data-desktop]) .c-sheet[data-tall] {
+  top: calc(var(--layout-bar-top) + var(--safe-top, 0px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+:root:not([data-desktop]) .c-sheet[data-tall] > .c-sheet__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 /* —— #46 loop MAJOR-3: A CLOSING SHEET MUST NOT TAKE TAPS ————————————————————
    The sheet is z-44 and every scrim is z-40, so a sheet paints above a scrim that
    opens LATER. dismissOverlay does not remove the sheet at once: it drops
@@ -1222,16 +1235,22 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    a shade under iOS's ~1.30 separator on white), dark neutral-600 (1.187 — ink-600 on ink-800
    after #884 ②; the 1.223 above was the grey step). The Account hub's in-card hairline reads
    the same role (#882 (b) — its -01 was invisible in dark). */
-.c-chat-info__card > * + *,
-.c-chat-info__member-list > * + *,
-.c-chat-info__member-fill > * + *,
-.c-chat-info__shared-list > * + *,
-.c-chat-info__txs-list > * + * { position: relative; }
-.c-chat-info__card > * + *::after,
-.c-chat-info__member-list > * + *::after,
-.c-chat-info__member-fill > * + *::after,
-.c-chat-info__shared-list > * + *::after,
-.c-chat-info__txs-list > * + *::after {
+/* ★ Session AF (#949, Damir on the AE walk): the MEMBER roster (member-list + member-fill)
+   draws NO line between members — the card edge groups them; it was noise. The line ABOVE the
+   list (search field → first row, `.c-chat-info__card > .c-chat-info__member-list::after`)
+   stays: that separates two different families. (#968 widened this to every row family.) */
+/* ★ #968 (Damir, dial (c)): the rule is now "no line between rows of the SAME card"
+   everywhere on this surface — action rows, Groups in common and Payments join the roster.
+   What STAYS is the line where two different FAMILIES meet: a list container under the
+   search field or the payments toggle, and the "View all" button under the tx rows. */
+.c-chat-info__card > * + .c-chat-info__member-list,
+.c-chat-info__card > * + .c-chat-info__shared-list,
+.c-chat-info__card > * + .c-chat-info__txs-list,
+.c-chat-info__txs-list > * + .c-chat-info__txs-all { position: relative; }
+.c-chat-info__card > * + .c-chat-info__member-list::after,
+.c-chat-info__card > * + .c-chat-info__shared-list::after,
+.c-chat-info__card > * + .c-chat-info__txs-list::after,
+.c-chat-info__txs-list > * + .c-chat-info__txs-all::after {
   content: '';
   position: absolute;
   top: 0;
@@ -1794,17 +1813,11 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   font-size: var(--font-size-body-sm);
 }
 
-/* member-sheet injected actions (#141) — lives here: the opt only exists for
-   chat-info's admin path today */
-.c-member__actions {
-  display: flex;
-  gap: var(--spacing-8);
-  margin-top: var(--spacing-8);
-  width: 100%;                      /* #150②: the sheet centers its children — the
-                                       hugging row made Kick/Ban read smaller than
-                                       Pay/Request; span the row, flex:1 splits it */
-}
-.c-member__actions > .c-button { flex: 1; }
+/* ★ Session AF (#948): `.c-member__actions` MOVED to member-sheet.css. It lived here while
+   only chat-info opened the sheet with admin actions; the in-chat member sheet (chat.html,
+   which has not linked this file since #882 (c)) got no rule at all — Remove / Ban hugged
+   their labels side by side with no gap (Damir, AE walk). A component's classes belong in
+   the component's own stylesheet. */
 
 /* ★ A8 (Batch A 2026-08-24): skeleton rows while the roster / shared-groups pushes
    land. Neutral wash, a slow shimmer (off under reduced motion), never interactive.
@@ -2654,6 +2667,21 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 .c-member__copy:active { background: var(--surface-interactive-pressed); }
 
 .c-member__request { margin-top: var(--spacing-8); align-self: stretch; }
+/* capability-injected admin actions (#141: Remove / Ban from group).
+   ★ Session AF (#948): moved here from chat-info.css — chat.html never loaded that file, so
+   the in-chat sheet had no rule (hugging, no gap). STACKED, full width, --spacing-8 apart:
+   the #150② two-up split clips "Ban from group" at phone width (rendered,
+   docs/sheets/session-af/member-actions-sheet.png); stacked reads the same at every width
+   and matches the sheet's other full-width actions. The sheet centres its children, so the
+   row must claim the width itself. */
+.c-member__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  margin-top: var(--spacing-8);
+  align-self: stretch;
+  width: 100%;          /* a column flex STRETCHES its buttons — no per-button width (measured: 333/333 of 333) */
+}
 .c-member__relation { margin-top: var(--spacing-4); }
 
 /* —— blind-group state: identity withheld by design —— */
@@ -4688,7 +4716,6 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     // ★ C17 (Session AD): the relation C# pushes (contactRelationFor): contact · pending ·
     // pending-in · self · none · '' (not yet / a room). 'pending' = OUR request is out.
     relation: '',
-    undoCtrl: null,      // the pending profile's Cancel ctrl, resolved by undoRequestResult
     // #248 GROUP surface: ContactDetails now carries group info too (setGroupInfo +
     // clearMembers/addMember roster — same contract family as SingleChatPage CI1).
     isGroup: false,
@@ -4805,15 +4832,17 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   function buildPanel() {
     /* ★ C17 (Session AD): a contact whose request WE sent and they have not accepted gets
        the minimal pending profile (#153's createPendingContact — built, never mounted in
-       production until now): identity + "Request sent" + ONE action, Cancel request →
-       `ixian:undorequest`, which ContactDetails answers with undoRequestResult and pops
-       on success. Every other action a full page would offer (Message, Call, Pay, the
-       nickname edit, the history rows) is one C# refuses for this relation. */
+       production until now): identity + "Request sent" and NO action.
+       ★ Session AF (#947, Damir's ruling on AE.13): the "Cancel request" action is REMOVED
+       here (no onCancelRequest → the component renders no button). Since #562 the chat's
+       waiting strip and the chats row HIDE an outgoing request (they send no verb), so after
+       #947 nothing REMOVES an outgoing pending contact — only hides it. Every other action a full page would offer
+       (Message, Call, Pay, the nickname edit, the history rows) is one C# refuses for this
+       relation. */
     if (!state.isGroup && state.relation === 'pending') {
       return createPendingContact({
         name: state.name, address: state.address, avatar: state.avatarPath, strings,
         onBack: () => bridge.send('ixian:back'),
-        onCancelRequest: (ctrl) => { state.undoCtrl = ctrl; bridge.send('ixian:undorequest'); },
       });
     }
     // #248 GROUP surface: kind 'group' renders name/avatar + notifications toggle +
@@ -5317,17 +5346,6 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     setContext(c) { state.context = (c === 'chat') ? 'chat' : 'contact'; scheduleCommit(); },
     // ★ C17 (Session AD): the relation (rebuilds the panel when it changes the surface)
     setRelation(r) { const v = String(r || ''); if (v !== state.relation) { state.relation = v; scheduleCommit(); } },
-    /* ★ C17: the Cancel-request verdict. "ok" → C# pops this page (nothing to do but
-       release the ctrl); anything else → the button un-latches with the failure line. */
-    undoRequestResult(address, status) {
-      const c = state.undoCtrl; state.undoCtrl = null;
-      if (String(status || '') === 'ok') {
-        forgetPeerStorage(String(address || ''), 'contact');   // the record is gone — so are its per-peer keys (the chat shell's rule)
-        if (c) { try { c.done(); } catch (e) {} }
-        return;
-      }
-      if (c) { try { c.fail(); } catch (e) {} }
-    },
     /* ★★ #591: the SAME verb the chat header uses (SingleChatPage:891). C# sends it only
        when the peer can actually be called — codecs present, 1:1, FriendState.Approved —
        so the action appears rather than being offered and refused. Idempotent: an exe

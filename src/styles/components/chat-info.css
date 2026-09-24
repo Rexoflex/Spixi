@@ -74,16 +74,22 @@
    a shade under iOS's ~1.30 separator on white), dark neutral-600 (1.187 — ink-600 on ink-800
    after #884 ②; the 1.223 above was the grey step). The Account hub's in-card hairline reads
    the same role (#882 (b) — its -01 was invisible in dark). */
-.c-chat-info__card > * + *,
-.c-chat-info__member-list > * + *,
-.c-chat-info__member-fill > * + *,
-.c-chat-info__shared-list > * + *,
-.c-chat-info__txs-list > * + * { position: relative; }
-.c-chat-info__card > * + *::after,
-.c-chat-info__member-list > * + *::after,
-.c-chat-info__member-fill > * + *::after,
-.c-chat-info__shared-list > * + *::after,
-.c-chat-info__txs-list > * + *::after {
+/* ★ Session AF (#949, Damir on the AE walk): the MEMBER roster (member-list + member-fill)
+   draws NO line between members — the card edge groups them; it was noise. The line ABOVE the
+   list (search field → first row, `.c-chat-info__card > .c-chat-info__member-list::after`)
+   stays: that separates two different families. (#968 widened this to every row family.) */
+/* ★ #968 (Damir, dial (c)): the rule is now "no line between rows of the SAME card"
+   everywhere on this surface — action rows, Groups in common and Payments join the roster.
+   What STAYS is the line where two different FAMILIES meet: a list container under the
+   search field or the payments toggle, and the "View all" button under the tx rows. */
+.c-chat-info__card > * + .c-chat-info__member-list,
+.c-chat-info__card > * + .c-chat-info__shared-list,
+.c-chat-info__card > * + .c-chat-info__txs-list,
+.c-chat-info__txs-list > * + .c-chat-info__txs-all { position: relative; }
+.c-chat-info__card > * + .c-chat-info__member-list::after,
+.c-chat-info__card > * + .c-chat-info__shared-list::after,
+.c-chat-info__card > * + .c-chat-info__txs-list::after,
+.c-chat-info__txs-list > * + .c-chat-info__txs-all::after {
   content: '';
   position: absolute;
   top: 0;
@@ -646,17 +652,11 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   font-size: var(--font-size-body-sm);
 }
 
-/* member-sheet injected actions (#141) — lives here: the opt only exists for
-   chat-info's admin path today */
-.c-member__actions {
-  display: flex;
-  gap: var(--spacing-8);
-  margin-top: var(--spacing-8);
-  width: 100%;                      /* #150②: the sheet centers its children — the
-                                       hugging row made Kick/Ban read smaller than
-                                       Pay/Request; span the row, flex:1 splits it */
-}
-.c-member__actions > .c-button { flex: 1; }
+/* ★ Session AF (#948): `.c-member__actions` MOVED to member-sheet.css. It lived here while
+   only chat-info opened the sheet with admin actions; the in-chat member sheet (chat.html,
+   which has not linked this file since #882 (c)) got no rule at all — Remove / Ban hugged
+   their labels side by side with no gap (Damir, AE walk). A component's classes belong in
+   the component's own stylesheet. */
 
 /* ★ A8 (Batch A 2026-08-24): skeleton rows while the roster / shared-groups pushes
    land. Neutral wash, a slow shimmer (off under reduced motion), never interactive.

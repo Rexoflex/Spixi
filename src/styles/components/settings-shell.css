@@ -219,12 +219,10 @@
   box-shadow: var(--elevation-1);
   --surface-input: var(--surface-input-on-card);   /* #150③: input === card otherwise */
 }
-/* hairline between rows INSIDE a card, inset past the disc column.
-   ★ Session Z (#884 ⑤ / #882 (b)): `--outline-on-card`, the same role chat-info's lists
-   read — -01 was neutral-800 on the neutral-800 card in dark (1.00, no line at all). */
-.c-settings__group > .c-settings__section + .c-settings__section {
-  border-top: var(--outline-width-1) solid var(--outline-on-card);
-}
+/* ★ Session AF (#949, Damir on the AE walk): NO hairline between rows of the same card — the
+   card's own edge groups them and the line inside was noise. (It was the #884 ⑤ /
+   #882 (b) `--outline-on-card` border-top on `.c-settings__section + .c-settings__section`.)
+   Separation between GROUPS is the card gap + the section label, unchanged. */
 
 /* —— rows: disc · label · value · chevron —— */
 .c-settings__row {
@@ -360,10 +358,43 @@
 /* —— option sheet (language & friends — sd-sheet grammar, #145③ slot) —— */
 .c-settings__opts { display: flex; flex-direction: column; gap: var(--spacing-4); }
 /* #148⑥: long pickers scroll inside a taller sheet (search joins later) */
+/* #965: the list keeps its cap on desktop (a centred dialog); a phone opens the sheet
+   TALL instead (overlay.css .c-sheet[data-tall]) and the list fills it. Its NATIVE
+   scrollbar is hidden — the drawn indicator (.c-scrollind) is the always-visible one. */
 .c-settings__opts--scroll {
   max-height: min(56vh, 480px);     /* sanctioned: tall-sheet clearance */
-  padding-inline-end: var(--spacing-4);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  padding-inline-end: var(--spacing-16);   /* room for the indicator */
 }
+.c-settings__opts--scroll::-webkit-scrollbar { display: none; }
+.c-settings__opts-frame { position: relative; }
+.c-scrollind {
+  position: absolute;
+  top: var(--spacing-4);
+  bottom: var(--spacing-4);
+  inset-inline-end: 0;
+  width: 4px;                       /* sanctioned: indicator width */
+  border-radius: var(--radius-full);
+  background: var(--surface-neutral-03);
+  display: none;
+}
+.c-settings__opts-frame[data-overflow] > .c-scrollind { display: block; }
+.c-scrollind__thumb {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  border-radius: var(--radius-full);
+  background: var(--icon-neutral-02);
+  touch-action: none;
+  cursor: grab;
+}
+/* a wider invisible grab area, so a finger can catch a 4 px thumb */
+.c-scrollind__thumb::before { content: ''; position: absolute; inset: 0 -10px; }
+.c-scrollind__thumb[data-drag] { cursor: grabbing; background: var(--icon-neutral-01); }
+/* a frame exists only in a long picker SHEET, and on a phone that sheet is always tall */
+:root:not([data-desktop]) .c-settings__opts-frame { flex: 1 1 auto; min-height: 0; }
+:root:not([data-desktop]) .c-settings__opts-frame > .c-settings__opts--scroll { max-height: none; height: 100%; }
 /* ★ L15 (2026-08-31): the slot holds either the platform's emoji or a PNG. The width
    is the same 28px it always was, so no row moves on any platform. */
 .c-settings__opt-flag {

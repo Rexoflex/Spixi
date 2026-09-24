@@ -854,7 +854,7 @@ namespace SPIXI
                  * nothing — so the user's own unsent DRAFT and the per-peer markers stayed for
                  * a contact that no longer exists. A stale spixi.hsstage.<address> also makes
                  * the next request from the same address restore the previous handshake stage.
-                 * `undoRequestResult` is the command name HomePage.onUndoRequestFor already
+                 * `undoRequestResult` is the command name HomePage.onDeclineRequest already
                  * uses for this outcome — a second call site, not a new push.
                  * ⚠ The result reports the LOCAL removal. A refused removal keeps the record,
                  * so the shell must keep the data; it answers "fail" and sweeps nothing.
@@ -2114,6 +2114,20 @@ namespace SPIXI
                         sendTipResult(false, SpixiLocalization._SL("chat-modal-tip-error-body"));
                         return;
                     }
+                    /* ★ Session AF (#950, Damir on AE.12): a SECOND tip on the same message from this
+                     * wallet. Core keeps ONE tip per sender per message (FriendMessage.addReaction
+                     * refuses a second entry for the same sender under the same key, #942), so the
+                     * old path showed the native confirm, the user said yes, addReaction returned
+                     * false and the sheet read "An unknown error occurred" — after asking to spend.
+                     * The refusal is known here, BEFORE any transaction is prepared or confirmed:
+                     * say the true thing and stop. The post-confirm branch below keeps the generic
+                     * copy for Core refusals we cannot name, and re-uses this test first. */
+                    if (hasOwnTip(msg))
+                    {
+                        Logging.info("Tip refused: this wallet already tipped the message.");
+                        sendTipResult(false, SpixiLocalization._SL("chat-modal-tip-already-body"));
+                        return;
+                    }
                     ExtendedAddress sender_address = new ExtendedAddress(friend.walletAddress, AddressPaymentFlag.OfflineTag, null);
                     if (friend.bot
                        || (friend.type == FriendType.Group && !friend.metaData.botInfo.hideParticipantAddresses))
@@ -2309,7 +2323,9 @@ namespace SPIXI
                                     // refuse for reasons we cannot enumerate, so the copy stays
                                     // generic until the BE engineer confirms. It is at least INLINE
                                     // and on the sheet now, instead of a native dialog.
-                                    sendTipResultFor("0", SpixiLocalization._SL("chat-modal-tip-error-body"), tipIdForAnswer);
+                                    // ★ #950: the one refusal we CAN name gets its true copy (a race: a tip
+                                    // that landed between the pre-check and the confirm); the rest stay generic.
+                                    sendTipResultFor("0", SpixiLocalization._SL(hasOwnTip(msg) ? "chat-modal-tip-already-body" : "chat-modal-tip-error-body"), tipIdForAnswer);
                                 }
                             }
                             catch (Exception commitEx)
@@ -2875,6 +2891,23 @@ namespace SPIXI
                     Utils.sendUiCommand(this, "addMessages", json, "append");
                 }
                 Utils.sendUiCommand(this, "messagesDone");
+            }
+        }
+
+        /* ★ Session AF (#950): has THIS wallet already tipped the message? The same test Core's
+         * FriendMessage.addReaction applies (one entry per sender under the "tip" key), read
+         * under the same lock Core takes, so the answer matches the refusal it predicts. */
+        private static bool hasOwnTip(FriendMessage msg)
+        {
+            Address self = IxianHandler.getWalletStorage().getPrimaryAddress();
+            if (self == null || msg == null || msg.reactions == null)
+            {
+                return false;
+            }
+            lock (msg.reactions)
+            {
+                return msg.reactions.TryGetValue("tip", out var tips) && tips != null
+                    && tips.Find(x => x.sender != null && x.sender.SequenceEqual(self)) != null;
             }
         }
 

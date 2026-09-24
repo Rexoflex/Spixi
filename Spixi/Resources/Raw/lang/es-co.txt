@@ -165,6 +165,7 @@ chat-modal-tip-pay-button = Pagar
 chat-modal-tip-confirmation-body = Estás a punto de enviar una propina de {1} a '{0}'. El monto se descontará de tu monedero.
 chat-modal-tip-confirmed-body = Has enviado con éxito una propina de {1} a '{0}'. El monto se ha descontado de tu monedero.
 chat-modal-tip-error-body = Ocurrió un error desconocido al enviar la propina.
+chat-modal-tip-already-body = Ya diste una propina por este mensaje.
 
 chat-bot-details-info = Información del grupo
 chat-bot-address = Dirección del grupo
@@ -307,6 +308,7 @@ index-excerpt-contact-request = Solicitud de contacto
 index-excerpt-file = Archivo
 index-excerpt-voice-call = Llamada de voz
 index-excerpt-self = 
+index-excerpt-you = Tú
 index-excerpt-typing = Escribiendo...
 index-side-settings-subtitle = Temas, idioma, nombre y datos
 index-side-password-subtitle = Cambiar contraseña de Spixi

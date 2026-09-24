@@ -165,6 +165,7 @@ chat-modal-tip-pay-button = Payer
 chat-modal-tip-confirmation-body = Vous êtes sur le point d'envoyer un pourboire de {1} à '{0}'. Ce montant sera déduit de votre portefeuille.
 chat-modal-tip-confirmed-body = Vous avez envoyé un pourboire de {1} à '{0}' avec succès. Le montant a été déduit de votre portefeuille.
 chat-modal-tip-error-body = Une erreur inconnue est survenue lors de l'envoi du pourboire.
+chat-modal-tip-already-body = Vous avez déjà envoyé un pourboire pour ce message.
 
 chat-bot-details-info = Informations sur le groupe
 chat-bot-address = Adresse du groupe
@@ -307,6 +308,7 @@ index-excerpt-contact-request = Demande de contact
 index-excerpt-file = Fichier
 index-excerpt-voice-call = Appel vocal
 index-excerpt-self = 
+index-excerpt-you = Vous
 index-excerpt-typing = Saisie en cours...
 index-side-settings-subtitle = Thèmes, langue, pseudo et données
 index-side-password-subtitle = Changer le mot de passe Spixi

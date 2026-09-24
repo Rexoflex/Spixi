@@ -1,0 +1,56 @@
+Session AF — the AE walk fixes + the owed review of #944: a blind-room address leak fixed, Cancel removed from contact details, the admin buttons, no lines inside a group, the true second-tip message (#946–#961)
+
+Item 0 — the review owed before any build (#946). A fresh Opus reader over the AE
+round-4 delta: CLEAN (one pin hole, closed). Over #944: NOT CLEAN — E-1, INTRODUCED: in
+a blind room resolveExcerptSender fell back to the member's address (the owner's
+device holds the REAL one) where the bubble shows "Hidden member" -> "" under
+Utils.hidesParticipants; E-2: #944 never ran the full suite and four CH6 pins were red
+-> re-based by position. Seven rounds; the order rule in chat.html's renderLogNow is
+now pinned by EXECUTING the built shell. CLEAN at r7.
+
+Build (the AE walk list, #945):
+- ③ #947 — "Cancel request" removed from contact details / chat info; ContactDetails'
+  ixian:undorequest branch deleted (nothing sent it). CORE-13 sibling logged for the
+  NRE Damir hit at CoreStreamProcessor.receiveData:1260 (a late accept after a cancel;
+  caught by Core).
+- ④ #948 — .c-member__actions lived in chat-info.css, which chat.html no longer loads
+  -> moved to member-sheet.css, stacked full width (two-up clips on a phone).
+- ⑤ #949 — no hairline between rows of one Account card or between roster members.
+- ② #950 — a second tip from the same wallet is refused BEFORE the transaction is
+  prepared or the native confirm shows: "You already tipped this message." (13 lang
+  files).
+- ① #951 — the reaction pill at the composer band: rendered, not built (Damir's pick).
+
+The #46 loop over the build (#952–#961): ten Opus rounds, 0 MAJOR; every finding a
+record or a pin's words. Two design calls (#953, #959): a pin claims only what text
+can prove and hands the visual/behavioural property to a walk row.
+
+Suite (container, Core sibling): BEFORE 4868 + 4 red -> AFTER BASELINE OK 4880 / the
+2 KNOWN. Four --check gates, lint, pseudo 9/9, verify-locales, cs-syntax 184 + 3 green.
+C# changed: HomePage, SingleChatPage, ContactDetails (+ lang/*.txt).
+
+
+Same day, after walk AF (16 P · 0 F · 7 N/A, #964):
+- #963 multi-select circles sit at the TOP of a bubble (align-self:flex-start +
+  --spacing-4; the tick's top derived from the same tokens). Pin + 3 mutations.
+- #962 the late-accept NRE: Ixian-Core patched LOCALLY in the sibling working copy
+  (uncommitted there); diff kept at docs/core-patches/962-accept-null-guard.patch.
+  BE must adopt it.
+- #965 the language sheet opens tall on a phone (just below the top bar) and shows a
+  drawn, always-visible scroll indicator whenever the list overflows.
+- #966 the reaction pill sits lower (~4 px on the bubble) and its reserve is padding,
+  so it dissolves with its bubble under the composer instead of showing cropped.
+  CHAT_KB_CEIL 658 -> 660 (delta stated).
+
+Walk AF2: 15 P / 0 F / 2 N/A (#967). Dials answered by interview:
+- #967 (a) HomePage's dead ixian:undorequest:<addr> handler deleted; the B1
+  pin inverted. (b) admin buttons stay stacked.
+- #968 (c) no row-to-row lines anywhere on chat info / contact details; only
+  the family-boundary lines remain.
+- #969 (d) "You:" before an own last message in a group/bot-room chats row
+  (new lang key index-excerpt-you, 13 files).
+- #970 AF.3: a declined request comes back — logged (Q18/RC1), not built.
+Suite: 4883 / the 2 KNOWN. 6 mutations killed across #967-#969.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01VqE3cSJrVsd1e7A6QPeku6

@@ -165,6 +165,7 @@ chat-modal-tip-pay-button = Plačaj
 chat-modal-tip-confirmation-body = Napitnino v višini {1} boste poslali uporabniku '{0}'. Znesek bo odštet iz vaše denarnice.
 chat-modal-tip-confirmed-body = Napitnina {1} je bila uspešno poslana uporabniku '{0}'. Znesek je bil odštet iz vaše denarnice.
 chat-modal-tip-error-body = Pri pošiljanju napitnine je prišlo do neznane napake.
+chat-modal-tip-already-body = Za to sporočilo ste že poslali napitnino.
 
 chat-bot-details-info = Podatki o skupini
 chat-bot-address = Naslov skupine
@@ -307,6 +308,7 @@ index-excerpt-contact-request = Zahteva za stik
 index-excerpt-file = Datoteka
 index-excerpt-voice-call = Glasovni klic
 index-excerpt-self = 
+index-excerpt-you = Vi
 index-excerpt-typing = Tipka...
 index-side-settings-subtitle = Teme, jezik, vzdevek in podatki
 index-side-password-subtitle = Spremeni geslo za Spixi

@@ -165,6 +165,7 @@ chat-modal-tip-pay-button = 支付
 chat-modal-tip-confirmation-body = 您即将向 '{0}' 发送 {1} 作为打赏。该金额将从您的钱包中扣除。
 chat-modal-tip-confirmed-body = 您已成功向 '{0}' 发送 {1} 作为打赏。金额已从您的钱包中扣除。
 chat-modal-tip-error-body = 发送打赏时发生未知错误。
+chat-modal-tip-already-body = 你已经为这条消息打赏过了。
 
 chat-bot-details-info = 群组信息
 chat-bot-address = 群组地址
@@ -305,6 +306,7 @@ index-excerpt-contact-request = 联系人请求
 index-excerpt-file = 文件
 index-excerpt-voice-call = 语音通话
 index-excerpt-self = 
+index-excerpt-you = 你
 index-excerpt-typing = 输入中...
 index-side-settings-subtitle = 主题、语言、昵称和数据
 index-side-password-subtitle = 更改 Spixi 密码

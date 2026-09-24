@@ -746,8 +746,10 @@ echoed into `ixian.log`. A wire value can forge log lines (O-25). The Session AD
 
 Core `Streaming/Friends/FriendList.cs:433`: `removeFriend` refuses a friend who is a participant
 in a group and logs `friend.walletAddress` in clear, into the shareable log. Reachable from every
-app-side removal path, Session AD's `ixian:undorequest` on ContactDetails included (the guard
-there is ours; the line is Core's).
+app-side removal path (the guards are ours; the line is Core's). ★ Session AF (#947): the
+ContactDetails `ixian:undorequest` branch Session AD added was DELETED; the live paths are
+SingleChatPage's (the incoming request pane's Decline) and HomePage's `ixian:undorequest:<addr>`,
+which has had no sender since #562.
 
 ### ⚠ CH3 (INTRODUCED, accepted with guards) — a new filesystem DELETE path
 

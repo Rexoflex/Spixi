@@ -1,0 +1,34 @@
+diff --git a/Streaming/CoreStreamProcessor.cs b/Streaming/CoreStreamProcessor.cs
+index de8e4fc..08a94b0 100644
+--- a/Streaming/CoreStreamProcessor.cs
++++ b/Streaming/CoreStreamProcessor.cs
+@@ -1211,6 +1211,14 @@ namespace IXICore.Streaming
+                     case SpixiMessageCode.acceptAdd:
+                         {
+                             // Friend accepted request
++                            // Spixi AF (#962): an accept can arrive after this device cancelled the request
++                            // and removed the friend (a queued message on reconnect). Ignore it instead of
++                            // throwing a NullReferenceException that is caught at the end of receiveData.
++                            if (friend == null)
++                            {
++                                Logging.warn("Received an accept for a contact request that no longer exists; ignored.");
++                                return null;
++                            }
+                             byte[] pub_k = FriendList.findContactPubkey(friend.walletAddress);
+                             if (pub_k == null)
+                             {
+@@ -1243,6 +1251,14 @@ namespace IXICore.Streaming
+                     case SpixiMessageCode.acceptAdd2:
+                         {
+                             // Friend accepted request
++                            // Spixi AF (#962): an accept can arrive after this device cancelled the request
++                            // and removed the friend (a queued message on reconnect). Ignore it instead of
++                            // throwing a NullReferenceException that is caught at the end of receiveData.
++                            if (friend == null)
++                            {
++                                Logging.warn("Received an accept for a contact request that no longer exists; ignored.");
++                                return null;
++                            }
+                             var accept_add_2 = new AcceptAdd2Message(spixi_message.data);
+ 
+                             if (!new Address(accept_add_2.rsaPubKey).SequenceEqual(message.sender))

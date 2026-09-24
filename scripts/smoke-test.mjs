@@ -1687,6 +1687,27 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
     && d.querySelectorAll('.c-settings__opt-flag > .c-flag').length === langCount
     && d.querySelector('.c-settings__opts').classList.contains('c-settings__opts--scroll'),
     'language sheet: every offered language gets a row and a DRAWN flag (' + langCount + '), list scrolls (#148⑥ · L15). ⚠ Matched on .c-flag, not on a tag — jsdom has no canvas so it takes the ASSET path, and a device with emoji takes the other one; a pin naming svg or img would only ever check the platform it happened to run on');
+  {
+    /* #965 (Damir): the long picker opens TALL on a phone and carries an ALWAYS-VISIBLE
+       drawn scroll indicator (a touch WebView shows its own bar only while the finger moves). */
+    const sh965 = d.querySelector('.c-sheet');
+    const fr965 = d.querySelector('.c-settings__opts-frame');
+    const opts965 = d.querySelector('.c-settings__opts');
+    const ov965 = stripCssComments(readFileSync(join(root, 'src/styles/components/overlay.css'), 'utf8'));
+    const ss965 = stripCssComments(readFileSync(join(root, 'src/styles/components/settings-shell.css'), 'utf8'));
+    const tallRule = (() => { const i = ov965.indexOf(':root:not([data-desktop]) .c-sheet[data-tall] {'); return i < 0 ? '' : ov965.slice(i, ov965.indexOf('}', i)); })();
+    const listRule = (() => { const i = ss965.indexOf('.c-settings__opts--scroll {'); return i < 0 ? '' : ss965.slice(i, ss965.indexOf('}', i)); })();
+    const bad965 = [];
+    if (!sh965 || !sh965.hasAttribute('data-tall')) bad965.push('the language sheet is not data-tall');
+    if (!fr965 || fr965.firstElementChild !== opts965) bad965.push('the list is not inside .c-settings__opts-frame');
+    if (!fr965 || !fr965.querySelector(':scope > .c-scrollind > .c-scrollind__thumb')) bad965.push('no drawn indicator beside the list');
+    if (opts965 && opts965.classList.contains('u-scroll')) bad965.push('the list still carries u-scroll (a hover-only thumb would double the indicator)');
+    if (!/top:\s*calc\(var\(--layout-bar-top\) \+ var\(--safe-top, 0px\)\);/.test(tallRule)) bad965.push('the phone tall rule does not start just below the top bar');
+    if (!/scrollbar-width:\s*none;/.test(listRule)) bad965.push('the list native scrollbar is not hidden');
+    if (!/\.c-settings__opts-frame\[data-overflow\] > \.c-scrollind \{ display: block; \}/.test(ss965)) bad965.push('the indicator is not shown on overflow');
+    ok(bad965.length === 0,
+      '★ #965 (Damir: "people who don\'t scroll don\'t see all languages"): a long option sheet opens TALL on a phone (top = --layout-bar-top + --safe-top) and shows a DRAWN, always-visible scroll indicator whenever the list overflows; the native bar is hidden so the two never double. Failing: [' + bad965.join(' · ') + ']');
+  }
   d.dispatchEvent(new W4.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
   await sleep(500);
 
@@ -2538,8 +2559,21 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   /* —— #150 guards (Damir regression screenshots) —— */
   ok(/\.c-chat-info__body > \* \{ flex: none/.test(infoCss2),
     'chat-info scroll-column children never shrink — the #149 overflow:hidden made payments the only shrinkable child and it clipped to a sliver (#150①)');
-  ok(/\.c-member__actions \{[^}]*width: 100%/.test(infoCss2),
-    'member-sheet actions span the row — Kick/Ban match the Pay/Request size (#150②)');
+  /* ★ Session AF (#948): re-based — the rule MOVED to the component's own stylesheet (the in-chat
+     sheet never loaded chat-info.css, #882 (c)); and DERIVED: every class the sheet ASSIGNS as its
+     own element (`.className = 'c-member…'`) has a rule in member-sheet.css, so a class styled only
+     in some other page's stylesheet fails here (the exact defect). Hook classes added onto another
+     component (classList.add on a badge/button) are exempt — that component styles itself. */
+  {
+    const msJs = readFileSync(join(root, 'src/components/member-sheet.js'), 'utf8');
+    const msCss = stripCssComments(readFileSync(join(root, 'src/styles/components/member-sheet.css'), 'utf8'));
+    const owned = [...new Set([...msJs.matchAll(/\.className\s*=\s*'(c-member[\w-]*)'/g)].map((m) => m[1]))];
+    const unstyled = owned.filter((c) => !new RegExp('\\.' + c + '(?![\\w-])').test(msCss));
+    ok(owned.length >= 10 && unstyled.length === 0
+       && /\.c-member__actions \{[^}]*flex-direction: column[^}]*\}/.test(msCss) && /\.c-member__actions \{[^}]*width: 100%/.test(msCss)
+       && !/\.c-member__actions\s*\{/.test(stripCssComments(infoCss2)),
+      '★ #948 (was #150②): every class member-sheet.js assigns to its own elements (' + owned.length + ') has a rule in member-sheet.css (unstyled: ' + (unstyled.join(', ') || 'none') + '); the admin actions stack full width, and the rule no longer lives in chat-info.css, which chat.html does not load');
+  }
   ok((tok.match(/--surface-input-on-card:/g) || []).length === 2,
     'input-on-card pair defined in BOTH modes (#150③ — input === card made fields invisible)');
   ok(/--surface-input: var\(--surface-input-on-card\)/.test(infoCss2)
@@ -3633,6 +3667,12 @@ console.log('chats.html — contacts flow (Phase 1 #2)');
   ok(!d.querySelector('.demo-panel .c-contacts-pending'),
     'cancel request resolves and closes the pending profile');
 
+  // ★ #947: no callback → no action at all (production contact_details passes none)
+  {
+    const pend0 = W.Spixi.createPendingContact({ name: 'Y', address: 'a2' });
+    ok(!pend0.querySelector('.c-contacts__footer') && ![...pend0.querySelectorAll('.c-button')].some((b) => /Cancel/.test(b.textContent)) && !!pend0.querySelector('.c-badge'),
+      '★ #947 EXECUTED: createPendingContact WITHOUT onCancelRequest renders identity + the "Request sent" badge and NO footer / Cancel button (a dead control is worse than a missing one)');
+  }
   // #141-m4 on the pending profile too
   const pend2 = W.Spixi.createPendingContact({ name: 'X', address: 'a1', onCancelRequest: () => { throw new Error('boom'); } });
   d.body.append(pend2);
@@ -8219,7 +8259,8 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      BEFORE a review round grew the file again and the pin went red on the snapshot — the ceiling is
      re-measured at the very end of a session, never mid-loop. Most of the growth is prose the #933 strip
      will remove; the ceiling follows the measured file, not the intention. */
-  const CHAT_KB_CEIL = 658, INDEX_KB_CEIL = 531;
+  /* #965 (Session AF, same day): 658 → 660, delta stated — the long-picker scroll indicator (attachScrollIndicator + its CSS, inlined via the bundle and overlay.css) grew chat.html to 674 121 chars (+1 857 over the AE measure). Headroom under 660 is 1 719. */
+  const CHAT_KB_CEIL = 660, INDEX_KB_CEIL = 531;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -9616,6 +9657,22 @@ console.log('multi-message selection (selection topbar + bulk delete)');
          && rlAt > 0 && swapAt > 0 && nowAt > swapAt && !/scheduleComposerFade\(\);/.test(rlBody)
          /* round-4 MINOR-5: a STATEMENT of its own — `chatSelect.refresh(),` (a comma) would fold it into the preceding `if` and run it only in select mode */
          && /;\s*composerFadeNow\(\);/.test(rlBody) && !/,\s*composerFadeNow\(\)/.test(rlBody) && !/\)\s*composerFadeNow\(\)/.test(rlBody)
+         /* ★ Session AF (#946, reader R5-1): the spelling clauses above miss a BRACE fold —
+            `if (chatSelect) { chatSelect.refresh(); composerFadeNow(); }` keeps every one of
+            them green and runs the pass only in select mode. The positive property: between
+            the swap and the call the braces BALANCE, so the call sits at the depth of the swap. */
+         && swapAt > 0 && nowAt > swapAt
+         && (rlBody.slice(swapAt, nowAt).match(/\{/g) || []).length === (rlBody.slice(swapAt, nowAt).match(/\}/g) || []).length
+         && !/\belse\s*$/.test(rlBody.slice(swapAt, nowAt))
+         /* round 2 (R2-7): no early exit between the swap and the call either */
+         /* round 3 (R3-5): only at depth 0 — a nested callback's `return` is harmless */
+         && !/\b(return|throw|break|continue)\b/.test((() => { let t = rlBody.slice(swapAt, nowAt), prev; do { prev = t; t = t.replace(/(=>\s*|\bfunction\s*\w*\s*\([^(){};'"`]*\)\s*)?\{([^{}]*)\}/g, (m, fn, inner) => (fn ? fn : ' ' + inner + ' ')); } while (t !== prev); return t; })())
+         /* round 3 (R3-6): the name resolves to the ONE definition — a local shadow would make the call a no-op */
+         && (chF.match(/\b(?:const|let|var|function)\s+composerFadeNow\b/g) || []).length === 1
+         /* round 5 (#2): it is the LAST statement — a node appended after the pass (keepTypingLast moved below it) sits unmasked in the band */
+         && /composerFadeNow\(\);\s*$/.test(rlBody)
+         /* round 4 (R4-2): every occurrence counted — a destructuring shadow or a reassignment of the binding also no-ops the call */
+         && (chF.match(/\bcomposerFadeNow\b/g) || []).length === 2
          && /function composerFadeNow\(\) \{ if \(composerFadeRaf\) \{ cancelAnimationFrame\(composerFadeRaf\); composerFadeRaf = 0; \} composerFadePass\(\); \}/.test(chF)
          && /box\.addEventListener\('scroll', scheduleComposerFade, \{ passive: true \}\);/.test(chF) && /window\.addEventListener\('resize', scheduleComposerFade\);/.test(chF)
          /* the geometry changes that move a row WITHOUT a scroll: a media tile arriving (load does not bubble → capture), a transition/animation ending, the slot's own slide ending */
@@ -10817,6 +10874,55 @@ console.log('★ N71/N81 — the built CHAT shell actually boots');
     catch (e) { themeThrew = e; }
     ok(themeThrew === null && domC.window.document.documentElement.dataset.theme === 'dark',
       '★ N71 (#421) END-TO-END: a real base64 setTheme push through the real dispatcher flips data-theme on the built shell — the pin is on the wire C# uses, not on the handler in isolation');
+    /* ★★ Session AF (#946, round-5 reader #1/#2): the renderLogNow rule "the fade pass runs
+       after the swap, on the final DOM" was pinned four rounds running by regexes over the
+       statement ORDER, and each round found the next way round them (a brace fold, an early
+       return, a shadow — and last, a dropped `if (chatSelect)` guard that THROWS before the call
+       in every normal render, caught by the dispatcher, 4875 pins green). This pin RUNS it: a
+       history pushed through the real wire in normal mode, a composer band and row rects stubbed
+       (jsdom has no layout), and then — no dispatch error, and the rows that cross the band
+       carry the mask while the rows above it do not. */
+    {
+      /* round 6 (#1): the Session AE pin above invokes the observer callback, which SCHEDULES a
+         fade rAF — let it run out first, then read the masks SYNCHRONOUSLY after the push (the
+         render is synchronous at messagesDone), so no leftover rAF can mask the rows for a
+         renderLogNow that never called the pass. */
+      await sleep(100);
+      const d = WC.document;
+      const dispErr = [];
+      vcC.on('error', (...a) => dispErr.push(a.map((x) => String(x && x.stack || x)).join(' ')));
+      const box = d.getElementById('messages');
+      const realRect = WC.Element.prototype.getBoundingClientRect;
+      WC.Element.prototype.getBoundingClientRect = function () {
+        const mk = (top, h, w = 300) => ({ top, bottom: top + h, height: h, left: 0, right: w, width: w, x: 0, y: top, toJSON() {} });
+        if (this.classList && this.classList.contains('c-composer')) return mk(600, 60);
+        if (this === box) return mk(0, 700);
+        if (box && this.parentElement === box) {
+          const kids = [...box.children]; const i = kids.indexOf(this);
+          return mk(650 - (kids.length - 1 - i) * 40 - 40, 40);   // newest child 610–650 (in the band), the one before 570–610 (crosses the band top), older ones above
+        }
+        return realRect.call(this);
+      };
+      const b64 = (x) => Buffer.from(String(x), 'utf8').toString('base64');
+      const T0 = Math.floor(Date.now() / 1000) - 600;
+      try {
+        WC.executeUiCommand(WC.onChatScreenReady);
+        WC.executeUiCommand(WC.clearMessages, b64('False'));
+        for (let k = 0; k < 8; k++) {
+          WC.executeUiCommand(WC.addThem, ...['af' + k, 'addrX', 'Bob', '', 'message ' + k, String(T0 + k * 30)].map(b64));
+        }
+        if (typeof WC.messagesDone === 'function') WC.executeUiCommand(WC.messagesDone);
+        WC.executeUiCommand(WC.onChatScreenLoaded);
+      } catch (e) { dispErr.push('threw: ' + e.message); }
+      const kidsNow = box ? [...box.children].filter((el) => el.getBoundingClientRect().height > 0) : [];
+      const masked = kidsNow.filter((el) => /linear-gradient/.test(el.style.maskImage || el.style.webkitMaskImage || ''));
+      const newest = kidsNow[kidsNow.length - 1];
+      const oldest = kidsNow[0];
+      WC.Element.prototype.getBoundingClientRect = realRect;
+      const errs = dispErr.filter((l) => /dispatch failed|not a function|TypeError|ReferenceError/.test(l));
+      ok(kidsNow.length >= 3 && errs.length === 0 && masked.length === 2 && masked.includes(newest) && !masked.includes(oldest),
+        '★★ Session AF (#946, round 5): EXECUTED on the BUILT chat shell — a normal-mode history through the real wire renders with NO dispatch error, and after the render the two rows crossing the composer band carry the fade mask (the newest among them) while older rows do not. A throw between the swap and composerFadeNow(), an early return, a shadowed call, or a pass run before the last node lands leaves the band unmasked here. Rows ' + kidsNow.length + ', masked ' + masked.length + ', errors: ' + (errs.slice(0, 2).join(' | ') || 'none'));
+    }
     domC.window.close();
   }
 }
@@ -10858,6 +10964,10 @@ console.log('#944 — the group / bot-room excerpt names its sender ("George: hi
       r('p1', 'Alice', 'hello', '', 'text', ''),
       r('g4', 'Typing room', 'typing…', 'group', 'typing', 'Mallory'),
       r('g5', 'Hostile', 'hi', 'group', 'text', '<img src=x onerror=alert(1)>'),
+      r('g6', 'Connected room', 'You are now connected with Bob.', 'group', 'connected', 'Bob'),
+      r('g7', 'Request room', 'Contact Request', 'group', 'request', 'Eve'),
+      r('g8', 'Done room', 'Contact Accepted', 'group', 'request-done', 'Trent'),
+      r('g9', 'Sent room', 'Request sent', 'group', 'request-sent', 'Peggy'),
     ]) W.executeUiCommand(W.addChat, ...row.map(b64));
     W.executeUiCommand(W.clearChatsDone);
     await sleep(400);
@@ -10878,6 +10988,9 @@ console.log('#944 — the group / bot-room excerpt names its sender ("George: hi
     ok(senderOf('Alice') === null, '#944: a 1:1 row sent an empty sender renders no prefix');
     ok(senderOf('Typing room') === null,
       '#944: the shell never prefixes a status it paints itself (typing), whatever C# sends');
+    ok(!!rowOf('Connected room') && senderOf('Connected room') === null && !!rowOf('Request room') && senderOf('Request room') === null
+       && !!rowOf('Done room') && senderOf('Done room') === null && !!rowOf('Sent room') && senderOf('Sent room') === null,
+      '#944 / #946 (reader E-3, R3-8): the shell\'s own exclusion holds for the event kinds too (connected · request · request-done · request-sent) — a wrong push from C# still renders no prefix');
     const hostile = rowOf('Hostile');
     ok(!!hostile && senderOf('Hostile') === '<img src=x onerror=alert(1)>:' && !hostile.querySelector('.c-excerpt img'),
       '★ #944: a peer-controlled nick is TEXT — the markup renders literally and no element is created');
@@ -10889,13 +11002,110 @@ console.log('#944 — the group / bot-room excerpt names its sender ("George: hi
   const pushes = hp.split('"addChat"').slice(1).map((t) => t.slice(0, t.indexOf(';')));
   ok(pushes.length === 2 && pushes.every((t) => /,\s*excerpt_?[sS]enders?(\[[^\]]+\])?\s*\)\s*$/.test(t)),
     '★ #944: EVERY addChat push (both — derived by walking the file) ends with the excerpt sender, appended LAST (older shells ignore it)');
-  const gateAt = hp.indexOf('excerptSender = resolveExcerptSender(');
-  const gate = gateAt < 0 ? '' : hp.slice(hp.lastIndexOf('if (', gateAt), gateAt);
-  ok(/friend\.type\s*==\s*FriendType\.Group\s*\|\|\s*friend\.bot/.test(gate) && /!lastmsg\.localSender/.test(gate),
-    '#944: C# sets a sender only for a group or bot room, and never for an own message ("You:" is that grammar)');
+  /* ★ #969 (Damir, dial (d)) RE-BASED — the gate now names an OWN room tail too ("You: hi").
+     Shape (proven by text below): an OUTER `if (isRoomRow && <kind exclusions>)` whose block is
+     exactly `if (!lastmsg.localSender) { excerptSender = resolveExcerptSender(friend, lastmsg); }
+     else if (!skipSelfPrefix) { excerptSender = SpixiLocalization._SL("index-excerpt-you"); }`.
+     The OUTER condition is still EXECUTED (#946, reader E-3) with `isRoomRow` replaced by its
+     own declaration, derived from the file. */
+  const roomDecl = (hp.match(/bool isRoomRow = ([^;]+);/) || [, ''])[1];
+  const gateAt = hp.indexOf('if (isRoomRow');
+  const gate = gateAt < 0 ? '' : hp.slice(gateAt);
+  const gateCond = (() => { const i = gate.indexOf('('); let d = 0; for (let k = i; k < gate.length; k++) { if (gate[k] === '(') d++; else if (gate[k] === ')' && --d === 0) return gate.slice(i + 1, k); } return ''; })();
+  const gateBody = (() => { const i = gate.indexOf('{', gateCond.length); if (i < 0) return ''; let d = 0; for (let k = i; k < gate.length; k++) { if (gate[k] === '{') d++; else if (gate[k] === '}' && --d === 0) return gate.slice(i, k + 1); } return ''; })();
+  const gateTail = gate.slice(gateCond.length + 5, gate.indexOf('{', gateCond.length));
+  const bodyShape = /^\{\s*if \(!lastmsg\.localSender\)\s*\{\s*excerptSender = resolveExcerptSender\(friend, lastmsg\);\s*\}\s*else if \(!skipSelfPrefix\)\s*\{\s*excerptSender = SpixiLocalization\._SL\("index-excerpt-you"\);\s*\}\s*\}$/.test(gateBody);
+  const helperKinds = new Set([...hp.matchAll(/\bexcerptKind\s*=(?!=)\s*"([a-z-]+)"/g)].map((m) => m[1]).concat(
+    [...hp.matchAll(/\bexcerptKind\s*=(?!=)\s*[^;?]+\?\s*"([a-z-]+)"\s*:\s*"([a-z-]+)"/g)].flatMap((m) => [m[1], m[2]])));
+  /* round 2 (R2-5): every FriendType Core declares, derived from the sibling when it is
+     present — a widened type test (`!= Normal`) would name senders on Temporary/Payment rows. */
+  const coreFriendCs = join(root, '..', 'Ixian-Core', 'Streaming', 'Friends', 'Friend.cs');
+  const friendTypes = existsSync(coreFriendCs)
+    ? [...((readFileSync(coreFriendCs, 'utf8').match(/enum FriendType\s*\{([^}]*)\}/) || [, ''])[1].matchAll(/(\w+)\s*=/g))].map((m) => m[1])
+    : ['Normal', 'Temporary', 'Payment', 'Group'];
+  let gateFn = null;
+  const condExpr = gateCond.replace(/\bisRoomRow\b/g, '(' + roomDecl + ')');
+  if (roomDecl && /^[\s\w.!=&|()"-]+$/.test(condExpr)) {
+    try { gateFn = new Function('friend', 'excerptKind', 'FriendType', 'return (' + condExpr + ');'); } catch (e) { gateFn = null; }
+  }
+  const FT = Object.fromEntries(friendTypes.map((t) => [t, t]));
+  const gateBad = [];
+  if (gateFn) {
+    for (const ft of friendTypes) for (const bot of [false, true]) for (const k of helperKinds) {
+      const friend = { type: ft, bot };
+      const want = (ft === 'Group' || bot) && !['request', 'request-done', 'connected', 'typing'].includes(k);
+      const strict = (m) => new Proxy(m, { get(t, key) { if (typeof key === 'string' && !(key in t)) throw new Error('unmodelled ' + key); return t[key]; } });
+      let got; try { got = !!gateFn(strict(friend), k, strict(FT)); } catch (e) { got = 'throw'; }
+      if (got !== want && !(k === 'typing' && got === true)) gateBad.push(ft + (bot ? '+bot' : '') + '/' + k + '→' + got);
+    }
+  }
+  /* round 2 (R2-3, R2-4): ONE call site, and every other write to the sender is exactly "" —
+     plus, since #969, the ONE localized own-tail write. */
+  const senderWrites = [...hp.matchAll(/\bexcerptSender\s*=(?!=)\s*([^;]*);/g)].map((m) => m[1].trim());
+  const badSenderWrites = senderWrites.filter((r) => r !== '""' && r !== 'resolveExcerptSender(friend, lastmsg)' && r !== 'SpixiLocalization._SL("index-excerpt-you")');
+  const youWrites = senderWrites.filter((r) => r === 'SpixiLocalization._SL("index-excerpt-you")').length;
+  const callSites = (hp.match(/resolveExcerptSender\(/g) || []).length - 1;   // minus the definition
+  ok(!!gateFn && helperKinds.size >= 12 && friendTypes.length >= 4 && gateBad.length === 0
+     && /^\s*$/.test(gateTail) && bodyShape && youWrites === 1 && callSites === 1 && badSenderWrites.length === 0,
+    '★ #944 EXECUTED (#946 r1+r2 · #969 re-based): the C# gate names a sender for a group or bot room and every kind except request · request-done · connected — evaluated over ' + friendTypes.length + ' FriendTypes × bot × ' + helperKinds.size + ' derived kinds; inside it a REMOTE tail gets resolveExcerptSender (' + callSites + ' site) and an OWN tail the localized index-excerpt-you (' + youWrites + ' write, never on a missed-call row: skipSelfPrefix); every other write is `excerptSender = "";` (bad: ' + (badSenderWrites.join(' | ') || 'none') + '). Wrong cells: ' + (gateBad.join(', ') || 'none'));
+  const rsx = (() => { const i = hp.indexOf('private static string resolveExcerptSender('); if (i < 0) return ''; let d = 0; for (let k = hp.indexOf('{', i); k < hp.length; k++) { if (hp[k] === '{') d++; else if (hp[k] === '}' && --d === 0) return hp.slice(i, k + 1); } return ''; })();
+  const rsCatch = rsx.slice(rsx.lastIndexOf('catch'));
+  const rsTry = rsx.slice(0, rsx.lastIndexOf('catch'));
+  const addrReturns = [...rsx.matchAll(/return\s+addr\b[^;]*;/g)];
+  const blindAt = rsTry.search(/if \(Utils\.hidesParticipants\(friend\)\)\s*\{\s*return "";\s*\}/);
+  /* round 2 (R2-6): a whitelist of return expressions (a new `return msg.senderAddress…`
+     before the guard leaked with the old count green), and the guard sits at the TOP level
+     of the try — braces balance between `try {` and it — so it cannot be nested dead. */
+  const rsReturns = [...rsx.matchAll(/return\s+([^;]*);/g)].map((m) => m[1].trim());
+  const rsBadReturns = rsReturns.filter((r) => !['""', 'msg.senderNick', 'rosterNick', 'contact.nickname', 'addr.ToString()'].includes(r));
+  const tryOpen = rsTry.indexOf('try');
+  /* round 3 (R3-1): a whitelisted NAME can carry the address (`?.getNick() ?? addr.ToString()`
+     stayed green). Every use of `addr` is walked; only the known lookups and the ONE final
+     return may read it. R3-4: nothing returns before the own-address test, which is the first
+     statement after the read. R3-7: `friend` is never reassigned in here (hidesParticipants(null)
+     is false → the guard would pass the address). */
+  const addrUses = [...rsTry.matchAll(/\baddr\b/g)].map((m) => rsTry.slice(Math.max(0, m.index - 30), m.index + 40).replace(/\s+/g, ' '));
+  const addrLeft = rsTry
+    .replace(/Address\? addr = msg\.senderAddress;/, '')
+    .replace(/if \(addr != null && addr\.SequenceEqual\(IxianHandler\.primaryWalletAddress\)\)/, '')
+    .replace(/if \(addr == null\)/, '')
+    .replace(/var rosterNick = friend\.users\?\.getUser\(addr\)\?\.getNick\(\);/, '')
+    .replace(/var contact = FriendList\.getFriend\(addr\);/, '')
+    .replace(/return addr\.ToString\(\);/, '');
+  const readAt = rsTry.indexOf('Address? addr = msg.senderAddress;');
+  const afterRead = readAt < 0 ? '' : rsTry.slice(readAt + 'Address? addr = msg.senderAddress;'.length);
+  const ownFirst = readAt > 0 && !/\breturn\b/.test(rsTry.slice(rsTry.indexOf('{', tryOpen), readAt))
+    && /^\s*if \(addr != null && addr\.SequenceEqual\(IxianHandler\.primaryWalletAddress\)\)/.test(afterRead);
+  const toGuard = blindAt > 0 ? rsTry.slice(rsTry.indexOf('{', tryOpen) + 1, blindAt) : '';
+  ok(rsx.length > 0
+     && /if \(addr != null && addr\.SequenceEqual\(IxianHandler\.primaryWalletAddress\)\)\s*\{\s*return "";\s*\}/.test(rsx)
+     && addrReturns.length === 1 && blindAt > 0 && blindAt < addrReturns[0].index
+     && (toGuard.match(/\{/g) || []).length === (toGuard.match(/\}/g) || []).length
+     && rsBadReturns.length === 0
+     && JSON.stringify([...rsTry.matchAll(/\bmsg\s*\.\s*(\w+)/g)].map((m) => m[1]).sort()) === JSON.stringify(['senderAddress', 'senderNick', 'senderNick']) && (rsTry.match(/\b(?:rosterNick|contact)\s*(?:\?\?)?=(?!=)/g) || []).length === 2
+     && addrUses.length === 7 && !/\baddr\b/.test(addrLeft) && ownFirst && !/\bfriend\s*=(?!=)/.test(rsx)
+     /* round 6 (#2): each test together with the return it guards, in the BUBBLE's order (SingleChatPage.resolveNick):
+        nick → roster → contact → the blind guard → the address */
+     && (() => { const at = [/if \(!string\.IsNullOrEmpty\(msg\.senderNick\)\)\s*\{\s*return msg\.senderNick;\s*\}/, /if \(!string\.IsNullOrEmpty\(rosterNick\)\)\s*\{\s*return rosterNick;\s*\}/, /if \(contact != null && !string\.IsNullOrEmpty\(contact\.nickname\)\)\s*\{\s*return contact\.nickname;\s*\}/, /if \(Utils\.hidesParticipants\(friend\)\)/, /return addr\.ToString\(\);/].map((re) => rsTry.search(re)); return at.every((x, i) => x > 0 && (i === 0 || x > at[i - 1])); })()
+     /* round 5 (#3): the ladder's emptiness tests are exact — `msg.senderNick != null` lets an EMPTY nick end the ladder where the bubble falls through to the roster */
+     && /if \(!string\.IsNullOrEmpty\(msg\.senderNick\)\)/.test(rsTry) && /if \(!string\.IsNullOrEmpty\(rosterNick\)\)/.test(rsTry) && /if \(contact != null && !string\.IsNullOrEmpty\(contact\.nickname\)\)/.test(rsTry)
+     && (rsCatch.match(/\be\b/g) || []).length === 2 && /Logging\.warn\("resolveExcerptSender: \{0\}", e\.GetType\(\)\.Name\);/.test(rsCatch),
+    '★ #944 / #946 (reader E-1, E-3, R2-6, R3-1/4/7): resolveExcerptSender tests this wallet\'s own address FIRST (no return before it) and returns "", reads `addr` only in its known lookups and the ONE final return (' + addrUses.length + ' uses), never reassigns `friend`, returns only whitelisted expressions (bad: ' + (rsBadReturns.join(' | ') || 'none') + '), reaches its ONE address return only AFTER a TOP-LEVEL `if (Utils.hidesParticipants(friend)) return "";` (a blind room never shows an address — the bubble shows "Hidden member", and on the owner\'s device it is the REAL address), and its catch logs the exception TYPE only');
   const typingAt = hp.indexOf('if (friend.isTyping)');
-  ok(typingAt > gateAt && /excerptSender\s*=\s*""/.test(hp.slice(typingAt, hp.indexOf('}', typingAt))),
+  ok(typingAt > gateAt && /excerptSender\s*=\s*"";/.test(hp.slice(typingAt, hp.indexOf('}', typingAt))),
     '#944: the typing line CLEARS the sender — it is not the tail message');
+  /* round 3 (R3-2, R3-3): the flush carries kind and sender through two dictionaries. Each
+     name is walked: ONE declaration, ONE write (`= excerptKind;` / `= excerptSender;`), ONE
+     read (the push) — an `.Add`, a second write or a wrong right-hand side fails here. */
+  const dictOk = (name, rhs) => {
+    const uses = [...hp.matchAll(new RegExp('\\b' + name + '\\b[^;]*;', 'g'))].map((m) => m[0]);
+    const decl = uses.filter((u) => new RegExp('^' + name + '\\s*=\\s*new(\\s*Dictionary<string, string>)?\\(\\);$').test(u));   // r4 MINOR-5: `= new();` is the same declaration
+    const write = uses.filter((u) => new RegExp('^' + name + '\\[helper_msg\\.walletAddress\\] = ' + rhs + ';$').test(u));
+    const occ = (hp.match(new RegExp('\\b' + name + '\\b', 'g')) || []).length;
+    return decl.length === 1 && write.length === 1 && occ === 3;
+  };
+  ok(dictOk('excerpt_kinds', 'excerptKind') && dictOk('excerpt_senders', 'excerptSender'),
+    '★ #944 / CH6 (#946 R3-2/3): the flush\'s excerpt_kinds / excerpt_senders are each declared once, written once from the helper\'s out params, and read once by the push — the lone-push path and the flush cannot disagree');
 }
 
 console.log('BUG-1b / BUG-2 — built home shell, real bridge pushes');
@@ -17956,10 +18166,18 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
      && /FriendList\.removeFriend\(friend\);/.test(maskCmt(undoBranch))
      && /TODO: send a notification to the other party/.test(undoBranch),
     'B1 at source: SingleChatPage ixian:undorequest = FriendList.removeFriend + a "TODO: notify the other party" — the peer is NOT told (the copy must say so)');
-  ok(/StartsWith\("ixian:undorequest:", StringComparison\.Ordinal\)/.test(hpB)
-    && /bool outgoingPending = f\.state == FriendState\.RequestSent;/.test(hpB) && !/outgoingPending = !f\.approved/.test(hpB)
-    && /"undoRequestResult", addr, status/.test(hpB),
-    '★ B1 C#: HomePage ixian:undorequest:<addr> is GUARDED on FriendState.RequestSent — the state the outgoing sites set and the row is built from; NOT `!approved`, which defaults TRUE for outgoing requests (#399) and would have made the revoke a dead feature — and answers undoRequestResult');
+  /* ★ #967 (Damir, dial (a)): the B1 C# revoke is DELETED — this pin is INVERTED, not removed.
+     The shells no longer send `ixian:undorequest:<addr>` (derived: every src/ .js/.html, comments
+     stripped), so HomePage must not keep a handler for it; the Decline still answers undoRequestResult. */
+  {
+    const senders967 = [];
+    const walk967 = (d) => { for (const e of readdirSync(join(root, d), { withFileTypes: true })) { const pth = d + '/' + e.name; if (e.isDirectory()) { if (e.name !== 'demo') walk967(pth); } else if (/\.(js|html)$/.test(e.name) && /ixian:undorequest:/.test(stripCode(readFileSync(join(root, pth), 'utf8')))) senders967.push(pth); } };
+    walk967('src');
+    const hp967 = stripCode(hpB);
+    ok(!/ixian:undorequest:/.test(hp967) && !/onUndoRequestFor/.test(hp967) && senders967.length === 0
+      && /"undoRequestResult", addr, status/.test(hpB),
+      '★ #967 (inverts B1 C#): no shell sends ixian:undorequest:<addr> (senders: ' + (senders967.join(', ') || 'none') + '), and HomePage keeps no handler for it (onUndoRequestFor deleted); the request-card Decline still answers undoRequestResult');
+  }
   /* ★ #562 (Damir 2026-08-25) REBASED B1 SHELL — rewritten in place: HIDE, not
      destroy. The removeFriend revoke made an accepted-later request a DEAD chat on
      the peer's device (Damir's repro). The branch now sends NO verb — the Friend
@@ -24265,9 +24483,9 @@ console.log('#713–#721: the walk fixes');
       '★★ #720 EXECUTED: when the row already has a real nickname it REPLACES the address in the connected line — the text was written before the nick arrived, the list knows the name now. Got: ' + b);
     ok(canon('plain text with no address', 'Androoo') === 'plain text with no address',
       '#720: text without an address is untouched (fast path)');
-    ok(/excerpt: excerptFor\(wallet, excerpt_msg, type, from, excerptKind\),/.test(home) && /if \(k === 'connected'\) return \{ type: 'connected', text: canonExcerptText\(decoded, name\) \};/.test(home)
+    ok(/excerpt: excerptFor\(wallet, excerpt_msg, type, from, excerptKind, excerptSender\),/.test(home) && /if \(k === 'connected'\) return \{ type: 'connected', text: canonExcerptText\(decoded, name\) \};/.test(home)
       && (home.match(/canonExcerptText\(decoded, name\)/g) || []).length === 1,
-      '#720 → CH6 (Session AD): the pushed name reaches the canon through excerptFor → excerptFromPush, and ONLY the `connected` KIND substitutes it (one call site with the name)');
+      '#720 → CH6 (Session AD): the pushed name reaches the canon through excerptFor → excerptFromPush, and ONLY the `connected` KIND substitutes it (one call site with the name; ★ #946 re-based: the call gained #944\'s sender as its 6th argument)');
   }
   /* #717 — the @ picker never offers me */
   {
@@ -34363,7 +34581,7 @@ console.log('★ Session Y — contact details, the premium pass (#873/#875/#876
      `--outline-on-card` now (light neutral-200 / dark neutral-600), and NO neutral step is
      spelled on a hairline in this sheet any more (a step is right on one card only). */
   ok(/background: var\(--outline-on-card\);/.test(css) && !/--outline-neutral-0[123]/.test(css)
-     && /\.c-chat-info__txs-list > \* \+ \*::after \{/.test(css) && !/::before/.test(css)
+     && /\.c-chat-info__txs-list > \* \+ \.c-chat-info__txs-all::after \{/.test(css) && !/::before/.test(css)   /* #968: row-to-row lines are gone; the family-boundary line under the tx rows stays */
      && /html:root \.c-txlist-item::before/.test(stripCssComments(readFileSync(join(root, 'src/styles/base.css'), 'utf8')))
      && /\.c-chat-info__row \{[^}]*padding-inline: var\(--spacing-12\);/.test(css) && /--ci-hairline-inset: calc\(var\(--spacing-12\) \+ 22px \+ var\(--spacing-12\)\);/.test(css)
      && /\.c-chat-info__card :focus-visible \{ outline-offset: -2px; \}/.test(css),
@@ -34417,9 +34635,12 @@ console.log('★ Session Y — contact details, the premium pass (#873/#875/#876
     const ssHair = stripCssComments(readFileSync(join(root, 'src/styles/components/settings-shell.css'), 'utf8'));
     ok(!!light['--outline-on-card'] && !!dark['--outline-on-card'] && light['--outline-on-card'] !== dark['--outline-on-card']
        && r.hairL >= 1.11 && r.hairL <= 1.30 && r.hairD >= 1.11
-       && /\.c-settings__group > \.c-settings__section \+ \.c-settings__section \{[^}]*var\(--outline-on-card\)/.test(ssHair)
-       && !/\.c-settings__group > \.c-settings__section \+ \.c-settings__section \{[^}]*--outline-neutral-0/.test(ssHair),
-      '★ Session Z (#884 ⑤): --outline-on-card is defined per theme (light neutral-200, a different step in dark), lands between 1.11 and 1.30 on the light card (' + f(r.hairL) + ') and ≥ 1.11 on the dark card (' + f(r.hairD) + '), and the Account hub\'s in-card hairline reads the SAME role (no neutral step)');
+       /* ★ #949 re-based (Damir, AE walk): the Account hub draws NO in-card hairline any more — the
+          clause that required the hub to read the role is INVERTED (#835), not deleted: no rule
+          between two sections of one group may draw a line, in any spelling. The role itself
+          stays defined for the families that keep their lines (chat-info lists). */
+       && !/\.c-settings__section\s*\+\s*\.c-settings__section\s*\{[^}]*border/.test(ssHair),
+      '★ Session Z (#884 ⑤): --outline-on-card is defined per theme (light neutral-200, a different step in dark), lands between 1.11 and 1.30 on the light card (' + f(r.hairL) + ') and ≥ 1.11 on the dark card (' + f(r.hairD) + '), and — ★ #949 — the Account hub draws NO in-card hairline at all (the card edge groups its rows)');
   }
   ok(/--surface-card-hover: var\(--neutral-200\);/.test(tokAll) && /--surface-card-pressed: var\(--neutral-300\);/.test(tokAll)
      && /--surface-card-hover: var\(--neutral-600\);/.test(tokAll) && /--surface-card-pressed: var\(--neutral-500\);/.test(tokAll),
@@ -35704,6 +35925,87 @@ console.log('#912: backup exclusions, the html copy skip, and the start clock');
     '★ #923 ③ (derived): the 700 dp threshold is compared in exactly ONE C# file and once there (' + thresholdSites.join(', ') + '); every other pane decision reads rightContent.IsVisible (' + paneReads + ' sites) — the phone rule reaches all of them through the one branch');
 }
 
+console.log('★ Session AF — the AE walk fixes (#947–#950)');
+{
+  const rdAF = (f) => readFileSync(join(root, f), 'utf8').replace(/\r\n/g, '\n');
+  /* ── ② #950: a second tip on the same message says the TRUE thing, BEFORE any spend ─────── */
+  const scpAF = stripCode(rdAF('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
+  const tipAt = scpAF.indexOf('case "tip":');
+  const tipBody = tipAt < 0 ? '' : scpAF.slice(tipAt, scpAF.indexOf('case "sendContactRequest":', tipAt));
+  const nullAt = tipBody.indexOf('if (msg == null)');
+  const ownAt = tipBody.search(/if \(hasOwnTip\(msg\)\)\s*\{\s*Logging\.info\([^;]*\);\s*sendTipResult\(false, SpixiLocalization\._SL\("chat-modal-tip-already-body"\)\);\s*return;\s*\}/);
+  const prepAt = tipBody.indexOf('Node.prepareTransactionFrom(');
+  const confirmAt = tipBody.indexOf('SPayments.confirmTip(');
+  const hot = (() => { const i = scpAF.indexOf('private static bool hasOwnTip(FriendMessage msg)'); if (i < 0) return ''; let d = 0; for (let k = scpAF.indexOf('{', i); k < scpAF.length; k++) { if (scpAF[k] === '{') d++; else if (scpAF[k] === '}' && --d === 0) return scpAF.slice(i, k + 1); } return ''; })();
+  ok(tipAt > 0 && nullAt > 0 && ownAt > nullAt && prepAt > ownAt && confirmAt > prepAt
+     && /lock \(msg\.reactions\)/.test(hot) && /msg\.reactions\.TryGetValue\("tip", out var tips\)/.test(hot)
+     && /x\.sender\.SequenceEqual\(self\)/.test(hot) && /Address self = IxianHandler\.getWalletStorage\(\)\.getPrimaryAddress\(\);/.test(hot)
+     && /_SL\(hasOwnTip\(msg\) \? "chat-modal-tip-already-body" : "chat-modal-tip-error-body"\)/.test(tipBody),
+    '★ #950 (Damir, AE.12): a second tip from this wallet is refused AFTER the message is found and BEFORE a transaction is prepared or the native confirm shows, with "chat-modal-tip-already-body" — hasOwnTip reads Core\'s own rule (one "tip" entry per sender, under lock(msg.reactions), sender = this wallet\'s primary address); the post-confirm refusal re-uses the test and keeps the generic copy only for refusals it cannot name');
+  const langDir = join(root, 'Spixi/Resources/Raw/lang');
+  const langs = readdirSync(langDir).filter((f) => /^[a-z]{2}-[a-z]{2}\.txt$/.test(f));
+  const langBad = langs.filter((f) => { const m = readFileSync(join(langDir, f), 'utf8').match(/^chat-modal-tip-already-body = (.+)$/m); return !m || !m[1].trim() || /\{\d\}/.test(m[1]); });
+  ok(langs.length >= 13 && langBad.length === 0
+     && /^chat-modal-tip-already-body = You already tipped this message\.$/m.test(readFileSync(join(langDir, 'en-us.txt'), 'utf8')),
+    '#950: chat-modal-tip-already-body exists, non-empty and parameter-free in every lang file (' + langs.length + '; missing/bad: ' + (langBad.join(', ') || 'none') + ')');
+
+  /* ── ⑤ #949: no hairline between rows of the SAME card (Account hub · member roster) ───────
+     ★ #953 — THE DESIGN CALL. Two readers in a row beat this pin with a new CSS spelling each
+     (`:not(:first-child)`, an outer box-shadow, longhands, a gradient, another stylesheet) and
+     every widening raised FALSE REDs on harmless rules (a focus ring, a press layer, `border: 0px`).
+     "No line is painted" is a property of the RENDER, not of the stylesheet text — no reading of
+     CSS proves it. So this pin claims only what it proves: the two rules #949 deleted are gone
+     (in any selector order), the line ABOVE the roster and the other in-card lists survive, and
+     `--outline-on-card` is no longer painted by the settings shell at all. The visual property
+     is proven by the render (docs/sheets/session-af/hair-sheet.png) and carried by walk row AF.9. */
+  const setCss = stripCssComments(rdAF('src/styles/components/settings-shell.css'));
+  const ciCss = stripCssComments(rdAF('src/styles/components/chat-info.css'));
+  /* r3 (#954): selectors normalised around combinators, so a minified or reformatted copy of the
+     same rule is the same rule (a missed re-add AND a false red on whitespace, both closed) */
+  const normSel = (x) => x.trim().replace(/\s*([>+~])\s*/g, ' $1 ').replace(/\s+/g, ' ');
+  const rulesOf = (css) => [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sels: m[1].split(',').map(normSel), body: m[2] }));
+  const paintsRole = (b) => /content\s*:/.test(b) && /background(-color)?\s*:\s*var\(\s*--outline-on-card\s*[,)]/.test(b);   // r4: a fallback is the same paint
+  const hubTargeted = rulesOf(setCss).some((r) => r.sels.some((x) => /\.c-settings__section \+ \.c-settings__section/.test(x)));
+  const rosterTargeted = rulesOf(ciCss).some((r) => r.sels.some((x) => /\.c-chat-info__member-(list|fill) > \* \+ \*/.test(x)));
+  const painter = rulesOf(ciCss).filter((r) => paintsRole(r.body));
+  /* ★ #968 (Damir, dial (c)) RE-BASED: no row-to-row line anywhere on the surface — the kept
+     lines are the FAMILY boundaries only (a list under the search field / payments toggle, and
+     "View all" under the tx rows). A painter selector ending `> * + *` is a row-to-row line. */
+  const keeps = ['.c-chat-info__card > * + .c-chat-info__member-list::after', '.c-chat-info__card > * + .c-chat-info__shared-list::after', '.c-chat-info__card > * + .c-chat-info__txs-list::after', '.c-chat-info__txs-list > * + .c-chat-info__txs-all::after'];
+  const rowToRow = painter.some((r) => r.sels.some((x) => /> \* \+ \*(::?after)?$/.test(x)));
+  const selNorm2 = (x) => x.replace(/(?<!:):(after|before)\b/g, '::$1');   // r5: `:after` renders as `::after`
+  ok(!hubTargeted && !rosterTargeted && !/--outline-on-card/.test(setCss)
+     && painter.length >= 1 && !rowToRow && keeps.every((k) => painter.some((r) => r.sels.map(selNorm2).includes(k))),
+    '★ #949 (Damir, AE walk) · scope per #953/#954: no rule in settings-shell.css targets section + section and no rule in chat-info.css targets member-list/member-fill > * + * (any spacing), settings-shell.css paints --outline-on-card nowhere, and (#968) chat-info\'s hairline paint rule(s) draw NO row-to-row line (no `> * + *` selector) and still LIST the four family-boundary lines: a list under the search field or the payments toggle, and View all under the tx rows. NOT proven here: that no OTHER rule paints a line — the render (ci-after-sheet.png) and walk carry that');
+  /* ── #963 (Damir, AF walk): the selection circle sits at the TOP of a bubble, not its centre ── */
+  {
+    const selAF = stripCssComments(rdAF('src/styles/components/chat-select.css'));
+    const ruleOf = (sel) => { const i = selAF.indexOf(sel + ' {'); return i < 0 ? '' : selAF.slice(i, selAF.indexOf('}', i)); };
+    const circ = ruleOf('[data-selecting] .c-bubble-row[role="checkbox"]::before');
+    const tick = ruleOf('[data-selecting] .c-bubble-row[data-selected]::after');
+    const bad963 = [];
+    if (!/align-self:\s*flex-start;/.test(circ) || /align-self:\s*center/.test(circ)) bad963.push('circle not align-self:flex-start');
+    if (!/margin-top:\s*var\(--spacing-4\);/.test(circ)) bad963.push('circle margin-top is not --spacing-4');
+    if (!/top:\s*calc\(var\(--spacing-4\) \+ var\(--size-avatar-24\) \/ 2\);/.test(tick) || /top:\s*50%/.test(tick)) bad963.push('tick top is not derived from the circle (margin-top + half its size)');
+    if (!/width:\s*var\(--size-avatar-24\);/.test(circ)) bad963.push('circle size is not --size-avatar-24 (the tick derivation assumes it)');
+    ok(bad963.length === 0,
+      '★ #963 (Damir, AF walk): the multi-select circle is TOP-aligned (align-self:flex-start + --spacing-4, centring it on a one-line bubble\'s first line) and the tick\'s top is derived from the same two tokens, so the circle and the tick move together. Failing: [' + bad963.join(' · ') + ']');
+  }
+  /* ── #966 (Damir, AF walk): the reaction pill sits LOWER, and its reserve is INSIDE the row box ── */
+  {
+    const rcAF = stripCssComments(rdAF('src/styles/components/reactions.css'));
+    const ruleAt = (sel) => { const i = rcAF.indexOf(sel + ' {'); return i < 0 ? '' : rcAF.slice(i, rcAF.indexOf('}', i)); };
+    const pillR = ruleAt('.c-reactions[data-placement="overlap"]');
+    const rowR = ruleAt('.c-bubble-row[data-reactions="overlap"]');
+    const bad966 = [];
+    if (!/inset-block-end:\s*calc\(-1 \* \(var\(--spacing-16\) \+ var\(--spacing-2\)\)\);/.test(pillR)) bad966.push('pill overhang is not 16 + 2 (lower than the old 12)');
+    if (!/padding-bottom:\s*var\(--spacing-20\);/.test(rowR)) bad966.push('the row reserve is not padding-bottom 20 (≥ the 18 overhang)');
+    if (/margin-bottom/.test(rowR)) bad966.push('the row reserve is still a MARGIN (the pill hangs outside the masked box → cropped under the composer)');
+    ok(bad966.length === 0,
+      '★ #966 (Damir, AF walk; #951 option B): the overlap pill hangs 18 px below its bubble (only ~4 px on it), and the row reserves that overhang as PADDING — inside the border box the composer fade masks, so the pill dissolves with its bubble instead of showing cropped. The select tick no longer moves with the padding (#963 measures from the row top). Failing: [' + bad966.join(' · ') + ']');
+  }
+}
+
 console.log('★ Session AD — the ours/his cutover rows: batch 1 (CH6 · C1/C2 · S11 · C16 · W11), batch 3, the sweep');
 {
   const rdAD = (f) => readFileSync(join(root, f), 'utf8').replace(/\r\n/g, '\n');
@@ -35725,7 +36027,14 @@ console.log('★ Session AD — the ours/his cutover rows: batch 1 (CH6 · C1/C2
   /* ── CH6: the excerpt KIND is pushed, and the shell's admitted set is DERIVED from the
      C# assignments — a kind C# names that the shell does not admit renders as text
      (silently wrong glyph = the #602 class), so the two sets are pinned EQUAL. */
-  const helper = methodAD(hpAD, 'private FriendMessageHelper? getFriendMessageHelper(Friend friend, out string excerptKind)');
+  /* ★ Session AF (#946, reader E-2): #944 gave the helper a second out param and this pin
+     went RED — and it was red ONLY on `helper.length > 0`, because the kind set was built
+     from `helper + hpAD` (the whole file), so an empty helper still derived every kind. The
+     helper is now found by walking EVERY definition (exactly one, both out params), and the
+     kind set is built from the helper's writes + the flush's `excerpt_kinds[…] =` writes only. */
+  const helperDefs = [...hpAD.matchAll(/private FriendMessageHelper\? getFriendMessageHelper\(([^)]*)\)\s*\{/g)];
+  const helperOk = helperDefs.length === 1 && /out string excerptKind/.test(helperDefs[0][1]) && /out string excerptSender/.test(helperDefs[0][1]);
+  const helper = helperDefs.length === 1 ? methodAD(hpAD, helperDefs[0][0].replace(/\s*\{$/, '')) : '';
   /* ★ #46 loop (auditor C, item 1): the first cut collected ONE spelling of the assignment
      (`excerptKind = "…";`) and a kind written any other way — a constant, a conditional
      assignment, `excerpt_kinds[...] = "…"` in loadChats — escaped the set and reached the
@@ -35733,7 +36042,10 @@ console.log('★ Session AD — the ours/his cutover rows: batch 1 (CH6 · C1/C2
      right-hand side that is not a string literal or a ternary of two literals FAILS. */
   const csKinds = new Set();
   const badWrites = [];
-  for (const m of (helper + hpAD).matchAll(/(?:\bexcerptKind|excerpt_kinds\[[^\]]+\])\s*=(?!=)\s*([^;]+);/g)) {
+  /* ★ round 2 (R2-1): the narrowed sweep missed a kind written in updateChat — the WHOLE
+     file is swept again; helperOk (exactly one definition, both out params) is what closes
+     the empty-helper hole the narrowing was meant to close. */
+  for (const m of (helper + '\n' + hpAD).matchAll(/(?:\bexcerptKind|excerpt_kinds\[[^\]]+\])\s*=(?!=)\s*([^;]+);/g)) {
     const rhs = m[1].trim();
     if (/^"([a-z-]+)"$/.test(rhs)) { csKinds.add(rhs.slice(1, -1)); continue; }
     const tern = /^[A-Za-z_][\w.!]*\s*\?\s*"([a-z-]+)"\s*:\s*"([a-z-]+)"$/.exec(rhs);
@@ -35744,13 +36056,18 @@ console.log('★ Session AD — the ours/his cutover rows: batch 1 (CH6 · C1/C2
   const shellKindsM = homeAD.match(/const PUSHED_EXCERPT_KINDS = new Set\(\[([\s\S]*?)\]\);/);
   const shellKinds = new Set(shellKindsM ? [...shellKindsM[1].matchAll(/'([a-z-]+)'/g)].map((m) => m[1]) : []);
   const csOnly = [...csKinds].filter((k) => !shellKinds.has(k)), shellOnly = [...shellKinds].filter((k) => !csKinds.has(k));
-  ok(helper.length > 0 && csKinds.size >= 12 && csOnly.length === 0 && shellOnly.length === 0 && badWrites.length === 0
+  ok(helperOk && helper.length > 0 && csKinds.size >= 12 && csOnly.length === 0 && shellOnly.length === 0 && badWrites.length === 0
      && !/getFriendMessageHelper\(Friend friend\)\s*\{/.test(hpAD),
     '★ CH6 ① (derived): every excerpt kind getFriendMessageHelper assigns (' + [...csKinds].sort().join(', ') + ') is admitted by home.html\'s PUSHED_EXCERPT_KINDS and vice versa (C#-only: ' + (csOnly.join(', ') || 'none') + ' · shell-only: ' + (shellOnly.join(', ') || 'none') + ' · non-literal writes: ' + (badWrites.join(' | ') || 'none') + '); the kind-less overload is gone');
   const addChatSites = [...hpAD.matchAll(/sendUiCommand\(this, "addChat", ([^;]*)\);/g)].map((m) => m[1]);
-  ok(addChatSites.length === 2 && addChatSites.every((a) => a.split(',').length === 11 && /excerpt_kinds\[helper_msg\.walletAddress\]$|excerptKind$/.test(a.trim())),
-    '★ CH6 ②: BOTH addChat pushes (the flush and the lone updateChat) carry the kind as the 11th argument after the command (' + addChatSites.length + ' sites, LAST — an older shell ignores it)');
-  ok(/addChat\(wallet, from, timestamp, avatar, online, excerpt_msg, type, unread, kind, mention, excerptKind\)/.test(homeAD)
+  /* ★ #946 re-based (reader E-2): #944 appended the sender, so the kind is no longer LAST.
+     Positions, not a comma count: the kind is argument 11 and the sender argument 12 (LAST). */
+  const ch6Parts = addChatSites.map((a) => a.split(',').map((x) => x.trim()));
+  ok(addChatSites.length === 2 && ch6Parts.every((p) => p.length === 12
+       && /^(excerpt_kinds\[helper_msg\.walletAddress\]|excerptKind)$/.test(p[10])
+       && /^(excerpt_senders\[helper_msg\.walletAddress\]|excerptSender)$/.test(p[11])),
+    '★ CH6 ②: BOTH addChat pushes (the flush and the lone updateChat) carry the kind as the 11th argument after the command and #944\'s sender as the 12th, LAST (' + addChatSites.length + ' sites — an older shell ignores the tail)');
+  ok(/addChat\(wallet, from, timestamp, avatar, online, excerpt_msg, type, unread, kind, mention, excerptKind, excerptSender\)/.test(homeAD)
      && /function excerptFromPush\(raw, statusType, name, excerptKind\)/.test(homeAD)
      && !/function excerptFromRaw|canonEntry\(|#sl-carriers|sl-ex-/.test(homeAD)
      && !/id="sl-ex-/.test(rdAD('src/shells/home.html')),
@@ -35932,25 +36249,36 @@ console.log('★ Session AD — the ours/his cutover rows: batch 1 (CH6 · C1/C2
      && /addContact\(address, nickname, avatar, online, _unread, relation, kind\)/.test(homeAD)
      && /sendUiCommand\(this, "setRelation", contactRelationFor\(friend\.walletAddress\)\)/.test(cdAD) && /setRelation\(r\)/.test(cdShAD) && /createPendingContact/.test(cdShAD),
     '★ C17/CO1: addContact carries relation (contactRelationFor — the one predicate) and kind as args 6–7; ContactDetails pushes setRelation and renders the pending pane from it');
-  const undoB = methodAD(cdAD, 'else if (current_url.Equals("ixian:undorequest", StringComparison.Ordinal))');
+  /* ★ Session AF (#947, Damir's ruling on AE.13 — "remove Cancel request from contact details /
+     chat info"): the C17 pin that proved ContactDetails' `ixian:undorequest` branch is INVERTED,
+     not deleted (#835). The pending profile renders NO action; the verb, its handler and the
+     shell's verdict handler are gone — a WebView-reachable removeFriend path nothing sends is
+     not kept. Property, not spelling: the stripped C# names the verb NOWHERE, the source AND
+     built shells neither send it nor pass onCancelRequest, and the component renders no button
+     without a callback (executed below). The chat keeps the verb for its INCOMING request pane
+     (the outgoing strip and the chats row HIDE since #562): exactly one send, inside the pane's
+     construction — the Decline-tap wiring is the walk's (#959). */
   {
-    // the guard is the SAME predicate contactRelationFor renders as "pending" (loop B M2) — read both
-    const relFn = methodAD(csAD('Spixi/Utils/SpixiContentPage.cs'), 'public static string contactRelationFor(Address address)');
-    const tryBlock = braceBlock(undoB, undoB.indexOf('try'));
-    ok(undoB.length > 0 && relFn.length > 0
-       && /if \(fr\.approved && fr\.state == FriendState\.Approved\) return "contact";/.test(relFn) && /if \(fr\.state == FriendState\.RequestReceived\) return "pending-in";/.test(relFn)
-       && /bool pendingOut = !friend\.bot && friend\.type != FriendType\.Group\s*&& !\(friend\.approved && friend\.state == FriendState\.Approved\)\s*&& friend\.state != FriendState\.RequestReceived;/.test(undoB)
-       && tryBlock.length > 0 && /if \(pendingOut && FriendList\.removeFriend\(friend\)\)/.test(tryBlock) && !/FriendList\.removeFriend/.test(undoB.replace(tryBlock, ''))
-       && /openChat = Utils\.getChatPage\(friend\);/.test(tryBlock) && tryBlock.indexOf('openChat = Utils.getChatPage(friend);') < tryBlock.indexOf('FriendList.removeFriend(friend)')
-       && (undoB.match(/sendUiCommand\(this, "undoRequestResult", friend\.walletAddress\.ToString\(\), (?:status|"fail")\)/g) || []).length === 2
-       && /sendUiCommand\(this, "undoRequestResult", friend\.walletAddress\.ToString\(\), status\)/.test(tryBlock)
-       && /catch \(Exception ex\)\s*\{[^}]*sendUiCommand\(this, "undoRequestResult", friend\.walletAddress\.ToString\(\), "fail"\)/.test(undoB)
-       && /if \(status == "ok"\)\s*\{\s*if \(openChat != null\)/.test(undoB) && /openChat\.popPageAsync\(\);/.test(undoB)
-       // r3: the removal's success arm must be the one place `status` becomes "ok" — `status = "fail"`
-       // there removed the record while the shell heard "fail" (no sweep, no close), suite green
-       && /if \(pendingOut && FriendList\.removeFriend\(friend\)\)\s*\{\s*status = "ok";/.test(tryBlock)
-       && (undoB.match(/status = "ok";/g) || []).length === 1 && /string status = "fail";/.test(undoB),
-      '★ C17 (ContactDetails ixian:undorequest): the guard is EXACTLY the relation "pending" set AND it gates the removal (not RequestSent alone — a legacy Unknown-state contact got a pane whose only action always failed, loop B M2), the open conversation is resolved BEFORE the removal and popped on ok (m2), and the result is pushed on BOTH arms — inside the try beside the removal (the gate-5 axis walk reads it there) and again in the catch (every outcome answers, m1)');
+    const cdBuilt = rdAD('Spixi/Resources/Raw/html/contact_details.html');
+    ok(!/undorequest/.test(cdAD) && !/undoRequestResult/.test(cdAD)
+       && !/ixian:undorequest|onCancelRequest|undoRequestResult|undoCtrl/.test(cdShAD)
+       && cdBuilt.length > 1000 && !/onCancelRequest: \(ctrl\)|undoRequestResult\(address, status\)|bridge\.send\('ixian:undorequest'\)/.test(cdBuilt)
+       /* round 1 (#952): the chat keeps the verb for its INCOMING request pane's Decline (the
+          outgoing strip and the chats row HIDE since #562 and send nothing) */
+       /* ★ #959 — SCOPE, per #953's rule. Three rounds tried to prove from TEXT that the send is
+          the Decline HANDLER (a key-order bug, then a limit that ran past the object into the
+          pane-building code); a text locator cannot tell "inside the handler" from "beside it".
+          So the pin claims only what text proves: chat.html sends the verb EXACTLY ONCE, and that
+          one send sits inside the incoming request pane's construction (from its createElement to
+          its mount). That it fires on the Decline TAP is behaviour — walk row AF.3. */
+       && (() => { const a = chatAD.indexOf("requestPane = document.createElement("); const b = chatAD.indexOf(".before(requestPane);", a);
+                   const pane = a > 0 && b > a ? chatAD.slice(a, b) : '';
+                   return /bridge\.send\(\s*['"`]ixian:undorequest['"`]\s*\)/.test(pane); })()
+       /* r9 (#960): EVERY occurrence of the verb in the stripped code, any shape — a suffixed
+          `'ixian:undorequest:' + a` is the same verb to C# (StartsWith), so it counts */
+       && (chatAD.match(/ixian:undorequest/g) || []).length === 1
+       && /StartsWith\("ixian:undorequest"\)/.test(scpAD),
+      '★ #947 (Damir, AE.13): contact details / chat info offer NO "Cancel request" for an outgoing request — ContactDetails no longer handles ixian:undorequest (the C17 branch is deleted), contact_details.html sends no verb, passes no onCancelRequest and has no verdict handler; chat.html NAMES the verb exactly once in code (any shape — C# matches by prefix), and that one send sits inside the incoming request pane\'s construction (SingleChatPage keeps that handler). NOT proven here: that the send fires on the Decline tap — walk row AF.3 (#959)');
   }
 
   /* ── A4: the fetch failure has a REASON, and the timeout is bounded */

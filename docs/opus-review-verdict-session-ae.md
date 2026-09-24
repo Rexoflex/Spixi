@@ -67,3 +67,37 @@ fixes. The next session's item 0 is that reader, over the r4 delta only (`chat.h
 
 Residuals carried (all recorded in #940): the reaction pill pop under the band · in-place row height changes
 with no signal · a one-frame trail on a fling · own UNSENT message in a bot room (Delete dead, pre-existing).
+
+## Verdict (AE r4) — Session AF, round 5 (fresh Opus reader, 2026-09-24)
+
+**CLEAN.** The round-4 code holds: `setChatMode` writes `mode.answeredFor` before `chatSelect.refresh()`;
+`setInset` tracks only on an inset change (`lastInset` starts at −1); removing the redundant
+`unwatchTrayContent(existing)` leaks nothing (`closeAttachTray` unwatches on both paths); `CHAT_KB_CEIL = 658`
+matched the built file. One pin hole (R5-1: a BRACE fold of `composerFadeNow()` into the select-mode `if`) — not
+a code defect; closed in the #944 loop below, where the renderLogNow rule got its executed pin.
+
+## #944 review — Session AF (#946), seven Opus rounds
+
+| round | verdict | findings (all fixed, pinned, mutation-killed) |
+|---|---|---|
+| r1 | NOT CLEAN — 2 MAJOR · 3 MINOR · 1 NIT | **E-1 MAJOR (INTRODUCED): a blind room showed a nameless member's ADDRESS in the list** (the bubble shows "Hidden member"; on the owner's device it is the REAL address) → `if (Utils.hidesParticipants(friend)) return "";` before the address return. **E-2 MAJOR: four pins #944 never re-based were RED** (#720→CH6, CH6 ①②③ — the full suite was never run after #944) → re-based by POSITION (arg 11 = kind, 12 = sender, last). E-3 spelling pins → the gate EXECUTED. E-4 "You:" prose false (the prefix is empty in 12/13 locales) → corrected. E-5 hard-coded colon, E-6 linear `getFriend` per row → logged (dials, below). |
+| r2 | NOT CLEAN — 2 MAJOR · 5 MINOR (pins) | narrowed CH6 sweep missed updateChat kinds · `{ }` between gate and block · a second call · typing clear by prefix · only Group/Normal modelled · nested/bypassed blind guard · early return in renderLogNow |
+| r3 | NOT CLEAN — 2 MAJOR · 4 MINOR · 2 NIT (pins) | `?? addr.ToString()` through a whitelisted name · the flush dictionaries unpinned · `.Add` · own-test not first · false RED on nested `return` · shadowed `composerFadeNow` · `friend = null` · shell exclusion rows |
+| r4 | NOT CLEAN — 4 MAJOR · 1 MINOR (pins) | the r3 depth-0 flatten re-opened braced early returns · destructure/reassign shadow · `rosterNick ??= msg.senderAddress` · an unmodelled OR'd member (`friend.approved`) → strict Proxy · false RED on `= new();` |
+| r5 | NOT CLEAN — 2 MINOR · 1 NIT | **the design change:** four rounds of regexes over statement ORDER → ONE EXECUTED pin on the BUILT chat shell (history through the wire, band + rects stubbed, no dispatch error, the band-crossing rows masked); `composerFadeNow();` is the LAST statement; exact ladder tests |
+| r6 | NOT CLEAN — 1 MAJOR · 1 MINOR (pins) | the executed pin passed VACUOUSLY — a leftover rAF from the pin above masked the rows during its `sleep(600)` → wait it out, read SYNCHRONOUSLY; the ladder pinned as guard+return pairs in the bubble's order |
+| **r7** | **CLEAN** | no plausible one-line regression survives; 3+3 stable runs (one under CPU load); no false RED added |
+
+**Code changed by the loop:** `HomePage.xaml.cs` only — the blind guard in `resolveExcerptSender` + comment
+corrections. Every other change is a pin. ~40 author + reader mutations, each run through the real pin text;
+none survives. Suite on the r5 snapshot (container, Core sibling): **BASELINE OK — 4876 / the 2 KNOWN**.
+
+**Dials for Damir (not built):** a localized own prefix in rooms ("You:" — `index-excerpt-self` is empty in
+12 of 13 locales, so an own tail reads unprefixed) · the colon is hard-coded (French " :", CJK "：") · a blind
++ nameless sender gets NO prefix where the bubble says "Hidden member" (fails closed; a shell label is
+possible) · `FriendList.getFriend` is a linear scan per room row per flush (accepted; the bubble pays the same).
+
+**Lesson (#798 again, in a new costume):** a pin that proves ORDER by reading statements is a list of the
+spellings its author thought of. Four rounds each found the next spelling; the loop ended only when the rule
+was EXECUTED — and even then r6 found the execution was being rescued by the pin above it. An executed pin
+must read its result at the moment the code under test has finished, not after a sleep.

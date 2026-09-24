@@ -327,7 +327,6 @@
     // ★ C17 (Session AD): the relation C# pushes (contactRelationFor): contact · pending ·
     // pending-in · self · none · '' (not yet / a room). 'pending' = OUR request is out.
     relation: '',
-    undoCtrl: null,      // the pending profile's Cancel ctrl, resolved by undoRequestResult
     // #248 GROUP surface: ContactDetails now carries group info too (setGroupInfo +
     // clearMembers/addMember roster — same contract family as SingleChatPage CI1).
     isGroup: false,
@@ -444,15 +443,17 @@
   function buildPanel() {
     /* ★ C17 (Session AD): a contact whose request WE sent and they have not accepted gets
        the minimal pending profile (#153's createPendingContact — built, never mounted in
-       production until now): identity + "Request sent" + ONE action, Cancel request →
-       `ixian:undorequest`, which ContactDetails answers with undoRequestResult and pops
-       on success. Every other action a full page would offer (Message, Call, Pay, the
-       nickname edit, the history rows) is one C# refuses for this relation. */
+       production until now): identity + "Request sent" and NO action.
+       ★ Session AF (#947, Damir's ruling on AE.13): the "Cancel request" action is REMOVED
+       here (no onCancelRequest → the component renders no button). Since #562 the chat's
+       waiting strip and the chats row HIDE an outgoing request (they send no verb), so after
+       #947 nothing REMOVES an outgoing pending contact — only hides it. Every other action a full page would offer
+       (Message, Call, Pay, the nickname edit, the history rows) is one C# refuses for this
+       relation. */
     if (!state.isGroup && state.relation === 'pending') {
       return createPendingContact({
         name: state.name, address: state.address, avatar: state.avatarPath, strings,
         onBack: () => bridge.send('ixian:back'),
-        onCancelRequest: (ctrl) => { state.undoCtrl = ctrl; bridge.send('ixian:undorequest'); },
       });
     }
     // #248 GROUP surface: kind 'group' renders name/avatar + notifications toggle +
@@ -956,17 +957,6 @@
     setContext(c) { state.context = (c === 'chat') ? 'chat' : 'contact'; scheduleCommit(); },
     // ★ C17 (Session AD): the relation (rebuilds the panel when it changes the surface)
     setRelation(r) { const v = String(r || ''); if (v !== state.relation) { state.relation = v; scheduleCommit(); } },
-    /* ★ C17: the Cancel-request verdict. "ok" → C# pops this page (nothing to do but
-       release the ctrl); anything else → the button un-latches with the failure line. */
-    undoRequestResult(address, status) {
-      const c = state.undoCtrl; state.undoCtrl = null;
-      if (String(status || '') === 'ok') {
-        forgetPeerStorage(String(address || ''), 'contact');   // the record is gone — so are its per-peer keys (the chat shell's rule)
-        if (c) { try { c.done(); } catch (e) {} }
-        return;
-      }
-      if (c) { try { c.fail(); } catch (e) {} }
-    },
     /* ★★ #591: the SAME verb the chat header uses (SingleChatPage:891). C# sends it only
        when the peer can actually be called — codecs present, 1:1, FriendState.Approved —
        so the action appears rather than being offered and refused. Idempotent: an exe

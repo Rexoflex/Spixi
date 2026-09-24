@@ -914,6 +914,19 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+/* #965: a long picker opens just below the top bar on a phone; its list scrolls. */
+:root:not([data-desktop]) .c-sheet[data-tall] {
+  top: calc(var(--layout-bar-top) + var(--safe-top, 0px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+:root:not([data-desktop]) .c-sheet[data-tall] > .c-sheet__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 /* —— #46 loop MAJOR-3: A CLOSING SHEET MUST NOT TAKE TAPS ————————————————————
    The sheet is z-44 and every scrim is z-40, so a sheet paints above a scrim that
    opens LATER. dismissOverlay does not remove the sheet at once: it drops

@@ -165,6 +165,7 @@ chat-modal-tip-pay-button = Mokėti
 chat-modal-tip-confirmation-body = Jūs ketinate padovanoti '{0}' {1}. Ši suma bus nuskaičiuota iš jūsų piniginės.
 chat-modal-tip-confirmed-body = Jūs ką tik padovanojote '{0}' {1}. Suma buvo nuskaičiuota iš jūsų piniginės.
 chat-modal-tip-error-body = Siunčiant dovaną įvyko nežinoma klaida.
+chat-modal-tip-already-body = Už šią žinutę jau davėte arbatpinigių.
 
 chat-bot-details-info = Grupės informacija
 chat-bot-address = Grupės adresas
@@ -305,6 +306,7 @@ index-excerpt-contact-request = Kontakto prašymas
 index-excerpt-file = Failas
 index-excerpt-voice-call = Balso skambutis
 index-excerpt-self = 
+index-excerpt-you = Jūs
 index-excerpt-typing = Rašo...
 index-side-settings-subtitle = Temos, kalba, slapyvardis ir duomenys
 index-side-password-subtitle = Keisti Spixi slaptažodį

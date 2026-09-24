@@ -165,6 +165,7 @@ chat-modal-tip-pay-button = 支払う
 chat-modal-tip-confirmation-body = 「{0}」に {1} のチップを送信しようとしています。この金額はウォレットから引き落とされます。
 chat-modal-tip-confirmed-body = 「{0}」に {1} のチップを正常に送信しました。金額はウォレットから引き落とされました。
 chat-modal-tip-error-body = チップの送信中に予期しないエラーが発生しました。
+chat-modal-tip-already-body = このメッセージにはすでにチップを送っています。
 
 chat-bot-details-info = グループ情報
 chat-bot-address = グループアドレス
@@ -305,6 +306,7 @@ index-excerpt-contact-request = 連絡先リクエスト
 index-excerpt-file = ファイル
 index-excerpt-voice-call = 音声通話
 index-excerpt-self = 
+index-excerpt-you = あなた
 index-excerpt-typing = 入力中...
 index-side-settings-subtitle = テーマ、言語、ニックネーム、データ
 index-side-password-subtitle = Spixiのパスワードを変更

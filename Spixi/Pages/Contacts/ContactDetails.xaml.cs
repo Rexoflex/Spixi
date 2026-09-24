@@ -473,56 +473,13 @@ namespace SPIXI
             {
                 popPageAsync();
             }
-            /* ★ C17 (Session AD): Cancel request from the pending profile. The SAME rule
-             * as HomePage.onUndoRequestFor (RequestSent only, 1:1 only, removeFriend
-             * without a leave) — a result is pushed either way so the button un-latches
-             * on the verdict; on success this page pops, the directory re-flushes. */
-            else if (current_url.Equals("ixian:undorequest", StringComparison.Ordinal))
-            {
-                /* The guard is EXACTLY the set contactRelationFor renders as "pending" (a 1:1
-                 * that is not (approved && Approved) and not RequestReceived) — the #46 loop
-                 * (auditor B, M2) found the first cut guarded on RequestSent alone, so a legacy
-                 * `Unknown`-state contact (a pre-v6 friend file, #273/#275's rows) got a pane
-                 * whose only action always answered "fail". SingleChatPage's own undorequest
-                 * (its request pane's Decline) guards on nothing; HomePage's row twin guards
-                 * on RequestSent because the row is BUILT from that marker. Here the pane is
-                 * built from the relation, so the verb accepts what the relation shows.
-                 * ⚠ removeFriend deletes files (Core LocalStorage.deleteMessages / the avatar)
-                 * and can throw on a locked file — the removal AND the push sit in ONE try so
-                 * every outcome answers (a throw before the push would latch Cancel for ever;
-                 * loop m1). The open conversation, if any, is popped on success (m2). */
-                string status = "fail";
-                SingleChatPage? openChat = null;
-                try
-                {
-                    bool pendingOut = !friend.bot && friend.type != FriendType.Group
-                        && !(friend.approved && friend.state == FriendState.Approved)
-                        && friend.state != FriendState.RequestReceived;
-                    openChat = Utils.getChatPage(friend);
-                    if (pendingOut && FriendList.removeFriend(friend))
-                    {
-                        status = "ok";
-                        UIHelpers.shouldRefreshContacts = true;
-                        SChatPrefs.setFavorite(friend.walletAddress.ToString(), false);   // CH4: the preference leaves with the record
-                    }
-                    // the answer rides the SAME block as the removal (the gate-5 axis walk reads it there)
-                    Utils.sendUiCommand(this, "undoRequestResult", friend.walletAddress.ToString(), status);
-                }
-                catch (Exception ex)
-                {
-                    Logging.error("ixian:undorequest (contact details) failed: " + ex.GetType().Name);
-                    // a throw is an outcome too — the shell's Cancel must un-latch
-                    try { Utils.sendUiCommand(this, "undoRequestResult", friend.walletAddress.ToString(), "fail"); } catch (Exception) { }
-                }
-                if (status == "ok")
-                {
-                    if (openChat != null)
-                    {
-                        try { openChat.popPageAsync(); } catch (Exception) { }
-                    }
-                    popPageAsync();
-                }
-            }
+            /* ★ Session AF (#947, Damir's ruling on AE.13): the pending profile no longer offers
+             * "Cancel request", so this page no longer answers `ixian:undorequest` — the C17
+             * (Session AD) branch is DELETED rather than left as a WebView-reachable
+             * removeFriend path nothing sends. ⚠ Since #562 the chat's outgoing waiting strip and
+             * the chats row HIDE a request rather than cancel it; the only live sender of the verb
+             * is the chat's INCOMING request pane (Decline → SingleChatPage). HomePage's
+             * `ixian:undorequest:<addr>` has had no sender since #562 — a Damir dial (#947). */
             else if (current_url.StartsWith("ixian:removecontact:", StringComparison.Ordinal))
             {
                 /* ★★ REMOVE-CONTACT SPEC §4 (Damir, screenshots 2026-08-28): ONE FLOW.

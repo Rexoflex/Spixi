@@ -98,14 +98,21 @@ export function createExcerpt({ type = 'text', text = '', sender = null, strings
   // above ships in icons.js today. If a future type is added before its icon is
   // exported, the row degrades to clean text — no empty 16px box, no per-render
   // console.warn from icon() — and lights up automatically once it's registered.
-  const glyph = EXCERPT_GLYPHS[type];
-  if (glyph && ICONS[glyph]) el.append(icon(glyph, { size: 16 }));
+  /* #944: the sender LEADS — "George: 📎 File", the order every messenger reads in
+     (the glyph describes the message, the name says whose it is). The name is its own
+     shrinkable span so a long nick ellipsizes and the colon still shows; both are
+     textContent (a nick is peer-controlled). */
   if (sender) {
     const s = document.createElement('span');
     s.className = 'c-excerpt__sender';
-    s.textContent = sender + ': ';
+    const n = document.createElement('span');
+    n.className = 'c-excerpt__sender-name';
+    n.textContent = String(sender);
+    s.append(n, document.createTextNode(':'));
     el.append(s);
   }
+  const glyph = EXCERPT_GLYPHS[type];
+  if (glyph && ICONS[glyph]) el.append(icon(glyph, { size: 16 }));
   const t = document.createElement('span');
   t.className = 'c-excerpt__text';
   if (type === 'draft') {

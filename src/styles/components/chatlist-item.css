@@ -171,7 +171,22 @@
   white-space: nowrap;
 }
 .c-chatlist-item[data-unread] .c-excerpt__text { font-weight: var(--font-weight-semibold); }
-.c-excerpt__sender { flex: none; }
+/* #944: the group/bot-room sender ("George:") — one step darker than the excerpt, the
+   name capped at 60% of the line so the message itself always keeps room, the colon
+   outside the ellipsis so it never gets cut. */
+.c-excerpt__sender {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 60%;
+  color: var(--text-neutral-01);
+  white-space: nowrap;
+}
+.c-excerpt__sender-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .c-excerpt__mention { color: var(--text-action-default); }
 .c-excerpt[data-type="typing"] .c-excerpt__text { color: var(--text-action-default); }
 /* M5 outgoing contact request — "Request sent" reads as a status, typing tone.

@@ -10821,6 +10821,83 @@ console.log('★ N71/N81 — the built CHAT shell actually boots');
   }
 }
 
+console.log('#944 — the group / bot-room excerpt names its sender ("George: hi")');
+{
+  /* ★ #944 (Damir 2026-09-24): a group row said "Hi there" with no hint of WHO wrote it.
+   * C# decides WHETHER (rooms only, never an own message, never an event kind) and sends
+   * the name as the 12th addChat argument; the shell decides HOW. Pinned on the BUILT
+   * shell through the real base64 wire, then the C# half by property. */
+  const shellPath = join(root, 'Spixi/Resources/Raw/html/index.html');
+  if (!existsSync(shellPath)) {
+    ok(false, '#944: built home shell exists (run build-shells.mjs before the smoke suite)');
+  } else {
+    const vc = new VirtualConsole();
+    const dom = new JSDOM(readFileSync(shellPath, 'utf8'), {
+      runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true,
+      url: 'file://' + shellPath, virtualConsole: vc,
+      beforeParse(w) {
+        w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+        try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
+      },
+    });
+    await sleep(2000);
+    const W = dom.window, d = W.document;
+    const b64 = (x) => Buffer.from(String(x), 'utf8').toString('base64');
+    const ADDR = 'DEFnMhMTs3AVE2YcBGGXcfoiaqCpcoBDKMN2rdrnmWrk2E2KvFhG5d9';
+    const TS = String(Math.floor(Date.now() / 1000));
+    const r = (a, name, ex, kind, ek, snd) => {
+      const args = [a, name, TS, 'img/spixiavatar.png', 'false', ex, '', '1', kind, 'False', ek];
+      if (snd !== undefined) args.push(snd);
+      return args;
+    };
+    W.executeUiCommand(W.clearChats);
+    for (const row of [
+      r('g1', 'Team room', 'Hi there', 'group', 'text', 'George'),
+      r('g2', 'Bot room', 'File', 'bot', 'file', ADDR),
+      r('g3', 'Old exe group', 'no sender arg', 'group', 'text'),
+      r('p1', 'Alice', 'hello', '', 'text', ''),
+      r('g4', 'Typing room', 'typing…', 'group', 'typing', 'Mallory'),
+      r('g5', 'Hostile', 'hi', 'group', 'text', '<img src=x onerror=alert(1)>'),
+    ]) W.executeUiCommand(W.addChat, ...row.map(b64));
+    W.executeUiCommand(W.clearChatsDone);
+    await sleep(400);
+    const rowOf = (name) => [...d.querySelectorAll('.c-chatlist-item')]
+      .find((it) => (it.querySelector('.c-chatlist-item__name') || {}).textContent === name);
+    const senderOf = (name) => { const it = rowOf(name); const s = it && it.querySelector('.c-excerpt__sender'); return s ? s.textContent : null; };
+    ok(senderOf('Team room') === 'George:'
+      && (rowOf('Team room').querySelector('.c-excerpt__text') || {}).textContent === 'Hi there',
+      '★ #944: a group row carries the pushed sender as its own styled span — "George:" beside the untouched text');
+    const botEx = rowOf('Bot room') && rowOf('Bot room').querySelector('.c-excerpt');
+    ok(senderOf('Bot room') !== null && !senderOf('Bot room').includes(ADDR) && senderOf('Bot room').includes('…'),
+      '#944: an address-shaped sender is SHORTENED (#211 — never a full base58 in an excerpt)');
+    ok(!!botEx && botEx.firstElementChild && botEx.firstElementChild.classList.contains('c-excerpt__sender')
+      && !!botEx.querySelector('.c-excerpt__sender + svg'),
+      '#944: the sender LEADS, the kind glyph follows ("George: 📎 File")');
+    ok(senderOf('Old exe group') === null && !!rowOf('Old exe group'),
+      '#944: a push WITHOUT the 12th argument (an older exe) renders exactly as before — no prefix, no error');
+    ok(senderOf('Alice') === null, '#944: a 1:1 row sent an empty sender renders no prefix');
+    ok(senderOf('Typing room') === null,
+      '#944: the shell never prefixes a status it paints itself (typing), whatever C# sends');
+    const hostile = rowOf('Hostile');
+    ok(!!hostile && senderOf('Hostile') === '<img src=x onerror=alert(1)>:' && !hostile.querySelector('.c-excerpt img'),
+      '★ #944: a peer-controlled nick is TEXT — the markup renders literally and no element is created');
+    dom.window.close();
+  }
+
+  // C# half, by property (comments stripped — #771).
+  const hp = stripCode(readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8'));
+  const pushes = hp.split('"addChat"').slice(1).map((t) => t.slice(0, t.indexOf(';')));
+  ok(pushes.length === 2 && pushes.every((t) => /,\s*excerpt_?[sS]enders?(\[[^\]]+\])?\s*\)\s*$/.test(t)),
+    '★ #944: EVERY addChat push (both — derived by walking the file) ends with the excerpt sender, appended LAST (older shells ignore it)');
+  const gateAt = hp.indexOf('excerptSender = resolveExcerptSender(');
+  const gate = gateAt < 0 ? '' : hp.slice(hp.lastIndexOf('if (', gateAt), gateAt);
+  ok(/friend\.type\s*==\s*FriendType\.Group\s*\|\|\s*friend\.bot/.test(gate) && /!lastmsg\.localSender/.test(gate),
+    '#944: C# sets a sender only for a group or bot room, and never for an own message ("You:" is that grammar)');
+  const typingAt = hp.indexOf('if (friend.isTyping)');
+  ok(typingAt > gateAt && /excerptSender\s*=\s*""/.test(hp.slice(typingAt, hp.indexOf('}', typingAt))),
+    '#944: the typing line CLEARS the sender — it is not the tail message');
+}
+
 console.log('BUG-1b / BUG-2 — built home shell, real bridge pushes');
 {
   const shellPath = join(root, 'Spixi/Resources/Raw/html/index.html');

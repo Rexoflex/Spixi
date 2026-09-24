@@ -61,3 +61,13 @@ Commit ONE batch (`docs/commit-message-session-ae.txt`) → **the office iPhone 
 (`docs/walk-artifact-ios-office.html`; iO.1 the portal is DONE, #932 — mark it P; iO.7 the mute test is the
 day's question; AE.6b rides along) → the next session's item 0 = the FIFTH Opus reader over the r4 delta
 (#943) → the endgame (#916 as shaped by #933).
+
+## §Verdict — walked 2026-09-24 (Damir, Windows + the Motorola): 13 pass · 3 fail · 3 n/a
+
+P: AE.0 · AE.1 (the break appears, Continue resumes — the #938 diagnosis holds) · AE.2 · AE.3 · AE.4 · AE.5 · AE.6 · AE.7 ·
+AE.9 · AE.10 · AE.11 · AE.16 · AE.17. N/A: AE.6b (iOS — the office) · AE.14 · AE.15 (not set up — carried to AF).
+F: **AE.8** the reaction/tip pill cut at the composer band ("not a deal breaker") · **AE.12** a second tip says "Unknown error" ·
+**AE.13** Damir: remove "Cancel request" from contact details / chat info; on desktop Cancel hit an NRE at
+`CoreStreamProcessor.receiveData:1260`. All logged in DECISIONS #945 with the new findings (member-sheet admin buttons,
+no hairlines inside a group) → Session AF (`docs/handoff-2026-09-24.md`).
+

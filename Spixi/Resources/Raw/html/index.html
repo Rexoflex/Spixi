@@ -1105,7 +1105,22 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   white-space: nowrap;
 }
 .c-chatlist-item[data-unread] .c-excerpt__text { font-weight: var(--font-weight-semibold); }
-.c-excerpt__sender { flex: none; }
+/* #944: the group/bot-room sender ("George:") — one step darker than the excerpt, the
+   name capped at 60% of the line so the message itself always keeps room, the colon
+   outside the ellipsis so it never gets cut. */
+.c-excerpt__sender {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 60%;
+  color: var(--text-neutral-01);
+  white-space: nowrap;
+}
+.c-excerpt__sender-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .c-excerpt__mention { color: var(--text-action-default); }
 .c-excerpt[data-type="typing"] .c-excerpt__text { color: var(--text-action-default); }
 /* M5 outgoing contact request — "Request sent" reads as a status, typing tone.
@@ -7487,10 +7502,22 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     try { return (localStorage.getItem(DRAFT_PREFIX + addr) || '').trim(); } catch (_) { return ''; }
   }
   /** Excerpt for a chat row: a pending draft wins, else the pushed kind. */
-  function excerptFor(address, raw, statusType, name, excerptKind) {
+  const EXCERPT_NO_SENDER = new Set(['typing', 'draft', 'request', 'request-done', 'connected']);   // #944
+  function excerptFor(address, raw, statusType, name, excerptKind, sender) {
     const draft = getDraft(address);
     if (draft) return { type: 'draft', text: draft };
-    return excerptFromPush(raw, statusType, name, excerptKind);
+    const ex = excerptFromPush(raw, statusType, name, excerptKind);
+    /* ★ #944: who wrote the tail of a GROUP / BOT-room row ("George: hi there").
+       C# decides WHETHER (rooms only, never an own message, never an event kind —
+       HomePage.getFriendMessageHelper); this only decides HOW. A status the shell
+       paints itself (typing, the request rows, the connected line) never carries
+       it, whatever arrives. An address-shaped name is shortened (#211 — never a
+       full base58 in an excerpt). The component writes it with textContent. */
+    const who = sender == null ? '' : String(sender).trim();
+    if (who && !EXCERPT_NO_SENDER.has(ex.type)) {
+      ex.sender = isAddressShaped(who) ? truncateAddressMiddle(who) : who;
+    }
+    return ex;
   }
 
   /* ★ Q12 RETIRED (Session AD) — the `spixi.exdel.<addr>` hint family. It existed
@@ -8924,12 +8951,12 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     // One row. Maps the legacy addChat args → a redesigned chat, then UPSERTS by
     // address. Order (home.js:397 / HomePage.updateChat:1030):
     //   wallet, from, timestamp, avatar, online, excerpt_msg, type, unread,
-    //   kind (CH1), mention (CH5)
+    //   kind (CH1), mention (CH5), excerptKind (CH6), excerptSender (#944)
     // Two callers: (1) inside a clear…done flush (loadChats) — flushing, no
     // render here; (2) a LONE call from updateChat on a message event — upsert
     // patches the existing row (no duplicate) + schedules a coalesced render so
     // the new excerpt/timestamp/unread surface immediately.
-    addChat(wallet, from, timestamp, avatar, online, excerpt_msg, type, unread, kind, mention, excerptKind) {
+    addChat(wallet, from, timestamp, avatar, online, excerpt_msg, type, unread, kind, mention, excerptKind, excerptSender) {
       // Q5: remember group/bot addresses (CH1 kind, 9th arg) for the contacts-
       // directory filter — BEFORE the tombstone gate, so a session-deleted group
       // chat still filters out of the directory takeover.
@@ -8996,7 +9023,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
         // a re-flush after read must CLEAR a stale mention.
         mention: mention === 'True' || mention === 'true',
         // the pushed excerpt kind (CH6, 11th arg) + draft override (CH7); a pending draft wins.
-        excerpt: excerptFor(wallet, excerpt_msg, type, from, excerptKind),   // #720: the name reaches the canon
+        excerpt: excerptFor(wallet, excerpt_msg, type, from, excerptKind, excerptSender),   // #720: the name reaches the canon · #944: the tail's sender (12th arg)
         unread: n,
         // clear any leftover outgoing tick; re-set below when unread === 0
         status: undefined,

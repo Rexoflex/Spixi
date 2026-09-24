@@ -1544,3 +1544,7 @@ One question per row: does this exposure exist at the baseline?
 | `scripts/smoke-test.mjs` · `docs/*` | dev machine only, never shipped | none |
 
 Session AE adds no verb, no `spixi.*` key, no WebView setting, no HTML sink, no network fetch and no log line carrying user data. The introduced-vs-inherited census is unchanged; CORE-13 joins the INHERITED list for the BE engineer.
+
+## #944 (2026-09-24) — the group/bot-room excerpt names its sender
+
+One new trailing `addChat` argument: the sender's display name for a group or bot-room tail (a nick the recipient already sees on the bubble, resolved the same way as `SingleChatPage.resolveNick`), or the address when nothing resolves. **Lens:** no verb, no `spixi.*` key, no WebView setting, no network fetch. The value is peer-controlled, so it is rendered with `textContent` only (`chatlist-item.js createExcerpt`) — pinned on the built shell with a markup nick (smoke #944). An address is shortened by the shell (#211). The one log line added (`resolveExcerptSender`) records the exception TYPE only, no nick and no address. **Verdict: nothing introduced.**

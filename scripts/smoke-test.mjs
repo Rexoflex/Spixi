@@ -333,6 +333,28 @@ const stripCssComments = (css) => {
   catch { return css; }                              // fail toward RED: raw text keeps the comments
 };
 
+/* ★ Session AE: THE OPEN TRAY'S HEIGHT DECLARATION, READ — not spelled. Two Session J/B2 pins
+ * asserted the declaration as ONE string (`{ height: var(--kb-slot-h, 268px); }`) and both went
+ * red when the value became a max(); the PROPERTY they guard — the slot with its 268 literal
+ * fallback, never 0 — did not change. This walks the comment-stripped stylesheet for every rule
+ * whose selector list contains `.c-attach-tray[data-open]` and returns the value of its LAST
+ * `height` declaration ('' when there is none, or when MORE THAN ONE such rule exists — agreeing
+ * or not — so nobody reads a lucky one). Whitespace-normalized so a reformat is not a red pin. */
+function trayOpenHeightDecl(css) {
+  const nc = stripCssComments(css);
+  const found = [];
+  const re = /([^{}]+)\{([^{}]*)\}/g;
+  let m;
+  while ((m = re.exec(nc))) {
+    const sel = m[1].replace(/\s+/g, ' ').trim();
+    if (!sel.split(',').some((x) => x.trim() === '.c-attach-tray[data-open]')) continue;
+    const decls = m[2].split(';').map((d) => d.trim()).filter(Boolean);
+    const h = decls.filter((d) => /^height\s*:/.test(d)).pop();
+    if (h) found.push(h.replace(/^height\s*:\s*/, '').replace(/\s+/g, ' ').trim());
+  }
+  return found.length === 1 ? found[0] : '';
+}
+
 /* ★★ #46 r2 (auditor finding, MINOR — and a fix agent walked straight into it):
  * SLICING A THEME BLOCK OUT OF A STYLESHEET IS COMMENT-BLIND UNLESS YOU STRIP FIRST.
  *
@@ -8186,7 +8208,18 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      ★ #924 (walk AC.8): 530 → 531. The landscape apps banner rules (five declarations + a two-line
      comment, +679 chars) left 7 chars under 530 — a ceiling with no headroom fails the next
      honest edit, so it moves by one: 542 713 measured, headroom under 531 is 1 031. */
-  const CHAT_KB_CEIL = 646, INDEX_KB_CEIL = 531;
+  /* ★ Session AE (#939 · #940 · #941): CHAT_KB_CEIL 646 → 658, delta stated. The built chat.html
+     grew 659 970 → 672 264 chars (+12 294, MEASURED against the pristine snapshot AFTER the four review
+     rounds): the per-row composer fade (composerFadeStops + composerFadePass + composerFadeNow +
+     composerFadeTrack, the ORDER note and their docblocks — each review round added prose that explains
+     a line, ~6.6 KB), the bot-room delete gate (canDeleteRec + docblock + the wiring sites, ~1.7 KB), and
+     in the inlined bundle the tray's publishTrayContentHeight/watchTrayContent (+ docblocks) and the
+     delete/deletable branches of message-menu.js / chat-select.js (~4 KB). ≈ 1 ms of parse at the measured
+     0.08 ms/KB. Headroom under 658 is 1 528. ⚠ Two earlier values of this comment (653, 655) were written
+     BEFORE a review round grew the file again and the pin went red on the snapshot — the ceiling is
+     re-measured at the very end of a session, never mid-loop. Most of the growth is prose the #933 strip
+     will remove; the ceiling follows the measured file, not the intention. */
+  const CHAT_KB_CEIL = 658, INDEX_KB_CEIL = 531;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -9383,6 +9416,227 @@ console.log('multi-message selection (selection topbar + bulk delete)');
     'Escape exits selection and hands the rows back clean (role/tabindex/checked/selected cleared)');
   ok(!host.classList.contains('c-chatselect-host'), 'the topbar slot loses the positioning class on exit');
 
+    /* ★★ Session AE — THE BOT-ROOM DELETE GATE (#934 b; Damir on device: a non-admin's Delete
+       on another member's message did NOTHING — `Friend.deleteMessage` skips bots and the bot
+       refused). ONE predicate in the shell, `canDeleteRec`, read by the long-press menu
+       (`capabilities.delete`) AND by the select bar (`deletable`) AND by the bulk-delete belt.
+       The predicate is EXECUTED here out of the shipped shell text with `mode`/`modeKnown`
+       stubbed (they are the room's answer, not the function under test), over the six cells
+       that matter; the wiring is POSITIONAL inside the three sites; the two components are
+       exercised in jsdom. */
+    {
+      const chAE = stripCode(readFileSync(join(root, 'src/shells/chat.html'), 'utf8'));
+      const fnAt = chAE.indexOf('function canDeleteRec(rec) {');
+      const fnEnd = chAE.indexOf('\n  }', fnAt);
+      let table = null;
+      if (fnAt > 0 && fnEnd > fnAt) {
+        const src = chAE.slice(fnAt, fnEnd + 4);
+        /* the room stubs carry the FULL shape setChatMode writes (type · isBot · isMulti · blind · hidesAddresses · admin),
+           so a predicate that quietly keys on isMulti or type (a group member losing Delete on others' rows) is SEEN */
+        const ROOM = {
+          oneToOne: { type: 0, isBot: false, isMulti: false, blind: false, hidesAddresses: false, admin: false },
+          group: { type: 1, isBot: false, isMulti: true, blind: false, hidesAddresses: false, admin: false },
+          blindGroup: { type: 2, isBot: false, isMulti: true, blind: true, hidesAddresses: true, admin: false },
+          botMember: { type: 3, isBot: true, isMulti: true, blind: false, hidesAddresses: false, admin: false },
+          botAdmin: { type: 3, isBot: true, isMulti: true, blind: false, hidesAddresses: false, admin: true },
+        };
+        const run = (known, room, direction) => new Function('mode', 'modeKnown', src + '\nreturn canDeleteRec;')(room, () => known)({ direction });
+        table = {
+          ownUnknown: run(false, ROOM.oneToOne, 'sent'), ownBotMember: run(true, ROOM.botMember, 'sent'), ownBlind: run(true, ROOM.blindGroup, 'sent'),
+          theirsUnknown: run(false, ROOM.oneToOne, 'received'), theirs1to1: run(true, ROOM.oneToOne, 'received'),
+          theirsGroup: run(true, ROOM.group, 'received'), theirsBlind: run(true, ROOM.blindGroup, 'received'),
+          theirsBotMember: run(true, ROOM.botMember, 'received'), theirsBotAdmin: run(true, ROOM.botAdmin, 'received'),
+          nullRec: new Function('mode', 'modeKnown', src + '\nreturn canDeleteRec;')(ROOM.oneToOne, () => true)(null),
+        };
+      }
+      ok(!!table && table.ownUnknown === true && table.ownBotMember === true && table.ownBlind === true
+         && table.theirs1to1 === true && table.theirsGroup === true && table.theirsBlind === true && table.theirsBotAdmin === true
+         && table.theirsUnknown === false && table.theirsBotMember === false && table.nullRec === false,
+        '★★ Session AE (#934 b) ① EXECUTED (rooms stubbed with setChatMode\'s full shape): canDeleteRec — own message: always · another\'s: a known 1:1, group or BLIND group yes, a bot room only for an admin, an UNKNOWN room (setChatMode not yet answered) no, a missing record no: ' + JSON.stringify(table));
+      /* ② the wiring: the menu, the bar and the belt all read canDeleteRec — positional, inside each site */
+      const optsAt = chAE.indexOf('function menuOptsFor(rec, row) {');
+      const optsBody = chAE.slice(optsAt, chAE.indexOf('\n  }', optsAt));
+      const capsAt = optsBody.indexOf('capabilities: {');
+      const capsBody = capsAt > 0 ? optsBody.slice(capsAt, optsBody.indexOf('\n      },', capsAt)) : '';
+      const selAt = chAE.indexOf('chatSelect = enterChatSelect(box, {');
+      const selBody = selAt > 0 ? chAE.slice(selAt, chAE.indexOf('\n    });', selAt)) : '';
+      const bulkAt = chAE.indexOf('function confirmBulkDelete(items) {');
+      const bulkBody = bulkAt > 0 ? chAE.slice(bulkAt, chAE.indexOf('\n  }', bulkAt)) : '';
+      const beltAt = bulkBody.indexOf("if (!items.every((it) => canDeleteRec(model.get(it.id)))) return;");
+      const modalAt = bulkBody.indexOf('openModal(');
+      const modeAt = chAE.indexOf('mode.answeredFor = identity.address;');
+      const modeTail = modeAt > 0 ? chAE.slice(modeAt, modeAt + 200) : '';
+      ok(optsAt > 0 && capsAt > 0 && /\bdelete: canDeleteRec\(rec\),/.test(capsBody) && (capsBody.match(/\bdelete:/g) || []).length === 1
+         /* round-3 MINOR-7 / round-4 MINOR-3: a room answer while a selection is open re-evaluates the bar's Delete (setCount reads
+            `deletable` → canDeleteRec → modeKnown()), so the refresh must come AFTER `mode.answeredFor` is written — before it, the first
+            answer of a group re-evaluated against an UNKNOWN room and left Delete refused until the next render */
+         && modeAt > 0 && /^mode\.answeredFor = identity\.address;\s*if \(chatSelect\) chatSelect\.refresh\(\);/.test(modeTail)
+         && (chAE.match(/chatSelect\.refresh\(\);/g) || []).length === 2
+         && selAt > 0 && /deletable: \(r\) => canDeleteRec\(model\.get\(r\.dataset\.msgid \|\| ''\)\),/.test(selBody) && (selBody.match(/\bdeletable:/g) || []).length === 1
+         && bulkAt > 0 && beltAt > 0 && modalAt > beltAt
+         && (chAE.match(/canDeleteRec\(/g) || []).length === 4,
+        '★★ Session AE (#934 b) ②: the menu\'s `capabilities.delete`, the select bar\'s `deletable` and the bulk-delete belt (a refusal BEFORE the confirm modal) all read the ONE predicate — 4 call sites, no second rule, NO duplicate `delete:`/`deletable:` key that a later literal entry could shadow (JS keeps the last), and setChatMode refreshes an open selection AFTER recording the room\'s answer, so the bar\'s Delete follows it (2 refresh sites in the shell: renderLogNow and setChatMode)');
+      /* ③ the menu component HIDES Delete on `delete: false` and keeps it by default */
+      const rowM = D.createElement('div'); rowM.className = 'c-bubble-row'; D.body.append(rowM);
+      const itemsOf = (sheet) => [...sheet.querySelectorAll('.c-msgmenu__item')].map((b) => b.textContent.trim());
+      const shGated = W.Spixi.openMessageMenu({ row: rowM, host: D.body, text: 'x', capabilities: { delete: false }, strings: { deleteMessage: 'DELETE-AE' } });
+      const gated = itemsOf(shGated);
+      W.Spixi.closeSheet(shGated);
+      const shOpen = W.Spixi.openMessageMenu({ row: rowM, host: D.body, text: 'x', capabilities: {}, strings: { deleteMessage: 'DELETE-AE' } });
+      const open = itemsOf(shOpen);
+      W.Spixi.closeSheet(shOpen);
+      ok(gated.length > 0 && !gated.includes('DELETE-AE') && open.includes('DELETE-AE') && open.length === gated.length + 1,
+        '★★ Session AE (#934 b) ③ jsdom: openMessageMenu with `capabilities.delete: false` renders every other item and NO Delete; the default still renders it (' + gated.length + ' vs ' + open.length + ' items)');
+      /* ④ the select bar disables Delete while ANY selected row is not deletable, and re-enables when it leaves the selection */
+      const hostAE = D.createElement('div'); const listAE = D.createElement('div'); D.body.append(hostAE, listAE);
+      const mkAE = (id) => { const r = D.createElement('div'); r.className = 'c-bubble-row'; r.dataset.msgid = id; r.dataset.copytext = 't'; listAE.append(r); return r; };
+      const a1 = mkAE('a1'), a2 = mkAE('a2');
+      let handedAE = 0;
+      W.Spixi.enterChatSelect(listAE, { initialRow: a1, host: hostAE, selectable: () => true, deletable: (r) => r.dataset.msgid !== 'a2', onDelete: () => { handedAE++; } });
+      const delBtn = [...hostAE.querySelectorAll('.c-button')].find((b) => b.dataset.intent === 'destructive');
+      const s1 = delBtn && !delBtn.disabled;
+      a2.click();
+      const s2 = delBtn && delBtn.disabled;
+      delBtn && delBtn.click();                 // a disabled button: jsdom does not dispatch click on disabled buttons
+      const s3 = handedAE === 0;
+      a2.click();
+      const s4 = delBtn && !delBtn.disabled;
+      D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      ok(s1 && s2 && s3 && s4,
+        '★★ Session AE (#934 b) ④ jsdom: the select bar\'s Delete is enabled for a deletable row, DISABLED the moment a non-deletable row joins the selection (and hands the caller nothing), enabled again when it leaves: ' + JSON.stringify([s1, s2, s3, s4]));
+    }
+    /* ★★ Session AE — END DELETE */
+    /* ★★ Session AE — THE FADE BEHIND THE COMPOSER (#940): PER ROW, NEVER ON THE SCROLLER. The
+       render used a mask on #messages; PIN-B forbids it (the lift). The landed shape masks each
+       child of the log that intersects the BAR's live rect with stops in its OWN coordinates.
+       Verified on the built shell against the render: max channel delta 1 in the band, zero rows
+       masked at rest. Pins: the pure arithmetic EXECUTED · the pass EXECUTED with stubbed rects
+       (jsdom has no layout — the rects are inputs, the walk is the subject) · the writers
+       positional · the lift drops the mask · and PIN-B stays green above (no scroller mask). */
+    {
+      const chF = stripCode(readFileSync(join(root, 'src/shells/chat.html'), 'utf8'));
+      const stopsAt = chF.indexOf('function composerFadeStops(rowTop, rowBottom, bandTop, bandBottom) {');
+      const stopsEnd = chF.indexOf('\n  }', stopsAt);
+      const stopsSrc = stopsAt > 0 ? chF.slice(stopsAt, stopsEnd + 4) : '';
+      const stops = stopsSrc ? new Function(stopsSrc + '\nreturn composerFadeStops;')() : null;
+      const t = stops ? {
+        above: stops(100, 180, 200, 260), below: stops(300, 340, 200, 260), touching: stops(120, 200, 200, 260),
+        straddle: stops(170, 250, 200, 260), inside: stops(210, 240, 200, 260), spanning: stops(150, 300, 200, 260),
+        noBand: stops(170, 250, 200, 200), zeroRow: stops(220, 220, 200, 260),
+        fractional: stops(170.4, 250, 200.25, 260),   // sub-pixel rects are the norm at 2.5 dpr: kept to 1/100 px, never rounded to whole px
+      } : null;
+      ok(!!t && t.above === null && t.below === null && t.touching === null && t.noBand === null && t.zeroRow === null
+         && JSON.stringify(t.straddle) === JSON.stringify({ a: 30, b: 90 })
+         && JSON.stringify(t.inside) === JSON.stringify({ a: -10, b: 50 })
+         && JSON.stringify(t.spanning) === JSON.stringify({ a: 50, b: 110 })
+         && JSON.stringify(t.fractional) === JSON.stringify({ a: 29.85, b: 89.6 }),
+        '★★ Session AE (#940) ① EXECUTED: composerFadeStops — a row fully above, fully below, or ending exactly at the bar\'s top gets NO mask; a straddling row is opaque to (bandTop − rowTop) and gone at (bandBottom − rowTop); a row already inside starts negative; a zero band or a zero row → null: ' + JSON.stringify(t));
+      /* ② the PASS, executed: rects are the inputs */
+      const passAt = chF.indexOf('function composerFadePass() {');
+      const passEnd = chF.indexOf('\n  }', passAt);
+      let passRes = null;
+      if (stopsAt > 0 && passAt > 0 && passEnd > passAt) {
+        const schedAt = chF.indexOf('function scheduleComposerFade() {');
+        const schedSrc = schedAt > 0 ? chF.slice(schedAt, chF.indexOf('\n', schedAt)) : '';
+        const src = 'let composerFadeRaf = 1; const composerFaded = new Set(); const composerFadeLast = new WeakMap(); let composerFadeTrackEnd = 0; let rafCalls = 0; const requestAnimationFrame = () => { rafCalls++; return 7; }; const performance = { now: () => 1000 };\n'
+          + stopsSrc + '\n' + schedSrc + '\n' + chF.slice(passAt, passEnd + 4)
+          + '\nreturn { composerFadePass, composerFaded, get raf() { return composerFadeRaf; }, get rafCalls() { return rafCalls; }, setTrackEnd(v) { composerFadeTrackEnd = v; }, setRaf(v) { composerFadeRaf = v; } };';
+        let reads = 0, writes = 0;
+        /* the stub echoes the engine: a value WRITTEN comes back RE-SERIALISED (`#000` → `rgb(0, 0, 0)`), so a pass that
+           compares against el.style would rewrite every masked row every frame — the WeakMap is what stops that */
+        const mkEl = (top, bottom) => { const st = {}; return { rect: { top, bottom, height: bottom - top }, style: { get maskImage() { return st.m ? st.m.replace('#000', 'rgb(0, 0, 0)') : ''; }, set maskImage(v) { st.m = v; writes++; }, set webkitMaskImage(v) { st.w = v; }, removeProperty(k) { if (k === 'mask-image') delete st.m; else if (k === '-webkit-mask-image') delete st.w; } }, getBoundingClientRect() { reads++; return this.rect; }, _st: st }; };
+        const kids = [mkEl(0, 60), mkEl(70, 130), mkEl(170, 250), mkEl(240, 300), mkEl(330, 400), mkEl(0, 0)];   // log order, oldest first; kids[3] starts INSIDE the band; kids[5] is display:none (an all-zero rect) — the walk must step over it, not read it as "above" and stop
+        kids.forEach((k, i) => { k.rect.width = i < 5 ? 300 : 0; });
+        const box = { children: kids, getBoundingClientRect: () => ({ top: 0, bottom: 300, height: 300 }) };
+        const composerEl = { isConnected: true, getBoundingClientRect: () => ({ top: 200, bottom: 260, height: 60 }) };
+        const api = new Function('composerEl', 'box', 'console', src)(composerEl, box, { warn: () => {} });
+        api.composerFadePass();
+        const masks1 = kids.map((k) => k._st.m || null);
+        const rafReset = api.raf;               // the pass CLEARS the pending-frame handle (seeded 1) — or scheduleComposerFade is a no-op forever after (round-3 MAJOR-2)
+        const rafIdle = api.rafCalls;           // and with no slide in progress it re-arms NOTHING
+        const reads1 = reads;   // the walk STOPS at the first row wholly above the band: kids[0] is never measured
+        const writes1 = writes;
+        api.composerFadePass();   // the SAME geometry again: nothing may be re-written (the WeakMap, not el.style, is the memory)
+        const writes1b = writes;
+        // the band moves up (the keyboard lifted the bar): the row that was inside leaves, an older one enters
+        composerEl.getBoundingClientRect = () => ({ top: 100, bottom: 160, height: 60 });
+        api.composerFadePass();
+        const masks2 = kids.map((k) => k._st.m || null);
+        const webkitCleared2 = kids.map((k) => k._st.w === undefined);   // the rows that LEFT lost the -webkit spelling too
+        // the scroller ends ABOVE the bar's bottom (the slot over-reaches the log): the band is clipped to the scroller
+        box.getBoundingClientRect = () => ({ top: 0, bottom: 140, height: 140 });
+        api.composerFadePass();
+        const masks2b = kids.map((k) => k._st.m || null);
+        box.getBoundingClientRect = () => ({ top: 0, bottom: 300, height: 300 });
+        // the composer hides (the request lock): every mask is cleared, both spellings
+        composerEl.getBoundingClientRect = () => ({ top: 0, bottom: 0, height: 0 });
+        api.composerFadePass();
+        const masks3 = kids.map((k) => k._st.m || null);
+        const webkit3 = kids.map((k) => k._st.w || null);
+        // RE-ENTRY: the bar comes back where it was (the request lock lifts, or a scroll returns to the same offset) — the
+        // rows must be masked AGAIN; a memory that survives the clear (the WeakMap entry not deleted) skips the write
+        composerEl.getBoundingClientRect = () => ({ top: 200, bottom: 260, height: 60 });
+        api.composerFadePass();
+        const masks4 = kids.map((k) => k._st.m || null);
+        // TRACKING (round-3 MAJOR-1, iOS): while the bar is sliding (composerFadeTrack set a deadline in the future) the pass re-arms itself for the next frame
+        api.setTrackEnd(1500);
+        api.setRaf(7);                          // on a device the pass RUNS AS the rAF callback, so the handle still holds that frame's id when it starts (round-4 MINOR-4)
+        api.composerFadePass();
+        const rafTracking = api.rafCalls;      // the reset at the TOP is what lets the tail re-arm; a reset at the bottom leaves this 0
+        api.setTrackEnd(0);
+        api.composerFadePass();
+        const rafAfter = api.rafCalls;
+        passRes = { masks1, masks2, masks2b, masks3, masks4, webkit3, webkitCleared2, faded: api.composerFaded.size, reads1, writes1, writes1b, rafReset, rafIdle, rafTracking, rafAfter };
+      }
+      ok(!!passRes
+         && JSON.stringify(passRes.masks1) === JSON.stringify([null, null, 'linear-gradient(to bottom, #000 30px, transparent 90px)', 'linear-gradient(to bottom, #000 -40px, transparent 20px)', null, null])
+         && JSON.stringify(passRes.masks2) === JSON.stringify([null, 'linear-gradient(to bottom, #000 30px, transparent 90px)', null, null, null, null])
+         && JSON.stringify(passRes.webkitCleared2) === JSON.stringify([true, false, true, true, true, true])
+         && JSON.stringify(passRes.masks2b) === JSON.stringify([null, 'linear-gradient(to bottom, #000 30px, transparent 70px)', null, null, null, null])
+         && JSON.stringify(passRes.masks3) === JSON.stringify([null, null, null, null, null, null]) && JSON.stringify(passRes.webkit3) === JSON.stringify([null, null, null, null, null, null])
+         && JSON.stringify(passRes.masks4) === JSON.stringify(passRes.masks1) && passRes.faded === 2
+         && passRes.reads1 === 5 && passRes.writes1 === 2 && passRes.writes1b === 2
+         && passRes.rafReset === 0 && passRes.rafIdle === 0 && passRes.rafTracking === 1 && passRes.rafAfter === 1,
+        '★★ Session AE (#940) ② EXECUTED: composerFadePass masks exactly the children whose rect intersects the BAR (a row wholly below the band is skipped, a row wholly above STOPS the walk — 5 rect reads for 6 children, the oldest never measured), steps over a display:none child (an all-zero rect) instead of reading it as "above", re-derives when the bar MOVES (the row that left is cleared — BOTH mask spellings — the row that entered is masked), clips the band to the scroller\'s bottom when the slot over-reaches it, writes NOTHING on a second pass over unchanged geometry (2 writes, then still 2 — the engine re-serialises what it stores, so el.style can never be the memory) clears everything when the bar is gone (band height 0), masks the SAME rows again when the bar returns (the WeakMap forgets a cleared row — round-2 MINOR-5), RESETS the pending-frame handle (round-3 MAJOR-2) and re-arms itself for the next frame ONLY while composerFadeTrack\'s deadline is ahead (the iOS keyboard slide, round-3 MAJOR-1): ' + JSON.stringify(passRes));
+      /* ③ the writers: scroll · resize · the composer publish · renderLogNow · setInset */
+      const pubAt = chF.indexOf('const publish = () => {');
+      const pubBody = chF.slice(pubAt, chF.indexOf('\n    };', pubAt));
+      const rlAt = chF.indexOf('function renderLogNow() {');
+      const rlBody = chF.slice(rlAt, chF.indexOf('\n  }', rlAt));
+      const siAt = chF.indexOf('function setInset(px) {');
+      const siBody = chF.slice(siAt, chF.indexOf('\n    }', siAt));
+      const swapAt = rlBody.indexOf('box.replaceChildren(frag);');
+      const nowAt = rlBody.indexOf('composerFadeNow();');
+      ok(pubAt > 0 && /scheduleComposerFade\(\);/.test(pubBody)
+         /* the iOS keyboard: the bar SLIDES (280 ms margin transition) → TRACK the band through the slide, not one pass at its first frame */
+         && siAt > 0 && /if \(insetChanged\) composerFadeTrack\(340\);/.test(siBody) && !/scheduleComposerFade\(\);/.test(siBody)
+         && /function composerFadeTrack\(ms\) \{ composerFadeTrackEnd = performance\.now\(\) \+ ms; scheduleComposerFade\(\); \}/.test(chF)
+         && /if \(performance\.now\(\) < composerFadeTrackEnd\) scheduleComposerFade\(\);/.test(chF.slice(passAt, passEnd))
+         /* renderLogNow: the pass runs NOW, and AFTER the swap — before it, it would mask the nodes about to be detached (round-3 MAJOR-3) */
+         && rlAt > 0 && swapAt > 0 && nowAt > swapAt && !/scheduleComposerFade\(\);/.test(rlBody)
+         /* round-4 MINOR-5: a STATEMENT of its own — `chatSelect.refresh(),` (a comma) would fold it into the preceding `if` and run it only in select mode */
+         && /;\s*composerFadeNow\(\);/.test(rlBody) && !/,\s*composerFadeNow\(\)/.test(rlBody) && !/\)\s*composerFadeNow\(\)/.test(rlBody)
+         && /function composerFadeNow\(\) \{ if \(composerFadeRaf\) \{ cancelAnimationFrame\(composerFadeRaf\); composerFadeRaf = 0; \} composerFadePass\(\); \}/.test(chF)
+         && /box\.addEventListener\('scroll', scheduleComposerFade, \{ passive: true \}\);/.test(chF) && /window\.addEventListener\('resize', scheduleComposerFade\);/.test(chF)
+         /* the geometry changes that move a row WITHOUT a scroll: a media tile arriving (load does not bubble → capture), a transition/animation ending, the slot's own slide ending */
+         && /box\.addEventListener\('load', scheduleComposerFade, \{ capture: true, passive: true \}\);/.test(chF)
+         && /box\.addEventListener\('transitionend', scheduleComposerFade, \{ passive: true \}\);/.test(chF) && /box\.addEventListener\('animationend', scheduleComposerFade, \{ passive: true \}\);/.test(chF)
+         && /document\.getElementById\('chat-composer'\)\.addEventListener\('transitionend', scheduleComposerFade, \{ passive: true \}\);/.test(chF)
+         && /function scheduleComposerFade\(\) \{ if \(!composerFadeRaf\) composerFadeRaf = requestAnimationFrame\(composerFadePass\); \}/.test(chF)
+         && (chF.match(/scheduleComposerFade\(\);/g) || []).length === 3 && (chF.match(/composerFadeNow\(\);/g) || []).length === 1 && (chF.match(/composerFadeTrack\(/g) || []).length === 2,
+        '★★ Session AE (#940) ③: the pass is re-armed from every writer that can move a row relative to the bar — the log\'s scroll (passive) · a window resize · a `load` captured inside the log · transitionend/animationend bubbling from a row · the slot\'s own transitionend · the composer\'s ResizeObserver publish (tray, desktop) — setInset TRACKS the 280 ms iOS slide (composerFadeTrack: a pass per frame until the deadline), and renderLogNow runs the pass SYNCHRONOUSLY AFTER the node swap: 3 scheduled sites (publish · the track entry · the track tail) + 1 immediate + 6 listeners, no more, no fewer');
+      /* ④ the band is the BAR and the mask never lands on the scroller; a lifted row drops it */
+      const mmF = stripCssComments(readFileSync(join(root, 'src/styles/components/message-menu.css'), 'utf8'));
+      const liftRule = (mmF.match(/\[data-menu-lift\] \{[^}]*\}/) || [''])[0];
+      const passBody = chF.slice(passAt, passEnd);
+      ok(/composerEl && composerEl\.isConnected \? composerEl\.getBoundingClientRect\(\) : null/.test(passBody)
+         && !/getElementById\('chat-composer'\)/.test(passBody)
+         && /const kids = box\.children;/.test(passBody) && !/box\.style/.test(passBody)
+         && /-webkit-mask-image: none !important;/.test(liftRule) && /(^|[^-])mask-image: none !important;/.test(liftRule),
+        '★★ Session AE (#940) ④: the band is read from the BAR (`.c-composer`, live rect — an open tray is opaque and the slot would over-reach), masks are written to the log\'s CHILDREN and never to the scroller itself (PIN-B holds above), and `[data-menu-lift]` drops both mask spellings with !important so the pressed message is crisp above the scrim');
+    }
+    /* ★★ Session AE — END FADE */
+
   /* ★ W9-④ — DESKTOP DRAG-TO-EXTEND (Damir, Windows F5 2026-08-13: "I would like
      auto select on windows if i clicke and drag a whole message or multiple").
      Deliberately narrow: only INSIDE selection mode, only for a MOUSE. A drag that
@@ -10495,13 +10749,24 @@ console.log('★ N71/N81 — the built CHAT shell actually boots');
   } else {
     const vcC = new VirtualConsole();
     const bootErrors = [];
+    const bootWarns = [];
     vcC.on('jsdomError', (e) => bootErrors.push(String(e.message) + ' :: ' + ((e.detail && e.detail.message) || '')));
+    vcC.on('warn', (...a) => bootWarns.push(a.map(String).join(' ')));
+    /* ★★ Session AE (#46 reviewer MAJOR-1): a ResizeObserver STUB that records what is observed.
+       The #711 block constructs `new ResizeObserver(publish).observe(slot)` on the line AFTER a
+       synchronous publish(); a throw inside publish() (Session AE's first cut: a TDZ
+       ReferenceError from a `let` declared further down) is caught by that block's own catch,
+       WARNED, and the observer is never installed — --composer-h then freezes at its boot value
+       on EVERY engine while the Session X property pin below stays green (the value was written
+       before the throw). This stub makes the attach observable; the warn line is the other half. */
+    const observedAE = [];
     const domC = new JSDOM(readFileSync(chatShellPath, 'utf8'), {
       runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true,
       url: 'file://' + chatShellPath, virtualConsole: vcC,
       beforeParse(w) {
         w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
         try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
+        w.ResizeObserver = class { constructor(cb) { this.cb = cb; } observe(el) { observedAE.push({ id: el && el.id || (el && el.className) || '?', cb: this.cb }); } unobserve() {} disconnect() {} };
       },
     });
     await sleep(2000);
@@ -10519,14 +10784,31 @@ console.log('★ N71/N81 — the built CHAT shell actually boots');
        Session U (#845–#857) deleted with the "Live flow" renderer, inside a
        `try { … } catch (_) {}` — so the property was never written, #messages padded by
        spacing-4 alone, and all five --composer-h pins stayed green because each reads the
-       SOURCE string. This one reads the PROPERTY on the booted shell. jsdom has no
-       ResizeObserver, so it also proves publish() runs BEFORE the observer is constructed
-       (an engine without one still pads once). Mutations, each run: a target that does not
+       SOURCE string. This one reads the PROPERTY on the booted shell. ⚠ Session AE stubs a
+       ResizeObserver into this boot (the MAJOR-1 pin above needs the attach observable), so
+       "jsdom has no ResizeObserver" no longer holds here — the publish-before-observer ORDER
+       is asserted from the source in that pin instead. Mutations, each run: a target that does not
        resolve → red; the committed shape restored (no typeof guard, publish() after the
        observer) → red; the publish() call deleted → red. ⚠ Swapping the order UNDER the
        guard stays green here — the guard is what makes the order irrelevant. */
     const canvasX = WC.document.querySelector('.c-chat-canvas');
     const composerHX = canvasX ? canvasX.style.getPropertyValue('--composer-h') : null;
+    /* round 2: an observer that ATTACHES but whose callback publishes nothing (`new ResizeObserver(() => {})`) passed the
+       first cut of this pin — so the recorded callback is INVOKED against a slot whose offsetHeight is stubbed to 77, and
+       the property must FOLLOW. jsdom has no layout: offsetHeight is defined on the element instance for this one read. */
+    const slotObs = observedAE.find((o) => o.id === 'chat-composer');
+    let followedAE = null;
+    try {
+      const slotEl = WC.document.getElementById('chat-composer');
+      Object.defineProperty(slotEl, 'offsetHeight', { configurable: true, get: () => 77 });
+      if (slotObs) slotObs.cb([{ target: slotEl }]);
+      followedAE = WC.document.querySelector('.c-chat-canvas').style.getPropertyValue('--composer-h');
+    } catch (e) { followedAE = 'threw: ' + e.message; }
+    ok(!!slotObs && !bootWarns.some((l) => /\[composer-h\] publish failed/.test(l)) && followedAE === '77px'
+       /* and the SOURCE order the Session X pin used to prove through jsdom's missing ResizeObserver — now stubbed, so read here:
+          publish() runs unconditionally BEFORE the observer is constructed (an engine without one still pads once) */
+       && /publish\(\);\s*if \(typeof ResizeObserver === 'function'\) new ResizeObserver\(publish\)\.observe\(slot\);/.test(stripCode(readFileSync(join(root, 'src/shells/chat.html'), 'utf8'))),
+      '★★ Session AE (#46 MAJOR-1, round 2): on the BUILT chat shell the #711 ResizeObserver ATTACHES to #chat-composer, its callback PUBLISHES (a stubbed 77 px slot → --composer-h 77px), no `[composer-h] publish failed` line is emitted, and publish() runs unconditionally before the observer is constructed — a throw inside publish() (a TDZ ReferenceError from a later `let`, the first cut of the composer fade) was caught, only warned, and left --composer-h frozen at its boot value with the property pin below still green. Observed: ' + JSON.stringify(observedAE.map((o) => o.id)) + ' followed: ' + JSON.stringify(followedAE));
     ok(/^\d+px$/.test(composerHX || ''),
       '★★ Session X: the BUILT chat shell WRITES --composer-h on the canvas at boot (the log\'s bottom padding for the floating pill) — read from the element, not the source. Got: ' + JSON.stringify(composerHX));
     /* the shell must survive the push it will actually receive, arguments and all */
@@ -24928,7 +25210,7 @@ console.log('Session J: the seven walk fixes · Damir\'s evening rulings · the 
     const ch = rdF('src/shells/chat.html');
     ok(/const KB_SLOT_KEY = 'spixi\.kb\.slot';/.test(ch) && /function rememberKbSlot\(px\)/.test(ch) && /if \(!\(px >= 160 && px <= 600\)\) return;/.test(ch)
        && /if \(shrank\) rememberKbSlot\(lastIH - ih \+ androidInsetBottomPx\(\)\);/.test(ch) && /if \(px > 60\) rememberKbSlot\(px\);/.test(ch)
-       && /\.c-attach-tray\[data-open\] \{ height: var\(--kb-slot-h, 268px\); \}/.test(rdF('src/styles/components/attach-sheet.css')),
+       && /^(max\(\s*)?var\(--kb-slot-h, 268px\)/.test(trayOpenHeightDecl(rdF('src/styles/components/attach-sheet.css'))),   /* ★ Session AE: the declaration is READ (a max() now, anchored — a min() or a clamp() would not pass) — the property is the slot with its 268 fallback */
       '★ Session J: the attach tray\'s open height is --kb-slot-h — the keyboard\'s own MEASURED height (Android: the adjustResize shrink + the nav-bar inset the root no longer pads, ★ AND-45; iOS: the native inset push), clamped 160–600, persisted per device, 268 until a keyboard has been seen — so the tray ↔ keyboard swap cannot move the bar by the difference');
     const kbtray = (stripCode(ch).match(/\[KBTRAY\]/g) || []).length;   /* code only — the comment names the set once more */
     ok(kbtray === 5 && /\[KBTRAY\] resize ih=/.test(ch) && /\[KBTRAY\] hold ih=/.test(ch) && /\[KBTRAY\] drop by=/.test(ch) && /\[KBTRAY\] open ih=/.test(ch) && /\[KBTRAY\] reveal by=/.test(ch)
@@ -25567,6 +25849,43 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
         '★★ K1 behavioural: revealAttachTray opens the held tray (data-open) — the one frame the keyboard has left');
       Wk.Spixi.closeAttachTray(held, { instant: true });
       ok(Wk.Spixi.revealAttachTray(held) === false, '★ K1: revealing a tray that closed inside the hold is a no-op (a back press during the 450 ms window)');
+      /* ★★ Session AE (#939, the #46 reviewer's MAJOR-2 — the positional pin alone let `if (false) publish…` through):
+         the content height is PUBLISHED on the tray element, on the HELD path and on the plain path, before the
+         caller gets the tray back. jsdom has no layout, so the grid's rect is the stub — the publish is the subject. */
+      const protoAE = Wk.HTMLElement.prototype;
+      const origRectAE = protoAE.getBoundingClientRect;
+      protoAE.getBoundingClientRect = function () { return this.classList && this.classList.contains('c-attach') ? { top: 0, bottom: 300, height: 300, width: 300, left: 0, right: 300 } : { top: 0, bottom: 0, height: 0, width: 0, left: 0, right: 0 }; };
+      let heldAE = null, plainAE = null, heldH = '', plainH = '';
+      try {
+        heldAE = Wk.Spixi.openAttachTray({ composerEl: compK, hold: true, strings: Wk.SL || {} });
+        heldH = heldAE ? heldAE.style.getPropertyValue('--tray-content-h') : '';
+        Wk.Spixi.closeAttachTray(heldAE, { instant: true });
+        plainAE = Wk.Spixi.openAttachTray({ composerEl: compK, instant: true, strings: Wk.SL || {} });
+        plainH = plainAE ? plainAE.style.getPropertyValue('--tray-content-h') : '';
+        Wk.Spixi.closeAttachTray(plainAE, { instant: true });
+      } finally { protoAE.getBoundingClientRect = origRectAE; }
+      ok(!!heldAE && !!plainAE && /^30[0-9]px$/.test(heldH) && heldH === plainH,
+        '★★ Session AE (#939) BEHAVIOURAL: openAttachTray publishes --tray-content-h on the tray itself for a 300 px grid — on the HELD path (returned closed) and on the plain path alike, the same value (' + JSON.stringify([heldH, plainH]) + '); the stylesheet\'s max() then keeps two tile rows inside the tray on a fresh install');
+      /* ★ Session AE (round-2 MINOR-4/-7): the content is WATCHED for the tray's life — a ResizeObserver on the grid + a
+         window resize belt, both released on close. Stubbed observer + counted resize listeners; the subject is the wiring. */
+      const roLog = [];
+      const origRO = Wk.ResizeObserver;
+      Wk.ResizeObserver = class { constructor(cb) { this.cb = cb; } observe(el) { roLog.push('observe:' + (el.className || '?')); } disconnect() { roLog.push('disconnect'); } unobserve() {} };
+      const origAdd = Wk.addEventListener, origRemove = Wk.removeEventListener;
+      let resizeAdds = 0, resizeRemoves = 0;
+      let addedFn = null, removedFn = null;
+      Wk.addEventListener = function (t, ...a) { if (t === 'resize') { resizeAdds++; addedFn = a[0]; } return origAdd.call(this, t, ...a); };
+      Wk.removeEventListener = function (t, ...a) { if (t === 'resize') { resizeRemoves++; removedFn = a[0]; } return origRemove.call(this, t, ...a); };
+      let watchedAE = null;
+      try {
+        const t2 = Wk.Spixi.openAttachTray({ composerEl: compK, instant: true, strings: Wk.SL || {} });
+        const afterOpen = { ro: roLog.slice(), adds: resizeAdds, removes: resizeRemoves };
+        Wk.Spixi.closeAttachTray(t2, { instant: true });
+        watchedAE = { afterOpen, ro: roLog.slice(), adds: resizeAdds, removes: resizeRemoves, sameFn: !!addedFn && addedFn === removedFn };   // the REMOVED listener is the ADDED one — a count alone let `removeEventListener('resize', st.ro)` leak with the pin green (round-3 MINOR-4)
+      } finally { Wk.ResizeObserver = origRO; Wk.addEventListener = origAdd; Wk.removeEventListener = origRemove; }
+      ok(!!watchedAE && JSON.stringify(watchedAE.afterOpen.ro) === JSON.stringify(['observe:c-attach']) && watchedAE.afterOpen.adds === 1 && watchedAE.afterOpen.removes === 0
+         && JSON.stringify(watchedAE.ro) === JSON.stringify(['observe:c-attach', 'disconnect']) && watchedAE.adds === 1 && watchedAE.removes === 1 && watchedAE.sameFn === true,
+        '★★ Session AE (#939, round 2) BEHAVIOURAL: opening the tray observes the GRID (one ResizeObserver) and adds one window resize listener; closing it disconnects the observer and removes THAT listener (the same function object) — a stale --tray-content-h after a rotation or an inset push, and a listener leak per open, are both caught here: ' + JSON.stringify(watchedAE));
     }
   }
   /* ══ ★★ #46 r2 — THE JS FIXES (fix agent B, ① … ⑥) ═════════════════════════════════
@@ -25614,8 +25933,73 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
        && /const m = \/\^\(\\d\+\)@\(\\d\+\)\$\/\.exec\(raw\);\s*if \(!m\) return;/.test(chNC2)
        && /if \(!\(px >= 160 && px <= 600\) \|\| !\(w > 0\)\) return;/.test(chNC2)
        /* the fallback the mismatch lands on is the CSS literal, not 0 */
-       && /\.c-attach-tray\[data-open\] \{ height: var\(--kb-slot-h, 268px\); \}/.test(stripCssComments(rdF('src/styles/components/attach-sheet.css'))),
+       && /^(max\(\s*)?var\(--kb-slot-h, 268px\)/.test(trayOpenHeightDecl(rdF('src/styles/components/attach-sheet.css'))),   /* ★ Session AE: READ, not spelled, anchored at the start — see trayOpenHeightDecl */
       '★★ #46 B2 (②, MAJOR): the keyboard slot is stored TAGGED with the viewport width it was measured at (`px@w`) and published only while that width still holds; an untagged legacy value is DROPPED rather than adopted, because it may be exactly the rotation-poisoned number this fix exists to stop. A mismatch REMOVES the property so attach-sheet.css\'s `var(--kb-slot-h, 268px)` fallback stands — never 0, never another shape\'s number. The 160-600 band cannot separate the two on its own: a portrait→landscape rotation on the reference device writes ≈386 px, comfortably inside the band and LARGER than the 323 px keyboard, which is how ⊕ in landscape opened a tray at ~99 % of the viewport and then replayed 386 into portrait after a relaunch');
+
+    /* ★★ Session AE — THE TRAY IS NEVER SHORTER THAN ITS TILES (Damir, Android: the ⊕ tray
+       opened with its second tile row cut off until a keyboard had been opened once).
+       MEASURED on the built shell at 412×900 @2.5 through the wire, `--android-inset-bottom: 48px`,
+       no measured slot: NOW tray 268, second-row bottom 869 against a visible floor of 852 (17 px
+       under the transparent nav bar, AND-45); AFTER tray 301 (300 of tiles + the 1 px border), row
+       bottom 836. With a measured 320 slot both read 320 — the slot governs when it is the larger.
+       ⚠ `--kb-inset`, the handoff's suspect, is EMPTY on Android (adjustResize never writes it);
+       the mechanism is the 268 literal against the AND-45 nav-bar padding that now sits INSIDE the
+       fixed slot: two rows need 244 px + `--safe-bottom`. Three pins: the declaration (read, not
+       spelled), the publish site's POSITION inside openAttachTray (after the mount, before every
+       `return tray`), and the arithmetic EXECUTED in jsdom with the layout read stubbed — jsdom
+       has no layout engine, so `getBoundingClientRect` is the stub, NOT the function under test. */
+    {
+      const declAE = trayOpenHeightDecl(rdF('src/styles/components/attach-sheet.css'));
+      /* and nothing else in the sheet sizes the tray: every rule whose selector names .c-attach-tray is walked, and the
+         only height declarations allowed are the closed `height: 0` and the [data-open] max() — a `max-height`, or a
+         second height under another attribute ([data-instant], a media query) would silently re-cap the tray */
+      /* the sheet AND the chat shell's inline <style> blocks (a cap written in the shell would escape a one-file walk) */
+      const chatInlineCss = [...rdF('src/shells/chat.html').matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join('\n');
+      const trayCss = stripCssComments(rdF('src/styles/components/attach-sheet.css') + '\n' + chatInlineCss);
+      const traySizeDecls = [];
+      for (const m of trayCss.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        // the SUBJECT must be the tray: the LAST compound of any comma part names .c-attach-tray in any spelling
+        // (`div.c-attach-tray[data-open]`, `.c-attach-tray:is([data-open])`, `html .c-attach-tray` all count; a descendant
+        // rule such as `.c-attach-tray .c-attach__medallion` sizes a child, not the tray, and does not)
+        const subjectIsTray = (sel) => { const compounds = sel.trim().split(/\s*[>+~]\s*|\s+/).filter(Boolean); return /\.c-attach-tray(?![\w-])/.test(compounds[compounds.length - 1] || ''); };
+        if (!m[1].split(',').some(subjectIsTray)) continue;
+        for (const d of m[2].split(';').map((x) => x.trim()).filter(Boolean)) if (/^(max-height|min-height|height)\s*:/.test(d)) traySizeDecls.push(m[1].replace(/\s+/g, ' ').trim() + ' → ' + d.replace(/\s+/g, ' '));
+      }
+      ok(/^max\(\s*var\(--kb-slot-h, 268px\)\s*,\s*var\(--tray-content-h, 0px\)\s*\)$/.test(declAE)
+         && traySizeDecls.length === 2 && traySizeDecls.some((d) => /^\.c-attach-tray → height: ?0$/.test(d)) && traySizeDecls.some((d) => /^\.c-attach-tray\[data-open\] → height: ?max\(/.test(d)),
+        '★★ Session AE ①: the open tray\'s height is max(the keyboard slot with its 268 fallback, the tray\'s own content) — the declaration READ from the stylesheet, and the ONLY two height-class declarations on any .c-attach-tray rule are the closed 0 and this max(): ' + JSON.stringify(traySizeDecls));
+      const openAt = asNC.indexOf('export function openAttachTray(');
+      const openEnd = asNC.indexOf('\n}', openAt);
+      const openBody = openAt > 0 && openEnd > openAt ? asNC.slice(openAt, openEnd) : '';
+      const mountAE = openBody.indexOf('composerEl.after(tray);');
+      const pubAE = openBody.indexOf('publishTrayContentHeight(tray);');
+      const trayReturns = [...openBody.matchAll(/return tray;/g)].map((m) => m.index);
+      ok(mountAE > 0 && pubAE > mountAE && trayReturns.length >= 3 && trayReturns.every((i) => i > pubAE)
+         && (openBody.match(/publishTrayContentHeight\(tray\);/g) || []).length === 1,
+        '★★ Session AE ②: openAttachTray publishes the content height ONCE, after the mount (`composerEl.after(tray)`) and before EVERY `return tray` — the held, the instant and the animated path all leave with it set (' + trayReturns.length + ' returns)');
+      /* ③ EXECUTED: the published value is ceil(measured grid height + the tray's top border) */
+      const fnAE = asNC.indexOf('function publishTrayContentHeight(tray)');
+      const fnEnd = asNC.indexOf('\n}', fnAE);
+      let publishedAE = null, publishedNoBorder = null, publishedZero = 'unset';
+      if (fnAE > 0 && fnEnd > fnAE) {
+        const src = asNC.slice(fnAE, fnEnd + 2);
+        const mk = (gridH, border) => {
+          const style = { set: null, setProperty(k, v) { this.set = [k, v]; } };
+          const tray = { style, querySelector: (sel) => (sel === '.c-attach' ? { getBoundingClientRect: () => ({ height: gridH }), scrollHeight: 0 } : null) };
+          // the border is read from the TRAY: any other element answers a wrong width, so `getComputedStyle(grid)` is seen
+          const fn = new Function('getComputedStyle', src + '\nreturn publishTrayContentHeight;')((el) => ({ borderTopWidth: el === tray ? border : '99px' }));
+          fn(tray);
+          return style.set;
+        };
+        publishedAE = mk(299.6, '1px');
+        publishedNoBorder = mk(276, '0px');
+        publishedZero = mk(0, '1px');
+      }
+      ok(fnAE > 0 && JSON.stringify(publishedAE) === JSON.stringify(['--tray-content-h', '301px'])
+         && JSON.stringify(publishedNoBorder) === JSON.stringify(['--tray-content-h', '276px'])
+         && publishedZero === null,
+        '★★ Session AE ③ EXECUTED: publishTrayContentHeight writes --tray-content-h = ceil(grid height + top border) (299.6 + 1 → 301px · 276 + 0 → 276px) and writes NOTHING for an unmeasured 0 (jsdom, a detached tray) so the slot fallback stands: ' + JSON.stringify([publishedAE, publishedNoBorder, publishedZero]));
+    }
 
     /* ★★ B3 (③) + r2 R2-1: THE SHAPE GUARD SUPPRESSES THE SAMPLE AND THE LATCH — AND NOT THE
        CLEAR. Two pins: the ORDER, and then the TRUTH TABLE, which is evaluated.

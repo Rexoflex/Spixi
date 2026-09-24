@@ -1,0 +1,63 @@
+Session AE — the last FE fix round before the office: the freeze diagnosed (CORE-13), the ⊕ tray, the fade behind the composer, the bot-room Delete gate; four Opus loop rounds (#938–#943)
+
+Damir (#937): four items, in order, and the freeze was a DIAGNOSIS before any code. No C# changed.
+Ixian-Core 097341a untouched.
+
+THE FREEZE (#938) — inherited, caught, Core's
+- Damir's VS stack: NullReferenceException `friend was null` in Ixian-Core
+  PendingMessageProcessor.removeMessage:341 <- CoreStreamProcessor.handleMsgReceived:517
+  <- receiveData:823. The remove-with-leave flow sends the leave notice, removes the contact,
+  and the member's receipt ~1 s later reaches the invalid-group branch with sender_friend null.
+  receiveData's own catch (:1593) swallows it and logs `Exception occured in
+  StreamProcessor.receiveData` (:1595). The "freeze" was the debugger's first-chance break;
+  on Android the app continues. NOTHING changed in the app. BE row CORE-13: the only working
+  guard is at :823 (a null check inside removeMessage alone does not stop the later reads).
+
+THE ⊕ TRAY (#939) — attach-sheet.js / attach-sheet.css
+- The tray's height was the keyboard SLOT (`--kb-slot-h`, 268 px fallback before any keyboard
+  round) and the grid needs 244 px + `--safe-bottom` on a three-button-nav phone -> the second
+  tile row under the nav bar until the first keyboard round set the real slot.
+- Rule: `height: max(var(--kb-slot-h, 268px), var(--tray-content-h, 0px))`; the content height is
+  MEASURED at mount and re-measured on every resize of the grid (ResizeObserver + a window-resize
+  belt), released on close. Rendered both nav insets x both slot states before the pins.
+
+THE FADE BEHIND THE COMPOSER (#940) — chat.html / message-menu.css
+- Damir's pick from the render sheet: A (the mask alone; B/C tints recorded only). A row that
+  intersects the composer BAR's live rect gets a per-row linear-gradient mask with stops in its
+  own coordinates (`composerFadeStops`, pure, executed in the suite): opaque to the bar's top
+  edge, gone at its bottom. One coalesced pass per frame (reads, then writes), a WeakMap of the
+  last written gradient, cleared when a row leaves the band; re-armed on scroll / resize / load
+  / transitionend / animationend / the composer's own transitionend, synchronously after a
+  re-render, and tracked per frame for 340 ms on a keyboard-inset CHANGE (iOS: the bar SLIDES).
+- WHY PER ROW: a mask on the scroller is a stacking context and the long-press lift can never
+  rise above the scrim from inside one (PIN-B). A lifted row drops its mask ([data-menu-lift]).
+- The fade block sits ABOVE the #711 publish block: r1 found a TDZ ReferenceError there that
+  silently killed the composer-height ResizeObserver. The built-shell boot gate now INVOKES a
+  stubbed ResizeObserver callback and requires `--composer-h: 77px`.
+- Residuals recorded: the reaction pill's overhang pops (margin, not padding — padding moved
+  the select tick 8 px, REVERTED) · an in-place height change keeps its mask until the next pass.
+
+THE BOT-ROOM DELETE GATE (#941) — chat.html / message-menu.js / chat-select.js
+- ONE predicate `canDeleteRec`: own message -> yes; room unknown -> no; bot room -> admin only.
+  Menu (`capabilities.delete`), select-bar Delete (`deletable(row)`, disabled on a mixed
+  selection) and the bulk-delete belt all read it; a room answer refreshes an open selection.
+
+AD.13 (#942) — closed as designed: Core keeps one tip per sender per message
+  (FriendMessage.addReaction); Damir confirmed "same device". Two devices -> the pill totals.
+
+THE LOOP (#943) — four rounds on Opus, every round NOT CLEAN, headlines in the previous round's
+  fixes: the TDZ (r1) · the pill padding vs the select tick (r2) · the iOS keyboard slide (r3) ·
+  the ceiling overtaken mid-loop + a redundant unwatch tripping an older pin (r4). 44 mutations
+  through the real pin text, zero survivors. CLEAN NOT CLAIMED — no fifth reader over r4.
+  CHAT_KB_CEIL 646 -> 658 (+12 294 chars measured LAST, headroom 1 528).
+
+Suite (container, Core sibling, snapshot): BEFORE 4848 -> AFTER 4862 / the 2 KNOWN (+14).
+Bundle rebuilt · 18 shells · four --check gates · lint · zero new strings.
+
+Docs: DECISIONS #938–#943 · be-cutover CORE-13 · security-handover-gate (Session AE: nothing
+introduced) · docs/opus-review-verdict-session-ae.md · docs/f5-checklist-session-ae.md ·
+docs/walk-artifact-session-ae.html · docs/handoff-2026-09-23d.md · docs/sheets/session-ae/ ·
+four consumed docs -> docs/archive/.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01BoQPATNATDCwCDAAXsaYT1

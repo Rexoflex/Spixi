@@ -197,6 +197,8 @@ export function openAttachTray({ composerEl, media = false, apps = true, payment
   if (input && document.activeElement === input) input.blur();   // the tray takes the keyboard's slot
 
   composerEl.after(tray);
+  publishTrayContentHeight(tray);
+  watchTrayContent(tray);
   if (hold) {
     tray.dataset.instant = '';   // no height transition: it opens in ONE frame when revealed
     return tray;                 // closed until revealAttachTray(tray) — which hands over the inset (B1)
@@ -244,6 +246,57 @@ function markComposerTrayOpen(composerEl) {
   if (composerEl) composerEl.setAttribute('data-tray-open', '');
 }
 
+/* ★ Session AE (Damir on Android: the ⊕ tray opened with its second tile row cut off until a
+   keyboard had been opened once). The tray's open height is the keyboard SLOT
+   (attach-sheet.css: `var(--kb-slot-h, 268px)`), and the slot is only MEASURED after the
+   first keyboard round; until then it is the 268 literal. AND-45 moved the navigation-bar
+   inset INSIDE the tray's padding, so two tile rows now need 244 px + `--safe-bottom` — on a
+   48 px three-button bar that is ~300 px in a 267 px box, and the second row's labels sit
+   under the bar. The `--kb-inset` cap the handoff suspected is not the mechanism: Android
+   adjustResize never writes it.
+   THE RULE: the tray is never shorter than its own tiles; the keyboard slot governs only when
+   it is the larger of the two. The content height is measured HERE at mount and again on every
+   resize of the grid (watchTrayContent below), and published as `--tray-content-h`; the stylesheet takes
+   `max(slot, content)`. Measured before the tray has a height: the grid is a block child of
+   a 0-height overflow-hidden parent, so its own box is still its content — the parent clips,
+   it does not constrain. The tray's top border is added because its box-sizing is
+   border-box. ⚠ The trade this buys is a jump on the keyboard ↔ tray swap (#721/#753) equal to
+   the difference, only when a device's keyboard is SHORTER than two tile rows — Damir's dial
+   (DECISIONS, Session AE); the alternative was clipped controls on every fresh install. */
+function publishTrayContentHeight(tray) {
+  try {
+    const grid = tray.querySelector('.c-attach');
+    if (!grid) return;
+    const content = Math.ceil(grid.getBoundingClientRect().height || grid.scrollHeight || 0);
+    if (!(content > 0)) return;
+    const border = parseFloat(getComputedStyle(tray).borderTopWidth) || 0;
+    tray.style.setProperty('--tray-content-h', Math.ceil(content + border) + 'px');
+  } catch (_) { /* no layout engine (jsdom) or a detached tray: the stylesheet's slot fallback stands */ }
+}
+/* ★ Session AE (the #46 reviewer's MINOR-4): the content is not a constant for the tray's life — a
+   rotation, a `setInsetBottom`/`setInsetSides` push (--safe-bottom is INSIDE the measured padding)
+   or a width change while the tray is open re-flows the grid. A ResizeObserver on the GRID re-publishes
+   on every such change (window resize is the belt where the API is missing); closeAttachTray
+   disconnects it. Without this a portrait 301 followed by a rotation kept 301 in a ~390 px viewport. */
+function watchTrayContent(tray) {
+  const st = trayState.get(tray);
+  const grid = tray.querySelector('.c-attach');
+  if (!st || !grid) return;
+  const republish = () => publishTrayContentHeight(tray);
+  try {
+    if (typeof ResizeObserver === 'function') { st.ro = new ResizeObserver(republish); st.ro.observe(grid); }
+  } catch (_) { st.ro = null; }
+  st.onResize = republish;
+  window.addEventListener('resize', republish);
+}
+function unwatchTrayContent(tray) {
+  const st = trayState.get(tray);
+  if (!st) return;
+  try { if (st.ro) st.ro.disconnect(); } catch (_) {}
+  if (st.onResize) window.removeEventListener('resize', st.onResize);
+  st.ro = null; st.onResize = null;
+}
+
 /* ★ Session K: open a HELD tray (see `hold` above) — one frame, no transition. Idempotent;
    a tray that closed meanwhile (a back press inside the hold) is left alone. */
 export function revealAttachTray(tray) {
@@ -262,6 +315,7 @@ export function closeAttachTray(tray, { instant = false } = {}) {
   const st = tray && trayState.get(tray);
   if (!st || st.closing) return false;
   st.closing = true;
+  unwatchTrayContent(tray);   // ★ Session AE: the grid observer + resize belt go with the tray
   const btn = st.composerEl.querySelector('.c-composer__attach');
   if (btn) btn.setAttribute('aria-expanded', 'false');
   st.composerEl.removeAttribute('data-tray-open');

@@ -1529,3 +1529,18 @@ One question per row: does this exposure exist at the baseline? Loop on Opus, th
 | log lines (all rows) | every new `Logging` line carries a type name, a count or a fixed vocabulary — no address, no path, no URL token (walked by the reviewer and by the AD block's own pin). | none |
 
 Session AD adds no HTML sink and no network fetch. It RETIRES four `spixi.*` families from the shared `file://` partition (`landtab` · `settings.view` · `exdel.*` · `backup.last`) and adds two app-side preferences (`fav.<addr>` · `lastBackupTimestamp`). The introduced-vs-inherited census gains the CH3 row (a delete path, accepted with its guards) and the W11 row (fixed in-loop); the rest are widenings of existing pushes. ⚠ Nothing here has compiled — Damir's F5 is the first compile of 19 C# files + one new file.
+
+## Session AE (#938–#943) — the last FE fix round before the office: the freeze diagnosed, the tray, the composer fade, the bot-room Delete gate (2026-09-23)
+
+One question per row: does this exposure exist at the baseline?
+
+| item | verb / key / sink / fetch / log? | verdict |
+|---|---|---|
+| `attach-sheet.js` `publishTrayContentHeight` / `watchTrayContent` (#939) | writes a CSS custom property (`--tray-content-h`) on the tray element from a `getBoundingClientRect` read; a ResizeObserver on the grid; no verb, no key, no sink, no fetch, no log | none |
+| `chat.html` `composerFadePass` (#940) | writes an inline `mask-image` (a `linear-gradient` string built from four NUMBERS — no user data enters the string) on rows of the log; reads rects; no verb, no key, no sink (no HTML is parsed), no fetch; one `console.warn` on a thrown pass with the exception object (no user data — the pass touches geometry only) | none |
+| `message-menu.css` `[data-menu-lift]` mask drop · `attach-sheet.css` `max()` · `reactions.css` comment (#940/#939) | stylesheet only | none |
+| `chat.html` `canDeleteRec` · `message-menu.js` `capabilities.delete` · `chat-select.js` `deletable` (#941) | REMOVES an offer (Delete on another member's message in a bot room) — no new verb; the existing `ixian:contextAction:deleteMessage:<id>` emit is unchanged and now fires only where C# acts | none (a control withdrawn) |
+| `docs/be-cutover-brief.md` CORE-13 (#938) | a Core row; the inherited NRE is caught at `receiveData:1593`; the app sends no new message and stores nothing new | inherited, filed |
+| `scripts/smoke-test.mjs` · `docs/*` | dev machine only, never shipped | none |
+
+Session AE adds no verb, no `spixi.*` key, no WebView setting, no HTML sink, no network fetch and no log line carrying user data. The introduced-vs-inherited census is unchanged; CORE-13 joins the INHERITED list for the BE engineer.

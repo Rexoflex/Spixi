@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Walk — Session AE: the last FE fix round — the freeze diagnosed, the ⊕ tray, the fade behind the composer, the bot-room Delete gate</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --bg:#eef1f6; --card:#ffffff; --sunk:#f5f7fa;
+    --ink:#141b23; --sub:#5b6672; --line:#dfe5ec;
+    --act:#1956b2; --act-soft:#e5edf9;
+    --p:#1a7f4b; --f:#b12525; --n:#8b95a1;
+    --warn:#884b00; --warn-soft:#fbf1e2;
+    --shadow:0 1px 2px rgba(20,27,35,.05), 0 2px 8px rgba(20,27,35,.05);
+  }
+  :root:not([data-theme="light"]) { }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0d1117; --card:#161b22; --sunk:#0f141b;
+      --ink:#e6edf3; --sub:#9aa7b4; --line:#252c36;
+      --act:#5a8dee; --act-soft:#16233a;
+      --p:#3fb27a; --f:#f08a80; --n:#7d8794;
+      --warn:#e0a458; --warn-soft:#241c10;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0d1117; --card:#161b22; --sunk:#0f141b;
+    --ink:#e6edf3; --sub:#9aa7b4; --line:#252c36;
+    --act:#5a8dee; --act-soft:#16233a;
+    --p:#3fb27a; --f:#f08a80; --n:#7d8794;
+    --warn:#e0a458; --warn-soft:#241c10;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.3);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.55 "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding:28px 20px 64px;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1000px;margin:0 auto}
+
+  header{margin:0 0 18px}
+  h1{font-size:27px;line-height:1.2;margin:0 0 6px;font-weight:700;letter-spacing:-.015em;text-wrap:balance}
+  .lede{color:var(--sub);margin:0 0 14px;max-width:64ch}
+  .facts{display:flex;flex-wrap:wrap;gap:8px}
+  .fact{
+    font:500 12px/1 "IBM Plex Mono", ui-monospace, Consolas, monospace;
+    background:var(--card);border:1px solid var(--line);border-radius:999px;
+    padding:7px 12px;color:var(--sub);white-space:nowrap
+  }
+  .fact b{color:var(--ink);font-weight:500}
+
+  .tally{
+    position:sticky;top:0;z-index:5;background:var(--bg);
+    padding:12px 0 10px;margin:0 0 18px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap
+  }
+  .tally .score{font:600 15px/1 "IBM Plex Mono", monospace;letter-spacing:.02em}
+  .tally .score i{font-style:normal;padding:0 2px}
+  .tally .sp{flex:1}
+  .mini{
+    border:1px solid var(--line);background:var(--card);color:var(--ink);
+    border-radius:8px;padding:7px 13px;font:500 13px/1 "IBM Plex Sans",sans-serif;cursor:pointer
+  }
+  .mini:hover{border-color:var(--act);color:var(--act)}
+  .mini:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+
+  h2{
+    font-size:13px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--sub);margin:26px 0 10px;display:flex;align-items:baseline;gap:10px
+  }
+  h2 .num{
+    font-family:"IBM Plex Mono",monospace;color:var(--act);font-weight:500;
+    letter-spacing:0;font-size:12px
+  }
+  section{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:16px 18px;margin:0 0 4px;box-shadow:var(--shadow)
+  }
+  section.flag{border-left:3px solid var(--act)}
+  section > p{margin:0 0 12px;color:var(--sub);max-width:70ch}
+  section > p:last-child{margin-bottom:0}
+  section > p strong{color:var(--ink);font-weight:600}
+  code{
+    font:500 13px/1.4 "IBM Plex Mono",ui-monospace,Consolas,monospace;
+    background:var(--sunk);border:1px solid var(--line);border-radius:5px;padding:1px 5px
+  }
+
+  .cmd{position:relative;margin:0 0 12px}
+  .cmd pre{
+    margin:0;background:var(--sunk);border:1px solid var(--line);border-radius:10px;
+    padding:13px 15px;overflow-x:auto;
+    font:400 12.5px/1.65 "IBM Plex Mono",ui-monospace,Consolas,monospace;
+    color:var(--ink)
+  }
+  .cmd .cp{
+    position:absolute;top:8px;right:8px;
+    border:1px solid var(--line);background:var(--card);color:var(--sub);
+    border-radius:7px;padding:5px 10px;font:500 11px/1 "IBM Plex Sans",sans-serif;cursor:pointer
+  }
+  .cmd .cp:hover{color:var(--act);border-color:var(--act)}
+  .cmd .cp:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+  .cmd .cp[data-done="1"]{color:var(--p);border-color:var(--p)}
+
+  .note-line{
+    display:flex;gap:8px;align-items:flex-start;
+    background:var(--warn-soft);border:1px solid var(--line);border-radius:9px;
+    padding:10px 13px;margin:0 0 12px;color:var(--ink);font-size:13.5px;line-height:1.5
+  }
+  .note-line b{color:var(--warn)}
+
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:10px 8px;border-top:1px solid var(--line);vertical-align:top}
+  thead th{
+    border-top:0;font:600 11px/1 "IBM Plex Sans",sans-serif;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--sub);padding-bottom:8px
+  }
+  td.id{
+    width:44px;font:500 13px/1.5 "IBM Plex Mono",monospace;color:var(--act);white-space:nowrap
+  }
+  td.what{font-size:14px}
+  td.what em{font-style:normal;color:var(--sub);display:block;margin-top:3px;font-size:13px}
+  td.v{width:158px;white-space:nowrap}
+
+  .btn{
+    border:1px solid var(--line);background:transparent;color:var(--sub);
+    border-radius:7px;padding:5px 11px;margin-right:4px;cursor:pointer;
+    font:500 12.5px/1 "IBM Plex Sans",sans-serif
+  }
+  .btn:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+  .btn[aria-pressed="true"][data-v="P"]{background:var(--p);border-color:var(--p);color:#fff}
+  .btn[aria-pressed="true"][data-v="F"]{background:var(--f);border-color:var(--f);color:#fff}
+  .btn[aria-pressed="true"][data-v="N"]{background:var(--n);border-color:var(--n);color:#fff}
+  /* ★ Damir, walk S2: "stupid artefact doesnt allow notes if pass" — and the note he
+     could not leave was a real defect. The box used to be display:none until a row
+     FAILED, on the reasoning that a fail needs an explanation. True, and not the same
+     as "a pass has nothing to say": the most valuable notes are the ones on rows that
+     technically passed, because those are the observations no row was written to catch.
+     Always visible now; the fail styling stays. */
+  .nt{
+    width:100%;margin-top:7px;border:1px solid var(--line);border-radius:7px;
+    padding:6px 9px;background:var(--sunk);color:var(--ink);
+    font:400 13px/1.45 "IBM Plex Sans",sans-serif;display:block
+  }
+  tr[data-v="F"] .nt{border-color:var(--f)}
+
+  footer{margin:30px 0 0;color:var(--sub);font-size:13.5px;line-height:1.6}
+  footer b{color:var(--ink)}
+
+  @media (max-width:640px){
+    body{padding:20px 14px 56px}
+    td.v{width:auto}
+    th:nth-child(3),td.v{display:block;padding-top:0;border-top:0}
+    td.id{width:38px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Walk — Session AE: the last FE fix round — the freeze diagnosed, the ⊕ tray, the fade behind the composer, the bot-room Delete gate</h1>
+  <p class="lede">Nineteen rows. <strong>§0 is the build</strong> — components changed, so the bundle BEFORE the shells; <strong>no C# changed</strong>, so no obj/bin wipe and Android needs only a redeploy of the assets. <strong>§1 the freeze</strong> is two confirmations of a diagnosis (nothing was fixed in the app; the NRE is Core's, caught, and the "freeze" was the debugger). <strong>§2 the four fixes</strong> — the tray on a fresh install, the fade behind the composer (★ AE.5 is the pick you made: A), the lifted row staying crisp, and the bot-room Delete as member and as admin. <strong>§3 the AD rows</strong> still owed: AD.13 corrected (one tip per sender), AD.19 (a legacy-state contact — remind yourself), AD.20, AD.23.</p>
+  <div class="facts"><span class="fact">records <b>#938–#943</b></span><span class="fact">smoke <b>BEFORE 4848 → AFTER see the checklist / the 2 KNOWN</b> (container, with the Core sibling)</span><span class="fact">C# changed <b>NO</b> — nothing to compile; a stale build shows the OLD shells (#663: F5, never dotnet build)</span></div>
+</header>
+<div class="tally">
+  <span class="score" id="score">— / 19</span>
+  <span class="score" style="color:var(--p)">P <i id="cp">0</i></span>
+  <span class="score" style="color:var(--f)">F <i id="cf">0</i></span>
+  <span class="score" style="color:var(--n)">N/A <i id="cn">0</i></span>
+  <span class="sp"></span>
+  <button class="mini" id="copyres">Copy results</button>
+  <button class="mini" id="reset">Reset</button>
+</div>
+<main>
+<h2><span class="num">§0</span> Build</h2>
+<section>
+  <p><strong>Components changed</strong> (attach-sheet.js · message-menu.js · chat-select.js) and the chat shell → <code>build-demo-bundle</code> BEFORE <code>build-shells</code>. Strings unchanged (<code>extract-strings --check</code> green). <strong>No C#.</strong></p>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s0"></tbody></table>
+</section>
+
+<h2><span class="num">§1</span> The freeze (#938) — a diagnosis to confirm, not a fix to test</h2>
+<section class="flag">
+  <p>The remove-with-leave flow sends the leave notice, removes the contact, and the member's receipt ~1 s later hits a null <code>friend</code> in Ixian-Core (<code>CoreStreamProcessor.receiveData:823</code>). Core catches it at <code>:1593</code>. Nothing in the app changed for this item; CORE-13 is the BE row.</p>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s1"></tbody></table>
+</section>
+
+<h2><span class="num">§2</span> The four fixes (#939 · #940 · #941)</h2>
+<section class="flag">
+  <p>★ <strong>AE.3</strong> needs a FRESH state for the keyboard slot: Account → Chat appearance does not reset it; the slot lives in <code>localStorage spixi.kb.slot</code> — a fresh install, or clear the app's WebView data, or simply test on a phone that has never opened a keyboard in this build. ★ <strong>AE.5–AE.8</strong> need a conversation LONG enough to scroll (30+ messages).</p>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s2"></tbody></table>
+</section>
+
+<h2><span class="num">§3</span> The AD rows still owed</h2>
+<section>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s3"></tbody></table>
+</section>
+
+<h2><span class="num">§4</span> Records</h2>
+<section>
+  <table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s4"></tbody></table>
+</section>
+
+</main>
+<footer>
+<p>A pass with a note is a pass — write the note. For <b>AE.1</b>, <b>AE.2</b> and <b>AE.12</b> the note IS the answer.</p><p><b>Not on this sheet, deliberately:</b> the iOS keyboard slide (AE.6b) — no iPhone until the office; the pill pop and the in-place-height residuals (#940, recorded, not walked); L6 · L8 · L2 · CORE-10 · CORE-12 · batch 4's medium rows.</p>
+</footer>
+</div>
+<script>
+(function(){
+  var ROWS = {
+  "s0": [
+    [
+      "AE.0",
+      "node scripts/build-demo-bundle.mjs → node scripts/build-shells.mjs → node scripts/smoke-test.mjs (with Ixian-Core beside the repo) — then F5 Windows (never dotnet build, #663) and the Android Debug deploy",
+      "smoke reads your Session AD number + the AFTER delta from the checklist (#895: the DELTA, never the absolute). build-shells --check green. No C# changed: a build error is NOT this session's — nothing was touched that compiles."
+    ]
+  ],
+  "s1": [
+    [
+      "AE.1",
+      "Windows Debug (VS): remove a contact who shares a group → the group-participant prompt → leave the group WITH \"delete media\" → the VS break appears → press Continue",
+      "the app RESUMES: the contact is gone, the group is gone, the chats list is live, X's media files are gone from Downloads. The break is a first-chance NullReferenceException inside Ixian-Core, caught at receiveData:1593 — not a freeze. Note whether the break appeared at all (VS's Exception Settings decide)."
+    ],
+    [
+      "AE.2",
+      "Android Debug, no debugger: the same sequence (a second contact + group)",
+      "no freeze, no crash; the app continues; ixian.log carries `Exception occured in StreamProcessor.receiveData: System.NullReferenceException` about one second after `[CRASHDIAG] removecontact: status=ok`. That line is the whole finding (CORE-13); paste it in the note."
+    ]
+  ],
+  "s2": [
+    [
+      "AE.3",
+      "★ #939 — a phone with the three-button navigation bar, a FRESH keyboard slot (see the note above): open a chat → ⊕ BEFORE any keyboard",
+      "BOTH tile rows visible, the second row's labels fully above the nav bar (was: labels under the bar until a keyboard round). Then type once (a keyboard round) → ⊕ again → still both rows, the tray now the keyboard's height."
+    ],
+    [
+      "AE.4",
+      "#939 — with the tray open, rotate to landscape and back",
+      "the tray never clips its tiles in either posture (it re-measures on a grid resize); in landscape the conversation still has room above it."
+    ],
+    [
+      "AE.5",
+      "★ #940 pick A — a long chat, scroll UP so bubbles pass under the composer",
+      "a bubble entering the composer's band DISSOLVES from the bar's top edge and is gone at its bottom edge — no slice mid-word, no haze above the bar, no tint band. At rest (scrolled to the bottom) the newest message is fully opaque. Both themes."
+    ],
+    [
+      "AE.6",
+      "#940 — the same on Windows desktop (the 760 column)",
+      "the same dissolve at the composer's band; the day pill's frost intact; no fade while scrolled to the bottom."
+    ],
+    [
+      "AE.6b",
+      "#940 — iOS ONLY (office): open the keyboard and close it while a bubble sits under the bar",
+      "the dissolve follows the bar through its slide; after the keyboard hides no row is left faded mid-screen (round-3 MAJOR-1, reproduced and fixed in Chromium — the device confirms)."
+    ],
+    [
+      "AE.7",
+      "#940 — long-press a message that is partly under the composer's band",
+      "the LIFTED message is crisp above the scrim (no mask on the lifted row); release → the mask returns as it scrolls."
+    ],
+    [
+      "AE.8",
+      "#940 — a message with a ❤ reaction pill scrolled into the band",
+      "the bubble dissolves; the pill's overhang below the bubble disappears at once when the row's bottom crosses the bar (the recorded residual, #940) — note how visible it is to you."
+    ],
+    [
+      "AE.9",
+      "★ #941 — a BOT room as a non-admin member: long-press YOUR message · long-press ANOTHER member's message",
+      "yours: Delete offered and works (disappears on the other device too); theirs: NO Delete in the menu (Copy/Select/Tip/Report as before)."
+    ],
+    [
+      "AE.10",
+      "#941 — the same bot room as the ADMIN account",
+      "Delete offered on every message; a delete of another member's message goes through."
+    ],
+    [
+      "AE.11",
+      "#941 — non-admin in the bot room: Select → tick your own message → tick another member's message",
+      "the bar's Delete is ENABLED with only yours ticked, DISABLED the moment theirs joins, enabled again when you untick theirs; Copy unaffected. In a 1:1 and a normal group Delete is enabled on any selection (unchanged)."
+    ]
+  ],
+  "s3": [
+    [
+      "AE.12",
+      "AD.13 corrected (#942): tip the SAME message twice from the SAME device",
+      "the second tip is refused with the generic tip error — Core keeps one tip per sender per message (FriendMessage.addReaction). Then, if you have two devices: BOTH tip one message → the pill shows the TOTAL. The row's old expectation was wrong; this is the design."
+    ],
+    [
+      "AE.13",
+      "AD.19 — ★ a legacy contact stuck in a non-Approved state (Damir: \"remind me\") and a fresh outgoing request: open contact details",
+      "ONE action, Cancel request, and it WORKS on the legacy one too; Cancel → record gone, conversation closes, list row gone; Android: no `ixian:undorequest` page."
+    ],
+    [
+      "AE.14",
+      "AD.20 — Add app: a black-holed https host · a 404 URL · a 20 MB file URL",
+      "each fails INSIDE 15 s with its own reason (timeout · http · size); from HomePage's add-app pane AND the standalone page."
+    ],
+    [
+      "AE.15",
+      "AD.23 — a file received from X that you ALSO received from Y → delete X with media",
+      "the file STAYS (Y's history names it); delete Y with media → now it goes."
+    ]
+  ],
+  "s4": [
+    [
+      "AE.16",
+      "read DECISIONS #938–#943 and docs/opus-review-verdict-session-ae.md",
+      "four rounds on Opus, CLEAN NOT CLAIMED (no fifth reader over the r4 fixes) — you are the fifth reader; the next session's item 0 is the fifth round."
+    ],
+    [
+      "AE.17",
+      "docs/be-cutover-brief.md — CORE-13",
+      "the row matches what you saw in AE.1/AE.2 (caught, logged, not a freeze); the only working fix is the `:823` guard."
+    ]
+  ]
+};
+
+  var KEY = "spixi.walk.session-ae";
+  var state = {};
+  try { state = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch(e) { state = {}; }
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){} }
+
+  function build(tbodyId){
+    var tb = document.getElementById(tbodyId);
+    if(!tb) return;
+    ROWS[tbodyId].forEach(function(r){
+      var id = r[0];
+      var tr = document.createElement("tr");
+      tr.dataset.row = id;
+      var td1 = document.createElement("td");
+      td1.className = "id"; td1.textContent = id;
+      var td2 = document.createElement("td");
+      td2.className = "what";
+      td2.appendChild(document.createTextNode(r[1]));
+      if (r[2]) { var em = document.createElement("em"); em.textContent = r[2]; td2.appendChild(em); }
+      var td3 = document.createElement("td");
+      td3.className = "v";
+      ["P","F","N"].forEach(function(v){
+        var b = document.createElement("button");
+        b.className = "btn"; b.dataset.v = v; b.type = "button";
+        b.textContent = v === "N" ? "N/A" : v;
+        b.setAttribute("aria-label", (v==="P"?"Pass":v==="F"?"Fail":"Not applicable") + " " + id);
+        b.setAttribute("aria-pressed", String(state[id] && state[id].v === v));
+        b.addEventListener("click", function(){
+          var cur = state[id] || {};
+          cur.v = (cur.v === v) ? "" : v;
+          state[id] = cur; save(); paint(tr, id); tallyUp();
+        });
+        td3.appendChild(b);
+      });
+      var nt = document.createElement("textarea");
+      nt.className = "nt"; nt.rows = 2;
+      nt.placeholder = "note (optional — on a pass too)";
+      nt.value = (state[id] && state[id].n) || "";
+      nt.setAttribute("aria-label", "Note for " + id);
+      nt.addEventListener("input", function(){
+        var cur = state[id] || {}; cur.n = nt.value; state[id] = cur; save();
+      });
+      td3.appendChild(nt);
+      tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+      tb.appendChild(tr);
+      paint(tr, id);
+    });
+  }
+
+  function paint(tr, id){
+    var v = (state[id] && state[id].v) || "";
+    tr.dataset.v = v;
+    Array.prototype.forEach.call(tr.querySelectorAll(".btn"), function(b){
+      b.setAttribute("aria-pressed", String(b.dataset.v === v));
+    });
+  }
+
+  function tallyUp(){
+    var p=0,f=0,n=0,total=0;
+    Object.keys(ROWS).forEach(function(k){ total += ROWS[k].length; });
+    Object.keys(state).forEach(function(id){
+      var v = state[id] && state[id].v;
+      if (v==="P") p++; else if (v==="F") f++; else if (v==="N") n++;
+    });
+    document.getElementById("cp").textContent = p;
+    document.getElementById("cf").textContent = f;
+    document.getElementById("cn").textContent = n;
+    document.getElementById("score").textContent = (p+f+n) + " / " + total;
+  }
+
+  Object.keys(ROWS).forEach(build);
+  tallyUp();
+
+  function copyText(text, btn, doneLabel){
+    var ok = function(){
+      if(!btn) return;
+      var old = btn.textContent;
+      btn.textContent = doneLabel || "Copied";
+      btn.dataset.done = "1";
+      setTimeout(function(){ btn.textContent = old; btn.dataset.done = ""; }, 1400);
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(ok, function(){ fallback(text, ok); });
+        return;
+      }
+    } catch(e){}
+    fallback(text, ok);
+  }
+  function fallback(text, ok){
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      ok();
+    } catch(e){}
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll(".cmd .cp"), function(btn){
+    btn.type = "button";
+    btn.addEventListener("click", function(){
+      var pre = btn.parentNode.querySelector("pre");
+      copyText(pre ? pre.textContent : "", btn);
+    });
+  });
+
+  document.getElementById("copyres").addEventListener("click", function(){
+    var out = ["Walk — Session AE: the last FE fix round — the freeze diagnosed, the ⊕ tray, the fade behind the composer, the bot-room Delete gate", ""];
+    var p=0,f=0,n=0;
+    Object.keys(ROWS).forEach(function(k){
+      ROWS[k].forEach(function(r){
+        var id = r[0], s = state[id] || {}, v = s.v || "-";
+        if (v==="P") p++; else if (v==="F") f++; else if (v==="N") n++;
+        out.push(v + "  " + id + "  " + r[1] + (s.n ? "   — " + s.n : ""));
+      });
+    });
+    out.splice(1, 0, p + " pass · " + f + " fail · " + n + " n/a");
+    copyText(out.join("\n"), this, "Copied");
+  });
+
+  document.getElementById("reset").addEventListener("click", function(){
+    if (!window.confirm("Clear every result and note on this sheet?")) return;
+    state = {}; save();
+    Object.keys(ROWS).forEach(function(k){
+      var tb = document.getElementById(k);
+      while (tb.firstChild) tb.removeChild(tb.firstChild);
+      build(k);
+    });
+    tallyUp();
+  });
+})();
+</script>
+</body>
+</html>

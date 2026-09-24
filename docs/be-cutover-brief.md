@@ -576,6 +576,24 @@ line by line here (verify-first before any Core patch). The app half is BUILT an
 (C21, #928). Fix is Core's: relay `msgTyping` like a chat message (rate-limited — it is sent per keystroke burst),
 or drop the feature for groups and say so.
 
+**CORE-13 (Session AE #938) · a delivery RECEIPT from a contact who is no longer a contact, for a group we have
+left, throws in Core.** Reproduced by Damir on Windows Debug (VS "Exception Thrown", stack pasted): remove a
+contact who shares a group → leave the group with "delete media" → the app sends the LEAVE notice to that member
+and removes the record in the same call (`SContacts.removeContact`, the order Core wants) → the member's client
+answers `msgReceived` for the group message ~1 s later → `CoreStreamProcessor.receiveData` resolves neither the
+sender (`FriendList.getFriend` → null, the record is gone) nor the group (`GroupChat.ValidateAndGetGroup` → null,
+we left) and its invalid-group branch calls `handleMsgReceived(sender_friend = null, …)` (`:823`, `097341a`) →
+`PendingMessageProcessor.removeMessage(friend = null, …)` — Damir's stack shows the `friend.walletAddress` read
+inside its `Find` lambda (`:341`), which runs only while `pendingRecipients` is non-empty; with an empty list the
+same null `friend` throws a few lines later in `handleMsgReceived` itself (`friend.handshakeStatus` ~`:542`, or
+`friend.setMessageReceived` `:606`) — so the NRE is certain, only the frame varies. Core CATCHES it in
+`receiveData` (`catch` at `:1593`, the log line `Exception occured in StreamProcessor.receiveData` at `:1595`) — a
+Release build continues and only the receipt is dropped; the "freeze" was the debugger's first-chance break.
+INHERITED (the branch is unchanged since the fork); our leave-then-remove flow makes it deterministic. Fix is
+Core's, one line, and only this one works: `if (sender_friend != null)` before the `:823` call — a null guard inside
+`removeMessage` alone would NOT stop it (the later reads throw). No app change — a second removal order (remove
+first, then leave) would strand the leave notice, so the flow stays as it is.
+
 **APP-1 — ✅ BUILT 2026-09-22 (#912): Android `backup_rules.xml` + `data_extraction_rules.xml` exclude `Spixi/Chats`, `Spixi/MsgQueue` and the six log files; iOS sets `NSURLIsExcludedFromBackupKey` on the same two folders (uncompiled until the next iOS build). The wallet, `Acc`, the avatar and the preferences are still backed up — so the plaintext `walletpass` preference still travels with a Google backup until L8. Restore test on a second phone still owed.** Original row kept below for the reasoning.
 
 **APP-1 (Session AB #909, OURS, small, not built) · exclude chat history and logs from Android system
@@ -783,7 +801,7 @@ branch, not by a bare line number (rule #773 — a line number rots).
 | AV1 avatar history · AND-15-BE payload typing | OPEN — dials, not defects |
 | RC1 cancel family | OPEN — `SpixiMessage` at `097341a` has no withdraw code |
 | N-BADGE · N-LOCALTAP | OPEN — both correctly filed as "cannot be fixed in the app" |
-| CORE-1 … CORE-12 · APP-1 · CORE-7b · the membership question | OPEN — CORE-12 (group typing fan-out, #935) added 2026-09-23. Ixian-Core is frozen at `097341a`. CORE-9 (tombstoned deletes, #907) added 2026-09-19 with an app-side workaround. CORE-1 re-read and confirmed: `kickUser` and `banUser` are still `return true;` |
+| CORE-1 … CORE-13 · APP-1 · CORE-7b · the membership question | OPEN — CORE-13 (a receipt for a removed contact + left group NREs in `receiveData`, caught and logged; the Debug "freeze", #938) added 2026-09-23. CORE-12 (group typing fan-out, #935) added 2026-09-23. Ixian-Core is frozen at `097341a`. CORE-9 (tombstoned deletes, #907) added 2026-09-19 with an app-side workaround. CORE-1 re-read and confirmed: `kickUser` and `banUser` are still `return true;` |
 
 **Coverage: 116 of 116 rows checked against the tree** — 106 table and bullet rows, plus the ten
 prose rows (`PA1`, `CORE-1`…`CORE-8`, `CORE-7b`, and the membership question). `release-readiness.md`

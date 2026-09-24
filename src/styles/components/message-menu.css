@@ -271,6 +271,13 @@
   position: relative;
   z-index: var(--z-42);
   pointer-events: none;
+  /* ★ Session AE (#940): a row inside the composer's band carries an INLINE per-row mask
+     (chat.html composerFadePass — the fade behind the composer). The pressed message must be
+     crisp above the scrim, so the lift drops it; !important because the mask is an inline
+     style, which no ordinary declaration outranks. `none` is not a stacking declaration
+     (PIN-B exempts it) and the lift's own z-index already makes this row a context. */
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
 }
 
 /* ★★ #589 (Damir F5 2026-08-26) — THE LIFTED ROW IS NOT PROMINENT IN DARK MODE.

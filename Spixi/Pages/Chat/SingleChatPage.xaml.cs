@@ -3458,6 +3458,10 @@ namespace SPIXI
                 if (string.IsNullOrEmpty(message.message))
                 {
                     Logging.info("insertMessage: an EMPTY standard row was not rendered (" + (message.localSender ? "own" : "peer") + ", " + (batch != null ? "load" : "live") + ").");
+                    // ★ #983 (review r1, MINOR-4): the READ bookkeeping still runs — a skipped
+                    // bubble must not leave the badge on for an open chat, or the sender without
+                    // a read tick. Only the push is skipped.
+                    updateMessageReadStatus(message, channel);
                     return;
                 }
                 // Normal chat message

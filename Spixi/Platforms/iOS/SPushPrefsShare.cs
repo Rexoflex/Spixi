@@ -129,7 +129,9 @@ namespace Spixi
                      * device answers "was this sender in the muted set the extension read?" */
                     Logging.info("[SPUSH-APP] store written: enabled=" + store.enabled + " senderName=" + store.senderName
                         + " muted=" + store.muted.Count + " nicks=" + store.nicks.Count
-                        + " mutedTags=" + string.Join(",", store.muted.ConvertAll(a => tagOf(store.tagSalt, a))));
+                        + " mutedTags=" + string.Join(",", store.muted.ConvertAll(a => tagOf(store.tagSalt, a)))
+                        + " keyLens=" + string.Join(",", store.muted.ConvertAll(a => a.Length))
+                        + " mutedNot1to1=" + lastMutedNotOneToOne);
                 }
                 return true;
             }
@@ -233,6 +235,11 @@ namespace Spixi
             }
         }
 
+        /* ★ #983 (review r1, MINOR-3): how many friends had their mute ON but were left out of
+         * `muted` because they did not read as a genuine 1:1 (a stray botInfo on a contact, for
+         * one). A count in the write's log line, so iO.11 can see that case too. */
+        private static int lastMutedNotOneToOne = 0;
+
         private static Store build()
         {
             Store store = new Store
@@ -241,6 +248,7 @@ namespace Spixi
                 enabled = SNotificationPrefs.notificationsEnabled,
                 senderName = SNotificationPrefs.showSenderName,
             };
+            int notOneToOne = 0;
             List<Friend> friends;
             lock (FriendList.friends)
             {
@@ -263,6 +271,10 @@ namespace Spixi
                 {
                     store.muted.Add(address);
                 }
+                else if (!isOneToOne && SNotificationPrefs.isContactMuted(address))
+                {
+                    notOneToOne++;
+                }
                 if (store.senderName)
                 {
                     string name = SNotificationPrefs.displayNameFor(friend);
@@ -280,6 +292,7 @@ namespace Spixi
             {
                 if (!store.muted.Contains(ignored)) store.muted.Add(ignored);
             }
+            lastMutedNotOneToOne = notOneToOne;
             return store;
         }
     }

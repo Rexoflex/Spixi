@@ -6,7 +6,6 @@ using System.Text.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Serialization;
-using CoreFoundation;
 using UserNotifications;
 
 namespace OneSignalNotificationServiceExtension
@@ -244,13 +243,18 @@ namespace OneSignalNotificationServiceExtension
         /// </summary>
         public const string LOG_SUBSYSTEM = "com.ixilabs.spixi.push";
         public const string LOG_CATEGORY = "spush";
-        private static OSLog? log;
+        /* ★ #983 (Opus review r1, MAJOR-1): FULLY QUALIFIED, and it has to be. Microsoft.iOS binds
+         * Apple's OSLog FRAMEWORK as the global namespace `OSLog`, and C# looks at the global
+         * namespace's members before the `using` directives — a bare `OSLog` here is CS0118 (a
+         * namespace used as a type), which would break every iOS build (the extension is a live
+         * ProjectReference). An alias named OSLog would lose the same lookup. */
+        private static global::CoreFoundation.OSLog? log;
         public static void write(string line)
         {
             try
             {
-                log ??= new OSLog(LOG_SUBSYSTEM, LOG_CATEGORY);
-                log.Log(OSLogLevel.Default, line);
+                log ??= new global::CoreFoundation.OSLog(LOG_SUBSYSTEM, LOG_CATEGORY);
+                log.Log(global::CoreFoundation.OSLogLevel.Default, line);
             }
             catch (Exception)
             {
@@ -306,6 +310,7 @@ namespace OneSignalNotificationServiceExtension
                     + " age=" + age
                     + " muted=" + (store?.muted?.Count ?? 0)
                     + " fa=" + (string.IsNullOrEmpty(fa) ? "none" : "present")
+                    + " faLen=" + (fa?.Length ?? 0)
                     + " hit=" + hit
                     + " tag=" + tagOf(store?.tagSalt, fa)
                     + " verdict=" + verdict.action

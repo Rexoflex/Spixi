@@ -1092,6 +1092,7 @@ namespace SPIXI
         protected internal override void onRepresentedNative()
         {
             BackupPage.pushBackupStatus(this);
+            pushIgnoredRequests();   // ★ #983 (review r1, MINOR-5): a decline made while Account was parked
             // ★ S9 (loop m6): dev mode is toggled on the HOME shell; a parked Account keeps
             // the caps of its onLoad. Re-grant the `dev` cap on every re-present so the row
             // appears (or leaves) with the preference, not with the next cold load.

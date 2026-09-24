@@ -36398,9 +36398,13 @@ console.log('Office fix round (#974–#981)');
   const writeBody = bodyO(gate, 'public static void write(string line)');
   const writeTry = (writeBody.match(/try\s*\{([\s\S]*?)\}\s*catch/) || [])[1] || '';
   const consoleOutsideWrite = gate.replace(writeBody, '').includes('Console.WriteLine') || svc.includes('Console.WriteLine');
-  ok(/new OSLog\(LOG_SUBSYSTEM, LOG_CATEGORY\)/.test(writeTry) && /\.Log\(OSLogLevel\.Default, line\)/.test(writeTry) && !/Console/.test(writeTry)
+  /* ★ #983 (review r1, MAJOR-1): the type is spelled global::CoreFoundation.OSLog — the bare name binds to
+     Microsoft.iOS's OSLog NAMESPACE (CS0118). A bare `OSLog` type use anywhere in the file is the regression. */
+  const bareOsLog = /(?<![\w.:])OSLog\b(?!Level)/.test(gate.replace(/global::CoreFoundation\.OSLog/g, ''));
+  ok(/new global::CoreFoundation\.OSLog\(LOG_SUBSYSTEM, LOG_CATEGORY\)/.test(writeTry) && /\.Log\(global::CoreFoundation\.OSLogLevel\.Default, line\)/.test(writeTry) && !/Console/.test(writeTry)
+     && /private static global::CoreFoundation\.OSLog\? log;/.test(gate) && !bareOsLog
      && /catch \(Exception\)\s*\{\s*try \{ Console\.WriteLine\(line\); \} catch \(Exception\) \{ \}/.test(writeBody)
-     && !consoleOutsideWrite && /using CoreFoundation;/.test(gate)
+     && !consoleOutsideWrite && !/using CoreFoundation;/.test(gate)
      && /public const string LOG_SUBSYSTEM = "com\.ixilabs\.spixi\.push";/.test(gate) && /public const string LOG_CATEGORY = "spush";/.test(gate),
     '★★ #974 ①: the extension logs through os_log (OSLog subsystem com.ixilabs.spixi.push, category spush, level Default — Console.app streams it), Console.WriteLine survives ONLY as write()\'s catch fallback, and no other line in either extension file prints to Console (the walk: "[SPUSH] zero lines")');
 
@@ -36413,11 +36417,16 @@ console.log('Office fix round (#974–#981)');
     .replace(/string\.IsNullOrEmpty\([^()]*\)/g, 'EMPTY')
     .replace(/threadState\([^()]*\)/g, 'STATE')
     .replace(/\.Contains\([^()]*\)/g, '.C()').replace(/\.ContainsKey\([^()]*\)/g, '.CK()');
-  const banned = /\bfa\b|\bwant\b|\bhad\b|\bThreadIdentifier\b|\bnicks\[|verdict\.thread(?!\))|verdict\.senderName(?!\))/;
+  /* ★ #983 (review r1, MINOR-9): an ALLOW-list, not a list of banned names (#798). After the literals and the
+     sanctioned wrappers are removed, only these value expressions may remain — anything else (store.muted[0],
+     an address variable, nicks.Keys…) is a leak by construction. */
+  const ALLOWED_EXPR = ['store?.muted?.Count ?? 0', 'fa?.Length ?? 0', 'store != null', 'verdict.action', 'hit', 'age', 'state'];
+  const residue = (t) => { let r = scrub(t); for (const x of ALLOWED_EXPR) r = r.split(x).join(''); return r.replace(/\b(?:TAG|EMPTY|STATE)\b/g, '').replace(/\.C\(\)|\.CK\(\)/g, ''); };
+  const banned = /[A-Za-z_]/;
   const writeArgs = [...(gate + '\n' + svc).matchAll(/SpixiPushGate\.write\(([^;]*)\);|\bwrite\(("\[SPUSH\][^;]*)\);/g)].map((m) => m[1] || m[2]);
-  const leaks = writeArgs.filter((a) => banned.test(scrub(a)));
+  const leaks = writeArgs.filter((a) => banned.test(residue(a)));
   const traceWrite = (traceBody.match(/write\(([\s\S]*?)\);\s*\}\s*catch/) || [])[1] || '';
-  ok(writeArgs.length >= 3 && leaks.length === 0 && traceWrite.length > 0 && !banned.test(scrub(traceWrite))
+  ok(writeArgs.length >= 3 && leaks.length === 0 && traceWrite.length > 0 && !banned.test(residue(traceWrite))
      && /" tag=" \+ tagOf\(store\?\.tagSalt, fa\)/.test(traceWrite) && /" hit=" \+ hit/.test(traceWrite) && /" age=" \+ age/.test(traceWrite),
     '★★ #974 ②: fixed vocabulary — ' + writeArgs.length + ' write() sites + the trace line name no address, no thread id, no nick (leaks: ' + JSON.stringify(leaks) + '); the address reaches the log only as a SALTED tag (tagOf), with hit=muted|nick|none and the store age');
 
@@ -36449,7 +36458,7 @@ console.log('Office fix round (#974–#981)');
   const builtChat = rdO('Spixi/Resources/Raw/html/chat.html');
   const cssChat = [...builtChat.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
   const decls = [...cssChat.matchAll(/([a-z-]+)\s*:\s*([^;{}]*var\(--composer-h[^;{}]*)[;}]/g)].map((m) => m[1] + ': ' + m[2].trim());
-  const noLift = decls.filter((d) => !/var\(--composer-lift, 0px\)/.test(d));
+  const noLift = decls.filter((d) => !/\+ var\(--composer-lift, 0px\)/.test(d));   // ★ #983 (review r1, NIT-11): ADDED, not merely read
   const liftDefs = [...cssChat.matchAll(/--composer-lift\s*:\s*([^;]+);/g)].map((m) => m[1].trim());
   ok(decls.length >= 4 && noLift.length === 0
      && liftDefs.length === 1 && liftDefs[0] === 'max(0px, calc(var(--kb-inset, 0px) - var(--safe-bottom, 0px)))'
@@ -36463,7 +36472,7 @@ console.log('Office fix round (#974–#981)');
   const ins = bodyO(scp, 'private void insertMessage(FriendMessage message, int channel, UiBatch? batch)');
   const stdBranch = (ins.match(/if \(message\.type == FriendMessageType\.standard\)\s*\{([\s\S]*?)push\(batch, prefix/) || [])[1] || '';
   const upd = bodyO(scp, 'public void updateMessage(FriendMessage message, int channel)');
-  ok(/^\s*if \(string\.IsNullOrEmpty\(message\.message\)\)\s*\{[^{}]*Logging\.info\([^;]*\);\s*return;\s*\}/.test(stdBranch)
+  ok(/^\s*if \(string\.IsNullOrEmpty\(message\.message\)\)\s*\{[^{}]*Logging\.info\([^;]*\);\s*updateMessageReadStatus\(message, channel\);\s*return;\s*\}/.test(stdBranch)   // ★ #983 (review r1, MINOR-4): the read bookkeeping still runs
      && !/message\.message\)?\s*\+|\+\s*message\.message|Crypto\.hashToString\(message\.id\)\s*\+/.test((stdBranch.match(/Logging\.info\(([^;]*)\);/) || [])[1] || '')
      && /if \(string\.IsNullOrEmpty\(message\.message\)\)\s*\{[^{}]*Logging\.info\([^;]*\);\s*return;\s*\}/.test(upd)
      && upd.search(/if \(string\.IsNullOrEmpty\(message\.message\)\)\s*\{[^{}]*return;/) > 0 && upd.search(/if \(string\.IsNullOrEmpty\(message\.message\)\)\s*\{[^{}]*return;/) < upd.indexOf('Utils.sendUiCommand(this, "updateMessage"'),
@@ -36493,10 +36502,17 @@ console.log('Office fix round (#974–#981)');
   input.dispatchEvent(new W.Event('pointerdown', { bubbles: true }));
   const keptOnSelfTap = d.activeElement === input;
   const createdBeforeButton = created;
-  gs.querySelector('.c-contacts__footer .c-button').click();
+  /* ★ #983 (review r1, MAJOR-2 / MINOR-10): a pointerdown on a CONTROL must not blur the field (the keyboard
+     would start leaving under the finger and, on Android, the footer would move before pointerup) — the tap is
+     dispatched exactly as a device delivers it: pointerdown, then click. The layout race itself is a device row. */
+  input.focus();
+  const createBtn = gs.querySelector('.c-contacts__footer .c-button');
+  createBtn.dispatchEvent(new W.Event('pointerdown', { bubbles: true }));
+  const keptOnControlTap = d.activeElement === input;
+  createBtn.click();
   ok(hadFocus && input.enterKeyHint === 'done' && stillFocusedWhileComposing && blurredByReturn && createdBeforeButton === 0
-     && blurredByTap && keptOnSelfTap && created === 1,
-    '★★ #977 (N2): the group-name field\'s Return is "done" — it BLURS the field (keyboard dismissed) and never creates the group (created before the button: ' + createdBeforeButton + '); an IME-composing Return is left to the IME; a tap anywhere else in the panel dismisses; a tap on the field keeps it; the Create button still creates (' + created + ')');
+     && blurredByTap && keptOnSelfTap && keptOnControlTap && created === 1,
+    '★★ #977 (N2): the group-name field\'s Return is "done" — it BLURS the field (keyboard dismissed) and never creates the group (created before the button: ' + createdBeforeButton + '); an IME-composing Return is left to the IME; a tap anywhere else in the panel dismisses; a tap on the field keeps it; a pointerdown on a CONTROL does not blur it and the tap still creates (' + created + ')');
   gs.remove();
 
   /* ── #978 (#970) the Declined-requests screen: addresses are TEXT, truncated, one Unblock per row, fire-once */
@@ -36538,6 +36554,7 @@ console.log('Office fix round (#974–#981)');
   const guard = (cond, ret) => { const m = new RegExp('if \\(' + esc(cond) + '\\)\\s*\\{\\s*return ' + ret + ';\\s*\\}').exec(peek); return m ? m.index : -1; };
   const order = [
     guard('bytes == null || !SRequestIgnore.any()', 'false'),
+    guard('bytes.Length > REQUEST_PEEK_MAX_BYTES', 'false'),   // ★ #983 (review r1, MINOR-6): no second parse of a big packet
     guard('!IxianHandler.getWalletStorage().isMyAddress(peek.recipient)', 'false'),
     guard('FriendList.getFriend(peek.sender) != null', 'false'),
     guard('peek.encryptionType != StreamMessageEncryptionCode.none', 'false'),
@@ -36547,7 +36564,8 @@ console.log('Office fix round (#974–#981)');
   const returnsTrue = (peek.match(/return true;/g) || []).length;
   ok(rd.indexOf('if (isIgnoredRequest(bytes))') > 0 && rd.indexOf('if (isIgnoredRequest(bytes))') < rd.indexOf('base.receiveData(bytes, endpoint)')
      && order.every((x) => x > 0) && order.every((x, i) => i === 0 || x > order[i - 1])
-     && returnsTrue === 1 && peek.lastIndexOf('return true;') > order[5]
+     && order[1] < peek.indexOf('new StreamMessage(bytes)') && +((sp.match(/private const int REQUEST_PEEK_MAX_BYTES = (\d+);/) || [])[1] || 0) > 0 && +((sp.match(/private const int REQUEST_PEEK_MAX_BYTES = (\d+);/) || [])[1] || 1e9) <= 65536
+     && returnsTrue === 1 && peek.lastIndexOf('return true;') > order[6]
      && /catch \(Exception e\)\s*\{[^{}]*return false;\s*\}/.test(peek),
     '★★ #978: the drop runs BEFORE Core (base.receiveData) and only when ALL hold, in this order — the list is non-empty · addressed to MY wallet · the sender is NOT a friend · unencrypted · requestAdd/requestAdd2 · the sender is on the list; there is exactly ONE `return true` and it is after the last test; any parse failure lets the message through');
 
@@ -36567,7 +36585,10 @@ console.log('Office fix round (#974–#981)');
   const st = csO('Spixi/Pages/Settings/SettingsPage.xaml.cs');
   const un = (st.match(/else if \(current_url\.StartsWith\("ixian:unignore:", StringComparison\.Ordinal\)\)\s*\{([\s\S]*?)\n            \}/) || [])[1] || '';
   const wipe = bodyO(st, 'private void wipeEverything()');
-  ok(/"[^"]*,ignoredRequests"/.test(st) && /pushIgnoredRequests\(\);/.test(bodyO(st, 'private void pushIgnoredRequests()') ? st : '')
+  /* ★ #983 (review r1, MINOR-8): the push is asserted WHERE it must run — beside the caps in onLoad, and on the
+     parked page's re-present (#315) — not merely somewhere in the file (the unignore branch's own call satisfied that) */
+  ok(/"[^"]*,ignoredRequests"/.test(st) && /Utils\.sendUiCommand\(this, "setCaps", caps\);\s*BackupPage\.pushBackupStatus\(this\);\s*pushIgnoredRequests\(\);/.test(st)
+     && /pushIgnoredRequests\(\);/.test(bodyO(st, 'protected internal override void onRepresentedNative()'))
      && un.replace(/\s+/g, ' ').trim() === 'SRequestIgnore.remove(current_url.Substring("ixian:unignore:".Length)); pushIgnoredRequests();'
      && wipe.indexOf('SRequestIgnore.clear()') > wipe.indexOf('Preferences.Default.Clear()') && wipe.indexOf('Preferences.Default.Clear()') > 0
      && /FriendList\.clear\(\);\s*SRequestIgnore\.clear\(\);/.test(bodyO(st, 'private void wipeAccountData()')),
@@ -36577,7 +36598,7 @@ console.log('Office fix round (#974–#981)');
   const raw = bodyO(np, 'public static bool shouldDisplayRawPush(string? fa)');
   const share = csO('Spixi/Platforms/iOS/SPushPrefsShare.cs');
   ok(/if \(friend == null\)\s*\{\s*return !SRequestIgnore\.contains\(fa\);\s*\}/.test(raw)
-     && /foreach \(string ignored in SRequestIgnore\.list\(\)\)\s*\{\s*if \(!store\.muted\.Contains\(ignored\)\) store\.muted\.Add\(ignored\);\s*\}\s*return store;/.test(bodyO(share, 'private static Store build()')),
+     && /foreach \(string ignored in SRequestIgnore\.list\(\)\)\s*\{\s*if \(!store\.muted\.Contains\(ignored\)\) store\.muted\.Add\(ignored\);\s*\}\s*lastMutedNotOneToOne = notOneToOne;\s*return store;/.test(bodyO(share, 'private static Store build()')),
     '★ #978: the declined requester\'s raw push is not shown (Android: shouldDisplayRawPush, an unknown sender on the list → false; every other unknown sender still shows) and on iOS the address rides the extension\'s muted set');
 }
 

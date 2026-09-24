@@ -314,8 +314,8 @@ namespace SPIXI
             /* ★ #980 (M2): the Mac half of the ↔ affordance (SMacCursor). MAUI's
              * PointerGestureRecognizer is the hover signal on Catalyst (UIHoverGestureRecognizer). */
             var dividerHover = new PointerGestureRecognizer();
-            dividerHover.PointerEntered += (s, ev) => Spixi.SMacCursor.pushResizeLeftRight();
-            dividerHover.PointerExited += (s, ev) => { if (!paneDividerPanning) Spixi.SMacCursor.pop(); };
+            dividerHover.PointerEntered += (s, ev) => { Spixi.SMacCursor.hovered = true; Spixi.SMacCursor.pushResizeLeftRight(); };
+            dividerHover.PointerExited += (s, ev) => { Spixi.SMacCursor.hovered = false; if (!paneDividerPanning) Spixi.SMacCursor.pop(); };
             paneDivider.GestureRecognizers.Add(dividerHover);
 #endif
 
@@ -656,7 +656,7 @@ namespace SPIXI
                     Preferences.Default.Set("leftPaneWidth", leftPaneWidth);
                     Logging.info("[DIVIDER] pan ended width=" + (int)leftPaneWidth);   // ★ #980 (M2)
 #if MACCATALYST
-                    Spixi.SMacCursor.pop();   // a drag that ended off the grip never saw PointerExited
+                    if (!Spixi.SMacCursor.hovered) Spixi.SMacCursor.pop();   // a drag that ended off the grip never saw PointerExited
 #endif
                     break;
             }

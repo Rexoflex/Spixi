@@ -221,11 +221,19 @@ namespace SPIXI
         /// and this filter must never be the reason a real message is lost. The log line names
         /// no address (O-26). Never throws.
         /// </summary>
+        private const int REQUEST_PEEK_MAX_BYTES = 16384;
         private static bool isIgnoredRequest(byte[] bytes)
         {
             try
             {
                 if (bytes == null || !SRequestIgnore.any())
+                {
+                    return false;
+                }
+                /* ★ #983 (review r1, MINOR-6): a contact request is a small signed packet (a public
+                 * key and a signature — a few kilobytes at most); a file chunk is not. Anything
+                 * larger is never a request, so it is not parsed a second time. */
+                if (bytes.Length > REQUEST_PEEK_MAX_BYTES)
                 {
                     return false;
                 }

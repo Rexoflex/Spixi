@@ -1575,3 +1575,5 @@ One question per row: does this exposure exist at the baseline?
 | #981 | `insertMessage`/`updateMessage` skip an EMPTY standard row | removes a render; log lines carry direction and live/load only | none |
 
 The round adds ONE verb (`ixian:unignore:`), ONE app preference family (`ignored_requests`, plus `push_trace_salt`), no `spixi.*` key, no WebView setting, no HTML sink (the Declined-requests rows render with `textContent`, pinned with a markup-shaped address) and no network fetch. ⚠ Nothing here has compiled — C# changed in 12 files (2 new) and the office iPhone/Mac builds are the first compile.
+
+**r1 review (#983) deltas to the rows above:** the `[SPUSH]` line also prints `faLen=` (a length) and the app line `keyLens=` (lengths) and `mutedNot1to1=` (a count) — non-identifying; the pre-Core peek now refuses packets over 16 KiB before any parse (a contact request is a few KB).

@@ -20001,8 +20001,15 @@ function createGroupSetup({
      closes the keyboard (iOS WKWebView does not blur a focused input on a tap on plain content).
      pointerdown, not click, so the keyboard starts leaving on touch; a tap on another control
      still reaches that control (no preventDefault). */
+  /* ★ #983 (Opus review r1, MAJOR-2): NEVER on a control. Blurring at pointerdown starts the
+     keyboard leaving while the finger is still down; on Android the root re-lays out and the
+     footer drops before pointerup, so the tap on Create (or a chip, or the blind switch) landed
+     on another element and was lost. A control takes the focus itself at click time — the old
+     behaviour — so only a tap on plain content dismisses here. */
   el.addEventListener('pointerdown', (e) => {
-    if (document.activeElement === nameInput && e.target !== nameInput) nameInput.blur();
+    if (document.activeElement !== nameInput || e.target === nameInput) return;
+    if (e.target && e.target.closest && e.target.closest('button, a, input, textarea, select, [role="switch"], [role="button"], .c-chip')) return;
+    nameInput.blur();
   });
 
   groupState.set(el, { avatarBtn });

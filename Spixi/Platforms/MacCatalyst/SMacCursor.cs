@@ -25,6 +25,9 @@ namespace Spixi
         private static extern void msgSendVoid(IntPtr receiver, IntPtr selector);
 
         private static bool pushed = false;
+        /// ★ #983 (review r1, NIT-7): whether the pointer is over the grip — a pan that ends while
+        /// it still is must keep the ↔ (the old code popped it until the pointer re-entered).
+        public static bool hovered = false;
 
         public static void pushResizeLeftRight()
         {

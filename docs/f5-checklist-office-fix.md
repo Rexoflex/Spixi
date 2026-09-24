@@ -1,12 +1,12 @@
-# F5 checklist — the office fix round (#974–#984)
+# F5 checklist — the office fix round (#974–#988)
 
 Built overnight, cloud-only (#398 precedent). **12 C# files changed, 2 new — NOTHING compiled them.**
-Walk sheet: `docs/walk-artifact-office-fix.html` (23 rows). Records: DECISIONS #974–#984.
+Walk sheet: `docs/walk-artifact-office-fix.html` (23 rows). Records: DECISIONS #974–#988. Handoff: `docs/handoff-2026-09-25.md`.
 
 ## 0 · Apply (PC or Mac, repo on `redesign/frontend`, HEAD = `c97c94cd`)
 
 ```
-git am office-fix-patches/*.patch
+git am office-fix-patches/000[2-9]-*.patch office-fix-patches/00[1-9][0-9]-*.patch   # 0001 = the prompt commit c97c94cd, already on GitHub
 node scripts/build-shells.mjs --check
 node scripts/extract-strings.mjs --check
 node scripts/smoke-test.mjs
@@ -48,4 +48,4 @@ optional and lives on a scratch branch (`docs/reply-to-device-check.md`).
 
 ## 4 · Commit
 
-`git am` already created the commits (#974–#982, #983, #984, docs). Push when the walk is done.
+`git am` already created the commits (#974–#982, the loop #983–#988, docs). Push when the walk is done.

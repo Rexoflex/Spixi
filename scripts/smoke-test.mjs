@@ -36604,13 +36604,20 @@ console.log('Office fix round (#974–#981)');
     if (f.endsWith('/SRequestIgnore.cs')) continue;
     const t = csO(f);
     for (const k of Object.keys(sites)) if (new RegExp('SRequestIgnore\\.' + k + '\\(').test(t)) sites[k].push(f.split('/').pop() + '×' + (t.match(new RegExp('SRequestIgnore\\.' + k + '\\(', 'g')) || []).length);
-    for (const m of t.matchAll(/\bsendContactRequest\((\w+)\);/g)) {
+    for (const m of t.matchAll(/\bsendContactRequest\(([^)]*)\)/g)) {
+      if (/\bstatic\b[^;{]*sendContactRequest\(/.test(t.slice(Math.max(0, m.index - 120), m.index + 30))) continue;   // a declaration, not a call
       sendSites++;
-      const before = t.slice(0, m.index), from = before.lastIndexOf('addFriend('), seg = from >= 0 ? before.slice(from) : '';
+      /* ★ #987 (r5): the segment is bounded to the ENCLOSING METHOD (the last member declaration before the call),
+         so an addFriend or an un-list in another method can never satisfy this call */
+      const before = t.slice(0, m.index);
+      const decls = [...before.matchAll(/\n[ \t]*(?:public|private|protected|internal)[^\n;=]*\([^\n;]*\)\s*\n[ \t]*\{/g)];
+      const methodStart = decls.length ? decls[decls.length - 1].index : 0;
+      const body = before.slice(methodStart), from = body.lastIndexOf('addFriend('), seg = from >= 0 ? body.slice(from) : '';
       const un = /SRequestIgnore\.remove\(([^;]*)\);/.exec(seg);
-      /* the un-list's argument names the address of THIS friend: the friend variable itself, or the address the addFriend call took */
-      const addrArg = (/addFriend\(FriendType\.\w+, FriendState\.\w+, ([^,]+),/.exec(seg) || [])[1] || '';
-      const own = un && (un[1].startsWith(m[1] + '.walletAddress') || (addrArg && un[1].startsWith(addrArg.trim())) || (/new Address\(/.test(addrArg) && un[1].startsWith(m[1] + '.')));
+      const addrArg = ((/addFriend\(FriendType\.\w+, FriendState\.\w+, ([^,]+),/.exec(seg) || [])[1] || '').trim();
+      const friendVar = m[1].trim();
+      /* EXACT: the un-list names this friend's wallet address, or the very address expression addFriend took (no prefix match) */
+      const own = !!un && (un[1].trim() === friendVar + '.walletAddress.ToString()' || (addrArg !== '' && un[1].trim() === addrArg + '.ToString()'));
       if (from < 0 || !own) sendMisses.push(f.split('/').pop());
     }
     for (const m of t.matchAll(/FriendList\.addFriend\(FriendType\.Normal, FriendState\.RequestSent,/g)) {

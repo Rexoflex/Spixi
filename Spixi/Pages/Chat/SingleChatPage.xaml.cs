@@ -865,7 +865,7 @@ namespace SPIXI
                 catch (Exception ex)
                 {
                     // ★ #986 (r4 MINOR-2): an exception must not escape onNavigating (it takes the
-                    // process down on Android/iOS — this file's own :1481 note). The removal FAILED:
+                    // process down on Android/iOS — the note in onContextAction, "takes the process down on Android and iOS"). The removal FAILED:
                     // the "fail" push below tells the shell to keep the data, as HomePage's A-5 fence does.
                     Logging.error("ixian:undorequest: the removal threw: " + ex.GetType().Name);
                 }

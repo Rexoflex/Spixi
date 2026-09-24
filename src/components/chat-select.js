@@ -29,9 +29,12 @@
  * Clipboard write is fire-and-forget here: the BUFFER is the source of truth for
  * split-paste; onCopy(count) lets shells confirm (toast) once the write resolves.
  *
- * enterChatSelect(listEl, { initialRow, host, rowSelector, idOf, selectable,
+ * enterChatSelect(listEl, { initialRow, host, rowSelector, idOf, selectable, deletable,
  *                           textOf, senderOf, strings, onCopy, onDelete, onExit })
  *   → { exit, refresh, count }
+ *   deletable(row)     — may THIS user delete this row (Session AE #934 b). The bar's
+ *                        Delete is disabled while any selected row answers false;
+ *                        absent = every selectable row may be deleted.
  *   onCopy(count, ok)  — ok=false means the clipboard REFUSED (file:// WebViews
  *                        have no async clipboard); the caller must say so.
  *   onDelete(items)    — items = [{ id, row, text, sender }] in log order. The
@@ -77,6 +80,7 @@ export function enterChatSelect(listEl, {
   textOf = (row) => row.dataset.copytext || '',
   senderOf = (row) => row.dataset.sender || '',
   selectable = null,                       // default below: anything with copyable text
+  deletable = null,                        // ★ Session AE (#934 b): per-row "may this user delete it"; default: every selectable row
   strings = getStrings(), onCopy, onDelete, onExit,
 } = {}) {
   if (!listEl || listEl.dataset.selecting !== undefined) return null;
@@ -84,6 +88,7 @@ export function enterChatSelect(listEl, {
   const hostEl = host || listEl;
   hostEl.classList.add('c-chatselect-host');   // positioning context: the bar covers the host (= the topbar slot)
   const canSelect = selectable || ((row) => !!textOf(row));
+  const canDelete = deletable || (() => true);
   const keys = new Set();                      // SELECTED message ids (survives re-render)
   /* W9-④ desktop drag-to-extend state (armed far below, declared here because
      setCount reads it — a gesture in flight must not auto-exit at 0). */
@@ -149,9 +154,11 @@ export function enterChatSelect(listEl, {
     const n = rows.length;
     count.textContent = (strings.selectedCount || '{n} selected').split('{n}').join(String(n));
     // Copy is only honest when at least one selected row HAS text (a lone file
-    // card has nothing to put on the clipboard); Delete works on any selection.
+    // card has nothing to put on the clipboard); Delete only when EVERY selected row
+    // may be deleted by this user (★ Session AE #934 b: a bot-room member and another
+    // member's message) — the same honesty rule, applied to the destructive action.
     copyBtn.disabled = !rows.some((r) => !!textOf(r));
-    if (deleteBtn) deleteBtn.disabled = n === 0;
+    if (deleteBtn) deleteBtn.disabled = n === 0 || !rows.every((r) => canDelete(r));
     // W9-④: a drag that momentarily crosses zero (deselecting a range on its way
     // to a smaller one) must NOT tear the mode down under the moving pointer —
     // the count is only "done" once the gesture has finished.

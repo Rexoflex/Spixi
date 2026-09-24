@@ -131,7 +131,9 @@ export function openMessageMenu({
   if (capabilities.select) item('checks', strings.select || 'Select', 'select');
   if (capabilities.tip !== false) item('heart-handshake', strings.tip || 'Tip', 'tip');
   // destructive group last (§5b)
-  item('trash', strings.deleteMessage || 'Delete', 'delete', true);
+  // ★ Session AE (#934 b): Delete is CAPABILITY-gated like the rest — `false` hides it (a bot-room
+  // member on another member's message, where C# does nothing); absent keeps the old default.
+  if (capabilities.delete !== false) item('trash', strings.deleteMessage || 'Delete', 'delete', true);
   if (capabilities.report) item('alert-square-rounded', strings.report || 'Report', 'report', true);
 
   content.append(list);

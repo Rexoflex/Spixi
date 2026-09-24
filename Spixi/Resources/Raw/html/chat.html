@@ -2554,7 +2554,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 .c-bubble-row[data-direction="received"] .c-reactions[data-placement="overlap"] { inset-inline-start: var(--spacing-8); }
 .c-bubble-row[data-direction="sent"] .c-reactions[data-placement="overlap"] { inset-inline-end: var(--spacing-8); }
-.c-bubble-row[data-reactions="overlap"] { margin-bottom: var(--spacing-16); } /* overhang reserve */
+.c-bubble-row[data-reactions="overlap"] { margin-bottom: var(--spacing-16); } /* overhang reserve · ★ Session AE (#940): a MARGIN on purpose — the composer fade masks the ROW and a mask paints nothing outside the border box, so the pill's 12 px overhang pops rather than dissolves the frame the row's bottom crosses the bar; the alternative (padding) moved the select-mode tick 8 px off its disc (round-2 MAJOR-1) — the pop is the recorded residual */
 /* ★ Session I (Damir's walk): on an emoji-only STICKER the meta sits in a chip at the
    bottom-right — exactly where the overlap pill lands — so the pill covered the time.
    On a sticker the pill goes to the OTHER bottom corner (inline-start), both directions;
@@ -3081,6 +3081,13 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   position: relative;
   z-index: var(--z-42);
   pointer-events: none;
+  /* ★ Session AE (#940): a row inside the composer's band carries an INLINE per-row mask
+     (chat.html composerFadePass — the fade behind the composer). The pressed message must be
+     crisp above the scrim, so the lift drops it; !important because the mask is an inline
+     style, which no ordinary declaration outranks. `none` is not a stacking declaration
+     (PIN-B exempts it) and the lift's own z-index already makes this row a context. */
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
 }
 
 /* ★★ #589 (Damir F5 2026-08-26) — THE LIFTED ROW IS NOT PROMINENT IN DARK MODE.
@@ -3717,7 +3724,12 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   padding-inline: var(--spacing-16);
   transition: height var(--duration-200) var(--easing-standard);
 }
-.c-attach-tray[data-open] { height: var(--kb-slot-h, 268px); } /* sanctioned: the keyboard-slot class · ★ Session J: = the keyboard's MEASURED height once one has been seen (chat.html rememberKbSlot); 268 until then */
+/* ★ Session AE: max(the keyboard slot, the tray's own tiles). `--tray-content-h` is measured and
+   published by attach-sheet.js at mount (publishTrayContentHeight); without it the slot alone
+   stands, as before. The slot: the keyboard's MEASURED height once one has been seen
+   (chat.html rememberKbSlot), the 268 literal until then — and 268 is SHORTER than two tile rows
+   plus the AND-45 nav-bar padding on a three-button phone, which is why this is a max(). */
+.c-attach-tray[data-open] { height: max(var(--kb-slot-h, 268px), var(--tray-content-h, 0px)); } /* sanctioned: the keyboard-slot class */
 .c-attach-tray[data-instant] { transition: none; } /* #721: swapped with the keyboard, not animated */
 .c-attach-tray .c-attach {
   gap: var(--spacing-12) var(--spacing-8);
@@ -7405,6 +7417,22 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     if (composerLock) return false;
     return true;
   }
+  /* ★★ Session AE (#934 b, Damir on device): WHO MAY DELETE WHICH MESSAGE — ONE predicate
+     for the long-press menu AND the select bar, so the two cannot drift. In a BOT room
+     `Friend.deleteMessage` skips the local delete (`if (!friend.bot)`) and the bot decides:
+     an admin's delete of any message goes through, a member's delete goes through for their
+     OWN message only, and a member's delete of someone else's message did NOTHING — the menu
+     offered a dead control (the ⑪ class). In a 1:1 and a normal group every row deletes
+     (unchanged). ⚠ THE ROOM-ANSWER LATCH applies: before setChatMode has answered for THIS
+     room, `mode` still reads as a 1:1, so an unknown room offers only what every room type
+     allows — the user's own messages. `mode.admin` is the bot's answer (setChatMode, 4th
+     argument), never a local guess. */
+  function canDeleteRec(rec) {
+    if (!rec) return false;
+    if (rec.direction === 'sent') return true;
+    if (!modeKnown()) return false;
+    return !mode.isBot || !!mode.admin;
+  }
   /* ═══ ★★ L2 (#641) — THE RECEIPT DETAIL, IN THE LONG-PRESS MENU ═══════════════
    *
    * Damir, 2026-08-27: *"perhaps we don't need in the long press menu to show
@@ -7518,6 +7546,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
         tip: (!isSent && !mode.hidesAddresses && (!mode.isMulti || !!rec.senderAddress)
               && (!mode.isBot || mode.blindKnown)),
         report: mode.isBot,                               // C# report is bots-only (xaml:1026)
+        delete: canDeleteRec(rec),                        // ★ Session AE (#934 b): bot room = own or admin; see canDeleteRec
         // multi-select: offered on every menu-able row. Selection carries Copy
         // (text rows) + bulk Delete (any row), so a file/payment card qualifies.
         select: true,
@@ -7577,6 +7606,10 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       // record and are skipped automatically: they get no check circle, no
       // role=checkbox, and a tap on them does nothing.
       selectable: (r) => isMenuableRec(model.get(r.dataset.msgid || '')),
+      // ★ Session AE (#934 b): the bar's Delete is offered only while EVERY selected row passes
+      // the SAME predicate the long-press menu uses — a bot-room member can select another
+      // member's message (to copy it) but cannot delete it, and the bar says so by disabling.
+      deletable: (r) => canDeleteRec(model.get(r.dataset.msgid || '')),
       textOf: (r) => { const rec = model.get(r.dataset.msgid || ''); return (rec && rec.text) || ''; },
       senderOf: (r) => {
         const rec = model.get(r.dataset.msgid || '');
@@ -7681,6 +7714,10 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    * destructive confirm, Cancel autofocused). Damir's ask: name the COUNT. */
   function confirmBulkDelete(items) {
     const s = window.SL || {};
+    // ★ Session AE (#934 b) belt: the bar disables Delete for a mixed selection; a delete that
+    // still arrives with a row this user may not delete is REFUSED whole, never trimmed — a
+    // silent subset would be the confusing half of the dead control this closes.
+    if (!items.every((it) => canDeleteRec(model.get(it.id)))) return;
     const n = items.length;
     const title = n === 1
       ? (s.deleteSelectedOne || 'Delete this message?')
@@ -8752,6 +8789,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     // rows are gone — a bulk delete therefore empties the selection and the
     // contextual bar closes itself once the last one lands.
     if (chatSelect) chatSelect.refresh();
+    composerFadeNow();                      // ★ Session AE: every row node is new — the composer-band masks are re-derived NOW, after the swap (when this render runs inside renderLog's rAF a scheduled pass would leave the new rows unmasked for a frame; elsewhere it is simply the earliest correct moment)
   }
 
   /* Render scheduling — two regimes:
@@ -9380,6 +9418,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
          The ⊕ re-derives by itself: every handler in this object is wrapped at
          bridge.exposeAll. Do not add a syncAttachAffordance() call here. */
       mode.answeredFor = identity.address;
+      if (chatSelect) chatSelect.refresh();   // ★ Session AE (round-3 MINOR-7, placed by round 4): the bar's Delete reads canDeleteRec through `deletable`, and canDeleteRec reads modeKnown() — so the re-evaluation must come AFTER the answer is recorded, or the first room answer leaves Delete refused until the next render
       // channel UI is bot-gated (channel-as-title) — re-evaluate on any mode change
       renderTopbar();
       dbg('setChatMode', { type: t, cost, showCost, admin: mode.admin, notificationsString });
@@ -10905,6 +10944,101 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     mentionSource: mentionMembers,
   });
   document.getElementById('chat-composer').replaceChildren(composerEl);
+  /* ★★ ORDER (Session AE, the #46 reviewer's MAJOR-1): this block sits ABOVE the #711 publish
+     block on purpose. `publish()` runs SYNCHRONOUSLY inside that block's `try` and now calls
+     scheduleComposerFade(); with the fade's `let` declarations below it the call threw a TDZ
+     ReferenceError, the outer catch only WARNED, and `new ResizeObserver(publish)` on the next
+     line was never reached — --composer-h froze at its boot value on every engine (the #869
+     class, in the same block, swallowed the same way). The built-shell boot gate now asserts
+     the observer attaches and no `[composer-h] publish failed` line is emitted. */
+  /* ★★ Session AE (#940, Damir: "an opacity screen for messages going behind the composer, same
+     as Telegram — the opacity drops at the SAME LEVEL as the composer, not above it") — MESSAGES
+     DISSOLVE INSIDE THE COMPOSER'S BAND. A row is opaque down to the bar's top edge and gone at
+     the bar's bottom edge; nothing above the bar is touched, so the newest message at rest
+     (#messages pads by --composer-h) is never dimmed, and what sits behind the floating pill
+     reads as a fading continuation instead of a slice mid-word. Rendered and picked from
+     docs/sheets/session-ae/ (candidate A: no tint band, no blur — #892 retired the blur band,
+     #893's fade ABOVE the pill was declined).
+     ★★ WHY PER ROW AND NOT ONE mask-image ON #messages (the render used the scroller mask; the
+     pixels are identical): a mask on the scroller makes it a STACKING CONTEXT, and the long-press
+     lift (#506②, `[data-menu-lift]` z-42) can then never rise above the body-level scrim — PIN-B
+     (#46 loop MAJOR-2) forbids exactly that, and it is right. A mask on a ROW forms a context on
+     that row alone, which is the same box the lift already promotes; a LIFTED row drops its mask
+     (message-menu.css `[data-menu-lift]`) so the pressed message is always crisp.
+     THE GEOMETRY: the band is the BAR (`.c-composer`, not the slot — with the tray open the tray
+     is opaque and hides what is under it anyway), read live, so the keyboard lift (the slot's
+     margin, #303), the tray, a hidden composer (the request lock) and desktop all follow with no
+     second rule. One pass per frame, coalesced: the walk goes from the newest child backwards
+     and STOPS at the first child fully above the band; each intersecting child's rect is read and
+     its mask written in turn (a write of an inline style does not invalidate the rects read after
+     it, so this is one layout, not one per row); children that left the band are cleared from a
+     Set. The last string WRITTEN is remembered per element (a WeakMap) because the engine
+     re-serialises `#000` as `rgb(0, 0, 0)` — comparing against `el.style.maskImage` would rewrite
+     every masked row every frame. Besides scroll/resize/render/the keyboard lift, the pass is
+     re-armed on a `load` inside the log (a media tile that arrived), and on `transitionend` /
+     `animationend` bubbling from a row (a file card's hint leaving, the reaction pop, the
+     select-mode entrance) — the geometry changes that move a row without a scroll (the #46
+     reviewer's MINOR-6). A fling still trails by one frame: the pass runs on the scroll EVENT,
+     which is what every DOM-driven fade does; the rest matches the render at rest.
+     `composerFadeStops` is the pure arithmetic, kept separate so the suite can EXECUTE it. */
+  function composerFadeStops(rowTop, rowBottom, bandTop, bandBottom) {
+    if (!(bandBottom > bandTop) || !(rowBottom > rowTop)) return null;
+    if (rowBottom <= bandTop || rowTop >= bandBottom) return null;   // fully above · fully below (further down the log)
+    const r2 = (n) => Math.round(n * 100) / 100;
+    return { a: r2(bandTop - rowTop), b: r2(bandBottom - rowTop) };
+  }
+  let composerFadeRaf = 0;
+  const composerFaded = new Set();
+  const composerFadeLast = new WeakMap();   // el → the gradient string last WRITTEN (the engine re-serialises what it stores)
+  function composerFadePass() {
+    composerFadeRaf = 0;
+    const clearMask = (el) => { el.style.removeProperty('-webkit-mask-image'); el.style.removeProperty('mask-image'); composerFaded.delete(el); composerFadeLast.delete(el); };
+    try {
+      const bar = composerEl && composerEl.isConnected ? composerEl.getBoundingClientRect() : null;
+      const boxR = box.getBoundingClientRect();
+      const bandTop = bar ? bar.top : 0;
+      const bandBottom = bar ? Math.min(bar.bottom, boxR.bottom) : 0;
+      if (!bar || bar.height === 0 || !(bandBottom > bandTop)) { for (const el of [...composerFaded]) clearMask(el); return; }
+      const next = new Set();
+      const kids = box.children;
+      for (let i = kids.length - 1; i >= 0; i--) {
+        const el = kids[i];
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 && r.height === 0) continue;   // display:none — an all-zero rect reads as "above" and would end the walk early (round-2 NIT-10)
+        if (r.top >= bandBottom) continue;   // below the band — a newer row still scrolled under; keep walking up
+        if (r.bottom <= bandTop) break;      // above the band — and so is everything older (a zero-height in-flow child here is above too)
+        const s = composerFadeStops(r.top, r.bottom, bandTop, bandBottom);
+        if (!s) continue;
+        const g = 'linear-gradient(to bottom, #000 ' + s.a + 'px, transparent ' + s.b + 'px)';
+        if (composerFadeLast.get(el) !== g) { el.style.webkitMaskImage = g; el.style.maskImage = g; composerFadeLast.set(el, g); }
+        next.add(el);
+      }
+      for (const el of [...composerFaded]) if (!next.has(el)) clearMask(el);
+      for (const el of next) composerFaded.add(el);
+    } catch (e) { console.warn('[composer-fade] pass failed', e); }
+    if (performance.now() < composerFadeTrackEnd) scheduleComposerFade();   // the bar is still sliding (composerFadeTrack)
+  }
+  function scheduleComposerFade() { if (!composerFadeRaf) composerFadeRaf = requestAnimationFrame(composerFadePass); }
+  /* renderLogNow replaces every row node; a pass SCHEDULED there lands in the next frame, and when the
+     render itself runs inside renderLog's rAF the brand-new rows under the bar paint unmasked for that
+     one frame (round-2 MINOR-4). Wherever renderLogNow runs (renderLog's rAF, the burst timer, the
+     messagesDone push, onChatScreenLoaded, the fallback) it has already forced layout, so the pass runs
+     synchronously AFTER the swap; a pending rAF is cancelled first so the frame is not masked twice. */
+  function composerFadeNow() { if (composerFadeRaf) { cancelAnimationFrame(composerFadeRaf); composerFadeRaf = 0; } composerFadePass(); }
+  /* ★ round-3 MAJOR-1 (iOS): the bar does not JUMP for the keyboard, it slides — `#chat-composer` transitions
+     margin-bottom over 280 ms (the #303 lever) — and a single pass at the transition's first frame reads
+     the bar where it STARTED, so after the keyboard hid a row stayed faded mid-screen until the next
+     scroll (no resize fires under the WKWebView keyboard, the slot's ResizeObserver sees no margin, its
+     transitionend is outside the log). So the band is TRACKED: a pass every frame until the deadline,
+     plus the slot's own transitionend as the belt. Reduced motion has no transition; the first pass lands. */
+  let composerFadeTrackEnd = 0;
+  function composerFadeTrack(ms) { composerFadeTrackEnd = performance.now() + ms; scheduleComposerFade(); }
+  box.addEventListener('scroll', scheduleComposerFade, { passive: true });
+  window.addEventListener('resize', scheduleComposerFade);
+  box.addEventListener('load', scheduleComposerFade, { capture: true, passive: true });   // a media tile / avatar that arrived re-flows the rows under it
+  box.addEventListener('transitionend', scheduleComposerFade, { passive: true });
+  box.addEventListener('animationend', scheduleComposerFade, { passive: true });
+  document.getElementById('chat-composer').addEventListener('transitionend', scheduleComposerFade, { passive: true });   // the slot's margin slide ended (iOS keyboard) — the belt under composerFadeTrack
   /* ★ #711: publish the composer slot's height so the chevron and the @ FAB float above
      it. ResizeObserver covers every reason it grows — a fifth line, the reply strip, the
      cost line, the tray. Where the API is missing the FABs keep the 0 fallback. */
@@ -10939,6 +11073,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       const atBottom = nearBottom();
       canvasEl.style.setProperty('--composer-h', h + 'px');
       if (grew && atBottom) requestAnimationFrame(() => { box.scrollTop = box.scrollHeight; });
+      scheduleComposerFade();   // ★ Session AE: the band moved (tray, keyboard on iOS, a resize) — re-mask the rows under it
     };
     publish();
     if (typeof ResizeObserver === 'function') new ResizeObserver(publish).observe(slot);
@@ -11268,6 +11403,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       kbOpen = px > 0;
       insetChanged = px !== lastInset;
       lastInset = px;
+      if (insetChanged) composerFadeTrack(340);   // ★ Session AE: the bar SLIDES by this margin on iOS (280 ms) — track the band through the slide (round-3 MAJOR-1); only on a CHANGE, or the #303 settle ladder restarts the tracking on every tick (round-4 NIT-7)
     }
     let insetChanged = false;
     function apply() {

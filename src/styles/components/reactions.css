@@ -35,7 +35,7 @@
 }
 .c-bubble-row[data-direction="received"] .c-reactions[data-placement="overlap"] { inset-inline-start: var(--spacing-8); }
 .c-bubble-row[data-direction="sent"] .c-reactions[data-placement="overlap"] { inset-inline-end: var(--spacing-8); }
-.c-bubble-row[data-reactions="overlap"] { margin-bottom: var(--spacing-16); } /* overhang reserve */
+.c-bubble-row[data-reactions="overlap"] { margin-bottom: var(--spacing-16); } /* overhang reserve · ★ Session AE (#940): a MARGIN on purpose — the composer fade masks the ROW and a mask paints nothing outside the border box, so the pill's 12 px overhang pops rather than dissolves the frame the row's bottom crosses the bar; the alternative (padding) moved the select-mode tick 8 px off its disc (round-2 MAJOR-1) — the pop is the recorded residual */
 /* ★ Session I (Damir's walk): on an emoji-only STICKER the meta sits in a chip at the
    bottom-right — exactly where the overlap pill lands — so the pill covered the time.
    On a sticker the pill goes to the OTHER bottom corner (inline-start), both directions;

@@ -36423,10 +36423,12 @@ console.log('Office fix round (#974–#981)');
   const ALLOWED_EXPR = ['store?.muted?.Count ?? 0', 'fa?.Length ?? 0', 'store != null', 'verdict.action', 'hit', 'age', 'state'];
   const residue = (t) => { let r = scrub(t); for (const x of ALLOWED_EXPR) r = r.split(x).join(''); return r.replace(/\b(?:TAG|EMPTY|STATE)\b/g, '').replace(/\.C\(\)|\.CK\(\)/g, ''); };
   const banned = /[A-Za-z_]/;
-  const writeArgs = [...(gate + '\n' + svc).matchAll(/SpixiPushGate\.write\(([^;]*)\);|\bwrite\(("\[SPUSH\][^;]*)\);/g)].map((m) => m[1] || m[2]);
+  /* ★ #984 (r2 MINOR-5): EVERY write( call in both files, whatever its first token — and no .Log( outside write() */
+  const writeArgs = [...(gate.replace(writeBody, '') + '\n' + svc).matchAll(/(?:SpixiPushGate\.)?\bwrite\(([^;]*)\);/g)].map((m) => m[1]);
+  const logOutsideWrite = /\.Log\(/.test(gate.replace(writeBody, '') + svc);
   const leaks = writeArgs.filter((a) => banned.test(residue(a)));
   const traceWrite = (traceBody.match(/write\(([\s\S]*?)\);\s*\}\s*catch/) || [])[1] || '';
-  ok(writeArgs.length >= 3 && leaks.length === 0 && traceWrite.length > 0 && !banned.test(residue(traceWrite))
+  ok(writeArgs.length >= 3 && leaks.length === 0 && traceWrite.length > 0 && !banned.test(residue(traceWrite)) && !logOutsideWrite
      && /" tag=" \+ tagOf\(store\?\.tagSalt, fa\)/.test(traceWrite) && /" hit=" \+ hit/.test(traceWrite) && /" age=" \+ age/.test(traceWrite),
     '★★ #974 ②: fixed vocabulary — ' + writeArgs.length + ' write() sites + the trace line name no address, no thread id, no nick (leaks: ' + JSON.stringify(leaks) + '); the address reaches the log only as a SALTED tag (tagOf), with hit=muted|nick|none and the store age');
 
@@ -36438,7 +36440,11 @@ console.log('Office fix round (#974–#981)');
   ok(tagGate.length > 0 && norm(tagGate) === norm(tagShare) && /HMACSHA256/.test(tagGate) && /Convert\.ToHexString\(d, 0, 3\)/.test(tagGate)
      && /store\.written = DateTimeOffset\.UtcNow\.ToUnixTimeSeconds\(\);/.test(syncLock) && /store\.tagSalt = traceSalt\(\);/.test(syncLock)
      && /mutedTags=" \+ string\.Join\(",", store\.muted\.ConvertAll\(a => tagOf\(store\.tagSalt, a\)\)\)/.test(syncLock)
-     && [...share.replace(/tagOf\(store\.tagSalt, a\)/g, 'TAG').matchAll(/Logging\.\w+\(([^;]*)\);/g)].every((m) => !/tagSalt|traceSalt|KEY_TRACE_SALT/.test(m[1])),
+     /* ★ #984 (r2 MINOR-4): an ALLOW-list over EVERY Logging argument in SPushPrefsShare — after the literals and
+        the sanctioned expressions go, nothing may remain (a raw muted list or an address would) */
+     && [...share.matchAll(/Logging\.\w+\(([^;]*)\);/g)].map((m) => m[1]).every((a) => { let r = a;
+          for (const x of ['string.Join(",", store.muted.ConvertAll(a => tagOf(store.tagSalt, a)))', 'string.Join(",", store.muted.ConvertAll(a => a.Length))', 'store.enabled', 'store.senderName', 'store.muted.Count', 'store.nicks.Count', 'lastMutedNotOneToOne', 'e.GetType().Name', 'SPIXI.Utils.logSafe(e.Message)', 'SPIXI.Utils.logSafe(err.LocalizedDescription)']) r = r.split(x).join('');
+          return !/[A-Za-z_]/.test(r.replace(/"[^"]*"/g, '')); }),
     '★★ #974 ③: tagOf is the SAME body in the extension and in SPushPrefsShare (HMAC-SHA256, first 3 bytes); every store write stamps `written` + the per-install salt and logs the muted set as TAGS; the salt itself is never logged');
 
   /* ── #975 iO.5 the thread survives OneSignal: a once-only wrapper re-applies it on the FINAL content */
@@ -36571,16 +36577,27 @@ console.log('Office fix round (#974–#981)');
 
   const hp = csO('Spixi/Pages/Home/HomePage.xaml.cs');
   const dec = bodyO(hp, 'private void onDeclineRequest(string address)');
-  const decOk = (dec.match(/if \(FriendList\.removeFriend\(friend\)\)\s*\{([\s\S]*?)\}/) || [])[1] || '';
   const scp = csO('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
   const undo = (scp.match(/else if \(current_url\.StartsWith\("ixian:undorequest"\)\)\s*\{([\s\S]*?)\n            \}/) || [])[1] || '';
-  const iDecl = undo.indexOf('bool declinedIncoming'), iRemove = undo.indexOf('FriendList.removeFriend(friend)');
-  ok(/SRequestIgnore\.add\(friend\.walletAddress\.ToString\(\)\);/.test(decOk) && (dec.match(/SRequestIgnore\.add/g) || []).length === 1
-     && iDecl > 0 && iDecl < iRemove
-     && /bool declinedIncoming = friend\.type == FriendType\.Normal && !friend\.bot\s*&& friend\.state != FriendState\.RequestSent && friend\.state != FriendState\.Approved;/.test(undo)
-     && /if \(requestRemoved\)\s*\{[^{}]*if \(declinedIncoming\) SRequestIgnore\.add\(friend\.walletAddress\.ToString\(\)\);\s*\}/.test(undo)
-     && (scp.match(/SRequestIgnore\.add/g) || []).length === 1,
-    '★★ #978: an address is REMEMBERED only on an incoming decline that really removed the record — the request card (HomePage, inside the removeFriend success branch) and the in-chat request pane (read BEFORE the removal: never our own RequestSent, never an Approved contact, never a room); nothing else in either page adds to the list');
+  /* ★ #984 (r2): BOTH decline sites carry the SAME state predicate, list the address BEFORE the removal
+     (a re-sent request landing in between finds it listed), and take it back off when the removal is REFUSED */
+  const PRED = /bool declinedIncoming = friend\.type == FriendType\.Normal && !friend\.bot\s*&& friend\.state != FriendState\.RequestSent && friend\.state != FriendState\.Approved;/;
+  const SHAPE = /bool listed = declinedIncoming && SRequestIgnore\.add\(declinedAddr\);\s*(?:bool requestRemoved = )?(?:if \()?FriendList\.removeFriend\(friend\)\)?;?[\s\S]*?else if \(listed\)\s*\{\s*SRequestIgnore\.remove\(declinedAddr\);\s*\}/;
+  const siteOk = (t) => PRED.test(t) && SHAPE.test(t) && t.search(PRED) < t.indexOf('FriendList.removeFriend(friend)') && t.indexOf('SRequestIgnore.add(') < t.indexOf('FriendList.removeFriend(friend)');
+  /* ★ #984 (r2 NIT-8): the call sites are DERIVED over every .cs, not counted in two files the author knew */
+  const walkCsO = (d, out = []) => { for (const n of readdirSync(join(root, d))) { if (n === 'obj' || n === 'bin') continue; const q = d + '/' + n; if (statSync(join(root, q)).isDirectory()) walkCsO(q, out); else if (n.endsWith('.cs')) out.push(q); } return out; };
+  const sites = { add: [], remove: [], clear: [] };
+  for (const f of walkCsO('Spixi').concat(walkCsO('Spixi-PushService'))) {
+    if (f.endsWith('/SRequestIgnore.cs')) continue;
+    const t = csO(f);
+    for (const k of Object.keys(sites)) if (new RegExp('SRequestIgnore\\.' + k + '\\(').test(t)) sites[k].push(f.split('/').pop() + '×' + (t.match(new RegExp('SRequestIgnore\\.' + k + '\\(', 'g')) || []).length);
+  }
+  ok(siteOk(dec) && siteOk(undo) && /if \(friend == null\)\s*\{\s*return;/.test(undo)
+     && JSON.stringify(sites.add.sort()) === JSON.stringify(['HomePage.xaml.cs×1', 'SingleChatPage.xaml.cs×1'])
+     && JSON.stringify(sites.remove.sort()) === JSON.stringify(['HomePage.xaml.cs×2', 'SettingsPage.xaml.cs×1', 'SingleChatPage.xaml.cs×1'])
+     && JSON.stringify(sites.clear.sort()) === JSON.stringify(['SettingsPage.xaml.cs×2'])
+     && /public static void writeRequestSentMarker\(Address address\)\s*\{\s*try \{ SRequestIgnore\.remove\(address\?\.ToString\(\)\); \} catch \(Exception\) \{ \}/.test(hp),
+    '★★ #978/#984: an address is REMEMBERED only on an incoming decline (both sites: the same state predicate — never RequestSent, never Approved, never a room — listed BEFORE the removal, taken back off when it is refused); the user\'s OWN request (writeRequestSentMarker) takes it off; derived call sites over every .cs — add ' + JSON.stringify(sites.add) + ' · remove ' + JSON.stringify(sites.remove) + ' · clear ' + JSON.stringify(sites.clear));
 
   const st = csO('Spixi/Pages/Settings/SettingsPage.xaml.cs');
   const un = (st.match(/else if \(current_url\.StartsWith\("ixian:unignore:", StringComparison\.Ordinal\)\)\s*\{([\s\S]*?)\n            \}/) || [])[1] || '';

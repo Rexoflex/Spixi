@@ -7058,7 +7058,16 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
        view re-renders from it; any other view just keeps the state for the next open. */
     setIgnoredRequests(csv) {
       state.ignored = String(csv || '').split(',').map((a) => a.trim()).filter(Boolean);
-      if (currentView === 'ignored' && !exiting) renderLayout();
+      if (currentView === 'ignored' && !exiting) {
+        // ★ #984 (r2 NIT-10): keep the reader's place — the rebuild after an Unblock replaces the screen
+        const prev = document.querySelector('.c-settings__ignored-note');
+        const scroller = prev && prev.closest('.c-settings__body');
+        const top = scroller ? scroller.scrollTop : 0;
+        renderLayout();
+        const next = document.querySelector('.c-settings__ignored-note');
+        const nb = next && next.closest('.c-settings__body');
+        if (nb && top) nb.scrollTop = top;
+      }
     },
 
     // Q1-② (#267): downloads list pushed by SettingsPage itself (ixian:loadDownloads

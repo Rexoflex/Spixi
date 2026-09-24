@@ -848,13 +848,23 @@ namespace SPIXI
                  * to hide-request), so the state test is the belt: never a RequestSent (ours) and
                  * never an Approved contact; a legacy Unknown/Ignored state counts as incoming,
                  * because that is the only pane that can send this verb. */
+                if (friend == null)
+                {
+                    return;   // ★ #984 (r2 NIT-9): the #800 spare page carries no friend; nothing to decline
+                }
                 bool declinedIncoming = friend.type == FriendType.Normal && !friend.bot
                     && friend.state != FriendState.RequestSent && friend.state != FriendState.Approved;
+                // ★ #984 (r2 MINOR-6): remembered BEFORE the removal; a refused removal takes it back off
+                string declinedAddr = friend.walletAddress.ToString();
+                bool listed = declinedIncoming && SRequestIgnore.add(declinedAddr);
                 bool requestRemoved = FriendList.removeFriend(friend);
                 if (requestRemoved)
                 {
                     SChatPrefs.setFavorite(friend.walletAddress.ToString(), false);   // CH4: the preference leaves with the record
-                    if (declinedIncoming) SRequestIgnore.add(friend.walletAddress.ToString());
+                }
+                else if (listed)
+                {
+                    SRequestIgnore.remove(declinedAddr);
                 }
 
                 /* ★ #46 loop B, MAJOR-1 — THE RECORD IS GONE, SO SAY SO.

@@ -5450,6 +5450,12 @@ namespace SPIXI
          * genuinely unread message from that contact as read. */
         public static void writeRequestSentMarker(Address address)
         {
+            /* ★ #984 (r2 review MINOR-2): the user's OWN request to an address is the user's latest
+             * word about it — a request sent to someone they once declined takes that address off
+             * the ignore list (every user-sent request writes this marker: ContactNewPage and the
+             * scan/QR route in SpixiContentPage). Otherwise: decline → later add → later remove,
+             * and every request from them would be dropped silently. */
+            try { SRequestIgnore.remove(address?.ToString()); } catch (Exception) { }
             try
             {
                 Friend? friend = FriendList.getFriend(address);
@@ -5810,14 +5816,25 @@ namespace SPIXI
                 Friend friend = FriendList.getFriend(new Address(addr));
                 if (friend != null)
                 {
+                    /* ★ #978 (#970): a decline REMEMBERS the requester, so its re-sent request is
+                     * dropped (SRequestIgnore). ★ #984 (r2 review MINOR-1): the card is incoming by
+                     * who SENDS the verb, not by the contact's STATE — a stale card (accepted inside
+                     * the chat before the list refreshed) or a crafted verb could name an Approved
+                     * contact. The state test is the same one the in-chat pane uses. ★ r2 MINOR-6:
+                     * remembered BEFORE the removal, so a re-sent request landing between the two
+                     * finds the address already listed; a REFUSED removal takes it back off. */
+                    bool declinedIncoming = friend.type == FriendType.Normal && !friend.bot
+                        && friend.state != FriendState.RequestSent && friend.state != FriendState.Approved;
+                    string declinedAddr = friend.walletAddress.ToString();
+                    bool listed = declinedIncoming && SRequestIgnore.add(declinedAddr);
                     if (FriendList.removeFriend(friend))
                     {
                         status = "ok";
                         SChatPrefs.setFavorite(friend.walletAddress.ToString(), false);   // CH4: the preference leaves with the record
-                        /* ★ #978 (#970): the request card is INCOMING by construction (CH2 routes only
-                         * `!approved && lastMessage requestAdd && !localSender` here), so a decline
-                         * remembers the requester and its re-sent request is dropped (SRequestIgnore). */
-                        SRequestIgnore.add(friend.walletAddress.ToString());
+                    }
+                    else if (listed)
+                    {
+                        SRequestIgnore.remove(declinedAddr);
                     }
                     // R2-3: a REFUSED removal re-flushes too, so the request card comes back
                     UIHelpers.shouldRefreshContacts = true;

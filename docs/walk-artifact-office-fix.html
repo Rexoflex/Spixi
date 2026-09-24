@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Walk — the office fix round</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --bg:#eef1f6; --card:#ffffff; --sunk:#f5f7fa;
+    --ink:#141b23; --sub:#5b6672; --line:#dfe5ec;
+    --act:#1956b2; --act-soft:#e5edf9;
+    --p:#1a7f4b; --f:#b12525; --n:#8b95a1;
+    --warn:#884b00; --warn-soft:#fbf1e2;
+    --shadow:0 1px 2px rgba(20,27,35,.05), 0 2px 8px rgba(20,27,35,.05);
+  }
+  :root:not([data-theme="light"]) { }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0d1117; --card:#161b22; --sunk:#0f141b;
+      --ink:#e6edf3; --sub:#9aa7b4; --line:#252c36;
+      --act:#5a8dee; --act-soft:#16233a;
+      --p:#3fb27a; --f:#f08a80; --n:#7d8794;
+      --warn:#e0a458; --warn-soft:#241c10;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0d1117; --card:#161b22; --sunk:#0f141b;
+    --ink:#e6edf3; --sub:#9aa7b4; --line:#252c36;
+    --act:#5a8dee; --act-soft:#16233a;
+    --p:#3fb27a; --f:#f08a80; --n:#7d8794;
+    --warn:#e0a458; --warn-soft:#241c10;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.3);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.55 "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding:28px 20px 64px;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1000px;margin:0 auto}
+
+  header{margin:0 0 18px}
+  h1{font-size:27px;line-height:1.2;margin:0 0 6px;font-weight:700;letter-spacing:-.015em;text-wrap:balance}
+  .lede{color:var(--sub);margin:0 0 14px;max-width:64ch}
+  .facts{display:flex;flex-wrap:wrap;gap:8px}
+  .fact{
+    font:500 12px/1 "IBM Plex Mono", ui-monospace, Consolas, monospace;
+    background:var(--card);border:1px solid var(--line);border-radius:999px;
+    padding:7px 12px;color:var(--sub);white-space:nowrap
+  }
+  .fact b{color:var(--ink);font-weight:500}
+
+  .tally{
+    position:sticky;top:0;z-index:5;background:var(--bg);
+    padding:12px 0 10px;margin:0 0 18px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap
+  }
+  .tally .score{font:600 15px/1 "IBM Plex Mono", monospace;letter-spacing:.02em}
+  .tally .score i{font-style:normal;padding:0 2px}
+  .tally .sp{flex:1}
+  .mini{
+    border:1px solid var(--line);background:var(--card);color:var(--ink);
+    border-radius:8px;padding:7px 13px;font:500 13px/1 "IBM Plex Sans",sans-serif;cursor:pointer
+  }
+  .mini:hover{border-color:var(--act);color:var(--act)}
+  .mini:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+
+  h2{
+    font-size:13px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--sub);margin:26px 0 10px;display:flex;align-items:baseline;gap:10px
+  }
+  h2 .num{
+    font-family:"IBM Plex Mono",monospace;color:var(--act);font-weight:500;
+    letter-spacing:0;font-size:12px
+  }
+  section{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:16px 18px;margin:0 0 4px;box-shadow:var(--shadow)
+  }
+  section.flag{border-left:3px solid var(--act)}
+  section > p{margin:0 0 12px;color:var(--sub);max-width:70ch}
+  section > p:last-child{margin-bottom:0}
+  section > p strong{color:var(--ink);font-weight:600}
+  code{
+    font:500 13px/1.4 "IBM Plex Mono",ui-monospace,Consolas,monospace;
+    background:var(--sunk);border:1px solid var(--line);border-radius:5px;padding:1px 5px
+  }
+
+  .cmd{position:relative;margin:0 0 12px}
+  .cmd pre{
+    margin:0;background:var(--sunk);border:1px solid var(--line);border-radius:10px;
+    padding:13px 15px;overflow-x:auto;
+    font:400 12.5px/1.65 "IBM Plex Mono",ui-monospace,Consolas,monospace;
+    color:var(--ink)
+  }
+  .cmd .cp{
+    position:absolute;top:8px;right:8px;
+    border:1px solid var(--line);background:var(--card);color:var(--sub);
+    border-radius:7px;padding:5px 10px;font:500 11px/1 "IBM Plex Sans",sans-serif;cursor:pointer
+  }
+  .cmd .cp:hover{color:var(--act);border-color:var(--act)}
+  .cmd .cp:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+  .cmd .cp[data-done="1"]{color:var(--p);border-color:var(--p)}
+
+  .note-line{
+    display:flex;gap:8px;align-items:flex-start;
+    background:var(--warn-soft);border:1px solid var(--line);border-radius:9px;
+    padding:10px 13px;margin:0 0 12px;color:var(--ink);font-size:13.5px;line-height:1.5
+  }
+  .note-line b{color:var(--warn)}
+
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:10px 8px;border-top:1px solid var(--line);vertical-align:top}
+  thead th{
+    border-top:0;font:600 11px/1 "IBM Plex Sans",sans-serif;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--sub);padding-bottom:8px
+  }
+  td.id{
+    width:44px;font:500 13px/1.5 "IBM Plex Mono",monospace;color:var(--act);white-space:nowrap
+  }
+  td.what{font-size:14px}
+  td.what em{font-style:normal;color:var(--sub);display:block;margin-top:3px;font-size:13px}
+  td.v{width:158px;white-space:nowrap}
+
+  .btn{
+    border:1px solid var(--line);background:transparent;color:var(--sub);
+    border-radius:7px;padding:5px 11px;margin-right:4px;cursor:pointer;
+    font:500 12.5px/1 "IBM Plex Sans",sans-serif
+  }
+  .btn:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+  .btn[aria-pressed="true"][data-v="P"]{background:var(--p);border-color:var(--p);color:#fff}
+  .btn[aria-pressed="true"][data-v="F"]{background:var(--f);border-color:var(--f);color:#fff}
+  .btn[aria-pressed="true"][data-v="N"]{background:var(--n);border-color:var(--n);color:#fff}
+  /* ★ Damir, walk S2: "stupid artefact doesnt allow notes if pass" — and the note he
+     could not leave was a real defect. The box used to be display:none until a row
+     FAILED, on the reasoning that a fail needs an explanation. True, and not the same
+     as "a pass has nothing to say": the most valuable notes are the ones on rows that
+     technically passed, because those are the observations no row was written to catch.
+     Always visible now; the fail styling stays. */
+  .nt{
+    width:100%;margin-top:7px;border:1px solid var(--line);border-radius:7px;
+    padding:6px 9px;background:var(--sunk);color:var(--ink);
+    font:400 13px/1.45 "IBM Plex Sans",sans-serif;display:block
+  }
+  tr[data-v="F"] .nt{border-color:var(--f)}
+
+  footer{margin:30px 0 0;color:var(--sub);font-size:13.5px;line-height:1.6}
+  footer b{color:var(--ink)}
+
+  @media (max-width:640px){
+    body{padding:20px 14px 56px}
+    td.v{width:auto}
+    th:nth-child(3),td.v{display:block;padding-top:0;border-top:0}
+    td.id{width:38px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Walk — the office fix round (#974–#984)</h1>
+  <p class="lede">The fixes for the office walk. <strong>§0 first</strong>: nothing here has compiled. <strong>§1 is a trace, not a pass/fail</strong> — the log line IS the result for iO.11.</p>
+  <div class="facts"><span class="fact">records <b>#974 – #984</b></span><span class="fact">C# changed <b>YES — 12 files, 2 new, uncompiled</b></span><span class="fact">devices <b>iPhone · Mac · Android · Windows · 2nd device</b></span></div>
+</header>
+<div class="tally">
+  <span class="score" id="score">— / 23</span>
+  <span class="score" style="color:var(--p)">P <i id="cp">0</i></span>
+  <span class="score" style="color:var(--f)">F <i id="cf">0</i></span>
+  <span class="score" style="color:var(--n)">N/A <i id="cn">0</i></span>
+  <span class="sp"></span>
+  <button class="mini" id="copyres">Copy results</button>
+  <button class="mini" id="reset">Reset</button>
+</div>
+<main>
+<h2><span class="num">§0</span> Apply, gates, the first compile</h2>
+<section class="flag"><table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s0"></tbody></table></section>
+<h2><span class="num">§1</span> iPhone push — the trace answers (#974/#975)</h2>
+<section class="flag"><p>The extension now logs through os_log. No address is in any line: a contact appears only as a salted 6-hex tag.</p><table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s1"></tbody></table></section>
+<h2><span class="num">§2</span> Keyboard and group name (#976/#977)</h2>
+<section><table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s2"></tbody></table></section>
+<h2><span class="num">§3</span> A declined request stays declined (#978/#984, two devices)</h2>
+<section><table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s3"></tbody></table></section>
+<h2><span class="num">§4</span> Mac (#979–#981)</h2>
+<section><table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s4"></tbody></table></section>
+<h2><span class="num">§5</span> Optional</h2>
+<section><table><thead><tr><th>#</th><th>Row</th><th>Result</th></tr></thead><tbody id="s5"></tbody></table></section>
+</main>
+<footer><p>A pass with a note is a pass — write the note. For iO.11 the note is the result.</p></footer>
+</div>
+<script>
+(function(){
+  var ROWS = {
+  "s0": [
+    [
+      "OF.0",
+      "★ apply the patches: `git am office-fix-patches/*.patch` on redesign/frontend (HEAD must be c97c94cd) → `node scripts/build-shells.mjs --check` → `node scripts/smoke-test.mjs`",
+      "build-shells --check green; smoke BASELINE OK — 4896 (with the Ixian-Core sibling; compare the DELTA from your 4883: +13) / the 2 KNOWN. ⚠ 12 C# files changed (2 new) and NOTHING compiled them."
+    ],
+    [
+      "OF.1",
+      "Windows F5 (never `dotnet build`, #663) + Android Debug",
+      "both build. A compile error names its file — paste it verbatim; it is this batch's bug."
+    ],
+    [
+      "OF.2",
+      "iPhone build (the walk-verdict commands; wipe obj/bin first)",
+      "it builds, signs, installs. The extension's first compile of #974/#975 (`global::CoreFoundation.OSLog`)."
+    ]
+  ],
+  "s1": [
+    [
+      "iO.log",
+      "Mac: Console.app → the iPhone → streaming ON → filter `spush` (or subsystem `com.ixilabs.spixi.push`) → kill Spixi → send it a message",
+      "★ `[SPUSH] store=… age=… muted=… fa=present faLen=… hit=… tag=… verdict=… name=… thread=yes` and then `[SPUSH] final thread=…`. Zero lines = the os_log sink is not reached — note it."
+    ],
+    [
+      "iO.5",
+      "kill Spixi → three messages from the SAME contact",
+      "they GROUP into one thread. Read the `final thread=` word: kept (the gate's thread survived — if they still do not group, try Settings → Notifications → Spixi → Notification Grouping = By App) · lost/changed (OneSignal dropped it; the wrapper re-applied it — they should now group)."
+    ],
+    [
+      "iO.11",
+      "★ the muted contact M, and a group with M in it. (1) With the app OPEN, open M's chat info and turn Mute OFF, then ON. In the app's ixian.log (Account → Developer → share the log) read the two `[SPUSH-APP] store written … mutedTags=` lines — the tag that appears in the second = M's tag. (2) Press Home, kill the app. (3) M posts in the group.",
+      "write the `[SPUSH]` line verbatim: `hit=` and `tag=`. hit=muted → Suppress (the fix works for this case). hit=nick with tag = M's tag cannot happen (would be a bug). hit=nick with ANOTHER tag = the push came from someone else (the group's OWNER relays posts from members who lack contacts — the title then shows the OWNER's name). `mutedNot1to1=` > 0 = M's mute is on but M did not read as a 1:1. `age=` large = a stale store."
+    ]
+  ],
+  "s2": [
+    [
+      "N1",
+      "iPhone: a chat with ~15 messages at the bottom → tap the composer",
+      "★ the newest message rises WITH the composer and stays visible just above it (before: it stayed under the keyboard). Close the keyboard → everything settles back."
+    ],
+    [
+      "N1b",
+      "a NEW chat (only the secure notice) → tap the composer",
+      "the notice re-centres in the space above the composer; its bottom is never under the keyboard."
+    ],
+    [
+      "N1c",
+      "with the keyboard up, scroll up → the ↓ chevron (and an @ badge in a group)",
+      "both sit above the composer, not under the keyboard."
+    ],
+    [
+      "N1d",
+      "Android: the same three",
+      "UNCHANGED from before (the lift is 0 on Android)."
+    ],
+    [
+      "N2",
+      "New group → the name field → type a name → press Return",
+      "the keyboard CLOSES and the group is NOT created. Tap the name field again → type → tap anywhere on empty space in the form → the keyboard closes."
+    ],
+    [
+      "N2b",
+      "with the keyboard up, tap Create group directly (Android especially)",
+      "the group is created on the FIRST tap (the tap is not lost)."
+    ]
+  ],
+  "s3": [
+    [
+      "970.1",
+      "★ 2 devices: B sends A a contact request → A: Requests → Decline",
+      "the card goes."
+    ],
+    [
+      "970.2",
+      "B sends the SAME request again (B: remove and re-add A, or wait for the retry)",
+      "★ A shows NOTHING: no request card, no chat row, no notification. A's ixian.log: `SRequestIgnore: a request from a declined address was dropped before Core.`"
+    ],
+    [
+      "970.3",
+      "A: Account → Security & privacy → Declined requests",
+      "the row shows B's address truncated + Unblock."
+    ],
+    [
+      "970.4",
+      "Unblock → B sends the request again",
+      "the row leaves; A gets the request normally."
+    ],
+    [
+      "970.5",
+      "decline B from INSIDE the chat (the request pane's Decline) → B re-sends",
+      "also dropped (the in-chat pane lists it too)."
+    ],
+    [
+      "970.6",
+      "A declines B, then A adds B from Contacts (A sends a request)",
+      "B leaves the Declined list (A's own request takes it off)."
+    ]
+  ],
+  "s4": [
+    [
+      "M1",
+      "Mac: accept a contact request (as on the office day)",
+      "NO empty bubble under 'You are now connected'. If one still shows, read ixian.log for `insertMessage: an EMPTY standard row was not rendered` — present = this path (then the fix held but another row shows); absent = a different path, note which push came."
+    ],
+    [
+      "M2",
+      "Mac: hover the left pane's right edge",
+      "the pointer becomes ↔; drag resizes; double-click resets. ixian.log: `[DIVIDER] pan started` / `pan ended width=…`. No `pan started` at all = the drag never reaches the grip — note it."
+    ],
+    [
+      "M4",
+      "Mac: first launch → the notification permission prompt → Allow → put Spixi in the background → message it",
+      "a notification row, a Dock BADGE with the unread count, and ONE Dock bounce. Open the chat → the badge clears."
+    ],
+    [
+      "M3",
+      "Mac: the Dock icon",
+      "asset note only (the glyph reads small) — no change in this batch."
+    ]
+  ],
+  "s5": [
+    [
+      "RT",
+      "reply-to device check (optional tonight): `docs/reply-to-device-check.md`",
+      "do NOT build it on this branch — a scratch branch with the Core patch + the DEBUG harness; record (a)–(c)."
+    ]
+  ]
+};
+  var KEY = "spixi.walk.office-fix";
+  var state = {};
+  try { state = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch(e) { state = {}; }
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){} }
+
+  function build(tbodyId){
+    var tb = document.getElementById(tbodyId);
+    if(!tb) return;
+    ROWS[tbodyId].forEach(function(r){
+      var id = r[0];
+      var tr = document.createElement("tr");
+      tr.dataset.row = id;
+      var td1 = document.createElement("td");
+      td1.className = "id"; td1.textContent = id;
+      var td2 = document.createElement("td");
+      td2.className = "what";
+      td2.appendChild(document.createTextNode(r[1]));
+      if (r[2]) { var em = document.createElement("em"); em.textContent = r[2]; td2.appendChild(em); }
+      var td3 = document.createElement("td");
+      td3.className = "v";
+      ["P","F","N"].forEach(function(v){
+        var b = document.createElement("button");
+        b.className = "btn"; b.dataset.v = v; b.type = "button";
+        b.textContent = v === "N" ? "N/A" : v;
+        b.setAttribute("aria-label", (v==="P"?"Pass":v==="F"?"Fail":"Not applicable") + " " + id);
+        b.setAttribute("aria-pressed", String(state[id] && state[id].v === v));
+        b.addEventListener("click", function(){
+          var cur = state[id] || {};
+          cur.v = (cur.v === v) ? "" : v;
+          state[id] = cur; save(); paint(tr, id); tallyUp();
+        });
+        td3.appendChild(b);
+      });
+      var nt = document.createElement("textarea");
+      nt.className = "nt"; nt.rows = 2;
+      nt.placeholder = "note (optional — on a pass too)";
+      nt.value = (state[id] && state[id].n) || "";
+      nt.setAttribute("aria-label", "Note for " + id);
+      nt.addEventListener("input", function(){
+        var cur = state[id] || {}; cur.n = nt.value; state[id] = cur; save();
+      });
+      td3.appendChild(nt);
+      tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+      tb.appendChild(tr);
+      paint(tr, id);
+    });
+  }
+
+  function paint(tr, id){
+    var v = (state[id] && state[id].v) || "";
+    tr.dataset.v = v;
+    Array.prototype.forEach.call(tr.querySelectorAll(".btn"), function(b){
+      b.setAttribute("aria-pressed", String(b.dataset.v === v));
+    });
+  }
+
+  function tallyUp(){
+    var p=0,f=0,n=0,total=0;
+    Object.keys(ROWS).forEach(function(k){ total += ROWS[k].length; });
+    Object.keys(state).forEach(function(id){
+      var v = state[id] && state[id].v;
+      if (v==="P") p++; else if (v==="F") f++; else if (v==="N") n++;
+    });
+    document.getElementById("cp").textContent = p;
+    document.getElementById("cf").textContent = f;
+    document.getElementById("cn").textContent = n;
+    document.getElementById("score").textContent = (p+f+n) + " / " + total;
+  }
+
+  Object.keys(ROWS).forEach(build);
+  tallyUp();
+
+  function copyText(text, btn, doneLabel){
+    var ok = function(){
+      if(!btn) return;
+      var old = btn.textContent;
+      btn.textContent = doneLabel || "Copied";
+      btn.dataset.done = "1";
+      setTimeout(function(){ btn.textContent = old; btn.dataset.done = ""; }, 1400);
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(ok, function(){ fallback(text, ok); });
+        return;
+      }
+    } catch(e){}
+    fallback(text, ok);
+  }
+  function fallback(text, ok){
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      ok();
+    } catch(e){}
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll(".cmd .cp"), function(btn){
+    btn.type = "button";
+    btn.addEventListener("click", function(){
+      var pre = btn.parentNode.querySelector("pre");
+      copyText(pre ? pre.textContent : "", btn);
+    });
+  });
+
+  document.getElementById("copyres").addEventListener("click", function(){
+    var out = ["Walk — the office fix round (#974–#984)", ""];
+    var p=0,f=0,n=0;
+    Object.keys(ROWS).forEach(function(k){
+      ROWS[k].forEach(function(r){
+        var id = r[0], s = state[id] || {}, v = s.v || "-";
+        if (v==="P") p++; else if (v==="F") f++; else if (v==="N") n++;
+        out.push(v + "  " + id + "  " + r[1] + (s.n ? "   — " + s.n : ""));
+      });
+    });
+    out.splice(1, 0, p + " pass · " + f + " fail · " + n + " n/a");
+    copyText(out.join("\n"), this, "Copied");
+  });
+
+  document.getElementById("reset").addEventListener("click", function(){
+    if (!window.confirm("Clear every result and note on this sheet?")) return;
+    state = {}; save();
+    Object.keys(ROWS).forEach(function(k){
+      var tb = document.getElementById(k);
+      while (tb.firstChild) tb.removeChild(tb.firstChild);
+      build(k);
+    });
+    tallyUp();
+  });
+})();
+</script>
+</body>
+</html>

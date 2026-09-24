@@ -36605,10 +36605,15 @@ console.log('Office fix round (#974–#981)');
     const t = csO(f);
     for (const k of Object.keys(sites)) if (new RegExp('SRequestIgnore\\.' + k + '\\(').test(t)) sites[k].push(f.split('/').pop() + '×' + (t.match(new RegExp('SRequestIgnore\\.' + k + '\\(', 'g')) || []).length);
     for (const m of t.matchAll(/\bsendContactRequest\(([^)]*)\)/g)) {
-      if (/\bstatic\b[^;{]*sendContactRequest\(/.test(t.slice(Math.max(0, m.index - 120), m.index + 30))) continue;   // a declaration, not a call
+      /* ★ #988 (r6 MINOR-1): NO declaration skip — Core owns sendContactRequest, the app tree declares none, and a
+         skip keyed on `static` also skipped real calls (an expression-bodied static method, a static lambda) */
       sendSites++;
       /* ★ #987 (r5): the segment is bounded to the ENCLOSING METHOD (the last member declaration before the call),
-         so an addFriend or an un-list in another method can never satisfy this call */
+         so an addFriend or an un-list in another method can never satisfy this call.
+         ⚠ #988 (r6 MINOR-3) — the LIMIT, stated: the anchor recognises a modifier-led, one-line signature followed by
+         an Allman `{` (all four sites today). Another shape (no modifier, a multi-line signature, `=>`, a K&R brace)
+         falls back to the previous method; such a path is then caught by `sendSites === unlistSites`, not by this bound.
+         The pin reads text, not control flow: an un-list inside a dead branch (`if (false)`) passes (r6 NIT-4). */
       const before = t.slice(0, m.index);
       const decls = [...before.matchAll(/\n[ \t]*(?:public|private|protected|internal)[^\n;=]*\([^\n;]*\)\s*\n[ \t]*\{/g)];
       const methodStart = decls.length ? decls[decls.length - 1].index : 0;
@@ -36616,8 +36621,11 @@ console.log('Office fix round (#974–#981)');
       const un = /SRequestIgnore\.remove\(([^;]*)\);/.exec(seg);
       const addrArg = ((/addFriend\(FriendType\.\w+, FriendState\.\w+, ([^,]+),/.exec(seg) || [])[1] || '').trim();
       const friendVar = m[1].trim();
+      /* ★ #988 (r6 MINOR-2): the addFriend RESULT variable — the addFriend-address arm counts only when the send
+         targets the friend that addFriend returned (a send to another variable no longer passes on the address name) */
+      const addedVar = ((/(\w+) = FriendList\.addFriend\(/.exec(body.slice(Math.max(0, from - 80), from + 20)) || [])[1] || '');
       /* EXACT: the un-list names this friend's wallet address, or the very address expression addFriend took (no prefix match) */
-      const own = !!un && (un[1].trim() === friendVar + '.walletAddress.ToString()' || (addrArg !== '' && un[1].trim() === addrArg + '.ToString()'));
+      const own = !!un && (un[1].trim() === friendVar + '.walletAddress.ToString()' || (addrArg !== '' && addedVar !== '' && friendVar === addedVar && un[1].trim() === addrArg + '.ToString()'));
       if (from < 0 || !own) sendMisses.push(f.split('/').pop());
     }
     for (const m of t.matchAll(/FriendList\.addFriend\(FriendType\.Normal, FriendState\.RequestSent,/g)) {

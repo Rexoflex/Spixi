@@ -2410,7 +2410,7 @@ namespace SPIXI
                      * id threw a NullReferenceException. `onContextAction` is dispatched BARE
                      * from `onNavigating` (:333), and this file already records what that
                      * costs: an escaping exception leaves a MAUI Navigating handler unhandled
-                     * and takes the process down on Android and iOS (:1481).
+                     * and takes the process down on Android and iOS (the note at the top of this method).
                      * ⚠ THIS FILE MIXES BOTH FORMS. `:1810` and `:1831` guard; four sites did
                      * not. All four are repaired in this batch. Count the surfaces. */
                     FriendMessage? req_msg = friend.getMessages(selectedChannel)?.Find(x => x.id != null && x.id.SequenceEqual(msg_id));

@@ -17,6 +17,10 @@
 
 		<Nullable>enable</Nullable>
 		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+		<!-- Office build 2026-09-24 (first compile): IL2104 = "OneSignalSDK.DotNet.iOS produced trim
+		     warnings" - a THIRD-PARTY assembly's trim report, not our code. TreatWarningsAsErrors made it
+		     fatal; our own warnings stay errors. -->
+		<WarningsNotAsErrors>$(WarningsNotAsErrors);IL2104</WarningsNotAsErrors>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<SupportedOSPlatformVersion>15.0</SupportedOSPlatformVersion>
 	</PropertyGroup>

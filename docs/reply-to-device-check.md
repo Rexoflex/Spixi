@@ -11,7 +11,7 @@ at `097341a`) and `docs/be-cutover-ixian-core-reply-carrier.md` (the patch, thre
 
 | Part | State |
 |---|---|
-| Core carrier | `docs/ixian-core-reply-carrier.patch` — `ChatStreamMessage.ReplyToId` (appended last, only when set), `FriendMessage.replyToId` (append-tolerant deserialiser), `FriendList.addMessage` copies it, `sendChatStreamMessage` uses the chat message id as the stream id. **Verified tonight: `git apply --check` is CLEAN on `097341a`.** ⚠ Damir's PC carries the LOCAL #962 patch in Ixian-Core — run the check on THAT tree (`git apply --check`), and keep both on a scratch branch. |
+| Core carrier | `docs/ixian-core-reply-carrier.patch` — `ChatStreamMessage.ReplyToId` (appended last, only when set), `FriendMessage.replyToId` (append-tolerant deserialiser), `FriendList.addMessageWithType` (the ChatStreamMessage overload) copies it, `sendChatStreamMessage` uses the chat message id as the stream id. **Verified tonight: `git apply --check` is CLEAN on `097341a`.** ⚠ Damir's PC carries the LOCAL #962 patch in Ixian-Core — run the check on THAT tree (`git apply --check`), and keep both on a scratch branch. |
 | Spixi C# | `SingleChatPage.insertMessage` pushes a `reply_to` arg that is ALWAYS `""` (the seam; the one-line cutover is quoted in the comment there). Nothing SENDS a `chatStream` with a reply id. |
 | Shell | the quote bubble, the composer context strip and the menu item are built and gated off (`bridge.cap('reply')`). |
 
@@ -50,7 +50,7 @@ Fire it from Safari/Edge dev tools on the chat WebView: `location.href = 'ixian:
 |---|---|---|
 | L1 | sender, the harness | `sent bytes=<n> hasReply=<bool> stored=<bool>` (the harness line above, word for word) |
 | L2 | receiver, `CoreStreamProcessor.receiveData` `case SpixiMessageCode.chatStream` after the `ChatStreamMessage` parse | `recv hasReply=<ReplyToId != null> replyLen=<n>` |
-| L3 | receiver, `FriendList.addMessage` after `friend_message.replyToId = …` | `stored hasReply=<bool>` |
+| L3 | BOTH devices, `FriendList.addMessageWithType` (ChatStreamMessage overload) after `friend_message.replyToId = …` — with the harness it fires on the SENDER too | `stored hasReply=<bool>` |
 | L4 | BOTH devices, `SingleChatPage.insertMessage` standard branch, before the push | `render id=<first 4 hex> hasReply=<message.replyToId != null && Length > 0>` |
 
 ## 3 · The order (from `reply-to-carrier-verification.md` §4 — (c) is the one that killed C8)
@@ -64,9 +64,10 @@ Fire it from Safari/Edge dev tools on the chat WebView: `location.href = 'ixian:
 | e | the same in a GROUP and in a BOT channel | as a–c (the relay path differs: a non-contact member relays through the owner) |
 | f | a devReply to a message later DELETED | the render line still says `hasReply=True`; the shell's quote falls back (when the feature is built) |
 
-Only (a)–(c) passing un-gates any build. Record the verdict in DECISIONS; if (c) fails, the carrier
-needs the SENDER side of the patch reviewed (the sender writes its own row through a different
-path than `addMessage`).
+Only (a)–(c) passing un-gates any build. Record the verdict in DECISIONS; if (c) fails while (a)
+passes, the suspect is the patch's `FriendMessage` serialiser (sender persistence — the harness
+writes A's row through the same `addMessageWithType` overload the receiver uses, so the in-memory
+row carries the id; what may not survive is the write to disk and the read back).
 
 ## 4 · Not in scope tonight
 

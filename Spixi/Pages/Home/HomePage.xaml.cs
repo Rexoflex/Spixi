@@ -5831,14 +5831,15 @@ namespace SPIXI
                     {
                         // ★ #985 (r3 MINOR-2): a refused OR a throwing removal takes it back off
                         if (!removed && listed) SRequestIgnore.remove(declinedAddr);
+                        // R2-3: a REFUSED removal re-flushes too, so the request card comes back —
+                        // ★ #986 (r4 NIT-6): and a THROWING one (it used to skip this line)
+                        UIHelpers.shouldRefreshContacts = true;
                     }
                     if (removed)
                     {
                         status = "ok";
                         SChatPrefs.setFavorite(friend.walletAddress.ToString(), false);   // CH4: the preference leaves with the record
                     }
-                    // R2-3: a REFUSED removal re-flushes too, so the request card comes back
-                    UIHelpers.shouldRefreshContacts = true;
                 }
             }
             catch (Exception ex)

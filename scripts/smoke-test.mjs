@@ -36587,11 +36587,16 @@ console.log('Office fix round (#974–#981)');
   /* ★ #985 (r3 MINOR-3): the WHOLE structure, no lazy span — listed, then the removal inside a try whose
      finally takes the address back off on a refused OR throwing removal, then the success branch on the
      same boolean (an inverted test or a detached rollback fails the match) */
-  const SHAPE = /bool listed = declinedIncoming && SRequestIgnore\.add\(declinedAddr\);\s*bool (\w+) = false;\s*try\s*\{\s*\1 = FriendList\.removeFriend\(friend\);\s*\}\s*finally\s*\{\s*if \(!\1 && listed\) SRequestIgnore\.remove\(declinedAddr\);\s*\}\s*if \(\1\)\s*\{/;
+  const SHAPE = /bool listed = declinedIncoming && SRequestIgnore\.add\(declinedAddr\);\s*bool (\w+) = false;\s*try\s*\{\s*\1 = FriendList\.removeFriend\(friend\);\s*\}\s*(?:catch \(Exception ex\)\s*\{\s*Logging\.error\([^;]*ex\.GetType\(\)\.Name\);\s*\}\s*)?finally\s*\{\s*if \(!\1 && listed\) SRequestIgnore\.remove\(declinedAddr\);\s*(?:UIHelpers\.shouldRefreshContacts = true;\s*)?\}\s*if \(\1\)\s*\{/;
+  /* ★ #986 (r4 MINOR-2): the in-chat site CATCHES (an exception must not escape onNavigating); HomePage's
+     outer A-5 fence catches there, and its finally re-flushes on a throw too (NIT-6) */
   const siteOk = (t) => PRED.test(t) && SHAPE.test(t) && t.search(PRED) < t.indexOf('FriendList.removeFriend(friend)');
   /* ★ #985 (r3 MINOR-5/NIT-7): the un-list is DERIVED too — EVERY user-sent request (`FriendList.addFriend(... FriendState.RequestSent`)
      takes the address off the list BEFORE its send. A new request path without it fails here. */
   let unlistSites = 0; const unlistMisses = [];
+  /* ★ #986 (r4 MINOR-3): ALSO from the other end — every `sendContactRequest(` CALL (whatever built the friend)
+     must follow an un-list of the SAME friend's address, after the nearest preceding addFriend */
+  let sendSites = 0; const sendMisses = [];
   /* ★ #984 (r2 NIT-8): the call sites are DERIVED over every .cs, not counted in two files the author knew */
   const walkCsO = (d, out = []) => { for (const n of readdirSync(join(root, d))) { if (n === 'obj' || n === 'bin') continue; const q = d + '/' + n; if (statSync(join(root, q)).isDirectory()) walkCsO(q, out); else if (n.endsWith('.cs')) out.push(q); } return out; };
   const sites = { add: [], remove: [], clear: [] };
@@ -36599,6 +36604,15 @@ console.log('Office fix round (#974–#981)');
     if (f.endsWith('/SRequestIgnore.cs')) continue;
     const t = csO(f);
     for (const k of Object.keys(sites)) if (new RegExp('SRequestIgnore\\.' + k + '\\(').test(t)) sites[k].push(f.split('/').pop() + '×' + (t.match(new RegExp('SRequestIgnore\\.' + k + '\\(', 'g')) || []).length);
+    for (const m of t.matchAll(/\bsendContactRequest\((\w+)\);/g)) {
+      sendSites++;
+      const before = t.slice(0, m.index), from = before.lastIndexOf('addFriend('), seg = from >= 0 ? before.slice(from) : '';
+      const un = /SRequestIgnore\.remove\(([^;]*)\);/.exec(seg);
+      /* the un-list's argument names the address of THIS friend: the friend variable itself, or the address the addFriend call took */
+      const addrArg = (/addFriend\(FriendType\.\w+, FriendState\.\w+, ([^,]+),/.exec(seg) || [])[1] || '';
+      const own = un && (un[1].startsWith(m[1] + '.walletAddress') || (addrArg && un[1].startsWith(addrArg.trim())) || (/new Address\(/.test(addrArg) && un[1].startsWith(m[1] + '.')));
+      if (from < 0 || !own) sendMisses.push(f.split('/').pop());
+    }
     for (const m of t.matchAll(/FriendList\.addFriend\(FriendType\.Normal, FriendState\.RequestSent,/g)) {
       unlistSites++;
       const after = t.slice(m.index, m.index + 2500), send = after.search(/sendContactRequest\(/), un = after.search(/SRequestIgnore\.remove\(/);
@@ -36606,10 +36620,15 @@ console.log('Office fix round (#974–#981)');
     }
   }
   ok(siteOk(dec) && siteOk(undo) && /if \(friend == null\)\s*\{\s*return;/.test(undo)
+     && /catch \(Exception ex\)\s*\{\s*Logging\.error\("ixian:undorequest: the removal threw: " \+ ex\.GetType\(\)\.Name\);\s*\}/.test(undo)
+     && /finally\s*\{[^{}]*UIHelpers\.shouldRefreshContacts = true;\s*\}/.test(dec)
+     /* ★ #986 (r4 MINOR-1): the REMOVE set is asserted again (r3 computed it and dropped the check) */
+     && JSON.stringify(sites.remove.sort()) === JSON.stringify(['ContactNewPage.xaml.cs×1', 'HomePage.xaml.cs×2', 'SettingsPage.xaml.cs×1', 'SingleChatPage.xaml.cs×2', 'SpixiContentPage.cs×1'])
+     && sendMisses.length === 0 && sendSites === unlistSites
      && JSON.stringify(sites.add.sort()) === JSON.stringify(['HomePage.xaml.cs×1', 'SingleChatPage.xaml.cs×1'])
      && JSON.stringify(sites.clear.sort()) === JSON.stringify(['SettingsPage.xaml.cs×2'])
      && unlistMisses.length === 0 && unlistSites >= 4,
-    '★★ #978/#984/#985: an address is REMEMBERED only on an incoming decline (both sites: the same state predicate — never RequestSent, never Approved, never a room — listed BEFORE the removal, taken back off in a finally when the removal is refused OR throws); EVERY user-sent request (' + unlistSites + ' RequestSent addFriend sites; misses ' + JSON.stringify(unlistMisses) + ') takes it off BEFORE its send; derived call sites over every .cs — add ' + JSON.stringify(sites.add) + ' · remove ' + JSON.stringify(sites.remove) + ' · clear ' + JSON.stringify(sites.clear));
+    '★★ #978/#984/#985: an address is REMEMBERED only on an incoming decline (both sites: the same state predicate — never RequestSent, never Approved, never a room — listed BEFORE the removal, taken back off in a finally when the removal is refused OR throws); EVERY user-sent request (' + unlistSites + ' RequestSent addFriend sites · ' + sendSites + ' sendContactRequest calls; misses ' + JSON.stringify(unlistMisses.concat(sendMisses)) + ') takes the SAME friend\'s address off BEFORE its send; derived call sites over every .cs — add ' + JSON.stringify(sites.add) + ' · remove ' + JSON.stringify(sites.remove) + ' · clear ' + JSON.stringify(sites.clear));
 
   const st = csO('Spixi/Pages/Settings/SettingsPage.xaml.cs');
   const un = (st.match(/else if \(current_url\.StartsWith\("ixian:unignore:", StringComparison\.Ordinal\)\)\s*\{([\s\S]*?)\n            \}/) || [])[1] || '';

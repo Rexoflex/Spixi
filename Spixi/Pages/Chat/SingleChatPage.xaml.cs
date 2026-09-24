@@ -862,6 +862,13 @@ namespace SPIXI
                 {
                     requestRemoved = FriendList.removeFriend(friend);
                 }
+                catch (Exception ex)
+                {
+                    // ★ #986 (r4 MINOR-2): an exception must not escape onNavigating (it takes the
+                    // process down on Android/iOS — this file's own :1481 note). The removal FAILED:
+                    // the "fail" push below tells the shell to keep the data, as HomePage's A-5 fence does.
+                    Logging.error("ixian:undorequest: the removal threw: " + ex.GetType().Name);
+                }
                 finally
                 {
                     // ★ #985 (r3 MINOR-2): a THROWING removal (Core's I/O runs before friends.Remove)

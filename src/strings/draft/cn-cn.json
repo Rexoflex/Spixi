@@ -649,5 +649,10 @@
   "unfavorite": "从收藏中移除",
   "appFetchHttp": "无法从该链接下载应用。",
   "appFetchTimeout": "链接没有响应。请检查网络连接后重试。",
-  "appFetchTooLarge": "该应用包过大。"
+  "appFetchTooLarge": "该应用包过大。",
+  "declinedRequests": "已拒绝的请求",
+  "declinedRequestsSub": "你拒绝过其联系人请求的人",
+  "declinedRequestsNote": "来自这些地址的再次请求会被忽略，对方不会收到通知。解除屏蔽即可再次接收其请求。",
+  "declinedRequestsEmpty": "你没有拒绝过任何请求。",
+  "unblock": "解除屏蔽"
 }

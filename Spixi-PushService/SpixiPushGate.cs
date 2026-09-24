@@ -3,7 +3,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json.Serialization;
+using CoreFoundation;
 using UserNotifications;
 
 namespace OneSignalNotificationServiceExtension
@@ -77,6 +80,14 @@ namespace OneSignalNotificationServiceExtension
             public bool senderName { get; set; } = false;
             public List<string> muted { get; set; } = new List<string>();
             public Dictionary<string, string> nicks { get; set; } = new Dictionary<string, string>();
+            /// ★ #974 (office fix round): when the app wrote this store, unix seconds (0 = a store
+            /// from before this field). The trace prints the store's AGE, so a stale store reads as
+            /// stale on the device instead of being guessed at (iO.11).
+            public long written { get; set; } = 0;
+            /// ★ #974: a per-install random salt the app generates once. The trace prints a SALTED
+            /// TAG of the push's address (see <see cref="tagOf"/>), never the address; the app's
+            /// log prints the same tags for its muted set, so the two can be compared on the device.
+            public string tagSalt { get; set; } = "";
         }
 
         /// <summary>The path of the shared file, or null when the container is not available
@@ -221,18 +232,100 @@ namespace OneSignalNotificationServiceExtension
             try { content.InterruptionLevel = UNNotificationInterruptionLevel.Passive2; content.RelevanceScore = 0; } catch (Exception) { /* pre-15 runtime: the fields do not exist; the text is already gone */ }
         }
 
-        /// <summary>ONE fixed-vocabulary line per push to the system log (the extension has no
-        /// Logging): whether a store was read, whether the push carried an address, and the
-        /// verdict — so the office test can tell fail-open from Show-by-design. Never the
-        /// address, never a name, never throws.</summary>
-        public static void trace(bool storeRead, string? fa, Verdict verdict)
+        /// <summary>
+        /// ★ #974 (office fix round, iO.5/iO.11) — THE EXTENSION'S LOG SINK. The walk found that
+        /// <c>Console.WriteLine</c> from the extension process does NOT reach the device's unified
+        /// log (Console.app, streaming, filter "spush": zero lines), so the trace below was blind.
+        /// It now writes through <c>os_log</c> (the <c>CoreFoundation.OSLog</c> binding, which
+        /// formats the message as <c>%{public}s</c> — a private format would print "&lt;private&gt;")
+        /// under ONE subsystem and category, so Console.app can filter on either. The vocabulary
+        /// is FIXED: the callers pass only words and numbers from this file — never an address,
+        /// never a name, never the thread id (the thread id IS an address). Never throws.
+        /// </summary>
+        public const string LOG_SUBSYSTEM = "com.ixilabs.spixi.push";
+        public const string LOG_CATEGORY = "spush";
+        private static OSLog? log;
+        public static void write(string line)
         {
             try
             {
-                Console.WriteLine("[SPUSH] store=" + (storeRead ? "ok" : "none") + " fa=" + (string.IsNullOrEmpty(fa) ? "none" : "present")
-                    + " verdict=" + verdict.action + " name=" + (string.IsNullOrEmpty(verdict.senderName) ? "no" : "yes"));
+                log ??= new OSLog(LOG_SUBSYSTEM, LOG_CATEGORY);
+                log.Log(OSLogLevel.Default, line);
+            }
+            catch (Exception)
+            {
+                try { Console.WriteLine(line); } catch (Exception) { }
+            }
+        }
+
+        /// <summary>
+        /// ★ #974 (iO.11) — a SALTED TAG of an address: the first 6 hex characters of
+        /// HMAC-SHA256(salt, address). Without the per-install salt (which lives only in the
+        /// App Group store and in the app's preferences, never in a log) the tag cannot be mapped
+        /// back to an address; with it, the extension's line and the app's store line name the
+        /// same contact with the same tag. "-" when either input is missing. Never throws.
+        /// </summary>
+        public static string tagOf(string? salt, string? address)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(salt) || string.IsNullOrEmpty(address)) return "-";
+                using HMACSHA256 h = new HMACSHA256(Encoding.UTF8.GetBytes(salt));
+                byte[] d = h.ComputeHash(Encoding.UTF8.GetBytes(address));
+                return Convert.ToHexString(d, 0, 3).ToLowerInvariant();
+            }
+            catch (Exception)
+            {
+                return "-";
+            }
+        }
+
+        /// <summary>
+        /// ONE fixed-vocabulary line per push: whether a store was read, its AGE and muted count,
+        /// whether the push carried an address, which set of the store that address hit
+        /// (<c>muted</c> / <c>nick</c> — it has a name but is not muted — / <c>none</c>), its
+        /// salted tag, and the verdict. So the device can tell fail-open from Show-by-design,
+        /// a stale store from a key mismatch (iO.11). Never the address, never a name, never throws.
+        /// </summary>
+        public static void trace(Store? store, string? fa, Verdict verdict)
+        {
+            try
+            {
+                string hit = "none";
+                if (store != null && !string.IsNullOrEmpty(fa))
+                {
+                    if (store.muted != null && store.muted.Contains(fa)) hit = "muted";
+                    else if (store.nicks != null && store.nicks.ContainsKey(fa)) hit = "nick";
+                }
+                string age = "-";
+                if (store != null && store.written > 0)
+                {
+                    age = Math.Max(0, DateTimeOffset.UtcNow.ToUnixTimeSeconds() - store.written).ToString();
+                }
+                write("[SPUSH] store=" + (store != null ? "ok" : "none")
+                    + " age=" + age
+                    + " muted=" + (store?.muted?.Count ?? 0)
+                    + " fa=" + (string.IsNullOrEmpty(fa) ? "none" : "present")
+                    + " hit=" + hit
+                    + " tag=" + tagOf(store?.tagSalt, fa)
+                    + " verdict=" + verdict.action
+                    + " name=" + (string.IsNullOrEmpty(verdict.senderName) ? "no" : "yes")
+                    + " thread=" + (string.IsNullOrEmpty(verdict.thread) ? "no" : "yes"));
             }
             catch (Exception) { }
+        }
+
+        /// <summary>
+        /// ★ #974 (iO.5) — what the content handed to the FINAL content handler carried, against
+        /// the thread the gate applied: <c>kept</c> (the same), <c>lost</c> (empty — re-applied),
+        /// <c>changed</c> (another value — re-applied), <c>none</c> (the gate applied no thread).
+        /// Pure, so the suite can execute the words; the thread values are compared, never printed.
+        /// </summary>
+        public static string threadState(string? want, string? had)
+        {
+            if (string.IsNullOrEmpty(want)) return "none";
+            if (had == want) return "kept";
+            return string.IsNullOrEmpty(had) ? "lost" : "changed";
         }
 
         /// <summary>Applies a Show verdict's thread and name to the content. Never throws.</summary>

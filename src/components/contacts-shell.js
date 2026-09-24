@@ -941,6 +941,11 @@ export function createGroupSetup({
   nameInput.autocomplete = 'off';
   nameInput.placeholder = strings.groupName || 'Group name';
   nameInput.setAttribute('aria-label', strings.groupName || 'Group name');
+  /* ★ N2 (#977, office walk 2026-09-24): Return is the keyboard's "Done" here — it DISMISSES,
+     it never creates the group (the walk: "the keyboard cannot be dismissed, and Return submits").
+     Creating a group is a deliberate act with its own button under the member list; a Return
+     typed to close the keyboard must not fire it. */
+  nameInput.enterKeyHint = 'done';
 
   const nameErr = document.createElement('p');
   nameErr.className = 'c-contacts-add__error';
@@ -1053,7 +1058,20 @@ export function createGroupSetup({
   };
   createBtn.addEventListener('click', submit);
   nameInput.addEventListener('input', () => setNameError(''));
-  nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+  /* ★ N2 (#977): Return = blur only (never submit). IME-guarded: a Return that COMMITS a
+     composition (isComposing / keyCode 229) belongs to the IME and is left alone. */
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+    e.preventDefault();
+    nameInput.blur();
+  });
+  /* ★ N2 (#977): the second dismiss path — a tap anywhere in the panel OUTSIDE the name field
+     closes the keyboard (iOS WKWebView does not blur a focused input on a tap on plain content).
+     pointerdown, not click, so the keyboard starts leaving on touch; a tap on another control
+     still reaches that control (no preventDefault). */
+  el.addEventListener('pointerdown', (e) => {
+    if (document.activeElement === nameInput && e.target !== nameInput) nameInput.blur();
+  });
 
   groupState.set(el, { avatarBtn });
   return el;

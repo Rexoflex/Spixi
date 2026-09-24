@@ -650,5 +650,10 @@
   "unfavorite": "Hapus dari favorit",
   "appFetchHttp": "Aplikasi tidak dapat diunduh dari tautan itu.",
   "appFetchTimeout": "Tautan tidak merespons. Periksa koneksi Anda dan coba lagi.",
-  "appFetchTooLarge": "Paket aplikasi itu terlalu besar."
+  "appFetchTooLarge": "Paket aplikasi itu terlalu besar.",
+  "declinedRequests": "Permintaan yang ditolak",
+  "declinedRequestsSub": "Orang yang permintaan kontaknya Anda tolak",
+  "declinedRequestsNote": "Permintaan ulang dari alamat ini diabaikan. Mereka tidak diberi tahu. Buka blokir untuk menerima permintaan mereka lagi.",
+  "declinedRequestsEmpty": "Anda belum menolak permintaan apa pun.",
+  "unblock": "Buka blokir"
 }

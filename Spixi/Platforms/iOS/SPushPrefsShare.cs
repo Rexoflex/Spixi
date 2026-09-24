@@ -68,6 +68,10 @@ namespace Spixi
             public bool senderName { get; set; } = false;
             public List<string> muted { get; set; } = new List<string>();
             public Dictionary<string, string> nicks { get; set; } = new Dictionary<string, string>();
+            /// ★ #974: unix seconds of this write — the extension's trace prints the store's AGE.
+            public long written { get; set; } = 0;
+            /// ★ #974: the per-install trace salt (see <see cref="traceSalt"/>).
+            public string tagSalt { get; set; } = "";
         }
 
         /// <summary>The store file's path, or null when the App Group container is not
@@ -111,12 +115,21 @@ namespace Spixi
                                         // wipeEverything() ran must not rebuild the wiped store from the old roster
                     }
                     Store store = build();
+                    store.written = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                    store.tagSalt = traceSalt();
                     // source-generated: reflection JSON is IL2026 under iOS trimming
                     string json = JsonSerializer.Serialize(store, SPushPrefsStoreContext.Default.Store);
                     string tmp = path + ".tmp";
                     File.WriteAllText(tmp, json);
                     File.Move(tmp, path, true);
                     excludeFromBackup(path);
+                    /* ★ #974 (iO.11): ONE fixed-vocabulary line per write — the counts and the SALTED
+                     * tags of the muted set (never an address; the salt is not in any log). The
+                     * extension's [SPUSH] line prints the same tag for the push it gated, so the
+                     * device answers "was this sender in the muted set the extension read?" */
+                    Logging.info("[SPUSH-APP] store written: enabled=" + store.enabled + " senderName=" + store.senderName
+                        + " muted=" + store.muted.Count + " nicks=" + store.nicks.Count
+                        + " mutedTags=" + string.Join(",", store.muted.ConvertAll(a => tagOf(store.tagSalt, a))));
                 }
                 return true;
             }
@@ -160,6 +173,49 @@ namespace Spixi
             catch (Exception e)
             {
                 Logging.warn("SPushPrefsShare: backup exclusion threw: " + e.GetType().Name);
+            }
+        }
+
+        private const string KEY_TRACE_SALT = "push_trace_salt";
+
+        /// <summary>
+        /// ★ #974: the per-install random salt for the trace tags, created once and kept in the
+        /// app's preferences (so a tag is stable across writes and restarts). It is written into
+        /// the App Group store for the extension and into NO log. Never throws; "" on failure,
+        /// and then both sides print "-" instead of a tag.
+        /// </summary>
+        private static string traceSalt()
+        {
+            try
+            {
+                string salt = Microsoft.Maui.Storage.Preferences.Default.Get(KEY_TRACE_SALT, "");
+                if (string.IsNullOrEmpty(salt))
+                {
+                    salt = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
+                    Microsoft.Maui.Storage.Preferences.Default.Set(KEY_TRACE_SALT, salt);
+                }
+                return salt;
+            }
+            catch (Exception)
+            {
+                return "";
+            }
+        }
+
+        /// <summary>★ #974: the same tag the extension computes (SpixiPushGate.tagOf) — the first 6
+        /// hex characters of HMAC-SHA256(salt, address). ⚠ Pinned equal to the extension's.</summary>
+        internal static string tagOf(string? salt, string? address)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(salt) || string.IsNullOrEmpty(address)) return "-";
+                using System.Security.Cryptography.HMACSHA256 h = new System.Security.Cryptography.HMACSHA256(System.Text.Encoding.UTF8.GetBytes(salt));
+                byte[] d = h.ComputeHash(System.Text.Encoding.UTF8.GetBytes(address));
+                return Convert.ToHexString(d, 0, 3).ToLowerInvariant();
+            }
+            catch (Exception)
+            {
+                return "-";
             }
         }
 
@@ -215,6 +271,14 @@ namespace Spixi
                         store.nicks[address] = name;
                     }
                 }
+            }
+            /* ★ #978 (#970): a DECLINED requester is not a friend any more, so the loop above never
+             * sees it — its address rides the muted set, and the extension rewrites its push like a
+             * muted chat's (the iO.7 limit applies: iOS may still show a generic row; the real fix is
+             * the server-side mute row). */
+            foreach (string ignored in SRequestIgnore.list())
+            {
+                if (!store.muted.Contains(ignored)) store.muted.Add(ignored);
             }
             return store;
         }

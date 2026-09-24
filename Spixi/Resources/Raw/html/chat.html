@@ -2759,7 +2759,8 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   /* ★ #711: the composer floats INSIDE the canvas now, so the chevron offsets itself by
      the composer slot's height (--composer-h, written on the canvas by the shell's
      ResizeObserver). 0 where nothing writes it (the desktop demo keeps its old slot). */
-  inset-block-end: calc(var(--composer-h, 0px) + var(--spacing-16));
+  /* N1 (#976): + the keyboard lift the chat shell defines (0 wherever nothing defines it) */
+  inset-block-end: calc(var(--composer-h, 0px) + var(--composer-lift, 0px) + var(--spacing-16));
   width: var(--size-target-min);
   height: var(--size-target-min);
   display: flex;
@@ -5094,7 +5095,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      the notice rises like a normal bubble. When the log overflows the auto-
      margins collapse to 0 → notice pins to the top of history, log scrolls,
      newest at the bottom (Damir 2026-07-07). */
-  #messages { flex: 1; min-height: 0; padding-bottom: calc(var(--composer-h, 0px) + var(--spacing-4)); display: flex; flex-direction: column; }   /* ★ Session I: + the floating composer's height (published by the ResizeObserver) so the log passes UNDER the pill */
+  #messages { flex: 1; min-height: 0; padding-bottom: calc(var(--composer-h, 0px) + var(--composer-lift, 0px) + var(--spacing-4)); display: flex; flex-direction: column; }   /* ★ Session I: + the floating composer's height (published by the ResizeObserver) so the log passes UNDER the pill */
   #messages > .c-sysnotice { margin-top: auto; margin-bottom: auto; }
   /* A3 (#302): unread-elsewhere dot on the chat topbar back button. #48 grammar
      (error surface + a 2px ring in the HOST surface so it reads on any background) at
@@ -5160,7 +5161,17 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      (no 34px dead cushion above the keyboard); and with the keyboard closed
      (--kb-inset: 0) the max() clamps the negative result to 0 so the composer
      is never pushed INTO the home indicator. */
-  #chat-composer { margin-bottom: max(0px, calc(var(--kb-inset, 0px) - var(--safe-bottom, 0px))); }
+  /* ★★ N1 (#976, office walk 2026-09-24): "the keyboard lifts the composer but NOT the message log"
+     — while the ⊕ tray DOES lift it. The cause is Session I (#731): the slot became ABSOLUTE, so this
+     margin lifts the pill and nothing else; the log's bottom padding (--composer-h, the slot's
+     measured border box) never learned about the margin, and on iOS the layout viewport does not
+     shrink under the keyboard (WKWebView — the native lever writes --kb-inset instead). The tray
+     lifts the log because it GROWS the slot, which the ResizeObserver publishes. So the lift is ONE
+     named value, defined once here and read by every box that must clear the pill: the slot's
+     margin, the log's padding, the chevron and the @ FAB. Android (adjustResize) and desktop never
+     write --kb-inset, so the value is 0 there and nothing moves. */
+  :root { --composer-lift: max(0px, calc(var(--kb-inset, 0px) - var(--safe-bottom, 0px))); }
+  #chat-composer { margin-bottom: var(--composer-lift, 0px); }
   /* iOS-53 r2 (#324): ride the keyboard, don't jump it. The native push lands at
      the keyboard animation's START (WillChangeFrame), so transitioning the margin
      over ~the keyboard's own duration/curve slides the composer in sync with the
@@ -5367,7 +5378,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   .chat-mention-fab {
     position: absolute;
     inset-inline-end: var(--spacing-16);
-    inset-block-end: calc(var(--composer-h, 0px) + var(--spacing-16));   /* primary bottom slot (chevron hidden) — above the floating composer (#711) */
+    inset-block-end: calc(var(--composer-h, 0px) + var(--composer-lift, 0px) + var(--spacing-16));   /* primary bottom slot (chevron hidden) — above the floating composer (#711), and above the keyboard lift (N1, #976) */
     width: var(--size-target-min); height: var(--size-target-min);
     display: flex; align-items: center; justify-content: center;
     border: var(--outline-width-1) solid var(--outline-neutral-01);
@@ -5385,7 +5396,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   }
   /* chevron visible → stack the @ FAB one 44px button + gap above it */
   .c-scroll-latest[data-visible] ~ .chat-mention-fab {
-    inset-block-end: calc(var(--composer-h, 0px) + var(--spacing-16) + var(--size-target-min) + var(--spacing-8));
+    inset-block-end: calc(var(--composer-h, 0px) + var(--composer-lift, 0px) + var(--spacing-16) + var(--size-target-min) + var(--spacing-8));
   }
   .chat-mention-fab[data-visible] { opacity: 1; transform: translateY(0); visibility: visible; pointer-events: auto; }
   @media (hover: hover) and (pointer: fine) { .chat-mention-fab:hover { background: var(--surface-action-tonal-hover); } } /* #334 AND-18 guard */

@@ -6532,7 +6532,9 @@ console.log('F5 fix batch (#301) — F1/F2/F3/iOS-29 attempt 4');
     'iOS-29: <body> is NEVER resized — that was the lever #294 proved wrong three times (double-topbar artifact, shipped no-op)');
   ok(/setProperty\('--kb-inset'/.test(chat),
     'iOS-29: the keyboard overlap is published as --kb-inset from visualViewport');
-  ok(/margin-bottom: max\(0px, calc\(var\(--kb-inset, 0px\) - var\(--safe-bottom, 0px\)\)\)/.test(chat),
+  /* ★ #976 (N1) re-base: the margin expression moved VERBATIM into ONE named value, --composer-lift, which
+     the slot's margin AND every box that clears the pill now read (the office-fix block pins the readers). */
+  ok(/--composer-lift: max\(0px, calc\(var\(--kb-inset, 0px\) - var\(--safe-bottom, 0px\)\)\)/.test(chat) && /#chat-composer \{ margin-bottom: var\(--composer-lift, 0px\); \}/.test(chat),
     'iOS-29 → AND-45: the composer margin re-uses the safe-area cushion (--safe-bottom) as keyboard clearance and clamps to 0 closed — on iOS env() stays FULL with the keyboard up (#294 measurement); on Android the carrier reads 0 with the keyboard up, so the clamp holds by the listener');
   ok(/if \(vv\.offsetTop \|\| window\.scrollY\) window\.scrollTo\(0, 0\);/.test(chat),
     'iOS-29: the pan reset stays — scrollTo(0,0) is the half #283 PROVED works; only the resize half changed lever');
@@ -14192,7 +14194,7 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   const setShell = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
   const screens = readFileSync(join(root, 'src/components/settings-screens.js'), 'utf8');
 
-  ok(/string caps = "settingsApply,backupInline,downloadsInline,encpass,encpassInline,globalNotifications"/.test(setPage),   // PA1 (#525) appended ,paymentAuth — W-g (2026-08-24) made it a gated append; prefix pin, guarantee unchanged
+  ok(/string caps = "settingsApply,backupInline,downloadsInline,encpass,encpassInline,globalNotifications(?:,ignoredRequests)?"/.test(setPage),   // ★ #978 appended ,ignoredRequests — the guarantee (globalNotifications is in the unconditional set) is unchanged   // PA1 (#525) appended ,paymentAuth — W-g (2026-08-24) made it a gated append; prefix pin, guarantee unchanged
     '★ NOTIF-2: SettingsPage pushes the globalNotifications capability. createNotificationsScreen has been BUILT since #147 and gated on it, and the production shell never set it — a screen that shipped dark for months');
   for (const verb of ['ixian:notifEnabled:', 'ixian:notifSenderName:', 'ixian:notifSounds:']) {
     ok(new RegExp('StartsWith\\("' + verb.replace(/:/g, ':') + '"').test(setPage),
@@ -24371,8 +24373,9 @@ console.log('#711 / #712: floating composer + the notifications sub-labels');
     ok(/<div class="messages u-scroll" id="messages"[^\n]*\n[\s\S]{0,700}?<div id="chat-composer"><\/div>\s*\n\s*<\/div>/.test(t) && !/<\/div>\s*\n\s*<div id="chat-composer"><\/div>\s*\n\s*<script/.test(t),
       '★★ #711 [' + label + ']: #chat-composer lives INSIDE .c-chat-canvas (after #messages) — the composer floats over the pattern, still in the flex flow (keyboard margin, tray, request pane unchanged)');
     ok(/new ResizeObserver\(publish\)\.observe\(slot\);/.test(t) && /setProperty\('--composer-h', h \+ 'px'\)/.test(t) && /const h = slot\.offsetHeight;/.test(t)   /* ★ Session K re-base: the height is read once into `h` (the tray re-pin reads it too) */
-       && /inset-block-end: calc\(var\(--composer-h, 0px\) \+ var\(--spacing-16\)\);\s*\/\* primary bottom slot/.test(t)
-       && /inset-block-end: calc\(var\(--composer-h, 0px\) \+ var\(--spacing-16\) \+ var\(--size-target-min\) \+ var\(--spacing-8\)\);/.test(t),
+       /* ★ #976 (N1) re-base: each slot adds the keyboard lift after --composer-h (the office-fix block derives it for EVERY reader) */
+       && /inset-block-end: calc\(var\(--composer-h, 0px\) \+ var\(--composer-lift, 0px\) \+ var\(--spacing-16\)\);\s*\/\* primary bottom slot/.test(t)
+       && /inset-block-end: calc\(var\(--composer-h, 0px\) \+ var\(--composer-lift, 0px\) \+ var\(--spacing-16\) \+ var\(--size-target-min\) \+ var\(--spacing-8\)\);/.test(t),
       '★ #711 [' + label + ']: the composer publishes its height (--composer-h, ResizeObserver) and the @ FAB\'s two slots read it — the FABs float ABOVE the composer, never under it');
   }
   const cc = rdF('src/styles/components/composer.css');
@@ -24397,7 +24400,7 @@ console.log('#711 / #712: floating composer + the notifications sub-labels');
        && /scrollbar-color: var\(--outline-composer-pill\) transparent;/.test(inp) && !/scrollbar-color: var\(--outline-neutral-02\)/.test(inp),
       '★ Session H (Damir screenshot): the textarea scrolls on the thin .u-scroll grammar — no arrows, no classic track, NO reserved gutter (it would shift the text 6px), thumb in the pill pair (outline-neutral-02 is 1.02:1 against the dark pill)');
   }
-  ok(/inset-block-end: calc\(var\(--composer-h, 0px\) \+ var\(--spacing-16\)\);/.test(rdF('src/styles/components/scroll-latest.css')),
+  ok(/inset-block-end: calc\(var\(--composer-h, 0px\) \+ var\(--composer-lift, 0px\) \+ var\(--spacing-16\)\);/.test(rdF('src/styles/components/scroll-latest.css')),   // ★ #976 (N1) re-base: + the keyboard lift (0 where nothing defines it)
     '★ #711: the scroll-to-latest chevron offsets itself by --composer-h (0 where nothing writes it — the desktop demo keeps its old slot)');
   const ss = rdF('src/styles/components/settings-shell.css');
   const sub = ss.slice(ss.indexOf('.c-settings__row-sub,'), ss.indexOf('}', ss.indexOf('.c-settings__row-sub,')));
@@ -25390,7 +25393,8 @@ console.log('Session I ③: the premium pass token batch');
       '★ 5: composer.js parents the ⊕ to the FIELD (reverses #705\'s outside-disc; the tray/✕ behaviour is untouched and pinned in the #705 block)');
     const ch = rdF('src/shells/chat.html'), chB = rdF('Spixi/Resources/Raw/html/chat.html');
     ok(/#chat-composer \{ position: absolute; inset-inline: var\(--safe-left, 0px\) var\(--safe-right, 0px\); inset-block-end: 0; \}/.test(ch) && /#chat-composer \{ position: absolute; inset-inline: var\(--safe-left, 0px\) var\(--safe-right, 0px\); inset-block-end: 0; \}/.test(chB)   // #926: the slot pads itself by the side insets
-       && /#messages \{ flex: 1; min-height: 0; padding-bottom: calc\(var\(--composer-h, 0px\) \+ var\(--spacing-4\)\);/.test(ch) && /padding-bottom: calc\(var\(--composer-h, 0px\) \+ var\(--spacing-4\)\);/.test(chB),
+       /* ★ #976 (N1) re-base: the log's padding adds the keyboard lift between the pill's height and the gap */
+       && /#messages \{ flex: 1; min-height: 0; padding-bottom: calc\(var\(--composer-h, 0px\) \+ var\(--composer-lift, 0px\) \+ var\(--spacing-4\)\);/.test(ch) && /padding-bottom: calc\(var\(--composer-h, 0px\) \+ var\(--composer-lift, 0px\) \+ var\(--spacing-4\)\);/.test(chB),
       '★★ 5 FLOATING (#731 "messages pass under the pill"): the slot is absolute at the canvas bottom and the log pads by the published --composer-h — source AND built shell');
     ok(!/#chat-composer \{[^}]*(z-index|transform|contain|will-change)/.test(ch),
       '★ 5: the absolute slot adds NO stacking-context property (the message-menu lift rule on the canvas\'s children still holds)');
@@ -35481,7 +35485,10 @@ console.log('#912: backup exclusions, the html copy skip, and the start clock');
      && /content\.InterruptionLevel = UNNotificationInterruptionLevel\.Passive2;/.test(emptyBody) && /content\.RelevanceScore = 0;/.test(emptyBody) && !/\.Passive;/.test(emptyBody)
      && /SpixiPushGate\.empty\(BestAttemptContent\);/.test(suppress) && /ContentHandler = null;/.test(suppress) && /contentHandler\(BestAttemptContent\);/.test(suppress) && /return;/.test(suppress)
      && osCalls.length === 1 && suppressAt > 0 && osCalls[0] > suppressAt
-     && /SpixiPushGate\.apply\(BestAttemptContent, verdict\);\s*NotificationServiceExtension\.DidReceiveNotificationExtensionRequest\(request, BestAttemptContent, contentHandler\);/.test(svc)
+     /* ★ #975 (office fix, iO.5): re-based — OneSignal now receives the THREAD-KEEPING WRAPPER, never the
+        raw contentHandler (the wrapper re-applies the gate's thread on the final content; its own pin is in
+        the office-fix block). The order is unchanged: apply, then OneSignal. */
+     && /SpixiPushGate\.apply\(BestAttemptContent, verdict\);\s*Action<UNNotificationContent> wrapped = threadKeeper\(verdict\.thread, contentHandler\);\s*ContentHandler = wrapped;\s*NotificationServiceExtension\.DidReceiveNotificationExtensionRequest\(request, BestAttemptContent, wrapped\);/.test(svc)
      && /if \(ContentHandler == null \|\| ReceivedRequest == null\) return;/.test((/public override void TimeWillExpire\(\)\s*\{([\s\S]*?)\n        \}/.exec(svc) || [])[1] || ''),   // r2 MINOR-2: a null request cannot be forwarded (CS8604 under TreatWarningsAsErrors)
     '★★ #919 ④: the mute rewrite clears title, subtitle, body AND sound, drops the level to Passive2 (not the [Obsolete] Passive) with zero relevance, badge = null; OneSignal\'s handler is called EXACTLY ONCE in the file (' + osCalls.length + '), AFTER the Suppress branch\'s return — the Suppress branch delivers the emptied content itself and disarms TimeWillExpire, which then returns early (and also on a null ReceivedRequest)');
   /* ⑤ the two halves speak the same store: FILE_NAME and SCHEMA equal, the Store shapes
@@ -35492,7 +35499,7 @@ console.log('#912: backup exclusions, the html copy skip, and the start clock');
   const schemaGate = (/public const int SCHEMA = (\d+);/.exec(gate) || [])[1], schemaShare = (/public const int SCHEMA = (\d+);/.exec(share) || [])[1];
   const fields = (src) => { const m = /class Store\s*\{([\s\S]*?)\n        \}/.exec(src); return m ? [...m[1].matchAll(/public ([\w<>, ]+?) (\w+) \{ get; set; \}/g)].map((x) => x[1].replace(/\s+/g, '') + ' ' + x[2]) : null; };
   const fGate = fields(gate), fShare = fields(share);
-  const sameFields = fGate && fShare && fGate.length === 5 && fGate.join('|') === fShare.join('|');
+  const sameFields = fGate && fShare && fGate.length === 7 && fGate.join('|') === fShare.join('|');   // ★ #974: + written + tagSalt (additive; SCHEMA stays 1 — the reader ignores unknown fields)
   const refLive = /<ItemGroup Condition="\$\(TargetFramework\.Contains\('-ios'\)\)">\s*<ProjectReference Include="\.\.\/Spixi-PushService\/Spixi-PushService\.csproj">\s*<IsAppExtension>true<\/IsAppExtension>/.test(appCsproj) && !/<!--\s*<ItemGroup[^>]*>\s*<ProjectReference Include="\.\.\/Spixi-PushService/.test(appCsproj);
   const sdkApp = (/<PackageReference Include="OneSignalSDK\.DotNet" Version="([^"]+)"/.exec(appCsproj) || [])[1], sdkExt = (/<PackageReference Include="OneSignalSDK\.DotNet" Version="([^"]+)"/.exec(extCsproj) || [])[1];
   const noRename = !/JsonPropertyName|JsonSourceGenerationOptions|PropertyNamingPolicy/.test(gate) && !/JsonPropertyName|JsonSourceGenerationOptions|PropertyNamingPolicy/.test(share);
@@ -36374,6 +36381,204 @@ console.log('★ Session AD — the ours/his cutover rows: batch 1 (CH6 · C1/C2
   ok(!/displaySpixiAlert\("No recipients"/.test(hpAD) && /_SL\("wallet-send-norecipients"\), SpixiLocalization\._SL\("chat-new-norecipient-text"\)/.test(hpAD)
      && !/displaySpixiAlert\([^;]*"Cancel"\)/.test(csAD('Spixi/Pages/Launch/LockPage.xaml.cs')),
     '★ i18n-C#: HomePage\'s no-recipients alert and LockPage\'s invalid-password button read the dictionary, not English literals');
+}
+
+/* ══ ★★ THE OFFICE FIX ROUND (#974–#981, 2026-09-24 overnight) ══════════════════════════════
+ * Every pin below states a PROPERTY and was killed by a mutation before it was trusted (the
+ * mutation list is in DECISIONS #982). C# is read through stripCode (#771); the CSS walk reads
+ * the built chat shell and the components' CSS with comments stripped. */
+console.log('Office fix round (#974–#981)');
+{
+  const rdO = (p) => readFileSync(join(root, p), 'utf8');
+  const csO = (p) => stripCode(rdO(p));
+  const bodyO = (t, head) => { const i = t.indexOf(head); if (i < 0) return ''; let d = 0; for (let k = t.indexOf('{', i); k >= 0 && k < t.length; k++) { if (t[k] === '{') d++; else if (t[k] === '}' && --d === 0) return t.slice(i, k + 1); } return ''; };
+  const gate = csO('Spixi-PushService/SpixiPushGate.cs'), svc = csO('Spixi-PushService/NotificationService.cs'), share = csO('Spixi/Platforms/iOS/SPushPrefsShare.cs');
+
+  /* ── #974 ① the extension's log sink is os_log (CoreFoundation.OSLog), Console only as the catch fallback */
+  const writeBody = bodyO(gate, 'public static void write(string line)');
+  const writeTry = (writeBody.match(/try\s*\{([\s\S]*?)\}\s*catch/) || [])[1] || '';
+  const consoleOutsideWrite = gate.replace(writeBody, '').includes('Console.WriteLine') || svc.includes('Console.WriteLine');
+  ok(/new OSLog\(LOG_SUBSYSTEM, LOG_CATEGORY\)/.test(writeTry) && /\.Log\(OSLogLevel\.Default, line\)/.test(writeTry) && !/Console/.test(writeTry)
+     && /catch \(Exception\)\s*\{\s*try \{ Console\.WriteLine\(line\); \} catch \(Exception\) \{ \}/.test(writeBody)
+     && !consoleOutsideWrite && /using CoreFoundation;/.test(gate)
+     && /public const string LOG_SUBSYSTEM = "com\.ixilabs\.spixi\.push";/.test(gate) && /public const string LOG_CATEGORY = "spush";/.test(gate),
+    '★★ #974 ①: the extension logs through os_log (OSLog subsystem com.ixilabs.spixi.push, category spush, level Default — Console.app streams it), Console.WriteLine survives ONLY as write()\'s catch fallback, and no other line in either extension file prints to Console (the walk: "[SPUSH] zero lines")');
+
+  /* ── #974 ② FIXED VOCABULARY: nothing an address can reach is printed. Derived: every write( argument and
+     the trace body, with the allowed wrappers removed, must name none of the address-bearing identifiers. */
+  const traceBody = bodyO(gate, 'public static void trace(Store? store, string? fa, Verdict verdict)');
+  const scrub = (t) => t
+    .replace(/"[^"]*"/g, '""')   // the WORDS in the literals are the vocabulary itself ("fa=", "thread=") — a label is not a value
+    .replace(/tagOf\([^()]*\)/g, 'TAG')
+    .replace(/string\.IsNullOrEmpty\([^()]*\)/g, 'EMPTY')
+    .replace(/threadState\([^()]*\)/g, 'STATE')
+    .replace(/\.Contains\([^()]*\)/g, '.C()').replace(/\.ContainsKey\([^()]*\)/g, '.CK()');
+  const banned = /\bfa\b|\bwant\b|\bhad\b|\bThreadIdentifier\b|\bnicks\[|verdict\.thread(?!\))|verdict\.senderName(?!\))/;
+  const writeArgs = [...(gate + '\n' + svc).matchAll(/SpixiPushGate\.write\(([^;]*)\);|\bwrite\(("\[SPUSH\][^;]*)\);/g)].map((m) => m[1] || m[2]);
+  const leaks = writeArgs.filter((a) => banned.test(scrub(a)));
+  const traceWrite = (traceBody.match(/write\(([\s\S]*?)\);\s*\}\s*catch/) || [])[1] || '';
+  ok(writeArgs.length >= 3 && leaks.length === 0 && traceWrite.length > 0 && !banned.test(scrub(traceWrite))
+     && /" tag=" \+ tagOf\(store\?\.tagSalt, fa\)/.test(traceWrite) && /" hit=" \+ hit/.test(traceWrite) && /" age=" \+ age/.test(traceWrite),
+    '★★ #974 ②: fixed vocabulary — ' + writeArgs.length + ' write() sites + the trace line name no address, no thread id, no nick (leaks: ' + JSON.stringify(leaks) + '); the address reaches the log only as a SALTED tag (tagOf), with hit=muted|nick|none and the store age');
+
+  /* ── #974 ③ the salted tag is ONE function in two homes (extension ↔ app), and the app logs its muted set with it */
+  const norm = (t) => t.replace(/System\.Security\.Cryptography\.|System\.Text\./g, '').replace(/\s+/g, ' ').replace(/^.*?\{/, '');
+  const tagGate = bodyO(gate, 'public static string tagOf(string? salt, string? address)');
+  const tagShare = bodyO(share, 'internal static string tagOf(string? salt, string? address)');
+  const syncLock = (bodyO(share, 'public static bool sync()').match(/lock \(writeLock\)\s*\{([\s\S]*?)\n                \}/) || [])[1] || '';
+  ok(tagGate.length > 0 && norm(tagGate) === norm(tagShare) && /HMACSHA256/.test(tagGate) && /Convert\.ToHexString\(d, 0, 3\)/.test(tagGate)
+     && /store\.written = DateTimeOffset\.UtcNow\.ToUnixTimeSeconds\(\);/.test(syncLock) && /store\.tagSalt = traceSalt\(\);/.test(syncLock)
+     && /mutedTags=" \+ string\.Join\(",", store\.muted\.ConvertAll\(a => tagOf\(store\.tagSalt, a\)\)\)/.test(syncLock)
+     && [...share.replace(/tagOf\(store\.tagSalt, a\)/g, 'TAG').matchAll(/Logging\.\w+\(([^;]*)\);/g)].every((m) => !/tagSalt|traceSalt|KEY_TRACE_SALT/.test(m[1])),
+    '★★ #974 ③: tagOf is the SAME body in the extension and in SPushPrefsShare (HMAC-SHA256, first 3 bytes); every store write stamps `written` + the per-install salt and logs the muted set as TAGS; the salt itself is never logged');
+
+  /* ── #975 iO.5 the thread survives OneSignal: a once-only wrapper re-applies it on the FINAL content */
+  const keeper = bodyO(svc, 'static Action<UNNotificationContent> threadKeeper(string? want, Action<UNNotificationContent> final)');
+  const stateBody = bodyO(gate, 'public static string threadState(string? want, string? had)');
+  ok(/if \(System\.Threading\.Interlocked\.Exchange\(ref delivered, 1\) == 1\)\s*\{[\s\S]*?return;\s*\}/.test(keeper)
+     && /state = SpixiPushGate\.threadState\(want, had\);/.test(keeper)
+     && /if \(\(state == "lost" \|\| state == "changed"\) && content != null\)/.test(keeper)
+     && /UNMutableNotificationContent copy = \(UNMutableNotificationContent\)content\.MutableCopy\(\);\s*copy\.ThreadIdentifier = want!;\s*outContent = copy;/.test(keeper)
+     && /final\(outContent\);\s*\};\s*\}$/.test(keeper.trim())
+     && /if \(string\.IsNullOrEmpty\(want\)\) return "none";\s*if \(had == want\) return "kept";\s*return string\.IsNullOrEmpty\(had\) \? "lost" : "changed";/.test(stateBody)
+     && /if \(ContentHandler == null \|\| ReceivedRequest == null\) return;/.test(bodyO(svc, 'public override void TimeWillExpire()'))
+     && /DidReceiveNotificationExtensionRequest\(request, BestAttemptContent, wrapped\);/.test(svc) && !/DidReceiveNotificationExtensionRequest\([^;]*contentHandler\)/.test(svc),
+    '★★ #975 (iO.5): OneSignal is handed a WRAPPER — it delivers ONCE (Interlocked; the TimeWillExpire belt calls the same wrapper), compares the final content\'s thread with the gate\'s (kept/lost/changed/none), re-applies it on a mutable copy when lost or changed, and always delivers');
+
+  /* ── #976 N1 the keyboard lift is ONE value, and EVERY box that clears the floating composer reads it */
+  const builtChat = rdO('Spixi/Resources/Raw/html/chat.html');
+  const cssChat = [...builtChat.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
+  const decls = [...cssChat.matchAll(/([a-z-]+)\s*:\s*([^;{}]*var\(--composer-h[^;{}]*)[;}]/g)].map((m) => m[1] + ': ' + m[2].trim());
+  const noLift = decls.filter((d) => !/var\(--composer-lift, 0px\)/.test(d));
+  const liftDefs = [...cssChat.matchAll(/--composer-lift\s*:\s*([^;]+);/g)].map((m) => m[1].trim());
+  ok(decls.length >= 4 && noLift.length === 0
+     && liftDefs.length === 1 && liftDefs[0] === 'max(0px, calc(var(--kb-inset, 0px) - var(--safe-bottom, 0px)))'
+     && /#chat-composer\s*\{\s*margin-bottom:\s*var\(--composer-lift, 0px\);\s*\}/.test(cssChat)
+     && !/#chat-composer\s*\{\s*margin-bottom:\s*max\(/.test(cssChat)
+     && /#messages\s*\{[^}]*padding-bottom:\s*calc\(var\(--composer-h, 0px\) \+ var\(--composer-lift, 0px\)/.test(cssChat),
+    '★★ #976 (N1): ONE lift (--composer-lift = the keyboard inset minus the safe bottom, defined once) moves the composer slot AND every box that clears it — derived over the BUILT chat shell: ' + decls.length + ' declarations read --composer-h, none without the lift (' + JSON.stringify(noLift) + ') — so the keyboard lifts the log, the chevron and the @ FAB with the pill (the ⊕ tray already did, by growing the slot)');
+
+  /* ── #981 M1 an EMPTY standard row paints nothing on the LIVE path either (the load path's rendersNothing agrees) */
+  const scp = csO('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+  const ins = bodyO(scp, 'private void insertMessage(FriendMessage message, int channel, UiBatch? batch)');
+  const stdBranch = (ins.match(/if \(message\.type == FriendMessageType\.standard\)\s*\{([\s\S]*?)push\(batch, prefix/) || [])[1] || '';
+  const upd = bodyO(scp, 'public void updateMessage(FriendMessage message, int channel)');
+  ok(/^\s*if \(string\.IsNullOrEmpty\(message\.message\)\)\s*\{[^{}]*Logging\.info\([^;]*\);\s*return;\s*\}/.test(stdBranch)
+     && !/message\.message\)?\s*\+|\+\s*message\.message|Crypto\.hashToString\(message\.id\)\s*\+/.test((stdBranch.match(/Logging\.info\(([^;]*)\);/) || [])[1] || '')
+     && /if \(string\.IsNullOrEmpty\(message\.message\)\)\s*\{[^{}]*Logging\.info\([^;]*\);\s*return;\s*\}/.test(upd)
+     && upd.search(/if \(string\.IsNullOrEmpty\(message\.message\)\)\s*\{[^{}]*return;/) > 0 && upd.search(/if \(string\.IsNullOrEmpty\(message\.message\)\)\s*\{[^{}]*return;/) < upd.indexOf('Utils.sendUiCommand(this, "updateMessage"'),
+    '★★ #981 (M1): insertMessage returns BEFORE the addThem/addMe push for an empty standard row (live and load alike — the load path already skipped it through rendersNothing), and updateMessage never pushes one (the shell would overwrite a row\'s text with "" or create an empty row); the log line names direction + live/load, never the id or any text');
+}
+
+/* ── #977 N2 the group-name field: Return dismisses, never creates; a tap outside dismisses too */
+{
+  const dom = await load('chats.html');
+  const W = dom.window, d = W.document;
+  let created = 0;
+  const gs = W.Spixi.createGroupSetup({ members: [{ name: 'A', address: 'addr-a' }], onCreate: (p, ctrl) => { created++; ctrl.done(); } });
+  d.body.append(gs);
+  const input = gs.querySelector('.c-contacts-group__name');
+  input.value = 'Falcon crew';
+  input.focus();
+  const hadFocus = d.activeElement === input;
+  const kd = (init) => { const e = new W.KeyboardEvent('keydown', Object.assign({ key: 'Enter', bubbles: true, cancelable: true }, init)); input.dispatchEvent(e); return e; };
+  const composing = kd({ isComposing: true });
+  const stillFocusedWhileComposing = d.activeElement === input && !composing.defaultPrevented;
+  const ret = kd({});
+  const blurredByReturn = d.activeElement !== input && ret.defaultPrevented;
+  input.focus();
+  gs.querySelector('.c-contacts-group__body').dispatchEvent(new W.Event('pointerdown', { bubbles: true }));
+  const blurredByTap = d.activeElement !== input;
+  input.focus();
+  input.dispatchEvent(new W.Event('pointerdown', { bubbles: true }));
+  const keptOnSelfTap = d.activeElement === input;
+  const createdBeforeButton = created;
+  gs.querySelector('.c-contacts__footer .c-button').click();
+  ok(hadFocus && input.enterKeyHint === 'done' && stillFocusedWhileComposing && blurredByReturn && createdBeforeButton === 0
+     && blurredByTap && keptOnSelfTap && created === 1,
+    '★★ #977 (N2): the group-name field\'s Return is "done" — it BLURS the field (keyboard dismissed) and never creates the group (created before the button: ' + createdBeforeButton + '); an IME-composing Return is left to the IME; a tap anywhere else in the panel dismisses; a tap on the field keeps it; the Create button still creates (' + created + ')');
+  gs.remove();
+
+  /* ── #978 (#970) the Declined-requests screen: addresses are TEXT, truncated, one Unblock per row, fire-once */
+  const tapped = [];
+  const hostile = '1<img src=x onerror=alert(1)>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+  const scr = W.Spixi.createSettingsIgnored({ addresses: ['1ixianQ9jhvT7GBr5ZyG8m4bW9tNf3CkTdPUs7Ay4GwHxeKbYo3', hostile, '  '], onUnblock: (a) => tapped.push(a), onBack: () => {} });
+  d.body.append(scr);
+  const rows = [...scr.querySelectorAll('.c-settings__ignored-row')];
+  const btn = rows[0] && rows[0].querySelector('.c-button');
+  if (btn) { btn.click(); btn.click(); }
+  const empty = W.Spixi.createSettingsIgnored({ addresses: [], onUnblock: () => {} });
+  ok(rows.length === 2 && !scr.querySelector('img[src="x"]') && rows[1].querySelector('.c-settings__ignored-addr').textContent.includes('…')
+     && rows[0].querySelector('.c-settings__ignored-addr').textContent === '1ixianQ9j…eKbYo3'
+     && tapped.length === 1 && tapped[0] === '1ixianQ9jhvT7GBr5ZyG8m4bW9tNf3CkTdPUs7Ay4GwHxeKbYo3'
+     && btn.getAttribute('aria-label').endsWith('1ixianQ9jhvT7GBr5ZyG8m4bW9tNf3CkTdPUs7Ay4GwHxeKbYo3')
+     && empty.querySelectorAll('.c-settings__ignored-row').length === 0 && !!empty.querySelector('.c-settings__ignored-empty'),
+    '★★ #978 (#970): Declined requests renders one row per NON-blank address as TEXT in the #211 canon (a markup-shaped address stays inert text), the full address rides the accessible name only, Unblock fires ONCE with the full address, and an empty list shows the empty line');
+  scr.remove();
+}
+
+/* ── #978 (#970) the C# half: remembered only on an INCOMING decline, dropped only when it is certainly that requester's re-sent request */
+{
+  const csO = (p) => stripCode(readFileSync(join(root, p), 'utf8'));
+  const bodyO = (t, head) => { const i = t.indexOf(head); if (i < 0) return ''; let d = 0; for (let k = t.indexOf('{', i); k >= 0 && k < t.length; k++) { if (t[k] === '{') d++; else if (t[k] === '}' && --d === 0) return t.slice(i, k + 1); } return ''; };
+  const ign = csO('Spixi/Meta/SRequestIgnore.cs');
+  const logs = [...ign.matchAll(/Logging\.\w+\(([^;]*)\);/g)].map((m) => m[1]);
+  const logLeak = logs.filter((a) => a.replace(/"[^"]*"/g, '').replace(/list\.Count|e\.GetType\(\)\.Name|SPIXI\.Utils\.logSafe\(e\.Message\)|[+\s()]/g, '').length > 0);
+  ok(/private const string KEY = "ignored_requests";/.test(ign) && /public const int CAP = 256;/.test(ign) && /while \(list\.Count > CAP\) list\.RemoveAt\(0\);/.test(ign)
+     && /Address a = new Address\(address\.Trim\(\)\);\s*string s = a\.ToString\(\);/.test(bodyO(ign, 'public static string? canonical(string? address)'))
+     && logs.length >= 4 && logLeak.length === 0,
+    '★ #978: SRequestIgnore keys on the CANONICAL address (parsed, so a spelling cannot slip past), is capped at 256 (oldest dropped), is an app preference (not a spixi.* WebView key), and its ' + logs.length + ' log lines carry counts and exception TYPES only (leaks: ' + JSON.stringify(logLeak) + ')');
+
+  const sp = csO('Spixi/Network/StreamProcessor.cs');
+  const rd = bodyO(sp, 'public override ReceiveDataResponse? receiveData(byte[] bytes, RemoteEndpoint endpoint, bool fireLocalNotification = true, bool alert = true)');
+  const peek = bodyO(sp, 'private static bool isIgnoredRequest(byte[] bytes)');
+  /* each refusal is a WHOLE `if (<condition>) { return false; }` (a `false &&` or an inverted test fails the
+     match), found in this order; the one acceptance follows the last */
+  const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const guard = (cond, ret) => { const m = new RegExp('if \\(' + esc(cond) + '\\)\\s*\\{\\s*return ' + ret + ';\\s*\\}').exec(peek); return m ? m.index : -1; };
+  const order = [
+    guard('bytes == null || !SRequestIgnore.any()', 'false'),
+    guard('!IxianHandler.getWalletStorage().isMyAddress(peek.recipient)', 'false'),
+    guard('FriendList.getFriend(peek.sender) != null', 'false'),
+    guard('peek.encryptionType != StreamMessageEncryptionCode.none', 'false'),
+    guard('sm.type != SpixiMessageCode.requestAdd && sm.type != SpixiMessageCode.requestAdd2', 'false'),
+    guard('!SRequestIgnore.contains(peek.sender)', 'false'),
+  ];
+  const returnsTrue = (peek.match(/return true;/g) || []).length;
+  ok(rd.indexOf('if (isIgnoredRequest(bytes))') > 0 && rd.indexOf('if (isIgnoredRequest(bytes))') < rd.indexOf('base.receiveData(bytes, endpoint)')
+     && order.every((x) => x > 0) && order.every((x, i) => i === 0 || x > order[i - 1])
+     && returnsTrue === 1 && peek.lastIndexOf('return true;') > order[5]
+     && /catch \(Exception e\)\s*\{[^{}]*return false;\s*\}/.test(peek),
+    '★★ #978: the drop runs BEFORE Core (base.receiveData) and only when ALL hold, in this order — the list is non-empty · addressed to MY wallet · the sender is NOT a friend · unencrypted · requestAdd/requestAdd2 · the sender is on the list; there is exactly ONE `return true` and it is after the last test; any parse failure lets the message through');
+
+  const hp = csO('Spixi/Pages/Home/HomePage.xaml.cs');
+  const dec = bodyO(hp, 'private void onDeclineRequest(string address)');
+  const decOk = (dec.match(/if \(FriendList\.removeFriend\(friend\)\)\s*\{([\s\S]*?)\}/) || [])[1] || '';
+  const scp = csO('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
+  const undo = (scp.match(/else if \(current_url\.StartsWith\("ixian:undorequest"\)\)\s*\{([\s\S]*?)\n            \}/) || [])[1] || '';
+  const iDecl = undo.indexOf('bool declinedIncoming'), iRemove = undo.indexOf('FriendList.removeFriend(friend)');
+  ok(/SRequestIgnore\.add\(friend\.walletAddress\.ToString\(\)\);/.test(decOk) && (dec.match(/SRequestIgnore\.add/g) || []).length === 1
+     && iDecl > 0 && iDecl < iRemove
+     && /bool declinedIncoming = friend\.type == FriendType\.Normal && !friend\.bot\s*&& friend\.state != FriendState\.RequestSent && friend\.state != FriendState\.Approved;/.test(undo)
+     && /if \(requestRemoved\)\s*\{[^{}]*if \(declinedIncoming\) SRequestIgnore\.add\(friend\.walletAddress\.ToString\(\)\);\s*\}/.test(undo)
+     && (scp.match(/SRequestIgnore\.add/g) || []).length === 1,
+    '★★ #978: an address is REMEMBERED only on an incoming decline that really removed the record — the request card (HomePage, inside the removeFriend success branch) and the in-chat request pane (read BEFORE the removal: never our own RequestSent, never an Approved contact, never a room); nothing else in either page adds to the list');
+
+  const st = csO('Spixi/Pages/Settings/SettingsPage.xaml.cs');
+  const un = (st.match(/else if \(current_url\.StartsWith\("ixian:unignore:", StringComparison\.Ordinal\)\)\s*\{([\s\S]*?)\n            \}/) || [])[1] || '';
+  const wipe = bodyO(st, 'private void wipeEverything()');
+  ok(/"[^"]*,ignoredRequests"/.test(st) && /pushIgnoredRequests\(\);/.test(bodyO(st, 'private void pushIgnoredRequests()') ? st : '')
+     && un.replace(/\s+/g, ' ').trim() === 'SRequestIgnore.remove(current_url.Substring("ixian:unignore:".Length)); pushIgnoredRequests();'
+     && wipe.indexOf('SRequestIgnore.clear()') > wipe.indexOf('Preferences.Default.Clear()') && wipe.indexOf('Preferences.Default.Clear()') > 0
+     && /FriendList\.clear\(\);\s*SRequestIgnore\.clear\(\);/.test(bodyO(st, 'private void wipeAccountData()')),
+    '★ #978: the un-block verb does exactly two things (remove from the list, re-push it) — no friend, no network, no file; the cap is pushed; the wallet wipe and the account wipe both clear the list (the in-process copy too, after Preferences.Clear)');
+
+  const np = csO('Spixi/Meta/SNotificationPrefs.cs');
+  const raw = bodyO(np, 'public static bool shouldDisplayRawPush(string? fa)');
+  const share = csO('Spixi/Platforms/iOS/SPushPrefsShare.cs');
+  ok(/if \(friend == null\)\s*\{\s*return !SRequestIgnore\.contains\(fa\);\s*\}/.test(raw)
+     && /foreach \(string ignored in SRequestIgnore\.list\(\)\)\s*\{\s*if \(!store\.muted\.Contains\(ignored\)\) store\.muted\.Add\(ignored\);\s*\}\s*return store;/.test(bodyO(share, 'private static Store build()')),
+    '★ #978: the declined requester\'s raw push is not shown (Android: shouldDisplayRawPush, an unknown sender on the list → false; every other unknown sender still shows) and on iOS the address rides the extension\'s muted set');
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

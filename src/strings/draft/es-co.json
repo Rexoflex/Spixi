@@ -727,5 +727,10 @@
   "unfavorite": "Quitar de favoritos",
   "appFetchHttp": "No se pudo descargar la app desde ese enlace.",
   "appFetchTimeout": "El enlace no respondió. Revisa tu conexión e inténtalo de nuevo.",
-  "appFetchTooLarge": "Ese paquete de app es demasiado grande."
+  "appFetchTooLarge": "Ese paquete de app es demasiado grande.",
+  "declinedRequests": "Solicitudes rechazadas",
+  "declinedRequestsSub": "Personas cuyas solicitudes de contacto rechazaste",
+  "declinedRequestsNote": "Si estas direcciones vuelven a enviar una solicitud, se ignora. No se les avisa. Desbloquea para volver a recibir sus solicitudes.",
+  "declinedRequestsEmpty": "No has rechazado ninguna solicitud.",
+  "unblock": "Desbloquear"
 }

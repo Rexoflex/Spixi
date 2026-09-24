@@ -1182,6 +1182,27 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   padding-inline: var(--spacing-16);
 }
 
+/* ★ #978 (#970) — Declined requests (the un-block path). The note and the empty line are the
+   row-sub role (body-sm, neutral-02) on the screen's own inline padding; a row is the static
+   settings row with the address (truncated canon, #211) and a 32 outline Unblock. */
+.c-settings__ignored-note,
+.c-settings__ignored-empty {
+  margin: 0;
+  padding: var(--spacing-12) var(--spacing-16) var(--spacing-8);
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-settings__ignored-row { gap: var(--spacing-12); }
+.c-settings__ignored-addr {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.c-settings__ignored-row .c-button { flex: none; }
+
 </style>
 <style data-src="../styles/components/overlay.css">
 /* Overlay layer: scrim + c-sheet + c-modal (docs/overlays-spec.md, DECISIONS #56).

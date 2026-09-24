@@ -402,7 +402,11 @@ namespace SPIXI.Meta
                 }
                 if (friend == null)
                 {
-                    return true;   // unknown sender — err toward showing
+                    /* ★ #978 (#970): an unknown sender the user DECLINED is the one unknown we can
+                     * prove the user does not want to hear from — its re-sent request is dropped
+                     * in StreamProcessor, so its raw push row must not arrive either. Every other
+                     * unknown sender still errs toward showing. */
+                    return !SRequestIgnore.contains(fa);
                 }
 
                 /* ⚠ AUDIT MAJOR — this gate must not apply a 1:1 mute to a GROUP message.

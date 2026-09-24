@@ -727,5 +727,10 @@
   "unfavorite": "Ukloni iz omiljenih",
   "appFetchHttp": "Aplikacija nije mogla da se preuzme sa tog linka.",
   "appFetchTimeout": "Link nije odgovorio. Proveri vezu i pokušaj ponovo.",
-  "appFetchTooLarge": "Taj paket aplikacije je prevelik."
+  "appFetchTooLarge": "Taj paket aplikacije je prevelik.",
+  "declinedRequests": "Odbijeni zahtevi",
+  "declinedRequestsSub": "Osobe čije ste zahteve za kontakt odbili",
+  "declinedRequestsNote": "Ponovni zahtev sa ovih adresa se ignoriše. Oni nisu obavešteni. Odblokirajte da biste ponovo primali njihove zahteve.",
+  "declinedRequestsEmpty": "Niste odbili nijedan zahtev.",
+  "unblock": "Odblokiraj"
 }

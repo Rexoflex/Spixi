@@ -650,5 +650,10 @@
   "unfavorite": "お気に入りから削除",
   "appFetchHttp": "このリンクからアプリをダウンロードできませんでした。",
   "appFetchTimeout": "リンクが応答しませんでした。接続を確認して、もう一度お試しください。",
-  "appFetchTooLarge": "このアプリのパッケージは大きすぎます。"
+  "appFetchTooLarge": "このアプリのパッケージは大きすぎます。",
+  "declinedRequests": "拒否したリクエスト",
+  "declinedRequestsSub": "連絡先リクエストを拒否した相手",
+  "declinedRequestsNote": "これらのアドレスからの再リクエストは無視されます。相手には通知されません。ブロックを解除すると再びリクエストを受け取れます。",
+  "declinedRequestsEmpty": "拒否したリクエストはありません。",
+  "unblock": "ブロック解除"
 }

@@ -49,7 +49,7 @@ namespace OneSignalNotificationServiceExtension
                 string? fa = SpixiPushGate.readFa(request.Content.UserInfo);
                 SpixiPushGate.Store? store = SpixiPushGate.load();
                 verdict = SpixiPushGate.decide(store, fa);
-                SpixiPushGate.trace(store != null, fa, verdict);
+                SpixiPushGate.trace(store, fa, verdict);
             }
             catch (Exception)
             {
@@ -65,7 +65,51 @@ namespace OneSignalNotificationServiceExtension
             }
 
             SpixiPushGate.apply(BestAttemptContent, verdict);
-            NotificationServiceExtension.DidReceiveNotificationExtensionRequest(request, BestAttemptContent, contentHandler);
+            /* ★ #975 (office fix round, iO.5) — THE THREAD SURVIVES ONESIGNAL. The walk showed no
+             * grouping while the name, applied in the SAME apply() call, did show — so the thread id
+             * is set here and lost downstream (OneSignal builds the content it finally delivers).
+             * The handler OneSignal receives is a WRAPPER: it compares the thread on the content that
+             * actually reaches the system with the one the gate applied, re-applies it on a mutable
+             * copy when it is missing or different, logs the comparison as one fixed word (never
+             * the thread value — it IS the sender's address), and delivers exactly ONCE (the
+             * TimeWillExpire belt calls the same wrapper; the first delivery wins). */
+            Action<UNNotificationContent> wrapped = threadKeeper(verdict.thread, contentHandler);
+            ContentHandler = wrapped;
+            NotificationServiceExtension.DidReceiveNotificationExtensionRequest(request, BestAttemptContent, wrapped);
+        }
+
+        /// <summary>★ #975: the final-content wrapper (see the call site). Never throws into iOS:
+        /// a failed re-apply delivers the content as it arrived.</summary>
+        static Action<UNNotificationContent> threadKeeper(string? want, Action<UNNotificationContent> final)
+        {
+            int delivered = 0;
+            return (content) =>
+            {
+                if (System.Threading.Interlocked.Exchange(ref delivered, 1) == 1)
+                {
+                    SpixiPushGate.write("[SPUSH] final repeat=dropped");
+                    return;
+                }
+                UNNotificationContent outContent = content;
+                string state = "none";
+                try
+                {
+                    string? had = content?.ThreadIdentifier;
+                    state = SpixiPushGate.threadState(want, had);
+                    if ((state == "lost" || state == "changed") && content != null)
+                    {
+                        UNMutableNotificationContent copy = (UNMutableNotificationContent)content.MutableCopy();
+                        copy.ThreadIdentifier = want!;
+                        outContent = copy;
+                    }
+                }
+                catch (Exception)
+                {
+                    state = "error";
+                }
+                SpixiPushGate.write("[SPUSH] final thread=" + state);
+                final(outContent);
+            };
         }
 
         public override void TimeWillExpire()

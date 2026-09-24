@@ -10,7 +10,8 @@
   /* ★ #711: the composer floats INSIDE the canvas now, so the chevron offsets itself by
      the composer slot's height (--composer-h, written on the canvas by the shell's
      ResizeObserver). 0 where nothing writes it (the desktop demo keeps its old slot). */
-  inset-block-end: calc(var(--composer-h, 0px) + var(--spacing-16));
+  /* N1 (#976): + the keyboard lift the chat shell defines (0 wherever nothing defines it) */
+  inset-block-end: calc(var(--composer-h, 0px) + var(--composer-lift, 0px) + var(--spacing-16));
   width: var(--size-target-min);
   height: var(--size-target-min);
   display: flex;

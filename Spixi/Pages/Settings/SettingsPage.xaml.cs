@@ -181,7 +181,8 @@ namespace SPIXI
             // (Plugin.Fingerprint is skipped there — the LockPage:382 rule), so the
             // toggle changes nothing on that platform. A no-op switch is a lie; the cap
             // is withheld and the shell never renders the row. Android/iOS keep it.
-            string caps = "settingsApply,backupInline,downloadsInline,encpass,encpassInline,globalNotifications";
+            // ★ #978 (#970): + ignoredRequests — the Declined-requests sublevel (the un-block path).
+            string caps = "settingsApply,backupInline,downloadsInline,encpass,encpassInline,globalNotifications,ignoredRequests";
             if (SPayments.paymentAuthSupported())
             {
                 caps += ",paymentAuth";
@@ -203,6 +204,7 @@ namespace SPIXI
             }
             Utils.sendUiCommand(this, "setCaps", caps);
             BackupPage.pushBackupStatus(this);   // ★ S2 (Session AD): the Backup row's status
+            pushIgnoredRequests();               // ★ #978: the Declined-requests list
 
             // ★ NOTIF-2: the current values, so the switches render in the right position
             // rather than at the component defaults. Three bools, one push each — the
@@ -608,6 +610,15 @@ namespace SPIXI
                 // Re-pushed after every deleteDownload so the shell list converges on
                 // the filesystem truth. #804: every form factor takes this route now.
                 loadDownloads();
+            }
+            else if (current_url.StartsWith("ixian:unignore:", StringComparison.Ordinal))
+            {
+                /* ★ #978 (#970): the un-block. The payload is an ADDRESS the shell got from
+                 * this page's own setIgnoredRequests push; SRequestIgnore.remove parses it and
+                 * touches only the app preference — no friend, no network, no file. The list is
+                 * re-pushed either way, so a stale or malformed tap converges on the truth. */
+                SRequestIgnore.remove(current_url.Substring("ixian:unignore:".Length));
+                pushIgnoredRequests();
             }
             else if (current_url.StartsWith("ixian:openDownload:", StringComparison.Ordinal))
             {
@@ -1448,8 +1459,23 @@ namespace SPIXI
 
             // 5. every native preference — a fresh-install state
             try { Preferences.Default.Clear(); } catch (Exception ex) { Logging.error("wipe: preferences threw: " + ex); }
+            try { SRequestIgnore.clear(); } catch (Exception ex) { Logging.error("wipe: ignore list threw: " + ex.GetType().Name); }   // ★ #978: the in-process copy too
 
             // (6. the WebView spixi.* wipe ran as step 0 — see above)
+        }
+
+        /// <summary>★ #978 (#970): the Declined-requests list, as ONE comma-joined argument
+        /// (base58 carries no comma). Fail-soft: a throw leaves the shell's last list.</summary>
+        private void pushIgnoredRequests()
+        {
+            try
+            {
+                Utils.sendUiCommand(this, "setIgnoredRequests", string.Join(",", SRequestIgnore.list()));
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("setIgnoredRequests push failed: " + ex.GetType().Name);
+            }
         }
 
         /* The account-data half of the wipe (the legacy delete-account body), kept as
@@ -1463,6 +1489,7 @@ namespace SPIXI
             FriendList.deleteEntireHistory();
             FriendList.deleteAccounts();
             FriendList.clear();
+            SRequestIgnore.clear();   // ★ #978: a declined requester belongs to the account that declined
         }
 
         public void onDeleteHistory()

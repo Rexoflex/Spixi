@@ -205,9 +205,73 @@ namespace SPIXI
                     }
         }*/
 
+        /// <summary>
+        /// ★ #978 (#970) — a DECLINED requester's re-sent request is dropped here, BEFORE Core sees
+        /// it: Core's handleRequestAdd would otherwise add the address as a NEW friend, save it and
+        /// send it a nickname request (the AF.3 "the declined request came back").
+        ///
+        /// Narrow on purpose — ALL of these must hold, or the message goes to Core unchanged:
+        ///   · the list is not empty (the second parse is paid only by someone who declined);
+        ///   · the message is addressed to MY wallet (a bot-room relay is not a request to me);
+        ///   · the sender is NOT a friend (anyone the user has since added is never dropped);
+        ///   · the message is UNENCRYPTED and its SpixiMessage is requestAdd / requestAdd2 — the
+        ///     one handshake an unknown address can send (a stranger has no keys with us);
+        ///   · the sender is on the list (SRequestIgnore, canonical address form).
+        /// Any parse failure lets the message through: a malformed packet is Core's to reject,
+        /// and this filter must never be the reason a real message is lost. The log line names
+        /// no address (O-26). Never throws.
+        /// </summary>
+        private static bool isIgnoredRequest(byte[] bytes)
+        {
+            try
+            {
+                if (bytes == null || !SRequestIgnore.any())
+                {
+                    return false;
+                }
+                StreamMessage peek = new StreamMessage(bytes);
+                if (peek.sender == null || peek.recipient == null || peek.data == null)
+                {
+                    return false;
+                }
+                if (!IxianHandler.getWalletStorage().isMyAddress(peek.recipient))
+                {
+                    return false;
+                }
+                if (FriendList.getFriend(peek.sender) != null)
+                {
+                    return false;
+                }
+                if (peek.encryptionType != StreamMessageEncryptionCode.none)
+                {
+                    return false;
+                }
+                SpixiMessage sm = new SpixiMessage(peek.data);
+                if (sm.type != SpixiMessageCode.requestAdd && sm.type != SpixiMessageCode.requestAdd2)
+                {
+                    return false;
+                }
+                if (!SRequestIgnore.contains(peek.sender))
+                {
+                    return false;
+                }
+                Logging.info("SRequestIgnore: a request from a declined address was dropped before Core.");
+                return true;
+            }
+            catch (Exception e)
+            {
+                Logging.warn("SRequestIgnore: the request peek failed, the message goes to Core: " + e.GetType().Name);
+                return false;
+            }
+        }
+
         // Called when receiving S2 data from clients
         public override ReceiveDataResponse? receiveData(byte[] bytes, RemoteEndpoint endpoint, bool fireLocalNotification = true, bool alert = true)
         {
+            if (isIgnoredRequest(bytes))
+            {
+                return null;
+            }
             ReceiveDataResponse? rdr = base.receiveData(bytes, endpoint);
             if (rdr == null)
             {

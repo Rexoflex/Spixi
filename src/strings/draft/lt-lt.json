@@ -649,5 +649,10 @@
   "unfavorite": "Pašalinti iš mėgstamų",
   "appFetchHttp": "Programėlės nepavyko atsisiųsti iš šios nuorodos.",
   "appFetchTimeout": "Nuoroda neatsakė. Patikrinkite ryšį ir bandykite dar kartą.",
-  "appFetchTooLarge": "Šis programėlės paketas per didelis."
+  "appFetchTooLarge": "Šis programėlės paketas per didelis.",
+  "declinedRequests": "Atmesti prašymai",
+  "declinedRequestsSub": "Žmonės, kurių kontakto prašymus atmetėte",
+  "declinedRequestsNote": "Pakartotinis prašymas iš šių adresų ignoruojamas. Jiems nepranešama. Atblokuokite, kad vėl gautumėte jų prašymus.",
+  "declinedRequestsEmpty": "Neatmetėte jokių prašymų.",
+  "unblock": "Atblokuoti"
 }

@@ -727,5 +727,10 @@
   "unfavorite": "Aus Favoriten entfernen",
   "appFetchHttp": "Die App konnte über diesen Link nicht heruntergeladen werden.",
   "appFetchTimeout": "Der Link hat nicht geantwortet. Prüfe deine Verbindung und versuche es erneut.",
-  "appFetchTooLarge": "Dieses App-Paket ist zu groß."
+  "appFetchTooLarge": "Dieses App-Paket ist zu groß.",
+  "declinedRequests": "Abgelehnte Anfragen",
+  "declinedRequestsSub": "Personen, deren Kontaktanfragen du abgelehnt hast",
+  "declinedRequestsNote": "Eine erneute Anfrage von diesen Adressen wird ignoriert. Sie werden nicht benachrichtigt. Hebe die Sperre auf, um ihre Anfragen wieder zu erhalten.",
+  "declinedRequestsEmpty": "Du hast keine Anfragen abgelehnt.",
+  "unblock": "Entsperren"
 }

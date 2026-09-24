@@ -310,6 +310,14 @@ namespace SPIXI
                 }
             };
 #endif
+#if MACCATALYST
+            /* ★ #980 (M2): the Mac half of the ↔ affordance (SMacCursor). MAUI's
+             * PointerGestureRecognizer is the hover signal on Catalyst (UIHoverGestureRecognizer). */
+            var dividerHover = new PointerGestureRecognizer();
+            dividerHover.PointerEntered += (s, ev) => Spixi.SMacCursor.pushResizeLeftRight();
+            dividerHover.PointerExited += (s, ev) => { if (!paneDividerPanning) Spixi.SMacCursor.pop(); };
+            paneDivider.GestureRecognizers.Add(dividerHover);
+#endif
 
             SizeChanged += OnPageSizeChanged;
 
@@ -628,6 +636,7 @@ namespace SPIXI
                 case GestureStatus.Started:
                     panStartPaneWidth = leftPaneWidth;
                     paneDividerPanning = true;
+                    Logging.info("[DIVIDER] pan started");   // ★ #980 (M2): did the grip receive the drag at all? (fixed words, no geometry)
                     break;
                 case GestureStatus.Running:
                     // Defensive: WinUI has been seen skipping Started — seed the
@@ -645,6 +654,10 @@ namespace SPIXI
                 case GestureStatus.Canceled:
                     paneDividerPanning = false;
                     Preferences.Default.Set("leftPaneWidth", leftPaneWidth);
+                    Logging.info("[DIVIDER] pan ended width=" + (int)leftPaneWidth);   // ★ #980 (M2)
+#if MACCATALYST
+                    Spixi.SMacCursor.pop();   // a drag that ended off the grip never saw PointerExited
+#endif
                     break;
             }
         }
@@ -5801,6 +5814,10 @@ namespace SPIXI
                     {
                         status = "ok";
                         SChatPrefs.setFavorite(friend.walletAddress.ToString(), false);   // CH4: the preference leaves with the record
+                        /* ★ #978 (#970): the request card is INCOMING by construction (CH2 routes only
+                         * `!approved && lastMessage requestAdd && !localSender` here), so a decline
+                         * remembers the requester and its re-sent request is dropped (SRequestIgnore). */
+                        SRequestIgnore.add(friend.walletAddress.ToString());
                     }
                     // R2-3: a REFUSED removal re-flushes too, so the request card comes back
                     UIHelpers.shouldRefreshContacts = true;

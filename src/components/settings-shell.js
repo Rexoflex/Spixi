@@ -28,7 +28,7 @@ import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { discGrad } from './disc.js';
 import { createFlag } from './flags.js';
-import { createAvatar } from './avatar.js';
+import { createAvatar, truncateAddressMiddle } from './avatar.js';
 import { createButton, setLoading } from './button.js';
 import { createTopbar } from './topbar.js';
 import { createBadge } from './badge.js';
@@ -382,6 +382,7 @@ export function createSettingsHub({
   onNotifications,               // nav → notifications screen (§9-gated)
   onSecurity,                    // nav → security-level screen (§9-gated, #147 tiers)
   onPrivacy,                     // nav → privacy screen (§9-gated)
+  onIgnored,                     // nav → Declined requests (★ #978, cap ignoredRequests): the un-block path for #970's ignore list
   onBackup,                      // nav → backup screen
   onDownloads, onContributors, onDev,   // nav (screens) — capability-gated: no SettingsPage open-verb exists
   onAbout,                       // nav → About takeover (static, zero-C#, ungated)
@@ -933,6 +934,17 @@ export function createSettingsHub({
     onClick: () => onPrivacy(),
   }).section);
 
+  /* ★ #978 (#970, Damir 2026-09-24): Declined requests — the UN-BLOCK path for the app-side
+     ignore list. A request the user declined is dropped when it comes back (C#
+     SRequestIgnore); this row is where it is undone. CAP-GATED so an old exe (no list, no
+     verb) never shows a screen whose button nothing handles. */
+  if (capabilities.ignoredRequests && onIgnored) sec.card.append(settingRow({
+    glyph: 'user-cog', hue: 'neutral', key: 'ignored',
+    label: strings.declinedRequests || 'Declined requests',
+    sub: strings.declinedRequestsSub || 'People whose contact requests you declined',
+    onClick: () => onIgnored(),
+  }).section);
+
   /* backup row — the STANDING NUDGE (backup-ux-spec §3.1) */
   if (onBackup) {
     const b = settingRow({
@@ -1088,6 +1100,73 @@ export function settingsConfirm({ title, bodyText, confirmLabel, host, strings =
   });
   openModal(modal);
   return modal;
+}
+
+/**
+ * ★ #978 (#970) — the DECLINED REQUESTS sublevel: one row per address the user declined, each
+ * with an Unblock button. The addresses come from SettingsPage's own `setIgnoredRequests` push
+ * (C# SRequestIgnore), never from a peer, and are rendered as TEXT (textContent) in the #211
+ * truncation canon — the full address rides the row's accessible name only. Unblock is
+ * fire-and-forget intent (`onUnblock(address)` → `ixian:unignore:`); C# re-pushes the list,
+ * which is the authority, so the row leaves when the list says so, not optimistically.
+ */
+export function createSettingsIgnored({
+  addresses = [], onUnblock, onBack, strings = getStrings(),
+} = {}) {
+  const el = document.createElement('div');
+  el.className = 'c-settings';
+  el.append(createTopbar({ variant: 'view', title: strings.declinedRequests || 'Declined requests', onBack }));
+  const body = document.createElement('div');
+  body.className = 'c-settings__body u-scroll';
+  el.append(body);
+
+  const note = document.createElement('p');
+  note.className = 'c-settings__ignored-note';
+  note.textContent = strings.declinedRequestsNote
+    || 'A request from these addresses is ignored when it is sent again. They are not told. Unblock to receive their requests again.';
+  body.append(note);
+
+  const list = (addresses || []).filter((a) => typeof a === 'string' && a.trim());
+  if (!list.length) {
+    const empty = document.createElement('p');
+    empty.className = 'c-settings__ignored-empty';
+    empty.textContent = strings.declinedRequestsEmpty || 'You have not declined any requests.';
+    body.append(empty);
+    return el;
+  }
+
+  const wrap = document.createElement('div');
+  wrap.className = 'c-settings__groupwrap';
+  const card = document.createElement('div');
+  card.className = 'c-settings__group';
+  wrap.append(card);
+  list.forEach((address) => {
+    const section = document.createElement('div');
+    section.className = 'c-settings__section';
+    const row = document.createElement('div');
+    row.className = 'c-settings__row c-settings__row--static c-settings__ignored-row';
+    row.dataset.address = address;
+    const who = document.createElement('span');
+    who.className = 'c-settings__row-label';
+    const name = document.createElement('span');
+    name.className = 'c-settings__ignored-addr';
+    name.textContent = truncateAddressMiddle(address, 9, 6);
+    who.append(createAvatar({ name: address, address, size: 32 }), name);
+    const btn = createButton({ label: strings.unblock || 'Unblock', size: 32, type: 'outline' });
+    btn.setAttribute('aria-label', (strings.unblock || 'Unblock') + ' ' + address);
+    let sent = false;
+    btn.addEventListener('click', () => {
+      if (sent || !onUnblock) return;
+      sent = true;
+      setLoading(btn, true);
+      try { onUnblock(address); } catch { sent = false; setLoading(btn, false); }
+    });
+    row.append(who, btn);
+    section.append(row);
+    card.append(section);
+  });
+  body.append(wrap);
+  return el;
 }
 
 export function createSettingsDanger({

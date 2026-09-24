@@ -842,10 +842,19 @@ namespace SPIXI
             else if (current_url.StartsWith("ixian:undorequest"))
             {
                 // Remove friend from list and go back to the main screen
+                /* ★ #978 (#970): read BEFORE the removal — only a DECLINED INCOMING request is
+                 * remembered (an outgoing cancel must never block the person we asked). The verb's
+                 * only emitter is chat.html's INCOMING request pane (#562 moved the outgoing Cancel
+                 * to hide-request), so the state test is the belt: never a RequestSent (ours) and
+                 * never an Approved contact; a legacy Unknown/Ignored state counts as incoming,
+                 * because that is the only pane that can send this verb. */
+                bool declinedIncoming = friend.type == FriendType.Normal && !friend.bot
+                    && friend.state != FriendState.RequestSent && friend.state != FriendState.Approved;
                 bool requestRemoved = FriendList.removeFriend(friend);
                 if (requestRemoved)
                 {
                     SChatPrefs.setFavorite(friend.walletAddress.ToString(), false);   // CH4: the preference leaves with the record
+                    if (declinedIncoming) SRequestIgnore.add(friend.walletAddress.ToString());
                 }
 
                 /* ★ #46 loop B, MAJOR-1 — THE RECORD IS GONE, SO SAY SO.
@@ -3438,6 +3447,19 @@ namespace SPIXI
 
             if (message.type == FriendMessageType.standard)
             {
+                /* ★ #981 (M1, the office Mac 2026-09-24: an EMPTY received bubble — meta only —
+                 * under "You are now connected" after accepting a request). An empty standard row
+                 * is what Core leaves for a DELETED message (Friend.deleteMessage blanks the text),
+                 * and the LOAD path already renders nothing for it (rendersNothing, #907); the LIVE
+                 * path did not, so any empty standard row pushed while the chat is open painted a
+                 * bubble with no text. The live path now agrees with the load path. Which row it is
+                 * on the Mac is not yet known (the device run names it: this line logs the
+                 * direction and whether it was live or a load, never the id or any text). */
+                if (string.IsNullOrEmpty(message.message))
+                {
+                    Logging.info("insertMessage: an EMPTY standard row was not rendered (" + (message.localSender ? "own" : "peer") + ", " + (batch != null ? "load" : "live") + ").");
+                    return;
+                }
                 // Normal chat message
                 // Call webview methods on the main UI thread only
                 // D-5/N26 (#366): trailing `relation` arg — ADDITIVE (an older shell
@@ -3900,6 +3922,15 @@ namespace SPIXI
              * and is not gated. */
             if (message.type != FriendMessageType.standard)
             {
+                return;
+            }
+            /* ★ #981 (M1): a status push for a row whose text is now EMPTY (a deleted message)
+             * must not reach the shell — its handler OVERWRITES the row's text and, for an id it
+             * has not loaded, CREATES a text row: either way an empty bubble. The removal itself
+             * is the deleteMessage push; there is nothing for this push to say. */
+            if (string.IsNullOrEmpty(message.message))
+            {
+                Logging.info("updateMessage: an EMPTY standard row was not pushed.");
                 return;
             }
 

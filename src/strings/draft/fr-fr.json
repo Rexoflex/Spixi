@@ -727,5 +727,10 @@
   "unfavorite": "Retirer des favoris",
   "appFetchHttp": "L'application n'a pas pu être téléchargée depuis ce lien.",
   "appFetchTimeout": "Le lien n'a pas répondu. Vérifiez votre connexion et réessayez.",
-  "appFetchTooLarge": "Ce paquet d'application est trop volumineux."
+  "appFetchTooLarge": "Ce paquet d'application est trop volumineux.",
+  "declinedRequests": "Demandes refusées",
+  "declinedRequestsSub": "Personnes dont vous avez refusé la demande de contact",
+  "declinedRequestsNote": "Une nouvelle demande de ces adresses est ignorée. Elles ne sont pas prévenues. Débloquez pour recevoir à nouveau leurs demandes.",
+  "declinedRequestsEmpty": "Vous n’avez refusé aucune demande.",
+  "unblock": "Débloquer"
 }

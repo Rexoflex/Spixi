@@ -1687,6 +1687,27 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   padding-inline: var(--spacing-16);
 }
 
+/* ★ #978 (#970) — Declined requests (the un-block path). The note and the empty line are the
+   row-sub role (body-sm, neutral-02) on the screen's own inline padding; a row is the static
+   settings row with the address (truncated canon, #211) and a 32 outline Unblock. */
+.c-settings__ignored-note,
+.c-settings__ignored-empty {
+  margin: 0;
+  padding: var(--spacing-12) var(--spacing-16) var(--spacing-8);
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-settings__ignored-row { gap: var(--spacing-12); }
+.c-settings__ignored-addr {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.c-settings__ignored-row .c-button { flex: none; }
+
 </style>
 <style data-src="../styles/components/subscreen-slide.css">
 /* ★ Session H — the in-shell subscreen slide (subscreen-slide.js; DECISIONS #707/#718)
@@ -5077,6 +5098,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     createChatAppearance, setSettingsSaveVisible,
     createNotificationsScreen,       // ★ NOTIF-2: built since #147, dark until now
     createPrivacy,                   // ★ security sweep E-1b: the media-autoload switch (FE-only)
+    createSettingsIgnored,           // ★ #978 (#970): Declined requests — the un-block path
     createEncPassScreen, ENC_DELIM,
     attachPressFeedback,
     settingsThemeSheet, settingsOptionSheet, createTopbar,
@@ -5293,6 +5315,10 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
        IMMEDIATELY (Preferences, like theme/language) and echoes setPaymentAuth,
        so this never rides the dirty/save path (no #288 clobber class). */
     paymentAuth: false,
+    /* ★ #978 (#970): the Declined-requests list — display state only. SettingsPage pushes it
+       (setIgnoredRequests) at onLoad and after every ixian:unignore:, and C#'s preference is
+       the authority; nothing here is persisted. */
+    ignored: [],
   };
 
   /* Legacy lang-data codes (settings.html:69-81) — MUST match SpixiLocalization
@@ -5831,6 +5857,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
         globalNotifications: bridge.cap('globalNotifications'),
         paymentAuth: bridge.cap('paymentAuth'),   // PA1 (#525): SettingsPage pushes the cap + the verb
         dev: bridge.cap('dev'),                   // ★ S9 (Session AD): SettingsPage grants it only while devMode is on
+        ignoredRequests: bridge.cap('ignoredRequests'),   // ★ #978: SettingsPage pushes the cap + setIgnoredRequests + handles ixian:unignore:
       },
       // ★ S9: the Developer row → DevPage (SettingsPage `ixian:dev`, Equals-matched)
       onDev: () => bridge.send('ixian:dev'),
@@ -5845,6 +5872,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       },
       onNotifications: showNotifications,
       onPrivacy: showPrivacy,
+      onIgnored: showIgnored,             // ★ #978 (#970)
       /* Q1-② (#267, S16 option a): Downloads is a true in-hub SUBLEVEL. The
          list/open/delete verbs are routed through SettingsPage (cap
          'downloadsInline'). No second WebView, and no pane-stacking — the #264
@@ -6224,6 +6252,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   function showDownloads() { currentView = 'downloads'; renderLayout(); }  // Q1-② (#267) · #804: downloadsInline cap, any form factor
   function showNotifications() { currentView = 'notifications'; renderLayout(); }  // ★ NOTIF-2
   function showPrivacy() { currentView = 'privacy'; renderLayout(); }              // ★ security sweep E-1b
+  function showIgnored() { currentView = 'ignored'; renderLayout(); }              // ★ #978 (#970): Declined requests
 
   /* ★ NOTIF-2 — the optimistic-switch resolver.
    *
@@ -6411,6 +6440,16 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
             ctrl.done();
           } catch (e) { ctrl.fail(); }
         },
+      });
+      /* ★ #978 (#970, Damir 2026-09-24): Declined requests — the un-block path for the app-side
+         ignore list. The addresses come from THIS page's own push (C# SRequestIgnore), the tap
+         is intent only (ixian:unignore:<address>), and C# re-pushes the list, which re-renders
+         this view — the row leaves when the authority says so. */
+      case 'ignored': return createSettingsIgnored({
+        addresses: state.ignored,
+        strings,
+        onBack: showHub,
+        onUnblock: (address) => bridge.send('ixian:unignore:' + address),
       });
       case 'contributors': return createSettingsContributors({
         strings,
@@ -7012,6 +7051,14 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
          that icon, because auto-save is on now. Without this the edit would sit dirty
          with no affordance at all until exit. Flush it. */
       autoSave();
+    },
+
+    /* ★ #978 (#970): setIgnoredRequests('a,b,…') — the Declined-requests list (base58 carries
+       no comma). Pushed at onLoad and after every ixian:unignore:. A mounted Declined-requests
+       view re-renders from it; any other view just keeps the state for the next open. */
+    setIgnoredRequests(csv) {
+      state.ignored = String(csv || '').split(',').map((a) => a.trim()).filter(Boolean);
+      if (currentView === 'ignored' && !exiting) renderLayout();
     },
 
     // Q1-② (#267): downloads list pushed by SettingsPage itself (ixian:loadDownloads

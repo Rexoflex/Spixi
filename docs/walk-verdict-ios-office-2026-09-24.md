@@ -43,3 +43,20 @@
 1. `[SPUSH]` trace via NSLog · 2. iO.5 thread re-apply · 3. iO.11 root cause (trace first) · 4. N1 · 5. N2 ·
 6. #970 ignore list · 7. reply-to device check. BE: server-side mute (iO.7/iO.11b).
 Renders, pins, mutations and a fresh Opus reader per #943; FULL suite before done.
+
+## iO.29 — Mac Catalyst (route B, #920): **P — FIRST BOOT EVER**
+* The July stamp (`librocksdb.dylib`, vtool → `platform MACCATALYST · minos 15.0`, made 2026-07-20) was
+  still on this Mac. `dotnet build Spixi/Spixi.csproj -f net10.0-maccatalyst -c Debug` → **Build succeeded**
+  (first compile of the vendored `Platforms/MacCatalyst/RocksDbSharp/`). Launched from
+  `Spixi.app/Contents/MacOS/Spixi`: boots past `RocksDBStorage.prepareStorageInternal`, the desktop shells
+  (rail, split pane, welcome pane) render, a contact request was accepted and a message sent both ways.
+  The stamp is proven at load time. Release (universal, lipo) is still untested.
+* Terminal trap: a stuck bracketed-paste mode wraps pastes in `[200~ … ~` → `printf '\e[?2004l'`.
+* **M1** — after accepting the contact request, an EMPTY received bubble (meta "22:05" only) under the
+  "You are now connected" event chip. Check on Windows/Android before calling it Catalyst-only.
+* **M2** — the left pane divider is not resizable (D1's grip is WinUI-wired, #240/#242 — the Catalyst leg
+  was never built).
+* **M3** — the Dock icon's logo reads small inside its tile (not a blocker; the macOS icon grid wants a
+  larger glyph than the iOS one).
+* **M4** — no new-message signal on macOS: no Dock badge (count) and no Dock bounce when a message arrives
+  while the app is in the background. The Catalyst notification/badge leg was never built.

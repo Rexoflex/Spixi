@@ -68,12 +68,18 @@
      held, RELATIVE LUMINANCE is not — raising saturation at a held L drops Y by ~9 % on both
      steps, so every dark ratio built on 500/600 moved a little and was re-measured (the numbers
      beside each consumer below are the post-② values; the suite recomputes them). */
-  --ink-500:  #253246;   /* was #31343a — L 21.0% held; Y 0.0341 → 0.0312 */
-  --ink-600:  #202b3c;   /* was #292d33 — L 18.0% held; Y 0.0259 → 0.0236 */
-  --ink-700:  #19212f;   /* was #202328 — L 14.1% held */
-  --ink-800:  #161d28;   /* was #1b1f23 — L 12.2% held */
-  --ink-900:  #10151e;   /* was #13171b — L  9.0% held */
-  --ink-1000: #0d1118;   /* was #111213 — L  7.1% held */
+  /* ★★ DARK GLOW-UP (#989, Damir 2026-09-27, audit D-01/D-02: "less blue, more dark neutral").
+     The ramp is retuned to a NEAR-NEUTRAL: OKLCH hue ~255, chroma ~0.006 (was 217° at
+     S 30 %). Same six steps, same consumers (only the dark neutral-500…1000 keys read
+     them), so every dark surface moves together and light mode is untouched.
+     ⚠ Supersedes the saturation ruling above (2026-08-22) and the two #884 ② values; the
+     reasoning above is kept so the reversal is one table away. Old values in the notes. */
+  --ink-500:  #37393C;   /* was #253246 (#884 ②) */
+  --ink-600:  #2C2E31;   /* was #202b3c (#884 ②) */
+  --ink-700:  #232528;   /* was #19212f */
+  --ink-800:  #1A1C1F;   /* was #161d28 */
+  --ink-900:  #0F1113;   /* was #10151e — the dark screen/chrome ground */
+  --ink-1000: #090A0D;   /* was #0d1118 — now also the dark chat canvas (#989) */
 
   /* color/brand */
   --brand-50: #e9ecf3;
@@ -906,12 +912,12 @@
      the "bubble" was DARKER than the canvas behind it. Dropping to .06 put it the right way
      up, and this change widens the margin rather than fixing a new regression.
      ⚠ Superseded: #1a1d24. */
-  --surface-bubble-received: #1e222b;  /* ★ N81 (#422) — Damir */
+  --surface-bubble-received: var(--neutral-800);  /* ★ #989 (Damir 2026-09-27): the ramp's own step (ink-800 #1A1C1F), not a literal — one black family. Was #1e222b (N81/AUG) */
   --surface-input: var(--neutral-800);
   /* ★ Session H: the pill on the dark canvas — #1e222b (1.15:1 vs #10151e, the received
      bubble's own number) + neutral-500 (ink-500 #253246 since #884 ②: 1.41:1 vs #10151e, 1.46 vs the #0D1117 chat canvas, 1.23:1 vs the pill; the grey #31343a read 1.47 / 1.28 vs #10151e / the pill).
      neutral-800/-700 were measured at 1.06/1.02 against the pill: not an edge. */
-  --surface-composer-pill: #1e222b;
+  --surface-composer-pill: var(--neutral-800);   /* ★ #989: the received-bubble ground, via the ramp. Was #1e222b */
   --outline-composer-pill: var(--neutral-500);
   --surface-notice-card: #0c1a4a;   /* ★ Session Z (#884 ③): the Session J midnight (N82(c): 84% sat, 1.140 vs the ground), unchanged */
   --surface-qr: var(--neutral-10); /* stays near-white: QR scan readability */
@@ -1495,6 +1501,17 @@
      system-notice.css. smoke-test pins HAIR.length === 6 for exactly that reason, so the
      old count here contradicted the suite. Restoring the hairline reaches six files. */
   --border-bubble-received: transparent;
+  /* ★★ #989 DARK GLOW-UP — the card-edge + medallion roles, defined in BOTH themes.
+     LIGHT = TODAY'S LOOK, value for value, so light renders byte-identical: the two edge
+     layers are transparent, the sent card keeps its white fill + 2px outgoing border, and
+     the medallion keeps the action-tonal pair. Only the dark block moves these. */
+  --outline-hairline: transparent;            /* 1px edge on received bubbles + cards */
+  --highlight-top: transparent;               /* 1px top light on the same surfaces */
+  --surface-card-sent: var(--surface-bubble-received);  /* a SENT payment/app/call/file card */
+  --border-card-sent: 2px solid var(--surface-bubble-sent);   /* #265's "yours" stroke — light only */
+  --outline-card-sent: transparent;           /* dark's tinted 1px edge in its place */
+  --surface-medallion: var(--surface-action-tonal-default);   /* file / app / call disc */
+  --icon-medallion: var(--icon-action-default);
   /* #170: c-disc gradient palette — vivid, distinct, mode-agnostic (paired with a
      white glyph, so the same fills read in light AND dark). Assigned per-glyph by
      discGrad() so discs don't repeat; error = reserved destructive red. Raw hex
@@ -1587,6 +1604,21 @@
      measured 1.12:1 bubble/ground (#427), so the shadow is darker and 1px longer than
      light's; it must separate without mud. Reversal = `0 0 0 0 transparent`. */
   --bubble-elevation: 0 1px 1px rgba(0, 0, 0, 0.45);
+  /* ★★ #989 (Damir 2026-09-27) — the dark card edge. Cards on a near-neutral canvas need an
+     EDGE, not more lift: a 7 % white hairline + a 4 % top highlight (the glass-edge the
+     references carry). SENT cards lose #265's 2px blue stroke in dark — a quiet brand-tinted
+     fill + a tinted hairline say "yours" instead. Medallions leave primary-800 (barely visible
+     on the new ground) for a translucent action tint. Light values: see the root block.
+     ⚠ Placed in THIS (the second) dark block on purpose: the light values live in the
+     :root block at ~:1233, which comes AFTER the first dark block — equal specificity, so
+     a dark value written there would lose to light. */
+  --outline-hairline: rgba(255, 255, 255, 0.07);
+  --highlight-top: rgba(255, 255, 255, 0.04);
+  --surface-card-sent: #19253B;
+  --border-card-sent: 0 solid transparent;
+  --outline-card-sent: rgba(118, 157, 255, 0.22);
+  --surface-medallion: rgba(118, 157, 255, 0.14);
+  --icon-medallion: #9DB8FF;
   /* settings row-icon discs — dark pairs (#147) */
   --disc-primary-bg: var(--primary-900);   --disc-primary-ink: var(--primary-300);
   --disc-accent-bg: var(--accent-900);     --disc-accent-ink: var(--accent-300);
@@ -1654,12 +1686,13 @@
      ⚠ Supersedes the #701 ruling "leave the base at #0f1115" — which he made against a
      measurement about neutral01 LIGHTNESS, with no knowledge of the chrome adjacency. New
      information, not a re-opened argument. */
-  --chat-canvas-base: #0D1117;   /* ★ Session J (#758, Damir 2026-09-03: "on dark mode the chat canvas should be #0D1117 and make it a token") — a GitHub-dark neutral, a hair deeper and less blue than the #10151e chrome (ΔL* ≈ −1.3). Reversal = #10151e (= --surface-screen, Session H's three-option pick above) */
+  --chat-canvas-base: var(--neutral-1000);   /* ★ #989 (Damir 2026-09-27): the ramp's deepest step (ink-1000 #090A0D) — the canvas and the chrome are ONE family now. Was #0D1117 (#758) */
+  /* #758 record — ★ Session J (#758, Damir 2026-09-03: "on dark mode the chat canvas should be #0D1117 and make it a token") — a GitHub-dark neutral, a hair deeper and less blue than the #10151e chrome (ΔL* ≈ −1.3). Reversal = #10151e (= --surface-screen, Session H's three-option pick above) */
   /* ★ AUG: dark's ground did not move, so its chips keep the surface they had. Defined
      here so the token resolves in BOTH themes rather than inheriting light's near-white. */
   /* the glass pair, dark: --surface-screen's own --ink-900 (#10151e) at 55%, hairline
      neutral-100 at 10%. Same rule as light — the fill IS the ground, seen through blur. */
-  --surface-chat-glass: rgba(16, 21, 30, 0.55);
+  --surface-chat-glass: rgba(15, 17, 19, 0.55);   /* ★ #989: follows ink-900 #0F1113 (was rgba(16, 21, 30, .55) = the old #10151e) */
   --outline-chat-glass: rgba(233, 236, 243, 0.10);
   --surface-chat-chip: var(--surface-neutral-02);
   /* dark keeps the outline token for the Off-swatch slash — see the light block for why
@@ -1702,7 +1735,9 @@
          .20     +10.63  ← was shipping   +10.34
      The correction does not move the decision — .06 was the right pick at either set — but a
      ladder that gets quoted as a measurement has to be right. Recompute before re-quoting. */
-  --gradient-chat: radial-gradient(120% 85% at 50% 0%, rgba(80, 122, 249, 0.06) 0%, transparent 62%), var(--chat-canvas-base);
+  /* ★ #989 (Damir 2026-09-27): the blue radial lift is DROPPED — a near-neutral canvas, flat.
+     Reversal = radial-gradient(120% 85% at 50% 0%, rgba(80, 122, 249, 0.06) 0%, transparent 62%), var(--chat-canvas-base) */
+  --gradient-chat: var(--chat-canvas-base);
   /* OUTGOING (sent) bubble fill — ★ N81 (#422): the SAME #1956B2 as light. Damir
      asked for one outgoing blue across both themes, so the dark-only two-stop
      gradient (#353FB7→#2046A7) is retired. */

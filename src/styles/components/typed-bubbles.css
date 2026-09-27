@@ -15,34 +15,18 @@
   border-radius: var(--radius-16);
   background: var(--surface-bubble-received);
   color: var(--text-bubble-received);
-  /* ★ N81 (#422): the same incoming hairline the text bubble carries
-     (message-bubble.css). Damir's palette specifies the INCOMING SURFACE, and
-     these cards are that surface — leaving them on elevation-1 beside hairlined
-     bubbles would read as a bug rather than a distinction. 🟡 One-word reversal
-     if he wants the cards to keep lifting: put var(--elevation-1) back here.
-     ★ N82(b) (#427): the token is `transparent` in BOTH themes now, so these cards
-     carry the canvas separation alone — white on #f4f6f9 = 1.083 in light, #1a1d24
-     on #0f1115 = 1.120 in dark. Rule kept as the reversal hook.
-     ★ Session J (walk A3/A4, #747): the sheet-1c LIFT lands on the typed cards too —
-     the text bubble read --bubble-elevation since Session I and these never did, so a
-     call / payment / app-invite card sat FLAT between lifted bubbles. Same token, same
-     list shape as message-bubble.css; the reversal is the token's (0 0 0 0 transparent). */
-  box-shadow: inset 0 0 0 1px var(--border-bubble-received), var(--bubble-elevation);
+  /* Edge + lift (N81 #422 → N82(b) #427 → Session J #747 → #989): the #427 hook (transparent),
+     the #989 dark hairline + top highlight (transparent in light), then the Session I lift. */
+  box-shadow: inset 0 0 0 1px var(--border-bubble-received), inset 0 0 0 1px var(--outline-hairline), inset 0 1px 0 var(--highlight-top), var(--bubble-elevation);
 }
-/* #265 (Damir ④): SENT special cards (payment/app/call — and the file bubble
-   below) carry the same 2px outgoing-colour border as sent media tiles
-   (media-bubble.css:130) — "yours" at a glance. */
+/* SENT cards (#265 → #989): light keeps the 2px outgoing-colour border (#265); dark drops it for
+   a tinted fill + 1px tinted hairline (tokens --border-card-sent / --surface-card-sent /
+   --outline-card-sent). The lift stays on the sent side (Session J A3/A4). */
 .c-bubble-row[data-direction="sent"] .c-tcard,
 .c-bubble-row[data-direction="sent"] .c-fbubble {
-  border: 2px solid var(--surface-bubble-sent);
-  /* ★ N81 (#422, #46 audit NIT): drop the incoming hairline on the SENT side. An
-     inset shadow paints at the padding edge, i.e. INSIDE this 2px border, so a sent
-     card was drawing a 2px blue edge with a 1px hairline nested in it — a composite
-     that did not exist before (the old elevation-1 sat OUTSIDE the border). The
-     border already says "yours"; the hairline is the incoming affordance.
-     ★ Session J (A3/A4): the LIFT stays on the sent side — `none` dropped the elevation
-     with the hairline; a sent text bubble lifts, so its sent card lifts the same. */
-  box-shadow: var(--bubble-elevation);
+  border: var(--border-card-sent);
+  background: var(--surface-card-sent);
+  box-shadow: inset 0 0 0 1px var(--outline-card-sent), inset 0 1px 0 var(--highlight-top), var(--bubble-elevation);
 }
 /* #265 (Damir ⑪): call cards HUG their content — a two-line event read
    oversized at full bubble width. */
@@ -168,8 +152,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--surface-action-tonal-default);
-  color: var(--icon-action-default);
+  background: var(--surface-medallion);   /* #989 */
+  color: var(--icon-medallion);
   flex: none;
 }
 .c-tcard__app-icon img { width: 100%; height: 100%; object-fit: cover; }
@@ -200,8 +184,8 @@
   box-sizing: content-box;
   padding: var(--spacing-8);
   border-radius: var(--radius-full);
-  background: var(--surface-action-tonal-default);
-  color: var(--icon-action-default);
+  background: var(--surface-medallion);   /* #989 */
+  color: var(--icon-medallion);
   flex: none;
 }
 .c-bubble-row[data-call-outcome="missed"] .c-tcard__title svg,
@@ -240,16 +224,8 @@
   border-radius: var(--radius-16);
   background: var(--surface-bubble-received);
   color: var(--text-bubble-received);
-  /* ★ N81 (#422): the same incoming hairline the text bubble carries
-     (message-bubble.css). Damir's palette specifies the INCOMING SURFACE, and
-     these cards are that surface — leaving them on elevation-1 beside hairlined
-     bubbles would read as a bug rather than a distinction. 🟡 One-word reversal
-     if he wants the cards to keep lifting: put var(--elevation-1) back here.
-     ★ N82(b) (#427): the token is `transparent` in BOTH themes now, so these cards
-     carry the canvas separation alone — white on #f4f6f9 = 1.083 in light, #1a1d24
-     on #0f1115 = 1.120 in dark. Rule kept as the reversal hook.
-     ★ Session J (A3/A4): + the sheet-1c lift, as on .c-tcard above. */
-  box-shadow: inset 0 0 0 1px var(--border-bubble-received), var(--bubble-elevation);
+  /* the same edge + lift as .c-tcard above */
+  box-shadow: inset 0 0 0 1px var(--border-bubble-received), inset 0 0 0 1px var(--outline-hairline), inset 0 1px 0 var(--highlight-top), var(--bubble-elevation);
   cursor: pointer;
   text-align: start;
   font-family: var(--font-secondary);
@@ -265,8 +241,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--surface-action-tonal-default);
-  color: var(--icon-action-default);
+  background: var(--surface-medallion);   /* #989 */
+  color: var(--icon-medallion);
   flex: none;
   transition: background-color var(--duration-100) var(--easing-standard);
 }

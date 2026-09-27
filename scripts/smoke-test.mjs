@@ -7478,21 +7478,29 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
        "fixes" a deliberate decision back into the thing it replaced.
        ⚠ WHAT REPLACES IT: the failure the old pin ALSO caught — one theme silently losing its
        gradient — is still real, so both grounds must be declared, and they must now DIFFER. */
+    /* ★ #989 re-base (Damir 2026-09-27): dark's radial glow is DROPPED — both grounds are now
+       `var(--chat-canvas-base)`, so the two STRINGS agree. The property that survives: each theme
+       declares its ground exactly once, and the two grounds still DIFFER — through the BASE each
+       one resolves (light's pale base vs dark's --neutral-1000), compared here instead. */
     const grab = (blk) => (blk.match(/--gradient-chat: ([^;]+);/) || [])[1];
-    ok(!!grab(lightN81) && !!grab(darkN81) && grab(lightN81) !== grab(darkN81)
+    const baseOf = (blk) => (blk.match(/--chat-canvas-base: ([^;]+);/) || [])[1];
+    ok(!!grab(lightN81) && !!grab(darkN81) && (grab(lightN81) !== grab(darkN81) || (!!baseOf(lightN81) && !!baseOf(darkN81) && baseOf(lightN81) !== baseOf(darkN81)))
       && (lightN81.match(/--gradient-chat:/g) || []).length === 1
       && (darkN81.match(/--gradient-chat:/g) || []).length === 1,
-      '★★ E1c: light and dark each declare their OWN ground and the two DIFFER on purpose — light the sampled teal→green diagonal, dark its blue radial. Damir\'s ruling, replacing E1\'s deliberate symmetry. Asserted as a difference rather than dropped, because "a theme lost its gradient" is still a real failure and this still catches it');
+      '★★ E1c: light and dark each declare their OWN ground and the two DIFFER on purpose — light its own base (the teal→green wash is the opt-in gradient ground), dark flat on --neutral-1000 since #989 (the blue radial was dropped). Damir\'s rulings, replacing E1\'s deliberate symmetry. Asserted as a difference rather than dropped, because "a theme lost its gradient" is still a real failure and this still catches it');
   }
   ok((lightN81.match(/--chat-canvas-base:/g) || []).length === 1
     && !/--chat-canvas-base: #fcfbfa/.test(lightN81),
     '★ N82(a): exactly ONE --chat-canvas-base declaration in the light block, and it is not the cream — a leftover declaration would win on source order (the #422 sent-meta lesson). Counted rather than grepped for the hex, because the comment that RECORDS the supersession names the old value on purpose');
   /* ★ Session J re-base (#758, Damir 2026-09-03: "on dark mode the chat canvas should be #0D1117, a token") — the AUG #10151e (= the chrome) is the superseded ruling, kept in the token comment as the reversal. */
-  ok(/--chat-canvas-base: #0D1117;/.test(darkN81)
+  /* ★ #989 re-base (Damir 2026-09-27, audit D-01/D-02): the canvas is the RAMP's deepest step and
+     the blue lift is gone — one black family with the chrome. #0D1117 (#758) and the radial are the
+     superseded rulings, kept in the token comments as the reversal. */
+  ok(/--chat-canvas-base: var\(--neutral-1000\);/.test(darkN81)
     && (darkN81.match(/--chat-canvas-base:/g) || []).length === 1
-    && /--gradient-chat: radial-gradient\(120% 85% at 50% 0%, rgba\(80, 122, 249, 0\.06\) 0%, transparent 62%\), var\(--chat-canvas-base\);/.test(darkN81)
+    && /--gradient-chat: var\(--chat-canvas-base\);/.test(darkN81) && !/rgba\(80, 122, 249/.test(darkN81.replace(/\/\*[\s\S]*?\*\//g, ''))
     && (darkN81.match(/--gradient-chat:/g) || []).length === 1,
-    '★★★ AUG (Damir 2026-08-30, ON DEVICE): the dark lift is .06 and the base is #10151e — the CHROME\'S OWN --surface-screen. ⚠ THE DEFECT WAS COLOUR FAMILY, NOT LIGHTNESS: the old #0f1115 was chroma 2.62 (near-neutral grey) inside chrome at 7.00 (blue-tinted ink), and the .20 radial had been masking it — #701 dropped the lift and EXPOSED it. Desktop only, because mobile is full-bleed with no chrome beside the canvas. Now the bottom of the pane, where the radial fades out, matches the rail and list exactly. ⚠ This SUPERSEDES the #701 ruling below, which he made against a measurement about neutral01 lightness with no knowledge of the chrome adjacency. Superseded: #701 (Damir, awake, 2026-08-30 00:15): the dark lift is .06 and the BASE STAYS #0f1115. Both halves are RULED, neither is provisional. His words ("near black close to neutral01") contradicted the measurement — #0f1115 is L* 5.03, ALREADY darker than dark neutral01 (#13171b, 7.50) and light text-neutral01 (#131415, 6.26) — so moving the base would have made dark PALER while he asked for darker. The base was never the problem: at .20 the canvas centre reached L* 15.66 against a 5.03 base, which is what stopped it reading near-black; at .06 it lands at 7.96. Superseded: E1b\'s .20, whose "DARK rose WITH light" reasoning was sound for the question E1b asked and is simply not the question #701 asked. ⚠ BOTH declarations are COUNTED, not just matched — a later duplicate wins on source order (the #422 sent-meta lesson), and the ground token is exactly what a re-open would duplicate');
+    '★★ #989 (Damir 2026-09-27): the dark canvas is --neutral-1000 (ink-1000 #090A0D) with NO radial lift — near-neutral, one family with the chrome. Superseded: #758 #0D1117; before it: ★★★ AUG (Damir 2026-08-30, ON DEVICE): the dark lift is .06 and the base is #10151e — the CHROME\'S OWN --surface-screen. ⚠ THE DEFECT WAS COLOUR FAMILY, NOT LIGHTNESS: the old #0f1115 was chroma 2.62 (near-neutral grey) inside chrome at 7.00 (blue-tinted ink), and the .20 radial had been masking it — #701 dropped the lift and EXPOSED it. Desktop only, because mobile is full-bleed with no chrome beside the canvas. Now the bottom of the pane, where the radial fades out, matches the rail and list exactly. ⚠ This SUPERSEDES the #701 ruling below, which he made against a measurement about neutral01 lightness with no knowledge of the chrome adjacency. Superseded: #701 (Damir, awake, 2026-08-30 00:15): the dark lift is .06 and the BASE STAYS #0f1115. Both halves are RULED, neither is provisional. His words ("near black close to neutral01") contradicted the measurement — #0f1115 is L* 5.03, ALREADY darker than dark neutral01 (#13171b, 7.50) and light text-neutral01 (#131415, 6.26) — so moving the base would have made dark PALER while he asked for darker. The base was never the problem: at .20 the canvas centre reached L* 15.66 against a 5.03 base, which is what stopped it reading near-black; at .06 it lands at 7.96. Superseded: E1b\'s .20, whose "DARK rose WITH light" reasoning was sound for the question E1b asked and is simply not the question #701 asked. ⚠ BOTH declarations are COUNTED, not just matched — a later duplicate wins on source order (the #422 sent-meta lesson), and the ground token is exactly what a re-open would duplicate');
   /* ★ Session I re-base (#735⑥, sheet 1d = A): the blue softened one step to #2160C2, REVERSIBLY —
      #1956b2 rides in every token comment. The property is unchanged: ONE blue, both themes,
      fallback ≡ gradient. */
@@ -7513,8 +7521,8 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     '★ N81/N82(b): the surfaces that FLOATED on the old blue canvas still READ the hairline token (transparent since #427) rather than baking their own edge — including the Chat-appearance PREVIEW bubble, the one screen whose whole job is showing what the chat looks like. If it ever baked an edge the preview would stop matching the chat');
   ok(/--text-bubble-sent-meta/.test(darkN81) && !/--text-bubble-sent-meta: var\(--neutral-300\)/.test(darkN81),
     '★ N81 (#422): the superseded dark sent-meta ink is GONE, not merely shadowed — a leftover declaration in the dark block would win on source order');
-  ok(/--surface-bubble-received: #ffffff;/.test(lightN81) && /--surface-bubble-received: #1e222b;/.test(darkN81),
-    '★★ AUG (Damir 2026-08-30, ON DEVICE): the incoming bubble surface — WHITE in light, #1e222b in dark. Dark was raised because #1a1d24 measured only +2.86 ΔL* against the canvas CENTRE (where the #701 radial lift is strongest) and blended at the top of the screen; #1e222b is +5.31. Damir picked the NEUTRAL step off a four-candidate render — the bluer options were offered and declined, so this is a lightness change and the bubble keeps its hue. ⚠ The #701 lift drop IMPROVED this rather than causing it: at .20 the canvas centre was L* 15.66 against the bubble\'s 10.75, i.e. the bubble was DARKER than its own background. Superseded: #1a1d24 (N81, Damir 2026-08-19)');
+  ok(/--surface-bubble-received: #ffffff;/.test(lightN81) && /--surface-bubble-received: var\(--neutral-800\);/.test(darkN81),
+    '★★ #989 (Damir 2026-09-27): dark = the ramp\'s --neutral-800 (ink-800 #1A1C1F), no literal. Superseded: ★★ AUG (Damir 2026-08-30, ON DEVICE): the incoming bubble surface — WHITE in light, #1e222b in dark. Dark was raised because #1a1d24 measured only +2.86 ΔL* against the canvas CENTRE (where the #701 radial lift is strongest) and blended at the top of the screen; #1e222b is +5.31. Damir picked the NEUTRAL step off a four-candidate render — the bluer options were offered and declined, so this is a lightness change and the bubble keeps its hue. ⚠ The #701 lift drop IMPROVED this rather than causing it: at .20 the canvas centre was L* 15.66 against the bubble\'s 10.75, i.e. the bubble was DARKER than its own background. Superseded: #1a1d24 (N81, Damir 2026-08-19)');
   ok(/--border-bubble-received: transparent;/.test(lightN81)
     && !/--border-bubble-received:/.test(darkN81),
     '★ N82(b) (#427): the bubble hairline is OFF in BOTH themes — one `transparent` in :root and NO dark override. Damir chose symmetric removal against the rendered comparison; the asymmetric build (transparent in light, rgba(255,255,255,.05) in dark) is what he was shown, not what ships');
@@ -16828,8 +16836,10 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   }
 
   /* —— the saturated dark surface —————————————————————————————————————— */
-  ok(/--ink-900:\s*#10151e;/.test(tokens2) && /--ink-800:\s*#161d28;/.test(tokens2),
-    '★ DARK SATURATION (Damir 2026-08-22): a saturated ink-* ramp exists');
+  /* ★ #989 re-base (Damir 2026-09-27): the ramp is NEAR-NEUTRAL now (hue ~255, chroma ~0.006);
+     the saturated values (#10151e / #161d28) are the superseded ruling, kept in the comments. */
+  ok(/--ink-900:\s*#0F1113;/.test(tokens2) && /--ink-800:\s*#1A1C1F;/.test(tokens2),
+    '★ #989: the ink-* ramp exists and is the NEAR-NEUTRAL one (ink-900 #0F1113, ink-800 #1A1C1F). Superseded: DARK SATURATION (Damir 2026-08-22) #10151e / #161d28');
   {
     const darkBlock = tokens2.split('[data-theme="dark"] {')[1].split('\n}')[0];
     ok(/--neutral-900: var\(--ink-900\);/.test(darkBlock),
@@ -16852,8 +16862,12 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
     const pairs = [['#13171b', '#10151e'], ['#1b1f23', '#161d28'], ['#111213', '#0d1118'], ['#202328', '#19212f'],
       /* ★ Session Z (#884 ②): the two steps the ramp was missing, by the same rule */
       ['#292d33', '#202b3c'], ['#31343a', '#253246']];
-    ok(pairs.every(([oldHex, newHex]) => Math.abs(hexL(oldHex) - hexL(newHex)) < 0.006),
-      '★ DARK SATURATION: every step holds its ORIGINAL HSL lightness (±0.6%). ⚠ #46 loop (Session Z A-1): that is NOT "contrast is unchanged" — WCAG contrast follows relative LUMINANCE, which a saturation rise at held L lowers (~9% on 500/600); the ratios that matter are computed below and in the #769/#884 ⑤ block, not inferred from this clause');
+    /* ★ #989 re-base: the ramp no longer holds the old lightness (it was retuned, not re-hued), so
+       the historic pairs above are the record only. The property now: the six live steps are a
+       MONOTONIC ladder, 500 lightest → 1000 darkest (read from tokens.css, not from this list). */
+    const liveInk = [500, 600, 700, 800, 900, 1000].map((n) => (new RegExp('--ink-' + n + ':\\s*(#[0-9a-fA-F]{6});').exec(tokens2) || [])[1]);
+    ok(pairs.length === 6 && liveInk.every(Boolean) && liveInk.every((h, i) => i === 0 || hexL(h) < hexL(liveInk[i - 1])),
+      '★ #989: the six live ink steps form a monotonic lightness ladder 500 → 1000 (' + liveInk.join(' ') + '). Superseded: DARK SATURATION — every step held its ORIGINAL HSL lightness (±0.6%). ⚠ #46 loop (Session Z A-1): that is NOT "contrast is unchanged" — WCAG contrast follows relative LUMINANCE, which a saturation rise at held L lowers (~9% on 500/600); the ratios that matter are computed below and in the #769/#884 ⑤ block, not inferred from this clause');
     /* ★ Session Z (#884 ②): the ramp is CONTIGUOUS from 500 to 1000 in dark — every neutral
        step a dark SURFACE token reads is re-pointed at an ink step, derived from the dark
        block itself (the surface tokens that read --neutral-5xx/6xx are the property, not a
@@ -16863,11 +16877,13 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
       const darkBlock2 = tokens2.split('[data-theme="dark"] {')[1].split('\n}')[0];
       const stepsRead = [...new Set([...darkBlock2.matchAll(/--surface-[\w-]+:\s*var\(--neutral-(\d+)\)/g)].map((m) => m[1]))].filter((n) => Number(n) >= 500);
       const hsl = (h) => { const [r, g, b] = [1, 3, 5].map((i) => parseInt(h.substr(i, 2), 16) / 255); const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2; if (mx === mn) return { h: 0, s: 0, l }; const d = mx - mn; const sat = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn); let hh = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; return { h: hh * 60, s: sat, l }; };
-      const inkOf = (n) => (new RegExp('--ink-' + n + ':\\s*(#[0-9a-f]{6});').exec(tokens2) || [])[1];
+      const inkOf = (n) => (new RegExp('--ink-' + n + ':\\s*(#[0-9a-fA-F]{6});').exec(tokens2) || [])[1];
+      /* ★ #989 re-base: the band is NEAR-NEUTRAL — OKLCH chroma ≤ 0.008, hue 240°–275° (was HSL 217° ± 3, S ≥ 25%) */
+      const oklch = (h) => { const lin = (c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4); const [r, g, b] = [1, 3, 5].map((i) => lin(parseInt(h.substr(i, 2), 16) / 255)); const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b), m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b), s3 = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b); const A = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s3, B = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s3; return { c: Math.hypot(A, B), h: ((Math.atan2(B, A) * 180 / Math.PI) + 360) % 360 }; };
       const repointed = stepsRead.filter((n) => new RegExp('--neutral-' + n + ': var\\(--ink-' + n + '\\);').test(darkBlock2));
-      const inkOk = stepsRead.every((n) => { const hx = inkOf(n); if (!hx) return false; const c = hsl(hx); return Math.abs(c.h - 217) <= 3 && c.s >= 0.25; });
+      const inkOk = stepsRead.every((n) => { const hx = inkOf(n); if (!hx) return false; const c = oklch(hx); return c.c <= 0.008 && c.h >= 240 && c.h <= 275; });
       ok(stepsRead.length >= 4 && repointed.length === stepsRead.length && inkOk,
-        '★ Session Z (#884 ②): every neutral step ≥ 500 that a dark surface token reads (' + stepsRead.join('/') + ') is re-pointed at an --ink-* step of the same lightness, hue 217° ± 3, S ≥ 25% — no grey step survives under a dark surface (re-pointed: ' + repointed.join('/') + ')');
+        '★ Session Z (#884 ②): every neutral step ≥ 500 that a dark surface token reads (' + stepsRead.join('/') + ') is re-pointed at an --ink-* step, and every such step is NEAR-NEUTRAL (#989: OKLCH chroma ≤ 0.008, hue 240°–275°; was HSL 217° ± 3, S ≥ 25% under #884 ②) — no off-family step survives under a dark surface (re-pointed: ' + repointed.join('/') + ')');
     }
   }
 }
@@ -24391,9 +24407,10 @@ console.log('#711 / #712: floating composer + the notifications sub-labels');
     '★ #711 → Session H: the floating pill carries its OWN ground + hairline pair (--surface-composer-pill / --outline-composer-pill) and elevation-1 — not --surface-input / --outline-neutral-01, which were one colour in dark');
   {
     const tk = rdF('src/styles/tokens.css');
-    const lightBlk = tk.slice(0, tk.indexOf('--surface-composer-pill: #1e222b'));
-    ok(/--surface-composer-pill: #ffffff;\s*\n\s*--outline-composer-pill: var\(--neutral-200\);/.test(lightBlk) && /--surface-composer-pill: #1e222b;\s*\n\s*--outline-composer-pill: var\(--neutral-500\);/.test(tk),
-      '★ Session H: the pill pair is defined in BOTH themes — light white + neutral-200, dark #1e222b (the received-bubble ground, 1.15:1 on the canvas) + neutral-500 (1.47:1 on the canvas; -800/-700 measured 1.06/1.02 against the pill)');
+    /* ★ #989 re-base: dark pill = var(--neutral-800) (was the #1e222b literal) */
+    const lightBlk = tk.slice(0, tk.indexOf('--surface-composer-pill: var(--neutral-800)'));
+    ok(/--surface-composer-pill: #ffffff;\s*\n\s*--outline-composer-pill: var\(--neutral-200\);/.test(lightBlk) && /--surface-composer-pill: var\(--neutral-800\);[^\n]*\n\s*--outline-composer-pill: var\(--neutral-500\);/.test(tk),
+      '★ Session H → #989: the pill pair is defined in BOTH themes — light white + neutral-200, dark --neutral-800 (was #1e222b) (the received-bubble ground, 1.15:1 on the canvas) + neutral-500 (1.47:1 on the canvas; -800/-700 measured 1.06/1.02 against the pill)');
     const inp = cc.slice(cc.indexOf('.c-composer__input {'), cc.indexOf('.c-composer__input::placeholder'));
     ok(/overflow-y: auto;/.test(inp) && /scrollbar-width: thin;/.test(inp) && /scrollbar-color: transparent transparent;/.test(inp)
        && /::-webkit-scrollbar-button \{ display: none; height: 0; \}/.test(inp) && !/scrollbar-gutter/.test(inp)
@@ -25284,8 +25301,8 @@ console.log('Session I ③: the premium pass token batch');
       '★ Damir\'s walk: on a sticker the overlap reactions pill moves to the corner AWAY from the time chip (it covered the timestamp)');
     dom.window.close();
   }
-  ok(/box-shadow: var\(--bubble-elevation\);/.test(bub) && /box-shadow: inset 0 0 0 1px var\(--border-bubble-received\), var\(--bubble-elevation\);/.test(bub) && !/--bubble-elevation: none/.test(tok),
-    '★ 1c: the lift rides the bubble (sent) and rides BESIDE the #427 hairline hook (received) — the hook is intact, and the token is never `none` (a shadow list with `none` in it is invalid CSS)');
+  ok(/box-shadow: var\(--bubble-elevation\);/.test(bub) && /box-shadow: inset 0 0 0 1px var\(--border-bubble-received\), inset 0 0 0 1px var\(--outline-hairline\), inset 0 1px 0 var\(--highlight-top\), var\(--bubble-elevation\);/.test(bub) && !/--bubble-elevation: none/.test(tok),
+    '★ 1c (+ #989): the lift rides the bubble (sent) and rides BESIDE the #427 hairline hook and the #989 dark edge pair (received) — the hook is intact, and the token is never `none` (a shadow list with `none` in it is invalid CSS)');
   /* 1d = A #2160C2, reversible */
   ok(val('surface-bubble-sent', light) === '#2160c2' && val('gradient-bubble-sent', light) === '#2160c2' && /was #1956b2/.test(rdF('src/styles/tokens.css')),
     '★ 1d = A: sent blue #2160C2 in both tokens (white text 5.97:1, meta 5.05:1), #1956b2 kept in the comments as the reversal (#735⑥ "reversibly")');
@@ -25428,8 +25445,9 @@ console.log('Session J: the seven walk fixes · Damir\'s evening rulings · the 
   const val = (name, block = dial) => ((block.match(new RegExp('--' + name + ': ([^;]+);')) || [])[1] || '').trim();
   const typed = stripCssComments(rdF('src/styles/components/typed-bubbles.css'));
   /* A3/A4 — the typed cards read --bubble-elevation, incoming beside the hairline hook and SENT alone (never `none`) */
-  ok((typed.match(/box-shadow: inset 0 0 0 1px var\(--border-bubble-received\), var\(--bubble-elevation\);/g) || []).length === 2
-     && /\.c-bubble-row\[data-direction="sent"\] \.c-tcard,\s*\.c-bubble-row\[data-direction="sent"\] \.c-fbubble \{[^}]*box-shadow: var\(--bubble-elevation\);/.test(typed)
+  /* ★ #989 re-base: the incoming list carries the dark edge pair; the sent list its own tinted edge */
+  ok((typed.match(/box-shadow: inset 0 0 0 1px var\(--border-bubble-received\), inset 0 0 0 1px var\(--outline-hairline\), inset 0 1px 0 var\(--highlight-top\), var\(--bubble-elevation\);/g) || []).length === 2
+     && /\.c-bubble-row\[data-direction="sent"\] \.c-tcard,\s*\.c-bubble-row\[data-direction="sent"\] \.c-fbubble \{[^}]*box-shadow: inset 0 0 0 1px var\(--outline-card-sent\), inset 0 1px 0 var\(--highlight-top\), var\(--bubble-elevation\);/.test(typed)
      && !/box-shadow: none;/.test(typed.slice(0, typed.indexOf('.c-tcard[data-kind="call"]'))),
     '★ A3/A4 (#747): the LIFT rides every typed card — .c-tcard and .c-fbubble list --bubble-elevation beside the #427 hairline hook, and the sent variant keeps the lift where `none` dropped it; the reversal is the token (0 0 0 0 transparent), never a per-card `none`');
   /* A15 — the ⊕ press paints the 36 disc: the clip is declared AFTER the background shorthand, and no state rule uses the shorthand */
@@ -36663,6 +36681,38 @@ console.log('Office fix round (#974–#981)');
   ok(/if \(friend == null\)\s*\{\s*return !SRequestIgnore\.contains\(fa\);\s*\}/.test(raw)
      && /foreach \(string ignored in SRequestIgnore\.list\(\)\)\s*\{\s*if \(!store\.muted\.Contains\(ignored\)\) store\.muted\.Add\(ignored\);\s*\}\s*lastMutedNotOneToOne = notOneToOne;\s*return store;/.test(bodyO(share, 'private static Store build()')),
     '★ #978: the declined requester\'s raw push is not shown (Android: shouldDisplayRawPush, an unknown sender on the list → false; every other unknown sender still shows) and on iOS the address rides the extension\'s muted set');
+}
+
+/* ══ ★★ #989 DARK GLOW-UP (Damir 2026-09-27, audit D-01/D-02): near-neutral dark at the
+   primitive → key → token layers; LIGHT BYTE-IDENTICAL (rendered: 4 built shells, pixel diff = none) ══ */
+{
+  const tk = stripCssComments(readFileSync(join(root, 'src/styles/tokens.css'), 'utf8'));
+  const typedC = stripCssComments(readFileSync(join(root, 'src/styles/components/typed-bubbles.css'), 'utf8'));
+  /* every declaration of a name, with its position — the dark value must come AFTER the light one
+     (equal specificity: :root vs [data-theme="dark"] — a dark value in the FIRST dark block loses to
+     the later :root block; the first cut of this batch shipped exactly that and rendered unchanged) */
+  const decls = (name) => [...tk.matchAll(new RegExp('--' + name + ':\\s*([^;]+);', 'g'))].map((m) => ({ v: m[1].trim(), at: m.index }));
+  const NEW = {
+    'outline-hairline': ['transparent', 'rgba(255, 255, 255, 0.07)'],
+    'highlight-top': ['transparent', 'rgba(255, 255, 255, 0.04)'],
+    'surface-card-sent': ['var(--surface-bubble-received)', '#19253B'],
+    'border-card-sent': ['2px solid var(--surface-bubble-sent)', '0 solid transparent'],
+    'outline-card-sent': ['transparent', 'rgba(118, 157, 255, 0.22)'],
+    'surface-medallion': ['var(--surface-action-tonal-default)', 'rgba(118, 157, 255, 0.14)'],
+    'icon-medallion': ['var(--icon-action-default)', '#9DB8FF'],
+  };
+  const bad = Object.entries(NEW).filter(([n, [lv, dv]]) => { const d = decls(n); return !(d.length === 2 && d[0].v === lv && d[1].v === dv && d[1].at > d[0].at); });
+  ok(bad.length === 0,
+    '★★ #989: seven new semantic tokens, each declared exactly TWICE — the LIGHT value first (= today\'s look: transparent edges, the white sent card with #265\'s 2px outgoing border, the action-tonal medallion) and the DARK value LATER in source order, so it actually wins on [data-theme="dark"]. Failing: ' + JSON.stringify(bad.map((b) => b[0])));
+  const darkLit = ['chat-canvas-base', 'surface-bubble-received', 'surface-composer-pill'].filter((n) => { const d = decls(n); return !d.length || /#[0-9a-fA-F]{3,6}\b/.test(d[d.length - 1].v); });
+  ok(darkLit.length === 0 && decls('chat-canvas-base').pop().v === 'var(--neutral-1000)' && decls('surface-bubble-received').pop().v === 'var(--neutral-800)' && decls('surface-composer-pill').pop().v === 'var(--neutral-800)',
+    '★ #989: the dark canvas / received bubble / composer pill read the RAMP (neutral-1000 / -800 / -800), no literal hex — two blacks from two families was defect D-01. Literal: ' + JSON.stringify(darkLit));
+  const sent = typedC.slice(typedC.indexOf('.c-bubble-row[data-direction="sent"] .c-tcard,'), typedC.indexOf('.c-tcard[data-kind="call"]'));
+  ok(/border: var\(--border-card-sent\);/.test(sent) && /background: var\(--surface-card-sent\);/.test(sent) && !/border: 2px solid/.test(sent),
+    '★ #989: the SENT card stroke is the TOKEN (light 2px outgoing border, dark none) — no literal 2px border left in the rule');
+  const med = ['.c-tcard__app-icon {', '.c-bubble-row[data-call-outcome] .c-tcard__title svg {', '\n.c-fbubble__icon {'].map((sel) => { const i = typedC.indexOf(sel); return i < 0 ? '' : typedC.slice(i, typedC.indexOf('}', i)); });
+  ok(med.every((b) => /background: var\(--surface-medallion\);/.test(b) && /color: var\(--icon-medallion\);/.test(b)),
+    '★ #989: the three medallions (app icon · call outcome disc · file icon) read --surface-medallion / --icon-medallion — the tonal state variants (missed/declined/failed/hover/pressed) keep their own tokens');
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

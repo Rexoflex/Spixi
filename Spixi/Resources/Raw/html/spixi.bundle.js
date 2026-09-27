@@ -12152,6 +12152,14 @@ function createWalletFilters(state, opts = {}) {
   miss.type = 'button';
   miss.className = 'c-wallet-misstx';
   miss.append(icon('info-circle', { size: 16 }));
+  // #990 (Damir 2026-09-27): on a PHONE the pill is a lone "?" so the filter chips lead;
+  // the CSS shows this glyph and hides the ⓘ + label outside :root[data-desktop].
+  // aria-label + title below still carry the full name for screen readers.
+  const mq = document.createElement('span');
+  mq.className = 'c-wallet-misstx__q';
+  mq.setAttribute('aria-hidden', 'true');
+  mq.textContent = '?';
+  miss.append(mq);
   const mlabel = document.createElement('span');
   mlabel.className = 'c-wallet-misstx__label';
   mlabel.textContent = strings.missingTx || 'Missing a transaction?';

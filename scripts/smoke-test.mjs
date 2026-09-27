@@ -36715,6 +36715,18 @@ console.log('Office fix round (#974–#981)');
     '★ #989: the three medallions (app icon · call outcome disc · file icon) read --surface-medallion / --icon-medallion — the tonal state variants (missed/declined/failed/hover/pressed) keep their own tokens');
 }
 
+/* ══ #990 (Damir 2026-09-27): on a PHONE "Missing a transaction?" is only a round "?" — the chips lead ══ */
+{
+  const wsJs = stripCode(readFileSync(join(root, 'src/components/wallet-shell.js'), 'utf8'));
+  const wsCss = stripCssComments(readFileSync(join(root, 'src/styles/components/wallet-shell.css'), 'utf8'));
+  ok(/mq\.className = 'c-wallet-misstx__q';[\s\S]{0,120}mq\.setAttribute\('aria-hidden', 'true'\);[\s\S]{0,60}mq\.textContent = '\?';/.test(wsJs)
+     && /miss\.setAttribute\('aria-label', strings\.missingTx/.test(wsJs)
+     && /\.c-wallet-misstx__q \{ display: none; \}/.test(wsCss)
+     && /:root:not\(\[data-desktop\]\) \.c-wallet-misstx > svg,\s*:root:not\(\[data-desktop\]\) \.c-wallet-misstx__label \{ display: none; \}/.test(wsCss)
+     && /:root:not\(\[data-desktop\]\) \.c-wallet-misstx__q \{[^}]*display: block;/.test(wsCss),
+    '★ #990: on a phone the misstx pill shows ONLY a "?" (aria-hidden glyph; the aria-label still names it), the ⓘ and the label hide outside :root[data-desktop], and desktop keeps the ⓘ + label (the glyph is display:none by default)');
+}
+
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.
  * Exactly the known set → BASELINE OK + exit 0. Any OTHER failure — or a known

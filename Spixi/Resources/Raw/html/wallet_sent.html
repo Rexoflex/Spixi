@@ -1075,6 +1075,22 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    which also covers a narrow PANE inside a wide desktop window. */
 @media (max-width: 360px) { .c-wallet-misstx__label { display: none; } }
 .c-wallet-filters[data-compact] .c-wallet-misstx__label { display: none; }
+/* #990 (Damir 2026-09-27): on a PHONE the pill is ONLY a "?" — a round tonal button, so the
+   filter chips read as the primary control. Desktop (:root[data-desktop]) keeps the ⓘ + label
+   and the #278/#286 measured collapse. The glyph is text (no question-mark icon in the registry). */
+.c-wallet-misstx__q { display: none; }
+:root:not([data-desktop]) .c-wallet-misstx { padding: var(--spacing-8); justify-content: center; }
+:root:not([data-desktop]) .c-wallet-misstx > svg,
+:root:not([data-desktop]) .c-wallet-misstx__label { display: none; }
+:root:not([data-desktop]) .c-wallet-misstx__q {
+  display: block;
+  width: var(--spacing-16);
+  height: var(--spacing-16);
+  font-size: var(--font-size-body-md);
+  line-height: var(--spacing-16);
+  font-weight: var(--font-weight-bold);
+  text-align: center;
+}
 /* #286 (Damir F5): in an ultra-narrow pane the three chips alone fill the row —
    even the ⓘ-only chip overflowed past the row end and .c-wallet-tools'
    overflow:hidden CLIPPED it (the "missing Missing-a-transaction" bug). Last

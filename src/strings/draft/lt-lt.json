@@ -654,5 +654,11 @@
   "declinedRequestsSub": "Žmonės, kurių kontakto prašymus atmetėte",
   "declinedRequestsNote": "Pakartotinis prašymas iš šių adresų ignoruojamas. Jiems nepranešama. Atblokuokite, kad vėl gautumėte jų prašymus.",
   "declinedRequestsEmpty": "Neatmetėte jokių prašymų.",
-  "unblock": "Atblokuoti"
+  "unblock": "Atblokuoti",
+  "noAnswer": "Neatsiliepė",
+  "youDeclinedCall": "Atmetėte",
+  "copyFailedOpenQr": "Nepavyko nukopijuoti. Atidarykite QR kodą, kad nukopijuotumėte visą adresą.",
+  "groundBrandGradient": "Prekės ženklo gradientas",
+  "patternStyleContours": "Kontūrai",
+  "tapToDownload": "Palieskite, kad atsisiųstumėte"
 }

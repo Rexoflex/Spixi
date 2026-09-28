@@ -46,8 +46,8 @@
      settings swatches can override it per element). Two dials, orthogonal:
      style picks the SOURCE, the intensity pref keeps mapping to opacity, and
      "Off" lives ONLY in the intensity dial (there is no fourth style).
-     ★ #835: ONE style is left (data matrix). A stored 'doodles', 'flow',
-     'triangles' or 'lineart' matches no allowlist below and lands on matrix
+     ★ #835 → #997: ONE style is left (contours; the data matrix retired). A stored 'matrix', 'doodles', 'flow',
+     'triangles' or 'lineart' matches no allowlist below and lands on contours
      before first paint — the fall-through, not a migration (#422 rule). -->
 <!-- ★ N81 (#422): the level is an INDEX (0 Off / 1 Default / 2 Strong) and the
      alpha comes from the theme's own --chat-pattern-alpha-N. The old dark ×0.36
@@ -62,14 +62,12 @@
         exists and folds to 1 here, exactly as readPatternLevel() does in
         settings-screens.js. Keep the two in step — they are the same rule in two homes
         because this one must run before the bundle loads.
-     ② THE LIGHT CANVAS IS SOLID: `spixi.chat.ground` = 'flat', and that is the ONLY value
-        this ladder admits. ★ #835 flipped the default away from the gradient; ★★ #855
-        (Damir 2026-09-09, "for gradient, yes I mean retire the option for now") retired the
-        option outright. Allowlisted the same way the style is, so a stored 'gradient' — or
-        any corrupt value — lands on 'flat' BEFORE first paint rather than painting a ground
-        the picker can no longer choose. The attribute is still set in BOTH themes and is
-        simply inert in dark. Superseded: 'flat' (default) | 'gradient'. -->
-<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),p=NaN,t=NaN,s='',g='';try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));s=localStorage.getItem('spixi.chat.patternstyle')||'';g=localStorage.getItem('spixi.chat.ground')||'';}catch(e){}var lv;if(!isFinite(p))lv=1;else if(p<=0)lv=0;else lv=1;r.setProperty('--chat-pattern-opacity',lv<=0?'0':'var(--chat-pattern-alpha-1)');if(isFinite(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));if(s!=='matrix')s='matrix';document.documentElement.setAttribute('data-chat-pattern',s);if(g!=='flat')g='flat';document.documentElement.setAttribute('data-chat-ground',g);})();</script>
+     ② THE LIGHT CANVAS DEFAULTS TO SOLID: `spixi.chat.ground` = 'flat' | 'gradient'.
+        ★ #835 flipped the default away from the gradient; ★★ #855 retired the option;
+        ★★ #998 (Damir 2026-09-28) restored it as the BRAND gradient. Allowlisted the same way
+        the style is, so any corrupt value lands on 'flat' BEFORE first paint. The attribute
+        is set in BOTH themes and is inert in dark (the brand gradient is a light ground). -->
+<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),p=NaN,t=NaN,s='',g='';try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));s=localStorage.getItem('spixi.chat.patternstyle')||'';g=localStorage.getItem('spixi.chat.ground')||'';}catch(e){}var lv;if(!isFinite(p))lv=1;else if(p<=0)lv=0;else lv=1;r.setProperty('--chat-pattern-opacity',lv<=0?'0':'var(--chat-pattern-alpha-1)');if(isFinite(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));if(s!=='contours')s='contours';document.documentElement.setAttribute('data-chat-pattern',s);if(g!=='flat'&&g!=='gradient')g='flat';document.documentElement.setAttribute('data-chat-ground',g);})();</script>
 <style>
   /* Paint the screen surface IMMEDIATELY — before tokens.css/base.css load and
      before the JS bundle parses — so entering a chat doesn't flash an empty
@@ -766,7 +764,8 @@
        until the next pick overwrites it; it is never read back as anything but "not in
        the list". `de` no longer gates anything here: Live flow was the only desktop-only
        style. */
-    if (s !== 'matrix') s = 'matrix';
+    // ★★ #997: CONTOURS replace the data matrix — a stored 'matrix' falls through like every retired style
+    if (s !== 'contours') s = 'contours';
     /* ★★ #835 (Damir, 2026-09-09): "we will remove the gradient on light, it's too busy."
        THE DEFAULT FLIPS; THE OPTION STAYS. He ruled the other way on 2026-08-30 — "leave
        the gradient as an option in chat appearance on light mode", recorded verbatim at
@@ -785,7 +784,9 @@
        Gradient must not be stranded on a canvas the picker can no longer change. The string
        is deliberately left in localStorage: it is never read back as anything but "not in
        the list", and restoring the option restores their pick. */
-    if (gr !== 'flat') gr = 'flat';
+    /* ★★ #998 (Damir 2026-09-28): the option is BACK as the BRAND gradient (light only) — this
+       ladder admits 'gradient' again, in step with the head script and settings.html. */
+    if (gr !== 'flat' && gr !== 'gradient') gr = 'flat';
     return { level: p, style: s, ground: gr, text: t };
   }
   function applyPatternPrefs(prefs) {
@@ -2303,6 +2304,7 @@
       if (!canSheet) {
         return createPaymentBubble({
           role: 'request-in',
+          flow: 'out',   // ★ #1013 (r4 NIT): their request, when I pay it, moves money OUT
           status: 'pending',
           title: rec.title || '',
           amount: displayPaymentAmount(rec),
@@ -2314,6 +2316,7 @@
       }
       return createPaymentBubble({
         role: 'request-in',
+        flow: 'out',   // ★ #1013 (r4 NIT)
         status: 'actionable',
         title: rec.title || '',
         amount: displayPaymentAmount(rec),
@@ -2340,6 +2343,7 @@
     if (pendingOutgoingRequest && rec.id) {
       return createPaymentBubble({
         role: 'request-out',
+        flow: 'in',   // ★ #1013 (r4 NIT): my request, when paid, moves money IN — kept for an in-place swap to the pill
         status: 'pending',
         title: rec.title || '',
         amount: displayPaymentAmount(rec),
@@ -2353,15 +2357,26 @@
     }
     return createPaymentBubble({
       role: rec.direction === 'sent' ? 'sent' : 'received',
+      /* ★ #996: a REQUEST's money moves against its message (my request paid = money IN) */
+      flow: isRequestRec(rec) ? (rec.direction === 'sent' ? 'in' : 'out') : (rec.direction === 'sent' ? 'out' : 'in'),
       title: rec.title || '',
       amount: displayPaymentAmount(rec),
       fiat: rec.fiat || '',
       status: rec.pstatus,
+      celebrate: takeCelebrate(rec),
       timestamp: rec.ts,
       gutter: mode.isMulti && rec.direction === 'received',
       onDetails: view,
       strings: window.SL || {},
     });
+  }
+
+  /* ★ #1009 (10a): the live-completion flag is ONE-SHOT — the first render after the flip
+   * draws the check; any later re-render (a reaction, a scroll re-flush) shows it static. */
+  function takeCelebrate(rec) {
+    if (!rec.celebrate) return false;
+    rec.celebrate = false;
+    return true;
   }
 
   /* #529: Cancel request = delete the request message on BOTH ends (the existing
@@ -2442,6 +2457,18 @@
     catch (e) { dbg('showCallRefusal: the toast failed — ' + e); }
   }
 
+  /* ★★ #1006 (the polish round, item 7): "no call-back while a call is active". C4 already
+   * hid the button on the LIVE call's own card; a SECOND card in the same log still offered
+   * it, and the tap went into C#'s busy refusal toast. The shell knows every call row of
+   * this conversation, so the rule is "no call-back on ANY card while any call here is
+   * live" — zero C#, and the re-push at call end (rec.active=false) re-renders the whole
+   * log (renderLogNow rebuilds every row), which restores every button at once. A call live
+   * in ANOTHER chat is not visible to this WebView (#221); C#'s busy refusal still covers it. */
+  function liveCallInLog() {
+    for (const r of model.values()) if (r && r.kind === 'call' && r.active) return true;
+    return false;
+  }
+
   function buildCallRow(rec) {
     return createCallBubble({
       missed: rec.missed,
@@ -2458,7 +2485,7 @@
       timestamp: rec.ts,
       // ★ C4 (Session AD): no "Call back" on the card of a call that is LIVE — the tap
       // sent ixian:callback into C#'s busy refusal. The re-push at call end restores it.
-      onCallBack: (callVisible && !rec.active) ? callBackFromCard : null,
+      onCallBack: (callVisible && !rec.active && !liveCallInLog()) ? callBackFromCard : null,
     });
   }
 
@@ -4349,7 +4376,7 @@
     // already-paid row stay surgical and don't force a full re-render.
     if (rec.direction === 'sent' && rec.status !== 'failed' && !!rec.paid === paidBefore) {
       const row = rows.get(id);
-      if (row) { setMessageStatus(row, rec.status); return; }
+      if (row) { setMessageStatus(row, rec.status, window.SL || {}, { animate: !bursting && !loadPhase }); return; }   // ★ #1010: live ticks crossfade, history never
     }
     renderLog();
   }
@@ -5248,7 +5275,9 @@
       id = String(id);
       const rec = model.get(id);
       if (!rec || rec.kind !== 'payment') { dbg('updatePaymentRequestStatus: unknown', id); return; }
+      const prevStatus = rec.pstatus;
       rec.pstatus = paymentStatusFrom(statusEnum, statusIcon);
+      if (prevStatus !== 'completed' && rec.pstatus === 'completed' && !bursting && !loadPhase) rec.celebrate = true;   // ★ #1009: a LIVE completion draws its check once
       if (txid) {
         if (rec.txid && rec.txid !== String(txid)) txIndex.delete(rec.txid); // drop stale key on re-key (N1)
         rec.txid = String(txid); txIndex.set(rec.txid, id);
@@ -5263,7 +5292,9 @@
       const id = txIndex.get(String(txid));
       const rec = id && model.get(id);
       if (!rec) { dbg('updateTransactionStatus: unknown txid', txid); return; }
+      const prevStatus = rec.pstatus;
       rec.pstatus = paymentStatusFrom(statusEnum, statusIcon);
+      if (prevStatus !== 'completed' && rec.pstatus === 'completed' && !bursting && !loadPhase) rec.celebrate = true;   // ★ #1009
       renderLog();
     },
 

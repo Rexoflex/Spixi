@@ -19,9 +19,9 @@
      the #989 dark hairline + top highlight (transparent in light), then the Session I lift. */
   box-shadow: inset 0 0 0 1px var(--border-bubble-received), inset 0 0 0 1px var(--outline-hairline), inset 0 1px 0 var(--highlight-top), var(--bubble-elevation);
 }
-/* SENT cards (#265 → #989): light keeps the 2px outgoing-colour border (#265); dark drops it for
-   a tinted fill + 1px tinted hairline (tokens --border-card-sent / --surface-card-sent /
-   --outline-card-sent). The lift stays on the sent side (Session J A3/A4). */
+/* SENT cards (#265 → #989 → #1003): BOTH themes draw a tinted fill + a 1px tinted hairline
+   (tokens --border-card-sent [0 in both] / --surface-card-sent / --outline-card-sent); light's
+   2px outgoing-colour border (#265) is retired by #1003. The lift stays (Session J A3/A4). */
 .c-bubble-row[data-direction="sent"] .c-tcard,
 .c-bubble-row[data-direction="sent"] .c-fbubble {
   border: var(--border-card-sent);
@@ -72,7 +72,9 @@
   line-height: var(--line-height-heading-sm);
   letter-spacing: var(--tracking-heading-sm);
 }
-.c-tcard__amount[data-tone="pending"] { color: var(--text-warning); }
+/* ★ #1004 (D-03, Damir 2026-09-28): a pending amount is NOT a warning — orange read as an error.
+   The status (chip / quiet foot) carries "pending"; the number stays the primary ink. Was --text-warning. */
+.c-tcard__amount[data-tone="pending"] { color: var(--text-neutral-01); }
 .c-tcard__amount[data-tone="positive"] { color: var(--text-success); }
 .c-tcard__amount[data-tone="neutral"] { color: var(--text-neutral-01); }
 .c-tcard__amount[data-tone="void"] {
@@ -89,6 +91,10 @@
 
 .c-tcard__badge { margin-top: var(--spacing-8); }
 
+/* ★ #1020: a card that ACTS (the full card, #996) is at least wide enough for its two buttons side
+   by side — #591's hug made a short app name stack Decline over Join as two full-width slabs. It
+   still hugs above this floor, and the Session J wrap still saves a long localized pair. */
+.c-tcard:not([data-layout]) { min-width: min(var(--bubble-max-pct), 264px); }   /* 264 sanctioned: two 32px buttons + gap inside the 12px padding */
 .c-tcard__actions {
   display: flex;
   flex-wrap: wrap;            /* ★ Session J: a button that cannot fit beside its neighbour takes the next row, whole */
@@ -104,6 +110,11 @@
    to its own full-width row instead of losing its verb. The B4 overflow cannot return:
    wrapping is what absorbs it now. Reversal = `min-width: 0` + the ellipsis trio. */
 .c-tcard__actions .c-button { flex: 1 1 auto; }
+/* ★ #1020: TWO actions sit side by side, equal width (secondary · primary) — actionsRow stamps
+   data-width="full" (button.css: width 100%), which forced every pair onto two rows however wide
+   the card. `flex-basis: 0` + `width: auto` share the row; each button's min-content (its label)
+   is still its floor, so a pair too long for one row still wraps, whole (Session J). */
+.c-tcard__actions .c-button[data-width="full"] { width: auto; flex: 1 1 0; min-width: max-content; }
 .c-tcard__actions .c-button .c-button__label { white-space: nowrap; }
 
 .c-tcard__note {
@@ -157,6 +168,17 @@
   flex: none;
 }
 .c-tcard__app-icon img { width: 100%; height: 100%; object-fit: cover; }
+/* ★★ #1020: the no-icon app is a MONOGRAM on the identity gradient (the avatar treatment) */
+.c-tcard__app-icon.c-tcard__app-icon--mono {
+  background: linear-gradient(180deg, var(--av-c1, #2CB1FF), var(--av-c2, #3480EC));   /* sanctioned: the avatar fallback pair (avatar.css) */
+  color: #fff;   /* sanctioned: a white initial on the identity gradient (avatar grammar) */
+}
+.c-tcard__app-initial {
+  font-size: var(--font-size-label-lg);
+  line-height: 1;
+  font-weight: var(--font-weight-bold);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);   /* sanctioned: the #1001 avatar initials shadow */
+}
 .c-tcard__app-info { display: flex; flex-direction: column; min-width: 0; }
 .c-tcard__app-name {
   font-size: var(--font-size-label-md);
@@ -173,45 +195,63 @@
   color: var(--text-neutral-02);
 }
 
-/* call card */
-.c-bubble-row[data-missed] .c-tcard__title { color: var(--text-error); }
-.c-bubble-row[data-missed] .c-tcard__title svg { color: var(--icon-error); }
-/* #264 (Damir ③): call cards adopt the FILE-BUBBLE medallion grammar — the
-   outcome glyph (phone / phone-off missed / phone-x declined) sits in a tonal
-   disc like the file icon; missed/declined tint the disc destructive. Marker
-   set by createCallBubble (data-call-outcome). */
-.c-bubble-row[data-call-outcome] .c-tcard__title svg {
-  box-sizing: content-box;
-  padding: var(--spacing-8);
-  border-radius: var(--radius-full);
-  background: var(--surface-medallion);   /* #989 */
-  color: var(--icon-medallion);
-  flex: none;
+/* call card — ★★ #1006 (D-07): ONE compact row. The medallion is the reskin's own
+   (.c-tcard__medallion, above); the outcome tints it. Only a MISSED call is red. */
+.c-tcard__call {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: var(--size-avatar-48);
 }
-.c-bubble-row[data-call-outcome="missed"] .c-tcard__title svg,
-.c-bubble-row[data-call-outcome="declined"] .c-tcard__title svg {
+.c-tcard__call-info { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.c-tcard__call .c-tcard__title { flex: none; display: block; font-size: var(--font-size-label-md); line-height: var(--line-height-label-md); }
+.c-tcard__call-meta {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-bubble-row[data-call-outcome="missed"] .c-tcard__title { color: var(--text-error); }
+.c-bubble-row[data-call-outcome="missed"] .c-tcard__medallion {
   background: var(--surface-destructive-tonal-default);
   color: var(--icon-error);
 }
-.c-tcard__call-meta {
-  font-size: var(--font-size-body-md);
-  line-height: var(--line-height-body-md);
-  color: var(--text-neutral-02);
+.c-bubble-row[data-call-outcome="declined"] .c-tcard__medallion,
+.c-bubble-row[data-call-outcome="noanswer"] .c-tcard__medallion {
+  background: var(--surface-neutral-03);
+  color: var(--icon-neutral-02);
 }
+/* ⚠ #1012 (Opus r1 m5): "no answer" is ALWAYS outgoing, so it sits on the #1003 sent tint —
+   neutral-03 measured 1.04:1 there and the disc vanished. One step deeper on the sent side. */
+.c-bubble-row[data-direction="sent"][data-call-outcome="declined"] .c-tcard__medallion,
+.c-bubble-row[data-direction="sent"][data-call-outcome="noanswer"] .c-tcard__medallion { background: var(--surface-neutral-04); }
+/* the round 36px call-back button — the only tap target on the card */
 .c-tcard__call-back {
+  flex: none;
+  width: 36px;               /* 36 sanctioned: the call-back disc (#1006) — the ⊕ / send disc size */
+  height: 36px;
+  margin-inline-start: var(--spacing-4);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 0;
-  background: transparent;
-  padding: var(--spacing-4) 0;
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-body-md);
-  line-height: var(--line-height-body-md);
-  color: var(--text-neutral-02);
+  border-radius: var(--radius-full);
+  padding: 0;
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
   cursor: pointer;
-  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
 }
+/* 44px hit area on a 36px disc (the #990 precedent) */
+.c-tcard__call-back::after { content: ''; position: absolute; inset: -4px; border-radius: var(--radius-full); }
+/* ⚠ #1012 (Opus r1 m6): the disc keeps its tonal fill under the pointer — dark tonal-hover/-pressed
+   are the SOLID action blue (primary-600/-500; the #1007 nav artifact) and the icon measured 2.67:1
+   on it. Only the INK moves. */
 @media (hover: hover) and (pointer: fine) {
-  .c-tcard__call-back:hover { color: var(--text-action-hover); }
+  .c-tcard__call-back:hover { color: var(--icon-action-hover); }
 }
+.c-tcard__call-back:active { color: var(--icon-action-pressed); }
+.c-tcard__call-back:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 2px; }
 
 /* —— file bubble (compact) —— */
 .c-fbubble {
@@ -231,26 +271,63 @@
   font-family: var(--font-secondary);
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) and (pointer: fine) {
-  .c-fbubble:hover .c-fbubble__icon { background: var(--surface-action-tonal-hover); }
-}
+/* ★★ #1021 (Damir 2026-09-28: "premiumize the file transfer"): the DOCUMENT TILE — a 40×44
+   squircle on the disc/avatar palette by file family (#1017 tokens, 180° gradient, white label),
+   the extension in small caps, and a corner badge for the state (download on an offer, retry on a
+   failure) ringed in the card's own surface. Hover/press brighten/darken the tile — no colour swap. */
 .c-fbubble__icon {
-  width: var(--size-avatar-40);
-  height: var(--size-avatar-40);
+  position: relative;
+  width: 40px;             /* 40 sanctioned: the document tile (#1021) — the avatar-40 width, a page's taller aspect */
+  height: 44px;            /* 44 sanctioned: the document tile's height */
+  border-radius: var(--radius-8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--disc-grad-neutral);
+  color: #fff;             /* sanctioned: a white label on a palette gradient (the c-disc grammar) */
+  flex: none;
+  transition: filter var(--duration-100) var(--easing-standard);
+}
+.c-fbubble__icon[data-kind="pdf"]     { background: var(--disc-grad-11); }   /* rose */
+.c-fbubble__icon[data-kind="doc"]     { background: var(--disc-grad-7); }    /* blue */
+.c-fbubble__icon[data-kind="archive"] { background: var(--disc-grad-1); }    /* orange */
+.c-fbubble__icon[data-kind="image"]   { background: var(--disc-grad-4); }    /* green */
+.c-fbubble__icon[data-kind="audio"]   { background: var(--disc-grad-9); }    /* purple */
+.c-fbubble__icon[data-kind="video"]   { background: var(--disc-grad-10); }   /* pink */
+.c-fbubble__icon[data-kind="code"]    { background: var(--disc-grad-6); }    /* cyan */
+.c-fbubble__ext {
+  max-width: 36px;         /* ★ #1022 (r1 N4): a wide 4-letter extension from a peer clips inside the 40px tile */
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 11px;         /* sanctioned: the extension label on the tile (#1021) — below the type ramp by design */
+  line-height: 1;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);   /* sanctioned: the #1001 avatar initials shadow */
+}
+.c-fbubble__icon > svg { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25)); }   /* sanctioned: same shadow for the no-extension glyph */
+.c-fbubble__badge {
+  position: absolute;
+  inset-block-end: -4px;
+  inset-inline-end: -6px;
+  width: 20px;
+  height: 20px;
   border-radius: var(--radius-full);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--surface-medallion);   /* #989 */
-  color: var(--icon-medallion);
-  flex: none;
-  transition: background-color var(--duration-100) var(--easing-standard);
+  background: var(--surface-action-default);
+  color: var(--text-neutral-on-action);
+  box-shadow: 0 0 0 2px var(--surface-bubble-received);   /* ring cut against the card */
 }
-.c-fbubble[data-state="failed"] .c-fbubble__icon {
-  background: var(--surface-destructive-tonal-default);
-  color: var(--icon-error);
+.c-bubble-row[data-direction="sent"] .c-fbubble__badge { box-shadow: 0 0 0 2px var(--surface-card-sent); }
+.c-fbubble[data-state="failed"] .c-fbubble__badge { background: var(--surface-destructive-default); color: var(--text-neutral-on-destructive); }
+/* ★ #1022 (Opus r1 M2): no desaturation on the failed tile — a filter reaches the red retry badge
+   too and the hover filter replaced it anyway; the red badge + the red retry line carry the state. */
+@media (hover: hover) and (pointer: fine) {
+  .c-fbubble:not(:disabled):hover .c-fbubble__icon { filter: brightness(1.06); }
 }
-.c-fbubble:active .c-fbubble__icon { background: var(--surface-action-tonal-pressed); } /* audit: no pressed feedback */
+.c-fbubble:not(:disabled):active .c-fbubble__icon { filter: brightness(0.92); } /* audit: no pressed feedback */
 .c-fbubble:disabled { cursor: default; } /* progress state */
 .c-fbubble__info { flex: 1; display: flex; flex-direction: column; min-width: 0; gap: var(--spacing-2); }
 .c-fbubble__name {
@@ -267,6 +344,8 @@
   color: var(--text-neutral-02);
 }
 .c-fbubble[data-state="failed"] .c-fbubble__meta { color: var(--text-error); }
+.c-fbubble__meta[data-cta] { color: var(--text-action-default); font-weight: var(--font-weight-semibold); }   /* ★ #1021: "Tap to download" reads as the action */
+.c-fbubble__meta[data-pct] { font-variant-numeric: tabular-nums; }
 .c-fbubble__track {
   height: var(--spacing-4);
   border-radius: var(--radius-full);
@@ -363,3 +442,128 @@
 .c-tcard[data-state="canceled"] .c-tcard__app-icon { opacity: var(--opacity-disabled); }
 .c-tcard[data-state="declined"] .c-tcard__app-name,
 .c-tcard[data-state="canceled"] .c-tcard__app-name { color: var(--text-neutral-02); }
+
+/* ★★ #996 THE RESKIN (Damir's pick: "keep today's cards, but have compact for settled") — the
+   COMPACT pill for a payment/app card with no button, and the shared medallion + padding the
+   one-row call card (#1006) reads too. A card with a button keeps the full .c-tcard rules above.
+   Surfaces, edges and lift are the .c-tcard rules above (#989 / #1003 tokens). */
+.c-tcard[data-layout] { padding: var(--spacing-8) var(--spacing-12); }
+/* The pill is a 2-column grid: the medallion spans the rows; the label takes the first line; the
+   value and the foot share ONE wrapping line (.c-tcard__line) — ★ #1013 (Opus r2 M1): the old
+   3-column grid (value · foot in their own tracks, minmax(max-content, …)) pushed the foot PAST the
+   card edge on 320–430px phones (measured +2…+79px); in a wrapping line the foot drops under the
+   amount, end-aligned, and nothing leaves the card. A long localized label still wraps on its own
+   line and never squeezes the amount. */
+.c-tcard__main {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: "med label" "med line" "med sub";
+  column-gap: var(--spacing-12);
+  align-items: center;
+}
+.c-tcard__main > .c-tcard__medallion { grid-area: med; align-self: center; }
+.c-tcard__col { display: contents; }
+.c-tcard__col > .c-tcard__label { grid-area: label; }
+.c-tcard__col > .c-tcard__line { grid-area: line; }
+.c-tcard__col > :nth-child(3) { grid-area: sub; }
+.c-tcard__line {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--spacing-16);
+}
+.c-tcard__medallion {
+  flex: none;
+  width: var(--size-avatar-40);
+  height: var(--size-avatar-40);
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-medallion);
+  color: var(--icon-medallion);
+  overflow: hidden;
+}
+.c-tcard__medallion.c-tcard__app-icon { border-radius: var(--radius-12); }
+.c-tcard__label {
+  min-width: 0;
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  letter-spacing: var(--tracking-label-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+  overflow-wrap: break-word;
+}
+.c-tcard[data-layout] .c-tcard__amount { white-space: nowrap; }
+.c-tcard__foot {
+  margin-inline-start: auto;       /* end-aligned on the amount's line, and on its own line when it wraps */
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-8);           /* the line's 16px column gap is the space before it (was 28: a 12px margin + 4px pad + 12px gap) */
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs);
+  color: var(--text-neutral-02);
+}
+.c-tcard__status { display: inline-flex; align-items: center; gap: var(--spacing-4); }
+.c-tcard__status-dot {
+  width: 6px;              /* 6 sanctioned: the quiet status dot (#996) — a mark, not a badge */
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--icon-neutral-02);
+}
+.c-tcard__status[data-tone="success"] .c-tcard__status-dot { background: var(--icon-success); }
+.c-tcard__status[data-tone="error"] .c-tcard__status-dot { background: var(--icon-error); }
+/* the whole pill is the Details button: a stretched, transparent hit layer */
+.c-tcard__hit {
+  position: absolute;
+  inset: calc(-1 * var(--spacing-8)) calc(-1 * var(--spacing-12));
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: var(--radius-16);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-tcard__hit:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 0; }
+/* the hit layer is the FIRST child, so its states reach the medallion with a sibling
+   combinator (no :has — conservative-CSS baseline).
+   ★ #1013 (r2 m1): the #1012 m6 rule, applied to the pill — dark tonal-hover/-pressed are the
+   SOLID action blue and the medallion ink fell to 1.95:1 on the pressed one. The disc keeps its
+   fill; only the INK moves, exactly as the call-back disc does. */
+@media (hover: hover) and (pointer: fine) {
+  .c-tcard__hit:hover ~ .c-tcard__medallion { color: var(--icon-action-hover); }
+}
+.c-tcard__hit:active ~ .c-tcard__medallion { color: var(--icon-action-pressed); }
+/* #1020: a monogram tile keeps its white initial under the pointer (the ink move is for the tonal disc) */
+@media (hover: hover) and (pointer: fine) {
+  .c-tcard__hit:hover ~ .c-tcard__app-icon.c-tcard__app-icon--mono { color: #fff; }   /* sanctioned: the white initial (avatar grammar) */
+}
+.c-tcard__hit:active ~ .c-tcard__app-icon.c-tcard__app-icon--mono { color: #fff; }   /* sanctioned: the white initial (avatar grammar) */
+.c-tcard[data-state="declined"] .c-tcard__medallion,
+.c-tcard[data-state="canceled"] .c-tcard__medallion { opacity: var(--opacity-disabled); }
+/* ★ #1009 (10a): completed = a small check (success ink) instead of the dot; a LIVE completion
+   (data-live-complete, one render only) crossfades the status in and draws the check once (≈400ms). */
+.c-tcard__status-check {
+  width: 12px;               /* 12 sanctioned: the quiet-status mark (#996) — the dot's companion */
+  height: 12px;
+  flex: none;
+  fill: none;
+  stroke: var(--icon-success);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+@keyframes c-tcard-status-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes c-tcard-check-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.c-tcard[data-live-complete] .c-tcard__status { animation: c-tcard-status-in var(--duration-200) var(--easing-standard) both; }
+.c-tcard[data-live-complete] .c-tcard__status-check path {
+  stroke-dasharray: 1;
+  animation: c-tcard-check-draw calc(var(--duration-200) * 2) var(--easing-standard) both;   /* 400ms from the token */
+}
+@media (prefers-reduced-motion: reduce) {
+  .c-tcard[data-live-complete] .c-tcard__status,
+  .c-tcard[data-live-complete] .c-tcard__status-check path { animation: none; }
+}

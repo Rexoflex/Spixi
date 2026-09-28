@@ -562,12 +562,30 @@ function attachAmountKeyboardDismiss(input) {
 /* Deterministic gradient index (1..DISC_GRADS) for a tinted disc, derived from
  * its glyph name — so each icon gets a stable, non-repeating gradient that maps
  * to --disc-grad-<n> in CSS (base.css). DECISIONS #170. */
-const DISC_GRADS = 14;
+const DISC_GRADS = 11;   // ★ #1017: the avatar pairs 1–11 (red is reserved for destructive)
 function discGrad(glyph) {
   let h = 2166136261;
   const s = String(glyph || '');
   for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
   return ((h >>> 0) % DISC_GRADS) + 1;
+}
+
+/* ★ #1017 (Damir 2026-09-28: "randomize the colours so adjacent are not the same"): a screen
+ * of discs is coloured by POSITION through a fixed hue-hopping sequence (blue · sunflower ·
+ * purple · green · rose · cyan · orange · violet · lime · pink · teal) — consecutive entries sit
+ * far apart on the wheel, so neighbours never match and a screen uses the whole palette. The
+ * per-glyph hash alone clustered (the Account hub drew five oranges and purples). Deterministic:
+ * the same rows give the same colours on every open. A destructive (error) disc keeps its red
+ * and does not consume a slot; a hue-only disc (no data-grad) is left alone. */
+const DISC_SEQUENCE = [7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5];
+function spreadDiscs(root) {
+  if (!root || !root.querySelectorAll) return;
+  let i = 0;
+  for (const d of root.querySelectorAll('.c-disc')) {
+    if (d.dataset.hue === 'error' || !d.dataset.grad) continue;
+    d.dataset.grad = String(DISC_SEQUENCE[i % DISC_SEQUENCE.length]);
+    i++;
+  }
 }
 
 /* ---- src/components/flags.js ---- */
@@ -1107,11 +1125,17 @@ function startTimestampTicker(cb) {
 /* N1 (#364): the identity wheel is QUANTIZED to 12 curated hue anchors.
  * The old continuous hue was already uniform (#38 measured), but neighbours
  * inside the 60–180° band all read as the same olive/green. Anchors give a
- * guaranteed minimum hue distance and skip the illegible yellow band (50–80).
- * avatar.css carries one hand-tuned gradient per anchor (index = data-hue),
- * every pair computed ≥ 4.5:1 under white ink at BOTH stops (#364 table).
+ * guaranteed minimum hue distance (#1001: the lime anchor now sits in the old
+ * "illegible yellow band" — Damir's palette; names solve lightness per anchor).
+ * avatar.css carries one hand-tuned gradient per anchor (index = data-hue).
+ * ★ #1001: the #364 "≥ 4.5:1 at both stops" floor is RELAXED for avatars (Telegram's own
+ * pairs run 1.7–3.1:1); initials carry a shadow instead — see avatar.css.
  * Order matters: index i = IDENTITY_HUES[i] = avatar.css [data-hue="i"]. */
-const IDENTITY_HUES = [0, 22, 40, 95, 135, 165, 190, 215, 245, 275, 305, 335];
+/* ★ #1001 (D-10, Damir 2026-09-28): the anchors are the TELEGRAM-CLOSE palette now (avatar.css
+ * carries the hex pairs). Each hue below is the circular MIDPOINT of its new pair, so a group
+ * sender's NAME (message-bubble.css, `data-idhue`) reads as the same colour as its avatar.
+ * The index → family mapping is unchanged; was [0, 22, 40, 95, 135, 165, 190, 215, 245, 275, 305, 335]. */
+const IDENTITY_HUES = [6, 25, 41, 87, 133, 171, 192, 209, 245, 276, 322, 347];
 
 function hashRaw(str) {
   let h = 0;
@@ -3254,6 +3278,68 @@ const BADGES = {
   unknown: { type: 'info', glyph: 'hourglass-empty', label: 'Unknown', key: 'txUnknown' },
 };
 
+/* ★★ #1008 (U-04, Damir 2026-09-28): in a narrow desktop list pane the status badge and the
+ * date shared one line and BOTH ellipsized ("Pen…", "Sep 25, 11…"). Measure, don't guess
+ * (the #278 approach): ONE shared ResizeObserver watches every meta line that carries a
+ * badge; when the line cannot hold the badge's full word AND the whole date, it flips
+ * `data-compact` and the badge shows its icon only — the word stays in the accessible
+ * name (the label is visually hidden, not removed) and in `title`. It flips back once the
+ * line is wide enough for the FULL pair again (the width recorded at the flip, so there is
+ * no flicker at the boundary). No ResizeObserver (old engine) = today's behaviour. */
+let txMetaRO = null;
+function txMetaFit(meta) {
+  const label = meta.querySelector('.c-badge__label');
+  const time = meta.querySelector('.c-txlist-item__time');
+  if (!label) return;
+  const avail = meta.clientWidth;
+  if (!avail) return;                                      // detached / display:none — skip
+  if (meta.dataset.compact !== undefined) {
+    if (avail >= (Number(meta.dataset.fullWidth) || Infinity)) {
+      delete meta.dataset.compact;
+      const bd = label.closest('.c-badge');
+      if (bd) bd.removeAttribute('title');   // the word is visible again — no duplicate announcement (r1 NIT)
+    }
+    return;
+  }
+  const clipped = label.scrollWidth > label.clientWidth + 1 || (time && time.scrollWidth > time.clientWidth + 1);
+  if (!clipped) return;
+  const badge = label.closest('.c-badge');
+  const gap = parseFloat(getComputedStyle(meta).columnGap) || 0;
+  const need = badge.offsetWidth + (label.scrollWidth - label.clientWidth) + (time ? gap + time.scrollWidth : 0);
+  meta.dataset.fullWidth = String(Math.ceil(need));
+  meta.dataset.compact = '';
+  badge.title = label.textContent;   // the word for the pointer while only the icon shows
+}
+/* ⚠ #1012 (Opus r1 m3): the wallet list is torn down and rebuilt on every flush, and ONE
+   module-level observer would keep every detached meta reachable on engines that do not drop
+   them. Every observed line is tracked and the DISCONNECTED ones are unobserved on each batch
+   and on each new watch — growth is bounded by one render's worth of rows. */
+/* ⚠ Only a line that has BEEN attached (seen connected in a callback) is swept: rows are
+   CREATED before the list appends them, so "not connected yet" must not read as "torn down". */
+/* ★ #1013 (r2 n3): a row CREATED and never appended was never "seen", so it stayed observed for
+   ever. Each watch is stamped; an unseen line still detached TX_META_GRACE_MS after its watch is
+   dropped too — a list builds and attaches its rows in one task, far inside the grace. */
+const TX_META_GRACE_MS = 5000;
+const txMetaWatched = new Map();   // meta → watch time
+const txMetaSeen = new WeakSet();
+const txNow = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
+function sweepTxMeta() {
+  const now = txNow();
+  for (const [m, at] of txMetaWatched) {
+    if (!m.isConnected && (txMetaSeen.has(m) || now - at > TX_META_GRACE_MS)) { txMetaRO.unobserve(m); txMetaWatched.delete(m); }
+  }
+}
+function watchTxMeta(meta) {
+  if (!txMetaRO && typeof ResizeObserver !== 'function') return;
+  if (!txMetaRO) txMetaRO = new ResizeObserver((entries) => {
+    for (const e of entries) { if (e.target.isConnected) txMetaSeen.add(e.target); txMetaFit(e.target); }
+    sweepTxMeta();
+  });
+  sweepTxMeta();
+  txMetaWatched.set(meta, txNow());
+  txMetaRO.observe(meta);
+}
+
 function createTxItem({
   txid = '', direction = 'out', status = 'confirmed',
   name = '', timestamp, timeText, amount = '', fiat = '', onClick, strings = getStrings(),
@@ -3288,9 +3374,9 @@ function createTxItem({
   row2.className = 'c-txlist-item__meta';
   const b = BADGES[status];
   if (b) {
-    row2.append(createBadge({
-      label: strings[b.key] || b.label, type: b.type, weight: 'tonal', icon: b.glyph,
-    }));
+    const word = strings[b.key] || b.label;
+    const badge = createBadge({ label: word, type: b.type, weight: 'tonal', icon: b.glyph });
+    row2.append(badge);   // ★ #1008: `title` is set only while the chip is icon-only (txMetaFit) — never beside a visible word
   }
   const timeStr = (timeText != null && timeText !== '')
     ? timeText
@@ -3303,6 +3389,7 @@ function createTxItem({
   }
   content.append(row2);
   el.append(content);
+  if (b) watchTxMeta(row2);
 
   const right = document.createElement('span');
   right.className = 'c-txlist-item__amounts';
@@ -4656,6 +4743,7 @@ function createMessageBubble({
     }
     s.textContent = copyable ? truncateAddressMiddle(sender) : sender;
     s.style.setProperty('--sender-h', hashHue(address || name || sender));
+    s.dataset.idhue = String(identityIndex(address || name || sender));   // ★ #1001: per-anchor lightness (≥ 4.5:1)
     /* N34 (#365): Owner chip rides INSIDE the sender label so the grouping
        repair (removeMessage moves the label to the run heir) carries it for
        free. data-has-role flips the label to flex → chip lands top-right. */
@@ -4686,6 +4774,7 @@ function createMessageBubble({
         (strings.replyTo || 'Show replied message') + (reply.sender ? ', ' + reply.sender : ''));
     }
     q.style.setProperty('--reply-h', hashHue(reply.address || reply.sender || ''));
+    q.dataset.idhue = String(identityIndex(reply.address || reply.sender || ''));   // ★ #1001
     // media/typed originals show a small identifier (Damir 2026-07-03):
     // shell-composed thumb (data-URI) for media, kind glyph otherwise
     // ★ O-13: the quote thumb goes through the one image test. A refused value falls
@@ -4865,7 +4954,11 @@ function createMessageBubble({
 /** Bridge updateMessage → status tick (sending/sent/delivered/read) on a SENT
  *  row. 'failed' restructures the row (retry circle + caption) — the shell
  *  re-creates via createMessageBubble({status:'failed'}) and replaces. */
-function setMessageStatus(row, status, strings = getStrings()) {
+/* ★ #1010 (item 10b, Damir 2026-09-28): `opts.animate` — a LIVE status change
+ * (clock → sent → delivered → read) fades the new glyph in over 160ms instead of snapping.
+ * The shell passes it only outside the load burst; history renders never animate. CSS
+ * zeroes it under reduced motion. */
+function setMessageStatus(row, status, strings = getStrings(), opts = {}) {
   if (status === 'failed') {
     console.warn('setMessageStatus: "failed" restructures the row — re-create it via createMessageBubble and replace');
     return;
@@ -4879,6 +4972,7 @@ function setMessageStatus(row, status, strings = getStrings()) {
   next.removeAttribute('aria-hidden');
   next.setAttribute('role', 'img');
   next.setAttribute('aria-label', strings['status-' + status] || status);
+  if (opts && opts.animate && st.getAttribute('aria-label') !== next.getAttribute('aria-label')) next.dataset.enter = '';   // a STATE attribute, not a --tone class (#877's tone-rule sweep)
   st.replaceWith(next);
 }
 
@@ -5472,6 +5566,134 @@ function reentryGuard(fn) {
   };
 }
 
+/* ★★ #996 THE CARD RESKIN — Damir's pick (2026-09-28): "keep today's cards, but have compact for
+ * settled". A payment or app card that carries a BUTTON (Pay · Decline · Cancel request · Retry ·
+ * Join · Get app · Launch · Resume) keeps today's full card, unchanged. A card with NOTHING to
+ * act on becomes the COMPACT pill (ref-payment-sent-compact): medallion · a small label over a
+ * large value · a QUIET status (tiny dot + one low-contrast word) with the time in the foot, NO
+ * memo line, and the whole pill is the Details button. Every state, verb and bridge field is the
+ * A card's — only the layout of the settled ones moves. The helpers below are shared with the
+ * call card (#1006), so they sit OUTSIDE any grammar switch (Opus r1 m4). */
+
+/* ★ #996: the QUIET status — a tiny tinted dot + one low-contrast word, in the foot.
+ * Replaces the coloured badge on the reskinned cards. `tone` drives only the dot. */
+const PAYMENT_STATUS_WORD = {
+  pending: ['pending', 'Pending'], completed: ['completed', 'Completed'],
+  declined: ['declined', 'Declined'], canceled: ['canceled', 'Canceled'],
+  failed: ['failed', 'Failed'], processing: ['processing', 'Processing'],
+};
+function quietStatus(status, strings) {
+  const w = PAYMENT_STATUS_WORD[status];
+  if (!w) return null;
+  const tone = { pending: 'neutral', processing: 'neutral', completed: 'success', declined: 'error', canceled: 'neutral', failed: 'error' }[status];
+  const s = document.createElement('span');
+  s.className = 'c-tcard__status';
+  s.dataset.tone = tone;
+  let mark;
+  if (status === 'completed') {
+    /* ★ #1009 (10a): completed carries a small CHECK instead of the dot — drawn once
+       (stroke-dash) when the card completed LIVE (data-live-complete on the card). */
+    mark = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    mark.setAttribute('viewBox', '0 0 12 12');
+    mark.setAttribute('class', 'c-tcard__status-check');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'M2.5 6.2 5 8.6 9.5 3.6');
+    path.setAttribute('pathLength', '1');
+    mark.append(path);
+  } else {
+    mark = document.createElement('span');
+    mark.className = 'c-tcard__status-dot';
+  }
+  mark.setAttribute('aria-hidden', 'true');
+  s.append(mark, document.createTextNode(strings[w[0]] || w[1]));
+  return s;
+}
+function timeEl(timestamp) {
+  if (timestamp == null) return null;
+  const d = new Date(timestamp);
+  if (isNaN(d)) return null;
+  const t = document.createElement('time');
+  t.className = 'c-tcard__time u-tabular';
+  t.setAttribute('datetime', d.toISOString());
+  t.textContent = cardTime(d);
+  return t;
+}
+function amountNode(amount, tone) {
+  const a = document.createElement('span');
+  a.className = 'c-tcard__amount u-tabular';
+  a.dataset.tone = tone;
+  a.append(document.createTextNode(formatIxiAmount(amount) + ' '));
+  const unit = document.createElement('span');
+  unit.className = 'c-tcard__unit';
+  unit.textContent = 'IXI';
+  a.append(unit);
+  return a;
+}
+function amountTone(status, amount) {
+  return status === 'completed' ? (String(amount).startsWith('+') ? 'positive' : 'neutral')
+    : (status === 'declined' || status === 'canceled' || status === 'failed') ? 'void'
+    : 'pending';
+}
+/* The row scaffold without the old header (the compact + full grammars own their own). */
+function cardShell(direction, modifier, layout, gutter) {
+  const row = document.createElement('div');
+  row.className = 'c-bubble-row';
+  row.dataset.direction = direction;
+  row.dataset.position = 'single';
+  if (gutter && direction === 'received') {
+    const g = document.createElement('span');
+    g.className = 'c-bubble-row__gutter';
+    row.append(g);
+  }
+  const el = document.createElement('div');
+  el.className = 'c-tcard';
+  if (modifier) el.dataset.kind = modifier;
+  el.dataset.layout = layout;
+  row.append(el);
+  return { row, el };
+}
+/* COMPACT pill (ref-payment-sent-compact): medallion · small label over a large value ·
+ * the foot (quiet status + time) at the block end. When `onOpen` exists the WHOLE pill
+ * is one button (a stretched hit layer), so Details stays reachable with no link row. */
+function compactMain({ glyph, iconEl, label, valueEl, subEl, status, timestamp, onOpen, openLabel, strings }) {
+  const main = document.createElement('div');
+  main.className = 'c-tcard__main';
+  const med = iconEl || document.createElement('span');
+  med.classList.add('c-tcard__medallion');
+  med.setAttribute('aria-hidden', 'true');
+  if (!iconEl) med.append(icon(glyph, { size: 20 }));
+  const col = document.createElement('span');
+  col.className = 'c-tcard__col';
+  const lab = document.createElement('span');
+  lab.className = 'c-tcard__label';
+  lab.textContent = label;
+  /* ★ #1013 (Opus r2 M1): the value and the foot share ONE wrapping line. In a grid cell of their
+     own, a long amount + "Processing · 14:05" ran PAST the card edge on a 320–360px phone; in a
+     wrapping line the foot drops under the amount (end-aligned) when both do not fit. */
+  const line = document.createElement('span');
+  line.className = 'c-tcard__line';
+  line.append(valueEl);
+  const foot = document.createElement('span');
+  foot.className = 'c-tcard__foot';
+  const st = status ? quietStatus(status, strings) : null;
+  if (st) foot.append(st);
+  const t = timeEl(timestamp);
+  if (t) foot.append(t);
+  if (foot.childNodes.length) line.append(foot);
+  col.append(lab, line);
+  if (subEl) col.append(subEl);
+  main.append(med, col);
+  if (onOpen) {
+    const hit = document.createElement('button');
+    hit.type = 'button';
+    hit.className = 'c-tcard__hit';
+    hit.setAttribute('aria-label', openLabel);
+    hit.addEventListener('click', onOpen);
+    main.prepend(hit);   // FIRST child: `.c-tcard__hit:hover ~ .c-tcard__medallion` (no :has)
+  }
+  return main;
+}
+
 /**
  * Payment card — covers incoming/outgoing requests AND direct payments.
  * role: 'request-in' (Pay/Decline) · 'request-out' (Cancel request) ·
@@ -5491,6 +5713,9 @@ function createPaymentBubble({
   insufficient = false,   // request-in: Pay disabled + caption
   timestamp = null,
   gutter = false,         // group chats: align with gutter-indented text bubbles (C8)
+  celebrate = false,      // ★ #1009 (10a): this card COMPLETED LIVE — draw the check once (the shell passes it one render only)
+  flow = '',              // ★ #996 'in' | 'out' — which way the MONEY moved (a request's is the
+                          // opposite of its message direction); picks the medallion arrow
   onPay, onDecline, onCancel, onRetry, onDetails,
   strings = getStrings(),
 } = {}) {
@@ -5502,6 +5727,16 @@ function createPaymentBubble({
     sent: status === 'failed' ? (strings.paymentFailed || 'Payment failed') : (strings.paymentSent || 'Payment sent'),
     received: strings.paymentReceived || 'Payment received',
   };
+  /* ★ #996: the card has an ACTION when it will draw a button — the exact predicates of the
+     button branches below, so the two can never disagree. No action → the compact pill. */
+  const hasAction = (role === 'request-in' && (status === 'actionable' || status === 'processing' || status === 'failed'))
+    || (role === 'request-out' && status === 'pending')
+    || (role === 'sent' && status === 'failed');
+  if (!hasAction) {
+    const row2 = paymentCompact({ role, flow, celebrate, direction, label: title || titles[role] || '', amount, fiat, status, timestamp, gutter, onDetails, strings });
+    paymentOpts.set(row2, { role, flow, title, amount, fiat, status, insufficient, timestamp, gutter, onPay, onDecline, onCancel, onRetry, onDetails, strings });
+    return row2;
+  }
   const { row, el } = card(direction, title || titles[role] || '', timestamp, 'payment', gutter); // audit r2: unknown role rendered "undefined"
   row.dataset.status = status;
 
@@ -5580,9 +5815,38 @@ function createPaymentBubble({
     el.append(detailsLink(reentryGuard(onDetails), strings));
   }
   paymentOpts.set(row, {
-    role, title, amount, fiat, status, insufficient, timestamp, gutter,
+    role, flow, title, amount, fiat, status, insufficient, timestamp, gutter,   // ★ #1013 (r2 n2): flow, so a full → compact re-render keeps the money arrow
     onPay, onDecline, onCancel, onRetry, onDetails, strings,
   });
+  return row;
+}
+
+/* ★ #996 the COMPACT payment pill — only ever for a card with no button (createPaymentBubble
+ * decides). Details: the whole pill opens it, exactly where the A card drew its link — completed,
+ * or a direct payment still pending — and only when the host wires a target. */
+function paymentCompact({ role, flow, celebrate, direction, label, amount, fiat, status, timestamp, gutter, onDetails, strings }) {
+  const { row, el } = cardShell(direction, 'payment', 'compact', gutter);
+  row.dataset.status = status;
+  if (celebrate && status === 'completed') el.dataset.liveComplete = '';
+  const tone = amountTone(status, amount);
+  let fiatEl = null;
+  if (fiat) {
+    fiatEl = document.createElement('span');
+    fiatEl.className = 'c-tcard__fiat u-tabular';
+    if (tone === 'void') fiatEl.dataset.tone = 'void';
+    fiatEl.textContent = fiat;
+  }
+  const details = (onDetails && (status === 'completed' || ((role === 'sent' || role === 'received') && status === 'pending')))
+    ? reentryGuard(onDetails) : null;
+  /* the arrow shows which way the MONEY went; an open request (nothing moved yet) and a void
+     card are the wallet. Without `flow` the role decides (a direct payment's direction = its money's). */
+  const openRequest = (role === 'request-in' || role === 'request-out') && status !== 'completed';   // ★ #1013: a PAID request moved money — it takes the flow arrow
+  const f = flow || (role === 'sent' ? 'out' : role === 'received' ? 'in' : '');
+  const glyph = openRequest || !f || tone === 'void' ? 'wallet' : (f === 'out' ? 'arrow-up-right' : 'arrow-down-left');
+  const shown = PAYMENT_STATUS_WORD[status] ? status : null;
+  const words = [label, formatIxiAmount(amount) + ' IXI', fiat, shown ? (strings[shown] || PAYMENT_STATUS_WORD[shown][1]) : '', details ? (strings.details || 'Details') : ''].filter(Boolean).join(', ');
+  el.append(compactMain({ glyph, label, valueEl: amountNode(amount, tone), subEl: fiatEl, status: shown, timestamp, onOpen: details, openLabel: words, strings }));
+  if (!details) { el.setAttribute('role', 'group'); el.setAttribute('aria-label', words); }
   return row;
 }
 
@@ -5617,34 +5881,16 @@ function createAppBubble({
   const title = (state === 'in-session' || state === 'ended')
     ? (strings.appSession || 'App session')
     : (strings.appInvite || 'App invite');
+  /* ★ #996: the exact predicates of the button branches below — no button → the compact pill */
+  const hasAction = state === 'invite' || state === 'invited' || state === 'in-session'
+    || (state === 'missing' && !!(onDecline || onGet));
+  if (!hasAction) return appCompact({ name, iconUrl, state, dir, timestamp, gutter, strings });
   const { row, el } = card(dir, title, timestamp, 'app', gutter);
   if (state === 'declined' || state === 'canceled') el.dataset.state = state;   // terminal tombstones: void tone (css)
 
   const id = document.createElement('div');
   id.className = 'c-tcard__app';
-  const ic = document.createElement('span');
-  ic.className = 'c-tcard__app-icon';
-  /* ★ Gate row O-13 (#46 loop B, MINOR-5) — the app-invite icon is composed by the INVITING
-   * PEER. `chat.html` already asks the same question at the caller and keeps the media-autoload
-   * decision there, which is where it belongs. The shape test moves INTO the component so the
-   * two cannot drift: a second caller cannot light this sink up without the rule.
-   * This is a strict narrowing of what reaches the tag today — `chat.html` passes only a
-   * `data:image/` URI or a well-formed http(s) URL — so it cannot break a working icon. It
-   * refuses a relative path, a protocol-relative '//host/x', 'javascript:' and 'blob:'. */
-  const iconSrc = safeImageSrc(iconUrl, { allowRemote: true });
-  if (iconSrc) {
-    const img = document.createElement('img');
-    img.alt = '';
-    // Graceful fallback (matches c-avatar / c-app-icon): a C# icon path that doesn't
-    // resolve in a self-contained shell must NOT show a broken-image glyph — drop the
-    // <img> and fall back to the rocket. Wire the handler BEFORE src so a synchronously
-    // cached error still fires.
-    img.addEventListener('error', () => { img.remove(); ic.append(icon('rocket', { size: 24 })); }, { once: true });
-    img.src = iconSrc;
-    ic.append(img);
-  } else {
-    ic.append(icon('rocket', { size: 24 }));
-  }
+  const ic = appIconEl(iconUrl, name);   // ★ #996: ONE app-icon sink for both card layouts (O-13 rule inside) · #1020 monogram fallback
   const col = document.createElement('span');
   col.className = 'c-tcard__app-info';
   const nm = document.createElement('span');
@@ -5699,86 +5945,172 @@ function createAppBubble({
   return row;
 }
 
-/** Call event card (Figma call-card): answered + missed + declined (#87⑦).
- *  missed = rang out (error ink, "Tap to call back") · declined = actively
- *  rejected (neutral, NO call-back nudge). BE question open: bridge must
- *  distinguish declined from missed. */
+/* ★ #996 the COMPACT app pill — a card with no button: declined · canceled · ended (and a
+ * missing app the host can neither install nor decline). Icon · sub-line label · app name. */
+/* ★ Gate row O-13 (#46 loop B, MINOR-5) — the app-invite icon is composed by the INVITING
+ * PEER. `chat.html` already asks the same question at the caller and keeps the media-autoload
+ * decision there, which is where it belongs. The shape test lives INSIDE the component so the
+ * two cannot drift: a second caller cannot light this sink up without the rule. It refuses a
+ * relative path, a protocol-relative '//host/x', 'javascript:' and 'blob:'.
+ * Graceful fallback (matches c-avatar / c-app-icon): an icon that doesn't resolve drops the
+ * <img> for the rocket; the handler is wired BEFORE src so a synchronously cached error fires. */
+/* ★★ #1020 (Damir 2026-09-28: "the improved app invite bubbles"): an app with no icon (or one
+ * that fails to load, or the legacy `app-noicon` placeholder) is a MONOGRAM tile in the avatar
+ * palette — its initial on the identity gradient picked from its name (#1001/#1017 treatment),
+ * so two apps never share the same anonymous rocket. */
+const APP_NOICON = /(^|\/)app-noicon\.[a-z]+$/i;
+function appMonogram(ic, name) {
+  ic.classList.add('c-idhue', 'c-tcard__app-icon--mono');
+  ic.dataset.hue = String(identityIndex(String(name || '?')));
+  const t = document.createElement('span');
+  t.className = 'c-tcard__app-initial';
+  t.setAttribute('aria-hidden', 'true');
+  t.textContent = (Array.from(String(name || '').trim())[0] || '?').toUpperCase();
+  ic.append(t);
+}
+function appIconEl(iconUrl, name) {
+  const ic = document.createElement('span');
+  ic.className = 'c-tcard__app-icon';
+  const iconSrc = safeImageSrc(APP_NOICON.test(String(iconUrl || '')) ? '' : iconUrl, { allowRemote: true });   // GATE 42: the sink value comes straight OUT of safeImageSrc
+  if (iconSrc) {
+    const img = document.createElement('img');
+    img.alt = '';
+    img.addEventListener('error', () => { img.remove(); appMonogram(ic, name); }, { once: true });
+    img.src = iconSrc;
+    ic.append(img);
+  } else {
+    appMonogram(ic, name);
+  }
+  return ic;
+}
+function appCompact({ name, iconUrl, state, dir, timestamp, gutter, strings }) {
+  const { row, el } = cardShell(dir, 'app', 'compact', gutter);
+  if (state === 'declined' || state === 'canceled') el.dataset.state = state;
+  const subText = {
+    invite: strings.invitedYou || 'Invited you to join',
+    invited: strings.youInvited || 'You have sent an invite',
+    missing: strings.invitedYou || 'Invited you to join',
+    declined: strings.declinedInvite || 'You declined this invite',
+    canceled: strings.canceledInvite || 'You canceled this invite',
+    'in-session': strings.inSession || 'In session',
+    ended: strings.sessionEnded || 'Session ended',
+  }[state] || '';
+  const nm = document.createElement('span');
+  nm.className = 'c-tcard__app-name';
+  nm.textContent = name;
+  el.append(compactMain({ iconEl: appIconEl(iconUrl, name), label: subText, valueEl: nm, status: null, timestamp, onOpen: null, openLabel: '', strings }));
+  el.setAttribute('role', 'group');
+  el.setAttribute('aria-label', [name, subText].filter(Boolean).join(', '));
+  return row;
+}
+
+/** Call event card — ★★ #1006 (D-07, Damir 2026-09-28): ONE compact row (~64px).
+ *  An outcome-tinted 40px medallion carrying the DIRECTION glyph · a title line · a
+ *  secondary line (duration · time — the time moved out of the header) · a round 36px
+ *  call-back button at the inline end. The divider and the "Call back ›" link row are gone,
+ *  and the card itself is NOT a tap target — only the button calls.
+ *  Outcomes (C4 flags + #572 ④ declinedLocal; the TITLE is C#'s localized label):
+ *    ok        answered (or ringing/live)  → phone-outgoing / phone-incoming, action medallion
+ *    missed    incoming, nobody answered   → phone-x, the ONLY red state (title + disc)
+ *    noanswer  outgoing, nobody answered   → phone-x, neutral grey
+ *    declined  THIS device declined        → phone-off, neutral grey, NO call-back (#87⑦)
+ *  The glyph pair phone-off (turned down) / phone-x (nobody answered) is the chats row's
+ *  (#46 loop 2026-08-29) — a pin reads both surfaces. Call-back shows for ok / missed /
+ *  noanswer when the host wires it; the shell passes none while the call is live (C4). */
 function createCallBubble({
-  missed = false,
-  declined = false,        // #87⑦: actively rejected
-  title = '',              // optional verbatim override — the native bridge sends a
-                           // fully-localized call label ("No answer" vs "Missed" vs
-                           // "Outgoing"/"Incoming") the shell can't reconstruct from
-                           // the missed flag alone; when present it wins.
-                           // #265: the loud "Tap to call back" sub-button is retired —
-                           // missed calls use the same quiet Call-back link as answered
-                           // ones, and the card hugs its content.
+  missed = false,          // C# "never connected" (rang out) — incoming → missed, outgoing → no answer
+  declined = false,        // #87⑦ / #572 ④: this device declined — wins over `missed`
+  title = '',              // C#-localized label, verbatim (it knows "No answer" vs "Missed call")
   direction = 'received',  // bridge knows localSender (audit)
-  directionLabel = '',     // "Outgoing" / "Incoming" (SL)
+  directionLabel = '',     // kept for API compatibility; the title already names the direction
   duration = '',           // "4:12"
   timestamp = null,
   gutter = false,          // group chats: align with gutter-indented text bubbles (C8)
   onCallBack,
   strings = getStrings(),
 } = {}) {
-  const { row, el } = card(direction,
-    title || (declined ? (strings.callDeclined || 'Call declined')
-      : missed ? (strings.missedCall || 'Missed voice call') : (strings.voiceCall || 'Voice call')),
-    timestamp, 'call', gutter);
-  if (missed && !declined) row.dataset.missed = '';
-  // #264 (Damir ③): outcome marker for the file-bubble-style medallion tint —
-  // declined rows previously carried NO marker at all (only data-missed).
-  row.dataset.callOutcome = declined ? 'declined' : missed ? 'missed' : 'ok';
-  const head = el.querySelector('.c-tcard__title');
-  /* ★★ #46 loop (2026-08-29): this pair was the INVERSE of the chats row, so ONE
-   * declined call showed one glyph in the list and a different one in the conversation.
-   * Damir settled the direction on the device and the CHATS ROW is the reference:
-   * the crossed phone belongs to the call that was TURNED DOWN, and the phone with the
-   * small x belongs to the call NOBODY ANSWERED. #621 swapped the row and never swapped
-   * this. A pin now reads both surfaces and requires them to agree. */
-  head.insertAdjacentElement('afterbegin',
-    icon(declined ? 'phone-off' : missed ? 'phone-x' : 'phone', { size: 18 }));
+  const outgoing = direction === 'sent';
+  const outcome = declined ? 'declined' : missed ? (outgoing ? 'noanswer' : 'missed') : 'ok';
+  const { row, el } = cardShell(direction, 'call', 'compact', gutter);
+  if (outcome === 'missed') row.dataset.missed = '';
+  row.dataset.callOutcome = outcome;
+  const glyph = outcome === 'declined' ? 'phone-off'
+    : outcome === 'ok' ? (outgoing ? 'phone-outgoing' : 'phone-incoming')
+    : 'phone-x';
+  const heading = outcome === 'declined'
+    ? (strings.youDeclinedCall || 'You declined')
+    : (title || (outcome === 'missed' ? (strings.missedCall || 'Missed voice call')
+      : outcome === 'noanswer' ? (strings.noAnswer || 'No answer')
+      : (strings.voiceCall || 'Voice call')));
 
-  if (declined) {
-    // deliberate rejection: state the fact, no nudge (#87⑦)
-    if (directionLabel) {
-      const meta = document.createElement('div');
-      meta.className = 'c-tcard__call-meta u-tabular';
-      meta.textContent = directionLabel;
-      el.append(meta);
-    }
-  } else if (missed) {
-    // #265 (Damir ⑪): the loud "Tap to call back" sub-button is gone — missed
-    // calls use the SAME quiet Call-back link as answered ones (consistent,
-    // compact). directionLabel meta keeps the context when present.
-    if (directionLabel) {
-      const meta = document.createElement('div');
-      meta.className = 'c-tcard__call-meta u-tabular';
-      meta.textContent = directionLabel;
-      el.append(meta);
-    }
-    if (onCallBack) el.append(detailsLink(reentryGuard(onCallBack), { details: strings.callBack || 'Call back' }));
-  } else {
-    // r2 backlog A17: empty directionLabel must not leave a leading ' · '; and
-    // an answered call with neither label nor duration must not leave an empty div
-    const metaText = [directionLabel, duration].filter(Boolean).join(' · ');
-    if (metaText) {
-      const meta = document.createElement('div');
-      meta.className = 'c-tcard__call-meta u-tabular';
-      meta.textContent = metaText;
-      el.append(meta);
-    }
-    /* ★★ ROUND 3 (review3-cs MAJOR-2) — A CALL-BACK LINK WITH NO HANDLER IS A DEAD
-     * CONTROL. `detailsLink` renders the button whether or not it gets a callback, and
-     * only the missed branch above tested for one, so an ANSWERED call card always
-     * showed a live-looking "Call back ›" that did nothing when the host wired no
-     * handler. The host wires one only when a call is possible, so the absence is the
-     * answer: draw no link. */
-    if (onCallBack) {
-      el.append(detailsLink(reentryGuard(onCallBack), { details: strings.callBack || 'Call back' }));
-    }
+  const main = document.createElement('div');
+  main.className = 'c-tcard__call';
+  const med = document.createElement('span');
+  med.className = 'c-tcard__medallion';
+  med.setAttribute('aria-hidden', 'true');
+  med.append(icon(glyph, { size: 20 }));
+  const col = document.createElement('span');
+  col.className = 'c-tcard__call-info';
+  const t = document.createElement('span');
+  t.className = 'c-tcard__title';
+  t.textContent = heading;
+  const sub = document.createElement('span');
+  sub.className = 'c-tcard__call-meta u-tabular';
+  const d = timestamp == null ? null : new Date(timestamp);
+  const timeText = d && !isNaN(d) ? cardTime(d) : '';
+  const dur = outcome === 'ok' ? duration : '';
+  sub.textContent = [dur, timeText].filter(Boolean).join(' · ');
+  col.append(t);
+  if (sub.textContent) col.append(sub);
+  main.append(med, col);
+  el.setAttribute('role', 'group');
+  el.setAttribute('aria-label', [heading, dur, timeText].filter(Boolean).join(', '));
+  if (onCallBack && outcome !== 'declined') {
+    const cb = document.createElement('button');
+    cb.type = 'button';
+    cb.className = 'c-tcard__call-back';
+    cb.setAttribute('aria-label', strings.callBack || 'Call back');
+    cb.append(icon('phone', { size: 18 }));
+    cb.addEventListener('click', reentryGuard(onCallBack));
+    main.append(cb);
   }
+  el.append(main);
   return row;
+}
+
+/* ★ #1005 (D-05, Damir 2026-09-28): a file name keeps its EXTENSION when it has to shorten.
+ * The stem ellipsizes; the last 4 characters of the stem + the extension ride a
+ * non-shrinking tail ("Quarterly_re…ort.pdf"). The element's textContent stays the FULL
+ * name (the two spans concatenate — setFileProgress and the Downloads row read it back),
+ * and `title` carries it for the pointer. A name with no dot, a leading-dot name, an
+ * extension longer than 8, or a stem too short to be worth splitting renders unchanged.
+ * RTL-safe: the tail is a logical (inline-end) span and the stem's ellipsis follows the
+ * text direction; `dir="auto"` on the parent isolates a mixed-direction name. */
+function fillFileName(el, name) {
+  const full = String(name == null ? '' : name);
+  el.textContent = '';
+  el.title = full;
+  el.classList.remove('c-fname');   // a plain name keeps the host's own block ellipsis
+  el.setAttribute('dir', 'auto');
+  const dot = full.lastIndexOf('.');
+  const ext = dot > 0 ? full.slice(dot) : '';
+  const stem = dot > 0 ? full.slice(0, dot) : full;
+  if (!ext || ext.length > 9 || Array.from(stem).length <= 8) { el.textContent = full; return el; }
+  /* ⚠ #1012 (Opus r1 m2): cut on CODE POINTS, never UTF-16 units — a surrogate pair split at the
+     boundary rendered a lone half (\uFFFD) — and move the cut back past combining marks, so a
+     macOS NFD name ("e" + U+0301) never starts the tail on a floating accent. */
+  const cps = Array.from(stem);
+  let cut = cps.length - 4;
+  while (cut > 0 && /\p{M}/u.test(cps[cut])) cut -= 1;
+  const head = document.createElement('span');
+  head.className = 'c-fname__stem';
+  head.textContent = cps.slice(0, cut).join('');
+  const tail = document.createElement('span');
+  tail.className = 'c-fname__tail';
+  tail.textContent = cps.slice(cut).join('') + ext;
+  el.classList.add('c-fname');      // flex ONLY when split — an anonymous flex item cannot ellipsize
+  el.append(head, tail);
+  return el;
 }
 
 /* file-bubble state → accessible name / leading glyph. Single source shared by
@@ -5793,6 +6125,52 @@ function fileAria(state, name, strings) {
 }
 function fileGlyph(state) {
   return state === 'failed' ? 'rotate-clockwise-2' : state === 'offer' ? 'download' : 'file-isr';
+}
+/* ★★ #1021 (Damir 2026-09-28: "premiumize the file transfer"): the leading tile is a DOCUMENT
+ * tile — the file's own extension on a gradient from the disc/avatar palette, picked by the file's
+ * family, so a PDF, an archive and a photo read differently at a glance. The STATE rides a small
+ * badge on the tile's corner (download · retry), not a replacement glyph. */
+const FILE_FAMILIES = [
+  ['pdf', /^(pdf)$/],
+  ['doc', /^(docx?|odt|rtf|pages|md|txt|csv|xlsx?|ods|numbers|pptx?|odp|key)$/],
+  ['archive', /^(zip|rar|7z|tar|gz|tgz|bz2|xz|ixi|wal)$/],
+  ['image', /^(jpe?g|png|gif|webp|heic|svg|bmp|tiff?)$/],
+  ['audio', /^(mp3|m4a|aac|wav|flac|ogg|opus)$/],
+  ['video', /^(mp4|mov|m4v|webm|mkv|avi)$/],
+  ['code', /^(js|ts|json|html?|css|xml|py|cs|java|c|cpp|h|sh|yml|yaml)$/],
+];
+function fileKind(name) {
+  const s = String(name || '');
+  const dot = s.lastIndexOf('.');
+  const ext = dot > 0 && dot < s.length - 1 ? s.slice(dot + 1).toLowerCase() : '';
+  const fam = (FILE_FAMILIES.find(([, re]) => re.test(ext)) || ['other'])[0];
+  const label = ext && ext.length <= 4 ? ext.toUpperCase() : (ext ? ext.slice(0, 3).toUpperCase() : '');
+  return { family: fam, label };
+}
+function fileBadge(state) {
+  if (state !== 'offer' && state !== 'failed') return null;
+  const b = document.createElement('span');
+  b.className = 'c-fbubble__badge';
+  b.setAttribute('aria-hidden', 'true');
+  b.append(icon(fileGlyph(state), { size: 12 }));
+  return b;
+}
+function fileTile(name, state) {
+  const { family, label } = fileKind(name);
+  const ic = document.createElement('span');
+  ic.className = 'c-fbubble__icon';
+  ic.dataset.kind = family;
+  if (label) {
+    const t = document.createElement('span');
+    t.className = 'c-fbubble__ext';
+    t.textContent = label;
+    ic.append(t);
+  } else {
+    ic.append(icon('file-isr', { size: 20 }));
+  }
+  const badge = fileBadge(state);
+  if (badge) ic.append(badge);
+  return ic;
 }
 /* Explicit "Open file" affordance for a completed download (A8b, Damir F5): the
    whole bubble is already a tappable button, but a labelled control makes it
@@ -5847,19 +6225,26 @@ function createFileBubble({
   if (state === 'progress') el.disabled = true;
   el.setAttribute('aria-label', fileAria(state, name, strings));
 
-  const ic = document.createElement('span');
-  ic.className = 'c-fbubble__icon';
-  ic.append(icon(fileGlyph(state), { size: 20 }));
-  el.append(ic);
+  el.append(fileTile(name, state));   // ★ #1021: the document tile (extension · family colour · state badge)
 
   const col = document.createElement('span');
   col.className = 'c-fbubble__info';
   const nm = document.createElement('span');
   nm.className = 'c-fbubble__name';
-  nm.textContent = name;
+  fillFileName(nm, name);   // ★ #1005: the extension survives the ellipsis
   const mt = document.createElement('span');
   mt.className = 'c-fbubble__meta';
-  mt.textContent = state === 'failed' ? (strings.transferFailed || 'Transfer failed · Tap to retry') : meta;
+  /* ★ #1021: the second line always SAYS something — C# sends no size, so `meta` is usually
+     empty and an offer read as a bare file name. offer = the call to action (action ink), progress
+     = the percentage (updated in place), failed = the retry line; an explicit meta still wins. */
+  const pctOf = (v) => Math.max(0, Math.min(100, Math.round(Number(v) || 0))) + '%';
+  mt.textContent = state === 'failed' ? (strings.transferFailed || 'Transfer failed · Tap to retry')
+    : meta ? meta
+    : state === 'offer' ? (strings.tapToDownload || 'Tap to download')
+    : state === 'progress' ? pctOf(progress)
+    : '';
+  if (!meta && state === 'offer') mt.dataset.cta = '';
+  if (!meta && state === 'progress') mt.dataset.pct = '';
   col.append(nm, mt);
   if (state === 'progress') {
     const track = document.createElement('span');
@@ -5927,6 +6312,7 @@ function setFileProgress(rowEl, progress, opts = {}) {
   if (track) track.setAttribute('aria-valuenow', String(p));
   const metaEl = rowEl.querySelector('.c-fbubble__meta');
   if (metaEl && opts.meta) metaEl.textContent = opts.meta;
+  else if (metaEl && metaEl.hasAttribute('data-pct')) metaEl.textContent = Math.round(p) + '%';   // ★ #1021: the live percentage (#1024: rounded like creation)
   const bubble = rowEl.querySelector('.c-fbubble');
   const finalState = opts.state || (p >= 100 ? 'complete' : null);
   // #334: the cancel affordance lives only in the PRE-accept window — the first
@@ -5946,8 +6332,15 @@ function setFileProgress(rowEl, progress, opts = {}) {
     // refresh name + glyph for the new state (audit r2: stale "Downloading" aria)
     const nm = bubble.querySelector('.c-fbubble__name');
     bubble.setAttribute('aria-label', fileAria(finalState, nm ? nm.textContent : '', strings));
+    // ★ #1021: the tile keeps its extension; only the corner badge follows the state
     const ic = bubble.querySelector('.c-fbubble__icon');
-    if (ic) { ic.textContent = ''; ic.append(icon(fileGlyph(finalState), { size: 20 })); }
+    if (ic) {
+      const oldBadge = ic.querySelector('.c-fbubble__badge');
+      if (oldBadge) oldBadge.remove();
+      const nb = fileBadge(finalState);
+      if (nb) ic.append(nb);
+    }
+    if (metaEl && (metaEl.hasAttribute('data-pct') || metaEl.hasAttribute('data-cta'))) { metaEl.removeAttribute('data-pct'); metaEl.removeAttribute('data-cta'); if (!opts.meta) metaEl.textContent = ''; }   // ★ #1024: a final flip also drops the offer's call to action
     // "Open file" affordance appears on completion, is dropped on a failed flip.
     const existingOpen = bubble.querySelector('.c-fbubble__open');
     if (finalState === 'complete') {
@@ -21388,6 +21781,7 @@ function createEncPassScreen({
 
 
 
+
 const THEME_OPTIONS = [           // legacy enum ThemeAppearance (ThemeManager.cs:9)
   { value: 0, key: 'themeSystem', label: 'System' },
   { value: 1, key: 'themeLight', label: 'Light' },
@@ -21971,7 +22365,8 @@ function createSettingsHub({
     }
   }
 
-  /* ★★ #575 (Damir, D13/F23) — THE ADDRESS LEAVES THE HERO.
+  /* ⚠ SUPERSEDED BY #1007 (below) — kept as the record of the ruling it replaced.
+   * ★★ #575 (Damir, D13/F23) — THE ADDRESS LEAVES THE HERO.
    *
    * The hub carried THREE address affordances: the full base58 chip with copy and
    * share (#137/#148⑤), a "What is this address?" text action (#443/#453), and a
@@ -21982,10 +22377,49 @@ function createSettingsHub({
    * the code, the full address, copy, Share and the explainer, and #575 puts copy
    * and Share side by side on its chip. The hub keeps the identity (avatar and
    * nickname) and nothing else, so the address is never at rest on the screen.
+   * (#1007: the TRUNCATED address is at rest in the header again; the FULL value still is not.)
    *
    * ⚠ `onShare` and `onAddressInfo` are NOT retired from the options. onShare is
    * forwarded into the sheet below; onAddressInfo now has no consumer here, and the
-   * shells keep passing it — see the row for why that is deliberate. */
+   * shells keep passing it — a signature change would silently break an unrebuilt host. */
+  /* ★★ #1007 (D-08, Damir 2026-09-28) SUPERSEDES the #575 row above: the address comes BACK
+   * to the profile header — middle-truncated (#211 canon, never the full base58 at rest),
+   * with Copy and QR buttons under the name — and the "Spixi address — Tap to view" row
+   * goes. The QR button opens the same `openAddressSheet` (#527) the row opened, so the
+   * code, the full address, Share and the explainer stay one tap away. */
+  if (address) {
+    const addr = document.createElement('div');
+    addr.className = 'c-settings__addr';
+    const txt = document.createElement('span');
+    txt.className = 'c-settings__addr-text u-tabular';
+    txt.textContent = truncateAddressMiddle(address);
+    txt.title = address;
+    const copyBtn = createButton({
+      type: 'text', size: 32, icon: icon('copy', { size: 16 }),
+      ariaLabel: strings.copyAddress || 'Copy address',
+      onClick: () => {
+        copyText(address).then((ok) => {
+          // ⚠ #1012 (r1 m7): the header shows the TRUNCATED form, so "select the text" cannot work here —
+          // the failure points at the QR sheet, where the full address and its own Copy live.
+          live.textContent = ok ? (strings.copied || 'Copied') : (strings.copyFailedOpenQr || 'Couldn’t copy. Open the QR code to copy the full address.');
+        });
+      },
+    });
+    copyBtn.classList.add('c-settings__addr-btn');
+    const qrBtn = createButton({
+      type: 'text', size: 32, icon: icon('qrcode', { size: 16 }),
+      ariaLabel: strings.showQr || 'Show QR',
+      onClick: () => openAddressSheet({
+        address, strings, host: hostFor(),
+        onShare: onShare ? (p) => onShare({ address: p.address }) : undefined,
+      }),
+    });
+    qrBtn.classList.add('c-settings__addr-btn');
+    qrBtn.dataset.addr = 'qr';   // structural hook for tests (r1 NIT: the retired row's aria-current key is not a thing here — nothing opens a sublevel)
+    copyBtn.dataset.addr = 'copy';
+    addr.append(txt, copyBtn, qrBtn);
+    hero.append(addr);
+  }
   body.append(hero);
 
   /* ——— row builders (disc + label · value · chevron; #142 grammar) ——— */
@@ -22119,32 +22553,19 @@ function createSettingsHub({
     return section;
   };
 
-  /* ——— ★ #575: the UNTITLED section — the two things that are about PEOPLE and
-     ABOUT ME. It sits first, above "Preferences", and carries no label because
-     neither row is a setting: one opens a list, one opens the address surface. ——— */
+  /* ——— the UNTITLED first section (#575) — about my people. It sits first, above
+     "Preferences", and carries no label because Contacts is not a setting. The address
+     row that shared it is retired by #1007 (the address lives in the header now). ——— */
   const me = group();
+  /* ★ #1007 (D-08c): a subtitle that only restates its title is DROPPED — Contacts, Declined
+     requests and Downloads lost theirs; Chat appearance, App lock and Backup keep theirs
+     because they add information. No row may wrap to three lines in the 360px pane. */
 
-  /* ★ #589 (Damir F5 2026-08-26): THE ADDRESS ROW SITS ABOVE CONTACTS. His call —
-     the section is "about me, then my people", and the address is the one value a
-     visitor comes here to fetch. Order only; both rows are unchanged.
-   * ★ #575: THE ONE ADDRESS ENTRY. It replaces the hero chip, the "Show QR" row and
-     the "What is this address?" action — three affordances for one value.
-     ⚠ The subtitle is the whole point of the row: it says what the address IS, which
-     is the job #443 gave the retired text action. `onAddressInfo` is therefore not
-     called any more, and it is left in the options on purpose — the shells still pass
-     it, and a signature change would be a silent breakage for a host that has not
-     been rebuilt. It is a no-op here, not a lie. */
-  if (address) me.card.append(settingRow({
-    glyph: 'qrcode', hue: 'accent',
-    label: strings.spixiAddress || 'Spixi address', key: 'address',
-    sub: strings.spixiAddressSub || 'This is your address. Tap to view.',
-    onClick: () => {
-      openAddressSheet({
-        address, strings, host: hostFor(),
-        onShare: onShare ? (p) => onShare({ address: p.address }) : undefined,
-      });
-    },
-  }).section);
+  /* ★ #589 / #575 history: the address row sat here, above Contacts, as the ONE address
+     entry (it replaced the hero chip, the "Show QR" row and "What is this address?").
+     #1007 retires it — `onAddressInfo` stays in the options as a no-op so an unrebuilt
+     host that still passes it does not break. */
+  /* ★ #1007: the "Spixi address" row is RETIRED — the address sits in the header now (above). */
 
   /* ★ N42 (#443, Damir): a way to REACH the contact list from Account. It was only
      ever reachable from the chats topbar, which is not where someone looks for "my
@@ -22153,7 +22574,6 @@ function createSettingsHub({
   if (onContacts) me.card.append(settingRow({
     glyph: 'users', hue: 'info',
     label: strings.contacts || 'Contacts', key: 'contacts',
-    sub: strings.contactsSub || 'See and manage everyone you have added',
     onClick: () => onContacts(),
   }).section);
 
@@ -22290,7 +22710,6 @@ function createSettingsHub({
   if (capabilities.ignoredRequests && onIgnored) sec.card.append(settingRow({
     glyph: 'user-cog', hue: 'neutral', key: 'ignored',
     label: strings.declinedRequests || 'Declined requests',
-    sub: strings.declinedRequestsSub || 'People whose contact requests you declined',
     onClick: () => onIgnored(),
   }).section);
 
@@ -22331,7 +22750,6 @@ function createSettingsHub({
      no verb needed) — un-gated by the shell since #240 (S10 verb obsolete). */
   if (capabilities.downloads && onDownloads) app.card.append(settingRow({
     glyph: 'download', hue: 'info', label: strings.downloads || 'Downloads', key: 'downloads',
-    sub: strings.downloadsSub || 'Files you received in chats',   // I-11 (#371)
     onClick: () => onDownloads(),
   }).section);
   if (capabilities.contributors && onContributors) app.card.append(settingRow({
@@ -22359,6 +22777,7 @@ function createSettingsHub({
     body.append(dz.wrap);
   }
 
+  spreadDiscs(el);   // ★ #1017: no two neighbouring discs share a colour
   return el;
 }
 
@@ -22558,8 +22977,7 @@ function createSettingsDanger({
     top.className = 'c-settings__row-top';
     const disc = document.createElement('span');
     disc.className = 'c-disc';
-    disc.dataset.hue = 'neutral';
-    disc.dataset.grad = String(discGrad('trash'));
+    disc.dataset.hue = 'neutral';   // ★ #1018: NO per-glyph gradient here — a trash row on the danger screen is the calm slate, never a green or orange palette slot
     disc.append(icon('trash', { size: 16 }));
     top.append(disc, document.createTextNode(label));
     const s = document.createElement('span');
@@ -22810,6 +23228,7 @@ function createSettingsBackup({
     tile.append(disc, tt, ts);
     grid.append(tile);
   }
+  spreadDiscs(grid);   // ★ #1022 (Opus r1 M1): the four tiles take distinct colours — with 11 slots 'wallet' and 'users' hashed to the same violet
   body.append(inside);
 
   /* restore note — the honesty line (P2P: no server escrow) */
@@ -22931,7 +23350,6 @@ function backupCtrl(onDone, onFail) {
    settings-app.js imports settingsConfirm across the same edge. settings-shell.js imports
    nothing from this file, so there is no cycle to create. */
 
-
 /* W5 (Damir 2026-08-12) — pattern STYLE, orthogonal to the intensity dial below.
  * Style picks the pattern SOURCE; intensity keeps mapping to opacity. "Off"
  * lives ONLY in the intensity control, so there is deliberately no fourth
@@ -22950,12 +23368,14 @@ const PATTERN_STYLES = [
      a device that stored 'doodles' or 'flow' from rendering nothing: neither value matches
      any allowlist any more, so all three pre-paint ladders (chat.html's head script,
      chat.html's live re-resolve, settings.html's readChatPrefs — the #690 three-ladder
-     rule) land on 'matrix'. The stored string is deliberately left alone.
+     rule) land on the one style (contours since #997). The stored string is deliberately left alone.
      ⓘ #866 (Session W) then retired the doodles TILE from the generated chat-pattern.css as
      well — #835 had left it emitted (233 KB, 94% of the sheet, selectable by nothing) because
      the generator's drift guard owned the asset; the guard went with it. The source SVG may
      still sit in src/assets/images unreferenced — deleting artwork is Damir's call. */
-  { id: 'matrix', key: 'patternStyleMatrix', label: 'Data matrix' },
+  /* ★★ #997 (Damir 2026-09-28): CONTOURS replace the data matrix (picked from constellation ·
+     fine lattice · contours on the three grounds). Still ONE style; 'matrix' falls through. */
+  { id: 'contours', key: 'patternStyleContours', label: 'Contours' },
 ];/* ★ N81 (#422) — THREE levels, and the value is a LEVEL INDEX, not an alpha.
  *
  * Damir's dial: off, the new default, and one stronger step at 0.1. The change
@@ -22994,6 +23414,11 @@ const CHAT_GROUNDS = [
      rule, re-ruled explicitly on 2026-09-04 for the dark case: a one-option chooser reads
      as a broken control, so the row is ABSENT rather than shown with nothing to choose. */
   { id: 'flat', key: 'groundFlat', label: 'Solid' },
+  /* ★★ #998 (Damir 2026-09-28, the polish round): the option is BACK as the BRAND GRADIENT —
+     light only, never the default (tokens.css #1002: #CCD0EC → #D0C9EB → #D5C3EB with its own
+     ink #3A2F66). The restore was the one line #855 promised; the label is a NEW key because
+     "Gradient" translations named the retired teal wash. */
+  { id: 'gradient', key: 'groundBrandGradient', label: 'Brand gradient' },
 ];
 
 /* ★ Session M (#783): THE PATTERN_LEVELS ARRAY IS GONE. Session M folded the intensity
@@ -23339,11 +23764,11 @@ function screenShell(className, title, onBack) {
  */
 function createChatAppearance({
   patternOpacity = 1,             // ★ N81 (#422): a LEVEL index (0/1/2), not an alpha
-  patternStyle = 'matrix',       // ★ #835: the only style left (doodles + Live flow retired)
+  patternStyle = 'contours',     // ★ #997: the only style left (matrix, doodles + Live flow retired)
   chatGround = 'flat',           // ★ AUG 2026-08-30: 'flat' (default) | 'gradient' — LIGHT only
   textScale = 1,
   isDesktop = typeof document === 'object' && document.documentElement.hasAttribute('data-desktop'),
-  host,                          // ★ Session M (#774): the Colour sheet's host — hubFor grammar below
+  host,                          // ★ #1019: unused since the Canvas choice became circles (no sheet); kept so existing callers stay valid
   onBack,
   onPattern,                     // (level) — shell persists the index; CSS resolves the alpha
   onPatternStyle,                // (id) — shell sets data-chat-pattern + persists (W5)
@@ -23352,10 +23777,6 @@ function createChatAppearance({
   strings = getStrings(),
 } = {}) {
   const { el, body } = screenShell('c-settings-appearance', strings.chatAppearance || 'Chat appearance', onBack);
-  /* the createSettingsHub / createSettingsDanger idiom, verbatim: an explicit host wins,
-     otherwise the demo phone frame, otherwise the sheet's own default (document.body). */
-  const hostFor = () => host || el.closest('.demo-phone') || undefined;
-
   /* live preview — real canvas class: gradient + generated pattern mask */
   const preview = document.createElement('div');
   preview.className = 'c-chat-canvas c-settings-appearance__preview';
@@ -23401,7 +23822,7 @@ function createChatAppearance({
   /* the style axis and the level axis, kept apart INSIDE this screen. `styleCurrent` is
      the style the user last chose (or the default) and survives a None pick; `levelCurrent`
      is 0 or 1 and is what None actually writes. */
-  let styleCurrent = styleOpts.some((o) => o.id === patternStyle) ? patternStyle : 'matrix';
+  let styleCurrent = styleOpts.some((o) => o.id === patternStyle) ? patternStyle : 'contours';
   let levelCurrent = Number(patternOpacity) > 0 ? 1 : 0;
   const bgOpts = [
     /* ★ Session M: a NEW string, and the only one this restructure adds. The retired
@@ -23492,35 +23913,46 @@ function createChatAppearance({
       const o = CHAT_GROUNDS.find((g) => g.id === id);
       return o ? (strings[o.key] || o.label) : id;
     };
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = 'c-settings__row c-settings-appearance__ground';
+    /* ★★ #1019 (Damir 2026-09-28: "a coloured circle instead of the Solid/Gradient wording"): the
+       row keeps its one word ("Canvas") and the CHOICE is a pair of colour circles — each paints
+       the ground it picks (data-chat-ground on the dot resolves --gradient-chat through the same
+       token rules the chat uses). The names stay the accessible names (role=radio + aria-label),
+       and the value row → option sheet round trip is gone: one tap picks. Supersedes #998's value row. */
+    const row = document.createElement('div');
+    row.className = 'c-settings__row c-settings__row--static c-settings-appearance__ground';   // ★ #1024: a row that is not a control (D-16 r2 B-6 class)
     const lab = document.createElement('span');
     lab.className = 'c-settings__row-label';
+    lab.id = 'c-settings-ground-label';
     lab.textContent = strings.chatGround || 'Canvas';
-    const val = document.createElement('span');
-    val.className = 'c-settings__row-value';
-    val.textContent = groundLabel(groundCurrent);
-    row.append(lab, val, icon('chevron-right', { size: 18 }));
-    row.addEventListener('click', () => {
-      settingsOptionSheet({
-        title: strings.chatGround || 'Canvas',
-        options: CHAT_GROUNDS.map((o) => ({ value: o.id, label: strings[o.key] || o.label })),
-        current: groundCurrent,
-        host: hostFor(),
-        strings,
-        /* FE-only pref: there is nothing to round-trip, so the commit succeeds in the
-           same tick. The sheet's (value, ctrl) contract is honoured rather than
-           side-stepped — ctrl.done() is what closes the sheet and moves the check. */
-        commit: (v, ctrl) => {
-          groundCurrent = v;
-          val.textContent = groundLabel(v);
-          preview.setAttribute('data-chat-ground', v);
-          if (onChatGround) onChatGround(v);
-          ctrl.done();
-        },
+    const dots = document.createElement('div');
+    dots.className = 'c-settings-appearance__dots';
+    dots.setAttribute('role', 'radiogroup');
+    dots.setAttribute('aria-labelledby', lab.id);
+    const paint = () => {
+      for (const b of dots.children) b.setAttribute('aria-checked', String(b.dataset.value === groundCurrent));
+    };
+    for (const o of CHAT_GROUNDS) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'c-settings-appearance__dot';
+      b.dataset.value = o.id;
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-label', groundLabel(o.id));
+      const face = document.createElement('span');
+      face.className = 'c-settings-appearance__dot-face';
+      face.setAttribute('data-chat-ground', o.id);
+      b.append(face);
+      b.addEventListener('click', () => {
+        if (groundCurrent === o.id) return;
+        groundCurrent = o.id;
+        paint();
+        preview.setAttribute('data-chat-ground', o.id);
+        if (onChatGround) onChatGround(o.id);
       });
-    });
+      dots.append(b);
+    }
+    paint();
+    row.append(lab, dots);
     groundSec.append(row);
   }
 
@@ -23887,6 +24319,7 @@ function createSecurityLevel({
 
 
 
+
 // one-shot ctrl (#138 m1) — module-local unique name (house collision rule)
 function appCtrl(onDone, onFail) {
   let used = false;
@@ -24098,7 +24531,7 @@ function createSettingsDownloads({
     meta.className = 'c-settings-dl__meta';
     const nm = document.createElement('span');
     nm.className = 'c-settings-dl__name';
-    nm.textContent = name;                 // UNTRUSTED — textContent only
+    fillFileName(nm, name);                // UNTRUSTED — textContent only (★ #1005: keeps the extension)
     meta.append(nm);
     if (time) {
       const tm = document.createElement('span');
@@ -26864,5 +27297,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, showIncomingCall: showIncomingCall, hideIncomingCall: hideIncomingCall, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

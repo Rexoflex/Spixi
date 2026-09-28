@@ -200,14 +200,18 @@ img, svg { display: block; max-width: 100%; }
   color: #fff;                                   /* sanctioned: a white glyph on a gradient disc — mode-agnostic by design */
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16); /* sanctioned: the disc's glass edge, a white alpha over the gradient in both modes */
 }
-/* hue -> default gradient (for discs that set only data-hue, e.g. the scan card) */
-.c-disc[data-hue='primary'] { --disc-grad: var(--disc-grad-1); }
-.c-disc[data-hue='accent']  { --disc-grad: var(--disc-grad-3); }
-.c-disc[data-hue='info']    { --disc-grad: var(--disc-grad-2); }
+/* ★ #1017: the avatar treatment for the white glyph — the lighter pairs (sunflower, lime, cyan)
+   sit near 2:1 under white, so the glyph carries the avatars' soft shadow (avatar.css #1001). */
+.c-disc > svg { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25)); }   /* sanctioned: the #1001 avatar initials shadow */
+/* hue -> default gradient (for discs that set only data-hue, e.g. the scan card).
+   ★ #1017: slots follow the avatar palette — 7 blue · 8 violet · 6 cyan · 4 green · 2 sunflower. */
+.c-disc[data-hue='primary'] { --disc-grad: var(--disc-grad-7); }
+.c-disc[data-hue='accent']  { --disc-grad: var(--disc-grad-8); }
+.c-disc[data-hue='info']    { --disc-grad: var(--disc-grad-6); }
 .c-disc[data-hue='success'] { --disc-grad: var(--disc-grad-4); }
-.c-disc[data-hue='warning'] { --disc-grad: var(--disc-grad-5); }
-.c-disc[data-hue='neutral'] { --disc-grad: var(--disc-grad-12); }
-/* per-glyph gradient (discGrad) — later in source, so it wins over the hue default */
+.c-disc[data-hue='warning'] { --disc-grad: var(--disc-grad-2); }
+.c-disc[data-hue='neutral'] { --disc-grad: var(--disc-grad-neutral); }
+/* per-glyph gradient (discGrad, then spreadDiscs so neighbours differ) — later in source, so it wins */
 .c-disc[data-grad='1']  { --disc-grad: var(--disc-grad-1); }
 .c-disc[data-grad='2']  { --disc-grad: var(--disc-grad-2); }
 .c-disc[data-grad='3']  { --disc-grad: var(--disc-grad-3); }
@@ -219,9 +223,6 @@ img, svg { display: block; max-width: 100%; }
 .c-disc[data-grad='9']  { --disc-grad: var(--disc-grad-9); }
 .c-disc[data-grad='10'] { --disc-grad: var(--disc-grad-10); }
 .c-disc[data-grad='11'] { --disc-grad: var(--disc-grad-11); }
-.c-disc[data-grad='12'] { --disc-grad: var(--disc-grad-12); }
-.c-disc[data-grad='13'] { --disc-grad: var(--disc-grad-13); }
-.c-disc[data-grad='14'] { --disc-grad: var(--disc-grad-14); }
 /* destructive stays RED regardless of the per-glyph gradient (safety) — LAST wins */
 .c-disc[data-hue='error'] { --disc-grad: var(--disc-grad-error); }
 
@@ -562,3 +563,11 @@ html:root .c-app-item[data-pressfade] .c-app-item__open[aria-current]::before {
   background: var(--surface-screen);
   border-block-start: var(--outline-width-1) solid var(--outline-neutral-01);
 }
+
+/* ★ #1005 (D-05): a file name that shortens keeps its extension — the stem ellipsizes,
+   the tail (last 4 of the stem + the extension) never shrinks. The HOST keeps its own
+   `overflow: hidden; white-space: nowrap` (c-fbubble__name, c-settings-dl__name); this makes
+   it a flex row so only the stem gives way. fillFileName() (typed-bubbles.js) builds it. */
+.c-fname { display: flex; min-width: 0; }
+.c-fname__stem { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-fname__tail { flex: none; white-space: nowrap; }

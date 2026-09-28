@@ -72,7 +72,11 @@
 @media (hover: hover) and (pointer: fine) {
   .c-bottomnav__item:hover { background: var(--surface-interactive-hover); }
   .c-bottomnav__item[aria-current]:hover { background: transparent; }
-  .c-bottomnav__item[aria-current]:hover::before { background: var(--surface-action-tonal-hover); }
+  /* ★ #1007 (D-08d, Damir: "the selected Account item rendered solid blue in dark"): the pointer
+     is still ON the item right after the click, and dark --surface-action-tonal-hover is
+     primary-600 — the SOLID action blue — so the current item turned solid until the mouse
+     left. The current item is where you are; it keeps its tonal pill under the pointer. */
+  .c-bottomnav__item[aria-current]:hover::before { background: var(--surface-action-tonal-default); }
 }
 .c-bottomnav__item:active { background: var(--surface-interactive-pressed); }
 .c-bottomnav__item[aria-current]:active { background: transparent; }

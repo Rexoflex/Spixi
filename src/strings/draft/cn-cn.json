@@ -654,5 +654,11 @@
   "declinedRequestsSub": "你拒绝过其联系人请求的人",
   "declinedRequestsNote": "来自这些地址的再次请求会被忽略，对方不会收到通知。解除屏蔽即可再次接收其请求。",
   "declinedRequestsEmpty": "你没有拒绝过任何请求。",
-  "unblock": "解除屏蔽"
+  "unblock": "解除屏蔽",
+  "noAnswer": "无人接听",
+  "youDeclinedCall": "你已拒绝",
+  "copyFailedOpenQr": "无法复制。请打开 QR 码以复制完整地址。",
+  "groundBrandGradient": "品牌渐变",
+  "patternStyleContours": "等高线",
+  "tapToDownload": "点按下载"
 }

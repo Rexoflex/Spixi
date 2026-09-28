@@ -732,5 +732,11 @@
   "declinedRequestsSub": "Osobe čije ste zahteve za kontakt odbili",
   "declinedRequestsNote": "Ponovni zahtev sa ovih adresa se ignoriše. Oni nisu obavešteni. Odblokirajte da biste ponovo primali njihove zahteve.",
   "declinedRequestsEmpty": "Niste odbili nijedan zahtev.",
-  "unblock": "Odblokiraj"
+  "unblock": "Odblokiraj",
+  "noAnswer": "Nema odgovora",
+  "youDeclinedCall": "Odbili ste",
+  "copyFailedOpenQr": "Kopiranje nije uspelo. Otvorite QR kod da biste kopirali celu adresu.",
+  "groundBrandGradient": "Brend gradijent",
+  "patternStyleContours": "Konture",
+  "tapToDownload": "Dodirnite za preuzimanje"
 }

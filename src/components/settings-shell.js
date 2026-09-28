@@ -26,7 +26,7 @@
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
-import { discGrad } from './disc.js';
+import { discGrad, spreadDiscs } from './disc.js';
 import { createFlag } from './flags.js';
 import { createAvatar, truncateAddressMiddle } from './avatar.js';
 import { createButton, setLoading } from './button.js';
@@ -37,6 +37,7 @@ import { createBadge } from './badge.js';
 import { createModal, openModal } from './modal.js';
 import { setOverlayOpts, dismissOverlay } from './overlay.js';
 import { openAddressSheet } from './wallet-receive.js';
+import { copyText } from './clipboard.js';   // ★ #1007: the hero's Copy — the shared copy with the file:// fallback (#993)
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 
 export const THEME_OPTIONS = [           // legacy enum ThemeAppearance (ThemeManager.cs:9)
@@ -622,7 +623,8 @@ export function createSettingsHub({
     }
   }
 
-  /* ★★ #575 (Damir, D13/F23) — THE ADDRESS LEAVES THE HERO.
+  /* ⚠ SUPERSEDED BY #1007 (below) — kept as the record of the ruling it replaced.
+   * ★★ #575 (Damir, D13/F23) — THE ADDRESS LEAVES THE HERO.
    *
    * The hub carried THREE address affordances: the full base58 chip with copy and
    * share (#137/#148⑤), a "What is this address?" text action (#443/#453), and a
@@ -633,10 +635,49 @@ export function createSettingsHub({
    * the code, the full address, copy, Share and the explainer, and #575 puts copy
    * and Share side by side on its chip. The hub keeps the identity (avatar and
    * nickname) and nothing else, so the address is never at rest on the screen.
+   * (#1007: the TRUNCATED address is at rest in the header again; the FULL value still is not.)
    *
    * ⚠ `onShare` and `onAddressInfo` are NOT retired from the options. onShare is
    * forwarded into the sheet below; onAddressInfo now has no consumer here, and the
-   * shells keep passing it — see the row for why that is deliberate. */
+   * shells keep passing it — a signature change would silently break an unrebuilt host. */
+  /* ★★ #1007 (D-08, Damir 2026-09-28) SUPERSEDES the #575 row above: the address comes BACK
+   * to the profile header — middle-truncated (#211 canon, never the full base58 at rest),
+   * with Copy and QR buttons under the name — and the "Spixi address — Tap to view" row
+   * goes. The QR button opens the same `openAddressSheet` (#527) the row opened, so the
+   * code, the full address, Share and the explainer stay one tap away. */
+  if (address) {
+    const addr = document.createElement('div');
+    addr.className = 'c-settings__addr';
+    const txt = document.createElement('span');
+    txt.className = 'c-settings__addr-text u-tabular';
+    txt.textContent = truncateAddressMiddle(address);
+    txt.title = address;
+    const copyBtn = createButton({
+      type: 'text', size: 32, icon: icon('copy', { size: 16 }),
+      ariaLabel: strings.copyAddress || 'Copy address',
+      onClick: () => {
+        copyText(address).then((ok) => {
+          // ⚠ #1012 (r1 m7): the header shows the TRUNCATED form, so "select the text" cannot work here —
+          // the failure points at the QR sheet, where the full address and its own Copy live.
+          live.textContent = ok ? (strings.copied || 'Copied') : (strings.copyFailedOpenQr || 'Couldn’t copy. Open the QR code to copy the full address.');
+        });
+      },
+    });
+    copyBtn.classList.add('c-settings__addr-btn');
+    const qrBtn = createButton({
+      type: 'text', size: 32, icon: icon('qrcode', { size: 16 }),
+      ariaLabel: strings.showQr || 'Show QR',
+      onClick: () => openAddressSheet({
+        address, strings, host: hostFor(),
+        onShare: onShare ? (p) => onShare({ address: p.address }) : undefined,
+      }),
+    });
+    qrBtn.classList.add('c-settings__addr-btn');
+    qrBtn.dataset.addr = 'qr';   // structural hook for tests (r1 NIT: the retired row's aria-current key is not a thing here — nothing opens a sublevel)
+    copyBtn.dataset.addr = 'copy';
+    addr.append(txt, copyBtn, qrBtn);
+    hero.append(addr);
+  }
   body.append(hero);
 
   /* ——— row builders (disc + label · value · chevron; #142 grammar) ——— */
@@ -770,32 +811,19 @@ export function createSettingsHub({
     return section;
   };
 
-  /* ——— ★ #575: the UNTITLED section — the two things that are about PEOPLE and
-     ABOUT ME. It sits first, above "Preferences", and carries no label because
-     neither row is a setting: one opens a list, one opens the address surface. ——— */
+  /* ——— the UNTITLED first section (#575) — about my people. It sits first, above
+     "Preferences", and carries no label because Contacts is not a setting. The address
+     row that shared it is retired by #1007 (the address lives in the header now). ——— */
   const me = group();
+  /* ★ #1007 (D-08c): a subtitle that only restates its title is DROPPED — Contacts, Declined
+     requests and Downloads lost theirs; Chat appearance, App lock and Backup keep theirs
+     because they add information. No row may wrap to three lines in the 360px pane. */
 
-  /* ★ #589 (Damir F5 2026-08-26): THE ADDRESS ROW SITS ABOVE CONTACTS. His call —
-     the section is "about me, then my people", and the address is the one value a
-     visitor comes here to fetch. Order only; both rows are unchanged.
-   * ★ #575: THE ONE ADDRESS ENTRY. It replaces the hero chip, the "Show QR" row and
-     the "What is this address?" action — three affordances for one value.
-     ⚠ The subtitle is the whole point of the row: it says what the address IS, which
-     is the job #443 gave the retired text action. `onAddressInfo` is therefore not
-     called any more, and it is left in the options on purpose — the shells still pass
-     it, and a signature change would be a silent breakage for a host that has not
-     been rebuilt. It is a no-op here, not a lie. */
-  if (address) me.card.append(settingRow({
-    glyph: 'qrcode', hue: 'accent',
-    label: strings.spixiAddress || 'Spixi address', key: 'address',
-    sub: strings.spixiAddressSub || 'This is your address. Tap to view.',
-    onClick: () => {
-      openAddressSheet({
-        address, strings, host: hostFor(),
-        onShare: onShare ? (p) => onShare({ address: p.address }) : undefined,
-      });
-    },
-  }).section);
+  /* ★ #589 / #575 history: the address row sat here, above Contacts, as the ONE address
+     entry (it replaced the hero chip, the "Show QR" row and "What is this address?").
+     #1007 retires it — `onAddressInfo` stays in the options as a no-op so an unrebuilt
+     host that still passes it does not break. */
+  /* ★ #1007: the "Spixi address" row is RETIRED — the address sits in the header now (above). */
 
   /* ★ N42 (#443, Damir): a way to REACH the contact list from Account. It was only
      ever reachable from the chats topbar, which is not where someone looks for "my
@@ -804,7 +832,6 @@ export function createSettingsHub({
   if (onContacts) me.card.append(settingRow({
     glyph: 'users', hue: 'info',
     label: strings.contacts || 'Contacts', key: 'contacts',
-    sub: strings.contactsSub || 'See and manage everyone you have added',
     onClick: () => onContacts(),
   }).section);
 
@@ -941,7 +968,6 @@ export function createSettingsHub({
   if (capabilities.ignoredRequests && onIgnored) sec.card.append(settingRow({
     glyph: 'user-cog', hue: 'neutral', key: 'ignored',
     label: strings.declinedRequests || 'Declined requests',
-    sub: strings.declinedRequestsSub || 'People whose contact requests you declined',
     onClick: () => onIgnored(),
   }).section);
 
@@ -982,7 +1008,6 @@ export function createSettingsHub({
      no verb needed) — un-gated by the shell since #240 (S10 verb obsolete). */
   if (capabilities.downloads && onDownloads) app.card.append(settingRow({
     glyph: 'download', hue: 'info', label: strings.downloads || 'Downloads', key: 'downloads',
-    sub: strings.downloadsSub || 'Files you received in chats',   // I-11 (#371)
     onClick: () => onDownloads(),
   }).section);
   if (capabilities.contributors && onContributors) app.card.append(settingRow({
@@ -1010,6 +1035,7 @@ export function createSettingsHub({
     body.append(dz.wrap);
   }
 
+  spreadDiscs(el);   // ★ #1017: no two neighbouring discs share a colour
   return el;
 }
 
@@ -1209,8 +1235,7 @@ export function createSettingsDanger({
     top.className = 'c-settings__row-top';
     const disc = document.createElement('span');
     disc.className = 'c-disc';
-    disc.dataset.hue = 'neutral';
-    disc.dataset.grad = String(discGrad('trash'));
+    disc.dataset.hue = 'neutral';   // ★ #1018: NO per-glyph gradient here — a trash row on the danger screen is the calm slate, never a green or orange palette slot
     disc.append(icon('trash', { size: 16 }));
     top.append(disc, document.createTextNode(label));
     const s = document.createElement('span');

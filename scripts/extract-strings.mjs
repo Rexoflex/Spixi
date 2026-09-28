@@ -84,7 +84,11 @@ const DYNAMIC = {
      them to restore a row that was never redesigned. Retiring them is correct the day the
      option is retired for good rather than "for now" — and that is a decision, not a tidy-up. */
   groundFlat: 'Solid',
-  groundGradient: 'Gradient',
+  /* ★★ #998 (Damir 2026-09-28): the option is BACK as the BRAND gradient — so the row is read
+     again, and it reads a NEW key: "Gradient" was translated for the retired teal wash, and
+     the brand gradient is a different thing. groundGradient is therefore retired for good
+     (the #855 "for now" resolved the other way: the OPTION returned, the old LABEL did not). */
+  groundBrandGradient: 'Brand gradient',
   // #341 review MINOR-4: PATTERN_STYLES is read as strings[o.key], so it is
   // unextractable and MUST live here. It did not, so the
   // three style names existed in the locale files only until the next extract run —
@@ -98,7 +102,9 @@ const DYNAMIC = {
      is exactly the trap the note above this table records — retiring a style in the
      COMPONENT changes nothing until this table changes too, and both i18n gates are blind
      to it because they compare locales against each other. */
-  patternStyleMatrix: 'Data matrix',
+  /* ★ #997 (Damir 2026-09-28): the data matrix is retired for CONTOURS — its key goes with it
+     (the rule above), and the live style's key lives here because strings[o.key] is unextractable. */
+  patternStyleContours: 'Contours',
   textS: 'S',
   textM: 'M',
   textL: 'L',

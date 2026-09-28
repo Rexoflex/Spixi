@@ -62,7 +62,7 @@
 <link rel="stylesheet" href="../styles/components/lock-shell.css"><!-- #341: c-encpass + password fields for the Change-password sublevel (#804: every form factor) -->
 <link rel="stylesheet" href="../styles/components/message-bubble.css"><!-- .c-chat-canvas paint for the appearance preview -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
-<link rel="stylesheet" href="../styles/chat-pattern.css"><!-- generated pattern tile (data matrix) for the preview canvas -->
+<link rel="stylesheet" href="../styles/chat-pattern.css"><!-- generated pattern tile (contours, #997) for the preview canvas -->
 <link rel="stylesheet" href="../styles/components/bottomnav.css"><!-- peer-tab chrome (Account active) -->
 <link rel="stylesheet" href="../styles/components/toast.css"><!-- #314 (Damir screenshots): showToast ran UNSTYLED here — "Settings saved" rendered in document flow under the bottom bar -->
 <link rel="stylesheet" href="../styles/components/wallet-receive.css"><!-- ★ Batch E (d) (#557): openAddressSheet (.c-addr-sheet / __qrcard) — unstyled here without it (the toast.css lesson) -->
@@ -526,9 +526,9 @@
     let pattern = 1, textScale = 1;   // · scale M  ★ Session I (#735③): pattern default-ON in light on EVERY platform (was desktop ? 0 : 1)
     /* ★★ #835: ONE style. Doodles and Live flow are retired, so this ladder — the THIRD of
        the #690 three (chat.html's head script and its live re-resolve are the others) —
-       answers 'matrix' for every stored value, which is what makes a device holding
+       answers the ONE style (contours since #997) for every stored value, which is what makes a device holding
        'doodles' or 'flow' fall through instead of rendering nothing. */
-    let patternStyle = 'matrix';      // ★ #835: the only style left
+    let patternStyle = 'contours';    // ★ #997: the only style left (the data matrix retired)
     /* ★★ THE LIGHT CANVAS IS SOLID, and 'flat' is the ONLY value this ladder admits.
        THIS IS THE THIRD LADDER (#690): chat.html's pre-paint script and its live re-resolve
        are the other two, and all three must agree or the picker shows a selection the chat
@@ -538,7 +538,7 @@
        should survive the flip): "for gradient, yes I mean retire the option for now" — so the
        option is GONE. Superseded: AUG 2026-08-30, "leave the gradient as an option in chat
        appearance on light mode", and #835's default-only flip. */
-    let chatGround = 'flat';   // ★ #855: the solid ground is the only ground
+    let chatGround = 'flat';   // ★ #855 → #998: flat default; the brand gradient is an option again
     try {
       pattern = readPatternLevel(localStorage.getItem(CHAT_PREFS.pattern), pattern);   // ★ N81 (#422)
       const t = parseFloat(localStorage.getItem(CHAT_PREFS.textScale));
@@ -546,15 +546,15 @@
       const st = localStorage.getItem(CHAT_PREFS.patternStyle);
       // ★ #835: 'triangles', 'lineart', 'doodles' and 'flow' are all retired and
       // deliberately absent here, so any of them falls through to the default above.
-      if (st === 'matrix') patternStyle = st;
+      if (st === 'contours') patternStyle = st;   // ★ #997: a stored 'matrix' falls through
       const gr = localStorage.getItem(CHAT_PREFS.ground);
       /* ★ Session J (Damir, Windows: "sometimes it shows the gradient selected but doesn't have it
          applied"): this line only ever set 'gradient'. Since Session I the DEFAULT is 'gradient',
          so a stored 'flat' — the user's pick — fell through and the picker re-opened on Gradient
          while chat.html's ladder honoured the flat. Both stored values are read now. */
-      // ★ #855: 'gradient' is retired and deliberately absent here, so a stored gradient
-      // falls through to 'flat' — the THIRD ladder, agreeing with chat.html's two.
-      if (gr === 'flat') chatGround = gr;   // anything else, incl. absent/corrupt → the default above
+      // ★ #855 → #998: 'gradient' is ADMITTED again (the brand gradient, light only);
+      // any other value falls through to 'flat' — the THIRD ladder, agreeing with chat.html's two.
+      if (gr === 'flat' || gr === 'gradient') chatGround = gr;   // ★ #998: anything else, incl. absent/corrupt → the default above
     } catch (e) {}
     return { pattern, textScale, patternStyle, chatGround };
   }

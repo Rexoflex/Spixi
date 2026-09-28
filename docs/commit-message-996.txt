@@ -1,0 +1,24 @@
+Card reskin (#996) + premium polish rounds (#997–#1023)
+
+- #996 payment/app cards: today's full card where the user acts, a compact
+  pill for every settled state (one predicate = the button branches; the pill
+  is one Details button)
+- #997 chat pattern = contours; the data matrix retired (stored 'matrix' falls
+  through in all three ladders + the :root default)
+- #998 the light Canvas option is back as the brand gradient; Strong stays retired
+- #1001–#1010 avatars palette + sender names, Mist ground, sent-card tint,
+  pending ink, file-name tails, one-row call card, Account header address,
+  tx badge compact, live-completion check, tick crossfade
+- #1006 no call-back on any card while a call in the log is live
+- #1011–#1015 pins + mutations; Opus #46 loop CLEAN at round 5
+- #1016 payment numbers neutral: verified + pinned
+- #1017 hub icon discs = avatar palette, positional (neighbours differ)
+- #1018 dark sheets: cards lift; dark destructive button solid red
+- #1019 Canvas choice = colour circles
+- #1020 app invite monogram + side-by-side actions
+- #1021 file card = document tile, "Tap to download", live percent
+- #1022 Opus r1 fixes (0 MAJOR); #1023 doodle rendered and rejected
+- CHAT_KB_CEIL 660 → 675 → 680 (measured deltas stated)
+
+No C#, no bridge verbs.
+

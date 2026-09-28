@@ -15,7 +15,7 @@
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
-import { safeImageSrc } from './avatar.js';
+import { safeImageSrc, identityIndex } from './avatar.js';
 import { createButton } from './button.js';
 import { createBadge } from './badge.js';
 import { docLocale, timeOpts } from './timestamp.js';
@@ -117,6 +117,134 @@ function reentryGuard(fn) {
   };
 }
 
+/* ★★ #996 THE CARD RESKIN — Damir's pick (2026-09-28): "keep today's cards, but have compact for
+ * settled". A payment or app card that carries a BUTTON (Pay · Decline · Cancel request · Retry ·
+ * Join · Get app · Launch · Resume) keeps today's full card, unchanged. A card with NOTHING to
+ * act on becomes the COMPACT pill (ref-payment-sent-compact): medallion · a small label over a
+ * large value · a QUIET status (tiny dot + one low-contrast word) with the time in the foot, NO
+ * memo line, and the whole pill is the Details button. Every state, verb and bridge field is the
+ * A card's — only the layout of the settled ones moves. The helpers below are shared with the
+ * call card (#1006), so they sit OUTSIDE any grammar switch (Opus r1 m4). */
+
+/* ★ #996: the QUIET status — a tiny tinted dot + one low-contrast word, in the foot.
+ * Replaces the coloured badge on the reskinned cards. `tone` drives only the dot. */
+const PAYMENT_STATUS_WORD = {
+  pending: ['pending', 'Pending'], completed: ['completed', 'Completed'],
+  declined: ['declined', 'Declined'], canceled: ['canceled', 'Canceled'],
+  failed: ['failed', 'Failed'], processing: ['processing', 'Processing'],
+};
+function quietStatus(status, strings) {
+  const w = PAYMENT_STATUS_WORD[status];
+  if (!w) return null;
+  const tone = { pending: 'neutral', processing: 'neutral', completed: 'success', declined: 'error', canceled: 'neutral', failed: 'error' }[status];
+  const s = document.createElement('span');
+  s.className = 'c-tcard__status';
+  s.dataset.tone = tone;
+  let mark;
+  if (status === 'completed') {
+    /* ★ #1009 (10a): completed carries a small CHECK instead of the dot — drawn once
+       (stroke-dash) when the card completed LIVE (data-live-complete on the card). */
+    mark = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    mark.setAttribute('viewBox', '0 0 12 12');
+    mark.setAttribute('class', 'c-tcard__status-check');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'M2.5 6.2 5 8.6 9.5 3.6');
+    path.setAttribute('pathLength', '1');
+    mark.append(path);
+  } else {
+    mark = document.createElement('span');
+    mark.className = 'c-tcard__status-dot';
+  }
+  mark.setAttribute('aria-hidden', 'true');
+  s.append(mark, document.createTextNode(strings[w[0]] || w[1]));
+  return s;
+}
+function timeEl(timestamp) {
+  if (timestamp == null) return null;
+  const d = new Date(timestamp);
+  if (isNaN(d)) return null;
+  const t = document.createElement('time');
+  t.className = 'c-tcard__time u-tabular';
+  t.setAttribute('datetime', d.toISOString());
+  t.textContent = cardTime(d);
+  return t;
+}
+function amountNode(amount, tone) {
+  const a = document.createElement('span');
+  a.className = 'c-tcard__amount u-tabular';
+  a.dataset.tone = tone;
+  a.append(document.createTextNode(formatIxiAmount(amount) + ' '));
+  const unit = document.createElement('span');
+  unit.className = 'c-tcard__unit';
+  unit.textContent = 'IXI';
+  a.append(unit);
+  return a;
+}
+function amountTone(status, amount) {
+  return status === 'completed' ? (String(amount).startsWith('+') ? 'positive' : 'neutral')
+    : (status === 'declined' || status === 'canceled' || status === 'failed') ? 'void'
+    : 'pending';
+}
+/* The row scaffold without the old header (the compact + full grammars own their own). */
+function cardShell(direction, modifier, layout, gutter) {
+  const row = document.createElement('div');
+  row.className = 'c-bubble-row';
+  row.dataset.direction = direction;
+  row.dataset.position = 'single';
+  if (gutter && direction === 'received') {
+    const g = document.createElement('span');
+    g.className = 'c-bubble-row__gutter';
+    row.append(g);
+  }
+  const el = document.createElement('div');
+  el.className = 'c-tcard';
+  if (modifier) el.dataset.kind = modifier;
+  el.dataset.layout = layout;
+  row.append(el);
+  return { row, el };
+}
+/* COMPACT pill (ref-payment-sent-compact): medallion · small label over a large value ·
+ * the foot (quiet status + time) at the block end. When `onOpen` exists the WHOLE pill
+ * is one button (a stretched hit layer), so Details stays reachable with no link row. */
+function compactMain({ glyph, iconEl, label, valueEl, subEl, status, timestamp, onOpen, openLabel, strings }) {
+  const main = document.createElement('div');
+  main.className = 'c-tcard__main';
+  const med = iconEl || document.createElement('span');
+  med.classList.add('c-tcard__medallion');
+  med.setAttribute('aria-hidden', 'true');
+  if (!iconEl) med.append(icon(glyph, { size: 20 }));
+  const col = document.createElement('span');
+  col.className = 'c-tcard__col';
+  const lab = document.createElement('span');
+  lab.className = 'c-tcard__label';
+  lab.textContent = label;
+  /* ★ #1013 (Opus r2 M1): the value and the foot share ONE wrapping line. In a grid cell of their
+     own, a long amount + "Processing · 14:05" ran PAST the card edge on a 320–360px phone; in a
+     wrapping line the foot drops under the amount (end-aligned) when both do not fit. */
+  const line = document.createElement('span');
+  line.className = 'c-tcard__line';
+  line.append(valueEl);
+  const foot = document.createElement('span');
+  foot.className = 'c-tcard__foot';
+  const st = status ? quietStatus(status, strings) : null;
+  if (st) foot.append(st);
+  const t = timeEl(timestamp);
+  if (t) foot.append(t);
+  if (foot.childNodes.length) line.append(foot);
+  col.append(lab, line);
+  if (subEl) col.append(subEl);
+  main.append(med, col);
+  if (onOpen) {
+    const hit = document.createElement('button');
+    hit.type = 'button';
+    hit.className = 'c-tcard__hit';
+    hit.setAttribute('aria-label', openLabel);
+    hit.addEventListener('click', onOpen);
+    main.prepend(hit);   // FIRST child: `.c-tcard__hit:hover ~ .c-tcard__medallion` (no :has)
+  }
+  return main;
+}
+
 /**
  * Payment card — covers incoming/outgoing requests AND direct payments.
  * role: 'request-in' (Pay/Decline) · 'request-out' (Cancel request) ·
@@ -136,6 +264,9 @@ export function createPaymentBubble({
   insufficient = false,   // request-in: Pay disabled + caption
   timestamp = null,
   gutter = false,         // group chats: align with gutter-indented text bubbles (C8)
+  celebrate = false,      // ★ #1009 (10a): this card COMPLETED LIVE — draw the check once (the shell passes it one render only)
+  flow = '',              // ★ #996 'in' | 'out' — which way the MONEY moved (a request's is the
+                          // opposite of its message direction); picks the medallion arrow
   onPay, onDecline, onCancel, onRetry, onDetails,
   strings = getStrings(),
 } = {}) {
@@ -147,6 +278,16 @@ export function createPaymentBubble({
     sent: status === 'failed' ? (strings.paymentFailed || 'Payment failed') : (strings.paymentSent || 'Payment sent'),
     received: strings.paymentReceived || 'Payment received',
   };
+  /* ★ #996: the card has an ACTION when it will draw a button — the exact predicates of the
+     button branches below, so the two can never disagree. No action → the compact pill. */
+  const hasAction = (role === 'request-in' && (status === 'actionable' || status === 'processing' || status === 'failed'))
+    || (role === 'request-out' && status === 'pending')
+    || (role === 'sent' && status === 'failed');
+  if (!hasAction) {
+    const row2 = paymentCompact({ role, flow, celebrate, direction, label: title || titles[role] || '', amount, fiat, status, timestamp, gutter, onDetails, strings });
+    paymentOpts.set(row2, { role, flow, title, amount, fiat, status, insufficient, timestamp, gutter, onPay, onDecline, onCancel, onRetry, onDetails, strings });
+    return row2;
+  }
   const { row, el } = card(direction, title || titles[role] || '', timestamp, 'payment', gutter); // audit r2: unknown role rendered "undefined"
   row.dataset.status = status;
 
@@ -225,9 +366,38 @@ export function createPaymentBubble({
     el.append(detailsLink(reentryGuard(onDetails), strings));
   }
   paymentOpts.set(row, {
-    role, title, amount, fiat, status, insufficient, timestamp, gutter,
+    role, flow, title, amount, fiat, status, insufficient, timestamp, gutter,   // ★ #1013 (r2 n2): flow, so a full → compact re-render keeps the money arrow
     onPay, onDecline, onCancel, onRetry, onDetails, strings,
   });
+  return row;
+}
+
+/* ★ #996 the COMPACT payment pill — only ever for a card with no button (createPaymentBubble
+ * decides). Details: the whole pill opens it, exactly where the A card drew its link — completed,
+ * or a direct payment still pending — and only when the host wires a target. */
+function paymentCompact({ role, flow, celebrate, direction, label, amount, fiat, status, timestamp, gutter, onDetails, strings }) {
+  const { row, el } = cardShell(direction, 'payment', 'compact', gutter);
+  row.dataset.status = status;
+  if (celebrate && status === 'completed') el.dataset.liveComplete = '';
+  const tone = amountTone(status, amount);
+  let fiatEl = null;
+  if (fiat) {
+    fiatEl = document.createElement('span');
+    fiatEl.className = 'c-tcard__fiat u-tabular';
+    if (tone === 'void') fiatEl.dataset.tone = 'void';
+    fiatEl.textContent = fiat;
+  }
+  const details = (onDetails && (status === 'completed' || ((role === 'sent' || role === 'received') && status === 'pending')))
+    ? reentryGuard(onDetails) : null;
+  /* the arrow shows which way the MONEY went; an open request (nothing moved yet) and a void
+     card are the wallet. Without `flow` the role decides (a direct payment's direction = its money's). */
+  const openRequest = (role === 'request-in' || role === 'request-out') && status !== 'completed';   // ★ #1013: a PAID request moved money — it takes the flow arrow
+  const f = flow || (role === 'sent' ? 'out' : role === 'received' ? 'in' : '');
+  const glyph = openRequest || !f || tone === 'void' ? 'wallet' : (f === 'out' ? 'arrow-up-right' : 'arrow-down-left');
+  const shown = PAYMENT_STATUS_WORD[status] ? status : null;
+  const words = [label, formatIxiAmount(amount) + ' IXI', fiat, shown ? (strings[shown] || PAYMENT_STATUS_WORD[shown][1]) : '', details ? (strings.details || 'Details') : ''].filter(Boolean).join(', ');
+  el.append(compactMain({ glyph, label, valueEl: amountNode(amount, tone), subEl: fiatEl, status: shown, timestamp, onOpen: details, openLabel: words, strings }));
+  if (!details) { el.setAttribute('role', 'group'); el.setAttribute('aria-label', words); }
   return row;
 }
 
@@ -262,34 +432,16 @@ export function createAppBubble({
   const title = (state === 'in-session' || state === 'ended')
     ? (strings.appSession || 'App session')
     : (strings.appInvite || 'App invite');
+  /* ★ #996: the exact predicates of the button branches below — no button → the compact pill */
+  const hasAction = state === 'invite' || state === 'invited' || state === 'in-session'
+    || (state === 'missing' && !!(onDecline || onGet));
+  if (!hasAction) return appCompact({ name, iconUrl, state, dir, timestamp, gutter, strings });
   const { row, el } = card(dir, title, timestamp, 'app', gutter);
   if (state === 'declined' || state === 'canceled') el.dataset.state = state;   // terminal tombstones: void tone (css)
 
   const id = document.createElement('div');
   id.className = 'c-tcard__app';
-  const ic = document.createElement('span');
-  ic.className = 'c-tcard__app-icon';
-  /* ★ Gate row O-13 (#46 loop B, MINOR-5) — the app-invite icon is composed by the INVITING
-   * PEER. `chat.html` already asks the same question at the caller and keeps the media-autoload
-   * decision there, which is where it belongs. The shape test moves INTO the component so the
-   * two cannot drift: a second caller cannot light this sink up without the rule.
-   * This is a strict narrowing of what reaches the tag today — `chat.html` passes only a
-   * `data:image/` URI or a well-formed http(s) URL — so it cannot break a working icon. It
-   * refuses a relative path, a protocol-relative '//host/x', 'javascript:' and 'blob:'. */
-  const iconSrc = safeImageSrc(iconUrl, { allowRemote: true });
-  if (iconSrc) {
-    const img = document.createElement('img');
-    img.alt = '';
-    // Graceful fallback (matches c-avatar / c-app-icon): a C# icon path that doesn't
-    // resolve in a self-contained shell must NOT show a broken-image glyph — drop the
-    // <img> and fall back to the rocket. Wire the handler BEFORE src so a synchronously
-    // cached error still fires.
-    img.addEventListener('error', () => { img.remove(); ic.append(icon('rocket', { size: 24 })); }, { once: true });
-    img.src = iconSrc;
-    ic.append(img);
-  } else {
-    ic.append(icon('rocket', { size: 24 }));
-  }
+  const ic = appIconEl(iconUrl, name);   // ★ #996: ONE app-icon sink for both card layouts (O-13 rule inside) · #1020 monogram fallback
   const col = document.createElement('span');
   col.className = 'c-tcard__app-info';
   const nm = document.createElement('span');
@@ -344,86 +496,172 @@ export function createAppBubble({
   return row;
 }
 
-/** Call event card (Figma call-card): answered + missed + declined (#87⑦).
- *  missed = rang out (error ink, "Tap to call back") · declined = actively
- *  rejected (neutral, NO call-back nudge). BE question open: bridge must
- *  distinguish declined from missed. */
+/* ★ #996 the COMPACT app pill — a card with no button: declined · canceled · ended (and a
+ * missing app the host can neither install nor decline). Icon · sub-line label · app name. */
+/* ★ Gate row O-13 (#46 loop B, MINOR-5) — the app-invite icon is composed by the INVITING
+ * PEER. `chat.html` already asks the same question at the caller and keeps the media-autoload
+ * decision there, which is where it belongs. The shape test lives INSIDE the component so the
+ * two cannot drift: a second caller cannot light this sink up without the rule. It refuses a
+ * relative path, a protocol-relative '//host/x', 'javascript:' and 'blob:'.
+ * Graceful fallback (matches c-avatar / c-app-icon): an icon that doesn't resolve drops the
+ * <img> for the rocket; the handler is wired BEFORE src so a synchronously cached error fires. */
+/* ★★ #1020 (Damir 2026-09-28: "the improved app invite bubbles"): an app with no icon (or one
+ * that fails to load, or the legacy `app-noicon` placeholder) is a MONOGRAM tile in the avatar
+ * palette — its initial on the identity gradient picked from its name (#1001/#1017 treatment),
+ * so two apps never share the same anonymous rocket. */
+const APP_NOICON = /(^|\/)app-noicon\.[a-z]+$/i;
+function appMonogram(ic, name) {
+  ic.classList.add('c-idhue', 'c-tcard__app-icon--mono');
+  ic.dataset.hue = String(identityIndex(String(name || '?')));
+  const t = document.createElement('span');
+  t.className = 'c-tcard__app-initial';
+  t.setAttribute('aria-hidden', 'true');
+  t.textContent = (Array.from(String(name || '').trim())[0] || '?').toUpperCase();
+  ic.append(t);
+}
+function appIconEl(iconUrl, name) {
+  const ic = document.createElement('span');
+  ic.className = 'c-tcard__app-icon';
+  const iconSrc = safeImageSrc(APP_NOICON.test(String(iconUrl || '')) ? '' : iconUrl, { allowRemote: true });   // GATE 42: the sink value comes straight OUT of safeImageSrc
+  if (iconSrc) {
+    const img = document.createElement('img');
+    img.alt = '';
+    img.addEventListener('error', () => { img.remove(); appMonogram(ic, name); }, { once: true });
+    img.src = iconSrc;
+    ic.append(img);
+  } else {
+    appMonogram(ic, name);
+  }
+  return ic;
+}
+function appCompact({ name, iconUrl, state, dir, timestamp, gutter, strings }) {
+  const { row, el } = cardShell(dir, 'app', 'compact', gutter);
+  if (state === 'declined' || state === 'canceled') el.dataset.state = state;
+  const subText = {
+    invite: strings.invitedYou || 'Invited you to join',
+    invited: strings.youInvited || 'You have sent an invite',
+    missing: strings.invitedYou || 'Invited you to join',
+    declined: strings.declinedInvite || 'You declined this invite',
+    canceled: strings.canceledInvite || 'You canceled this invite',
+    'in-session': strings.inSession || 'In session',
+    ended: strings.sessionEnded || 'Session ended',
+  }[state] || '';
+  const nm = document.createElement('span');
+  nm.className = 'c-tcard__app-name';
+  nm.textContent = name;
+  el.append(compactMain({ iconEl: appIconEl(iconUrl, name), label: subText, valueEl: nm, status: null, timestamp, onOpen: null, openLabel: '', strings }));
+  el.setAttribute('role', 'group');
+  el.setAttribute('aria-label', [name, subText].filter(Boolean).join(', '));
+  return row;
+}
+
+/** Call event card — ★★ #1006 (D-07, Damir 2026-09-28): ONE compact row (~64px).
+ *  An outcome-tinted 40px medallion carrying the DIRECTION glyph · a title line · a
+ *  secondary line (duration · time — the time moved out of the header) · a round 36px
+ *  call-back button at the inline end. The divider and the "Call back ›" link row are gone,
+ *  and the card itself is NOT a tap target — only the button calls.
+ *  Outcomes (C4 flags + #572 ④ declinedLocal; the TITLE is C#'s localized label):
+ *    ok        answered (or ringing/live)  → phone-outgoing / phone-incoming, action medallion
+ *    missed    incoming, nobody answered   → phone-x, the ONLY red state (title + disc)
+ *    noanswer  outgoing, nobody answered   → phone-x, neutral grey
+ *    declined  THIS device declined        → phone-off, neutral grey, NO call-back (#87⑦)
+ *  The glyph pair phone-off (turned down) / phone-x (nobody answered) is the chats row's
+ *  (#46 loop 2026-08-29) — a pin reads both surfaces. Call-back shows for ok / missed /
+ *  noanswer when the host wires it; the shell passes none while the call is live (C4). */
 export function createCallBubble({
-  missed = false,
-  declined = false,        // #87⑦: actively rejected
-  title = '',              // optional verbatim override — the native bridge sends a
-                           // fully-localized call label ("No answer" vs "Missed" vs
-                           // "Outgoing"/"Incoming") the shell can't reconstruct from
-                           // the missed flag alone; when present it wins.
-                           // #265: the loud "Tap to call back" sub-button is retired —
-                           // missed calls use the same quiet Call-back link as answered
-                           // ones, and the card hugs its content.
+  missed = false,          // C# "never connected" (rang out) — incoming → missed, outgoing → no answer
+  declined = false,        // #87⑦ / #572 ④: this device declined — wins over `missed`
+  title = '',              // C#-localized label, verbatim (it knows "No answer" vs "Missed call")
   direction = 'received',  // bridge knows localSender (audit)
-  directionLabel = '',     // "Outgoing" / "Incoming" (SL)
+  directionLabel = '',     // kept for API compatibility; the title already names the direction
   duration = '',           // "4:12"
   timestamp = null,
   gutter = false,          // group chats: align with gutter-indented text bubbles (C8)
   onCallBack,
   strings = getStrings(),
 } = {}) {
-  const { row, el } = card(direction,
-    title || (declined ? (strings.callDeclined || 'Call declined')
-      : missed ? (strings.missedCall || 'Missed voice call') : (strings.voiceCall || 'Voice call')),
-    timestamp, 'call', gutter);
-  if (missed && !declined) row.dataset.missed = '';
-  // #264 (Damir ③): outcome marker for the file-bubble-style medallion tint —
-  // declined rows previously carried NO marker at all (only data-missed).
-  row.dataset.callOutcome = declined ? 'declined' : missed ? 'missed' : 'ok';
-  const head = el.querySelector('.c-tcard__title');
-  /* ★★ #46 loop (2026-08-29): this pair was the INVERSE of the chats row, so ONE
-   * declined call showed one glyph in the list and a different one in the conversation.
-   * Damir settled the direction on the device and the CHATS ROW is the reference:
-   * the crossed phone belongs to the call that was TURNED DOWN, and the phone with the
-   * small x belongs to the call NOBODY ANSWERED. #621 swapped the row and never swapped
-   * this. A pin now reads both surfaces and requires them to agree. */
-  head.insertAdjacentElement('afterbegin',
-    icon(declined ? 'phone-off' : missed ? 'phone-x' : 'phone', { size: 18 }));
+  const outgoing = direction === 'sent';
+  const outcome = declined ? 'declined' : missed ? (outgoing ? 'noanswer' : 'missed') : 'ok';
+  const { row, el } = cardShell(direction, 'call', 'compact', gutter);
+  if (outcome === 'missed') row.dataset.missed = '';
+  row.dataset.callOutcome = outcome;
+  const glyph = outcome === 'declined' ? 'phone-off'
+    : outcome === 'ok' ? (outgoing ? 'phone-outgoing' : 'phone-incoming')
+    : 'phone-x';
+  const heading = outcome === 'declined'
+    ? (strings.youDeclinedCall || 'You declined')
+    : (title || (outcome === 'missed' ? (strings.missedCall || 'Missed voice call')
+      : outcome === 'noanswer' ? (strings.noAnswer || 'No answer')
+      : (strings.voiceCall || 'Voice call')));
 
-  if (declined) {
-    // deliberate rejection: state the fact, no nudge (#87⑦)
-    if (directionLabel) {
-      const meta = document.createElement('div');
-      meta.className = 'c-tcard__call-meta u-tabular';
-      meta.textContent = directionLabel;
-      el.append(meta);
-    }
-  } else if (missed) {
-    // #265 (Damir ⑪): the loud "Tap to call back" sub-button is gone — missed
-    // calls use the SAME quiet Call-back link as answered ones (consistent,
-    // compact). directionLabel meta keeps the context when present.
-    if (directionLabel) {
-      const meta = document.createElement('div');
-      meta.className = 'c-tcard__call-meta u-tabular';
-      meta.textContent = directionLabel;
-      el.append(meta);
-    }
-    if (onCallBack) el.append(detailsLink(reentryGuard(onCallBack), { details: strings.callBack || 'Call back' }));
-  } else {
-    // r2 backlog A17: empty directionLabel must not leave a leading ' · '; and
-    // an answered call with neither label nor duration must not leave an empty div
-    const metaText = [directionLabel, duration].filter(Boolean).join(' · ');
-    if (metaText) {
-      const meta = document.createElement('div');
-      meta.className = 'c-tcard__call-meta u-tabular';
-      meta.textContent = metaText;
-      el.append(meta);
-    }
-    /* ★★ ROUND 3 (review3-cs MAJOR-2) — A CALL-BACK LINK WITH NO HANDLER IS A DEAD
-     * CONTROL. `detailsLink` renders the button whether or not it gets a callback, and
-     * only the missed branch above tested for one, so an ANSWERED call card always
-     * showed a live-looking "Call back ›" that did nothing when the host wired no
-     * handler. The host wires one only when a call is possible, so the absence is the
-     * answer: draw no link. */
-    if (onCallBack) {
-      el.append(detailsLink(reentryGuard(onCallBack), { details: strings.callBack || 'Call back' }));
-    }
+  const main = document.createElement('div');
+  main.className = 'c-tcard__call';
+  const med = document.createElement('span');
+  med.className = 'c-tcard__medallion';
+  med.setAttribute('aria-hidden', 'true');
+  med.append(icon(glyph, { size: 20 }));
+  const col = document.createElement('span');
+  col.className = 'c-tcard__call-info';
+  const t = document.createElement('span');
+  t.className = 'c-tcard__title';
+  t.textContent = heading;
+  const sub = document.createElement('span');
+  sub.className = 'c-tcard__call-meta u-tabular';
+  const d = timestamp == null ? null : new Date(timestamp);
+  const timeText = d && !isNaN(d) ? cardTime(d) : '';
+  const dur = outcome === 'ok' ? duration : '';
+  sub.textContent = [dur, timeText].filter(Boolean).join(' · ');
+  col.append(t);
+  if (sub.textContent) col.append(sub);
+  main.append(med, col);
+  el.setAttribute('role', 'group');
+  el.setAttribute('aria-label', [heading, dur, timeText].filter(Boolean).join(', '));
+  if (onCallBack && outcome !== 'declined') {
+    const cb = document.createElement('button');
+    cb.type = 'button';
+    cb.className = 'c-tcard__call-back';
+    cb.setAttribute('aria-label', strings.callBack || 'Call back');
+    cb.append(icon('phone', { size: 18 }));
+    cb.addEventListener('click', reentryGuard(onCallBack));
+    main.append(cb);
   }
+  el.append(main);
   return row;
+}
+
+/* ★ #1005 (D-05, Damir 2026-09-28): a file name keeps its EXTENSION when it has to shorten.
+ * The stem ellipsizes; the last 4 characters of the stem + the extension ride a
+ * non-shrinking tail ("Quarterly_re…ort.pdf"). The element's textContent stays the FULL
+ * name (the two spans concatenate — setFileProgress and the Downloads row read it back),
+ * and `title` carries it for the pointer. A name with no dot, a leading-dot name, an
+ * extension longer than 8, or a stem too short to be worth splitting renders unchanged.
+ * RTL-safe: the tail is a logical (inline-end) span and the stem's ellipsis follows the
+ * text direction; `dir="auto"` on the parent isolates a mixed-direction name. */
+export function fillFileName(el, name) {
+  const full = String(name == null ? '' : name);
+  el.textContent = '';
+  el.title = full;
+  el.classList.remove('c-fname');   // a plain name keeps the host's own block ellipsis
+  el.setAttribute('dir', 'auto');
+  const dot = full.lastIndexOf('.');
+  const ext = dot > 0 ? full.slice(dot) : '';
+  const stem = dot > 0 ? full.slice(0, dot) : full;
+  if (!ext || ext.length > 9 || Array.from(stem).length <= 8) { el.textContent = full; return el; }
+  /* ⚠ #1012 (Opus r1 m2): cut on CODE POINTS, never UTF-16 units — a surrogate pair split at the
+     boundary rendered a lone half (\uFFFD) — and move the cut back past combining marks, so a
+     macOS NFD name ("e" + U+0301) never starts the tail on a floating accent. */
+  const cps = Array.from(stem);
+  let cut = cps.length - 4;
+  while (cut > 0 && /\p{M}/u.test(cps[cut])) cut -= 1;
+  const head = document.createElement('span');
+  head.className = 'c-fname__stem';
+  head.textContent = cps.slice(0, cut).join('');
+  const tail = document.createElement('span');
+  tail.className = 'c-fname__tail';
+  tail.textContent = cps.slice(cut).join('') + ext;
+  el.classList.add('c-fname');      // flex ONLY when split — an anonymous flex item cannot ellipsize
+  el.append(head, tail);
+  return el;
 }
 
 /* file-bubble state → accessible name / leading glyph. Single source shared by
@@ -438,6 +676,52 @@ function fileAria(state, name, strings) {
 }
 function fileGlyph(state) {
   return state === 'failed' ? 'rotate-clockwise-2' : state === 'offer' ? 'download' : 'file-isr';
+}
+/* ★★ #1021 (Damir 2026-09-28: "premiumize the file transfer"): the leading tile is a DOCUMENT
+ * tile — the file's own extension on a gradient from the disc/avatar palette, picked by the file's
+ * family, so a PDF, an archive and a photo read differently at a glance. The STATE rides a small
+ * badge on the tile's corner (download · retry), not a replacement glyph. */
+const FILE_FAMILIES = [
+  ['pdf', /^(pdf)$/],
+  ['doc', /^(docx?|odt|rtf|pages|md|txt|csv|xlsx?|ods|numbers|pptx?|odp|key)$/],
+  ['archive', /^(zip|rar|7z|tar|gz|tgz|bz2|xz|ixi|wal)$/],
+  ['image', /^(jpe?g|png|gif|webp|heic|svg|bmp|tiff?)$/],
+  ['audio', /^(mp3|m4a|aac|wav|flac|ogg|opus)$/],
+  ['video', /^(mp4|mov|m4v|webm|mkv|avi)$/],
+  ['code', /^(js|ts|json|html?|css|xml|py|cs|java|c|cpp|h|sh|yml|yaml)$/],
+];
+export function fileKind(name) {
+  const s = String(name || '');
+  const dot = s.lastIndexOf('.');
+  const ext = dot > 0 && dot < s.length - 1 ? s.slice(dot + 1).toLowerCase() : '';
+  const fam = (FILE_FAMILIES.find(([, re]) => re.test(ext)) || ['other'])[0];
+  const label = ext && ext.length <= 4 ? ext.toUpperCase() : (ext ? ext.slice(0, 3).toUpperCase() : '');
+  return { family: fam, label };
+}
+function fileBadge(state) {
+  if (state !== 'offer' && state !== 'failed') return null;
+  const b = document.createElement('span');
+  b.className = 'c-fbubble__badge';
+  b.setAttribute('aria-hidden', 'true');
+  b.append(icon(fileGlyph(state), { size: 12 }));
+  return b;
+}
+function fileTile(name, state) {
+  const { family, label } = fileKind(name);
+  const ic = document.createElement('span');
+  ic.className = 'c-fbubble__icon';
+  ic.dataset.kind = family;
+  if (label) {
+    const t = document.createElement('span');
+    t.className = 'c-fbubble__ext';
+    t.textContent = label;
+    ic.append(t);
+  } else {
+    ic.append(icon('file-isr', { size: 20 }));
+  }
+  const badge = fileBadge(state);
+  if (badge) ic.append(badge);
+  return ic;
 }
 /* Explicit "Open file" affordance for a completed download (A8b, Damir F5): the
    whole bubble is already a tappable button, but a labelled control makes it
@@ -492,19 +776,26 @@ export function createFileBubble({
   if (state === 'progress') el.disabled = true;
   el.setAttribute('aria-label', fileAria(state, name, strings));
 
-  const ic = document.createElement('span');
-  ic.className = 'c-fbubble__icon';
-  ic.append(icon(fileGlyph(state), { size: 20 }));
-  el.append(ic);
+  el.append(fileTile(name, state));   // ★ #1021: the document tile (extension · family colour · state badge)
 
   const col = document.createElement('span');
   col.className = 'c-fbubble__info';
   const nm = document.createElement('span');
   nm.className = 'c-fbubble__name';
-  nm.textContent = name;
+  fillFileName(nm, name);   // ★ #1005: the extension survives the ellipsis
   const mt = document.createElement('span');
   mt.className = 'c-fbubble__meta';
-  mt.textContent = state === 'failed' ? (strings.transferFailed || 'Transfer failed · Tap to retry') : meta;
+  /* ★ #1021: the second line always SAYS something — C# sends no size, so `meta` is usually
+     empty and an offer read as a bare file name. offer = the call to action (action ink), progress
+     = the percentage (updated in place), failed = the retry line; an explicit meta still wins. */
+  const pctOf = (v) => Math.max(0, Math.min(100, Math.round(Number(v) || 0))) + '%';
+  mt.textContent = state === 'failed' ? (strings.transferFailed || 'Transfer failed · Tap to retry')
+    : meta ? meta
+    : state === 'offer' ? (strings.tapToDownload || 'Tap to download')
+    : state === 'progress' ? pctOf(progress)
+    : '';
+  if (!meta && state === 'offer') mt.dataset.cta = '';
+  if (!meta && state === 'progress') mt.dataset.pct = '';
   col.append(nm, mt);
   if (state === 'progress') {
     const track = document.createElement('span');
@@ -572,6 +863,7 @@ export function setFileProgress(rowEl, progress, opts = {}) {
   if (track) track.setAttribute('aria-valuenow', String(p));
   const metaEl = rowEl.querySelector('.c-fbubble__meta');
   if (metaEl && opts.meta) metaEl.textContent = opts.meta;
+  else if (metaEl && metaEl.hasAttribute('data-pct')) metaEl.textContent = Math.round(p) + '%';   // ★ #1021: the live percentage (#1024: rounded like creation)
   const bubble = rowEl.querySelector('.c-fbubble');
   const finalState = opts.state || (p >= 100 ? 'complete' : null);
   // #334: the cancel affordance lives only in the PRE-accept window — the first
@@ -591,8 +883,15 @@ export function setFileProgress(rowEl, progress, opts = {}) {
     // refresh name + glyph for the new state (audit r2: stale "Downloading" aria)
     const nm = bubble.querySelector('.c-fbubble__name');
     bubble.setAttribute('aria-label', fileAria(finalState, nm ? nm.textContent : '', strings));
+    // ★ #1021: the tile keeps its extension; only the corner badge follows the state
     const ic = bubble.querySelector('.c-fbubble__icon');
-    if (ic) { ic.textContent = ''; ic.append(icon(fileGlyph(finalState), { size: 20 })); }
+    if (ic) {
+      const oldBadge = ic.querySelector('.c-fbubble__badge');
+      if (oldBadge) oldBadge.remove();
+      const nb = fileBadge(finalState);
+      if (nb) ic.append(nb);
+    }
+    if (metaEl && (metaEl.hasAttribute('data-pct') || metaEl.hasAttribute('data-cta'))) { metaEl.removeAttribute('data-pct'); metaEl.removeAttribute('data-cta'); if (!opts.meta) metaEl.textContent = ''; }   // ★ #1024: a final flip also drops the offer's call to action
     // "Open file" affordance appears on completion, is dropped on a failed flip.
     const existingOpen = bubble.querySelector('.c-fbubble__open');
     if (finalState === 'complete') {

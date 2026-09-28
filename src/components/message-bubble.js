@@ -33,7 +33,7 @@
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
-import { createAvatar, hashHue, truncateAddressMiddle, safeImageSrc } from './avatar.js';
+import { createAvatar, hashHue, identityIndex, truncateAddressMiddle, safeImageSrc } from './avatar.js';
 
 /* ★ Session K (walk J2 T1): the group-sender avatar's size is the `--bubble-avatar-size`
    token (tokens.css) — read once from :root and cached; 24 when unreadable (jsdom, a stale
@@ -371,6 +371,7 @@ export function createMessageBubble({
     }
     s.textContent = copyable ? truncateAddressMiddle(sender) : sender;
     s.style.setProperty('--sender-h', hashHue(address || name || sender));
+    s.dataset.idhue = String(identityIndex(address || name || sender));   // ★ #1001: per-anchor lightness (≥ 4.5:1)
     /* N34 (#365): Owner chip rides INSIDE the sender label so the grouping
        repair (removeMessage moves the label to the run heir) carries it for
        free. data-has-role flips the label to flex → chip lands top-right. */
@@ -401,6 +402,7 @@ export function createMessageBubble({
         (strings.replyTo || 'Show replied message') + (reply.sender ? ', ' + reply.sender : ''));
     }
     q.style.setProperty('--reply-h', hashHue(reply.address || reply.sender || ''));
+    q.dataset.idhue = String(identityIndex(reply.address || reply.sender || ''));   // ★ #1001
     // media/typed originals show a small identifier (Damir 2026-07-03):
     // shell-composed thumb (data-URI) for media, kind glyph otherwise
     // ★ O-13: the quote thumb goes through the one image test. A refused value falls
@@ -580,7 +582,11 @@ export function createMessageBubble({
 /** Bridge updateMessage → status tick (sending/sent/delivered/read) on a SENT
  *  row. 'failed' restructures the row (retry circle + caption) — the shell
  *  re-creates via createMessageBubble({status:'failed'}) and replaces. */
-export function setMessageStatus(row, status, strings = getStrings()) {
+/* ★ #1010 (item 10b, Damir 2026-09-28): `opts.animate` — a LIVE status change
+ * (clock → sent → delivered → read) fades the new glyph in over 160ms instead of snapping.
+ * The shell passes it only outside the load burst; history renders never animate. CSS
+ * zeroes it under reduced motion. */
+export function setMessageStatus(row, status, strings = getStrings(), opts = {}) {
   if (status === 'failed') {
     console.warn('setMessageStatus: "failed" restructures the row — re-create it via createMessageBubble and replace');
     return;
@@ -594,6 +600,7 @@ export function setMessageStatus(row, status, strings = getStrings()) {
   next.removeAttribute('aria-hidden');
   next.setAttribute('role', 'img');
   next.setAttribute('aria-label', strings['status-' + status] || status);
+  if (opts && opts.animate && st.getAttribute('aria-label') !== next.getAttribute('aria-label')) next.dataset.enter = '';   // a STATE attribute, not a --tone class (#877's tone-rule sweep)
   st.replaceWith(next);
 }
 

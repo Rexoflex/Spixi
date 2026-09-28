@@ -24,7 +24,7 @@
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
-import { discGrad } from './disc.js';
+import { discGrad, spreadDiscs } from './disc.js';
 import { createButton, setLoading, setSuccess } from './button.js';
 import { createTopbar } from './topbar.js';
 import { overlayId } from './overlay.js';           // advanced-reveal aria id only (password modal removed, #199)
@@ -171,6 +171,7 @@ export function createSettingsBackup({
     tile.append(disc, tt, ts);
     grid.append(tile);
   }
+  spreadDiscs(grid);   // ★ #1022 (Opus r1 M1): the four tiles take distinct colours — with 11 slots 'wallet' and 'users' hashed to the same violet
   body.append(inside);
 
   /* restore note — the honesty line (P2P: no server escrow) */

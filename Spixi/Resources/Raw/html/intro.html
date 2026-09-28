@@ -79,8 +79,8 @@
   /* ★ #46 r2 C1: the ink that rides ON --_fill, intent-switched like every other member of
      this private palette. It used to be --text-neutral-on-action hard-coded at the
      [data-type="fill"] rule, which was right for the default intent and wrong for
-     destructive: in dark --surface-destructive-default is --error-300 #f49c92 and the white
-     label measured 2.01:1 — the worst reading anywhere in the #46 audit, and the one row
+     destructive: in dark --surface-destructive-default WAS --error-300 #f49c92 (before #1018 made
+     it --error-600, white ink 6.36:1) and the white label measured 2.01:1 — the worst reading anywhere in the #46 audit, and the one row
      the census missed. Default intent is unchanged at 6.68:1 on #3050bd (Damir, Session K). */
   --_on-fill: var(--text-neutral-on-action);
 
@@ -545,8 +545,10 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    N1 rework (supersedes #37): JS stamps the anchor INDEX (data-hue 0..11);
    the 12 gradients below are hand-tuned per anchor and serve BOTH themes
    (the c-disc #170 grammar — vivid fill + white ink, mode-agnostic).
-   Every pair is computed ≥ 4.5:1 under white ink at BOTH stops (#364 table).
-   Recipe: stop1 = hsl(h, 62%, L1) · stop2 = hsl(h+25, 58%, L1−10).
+   ★ #1001: the #364 floor is RELAXED FOR AVATARS ONLY (Damir): white initials sit at
+   ≈ 2.3–3.3:1 on these pairs (Telegram's own: 1.7–3.1). A soft text-shadow carries the
+   small sizes and the sunflower anchor instead. Every OTHER white-on-colour surface keeps
+   the 4.5:1 floor.
 
    ★ #591: the same 12 anchors are now reusable OFF an avatar, via `.c-idhue`. The
    contact-details cover is a person's identity colour behind their photo, and it must
@@ -557,24 +559,23 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 
 /* sanctioned-block: IDENTITY HUES ARE DATA, not a theme role — the index is hashed from the
    address (identityIndex) and the twelve anchors are the palette itself; a token per stop
-   would be twelve names for twelve numbers nobody else reads. Theme-aware S/L live below. */
-.c-avatar[data-hue="0"], .c-idhue[data-hue="0"]  { --av-c1: hsl(0, 62%, 52%);   --av-c2: hsl(25, 58%, 42%);  }
-/* ★ Session I (sheet 2b = D; Damir #735: "our avatars seem a bit off"): the three MUDDY
-   anchors re-tuned — 1 was olive-brown, 2 brown, 3 a dull green; they now read orange,
-   amber and a lifted green (TG's set has no browns). Every stop still ≥ 4.5:1 under
-   white ink, measured: 1 → #c35118 4.66 / #a5381d 6.60 · 2 → #ae6113 4.65 / #974e17
-   6.14 · 3 → #458226 4.69 / #216327 7.29. Reversal values ride in the trailing comment. */
-.c-avatar[data-hue="1"], .c-idhue[data-hue="1"]  { --av-c1: hsl(20, 78%, 43%);  --av-c2: hsl(12, 70%, 38%);  } /* was hsl(22,62%,43%) / hsl(47,58%,33%) */
-.c-avatar[data-hue="2"], .c-idhue[data-hue="2"]  { --av-c1: hsl(30, 80%, 38%);  --av-c2: hsl(26, 74%, 34%);  } /* was hsl(40,62%,35%) / hsl(65,58%,25%) */
-.c-avatar[data-hue="3"], .c-idhue[data-hue="3"]  { --av-c1: hsl(100, 55%, 33%); --av-c2: hsl(125, 50%, 26%); } /* was hsl(95,62%,31%) / hsl(120,58%,21%) */
-.c-avatar[data-hue="4"], .c-idhue[data-hue="4"]  { --av-c1: hsl(135, 62%, 32%); --av-c2: hsl(160, 58%, 22%); }
-.c-avatar[data-hue="5"], .c-idhue[data-hue="5"]  { --av-c1: hsl(165, 62%, 31%); --av-c2: hsl(190, 58%, 21%); }
-.c-avatar[data-hue="6"], .c-idhue[data-hue="6"]  { --av-c1: hsl(190, 62%, 35%); --av-c2: hsl(215, 58%, 25%); }
-.c-avatar[data-hue="7"], .c-idhue[data-hue="7"]  { --av-c1: hsl(215, 62%, 50%); --av-c2: hsl(240, 58%, 40%); }
-.c-avatar[data-hue="8"], .c-idhue[data-hue="8"]  { --av-c1: hsl(245, 62%, 58%); --av-c2: hsl(270, 58%, 48%); }
-.c-avatar[data-hue="9"], .c-idhue[data-hue="9"]  { --av-c1: hsl(275, 62%, 55%); --av-c2: hsl(300, 58%, 45%); }
-.c-avatar[data-hue="10"], .c-idhue[data-hue="10"] { --av-c1: hsl(305, 62%, 47%); --av-c2: hsl(330, 58%, 37%); }
-.c-avatar[data-hue="11"], .c-idhue[data-hue="11"] { --av-c1: hsl(335, 62%, 51%); --av-c2: hsl(0, 58%, 41%);   }
+   would be twelve names for twelve numbers nobody else reads. One pair serves both themes (#1001). */
+/* ★★ #1001 (D-10, Damir 2026-09-28): the TELEGRAM-CLOSE palette — one palette for BOTH
+   themes, stop 1 = top, stop 2 = bottom (180°). The index → family mapping is unchanged
+   (identityIndex), so every contact keeps its colour FAMILY. Supersedes the #364 hsl()
+   recipe and Session I's three re-tuned anchors (1/2/3). Reversal values: git history. */
+.c-avatar[data-hue="0"], .c-idhue[data-hue="0"]  { --av-c1: #FC797D; --av-c2: #D95029; } /* red */
+.c-avatar[data-hue="1"], .c-idhue[data-hue="1"]  { --av-c1: #F78445; --av-c2: #CB6300; } /* orange */
+.c-avatar[data-hue="2"], .c-idhue[data-hue="2"]  { --av-c1: #E6B816; --av-c2: #DC8400; } /* sunflower */
+.c-avatar[data-hue="3"], .c-idhue[data-hue="3"]  { --av-c1: #97B72F; --av-c2: #439A15; } /* lime */
+.c-avatar[data-hue="4"], .c-idhue[data-hue="4"]  { --av-c1: #67C05E; --av-c2: #00A157; } /* green */
+.c-avatar[data-hue="5"], .c-idhue[data-hue="5"]  { --av-c1: #00C79C; --av-c2: #00A297; } /* teal */
+.c-avatar[data-hue="6"], .c-idhue[data-hue="6"]  { --av-c1: #00C2DA; --av-c2: #0096D0; } /* cyan */
+.c-avatar[data-hue="7"], .c-idhue[data-hue="7"]  { --av-c1: #2CB1FF; --av-c2: #3480EC; } /* blue */
+.c-avatar[data-hue="8"], .c-idhue[data-hue="8"]  { --av-c1: #909CFF; --av-c2: #8A68E3; } /* violet */
+.c-avatar[data-hue="9"], .c-idhue[data-hue="9"]  { --av-c1: #BB8DFA; --av-c2: #AE59C8; } /* purple */
+.c-avatar[data-hue="10"], .c-idhue[data-hue="10"] { --av-c1: #E57DCC; --av-c2: #CF4A8C; } /* pink */
+.c-avatar[data-hue="11"], .c-idhue[data-hue="11"] { --av-c1: #F778A0; --av-c2: #DA4959; } /* rose */
 
 .c-avatar {
   position: relative;
@@ -628,24 +629,21 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-avatar[data-size="96"] .c-avatar__dot { width: 20px; height: 20px; }
 
 .c-avatar[data-placeholder] {
-  /* Fallbacks = anchor 7 (blue): a stale bundle that never stamps data-hue
-     still paints a legible gradient instead of a transparent disc.
-     ★ Session I (sheet 2b = D): TG-like DEPTH — a soft white highlight at the top-left
-     over the pair gradient (160°, was 135°). MEASURED against the #364 floor: the veil
-     is 22% at its centre and gone by half the radius, so at the disc centre — where
-     the initials sit — it is ≈ 5%, and the lightest re-tuned stop (#c35118, 4.66:1)
-     still clears 4.4:1 there under white ink; the 18px+ semibold initials are WCAG
-     large text (3:1 floor). The sheet's 28%/55% draft veiled the centre to ≈ 13% and
-     failed that arithmetic, so it was dialled down before shipping. */
-  /* sanctioned-block: the specular highlight is a white alpha over a DATA gradient (mode-
-     agnostic, measured above); the two hsl() fallbacks are hue 7's anchors for a row that
-     carries no data-hue — the palette's own value, never a theme role. */
-  background-image:
-    radial-gradient(100% 100% at 28% 18%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 50%),
-    linear-gradient(160deg,
-      var(--av-c1, hsl(215, 62%, 50%)),
-      var(--av-c2, hsl(240, 58%, 40%)));
+  /* ★ #1001: a plain two-stop vertical gradient — the Session I specular veil (a 22% white
+     radial at the top-left) is REMOVED; the new pairs carry their own depth top → bottom.
+     Fallbacks = anchor 7 (blue): a stale bundle that never stamps data-hue still paints a
+     legible gradient instead of a transparent disc. */
+  /* sanctioned-block: the two hex fallbacks are hue 7's anchors for a row that carries no
+     data-hue — the palette's own value, never a theme role. */
+  background-image: linear-gradient(180deg, var(--av-c1, #2CB1FF), var(--av-c2, #3480EC));
 }
+/* ★ #1001: the relaxed floor's compensation — a soft shadow under the initials at the three
+   small sizes, and at EVERY size for the lightest anchor (2, sunflower). */
+/* sanctioned-block: a black-alpha text shadow is a legibility aid over DATA colours, mode-agnostic. */
+.c-avatar[data-size="24"] .c-avatar__initials,
+.c-avatar[data-size="28"] .c-avatar__initials,
+.c-avatar[data-size="32"] .c-avatar__initials { text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25); }
+.c-avatar[data-hue="2"] .c-avatar__initials { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); }
 
 .c-avatar__img {
   width: 100%;
@@ -822,6 +820,22 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-sheet__content { color: var(--text-neutral-01); }
 
 /* —— modal (z-50) —— */
+/* ★★ #1018 (Damir's dark sweep, 2026-09-28: "the bottom sheet is a bit off"): a card INSIDE a sheet
+   or a dialog painted the SCREEN card tones (--surface-card / --surface-neutral-02 = neutral-800 in
+   dark) on the neutral-700 sheet — every info block, address chip and list card looked SUNK into
+   the sheet. Inside an overlay those two roles resolve to the sheet-card tone, which LIFTS (neutral-600,
+   Session X's rule). Light is value-identical: sheet-card, neutral-02 and surface-card are all
+   neutral-50 there. Scoped here, so no component carries a [data-theme] selector. */
+.c-sheet,
+.c-modal {
+  --surface-neutral-02: var(--surface-sheet-card);
+  --surface-card: var(--surface-sheet-card);
+  /* ★ #1024 (Opus r2): the card's own hover/pressed pair must follow it, or a card-hosted row in a
+     dark sheet hovers to its own tone (neutral-600 on neutral-600). Light moves 200/300 → 100/200,
+     the sheet-card pair Session X set for cards on a sheet. */
+  --surface-card-hover: var(--surface-sheet-card-hover);
+  --surface-card-pressed: var(--surface-sheet-card-pressed);
+}
 .c-modal {
   position: absolute;
   left: 50%;
@@ -1336,7 +1350,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 <style data-src="../styles/components/settings-shell.css">
 /* c-settings — Account hub + danger screen (docs/settings-shell-spec.md,
    #146 build · #147 premium round: centered QR-forward hero, tinted icon
-   discs [--disc-* pairs], group CARDS on --surface-card, theme preview tiles,
+   discs [--disc-* pairs], group CARDS on --surface-settings-card (#1007), theme preview tiles,
    danger tone split). Sub-screens (settings-screens.js) reuse the row/section
    grammar defined here; their own classes live in settings-screens.css. */
 
@@ -1345,7 +1359,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--surface-screen);
+  background: var(--surface-settings-ground);   /* ★ #1007: grey ground (light) — was --surface-screen */
 }
 .c-settings__body {
   flex: 1;
@@ -1419,7 +1433,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   border-radius: var(--radius-full);
   background: var(--surface-action-default);
   color: var(--text-neutral-on-action);
-  border: 2px solid var(--surface-screen);   /* sanctioned: ring cut against the screen, badge-ring precedent (#48) */
+  border: 2px solid var(--surface-settings-ground);   /* sanctioned: ring cut against the hub ground (#1007 moved it off --surface-screen), badge-ring precedent (#48) */
 }
 .c-settings__avatar:disabled .c-settings__avatar-edit { display: none; }
 .c-settings__name-row {
@@ -1549,11 +1563,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-settings__group {
   display: flex;
   flex-direction: column;
-  background: var(--surface-card);
+  background: var(--surface-settings-card);   /* ★ #1007: WHITE in light (was --surface-card #EDF0F2) */
   border-radius: var(--radius-16);
   padding: var(--spacing-4);
   box-shadow: var(--elevation-1);
-  --surface-input: var(--surface-input-on-card);   /* #150③: input === card otherwise */
+  --surface-input: var(--surface-input-on-settings-card);   /* #150③ → #1007: an input on the white card takes the grey */
 }
 /* ★ Session AF (#949, Damir on the AE walk): NO hairline between rows of the same card — the
    card's own edge groups them and the line inside was noise. (It was the #884 ⑤ /
@@ -1942,7 +1956,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   padding: var(--spacing-12);
   border: var(--outline-width-1) solid var(--outline-neutral-01);
   border-radius: var(--radius-12);
-  background: var(--surface-card);
+  background: var(--surface-settings-card);   /* ★ #1007: the danger screen shares the grey ground — its cards go white too */
   cursor: pointer;
   text-align: start;
   -webkit-tap-highlight-color: transparent;
@@ -2028,6 +2042,27 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 .c-settings__ignored-row .c-button { flex: none; }
 
+/* ★ #1007 (D-08b): the address in the profile header — middle-truncated, Copy + QR under the name */
+.c-settings__addr {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  margin-top: calc(-1 * var(--spacing-4));
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-settings__addr-text { padding-inline-end: var(--spacing-4); }
+.c-settings__addr-btn { position: relative; }   /* ink = the text button's own action ink (#1013 r2 n4: a colour here lost to .c-button[data-type] and never applied) */
+/* ⚠ #1012 (Opus r1 m8): a 44px hit area on the 32px buttons (the #990 house rule) */
+.c-settings__addr-btn::after { content: ''; position: absolute; inset: -6px; }
+/* ★ #1013 (r2 n4): the two 44px areas overlapped by 8px across the 4px gap — a tap between them
+   reached whichever painted last. 12px between the buttons = the two -6px areas meet, no overlap. */
+.c-settings__addr-btn + .c-settings__addr-btn { margin-inline-start: var(--spacing-8); }
+/* r1 NIT: the nickname field in the hero sat on the grey ground in its own grey — it takes the
+   card's surface there (white in light; dark = the same neutral-800 it had) */
+.c-settings__hero { --surface-input: var(--surface-settings-card); }
+
 </style><!-- language/theme sheets (one picker grammar) -->
 <style data-src="../styles/components/settings-screens.css">
 /* c-settings sub-screens (settings-screens.js, #147): chat appearance ·
@@ -2041,7 +2076,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--surface-screen);
+  background: var(--surface-settings-ground);   /* ★ #1013 (r2 m3): the sublevels take the hub's ground — #1007's white card on the old #F9FAFB ground read 1.04:1 (dark unchanged: ground = surface-screen) */
 }
 
 /* sub-screen sections sit on card surfaces too (#147 group grammar)
@@ -2053,11 +2088,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    `.c-settings-notifs .c-settings__section` back in this list and the nesting returns. */
 .c-settings-appearance .c-settings__section,
 .c-settings-privacy .c-settings__section {
-  background: var(--surface-card);
+  background: var(--surface-settings-card);   /* ★ #1013: the hub's card pair (white on grey in light; dark = --surface-card, unchanged) */
   border-radius: var(--radius-16);
   padding: var(--spacing-4);
   box-shadow: var(--elevation-1);
-  --surface-input: var(--surface-input-on-card);   /* #150③ — seg pills etc. stay visible */
+  --surface-input: var(--surface-input-on-settings-card);   /* #150③ → #1013 — seg pills etc. stay visible on the white card */
 }
 .c-settings-appearance .c-settings__section {
   padding: var(--spacing-12);
@@ -2236,9 +2271,13 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    ~12.8) is the correct consequence of the tile shrinking, not a defect to compensate
    for. The strip is on the Session M render sheet if Damir's eye wants it LARGER — that
    direction is the one this render says is worth trying, and it is his dial, not a fix. */
-.c-settings-swatch .c-settings-swatch__canvas[data-chat-pattern='matrix']::before {
-  -webkit-mask-size: 144px 144px;
-  mask-size: 144px 144px;
+/* ★★ #997: the tile is CONTOURS (320×240) now. At half size (160×120) a 64px-tall swatch
+   crosses ~2 lines, which is what makes it read as contours rather than as one stray curve.
+   Rendered, not guessed (Session M's lesson: the mask lives on ::before, so only a
+   stylesheet can move it). Was the matrix's 144px. */
+.c-settings-swatch .c-settings-swatch__canvas[data-chat-pattern='contours']::before {
+  -webkit-mask-size: 160px 120px;
+  mask-size: 160px 120px;
 }
 /* Live flow paints on a canvas child; chat-pattern.css already zeroes the tile
    (--chat-pattern-tile: none) for this style, so nothing to hide here. The
@@ -2282,7 +2321,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   padding: var(--spacing-12);
   border: var(--outline-width-1) solid var(--outline-neutral-01);
   border-radius: var(--radius-12);
-  background: var(--surface-card);
+  background: var(--surface-settings-card);   /* ★ #1013 (r3): the hub card pair on the hub ground (dark = --surface-card, unchanged) */
   cursor: pointer;
   text-align: start;
   -webkit-tap-highlight-color: transparent;
@@ -2322,18 +2361,40 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-settings-appearance .c-settings__section.c-settings-appearance__groundsec {
   padding: var(--spacing-4);
 }
-/* the row's own label carries the card's word — see the component. `min-width: 0` on the
-   value keeps a long localized ground name ("Prehod barve") ellipsizing instead of pushing
-   the chevron off the card.
-   ⚠ `flex` is restated because the base rule sets `flex: none`, and a non-shrinking item
-   never reaches its ellipsis — the four properties below cannot work without this line. */
-.c-settings-appearance__ground .c-settings__row-value {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* ★★ #1019: the Canvas choice is a pair of COLOUR CIRCLES (Damir 2026-09-28). 32px faces in 44px
+   hit targets; the picked one carries the action ring with a 2px gap (the swatch grammar); each
+   face paints its ground through --gradient-chat, so a circle is always what the chat will show.
+   The flat face gets a hairline — Mist on a white card is a low-contrast disc without one. */
+.c-settings-appearance__ground { cursor: default; }
+.c-settings-appearance__dots { display: flex; gap: var(--spacing-4); margin-inline-start: auto; }
+.c-settings-appearance__dot {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
+.c-settings-appearance__dot-face {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--gradient-chat);
+  box-shadow: inset 0 0 0 1px var(--outline-on-card);
+}
+.c-settings-appearance__dot[aria-checked="true"] .c-settings-appearance__dot-face {
+  box-shadow: inset 0 0 0 1px var(--outline-on-card), 0 0 0 2px var(--surface-settings-card), 0 0 0 4px var(--outline-action-default);
+}
+@media (hover: hover) and (pointer: fine) {
+  .c-settings-appearance__dot:hover .c-settings-appearance__dot-face { box-shadow: inset 0 0 0 1px var(--outline-on-card), 0 0 0 2px var(--surface-settings-card), 0 0 0 4px var(--outline-neutral-03); }
+  .c-settings-appearance__dot[aria-checked="true"]:hover .c-settings-appearance__dot-face { box-shadow: inset 0 0 0 1px var(--outline-on-card), 0 0 0 2px var(--surface-settings-card), 0 0 0 4px var(--outline-action-default); }
+}
+.c-settings-appearance__dot:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 0; }
 
 </style><!-- #147 theme preview tiles -->
 <style data-src="../styles/components/launch-shell.css">

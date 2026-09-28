@@ -732,5 +732,11 @@
   "declinedRequestsSub": "Pessoas cujas solicitações de contato você recusou",
   "declinedRequestsNote": "Uma nova solicitação destes endereços é ignorada. Eles não são avisados. Desbloqueie para receber as solicitações deles novamente.",
   "declinedRequestsEmpty": "Você não recusou nenhuma solicitação.",
-  "unblock": "Desbloquear"
+  "unblock": "Desbloquear",
+  "noAnswer": "Sem resposta",
+  "youDeclinedCall": "Você recusou",
+  "copyFailedOpenQr": "Não foi possível copiar. Abra o código QR para copiar o endereço completo.",
+  "groundBrandGradient": "Degradê da marca",
+  "patternStyleContours": "Contornos",
+  "tapToDownload": "Toque para baixar"
 }

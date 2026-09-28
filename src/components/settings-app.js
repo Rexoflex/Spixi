@@ -33,6 +33,7 @@ import { createButton, setLoading, setSuccess } from './button.js';
 import { createSearchField } from './search-field.js';
 import { settingsConfirm } from './settings-shell.js';
 import { copyText } from './clipboard.js';   // ★ #993: the shared copy with the file:// fallback
+import { fillFileName } from './typed-bubbles.js';   // ★ #1005: one file-name truncation, the extension kept
 
 // one-shot ctrl (#138 m1) — module-local unique name (house collision rule)
 function appCtrl(onDone, onFail) {
@@ -245,7 +246,7 @@ export function createSettingsDownloads({
     meta.className = 'c-settings-dl__meta';
     const nm = document.createElement('span');
     nm.className = 'c-settings-dl__name';
-    nm.textContent = name;                 // UNTRUSTED — textContent only
+    fillFileName(nm, name);                // UNTRUSTED — textContent only (★ #1005: keeps the extension)
     meta.append(nm);
     if (time) {
       const tm = document.createElement('span');

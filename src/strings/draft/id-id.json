@@ -655,5 +655,11 @@
   "declinedRequestsSub": "Orang yang permintaan kontaknya Anda tolak",
   "declinedRequestsNote": "Permintaan ulang dari alamat ini diabaikan. Mereka tidak diberi tahu. Buka blokir untuk menerima permintaan mereka lagi.",
   "declinedRequestsEmpty": "Anda belum menolak permintaan apa pun.",
-  "unblock": "Buka blokir"
+  "unblock": "Buka blokir",
+  "noAnswer": "Tidak dijawab",
+  "youDeclinedCall": "Anda menolak",
+  "copyFailedOpenQr": "Tidak dapat menyalin. Buka kode QR untuk menyalin alamat lengkap.",
+  "groundBrandGradient": "Gradien merek",
+  "patternStyleContours": "Kontur",
+  "tapToDownload": "Ketuk untuk mengunduh"
 }

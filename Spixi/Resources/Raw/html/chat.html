@@ -46,8 +46,8 @@
      settings swatches can override it per element). Two dials, orthogonal:
      style picks the SOURCE, the intensity pref keeps mapping to opacity, and
      "Off" lives ONLY in the intensity dial (there is no fourth style).
-     ★ #835: ONE style is left (data matrix). A stored 'doodles', 'flow',
-     'triangles' or 'lineart' matches no allowlist below and lands on matrix
+     ★ #835 → #997: ONE style is left (contours; the data matrix retired). A stored 'matrix', 'doodles', 'flow',
+     'triangles' or 'lineart' matches no allowlist below and lands on contours
      before first paint — the fall-through, not a migration (#422 rule). -->
 <!-- ★ N81 (#422): the level is an INDEX (0 Off / 1 Default / 2 Strong) and the
      alpha comes from the theme's own --chat-pattern-alpha-N. The old dark ×0.36
@@ -62,14 +62,12 @@
         exists and folds to 1 here, exactly as readPatternLevel() does in
         settings-screens.js. Keep the two in step — they are the same rule in two homes
         because this one must run before the bundle loads.
-     ② THE LIGHT CANVAS IS SOLID: `spixi.chat.ground` = 'flat', and that is the ONLY value
-        this ladder admits. ★ #835 flipped the default away from the gradient; ★★ #855
-        (Damir 2026-09-09, "for gradient, yes I mean retire the option for now") retired the
-        option outright. Allowlisted the same way the style is, so a stored 'gradient' — or
-        any corrupt value — lands on 'flat' BEFORE first paint rather than painting a ground
-        the picker can no longer choose. The attribute is still set in BOTH themes and is
-        simply inert in dark. Superseded: 'flat' (default) | 'gradient'. -->
-<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),p=NaN,t=NaN,s='',g='';try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));s=localStorage.getItem('spixi.chat.patternstyle')||'';g=localStorage.getItem('spixi.chat.ground')||'';}catch(e){}var lv;if(!isFinite(p))lv=1;else if(p<=0)lv=0;else lv=1;r.setProperty('--chat-pattern-opacity',lv<=0?'0':'var(--chat-pattern-alpha-1)');if(isFinite(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));if(s!=='matrix')s='matrix';document.documentElement.setAttribute('data-chat-pattern',s);if(g!=='flat')g='flat';document.documentElement.setAttribute('data-chat-ground',g);})();</script>
+     ② THE LIGHT CANVAS DEFAULTS TO SOLID: `spixi.chat.ground` = 'flat' | 'gradient'.
+        ★ #835 flipped the default away from the gradient; ★★ #855 retired the option;
+        ★★ #998 (Damir 2026-09-28) restored it as the BRAND gradient. Allowlisted the same way
+        the style is, so any corrupt value lands on 'flat' BEFORE first paint. The attribute
+        is set in BOTH themes and is inert in dark (the brand gradient is a light ground). -->
+<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),p=NaN,t=NaN,s='',g='';try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));s=localStorage.getItem('spixi.chat.patternstyle')||'';g=localStorage.getItem('spixi.chat.ground')||'';}catch(e){}var lv;if(!isFinite(p))lv=1;else if(p<=0)lv=0;else lv=1;r.setProperty('--chat-pattern-opacity',lv<=0?'0':'var(--chat-pattern-alpha-1)');if(isFinite(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));if(s!=='contours')s='contours';document.documentElement.setAttribute('data-chat-pattern',s);if(g!=='flat'&&g!=='gradient')g='flat';document.documentElement.setAttribute('data-chat-ground',g);})();</script>
 <style>
   /* Paint the screen surface IMMEDIATELY — before tokens.css/base.css load and
      before the JS bundle parses — so entering a chat doesn't flash an empty
@@ -123,8 +121,8 @@
   /* ★ #46 r2 C1: the ink that rides ON --_fill, intent-switched like every other member of
      this private palette. It used to be --text-neutral-on-action hard-coded at the
      [data-type="fill"] rule, which was right for the default intent and wrong for
-     destructive: in dark --surface-destructive-default is --error-300 #f49c92 and the white
-     label measured 2.01:1 — the worst reading anywhere in the #46 audit, and the one row
+     destructive: in dark --surface-destructive-default WAS --error-300 #f49c92 (before #1018 made
+     it --error-600, white ink 6.36:1) and the white label measured 2.01:1 — the worst reading anywhere in the #46 audit, and the one row
      the census missed. Default intent is unchanged at 6.68:1 on #3050bd (Damir, Session K). */
   --_on-fill: var(--text-neutral-on-action);
 
@@ -589,8 +587,10 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    N1 rework (supersedes #37): JS stamps the anchor INDEX (data-hue 0..11);
    the 12 gradients below are hand-tuned per anchor and serve BOTH themes
    (the c-disc #170 grammar — vivid fill + white ink, mode-agnostic).
-   Every pair is computed ≥ 4.5:1 under white ink at BOTH stops (#364 table).
-   Recipe: stop1 = hsl(h, 62%, L1) · stop2 = hsl(h+25, 58%, L1−10).
+   ★ #1001: the #364 floor is RELAXED FOR AVATARS ONLY (Damir): white initials sit at
+   ≈ 2.3–3.3:1 on these pairs (Telegram's own: 1.7–3.1). A soft text-shadow carries the
+   small sizes and the sunflower anchor instead. Every OTHER white-on-colour surface keeps
+   the 4.5:1 floor.
 
    ★ #591: the same 12 anchors are now reusable OFF an avatar, via `.c-idhue`. The
    contact-details cover is a person's identity colour behind their photo, and it must
@@ -601,24 +601,23 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 
 /* sanctioned-block: IDENTITY HUES ARE DATA, not a theme role — the index is hashed from the
    address (identityIndex) and the twelve anchors are the palette itself; a token per stop
-   would be twelve names for twelve numbers nobody else reads. Theme-aware S/L live below. */
-.c-avatar[data-hue="0"], .c-idhue[data-hue="0"]  { --av-c1: hsl(0, 62%, 52%);   --av-c2: hsl(25, 58%, 42%);  }
-/* ★ Session I (sheet 2b = D; Damir #735: "our avatars seem a bit off"): the three MUDDY
-   anchors re-tuned — 1 was olive-brown, 2 brown, 3 a dull green; they now read orange,
-   amber and a lifted green (TG's set has no browns). Every stop still ≥ 4.5:1 under
-   white ink, measured: 1 → #c35118 4.66 / #a5381d 6.60 · 2 → #ae6113 4.65 / #974e17
-   6.14 · 3 → #458226 4.69 / #216327 7.29. Reversal values ride in the trailing comment. */
-.c-avatar[data-hue="1"], .c-idhue[data-hue="1"]  { --av-c1: hsl(20, 78%, 43%);  --av-c2: hsl(12, 70%, 38%);  } /* was hsl(22,62%,43%) / hsl(47,58%,33%) */
-.c-avatar[data-hue="2"], .c-idhue[data-hue="2"]  { --av-c1: hsl(30, 80%, 38%);  --av-c2: hsl(26, 74%, 34%);  } /* was hsl(40,62%,35%) / hsl(65,58%,25%) */
-.c-avatar[data-hue="3"], .c-idhue[data-hue="3"]  { --av-c1: hsl(100, 55%, 33%); --av-c2: hsl(125, 50%, 26%); } /* was hsl(95,62%,31%) / hsl(120,58%,21%) */
-.c-avatar[data-hue="4"], .c-idhue[data-hue="4"]  { --av-c1: hsl(135, 62%, 32%); --av-c2: hsl(160, 58%, 22%); }
-.c-avatar[data-hue="5"], .c-idhue[data-hue="5"]  { --av-c1: hsl(165, 62%, 31%); --av-c2: hsl(190, 58%, 21%); }
-.c-avatar[data-hue="6"], .c-idhue[data-hue="6"]  { --av-c1: hsl(190, 62%, 35%); --av-c2: hsl(215, 58%, 25%); }
-.c-avatar[data-hue="7"], .c-idhue[data-hue="7"]  { --av-c1: hsl(215, 62%, 50%); --av-c2: hsl(240, 58%, 40%); }
-.c-avatar[data-hue="8"], .c-idhue[data-hue="8"]  { --av-c1: hsl(245, 62%, 58%); --av-c2: hsl(270, 58%, 48%); }
-.c-avatar[data-hue="9"], .c-idhue[data-hue="9"]  { --av-c1: hsl(275, 62%, 55%); --av-c2: hsl(300, 58%, 45%); }
-.c-avatar[data-hue="10"], .c-idhue[data-hue="10"] { --av-c1: hsl(305, 62%, 47%); --av-c2: hsl(330, 58%, 37%); }
-.c-avatar[data-hue="11"], .c-idhue[data-hue="11"] { --av-c1: hsl(335, 62%, 51%); --av-c2: hsl(0, 58%, 41%);   }
+   would be twelve names for twelve numbers nobody else reads. One pair serves both themes (#1001). */
+/* ★★ #1001 (D-10, Damir 2026-09-28): the TELEGRAM-CLOSE palette — one palette for BOTH
+   themes, stop 1 = top, stop 2 = bottom (180°). The index → family mapping is unchanged
+   (identityIndex), so every contact keeps its colour FAMILY. Supersedes the #364 hsl()
+   recipe and Session I's three re-tuned anchors (1/2/3). Reversal values: git history. */
+.c-avatar[data-hue="0"], .c-idhue[data-hue="0"]  { --av-c1: #FC797D; --av-c2: #D95029; } /* red */
+.c-avatar[data-hue="1"], .c-idhue[data-hue="1"]  { --av-c1: #F78445; --av-c2: #CB6300; } /* orange */
+.c-avatar[data-hue="2"], .c-idhue[data-hue="2"]  { --av-c1: #E6B816; --av-c2: #DC8400; } /* sunflower */
+.c-avatar[data-hue="3"], .c-idhue[data-hue="3"]  { --av-c1: #97B72F; --av-c2: #439A15; } /* lime */
+.c-avatar[data-hue="4"], .c-idhue[data-hue="4"]  { --av-c1: #67C05E; --av-c2: #00A157; } /* green */
+.c-avatar[data-hue="5"], .c-idhue[data-hue="5"]  { --av-c1: #00C79C; --av-c2: #00A297; } /* teal */
+.c-avatar[data-hue="6"], .c-idhue[data-hue="6"]  { --av-c1: #00C2DA; --av-c2: #0096D0; } /* cyan */
+.c-avatar[data-hue="7"], .c-idhue[data-hue="7"]  { --av-c1: #2CB1FF; --av-c2: #3480EC; } /* blue */
+.c-avatar[data-hue="8"], .c-idhue[data-hue="8"]  { --av-c1: #909CFF; --av-c2: #8A68E3; } /* violet */
+.c-avatar[data-hue="9"], .c-idhue[data-hue="9"]  { --av-c1: #BB8DFA; --av-c2: #AE59C8; } /* purple */
+.c-avatar[data-hue="10"], .c-idhue[data-hue="10"] { --av-c1: #E57DCC; --av-c2: #CF4A8C; } /* pink */
+.c-avatar[data-hue="11"], .c-idhue[data-hue="11"] { --av-c1: #F778A0; --av-c2: #DA4959; } /* rose */
 
 .c-avatar {
   position: relative;
@@ -672,24 +671,21 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-avatar[data-size="96"] .c-avatar__dot { width: 20px; height: 20px; }
 
 .c-avatar[data-placeholder] {
-  /* Fallbacks = anchor 7 (blue): a stale bundle that never stamps data-hue
-     still paints a legible gradient instead of a transparent disc.
-     ★ Session I (sheet 2b = D): TG-like DEPTH — a soft white highlight at the top-left
-     over the pair gradient (160°, was 135°). MEASURED against the #364 floor: the veil
-     is 22% at its centre and gone by half the radius, so at the disc centre — where
-     the initials sit — it is ≈ 5%, and the lightest re-tuned stop (#c35118, 4.66:1)
-     still clears 4.4:1 there under white ink; the 18px+ semibold initials are WCAG
-     large text (3:1 floor). The sheet's 28%/55% draft veiled the centre to ≈ 13% and
-     failed that arithmetic, so it was dialled down before shipping. */
-  /* sanctioned-block: the specular highlight is a white alpha over a DATA gradient (mode-
-     agnostic, measured above); the two hsl() fallbacks are hue 7's anchors for a row that
-     carries no data-hue — the palette's own value, never a theme role. */
-  background-image:
-    radial-gradient(100% 100% at 28% 18%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 50%),
-    linear-gradient(160deg,
-      var(--av-c1, hsl(215, 62%, 50%)),
-      var(--av-c2, hsl(240, 58%, 40%)));
+  /* ★ #1001: a plain two-stop vertical gradient — the Session I specular veil (a 22% white
+     radial at the top-left) is REMOVED; the new pairs carry their own depth top → bottom.
+     Fallbacks = anchor 7 (blue): a stale bundle that never stamps data-hue still paints a
+     legible gradient instead of a transparent disc. */
+  /* sanctioned-block: the two hex fallbacks are hue 7's anchors for a row that carries no
+     data-hue — the palette's own value, never a theme role. */
+  background-image: linear-gradient(180deg, var(--av-c1, #2CB1FF), var(--av-c2, #3480EC));
 }
+/* ★ #1001: the relaxed floor's compensation — a soft shadow under the initials at the three
+   small sizes, and at EVERY size for the lightest anchor (2, sunflower). */
+/* sanctioned-block: a black-alpha text shadow is a legibility aid over DATA colours, mode-agnostic. */
+.c-avatar[data-size="24"] .c-avatar__initials,
+.c-avatar[data-size="28"] .c-avatar__initials,
+.c-avatar[data-size="32"] .c-avatar__initials { text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25); }
+.c-avatar[data-hue="2"] .c-avatar__initials { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); }
 
 .c-avatar__img {
   width: 100%;
@@ -1345,6 +1341,69 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   user-select: none;
 }
 
+/* ★★ #1001 (item 1f, Damir 2026-09-28): "the avatar and the name of one person must read as the
+   same colour". The hue is the anchor's own (IDENTITY_HUES = the midpoint of each new avatar
+   pair); the LIGHTNESS is solved PER ANCHOR as the lightest (light) / darkest-that-still-reads
+   (dark, floor 60%) value that holds ≥ 4.6:1 on its surface — the received bubble for the
+   name, the quote fill for the reply label. One recipe for all twelve failed that: 28% made the
+   blues and purples near-black next to a sky-blue avatar. Trailing comments = measured ratios
+   (name · quote). Elements without data-idhue keep the root recipe above.
+   ⚠ #1012 (r1 NIT): "lightest" is capped at 55% — anchors 8/9 sit above 4.6:1 at the cap. */
+.c-bubble__sender[data-idhue], .c-bubble__reply[data-idhue] { --sender-label-s: 62%; }
+[data-theme="dark"] .c-bubble__sender[data-idhue], [data-theme="dark"] .c-bubble__reply[data-idhue] { --sender-label-s: 70%; }
+.c-bubble__sender[data-idhue="0"], .c-bubble__reply[data-idhue="0"] { --sender-label-l: 51%; --reply-label-l: 46%; } /* 4.62 · 4.76 */
+.c-bubble__sender[data-idhue="1"], .c-bubble__reply[data-idhue="1"] { --sender-label-l: 42%; --reply-label-l: 39%; } /* 4.67 · 4.61 */
+.c-bubble__sender[data-idhue="2"], .c-bubble__reply[data-idhue="2"] { --sender-label-l: 35%; --reply-label-l: 32%; } /* 4.74 · 4.79 */
+.c-bubble__sender[data-idhue="3"], .c-bubble__reply[data-idhue="3"] { --sender-label-l: 31%; --reply-label-l: 28%; } /* 4.68 · 4.82 */
+.c-bubble__sender[data-idhue="4"], .c-bubble__reply[data-idhue="4"] { --sender-label-l: 32%; --reply-label-l: 30%; } /* 4.75 · 4.61 */
+.c-bubble__sender[data-idhue="5"], .c-bubble__reply[data-idhue="5"] { --sender-label-l: 31%; --reply-label-l: 29%; } /* 4.79 · 4.66 */
+.c-bubble__sender[data-idhue="6"], .c-bubble__reply[data-idhue="6"] { --sender-label-l: 36%; --reply-label-l: 33%; } /* 4.68 · 4.71 */
+.c-bubble__sender[data-idhue="7"], .c-bubble__reply[data-idhue="7"] { --sender-label-l: 46%; --reply-label-l: 42%; } /* 4.64 · 4.7 */
+.c-bubble__sender[data-idhue="8"], .c-bubble__reply[data-idhue="8"] { --sender-label-l: 55%; --reply-label-l: 55%; } /* 6.67 · 5.83 */
+.c-bubble__sender[data-idhue="9"], .c-bubble__reply[data-idhue="9"] { --sender-label-l: 55%; --reply-label-l: 53%; } /* 5.02 · 4.72 */
+.c-bubble__sender[data-idhue="10"], .c-bubble__reply[data-idhue="10"] { --sender-label-l: 50%; --reply-label-l: 46%; } /* 4.66 · 4.68 */
+.c-bubble__sender[data-idhue="11"], .c-bubble__reply[data-idhue="11"] { --sender-label-l: 53%; --reply-label-l: 48%; } /* 4.62 · 4.68 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="0"], [data-theme="dark"] .c-bubble__reply[data-idhue="0"] { --sender-label-l: 60%; --reply-label-l: 62%; } /* 4.86 · 4.65 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="1"], [data-theme="dark"] .c-bubble__reply[data-idhue="1"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 6.6 · 5.94 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="2"], [data-theme="dark"] .c-bubble__reply[data-idhue="2"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 8.75 · 7.88 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="3"], [data-theme="dark"] .c-bubble__reply[data-idhue="3"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 10.83 · 9.75 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="4"], [data-theme="dark"] .c-bubble__reply[data-idhue="4"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 10.0 · 9.0 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="5"], [data-theme="dark"] .c-bubble__reply[data-idhue="5"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 10.51 · 9.46 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="6"], [data-theme="dark"] .c-bubble__reply[data-idhue="6"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 8.39 · 7.55 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="7"], [data-theme="dark"] .c-bubble__reply[data-idhue="7"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 5.81 · 5.23 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="8"], [data-theme="dark"] .c-bubble__reply[data-idhue="8"] { --sender-label-l: 69%; --reply-label-l: 71%; } /* 4.73 · 4.69 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="9"], [data-theme="dark"] .c-bubble__reply[data-idhue="9"] { --sender-label-l: 64%; --reply-label-l: 67%; } /* 4.67 · 4.73 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="10"], [data-theme="dark"] .c-bubble__reply[data-idhue="10"] { --sender-label-l: 60%; --reply-label-l: 62%; } /* 4.86 · 4.63 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="11"], [data-theme="dark"] .c-bubble__reply[data-idhue="11"] { --sender-label-l: 61%; --reply-label-l: 64%; } /* 4.71 · 4.66 */
+
+/* ★ #1010 (10b): a LIVE tick change fades in (160ms) instead of snapping — setMessageStatus
+   adds the class only outside the load burst. Reduced motion: no animation. */
+/* ⚠ #1012 (Opus r1 M2): NO `to` keyframe and fill `backwards` — a `to { opacity: 1 }` held by fill
+   `both` pinned every live-changed tick at FULL opacity for good, beating the E1 delivered 0.571 /
+   A9 sent 0.7 dims. The animation now runs from 0 to the element's OWN computed value and lets go. */
+@keyframes c-tick-in { from { opacity: 0; transform: scale(0.85); } }
+.c-status-icon[data-enter] { animation: c-tick-in calc(var(--duration-200) * 0.8) var(--easing-standard) backwards;   /* 160ms, from the motion token (0 under reduced motion) */ }
+@media (prefers-reduced-motion: reduce) { .c-status-icon[data-enter] { animation: none; } }
+
+/* ★ #1012 (Opus r1 m1): an EMOJI-ONLY first message has no bubble fill (line ~242), so its sender
+   label sits on the CANVAS, not on white. Solved per anchor against EVERY light ground stop — the
+   brand gradient's three (#CCD0EC · #D0C9EB · #D5C3EB, the BOTTOM one is the darkest) and Mist
+   #ECEEF1 — ≥ 4.6:1 on all four. ★ #1013 (r2 m2): the first cut solved against the top stop only,
+   calling it "the darker"; it is not, and anchors 2/7/9/11 fell to 4.27–4.32 at the bottom. Dark is fine as
+   is: the canvas is darker than the bubble, so the dark table only gains contrast there. */
+:root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="0"] { --sender-label-l: 36%; } /* 4.77 on the brand-gradient bottom · 6.71 on Mist */
+:root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="1"] { --sender-label-l: 30%; } /* 4.71 on the brand-gradient bottom · 6.63 on Mist */
+:root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="2"] { --sender-label-l: 25%; } /* 4.79 on the brand-gradient bottom · 6.74 on Mist */
+:root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="3"] { --sender-label-l: 22%; } /* 4.75 on the brand-gradient bottom · 6.69 on Mist */
+:root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="4"] { --sender-label-l: 23%; } /* 4.76 on the brand-gradient bottom · 6.69 on Mist */
+:root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="5"] { --sender-label-l: 22%; } /* 4.85 on the brand-gradient bottom · 6.83 on Mist */
+:root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="6"] { --sender-label-l: 26%; } /* 4.67 on the brand-gradient bottom · 6.57 on Mist */
+:root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="7"] { --sender-label-l: 33%; } /* 4.67 on the brand-gradient bottom · 6.57 on Mist */
+:root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="8"] { --sender-label-l: 52%; } /* 4.67 on the brand-gradient bottom · 6.57 on Mist */
+:root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="9"] { --sender-label-l: 42%; } /* 4.71 on the brand-gradient bottom · 6.63 on Mist */
+:root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="10"] { --sender-label-l: 36%; } /* 4.70 on the brand-gradient bottom · 6.62 on Mist */
+:root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="11"] { --sender-label-l: 38%; } /* 4.63 on the brand-gradient bottom · 6.52 on Mist */
+
 </style>
 <style data-src="../styles/components/composer.css">
 /* c-composer — chat input bar (DECISIONS #64). Field pill mirrors Figma input;
@@ -1738,9 +1797,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
      the #989 dark hairline + top highlight (transparent in light), then the Session I lift. */
   box-shadow: inset 0 0 0 1px var(--border-bubble-received), inset 0 0 0 1px var(--outline-hairline), inset 0 1px 0 var(--highlight-top), var(--bubble-elevation);
 }
-/* SENT cards (#265 → #989): light keeps the 2px outgoing-colour border (#265); dark drops it for
-   a tinted fill + 1px tinted hairline (tokens --border-card-sent / --surface-card-sent /
-   --outline-card-sent). The lift stays on the sent side (Session J A3/A4). */
+/* SENT cards (#265 → #989 → #1003): BOTH themes draw a tinted fill + a 1px tinted hairline
+   (tokens --border-card-sent [0 in both] / --surface-card-sent / --outline-card-sent); light's
+   2px outgoing-colour border (#265) is retired by #1003. The lift stays (Session J A3/A4). */
 .c-bubble-row[data-direction="sent"] .c-tcard,
 .c-bubble-row[data-direction="sent"] .c-fbubble {
   border: var(--border-card-sent);
@@ -1791,7 +1850,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   line-height: var(--line-height-heading-sm);
   letter-spacing: var(--tracking-heading-sm);
 }
-.c-tcard__amount[data-tone="pending"] { color: var(--text-warning); }
+/* ★ #1004 (D-03, Damir 2026-09-28): a pending amount is NOT a warning — orange read as an error.
+   The status (chip / quiet foot) carries "pending"; the number stays the primary ink. Was --text-warning. */
+.c-tcard__amount[data-tone="pending"] { color: var(--text-neutral-01); }
 .c-tcard__amount[data-tone="positive"] { color: var(--text-success); }
 .c-tcard__amount[data-tone="neutral"] { color: var(--text-neutral-01); }
 .c-tcard__amount[data-tone="void"] {
@@ -1808,6 +1869,10 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 
 .c-tcard__badge { margin-top: var(--spacing-8); }
 
+/* ★ #1020: a card that ACTS (the full card, #996) is at least wide enough for its two buttons side
+   by side — #591's hug made a short app name stack Decline over Join as two full-width slabs. It
+   still hugs above this floor, and the Session J wrap still saves a long localized pair. */
+.c-tcard:not([data-layout]) { min-width: min(var(--bubble-max-pct), 264px); }   /* 264 sanctioned: two 32px buttons + gap inside the 12px padding */
 .c-tcard__actions {
   display: flex;
   flex-wrap: wrap;            /* ★ Session J: a button that cannot fit beside its neighbour takes the next row, whole */
@@ -1823,6 +1888,11 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    to its own full-width row instead of losing its verb. The B4 overflow cannot return:
    wrapping is what absorbs it now. Reversal = `min-width: 0` + the ellipsis trio. */
 .c-tcard__actions .c-button { flex: 1 1 auto; }
+/* ★ #1020: TWO actions sit side by side, equal width (secondary · primary) — actionsRow stamps
+   data-width="full" (button.css: width 100%), which forced every pair onto two rows however wide
+   the card. `flex-basis: 0` + `width: auto` share the row; each button's min-content (its label)
+   is still its floor, so a pair too long for one row still wraps, whole (Session J). */
+.c-tcard__actions .c-button[data-width="full"] { width: auto; flex: 1 1 0; min-width: max-content; }
 .c-tcard__actions .c-button .c-button__label { white-space: nowrap; }
 
 .c-tcard__note {
@@ -1876,6 +1946,17 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   flex: none;
 }
 .c-tcard__app-icon img { width: 100%; height: 100%; object-fit: cover; }
+/* ★★ #1020: the no-icon app is a MONOGRAM on the identity gradient (the avatar treatment) */
+.c-tcard__app-icon.c-tcard__app-icon--mono {
+  background: linear-gradient(180deg, var(--av-c1, #2CB1FF), var(--av-c2, #3480EC));   /* sanctioned: the avatar fallback pair (avatar.css) */
+  color: #fff;   /* sanctioned: a white initial on the identity gradient (avatar grammar) */
+}
+.c-tcard__app-initial {
+  font-size: var(--font-size-label-lg);
+  line-height: 1;
+  font-weight: var(--font-weight-bold);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);   /* sanctioned: the #1001 avatar initials shadow */
+}
 .c-tcard__app-info { display: flex; flex-direction: column; min-width: 0; }
 .c-tcard__app-name {
   font-size: var(--font-size-label-md);
@@ -1892,45 +1973,63 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   color: var(--text-neutral-02);
 }
 
-/* call card */
-.c-bubble-row[data-missed] .c-tcard__title { color: var(--text-error); }
-.c-bubble-row[data-missed] .c-tcard__title svg { color: var(--icon-error); }
-/* #264 (Damir ③): call cards adopt the FILE-BUBBLE medallion grammar — the
-   outcome glyph (phone / phone-off missed / phone-x declined) sits in a tonal
-   disc like the file icon; missed/declined tint the disc destructive. Marker
-   set by createCallBubble (data-call-outcome). */
-.c-bubble-row[data-call-outcome] .c-tcard__title svg {
-  box-sizing: content-box;
-  padding: var(--spacing-8);
-  border-radius: var(--radius-full);
-  background: var(--surface-medallion);   /* #989 */
-  color: var(--icon-medallion);
-  flex: none;
+/* call card — ★★ #1006 (D-07): ONE compact row. The medallion is the reskin's own
+   (.c-tcard__medallion, above); the outcome tints it. Only a MISSED call is red. */
+.c-tcard__call {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: var(--size-avatar-48);
 }
-.c-bubble-row[data-call-outcome="missed"] .c-tcard__title svg,
-.c-bubble-row[data-call-outcome="declined"] .c-tcard__title svg {
+.c-tcard__call-info { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.c-tcard__call .c-tcard__title { flex: none; display: block; font-size: var(--font-size-label-md); line-height: var(--line-height-label-md); }
+.c-tcard__call-meta {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-bubble-row[data-call-outcome="missed"] .c-tcard__title { color: var(--text-error); }
+.c-bubble-row[data-call-outcome="missed"] .c-tcard__medallion {
   background: var(--surface-destructive-tonal-default);
   color: var(--icon-error);
 }
-.c-tcard__call-meta {
-  font-size: var(--font-size-body-md);
-  line-height: var(--line-height-body-md);
-  color: var(--text-neutral-02);
+.c-bubble-row[data-call-outcome="declined"] .c-tcard__medallion,
+.c-bubble-row[data-call-outcome="noanswer"] .c-tcard__medallion {
+  background: var(--surface-neutral-03);
+  color: var(--icon-neutral-02);
 }
+/* ⚠ #1012 (Opus r1 m5): "no answer" is ALWAYS outgoing, so it sits on the #1003 sent tint —
+   neutral-03 measured 1.04:1 there and the disc vanished. One step deeper on the sent side. */
+.c-bubble-row[data-direction="sent"][data-call-outcome="declined"] .c-tcard__medallion,
+.c-bubble-row[data-direction="sent"][data-call-outcome="noanswer"] .c-tcard__medallion { background: var(--surface-neutral-04); }
+/* the round 36px call-back button — the only tap target on the card */
 .c-tcard__call-back {
+  flex: none;
+  width: 36px;               /* 36 sanctioned: the call-back disc (#1006) — the ⊕ / send disc size */
+  height: 36px;
+  margin-inline-start: var(--spacing-4);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 0;
-  background: transparent;
-  padding: var(--spacing-4) 0;
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-body-md);
-  line-height: var(--line-height-body-md);
-  color: var(--text-neutral-02);
+  border-radius: var(--radius-full);
+  padding: 0;
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
   cursor: pointer;
-  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
 }
+/* 44px hit area on a 36px disc (the #990 precedent) */
+.c-tcard__call-back::after { content: ''; position: absolute; inset: -4px; border-radius: var(--radius-full); }
+/* ⚠ #1012 (Opus r1 m6): the disc keeps its tonal fill under the pointer — dark tonal-hover/-pressed
+   are the SOLID action blue (primary-600/-500; the #1007 nav artifact) and the icon measured 2.67:1
+   on it. Only the INK moves. */
 @media (hover: hover) and (pointer: fine) {
-  .c-tcard__call-back:hover { color: var(--text-action-hover); }
+  .c-tcard__call-back:hover { color: var(--icon-action-hover); }
 }
+.c-tcard__call-back:active { color: var(--icon-action-pressed); }
+.c-tcard__call-back:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 2px; }
 
 /* —— file bubble (compact) —— */
 .c-fbubble {
@@ -1950,26 +2049,63 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   font-family: var(--font-secondary);
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) and (pointer: fine) {
-  .c-fbubble:hover .c-fbubble__icon { background: var(--surface-action-tonal-hover); }
-}
+/* ★★ #1021 (Damir 2026-09-28: "premiumize the file transfer"): the DOCUMENT TILE — a 40×44
+   squircle on the disc/avatar palette by file family (#1017 tokens, 180° gradient, white label),
+   the extension in small caps, and a corner badge for the state (download on an offer, retry on a
+   failure) ringed in the card's own surface. Hover/press brighten/darken the tile — no colour swap. */
 .c-fbubble__icon {
-  width: var(--size-avatar-40);
-  height: var(--size-avatar-40);
+  position: relative;
+  width: 40px;             /* 40 sanctioned: the document tile (#1021) — the avatar-40 width, a page's taller aspect */
+  height: 44px;            /* 44 sanctioned: the document tile's height */
+  border-radius: var(--radius-8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--disc-grad-neutral);
+  color: #fff;             /* sanctioned: a white label on a palette gradient (the c-disc grammar) */
+  flex: none;
+  transition: filter var(--duration-100) var(--easing-standard);
+}
+.c-fbubble__icon[data-kind="pdf"]     { background: var(--disc-grad-11); }   /* rose */
+.c-fbubble__icon[data-kind="doc"]     { background: var(--disc-grad-7); }    /* blue */
+.c-fbubble__icon[data-kind="archive"] { background: var(--disc-grad-1); }    /* orange */
+.c-fbubble__icon[data-kind="image"]   { background: var(--disc-grad-4); }    /* green */
+.c-fbubble__icon[data-kind="audio"]   { background: var(--disc-grad-9); }    /* purple */
+.c-fbubble__icon[data-kind="video"]   { background: var(--disc-grad-10); }   /* pink */
+.c-fbubble__icon[data-kind="code"]    { background: var(--disc-grad-6); }    /* cyan */
+.c-fbubble__ext {
+  max-width: 36px;         /* ★ #1022 (r1 N4): a wide 4-letter extension from a peer clips inside the 40px tile */
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 11px;         /* sanctioned: the extension label on the tile (#1021) — below the type ramp by design */
+  line-height: 1;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);   /* sanctioned: the #1001 avatar initials shadow */
+}
+.c-fbubble__icon > svg { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25)); }   /* sanctioned: same shadow for the no-extension glyph */
+.c-fbubble__badge {
+  position: absolute;
+  inset-block-end: -4px;
+  inset-inline-end: -6px;
+  width: 20px;
+  height: 20px;
   border-radius: var(--radius-full);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--surface-medallion);   /* #989 */
-  color: var(--icon-medallion);
-  flex: none;
-  transition: background-color var(--duration-100) var(--easing-standard);
+  background: var(--surface-action-default);
+  color: var(--text-neutral-on-action);
+  box-shadow: 0 0 0 2px var(--surface-bubble-received);   /* ring cut against the card */
 }
-.c-fbubble[data-state="failed"] .c-fbubble__icon {
-  background: var(--surface-destructive-tonal-default);
-  color: var(--icon-error);
+.c-bubble-row[data-direction="sent"] .c-fbubble__badge { box-shadow: 0 0 0 2px var(--surface-card-sent); }
+.c-fbubble[data-state="failed"] .c-fbubble__badge { background: var(--surface-destructive-default); color: var(--text-neutral-on-destructive); }
+/* ★ #1022 (Opus r1 M2): no desaturation on the failed tile — a filter reaches the red retry badge
+   too and the hover filter replaced it anyway; the red badge + the red retry line carry the state. */
+@media (hover: hover) and (pointer: fine) {
+  .c-fbubble:not(:disabled):hover .c-fbubble__icon { filter: brightness(1.06); }
 }
-.c-fbubble:active .c-fbubble__icon { background: var(--surface-action-tonal-pressed); } /* audit: no pressed feedback */
+.c-fbubble:not(:disabled):active .c-fbubble__icon { filter: brightness(0.92); } /* audit: no pressed feedback */
 .c-fbubble:disabled { cursor: default; } /* progress state */
 .c-fbubble__info { flex: 1; display: flex; flex-direction: column; min-width: 0; gap: var(--spacing-2); }
 .c-fbubble__name {
@@ -1986,6 +2122,8 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   color: var(--text-neutral-02);
 }
 .c-fbubble[data-state="failed"] .c-fbubble__meta { color: var(--text-error); }
+.c-fbubble__meta[data-cta] { color: var(--text-action-default); font-weight: var(--font-weight-semibold); }   /* ★ #1021: "Tap to download" reads as the action */
+.c-fbubble__meta[data-pct] { font-variant-numeric: tabular-nums; }
 .c-fbubble__track {
   height: var(--spacing-4);
   border-radius: var(--radius-full);
@@ -2082,6 +2220,131 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-tcard[data-state="canceled"] .c-tcard__app-icon { opacity: var(--opacity-disabled); }
 .c-tcard[data-state="declined"] .c-tcard__app-name,
 .c-tcard[data-state="canceled"] .c-tcard__app-name { color: var(--text-neutral-02); }
+
+/* ★★ #996 THE RESKIN (Damir's pick: "keep today's cards, but have compact for settled") — the
+   COMPACT pill for a payment/app card with no button, and the shared medallion + padding the
+   one-row call card (#1006) reads too. A card with a button keeps the full .c-tcard rules above.
+   Surfaces, edges and lift are the .c-tcard rules above (#989 / #1003 tokens). */
+.c-tcard[data-layout] { padding: var(--spacing-8) var(--spacing-12); }
+/* The pill is a 2-column grid: the medallion spans the rows; the label takes the first line; the
+   value and the foot share ONE wrapping line (.c-tcard__line) — ★ #1013 (Opus r2 M1): the old
+   3-column grid (value · foot in their own tracks, minmax(max-content, …)) pushed the foot PAST the
+   card edge on 320–430px phones (measured +2…+79px); in a wrapping line the foot drops under the
+   amount, end-aligned, and nothing leaves the card. A long localized label still wraps on its own
+   line and never squeezes the amount. */
+.c-tcard__main {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: "med label" "med line" "med sub";
+  column-gap: var(--spacing-12);
+  align-items: center;
+}
+.c-tcard__main > .c-tcard__medallion { grid-area: med; align-self: center; }
+.c-tcard__col { display: contents; }
+.c-tcard__col > .c-tcard__label { grid-area: label; }
+.c-tcard__col > .c-tcard__line { grid-area: line; }
+.c-tcard__col > :nth-child(3) { grid-area: sub; }
+.c-tcard__line {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--spacing-16);
+}
+.c-tcard__medallion {
+  flex: none;
+  width: var(--size-avatar-40);
+  height: var(--size-avatar-40);
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-medallion);
+  color: var(--icon-medallion);
+  overflow: hidden;
+}
+.c-tcard__medallion.c-tcard__app-icon { border-radius: var(--radius-12); }
+.c-tcard__label {
+  min-width: 0;
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  letter-spacing: var(--tracking-label-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+  overflow-wrap: break-word;
+}
+.c-tcard[data-layout] .c-tcard__amount { white-space: nowrap; }
+.c-tcard__foot {
+  margin-inline-start: auto;       /* end-aligned on the amount's line, and on its own line when it wraps */
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-8);           /* the line's 16px column gap is the space before it (was 28: a 12px margin + 4px pad + 12px gap) */
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs);
+  color: var(--text-neutral-02);
+}
+.c-tcard__status { display: inline-flex; align-items: center; gap: var(--spacing-4); }
+.c-tcard__status-dot {
+  width: 6px;              /* 6 sanctioned: the quiet status dot (#996) — a mark, not a badge */
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--icon-neutral-02);
+}
+.c-tcard__status[data-tone="success"] .c-tcard__status-dot { background: var(--icon-success); }
+.c-tcard__status[data-tone="error"] .c-tcard__status-dot { background: var(--icon-error); }
+/* the whole pill is the Details button: a stretched, transparent hit layer */
+.c-tcard__hit {
+  position: absolute;
+  inset: calc(-1 * var(--spacing-8)) calc(-1 * var(--spacing-12));
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: var(--radius-16);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-tcard__hit:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 0; }
+/* the hit layer is the FIRST child, so its states reach the medallion with a sibling
+   combinator (no :has — conservative-CSS baseline).
+   ★ #1013 (r2 m1): the #1012 m6 rule, applied to the pill — dark tonal-hover/-pressed are the
+   SOLID action blue and the medallion ink fell to 1.95:1 on the pressed one. The disc keeps its
+   fill; only the INK moves, exactly as the call-back disc does. */
+@media (hover: hover) and (pointer: fine) {
+  .c-tcard__hit:hover ~ .c-tcard__medallion { color: var(--icon-action-hover); }
+}
+.c-tcard__hit:active ~ .c-tcard__medallion { color: var(--icon-action-pressed); }
+/* #1020: a monogram tile keeps its white initial under the pointer (the ink move is for the tonal disc) */
+@media (hover: hover) and (pointer: fine) {
+  .c-tcard__hit:hover ~ .c-tcard__app-icon.c-tcard__app-icon--mono { color: #fff; }   /* sanctioned: the white initial (avatar grammar) */
+}
+.c-tcard__hit:active ~ .c-tcard__app-icon.c-tcard__app-icon--mono { color: #fff; }   /* sanctioned: the white initial (avatar grammar) */
+.c-tcard[data-state="declined"] .c-tcard__medallion,
+.c-tcard[data-state="canceled"] .c-tcard__medallion { opacity: var(--opacity-disabled); }
+/* ★ #1009 (10a): completed = a small check (success ink) instead of the dot; a LIVE completion
+   (data-live-complete, one render only) crossfades the status in and draws the check once (≈400ms). */
+.c-tcard__status-check {
+  width: 12px;               /* 12 sanctioned: the quiet-status mark (#996) — the dot's companion */
+  height: 12px;
+  flex: none;
+  fill: none;
+  stroke: var(--icon-success);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+@keyframes c-tcard-status-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes c-tcard-check-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.c-tcard[data-live-complete] .c-tcard__status { animation: c-tcard-status-in var(--duration-200) var(--easing-standard) both; }
+.c-tcard[data-live-complete] .c-tcard__status-check path {
+  stroke-dasharray: 1;
+  animation: c-tcard-check-draw calc(var(--duration-200) * 2) var(--easing-standard) both;   /* 400ms from the token */
+}
+@media (prefers-reduced-motion: reduce) {
+  .c-tcard[data-live-complete] .c-tcard__status,
+  .c-tcard[data-live-complete] .c-tcard__status-check path { animation: none; }
+}
 
 </style>
 <style data-src="../styles/components/toast.css">
@@ -2279,6 +2542,22 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-sheet__content { color: var(--text-neutral-01); }
 
 /* —— modal (z-50) —— */
+/* ★★ #1018 (Damir's dark sweep, 2026-09-28: "the bottom sheet is a bit off"): a card INSIDE a sheet
+   or a dialog painted the SCREEN card tones (--surface-card / --surface-neutral-02 = neutral-800 in
+   dark) on the neutral-700 sheet — every info block, address chip and list card looked SUNK into
+   the sheet. Inside an overlay those two roles resolve to the sheet-card tone, which LIFTS (neutral-600,
+   Session X's rule). Light is value-identical: sheet-card, neutral-02 and surface-card are all
+   neutral-50 there. Scoped here, so no component carries a [data-theme] selector. */
+.c-sheet,
+.c-modal {
+  --surface-neutral-02: var(--surface-sheet-card);
+  --surface-card: var(--surface-sheet-card);
+  /* ★ #1024 (Opus r2): the card's own hover/pressed pair must follow it, or a card-hosted row in a
+     dark sheet hovers to its own tone (neutral-600 on neutral-600). Light moves 200/300 → 100/200,
+     the sheet-card pair Session X set for cards on a sheet. */
+  --surface-card-hover: var(--surface-sheet-card-hover);
+  --surface-card-pressed: var(--surface-sheet-card-pressed);
+}
 .c-modal {
   position: absolute;
   left: 50%;
@@ -3217,7 +3496,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 [data-selecting] .c-bubble-row .c-bubble-retry,
 [data-selecting] .c-bubble-row .c-reactions__pill,
 [data-selecting] .c-bubble-row .c-bubble__link,
-[data-selecting] .c-bubble-row .c-mbubble { pointer-events: none; }
+[data-selecting] .c-bubble-row .c-mbubble,
+/* ★ #1013 (r2 m4): the #996 pill's stretched Details button and the #1006 call-back disc */
+[data-selecting] .c-bubble-row .c-tcard__hit,
+[data-selecting] .c-bubble-row .c-tcard__call-back { pointer-events: none; }
 /* W9-④ (Damir, Windows F5): while a DESKTOP drag is ranging over rows, native
    text selection must not fight it — the browser would paint a text highlight
    across every bubble the pointer crosses. Scoped to the live gesture
@@ -5584,7 +5866,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
        until the next pick overwrites it; it is never read back as anything but "not in
        the list". `de` no longer gates anything here: Live flow was the only desktop-only
        style. */
-    if (s !== 'matrix') s = 'matrix';
+    // ★★ #997: CONTOURS replace the data matrix — a stored 'matrix' falls through like every retired style
+    if (s !== 'contours') s = 'contours';
     /* ★★ #835 (Damir, 2026-09-09): "we will remove the gradient on light, it's too busy."
        THE DEFAULT FLIPS; THE OPTION STAYS. He ruled the other way on 2026-08-30 — "leave
        the gradient as an option in chat appearance on light mode", recorded verbatim at
@@ -5603,7 +5886,9 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
        Gradient must not be stranded on a canvas the picker can no longer change. The string
        is deliberately left in localStorage: it is never read back as anything but "not in
        the list", and restoring the option restores their pick. */
-    if (gr !== 'flat') gr = 'flat';
+    /* ★★ #998 (Damir 2026-09-28): the option is BACK as the BRAND gradient (light only) — this
+       ladder admits 'gradient' again, in step with the head script and settings.html. */
+    if (gr !== 'flat' && gr !== 'gradient') gr = 'flat';
     return { level: p, style: s, ground: gr, text: t };
   }
   function applyPatternPrefs(prefs) {
@@ -7121,6 +7406,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       if (!canSheet) {
         return createPaymentBubble({
           role: 'request-in',
+          flow: 'out',   // ★ #1013 (r4 NIT): their request, when I pay it, moves money OUT
           status: 'pending',
           title: rec.title || '',
           amount: displayPaymentAmount(rec),
@@ -7132,6 +7418,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       }
       return createPaymentBubble({
         role: 'request-in',
+        flow: 'out',   // ★ #1013 (r4 NIT)
         status: 'actionable',
         title: rec.title || '',
         amount: displayPaymentAmount(rec),
@@ -7158,6 +7445,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     if (pendingOutgoingRequest && rec.id) {
       return createPaymentBubble({
         role: 'request-out',
+        flow: 'in',   // ★ #1013 (r4 NIT): my request, when paid, moves money IN — kept for an in-place swap to the pill
         status: 'pending',
         title: rec.title || '',
         amount: displayPaymentAmount(rec),
@@ -7171,15 +7459,26 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     }
     return createPaymentBubble({
       role: rec.direction === 'sent' ? 'sent' : 'received',
+      /* ★ #996: a REQUEST's money moves against its message (my request paid = money IN) */
+      flow: isRequestRec(rec) ? (rec.direction === 'sent' ? 'in' : 'out') : (rec.direction === 'sent' ? 'out' : 'in'),
       title: rec.title || '',
       amount: displayPaymentAmount(rec),
       fiat: rec.fiat || '',
       status: rec.pstatus,
+      celebrate: takeCelebrate(rec),
       timestamp: rec.ts,
       gutter: mode.isMulti && rec.direction === 'received',
       onDetails: view,
       strings: window.SL || {},
     });
+  }
+
+  /* ★ #1009 (10a): the live-completion flag is ONE-SHOT — the first render after the flip
+   * draws the check; any later re-render (a reaction, a scroll re-flush) shows it static. */
+  function takeCelebrate(rec) {
+    if (!rec.celebrate) return false;
+    rec.celebrate = false;
+    return true;
   }
 
   /* #529: Cancel request = delete the request message on BOTH ends (the existing
@@ -7260,6 +7559,18 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     catch (e) { dbg('showCallRefusal: the toast failed — ' + e); }
   }
 
+  /* ★★ #1006 (the polish round, item 7): "no call-back while a call is active". C4 already
+   * hid the button on the LIVE call's own card; a SECOND card in the same log still offered
+   * it, and the tap went into C#'s busy refusal toast. The shell knows every call row of
+   * this conversation, so the rule is "no call-back on ANY card while any call here is
+   * live" — zero C#, and the re-push at call end (rec.active=false) re-renders the whole
+   * log (renderLogNow rebuilds every row), which restores every button at once. A call live
+   * in ANOTHER chat is not visible to this WebView (#221); C#'s busy refusal still covers it. */
+  function liveCallInLog() {
+    for (const r of model.values()) if (r && r.kind === 'call' && r.active) return true;
+    return false;
+  }
+
   function buildCallRow(rec) {
     return createCallBubble({
       missed: rec.missed,
@@ -7276,7 +7587,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       timestamp: rec.ts,
       // ★ C4 (Session AD): no "Call back" on the card of a call that is LIVE — the tap
       // sent ixian:callback into C#'s busy refusal. The re-push at call end restores it.
-      onCallBack: (callVisible && !rec.active) ? callBackFromCard : null,
+      onCallBack: (callVisible && !rec.active && !liveCallInLog()) ? callBackFromCard : null,
     });
   }
 
@@ -9167,7 +9478,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     // already-paid row stay surgical and don't force a full re-render.
     if (rec.direction === 'sent' && rec.status !== 'failed' && !!rec.paid === paidBefore) {
       const row = rows.get(id);
-      if (row) { setMessageStatus(row, rec.status); return; }
+      if (row) { setMessageStatus(row, rec.status, window.SL || {}, { animate: !bursting && !loadPhase }); return; }   // ★ #1010: live ticks crossfade, history never
     }
     renderLog();
   }
@@ -10066,7 +10377,9 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       id = String(id);
       const rec = model.get(id);
       if (!rec || rec.kind !== 'payment') { dbg('updatePaymentRequestStatus: unknown', id); return; }
+      const prevStatus = rec.pstatus;
       rec.pstatus = paymentStatusFrom(statusEnum, statusIcon);
+      if (prevStatus !== 'completed' && rec.pstatus === 'completed' && !bursting && !loadPhase) rec.celebrate = true;   // ★ #1009: a LIVE completion draws its check once
       if (txid) {
         if (rec.txid && rec.txid !== String(txid)) txIndex.delete(rec.txid); // drop stale key on re-key (N1)
         rec.txid = String(txid); txIndex.set(rec.txid, id);
@@ -10081,7 +10394,9 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       const id = txIndex.get(String(txid));
       const rec = id && model.get(id);
       if (!rec) { dbg('updateTransactionStatus: unknown txid', txid); return; }
+      const prevStatus = rec.pstatus;
       rec.pstatus = paymentStatusFrom(statusEnum, statusIcon);
+      if (prevStatus !== 'completed' && rec.pstatus === 'completed' && !bursting && !loadPhase) rec.celebrate = true;   // ★ #1009
       renderLog();
     },
 

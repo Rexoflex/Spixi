@@ -11,11 +11,17 @@ import { icon } from './icons.js';
 /* N1 (#364): the identity wheel is QUANTIZED to 12 curated hue anchors.
  * The old continuous hue was already uniform (#38 measured), but neighbours
  * inside the 60–180° band all read as the same olive/green. Anchors give a
- * guaranteed minimum hue distance and skip the illegible yellow band (50–80).
- * avatar.css carries one hand-tuned gradient per anchor (index = data-hue),
- * every pair computed ≥ 4.5:1 under white ink at BOTH stops (#364 table).
+ * guaranteed minimum hue distance (#1001: the lime anchor now sits in the old
+ * "illegible yellow band" — Damir's palette; names solve lightness per anchor).
+ * avatar.css carries one hand-tuned gradient per anchor (index = data-hue).
+ * ★ #1001: the #364 "≥ 4.5:1 at both stops" floor is RELAXED for avatars (Telegram's own
+ * pairs run 1.7–3.1:1); initials carry a shadow instead — see avatar.css.
  * Order matters: index i = IDENTITY_HUES[i] = avatar.css [data-hue="i"]. */
-export const IDENTITY_HUES = [0, 22, 40, 95, 135, 165, 190, 215, 245, 275, 305, 335];
+/* ★ #1001 (D-10, Damir 2026-09-28): the anchors are the TELEGRAM-CLOSE palette now (avatar.css
+ * carries the hex pairs). Each hue below is the circular MIDPOINT of its new pair, so a group
+ * sender's NAME (message-bubble.css, `data-idhue`) reads as the same colour as its avatar.
+ * The index → family mapping is unchanged; was [0, 22, 40, 95, 135, 165, 190, 215, 245, 275, 305, 335]. */
+export const IDENTITY_HUES = [6, 25, 41, 87, 133, 171, 192, 209, 245, 276, 322, 347];
 
 function hashRaw(str) {
   let h = 0;

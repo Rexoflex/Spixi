@@ -732,5 +732,11 @@
   "declinedRequestsSub": "Personen, deren Kontaktanfragen du abgelehnt hast",
   "declinedRequestsNote": "Eine erneute Anfrage von diesen Adressen wird ignoriert. Sie werden nicht benachrichtigt. Hebe die Sperre auf, um ihre Anfragen wieder zu erhalten.",
   "declinedRequestsEmpty": "Du hast keine Anfragen abgelehnt.",
-  "unblock": "Entsperren"
+  "unblock": "Entsperren",
+  "noAnswer": "Keine Antwort",
+  "youDeclinedCall": "Du hast abgelehnt",
+  "copyFailedOpenQr": "Kopieren fehlgeschlagen. Öffne den QR-Code, um die vollständige Adresse zu kopieren.",
+  "groundBrandGradient": "Markenverlauf",
+  "patternStyleContours": "Konturen",
+  "tapToDownload": "Zum Herunterladen tippen"
 }

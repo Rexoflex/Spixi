@@ -662,5 +662,11 @@
   "declinedRequestsSub": "Persone di cui hai rifiutato la richiesta di contatto",
   "declinedRequestsNote": "Una nuova richiesta da questi indirizzi viene ignorata. Non ricevono alcun avviso. Sblocca per ricevere di nuovo le loro richieste.",
   "declinedRequestsEmpty": "Non hai rifiutato nessuna richiesta.",
-  "unblock": "Sblocca"
+  "unblock": "Sblocca",
+  "noAnswer": "Nessuna risposta",
+  "youDeclinedCall": "Hai rifiutato",
+  "copyFailedOpenQr": "Impossibile copiare. Apri il codice QR per copiare l’indirizzo completo.",
+  "groundBrandGradient": "Sfumatura del brand",
+  "patternStyleContours": "Curve di livello",
+  "tapToDownload": "Tocca per scaricare"
 }

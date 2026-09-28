@@ -733,5 +733,11 @@
   "declinedRequestsSub": "Osebe, katerih prošnje za stik ste zavrnili",
   "declinedRequestsNote": "Ponovna prošnja s teh naslovov je prezrta. O tem niso obveščeni. Odblokirajte, da boste znova prejemali njihove prošnje.",
   "declinedRequestsEmpty": "Niste zavrnili nobene prošnje.",
-  "unblock": "Odblokiraj"
+  "unblock": "Odblokiraj",
+  "noAnswer": "Ni odgovora",
+  "youDeclinedCall": "Zavrnili ste",
+  "copyFailedOpenQr": "Kopiranje ni uspelo. Odprite kodo QR, da kopirate celoten naslov.",
+  "groundBrandGradient": "Blagovni preliv",
+  "patternStyleContours": "Plastnice",
+  "tapToDownload": "Tapnite za prenos"
 }

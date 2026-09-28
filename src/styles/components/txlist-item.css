@@ -158,3 +158,19 @@
   text-decoration: line-through;
   font-weight: var(--font-weight-regular);
 }
+
+/* ★ #1008 (U-04): a meta line too narrow for the badge's word AND the whole date shows the
+   badge as an ICON-ONLY chip (txlist-item.js measures and sets data-compact). The label is
+   VISUALLY hidden, not removed — it stays the chip's accessible name; `title` has the word. */
+.c-txlist-item__meta[data-compact] .c-badge__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.c-txlist-item__meta[data-compact] .c-badge { flex: none; position: relative; }

@@ -28,7 +28,6 @@ import { createTopbar } from './topbar.js';
    travelled: build-demo-bundle.mjs orders settings-shell BEFORE settings-screens, and
    settings-app.js imports settingsConfirm across the same edge. settings-shell.js imports
    nothing from this file, so there is no cycle to create. */
-import { settingsOptionSheet } from './settings-shell.js';
 
 /* W5 (Damir 2026-08-12) — pattern STYLE, orthogonal to the intensity dial below.
  * Style picks the pattern SOURCE; intensity keeps mapping to opacity. "Off"
@@ -48,12 +47,14 @@ export const PATTERN_STYLES = [
      a device that stored 'doodles' or 'flow' from rendering nothing: neither value matches
      any allowlist any more, so all three pre-paint ladders (chat.html's head script,
      chat.html's live re-resolve, settings.html's readChatPrefs — the #690 three-ladder
-     rule) land on 'matrix'. The stored string is deliberately left alone.
+     rule) land on the one style (contours since #997). The stored string is deliberately left alone.
      ⓘ #866 (Session W) then retired the doodles TILE from the generated chat-pattern.css as
      well — #835 had left it emitted (233 KB, 94% of the sheet, selectable by nothing) because
      the generator's drift guard owned the asset; the guard went with it. The source SVG may
      still sit in src/assets/images unreferenced — deleting artwork is Damir's call. */
-  { id: 'matrix', key: 'patternStyleMatrix', label: 'Data matrix' },
+  /* ★★ #997 (Damir 2026-09-28): CONTOURS replace the data matrix (picked from constellation ·
+     fine lattice · contours on the three grounds). Still ONE style; 'matrix' falls through. */
+  { id: 'contours', key: 'patternStyleContours', label: 'Contours' },
 ];/* ★ N81 (#422) — THREE levels, and the value is a LEVEL INDEX, not an alpha.
  *
  * Damir's dial: off, the new default, and one stronger step at 0.1. The change
@@ -92,6 +93,11 @@ export const CHAT_GROUNDS = [
      rule, re-ruled explicitly on 2026-09-04 for the dark case: a one-option chooser reads
      as a broken control, so the row is ABSENT rather than shown with nothing to choose. */
   { id: 'flat', key: 'groundFlat', label: 'Solid' },
+  /* ★★ #998 (Damir 2026-09-28, the polish round): the option is BACK as the BRAND GRADIENT —
+     light only, never the default (tokens.css #1002: #CCD0EC → #D0C9EB → #D5C3EB with its own
+     ink #3A2F66). The restore was the one line #855 promised; the label is a NEW key because
+     "Gradient" translations named the retired teal wash. */
+  { id: 'gradient', key: 'groundBrandGradient', label: 'Brand gradient' },
 ];
 
 /* ★ Session M (#783): THE PATTERN_LEVELS ARRAY IS GONE. Session M folded the intensity
@@ -437,11 +443,11 @@ function screenShell(className, title, onBack) {
  */
 export function createChatAppearance({
   patternOpacity = 1,             // ★ N81 (#422): a LEVEL index (0/1/2), not an alpha
-  patternStyle = 'matrix',       // ★ #835: the only style left (doodles + Live flow retired)
+  patternStyle = 'contours',     // ★ #997: the only style left (matrix, doodles + Live flow retired)
   chatGround = 'flat',           // ★ AUG 2026-08-30: 'flat' (default) | 'gradient' — LIGHT only
   textScale = 1,
   isDesktop = typeof document === 'object' && document.documentElement.hasAttribute('data-desktop'),
-  host,                          // ★ Session M (#774): the Colour sheet's host — hubFor grammar below
+  host,                          // ★ #1019: unused since the Canvas choice became circles (no sheet); kept so existing callers stay valid
   onBack,
   onPattern,                     // (level) — shell persists the index; CSS resolves the alpha
   onPatternStyle,                // (id) — shell sets data-chat-pattern + persists (W5)
@@ -450,10 +456,6 @@ export function createChatAppearance({
   strings = getStrings(),
 } = {}) {
   const { el, body } = screenShell('c-settings-appearance', strings.chatAppearance || 'Chat appearance', onBack);
-  /* the createSettingsHub / createSettingsDanger idiom, verbatim: an explicit host wins,
-     otherwise the demo phone frame, otherwise the sheet's own default (document.body). */
-  const hostFor = () => host || el.closest('.demo-phone') || undefined;
-
   /* live preview — real canvas class: gradient + generated pattern mask */
   const preview = document.createElement('div');
   preview.className = 'c-chat-canvas c-settings-appearance__preview';
@@ -499,7 +501,7 @@ export function createChatAppearance({
   /* the style axis and the level axis, kept apart INSIDE this screen. `styleCurrent` is
      the style the user last chose (or the default) and survives a None pick; `levelCurrent`
      is 0 or 1 and is what None actually writes. */
-  let styleCurrent = styleOpts.some((o) => o.id === patternStyle) ? patternStyle : 'matrix';
+  let styleCurrent = styleOpts.some((o) => o.id === patternStyle) ? patternStyle : 'contours';
   let levelCurrent = Number(patternOpacity) > 0 ? 1 : 0;
   const bgOpts = [
     /* ★ Session M: a NEW string, and the only one this restructure adds. The retired
@@ -590,35 +592,46 @@ export function createChatAppearance({
       const o = CHAT_GROUNDS.find((g) => g.id === id);
       return o ? (strings[o.key] || o.label) : id;
     };
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = 'c-settings__row c-settings-appearance__ground';
+    /* ★★ #1019 (Damir 2026-09-28: "a coloured circle instead of the Solid/Gradient wording"): the
+       row keeps its one word ("Canvas") and the CHOICE is a pair of colour circles — each paints
+       the ground it picks (data-chat-ground on the dot resolves --gradient-chat through the same
+       token rules the chat uses). The names stay the accessible names (role=radio + aria-label),
+       and the value row → option sheet round trip is gone: one tap picks. Supersedes #998's value row. */
+    const row = document.createElement('div');
+    row.className = 'c-settings__row c-settings__row--static c-settings-appearance__ground';   // ★ #1024: a row that is not a control (D-16 r2 B-6 class)
     const lab = document.createElement('span');
     lab.className = 'c-settings__row-label';
+    lab.id = 'c-settings-ground-label';
     lab.textContent = strings.chatGround || 'Canvas';
-    const val = document.createElement('span');
-    val.className = 'c-settings__row-value';
-    val.textContent = groundLabel(groundCurrent);
-    row.append(lab, val, icon('chevron-right', { size: 18 }));
-    row.addEventListener('click', () => {
-      settingsOptionSheet({
-        title: strings.chatGround || 'Canvas',
-        options: CHAT_GROUNDS.map((o) => ({ value: o.id, label: strings[o.key] || o.label })),
-        current: groundCurrent,
-        host: hostFor(),
-        strings,
-        /* FE-only pref: there is nothing to round-trip, so the commit succeeds in the
-           same tick. The sheet's (value, ctrl) contract is honoured rather than
-           side-stepped — ctrl.done() is what closes the sheet and moves the check. */
-        commit: (v, ctrl) => {
-          groundCurrent = v;
-          val.textContent = groundLabel(v);
-          preview.setAttribute('data-chat-ground', v);
-          if (onChatGround) onChatGround(v);
-          ctrl.done();
-        },
+    const dots = document.createElement('div');
+    dots.className = 'c-settings-appearance__dots';
+    dots.setAttribute('role', 'radiogroup');
+    dots.setAttribute('aria-labelledby', lab.id);
+    const paint = () => {
+      for (const b of dots.children) b.setAttribute('aria-checked', String(b.dataset.value === groundCurrent));
+    };
+    for (const o of CHAT_GROUNDS) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'c-settings-appearance__dot';
+      b.dataset.value = o.id;
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-label', groundLabel(o.id));
+      const face = document.createElement('span');
+      face.className = 'c-settings-appearance__dot-face';
+      face.setAttribute('data-chat-ground', o.id);
+      b.append(face);
+      b.addEventListener('click', () => {
+        if (groundCurrent === o.id) return;
+        groundCurrent = o.id;
+        paint();
+        preview.setAttribute('data-chat-ground', o.id);
+        if (onChatGround) onChatGround(o.id);
       });
-    });
+      dots.append(b);
+    }
+    paint();
+    row.append(lab, dots);
     groundSec.append(row);
   }
 

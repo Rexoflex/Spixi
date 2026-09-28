@@ -59,8 +59,8 @@
   /* ★ #46 r2 C1: the ink that rides ON --_fill, intent-switched like every other member of
      this private palette. It used to be --text-neutral-on-action hard-coded at the
      [data-type="fill"] rule, which was right for the default intent and wrong for
-     destructive: in dark --surface-destructive-default is --error-300 #f49c92 and the white
-     label measured 2.01:1 — the worst reading anywhere in the #46 audit, and the one row
+     destructive: in dark --surface-destructive-default WAS --error-300 #f49c92 (before #1018 made
+     it --error-600, white ink 6.36:1) and the white label measured 2.01:1 — the worst reading anywhere in the #46 audit, and the one row
      the census missed. Default intent is unchanged at 6.68:1 on #3050bd (Damir, Session K). */
   --_on-fill: var(--text-neutral-on-action);
 
@@ -346,6 +346,22 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-sheet__content { color: var(--text-neutral-01); }
 
 /* —— modal (z-50) —— */
+/* ★★ #1018 (Damir's dark sweep, 2026-09-28: "the bottom sheet is a bit off"): a card INSIDE a sheet
+   or a dialog painted the SCREEN card tones (--surface-card / --surface-neutral-02 = neutral-800 in
+   dark) on the neutral-700 sheet — every info block, address chip and list card looked SUNK into
+   the sheet. Inside an overlay those two roles resolve to the sheet-card tone, which LIFTS (neutral-600,
+   Session X's rule). Light is value-identical: sheet-card, neutral-02 and surface-card are all
+   neutral-50 there. Scoped here, so no component carries a [data-theme] selector. */
+.c-sheet,
+.c-modal {
+  --surface-neutral-02: var(--surface-sheet-card);
+  --surface-card: var(--surface-sheet-card);
+  /* ★ #1024 (Opus r2): the card's own hover/pressed pair must follow it, or a card-hosted row in a
+     dark sheet hovers to its own tone (neutral-600 on neutral-600). Light moves 200/300 → 100/200,
+     the sheet-card pair Session X set for cards on a sheet. */
+  --surface-card-hover: var(--surface-sheet-card-hover);
+  --surface-card-pressed: var(--surface-sheet-card-pressed);
+}
 .c-modal {
   position: absolute;
   left: 50%;

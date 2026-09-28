@@ -17,8 +17,8 @@
   /* ★ #46 r2 C1: the ink that rides ON --_fill, intent-switched like every other member of
      this private palette. It used to be --text-neutral-on-action hard-coded at the
      [data-type="fill"] rule, which was right for the default intent and wrong for
-     destructive: in dark --surface-destructive-default is --error-300 #f49c92 and the white
-     label measured 2.01:1 — the worst reading anywhere in the #46 audit, and the one row
+     destructive: in dark --surface-destructive-default WAS --error-300 #f49c92 (before #1018 made
+     it --error-600, white ink 6.36:1) and the white label measured 2.01:1 — the worst reading anywhere in the #46 audit, and the one row
      the census missed. Default intent is unchanged at 6.68:1 on #3050bd (Damir, Session K). */
   --_on-fill: var(--text-neutral-on-action);
 

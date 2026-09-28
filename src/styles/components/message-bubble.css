@@ -620,3 +620,66 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   -webkit-user-select: none;   /* WebKit honors only the prefixed form (avatar.css:59 precedent) */
   user-select: none;
 }
+
+/* ★★ #1001 (item 1f, Damir 2026-09-28): "the avatar and the name of one person must read as the
+   same colour". The hue is the anchor's own (IDENTITY_HUES = the midpoint of each new avatar
+   pair); the LIGHTNESS is solved PER ANCHOR as the lightest (light) / darkest-that-still-reads
+   (dark, floor 60%) value that holds ≥ 4.6:1 on its surface — the received bubble for the
+   name, the quote fill for the reply label. One recipe for all twelve failed that: 28% made the
+   blues and purples near-black next to a sky-blue avatar. Trailing comments = measured ratios
+   (name · quote). Elements without data-idhue keep the root recipe above.
+   ⚠ #1012 (r1 NIT): "lightest" is capped at 55% — anchors 8/9 sit above 4.6:1 at the cap. */
+.c-bubble__sender[data-idhue], .c-bubble__reply[data-idhue] { --sender-label-s: 62%; }
+[data-theme="dark"] .c-bubble__sender[data-idhue], [data-theme="dark"] .c-bubble__reply[data-idhue] { --sender-label-s: 70%; }
+.c-bubble__sender[data-idhue="0"], .c-bubble__reply[data-idhue="0"] { --sender-label-l: 51%; --reply-label-l: 46%; } /* 4.62 · 4.76 */
+.c-bubble__sender[data-idhue="1"], .c-bubble__reply[data-idhue="1"] { --sender-label-l: 42%; --reply-label-l: 39%; } /* 4.67 · 4.61 */
+.c-bubble__sender[data-idhue="2"], .c-bubble__reply[data-idhue="2"] { --sender-label-l: 35%; --reply-label-l: 32%; } /* 4.74 · 4.79 */
+.c-bubble__sender[data-idhue="3"], .c-bubble__reply[data-idhue="3"] { --sender-label-l: 31%; --reply-label-l: 28%; } /* 4.68 · 4.82 */
+.c-bubble__sender[data-idhue="4"], .c-bubble__reply[data-idhue="4"] { --sender-label-l: 32%; --reply-label-l: 30%; } /* 4.75 · 4.61 */
+.c-bubble__sender[data-idhue="5"], .c-bubble__reply[data-idhue="5"] { --sender-label-l: 31%; --reply-label-l: 29%; } /* 4.79 · 4.66 */
+.c-bubble__sender[data-idhue="6"], .c-bubble__reply[data-idhue="6"] { --sender-label-l: 36%; --reply-label-l: 33%; } /* 4.68 · 4.71 */
+.c-bubble__sender[data-idhue="7"], .c-bubble__reply[data-idhue="7"] { --sender-label-l: 46%; --reply-label-l: 42%; } /* 4.64 · 4.7 */
+.c-bubble__sender[data-idhue="8"], .c-bubble__reply[data-idhue="8"] { --sender-label-l: 55%; --reply-label-l: 55%; } /* 6.67 · 5.83 */
+.c-bubble__sender[data-idhue="9"], .c-bubble__reply[data-idhue="9"] { --sender-label-l: 55%; --reply-label-l: 53%; } /* 5.02 · 4.72 */
+.c-bubble__sender[data-idhue="10"], .c-bubble__reply[data-idhue="10"] { --sender-label-l: 50%; --reply-label-l: 46%; } /* 4.66 · 4.68 */
+.c-bubble__sender[data-idhue="11"], .c-bubble__reply[data-idhue="11"] { --sender-label-l: 53%; --reply-label-l: 48%; } /* 4.62 · 4.68 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="0"], [data-theme="dark"] .c-bubble__reply[data-idhue="0"] { --sender-label-l: 60%; --reply-label-l: 62%; } /* 4.86 · 4.65 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="1"], [data-theme="dark"] .c-bubble__reply[data-idhue="1"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 6.6 · 5.94 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="2"], [data-theme="dark"] .c-bubble__reply[data-idhue="2"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 8.75 · 7.88 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="3"], [data-theme="dark"] .c-bubble__reply[data-idhue="3"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 10.83 · 9.75 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="4"], [data-theme="dark"] .c-bubble__reply[data-idhue="4"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 10.0 · 9.0 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="5"], [data-theme="dark"] .c-bubble__reply[data-idhue="5"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 10.51 · 9.46 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="6"], [data-theme="dark"] .c-bubble__reply[data-idhue="6"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 8.39 · 7.55 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="7"], [data-theme="dark"] .c-bubble__reply[data-idhue="7"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 5.81 · 5.23 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="8"], [data-theme="dark"] .c-bubble__reply[data-idhue="8"] { --sender-label-l: 69%; --reply-label-l: 71%; } /* 4.73 · 4.69 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="9"], [data-theme="dark"] .c-bubble__reply[data-idhue="9"] { --sender-label-l: 64%; --reply-label-l: 67%; } /* 4.67 · 4.73 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="10"], [data-theme="dark"] .c-bubble__reply[data-idhue="10"] { --sender-label-l: 60%; --reply-label-l: 62%; } /* 4.86 · 4.63 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="11"], [data-theme="dark"] .c-bubble__reply[data-idhue="11"] { --sender-label-l: 61%; --reply-label-l: 64%; } /* 4.71 · 4.66 */
+
+/* ★ #1010 (10b): a LIVE tick change fades in (160ms) instead of snapping — setMessageStatus
+   adds the class only outside the load burst. Reduced motion: no animation. */
+/* ⚠ #1012 (Opus r1 M2): NO `to` keyframe and fill `backwards` — a `to { opacity: 1 }` held by fill
+   `both` pinned every live-changed tick at FULL opacity for good, beating the E1 delivered 0.571 /
+   A9 sent 0.7 dims. The animation now runs from 0 to the element's OWN computed value and lets go. */
+@keyframes c-tick-in { from { opacity: 0; transform: scale(0.85); } }
+.c-status-icon[data-enter] { animation: c-tick-in calc(var(--duration-200) * 0.8) var(--easing-standard) backwards;   /* 160ms, from the motion token (0 under reduced motion) */ }
+@media (prefers-reduced-motion: reduce) { .c-status-icon[data-enter] { animation: none; } }
+
+/* ★ #1012 (Opus r1 m1): an EMOJI-ONLY first message has no bubble fill (line ~242), so its sender
+   label sits on the CANVAS, not on white. Solved per anchor against EVERY light ground stop — the
+   brand gradient's three (#CCD0EC · #D0C9EB · #D5C3EB, the BOTTOM one is the darkest) and Mist
+   #ECEEF1 — ≥ 4.6:1 on all four. ★ #1013 (r2 m2): the first cut solved against the top stop only,
+   calling it "the darker"; it is not, and anchors 2/7/9/11 fell to 4.27–4.32 at the bottom. Dark is fine as
+   is: the canvas is darker than the bubble, so the dark table only gains contrast there. */
+:root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="0"] { --sender-label-l: 36%; } /* 4.77 on the brand-gradient bottom · 6.71 on Mist */
+:root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="1"] { --sender-label-l: 30%; } /* 4.71 on the brand-gradient bottom · 6.63 on Mist */
+:root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="2"] { --sender-label-l: 25%; } /* 4.79 on the brand-gradient bottom · 6.74 on Mist */
+:root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="3"] { --sender-label-l: 22%; } /* 4.75 on the brand-gradient bottom · 6.69 on Mist */
+:root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="4"] { --sender-label-l: 23%; } /* 4.76 on the brand-gradient bottom · 6.69 on Mist */
+:root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="5"] { --sender-label-l: 22%; } /* 4.85 on the brand-gradient bottom · 6.83 on Mist */
+:root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="6"] { --sender-label-l: 26%; } /* 4.67 on the brand-gradient bottom · 6.57 on Mist */
+:root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="7"] { --sender-label-l: 33%; } /* 4.67 on the brand-gradient bottom · 6.57 on Mist */
+:root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="8"] { --sender-label-l: 52%; } /* 4.67 on the brand-gradient bottom · 6.57 on Mist */
+:root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="9"] { --sender-label-l: 42%; } /* 4.71 on the brand-gradient bottom · 6.63 on Mist */
+:root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="10"] { --sender-label-l: 36%; } /* 4.70 on the brand-gradient bottom · 6.62 on Mist */
+:root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="11"] { --sender-label-l: 38%; } /* 4.63 on the brand-gradient bottom · 6.52 on Mist */

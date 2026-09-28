@@ -6,7 +6,13 @@
  * external mask URLs fail silently there (see message-bubble.css note).
  *
  * Emits ONE tile:
- *   · Data matrix — synthesized here (no asset): faint grid + clustered dots
+ *   · Contours — synthesized here (no asset): four soft topographic lines per tile
+ *
+ * ★★ #997 (Damir 2026-09-28, the premium polish round): CONTOURS replace the data matrix —
+ *   picked from three candidates rendered on Mist, the brand gradient and the dark canvas
+ *   (constellation · fine lattice · contours). The matrix synth and its URI are RETIRED; a
+ *   stored 'matrix' (or any retired style) falls through to 'contours' in all three pre-paint
+ *   ladders (#690), the same fall-through every earlier retirement used.
  *
  * ★ RETIREMENTS, each on Damir's explicit ruling:
  *   · TRIANGLES synth and the LINE-ART export — E1, 2026-08-29 (#690).
@@ -20,7 +26,7 @@
  *     EMITTED, and the drift guard went with the asset it guarded. The three retired
  *     asset files (chat-bg-doodles.svg · chat-bg-pattern.svg · doodle-pattern-aug.svg)
  *     stay on disk unreferenced unless Damir removes them — deleting artwork is his call.
- *   A stored pref naming ANY retired style falls through to 'matrix' in all three
+ *   A stored pref naming ANY retired style falls through to 'contours' (was 'matrix' until #997) in all three
  *   pre-paint ladders (chat.html head script · chat.html live re-resolve ·
  *   settings.html readChatPrefs — the #690 three-ladder rule), because none of them
  *   matches a block below. Retiring a style silently re-skins whoever chose it, and
@@ -72,26 +78,14 @@ function toDataUri(rawSvg) {
   return `url("data:image/svg+xml,${encoded}")`;
 }
 
-/* —— Data matrix (synthesized — Damir-approved look, W5) ———————————————————
- * 24×24 cells at 12px → 288×288, seamless by construction. Faint grid at every
- * cell boundary; dots snapped to cell centres in two sizes, with a Markov row
- * bias so filled cells cluster into punch-card streaks instead of dissolving
- * into uniform noise. All alpha lives INSIDE the mask, so the grid reads far
- * fainter than the dots under one ink colour.
+/* —— Contours (synthesized — #997, Damir's pick) ——————————————————————————————
+ * 320×240. Four soft 0.6px lines per tile; each is a sum of two x-PERIODIC sines (period =
+ * the tile width, so the tile is seamless horizontally) and stays inside its own 60px band
+ * (amplitude ≤ 18 + 6.3 < 30, so no line crosses the top or bottom edge — seamless
+ * vertically by construction). All alpha lives INSIDE the mask (stroke-opacity .7), so the
+ * ink token alone decides the colour. Deterministic PRNG: byte-identical on every machine.
  */
-const MATRIX = {
-  cells: 24,
-  cell: 12,
-  gridWidth: 0.6,
-  gridAlpha: 0.16,
-  pFillAfterFilled: 0.62,   // Markov: left neighbour filled
-  pFillAfterEmpty: 0.3,
-  pBig: 0.45,
-  rBig: 1.7,
-  rSmall: 0.9,
-  smallAlpha: 0.55,
-  seed: 11,
-};
+const CONTOURS = { w: 320, h: 240, lines: 4, amp: 18, lineW: 0.6, lineAlpha: 0.7, step: 8, seed: 3 };
 
 // deterministic PRNG — the tile must be byte-identical on every machine
 function mulberry32(a) {
@@ -102,59 +96,30 @@ function mulberry32(a) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const num = (v) => String(Math.round(v * 1000) / 1000);   // trim float noise
+const num = (v) => String(Math.round(v * 100) / 100);   // trim float noise
 
-function buildMatrixSvg() {
-  const { cells, cell, gridWidth, gridAlpha } = MATRIX;
-  const size = cells * cell;
-  const rnd = mulberry32(MATRIX.seed);
-  const half = gridWidth / 2;
-  const parts = [];
-
-  // grid — one rect per boundary. The i=0 boundary is drawn as TWO half-lines
-  // (leading edge + trailing edge) so a repeated tile joins into one full-width
-  // line instead of a half-width seam.
-  const gridRects = [];
-  for (let i = 0; i < cells; i++) {
-    const p = i * cell;
-    if (i === 0) {
-      gridRects.push(`<rect x='0' y='0' width='${num(half)}' height='${size}'/>`);
-      gridRects.push(`<rect x='${num(size - half)}' y='0' width='${num(half)}' height='${size}'/>`);
-      gridRects.push(`<rect x='0' y='0' width='${size}' height='${num(half)}'/>`);
-      gridRects.push(`<rect x='0' y='${num(size - half)}' width='${size}' height='${num(half)}'/>`);
-    } else {
-      gridRects.push(`<rect x='${num(p - half)}' y='0' width='${num(gridWidth)}' height='${size}'/>`);
-      gridRects.push(`<rect x='0' y='${num(p - half)}' width='${size}' height='${num(gridWidth)}'/>`);
+function buildContoursSvg() {
+  const o = CONTOURS;
+  const rnd = mulberry32(o.seed);
+  const d = [];
+  const band = o.h / o.lines;
+  for (let i = 0; i < o.lines; i++) {
+    const y0 = band * i + band / 2;
+    const p1 = rnd() * Math.PI * 2, p2 = rnd() * Math.PI * 2;
+    const a1 = o.amp * (0.55 + rnd() * 0.45), a2 = o.amp * 0.35 * rnd();
+    let path = '';
+    for (let x = 0; x <= o.w; x += o.step) {
+      const y = y0 + a1 * Math.sin((2 * Math.PI * x) / o.w + p1) + a2 * Math.sin((4 * Math.PI * x) / o.w + p2);
+      path += (x ? 'L' : 'M') + num(x) + ' ' + num(y);
     }
+    d.push(path);
   }
-  parts.push(`<g fill='black' fill-opacity='${gridAlpha}'>${gridRects.join('')}</g>`);
-
-  // dots — Markov run-bias per row (the punch-card streaks)
-  const big = [];
-  const small = [];
-  for (let y = 0; y < cells; y++) {
-    let prevFilled = false;
-    for (let x = 0; x < cells; x++) {
-      const p = prevFilled ? MATRIX.pFillAfterFilled : MATRIX.pFillAfterEmpty;
-      const filled = rnd() < p;
-      prevFilled = filled;
-      if (!filled) continue;
-      const cx = num(x * cell + cell / 2);
-      const cy = num(y * cell + cell / 2);
-      if (rnd() < MATRIX.pBig) big.push(`<circle cx='${cx}' cy='${cy}' r='${MATRIX.rBig}'/>`);
-      else small.push(`<circle cx='${cx}' cy='${cy}' r='${MATRIX.rSmall}'/>`);
-    }
-  }
-  parts.push(`<g fill='black'>${big.join('')}</g>`);
-  parts.push(`<g fill='black' fill-opacity='${MATRIX.smallAlpha}'>${small.join('')}</g>`);
-
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" `
-    + `fill="none" xmlns="http://www.w3.org/2000/svg">${parts.join('')}</svg>`;
+  return `<svg width="${o.w}" height="${o.h}" viewBox="0 0 ${o.w} ${o.h}" fill="none" xmlns="http://www.w3.org/2000/svg">`
+    + `<path d='${d.join('')}' stroke='black' stroke-opacity='${o.lineAlpha}' stroke-width='${o.lineW}' stroke-linejoin='round'/></svg>`;
 }
 
-
-const matrixSize = MATRIX.cells * MATRIX.cell;
-const matrixUri = toDataUri(buildMatrixSvg());
+const contoursSize = `${CONTOURS.w}px ${CONTOURS.h}px`;
+const contoursUri = toDataUri(buildContoursSvg());
 
 /* —— Emit ————————————————————————————————————————————————————————————————— */
 const css = `/* GENERATED by scripts/generate-chat-pattern.mjs — DO NOT EDIT.
@@ -164,31 +129,32 @@ const css = `/* GENERATED by scripts/generate-chat-pattern.mjs — DO NOT EDIT.
    W5 style contract — the active tile rides INHERITED custom properties, so
    one \`data-chat-pattern\` attribute works BOTH on :root (the app-wide pref,
    set pre-paint) and on a single .c-chat-canvas (the settings swatch tiles):
-     --chat-pattern-uri   the mask image        (data matrix)
+     --chat-pattern-uri   the mask image        (contours)
      --chat-pattern-size  its tile size
      --chat-pattern-tile  block | none
 
-   Source: data matrix — synthesized in the generator (${matrixSize}×${matrixSize}, seed ${MATRIX.seed})
+   Source: contours — synthesized in the generator (${CONTOURS.w}×${CONTOURS.h}, seed ${CONTOURS.seed})
    ★ RETIRED: triangles and line art (E1, 2026-08-29); doodles and Live flow (#835,
-     2026-09-09); the doodles URI itself (#866, Session W — 233 KB nothing could select).
+     2026-09-09); the doodles URI itself (#866, Session W — 233 KB nothing could select);
+     the DATA MATRIX (#997, 2026-09-28 — replaced by contours, Damir's pick).
    Re-run: node scripts/generate-chat-pattern.mjs */
 :root {
-  --chat-pattern-uri-matrix: ${matrixUri};
-  --chat-pattern-size-matrix: ${matrixSize}px ${matrixSize}px;
+  --chat-pattern-uri-contours: ${contoursUri};
+  --chat-pattern-size-contours: ${contoursSize};
 
-  /* ★★ #835 default style = DATA MATRIX (Damir, 2026-09-09: "we will remove the dodole and
-     just keep matrix and no pattern canvas"). An absent pref resolves HERE, and so does a
-     pref naming any retired style — 'triangles' and 'lineart' (#690), 'doodles' and 'flow'
-     (#835) — because none of them matches a block below. That fall-through is what stops a
-     device that stored a retired style from rendering nothing; all three pre-paint ladders
-     (#690) also normalise the value on read, so the two mechanisms agree. */
-  --chat-pattern-uri: var(--chat-pattern-uri-matrix);
-  --chat-pattern-size: var(--chat-pattern-size-matrix);
+  /* ★★ #997 default style = CONTOURS (Damir, 2026-09-28). An absent pref resolves HERE, and so
+     does a pref naming any retired style — 'matrix' (#997), 'triangles' and 'lineart' (#690),
+     'doodles' and 'flow' (#835) — because none of them matches a block below. That
+     fall-through is what stops a device that stored a retired style from rendering nothing;
+     all three pre-paint ladders (#690) also normalise the value on read, so the two
+     mechanisms agree. */
+  --chat-pattern-uri: var(--chat-pattern-uri-contours);
+  --chat-pattern-size: var(--chat-pattern-size-contours);
   --chat-pattern-tile: block;
 }
-[data-chat-pattern='matrix'] {
-  --chat-pattern-uri: var(--chat-pattern-uri-matrix);
-  --chat-pattern-size: var(--chat-pattern-size-matrix);
+[data-chat-pattern='contours'] {
+  --chat-pattern-uri: var(--chat-pattern-uri-contours);
+  --chat-pattern-size: var(--chat-pattern-size-contours);
   --chat-pattern-tile: block;
 }
 /* ★ #835 retired the [data-chat-pattern='doodles'] and ='flow' blocks with their styles;
@@ -207,4 +173,4 @@ const css = `/* GENERATED by scripts/generate-chat-pattern.mjs — DO NOT EDIT.
 
 writeFileSync(OUT, css);
 console.log(`✓ ${OUT} written (${(css.length / 1024).toFixed(1)} KB)`);
-console.log(`  data matrix ${matrixSize}×${matrixSize}   ${(matrixUri.length / 1024).toFixed(1)} KB   ★ the one tile`);
+console.log(`  contours ${CONTOURS.w}×${CONTOURS.h}   ${(contoursUri.length / 1024).toFixed(1)} KB   ★ the one tile (#997)`);

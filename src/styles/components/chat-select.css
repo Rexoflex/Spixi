@@ -20,7 +20,10 @@
 [data-selecting] .c-bubble-row .c-bubble-retry,
 [data-selecting] .c-bubble-row .c-reactions__pill,
 [data-selecting] .c-bubble-row .c-bubble__link,
-[data-selecting] .c-bubble-row .c-mbubble { pointer-events: none; }
+[data-selecting] .c-bubble-row .c-mbubble,
+/* ★ #1013 (r2 m4): the #996 pill's stretched Details button and the #1006 call-back disc */
+[data-selecting] .c-bubble-row .c-tcard__hit,
+[data-selecting] .c-bubble-row .c-tcard__call-back { pointer-events: none; }
 /* W9-④ (Damir, Windows F5): while a DESKTOP drag is ranging over rows, native
    text selection must not fight it — the browser would paint a text highlight
    across every bubble the pointer crosses. Scoped to the live gesture

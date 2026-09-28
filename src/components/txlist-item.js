@@ -27,6 +27,68 @@ const BADGES = {
   unknown: { type: 'info', glyph: 'hourglass-empty', label: 'Unknown', key: 'txUnknown' },
 };
 
+/* ★★ #1008 (U-04, Damir 2026-09-28): in a narrow desktop list pane the status badge and the
+ * date shared one line and BOTH ellipsized ("Pen…", "Sep 25, 11…"). Measure, don't guess
+ * (the #278 approach): ONE shared ResizeObserver watches every meta line that carries a
+ * badge; when the line cannot hold the badge's full word AND the whole date, it flips
+ * `data-compact` and the badge shows its icon only — the word stays in the accessible
+ * name (the label is visually hidden, not removed) and in `title`. It flips back once the
+ * line is wide enough for the FULL pair again (the width recorded at the flip, so there is
+ * no flicker at the boundary). No ResizeObserver (old engine) = today's behaviour. */
+let txMetaRO = null;
+function txMetaFit(meta) {
+  const label = meta.querySelector('.c-badge__label');
+  const time = meta.querySelector('.c-txlist-item__time');
+  if (!label) return;
+  const avail = meta.clientWidth;
+  if (!avail) return;                                      // detached / display:none — skip
+  if (meta.dataset.compact !== undefined) {
+    if (avail >= (Number(meta.dataset.fullWidth) || Infinity)) {
+      delete meta.dataset.compact;
+      const bd = label.closest('.c-badge');
+      if (bd) bd.removeAttribute('title');   // the word is visible again — no duplicate announcement (r1 NIT)
+    }
+    return;
+  }
+  const clipped = label.scrollWidth > label.clientWidth + 1 || (time && time.scrollWidth > time.clientWidth + 1);
+  if (!clipped) return;
+  const badge = label.closest('.c-badge');
+  const gap = parseFloat(getComputedStyle(meta).columnGap) || 0;
+  const need = badge.offsetWidth + (label.scrollWidth - label.clientWidth) + (time ? gap + time.scrollWidth : 0);
+  meta.dataset.fullWidth = String(Math.ceil(need));
+  meta.dataset.compact = '';
+  badge.title = label.textContent;   // the word for the pointer while only the icon shows
+}
+/* ⚠ #1012 (Opus r1 m3): the wallet list is torn down and rebuilt on every flush, and ONE
+   module-level observer would keep every detached meta reachable on engines that do not drop
+   them. Every observed line is tracked and the DISCONNECTED ones are unobserved on each batch
+   and on each new watch — growth is bounded by one render's worth of rows. */
+/* ⚠ Only a line that has BEEN attached (seen connected in a callback) is swept: rows are
+   CREATED before the list appends them, so "not connected yet" must not read as "torn down". */
+/* ★ #1013 (r2 n3): a row CREATED and never appended was never "seen", so it stayed observed for
+   ever. Each watch is stamped; an unseen line still detached TX_META_GRACE_MS after its watch is
+   dropped too — a list builds and attaches its rows in one task, far inside the grace. */
+const TX_META_GRACE_MS = 5000;
+const txMetaWatched = new Map();   // meta → watch time
+const txMetaSeen = new WeakSet();
+const txNow = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
+function sweepTxMeta() {
+  const now = txNow();
+  for (const [m, at] of txMetaWatched) {
+    if (!m.isConnected && (txMetaSeen.has(m) || now - at > TX_META_GRACE_MS)) { txMetaRO.unobserve(m); txMetaWatched.delete(m); }
+  }
+}
+function watchTxMeta(meta) {
+  if (!txMetaRO && typeof ResizeObserver !== 'function') return;
+  if (!txMetaRO) txMetaRO = new ResizeObserver((entries) => {
+    for (const e of entries) { if (e.target.isConnected) txMetaSeen.add(e.target); txMetaFit(e.target); }
+    sweepTxMeta();
+  });
+  sweepTxMeta();
+  txMetaWatched.set(meta, txNow());
+  txMetaRO.observe(meta);
+}
+
 export function createTxItem({
   txid = '', direction = 'out', status = 'confirmed',
   name = '', timestamp, timeText, amount = '', fiat = '', onClick, strings = getStrings(),
@@ -61,9 +123,9 @@ export function createTxItem({
   row2.className = 'c-txlist-item__meta';
   const b = BADGES[status];
   if (b) {
-    row2.append(createBadge({
-      label: strings[b.key] || b.label, type: b.type, weight: 'tonal', icon: b.glyph,
-    }));
+    const word = strings[b.key] || b.label;
+    const badge = createBadge({ label: word, type: b.type, weight: 'tonal', icon: b.glyph });
+    row2.append(badge);   // ★ #1008: `title` is set only while the chip is icon-only (txMetaFit) — never beside a visible word
   }
   const timeStr = (timeText != null && timeText !== '')
     ? timeText
@@ -76,6 +138,7 @@ export function createTxItem({
   }
   content.append(row2);
   el.append(content);
+  if (b) watchTxMeta(row2);
 
   const right = document.createElement('span');
   right.className = 'c-txlist-item__amounts';

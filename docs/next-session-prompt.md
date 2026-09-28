@@ -1,14 +1,21 @@
-THE OFFICE WALK after the card reskin + polish round.
+OVERNIGHT, UNATTENDED, CLOUD-ONLY — finalize the FE work left after the Mac + iPhone walk.
 
-0 · Read `docs/handoff-2026-09-28c.md` FIRST, then DECISIONS #996–#1025. `git pull`; confirm `03bd05c2` and the
-session-close docs commit are there (`git log --oneline -5`). If the Windows (F5) or Android build fails, that error is the first bug.
+0 · Clone `https://github.com/Rexoflex/Spixi` branch `redesign/frontend` (HEAD must be 8cc96656) and
+`https://github.com/ixian-platform/Ixian-Core` at 097341a as a SIBLING folder. `npm i --no-save jsdom eslint globals`.
+Run the full pipeline + `node scripts/smoke-test.mjs` → expect BASELINE OK 4952 / the 2 KNOWN. Record the number.
 
-1 · Walk `docs/walk-993-retest.md` (R.1–R.17 + P.1–P.23) on iPhone 15 + Mac, Windows/Android sanity. Bring the
-`[M5]` / `[M6]` log lines back verbatim.
+1 · Read `docs/handoff-2026-09-29.md` FIRST, then DECISIONS #1016–#1027 and
+`docs/walk-verdict-mac-ios-2026-09-28.md`. Work the plate in the handoff's order: A (walk fails) → B (notes)
+→ C (dials, render + pick + record) → D (release-readiness §3, verify each row before building) → E (record only).
 
-2 · Fix round on the walk's F rows. Each fix: render proof, a pin, a mutation that turns it red. Full pipeline +
-smoke (baseline 4952 / the 2 KNOWN); compare the delta (#895). Open dials first if Damir rules them:
-M3/M4/M5 contrast (#1022/#1024), the Canvas arrow keys (#205). Chat pattern stays CONTOURS (#1025). Opus #46 loop until CLEAN.
+2 · Each change: render proof (both themes, phone + desktop where it applies), a pin, a one-token mutation that
+turns it red, full pipeline, smoke delta. New verbs/storage/log lines → `docs/security-handover-gate.md` row FIRST.
+C# you touch is UNCOMPILED here — say so per file. Opus #46 loop (3 auditors → fixes → a fresh break-my-verdict
+reviewer) until CLEAN; write the verdict into a brief.
 
-Rules #215 · #294 · #660 · #663 · #771 · #772 · #798 · #811 · #895. Chat replies in ASD-STE100 (#931).
-Never `git add -A`. Commit and push are Damir's.
+3 · Nobody is there to answer: make the reasonable call, record it as a DECISIONS row, list every open dial at the
+end. Do not stop on a question.
+
+4 · Deliver: `git format-patch 8cc96656..HEAD` + a tarball of changed files + SHA256 list via SendUserFile; a walk
+sheet artifact for the next device day (Mac · iPhone · Android · Windows); updated handoff + CLAUDE.md row +
+next-session prompt. Do not push (the proxy refuses it). Chat replies in ASD-STE100 (#931).

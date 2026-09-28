@@ -405,6 +405,15 @@ Same class as the `..`-traversal on downloads that #266 closed in
 
 ---
 
+### ⚠ CORE-15 — a failed decryption may let a forged message show under a contact's name (pre-launch audit, 2026-09-27; INHERITED Core; a QUESTION first)
+
+`CoreStreamProcessor.receiveData` returns only when decryption fails for a `Temporary` friend. For every
+other contact it continues and parses the undecrypted bytes, and the "must be encrypted" guard does not fire
+because the claimed type is not `none`. With `spixi2` the AEAD key is the only proof of the sender, so this
+could let anyone who can reach the device post text, requests or deletes under a friend's name. Full row,
+evidence and ask in `be-cutover-brief.md` **CORE-15**; it is on the § Blockers list pending your two-node test.
+The fix is one `return null`.
+
 # ★★ A1 · THE WALLET PASSWORD IS STORED IN CLEARTEXT — BE ROW (Damir, 2026-08-31)
 
 **Ruled BE by Damir:** *"wallet password is for BE engineer, we are just focusing on FE

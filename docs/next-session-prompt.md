@@ -1,20 +1,24 @@
-THE OFFICE FIX ROUND — MORNING: apply, compile, walk, commit (Damir present).
+THE #991 FIX ROUND — Windows session (Damir present).
 
-0 · Read `docs/handoff-2026-09-25.md` FIRST, then `docs/f5-checklist-office-fix.md`. Confirm the tree carries
-the office-fix commits (#974–#988) on top of `c97c94cd` — `git log --oneline -10`. If not, Damir applies
-`office-fix-patches/` with `git am` from patch 0002 (0001 is the prompt commit, already on GitHub).
+0 · Read `docs/handoff-2026-09-28.md` FIRST, then DECISIONS #989–#992. `git pull`; confirm the tip is
+`28551643` (#992) or later — `git log --oneline -5`.
 
-1 · The first compile of this round is Damir's (12 C# files + 2 new). A build error is this round's bug:
-take the error text verbatim, fix the smallest thing, re-run `cs-syntax-check` and the office-fix pins.
-Watch first: `global::CoreFoundation.OSLog` in `Spixi-PushService/SpixiPushGate.cs` (r1 MAJOR — a bare
-`OSLog` is CS0118) and `UNUserNotificationCenter.SetBadgeCount` in `Platforms/MacCatalyst/SPushService.cs`.
+1 · If the Windows (F5) or Android build fails, that error is the first bug: take the text verbatim, fix the
+smallest thing, re-run `cs-syntax-check`.
 
-2 · The walk: `docs/walk-artifact-office-fix.html` (23 rows). Console.app with `spush` for iO.5 / iO.11 —
-read the `[SPUSH]` and `[SPUSH-APP]` lines against the table in DECISIONS #974 BEFORE any iO.11 fix (#294).
+2 · Fix, in order: **M7** short-log gap behind the composer → **F1** first item focused on sheet open →
+**N2b** Create group CTA above the keyboard → **M6** Mac title-bar hairline → **M5** Mac paste in
+add-contact (diagnose with a log line first, #294) → **T1** remove the bubble tail (the dark hairline
+cannot follow it) and use a small radius in that corner — ask Damir first: dark only or both themes. Each fix: a render or jsdom proof, a pin, a mutation
+that turns the pin red. Full pipeline + smoke before each commit; compare the delta, not the number (#895).
 
-3 · The fix round for what the walk finds. Then, unchanged: the read-only code-review phases
-(`docs/audit-refactor-plan.md`) → freeze → strip → gate re-run → TestFlight (#916/#933).
+3 · Write a short walk list for the office re-test (M5/970.6, M6, M7, F1, N2b + dark/light pass).
+Record the round in DECISIONS (#993+).
+
+Then, not this session: office test → code review (`docs/audit-refactor-plan.md`) → freeze → strip (#933)
+→ gate re-run → TestFlight (#916). Before the release build: `maxLogCount` 5 → 1.
 
 NOT this session: L6 · batch 4 · the memory kill · the translator pass · CORE-9…13 · server-side mute.
 
 Rules #215 · #294 · #660 · #663 · #771 · #772 · #798 · #811 · #895 · #943. Chat replies in ASD-STE100 (#931).
+Never `git add -A`. Commit and push are Damir's.

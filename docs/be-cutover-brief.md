@@ -622,6 +622,93 @@ Any UI-thread reader taking that lock (ContactDetails' roster snapshot) can bloc
 one file write at the 500-contact cap. Ask: move the write outside the lock (serialise
 under the lock into memory, write after).
 
+## From the 2026-09-27 pre-launch engineering audit — Ixian-Core rows
+
+Found in the read-only audit of 2026-09-27 (tracked with status and notes on the "Spixi Pre-Launch
+Audit" page, ids in brackets). All four are **INHERITED** Core code at `097341a`; none was introduced
+by the redesign. CORE-14 was **observed** by Damir in a Debug session; the other three come from reading
+the code and need a test on his side before anyone acts on them.
+
+**CORE-14 (audit C-06, OBSERVED 2026-09-27) · `RemoteEndpoint.sendData` updates its dedup sets from
+several threads with no lock.** Damir's Visual Studio broke on
+`System.InvalidOperationException: Operations that change non-concurrent collections must have exclusive
+access … corrupted its state` at `Network/NetworkRemoteEndpoint.cs:793` (`TryCheckDuplicateMessage`).
+Call stack: `CoreStreamProcessor.fetchFriendsPresence` (the `Task.Run` lambda, `:3042`) →
+`StreamClientManager.sendToClient:125` → `NetworkClientManagerBase.sendToClient:999` →
+`RemoteEndpoint.sendData:754 → :843` → `TryCheckDuplicateMessage:793` → `HashSet<long>.Contains`.
+- `recentIds`/`recentIdsSet` (`:101-102`) and `requestedIds`/`requestedIdsSet` (`:105-106`) are a plain
+  `Queue<long>` and `HashSet<long>`. `sendData` is public and has about 34 call sites (UI thread, the node
+  main loop, the stream processor, the endpoint's own loops). `parseLoop` also reads and removes from
+  `requestedIdsSet` on its own task (`:672`, `:681`), and removes only from the set, never the queue.
+- Why it is likely, not rare: `fetchAllFriendsPresences` (`:2999`) calls `fetchFriendsPresence` once per
+  contact in the same sector, and each call is its own `Task.Run` (`:3005`) that sends `getPresence2` to the
+  same sector node. A batch of tasks enters `sendData` on one endpoint together.
+- Effect: on this path the exception stays inside the Task (no try in the lambda), so the fetch dies and the
+  app only logs an unobserved-task exception; a contact may look offline for longer. The larger risk is that
+  **the corrupted set stays corrupted**: the next `sendData` on that relay (for example a chat send from the
+  UI thread) can throw too, and that caller may not catch it.
+- `TryCheckDuplicateMessage` exists only to log a warning (comment at `:845`), so the failure comes from
+  diagnostic code.
+- **Ask:** one private lock object around both helpers and the `parseLoop` access (or keep the send-side
+  duplicate check in Debug builds only), and remove the id from `requestedIds` when `parseLoop` removes it
+  from the set. Add a test that calls `sendData` from several threads at once. About 30 minutes.
+- Same pass, smaller: `fetchAllFriendsPresences` iterates `FriendList.friends` with no lock (`:2986`), and
+  one task per contact is more work than one batched loop.
+
+**CORE-15 (audit S-01, SECURITY, a QUESTION first) · a failed decryption does not stop `receiveData`.**
+`CoreStreamProcessor.receiveData`, the block after `// decrypt the message if necessary` (about `:727-755`):
+when `message.decrypt(...)` returns false, only a `FriendType.Temporary` friend gets a retry and a
+`return null`. For every other contact there is no return, so processing continues and
+`new SpixiMessage(message.data)` parses the bytes that failed to decrypt. The "must be encrypted" guard only
+fires for `encryptionType == none`, so a message that claims `spixi2`, carries a plain SpixiMessage in
+`data`, and names one of the user's contacts as `sender` passes it. The chat case then returns a response
+and Spixi shows the text under that contact's name. docs.ixian.io (StreamMessage envelope) says the
+signature is not used for `spixi2`, so the AEAD key is the only proof of the sender. `NetworkProtocol` hands
+`s2data` from any endpoint straight to `receiveData`, and `OfflinePushMessages` replays through the same
+path. Upstream master has the same block.
+- **Ask:** confirm with a two-node test whether a forged message shows. If it does, add `return null` (with a
+  log line) after the Temporary retry for every failed decryption, and a Core unit test that feeds a `spixi2`
+  message with a bad payload. The fix is one line; the test is the point.
+- Treat as a **blocker** until the test says otherwise (listed in § Blockers below).
+
+**CORE-16 (audit S-05) · an unauthenticated `StreamMessageCode.error` marks any contact offline.**
+`receiveData`, `if (message.type == StreamMessageCode.error)` (about `:717`), runs before decryption or any
+sender check: it removes the contact's presence entry, clears `relayNode`, and sets `online = false`. The
+code already carries a TODO about spoofing. If the contact is unknown, `friend.walletAddress` throws (caught
+and logged). **Ask:** accept the error only from the relay that serves that contact, and null-check `friend`.
+
+**CORE-17 (audit S-03 root, a DECISION) · Core accepts any `tip:` reaction with no link to a transaction.**
+`Friend.addReaction` accepts `tip:`, `like:`, `received:`, `seen:` and `fileReceived:` up to 32 characters
+from any member. Since C6 (Session AD) the app sums the amounts in `tip:<amount>` tokens and shows
+"Tipped N IXI", so a peer can display any amount without paying. The app-side fix (count only, or verify
+against the user's own activity store) is ours and does not need Core. **Question for BE:** should Core
+bind a received `tip:` reaction to a transaction id it can verify, or should the app treat tip amounts as
+untrusted display text for good?
+
+## Voice messages — two questions for v1.1 (added 2026-09-28, Damir: out of scope for v1.0)
+
+Voice messages are planned for **v1.1, not v1.0**. The composer already carries a flagged, hidden mic slot
+(DECISIONS #64). The older §8 proposal in `ARCHITECTURE.md` rides the **file-transfer** pipeline; that
+path only works while BOTH apps are open (a direct transfer, "Keep Spixi open until the transfer
+completes"), so a voice note would not reach an offline contact and would not survive the sender closing
+the app. The preferred design is to send a voice note as a **message**, so it gets the relay/offline queue,
+push and history that text already has. A voice note is small: 1 minute of Opus at 16–24 kbit/s is about
+120–180 KB, capped at 2–3 minutes. Recording would be native in C# (no microphone access for the WebView).
+Two answers are needed before any build starts:
+
+**VN-1 · a voice message TYPE.** Can Core add a `SpixiMessageCode` for a voice note (encrypted audio bytes
++ duration + codec), handled like `chat` for storage, delivery receipts, push and the offline queue?
+Or is there an existing type we should reuse? An older client should show a readable fallback ("Voice
+message — update Spixi to play") rather than garbage.
+
+**VN-2 · the SIZE limit on the offline path.** What is the largest message the push server (`ipn.ixian.io`),
+the offline/pending queue and the S2 relays accept today? Avatar messages up to 500 KB already exist on the
+direct path; we need to know whether ~200 KB is safe when the recipient is OFFLINE, and whether a larger
+payload is chunked, rejected or silently dropped. This sets the maximum voice-note length.
+
+Not a question, for context: large FILES stay on the direct transfer. Downloading while the app is fully
+closed (especially on iOS) would need encrypted server-side file storage — a separate, later project.
+
 ---
 
 # § Blockers — the rows a public build should not ship with
@@ -629,7 +716,7 @@ under the lock into memory, write after).
 Written 2026-09-06 at the state verification. `docs/release-readiness.md` §1 said "the 13 rows
 `be-cutover-brief.md` classes as blockers" and named eight of them. **That set was never
 enumerated in this file.** It is enumerated here, and every row was re-checked against the tree.
-The true count is **15**. `release-readiness.md` was re-synced to 15 on the same day.
+The true count is **15**. `release-readiness.md` was re-synced to 15 on the same day. ⚠ **17 since 2026-09-27:** the pre-launch audit added CORE-14 (observed) and CORE-15 (pending his test); `release-readiness.md` still says 15.
 
 ⚠ Read this with `docs/security-review-for-be-engineer.md`. Some blockers are security rows and
 live there in full; this table is the index, not the evidence.
@@ -651,6 +738,8 @@ live there in full; this table is the index, not the evidence.
 | **MAJOR #9 (Android)** — `OnPermissionRequest` auto-grants mic and camera to every WebView | **YES** | Inherited, unchanged. ⚠ The 2026-09-06 sweep found the iOS twin was OURS and it has been fixed in that batch; the Android one is his. |
 | **#234** — the resume / privacy lock shows Cancel, and Cancel unlocks | **YES** | Confirmed on device. A lock bypass on a self-custodial wallet. |
 | **H-6 (NEW)** — a mini-app names a file and the app TRUNCATES it | **YES — ⚠ ADDED at this verification** | `MiniAppStorage.writeStorageData` does `File.Open(Path.Combine(appStoragePath, table), FileMode.Create)` where `table` is the free JSON field `t` from the mini-app. `t = "../../wallet.ixi"` destroys the wallet. Inherited, unfiled until now — full row in `security-review-for-be-engineer.md`. |
+| **CORE-14 (NEW 2026-09-27)** — `RemoteEndpoint.sendData` corrupts its dedup sets under parallel sends | **YES — observed** | Damir hit the `InvalidOperationException` in a Debug run (presence-fetch tasks racing on one relay). A corrupted set can make later sends on that connection throw. Small Core lock fix. |
+| **CORE-15 (NEW 2026-09-27)** — a failed decryption does not stop `receiveData` | **YES, pending his test** | Read at `097341a`: no `return` after a failed decrypt for a non-Temporary contact, so a forged plaintext message could show under a contact's name. Needs his two-node test first; the fix is one line. |
 
 ## Rows that were on the blocker list and are NOT any more
 
@@ -813,7 +902,7 @@ branch, not by a bare line number (rule #773 — a line number rots).
 | AV1 avatar history · AND-15-BE payload typing | OPEN — dials, not defects |
 | RC1 cancel family | OPEN — `SpixiMessage` at `097341a` has no withdraw code |
 | N-BADGE · N-LOCALTAP | OPEN — both correctly filed as "cannot be fixed in the app" |
-| CORE-1 … CORE-13 · APP-1 · CORE-7b · the membership question | OPEN — CORE-13 (a receipt for a removed contact + left group NREs in `receiveData`, caught and logged; the Debug "freeze", #938) added 2026-09-23. CORE-12 (group typing fan-out, #935) added 2026-09-23. Ixian-Core is frozen at `097341a`. CORE-9 (tombstoned deletes, #907) added 2026-09-19 with an app-side workaround. CORE-1 re-read and confirmed: `kickUser` and `banUser` are still `return true;` |
+| CORE-1 … CORE-17 · APP-1 · CORE-7b · the membership question | OPEN — CORE-14…17 added 2026-09-27 from the pre-launch audit (CORE-14 observed in Debug: `sendData` dedup-set race; CORE-15 decrypt fall-through, a blocker pending his test; CORE-16 error-message spoof; CORE-17 tip reactions have no transaction link). CORE-13 (a receipt for a removed contact + left group NREs in `receiveData`, caught and logged; the Debug "freeze", #938) added 2026-09-23. CORE-12 (group typing fan-out, #935) added 2026-09-23. Ixian-Core is frozen at `097341a`. CORE-9 (tombstoned deletes, #907) added 2026-09-19 with an app-side workaround. CORE-1 re-read and confirmed: `kickUser` and `banUser` are still `return true;` |
 
 **Coverage: 116 of 116 rows checked against the tree** — 106 table and bullet rows, plus the ten
 prose rows (`PA1`, `CORE-1`…`CORE-8`, `CORE-7b`, and the membership question). `release-readiness.md`

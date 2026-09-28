@@ -22,6 +22,7 @@
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
+import { copyText } from './clipboard.js';   // ★ #993: the shared copy with the file:// fallback
 import { anchorSheetToRow } from './desktop-anchors.js';   // ★ Batch E (a) (#557): mobile anchored dropdown
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
@@ -67,7 +68,7 @@ export function openMessageMenu({
     closeSheet(sheet);
     if (action === 'copy' && !onAction) {
       // JS-side default (§5b); shells may override via onAction
-      if (navigator.clipboard && text) navigator.clipboard.writeText(text).catch(() => {});
+      copyText(text);   // ★ #993: was the async API alone — a no-op on a file:// WKWebView
       return;
     }
     if (onAction) onAction(action, arg);

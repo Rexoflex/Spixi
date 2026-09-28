@@ -529,6 +529,28 @@ namespace SPIXI
 
             this.BackgroundColor = pageSurfaceColor;
 #endif
+#if MACCATALYST
+            /* ★ #993 (M6) DIAGNOSTIC (#294): the title-bar hairline is drawn by the shells at
+             * y = --safe-top (base.css) and is ZERO tall when that inset is 0. Whether the Mac
+             * WebView really sits under the transparent title bar is a device fact. Logged when the
+             * value CHANGES, not once (review: the first pass can run staged off-screen, where the
+             * inset reads ZERO — see the comment above applyPlatformPageChrome). A number, no page
+             * or user data. A steady `top=0` on screen = the native title bar sits ABOVE the
+             * WebView, the CSS line stays 0 px and the fix is native. */
+            if (hasGeneratedContent)
+            {
+                try
+                {
+                    double macTop = this.On<iOS>().SafeAreaInsets().Top;
+                    if (macTop != lastMacTitlebarInset)
+                    {
+                        lastMacTitlebarInset = macTop;
+                        Logging.info("[M6] mac safe-area top=" + macTop);
+                    }
+                }
+                catch (Exception e) { Logging.warn("[M6] mac safe-area read failed: " + e.GetType().Name); }
+            }
+#endif
 #if ANDROID
             /* ★ N73 (#391): repaint the system-bar strip for THIS page. On Android the
              * visible status/nav strip is the activity root background (both bars are
@@ -804,6 +826,9 @@ namespace SPIXI
 
         private static readonly object preloadLock = new object();
         private static PreloadOp? activePreload = null;
+#if MACCATALYST
+        private static double lastMacTitlebarInset = -1;   // ★ #993 (M6): the diagnostic above logs on change
+#endif
         private static bool preloadPending = false;   // reserved between the tap and staging
 
         /* ★★ #46 loop MAJOR-3 on #507 — THE LOCK STAGING WINDOW OPENS BEFORE `activePreload`.

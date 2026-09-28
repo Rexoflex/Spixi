@@ -63,6 +63,7 @@ import { createQrSvg } from './qr.js';                     // #303: setQrValue i
 import { createSheet, openSheet, closeSheet } from './sheet.js';   // #527: the address moved into a bottom sheet · r2: closeAddressSheet
 import { sanitizeAmount, canonicalAmount, amountInputToCanonical, attachAmountPreEdit, groupAmountDisplay, amountCaretAfterFormat } from './money.js';   // #143 shared money module · ★ I-6 (#360) display grouping
 import { icon } from './icons.js';
+import { copyText } from './clipboard.js';   // ★ #993: the shared copy with the file:// fallback
 import { createContactRow, setContactRowChecked } from './contact-row.js';   // ★ W-j: the shared directory row
 import { attachAmountKeyboardDismiss } from './amount-keyboard.js';             // ★ W-k: Enter/Next/Go drops the keyboard
 // F5-5 ③ (#556): the discGrad import is gone with the explainer disc — one glyph level now
@@ -557,14 +558,9 @@ export function openAddressSheet({ address = '', strings = getStrings(), host, o
   copy.addEventListener('click', () => {
     // ✓ only when the write actually resolved — this is a payment address, a false
     // "Copied" is a money-adjacent lie (audit m1)
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(address).then(
-        () => copyMorph('check', strings.txCopied || 'Copied'),
-        () => copyMorph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead'),
-      );
-    } else {
-      copyMorph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead');
-    }
+    copyText(address).then((copied) => copied   // ★ #993: + the file:// fallback (was "Couldn't copy" on every iPhone/Mac)
+      ? copyMorph('check', strings.txCopied || 'Copied')
+      : copyMorph('x', strings.copyFailed || 'Couldn’t copy. Select the address text instead'));
   });
   /* ★ #575 (Damir, D13/F23): SHARE IS AN ICON BESIDE COPY. It used to be a
    * full-width outline row under the chip, which "reads as a too-short bar" — a

@@ -82,7 +82,10 @@
    filter chips read as the primary control. Desktop (:root[data-desktop]) keeps the ⓘ + label
    and the #278/#286 measured collapse. The glyph is text (no question-mark icon in the registry). */
 .c-wallet-misstx__q { display: none; }
-:root:not([data-desktop]) .c-wallet-misstx { padding: var(--spacing-8); justify-content: center; }
+:root:not([data-desktop]) .c-wallet-misstx { padding: var(--spacing-8); justify-content: center; position: relative; }
+/* ★ #993 (review of #990, m3): the 32px disc keeps its look but its HIT AREA grows to 44
+   (the reactions.css pattern) — the pill it replaced was 40×32. */
+:root:not([data-desktop]) .c-wallet-misstx::after { content: ''; position: absolute; inset: calc((var(--size-target-min) - 32px) / -2); }
 :root:not([data-desktop]) .c-wallet-misstx > svg,
 :root:not([data-desktop]) .c-wallet-misstx__label { display: none; }
 :root:not([data-desktop]) .c-wallet-misstx__q {

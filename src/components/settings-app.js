@@ -32,6 +32,7 @@ import { openLegalDoc } from './launch-shell.js';   // iOS-23: ONE source for th
 import { createButton, setLoading, setSuccess } from './button.js';
 import { createSearchField } from './search-field.js';
 import { settingsConfirm } from './settings-shell.js';
+import { copyText } from './clipboard.js';   // ★ #993: the shared copy with the file:// fallback
 
 // one-shot ctrl (#138 m1) — module-local unique name (house collision rule)
 function appCtrl(onDone, onFail) {
@@ -364,14 +365,10 @@ export function createSettingsDev({
       const text = pane.textContent;
       if (!text) return;
       // fail-soft: clipboard can be absent/denied in the WebView (address-copy grammar)
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(
-          () => { setSuccess(copyBtn, { label: strings.copied || 'Copied' }); },
-          () => { live.textContent = strings.copyLogFailed || 'Couldn’t copy. Select the log text instead.'; },
-        );
-      } else {
-        live.textContent = strings.copyLogFailed || 'Couldn’t copy. Select the log text instead.';
-      }
+      copyText(text).then((copied) => {   // ★ #993: + the file:// fallback
+        if (copied) setSuccess(copyBtn, { label: strings.copied || 'Copied' });
+        else live.textContent = strings.copyLogFailed || 'Couldn’t copy. Select the log text instead.';
+      });
     },
   });
   copyBtn.classList.add('c-settings-dev__copy');

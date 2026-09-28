@@ -781,9 +781,11 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
      the same; if it reads wrong, 20px puts the tip exactly on the composer edge instead.
      ★ #904: the tail is 7 wide now, so the tip sits at 16 − 7 = 9 px (it was 8). The BODY
      line is what this rule owns and it did not move; the tip follows the token.
-     Reversal: calc(var(--spacing-16) + var(--bubble-tail)). */
+     ★ #993 (T1): the tail is GONE (both themes) and --bubble-tail with it; the body line at 16
+     is unchanged — the bubble edge is now the outermost ink.
+     Reversal (pre-#993 only): calc(var(--spacing-16) + var(--bubble-tail)). */
   --bubble-row-inset: var(--spacing-16);
-  padding-inline: var(--bubble-row-inset);   /* Session I: the tail sits inside the gutter */
+  padding-inline: var(--bubble-row-inset);   /* the bubble body sits on the 16px gutter */
   margin-top: var(--bubble-gap-group);     /* gap between groups (Session I dial; was --spacing-12) */
   /* N36b (#363 candidate, repro gate met 2026-08-17): in select mode the ROW is
      the tap target (N36 made in-bubble controls pointer-dead), and every
@@ -870,65 +872,19 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-bubble-row[data-direction="sent"][data-position="middle"] .c-bubble { border-start-end-radius: var(--bubble-radius-group); border-end-end-radius: var(--bubble-radius-group); }
 .c-bubble-row[data-direction="sent"][data-position="last"] .c-bubble { border-start-end-radius: var(--bubble-radius-group); }
 
-/* ★ Session I — THE TAIL (sheet 1c; #735④ "bubble tails: YES — WA/TG grammar, tail on the
-   group-start bubble"). A pseudo-element on the FIRST (or single) bubble of a group, at
-   its outer TOP corner, in the bubble's own surface; that corner drops to 4px so the
-   tail reads as part of the shape. `--bubble-tail: 0px` turns the whole thing off (the
-   rule is inert at 0 width). The row inset grows by the tail width so the tail sits
-   INSIDE the 16px gutter rather than pushing the bubble in. The tail carries the
-   elevation as a drop-shadow filter (a box-shadow would paint the clipped box). */
-.c-bubble-row[data-position="first"] .c-bubble,
-.c-bubble-row[data-position="single"] .c-bubble { overflow: visible; }
+/* ★★ #993 (T1, Damir 2026-09-28, BOTH themes): THE TAIL IS GONE. The #989 dark hairline is an
+   inset box-shadow, so it followed the bubble and not the clip-path tail — the bubble had an edge
+   and its tail had none. Damir's call: no tail, and the corner where the tail was takes a SMALL
+   radius instead of the square junction, in light and dark (one bubble grammar). The group-start
+   ("first") and the lone ("single") bubble keep their direction cue through that one tighter
+   top-outer corner. Its own token (--bubble-radius-origin), not --bubble-radius-group: the two
+   are 4px today, but a run's shared corners and the origin corner are separate dials.
+   Supersedes Session I's tail (#735④), Session J's WhatsApp curve (#756) and #904's 7×11.
+   Reversal: the Session I tail block (git history, #904 master path in its comment). */
 .c-bubble-row[data-direction="received"][data-position="first"] .c-bubble,
-.c-bubble-row[data-direction="received"][data-position="single"] .c-bubble { border-start-start-radius: 0; }
+.c-bubble-row[data-direction="received"][data-position="single"] .c-bubble { border-start-start-radius: var(--bubble-radius-origin); }
 .c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble,
-.c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble { border-start-end-radius: 0; }
-/* ★ Damir's Windows walk (same day): at 4px the corner still curved away from the tail and
-   the tail read as a flag pinned NEXT to a rounded rectangle; the corner is square (0) at
-   the tail now, so the tail's top edge continues the bubble's own edge (WA's junction). */
-.c-bubble-row[data-position="first"] .c-bubble::before,
-.c-bubble-row[data-position="single"] .c-bubble::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  width: calc(var(--bubble-tail) + 1px);   /* ★ Session J: +1 = the overlap column into the bubble (the seam fix) */
-  height: var(--bubble-tail-h);
-  pointer-events: none;
-  filter: drop-shadow(var(--bubble-elevation));
-}
-.c-bubble-row[data-direction="received"][data-position="first"] .c-bubble::before,
-.c-bubble-row[data-direction="received"][data-position="single"] .c-bubble::before {
-  inset-inline-start: calc(-1 * var(--bubble-tail));
-  background: var(--surface-bubble-received);
-  /* ★ Session J (#756, Damir: "less sharp and curved, think WhatsApp"): a rounded tip
-     (the Q at x 0–2) and a convex outer sweep back to the bubble edge, instead of the
-     straight-to-a-point wedge; the path still runs 1px INTO the bubble (x 8→9) so the
-     seam Damir saw stays covered. RTL mirror below.
-     ★ #904 (Damir: "slightly reduce the size of the tail"): the SAME curve, scaled from the
-     8×13 master to 7×11 — x by 7/8 up to the seam column, y by 11/13; the 1px overlap stays
-     absolute (x 7→8). All FOUR paths were redrawn together with the two tokens: path()
-     takes no var(), so the tokens cannot move the shape on their own. Master, for the next
-     dial: 'M9 0 L2.2 0 Q0 0.2 0.5 2.2 Q3.4 8.2 8 13 L9 13 Z'; the sent path is its mirror
-     about x = tail + 1. */
-  clip-path: path('M8 0 L1.93 0 Q0 0.17 0.44 1.86 Q2.98 6.94 7 11 L8 11 Z');
-}
-.c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble::before,
-.c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble::before {
-  inset-inline-end: calc(-1 * var(--bubble-tail));
-  background: var(--surface-bubble-sent);
-  clip-path: path('M0 0 L6.07 0 Q8 0.17 7.56 1.86 Q5.03 6.94 1 11 L0 11 Z');   /* ★ Session J (#756): the WhatsApp tail, mirrored (see received) */
-}
-[dir="rtl"] .c-bubble-row[data-direction="received"][data-position="first"] .c-bubble::before,
-[dir="rtl"] .c-bubble-row[data-direction="received"][data-position="single"] .c-bubble::before { clip-path: path('M0 0 L6.07 0 Q8 0.17 7.56 1.86 Q5.03 6.94 1 11 L0 11 Z'); }   /* ★ Session J (#756): mirrored, overlap at x 0→1 · #904: 7×11 */
-[dir="rtl"] .c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble::before,
-[dir="rtl"] .c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble::before { clip-path: path('M8 0 L1.93 0 Q0 0.17 0.44 1.86 Q2.98 6.94 7 11 L8 11 Z'); }   /* ★ Session J (#756): mirrored, overlap at x 7→8 since #904 */
-/* the emoji-only "sticker" carries no bubble and so no tail.
-   ⚠ Specificity, learned on Damir's walk: the first/single tail rules above are
-   (0,3,1) — row class + position attribute + bubble class + pseudo — so a (0,2,1)
-   `.c-bubble[data-emoji-only]::before` LOST and a sent sticker grew a tail. The row
-   class is in the selector now (0,3,1, later in source) and the declaration is
-   !important against the direction rules (0,4,1) for good measure. */
-.c-bubble-row .c-bubble[data-emoji-only]::before { content: none !important; }
+.c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble { border-start-end-radius: var(--bubble-radius-origin); }
 
 /* sender label (group chats, first of group) — identity-hued like the avatar.
    Dedicated S/L (sanctioned, like avatar #37): avatar-gradient lightness failed
@@ -1880,7 +1836,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-tcard__details {
   margin-top: var(--spacing-12);
   padding-top: var(--spacing-8);
-  border-top: var(--outline-width-1) solid var(--outline-neutral-01);
+  border-top: var(--outline-width-1) solid var(--outline-card-divider);   /* ★ #993: own role — invisible on the dark received card (#989 review M1) */
 }
 .c-tcard__details-btn {
   display: inline-flex;
@@ -2494,6 +2450,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 :root:not([data-desktop]) .c-sheet[data-m-anchor][data-open] { transform: none; opacity: 1; }
 :root:not([data-desktop]) .c-sheet[data-m-anchor] .c-sheet__handle { display: none; }
+
+/* ★★ #993 (F1): an overlay ROOT takes focus on a pointer open (overlay.js) so the first row shows no
+   ring; the root itself must not ring either — it is a dialog container (tabindex -1, never a Tab
+   stop), and APG gives a focused dialog container no indicator. (0,2,0) beats base.css :focus-visible. */
+[data-overlay-root]:focus { outline: none; }
 
 </style>
 <style data-src="../styles/components/reactions.css">
@@ -3273,6 +3234,9 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 [data-selecting] .c-bubble-row[data-selected] {
   background: var(--surface-action-tonal-default);
   border-radius: var(--radius-12);
+  /* ★ #993 (review of #989, m1): a SENT card's dark edge rises on the selection wash (1.07:1
+     without it); light's value is transparent = unchanged. The card reads this custom property. */
+  --outline-card-sent: var(--outline-card-sent-selected);
 }
 
 /* the circle: a flex item on the row's LEADING edge, both directions (sent rows
@@ -3308,7 +3272,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    not mirrored in RTL, only its position is (inset-inline-start). */
 /* ★ Session J (Damir's walk screenshot: "the check mark misses the spot"): the tick was
    placed at a HARD-CODED 16px + 6px — the row's inline padding as it was before Session I
-   grew it by the tail width (--bubble-tail, message-bubble.css). The disc moved 8px in,
+   grew it by the tail width (--bubble-tail, message-bubble.css — the tail was retired by #993). The disc moved 8px in,
    the tick did not. The offset now reads the row's own --bubble-row-inset, so the two
    cannot drift again. The ink is WHITE in both themes (was --icon-neutral-on-action,
    near-black on the light-blue dark disc), per Damir. */
@@ -5062,7 +5026,17 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      the notice rises like a normal bubble. When the log overflows the auto-
      margins collapse to 0 → notice pins to the top of history, log scrolls,
      newest at the bottom (Damir 2026-07-07). */
-  #messages { flex: 1; min-height: 0; padding-bottom: calc(var(--composer-h, 0px) + var(--composer-lift, 0px) + var(--spacing-4)); display: flex; flex-direction: column; }   /* ★ Session I: + the floating composer's height (published by the ResizeObserver) so the log passes UNDER the pill */
+  #messages { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  /* ★★ #993 (M7, office walk #991): the room the floating composer needs under the newest
+     message is a REAL BOX, not the scroller's bottom padding. Session I reserved it as
+     padding-bottom, and WebKit (the Mac, iPhone) does not count a flex scroller's block-end
+     padding as scrollable overflow: while the log was just short of the pane — taller than the
+     box minus the padding, shorter than the box — the newest bubble ran into the padding band
+     with nothing to scroll, i.e. BEHIND the pill; one more message made the log overflow and it
+     looked right again. A flex item is content in every engine, so the reserve now holds in
+     both regimes. `flex: none` so the column never shrinks it; the auto margins (secure notice,
+     #181 · the older-history pill, #907) still seat a short log against it. */
+  #messages::after { content: ""; flex: none; height: calc(var(--composer-h, 0px) + var(--composer-lift, 0px) + var(--spacing-4)); }   /* ★ Session I: + the floating composer's height (published by the ResizeObserver) so the log passes UNDER the pill */
   #messages > .c-sysnotice { margin-top: auto; margin-bottom: auto; }
   /* A3 (#302): unread-elsewhere dot on the chat topbar back button. #48 grammar
      (error surface + a 2px ring in the HOST surface so it reads on any background) at
@@ -5103,8 +5077,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      paint as three floating shapes but left it IN THE FLOW, so the log still stopped at
      its top edge. The slot is absolutely positioned at the canvas bottom now (the canvas
      is position:relative — message-bubble.css), and the log takes the published
-     --composer-h as bottom padding, so the last bubble scrolls up out from under the
-     pill and the pattern runs behind it. Everything that composed with the slot keeps
+     --composer-h as its bottom reserve (a spacer box since #993 — padding failed on WebKit),
+     so the last bubble scrolls up out from under the pill and the pattern runs behind it. Everything that composed with the slot keeps
      composing: the --kb-inset margin lifts an absolute box exactly as it lifted a flex
      one; the tray mounts INSIDE the slot after the bar and the ResizeObserver republishes
      the taller height; the request pane only exists in the 'incoming' lock, where the
@@ -5112,7 +5086,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      desktop column centres the slot with max-width + auto margins (align-self cannot
      reach an absolute box). ⚠ NO stacking-context property on the slot or the canvas —
      the message-menu row lift rule (message-menu.css) still holds. */
-  #chat-composer { position: absolute; inset-inline: var(--safe-left, 0px) var(--safe-right, 0px); inset-block-end: 0; }   /* #926: the slot's containing block is the viewport, so it pads itself */   /* the log's matching padding rides the #messages rule above */
+  #chat-composer { position: absolute; inset-inline: var(--safe-left, 0px) var(--safe-right, 0px); inset-block-end: 0; }   /* #926: the slot's containing block is the viewport, so it pads itself */   /* the log's matching reserve rides the #messages::after rule above (#993) */
   /* ★ #711: the @ FAB sits ABOVE the floating composer — --composer-h is written on the
      canvas by a ResizeObserver over #chat-composer (the chevron reads it in
      scroll-latest.css). Falls back to 0 where nothing writes it. */
@@ -5135,7 +5109,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      shrink under the keyboard (WKWebView — the native lever writes --kb-inset instead). The tray
      lifts the log because it GROWS the slot, which the ResizeObserver publishes. So the lift is ONE
      named value, defined once here and read by every box that must clear the pill: the slot's
-     margin, the log's padding, the chevron and the @ FAB. Android (adjustResize) and desktop never
+     margin, the log's reserve (#messages::after, #993), the chevron and the @ FAB. Android (adjustResize) and desktop never
      write --kb-inset, so the value is 0 there and nothing moves. */
   :root { --composer-lift: max(0px, calc(var(--kb-inset, 0px) - var(--safe-bottom, 0px))); }
   #chat-composer { margin-bottom: var(--composer-lift, 0px); }
@@ -5541,6 +5515,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      * the END-TO-END push pin caught. Two different symptoms, one root cause. */
     applyPushedTheme,
     openRevokeRequestFlow,   // ★ #562: the HIDE-request words — ONE surface with the chats-list flow
+    copyText,                // ★ #993: the shared copy with the file:// fallback (menu Copy)
   } = window.Spixi;
 
   /* —— W5 chat pattern STYLE (Damir 2026-08-12) ——————————————————————————————
@@ -7773,7 +7748,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     if (composerLock) return;
     if (action === 'react') { reactToMessage(id); return; }
     if (action === 'copy') {
-      if (navigator.clipboard && rec.text) navigator.clipboard.writeText(rec.text).catch(() => {});
+      if (rec.text) copyText(rec.text);   // ★ #993: + the file:// fallback — the menu's Copy was a no-op on iPhone/Mac
       return;
     }
     if (action === 'select') { if (row) startChatSelect(row); return; }
@@ -10971,7 +10946,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      as Telegram — the opacity drops at the SAME LEVEL as the composer, not above it") — MESSAGES
      DISSOLVE INSIDE THE COMPOSER'S BAND. A row is opaque down to the bar's top edge and gone at
      the bar's bottom edge; nothing above the bar is touched, so the newest message at rest
-     (#messages pads by --composer-h) is never dimmed, and what sits behind the floating pill
+     (#messages reserves --composer-h below it, #993) is never dimmed, and what sits behind the floating pill
      reads as a fading continuation instead of a slice mid-word. Rendered and picked from
      docs/sheets/session-ae/ (candidate A: no tint band, no blur — #892 retired the blur band,
      #893's fade ABOVE the pill was declined).

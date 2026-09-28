@@ -94,6 +94,7 @@ const FILES = [
   'src/components/wallet-hero.js',
   // #452: BEFORE wallet-shell — the missing-tx sheet imports its ring helpers, and the
   // bundle is a concatenation, so a consumer must never precede its provider.
+  'src/components/clipboard.js',       // ★ #993: the shared copy (execCopy + copyText) — before every consumer
   'src/components/scan-progress.js',   // #440/#443: the blockchain-scan progress row
   'src/components/wallet-shell.js',
   'src/components/contact-row.js',     // ★ W-j: the shared money-picker row — BEFORE wallet-send/-receive (its consumers)

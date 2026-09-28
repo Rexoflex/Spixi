@@ -993,6 +993,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 :root:not([data-desktop]) .c-sheet[data-m-anchor][data-open] { transform: none; opacity: 1; }
 :root:not([data-desktop]) .c-sheet[data-m-anchor] .c-sheet__handle { display: none; }
 
+/* ★★ #993 (F1): an overlay ROOT takes focus on a pointer open (overlay.js) so the first row shows no
+   ring; the root itself must not ring either — it is a dialog container (tabindex -1, never a Tab
+   stop), and APG gives a focused dialog container no indicator. (0,2,0) beats base.css :focus-visible. */
+[data-overlay-root]:focus { outline: none; }
+
 </style><!-- c-sheet chrome for the ghost-lift builder (never visible) -->
 <style data-src="../styles/components/wallet-shell.css">
 /* c-wallet-shell — filters row + tx list + tx/missing-tx sheets (spec §2/§5, #133/#134). */
@@ -1079,7 +1084,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    filter chips read as the primary control. Desktop (:root[data-desktop]) keeps the ⓘ + label
    and the #278/#286 measured collapse. The glyph is text (no question-mark icon in the registry). */
 .c-wallet-misstx__q { display: none; }
-:root:not([data-desktop]) .c-wallet-misstx { padding: var(--spacing-8); justify-content: center; }
+:root:not([data-desktop]) .c-wallet-misstx { padding: var(--spacing-8); justify-content: center; position: relative; }
+/* ★ #993 (review of #990, m3): the 32px disc keeps its look but its HIT AREA grows to 44
+   (the reactions.css pattern) — the pill it replaced was 40×32. */
+:root:not([data-desktop]) .c-wallet-misstx::after { content: ''; position: absolute; inset: calc((var(--size-target-min) - 32px) / -2); }
 :root:not([data-desktop]) .c-wallet-misstx > svg,
 :root:not([data-desktop]) .c-wallet-misstx__label { display: none; }
 :root:not([data-desktop]) .c-wallet-misstx__q {

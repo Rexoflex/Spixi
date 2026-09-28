@@ -3206,6 +3206,7 @@
     const isApps = navId === 'apps';
     chatsView.hidden = !isChats;
     walletView.hidden = !isWallet;
+    document.documentElement.toggleAttribute('data-bleed-top', isWallet);   // ★ #993 (M6 review): the wallet hero bleeds under the Mac title bar — no hairline across it (base.css)
     appsView.hidden = !isApps;
     placeholderView.hidden = isChats || isWallet || isApps;
     /* ★ BUG-3: a tab switch LEAVES a surface, so the surface it leaves drops its

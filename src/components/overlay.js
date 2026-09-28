@@ -33,6 +33,36 @@ export function setOverlayOpts(el, opts) {
 /** Current dismissal policy for a stack entry — LIVE WeakMap first (tip-audit C1). */
 function liveOpts(entry) { return overlayOpts.get(entry.el) || entry.opts || {}; }
 
+/* ★★ #993 (F1, office walk #991): the LAST INPUT MODALITY decides where an opening overlay puts focus.
+ * Safari/WKWebView (iPhone, Mac) does not focus a button on tap/click, so the programmatic move into
+ * the sheet was the first focus of the gesture and WebKit painted it as :focus-visible — every sheet
+ * and popup opened with a ring on its first row. A POINTER open now focuses the overlay ROOT (tabindex
+ * -1, no ring — overlay.css), so a screen reader still lands in the dialog and Tab still enters it
+ * (onDocKeydown pulls focus from the root to the first control). A KEYBOARD open keeps the old move
+ * ([data-autofocus] → first control), which is the a11y contract for Tab/Enter users (Windows). Before
+ * any input at all (an overlay a C# push opens at boot) the old move stands. Capture phase, so a
+ * handler that stops propagation cannot hide the modality. */
+let lastInput = null;   // 'pointer' | 'keyboard' | null (no input yet)
+if (typeof document !== 'undefined') {
+  const onPointer = () => { lastInput = 'pointer'; };
+  document.addEventListener('pointerdown', onPointer, true);
+  document.addEventListener('touchstart', onPointer, { capture: true, passive: true });
+  document.addEventListener('mousedown', onPointer, true);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta') return;   // a bare modifier is not a keyboard gesture
+    /* #993 review (MINOR): TYPING is not navigation. A soft keyboard (iOS/Android) fires keydown
+       for every character (IME: isComposing / keyCode 229), so a user who typed in the composer
+       stayed in 'keyboard' until the next touch and the next pushed overlay rang the first row
+       again. Chrome's own :focus-visible rule: a key inside an editable field only counts when it
+       leaves the field (Tab) or dismisses (Escape). */
+    if (e.isComposing || e.keyCode === 229) return;
+    const t = e.target;
+    const editable = !!t && (t.isContentEditable || (t.tagName === 'TEXTAREA') || (t.tagName === 'INPUT' && !/^(button|checkbox|radio|submit|reset|range|color|file|image)$/i.test(t.type || '')));
+    if (editable && e.key !== 'Tab' && e.key !== 'Escape') return;
+    lastInput = 'keyboard';
+  }, true);
+}
+
 function focusables(el) {
   return [...el.querySelectorAll(
     'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
@@ -76,7 +106,8 @@ function onDocFocusin(e) {
   if (stack.length === 0) return;
   const top = stack[stack.length - 1];
   if (top.el.contains(e.target) || top.scrim.contains(e.target)) return;
-  (focusables(top.el)[0] || top.el).focus({ preventScroll: true });
+  // #993 (F1): a bounce after a pointer gesture lands on the root, like the open — no ring on a row
+  (lastInput === 'pointer' ? top.el : (focusables(top.el)[0] || top.el)).focus({ preventScroll: true });
 }
 
 /** Open `el` as an overlay above a scrim inside `host`. Internal — sheets/modals wrap this. */
@@ -122,7 +153,11 @@ export function openOverlay(el, opts) {
     el.dataset.open = '';
   }));
 
-  const target = el.querySelector('[data-autofocus]') || focusables(el)[0] || el;
+  el.dataset.overlayRoot = '';                                    // #993: the root's own focus paints no ring (overlay.css)
+  if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');   // focusable by script, never by Tab
+  const target = lastInput === 'pointer'
+    ? el                                                          // #993 (F1): a tap/click open — no ring on the first row
+    : (el.querySelector('[data-autofocus]') || focusables(el)[0] || el);
   target.focus({ preventScroll: true });
 }
 
@@ -134,6 +169,11 @@ export function openOverlay(el, opts) {
 export function isOverlayOpen(el) {
   return !!el && stack.some((s) => s.el === el);
 }
+
+/** ★ #993 round 3: the TOP presented overlay (the stack, not the DOM — a closing sheet lingers ~400 ms
+ *  in the DOM with data-overlay-root still on it). clipboard.js hosts its copy buffer here so focus
+ *  containment cannot pull focus out of it, whatever held focus at the tap (iOS can leave it on <body>). */
+export function topOverlayEl() { return stack.length ? stack[stack.length - 1].el : null; }
 
 /** Dismiss a specific overlay (default: top of stack). Returns true if one closed. */
 export function dismissOverlay(el) {

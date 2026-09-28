@@ -50,6 +50,7 @@ function bubbleAvatarSize() {
 import { createStatusIcon } from './chatlist-item.js';
 import { createBadge } from './badge.js';
 import { dayBucketLabel, docLocale, timeOpts } from './timestamp.js';
+import { copyText } from './clipboard.js';   // ★ #993: the shared copy with the file:// fallback
 
 function bubbleTime(d) {
   return d.toLocaleTimeString(docLocale(), timeOpts());   // ★ Session I: follows the device's 12/24-hour setting
@@ -274,9 +275,7 @@ function copySenderAddress(btn, address, strings) {
   };
   // flash "Copied" ONLY on a real success — never claim a copy that didn't happen
   // (honest-failure parity with wallet-receive). No clipboard API → do nothing.
-  try {
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(address).then(flash, () => {});
-  } catch (_) {}
+  copyText(address).then((copied) => { if (copied) flash(); });   // ★ #993: + the file:// fallback
 }
 
 export function createMessageBubble({

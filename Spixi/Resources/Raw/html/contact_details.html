@@ -994,6 +994,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 :root:not([data-desktop]) .c-sheet[data-m-anchor][data-open] { transform: none; opacity: 1; }
 :root:not([data-desktop]) .c-sheet[data-m-anchor] .c-sheet__handle { display: none; }
 
+/* ★★ #993 (F1): an overlay ROOT takes focus on a pointer open (overlay.js) so the first row shows no
+   ring; the root itself must not ring either — it is a dialog container (tabindex -1, never a Tab
+   stop), and APG gives a focused dialog container no indicator. (0,2,0) beats base.css :focus-visible. */
+[data-overlay-root]:focus { outline: none; }
+
 </style><!-- c-modal (delete-history / remove-contact confirms) + c-sheet -->
 <style data-src="../styles/components/txlist-item.css">
 /* c-txlist-item — wallet transaction row (docs/tx-row-spec.md, DECISIONS #55).
@@ -2103,7 +2108,14 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   padding: var(--spacing-12) var(--spacing-16);
   /* #314: same latent bug as the encpass footer (Damir's CTA screenshot) — the
      Add-contact CTA sat on the iOS home indicator (launch-shell.css:281 pattern) */
-  padding-bottom: calc(var(--spacing-12) + var(--safe-bottom, 0px));
+  /* ★★ #993 (N2b, office walk #991): the Create group button sat UNDER the iPhone keyboard.
+     WKWebView keeps the takeover full height, so the footer is lifted by the published
+     `--kb-inset` (home.html's walletKeyboardInset, the #608 lever) — a margin, so the scroll
+     body above (flex 1, min-height 0) gives up the room. The safe-area pad drops by the same
+     inset (the keyboard covers the home indicator), the launch-shell.css footer grammar.
+     Every term is inert at `--kb-inset: 0` (no keyboard, Android adjustResize, desktop). */
+  margin-bottom: var(--kb-inset, 0px);
+  padding-bottom: calc(var(--spacing-12) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)));
   border-top: var(--outline-width-1) solid var(--outline-neutral-01);
   background: var(--surface-screen);
 }

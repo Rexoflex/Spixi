@@ -29,6 +29,30 @@
  * max(IME, nav bar), so a bottom variable would have double-padded. It now pads the IME
  * leg only, and `--safe-bottom` below carries the nav-bar leg the same way. */
 :root { --safe-top: max(env(safe-area-inset-top, 0px), var(--android-inset-top, 0px)); }
+
+/* ★★ #993 (M6, office walk #991, Mac): a hairline UNDER THE TITLE-BAR STRIP. On Mac Catalyst the
+   shells draw under the transparent window title bar (the traffic lights) and each bar grows by
+   --safe-top to clear it, so the title strip ran straight into the rail, the list and the topbar
+   with no edge. One fixed 1px line at y = --safe-top, in every shell (every WebView reaches the
+   window top, so the pieces join). Its height is min(1px, --safe-top): ZERO where there is no
+   top inset — Windows (the native title bar sits above the WebView) and desktop previews — so it
+   is Mac-only by geometry, not by a platform flag (most shells carry no data-platform). Desktop
+   only: phones keep the status-bar bleed (AND-7). z 31 = the pane divider's slot (home.html):
+   above the z-30 takeovers, below scrims and sheets; pointer-events off.
+   ★ #993 review (MINOR): a FULL-BLEED screen has no bar edge at --safe-top — the lock and the
+   launch flow (always dark), the call surface, the Wallet hero — so the line would cut across
+   the artwork. Those set `data-bleed-top` on <html> (static in lock/launch/call, toggled by
+   home.html's showView for the Wallet tab) and the rule stands down. */
+:root[data-desktop]:not([data-bleed-top]) body::before {
+  content: '';
+  position: fixed;
+  top: var(--safe-top, 0px);
+  inset-inline: 0;
+  height: min(var(--outline-width-1), var(--safe-top, 0px));
+  background: var(--outline-neutral-03);
+  z-index: 31;
+  pointer-events: none;
+}
 /* ★ AND-45 (Session Y, Damir: "the transparent notch below the composer"): the SAME
  * rule for the bottom. Android's env(safe-area-inset-bottom) is 0 (cutout-only, like the
  * top), so the navigation-bar inset arrives as `--android-inset-bottom` from the

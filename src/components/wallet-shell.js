@@ -34,6 +34,7 @@
  * openTxSheet({ tx, host, strings, onExplorer }) / openMissingTxSheet({ host, strings, onExplorer })
  */
 import { getStrings } from './strings-runtime.js';
+import { copyText } from './clipboard.js';   // ★ #993: the shared copy with the file:// fallback
 import { createTxItem } from './txlist-item.js';
 import { createChip, setChipSelected } from './chip.js';
 import { createButton } from './button.js';
@@ -689,8 +690,8 @@ function copyButton(value, label, strings = getStrings()) {
   const idleLabel = (strings.copy || 'Copy') + ', ' + label;
   btn.setAttribute('aria-label', idleLabel);
   btn.append(icon('copy', { size: 16 }));
-  btn.addEventListener('click', () => {
-    if (navigator.clipboard) navigator.clipboard.writeText(String(value)).catch(() => {});
+  btn.addEventListener('click', () => copyText(String(value)).then((copied) => {
+    if (!copied) return;   // ★ #993: the ✓ only for a copy that happened (a no-op on iPhone/Mac showed it)
     btn.textContent = '';
     btn.append(icon('check', { size: 16 }));               // confirmation morph — no false toast
     btn.setAttribute('aria-label', strings.txCopied || 'Copied');   // SRs hear the confirm
@@ -699,7 +700,7 @@ function copyButton(value, label, strings = getStrings()) {
       btn.append(icon('copy', { size: 16 }));
       btn.setAttribute('aria-label', idleLabel);
     }, 1400);
-  });
+  }));
   return btn;
 }
 

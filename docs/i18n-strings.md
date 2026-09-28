@@ -1057,7 +1057,7 @@ Summary: **803** keys · **142** map to a legacy id · **661** new · legacy dic
 | `requestSentToMany` | Request for {a} IXI sent to {n} contacts | text | medium | {a} {n} | — |
 | `shareAddress` | Share address | aria | short |  | — |
 | `showMyAddress` | Show my address | label | short |  | — |
-| `txCopied` | Copied | text/aria | short |  | — |
+| `txCopied` | Copied | error/aria | short |  | — |
 | `yourAddress` | Your address | text | short |  | — |
 
 ## wallet-send.js (23)

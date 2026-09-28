@@ -47,6 +47,16 @@ namespace SPIXI
             {
                 Utils.sendUiCommand(this, "setAddress", wallet_to_add);
             }
+#if MACCATALYST
+            /* ★ #993 (M5) DIAGNOSTIC (#294): "paste does nothing in this field" on the Mac. One bool,
+             * no content: does the system pasteboard hold TEXT when the add-contact page opens?
+             * False after the user copied an address = the copy never reached the pasteboard (the
+             * in-app Copy was a no-op on a file:// WKWebView before #993's copyText fallback), not
+             * a paste defect. `hasStrings` is a detection API — it reads no data and shows no
+             * paste-privacy prompt. */
+            try { Logging.info("[M5] add-contact pasteboard hasStrings=" + UIKit.UIPasteboard.General.HasStrings); }
+            catch (Exception ex) { Logging.warn("[M5] pasteboard probe failed: " + ex.GetType().Name); }
+#endif
         }
 
         private void onNavigating(object sender, WebNavigatingEventArgs e)

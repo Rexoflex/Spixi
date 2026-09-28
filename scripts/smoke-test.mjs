@@ -734,6 +734,7 @@ console.log('wallet.html');
     '#527: the "What is this address?" explainer is folded INTO the sheet — ONE surface');
   const rcopy = addrSheet.querySelector('.c-wallet-receive__copy');
   rcopy.click();
+  await new Promise((r) => setTimeout(r, 0));   // ★ #993 re-base: the copy now goes through the shared copyText (a Promise — async API, then execCommand); the morph lands one task later
   ok((rcopy.getAttribute('aria-label') || '').startsWith('Couldn'),
     'no clipboard → honest failure morph, no false Copied (audit m1)');
   W2.Spixi.dismissTopOverlay();
@@ -2380,6 +2381,7 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   ok(!dev.querySelector('.c-settings-dev__actions').hidden,
     'Copy + Send actions appear with the log');
   dev.querySelector('.c-settings-dev__copy').click();   // jsdom has no navigator.clipboard
+  await new Promise((r) => setTimeout(r, 0));   // ★ #993 re-base: copyText is a Promise (async API → execCommand fallback); the live line lands one task later
   ok(dev.querySelector('.c-settings__live').textContent.includes('Couldn’t copy'),
     'copy fails SOFT when the clipboard is absent (WebView honesty)');
   const sendBtn = dev.querySelector('.c-settings-dev__send');
@@ -6880,7 +6882,8 @@ console.log('#314 — polish batch (selectability · mention pill · toast/CTA �
     '#314 toast → AND-45: the styled toast clears the SAFE-AREA-tall bottom bar on BOTH platforms (64px token vs 64+inset real height) through --safe-bottom');
   ok(/c-encpass__footer \{[\s\S]{0,400}?padding-bottom: calc\(var\(--spacing-12\) \+ var\(--safe-bottom, 0px\)\)/.test(lockCss),
     '#314 CTA → AND-45: the Change-password footer clears the home indicator / nav bar through --safe-bottom (launch-shell canonical pattern)');
-  ok(/c-contacts__footer \{[\s\S]{0,400}?padding-bottom: calc\(var\(--spacing-12\) \+ var\(--safe-bottom, 0px\)\)/.test(contactsCss),
+  /* ★ #993 (N2b) re-base: the safe-area pad now drops by the keyboard inset (max(0, safe − kb)) — the home indicator is covered while the keyboard is up; the #993 block pins the lift */
+  ok(/padding-bottom: calc\(var\(--spacing-12\) \+ max\(0px, var\(--safe-bottom, 0px\) - var\(--kb-inset, 0px\)\)\)/.test((contactsCss.split('.c-contacts__footer {')[1] || '').split('}')[0]),   /* sliced to the rule, not a character window (#771) */
     '#314 CTA → AND-45: the Add-contact footer had the IDENTICAL latent bug — swept with the same pattern, now on --safe-bottom');
 
   /* iOS-47 — Sora scoped to the wordmark */
@@ -7516,7 +7519,8 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   ok(/--text-bubble-sent-meta: var\(--primary-50\);/.test(lightN81)
     && /--text-bubble-sent-meta: var\(--primary-50\);/.test(darkN81),
     '★ N81 (#422, #46 audit): the sent-bubble META ink is ONE value in BOTH themes and clears AA on #1956B2 (5.77:1 at 12px). The dark value this replaces measured 4.28 — an AA failure this batch introduced by flattening the bubble');
-  ok(/box-shadow: inset 0 0 0 1px var\(--border-bubble-received\);/.test(readFileSync(join(root, 'src/styles/components/settings-screens.css'), 'utf8'))
+  /* ★ #993 re-base (the adversarial review of #989, n1): the preview now reads the SAME three edge tokens as the chat's received bubble — --border-bubble-received first, then #989's hairline + top light (all transparent in light) — still no baked edge */
+  ok(/box-shadow: inset 0 0 0 1px var\(--border-bubble-received\), inset 0 0 0 1px var\(--outline-hairline\), inset 0 1px 0 var\(--highlight-top\);/.test(readFileSync(join(root, 'src/styles/components/settings-screens.css'), 'utf8'))
     && /box-shadow: inset 0 0 0 1px var\(--border-bubble-received\);/.test(readFileSync(join(root, 'src/styles/components/typing-indicator.css'), 'utf8')),
     '★ N81/N82(b): the surfaces that FLOATED on the old blue canvas still READ the hairline token (transparent since #427) rather than baking their own edge — including the Chat-appearance PREVIEW bubble, the one screen whose whole job is showing what the chat looks like. If it ever baked an edge the preview would stop matching the chat');
   ok(/--text-bubble-sent-meta/.test(darkN81) && !/--text-bubble-sent-meta: var\(--neutral-300\)/.test(darkN81),
@@ -25237,17 +25241,19 @@ console.log('Session I ③: the premium pass token batch');
     }
   }
   /* 1c = tail + elevation */
-  ok(val('bubble-tail') === '7px' && val('bubble-tail-h') === '11px' && val('bubble-elevation') === '0 1px 0.5px rgba(0, 0, 0, 0.13)'   /* ★ #904: 8×13 → 7×11 (Damir: "slightly reduce the size of the tail") */
+  /* ★ #993 (T1) re-base: the TAIL half of 1c is retired (Damir 2026-09-28: no tail, both themes — the dark hairline could not follow it); the tail tokens must now be ABSENT. The elevation half stands unchanged. */
+  ok(!/--bubble-tail/.test(tok) && val('bubble-elevation') === '0 1px 0.5px rgba(0, 0, 0, 0.13)'
      && /--bubble-elevation: 0 1px 1px rgba\(0, 0, 0, 0\.45\);/.test(tok.slice(tok.indexOf('[data-theme="dark"] {'))),
-    '★★ 1c = tail + elevation: a 7×11 tail (#904; 8×13 before) on the group-start bubble, a 0 1px 0.5px @.13 lift in light and 0 1px 1px @.45 in dark (the 1.12:1 canvas, #427)');
-  ok(/\.c-bubble-row\[data-position="first"\] \.c-bubble::before,\s*\.c-bubble-row\[data-position="single"\] \.c-bubble::before \{/.test(bub)
-     && /filter: drop-shadow\(var\(--bubble-elevation\)\);/.test(bub)
-     && /clip-path: path\('M8 0 L1\.93 0 Q0 0\.17 0\.44 1\.86 Q2\.98 6\.94 7 11 L8 11 Z'\);/.test(bub) && /clip-path: path\('M0 0 L6\.07 0 Q8 0\.17 7\.56 1\.86 Q5\.03 6\.94 1 11 L0 11 Z'\);/.test(bub) && /width: calc\(var\(--bubble-tail\) \+ 1px\);/.test(bub)   /* ★ Session J #756: the WhatsApp tail (rounded tip, convex sweep), 1px INTO the bubble (the seam) */
-     && /\[dir="rtl"\] \.c-bubble-row\[data-direction="received"\]\[data-position="first"\] \.c-bubble::before/.test(bub)
-     && /--bubble-row-inset: var\(--spacing-16\);\s*padding-inline: var\(--bubble-row-inset\);/.test(bub)   /* ★ Session T: the `+ tail` is gone — #817 (Damir: "reduce the side padding so that the tails would be closer to the edge"), so the tail TIP now sits 4px outside the body line, the WhatsApp shape. The inset still has ONE home; chat-select positions the tick from it */
-     && /\.c-bubble-row \.c-bubble\[data-emoji-only\]::before \{ content: none !important; \}/.test(bub)
-     && /\[data-position="single"\] \.c-bubble \{ border-start-end-radius: 0; \}/.test(bub) && /\[data-position="single"\] \.c-bubble \{ border-start-start-radius: 0; \}/.test(bub),
-    '★ 1c: the tail is a ::before on FIRST/SINGLE bubbles only, in the bubble\'s own surface, RTL-mirrored, carrying the lift as a drop-shadow, inside a widened row inset; the tail corner is SQUARE (Damir\'s walk: 4px read as a flag beside a rounded box); the emoji sticker has none — at (0,3,1)+!important, because the (0,3,1) tail rules beat the first (0,2,1) cut and a sent sticker grew a tail');
+    '★★ 1c = elevation (the tail half retired by #993): no --bubble-tail token is left, and the bubble keeps its 0 1px 0.5px @.13 lift in light and 0 1px 1px @.45 in dark (the 1.12:1 canvas, #427)');
+  /* ★★ #993 (T1) INVERSE (#835 idiom): 1c's tail pin is inverted, not deleted. Damir 2026-09-28 removed the tail in BOTH themes
+     (the #989 inset hairline could not follow a clip-path shape). What must hold now: no first/single ::before rule, no clip-path
+     in the bubble stylesheet, the origin corner is NOT square any more (the small --bubble-radius-origin instead), and the row inset
+     keeps its ONE home at the bare 16. The emoji-only no-tail exemption went with the tail — there is nothing left to exempt. */
+  ok(!/\.c-bubble::before/.test(bub) && !/clip-path/.test(bub)
+     && /--bubble-row-inset: var\(--spacing-16\);\s*padding-inline: var\(--bubble-row-inset\);/.test(bub)
+     && !/\[data-position="(first|single)"\] \.c-bubble \{ border-start-(start|end)-radius: 0; \}/.test(bub)
+     && /\[data-position="single"\] \.c-bubble \{ border-start-end-radius: var\(--bubble-radius-origin\); \}/.test(bub) && /\[data-position="single"\] \.c-bubble \{ border-start-start-radius: var\(--bubble-radius-origin\); \}/.test(bub),
+    '★ 1c INVERSE (#993): the bubble has NO tail — no ::before on first/single, no clip-path in message-bubble.css, the origin corner is --bubble-radius-origin (not the square tail junction), and the row inset is still the bare 16');
   /* ★★ #904 — THE TAIL'S SHAPE FITS ITS BOX, DERIVED. The literal-path clause above pins what
      shipped; THIS pins the trap the handoff named, which a literal cannot: `--bubble-tail` /
      `--bubble-tail-h` size only the ::before BOX, while the shape is four clip-path() values in
@@ -25280,8 +25286,11 @@ console.log('Session I ③: the premium pass token batch');
       if (recv.pts[0][0] !== boxW || sent.pts[0][0] !== 0) bad904.push('the paths do not START on the bubble edge (received x = ' + boxW + ', sent x = 0) — the seam column is gone');
     }
     if (recv && sent && rRecv && rSent && (rRecv.d !== sent.d || rSent.d !== recv.d)) bad904.push('[dir="rtl"] does not swap the two shapes');
-    ok(Number.isFinite(tailW) && Number.isFinite(tailH) && tailW > 0 && bad904.length === 0,
-      '★★ #904 (derived): every tail clip-path FITS the box its tokens make — (' + tailW + ' + 1) × ' + tailH + ' — starts on the bubble edge, the sent shape mirrors the received one, and RTL swaps them. Failures: [' + (bad904.join(' | ') || 'none') + ']. path() takes no var(), so a token edit alone leaves the old shape cut off inside the new box; this is the pin that says so');
+    /* ★ #993 (T1) INVERSE: the #904 derived fit is retired with the tail — there is no tail shape left to fit a box.
+       The property now is its absence: ZERO clip-path() values and NO tail tokens (a path returning without its
+       tokens, or tokens without a path, is the half-tail this pin existed to catch). */
+    ok(allPaths === 0 && rules.length === 0 && !Number.isFinite(tailW) && !Number.isFinite(tailH),
+      '★★ #904 INVERSE (#993): no bubble tail path and no tail token remain — paths: ' + allPaths + ' · tokens: ' + JSON.stringify([val('bubble-tail'), val('bubble-tail-h')]));
   }
   /* EXECUTED (the walk defect): a SENT, SINGLE, emoji-only message has no tail, and its reactions pill sits at the far corner from the time chip */
   {
@@ -25410,8 +25419,10 @@ console.log('Session I ③: the premium pass token batch');
       '★ 5: composer.js parents the ⊕ to the FIELD (reverses #705\'s outside-disc; the tray/✕ behaviour is untouched and pinned in the #705 block)');
     const ch = rdF('src/shells/chat.html'), chB = rdF('Spixi/Resources/Raw/html/chat.html');
     ok(/#chat-composer \{ position: absolute; inset-inline: var\(--safe-left, 0px\) var\(--safe-right, 0px\); inset-block-end: 0; \}/.test(ch) && /#chat-composer \{ position: absolute; inset-inline: var\(--safe-left, 0px\) var\(--safe-right, 0px\); inset-block-end: 0; \}/.test(chB)   // #926: the slot pads itself by the side insets
-       /* ★ #976 (N1) re-base: the log's padding adds the keyboard lift between the pill's height and the gap */
-       && /#messages \{ flex: 1; min-height: 0; padding-bottom: calc\(var\(--composer-h, 0px\) \+ var\(--composer-lift, 0px\) \+ var\(--spacing-4\)\);/.test(ch) && /padding-bottom: calc\(var\(--composer-h, 0px\) \+ var\(--composer-lift, 0px\) \+ var\(--spacing-4\)\);/.test(chB),
+       /* ★ #976 (N1) re-base: the log's reserve adds the keyboard lift between the pill's height and the gap
+          ★ #993 (M7) re-base: the reserve is the #messages::after SPACER, not padding — WebKit leaves a flex
+          scroller's end padding out of scrollable overflow (the short-log gap); the #993 block pins the property */
+       && /#messages::after \{ content: ""; flex: none; height: calc\(var\(--composer-h, 0px\) \+ var\(--composer-lift, 0px\) \+ var\(--spacing-4\)\); \}/.test(ch) && /#messages::after \{ content: ""; flex: none; height: calc\(var\(--composer-h, 0px\) \+ var\(--composer-lift, 0px\) \+ var\(--spacing-4\)\); \}/.test(chB),
       '★★ 5 FLOATING (#731 "messages pass under the pill"): the slot is absolute at the canvas bottom and the log pads by the published --composer-h — source AND built shell');
     ok(!/#chat-composer \{[^}]*(z-index|transform|contain|will-change)/.test(ch),
       '★ 5: the absolute slot adds NO stacking-context property (the message-menu lift rule on the canvas\'s children still holds)');
@@ -32717,11 +32728,12 @@ console.log('\n— handover gate: the third pin pass (loop C repairs · the thre
      did exactly that on this pin's first run). */
   const tickDecls = sel49.match(/inset-inline-start:[^;]*;/g) || [];
   if (!tickDecls.some((d) => /var\(--bubble-row-inset/.test(d))) bad49.push('③ chat-select no longer derives the tick from --bubble-row-inset (declarations seen: ' + (tickDecls.join(' ') || 'none') + ')');
-  // the tail still hangs OUTSIDE the bubble — the whole geometry rests on this
-  if (!/inset-inline-start:\s*calc\(-1 \* var\(--bubble-tail\)\)/.test(mb49)
-      || !/inset-inline-end:\s*calc\(-1 \* var\(--bubble-tail\)\)/.test(mb49)) bad49.push('the tail is no longer offset by -1 × --bubble-tail from the bubble, so the tip is not inset − tail');
+  /* ★ #993 (T1) re-base: the tail-offset clause is RETIRED with the tail (Damir 2026-09-28, both
+     themes). With no tail the bubble edge IS the outermost ink, so ①–③ are the whole geometry;
+     the #993 T1 block pins that no tail paints. A tail term creeping back onto the inset is still
+     refused by ① and ②. */
   ok(bad49.length === 0,
-    '★★ GATE 49: the chat row inset is the BARE --spacing-16 (bubble body 16 px; the tail tip sits at 16 − --bubble-tail: 8 px with the 8-wide tail it was measured on, 9 px since the 7-wide tail of #904), the gutter row\'s end edge takes the same value rather than its own copy of the calc, chat-select still derives the selection tick from the same token (Session J\'s ONE home), and the tail is still offset -1 × --bubble-tail so the tip follows the body. Failing: ['
+    '★★ GATE 49: the chat row inset is the BARE --spacing-16 (bubble body 16 px; since #993 there is no tail, so the body edge is the outermost ink — the tail tip sat at 8 px, then 9 px under #904), the gutter row\'s end edge takes the same value rather than its own copy of the calc, chat-select still derives the selection tick from the same token (Session J\'s ONE home), and the tail is still offset -1 × --bubble-tail so the tip follows the body. Failing: ['
     + (bad49.join(' | ') || 'none') + ']. The reversal, calc(--spacing-16 + --bubble-tail), is the shape this refuses: it reads like the tidy answer and silently returns 8px to both edges of every row');
 }
 
@@ -36490,7 +36502,7 @@ console.log('Office fix round (#974–#981)');
      && liftDefs.length === 1 && liftDefs[0] === 'max(0px, calc(var(--kb-inset, 0px) - var(--safe-bottom, 0px)))'
      && /#chat-composer\s*\{\s*margin-bottom:\s*var\(--composer-lift, 0px\);\s*\}/.test(cssChat)
      && !/#chat-composer\s*\{\s*margin-bottom:\s*max\(/.test(cssChat)
-     && /#messages\s*\{[^}]*padding-bottom:\s*calc\(var\(--composer-h, 0px\) \+ var\(--composer-lift, 0px\)/.test(cssChat),
+     && /#messages::after\s*\{[^}]*height:\s*calc\(var\(--composer-h, 0px\) \+ var\(--composer-lift, 0px\)/.test(cssChat),   /* ★ #993 (M7) re-base: the log's reserve is the ::after spacer now */
     '★★ #976 (N1): ONE lift (--composer-lift = the keyboard inset minus the safe bottom, defined once) moves the composer slot AND every box that clears it — derived over the BUILT chat shell: ' + decls.length + ' declarations read --composer-h, none without the lift (' + JSON.stringify(noLift) + ') — so the keyboard lifts the log, the chevron and the @ FAB with the pill (the ⊕ tray already did, by growing the slot)');
 
   /* ── #981 M1 an EMPTY standard row paints nothing on the LIVE path either (the load path's rendersNothing agrees) */
@@ -36700,10 +36712,18 @@ console.log('Office fix round (#974–#981)');
     'outline-card-sent': ['transparent', 'rgba(118, 157, 255, 0.22)'],
     'surface-medallion': ['var(--surface-action-tonal-default)', 'rgba(118, 157, 255, 0.14)'],
     'icon-medallion': ['var(--icon-action-default)', '#9DB8FF'],
+    /* ★ #993 (the adversarial review of #989): M1 the Details divider, m1 the selected sent card's edge */
+    'outline-card-divider': ['var(--outline-neutral-01)', 'var(--outline-on-card)'],
+    'outline-card-sent-selected': ['transparent', 'rgba(118, 157, 255, 0.55)'],
   };
-  const bad = Object.entries(NEW).filter(([n, [lv, dv]]) => { const d = decls(n); return !(d.length === 2 && d[0].v === lv && d[1].v === dv && d[1].at > d[0].at); });
+  /* ★ #993 review (pin hole, mutation-proven): "later in source order" alone passed a dark value moved into the
+     reduced-motion :root block — light users would get it. The dark value must sit in a block whose selector IS
+     the dark theme, and the light one in a plain :root block. */
+  const blockSel = (at) => { const open = tk.lastIndexOf('{', at); const prev = Math.max(tk.lastIndexOf('}', open), tk.lastIndexOf(';', open)); return tk.slice(prev + 1, open).trim(); };
+  const bad = Object.entries(NEW).filter(([n, [lv, dv]]) => { const d = decls(n); return !(d.length === 2 && d[0].v === lv && d[1].v === dv && d[1].at > d[0].at
+    && /\[data-theme="dark"\]$/.test(blockSel(d[1].at)) && blockSel(d[0].at) === ':root'); });
   ok(bad.length === 0,
-    '★★ #989: seven new semantic tokens, each declared exactly TWICE — the LIGHT value first (= today\'s look: transparent edges, the white sent card with #265\'s 2px outgoing border, the action-tonal medallion) and the DARK value LATER in source order, so it actually wins on [data-theme="dark"]. Failing: ' + JSON.stringify(bad.map((b) => b[0])));
+    '★★ #989 (+ #993 review): nine semantic tokens, each declared exactly TWICE — light in a plain :root block, dark in the [data-theme="dark"] block — the LIGHT value first (= today\'s look: transparent edges, the white sent card with #265\'s 2px outgoing border, the action-tonal medallion) and the DARK value LATER in source order, so it actually wins on [data-theme="dark"]. Failing: ' + JSON.stringify(bad.map((b) => b[0])));
   const darkLit = ['chat-canvas-base', 'surface-bubble-received', 'surface-composer-pill'].filter((n) => { const d = decls(n); return !d.length || /#[0-9a-fA-F]{3,6}\b/.test(d[d.length - 1].v); });
   ok(darkLit.length === 0 && decls('chat-canvas-base').pop().v === 'var(--neutral-1000)' && decls('surface-bubble-received').pop().v === 'var(--neutral-800)' && decls('surface-composer-pill').pop().v === 'var(--neutral-800)',
     '★ #989: the dark canvas / received bubble / composer pill read the RAMP (neutral-1000 / -800 / -800), no literal hex — two blacks from two families was defect D-01. Literal: ' + JSON.stringify(darkLit));
@@ -36725,6 +36745,235 @@ console.log('Office fix round (#974–#981)');
      && /:root:not\(\[data-desktop\]\) \.c-wallet-misstx > svg,\s*:root:not\(\[data-desktop\]\) \.c-wallet-misstx__label \{ display: none; \}/.test(wsCss)
      && /:root:not\(\[data-desktop\]\) \.c-wallet-misstx__q \{[^}]*display: block;/.test(wsCss),
     '★ #990: on a phone the misstx pill shows ONLY a "?" (aria-hidden glyph; the aria-label still names it), the ⓘ and the label hide outside :root[data-desktop], and desktop keeps the ⓘ + label (the glyph is display:none by default)');
+}
+
+/* ══ #993 (M7, office walk #991): the short-log gap — the room under the newest message is a REAL BOX ══
+ * WebKit (Mac Catalyst, iPhone) leaves a flex scroller's block-end PADDING out of scrollable overflow.
+ * With the reserve as padding, a log taller than the box minus the padding but shorter than the box
+ * put the newest bubble INTO the padding band with nothing to scroll — behind the floating pill.
+ * PROPERTY, derived over EVERY rule of the BUILT chat shell (not one spelling, #798): no rule whose
+ * selector targets the log scroller reserves the pill through padding, and the log's ::after is a
+ * non-shrinking flex item whose height carries the pill's height AND the keyboard lift. */
+{
+  const bc = readFileSync(join(root, 'Spixi/Resources/Raw/html/chat.html'), 'utf8');
+  const css = [...bc.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
+  const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1].trim(), body: m[2] }));
+  const logSel = (sel) => sel.split(',').some((x) => /(#messages|\.messages)(?![\w-])(?!::)\s*$/.test(x.trim()));
+  const padLeak = rules.filter((r) => logSel(r.sel) && /padding(-bottom|-block-end|-block)?\s*:[^;]*--composer-h/.test(r.body)).map((r) => r.sel);
+  const after = rules.filter((r) => r.sel.split(',').some((x) => /#messages::after\s*$/.test(x.trim())));
+  const ab = after.map((r) => r.body).join(';');
+  ok(padLeak.length === 0 && after.length >= 1
+     && /content:\s*""/.test(ab) && /flex:\s*none/.test(ab)
+     && /height:\s*calc\(var\(--composer-h, 0px\) \+ var\(--composer-lift, 0px\) \+ var\(--spacing-4\)\)/.test(ab)
+     && !/display:\s*none/.test(ab),
+    '★★ #993 (M7): the log reserves the floating composer with a REAL BOX (#messages::after: content "", flex none, height = --composer-h + --composer-lift + spacing-4) and NO log-scroller rule reserves it through padding (WebKit drops a flex scroller\'s end padding from scrollable overflow → the newest bubble sat behind the pill while the log was just short of the pane). Padding leaks: ' + JSON.stringify(padLeak));
+}
+
+/* ══ #993 (F1, office walk #991): a TAP/CLICK open puts focus on the overlay ROOT, not the first row ══
+ * Safari/WKWebView does not focus a button on tap/click, so the move into a sheet was the gesture's
+ * first focus and WebKit painted it :focus-visible — every sheet opened with a ring on its first row.
+ * EXECUTED on the demo bundle (the same sources every shell inlines): pointer → root; keyboard → the
+ * first control / the safe [data-autofocus] action (the a11y contract); Tab from the root enters the
+ * sheet; a bare modifier does not flip the modality; the focusin bounce follows the modality; the root
+ * is tabindex -1 and paints no ring. */
+{
+  const dom = new JSDOM('<!doctype html><body><button id="opener">Open</button></body>', { runScripts: 'outside-only', pretendToBeVisual: true });
+  const W = dom.window, D = W.document;
+  W.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+  W.eval(readFileSync(join(root, 'src/components/icons.iife.js'), 'utf8'));
+  W.eval(readFileSync(join(root, 'src/demo/spixi.iife.js'), 'utf8'));
+  const S = W.Spixi, r = {};
+  const mk = () => { const b = D.createElement('div'); for (const t of ['Reply', 'Copy', 'Delete']) { const x = D.createElement('button'); x.textContent = t; b.append(x); } return S.createSheet({ title: 'Menu', content: b }); };
+  const ptr = () => D.body.dispatchEvent(new W.Event('pointerdown', { bubbles: true }));
+  const key = (k) => D.dispatchEvent(new W.KeyboardEvent('keydown', { key: k, bubbles: true }));
+  ptr(); let sh = mk(); S.openSheet(sh);
+  r.pointerRoot = D.activeElement === sh; r.rootTab = sh.getAttribute('tabindex') === '-1';
+  key('Tab'); r.tabEnters = !!D.activeElement && D.activeElement.textContent === 'Reply';
+  S.dismissOverlay(sh);
+  key('Enter'); sh = mk(); S.openSheet(sh);
+  r.keyboardRow = !!D.activeElement && D.activeElement.textContent === 'Reply';
+  S.dismissOverlay(sh);
+  ptr(); key('Shift'); sh = mk(); S.openSheet(sh);
+  r.modifier = D.activeElement === sh;
+  S.dismissOverlay(sh);
+  /* #993 review MINOR: TYPING (a soft keyboard fires keydown per character) is not navigation */
+  const inp = D.createElement('input'); D.body.append(inp); inp.focus();
+  ptr(); inp.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'a', bubbles: true })); inp.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Unidentified', keyCode: 229, bubbles: true }));
+  sh = mk(); S.openSheet(sh); r.typingKeepsPointer = D.activeElement === sh; S.dismissOverlay(sh);
+  inp.focus(); ptr(); inp.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+  sh = mk(); S.openSheet(sh); r.tabFromFieldIsKeyboard = !!D.activeElement && D.activeElement.textContent === 'Reply';
+  S.dismissOverlay(sh); ptr(); sh = mk(); S.openSheet(sh);
+  D.getElementById('opener').focus(); r.bounce = D.activeElement === sh;
+  S.dismissOverlay(sh);
+  const md = () => S.createModal({ title: 'Delete?', actions: [{ label: 'Cancel', type: 'text', autofocus: true }, { label: 'Delete', type: 'fill' }] });
+  ptr(); let m = md(); S.openModal(m); r.modalPointer = D.activeElement === m; S.dismissOverlay(m);
+  key('Enter'); m = md(); S.openModal(m); r.modalKeyboard = !!D.activeElement && D.activeElement.textContent.trim() === 'Cancel'; S.dismissOverlay(m);
+  const oc = stripCssComments(readFileSync(join(root, 'src/styles/components/overlay.css'), 'utf8'));
+  r.noRing = /\[data-overlay-root\]:focus\s*\{\s*outline:\s*none;\s*\}/.test(oc);
+  ok(Object.values(r).every((v) => v === true),
+    '★★ #993 (F1): a pointer/touch open focuses the overlay ROOT (tabindex -1, no ring), a keyboard open still lands on the first control / the safe autofocus action, Tab from the root enters the sheet, a bare modifier keeps the pointer modality, the focusin bounce follows it — ' + JSON.stringify(r));
+}
+
+/* ══ #993 (N2b, office walk #991): the Create group CTA rides ABOVE the iPhone keyboard ══
+ * WKWebView keeps the fixed takeover full height; the footer is LIFTED by the published --kb-inset.
+ * Rendered on the built home shell (393×852, --kb-inset 336, --safe-bottom 34): before the button
+ * bottom was 806 (under the keyboard line 516), after 504; at --kb-inset 0 both 806 (unchanged).
+ * Read over the BUILT home shell's CSS (every .c-contacts__footer rule, not one spelling), and the
+ * shell must still PUBLISH the inset the rule reads. */
+{
+  const bh = readFileSync(join(root, 'Spixi/Resources/Raw/html/index.html'), 'utf8');
+  const css = [...bh.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
+  const foot = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter((m) => m[1].split(',').some((x) => /\.c-contacts__footer\s*$/.test(x.trim()))).map((m) => m[2]).join(';');
+  const mb = [...foot.matchAll(/margin-bottom\s*:\s*([^;]+)/g)].map((m) => m[1].trim());
+  const pb = [...foot.matchAll(/padding-bottom\s*:\s*([^;]+)/g)].map((m) => m[1].trim());
+  ok(mb.length >= 1 && mb[mb.length - 1] === 'var(--kb-inset, 0px)'
+     && pb.length >= 1 && pb[pb.length - 1] === 'calc(var(--spacing-12) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)))'
+     && /setProperty\('--kb-inset', px \+ 'px'\)/.test(bh),
+    '★★ #993 (N2b): the contacts footer (Create group · Add contact) is lifted by the keyboard (margin-bottom: var(--kb-inset, 0px), the LAST margin-bottom wins) and its safe-area pad drops by the same inset, on the BUILT home shell that publishes --kb-inset — got margin ' + JSON.stringify(mb) + ' · padding ' + JSON.stringify(pb));
+}
+
+/* ══ #993 (M6, office walk #991, Mac): a hairline under the title-bar strip ══
+ * One fixed 1px line at y = --safe-top on desktop, min(1px, --safe-top) tall: Mac Catalyst draws
+ * the shells under the transparent title bar (inset > 0 → the line), Windows has a native title bar
+ * above the WebView (inset 0 → ZERO tall). Rendered on 4 built shells both themes: inset 28 → top
+ * 28px h 1px; inset 0 → h 0; phone → no box. DERIVED: every BUILT shell (every *.html the C# can
+ * load) carries the rule, because every WebView reaches the window top and the pieces must join.
+ * The C# logs the real Mac inset once ([M6], a number only) — the office walk reads it (#294). */
+{
+  const dir = join(root, 'Spixi/Resources/Raw/html');
+  const shells = readdirSync(dir).filter((f) => f.endsWith('.html'));
+  const want = (css) => {
+    const m = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter((x) => x[1].split(',').some((y) => /^:root\[data-desktop\]:not\(\[data-bleed-top\]\) body::before$/.test(y.trim())));
+    const b = m.map((x) => x[2]).join(';');
+    return m.length === 1 && /content:\s*''/.test(b) && /position:\s*fixed/.test(b) && /top:\s*var\(--safe-top, 0px\)/.test(b)
+      && /height:\s*min\(var\(--outline-width-1\), var\(--safe-top, 0px\)\)/.test(b) && /background:\s*var\(--outline-neutral-03\)/.test(b)
+      && /pointer-events:\s*none/.test(b) && /z-index:\s*31/.test(b);
+  };
+  const cssOf = (h) => [...h.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
+  /* the shells share ONE built base stylesheet (build-shells emits spixi.base.css and every shell links it) */
+  const baseCss = readFileSync(join(dir, 'spixi.base.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const htmls = shells.map((f) => [f, readFileSync(join(dir, f), 'utf8')]);
+  const miss = want(baseCss) ? htmls.filter(([, h]) => !/<link rel="stylesheet" href="spixi\.base\.css">/.test(h)).map(([f]) => f) : ['spixi.base.css'];
+  const other = [...(baseCss + '\n' + cssOf(htmls.map(([, h]) => h).join('\n'))).matchAll(/([^{}]+)\{/g)].filter((x) => /body::before/.test(x[1]) && !/^:root\[data-desktop\]:not\(\[data-bleed-top\]\) body::before$/.test(x[1].trim())).map((x) => x[1].trim());
+  /* the #993 review MINOR: full-bleed screens stand the line down — static on lock / launch (intro.html) / call, toggled with the Wallet tab */
+  const bleedStatic = ['lock.html', 'intro.html', 'call.html'].filter((f) => !/<html lang="en" data-bleed-top>/.test(readFileSync(join(dir, f), 'utf8')));
+  const bleedWallet = /walletView\.hidden = !isWallet;\s*document\.documentElement\.toggleAttribute\('data-bleed-top', isWallet\);/.test(readFileSync(join(dir, 'index.html'), 'utf8'));
+  const scp = readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8');
+  const diag = /#if MACCATALYST[\s\S]{0,1400}?double macTop = this\.On<iOS>\(\)\.SafeAreaInsets\(\)\.Top;\s*if \(macTop != lastMacTitlebarInset\)\s*\{\s*lastMacTitlebarInset = macTop;\s*Logging\.info\("\[M6\] mac safe-area top=" \+ macTop\);/.test(scp);
+  ok(shells.length >= 10 && miss.length === 0 && other.length === 0 && diag && bleedStatic.length === 0 && bleedWallet,
+    '★★ #993 (M6): EVERY built shell (' + shells.length + ') carries the desktop title-bar hairline (fixed, top = --safe-top, height min(1px, --safe-top) → zero on Windows, outline-neutral-03, z 31, no pointer events), no other body::before rule competes, full-bleed screens (lock, launch, call, the Wallet tab) stand it down via data-bleed-top, and the Mac logs its real inset on every CHANGE — missing: ' + JSON.stringify(miss) + ' · rivals: ' + JSON.stringify(other) + ' · diag: ' + diag + ' · bleed: ' + JSON.stringify(bleedStatic) + '/' + bleedWallet);
+}
+
+/* ══ #993 (M5, office walk #991, Mac): the paste probe — DIAGNOSTIC ONLY (#294) ══
+ * On macOS ⌘V is the Edit menu's key equivalent, and MAUI rebuilds the Catalyst main menu. The
+ * AppDelegate logs, after MAUI's pass, whether the Edit menu and Paste survived — two booleans, no
+ * data. Pinned: base.BuildMenu runs FIRST (skipping it would break MAUI's menu), the probe runs on
+ * the MAIN menu only, the one log line carries only the two booleans, and a throw is caught. */
+{
+  const ad = readFileSync(join(root, 'Spixi/Platforms/MacCatalyst/AppDelegate.cs'), 'utf8');
+  const i = ad.indexOf('public override void BuildMenu(IUIMenuBuilder builder)');
+  const body = i < 0 ? '' : ad.slice(i, ad.indexOf('\n    }\n', i));
+  const lines = [...body.matchAll(/Logging\.(\w+)\(([^;]*)\);/g)].map((m) => m[2]);
+  ok(i > 0 && /\{\s*base\.BuildMenu\(builder\);\s*try/.test(body)
+     && /if \(builder\.System != UIMenuSystem\.MainSystem\) return;/.test(body)
+     && lines.length === 2 && lines[0] === '"[M5] main menu edit=" + hasEdit + " paste=" + hasPaste' && lines[1] === '"[M5] menu probe failed: " + e.GetType().Name'
+     && /catch \(System\.Exception e\)/.test(body)
+     /* the second probe (#993 review MAJOR: the menu alone cannot explain a context-menu Paste failing) */
+     && /#if MACCATALYST[\s\S]{0,900}?Logging\.info\("\[M5\] add-contact pasteboard hasStrings=" \+ UIKit\.UIPasteboard\.General\.HasStrings\);[\s\S]{0,200}?Logging\.warn\("\[M5\] pasteboard probe failed: " \+ ex\.GetType\(\)\.Name\);/.test(readFileSync(join(root, 'Spixi/Pages/Contacts/ContactNewPage.xaml.cs'), 'utf8')),
+    '★ #993 (M5): the Mac paste probe calls base.BuildMenu FIRST, reads the MAIN menu only, logs exactly two booleans (edit, paste) and only an exception TYPE on failure; the add-contact page logs one more boolean (does the pasteboard hold text) — lines: ' + JSON.stringify(lines));
+}
+
+/* ══ #993 (T1, Damir 2026-09-28, BOTH themes): no bubble tail — a small radius in that corner ══
+ * The #989 dark hairline (an inset box-shadow) could not follow the clip-path tail. Rendered on the
+ * built chat shell, light + dark, received + sent × first/middle/last/single: ::before content none
+ * on every bubble, the origin corner 4px, the inset hairline on every received bubble.
+ * DERIVED over the BUILT chat shell + the built tokens: NO rule paints a bubble pseudo-element with a
+ * clip-path or a tail token, the tail tokens are gone, the origin corner reads its own token on BOTH
+ * directions for first AND single, and the token is 4px, declared once. */
+{
+  const dir = join(root, 'Spixi/Resources/Raw/html');
+  const chatB = readFileSync(join(dir, 'chat.html'), 'utf8');
+  const tokB = readFileSync(join(dir, 'spixi.tokens.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const css = [...chatB.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
+  const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1].trim(), body: m[2] }));
+  const tailPaint = rules.filter((r) => r.sel.split(',').some((x) => /\.c-bubble(\[[^\]]*\])*::(before|after)$/.test(x.trim())) && /clip-path|--bubble-tail|content:\s*['"]/.test(r.body)).map((r) => r.sel.slice(0, 80));
+  const tokensLeft = /--bubble-tail/.test(tokB + css);
+  const originDefs = [...tokB.matchAll(/--bubble-radius-origin:\s*([^;]+);/g)].map((m) => m[1].trim());
+  const corner = (dirn, pos, prop) => rules.some((r) => r.sel.split(',').some((x) => x.trim() === `.c-bubble-row[data-direction="${dirn}"][data-position="${pos}"] .c-bubble`)
+    && new RegExp(prop + ':\\s*var\\(--bubble-radius-origin\\)').test(r.body));
+  const corners = ['first', 'single'].every((pos) => corner('received', pos, 'border-start-start-radius') && corner('sent', pos, 'border-start-end-radius'));
+  const squared = rules.filter((r) => /\.c-bubble-row\[data-direction="(received|sent)"\]\[data-position="(first|single)"\] \.c-bubble$/.test(r.sel.split(',').pop().trim()) && /border-start-(start|end)-radius:\s*0\s*[;}]?/.test(r.body + ';')).map((r) => r.sel.slice(0, 80));
+  ok(tailPaint.length === 0 && !tokensLeft && originDefs.length === 1 && originDefs[0] === '4px' && corners && squared.length === 0,
+    '★★ #993 (T1): the bubble TAIL is gone in both themes (no bubble pseudo-element paints a clip-path/tail, no --bubble-tail token left) and the group-start / lone bubble\'s top-outer corner is --bubble-radius-origin (4px, declared once) on both directions — tail paints: ' + JSON.stringify(tailPaint) + ' · tokens left: ' + tokensLeft + ' · origin: ' + JSON.stringify(originDefs) + ' · corners: ' + corners + ' · squared: ' + JSON.stringify(squared));
+}
+
+/* ══ #993 — the ADVERSARIAL REVIEW's fixes over #989/#990 and #993 itself (Damir: "adversarial over it, and
+ *    clean out any previous session that didn't run") ══
+ * #989 had never had a review. It found: M1 the typed card's Details divider was the SAME colour as the dark
+ * received card (1.00:1); m1 a selected SENT card sat at 1.07:1 on the selection wash; n1 the Chat appearance
+ * preview did not carry the new dark edge; #990 m3 the phone "?" disc was a 32px target; and the #990 pin let a
+ * later display:none through. #993's own review found the in-app Copy was a no-op on a file:// WKWebView (iPhone,
+ * Mac) at seven call sites — a candidate cause of M5. Each is pinned by its property. */
+{
+  const rd = (f) => readFileSync(join(root, f), 'utf8');
+  const cssStrip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '');
+  const typed = cssStrip(rd('src/styles/components/typed-bubbles.css'));
+  const sel = cssStrip(rd('src/styles/components/chat-select.css'));
+  const prev = cssStrip(rd('src/styles/components/settings-screens.css'));
+  const r = {};
+  r.divider = /\.c-tcard__details \{[^}]*border-top: var\(--outline-width-1\) solid var\(--outline-card-divider\);/.test(typed) && !/\.c-tcard__details \{[^}]*--outline-neutral-01/.test(typed);
+  r.selected = /\[data-selecting\] \.c-bubble-row\[data-selected\] \{[^}]*--outline-card-sent: var\(--outline-card-sent-selected\);/.test(sel);
+  r.preview = /\.c-settings-appearance__bubble\[data-side='received'\] \{[^}]*box-shadow: inset 0 0 0 1px var\(--border-bubble-received\), inset 0 0 0 1px var\(--outline-hairline\), inset 0 1px 0 var\(--highlight-top\);/.test(prev)
+    && /\.c-settings-appearance__bubble\[data-side='received'\] \{[^}]*border-start-start-radius: var\(--bubble-radius-origin\);/.test(prev)
+    && /\.c-settings-appearance__bubble\[data-side='sent'\] \{[^}]*border-start-end-radius: var\(--bubble-radius-origin\);/.test(prev);
+  /* #990: over the BUILT home shell, every rule that sets the "?" glyph's display — on a phone the LAST word is block */
+  const home = cssStrip([...rd('Spixi/Resources/Raw/html/index.html').matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join('\n'));
+  const qRules = [...home.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter((m) => /\.c-wallet-misstx__q\s*$/.test(m[1].split(',').pop().trim()) && /display\s*:/.test(m[2]));
+  const phoneQ = qRules.filter((m) => !/\[data-desktop\]\s/.test(m[1].replace(':root:not([data-desktop])', '')) );
+  r.qLast = phoneQ.length >= 2 && /display:\s*block/.test(phoneQ[phoneQ.length - 1][2]) && /:root:not\(\[data-desktop\]\)/.test(phoneQ[phoneQ.length - 1][1]);
+  r.hit = /:root:not\(\[data-desktop\]\) \.c-wallet-misstx \{[^}]*position: relative;/.test(home) && /:root:not\(\[data-desktop\]\) \.c-wallet-misstx::after \{ content: ''; position: absolute; inset: calc\(\(var\(--size-target-min\) - 32px\) \/ -2\); \}/.test(home);
+  /* copyText EXECUTED: no async API (the file:// WKWebView case) → execCommand copies, resolves true; a refusal resolves false */
+  const dom = new JSDOM('<!doctype html><body></body>', { runScripts: 'outside-only', pretendToBeVisual: true });
+  const W = dom.window;
+  W.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+  W.eval(rd('src/components/icons.iife.js')); W.eval(rd('src/demo/spixi.iife.js'));
+  let copied = null; W.document.execCommand = (c) => { if (c === 'copy') { const ta = W.document.querySelector('textarea'); copied = ta && ta.value; return true; } return false; };
+  try { Object.defineProperty(W.navigator, 'clipboard', { value: undefined, configurable: true }); } catch (e) {}
+  r.fallback = await W.Spixi.copyText('42SpoxAddress') === true && copied === '42SpoxAddress';
+  W.document.execCommand = () => false;
+  r.honest = await W.Spixi.copyText('x') === false && await W.Spixi.copyText('') === false;
+  let asyncCalled = ''; Object.defineProperty(W.navigator, 'clipboard', { value: { writeText: (t) => { asyncCalled = t; return Promise.reject(new Error('denied')); } }, configurable: true });
+  W.document.execCommand = (c) => c === 'copy';
+  r.rejectFalls = await W.Spixi.copyText('abc') === true && asyncCalled === 'abc';
+  /* ★ round 2 (MAJOR): a Copy INSIDE an open sheet (member · tx · address) — the buffer must sit inside the overlay, keep
+     focus through execCommand (else overlay.js bounced it and nothing was selected while a ✓ showed), and hand focus back */
+  Object.defineProperty(W.navigator, 'clipboard', { value: undefined, configurable: true });
+  W.document.body.dispatchEvent(new W.Event('pointerdown', { bubbles: true }));
+  const body2 = W.document.createElement('div'); const cbtn = W.document.createElement('button'); cbtn.textContent = 'Copy'; body2.append(cbtn);
+  const sh2 = W.Spixi.createSheet({ title: 'Member', content: body2 }); W.Spixi.openSheet(sh2); cbtn.focus();
+  let inSheet = null, heldFocus = null;
+  W.document.execCommand = (c) => { const ta = W.document.activeElement; heldFocus = !!ta && ta.tagName === 'TEXTAREA'; inSheet = !!ta && sh2.contains(ta); return heldFocus && ta.value === 'SHEETADDR'; };
+  r.sheetCopy = await W.Spixi.copyText('SHEETADDR') === true && heldFocus === true && inSheet === true && W.document.activeElement === cbtn && !W.document.querySelector('textarea');
+  /* ★ round 3 (MAJOR): the iOS condition — a sheet is OPEN but focus is on <body> (the keyboard's Done, any blur).
+     The buffer must still land in the top overlay (from the stack), not in <body> where containment bounced it */
+  W.document.activeElement.blur();
+  heldFocus = null; inSheet = null;
+  r.sheetCopyBodyFocus = W.document.activeElement === W.document.body && await W.Spixi.copyText('SHEETADDR') === true && heldFocus === true && inSheet === true;
+  /* and a copy whose focus is taken away is NOT claimed */
+  const origFocus = W.HTMLTextAreaElement.prototype.focus; W.HTMLTextAreaElement.prototype.focus = function () {};
+  W.document.execCommand = () => true;
+  r.stolenFocusHonest = await W.Spixi.copyText('X') === false;
+  W.HTMLTextAreaElement.prototype.focus = origFocus;
+  W.Spixi.dismissOverlay(sh2);
+  /* DERIVED: no component or shell calls the async clipboard directly any more, except copyText itself (clipboard.js) and settings.html's own documented clipboard→execCommand→toast ladder (#235b) */
+  const walk = (d) => readdirSync(join(root, d)).filter((f) => /\.(js|html)$/.test(f)).map((f) => [d + '/' + f, rd(d + '/' + f)]);
+  const naked = [...walk('src/components'), ...walk('src/shells')].filter(([f, t]) => /navigator\.clipboard\.writeText\(/.test(t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')))
+    .filter(([f, t]) => !(f === 'src/components/clipboard.js' && (t.match(/navigator\.clipboard\.writeText\(/g) || []).length === 1) && f !== 'src/shells/settings.html'
+      /* chat-select's multi-copy keeps its OWN ladder (async → execCopyText, synchronous finish before exit — the toast ordering its pins hold) */
+      && !(f === 'src/components/chat-select.js' && /navigator\.clipboard\.writeText\(joined\)\.then\(\(\) => finish\(true\), \(\) => finish\(execCopyText\(joined\)\)\);\s*\} else finish\(execCopyText\(joined\)\);/.test(t))).map(([f]) => f);
+  r.naked = naked.length === 0;
+  ok(Object.values(r).every((v) => v === true),
+    '★★ #993 review fixes: #989 M1 the Details divider has its own role (on-card in dark), m1 a selected sent card\'s edge rises, n1 the appearance preview carries the dark edge and the tail-less corner; #990 the phone "?" is the LAST display word and has a 44px hit area; copyText falls back to execCommand when the async API is absent or refuses, keeps the buffer INSIDE an open sheet (focus held, then restored) and never claims a failed copy; no component/shell calls the async clipboard directly — ' + JSON.stringify(r) + ' naked: ' + JSON.stringify(naked));
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

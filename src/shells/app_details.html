@@ -123,6 +123,7 @@
     attachEdgeBack,   // ★ L3 (#706): the iOS back signal + the one-level chain
     dismissTopOverlay,                   // ★ L3 (Session F): hardware back closes an open confirm first
     applyPushedTheme,
+    copyText,                            // ★ #993: the shared copy with the file:// fallback
     } = window.Spixi;
   const strings = window.SL || {};
 
@@ -207,7 +208,7 @@
 
       // copy the dev install URL — no bridge verb; best-effort Clipboard API
       // (the component shows its own "Copied" toast regardless).
-      onCopyUrl: (url) => { try { navigator.clipboard && navigator.clipboard.writeText(url); } catch (_) {} },
+      onCopyUrl: (url) => { copyText(url); },   // ★ #993: + the file:// fallback
     }));
     scroll.scrollTop = 0;
     /* ★★ Session M — THE PRESENT SIGNAL (the #766 generalisation to the DATA pages).

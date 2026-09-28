@@ -27,6 +27,7 @@ import { createAvatar, truncateAddressMiddle } from './avatar.js';
 import { createButton } from './button.js';
 import { createBadge } from './badge.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
+import { copyText } from './clipboard.js';   // ★ #993: the shared copy with the file:// fallback
 
 export function openMemberSheet({
   host,
@@ -124,8 +125,8 @@ export function openMemberSheet({
       copy.className = 'c-member__copy';
       copy.setAttribute('aria-label', strings.copyAddress || 'Copy address');
       copy.append(icon('copy', { size: 18 }));
-      copy.addEventListener('click', () => {
-        if (navigator.clipboard) navigator.clipboard.writeText(member.address).catch(() => {});
+      copy.addEventListener('click', () => copyText(member.address).then((copied) => {
+        if (!copied) return;   // ★ #993: the ✓ only for a copy that happened (it showed for a no-op on iPhone/Mac)
         copy.textContent = '';
         copy.append(icon('check', { size: 18 })); // brief confirmation morph
         copy.setAttribute('aria-label', strings.copied || 'Copied'); // SRs hear the confirm too (freeze audit)
@@ -134,7 +135,7 @@ export function openMemberSheet({
           copy.append(icon('copy', { size: 18 }));
           copy.setAttribute('aria-label', strings.copyAddress || 'Copy address');
         }, 1400);
-      });
+      }));
       addrRow.append(addr, copy);
       content.append(label, addrRow);
     }

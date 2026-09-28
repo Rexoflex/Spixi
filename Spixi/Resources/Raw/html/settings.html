@@ -1012,6 +1012,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 :root:not([data-desktop]) .c-sheet[data-m-anchor][data-open] { transform: none; opacity: 1; }
 :root:not([data-desktop]) .c-sheet[data-m-anchor] .c-sheet__handle { display: none; }
 
+/* ★★ #993 (F1): an overlay ROOT takes focus on a pointer open (overlay.js) so the first row shows no
+   ring; the root itself must not ring either — it is a dialog container (tabindex -1, never a Tab
+   stop), and APG gives a focused dialog container no indicator. (0,2,0) beats base.css :focus-visible. */
+[data-overlay-root]:focus { outline: none; }
+
 </style><!-- c-sheet (theme/language) + c-modal (danger confirm) -->
 <style data-src="../styles/components/settings-shell.css">
 /* c-settings — Account hub + danger screen (docs/settings-shell-spec.md,
@@ -2714,17 +2719,21 @@ button.c-settings-howto__join:disabled {
   color: var(--text-bubble-received);
   /* ★ N81 (#422, #46 audit): the preview must show what the chat shows — which is
      why it reads the SAME token rather than baking an edge. ★ N82(b) (#427): that
-     now means no edge in EITHER theme, exactly as the chat renders. */
-  box-shadow: inset 0 0 0 1px var(--border-bubble-received);
-  border-radius: var(--radius-16);
-  border-end-start-radius: var(--radius-4);
+     now means no edge in EITHER theme, exactly as the chat renders.
+     ★ #993 (review of #989, n1): #989 gave the chat's received bubble a dark hairline + top light;
+     the preview reads the same two tokens (transparent in light, so light is unchanged). */
+  box-shadow: inset 0 0 0 1px var(--border-bubble-received), inset 0 0 0 1px var(--outline-hairline), inset 0 1px 0 var(--highlight-top);
+  /* ★ #993 (T1): the preview takes the chat's tail-less single-bubble shape — the top-outer
+     corner is the small origin radius, as in the conversation (was a bottom 4px corner). */
+  border-radius: var(--bubble-radius);
+  border-start-start-radius: var(--bubble-radius-origin);
 }
 .c-settings-appearance__bubble[data-side='sent'] {
   align-self: flex-end;
   background: var(--surface-bubble-sent);
   color: var(--text-bubble-sent);
-  border-radius: var(--radius-16);
-  border-end-end-radius: var(--radius-4);
+  border-radius: var(--bubble-radius);
+  border-start-end-radius: var(--bubble-radius-origin);   /* ★ #993 (T1): as in the chat */
 }
 
 /* —— segmented pills (FE-only instant picks) —— */
@@ -3538,9 +3547,11 @@ button.c-settings-howto__join:disabled {
      the same; if it reads wrong, 20px puts the tip exactly on the composer edge instead.
      ★ #904: the tail is 7 wide now, so the tip sits at 16 − 7 = 9 px (it was 8). The BODY
      line is what this rule owns and it did not move; the tip follows the token.
-     Reversal: calc(var(--spacing-16) + var(--bubble-tail)). */
+     ★ #993 (T1): the tail is GONE (both themes) and --bubble-tail with it; the body line at 16
+     is unchanged — the bubble edge is now the outermost ink.
+     Reversal (pre-#993 only): calc(var(--spacing-16) + var(--bubble-tail)). */
   --bubble-row-inset: var(--spacing-16);
-  padding-inline: var(--bubble-row-inset);   /* Session I: the tail sits inside the gutter */
+  padding-inline: var(--bubble-row-inset);   /* the bubble body sits on the 16px gutter */
   margin-top: var(--bubble-gap-group);     /* gap between groups (Session I dial; was --spacing-12) */
   /* N36b (#363 candidate, repro gate met 2026-08-17): in select mode the ROW is
      the tap target (N36 made in-bubble controls pointer-dead), and every
@@ -3627,65 +3638,19 @@ button.c-settings-howto__join:disabled {
 .c-bubble-row[data-direction="sent"][data-position="middle"] .c-bubble { border-start-end-radius: var(--bubble-radius-group); border-end-end-radius: var(--bubble-radius-group); }
 .c-bubble-row[data-direction="sent"][data-position="last"] .c-bubble { border-start-end-radius: var(--bubble-radius-group); }
 
-/* ★ Session I — THE TAIL (sheet 1c; #735④ "bubble tails: YES — WA/TG grammar, tail on the
-   group-start bubble"). A pseudo-element on the FIRST (or single) bubble of a group, at
-   its outer TOP corner, in the bubble's own surface; that corner drops to 4px so the
-   tail reads as part of the shape. `--bubble-tail: 0px` turns the whole thing off (the
-   rule is inert at 0 width). The row inset grows by the tail width so the tail sits
-   INSIDE the 16px gutter rather than pushing the bubble in. The tail carries the
-   elevation as a drop-shadow filter (a box-shadow would paint the clipped box). */
-.c-bubble-row[data-position="first"] .c-bubble,
-.c-bubble-row[data-position="single"] .c-bubble { overflow: visible; }
+/* ★★ #993 (T1, Damir 2026-09-28, BOTH themes): THE TAIL IS GONE. The #989 dark hairline is an
+   inset box-shadow, so it followed the bubble and not the clip-path tail — the bubble had an edge
+   and its tail had none. Damir's call: no tail, and the corner where the tail was takes a SMALL
+   radius instead of the square junction, in light and dark (one bubble grammar). The group-start
+   ("first") and the lone ("single") bubble keep their direction cue through that one tighter
+   top-outer corner. Its own token (--bubble-radius-origin), not --bubble-radius-group: the two
+   are 4px today, but a run's shared corners and the origin corner are separate dials.
+   Supersedes Session I's tail (#735④), Session J's WhatsApp curve (#756) and #904's 7×11.
+   Reversal: the Session I tail block (git history, #904 master path in its comment). */
 .c-bubble-row[data-direction="received"][data-position="first"] .c-bubble,
-.c-bubble-row[data-direction="received"][data-position="single"] .c-bubble { border-start-start-radius: 0; }
+.c-bubble-row[data-direction="received"][data-position="single"] .c-bubble { border-start-start-radius: var(--bubble-radius-origin); }
 .c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble,
-.c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble { border-start-end-radius: 0; }
-/* ★ Damir's Windows walk (same day): at 4px the corner still curved away from the tail and
-   the tail read as a flag pinned NEXT to a rounded rectangle; the corner is square (0) at
-   the tail now, so the tail's top edge continues the bubble's own edge (WA's junction). */
-.c-bubble-row[data-position="first"] .c-bubble::before,
-.c-bubble-row[data-position="single"] .c-bubble::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  width: calc(var(--bubble-tail) + 1px);   /* ★ Session J: +1 = the overlap column into the bubble (the seam fix) */
-  height: var(--bubble-tail-h);
-  pointer-events: none;
-  filter: drop-shadow(var(--bubble-elevation));
-}
-.c-bubble-row[data-direction="received"][data-position="first"] .c-bubble::before,
-.c-bubble-row[data-direction="received"][data-position="single"] .c-bubble::before {
-  inset-inline-start: calc(-1 * var(--bubble-tail));
-  background: var(--surface-bubble-received);
-  /* ★ Session J (#756, Damir: "less sharp and curved, think WhatsApp"): a rounded tip
-     (the Q at x 0–2) and a convex outer sweep back to the bubble edge, instead of the
-     straight-to-a-point wedge; the path still runs 1px INTO the bubble (x 8→9) so the
-     seam Damir saw stays covered. RTL mirror below.
-     ★ #904 (Damir: "slightly reduce the size of the tail"): the SAME curve, scaled from the
-     8×13 master to 7×11 — x by 7/8 up to the seam column, y by 11/13; the 1px overlap stays
-     absolute (x 7→8). All FOUR paths were redrawn together with the two tokens: path()
-     takes no var(), so the tokens cannot move the shape on their own. Master, for the next
-     dial: 'M9 0 L2.2 0 Q0 0.2 0.5 2.2 Q3.4 8.2 8 13 L9 13 Z'; the sent path is its mirror
-     about x = tail + 1. */
-  clip-path: path('M8 0 L1.93 0 Q0 0.17 0.44 1.86 Q2.98 6.94 7 11 L8 11 Z');
-}
-.c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble::before,
-.c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble::before {
-  inset-inline-end: calc(-1 * var(--bubble-tail));
-  background: var(--surface-bubble-sent);
-  clip-path: path('M0 0 L6.07 0 Q8 0.17 7.56 1.86 Q5.03 6.94 1 11 L0 11 Z');   /* ★ Session J (#756): the WhatsApp tail, mirrored (see received) */
-}
-[dir="rtl"] .c-bubble-row[data-direction="received"][data-position="first"] .c-bubble::before,
-[dir="rtl"] .c-bubble-row[data-direction="received"][data-position="single"] .c-bubble::before { clip-path: path('M0 0 L6.07 0 Q8 0.17 7.56 1.86 Q5.03 6.94 1 11 L0 11 Z'); }   /* ★ Session J (#756): mirrored, overlap at x 0→1 · #904: 7×11 */
-[dir="rtl"] .c-bubble-row[data-direction="sent"][data-position="first"] .c-bubble::before,
-[dir="rtl"] .c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble::before { clip-path: path('M8 0 L1.93 0 Q0 0.17 0.44 1.86 Q2.98 6.94 7 11 L8 11 Z'); }   /* ★ Session J (#756): mirrored, overlap at x 7→8 since #904 */
-/* the emoji-only "sticker" carries no bubble and so no tail.
-   ⚠ Specificity, learned on Damir's walk: the first/single tail rules above are
-   (0,3,1) — row class + position attribute + bubble class + pseudo — so a (0,2,1)
-   `.c-bubble[data-emoji-only]::before` LOST and a sent sticker grew a tail. The row
-   class is in the selector now (0,3,1, later in source) and the declaration is
-   !important against the direction rules (0,4,1) for good measure. */
-.c-bubble-row .c-bubble[data-emoji-only]::before { content: none !important; }
+.c-bubble-row[data-direction="sent"][data-position="single"] .c-bubble { border-start-end-radius: var(--bubble-radius-origin); }
 
 /* sender label (group chats, first of group) — identity-hued like the avatar.
    Dedicated S/L (sanctioned, like avatar #37): avatar-gradient lightness failed

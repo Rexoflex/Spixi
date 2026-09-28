@@ -1,0 +1,12 @@
+#993 fix round (M7 · F1 · N2b · M6 · M5 probe · T1) + #994 adversarial review over #993 and #989/#990 + #995 reskin ordered
+
+- M7: the log reserves the floating composer with a #messages::after spacer, not padding (WebKit drops a flex scroller's end padding from scrollable overflow → the newest bubble sat behind the pill while the log was just short of the pane)
+- F1: overlay.js tracks the last input modality; a pointer open focuses the overlay root (no ring), a keyboard open keeps the first control; typing/IME/modifiers do not count as keyboard
+- N2b: the contacts footer (Create group / Add contact) rides above the keyboard via --kb-inset
+- M6: Mac title-bar hairline (body::before at --safe-top, zero-height on Windows/phones, stood down on lock/launch/call/Wallet) + [M6] inset log
+- M5: diagnostic only — [M5] Edit-menu probe (AppDelegate) + pasteboard hasStrings probe (ContactNewPage)
+- T1: bubble tail removed in both themes; the tail corner takes --bubble-radius-origin (4px); tail tokens/paths deleted; appearance preview matches
+- #994: new clipboard.js (copyText/execCopyText) replaces async-only copies at seven sites (Spixi's own Copy was a no-op on iPhone/Mac); the buffer lives in the top open overlay, refuses unless it holds focus, restores focus
+- #989 review: --outline-card-divider (Details divider invisible in dark), --outline-card-sent-selected, appearance preview edge; #990 44px hit area; #989/#990 pins hardened
+- Suite 4901 → 4908 / the 2 KNOWN. C#: Mac-only blocks in SpixiContentPage, ContactNewPage, MacCatalyst AppDelegate.
+

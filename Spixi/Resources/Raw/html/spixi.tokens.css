@@ -1145,16 +1145,11 @@
   --bubble-meta-margin-top: 4px;                      /* the floated time/ticks tail; was var(--spacing-8) — must stay ≤ line-height − meta line-height */
   --bubble-meta-size: 11px;                           /* ★ Damir: "reduce the timestamp" — was var(--font-size-body-xs) = 12. Measured: TG/WA/ours digits are the SAME 21 px on his phone; the width of " PM" was the difference (fixed by hourCycle) — the 1px step is his call on top */
   --bubble-meta-line-height: 14px;                    /* was var(--line-height-body-xs) = 16 */
-  /* ★ #904 (Damir 2026-09-19: "slightly reduce the size of the tail"): 8×13 → 7×11.
-     ⚠ THESE TWO TOKENS SET ONLY THE BOX. The SHAPE is four clip-path() values in absolute
-     px in message-bubble.css (path() takes no var() and no calc()), drawn for a box of
-     (tail + 1) × tail-h. Change a number here WITHOUT redrawing all four and the old shape
-     is clipped inside the new box — a cut-off flag, not a smaller tail. The suite derives
-     each path's extents and requires them to equal these tokens, so that fails loudly.
-     The paths are the 8×13 master scaled (x by tail/8 up to the seam column, y by h/13);
-     sheet docs/sheets/session-ab/ holds NOW · 7×11 (shipped) · 6×10 (the next step down). */
-  --bubble-tail: 7px;                                 /* ★ sheet 1c: the tail on the group-start bubble (WA grammar, #735④); 0 = off. Was 8px until #904 */
-  --bubble-tail-h: 11px;                              /* was 13px until #904 */
+  /* ★★ #993 (T1, Damir 2026-09-28): the tail is removed in both themes (the #989 dark hairline
+     could not follow a clip-path tail). --bubble-tail / --bubble-tail-h are DELETED with it; the
+     corner where the tail sat takes this small radius. Reversal: the two tail tokens (7px / 11px,
+     #904) + the Session I tail block in message-bubble.css. */
+  --bubble-radius-origin: 4px;                        /* the group-start / lone bubble's top-outer corner (was 0 + the tail) */
   --bubble-avatar-size: 32px;                         /* ★ Session K (walk J2 T1, Damir: "a bit bigger"): the group sender avatar beside the first bubble — sheet 28 / 32 / 36, 32 ships until he picks; reversal var(--size-avatar-24) */
   --bubble-avatar-inset: var(--spacing-8);            /* ★ Session K (walk J2 T1: "left aligned with the left edge of the composer"): the avatar row's inline inset = the composer's own (composer.css padding-inline-start). ★ 2026-09-08: moved 12 → 8 WITH that padding — measured, moving only the bar left the avatar 4px inboard and broke the alignment the token exists for. Reversals in step: --spacing-12 here + --spacing-12 there; before Session K it was the plain row inset */
   --bubble-elevation: 0 1px 0.5px rgba(0, 0, 0, 0.13);  /* ★ sheet 1c: the WA/TG faint lift (light); dark re-dials below. Reversal = `0 0 0 0 transparent` (a no-op shadow, never `none`: it sits in a shadow LIST beside the hairline hook) */
@@ -1510,6 +1505,8 @@
   --surface-card-sent: var(--surface-bubble-received);  /* a SENT payment/app/call/file card */
   --border-card-sent: 2px solid var(--surface-bubble-sent);   /* #265's "yours" stroke — light only */
   --outline-card-sent: transparent;           /* dark's tinted 1px edge in its place */
+  --outline-card-sent-selected: transparent;  /* ★ #993 (review of #989, m1): the sent card's edge while its row is SELECTED — light keeps the 2px stroke, so nothing moves */
+  --outline-card-divider: var(--outline-neutral-01);   /* ★ #993 (review of #989, M1): the typed card's Details divider — light = today */
   --surface-medallion: var(--surface-action-tonal-default);   /* file / app / call disc */
   --icon-medallion: var(--icon-action-default);
   /* #170: c-disc gradient palette — vivid, distinct, mode-agnostic (paired with a
@@ -1617,6 +1614,12 @@
   --surface-card-sent: #19253B;
   --border-card-sent: 0 solid transparent;
   --outline-card-sent: rgba(118, 157, 255, 0.22);
+  /* ★ #993 (adversarial review of #989): M1 — the Details divider read --outline-neutral-01, which
+     is --neutral-800 in dark, i.e. the SAME colour #989 gave the received card (1.00:1, the line was
+     gone); it takes the on-card hairline role instead (#884 ⑤). m1 — a selected SENT card sat on the
+     action-tonal selection wash at 1.07:1 once #989 dropped its 2px stroke; its tinted edge rises. */
+  --outline-card-sent-selected: rgba(118, 157, 255, 0.55);
+  --outline-card-divider: var(--outline-on-card);
   --surface-medallion: rgba(118, 157, 255, 0.14);
   --icon-medallion: #9DB8FF;
   /* settings row-icon discs — dark pairs (#147) */

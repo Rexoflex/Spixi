@@ -117,7 +117,7 @@
 .c-tcard__details {
   margin-top: var(--spacing-12);
   padding-top: var(--spacing-8);
-  border-top: var(--outline-width-1) solid var(--outline-neutral-01);
+  border-top: var(--outline-width-1) solid var(--outline-card-divider);   /* ★ #993: own role — invisible on the dark received card (#989 review M1) */
 }
 .c-tcard__details-btn {
   display: inline-flex;

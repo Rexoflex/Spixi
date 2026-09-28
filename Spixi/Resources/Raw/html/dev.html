@@ -1842,6 +1842,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 :root:not([data-desktop]) .c-sheet[data-m-anchor][data-open] { transform: none; opacity: 1; }
 :root:not([data-desktop]) .c-sheet[data-m-anchor] .c-sheet__handle { display: none; }
 
+/* ★★ #993 (F1): an overlay ROOT takes focus on a pointer open (overlay.js) so the first row shows no
+   ring; the root itself must not ring either — it is a dialog container (tabindex -1, never a Tab
+   stop), and APG gives a focused dialog container no indicator. (0,2,0) beats base.css :focus-visible. */
+[data-overlay-root]:focus { outline: none; }
+
 </style><!-- overlay stack (scrim) for the incoming-call overlay -->
 <style data-src="../styles/components/avatar.css">
 /* c-avatar — photo or deterministic gradient placeholder (DECISIONS.md #34, #364).

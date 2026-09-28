@@ -37,6 +37,9 @@
 [data-selecting] .c-bubble-row[data-selected] {
   background: var(--surface-action-tonal-default);
   border-radius: var(--radius-12);
+  /* ★ #993 (review of #989, m1): a SENT card's dark edge rises on the selection wash (1.07:1
+     without it); light's value is transparent = unchanged. The card reads this custom property. */
+  --outline-card-sent: var(--outline-card-sent-selected);
 }
 
 /* the circle: a flex item on the row's LEADING edge, both directions (sent rows
@@ -72,7 +75,7 @@
    not mirrored in RTL, only its position is (inset-inline-start). */
 /* ★ Session J (Damir's walk screenshot: "the check mark misses the spot"): the tick was
    placed at a HARD-CODED 16px + 6px — the row's inline padding as it was before Session I
-   grew it by the tail width (--bubble-tail, message-bubble.css). The disc moved 8px in,
+   grew it by the tail width (--bubble-tail, message-bubble.css — the tail was retired by #993). The disc moved 8px in,
    the tick did not. The offset now reads the row's own --bubble-row-inset, so the two
    cannot drift again. The ink is WHITE in both themes (was --icon-neutral-on-action,
    near-black on the light-blue dark disc), per Damir. */

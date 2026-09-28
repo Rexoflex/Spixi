@@ -54,23 +54,7 @@ let copyBuffer = null;
 
 export function getChatCopyBuffer() { return copyBuffer; }
 
-/* Clipboard write with the legacy fallback. WKWebView on a file:// origin is not
-   a secure context → navigator.clipboard is UNDEFINED there, so the async API
-   alone silently no-ops on iOS. execCommand('copy') over an off-screen textarea
-   still works. Returns true only when something actually copied (settings.html
-   shareAddress grammar — never claim a copy we didn't make). */
-function execCopy(text) {
-  try {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.setAttribute('readonly', '');
-    ta.style.position = 'fixed'; ta.style.top = '-9999px'; ta.style.opacity = '0';
-    document.body.appendChild(ta); ta.select();
-    const done = document.execCommand && document.execCommand('copy');
-    document.body.removeChild(ta);
-    return !!done;
-  } catch (e) { return false; }
-}
+import { execCopyText } from './clipboard.js';   // ★ #993: moved to its own module (shared by every Copy) — no stylesheet family
 
 let selKeySeq = 0;
 
@@ -314,8 +298,8 @@ export function enterChatSelect(listEl, {
     // the caller can toast "Couldn't copy" instead of a false confirmation.
     const finish = (ok) => { if (onCopy) onCopy(items.length, ok); };
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(joined).then(() => finish(true), () => finish(execCopy(joined)));
-    } else finish(execCopy(joined));
+      navigator.clipboard.writeText(joined).then(() => finish(true), () => finish(execCopyText(joined)));
+    } else finish(execCopyText(joined));
     exit();
   }
 

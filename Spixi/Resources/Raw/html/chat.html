@@ -989,7 +989,7 @@ button.c-bubble__sender {
    invisible in light): an OUTGOING emoji-only message's meta chip is the SENT bubble's colour, so
    its time and ticks are exactly the ones every other outgoing message shows (same inks, same
    contrast the bubble already measures — meta 5.05:1, read mint 4.52:1). Received stickers keep the
-   canvas chip. Specificity (0,4,0)+ over the generic emoji chip rule above; `!important` only where
+   canvas chip. Specificity (0,5,0) over the generic emoji chip rule's (0,3,0) above; `!important` only where
    that rule used it (the ink). */
 .c-bubble-row[data-direction="sent"] .c-bubble[data-emoji-only] .c-bubble__meta {
   background: var(--surface-bubble-sent);
@@ -2214,6 +2214,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-fbubble__stamp .c-fbubble__time { align-self: auto; }
 .c-fbubble__stamp .c-status-icon { flex: none; color: var(--text-neutral-02); }
 .c-fbubble__stamp .c-status-icon[data-tone="read"] { color: var(--icon-success); }
+.c-fbubble__stamp .c-status-icon[data-tone="failed"] { color: var(--icon-error); }   /* ★ #1045 (#46 r3): a failed file reads red like every failed status (was the stamp's grey) */
 
 /* —— unread divider (full width) —— */
 .c-unread-divider {

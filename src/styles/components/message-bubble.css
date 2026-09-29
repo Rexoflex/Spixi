@@ -267,7 +267,7 @@ button.c-bubble__sender {
    invisible in light): an OUTGOING emoji-only message's meta chip is the SENT bubble's colour, so
    its time and ticks are exactly the ones every other outgoing message shows (same inks, same
    contrast the bubble already measures — meta 5.05:1, read mint 4.52:1). Received stickers keep the
-   canvas chip. Specificity (0,4,0)+ over the generic emoji chip rule above; `!important` only where
+   canvas chip. Specificity (0,5,0) over the generic emoji chip rule's (0,3,0) above; `!important` only where
    that rule used it (the ink). */
 .c-bubble-row[data-direction="sent"] .c-bubble[data-emoji-only] .c-bubble__meta {
   background: var(--surface-bubble-sent);

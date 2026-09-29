@@ -406,6 +406,7 @@
 .c-fbubble__stamp .c-fbubble__time { align-self: auto; }
 .c-fbubble__stamp .c-status-icon { flex: none; color: var(--text-neutral-02); }
 .c-fbubble__stamp .c-status-icon[data-tone="read"] { color: var(--icon-success); }
+.c-fbubble__stamp .c-status-icon[data-tone="failed"] { color: var(--icon-error); }   /* ★ #1045 (#46 r3): a failed file reads red like every failed status (was the stamp's grey) */
 
 /* —— unread divider (full width) —— */
 .c-unread-divider {

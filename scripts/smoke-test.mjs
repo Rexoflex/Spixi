@@ -38341,10 +38341,15 @@ console.log('★★ #1028+ — the overnight finalization');
        invisible on the canvas chip); the failed status wears the app's one failure glyph, not the bare "!" */
     const mbc = stripCssComments(rdO('src/styles/components/message-bubble.css'));
     r.sentSticker = /\.c-bubble-row\[data-direction="sent"\] \.c-bubble\[data-emoji-only\] \.c-bubble__meta \{\s*background: var\(--surface-bubble-sent\);\s*color: var\(--text-bubble-sent-meta\) !important;\s*\}/.test(mbc);
-    const fIcon = S.createStatusIcon('failed'), refIcon = S.icon ? S.icon('alert-square-rounded', { size: 16 }) : null;
-    r.failedGlyph = !!fIcon && fIcon.dataset.tone === 'failed'
+    /* ★ #1045 (#46 r3 M1): the reference glyph comes from W.SpixiIcons (W.Spixi exports no `icon`) and a missing
+       reference FAILS — the first cut's `!refIcon ||` escape made the executed half vacuous */
+    const fIcon = S.createStatusIcon('failed'), refIcon = W.SpixiIcons && W.SpixiIcons.icon ? W.SpixiIcons.icon('alert-square-rounded', { size: 16 }) : null;
+    const oldIcon = W.SpixiIcons && W.SpixiIcons.icon ? W.SpixiIcons.icon('alert-small', { size: 16 }) : null;
+    r.failedGlyph = !!fIcon && fIcon.dataset.tone === 'failed' && !!refIcon && !!oldIcon
       && /glyph: 'alert-square-rounded', tone: 'failed'/.test(stripCode(rdO('src/components/chatlist-item.js')))
-      && (!refIcon || fIcon.innerHTML === refIcon.innerHTML);
+      && fIcon.innerHTML === refIcon.innerHTML && fIcon.innerHTML !== oldIcon.innerHTML;
+    /* ★ #1045 (r3 NIT): the file card's failed tick is red too (it was the stamp's grey) */
+    r.fileFailedRed = /\.c-fbubble__stamp \.c-status-icon\[data-tone="failed"\] \{ color: var\(--icon-error\); \}/.test(stripCssComments(rdO('src/styles/components/typed-bubbles.css')));
     /* ★ #1043 (Damir: the dark received-bubble outline "too visible" in a run): the dark hairline is QUIETER than
        #989's 7 % but still an edge (≥ 3 %); light stays transparent */
     const hl = /^rgba\(255, 255, 255, ([\d.]+)\)$/.exec(resolveTok('dark', '--outline-hairline') || '');

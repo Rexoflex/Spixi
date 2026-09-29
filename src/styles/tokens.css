@@ -739,7 +739,9 @@
   /* ★ #1041 (Damir 2026-09-29: "delivered should be reduced opacity — more distinguishable at once"):
      the chat-list DELIVERED tick fades to the 3:1 non-text floor on the list's grounds. ★ r2 (#1042):
      0.82, not the first 0.76 — the floor has to hold on a PINNED row (the wash) and a pressed one too:
-     screen 3.33 · pinned 3.00 · hover 3.12 · pressed 3.04 (the bubble E1 precedent sits on 3.00:1).
+     screen 3.33 · pinned 3.00 · hover 3.12 (the bubble E1 precedent sits on 3.00:1). ⚠ #1045 (#46 r3):
+     a row being PRESSED paints the --surface-press-row overlays, and there the tick reads 2.58–3.10 —
+     a momentary state, accepted below the floor (the tick is secondary status, the press lasts a tap).
      A SELECTED desktop row keeps full opacity (chatlist-item.css). Read stays full (green). */
   --tick-delivered-opacity: 0.82;
   --icon-neutral-03: var(--neutral-460);

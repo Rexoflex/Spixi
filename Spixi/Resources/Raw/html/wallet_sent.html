@@ -1025,9 +1025,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      scroller; the JS clamp (anchorSheetToRow) keeps top ≥ safe-top + 8. */
   max-height: calc(100% - var(--safe-top, 0px) - var(--safe-bottom, 0px) - 2 * var(--spacing-8));
   overflow-y: auto;
-  transform: none;
+  /* ★ #1067: grow out of the pressed message (origin set in desktop-anchors.js); compositor-only */
+  transform: scale(0.92);
   opacity: 0;
-  transition: opacity var(--duration-200) var(--easing-decelerate);
+  transition: opacity var(--duration-200) var(--easing-standard),
+              transform var(--duration-200) var(--easing-standard);
 }
 :root:not([data-desktop]) .c-sheet[data-m-anchor][data-open] { transform: none; opacity: 1; }
 :root:not([data-desktop]) .c-sheet[data-m-anchor] .c-sheet__handle { display: none; }
@@ -1381,7 +1383,9 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 @media (hover: hover) and (pointer: fine) {
   .c-txsheet__disclose:hover { background: var(--surface-interactive-hover); }
 }
-.c-txsheet__disclose:active { background: var(--surface-interactive-pressed); }
+/* ★ #1061 (Damir 2026-09-29): NO pressed fill on the toggle — the grey pill flashing under
+   the finger read as noise on a text action. The chevron turn is the feedback. Hover stays
+   (a pointer needs it). Superseded: .c-txsheet__disclose:active → --surface-interactive-pressed. */
 .c-txsheet__chev { transition: transform var(--duration-200) var(--easing-standard); }
 .c-txsheet__disclose[data-open] .c-txsheet__chev { transform: rotate(180deg); }
 @media (prefers-reduced-motion: reduce) { .c-txsheet__chev { transition: none; } }

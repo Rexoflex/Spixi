@@ -1655,6 +1655,7 @@ function attachPressFeedback({
     clearTimeout(paintTimer); paintTimer = 0;   // 5c-i: an unpainted press dies unpainted
     if (!el) return;
     delete el.dataset.pressed;
+    delete el.dataset.pressarm;   // ★ #1060: the layer stops being pre-promoted
     el = null;
   };
 
@@ -1708,6 +1709,7 @@ function attachPressFeedback({
     if (a.raf2 != null) caf(a.raf2);
     delete elm.dataset.pressed;
     delete elm.dataset.pressfade;
+    delete elm.dataset.pressarm;   // ★ #1060
     afterlives.delete(elm);
   };
   const killAllAfterlives = () => {
@@ -1896,6 +1898,16 @@ function attachPressFeedback({
     el = t;
     armAt = performance.now();
     pendingKind = t.matches(controls) ? 'control' : 'row';
+    /* ★ #1060 (Damir on Android: "the row fill is erratic — sometimes smooth, mostly choppy").
+       The sweep layer (base.css ::before) is NOT a compositor layer at rest (opacity 0,
+       no will-change — one layer per row would cost memory on a long list, the chats-swipe
+       precedent). So the sweep's first frames paid for layer creation + raster, and on the
+       tap that paints at RELEASE the same frames also carry the chat opening — the front of
+       a decelerate curve, where most of the motion is, is exactly what got dropped.
+       data-pressarm pre-promotes ONLY the touched row, at contact: the 70 ms paint delay
+       (5c-i) is now the time the compositor gets to prepare the layer. Removed on every
+       clear and at the end of the afterlife. */
+    if (pendingKind === 'row') t.dataset.pressarm = '';
     /* D-16 r4: decided at ARM time — per-gesture truth. The late second-stream
        pointerdown no longer reaches this line (the 5c-i guard above returns for it
        and corrects the identity there); a second-stream TOUCHSTART does fall
@@ -3556,12 +3568,32 @@ function onDocKeydown(e) {
   }
 }
 
+/* ★ #1065 (R.10 → Damir 2026-09-29: "long-press a message while the keyboard is open closes it and
+ * reopens it — it should not affect the keyboard"). An overlay opened with `keepEditableFocus` while a
+ * TEXT FIELD holds focus leaves focus IN the field: no focus move on open, no containment bounce away
+ * from that field, and a pointer inside the overlay or on its scrim never takes focus (mousedown
+ * default prevented — the click still fires). The keyboard stays up; a keyboard user still reaches the
+ * overlay with Tab (onDocKeydown) and closes it with Esc. Only the message menu asks for it. */
+function isEditableEl(n) {
+  if (!n || n.nodeType !== 1) return false;
+  if (n.isContentEditable) return true;
+  const tag = n.tagName;
+  if (tag === 'TEXTAREA') return !n.disabled && !n.readOnly;
+  if (tag === 'INPUT') {
+    const t = (n.getAttribute('type') || 'text').toLowerCase();
+    return !n.disabled && !n.readOnly && !/^(button|submit|reset|checkbox|radio|range|color|file|image|hidden)$/.test(t);
+  }
+  return false;
+}
+const keepFocusDown = (e) => { if (e.button === 0 || e.button === undefined) e.preventDefault(); };
+
 // Document-level focus containment: anything focused outside the top overlay
 // (and not its scrim) bounces back to the overlay's first focusable.
 function onDocFocusin(e) {
   if (stack.length === 0) return;
   const top = stack[stack.length - 1];
   if (top.el.contains(e.target) || top.scrim.contains(e.target)) return;
+  if (top.keepEditable && e.target === top.opener) return;   // ★ #1065: the field keeps its keyboard
   // #993 (F1): a bounce after a pointer gesture lands on the root, like the open — no ring on a row
   (lastInput === 'pointer' ? top.el : (focusables(top.el)[0] || top.el)).focus({ preventScroll: true });
 }
@@ -3597,7 +3629,13 @@ function openOverlay(el, opts) {
     document.addEventListener('keydown', onDocKeydown);
     document.addEventListener('focusin', onDocFocusin);
   }
-  stack.push({ el, scrim, opts, opener });
+  const keepEditable = !!opts.keepEditableFocus && isEditableEl(opener) && opener.isConnected;
+  stack.push({ el, scrim, opts, opener, keepEditable });
+  if (keepEditable) {
+    el.dataset.keepEditable = '';                                  // composer.js reads it (Esc/Enter belong to the menu)
+    el.addEventListener('mousedown', keepFocusDown);
+    scrim.addEventListener('mousedown', keepFocusDown);
+  }
 
   // enter transitions: two rAFs so initial styles paint first.
   // ★ Batch W loop r3 (R3-1): an overlay dismissed INSIDE those two frames must not
@@ -3611,6 +3649,7 @@ function openOverlay(el, opts) {
 
   el.dataset.overlayRoot = '';                                    // #993: the root's own focus paints no ring (overlay.css)
   if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');   // focusable by script, never by Tab
+  if (keepEditable) return;                                       // ★ #1065: focus (and the keyboard) stay in the field
   const target = lastInput === 'pointer'
     ? el                                                          // #993 (F1): a tap/click open — no ring on the first row
     : (el.querySelector('[data-autofocus]') || focusables(el)[0] || el);
@@ -3636,6 +3675,11 @@ function dismissOverlay(el) {
   const i = el ? stack.findIndex((s) => s.el === el) : stack.length - 1;
   if (i === -1 || stack.length === 0) return false;
   const [entry] = stack.splice(i, 1);
+  if (entry.keepEditable) {                                       // ★ #1065
+    delete entry.el.dataset.keepEditable;
+    entry.el.removeEventListener('mousedown', keepFocusDown);
+    entry.scrim.removeEventListener('mousedown', keepFocusDown);
+  }
   if (stack.length === 0) {
     document.removeEventListener('keydown', onDocKeydown);
     document.removeEventListener('focusin', onDocFocusin);
@@ -4004,6 +4048,8 @@ function anchorSheetToRow(sheet, row, { host = document.body, align = null, widt
   }
   const rr0 = target.getBoundingClientRect();
   if (!fr.width || !rr0.height) return sheet;   // unmeasurable → keep the bottom sheet (fail-soft)
+  /* ★ #1067: tag + place with transitions OFF (else it slides up from the bottom-sheet state) */
+  sheet.style.transition = 'none';
   sheet.dataset.mAnchor = '';
   /* ═══ ★★★ RE-ANCHOR ON A VIEWPORT CHANGE (Damir on device, Android) ═══════════
    * *"composer is open and I long press — the composer closes, the messages get moved
@@ -4058,7 +4104,25 @@ function anchorSheetToRow(sheet, row, { host = document.body, align = null, widt
     const winH = (window.innerHeight || host2.height);
     const safeBottom = Math.max(0, resolvePx('var(--safe-bottom, 0px)') - Math.max(0, winH - host2.bottom));
     const minTop = safeTop + M_GAP;
-    const maxBottom = host2.height - M_GAP - safeBottom;
+    let maxBottom = host2.height - M_GAP - safeBottom;
+    /* ★ #1065 (R.10): the message menu now opens WITH the keyboard up. Android shrinks the layout
+       viewport (the host shrinks with it); iOS does NOT (#303) — the keyboard covers the bottom of the
+       host instead. The VISUAL viewport is the truth on both: never place the menu below its bottom
+       edge. Its resize already re-runs place() (listener below). */
+    let vvCapped = false;
+    try {
+      const vv = window.visualViewport;
+      if (vv && vv.height > 0) {
+        const vvBottom = vv.offsetTop + vv.height - host2.top - M_GAP;
+        if (vvBottom < maxBottom) { maxBottom = vvBottom; vvCapped = true; }
+      }
+    } catch (e) { /* no visualViewport — the host bound stands */ }
+    /* #46 r1 (B MINOR-1): a menu taller than the space above the keyboard would clamp to minTop and
+       run on UNDER it, its last rows unreachable (its box fits its content, so it never scrolls).
+       Cap its height to the visible band — it scrolls inside instead. Only while the keyboard (the
+       visual viewport) is the bound; otherwise the stylesheet cap stands. */
+    if (vvCapped) sheet.style.maxHeight = Math.max(120, maxBottom - minTop) + 'px';
+    else sheet.style.removeProperty('max-height');
   // vertical: measure AFTER the width + the [data-m-anchor] max-height land
   // (wrap + the cap change height). offsetHeight reads the layout box — the
   // enter transform never distorts it.
@@ -4074,9 +4138,16 @@ function anchorSheetToRow(sheet, row, { host = document.body, align = null, widt
       }
     }
     sheet.style.top = Math.round(top) + 'px';
+    /* ★ #1067: grow from the pressed message — origin x = anchor centre, y = the edge facing it */
+    const sheetLeft = parseFloat(sheet.style.left) || 0;
+    const originX = Math.max(16, Math.min(w - 16, (ar.left - host2.left) + ar.width / 2 - sheetLeft));
+    const menuAbove = top + h <= rr.top - host2.top;
+    sheet.style.transformOrigin = Math.round(originX) + 'px ' + (menuAbove ? '100%' : '0%');
   };
 
   place();
+  void sheet.offsetHeight;                 // ★ #1067: commit the anchored start state (scale 0.92, opacity 0) …
+  sheet.style.removeProperty('transition'); // … then give the transition back for data-open
   /* ★★ B4 (#46 loop, NIT — but it leaks on the hottest path in the Apps tab): THE LISTENERS
    * MUST DETACH WHEN THE SHEET GOES, NOT ON THE NEXT RESIZE. The isConnected test lives INSIDE
    * the handler, so it can only run when a resize runs — and an open→close with no resize in
@@ -4100,6 +4171,7 @@ function anchorSheetToRow(sheet, row, { host = document.body, align = null, widt
     detached = true;
     try { window.removeEventListener('resize', reflow); } catch (e) {}
     try { if (window.visualViewport) window.visualViewport.removeEventListener('resize', reflow); } catch (e) {}
+    try { if (window.visualViewport) window.visualViewport.removeEventListener('scroll', reflow); } catch (e) {}
     try { if (goneObs) goneObs.disconnect(); } catch (e) {}
     goneObs = null;
   };
@@ -4112,6 +4184,7 @@ function anchorSheetToRow(sheet, row, { host = document.body, align = null, widt
   };
   try { window.addEventListener('resize', reflow); } catch (e) {}
   try { if (window.visualViewport) window.visualViewport.addEventListener('resize', reflow); } catch (e) {}
+  try { if (window.visualViewport) window.visualViewport.addEventListener('scroll', reflow); } catch (e) {}   // #46 r1 (B NIT-3): iOS pans without resizing
   try {
     goneObs = new MutationObserver(() => { if (!sheet.isConnected) detach(); });
     goneObs.observe(sheet.parentNode, { childList: true });
@@ -5174,6 +5247,11 @@ function createDateSeparator(ts, strings = getStrings(), now = Date.now()) {
 
 
 
+/* ★ #1065 r2 (break-my-verdict MINOR-3): the message menu can now be open WHILE the composer keeps
+   focus (overlay.js keepEditableFocus stamps data-keep-editable on its root, removed synchronously at
+   dismiss). Keys typed then belong to the menu, not to the draft. */
+const menuOverField = () => !!(typeof document !== 'undefined' && document.querySelector('[data-keep-editable]'));
+
 const MAX_LINES = 5;
 const MENTION_MAX = 8;   // rows shown in the @-autocomplete
 
@@ -5311,6 +5389,7 @@ function createComposer({
     if (e.isComposing || e.keyCode === 229) return;
     if (e.key === 'Enter' && !e.shiftKey && matchMedia('(hover: hover)').matches) {
       e.preventDefault();
+      if (menuOverField()) return;   // ★ #1065 r2: never send from under the message menu
       send();
     }
   });
@@ -5531,7 +5610,9 @@ function setComposerContext(el, ctx) {
     if (el.dataset.ctxWired === undefined) {
       el.dataset.ctxWired = '';
       input.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && composerCtx.has(el)) cancelComposerContext(el);
+        // ★ #1065 r2: while the message menu is up over the focused field, Esc belongs to the MENU
+        // (overlay.js closes it) — one Esc must not also throw away the reply/edit in progress.
+        if (e.key === 'Escape' && composerCtx.has(el) && !menuOverField()) cancelComposerContext(el);
       });
     }
     input.focus();
@@ -6907,6 +6988,7 @@ function setScrollLatestCount(el, count, strings = getStrings()) {
 
 
 
+
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 
 /* ★ iOS-62 / #492 (Damir on device 2026-08-21, DECIDED: the cheap TINT).
@@ -7047,6 +7129,9 @@ function openMessageMenu({
   };
 
   const sheet = createSheet({ content, host, strings, onDismiss: untint });
+  /* ★ #1065 (R.10, Damir): a long-press while typing must not drop the keyboard — the menu opens
+     WITHOUT taking focus from the composer (overlay.js keepEditableFocus). */
+  setOverlayOpts(sheet, { keepEditableFocus: true });
   openSheet(sheet);
   /* ★ Batch E (a) (#557, Damir 2026-08-22): on MOBILE the menu anchors to the
    * pressed message — ABOVE it when there is room, so it can never cover what it
@@ -18173,6 +18258,67 @@ function getChatCopyBuffer() { return copyBuffer; }
 
 let selKeySeq = 0;
 
+/* ★ #1064 (Damir 2026-09-29: "selecting a message shifts it to the right INSTANTLY to show the
+   checkbox — can it be a smooth push?"). The circle is a CSS flex item (::before, below) that appears
+   with [role=checkbox], so the bubble is PUSHED by layout in one frame. FLIP (beginSelectFlip): measure every visible
+   row's children, apply the mode change, measure again and animate each child from its old x to its
+   new one with a TRANSFORM (compositor-only — no layout per frame on a long log). The same on exit,
+   so the bubbles slide back. The circle itself scales in. Reduced motion (tokens 0 ms) or no WAAPI
+   (jsdom) = the mutation alone, instant, the same end state. Rows re-rendered mid-slide simply
+   land (a fresh node has no animation) — acceptable for 200 ms. */
+function selectMotionMs() {
+  try {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue('--duration-200').trim();
+    const n = parseFloat(raw);
+    if (!isFinite(n)) return 200;
+    return /ms$/.test(raw) ? n : (/s$/.test(raw) ? n * 1000 : n);
+  } catch (_) { return 0; }
+}
+function beginSelectFlip(listEl, rowSelector) {
+  const ms = selectMotionMs();
+  const canAnim = ms > 0 && typeof Element !== 'undefined' && typeof Element.prototype.animate === 'function';
+  if (!canAnim) return () => 0;
+  const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+  const before = [];
+  for (const row of listEl.querySelectorAll(rowSelector)) {
+    const r = row.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > vh) continue;           // off screen: nothing to see, nothing to pay
+    for (const c of row.children) before.push([row, c, c.getBoundingClientRect().left]);
+  }
+  return ({ discIn = false } = {}) => {
+    const easing = 'cubic-bezier(0.2, 0, 0, 1)';
+    const rows = new Set();
+    /* #46 r1 (A NIT-2): ALL the "last" reads first, then all the writes — an animate() between two
+       reads would force a style recalc per child. */
+    const moves = [];
+    for (const [row, c, x0] of before) {
+      if (!c.isConnected) continue;
+      rows.add(row);
+      const dx = x0 - c.getBoundingClientRect().left;
+      if (Math.abs(dx) >= 0.5) moves.push([c, dx]);
+    }
+    for (const [c, dx] of moves) {
+      c.animate([{ transform: 'translateX(' + dx + 'px)' }, { transform: 'none' }], { duration: ms, easing });
+    }
+    /* #46 r1 (A NIT-1): an engine WITHOUT pseudoElement support does not throw — it ignores the
+       member and would fade the whole ROW. Feature-detect instead of try/catch. */
+    const pseudoOk = typeof KeyframeEffect !== 'undefined' && 'pseudoElement' in KeyframeEffect.prototype;
+    if (discIn && pseudoOk) {
+      for (const row of rows) {
+        if (!row.isConnected || row.getAttribute('role') !== 'checkbox') continue;
+        row.animate([{ opacity: 0, transform: 'scale(0.6)' }, { opacity: 1, transform: 'none' }],
+          { duration: ms, easing, pseudoElement: '::before' });
+        /* r2 NIT: the selected row's white tick (::after) fades in WITH its disc — a bare tick must not
+           float over a disc that is still scaling in. */
+        if (row.dataset.selected !== undefined) {
+          row.animate([{ opacity: 0 }, { opacity: 1 }], { duration: ms, easing, pseudoElement: '::after' });
+        }
+      }
+    }
+    return moves.length;
+  };
+}
+
 function enterChatSelect(listEl, {
   initialRow = null, host, rowSelector = '.c-bubble-row',
   idOf = (row) => row.dataset.msgid || '',
@@ -18183,7 +18329,13 @@ function enterChatSelect(listEl, {
   strings = getStrings(), onCopy, onDelete, onExit,
 } = {}) {
   if (!listEl || listEl.dataset.selecting !== undefined) return null;
+  /* ★ #1064: the mode flag and the arming below run inside ONE FLIP window (beginSelectFlip) —
+     the first positions are taken before either, the slide plays after both. */
+  const playIn = beginSelectFlip(listEl, rowSelector);
   listEl.dataset.selecting = '';
+  /* #46 r1 (A MINOR-2): an open that exits inside itself (nothing selectable → setCount → exit) never
+     SHOWED the pushed state, so it must not slide back from it. */
+  let entering = true;
   const hostEl = host || listEl;
   hostEl.classList.add('c-chatselect-host');   // positioning context: the bar covers the host (= the topbar slot)
   const canSelect = selectable || ((row) => !!textOf(row));
@@ -18420,6 +18572,7 @@ function enterChatSelect(listEl, {
 
   function exit() {
     if (listEl.dataset.selecting === undefined) return;
+    const playOut = entering ? () => 0 : beginSelectFlip(listEl, rowSelector);   // ★ #1064: the bubbles slide BACK (not on an open that never showed)
     delete listEl.dataset.selecting;
     for (const r of allRows()) disarm(r);
     keys.clear();
@@ -18435,6 +18588,7 @@ function enterChatSelect(listEl, {
     delete listEl.dataset.dragselect;
     hostEl.classList.remove('c-chatselect-host');
     bar.remove();
+    playOut();
     if (onExit) onExit();
   }
 
@@ -18443,6 +18597,10 @@ function enterChatSelect(listEl, {
   // No initial row — or one that turned out not to be selectable: setCount lands
   // on 0 and exits, so a selection can never open with nothing in it.
   if (!keys.size) setCount();
+  // ★ #1064: the push plays once the rows are ARMED (the circle is what moves them) — and only if the
+  // mode survived (a selection that opened empty has already exited, with no slide either way).
+  entering = false;
+  if (listEl.dataset.selecting !== undefined) playIn({ discIn: true });
   return { exit, refresh, count: () => keys.size };
 }
 
@@ -23728,7 +23886,7 @@ const CHAT_GROUNDS = [
      as a broken control, so the row is ABSENT rather than shown with nothing to choose. */
   { id: 'flat', key: 'groundFlat', label: 'Solid' },
   /* ★★ #998 (Damir 2026-09-28, the polish round): the option is BACK as the BRAND GRADIENT —
-     light only, never the default (tokens.css #1002: #CCD0EC → #D0C9EB → #D5C3EB with its own
+     light only (★ #1066: and a DARK brand gradient since 2026-09-29, blue-violet → midnight), never the default (tokens.css #1002: #CCD0EC → #D0C9EB → #D5C3EB with its own
      ink #3A2F66). The restore was the one line #855 promised; the label is a NEW key because
      "Gradient" translations named the retired teal wash. */
   { id: 'gradient', key: 'groundBrandGradient', label: 'Brand gradient' },
@@ -24088,7 +24246,7 @@ function screenShell(className, title, onBack) {
 function createChatAppearance({
   patternOpacity = 1,             // ★ N81 (#422): a LEVEL index (0/1/2), not an alpha
   patternStyle = 'contours',     // ★ #997: the only style left (matrix, doodles + Live flow retired)
-  chatGround = 'flat',           // ★ AUG 2026-08-30: 'flat' (default) | 'gradient' — LIGHT only
+  chatGround = 'flat',           // ★ AUG 2026-08-30: 'flat' (default) | 'gradient' — ★ #1066: both themes (a rule per theme in tokens.css)
   textScale = 1,
   isDesktop = typeof document === 'object' && document.documentElement.hasAttribute('data-desktop'),
   host,                          // ★ #1019: unused since the Canvas choice became circles (no sheet); kept so existing callers stay valid
@@ -24191,7 +24349,7 @@ function createChatAppearance({
   // AND-35 (#371, Damir dial): the SIZE control leads — appended below, before
   // this section (build order unchanged; only the visual order flips).
 
-  /* ★★ AUG GROUND (Damir 2026-08-30). Rendered only in LIGHT — see CHAT_GROUNDS.
+  /* ★★ AUG GROUND (Damir 2026-08-30). Rendered only in LIGHT until #1066 (below: both themes now) — see CHAT_GROUNDS.
      `isLight` is read from the live document rather than passed in, because this screen
      can be open across a setTheme push (#421) and a row that was correct at build time
      would then be wrong on screen.
@@ -24201,8 +24359,10 @@ function createChatAppearance({
      sat there with no effect. settings.html now re-renders THIS view from the setTheme
      handler's onApplied, which is what makes the sentence true; the read stays here
      because the rebuild depends on it. */
-  const isLight = !document.documentElement.getAttribute('data-theme')
-    || document.documentElement.getAttribute('data-theme') === 'light';
+  /* ★★ #1066 (Damir 2026-09-29: "offer a gradient in dark mode too"; picked B, blue-violet → midnight,
+     from a rendered 3-way at both chat widths): the Canvas row is shown in BOTH themes now. It
+     REVERSES the dark half of #774 ③ / #855 ("in dark the row is absent" — there was no dark
+     gradient to choose then). The one pref paints per theme: tokens.css has a light AND a dark rule. */
   let groundCurrent = CHAT_GROUNDS.some((o) => o.id === chatGround) ? chatGround : 'flat';
   /* ★ Session J (same finding): the live PREVIEW carried data-chat-ground only after a pick —
      at build it inherited the document's, and settings.html's root never carries one, so the
@@ -24211,7 +24371,7 @@ function createChatAppearance({
   /* ★ Session M: the colour card is a SINGLE ROW, so it takes the hub's card padding (4)
      rather than the appearance screen's section padding (12) — a 48px row inside a 12px
      section reads as a row floating in a box.
-     ⚠ The section is built ONLY in light. It used to be created and appended
+     ⚠ (#1066: in both themes now.) The section is built only when the guard holds. It used to be created and appended
      unconditionally, which painted an empty 8px card in dark. */
   let groundSec = null;
   /* ★★ #855: DERIVED, not hard-coded off. The row appears when there is more than one
@@ -24219,7 +24379,7 @@ function createChatAppearance({
      moment a second member returns to CHAT_GROUNDS. Writing `if (false)` or deleting the
      block would make the restore a re-implementation instead of a one-line revert, and
      would hide that this is the SAME rule the dark branch already applies. */
-  if (isLight && CHAT_GROUNDS.length > 1) {
+  if (CHAT_GROUNDS.length > 1) {
     groundSec = document.createElement('div');
     groundSec.className = 'c-settings__section c-settings-appearance__groundsec';
     /* ★★ Session M (#774): A VALUE ROW, NOT A TILE PAIR — and this is the FIX, not a

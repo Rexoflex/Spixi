@@ -174,6 +174,8 @@ export function anchorSheetToRow(sheet, row, { host = document.body, align = nul
   }
   const rr0 = target.getBoundingClientRect();
   if (!fr.width || !rr0.height) return sheet;   // unmeasurable → keep the bottom sheet (fail-soft)
+  /* ★ #1067: tag + place with transitions OFF (else it slides up from the bottom-sheet state) */
+  sheet.style.transition = 'none';
   sheet.dataset.mAnchor = '';
   /* ═══ ★★★ RE-ANCHOR ON A VIEWPORT CHANGE (Damir on device, Android) ═══════════
    * *"composer is open and I long press — the composer closes, the messages get moved
@@ -228,7 +230,25 @@ export function anchorSheetToRow(sheet, row, { host = document.body, align = nul
     const winH = (window.innerHeight || host2.height);
     const safeBottom = Math.max(0, resolvePx('var(--safe-bottom, 0px)') - Math.max(0, winH - host2.bottom));
     const minTop = safeTop + M_GAP;
-    const maxBottom = host2.height - M_GAP - safeBottom;
+    let maxBottom = host2.height - M_GAP - safeBottom;
+    /* ★ #1065 (R.10): the message menu now opens WITH the keyboard up. Android shrinks the layout
+       viewport (the host shrinks with it); iOS does NOT (#303) — the keyboard covers the bottom of the
+       host instead. The VISUAL viewport is the truth on both: never place the menu below its bottom
+       edge. Its resize already re-runs place() (listener below). */
+    let vvCapped = false;
+    try {
+      const vv = window.visualViewport;
+      if (vv && vv.height > 0) {
+        const vvBottom = vv.offsetTop + vv.height - host2.top - M_GAP;
+        if (vvBottom < maxBottom) { maxBottom = vvBottom; vvCapped = true; }
+      }
+    } catch (e) { /* no visualViewport — the host bound stands */ }
+    /* #46 r1 (B MINOR-1): a menu taller than the space above the keyboard would clamp to minTop and
+       run on UNDER it, its last rows unreachable (its box fits its content, so it never scrolls).
+       Cap its height to the visible band — it scrolls inside instead. Only while the keyboard (the
+       visual viewport) is the bound; otherwise the stylesheet cap stands. */
+    if (vvCapped) sheet.style.maxHeight = Math.max(120, maxBottom - minTop) + 'px';
+    else sheet.style.removeProperty('max-height');
   // vertical: measure AFTER the width + the [data-m-anchor] max-height land
   // (wrap + the cap change height). offsetHeight reads the layout box — the
   // enter transform never distorts it.
@@ -244,9 +264,16 @@ export function anchorSheetToRow(sheet, row, { host = document.body, align = nul
       }
     }
     sheet.style.top = Math.round(top) + 'px';
+    /* ★ #1067: grow from the pressed message — origin x = anchor centre, y = the edge facing it */
+    const sheetLeft = parseFloat(sheet.style.left) || 0;
+    const originX = Math.max(16, Math.min(w - 16, (ar.left - host2.left) + ar.width / 2 - sheetLeft));
+    const menuAbove = top + h <= rr.top - host2.top;
+    sheet.style.transformOrigin = Math.round(originX) + 'px ' + (menuAbove ? '100%' : '0%');
   };
 
   place();
+  void sheet.offsetHeight;                 // ★ #1067: commit the anchored start state (scale 0.92, opacity 0) …
+  sheet.style.removeProperty('transition'); // … then give the transition back for data-open
   /* ★★ B4 (#46 loop, NIT — but it leaks on the hottest path in the Apps tab): THE LISTENERS
    * MUST DETACH WHEN THE SHEET GOES, NOT ON THE NEXT RESIZE. The isConnected test lives INSIDE
    * the handler, so it can only run when a resize runs — and an open→close with no resize in
@@ -270,6 +297,7 @@ export function anchorSheetToRow(sheet, row, { host = document.body, align = nul
     detached = true;
     try { window.removeEventListener('resize', reflow); } catch (e) {}
     try { if (window.visualViewport) window.visualViewport.removeEventListener('resize', reflow); } catch (e) {}
+    try { if (window.visualViewport) window.visualViewport.removeEventListener('scroll', reflow); } catch (e) {}
     try { if (goneObs) goneObs.disconnect(); } catch (e) {}
     goneObs = null;
   };
@@ -282,6 +310,7 @@ export function anchorSheetToRow(sheet, row, { host = document.body, align = nul
   };
   try { window.addEventListener('resize', reflow); } catch (e) {}
   try { if (window.visualViewport) window.visualViewport.addEventListener('resize', reflow); } catch (e) {}
+  try { if (window.visualViewport) window.visualViewport.addEventListener('scroll', reflow); } catch (e) {}   // #46 r1 (B NIT-3): iOS pans without resizing
   try {
     goneObs = new MutationObserver(() => { if (!sheet.isConnected) detach(); });
     goneObs.observe(sheet.parentNode, { childList: true });

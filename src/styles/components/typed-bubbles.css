@@ -327,7 +327,7 @@
   box-shadow: 0 0 0 2px var(--surface-bubble-received);   /* ring cut against the card */
 }
 .c-bubble-row[data-direction="sent"] .c-fbubble__badge { box-shadow: 0 0 0 2px var(--surface-card-sent); }
-.c-fbubble[data-state="failed"] .c-fbubble__badge { background: var(--surface-destructive-default); color: var(--text-neutral-on-destructive); }
+.c-fbubble[data-state="failed"] .c-fbubble__badge { background: var(--error-600); color: var(--text-neutral-on-destructive); }   /* #1062 #46 r1 (C MINOR-3): the failed badge keeps the LOUD red — the quieter dark destructive fill is for the dialog button; white on error-600 = 6.64:1 as before */
 /* ★ #1022 (Opus r1 M2): no desaturation on the failed tile — a filter reaches the red retry badge
    too and the hover filter replaced it anyway; the red badge + the red retry line carry the state. */
 @media (hover: hover) and (pointer: fine) {

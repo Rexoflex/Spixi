@@ -22,6 +22,7 @@
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
+import { setOverlayOpts } from './overlay.js';   // ★ #1065
 import { copyText } from './clipboard.js';   // ★ #993: the shared copy with the file:// fallback
 import { anchorSheetToRow } from './desktop-anchors.js';   // ★ Batch E (a) (#557): mobile anchored dropdown
 
@@ -165,6 +166,9 @@ export function openMessageMenu({
   };
 
   const sheet = createSheet({ content, host, strings, onDismiss: untint });
+  /* ★ #1065 (R.10, Damir): a long-press while typing must not drop the keyboard — the menu opens
+     WITHOUT taking focus from the composer (overlay.js keepEditableFocus). */
+  setOverlayOpts(sheet, { keepEditableFocus: true });
   openSheet(sheet);
   /* ★ Batch E (a) (#557, Damir 2026-08-22): on MOBILE the menu anchors to the
    * pressed message — ABOVE it when there is room, so it can never cover what it

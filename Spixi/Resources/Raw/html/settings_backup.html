@@ -861,9 +861,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      scroller; the JS clamp (anchorSheetToRow) keeps top ≥ safe-top + 8. */
   max-height: calc(100% - var(--safe-top, 0px) - var(--safe-bottom, 0px) - 2 * var(--spacing-8));
   overflow-y: auto;
-  transform: none;
+  /* ★ #1067: grow out of the pressed message (origin set in desktop-anchors.js); compositor-only */
+  transform: scale(0.92);
   opacity: 0;
-  transition: opacity var(--duration-200) var(--easing-decelerate);
+  transition: opacity var(--duration-200) var(--easing-standard),
+              transform var(--duration-200) var(--easing-standard);
 }
 :root:not([data-desktop]) .c-sheet[data-m-anchor][data-open] { transform: none; opacity: 1; }
 :root:not([data-desktop]) .c-sheet[data-m-anchor] .c-sheet__handle { display: none; }
@@ -920,7 +922,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   padding: var(--spacing-24) var(--spacing-16) var(--spacing-16);
   background: var(--surface-settings-card);   /* ★ #1013 (r3): the hub card pair on the hub ground (dark = --surface-card, unchanged) */
   border-radius: var(--radius-24);
-  box-shadow: var(--elevation-1);
+  box-shadow: var(--elevation-settings-card);   /* ★ #1068: the Account card family's softer shadow */
   --surface-input: var(--surface-input-on-settings-card);   /* #150③ → #1013 (r4): the status pill sits on the WHITE panel — on-card is also white in light */
 }
 .c-settings-backup__art {
@@ -957,7 +959,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   background: var(--surface-card-raised);
   color: var(--icon-neutral-02);
   border: 2px solid var(--surface-settings-card);     /* sanctioned (#1013: follows the panel's card token): ring cut against the panel, badge-ring precedent (#48) */
-  box-shadow: var(--elevation-1);
+  box-shadow: var(--elevation-settings-card);   /* ★ #1068: the Account card family's softer shadow */
 }
 .c-settings-backup__art-sat[data-pos='a'] { inset-block-start: 0; inset-inline-end: 0; }
 .c-settings-backup__art-sat[data-pos='b'] { inset-block-end: 0; inset-inline-end: 10px; }   /* sanctioned */
@@ -1014,7 +1016,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   padding: var(--spacing-12);
   background: var(--surface-settings-card);   /* ★ #1013 (r3): the hub card pair on the hub ground (dark = --surface-card, unchanged) */
   border-radius: var(--radius-16);
-  box-shadow: var(--elevation-1);
+  box-shadow: var(--elevation-settings-card);   /* ★ #1068: the Account card family's softer shadow */
 }
 .c-settings-backup__inside-title {
   margin-top: var(--spacing-4);

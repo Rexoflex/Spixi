@@ -58,6 +58,67 @@ import { copyText } from './clipboard.js';     // ★ #993: moved to its own mod
 
 let selKeySeq = 0;
 
+/* ★ #1064 (Damir 2026-09-29: "selecting a message shifts it to the right INSTANTLY to show the
+   checkbox — can it be a smooth push?"). The circle is a CSS flex item (::before, below) that appears
+   with [role=checkbox], so the bubble is PUSHED by layout in one frame. FLIP (beginSelectFlip): measure every visible
+   row's children, apply the mode change, measure again and animate each child from its old x to its
+   new one with a TRANSFORM (compositor-only — no layout per frame on a long log). The same on exit,
+   so the bubbles slide back. The circle itself scales in. Reduced motion (tokens 0 ms) or no WAAPI
+   (jsdom) = the mutation alone, instant, the same end state. Rows re-rendered mid-slide simply
+   land (a fresh node has no animation) — acceptable for 200 ms. */
+function selectMotionMs() {
+  try {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue('--duration-200').trim();
+    const n = parseFloat(raw);
+    if (!isFinite(n)) return 200;
+    return /ms$/.test(raw) ? n : (/s$/.test(raw) ? n * 1000 : n);
+  } catch (_) { return 0; }
+}
+function beginSelectFlip(listEl, rowSelector) {
+  const ms = selectMotionMs();
+  const canAnim = ms > 0 && typeof Element !== 'undefined' && typeof Element.prototype.animate === 'function';
+  if (!canAnim) return () => 0;
+  const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+  const before = [];
+  for (const row of listEl.querySelectorAll(rowSelector)) {
+    const r = row.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > vh) continue;           // off screen: nothing to see, nothing to pay
+    for (const c of row.children) before.push([row, c, c.getBoundingClientRect().left]);
+  }
+  return ({ discIn = false } = {}) => {
+    const easing = 'cubic-bezier(0.2, 0, 0, 1)';
+    const rows = new Set();
+    /* #46 r1 (A NIT-2): ALL the "last" reads first, then all the writes — an animate() between two
+       reads would force a style recalc per child. */
+    const moves = [];
+    for (const [row, c, x0] of before) {
+      if (!c.isConnected) continue;
+      rows.add(row);
+      const dx = x0 - c.getBoundingClientRect().left;
+      if (Math.abs(dx) >= 0.5) moves.push([c, dx]);
+    }
+    for (const [c, dx] of moves) {
+      c.animate([{ transform: 'translateX(' + dx + 'px)' }, { transform: 'none' }], { duration: ms, easing });
+    }
+    /* #46 r1 (A NIT-1): an engine WITHOUT pseudoElement support does not throw — it ignores the
+       member and would fade the whole ROW. Feature-detect instead of try/catch. */
+    const pseudoOk = typeof KeyframeEffect !== 'undefined' && 'pseudoElement' in KeyframeEffect.prototype;
+    if (discIn && pseudoOk) {
+      for (const row of rows) {
+        if (!row.isConnected || row.getAttribute('role') !== 'checkbox') continue;
+        row.animate([{ opacity: 0, transform: 'scale(0.6)' }, { opacity: 1, transform: 'none' }],
+          { duration: ms, easing, pseudoElement: '::before' });
+        /* r2 NIT: the selected row's white tick (::after) fades in WITH its disc — a bare tick must not
+           float over a disc that is still scaling in. */
+        if (row.dataset.selected !== undefined) {
+          row.animate([{ opacity: 0 }, { opacity: 1 }], { duration: ms, easing, pseudoElement: '::after' });
+        }
+      }
+    }
+    return moves.length;
+  };
+}
+
 export function enterChatSelect(listEl, {
   initialRow = null, host, rowSelector = '.c-bubble-row',
   idOf = (row) => row.dataset.msgid || '',
@@ -68,7 +129,13 @@ export function enterChatSelect(listEl, {
   strings = getStrings(), onCopy, onDelete, onExit,
 } = {}) {
   if (!listEl || listEl.dataset.selecting !== undefined) return null;
+  /* ★ #1064: the mode flag and the arming below run inside ONE FLIP window (beginSelectFlip) —
+     the first positions are taken before either, the slide plays after both. */
+  const playIn = beginSelectFlip(listEl, rowSelector);
   listEl.dataset.selecting = '';
+  /* #46 r1 (A MINOR-2): an open that exits inside itself (nothing selectable → setCount → exit) never
+     SHOWED the pushed state, so it must not slide back from it. */
+  let entering = true;
   const hostEl = host || listEl;
   hostEl.classList.add('c-chatselect-host');   // positioning context: the bar covers the host (= the topbar slot)
   const canSelect = selectable || ((row) => !!textOf(row));
@@ -305,6 +372,7 @@ export function enterChatSelect(listEl, {
 
   function exit() {
     if (listEl.dataset.selecting === undefined) return;
+    const playOut = entering ? () => 0 : beginSelectFlip(listEl, rowSelector);   // ★ #1064: the bubbles slide BACK (not on an open that never showed)
     delete listEl.dataset.selecting;
     for (const r of allRows()) disarm(r);
     keys.clear();
@@ -320,6 +388,7 @@ export function enterChatSelect(listEl, {
     delete listEl.dataset.dragselect;
     hostEl.classList.remove('c-chatselect-host');
     bar.remove();
+    playOut();
     if (onExit) onExit();
   }
 
@@ -328,6 +397,10 @@ export function enterChatSelect(listEl, {
   // No initial row — or one that turned out not to be selectable: setCount lands
   // on 0 and exits, so a selection can never open with nothing in it.
   if (!keys.size) setCount();
+  // ★ #1064: the push plays once the rows are ARMED (the circle is what moves them) — and only if the
+  // mode survived (a selection that opened empty has already exited, with no slide either way).
+  entering = false;
+  if (listEl.dataset.selecting !== undefined) playIn({ discIn: true });
   return { exit, refresh, count: () => keys.size };
 }
 

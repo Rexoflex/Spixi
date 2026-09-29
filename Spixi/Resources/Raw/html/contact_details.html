@@ -1026,9 +1026,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      scroller; the JS clamp (anchorSheetToRow) keeps top ≥ safe-top + 8. */
   max-height: calc(100% - var(--safe-top, 0px) - var(--safe-bottom, 0px) - 2 * var(--spacing-8));
   overflow-y: auto;
-  transform: none;
+  /* ★ #1067: grow out of the pressed message (origin set in desktop-anchors.js); compositor-only */
+  transform: scale(0.92);
   opacity: 0;
-  transition: opacity var(--duration-200) var(--easing-decelerate);
+  transition: opacity var(--duration-200) var(--easing-standard),
+              transform var(--duration-200) var(--easing-standard);
 }
 :root:not([data-desktop]) .c-sheet[data-m-anchor][data-open] { transform: none; opacity: 1; }
 :root:not([data-desktop]) .c-sheet[data-m-anchor] .c-sheet__handle { display: none; }

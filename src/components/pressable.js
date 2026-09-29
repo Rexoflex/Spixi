@@ -262,6 +262,7 @@ export function attachPressFeedback({
     clearTimeout(paintTimer); paintTimer = 0;   // 5c-i: an unpainted press dies unpainted
     if (!el) return;
     delete el.dataset.pressed;
+    delete el.dataset.pressarm;   // ★ #1060: the layer stops being pre-promoted
     el = null;
   };
 
@@ -315,6 +316,7 @@ export function attachPressFeedback({
     if (a.raf2 != null) caf(a.raf2);
     delete elm.dataset.pressed;
     delete elm.dataset.pressfade;
+    delete elm.dataset.pressarm;   // ★ #1060
     afterlives.delete(elm);
   };
   const killAllAfterlives = () => {
@@ -503,6 +505,16 @@ export function attachPressFeedback({
     el = t;
     armAt = performance.now();
     pendingKind = t.matches(controls) ? 'control' : 'row';
+    /* ★ #1060 (Damir on Android: "the row fill is erratic — sometimes smooth, mostly choppy").
+       The sweep layer (base.css ::before) is NOT a compositor layer at rest (opacity 0,
+       no will-change — one layer per row would cost memory on a long list, the chats-swipe
+       precedent). So the sweep's first frames paid for layer creation + raster, and on the
+       tap that paints at RELEASE the same frames also carry the chat opening — the front of
+       a decelerate curve, where most of the motion is, is exactly what got dropped.
+       data-pressarm pre-promotes ONLY the touched row, at contact: the 70 ms paint delay
+       (5c-i) is now the time the compositor gets to prepare the layer. Removed on every
+       clear and at the end of the afterlife. */
+    if (pendingKind === 'row') t.dataset.pressarm = '';
     /* D-16 r4: decided at ARM time — per-gesture truth. The late second-stream
        pointerdown no longer reaches this line (the 5c-i guard above returns for it
        and corrects the identity there); a second-stream TOUCHSTART does fall

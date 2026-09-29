@@ -340,7 +340,9 @@
 @media (hover: hover) and (pointer: fine) {
   .c-txsheet__disclose:hover { background: var(--surface-interactive-hover); }
 }
-.c-txsheet__disclose:active { background: var(--surface-interactive-pressed); }
+/* ★ #1061 (Damir 2026-09-29): NO pressed fill on the toggle — the grey pill flashing under
+   the finger read as noise on a text action. The chevron turn is the feedback. Hover stays
+   (a pointer needs it). Superseded: .c-txsheet__disclose:active → --surface-interactive-pressed. */
 .c-txsheet__chev { transition: transform var(--duration-200) var(--easing-standard); }
 .c-txsheet__disclose[data-open] .c-txsheet__chev { transform: rotate(180deg); }
 @media (prefers-reduced-motion: reduce) { .c-txsheet__chev { transition: none; } }

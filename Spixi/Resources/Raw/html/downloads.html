@@ -994,9 +994,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      scroller; the JS clamp (anchorSheetToRow) keeps top ≥ safe-top + 8. */
   max-height: calc(100% - var(--safe-top, 0px) - var(--safe-bottom, 0px) - 2 * var(--spacing-8));
   overflow-y: auto;
-  transform: none;
+  /* ★ #1067: grow out of the pressed message (origin set in desktop-anchors.js); compositor-only */
+  transform: scale(0.92);
   opacity: 0;
-  transition: opacity var(--duration-200) var(--easing-decelerate);
+  transition: opacity var(--duration-200) var(--easing-standard),
+              transform var(--duration-200) var(--easing-standard);
 }
 :root:not([data-desktop]) .c-sheet[data-m-anchor][data-open] { transform: none; opacity: 1; }
 :root:not([data-desktop]) .c-sheet[data-m-anchor] .c-sheet__handle { display: none; }
@@ -1338,7 +1340,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   background: var(--surface-settings-card);   /* ★ #1007: WHITE in light (was --surface-card #EDF0F2) */
   border-radius: var(--radius-16);
   padding: var(--spacing-4);
-  box-shadow: var(--elevation-1);
+  box-shadow: var(--elevation-settings-card);   /* ★ #1068: the softer Account-card shadow (light); dark = elevation-1 */
   --surface-input: var(--surface-input-on-settings-card);   /* #150③ → #1007: an input on the white card takes the grey */
 }
 /* ★ Session AF (#949, Damir on the AE walk): NO hairline between rows of the same card — the
@@ -1953,7 +1955,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   padding: var(--spacing-12);
   background: var(--surface-settings-card);   /* ★ #1013 (r3): the hub card pair on the hub ground (dark = --surface-card, unchanged) */
   border-radius: var(--radius-16);
-  box-shadow: var(--elevation-1);
+  box-shadow: var(--elevation-settings-card);   /* ★ #1068: the Account card family's softer shadow */
   color: var(--text-neutral-02);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;  /* no mono token yet — flag at DS pass */
   font-size: var(--font-size-body-sm);

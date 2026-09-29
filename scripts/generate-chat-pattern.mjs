@@ -79,13 +79,17 @@ function toDataUri(rawSvg) {
 }
 
 /* —— Contours (synthesized — #997, Damir's pick) ——————————————————————————————
+ * ★ #1058 (Damir 2026-09-29: "slightly denser … don't flatten the curves"): FIVE lines per
+ * tile, 48px bands (was four, 60px), SAME amplitude — flat, not diagonal (a 14° diagonal was
+ * rendered and declined). Seed 3 measured: every line stays inside the tile (y 10.7…229.5)
+ * and the closest two lines never come nearer than 15.4px. The 60px band text below is #997's.
  * 320×240. Four soft 0.6px lines per tile; each is a sum of two x-PERIODIC sines (period =
  * the tile width, so the tile is seamless horizontally) and stays inside its own 60px band
  * (amplitude ≤ 18 + 6.3 < 30, so no line crosses the top or bottom edge — seamless
  * vertically by construction). All alpha lives INSIDE the mask (stroke-opacity .7), so the
  * ink token alone decides the colour. Deterministic PRNG: byte-identical on every machine.
  */
-const CONTOURS = { w: 320, h: 240, lines: 4, amp: 18, lineW: 0.6, lineAlpha: 0.7, step: 8, seed: 3 };
+const CONTOURS = { w: 320, h: 240, lines: 5, amp: 18, lineW: 0.6, lineAlpha: 0.7, step: 8, seed: 3 };
 
 // deterministic PRNG — the tile must be byte-identical on every machine
 function mulberry32(a) {

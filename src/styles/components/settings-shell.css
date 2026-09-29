@@ -216,7 +216,7 @@
   background: var(--surface-settings-card);   /* ★ #1007: WHITE in light (was --surface-card #EDF0F2) */
   border-radius: var(--radius-16);
   padding: var(--spacing-4);
-  box-shadow: var(--elevation-1);
+  box-shadow: var(--elevation-settings-card);   /* ★ #1068: the softer Account-card shadow (light); dark = elevation-1 */
   --surface-input: var(--surface-input-on-settings-card);   /* #150③ → #1007: an input on the white card takes the grey */
 }
 /* ★ Session AF (#949, Damir on the AE walk): NO hairline between rows of the same card — the

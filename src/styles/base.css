@@ -469,6 +469,12 @@ html:root [data-pressed="control"] {
    that ARRIVES rather than snaps"; reduced motion zeroes the token → flat tint).
    .c-app-item: the WRAPPER carries the attribute, the __open CHILD carries the
    layer — same split as before (#348 r3). */
+/* ★ #1060: the touched row's layer is promoted at CONTACT (pressable.js data-pressarm), so
+   the sweep starts on a ready compositor layer instead of creating one in its first frames. */
+html:root [data-pressarm]::before,
+html:root .c-app-item[data-pressarm] .c-app-item__open::before {
+  will-change: transform, opacity;
+}
 html:root [data-pressed="row"]::before,
 html:root .c-app-item[data-pressed="row"] .c-app-item__open::before {
   opacity: 1;

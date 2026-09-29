@@ -94,7 +94,7 @@ export const CHAT_GROUNDS = [
      as a broken control, so the row is ABSENT rather than shown with nothing to choose. */
   { id: 'flat', key: 'groundFlat', label: 'Solid' },
   /* ★★ #998 (Damir 2026-09-28, the polish round): the option is BACK as the BRAND GRADIENT —
-     light only, never the default (tokens.css #1002: #CCD0EC → #D0C9EB → #D5C3EB with its own
+     light only (★ #1066: and a DARK brand gradient since 2026-09-29, blue-violet → midnight), never the default (tokens.css #1002: #CCD0EC → #D0C9EB → #D5C3EB with its own
      ink #3A2F66). The restore was the one line #855 promised; the label is a NEW key because
      "Gradient" translations named the retired teal wash. */
   { id: 'gradient', key: 'groundBrandGradient', label: 'Brand gradient' },
@@ -454,7 +454,7 @@ function screenShell(className, title, onBack) {
 export function createChatAppearance({
   patternOpacity = 1,             // ★ N81 (#422): a LEVEL index (0/1/2), not an alpha
   patternStyle = 'contours',     // ★ #997: the only style left (matrix, doodles + Live flow retired)
-  chatGround = 'flat',           // ★ AUG 2026-08-30: 'flat' (default) | 'gradient' — LIGHT only
+  chatGround = 'flat',           // ★ AUG 2026-08-30: 'flat' (default) | 'gradient' — ★ #1066: both themes (a rule per theme in tokens.css)
   textScale = 1,
   isDesktop = typeof document === 'object' && document.documentElement.hasAttribute('data-desktop'),
   host,                          // ★ #1019: unused since the Canvas choice became circles (no sheet); kept so existing callers stay valid
@@ -557,7 +557,7 @@ export function createChatAppearance({
   // AND-35 (#371, Damir dial): the SIZE control leads — appended below, before
   // this section (build order unchanged; only the visual order flips).
 
-  /* ★★ AUG GROUND (Damir 2026-08-30). Rendered only in LIGHT — see CHAT_GROUNDS.
+  /* ★★ AUG GROUND (Damir 2026-08-30). Rendered only in LIGHT until #1066 (below: both themes now) — see CHAT_GROUNDS.
      `isLight` is read from the live document rather than passed in, because this screen
      can be open across a setTheme push (#421) and a row that was correct at build time
      would then be wrong on screen.
@@ -567,8 +567,10 @@ export function createChatAppearance({
      sat there with no effect. settings.html now re-renders THIS view from the setTheme
      handler's onApplied, which is what makes the sentence true; the read stays here
      because the rebuild depends on it. */
-  const isLight = !document.documentElement.getAttribute('data-theme')
-    || document.documentElement.getAttribute('data-theme') === 'light';
+  /* ★★ #1066 (Damir 2026-09-29: "offer a gradient in dark mode too"; picked B, blue-violet → midnight,
+     from a rendered 3-way at both chat widths): the Canvas row is shown in BOTH themes now. It
+     REVERSES the dark half of #774 ③ / #855 ("in dark the row is absent" — there was no dark
+     gradient to choose then). The one pref paints per theme: tokens.css has a light AND a dark rule. */
   let groundCurrent = CHAT_GROUNDS.some((o) => o.id === chatGround) ? chatGround : 'flat';
   /* ★ Session J (same finding): the live PREVIEW carried data-chat-ground only after a pick —
      at build it inherited the document's, and settings.html's root never carries one, so the
@@ -577,7 +579,7 @@ export function createChatAppearance({
   /* ★ Session M: the colour card is a SINGLE ROW, so it takes the hub's card padding (4)
      rather than the appearance screen's section padding (12) — a 48px row inside a 12px
      section reads as a row floating in a box.
-     ⚠ The section is built ONLY in light. It used to be created and appended
+     ⚠ (#1066: in both themes now.) The section is built only when the guard holds. It used to be created and appended
      unconditionally, which painted an empty 8px card in dark. */
   let groundSec = null;
   /* ★★ #855: DERIVED, not hard-coded off. The row appears when there is more than one
@@ -585,7 +587,7 @@ export function createChatAppearance({
      moment a second member returns to CHAT_GROUNDS. Writing `if (false)` or deleting the
      block would make the restore a re-implementation instead of a one-line revert, and
      would hide that this is the SAME rule the dark branch already applies. */
-  if (isLight && CHAT_GROUNDS.length > 1) {
+  if (CHAT_GROUNDS.length > 1) {
     groundSec = document.createElement('div');
     groundSec.className = 'c-settings__section c-settings-appearance__groundsec';
     /* ★★ Session M (#774): A VALUE ROW, NOT A TILE PAIR — and this is the FIX, not a

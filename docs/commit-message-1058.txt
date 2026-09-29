@@ -1,0 +1,21 @@
+#1057–#1070: contours, dark canvas + gradient, selection slide, keyboard stays up
+
+- DECISIONS #1057: walk #1050–#1056 = 15 P · 0 F · 1 N/A.
+- Contours: alpha light 0.16 / dark 0.13 (Strong 0.2 / 0.18), 5 lines per tile, flat.
+- Dark chat canvas: new ramp step --ink-950 #0C0E10 (was ink-1000 #090A0D).
+- Home FAB 12 px higher.
+- Chat-row press: the sweep layer is pre-promoted at contact (data-pressarm) - smooth fill.
+- Tx sheet "See details": no pressed fill.
+- Dark destructive fill #9a2c29 (failed-file badge keeps error-600).
+- Chats list (mobile): row padding 14, search/chips/rows gaps 16.
+- Message select mode: the bubbles slide right (FLIP), and back on exit.
+- Long-press while typing keeps the keyboard up (overlay keepEditableFocus); Enter/Esc
+  belong to the menu while it is up; the menu stays above the keyboard (visual viewport).
+- Dark brand gradient (blue-violet -> midnight); the Canvas row shows in dark too.
+- Long-press menus grow out of the pressed row (scale + fade, no slide).
+- Account card groups: softer light shadow.
+- Opus #46: r1 3 auditors, r2 NOT CLEAN -> fixed (3 mutations killed), r3 CLEAN.
+- Suite: BASELINE OK 4985 / the 2 KNOWN.
+- DECISIONS #1070: walk 10 P · 1 F (X.3 passes after warm-up; X.8 open, detail owed).
+- Handoff §9 + next-session prompt.
+

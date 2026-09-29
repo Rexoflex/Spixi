@@ -100,12 +100,32 @@ function onDocKeydown(e) {
   }
 }
 
+/* ★ #1065 (R.10 → Damir 2026-09-29: "long-press a message while the keyboard is open closes it and
+ * reopens it — it should not affect the keyboard"). An overlay opened with `keepEditableFocus` while a
+ * TEXT FIELD holds focus leaves focus IN the field: no focus move on open, no containment bounce away
+ * from that field, and a pointer inside the overlay or on its scrim never takes focus (mousedown
+ * default prevented — the click still fires). The keyboard stays up; a keyboard user still reaches the
+ * overlay with Tab (onDocKeydown) and closes it with Esc. Only the message menu asks for it. */
+function isEditableEl(n) {
+  if (!n || n.nodeType !== 1) return false;
+  if (n.isContentEditable) return true;
+  const tag = n.tagName;
+  if (tag === 'TEXTAREA') return !n.disabled && !n.readOnly;
+  if (tag === 'INPUT') {
+    const t = (n.getAttribute('type') || 'text').toLowerCase();
+    return !n.disabled && !n.readOnly && !/^(button|submit|reset|checkbox|radio|range|color|file|image|hidden)$/.test(t);
+  }
+  return false;
+}
+const keepFocusDown = (e) => { if (e.button === 0 || e.button === undefined) e.preventDefault(); };
+
 // Document-level focus containment: anything focused outside the top overlay
 // (and not its scrim) bounces back to the overlay's first focusable.
 function onDocFocusin(e) {
   if (stack.length === 0) return;
   const top = stack[stack.length - 1];
   if (top.el.contains(e.target) || top.scrim.contains(e.target)) return;
+  if (top.keepEditable && e.target === top.opener) return;   // ★ #1065: the field keeps its keyboard
   // #993 (F1): a bounce after a pointer gesture lands on the root, like the open — no ring on a row
   (lastInput === 'pointer' ? top.el : (focusables(top.el)[0] || top.el)).focus({ preventScroll: true });
 }
@@ -141,7 +161,13 @@ export function openOverlay(el, opts) {
     document.addEventListener('keydown', onDocKeydown);
     document.addEventListener('focusin', onDocFocusin);
   }
-  stack.push({ el, scrim, opts, opener });
+  const keepEditable = !!opts.keepEditableFocus && isEditableEl(opener) && opener.isConnected;
+  stack.push({ el, scrim, opts, opener, keepEditable });
+  if (keepEditable) {
+    el.dataset.keepEditable = '';                                  // composer.js reads it (Esc/Enter belong to the menu)
+    el.addEventListener('mousedown', keepFocusDown);
+    scrim.addEventListener('mousedown', keepFocusDown);
+  }
 
   // enter transitions: two rAFs so initial styles paint first.
   // ★ Batch W loop r3 (R3-1): an overlay dismissed INSIDE those two frames must not
@@ -155,6 +181,7 @@ export function openOverlay(el, opts) {
 
   el.dataset.overlayRoot = '';                                    // #993: the root's own focus paints no ring (overlay.css)
   if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');   // focusable by script, never by Tab
+  if (keepEditable) return;                                       // ★ #1065: focus (and the keyboard) stay in the field
   const target = lastInput === 'pointer'
     ? el                                                          // #993 (F1): a tap/click open — no ring on the first row
     : (el.querySelector('[data-autofocus]') || focusables(el)[0] || el);
@@ -180,6 +207,11 @@ export function dismissOverlay(el) {
   const i = el ? stack.findIndex((s) => s.el === el) : stack.length - 1;
   if (i === -1 || stack.length === 0) return false;
   const [entry] = stack.splice(i, 1);
+  if (entry.keepEditable) {                                       // ★ #1065
+    delete entry.el.dataset.keepEditable;
+    entry.el.removeEventListener('mousedown', keepFocusDown);
+    entry.scrim.removeEventListener('mousedown', keepFocusDown);
+  }
   if (stack.length === 0) {
     document.removeEventListener('keydown', onDocKeydown);
     document.removeEventListener('focusin', onDocFocusin);

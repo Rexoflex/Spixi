@@ -6,7 +6,7 @@
   align-items: center;
   gap: var(--spacing-12);
   width: 100%;
-  padding: var(--row-pad-y) var(--spacing-12);   /* ★ Session I (sheet 2): 11 on mobile, 12 desktop — was spacing-12 all round */
+  padding: var(--row-pad-y) var(--spacing-12);   /* ★ #1063: 14 on mobile (was 11, Session I sheet 2); desktop 8 (the #226 override below) */
   border: 0;
   background: transparent;
   cursor: pointer;

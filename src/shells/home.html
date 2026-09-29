@@ -165,9 +165,11 @@
   /* FAB — overlays the scroll region, sits above the bottom nav.
      iOS-12 (#283): c-bottomnav GREW by var(--safe-bottom, 0px) in #282
      (edge-to-edge) but this offset didn't — the FAB sat half-behind the nav.
-     Add the same inset; env() = 0 on Windows/Android/desktop. */
+     Add the same inset; env() = 0 on Windows/Android/desktop.
+     ★ #1059 (Damir 2026-09-29, Android screenshot: "it sits too low"): +12px — 28px above the
+     nav (spacing-16 + spacing-12). Was 16px. The landscape rail rule below has no nav and stays 16. */
   .fab {
-    position: fixed; right: var(--spacing-16); bottom: calc(var(--layout-bar-bottom) + var(--spacing-16) + var(--safe-bottom, 0px));
+    position: fixed; right: var(--spacing-16); bottom: calc(var(--layout-bar-bottom) + var(--spacing-16) + var(--spacing-12) + var(--safe-bottom, 0px));
     width: 56px; height: 56px; border: 0; border-radius: var(--radius-full);
     background: var(--surface-action-default); color: var(--text-neutral-on-action);
     display: flex; align-items: center; justify-content: center; cursor: pointer;

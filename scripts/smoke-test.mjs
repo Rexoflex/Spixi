@@ -2212,10 +2212,10 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   d.body.append(darkAppearHost);
   const dappear = S.createChatAppearance({ patternOpacity: 1, textScale: 1, onBack() {} });
   darkAppearHost.append(dappear);
-  ok(!dappear.querySelector('.c-settings-appearance__ground')
+  ok(!!dappear.querySelector('.c-settings-appearance__ground')   /* ★ #1066: the dark gradient exists, so the row does too */
     && dappear.querySelectorAll('.c-settings-swatches').length === 1
     && dappear.querySelectorAll('.c-settings-seg').length === 1,
-    '★★ #774: in DARK the screen is TWO controls — text size + Background. The Colour row is absent, not disabled and not a one-option chooser');
+    '★★ #1066 (Damir: "offer a gradient in dark mode too"): in DARK the screen is THREE controls — text size + Background + the Canvas row (Solid · dark brand gradient). REVERSES ★★ #774: in DARK the screen is TWO controls — text size + Background. The Colour row is absent, not disabled and not a one-option chooser');
   darkAppearHost.remove();
   if (prevAppearTheme === null) d.documentElement.removeAttribute('data-theme');
   else d.documentElement.setAttribute('data-theme', prevAppearTheme);
@@ -4165,6 +4165,8 @@ console.log('settings.html — lock shell (Phase 1 #4)');
     row.dispatchEvent(pe('pointerdown', 100, 100));
     ok(row.dataset.pressed === undefined,
       '★ 5c-i (2026-08-24): a ROW does NOT light at contact — the paint waits PRESS_PAINT_DELAY_MS, so a press that becomes a scroll can die unpainted (Damir: "rows highlight on tap to scroll, should highlight only when tapped to open")');
+    ok(row.dataset.pressarm === '' && btn.dataset.pressarm === undefined,
+      '★ #1060 (Damir: "the row fill is erratic, mostly choppy"): a ROW is pre-promoted AT CONTACT (data-pressarm → will-change on its ::before in base.css), so the 70 ms paint window is the time the compositor gets to build the sweep layer — the sweep no longer pays for layer creation in its first frames. Controls do not take it');
     await sleep(110);
     ok(row.dataset.pressed === 'row',
       '★ #343 (rebased by 5c-i): the press still lands from pointerdown, never click — after the short paint window, not at contact. `click` fires on RELEASE, so using it would add the very delay this exists to hide');
@@ -4178,6 +4180,7 @@ console.log('settings.html — lock shell (Phase 1 #4)');
 
     row.dispatchEvent(pe('pointerdown', 100, 100));
     row.dispatchEvent(pe('pointermove', 100, 140));
+    ok(row.dataset.pressarm === undefined, '★ #1060: a press that became a SCROLL drops its pre-promotion with the press (clear()) — a flick must not leave will-change layers behind on every row it crossed');
     ok(row.dataset.pressed === undefined,
       '★ #343 THE RULE THAT MAKES IT NATIVE: moving past the threshold cancels the press, because that gesture is a SCROLL. Without it a flick down the chat list leaves a trail of highlighted rows — worse than no feedback at all');
 
@@ -4247,6 +4250,11 @@ console.log('settings.html — lock shell (Phase 1 #4)');
     btn.disabled = true;
     btn.dispatchEvent(pe('pointerdown', 10, 10));
     ok(btn.dataset.pressed === undefined, '#343: a disabled control must look disabled, not pressable');
+    await sleep(1900);   // past every afterlife bound (fill 300 + fade 200 + the 1500 backstop)
+    ok(row2.dataset.pressarm === undefined && row2.dataset.pressed === undefined && row2.dataset.pressfade === undefined,
+      '★ #1060: a committed tap keeps its promotion through the afterlife and LOSES it when the afterlife ends (killAfterlife) — one layer per touched row, never one per row that was ever touched');
+    ok(/html:root \[data-pressarm\]::before,\s*html:root \.c-app-item\[data-pressarm\] \.c-app-item__open::before \{\s*will-change: transform, opacity;\s*\}/.test(stripCssComments(readFileSync(join(root, 'src/styles/base.css'), 'utf8'))),
+      '★ #1060: base.css promotes the sweep layer of an ARMED row only (both layer homes — the row itself and the apps __open child)');
 
     detach();
     row.dispatchEvent(pe('pointerdown', 100, 100));
@@ -7429,8 +7437,8 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
      the dial pinned is the CONTOURS literal Damir picked from the three rendered candidates
      (2026-09-28). The WHOLE literal is matched, braces included, so a changed or appended
      field turns this red — the M8 lesson (a bare `seed: 3` matches `seed: 31`). */
-  ok(/const CONTOURS = \{ w: 320, h: 240, lines: 4, amp: 18, lineW: 0\.6, lineAlpha: 0\.7, step: 8, seed: 3 \};/.test(gen),
-    'W5 (★ #997 re-base): the Damir-picked contours dial is intact (320×240 · 4 lines · amp 18 · stroke 0.6 @0.7 · step 8 · seed 3)');
+  ok(/const CONTOURS = \{ w: 320, h: 240, lines: 5, amp: 18, lineW: 0\.6, lineAlpha: 0\.7, step: 8, seed: 3 \};/.test(gen),
+    'W5 (★ #997 re-base, ★ #1058: 4 → 5 lines, "slightly denser", amplitude kept): the Damir-picked contours dial is intact (320×240 · 5 lines · amp 18 · stroke 0.6 @0.7 · step 8 · seed 3)');
 
   const pat = readFileSync(join(root, 'src/styles/chat-pattern.css'), 'utf8');
   ok(!/--chat-pattern-size-doodles/.test(stripCssComments(pat)) && !/doodles-natural:/.test(pat) && !/--chat-pattern-uri-doodles/.test(stripCssComments(pat)),
@@ -7496,14 +7504,14 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   /* ★ Session I re-base (#735③, sheet 4): the LIGHT ink is the brand magenta #83058E now (was #061663, AUG) — same 6%; the AUG reasoning below is the superseded ruling. */
   /* ★ Session J re-base (#744/A14, Damir 2026-09-02: "Light mode pattern: 051C8E at 6% opacity") — the k2 magenta #83058E is the superseded ruling, kept in the comment of the token. */
   /* ★★ #1002 RE-BASE (D-09): the light ink is the Mist slate #2A3140 (through --chat-pattern-ink-mist) @ 4.5% — the Session J line below is the superseded ruling. */
-  ok(/--chat-pattern-ink-mist: #2A3140;/.test(lightN81) && /--chat-pattern-ink: var\(--chat-pattern-ink-mist\);/.test(lightN81) && /--chat-pattern-alpha-1: 0\.075;/.test(lightN81)   /* ★ #1039 (walk OV.16): 0.06 → 0.075; #1029 (walk P.8): 0.045 → 0.06 */
-    && /--chat-pattern-alpha-2: 0\.1;/.test(lightN81),
-    '★★ #1039: LIGHT pattern = #2A3140 @ 7.5% on Mist (walk OV.16: "need stronger" at 6%). Superseded: ★★ #1029: LIGHT pattern = #2A3140 @ 6% on Mist (walk P.8: "almost invisible" at 4.5%). Superseded: ★★ #1002: LIGHT pattern = #2A3140 @ 4.5% on Mist (Damir 2026-09-28). Superseded: ★★★ Session J: LIGHT pattern = #051C8E @ 6% (Damir 2026-09-02). Superseded: Session I k2 #83058E @ 6%. Superseded before that: AUG (Damir 2026-08-30): LIGHT pattern = rgba(6,22,99,0.06) — a deep brand indigo. The tile is a MASK, so the artwork\'s own colour is discarded and this token alone decides the ink. MEASURED on the #EBF0F5 ground: ΔL* −4.53, STRONGER than the #231F20 @5% it replaces (−3.53) and back in the range E1c approved (−3.47/−4.26); the composited stroke lands at hue 266° against the ground\'s 256°, the same cool family. It also holds on the GRADIENT option: −3.66 teal / −4.39 periwinkle. ⚠ alpha-2 is pinned but UNREACHABLE — Strong is retired; the token is kept one line from returning. Superseded: AUG TILE: LIGHT pattern = rgba(35,31,32,0.05) at Default — the doodle-pattern-aug ARTWORK colour, since the tile is a mask and this token is the only thing that decides the hue. ⚠ MEASURED AND DELIBERATELY SOFTER: .05 reads ΔL* −2.90 teal / −3.40 green against E1c\'s −3.47 / −4.26, i.e. ~17% fainter than what shipped; .06 would have matched it almost exactly (−3.47 / −4.08) and Damir chose .05 on the render. Superseded, and the E1c reasoning is kept because it is still the record of why the ground moved: E1c (Damir 2026-08-29): LIGHT pattern = rgba(18,59,71,0.07) at Default. The ink followed the ground onto the teal (hue only — the two inks are within 0.03 L* at this alpha) and .06→.07 RESTORES the approved strength rather than raising it: on the old near-white ground the stroke sat 4.03 L* below it, on the colourful one .06 reached only 2.96/3.62 and .07 gives 3.47/4.26. Superseded: rgba(33,57,75,0.06) at Default, 0.1 at Strong. The ink carries a HUE now (slate, C* 1.80 → 2.43 on the composited stroke) and the Default alpha rose because the doodles tile lays down 1.15× the ink of the triangles tile it replaced, yet read as blank at 0.042. Supersedes the N81 pair (#181a20 / 0.042)');
+  ok(/--chat-pattern-ink-mist: #2A3140;/.test(lightN81) && /--chat-pattern-ink: var\(--chat-pattern-ink-mist\);/.test(lightN81) && /--chat-pattern-alpha-1: 0\.16;/.test(lightN81)   /* ★ #1058 (Damir, ladder): 0.075 → 0.16; ★ #1039 (walk OV.16): 0.06 → 0.075; #1029 (walk P.8): 0.045 → 0.06 */
+    && /--chat-pattern-alpha-2: 0\.2;/.test(lightN81),   /* ★ #1058: Strong 0.1 → 0.2, stays above alpha-1 */
+    '★★ #1058: LIGHT pattern = #2A3140 @ 16% on Mist, Strong 20% (Damir picked from the contours ladder: "light barely visible" at 7.5%). Superseded: ★★ #1039: LIGHT pattern = #2A3140 @ 7.5% on Mist (walk OV.16: "need stronger" at 6%). Superseded: ★★ #1029: LIGHT pattern = #2A3140 @ 6% on Mist (walk P.8: "almost invisible" at 4.5%). Superseded: ★★ #1002: LIGHT pattern = #2A3140 @ 4.5% on Mist (Damir 2026-09-28). Superseded: ★★★ Session J: LIGHT pattern = #051C8E @ 6% (Damir 2026-09-02). Superseded: Session I k2 #83058E @ 6%. Superseded before that: AUG (Damir 2026-08-30): LIGHT pattern = rgba(6,22,99,0.06) — a deep brand indigo. The tile is a MASK, so the artwork\'s own colour is discarded and this token alone decides the ink. MEASURED on the #EBF0F5 ground: ΔL* −4.53, STRONGER than the #231F20 @5% it replaces (−3.53) and back in the range E1c approved (−3.47/−4.26); the composited stroke lands at hue 266° against the ground\'s 256°, the same cool family. It also holds on the GRADIENT option: −3.66 teal / −4.39 periwinkle. ⚠ alpha-2 is pinned but UNREACHABLE — Strong is retired; the token is kept one line from returning. Superseded: AUG TILE: LIGHT pattern = rgba(35,31,32,0.05) at Default — the doodle-pattern-aug ARTWORK colour, since the tile is a mask and this token is the only thing that decides the hue. ⚠ MEASURED AND DELIBERATELY SOFTER: .05 reads ΔL* −2.90 teal / −3.40 green against E1c\'s −3.47 / −4.26, i.e. ~17% fainter than what shipped; .06 would have matched it almost exactly (−3.47 / −4.08) and Damir chose .05 on the render. Superseded, and the E1c reasoning is kept because it is still the record of why the ground moved: E1c (Damir 2026-08-29): LIGHT pattern = rgba(18,59,71,0.07) at Default. The ink followed the ground onto the teal (hue only — the two inks are within 0.03 L* at this alpha) and .06→.07 RESTORES the approved strength rather than raising it: on the old near-white ground the stroke sat 4.03 L* below it, on the colourful one .06 reached only 2.96/3.62 and .07 gives 3.47/4.26. Superseded: rgba(33,57,75,0.06) at Default, 0.1 at Strong. The ink carries a HUE now (slate, C* 1.80 → 2.43 on the composited stroke) and the Default alpha rose because the doodles tile lays down 1.15× the ink of the triangles tile it replaced, yet read as blank at 0.042. Supersedes the N81 pair (#181a20 / 0.042)');
   // ★ #711 re-based (Damir on device, 2026-08-30): 0.05 → 0.03 — "reduce dark by 2%". The ink stays white; the 0.05 reasoning below is kept as the superseded ruling.
   /* ★ Session J re-base (#758, Damir 2026-09-03): dark ink #C6CFFD @ 4% — the white @ 3% below is the superseded ruling. */
-  ok(/--chat-pattern-ink: #C6CFFD;/.test(darkN81) && /--chat-pattern-alpha-1: 0\.04;/.test(darkN81)
-    && /--chat-pattern-alpha-2: 0\.1;/.test(darkN81),
-    '★★★ AUG TILE (Damir 2026-08-30) → #711: DARK pattern = rgba(255,255,255,0.03) (was 0.05 until his device call the same evening). ⚠⚠ THIS PIN IS A REVERSAL AND IT IS PINNED AS ONE. The 2026-07-03 ruling in tokens.css says the pattern is "theme-colored, not white (white isn\'t premium, Damir)", and dark has carried a tinted ink ever since. Damir reversed it on 2026-08-30. ★ The measurement is the reassurance: white @ .05 reads ΔL* +5.64 against the #701 canvas where #bbd0ff @ .065 read +5.89 — the STRENGTH is unchanged within 4%, so what moved is the HUE, not the visibility. The superseded reasoning is kept verbatim because a ruling that quietly disappears is how it gets fixed back: E1: DARK pattern = rgba(187,208,255,0.065) at Default, 0.1 at Strong — its OWN hue, not light\'s. MEASURED trade-off behind the value: a bluer ink is a darker ink, so #bbd0ff buys C* 3.37 → 5.29 for 1.2 L*, while #8fb3ee bought 6.04 for 2.3 L* and was rejected on that arithmetic. Supersedes #f0f4ff / 0.045');
+  ok(/--chat-pattern-ink: #C6CFFD;/.test(darkN81) && /--chat-pattern-alpha-1: 0\.13;/.test(darkN81)   /* ★ #1058 (Damir, ladder): 0.04 → 0.13 */
+    && /--chat-pattern-alpha-2: 0\.18;/.test(darkN81),   /* ★ #1058: Strong 0.1 → 0.18, stays above alpha-1 */
+    '★★ #1058: DARK pattern = #C6CFFD @ 13%, Strong 18% (Damir: "dark almost invisible" at 4%). Superseded: ★★★ AUG TILE (Damir 2026-08-30) → #711: DARK pattern = rgba(255,255,255,0.03) (was 0.05 until his device call the same evening). ⚠⚠ THIS PIN IS A REVERSAL AND IT IS PINNED AS ONE. The 2026-07-03 ruling in tokens.css says the pattern is "theme-colored, not white (white isn\'t premium, Damir)", and dark has carried a tinted ink ever since. Damir reversed it on 2026-08-30. ★ The measurement is the reassurance: white @ .05 reads ΔL* +5.64 against the #701 canvas where #bbd0ff @ .065 read +5.89 — the STRENGTH is unchanged within 4%, so what moved is the HUE, not the visibility. The superseded reasoning is kept verbatim because a ruling that quietly disappears is how it gets fixed back: E1: DARK pattern = rgba(187,208,255,0.065) at Default, 0.1 at Strong — its OWN hue, not light\'s. MEASURED trade-off behind the value: a bluer ink is a darker ink, so #bbd0ff buys C* 3.37 → 5.29 for 1.2 L*, while #8fb3ee bought 6.04 for 2.3 L* and was rejected on that arithmetic. Supersedes #f0f4ff / 0.045');
   ok(/--chat-pattern-ink-mist: #2A3140;/.test(lightN81) !== /--chat-pattern-ink-mist: #2A3140;/.test(darkN81)
     && /--chat-pattern-ink: #C6CFFD;/.test(darkN81) !== /--chat-pattern-ink: #C6CFFD;/.test(lightN81),   /* #1002: the light ink lives in --chat-pattern-ink-mist */
     '★ E1: the two inks are genuinely DIFFERENT tokens per theme — Damir asked for a hue of its own in each mode, and one ink shared by both is the failure this pin names. Asserted as a per-block XOR so a copy-paste of one value into the other block turns it red');
@@ -7549,11 +7557,11 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   /* ★ #989 re-base (Damir 2026-09-27, audit D-01/D-02): the canvas is the RAMP's deepest step and
      the blue lift is gone — one black family with the chrome. #0D1117 (#758) and the radial are the
      superseded rulings, kept in the token comments as the reversal. */
-  ok(/--chat-canvas-base: var\(--neutral-1000\);/.test(darkN81)
+  ok(/--chat-canvas-base: var\(--ink-950\);/.test(darkN81) && /--ink-950:  #0C0E10;/.test(tokensN81) && !/--neutral-950:/.test(darkN81)   /* ★ #1058 (Damir): ink-1000 → ink-950 #0C0E10; dark must NOT alias --neutral-950 (the #131415 on-colour ink) */
     && (darkN81.match(/--chat-canvas-base:/g) || []).length === 1
     && /--gradient-chat: var\(--chat-canvas-base\);/.test(darkN81) && !/rgba\(80, 122, 249/.test(darkN81.replace(/\/\*[\s\S]*?\*\//g, ''))
     && (darkN81.match(/--gradient-chat:/g) || []).length === 1,
-    '★★ #989 (Damir 2026-09-27): the dark canvas is --neutral-1000 (ink-1000 #090A0D) with NO radial lift — near-neutral, one family with the chrome. Superseded: #758 #0D1117; before it: ★★★ AUG (Damir 2026-08-30, ON DEVICE): the dark lift is .06 and the base is #10151e — the CHROME\'S OWN --surface-screen. ⚠ THE DEFECT WAS COLOUR FAMILY, NOT LIGHTNESS: the old #0f1115 was chroma 2.62 (near-neutral grey) inside chrome at 7.00 (blue-tinted ink), and the .20 radial had been masking it — #701 dropped the lift and EXPOSED it. Desktop only, because mobile is full-bleed with no chrome beside the canvas. Now the bottom of the pane, where the radial fades out, matches the rail and list exactly. ⚠ This SUPERSEDES the #701 ruling below, which he made against a measurement about neutral01 lightness with no knowledge of the chrome adjacency. Superseded: #701 (Damir, awake, 2026-08-30 00:15): the dark lift is .06 and the BASE STAYS #0f1115. Both halves are RULED, neither is provisional. His words ("near black close to neutral01") contradicted the measurement — #0f1115 is L* 5.03, ALREADY darker than dark neutral01 (#13171b, 7.50) and light text-neutral01 (#131415, 6.26) — so moving the base would have made dark PALER while he asked for darker. The base was never the problem: at .20 the canvas centre reached L* 15.66 against a 5.03 base, which is what stopped it reading near-black; at .06 it lands at 7.96. Superseded: E1b\'s .20, whose "DARK rose WITH light" reasoning was sound for the question E1b asked and is simply not the question #701 asked. ⚠ BOTH declarations are COUNTED, not just matched — a later duplicate wins on source order (the #422 sent-meta lesson), and the ground token is exactly what a re-open would duplicate');
+    '★★ #1058 (Damir 2026-09-29: "too black"): the dark canvas is ink-950 #0C0E10, a half step above ink-1000 and under the ink-900 bars. Superseded: ★★ #989 (Damir 2026-09-27): the dark canvas is --neutral-1000 (ink-1000 #090A0D) with NO radial lift — near-neutral, one family with the chrome. Superseded: #758 #0D1117; before it: ★★★ AUG (Damir 2026-08-30, ON DEVICE): the dark lift is .06 and the base is #10151e — the CHROME\'S OWN --surface-screen. ⚠ THE DEFECT WAS COLOUR FAMILY, NOT LIGHTNESS: the old #0f1115 was chroma 2.62 (near-neutral grey) inside chrome at 7.00 (blue-tinted ink), and the .20 radial had been masking it — #701 dropped the lift and EXPOSED it. Desktop only, because mobile is full-bleed with no chrome beside the canvas. Now the bottom of the pane, where the radial fades out, matches the rail and list exactly. ⚠ This SUPERSEDES the #701 ruling below, which he made against a measurement about neutral01 lightness with no knowledge of the chrome adjacency. Superseded: #701 (Damir, awake, 2026-08-30 00:15): the dark lift is .06 and the BASE STAYS #0f1115. Both halves are RULED, neither is provisional. His words ("near black close to neutral01") contradicted the measurement — #0f1115 is L* 5.03, ALREADY darker than dark neutral01 (#13171b, 7.50) and light text-neutral01 (#131415, 6.26) — so moving the base would have made dark PALER while he asked for darker. The base was never the problem: at .20 the canvas centre reached L* 15.66 against a 5.03 base, which is what stopped it reading near-black; at .06 it lands at 7.96. Superseded: E1b\'s .20, whose "DARK rose WITH light" reasoning was sound for the question E1b asked and is simply not the question #701 asked. ⚠ BOTH declarations are COUNTED, not just matched — a later duplicate wins on source order (the #422 sent-meta lesson), and the ground token is exactly what a re-open would duplicate');
   /* ★ Session I re-base (#735⑥, sheet 1d = A): the blue softened one step to #2160C2, REVERSIBLY —
      #1956b2 rides in every token comment. The property is unchanged: ONE blue, both themes,
      fallback ≡ gradient. */
@@ -8024,8 +8032,9 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     de.setAttribute('data-theme', 'dark');
     const apDark = wd.Spixi.createChatAppearance({ isDesktop: false });
     ok([...apDark.querySelectorAll('.c-settings-swatches--style')].length === 1
-      && !apDark.querySelector('.c-settings-appearance__ground'),
-      '★★★ AUG GROUND: in DARK the row is ABSENT, not shown with one option — Damir re-ruled it explicitly on 2026-09-04 when offered "hide it or design a gradient" (#774 ③). ⓘ #855 made this the rule on BOTH sides rather than a dark special case: the guard is `isLight && CHAT_GROUNDS.length > 1`, so "a one-option chooser reads as broken" is now enforced by the same expression in both themes. The stored pref survives untouched either way');
+      && !!apDark.querySelector('.c-settings-appearance__ground')
+      && [...apDark.querySelectorAll('.c-settings-appearance__dot')].map((b) => b.dataset.value).join() === 'flat,gradient',
+      '★★★ #1066 (Damir 2026-09-29: "offer a gradient in dark mode too"): in DARK the Canvas row is SHOWN too (Solid + the dark brand gradient) — still exactly ONE swatch group. REVERSES: ★★★ AUG GROUND: in DARK the row is ABSENT, not shown with one option — Damir re-ruled it explicitly on 2026-09-04 when offered "hide it or design a gradient" (#774 ③). ⓘ #855 made this the rule on BOTH sides rather than a dark special case: the guard is `isLight && CHAT_GROUNDS.length > 1`, so "a one-option chooser reads as broken" is now enforced by the same expression in both themes. The stored pref survives untouched either way');
     if (prevTheme === null) de.removeAttribute('data-theme'); else de.setAttribute('data-theme', prevTheme);
   }
 
@@ -18599,7 +18608,9 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   ok((crmJsE.match(/anchorSheetToRow\(sheet, row, \{ host, address: chat && chat\.address \}\)/g) || []).length === 2
      && (crmJsE.match(/openChatRowMenu\(\{ row, \.\.\.opts \}\)/g) || []).length === 3,
     '★ Batch E (a) (#587 rebase): both exits anchor (handshaking + main) and all three gestures thread the row through — the anchor now also carries the ADDRESS, so a row a flush replaced can be re-resolved');
-  ok(/:root:not\(\[data-desktop\]\) \.c-sheet\[data-m-anchor\] \{[^}]*transform: none;[^}]*opacity: 0;/.test(ovCssE)
+  /* ★ #1067 REBASE (Damir: "animate slightly, not instant"): the rest state is scale(0.92) + opacity 0 —
+     it GROWS out of the pressed message (the origin is set by anchorSheetToRow), still no travel */
+  ok(/:root:not\(\[data-desktop\]\) \.c-sheet\[data-m-anchor\] \{[^}]*transform: scale\(0\.92\);[^}]*opacity: 0;[^}]*transition: opacity var\(--duration-200\) var\(--easing-standard\),\s*transform var\(--duration-200\) var\(--easing-standard\);/.test(ovCssE)
      && /:root:not\(\[data-desktop\]\) \.c-sheet\[data-m-anchor\]\[data-open\] \{ transform: none; opacity: 1; \}/.test(ovCssE)
      && /:root:not\(\[data-desktop\]\) \.c-sheet\[data-m-anchor\] \.c-sheet__handle \{ display: none; \}/.test(ovCssE),
     '★ Batch E (a) CSS: the mobile anchored variant FADES IN PLACE (a panel sliding from the bottom edge would point at the wrong origin), drops the drag handle, and stays scoped OFF desktop');
@@ -18622,7 +18633,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        && /resolvePx\('var\(--safe-bottom, 0px\)'\)/.test(body)
        && !/getPropertyValue\('--safe-top'\)/.test(body),
       '★★ Batch E (a) r3 (R-1): the safe insets are RESOLVED through a probe element (computed padding-top → px), never getPropertyValue-parsed — top AND bottom (both through the --safe-* variables since AND-45, so the Android carrier reaches the anchor math too)');
-    ok(/const minTop = safeTop \+ M_GAP;/.test(body) && /const maxBottom = host2\.height - M_GAP - safeBottom;/.test(body)
+    ok(/const minTop = safeTop \+ M_GAP;/.test(body) && /let maxBottom = host2\.height - M_GAP - safeBottom;/.test(body)   /* ★ #1065: `let` — the visual-viewport bound may lower it */
        && /if \(above >= minTop\)/.test(body) && /top = Math\.max\(minTop, maxBottom - h\)/.test(body),
       '★★ Batch E (a) r3 (E-1) JS: every vertical placement is bounded by minTop (safe-top floor) and maxBottom (safe-bottom ceiling) — no branch can land under an inset');
   }
@@ -18632,6 +18643,22 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   ok(!/data-m-anchor[^{]*\{[^}]*z-index/.test(ovCssE),
     '★★ Batch E (a) / #519 z-order: the anchored variant declares NO z-index of its own — the sheet keeps z-44 over the z-42 lift over the z-40 scrim (the #506② layering, re-verified structurally)');
 
+  {
+    /* ★ #1067: the anchored menu's entry is ONE animation — tagged + placed with transitions OFF, the
+       start state committed, the transition restored, and the origin faces the pressed message */
+    const da67 = stripCode(readFileSync(join(root, 'src/components/desktop-anchors.js'), 'utf8'));
+    const iOff = da67.indexOf("sheet.style.transition = 'none';"), iTag = da67.indexOf("sheet.dataset.mAnchor = '';");
+    const iPlace = da67.indexOf('  place();\n'), iCommit = da67.indexOf('void sheet.offsetHeight;'), iOn = da67.indexOf("sheet.style.removeProperty('transition');");
+    ok(iOff > 0 && iOff < iTag && iTag < iPlace && iPlace < iCommit && iCommit < iOn
+       && /sheet\.style\.transformOrigin = Math\.round\(originX\) \+ 'px ' \+ \(menuAbove \? '100%' : '0%'\);/.test(da67),
+      '★ #1067 (Damir): the long-press menu GROWS out of the pressed message — tag + first placement with transitions OFF (otherwise it slid 191px up from the bottom-sheet state, opaque — measured), the start state committed, the transition restored; transform-origin = the anchor centre, the edge facing the message');
+    const tk68 = stripCssComments(readFileSync(join(root, 'src/styles/tokens.css'), 'utf8'));
+    const sh68 = stripCssComments(readFileSync(join(root, 'src/styles/components/settings-shell.css'), 'utf8'));
+    ok(/--elevation-settings-card: 0 1px 2px rgba\(17, 18, 19, 0\.03\), 0 1px 3px rgba\(17, 18, 19, 0\.05\);/.test(tk68)
+       && /--elevation-settings-card: var\(--elevation-1\);/.test(tk68)
+       && /\.c-settings__group \{[^}]*box-shadow: var\(--elevation-settings-card\);/.test(sh68),
+      '★ #1068 (Damir): the Account card groups take a SOFTER light shadow (half of elevation-1\'s alpha, same geometry); dark keeps elevation-1');
+  }
   /* — (b) the mobile scrim, one level deeper — */
   ok(/--surface-scrim-deep: rgba\(17, 18, 19, 0\.7\)/.test(tokCssE)
      && /--surface-scrim: rgba\(17, 18, 19, 0\.6\)/.test(tokCssE)
@@ -24205,7 +24232,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ok(/const contoursSize = `\$\{CONTOURS\.w\}px \$\{CONTOURS\.h\}px`;/.test(genCode)
       && /--chat-pattern-size-contours: \$\{contoursSize\};/.test(genCode),
       '★★ SESSION F (mutation M3) → #866/#868 → #997 re-base (contours w × h): the emitted matrix tile size is INTERPOLATED from the same constant that builds the SVG (cells × cell), not typed into the template — M3\'s class was a size declared in one place and a literal painted in another, which is a mask that repeats on a period the art was not drawn to (a visible seam every tile). The matrix has no scale step (it is painted at its synthesized size, #774 re-checked), so the pin binds emission to derivation and nothing else');
-    ok(/\bw: 320,/.test(gen) && /\bh: 240,/.test(gen) && /\blines: 4,/.test(gen) && /\bamp: 18,/.test(gen) && /\bseed: 3 \}/.test(gen),
+    ok(/\bw: 320,/.test(gen) && /\bh: 240,/.test(gen) && /\blines: 5,/.test(gen) && /\bamp: 18,/.test(gen) && /\bseed: 3 \}/.test(gen),
       '★ SESSION F (mutation M8) → #997 re-base (the contours dial, each field bound by its trailing comma/brace). Superseded: the data-matrix dial is bound by the trailing comma, not left as a prefix test — `seed: 11` matched `seed: 117` and `cell: 12` matched `cell: 120`, so the whole approved layout could change under a green pin');
   }
 
@@ -25515,7 +25542,8 @@ console.log('Session I ③: the premium pass token batch');
   }
   /* 2 = current avatar + A */
   /* ★ Session J re-base (Damir on his Seed-50 screenshot: "semibold is too strong for read … could be used for unread"): names MEDIUM at rest, SEMIBOLD unread — one notch down each; the Session I pair (semibold / bold) is the reversal in the token comment. */
-  ok(val('row-name-size') === '17px' && val('row-name-weight') === 'var(--font-weight-medium, 500)' && val('row-name-weight-unread') === 'var(--font-weight-semibold)' && val('row-pad-y') === '11px'
+  ok(val('row-name-size') === '17px' && val('row-name-weight') === 'var(--font-weight-medium, 500)' && val('row-name-weight-unread') === 'var(--font-weight-semibold)' && val('row-pad-y') === '14px'   /* ★ #1063 (Damir, beside WhatsApp): 11 → 14 */
+     && /:root:not\(\[data-desktop\]\) \.c-chats-header__search \{ padding-block-end: var\(--spacing-16\); \}/.test(rdF('src/styles/components/chats-header.css')) && /:root:not\(\[data-desktop\]\) \.c-chats-header__filters \{ padding-block-end: var\(--spacing-16\); \}/.test(rdF('src/styles/components/chats-header.css'))
      && val('tx-name-size') === '15px' && val('tx-name-weight') === 'var(--font-weight-semibold)' && val('chip-weight') === 'var(--font-weight-semibold)'
      && /--size-avatar-48: 48px;/.test(light) && /createAvatar\(\{ src: avatar, name: hasNick \? name : '', address, size: 48/.test(rdF('src/components/chatlist-item.js')),
     '★★ 2 = "current avatar and everything else from A" → Session J: avatar stays 48 · names 17 MEDIUM / SEMIBOLD unread (Damir 2026-09-02; was semibold / bold) · row pad 11 (pitch 76 = TG\'s 191 px) · tx names 15 semibold · chips semibold');
@@ -25564,7 +25592,7 @@ console.log('Session I ③: the premium pass token batch');
      light gradient is the BRAND GRADIENT (#CCD0EC → #D0C9EB → #D5C3EB, 180°) with its own ink
      #3A2F66. Superseded: Session J #E4EAF3 · #051C8E @ 6% · the 289° #94D2E3 → #ADAEE8 wash. */
   ok(val('chat-canvas-base', light) === '#ECEEF1' && val('chat-pattern-ink-mist', light) === '#2A3140'
-     && val('chat-pattern-ink', light) === 'var(--chat-pattern-ink-mist)' && val('chat-pattern-alpha-1', light) === '0.075'   /* ★ #1039 (walk OV.16): 0.06 → 0.075; ★ #1029 (walk P.8): 0.045 → 0.06; dark untouched */
+     && val('chat-pattern-ink', light) === 'var(--chat-pattern-ink-mist)' && val('chat-pattern-alpha-1', light) === '0.16'   /* ★ #1058 (ladder): 0.075 → 0.16; ★ #1039 (walk OV.16): 0.06 → 0.075; ★ #1029 (walk P.8): 0.045 → 0.06; dark untouched */
      && /:root:not\(\[data-theme='dark'\]\)\[data-chat-ground='gradient'\],\s*:root:not\(\[data-theme='dark'\]\) \[data-chat-ground='gradient'\] \{[^}]*--gradient-chat: linear-gradient\(180deg, #CCD0EC 0%, #D0C9EB 50%, #D5C3EB 100%\), var\(--chat-canvas-base\);\s*--chat-pattern-ink: #3A2F66;/.test(tok)
      && /:root:not\(\[data-theme='dark'\]\) \[data-chat-ground='flat'\] \{[^}]*--chat-pattern-ink: var\(--chat-pattern-ink-mist\);/.test(tok),
     '★★ #1002 (was 4 → Session J) + #1029: light canvas MIST #ECEEF1 · ink #2A3140 @ 6% (#1029 P.8, was 4.5%) · the gradient option is the BRAND gradient with its own ink #3A2F66, and a FLAT descendant resets the ink so the brand ink never cascades into the flat tile. Superseded: #E4EAF3 · #051C8E @ 6% · the 289° wash');
@@ -26906,7 +26934,7 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
     }
 
     /* ★ B4 (⑥): ONE detach(), reached from the observer AND the isConnected belt — source half. */
-    ok(/const detach = \(\) => \{\s*if \(detached\) return;\s*detached = true;\s*try \{ window\.removeEventListener\('resize', reflow\); \} catch \(e\) \{\}\s*try \{ if \(window\.visualViewport\) window\.visualViewport\.removeEventListener\('resize', reflow\); \} catch \(e\) \{\}\s*try \{ if \(goneObs\) goneObs\.disconnect\(\); \} catch \(e\) \{\}\s*goneObs = null;\s*\};/.test(daNC)
+    ok(/const detach = \(\) => \{\s*if \(detached\) return;\s*detached = true;\s*try \{ window\.removeEventListener\('resize', reflow\); \} catch \(e\) \{\}\s*try \{ if \(window\.visualViewport\) window\.visualViewport\.removeEventListener\('resize', reflow\); \} catch \(e\) \{\}\s*try \{ if \(window\.visualViewport\) window\.visualViewport\.removeEventListener\('scroll', reflow\); \} catch \(e\) \{\}\s*try \{ if \(goneObs\) goneObs\.disconnect\(\); \} catch \(e\) \{\}\s*goneObs = null;\s*\};/.test(daNC)   /* ★ #1065 r1: + the visual-viewport SCROLL leg, in the same one detach() */
        && /const reflow = \(\) => \{\s*if \(!sheet\.isConnected\) \{\s*detach\(\);\s*return;\s*\}\s*place\(\);\s*\};/.test(daNC)
        && /goneObs = new MutationObserver\(\(\) => \{ if \(!sheet\.isConnected\) detach\(\); \}\);\s*goneObs\.observe\(sheet\.parentNode, \{ childList: true \}\);/.test(daNC)
        && /\} catch \(e\) \{ goneObs = null; \}/.test(daNC)
@@ -27767,7 +27795,7 @@ console.log('★★ Session O — the #46 loop over Sessions M + N');
        terms are in the test; pinning the literal would have to be re-edited every time the
        guard grows a term, which is how a pin ends up "fixed" by spelling. */
     ok(/let groundSec = null;/.test(ss)
-      && /if \(isLight[^)]*\) \{\s*groundSec = document\.createElement\('div'\);/.test(ss)
+      && /if \(CHAT_GROUNDS\.length > 1\) \{\s*groundSec = document\.createElement\('div'\);/.test(ss)   /* ★ #1066: isLight left the guard (a dark gradient exists) */
       && /body\.append\(sizeSec, styleSec\);\s*if \(groundSec\) body\.append\(groundSec\);/.test(ss)
       && !/body\.append\(sizeSec, styleSec, groundSec\)/.test(ss),
       '★★ Session O ⑥: the Colour section is CREATED inside the isLight guard and appended only when it exists — the unconditional create+append shipped an empty section element into dark, and CSS cannot hide a card it has no way to distinguish. ⓘ #855 widened that guard to `isLight && CHAT_GROUNDS.length > 1`, so the row is absent in BOTH themes now; the create/append shape is what this asserts');
@@ -27786,8 +27814,8 @@ console.log('★★ Session O — the #46 loop over Sessions M + N');
        Session O's original shape — exactly ONE section node in light, NONE in dark. The dark
        half is the failure Session O found by rendering and it is unchanged. */
     ok(apL.querySelectorAll('.c-settings-appearance__groundsec').length === 1
-      && apD.querySelectorAll('.c-settings-appearance__groundsec').length === 0,
-      '★★ Session O ⑥ → #855 → #998 (the DOM half): ONE Colour section in light (Solid + Brand gradient), NONE in dark. Superseded #855 text: the Colour SECTION NODE now exists in NEITHER theme — the gradient option is retired, so the light branch takes the same guard the dark one does. ⚠ Session O found this by RENDERING: an empty 8px card was painted in dark because the section was created unconditionally and only its CONTENT was gated. That failure mode is what this pin still guards, and it is why the assertion is on the section NODE and not on the row');
+      && apD.querySelectorAll('.c-settings-appearance__groundsec').length === 1,   /* ★ #1066: dark has a gradient now */
+      '★★ Session O ⑥ → #855 → #998 → #1066 (the DOM half): ONE Colour section in light AND in dark (Solid + Brand gradient, each theme its own). Superseded #998: NONE in dark. Superseded #855 text: the Colour SECTION NODE now exists in NEITHER theme — the gradient option is retired, so the light branch takes the same guard the dark one does. ⚠ Session O found this by RENDERING: an empty 8px card was painted in dark because the section was created unconditionally and only its CONTENT was gated. That failure mode is what this pin still guards, and it is why the assertion is on the section NODE and not on the row');
 
     /* ═══ ⑬ THE PRESENT SIGNAL, BEHAVIOURALLY (auditor C NIT-1) ═══
        Every other painted pin reads text. This one drives the real bundle export: latched
@@ -34492,7 +34520,7 @@ console.log('#907: the history window counts visible messages');
      value. A ladder that dropped 'gradient' now would strand a user on Solid after every
      reload — the mirror image of the failure #855 guarded. */
   const grounds62 = [...scr62.matchAll(/\{ id: '(flat|gradient)', key: 'ground/g)].map((m) => m[1]);
-  const rowDerived62 = /if \(isLight && CHAT_GROUNDS\.length > 1\) \{/.test(scr62);
+  const rowDerived62 = /if \(CHAT_GROUNDS\.length > 1\) \{/.test(scr62);   // ★ #1066: both themes
   const gDefaults62 = {
     'chat.html head': /if\(g!=='flat'&&g!=='gradient'\)g='flat'/.test(headScript62),
     'chat.html readPatternPrefs': /if \(gr !== 'flat' && gr !== 'gradient'\) gr = 'flat';/.test(stripCode(chat62)),
@@ -36045,6 +36073,8 @@ console.log('#912: backup exclusions, the html copy skip, and the start clock');
   const fabRule = (/:root\[data-landscape-rail\] \.fab \{([^}]*)\}/.exec(homeCss) || [])[1] || '';
   ok(/:root\[data-landscape-rail\] body \{ flex-direction: row; \}/.test(homeCss) && /:root\[data-landscape-rail\] #chats-nav \{ order: -1; flex: none; display: flex; \}/.test(homeCss) && /:root\[data-landscape-rail\] \.view \{ min-width: 0; padding-inline-end: var\(--safe-right, 0px\); \}/.test(homeCss)
      && /right: calc\(var\(--spacing-16\) \+ var\(--safe-right, 0px\)\);/.test(fabRule) && /bottom: calc\(var\(--spacing-16\) \+ var\(--safe-bottom, 0px\)\);/.test(fabRule)
+     /* ★ #1059 (Damir: "sits too low"): the portrait FAB is 28px above the nav (16 + 12); the rail rule above keeps 16 */
+     && /(^|\})\s*\.fab \{[^}]*bottom: calc\(var\(--layout-bar-bottom\) \+ var\(--spacing-16\) \+ var\(--spacing-12\) \+ var\(--safe-bottom, 0px\)\);/.test(homeCss)
      && /:root\[data-landscape-rail\] body \{ flex-direction: row; \}/.test(setCss) && /:root\[data-landscape-rail\] #settings-nav \{ order: -1; display: flex; \}/.test(setCss) && /:root\[data-landscape-rail\] #settings-root \{ min-width: 0; padding-inline-end: var\(--safe-right, 0px\); \}/.test(setCss)
      && /attachPhoneLandscape\(\)/.test(homeMain) && /attachLandscapeRail\(nav\)/.test(homeMain) && homeMain.indexOf('attachLandscapeRail(nav)') > homeMain.indexOf("document.getElementById('chats-nav').append(nav);")
      && homeMain.indexOf('attachLandscapeRail(nav)') >= 0 && homeMain.indexOf("document.getElementById('chats-nav').append(nav);") >= 0
@@ -36954,8 +36984,8 @@ console.log('Office fix round (#974–#981)');
   ok(bad.length === 0,
     '★★ #989 (+ #993 review): nine semantic tokens, each declared exactly TWICE — light in a plain :root block, dark in the [data-theme="dark"] block — the LIGHT value first (= today\'s look: transparent edges, the white sent card with #265\'s 2px outgoing border, the action-tonal medallion) and the DARK value LATER in source order, so it actually wins on [data-theme="dark"]. Failing: ' + JSON.stringify(bad.map((b) => b[0])));
   const darkLit = ['chat-canvas-base', 'surface-bubble-received', 'surface-composer-pill'].filter((n) => { const d = decls(n); return !d.length || /#[0-9a-fA-F]{3,6}\b/.test(d[d.length - 1].v); });
-  ok(darkLit.length === 0 && decls('chat-canvas-base').pop().v === 'var(--neutral-1000)' && decls('surface-bubble-received').pop().v === 'var(--neutral-800)' && decls('surface-composer-pill').pop().v === 'var(--neutral-800)',
-    '★ #989: the dark canvas / received bubble / composer pill read the RAMP (neutral-1000 / -800 / -800), no literal hex — two blacks from two families was defect D-01. Literal: ' + JSON.stringify(darkLit));
+  ok(darkLit.length === 0 && decls('chat-canvas-base').pop().v === 'var(--ink-950)' && decls('surface-bubble-received').pop().v === 'var(--neutral-800)' && decls('surface-composer-pill').pop().v === 'var(--neutral-800)',
+    '★ #989 + #1058: the dark canvas / received bubble / composer pill read the RAMP (ink-950 / neutral-800 / -800), no literal hex — two blacks from two families was defect D-01. Literal: ' + JSON.stringify(darkLit));
   const sent = typedC.slice(typedC.indexOf('.c-bubble-row[data-direction="sent"] .c-tcard,'), typedC.indexOf('.c-tcard[data-kind="call"]'));
   ok(/border: var\(--border-card-sent\);/.test(sent) && /background: var\(--surface-card-sent\);/.test(sent) && !/border: 2px solid/.test(sent),
     '★ #989 → #1003: the SENT card stroke is the TOKEN (none in BOTH themes since #1003 — the tint + 1px edge carry "yours") — no literal 2px border left in the rule');
@@ -37577,7 +37607,7 @@ console.log('★★ #1001–#1010 — the premium polish round');
     const dzDiscs = [...dz.querySelectorAll('.c-disc')];
     const quietDiscs = dzDiscs.filter((x) => x.dataset.hue !== 'error');
     ok(want.every((w) => remap.split(';').map((x) => x.trim()).includes(w))
-       && /--surface-destructive-default: var\(--error-600\);/.test(darkBlock) && /--surface-destructive-hover: var\(--error-700\);/.test(darkBlock)
+       && /--surface-destructive-default: #9a2c29;/.test(darkBlock) && /--surface-destructive-hover: var\(--error-700\);/.test(darkBlock)
        && /--surface-destructive-pressed: var\(--error-800\);/.test(darkBlock) && /--text-neutral-on-destructive: var\(--neutral-10\);/.test(darkBlock)
        && quietDiscs.length >= 2 && quietDiscs.every((x) => x.dataset.hue === 'neutral' && !x.dataset.grad),
       '★★ #1018: inside a sheet or dialog the screen card tones resolve to the sheet-card tone (a card LIFTS off the dark sheet instead of sinking; light is value-identical) · the dark destructive fill is the saturated red with a white label (the #763 white-on-blue mirror) · the danger screen\'s trash discs are the calm slate, not a palette slot');
@@ -38099,8 +38129,164 @@ console.log('★★ #1028+ — the overnight finalization');
     const gradMid = (/linear-gradient\(180deg, #[0-9A-Fa-f]{6} 0%, (#[0-9A-Fa-f]{6}) 50%/.exec(tok) || [])[1];
     const dMist = Lstar(mist) - Lstar(mix(mist, inkMist, a1));
     const dGrad = gradInk && gradMid ? Lstar(gradMid) - Lstar(mix(gradMid, gradInk, a1)) : 0;
-    ok(a1 > 0.06 && dMist >= 4.5 && dGrad >= 3.5 && resolveTok('dark', '--chat-pattern-alpha-1') === '0.04',
-      '★ #1039 (walk OV.16) + #1029 (walk P.8): the light pattern alpha rose two rungs (' + a1 + ') — the ink separates by ΔL* ' + dMist.toFixed(2) + ' on Mist and ' + dGrad.toFixed(2) + ' on the brand gradient (was 2.99 / 2.45 at 0.045, 3.99 / 3.27 at 0.06); dark stays 0.04');
+    /* ★ #1058 (Damir, contours ladder): light 0.075 → 0.16, dark 0.04 → 0.13 — the dark ΔL* is computed too now,
+       and Strong (alpha-2, dormant) must stay ABOVE the default in each theme */
+    const d1 = Number(resolveTok('dark', '--chat-pattern-alpha-1'));
+    const dDark = Lstar(mix(resolveTok('dark', '--chat-canvas-base'), resolveTok('dark', '--chat-pattern-ink'), d1)) - Lstar(resolveTok('dark', '--chat-canvas-base'));
+    const strongAbove = ['light', 'dark'].every((t) => Number(resolveTok(t, '--chat-pattern-alpha-2')) > Number(resolveTok(t, '--chat-pattern-alpha-1')));
+    ok(a1 === 0.16 && d1 === 0.13 && dMist >= 10 && dGrad >= 8 && dDark >= 10 && strongAbove,
+      '★ #1058 + #1039 (walk OV.16) + #1029 (walk P.8): the pattern alpha is light ' + a1 + ' / dark ' + d1 + ' — the ink separates by ΔL* ' + dMist.toFixed(2) + ' on Mist, ' + dGrad.toFixed(2) + ' on the brand gradient and ' + dDark.toFixed(2) + ' on the dark canvas (was 4.97 / 4.19 / 2.80 at 0.075 / 0.04); Strong stays above the default in both themes: ' + strongAbove);
+  }
+  {
+    /* —— #1061 · #1064 (Damir 2026-09-29) —— */
+    {
+      const tk66 = stripCssComments(readFileSync(join(root, 'src/styles/tokens.css'), 'utf8'));
+      ok(/:root\[data-theme='dark'\]\[data-chat-ground='gradient'\],\s*:root\[data-theme='dark'\] \[data-chat-ground='gradient'\] \{\s*--gradient-chat: linear-gradient\(180deg, #151B36 0%, #11142A 45%, var\(--chat-canvas-base\) 100%\), var\(--chat-canvas-base\);\s*\}/.test(tk66)
+         && /:root\[data-theme='dark'\] \.c-settings-appearance__dot-face\[data-chat-ground='gradient'\] \{\s*background: linear-gradient\(180deg, #1C2448 0%, #151B36 100%\);/.test(stripCssComments(readFileSync(join(root, 'src/styles/components/settings-screens.css'), 'utf8')))
+         && /:root\[data-theme='dark'\] \[data-chat-ground='flat'\] \{\s*--gradient-chat: var\(--chat-canvas-base\);\s*\}/.test(tk66)
+         && /:root:not\(\[data-theme='dark'\]\)\[data-chat-ground='gradient'\]/.test(tk66)
+         /* #46 r1 (C MINOR-1): the notice card gets its edge back on the dark gradient; (C MINOR-3) the failed badge keeps the loud red */
+         && /:root\[data-theme='dark'\]\[data-chat-ground='gradient'\] \.c-sysnotice__card,\s*:root\[data-theme='dark'\] \[data-chat-ground='gradient'\] \.c-sysnotice__card \{\s*box-shadow: var\(--elevation-2\), inset 0 0 0 1px rgba\(118, 157, 255, 0\.28\);/.test(stripCssComments(readFileSync(join(root, 'src/styles/components/system-notice.css'), 'utf8')))
+         && /\.c-fbubble\[data-state="failed"\] \.c-fbubble__badge \{ background: var\(--error-600\);/.test(stripCssComments(readFileSync(join(root, 'src/styles/components/typed-bubbles.css'), 'utf8'))),
+        '★★ #1066 (Damir, picked B): the DARK brand gradient — blue-violet #151B36 → #11142A → the #0C0E10 midnight ground — on the root (the chat) and on a descendant (the settings preview + dot), with the flat descendant reset so the Solid dot never inherits it; the light rule is untouched');
+    }
+    const wsc = stripCssComments(readFileSync(join(root, 'src/styles/components/wallet-shell.css'), 'utf8'));
+    ok(!/\.c-txsheet__disclose:active/.test(wsc) && /\.c-txsheet__disclose:hover \{ background: var\(--surface-interactive-hover\); \}/.test(wsc),
+      '★ #1061 (Damir): the tx sheet "See details" toggle has NO pressed fill (the grey pill under the finger read as noise); a pointer keeps its hover');
+    const cs = stripCode(readFileSync(join(root, 'src/components/chat-select.js'), 'utf8'));
+    const iBegin = cs.indexOf('const playIn = beginSelectFlip(listEl, rowSelector);');
+    const iFlag = cs.indexOf("listEl.dataset.selecting = '';");
+    const iArm = cs.indexOf('for (const row of allRows()) { if (canSelect(row)) arm(row); }');
+    const iPlay = cs.indexOf('if (listEl.dataset.selecting !== undefined) playIn({ discIn: true });');
+    const exitBody = cs.slice(cs.indexOf('function exit() {'), cs.indexOf('if (onExit) onExit();') + 1);
+    ok(iBegin > 0 && iBegin < iFlag && iFlag < iArm && iArm < iPlay
+       && /const playOut = entering \? \(\) => 0 : beginSelectFlip\(listEl, rowSelector\);\s*delete listEl\.dataset\.selecting;/.test(exitBody) && exitBody.indexOf('playOut();') > exitBody.indexOf('bar.remove();')
+       && /c\.animate\(\[\{ transform: 'translateX\(' \+ dx \+ 'px\)' \}, \{ transform: 'none' \}\]/.test(cs) && /pseudoElement: '::before'/.test(cs)
+       && /if \(!canAnim\) return \(\) => 0;/.test(cs)
+       /* #46 r1: an open that exits inside itself never slides back; the circle pop is feature-detected */
+       && /const playOut = entering \? \(\) => 0 : beginSelectFlip\(listEl, rowSelector\);/.test(cs) && cs.indexOf('entering = false;') > iArm && cs.indexOf('entering = false;') < iPlay
+       && /'pseudoElement' in KeyframeEffect\.prototype/.test(cs),
+      '★ #1064 (Damir: "it shifts to the right INSTANTLY — can it push smoothly?"): entering select mode is a FLIP — first positions BEFORE the mode flag and the arming, the slide AFTER the rows are armed (the circle is what pushes them), a transform per child (compositor-only); exit slides them back the same way; no WAAPI / reduced motion = the instant end state');
+    /* executed: jsdom has no WAAPI, so the mode must still land instantly and completely */
+    {
+      const W = mkWin(), S = W.Spixi, d = W.document;
+      let okRun = false;
+      try {
+        const log = d.createElement('div');
+        log.innerHTML = '<div class="c-bubble-row" data-direction="received" data-msgid="a" data-copytext="hi"><div class="c-bubble">hi</div></div>';
+        d.body.append(log);
+        const row = log.firstElementChild;
+        const h = S.enterChatSelect(log, { initialRow: row, host: log });
+        const inOk = log.dataset.selecting === '' && row.getAttribute('role') === 'checkbox' && row.dataset.selected !== undefined;
+        h.exit();
+        okRun = inOk && log.dataset.selecting === undefined && row.getAttribute('role') !== 'checkbox';
+      } catch (e) { okRun = false; }
+      ok(okRun, '★ #1064: with no WAAPI (jsdom) select mode still enters and exits completely — the FLIP never gates the state');
+    }
+    {
+      /* ★ #1065 (R.10 → Damir: "a long-press while the keyboard is open closes it and reopens it"): EXECUTED */
+      const W = mkWin(), S = W.Spixi, d = W.document;
+      const host = d.createElement('div'); d.body.append(host);
+      const ta = d.createElement('textarea'); host.append(ta);
+      const row = d.createElement('div'); row.className = 'c-bubble-row'; row.dataset.direction = 'received';
+      row.innerHTML = '<div class="c-bubble">hi</div>'; host.append(row);
+      ta.focus();
+      const r = {};
+      r.focused = d.activeElement === ta;
+      const menu = S.openMessageMenu({ row, host, text: 'hi', onAction() {} });
+      r.menuUp = !!menu && S.isOverlayOpen(menu);
+      r.kept = d.activeElement === ta;
+      const scrim = [...host.querySelectorAll('.c-scrim')].pop();
+      const md = new W.MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 });
+      scrim.dispatchEvent(md);
+      r.scrimNoFocus = md.defaultPrevented === true;
+      const md2 = new W.MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 });
+      (menu.querySelector('button') || menu).dispatchEvent(md2);
+      r.menuNoFocus = md2.defaultPrevented === true;
+      r.stamped = menu.dataset.keepEditable === '';
+      /* r2 (MINOR-1c): a sheet STACKED on the menu takes focus, and closing it hands focus back to the
+         field WITHOUT the menu's containment bouncing it into the menu (the focusin exemption) */
+      const stacked = S.createSheet({ content: d.createElement('div'), host, strings: {} });
+      S.openSheet(stacked);
+      r.stackTakes = d.activeElement !== ta;
+      S.closeSheet(stacked);
+      r.stackBack = d.activeElement === ta;
+      S.closeSheet(menu);
+      r.stillKept = d.activeElement === ta;
+      r.unstamped = menu.dataset.keepEditable === undefined;
+      /* the contract is UNCHANGED for every other overlay: an ordinary sheet still takes focus */
+      ta.focus();
+      const other = S.createSheet({ content: d.createElement('div'), host, strings: {} });
+      S.openSheet(other);
+      r.otherTakes = d.activeElement !== ta;
+      const md3 = new W.MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 });
+      [...host.querySelectorAll('.c-scrim')].pop().dispatchEvent(md3);
+      r.otherScrimPlain = md3.defaultPrevented === false;
+      S.closeSheet(other);
+      /* with NO text field focused the message menu takes focus as before (nothing to keep) */
+      ta.blur();
+      const menu2 = S.openMessageMenu({ row, host, text: 'hi', onAction() {} });
+      r.noFieldTakes = d.activeElement !== ta && d.activeElement !== d.body;
+      S.closeSheet(menu2);
+      ok(Object.values(r).every((v) => v === true),
+        '★ #1065 (R.10, Damir): the message menu opens WITHOUT taking focus from a focused text field — the composer keeps its keyboard through open, a tap on the scrim or a menu row (mousedown default prevented, the click still fires) and close; an ordinary sheet and a menu opened with no field focused keep the old focus contract — ' + JSON.stringify(r));
+      const da = stripCode(readFileSync(join(root, 'src/components/desktop-anchors.js'), 'utf8'));
+      ok(/const vvBottom = vv\.offsetTop \+ vv\.height - host2\.top - M_GAP;\s*if \(vvBottom < maxBottom\) \{ maxBottom = vvBottom; vvCapped = true; \}/.test(da)
+         && /if \(vvCapped\) sheet\.style\.maxHeight = Math\.max\(120, maxBottom - minTop\) \+ 'px';/.test(da)
+         && da.indexOf("if (vvCapped) sheet.style.maxHeight") < da.indexOf('const h = sheet.offsetHeight')
+         && /window\.visualViewport\.addEventListener\('scroll', reflow\)/.test(da) && /window\.visualViewport\.removeEventListener\('scroll', reflow\)/.test(da),
+        '★ #1065: the anchored menu never sits below the VISUAL viewport — on iOS the keyboard covers the host instead of shrinking it (#303), so the host bound alone would place a below-the-row menu under the keyboard');
+      /* r2 (MINOR-1a): EXECUTED — the keyboard cap lands while the visual viewport is short and CLEARS when it grows back */
+      {
+        const W2 = mkWin(), S2 = W2.Spixi, d2 = W2.document;
+        const host2 = d2.createElement('div'); d2.body.append(host2);
+        const row2 = d2.createElement('div'); host2.append(row2);
+        const sh2 = d2.createElement('section'); host2.append(sh2);
+        const R = (t, l, w, h) => () => ({ top: t, left: l, width: w, height: h, bottom: t + h, right: l + w, x: l, y: t });
+        host2.getBoundingClientRect = R(0, 0, 400, 800);
+        row2.getBoundingClientRect = R(120, 10, 300, 40);
+        Object.defineProperty(sh2, 'offsetHeight', { get: () => 500 });
+        const handlers = {};
+        const vv = { height: 300, offsetTop: 0, addEventListener(t, f) { (handlers[t] = handlers[t] || []).push(f); }, removeEventListener() {} };
+        Object.defineProperty(W2, 'visualViewport', { value: vv, configurable: true });
+        let capped = '', cleared = 'x';
+        try {
+          S2.anchorSheetToRow(sh2, row2, { host: host2 });
+          capped = sh2.style.maxHeight;
+          vv.height = 800;
+          (handlers.resize || []).forEach((f) => f());
+          cleared = sh2.style.maxHeight;
+        } catch (e) { capped = 'ERR ' + e.message; }
+        ok(/^\d+px$/.test(capped) && parseFloat(capped) <= 300 && cleared === '' && (handlers.scroll || []).length === 1,
+          '★ #1065 r2: with the keyboard up (visual viewport 300 of 800) the anchored menu is height-capped to the visible band (' + capped + '), and the cap is REMOVED when the viewport grows back (' + JSON.stringify(cleared) + ') — the visual viewport scroll leg is bound too');
+      }
+      /* r2 (MINOR-1b): EXECUTED — the FLIP starts each child at its OLD position (a push to the right starts at a NEGATIVE offset) and exit mirrors it */
+      {
+        const W3 = mkWin(), S3 = W3.Spixi, d3 = W3.document;
+        const calls = [];
+        W3.Element.prototype.animate = function (kf, opt) { calls.push({ el: this, kf, opt }); return { cancel() {}, finished: Promise.resolve() }; };
+        const log = d3.createElement('div');
+        log.innerHTML = '<div class="c-bubble-row" data-direction="received" data-msgid="a" data-copytext="hi"><div class="c-bubble">hi</div></div>';
+        d3.body.append(log);
+        const row3 = log.firstElementChild, bub = row3.firstElementChild;
+        row3.getBoundingClientRect = () => ({ top: 100, bottom: 140, left: 0, right: 400, width: 400, height: 40 });
+        bub.getBoundingClientRect = () => { const x = log.dataset.selecting !== undefined && row3.getAttribute('role') === 'checkbox' ? 45 : 13; return { top: 100, bottom: 140, left: x, right: x + 200, width: 200, height: 40 }; };
+        const h3 = S3.enterChatSelect(log, { initialRow: row3, host: log });
+        const inK = calls.filter((c) => c.el === bub).map((c) => c.kf[0].transform);
+        calls.length = 0;
+        h3.exit();
+        const outK = calls.filter((c) => c.el === bub).map((c) => c.kf[0].transform);
+        ok(inK.join() === 'translateX(-32px)' && outK.join() === 'translateX(32px)',
+          '★ #1064 r2: the select-mode FLIP is DIRECTIONAL — entering, the pushed bubble starts 32px LEFT of where it lands (' + JSON.stringify(inK) + '); exiting, 32px RIGHT (' + JSON.stringify(outK) + '). A sign flip would slide in from the wrong side and the text-only pin could not see it');
+      }
+      {
+        const cp = stripCode(readFileSync(join(root, 'src/components/composer.js'), 'utf8'));
+        ok(/const menuOverField = \(\) => !!\(typeof document !== 'undefined' && document\.querySelector\('\[data-keep-editable\]'\)\);/.test(cp)
+           && /e\.preventDefault\(\);\s*if \(menuOverField\(\)\) return;\s*send\(\);/.test(cp)
+           && /if \(e\.key === 'Escape' && composerCtx\.has\(el\) && !menuOverField\(\)\) cancelComposerContext\(el\);/.test(cp),
+          '★ #1065 r2 (MINOR-3): while the message menu is up over the focused composer, Enter does not send and Esc closes the MENU only — the reply/edit context survives');
+      }
+    }
   }
   {
     /* —— #1030 (walk P.18): dark sheets and dialogs one rung darker, the card pair follows —— */

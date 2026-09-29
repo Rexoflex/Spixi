@@ -46,6 +46,10 @@
   -webkit-overflow-scrolling: touch;
 }
 .c-chats-header__filters::-webkit-scrollbar { display: none; }
+/* ★ #1063 (Damir 2026-09-29, mobile, beside WhatsApp): more air between the search field and the chips
+   (8 → 16) and between the chips and the first row (12 → 16). Desktop keeps its compact header. */
+:root:not([data-desktop]) .c-chats-header__search { padding-block-end: var(--spacing-16); }
+:root:not([data-desktop]) .c-chats-header__filters { padding-block-end: var(--spacing-16); }
 
 /* ★ #841 OPT-OUT — the opposite rule, and it is deliberate. chip.css caps every chip at
    100% of its row so a long label ellipsizes instead of carrying its remove × off the

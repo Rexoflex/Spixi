@@ -802,7 +802,7 @@
      * genuinely does need a repaint), but it can no longer paint the wrong number. */
     r.style.setProperty('--chat-pattern-opacity', patternLevelVar(prefs.level));
     r.setAttribute('data-chat-pattern', prefs.style);
-    r.setAttribute('data-chat-ground', prefs.ground);   // ★ AUG: light-only in effect; inert in dark
+    r.setAttribute('data-chat-ground', prefs.ground);   // ★ AUG → #1066: painted in BOTH themes (tokens.css has a rule per theme)
     if (isFinite(prefs.text)) r.style.setProperty('--chat-text-scale', String(prefs.text));   // ★ Session P: the stored size, or
     else r.style.removeProperty('--chat-text-scale');                                          //   the token default when unset
   }

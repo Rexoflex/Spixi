@@ -27,6 +27,11 @@ import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createAvatar } from './avatar.js';
 
+/* ★ #1065 r2 (break-my-verdict MINOR-3): the message menu can now be open WHILE the composer keeps
+   focus (overlay.js keepEditableFocus stamps data-keep-editable on its root, removed synchronously at
+   dismiss). Keys typed then belong to the menu, not to the draft. */
+const menuOverField = () => !!(typeof document !== 'undefined' && document.querySelector('[data-keep-editable]'));
+
 const MAX_LINES = 5;
 const MENTION_MAX = 8;   // rows shown in the @-autocomplete
 
@@ -164,6 +169,7 @@ export function createComposer({
     if (e.isComposing || e.keyCode === 229) return;
     if (e.key === 'Enter' && !e.shiftKey && matchMedia('(hover: hover)').matches) {
       e.preventDefault();
+      if (menuOverField()) return;   // ★ #1065 r2: never send from under the message menu
       send();
     }
   });
@@ -384,7 +390,9 @@ export function setComposerContext(el, ctx) {
     if (el.dataset.ctxWired === undefined) {
       el.dataset.ctxWired = '';
       input.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && composerCtx.has(el)) cancelComposerContext(el);
+        // ★ #1065 r2: while the message menu is up over the focused field, Esc belongs to the MENU
+        // (overlay.js closes it) — one Esc must not also throw away the reply/edit in progress.
+        if (e.key === 'Escape' && composerCtx.has(el) && !menuOverField()) cancelComposerContext(el);
       });
     }
     input.focus();

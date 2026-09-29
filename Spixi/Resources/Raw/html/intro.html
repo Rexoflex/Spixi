@@ -1026,9 +1026,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      scroller; the JS clamp (anchorSheetToRow) keeps top ≥ safe-top + 8. */
   max-height: calc(100% - var(--safe-top, 0px) - var(--safe-bottom, 0px) - 2 * var(--spacing-8));
   overflow-y: auto;
-  transform: none;
+  /* ★ #1067: grow out of the pressed message (origin set in desktop-anchors.js); compositor-only */
+  transform: scale(0.92);
   opacity: 0;
-  transition: opacity var(--duration-200) var(--easing-decelerate);
+  transition: opacity var(--duration-200) var(--easing-standard),
+              transform var(--duration-200) var(--easing-standard);
 }
 :root:not([data-desktop]) .c-sheet[data-m-anchor][data-open] { transform: none; opacity: 1; }
 :root:not([data-desktop]) .c-sheet[data-m-anchor] .c-sheet__handle { display: none; }
@@ -1591,7 +1593,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   background: var(--surface-settings-card);   /* ★ #1007: WHITE in light (was --surface-card #EDF0F2) */
   border-radius: var(--radius-16);
   padding: var(--spacing-4);
-  box-shadow: var(--elevation-1);
+  box-shadow: var(--elevation-settings-card);   /* ★ #1068: the softer Account-card shadow (light); dark = elevation-1 */
   --surface-input: var(--surface-input-on-settings-card);   /* #150③ → #1007: an input on the white card takes the grey */
 }
 /* ★ Session AF (#949, Damir on the AE walk): NO hairline between rows of the same card — the
@@ -2120,7 +2122,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   background: var(--surface-settings-card);   /* ★ #1013: the hub's card pair (white on grey in light; dark = --surface-card, unchanged) */
   border-radius: var(--radius-16);
   padding: var(--spacing-4);
-  box-shadow: var(--elevation-1);
+  box-shadow: var(--elevation-settings-card);   /* ★ #1068: the hub's softer card shadow */
   --surface-input: var(--surface-input-on-settings-card);   /* #150③ → #1013 — seg pills etc. stay visible on the white card */
 }
 .c-settings-appearance .c-settings__section {
@@ -2403,8 +2405,8 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 /* —— ★ Session M (#774): the Colour card — a single value row, so it takes the HUB's card
    padding (4) instead of the appearance screen's section padding (12). A 48px row inside a
    12px section reads as a row floating in a box rather than as a card that IS a row.
-   The rule is written against the section, not the row. In dark the section is never
-   built, so this rule matches nothing there.
+   The rule is written against the section, not the row. ★ #1066: the section is built in
+   BOTH themes now (a dark brand gradient exists), so the rule applies in dark too.
    REVERSAL: delete this rule and the row sits 20px in from the card edge. —— */
 .c-settings-appearance .c-settings__section.c-settings-appearance__groundsec {
   padding: var(--spacing-4);
@@ -2434,6 +2436,13 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   border-radius: var(--radius-full);
   background: var(--gradient-chat);
   box-shadow: inset 0 0 0 1px var(--outline-on-card);
+}
+/* ★ #1066 r2 (MINOR-4): in DARK the two dots read as two black circles (the gradient's top stop is
+   1.14:1 off the solid #0C0E10, and a 32px face shows mostly its dark half). The GRADIENT dot paints
+   the ground's top — its blue-violet half — so the choice is legible; the chat and the preview keep
+   the full ramp. Light is untouched (its pair already differs clearly). */
+:root[data-theme='dark'] .c-settings-appearance__dot-face[data-chat-ground='gradient'] {
+  background: linear-gradient(180deg, #1C2448 0%, #151B36 100%);   /* sanctioned: a swatch face for the #1066 dark ground — its top stop #151B36 plus one lighter step so the 32px dot separates from the solid dot; no semantic role carries a dot face */
 }
 .c-settings-appearance__dot[aria-checked="true"] .c-settings-appearance__dot-face {
   box-shadow: inset 0 0 0 1px var(--outline-on-card), 0 0 0 2px var(--surface-settings-card), 0 0 0 4px var(--outline-action-default);

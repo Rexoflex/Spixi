@@ -80,7 +80,8 @@
   --ink-700:  #232528;   /* was #19212f */
   --ink-800:  #1A1C1F;   /* was #161d28 */
   --ink-900:  #0F1113;   /* was #10151e — the dark screen/chrome ground */
-  --ink-1000: #090A0D;   /* was #0d1118 — now also the dark chat canvas (#989) */
+  --ink-950:  #0C0E10;   /* ★ #1058 (Damir 2026-09-29: "dark chat background too black, tone it down a bit"; picked from a rendered 4-way: #090A0D · #0C0E10 · #0F1113 · #131518): the dark chat canvas, a half step above ink-1000 and still below the ink-900 bars. Ramp-only — NO --neutral-950 alias in dark (that name is the #131415 on-colour ink there). */
+  --ink-1000: #090A0D;   /* was #0d1118 — the dark chat canvas #989 → #1058 (now ink-950) */
 
   /* color/brand */
   --brand-50: #e9ecf3;
@@ -929,7 +930,11 @@
      fill (#763: primary-600 + white, darker hover/pressed) — the saturated red with a white label
      (6.36:1), not the pastel #f49c92 with a black one, which read as salmon on the dark dialog.
      Superseded: error-300 / 400 / 500 + --neutral-950 ink. */
-  --surface-destructive-default: var(--error-600);
+  /* ★ #1062 (Damir 2026-09-29, the dark "Delete chat?" dialog: "too red, a toned-down token"; picked A of
+     a rendered 4-way — #b12525 · A #9a2c29 · B #8c2f2c · C tonal #5a1d1a + #f49c92): DARK ONLY, a
+     quieter, less saturated brick. White label 7.59:1 (was 6.64), lift off the #1A1C1F sheet 2.25:1.
+     Hover/pressed keep error-700 / -800 (both still darker). Light keeps error-600. Reversal = var(--error-600). */
+  --surface-destructive-default: #9a2c29;
   --surface-destructive-hover: var(--error-700);
   --surface-destructive-pressed: var(--error-800);
   --surface-destructive-disabled: var(--neutral-700);
@@ -1030,7 +1035,7 @@
      restoration and not a new pick; on-destructive moved to white with #1018. Light (:root) stays white; see the note there. */
   --text-neutral-on-error: var(--neutral-950);         /* #131415 on --surface-error --error-400 #f1786e = 6.72:1 (light: #f9fafb on --error-600 #b12525 = 6.36:1). Reversal var(--neutral-10) → 2.63:1, the shipped defect */
   --text-neutral-on-success: var(--neutral-950);       /* #131415 on --surface-success --success-300 #91c69b = 9.45:1 (light: #f9fafb on --success-600 #007030 = 5.98:1). Reversal var(--neutral-10) → 1.87:1 */
-  --text-neutral-on-destructive: var(--neutral-10);   /* ★ #1018: white on --error-600 #b12525 = 6.36:1, the same pair as light. Superseded: --neutral-950 on --error-300 (the pastel fill) */
+  --text-neutral-on-destructive: var(--neutral-10);   /* ★ #1062: white on the dark fill #9a2c29 = 7.59:1 (light keeps error-600, 6.64:1). ★ #1018: white on --error-600 #b12525 = 6.36:1, the same pair as light. Superseded: --neutral-950 on --error-300 (the pastel fill) */
   --text-neutral-on-inverse: var(--neutral-950);       /* #131415 on --surface-neutral-inverse-01 --neutral-100 #e8ecee = 15.51:1 (light: #f9fafb on --neutral-900 #13171b = 17.23:1). Reversal var(--neutral-10) → 1.14:1 */
   --text-neutral-on-disabled: var(--neutral-400);
   --text-action-default: var(--primary-400);
@@ -1232,7 +1237,7 @@
   --row-name-line-height: var(--line-height-body-lg);
   --row-name-weight: var(--font-weight-medium, 500);  /* ★ Session J (Damir, on his Seed-50 screenshot: "semibold is too strong for read … could be used for unread"): Medium at rest — one notch under the excerpt's counterpart. Reversal = var(--font-weight-semibold) (Session I sheet 2); regular = the pre-I state */
   --row-name-weight-unread: var(--font-weight-semibold);  /* ★ Session J: unread = semibold (was bold, Session I) */
-  --row-pad-y: 11px;                                  /* was var(--spacing-12) */
+  --row-pad-y: 14px;                                  /* ★ #1063 (Damir 2026-09-29, beside a WhatsApp screenshot: "slightly bigger, similar to WhatsApp"): 11 → 14, pitch +6 CSS px (≈ WA's 72). Session I: was var(--spacing-12) */
   --row-time-size: 12px;                              /* ★ Session J (walk A7 "the chats-row timestamp still reads huge"): MEASURED on the reference screenshots — digit height TG 21–22 px · WA 28 · ours 25 at 14 CSS; TG's row time is ≈12 CSS on this phone. Reversal = var(--font-size-body-sm) (14) */
   --row-time-line-height: 16px;                       /* reversal = var(--line-height-body-sm) (20) */
   --tx-name-size: 15px;                               /* was var(--font-size-body-lg) = 18 mobile */
@@ -1410,8 +1415,8 @@
      the Default stroke sat 4.03 L* below it; the colourful canvas is darker and mid-lightness,
      so the same alpha only reached 2.96 (teal end) / 3.62 (green end). .07 restores 3.47 / 4.26
      — the strength Damir already approved, carried onto a different ground rather than re-picked. */
-  --chat-pattern-alpha-1: 0.075;   /* ★ #1039 (PC+Android walk OV.16, Damir 2026-09-29: "need stronger"): 0.06 → 0.075, the rung #1029 named — ΔL* on Mist 3.99 → 4.99. ★ #1029 (walk P.8, Damir 2026-09-28: "light Contours almost invisible"): ONE rung up, back to 0.06 — ΔL* on Mist 2.99 → 3.99 (the brand gradient 2.45 → 3.27); rendered with 0.075 beside it (docs/sheets/overnight-1028/p8-contours-light.png). Was 0.045 — #1002 ("Subtle ≈ 0.045" on Mist); before that 0.06 (2026-08-30). Next rung if still faint = 0.075 (ΔL* 4.99). Dark unchanged. */
-  --chat-pattern-alpha-2: 0.1;     /* Strong */
+  --chat-pattern-alpha-1: 0.16;    /* ★ #1058 (walk after #1056, Damir 2026-09-29: "light barely visible"; picked from the ladder docs/sheets/1050/contours-ladder.png, 7.5 / 12 / 16 / 20 %): 0.075 → 0.16. ★ #1039 (PC+Android walk OV.16, Damir 2026-09-29: "need stronger"): 0.06 → 0.075, the rung #1029 named — ΔL* on Mist 3.99 → 4.99. ★ #1029 (walk P.8, Damir 2026-09-28: "light Contours almost invisible"): ONE rung up, back to 0.06 — ΔL* on Mist 2.99 → 3.99 (the brand gradient 2.45 → 3.27); rendered with 0.075 beside it (docs/sheets/overnight-1028/p8-contours-light.png). Was 0.045 — #1002 ("Subtle ≈ 0.045" on Mist); before that 0.06 (2026-08-30). Next rung if still faint = 0.075 (ΔL* 4.99). Dark unchanged. */
+  --chat-pattern-alpha-2: 0.2;     /* Strong — ★ #1058: 0.1 → 0.2 (the next ladder rung) so it stays ABOVE alpha-1. Dormant: no picker selects it (AUG). */
   --chat-pattern-opacity: var(--chat-pattern-alpha-1);
   /* message text scale (#147 — Chat appearance setting, FE-only). Bubbles
      compute font-size * this; ADOPTION in message-bubble.css lands at the
@@ -1669,6 +1674,11 @@
   /* elevation — light: shadows */
   --elevation-0: none;
   --elevation-1: 0 1px 2px rgba(17, 18, 19, 0.06), 0 1px 3px rgba(17, 18, 19, 0.1);
+  /* ★ #1068 (Damir 2026-09-29: "tone down the group cards' bottom shadow in light, Account screen"):
+     the Account card groups take their OWN, softer elevation — about 40 % of elevation-1's alpha,
+     same geometry, so the white card still lifts off the #F3F5F7 ground without a hard bottom line.
+     Every other elevation-1 consumer is untouched. Reversal = var(--elevation-1). */
+  --elevation-settings-card: 0 1px 2px rgba(17, 18, 19, 0.03), 0 1px 3px rgba(17, 18, 19, 0.05);
   --elevation-2: 0 2px 6px rgba(17, 18, 19, 0.08), 0 4px 12px rgba(17, 18, 19, 0.1);
   --elevation-3: 0 8px 16px rgba(17, 18, 19, 0.12), 0 12px 32px rgba(17, 18, 19, 0.14);
 }
@@ -1729,6 +1739,7 @@
 
   /* elevation — dark: shadows read poorly; raised surfaces use surface-card(-raised) */
   --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --elevation-settings-card: var(--elevation-1);   /* ★ #1068: dark unchanged (light only was toned down) */
   --elevation-2: 0 2px 6px rgba(0, 0, 0, 0.5);
   --elevation-3: 0 8px 20px rgba(0, 0, 0, 0.6);
 
@@ -1757,8 +1768,8 @@
      #701 canvas, where #bbd0ff @ .065 read +5.89. So the STRENGTH is unchanged (within 4%)
      and what actually changes is the HUE — a neutral ink instead of a blue-tinted one. */
   --chat-pattern-ink: #C6CFFD;   /* ★ Session J (#758, Damir 2026-09-03: "pattern colour #C6CFFD, 4%") — a periwinkle ink instead of white. Reversal = #ffffff */
-  --chat-pattern-alpha-1: 0.04;    /* ★ Session J (#758): 4%. Superseded: 0.03 (Damir 2026-08-30 #711 "reduce dark by 2%") ← 0.05 */
-  --chat-pattern-alpha-2: 0.1;     /* Strong — the same ceiling in both themes */
+  --chat-pattern-alpha-1: 0.13;    /* ★ #1058 (Damir 2026-09-29: "dark almost invisible"; picked from the ladder, 4 / 9 / 13 / 18 %): 0.04 → 0.13. ★ Session J (#758): 4%. Superseded: 0.03 (Damir 2026-08-30 #711 "reduce dark by 2%") ← 0.05 */
+  --chat-pattern-alpha-2: 0.18;    /* Strong — ★ #1058: 0.1 → 0.18 (the next ladder rung) so it stays ABOVE alpha-1. Was the same 0.1 ceiling in both themes. Dormant. */
   --chat-pattern-opacity: var(--chat-pattern-alpha-1);
   /* ★★★ AUG (Damir 2026-08-30, ON DEVICE, ruled off a render): the dark canvas takes the
      CHROME'S OWN colour. He reported the desktop chat pane not fitting the rest of the app.
@@ -1778,7 +1789,7 @@
      ⚠ Supersedes the #701 ruling "leave the base at #0f1115" — which he made against a
      measurement about neutral01 LIGHTNESS, with no knowledge of the chrome adjacency. New
      information, not a re-opened argument. */
-  --chat-canvas-base: var(--neutral-1000);   /* ★ #989 (Damir 2026-09-27): the ramp's deepest step (ink-1000 #090A0D) — the canvas and the chrome are ONE family now. Was #0D1117 (#758) */
+  --chat-canvas-base: var(--ink-950);   /* ★ #1058 (Damir): ink-1000 #090A0D → ink-950 #0C0E10, a half step lighter, still under the #0F1113 bars. ★ #989 (Damir 2026-09-27): the ramp's deepest step (ink-1000 #090A0D) — the canvas and the chrome are ONE family now. Was #0D1117 (#758) */
   /* #758 record — ★ Session J (#758, Damir 2026-09-03: "on dark mode the chat canvas should be #0D1117 and make it a token") — a GitHub-dark neutral, a hair deeper and less blue than the #10151e chrome (ΔL* ≈ −1.3). Reversal = #10151e (= --surface-screen, Session H's three-option pick above) */
   /* ★ AUG: dark's ground did not move, so its chips keep the surface they had. Defined
      here so the token resolves in BOTH themes rather than inheriting light's near-white. */
@@ -1906,4 +1917,18 @@
 :root:not([data-theme='dark']) [data-chat-ground='flat'] {
   --gradient-chat: var(--chat-canvas-base);
   --chat-pattern-ink: var(--chat-pattern-ink-mist);   /* ★ #1002: the brand gradient's ink must not cascade into the flat tile */
+}
+/* ★★ #1066 (Damir 2026-09-29: "offer a gradient in dark mode too"; picked B of a rendered 3-way at
+   mobile + desktop width — A brand violet · B blue-violet · C violet corner): the DARK brand gradient,
+   blue-violet at the top settling into the #0C0E10 midnight ground by the bottom half, so the composer
+   and the newest messages sit on the plain canvas. Same pref, same selectors as light (the root for the
+   chat, a descendant for the settings preview and the dot), (0,3,0) against the dark block's (0,1,0).
+   The pattern ink stays #C6CFFD (it reads on both ends). Sent #1a4a96 vs the top stop #151B36 = 2.0:1
+   (the same lift it has on the flat canvas, 2.2:1). Reversal = delete these two rules. */
+:root[data-theme='dark'][data-chat-ground='gradient'],
+:root[data-theme='dark'] [data-chat-ground='gradient'] {
+  --gradient-chat: linear-gradient(180deg, #151B36 0%, #11142A 45%, var(--chat-canvas-base) 100%), var(--chat-canvas-base);   /* r2 NIT: the last stop IS the canvas — no seam if the base is re-picked */
+}
+:root[data-theme='dark'] [data-chat-ground='flat'] {
+  --gradient-chat: var(--chat-canvas-base);
 }

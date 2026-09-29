@@ -2147,7 +2147,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   box-shadow: 0 0 0 2px var(--surface-bubble-received);   /* ring cut against the card */
 }
 .c-bubble-row[data-direction="sent"] .c-fbubble__badge { box-shadow: 0 0 0 2px var(--surface-card-sent); }
-.c-fbubble[data-state="failed"] .c-fbubble__badge { background: var(--surface-destructive-default); color: var(--text-neutral-on-destructive); }
+.c-fbubble[data-state="failed"] .c-fbubble__badge { background: var(--error-600); color: var(--text-neutral-on-destructive); }   /* #1062 #46 r1 (C MINOR-3): the failed badge keeps the LOUD red — the quieter dark destructive fill is for the dialog button; white on error-600 = 6.64:1 as before */
 /* ★ #1022 (Opus r1 M2): no desaturation on the failed tile — a filter reaches the red retry badge
    too and the hover filter replaced it anyway; the red badge + the red retry line carry the state. */
 @media (hover: hover) and (pointer: fine) {
@@ -2797,9 +2797,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      scroller; the JS clamp (anchorSheetToRow) keeps top ≥ safe-top + 8. */
   max-height: calc(100% - var(--safe-top, 0px) - var(--safe-bottom, 0px) - 2 * var(--spacing-8));
   overflow-y: auto;
-  transform: none;
+  /* ★ #1067: grow out of the pressed message (origin set in desktop-anchors.js); compositor-only */
+  transform: scale(0.92);
   opacity: 0;
-  transition: opacity var(--duration-200) var(--easing-decelerate);
+  transition: opacity var(--duration-200) var(--easing-standard),
+              transform var(--duration-200) var(--easing-standard);
 }
 :root:not([data-desktop]) .c-sheet[data-m-anchor][data-open] { transform: none; opacity: 1; }
 :root:not([data-desktop]) .c-sheet[data-m-anchor] .c-sheet__handle { display: none; }
@@ -3915,6 +3917,13 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      (tokens.css), so this rule no longer repaints the ground — it keeps only the dark
      elevation. */
   box-shadow: var(--elevation-2);
+}
+/* ★ #1066 #46 r1 (C MINOR-1): on the DARK brand gradient the #0c1a4a card is the gradient's own hue and
+   value (1.02:1 at the top stop) — only the shadow separated it. A soft blue hairline brings the edge
+   back on that ground only (the Session J edge, softened .35 → .28). */
+:root[data-theme='dark'][data-chat-ground='gradient'] .c-sysnotice__card,
+:root[data-theme='dark'] [data-chat-ground='gradient'] .c-sysnotice__card {
+  box-shadow: var(--elevation-2), inset 0 0 0 1px rgba(118, 157, 255, 0.28);   /* sanctioned: the Session J notice edge (rgba(118,157,255,.35), E1b/N82(c)) softened for the one ground where the card and canvas share hue — a one-surface hairline, no semantic role carries it */
 }
 
 
@@ -5976,7 +5985,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      * genuinely does need a repaint), but it can no longer paint the wrong number. */
     r.style.setProperty('--chat-pattern-opacity', patternLevelVar(prefs.level));
     r.setAttribute('data-chat-pattern', prefs.style);
-    r.setAttribute('data-chat-ground', prefs.ground);   // ★ AUG: light-only in effect; inert in dark
+    r.setAttribute('data-chat-ground', prefs.ground);   // ★ AUG → #1066: painted in BOTH themes (tokens.css has a rule per theme)
     if (isFinite(prefs.text)) r.style.setProperty('--chat-text-scale', String(prefs.text));   // ★ Session P: the stored size, or
     else r.style.removeProperty('--chat-text-scale');                                          //   the token default when unset
   }

@@ -776,7 +776,11 @@ export function createFileBubble({
     if (h) h(e);
   });
   if (state === 'progress') el.disabled = true;
-  el.setAttribute('aria-label', fileAria(state, name, strings));
+  /* ★ #1035 (#46 auditor B, M3): the BASE label is kept on the card so the sent file's tick state can be
+     appended (here and on every live change — message-bubble.js syncFileTickAria); an explicit aria-label
+     on a <button> replaces its content, so the tick's own label is never heard otherwise. */
+  el.dataset.ariaBase = fileAria(state, name, strings);
+  el.setAttribute('aria-label', el.dataset.ariaBase);
 
   el.append(fileTile(name, state));   // ★ #1021: the document tile (extension · family colour · state badge)
 
@@ -844,6 +848,7 @@ export function createFileBubble({
     tick.removeAttribute('aria-hidden');
     tick.setAttribute('role', 'img');
     tick.setAttribute('aria-label', strings['status-' + status] || status);
+    el.setAttribute('aria-label', el.dataset.ariaBase + ', ' + tick.getAttribute('aria-label'));
     const stamp = document.createElement('span');
     stamp.className = 'c-fbubble__stamp';
     if (stampTime) stamp.append(stampTime);
@@ -903,7 +908,9 @@ export function setFileProgress(rowEl, progress, opts = {}) {
     if (hint) hint.remove(); // keep-open hint is progress-only
     // refresh name + glyph for the new state (audit r2: stale "Downloading" aria)
     const nm = bubble.querySelector('.c-fbubble__name');
-    bubble.setAttribute('aria-label', fileAria(finalState, nm ? nm.textContent : '', strings));
+    bubble.dataset.ariaBase = fileAria(finalState, nm ? nm.textContent : '', strings);
+    const tk = bubble.querySelector('.c-fbubble__stamp .c-status-icon:not([data-exit])');   // ★ #1035: keep the tick's state in the name
+    bubble.setAttribute('aria-label', bubble.dataset.ariaBase + (tk && tk.getAttribute('aria-label') ? ', ' + tk.getAttribute('aria-label') : ''));
     // ★ #1021: the tile keeps its extension; only the corner badge follows the state
     const ic = bubble.querySelector('.c-fbubble__icon');
     if (ic) {

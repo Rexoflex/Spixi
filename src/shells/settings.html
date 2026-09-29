@@ -212,6 +212,7 @@
     applyPushedTheme,
     readPatternLevel,
     LANGUAGES,                       // ★ L15: the ONE language list, shared with the launch picker
+    copyText,                        // ★ #1035: the share ladder's clipboard rung rides the ONE copy path (native first)
   } = window.Spixi;
   // #228 platform flag (set pre-paint, constant): desktop swaps the peer-tab
   // bottom bar for the LEFT RAIL + drops the topbar back (rail = the exit).
@@ -1710,17 +1711,8 @@
   // older WebView2 origins → `.writeText` threw into a silent catch (no copy, no
   // feedback). Now: guard clipboard existence, fall back to execCommand, and if
   // EVERYTHING fails surface an error toast — the row always gives feedback.
-  function execCopy(text) {
-    try {
-      const ta = document.createElement('textarea');
-      ta.value = text; ta.setAttribute('readonly', '');
-      ta.style.position = 'fixed'; ta.style.top = '-9999px'; ta.style.opacity = '0';
-      document.body.appendChild(ta); ta.select();
-      const ok = document.execCommand && document.execCommand('copy');
-      document.body.removeChild(ta);
-      return !!ok;
-    } catch (e) { return false; }
-  }
+  // ★ #1035: the local execCopy() is gone — the clipboard rung below is copyText (clipboard.js), which owns
+  // the #235b guards (absent API, execCommand fallback, honest false) and the native route.
   /* C7 (#342, Damir F5: "on desktop the share button beside the address does nothing").
    * CONFIRMED DEFECT, and the cause was the ladder's SHAPE, not a missing capability.
    * The old code took `navigator.share` as proof that sharing works, swallowed every
@@ -1746,13 +1738,11 @@
    *     means "I could not show a sheet".
    *  3. Clipboard, then execCommand, then an error toast. The row always answers. */
   function copyAddressFallback(addr) {
+    /* ★ #1035 (#46 auditor A, NIT): this rung kept its OWN async → execCommand ladder — a <body>-hosted buffer
+       (the #993 flaw) that also bypassed the native copy. It rides copyText now, like every other Copy. */
     const ok = () => showToast({ text: strings.copied || 'Copied', tone: 'success', host: document.body, strings });
-    const fail = () => { if (execCopy(addr)) ok(); else showToast({ text: strings.copyFailed || 'Couldn’t copy. Select the address text instead', tone: 'error', host: document.body, strings }); };   // fallback = the dict value (A4 conflict gate)
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(addr).then(ok, fail);
-      } else { fail(); }
-    } catch (e) { fail(); }
+    const fail = () => showToast({ text: strings.copyFailed || 'Couldn’t copy. Select the address text instead', tone: 'error', host: document.body, strings });   // fallback = the dict value (A4 conflict gate)
+    copyText(addr).then((copied) => (copied === true ? ok() : fail()), fail);
   }
   function shareAddress({ address }) {
     const addr = address || state.address;

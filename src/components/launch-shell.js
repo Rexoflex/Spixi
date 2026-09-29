@@ -1150,8 +1150,9 @@ export function setLaunchFile(el, name) {
   st.els.fileRow.hidden = !st.fileName;
   /* ★ #1034 (polish Q1, release-readiness §3): the FILE-SET state is distinct — once a file is picked the
      picker stops asking to "Choose" a file it already has and offers to REPLACE it; the ✓ row carries the
-     name. Cleared again (label back) if C# ever pushes an empty name. The card carries `data-file-set` for
-     the stylesheet; the button keeps its role and its handler (the same picker verb). */
+     name. Cleared again (label back) if C# ever pushes an empty name. The card carries `data-file-set` as a
+     structural hook (#1035: no stylesheet reads it yet — the LABEL carries the state); the button keeps its
+     role and its handler (the same picker verb). */
   const strings = st.strings || getStrings();
   const label = st.els.fileBtn && st.els.fileBtn.querySelector('.c-button__label');
   if (label) label.textContent = st.fileName ? (strings.replaceFile || 'Replace file') : (strings.chooseFile || 'Choose backup file…');

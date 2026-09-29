@@ -595,6 +595,14 @@
   --surface-pinned: rgba(13, 19, 36, 0.07);
   --surface-menu: var(--neutral-10);
   --surface-sheet: var(--surface-menu);   /* ★ #1030: the SHEET/DIALOG ground (.c-sheet · .c-modal); light = the menu surface, unchanged */
+  /* ★ #1035 (#46 auditor C, MAJOR): the tones a component INSIDE a sheet paints that equal the dark sheet
+     ground once it moved to 800 — hairlines, input fills, row hover/pressed, the settings card. overlay.css
+     remaps them inside .c-sheet/.c-modal. LIGHT = the same values (computed here at :root), so light is
+     value-identical; dark (below) steps each one rung off the 800 sheet. */
+  --outline-sheet-01: var(--outline-neutral-01);
+  --surface-input-sheet: var(--surface-input);
+  --surface-interactive-hover-sheet: var(--surface-interactive-hover);
+  --surface-interactive-pressed-sheet: var(--surface-interactive-pressed);
 
   /* text */
   --text-neutral-01: var(--neutral-950);
@@ -963,6 +971,10 @@
      inside follows it one rung (#1018): card 700 (1.111 on the sheet), hover 600 (1.128 on the card —
      was 1.103), pressed 500. */
   --surface-sheet: var(--neutral-800);
+  --outline-sheet-01: var(--neutral-700);                  /* ★ #1035: the hairline on the 800 sheet (1.11 — the step it had on the 700 sheet) */
+  --surface-input-sheet: var(--neutral-700);               /* ★ #1035: an input / address chip on the 800 sheet */
+  --surface-interactive-hover-sheet: var(--neutral-700);   /* ★ #1035: row / text-button hover on the sheet (800 → invisible) */
+  --surface-interactive-pressed-sheet: var(--neutral-600); /* ★ #1035: pressed one rung past hover */
 
   /* text */
   --text-neutral-01: var(--neutral-100);

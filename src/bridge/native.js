@@ -153,14 +153,18 @@ export function createNativeBridge({ emit, win } = {}) {
      *  apps could not paste. C# now writes the text (`ixian:copytext:<token>:<base64url>` →
      *  `Clipboard.Default.SetTextAsync`, SpixiContentPage.onNavigatingGlobal) and pushes
      *  `nativeCopyResult(token, '1'|'0')`, so the ✓ follows what the NATIVE clipboard did.
-     *  Resolves true / false from C#, or NULL when no answer comes back (an older exe without the
-     *  verb, or text over the cap) — clipboard.js then falls back to the in-page path.
+     *  Returns NULL synchronously when it will not send (empty / over the cap); otherwise a promise that
+     *  resolves true / false from C# (DEFINITIVE — #1035), or null when no answer comes back (an older exe
+     *  without the verb) — clipboard.js then falls back to the in-page path.
      *  WRITE-ONLY: nothing here reads the clipboard, and the payload is never logged. */
     copy(text) {
       const s = String(text == null ? '' : text);
-      if (!s || s.length > NATIVE_COPY_MAX) return Promise.resolve(null);
+      /* ★ #1035 (#46 auditor A, m3): a copy the native side will never take is refused SYNCHRONOUSLY
+         (plain null, not a promise), so clipboard.js runs its in-page fallback inside the click's gesture
+         — a promise callback is a microtask late and WKWebView refuses execCommand outside the gesture. */
+      if (!s || s.length > NATIVE_COPY_MAX) return null;
       let payload;
-      try { payload = utf8ToB64Url(s); } catch (e) { return Promise.resolve(null); }
+      try { payload = utf8ToB64Url(s); } catch (e) { return null; }
       const token = String(++copySeq);
       return new Promise((resolve) => {
         const timer = w.setTimeout(() => { pendingCopies.delete(token); resolve(null); }, NATIVE_COPY_TIMEOUT_MS);

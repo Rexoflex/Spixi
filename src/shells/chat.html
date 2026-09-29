@@ -3989,7 +3989,7 @@
       applyRowReactions(rec, row, false);  // re-attach pills after a rebuild
       wireMenu(rec, row);                  // long-press / right-click context menu
       // ★ #1028 (P.13): a tick that changed LIVE inside the last fade window crossfades on the rebuilt row too
-      if (rec.tickFx && performance.now() - rec.tickFx.at < TICK_REPLAY_MS) replayStatusChange(row, rec.tickFx.from);
+      if (rec.tickFx && performance.now() - rec.tickFx.at < TICK_REPLAY_MS) replayStatusChange(row, rec.tickFx.from, performance.now() - rec.tickFx.at);   // ★ #1035: continue, do not restart
     }
     box.replaceChildren(frag);             // atomic swap — no empty intermediate state
     logDirty = false;                      // ★ Session P: on glass

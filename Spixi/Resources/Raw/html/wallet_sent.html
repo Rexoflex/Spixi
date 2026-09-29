@@ -836,6 +836,15 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      the sheet-card pair Session X set for cards on a sheet. */
   --surface-card-hover: var(--surface-sheet-card-hover);
   --surface-card-pressed: var(--surface-sheet-card-pressed);
+  /* ★ #1035 (#46 auditor C, MAJOR): the other roles that equalled the dark sheet once it moved to 800 —
+     the menu dividers, the send-review row lines, the address chip, an in-sheet search field, row and
+     text-button hover/pressed, and the settings card. Light is value-identical (tokens.css). A derived
+     pin requires EVERY dark token equal to the sheet ground to be remapped here or allow-listed. */
+  --outline-neutral-01: var(--outline-sheet-01);
+  --surface-input: var(--surface-input-sheet);
+  --surface-interactive-hover: var(--surface-interactive-hover-sheet);
+  --surface-interactive-pressed: var(--surface-interactive-pressed-sheet);
+  --surface-settings-card: var(--surface-sheet-card);
 }
 .c-modal {
   position: absolute;
@@ -943,8 +952,9 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   /* Q2 review (#268 loop): with the wash gone (below), elevation was the ONLY
      separation — and in LIGHT mode --surface-menu == --surface-screen (both
      neutral-10), so a white dropdown over the white chats list read as loose
-     text. A hairline restores the edge; dark mode never needed it (menu-700 on
-     screen-900). Art dial: drop the border and re-dial the elevation instead. */
+     text. A hairline restores the edge. ★ #1035: dark needs it too now — the dropdown is a
+     sheet, 800 on the 900 screen (1.108), and there is no scrim (#268): the border IS the edge.
+     Art dial: drop the border and re-dial the elevation instead. */
   border: 1px solid var(--outline-neutral-03);
 }
 :root[data-desktop] .c-sheet[data-dt-anchor][data-open] { transform: none; }

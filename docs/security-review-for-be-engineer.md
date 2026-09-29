@@ -770,3 +770,18 @@ history protects a shared path, the walk runs off the UI thread, and a recorded 
 `.`/`..` segment never re-roots (the leaf is the peer's name while **S16** — `transfer.fileName`
 uncleaned at receive time — is open; **S16 is still yours**). One residual, recorded:
 an orphaned file (owning history already gone) is not protected; deletion stays inside the root.
+
+### ⚠ NATIVE COPY (INTRODUCED #1028, bounded #1035) — a gesture-less clipboard WRITE on iOS/Mac
+
+`Utils/SpixiContentPage.cs` `onNavigatingGlobal` → `ixian:copytext:<token>:<base64url>` →
+`Clipboard.Default.SetTextAsync`. Spixi's own Copy did not reach the pasteboard from a file://
+WKWebView, so the shells now ask C# to write it. C# cannot see a user gesture, so any script in our
+shells — the CHAT WebView included — can now write the clipboard on iOS/Mac without a tap
+(Android/Windows Chromium already allowed that to a focused page, so there it is parity). The risk
+is the "clipper": a compromised chat swapping a payment address the user copied. **Bounded:**
+write-only (no C# reads clipboard content — pinned by a walk), refused for mini-app WebViews,
+refused while the app is not in the foreground, rate-limited to one accepted write per 750 ms
+process-wide, 64 000-char cap, strict base64url/UTF-8, no payload in any log. **Not closed:** a
+compromised chat WebView, in the foreground, can still write once per 750 ms. Options for you: a
+native confirm for text that looks like an address, or a signed per-tap token from the native layer
+(the WebView cannot mint one). Nothing to do before handover if the bound is acceptable.

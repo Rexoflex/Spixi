@@ -37065,7 +37065,7 @@ console.log('Office fix round (#974–#981)');
   const bleedStatic = ['lock.html', 'intro.html', 'call.html'].filter((f) => !/<html lang="en" data-bleed-top>/.test(readFileSync(join(dir, f), 'utf8')));
   const bleedWallet = /walletView\.hidden = !isWallet;\s*document\.documentElement\.toggleAttribute\('data-bleed-top', isWallet\);/.test(readFileSync(join(dir, 'index.html'), 'utf8'));
   const scp = readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8');
-  const diag = /#if MACCATALYST[\s\S]{0,1400}?double macTop = this\.On<iOS>\(\)\.SafeAreaInsets\(\)\.Top;\s*if \(macTop != lastMacTitlebarInset\)\s*\{\s*lastMacTitlebarInset = macTop;\s*Logging\.info\("\[M6\] mac safe-area top=" \+ macTop\);/.test(scp);
+  const diag = /#if MACCATALYST[\s\S]{0,1400}?double macTop = this\.On<iOS>\(\)\.SafeAreaInsets\(\)\.Top;[\s\S]{0,1600}?if \(macTop != lastMacTitlebarInset\)\s*\{\s*lastMacTitlebarInset = macTop;\s*Logging\.info\("\[M6\] mac safe-area top=" \+ macTop \+ " window=" \+ winTop\);/.test(scp);   /* ★ #1035: the window inset is logged beside the page's */
   ok(shells.length >= 10 && miss.length === 0 && other.length === 0 && diag && bleedStatic.length === 0 && bleedWallet,
     '★★ #993 (M6): EVERY built shell (' + shells.length + ') carries the desktop title-bar hairline (fixed, top = --safe-top, height min(1px, --safe-top) → zero on Windows, outline-neutral-03, z 31, no pointer events), no other body::before rule competes, full-bleed screens (lock, launch, call, the Wallet tab) stand it down via data-bleed-top, and the Mac logs its real inset on every CHANGE — missing: ' + JSON.stringify(miss) + ' · rivals: ' + JSON.stringify(other) + ' · diag: ' + diag + ' · bleed: ' + JSON.stringify(bleedStatic) + '/' + bleedWallet);
 }
@@ -37171,10 +37171,11 @@ console.log('Office fix round (#974–#981)');
   r.stolenFocusHonest = await W.Spixi.copyText('X') === false;
   W.HTMLTextAreaElement.prototype.focus = origFocus;
   W.Spixi.dismissOverlay(sh2);
-  /* DERIVED: no component or shell calls the async clipboard directly any more, except copyText itself (clipboard.js) and settings.html's own documented clipboard→execCommand→toast ladder (#235b) */
+  /* DERIVED: no component or shell calls the async clipboard directly any more, except copyText itself (clipboard.js).
+     ★ #1035: settings.html's own #235b ladder is gone too (its rung rides copyText) — its exemption is withdrawn. */
   const walk = (d) => readdirSync(join(root, d)).filter((f) => /\.(js|html)$/.test(f)).map((f) => [d + '/' + f, rd(d + '/' + f)]);
   const naked = [...walk('src/components'), ...walk('src/shells')].filter(([f, t]) => /navigator\.clipboard\.writeText\(/.test(t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')))
-    .filter(([f, t]) => !(f === 'src/components/clipboard.js' && (t.match(/navigator\.clipboard\.writeText\(/g) || []).length === 1) && f !== 'src/shells/settings.html'
+    .filter(([f, t]) => !(f === 'src/components/clipboard.js' && (t.match(/navigator\.clipboard\.writeText\(/g) || []).length === 1)
       /* ★ #1028: chat-select's own ladder is gone — it rides copyText now, so it has no exception here */
       ).map(([f]) => f);
   r.naked = naked.length === 0;
@@ -37658,30 +37659,40 @@ console.log('★★ #1028+ — the overnight finalization');
     r.roundTrip = !!m && Buffer.from(b64 + '='.repeat((4 - b64.length % 4) % 4), 'base64').toString('utf8') === text;
     if (m) W.nativeCopyResult(m[1], '1');
     r.nativeTrue = await pr === true && execCalls === 0;   // the ✓ follows the NATIVE answer — the in-page path never ran
-    /* the native write failed → the in-page path gets its one try (a success there is real) */
+    /* ★ #1035: the native ANSWER is final — a native refusal is shown as a failure, with NO gesture-less
+       in-page retry (the WKWebView path that reported copies nobody could paste) */
     sent.length = 0;
     const pr2 = S.copyText('second');
     const m2 = /^ixian:copytext:(\d+):/.exec(sent[0] || '');
     if (m2) W.nativeCopyResult(m2[1], '0');
-    r.nativeFalseFalls = !!m2 && await pr2 === true && execCalls === 1;
+    r.nativeFalseFinal = !!m2 && await pr2 === false && execCalls === 0;
     /* a stale / unknown token is ignored (no throw, no resolve of another copy) */
     let threw = false; try { W.nativeCopyResult('999999', '1'); W.nativeCopyResult('', ''); } catch (e) { threw = true; }
     r.staleIgnored = !threw;
     /* over the cap → no command at all, straight to the in-page path */
     sent.length = 0;
     const big = 'x'.repeat(S.NATIVE_COPY_MAX + 1);
-    r.overCap = await S.copyText(big) === true && sent.length === 0 && S.NATIVE_COPY_MAX === 64000;
+    const execBefore = execCalls;
+    const prBig = S.copyText(big);
+    const syncExec = execCalls === execBefore + 1;   // ★ #1035: the in-page fallback runs SYNCHRONOUSLY, inside the gesture
+    r.overCap = syncExec && await prBig === true && sent.length === 0 && S.NATIVE_COPY_MAX === 64000;
+    /* exactly AT the cap is still a native copy (the boundary is `>`, not `>=`) */
+    const prAt = S.copyText('y'.repeat(S.NATIVE_COPY_MAX));
+    const mAt = /^ixian:copytext:(\d+):/.exec(sent[0] || '');
+    if (mAt) W.nativeCopyResult(mAt[1], '1');
+    r.atCap = !!mAt && await prAt === true;
+    sent.length = 0;
     /* no answer (an older exe without the verb) → the in-page path after the timeout */
     sent.length = 0;
     const before = execCalls;
     const pr3 = S.copyText('noanswer');
     await sleep(S.NATIVE_COPY_TIMEOUT_MS + 150);
-    r.timeoutFalls = sent.length === 1 && await pr3 === true && execCalls === before + 1;
+    r.timeoutFalls = sent.length === 1 && await pr3 === true && execCalls === before + 1;   // only NO answer falls back
     /* the encoder's alphabet is the one C#'s decodeCopyPayload accepts — bytes that produce '+' and '/' in plain base64 */
     const enc = S.utf8ToB64Url('ûÿþ>?' + String.fromCodePoint(0x1F600));
     r.alphabet = /^[A-Za-z0-9_-]+$/.test(enc) && !/=/.test(enc);
     ok(Object.values(r).every((v) => v === true),
-      '★★ #1028 (R.8/R.9/P.11): copyText hands the text to C# as ixian:copytext:<digits>:<base64url> (UTF-8 round-trips), the result is the NATIVE answer (the in-page path does not run on a native ✓), a native failure or no answer falls back to the in-page copy, text over the 64 000 cap never becomes a command, stale tokens are ignored, and every shell with a bridge gets the hook — ' + JSON.stringify(r));
+      '★★ #1028 (R.8/R.9/P.11): copyText hands the text to C# as ixian:copytext:<digits>:<base64url> (UTF-8 round-trips), the result is the NATIVE answer (the in-page path does not run on a native ✓), a native refusal is FINAL (#1035: no gesture-less in-page retry), only no answer falls back, text over the 64 000 cap never becomes a command and falls back SYNCHRONOUSLY (in the gesture), exactly at the cap still goes native, stale tokens are ignored, and every shell with a bridge gets the hook — ' + JSON.stringify(r));
     W.close();
   }
   {
@@ -37691,16 +37702,28 @@ console.log('★★ #1028+ — the overnight finalization');
     const j = cs.indexOf('else if', i + 10);
     const br = i < 0 ? '' : cs.slice(i, j);
     const r = {};
-    r.miniApp = /if \(!hasGeneratedContent\)\s*\{\s*return true;\s*\}/.test(br) && br.indexOf('!hasGeneratedContent') < br.indexOf('SetTextAsync');
+    /* ★ #1035 (auditor A, m4): the mini-app refusal is the FIRST statement of the branch, not merely before the write */
+    r.miniApp = /^url\.StartsWith\("ixian:copytext:", StringComparison\.Ordinal\)\)\s*\{\s*if \(!hasGeneratedContent\)\s*\{\s*return true;\s*\}/.test(br);
+    /* ★ #1035 (auditor A, MAJOR): refused while the app is not in the foreground, and rate-limited process-wide */
+    r.foregroundRate = /if \(string\.IsNullOrEmpty\(text\) \|\| !App\.isInForeground \|\| !tryTakeCopySlot\(\)\)\s*\{\s*Utils\.sendUiCommand\(this, "nativeCopyResult", token, "0"\);\s*return true;/.test(br)
+      && br.indexOf('tryTakeCopySlot()') < br.indexOf('SetTextAsync')
+      && /public const int COPY_MIN_INTERVAL_MS = 750;/.test(cs)
+      && /long now = Environment\.TickCount64;\s*if \(lastCopyTicks != 0 && now - lastCopyTicks < COPY_MIN_INTERVAL_MS\)\s*\{\s*return false;\s*\}\s*lastCopyTicks = now;\s*return true;/.test(cs);
     r.token = /token\.Length > 16/.test(br) && /token\.All\(c => c >= '0' && c <= '9'\)/.test(br);
     r.decoded = /decodeCopyPayload\(payload\)/.test(br) && /Clipboard\.Default\.SetTextAsync\(text\)/.test(br);
     r.answer = (br.match(/sendUiCommand\(this, "nativeCopyResult", token, /g) || []).length === 2;
     /* every Logging call in the branch carries nothing but the exception TYPE */
+    const decBody = cs.slice(cs.indexOf('public static string? decodeCopyPayload'), cs.indexOf('#if IOS', cs.indexOf('public static string? decodeCopyPayload')));
     const logs = [...br.matchAll(/Logging\.\w+\(([^;]*)\);/g)].map((x) => x[1]);
-    r.noPayloadLog = logs.length >= 1 && logs.every((a) => /^"[^"]*" \+ ex\.GetType\(\)\.Name$/.test(a.trim()));
+    /* ★ #1035 (auditor A, m6): the decoder is a separate method — it may log NOTHING (it returns null) */
+    r.noPayloadLog = logs.length >= 1 && logs.every((a) => /^"[^"]*" \+ ex\.GetType\(\)\.Name$/.test(a.trim())) && decBody.length > 200 && !/Logging\./.test(decBody);
     /* WRITE-ONLY, derived over every C# file in the app: nothing reads the clipboard */
     const walkCs = (d) => readdirSync(join(root, d), { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walkCs(d + '/' + e.name) : (/\.cs$/.test(e.name) ? [d + '/' + e.name] : []));
-    const readers = walkCs('Spixi').filter((f) => /\bGetTextAsync\s*\(|UIPasteboard\.General\.String\s*[^=]|\.HasText\b/.test(stripCode(rdO(f))));
+    /* ★ #1035 (auditor A, m5): the read APIs of every platform — MAUI, WinRT, Android, UIKit (an assignment to
+       UIPasteboard.General.String is a WRITE and is allowed) */
+    const readers = walkCs('Spixi').filter((f) => /\bGetTextAsync\s*\(|\bClipboard\.GetContent\s*\(|\bPrimaryClip(Description)?\b|UIPasteboard\.General\.(String|Strings|Url|Urls|Image|Images)\b(?!\s*=[^=])/.test(stripCode(rdO(f))));
+    /* ⓘ CONTENT reads only: a PRESENCE check (HasStrings — the #993 M5 add-contact diagnostic, ContactNewPage) reads
+       no text and is not a leak; it retires with the freeze's diagnostic sweep. */
     r.writeOnly = readers.length === 0;
     /* the decoder refuses before it decodes: alphabet, cap, UTF-8 strict */
     const dec = cs.slice(cs.indexOf('public static string? decodeCopyPayload'), cs.indexOf('public static string? decodeCopyPayload') + 1600);
@@ -37709,7 +37732,7 @@ console.log('★★ #1028+ — the overnight finalization');
     /* the legacy empty `ixian:copy` stub is gone (one copy verb, not a no-op beside it) */
     r.stubGone = !/"ixian:copy"/.test(stripCode(rdO('Spixi/Pages/Home/HomePage.xaml.cs')));
     ok(Object.values(r).every((v) => v === true),
-      '★★ #1028 security gate: the C# copy verb refuses a mini-app WebView before anything else, takes a ≤16-digit token and a base64url payload (alphabet + cap + strict UTF-8 checked BEFORE the clipboard), answers nativeCopyResult on both outcomes, logs only an exception TYPE, and no C# file anywhere READS the clipboard — ' + JSON.stringify(r) + ' readers: ' + JSON.stringify(readers));
+      '★★ #1028 security gate: the C# copy verb refuses a mini-app WebView before anything else, takes a ≤16-digit token and a base64url payload (alphabet + cap + strict UTF-8 checked BEFORE the clipboard), answers nativeCopyResult on both outcomes, logs only an exception TYPE (the decoder logs nothing), is refused in the background and rate-limited (#1035), and no C# file anywhere reads clipboard CONTENT — ' + JSON.stringify(r) + ' readers: ' + JSON.stringify(readers));
   }
   {
     /* P.11: the Account header Copy shows a ✓ for a copy that happened — and only then */
@@ -37806,6 +37829,9 @@ console.log('★★ #1028+ — the overnight finalization');
     r.historyStill = icons('tk0').length === 1 && !icons('tk0')[0].hasAttribute('data-enter') && icons('tk0')[0].dataset.tone === 'read';   // history never animates — not even a change inside the burst
     await sleep(400);
     push('updateMessage', 'tk1', 'hello there', 'True', 'True', 'False', 'False', 'False');
+    /* ★ #1035 (auditor B, M1): the SAME status re-pushed inside the fade (every group receipt re-pushes
+       `delivered`) must not cut it — the ghost survives */
+    push('updateMessage', 'tk1', 'hello there', 'True', 'True', 'False', 'False', 'False');
     const live = icons('tk1');
     r.pair = live.length === 2 && live[0].hasAttribute('data-exit') && live[0].dataset.tone === 'neutral' && live[0].getAttribute('aria-hidden') === 'true'
       && live[1].hasAttribute('data-enter') && live[1].dataset.tone === 'delivered' && live[1].getAttribute('role') === 'img';
@@ -37818,6 +37844,10 @@ console.log('★★ #1028+ — the overnight finalization');
     const rebuilt = icons('tk1');
     r.replay = rebuilt.length === 2 && rebuilt[0].hasAttribute('data-exit') && rebuilt[0].dataset.tone === 'delivered'
       && rebuilt[1].hasAttribute('data-enter') && rebuilt[1].dataset.tone === 'read';
+    /* ★ #1035 (auditor B, M2): the replay CONTINUES the fade (a negative delay = the time already elapsed), it
+       does not restart the ghost at full opacity */
+    const dl = (el) => parseFloat(el.style.animationDelay || '0');
+    r.replayContinues = rebuilt.length === 2 && dl(rebuilt[0]) < 0 && dl(rebuilt[0]) === dl(rebuilt[1]) && dl(rebuilt[0]) >= -160;
     await sleep(600);
     r.replaySettled = icons('tk1').length === 1 && icons('tk1')[0].dataset.tone === 'read';
     /* a rebuild AFTER the window does not re-animate an old change */
@@ -37889,8 +37919,13 @@ console.log('★★ #1028+ — the overnight finalization');
     r.oldExe = !!t0 && t0.length === 1 && t0[0].dataset.tone === 'neutral' && t0[0].getAttribute('aria-label') === t1[0].getAttribute('aria-label') && t0[0].innerHTML === t1[0].innerHTML;   // the relayed ✓, not the clock
     r.sending = !!t8 && t8.length === 1 && t8[0].getAttribute('aria-label') !== t1[0].getAttribute('aria-label');
     r.received = Array.isArray(t9) && t9.length === 0;
+    const btnOf = (id) => d.querySelector('#messages [data-msgid="' + id + '"] .c-fbubble');
+    /* ★ #1035 (auditor B, M3): the card's accessible name carries the tick state (a <button>'s aria-label hides its content) */
+    r.aria = /, /.test(btnOf('f1').getAttribute('aria-label')) && btnOf('f1').getAttribute('aria-label').endsWith(t1[0].getAttribute('aria-label'))
+      && btnOf('f9').getAttribute('aria-label') === btnOf('f9').dataset.ariaBase;
     push('updateFileTicks', 'f1', 'True', 'True', 'False');
     const live = tickOf('f1');
+    r.ariaLive = btnOf('f1').getAttribute('aria-label').endsWith(live[1] ? live[1].getAttribute('aria-label') : '#');
     r.crossfade = live.length === 2 && live[0].hasAttribute('data-exit') && live[1].dataset.tone === 'delivered' && live[1].hasAttribute('data-enter');
     await sleep(600);
     r.delivered = tickOf('f1').length === 1 && tickOf('f1')[0].dataset.tone === 'delivered';
@@ -37901,6 +37936,21 @@ console.log('★★ #1028+ — the overnight finalization');
     push('updateFileTicks', 'f9', 'True', 'True', 'True');
     push('updateFileTicks', 'nope', 'True', 'True', 'True');
     r.ignored = tickOf('f9').length === 0;
+    /* ★ #1035: a PREPEND burst keeps the rows live — a file tick that changes inside it must NOT animate */
+    await sleep(600);
+    push('addMessages', JSON.stringify({ items: [{ f: 'addThem', a: ['old1', 'addrPeer', 'Bob', '', 'older', String(T0 - 900)] }], strs: [] }), 'prepend');
+    push('updateFileTicks', 'f0', 'True', 'True', 'False');
+    const t0b = tickOf('f0');
+    r.prependStill = !!t0b && t0b.length === 1 && !t0b[0].hasAttribute('data-enter');
+    if (typeof W.messagesDone === 'function') push('messagesDone');
+    await sleep(40);
+    /* ★ #1035 (auditor B, NIT): a file tick that changes INSIDE a load burst never animates */
+    push('clearMessages', 'False');
+    push('addFile', 'f1', 'addrMe', 'Me', '', 'fid1', 'report.pdf', String(T0), 'True', 'False', 'False', '0', 'False', 'False', 'True');
+    push('updateFileTicks', 'f1', 'True', 'True', 'False');
+    if (typeof W.messagesDone === 'function') push('messagesDone');
+    await sleep(40);
+    r.burstStill = !!tickOf('f1') && tickOf('f1').length === 1 && !tickOf('f1')[0].hasAttribute('data-enter') && tickOf('f1')[0].dataset.tone === 'delivered';
     r.noErrors = errs.filter((e) => /ReferenceError|TypeError|dispatch failed/.test(e)).length === 0;
     ok(Object.values(r).every((v) => v === true),
       '★★ #1028 (walk P.22) EXECUTED on the BUILT chat shell: a SENT file carries the text bubble\'s tick in its stamp (relayed = single check; an older exe\'s 13-arg push reads as relayed, never a clock), a queued one reads differently, a RECEIVED file carries none; updateFileTicks crossfades it to delivered, then read; a received file or an unknown id is ignored — ' + JSON.stringify(r) + ' errs: ' + errs.slice(0, 2).join(' | '));
@@ -37973,7 +38023,12 @@ console.log('★★ #1028+ — the overnight finalization');
     const latch = blk.indexOf('if (macTop != lastMacTitlebarInset)');
     const latchEnd = latch < 0 ? -1 : blk.indexOf('}', blk.indexOf('Logging.info("[M6] mac safe-area top="', latch));
     const pushAt = blk.indexOf('Utils.sendUiCommand(this, "setInsetTop", Math.Round(macTop, 2).ToString(System.Globalization.CultureInfo.InvariantCulture));');
-    r.csPush = /if \(hasGeneratedContent\)/.test(blk) && pushAt > latchEnd && latchEnd > latch && latch > 0;
+    /* ★ #1035 (auditor C, m4 + m1): the push sits INSIDE the hasGeneratedContent branch and behind its exact range
+       guard, and it pushes max(page inset, WINDOW inset) — an overlay-presented page's own inset reads 0 */
+    const hgc = blk.indexOf('if (hasGeneratedContent)');
+    r.csPush = hgc > 0 && hgc < latch && pushAt > latchEnd && latchEnd > latch && latch > 0
+      && /if \(macTop >= 0 && macTop < 1000\)\s*\{\s*Utils\.sendUiCommand\(this, "setInsetTop"/.test(blk)
+      && /winTop = uiWin\.SafeAreaInsets\.Top;/.test(blk) && blk.indexOf('macTop = Math.Max(macTop, winTop);') > latchEnd && blk.indexOf('macTop = Math.Max(macTop, winTop);') < pushAt;
     ok(Object.values(r).every((v) => v === true),
       '★★ #1028 (walk R.6): every shell (source + built) carries the platform carrier and setInsetTop; on the Mac the title-bar line is ALWAYS 1px at --safe-top (y = 0 when the native bar sits above the WebView), and the Catalyst chrome pass pushes the measured overlap into --safe-top on EVERY pass — ' + JSON.stringify(r) + ' lacking: ' + JSON.stringify(lacks.slice(0, 5)));
   }
@@ -38025,13 +38080,13 @@ console.log('★★ #1028+ — the overnight finalization');
     /* DERIVED: every family rule of the tile, and the default one, layers the shade under its gradient */
     const tileRules = [...tb.matchAll(/\.c-fbubble__icon(\[data-kind="(\w+)"\])?\s*\{ background: ([^;]+); \}/g)].map((m) => ({ kind: m[2] || 'default', bg: m[3] }));
     const tileBad = tileRules.filter((t) => !/^var\(--tile-shade\), var\(--disc-grad-(\d+|neutral)\)$/.test(t.bg)).map((t) => t.kind);
-    const tileCr = tileRules.map((t) => { const n = (/--disc-grad-(\d+|neutral)/.exec(t.bg) || [])[1]; const p = pairOf(n); return { kind: t.kind, c: p ? +crO('#ffffff', midShaded(p, tileA)).toFixed(2) : 0 }; });
-    const discCr = []; for (let n = 1; n <= 11; n++) { const p = pairOf(n); discCr.push(p ? +crO('#ffffff', midShaded(p, discA)).toFixed(2) : 0); }
+    const tileCr = tileRules.map((t) => { const n = (/--disc-grad-(\d+|neutral)/.exec(t.bg) || [])[1]; const p = pairOf(n); return { kind: t.kind, c: p ? crO('#ffffff', midShaded(p, tileA)) : 0 }; });   /* ★ #1035: compared RAW (a rounded 4.495 used to pass) */
+    const discCr = []; for (let n = 1; n <= 11; n++) { const p = pairOf(n); discCr.push(p ? crO('#ffffff', midShaded(p, discA)) : 0); }
     const base = stripCssComments(rdO('src/styles/base.css'));
     const discRule = /\.c-disc \{([^}]*)\}/.exec(base);
     ok(tileRules.length >= 8 && tileBad.length === 0 && tileCr.every((t) => t.c >= 4.5)
        && !!discRule && /background: var\(--disc-shade\), var\(--disc-grad, var\(--disc-grad-1\)\);/.test(discRule[1]) && discCr.every((c) => c >= 3),
-      '★★ #1031 (M3/M4): every document-tile rule (' + tileRules.length + ') layers --tile-shade (' + tileA + ') under its family gradient and the white 11px label holds ≥ 4.5:1 at the tile centre on EVERY family; the icon disc layers --disc-shade (' + discA + ') and its white glyph holds ≥ 3:1 on all 11 pairs — ' + JSON.stringify({ tileBad, tileCr, discCr }));
+      '★★ #1031 (M3/M4): every document-tile rule (' + tileRules.length + ') layers --tile-shade (' + tileA + ') under its family gradient and the white 11px label holds ≥ 4.5:1 at the tile centre on EVERY family; the icon disc layers --disc-shade (' + discA + ') and its white glyph holds ≥ 3:1 on all 11 pairs — ' + JSON.stringify({ tileBad, tileCr: tileCr.map((t) => t.kind + ' ' + t.c.toFixed(3)), discCr: discCr.map((c) => c.toFixed(3)) }));
   }
   {
     /* —— #1032 (the #1024 dial): the Canvas radiogroup keyboard contract, EXECUTED —— */
@@ -38054,6 +38109,18 @@ console.log('★★ #1028+ — the overnight finalization');
     r.arrowSelects = d.activeElement === kids[n1] && kids[n1].getAttribute('aria-checked') === 'true' && picks[picks.length - 1] === kids[n1].dataset.value && kids[n1].tabIndex === 0 && kids[flatIdx].tabIndex === -1;
     key(kids[n1], 'ArrowLeft');
     r.back = d.activeElement === kids[flatIdx] && kids[flatIdx].getAttribute('aria-checked') === 'true';
+    /* ★ #1035 (auditor C, m3): the WRAP at both ends, Down/Up, a modified arrow ignored */
+    const last = kids.length - 1;
+    kids[last].focus(); key(kids[last], 'ArrowRight');
+    r.wrapFwd = d.activeElement === kids[0];
+    key(kids[0], 'ArrowLeft');
+    r.wrapBack = d.activeElement === kids[last];
+    key(kids[last], 'ArrowDown');
+    r.down = d.activeElement === kids[0];
+    key(kids[0], 'ArrowUp');
+    r.up = d.activeElement === kids[last];
+    const evMod = new W.KeyboardEvent('keydown', { key: 'ArrowRight', ctrlKey: true, bubbles: true, cancelable: true }); kids[last].dispatchEvent(evMod);
+    r.modIgnored = !evMod.defaultPrevented && d.activeElement === kids[last];
     key(kids[flatIdx], 'End');
     r.end = d.activeElement === kids[kids.length - 1];
     key(kids[kids.length - 1], 'Home');
@@ -38062,6 +38129,11 @@ console.log('★★ #1028+ — the overnight finalization');
        mirrored key from an unmirrored one (a mutation proved it). The code mirrors for a third ground. */
     const ev = new W.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }); kids[0].dispatchEvent(ev);
     r.tabUntouched = !ev.defaultPrevented;
+    /* an unknown stored ground falls back to 'flat' → still exactly ONE tab stop, on the checked dot */
+    const scr2 = S.createChatAppearance({ chatGround: 'nope', strings: {} });
+    d.body.append(scr2);
+    const k2 = [...scr2.querySelectorAll('.c-settings-appearance__dot')];
+    r.unknownOneStop = k2.length >= 2 && k2.filter((b) => b.tabIndex === 0).length === 1 && k2.find((b) => b.tabIndex === 0).getAttribute('aria-checked') === 'true';
     ok(Object.values(r).every((v) => v === true),
       '★ #1032 (the #1024 dial): the Canvas radiogroup has ONE tab stop (the checked dot), arrows move focus AND select (wrapping), Home/End jump, Tab is left to the browser — ' + JSON.stringify(r));
     W.close();
@@ -38081,6 +38153,37 @@ console.log('★★ #1028+ — the overnight finalization');
     ok(before === 'Choose backup file…' && set === 'Replace file' && setAttr && rowShown && back === 'Choose backup file…' && !backAttr,
       '★ #1034 (polish Q1): picking a backup file flips the picker to "Replace file" (+ data-file-set, the ✓ row shows the name); an empty name flips it back — ' + JSON.stringify({ before, set, setAttr, rowShown, back, backAttr }));
     W.close();
+  }
+  {
+    /* —— #1035 (auditor C, MAJOR): DERIVED — every semantic token that resolves, in DARK, to the SAME value as the
+       sheet ground is either remapped inside the .c-sheet/.c-modal block or allow-listed with its reason. Before this
+       the menu dividers, the send-review lines, the address chip, an in-sheet search field and row hover all read
+       1.00:1 on the 800 sheet. The remap targets must differ from the ground by ≥ 1.11 in dark and equal the
+       original in light. —— */
+    const ov = stripCssComments(rdO('src/styles/components/overlay.css'));
+    const remapBlock = (/\.c-sheet,\s*\.c-modal \{([^}]*)\}/.exec(ov) || [])[1] || '';
+    const remapped = new Map([...remapBlock.matchAll(/(--[\w-]+): var\((--[\w-]+)\);/g)].map((m) => [m[1], m[2]]));
+    const sheetDark = resolveTok('dark', '--surface-sheet');
+    const ALLOW = {
+      '--surface-sheet': 'the ground itself',
+      '--surface-bubble-received': 'a chat bubble — never inside a sheet',
+      '--surface-composer-pill': 'the composer — never inside a sheet',
+      '--surface-chat-chip': 'the day/time chip on the chat canvas',
+      '--text-neutral-inverse-02': 'ink on an INVERSE (light) chip — no fill on the sheet',
+      '--icon-neutral-inverse-02': 'ink on an INVERSE (light) chip — no fill on the sheet',
+      '--disc-neutral-bg': 'no component consumer (tokens only)',
+    };
+    const equal = Object.keys(themeVars.dark).filter((k) => !/^--(neutral|ink|grey|primary|red|green|orange|blue|accent|error|success|warning|info)-\d+$/.test(k) && resolveTok('dark', k) === sheetDark);
+    const unhandled = equal.filter((k) => !remapped.has(k) && !ALLOW[k]);
+    const bad = [];
+    for (const [k, target] of remapped) {
+      if (!/^--surface-sheet-card$|-sheet(-\w+)?$|^--outline-sheet-01$/.test(target)) continue;
+      const dv = resolveTok('dark', target), lv = resolveTok('light', target), lo = resolveTok('light', k);
+      if (!dv || crO(dv, sheetDark) < 1.11) bad.push(k + ' dark ' + dv);
+      if (target !== '--surface-sheet-card' && lv !== lo) bad.push(k + ' light ' + lv + ' ≠ ' + lo);
+    }
+    ok(equal.length >= 5 && unhandled.length === 0 && bad.length === 0,
+      '★★ #1035 (auditor C, MAJOR): every dark token equal to the sheet ground (' + equal.length + ': ' + equal.join(' ') + ') is remapped inside .c-sheet/.c-modal or allow-listed with a reason; each remap target lifts ≥ 1.11 off the dark sheet and is value-identical in light — unhandled: ' + JSON.stringify(unhandled) + ' · bad: ' + JSON.stringify(bad));
   }
 }
 /* ══ OVERNIGHT-1028-END ══ */

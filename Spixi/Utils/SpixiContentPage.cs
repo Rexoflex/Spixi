@@ -542,11 +542,28 @@ namespace SPIXI
                 try
                 {
                     double macTop = this.On<iOS>().SafeAreaInsets().Top;
+                    /* ★ #1035 (#46 auditor C, m1): an OVERLAY-presented page (chat, contact details,
+                     * the Account pane, the tx detail) is never presented itself — its Content is
+                     * moved into HomePage's stage, so ITS safe area reads 0 even when the stage sits
+                     * under the title bar. Every shell's WebView reaches the window top on the Mac
+                     * (#993), so the WINDOW's top inset is the right number for all of them; the page
+                     * value stays in the max() for a page presented on its own. Both are logged. */
+                    double winTop = 0;
+                    try
+                    {
+                        var uiWin = Application.Current?.Windows?.FirstOrDefault()?.Handler?.PlatformView as UIKit.UIWindow;
+                        if (uiWin != null)
+                        {
+                            winTop = uiWin.SafeAreaInsets.Top;
+                        }
+                    }
+                    catch (Exception) { }
                     if (macTop != lastMacTitlebarInset)
                     {
                         lastMacTitlebarInset = macTop;
-                        Logging.info("[M6] mac safe-area top=" + macTop);
+                        Logging.info("[M6] mac safe-area top=" + macTop + " window=" + winTop);
                     }
+                    macTop = Math.Max(macTop, winTop);
                     /* ★★ #1028 (walk R.6): carry the measured overlap into THIS page's shell, so the
                      * title-bar line (base.css) and every bar's top padding do not depend on
                      * WKWebView populating env(safe-area-inset-top) on Catalyst. It rides the
@@ -4354,7 +4371,17 @@ namespace SPIXI
                  *     answer always travels base64-encoded) and a base64url payload.
                  *   · NEVER LOGGED — a failure logs the exception TYPE only.
                  *   · Refused for a mini-app WebView (!hasGeneratedContent): third-party code must
-                 *     not be able to write the user's clipboard through us. */
+                 *     not be able to write the user's clipboard through us.
+                 *   · ★ #1035 (#46 auditor A, MAJOR): C# cannot see a user GESTURE, so on iOS/Mac —
+                 *     where the in-page path needed one — this is a gesture-less write for any script
+                 *     in our shells, the chat WebView included (the "clipper" attack: swap a copied
+                 *     payment address). Bounded, not closed: refused while the app is NOT in the
+                 *     foreground (App.isInForeground — OnSleep also fires on desktop window
+                 *     deactivation, #505), and rate-limited to ONE accepted write per
+                 *     COPY_MIN_INTERVAL_MS across the process, so a script cannot poll-and-swap.
+                 *     Android/Windows (Chromium) already allowed a focused page to write without a
+                 *     gesture — parity there. The residual is on the gate row and in the security
+                 *     review for the BE engineer. */
                 if (!hasGeneratedContent)
                 {
                     return true;
@@ -4368,7 +4395,7 @@ namespace SPIXI
                     return true;
                 }
                 string? text = decodeCopyPayload(payload);
-                if (string.IsNullOrEmpty(text))
+                if (string.IsNullOrEmpty(text) || !App.isInForeground || !tryTakeCopySlot())
                 {
                     Utils.sendUiCommand(this, "nativeCopyResult", token, "0");
                     return true;
@@ -4409,6 +4436,28 @@ namespace SPIXI
 
         /// <summary>★ #1028 — the cap on one native copy (chars). Mirrors NATIVE_COPY_MAX in native.js.</summary>
         public const int NATIVE_COPY_MAX = 64000;
+
+        /// <summary>★ #1035 — the minimum time between two ACCEPTED native copies, process-wide. A person
+        /// cannot tap Copy twice inside it; a script polling the clipboard to swap an address can.</summary>
+        public const int COPY_MIN_INTERVAL_MS = 750;
+        private static long lastCopyTicks = 0;
+        private static readonly object copySlotLock = new object();
+
+        /// <summary>★ #1035 — true (and the slot taken) when no native copy was accepted in the last
+        /// COPY_MIN_INTERVAL_MS. Environment.TickCount64 is monotonic (a wall-clock change cannot reopen it).</summary>
+        private static bool tryTakeCopySlot()
+        {
+            lock (copySlotLock)
+            {
+                long now = Environment.TickCount64;
+                if (lastCopyTicks != 0 && now - lastCopyTicks < COPY_MIN_INTERVAL_MS)
+                {
+                    return false;
+                }
+                lastCopyTicks = now;
+                return true;
+            }
+        }
 
         /// <summary>
         /// ★ #1028 — base64url (RFC 4648 §5, padding optional) → UTF-8 text, or null when the payload

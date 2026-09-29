@@ -601,8 +601,24 @@ export function setMessageStatus(row, status, strings = getStrings(), opts = {})
   next.setAttribute('role', 'img');
   next.setAttribute('aria-label', strings['status-' + status] || status);
   const changed = st.getAttribute('aria-label') !== next.getAttribute('aria-label');
-  if (opts && opts.animate && changed) crossfadeTick(st, next);
+  /* ★ #1035 (#46 auditor B, M1): an UNCHANGED status is a no-op. It used to swap the glyph for an identical
+     one and drop the ghost — so in a group, where every member's receipt re-pushes the same `delivered`, the
+     second push cut the running crossfade within 160 ms (the walk's "the icon swaps, no fade"). */
+  if (!changed) return;
+  if (opts && opts.animate) crossfadeTick(st, next);
   else { dropTickGhosts(row); st.replaceWith(next); }
+  syncFileTickAria(row, next);
+}
+
+/* ★ #1035 (#46 auditor B, M3): a sent FILE's tick lives inside the card's <button>, whose explicit
+   aria-label replaces its content — the tick's own role=img label was never announced. The card keeps its
+   base label in data-aria-base (typed-bubbles.js) and the tick's state is appended here, so a screen reader
+   hears "…, Delivered" like a text bubble. No-op for a text bubble. */
+function syncFileTickAria(row, tick) {
+  const fb = row.querySelector('.c-fbubble[data-aria-base]');
+  if (!fb) return;
+  const label = tick && tick.getAttribute('aria-label');
+  fb.setAttribute('aria-label', fb.dataset.ariaBase + (label ? ', ' + label : ''));
 }
 
 /* ★★ #1028 (walk P.13, "the icon swaps, no fade"): a TRUE crossfade. #1010 only faded the NEW glyph in
@@ -621,7 +637,7 @@ function reducedMotion() {
 function dropTickGhosts(scope) {
   for (const g of scope.querySelectorAll('.c-status-icon[data-exit]')) g.remove();
 }
-function crossfadeTick(oldEl, newEl) {
+function crossfadeTick(oldEl, newEl, elapsedMs = 0) {
   const meta = oldEl.parentNode;
   if (meta) dropTickGhosts(meta);   // a second change inside the fade: only ONE ghost, ever
   if (reducedMotion()) { oldEl.replaceWith(newEl); return; }
@@ -630,10 +646,14 @@ function crossfadeTick(oldEl, newEl) {
   oldEl.removeAttribute('role');
   oldEl.removeAttribute('aria-label');
   oldEl.setAttribute('aria-hidden', 'true');
+  /* ★ #1035 (#46 auditor B, M2): a REPLAY continues the fade where it was — a negative delay starts both
+     animations `elapsedMs` in — instead of restarting a ghost at full opacity (a blink on a late rebuild). */
+  const e = Math.max(0, Math.min(TICK_FADE_MS, Math.round(elapsedMs)));
+  if (e > 0) { oldEl.style.animationDelay = -e + 'ms'; newEl.style.animationDelay = -e + 'ms'; }
   oldEl.after(newEl);
   const drop = () => { if (oldEl.isConnected) oldEl.remove(); };
   oldEl.addEventListener('animationend', drop, { once: true });
-  setTimeout(drop, TICK_FADE_MS * 3);
+  setTimeout(drop, TICK_FADE_MS * 3 - e);
 }
 
 /** ★ #1028 (P.13): REPLAY a live tick change on a freshly REBUILT row. renderLogNow rebuilds every row
@@ -641,7 +661,7 @@ function crossfadeTick(oldEl, newEl) {
  *  a reaction, a re-flush) lost its fade — the new row simply had the new glyph. The shell records the
  *  change (from, at) on the record and calls this for a row built inside the fade window: a ghost of the
  *  PREVIOUS status goes in before the current glyph and the pair crossfades exactly like the live path. */
-export function replayStatusChange(row, fromStatus) {
+export function replayStatusChange(row, fromStatus, elapsedMs = 0) {
   const cur = row.querySelector(TICK_HOST_SEL);
   if (!cur || !fromStatus) return;
   const ghost = createStatusIcon(fromStatus);
@@ -650,7 +670,7 @@ export function replayStatusChange(row, fromStatus) {
   ghost.setAttribute('height', 14);
   cur.before(ghost);
   cur.remove();
-  crossfadeTick(ghost, cur);
+  crossfadeTick(ghost, cur, elapsedMs);
 }
 
 /** Bridge deleteMessage → remove the row AND repair #63 grouping around it:

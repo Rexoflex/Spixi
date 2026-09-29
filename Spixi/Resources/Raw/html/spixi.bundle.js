@@ -4973,8 +4973,24 @@ function setMessageStatus(row, status, strings = getStrings(), opts = {}) {
   next.setAttribute('role', 'img');
   next.setAttribute('aria-label', strings['status-' + status] || status);
   const changed = st.getAttribute('aria-label') !== next.getAttribute('aria-label');
-  if (opts && opts.animate && changed) crossfadeTick(st, next);
+  /* ★ #1035 (#46 auditor B, M1): an UNCHANGED status is a no-op. It used to swap the glyph for an identical
+     one and drop the ghost — so in a group, where every member's receipt re-pushes the same `delivered`, the
+     second push cut the running crossfade within 160 ms (the walk's "the icon swaps, no fade"). */
+  if (!changed) return;
+  if (opts && opts.animate) crossfadeTick(st, next);
   else { dropTickGhosts(row); st.replaceWith(next); }
+  syncFileTickAria(row, next);
+}
+
+/* ★ #1035 (#46 auditor B, M3): a sent FILE's tick lives inside the card's <button>, whose explicit
+   aria-label replaces its content — the tick's own role=img label was never announced. The card keeps its
+   base label in data-aria-base (typed-bubbles.js) and the tick's state is appended here, so a screen reader
+   hears "…, Delivered" like a text bubble. No-op for a text bubble. */
+function syncFileTickAria(row, tick) {
+  const fb = row.querySelector('.c-fbubble[data-aria-base]');
+  if (!fb) return;
+  const label = tick && tick.getAttribute('aria-label');
+  fb.setAttribute('aria-label', fb.dataset.ariaBase + (label ? ', ' + label : ''));
 }
 
 /* ★★ #1028 (walk P.13, "the icon swaps, no fade"): a TRUE crossfade. #1010 only faded the NEW glyph in
@@ -4993,7 +5009,7 @@ function reducedMotion() {
 function dropTickGhosts(scope) {
   for (const g of scope.querySelectorAll('.c-status-icon[data-exit]')) g.remove();
 }
-function crossfadeTick(oldEl, newEl) {
+function crossfadeTick(oldEl, newEl, elapsedMs = 0) {
   const meta = oldEl.parentNode;
   if (meta) dropTickGhosts(meta);   // a second change inside the fade: only ONE ghost, ever
   if (reducedMotion()) { oldEl.replaceWith(newEl); return; }
@@ -5002,10 +5018,14 @@ function crossfadeTick(oldEl, newEl) {
   oldEl.removeAttribute('role');
   oldEl.removeAttribute('aria-label');
   oldEl.setAttribute('aria-hidden', 'true');
+  /* ★ #1035 (#46 auditor B, M2): a REPLAY continues the fade where it was — a negative delay starts both
+     animations `elapsedMs` in — instead of restarting a ghost at full opacity (a blink on a late rebuild). */
+  const e = Math.max(0, Math.min(TICK_FADE_MS, Math.round(elapsedMs)));
+  if (e > 0) { oldEl.style.animationDelay = -e + 'ms'; newEl.style.animationDelay = -e + 'ms'; }
   oldEl.after(newEl);
   const drop = () => { if (oldEl.isConnected) oldEl.remove(); };
   oldEl.addEventListener('animationend', drop, { once: true });
-  setTimeout(drop, TICK_FADE_MS * 3);
+  setTimeout(drop, TICK_FADE_MS * 3 - e);
 }
 
 /** ★ #1028 (P.13): REPLAY a live tick change on a freshly REBUILT row. renderLogNow rebuilds every row
@@ -5013,7 +5033,7 @@ function crossfadeTick(oldEl, newEl) {
  *  a reaction, a re-flush) lost its fade — the new row simply had the new glyph. The shell records the
  *  change (from, at) on the record and calls this for a row built inside the fade window: a ghost of the
  *  PREVIOUS status goes in before the current glyph and the pair crossfades exactly like the live path. */
-function replayStatusChange(row, fromStatus) {
+function replayStatusChange(row, fromStatus, elapsedMs = 0) {
   const cur = row.querySelector(TICK_HOST_SEL);
   if (!cur || !fromStatus) return;
   const ghost = createStatusIcon(fromStatus);
@@ -5022,7 +5042,7 @@ function replayStatusChange(row, fromStatus) {
   ghost.setAttribute('height', 14);
   cur.before(ghost);
   cur.remove();
-  crossfadeTick(ghost, cur);
+  crossfadeTick(ghost, cur, elapsedMs);
 }
 
 /** Bridge deleteMessage → remove the row AND repair #63 grouping around it:
@@ -6274,7 +6294,11 @@ function createFileBubble({
     if (h) h(e);
   });
   if (state === 'progress') el.disabled = true;
-  el.setAttribute('aria-label', fileAria(state, name, strings));
+  /* ★ #1035 (#46 auditor B, M3): the BASE label is kept on the card so the sent file's tick state can be
+     appended (here and on every live change — message-bubble.js syncFileTickAria); an explicit aria-label
+     on a <button> replaces its content, so the tick's own label is never heard otherwise. */
+  el.dataset.ariaBase = fileAria(state, name, strings);
+  el.setAttribute('aria-label', el.dataset.ariaBase);
 
   el.append(fileTile(name, state));   // ★ #1021: the document tile (extension · family colour · state badge)
 
@@ -6342,6 +6366,7 @@ function createFileBubble({
     tick.removeAttribute('aria-hidden');
     tick.setAttribute('role', 'img');
     tick.setAttribute('aria-label', strings['status-' + status] || status);
+    el.setAttribute('aria-label', el.dataset.ariaBase + ', ' + tick.getAttribute('aria-label'));
     const stamp = document.createElement('span');
     stamp.className = 'c-fbubble__stamp';
     if (stampTime) stamp.append(stampTime);
@@ -6401,7 +6426,9 @@ function setFileProgress(rowEl, progress, opts = {}) {
     if (hint) hint.remove(); // keep-open hint is progress-only
     // refresh name + glyph for the new state (audit r2: stale "Downloading" aria)
     const nm = bubble.querySelector('.c-fbubble__name');
-    bubble.setAttribute('aria-label', fileAria(finalState, nm ? nm.textContent : '', strings));
+    bubble.dataset.ariaBase = fileAria(finalState, nm ? nm.textContent : '', strings);
+    const tk = bubble.querySelector('.c-fbubble__stamp .c-status-icon:not([data-exit])');   // ★ #1035: keep the tick's state in the name
+    bubble.setAttribute('aria-label', bubble.dataset.ariaBase + (tk && tk.getAttribute('aria-label') ? ', ' + tk.getAttribute('aria-label') : ''));
     // ★ #1021: the tile keeps its extension; only the corner badge follows the state
     const ic = bubble.querySelector('.c-fbubble__icon');
     if (ic) {
@@ -12212,16 +12239,20 @@ function copyText(text) {
      paths below either do nothing or report a copy that other apps cannot paste — so the shell's bridge
      (native.js) hands C# the text and the result the promise carries is the NATIVE clipboard's answer.
      `null` = no answer (an older exe, text over the cap, no bridge in this page) → the in-page path.
-     `false` = the native write failed → the in-page path gets its one try too; a success there is real. */
+     `false` = the native side refused → a failure, shown as one (#1035: no second, gesture-less try). */
   const native = (typeof window !== 'undefined') ? window.__spixiNativeCopy : null;
   if (typeof native === 'function') {
     let pending = null;
     try { pending = native(String(text)); } catch (e) { pending = null; }
     if (pending && typeof pending.then === 'function') {
-      return pending.then((ok) => (ok === true ? true : copyInPage(text)), () => copyInPage(text));
+      /* ★ #1035 (#46 auditor A, m2): the native ANSWER is final. A `false` from C# means the OS clipboard
+         refused (or the copy was not allowed — background, rate limit); falling back to execCommand there
+         is exactly the WKWebView path that reported copies nobody could paste, and it would run outside the
+         gesture. Only NO answer (null — an older exe without the verb) falls back. */
+      return pending.then((ok) => (ok === null ? copyInPage(text) : ok === true), () => copyInPage(text));
     }
   }
-  return copyInPage(text);
+  return copyInPage(text);   // no bridge, or a synchronous refusal (over the cap): the in-page path, INSIDE the gesture
 }
 
 /* The pre-#1028 path, unchanged: async API first (Windows/Android), execCommand('copy') when it is absent
@@ -24036,13 +24067,13 @@ function createChatAppearance({
        in RTL; Home/End), wrapping. Operable before only by Tab + Enter per dot. The other four radiogroups
        of the #205 list keep the deferral. */
     const paint = () => {
-      const kids = [...dots.children];
-      const anyChecked = kids.some((b) => b.dataset.value === groundCurrent);
-      kids.forEach((b, i) => {
+      /* groundCurrent is always one of CHAT_GROUNDS (an unknown stored value falls back to 'flat' above), so
+         exactly one dot is checked and it is the single tab stop (#1035: the "none checked" branch was dead) */
+      for (const b of dots.children) {
         const on = b.dataset.value === groundCurrent;
         b.setAttribute('aria-checked', String(on));
-        b.tabIndex = on || (!anyChecked && i === 0) ? 0 : -1;
-      });
+        b.tabIndex = on ? 0 : -1;
+      }
     };
     dots.addEventListener('keydown', (e) => {
       const kids = [...dots.children];
@@ -26385,8 +26416,9 @@ function setLaunchFile(el, name) {
   st.els.fileRow.hidden = !st.fileName;
   /* ★ #1034 (polish Q1, release-readiness §3): the FILE-SET state is distinct — once a file is picked the
      picker stops asking to "Choose" a file it already has and offers to REPLACE it; the ✓ row carries the
-     name. Cleared again (label back) if C# ever pushes an empty name. The card carries `data-file-set` for
-     the stylesheet; the button keeps its role and its handler (the same picker verb). */
+     name. Cleared again (label back) if C# ever pushes an empty name. The card carries `data-file-set` as a
+     structural hook (#1035: no stylesheet reads it yet — the LABEL carries the state); the button keeps its
+     role and its handler (the same picker verb). */
   const strings = st.strings || getStrings();
   const label = st.els.fileBtn && st.els.fileBtn.querySelector('.c-button__label');
   if (label) label.textContent = st.fileName ? (strings.replaceFile || 'Replace file') : (strings.chooseFile || 'Choose backup file…');
@@ -26719,14 +26751,18 @@ function createNativeBridge({ emit, win } = {}) {
      *  apps could not paste. C# now writes the text (`ixian:copytext:<token>:<base64url>` →
      *  `Clipboard.Default.SetTextAsync`, SpixiContentPage.onNavigatingGlobal) and pushes
      *  `nativeCopyResult(token, '1'|'0')`, so the ✓ follows what the NATIVE clipboard did.
-     *  Resolves true / false from C#, or NULL when no answer comes back (an older exe without the
-     *  verb, or text over the cap) — clipboard.js then falls back to the in-page path.
+     *  Returns NULL synchronously when it will not send (empty / over the cap); otherwise a promise that
+     *  resolves true / false from C# (DEFINITIVE — #1035), or null when no answer comes back (an older exe
+     *  without the verb) — clipboard.js then falls back to the in-page path.
      *  WRITE-ONLY: nothing here reads the clipboard, and the payload is never logged. */
     copy(text) {
       const s = String(text == null ? '' : text);
-      if (!s || s.length > NATIVE_COPY_MAX) return Promise.resolve(null);
+      /* ★ #1035 (#46 auditor A, m3): a copy the native side will never take is refused SYNCHRONOUSLY
+         (plain null, not a promise), so clipboard.js runs its in-page fallback inside the click's gesture
+         — a promise callback is a microtask late and WKWebView refuses execCommand outside the gesture. */
+      if (!s || s.length > NATIVE_COPY_MAX) return null;
       let payload;
-      try { payload = utf8ToB64Url(s); } catch (e) { return Promise.resolve(null); }
+      try { payload = utf8ToB64Url(s); } catch (e) { return null; }
       const token = String(++copySeq);
       return new Promise((resolve) => {
         const timer = w.setTimeout(() => { pendingCopies.delete(token); resolve(null); }, NATIVE_COPY_TIMEOUT_MS);

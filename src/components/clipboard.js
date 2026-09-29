@@ -61,16 +61,20 @@ export function copyText(text) {
      paths below either do nothing or report a copy that other apps cannot paste — so the shell's bridge
      (native.js) hands C# the text and the result the promise carries is the NATIVE clipboard's answer.
      `null` = no answer (an older exe, text over the cap, no bridge in this page) → the in-page path.
-     `false` = the native write failed → the in-page path gets its one try too; a success there is real. */
+     `false` = the native side refused → a failure, shown as one (#1035: no second, gesture-less try). */
   const native = (typeof window !== 'undefined') ? window.__spixiNativeCopy : null;
   if (typeof native === 'function') {
     let pending = null;
     try { pending = native(String(text)); } catch (e) { pending = null; }
     if (pending && typeof pending.then === 'function') {
-      return pending.then((ok) => (ok === true ? true : copyInPage(text)), () => copyInPage(text));
+      /* ★ #1035 (#46 auditor A, m2): the native ANSWER is final. A `false` from C# means the OS clipboard
+         refused (or the copy was not allowed — background, rate limit); falling back to execCommand there
+         is exactly the WKWebView path that reported copies nobody could paste, and it would run outside the
+         gesture. Only NO answer (null — an older exe without the verb) falls back. */
+      return pending.then((ok) => (ok === null ? copyInPage(text) : ok === true), () => copyInPage(text));
     }
   }
-  return copyInPage(text);
+  return copyInPage(text);   // no bridge, or a synchronous refusal (over the cap): the in-page path, INSIDE the gesture
 }
 
 /* The pre-#1028 path, unchanged: async API first (Windows/Android), execCommand('copy') when it is absent

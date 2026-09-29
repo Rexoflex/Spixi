@@ -612,13 +612,13 @@ export function createChatAppearance({
        in RTL; Home/End), wrapping. Operable before only by Tab + Enter per dot. The other four radiogroups
        of the #205 list keep the deferral. */
     const paint = () => {
-      const kids = [...dots.children];
-      const anyChecked = kids.some((b) => b.dataset.value === groundCurrent);
-      kids.forEach((b, i) => {
+      /* groundCurrent is always one of CHAT_GROUNDS (an unknown stored value falls back to 'flat' above), so
+         exactly one dot is checked and it is the single tab stop (#1035: the "none checked" branch was dead) */
+      for (const b of dots.children) {
         const on = b.dataset.value === groundCurrent;
         b.setAttribute('aria-checked', String(on));
-        b.tabIndex = on || (!anyChecked && i === 0) ? 0 : -1;
-      });
+        b.tabIndex = on ? 0 : -1;
+      }
     };
     dots.addEventListener('keydown', (e) => {
       const kids = [...dots.children];

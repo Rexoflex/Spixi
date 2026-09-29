@@ -4408,13 +4408,15 @@ namespace SPIXI
                     Utils.sendUiCommand(this, "nativeCopyResult", token, sameAsLast ? "1" : "0");
                     return true;
                 }
+                string copyNow = text;   // non-null here (the IsNullOrEmpty refusal above); a captured `string?` would lose that in the lambda
                 MainThread.BeginInvokeOnMainThread(async () =>
                 {
                     bool ok = false;
                     try
                     {
-                        await Microsoft.Maui.ApplicationModel.DataTransfer.Clipboard.Default.SetTextAsync(text);
+                        await Microsoft.Maui.ApplicationModel.DataTransfer.Clipboard.Default.SetTextAsync(copyNow);
                         ok = true;
+                        recordCopied(copyNow);   // ★ #1037: only a write that SUCCEEDED can vouch for a double tap
                     }
                     catch (Exception ex)
                     {
@@ -4449,12 +4451,20 @@ namespace SPIXI
         /// cannot tap Copy twice inside it; a script polling the clipboard to swap an address can.</summary>
         public const int COPY_MIN_INTERVAL_MS = 750;
         private static long lastCopyTicks = 0;
-        private static string? lastCopyText = null;   // ★ #1036: held only to recognise a double tap; never logged
+        /* ★ #1036/#1037: a SHA-256 of the last text a native copy WROTE (set only after SetTextAsync succeeded,
+         * cleared when a new slot is taken) — the plain text is never kept (#46 r3 NIT-2), never logged. */
+        private static string? lastCopiedHash = null;
         private static readonly object copySlotLock = new object();
+
+        private static string copyHash(string text)
+        {
+            return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text)));
+        }
 
         /// <summary>★ #1035 — true (and the slot taken) when no native copy was accepted in the last
         /// COPY_MIN_INTERVAL_MS. Environment.TickCount64 is monotonic (a wall-clock change cannot reopen it).
-        /// ★ #1036 — on a refusal, <paramref name="sameAsLast"/> says whether the text equals the last ACCEPTED one.</summary>
+        /// ★ #1036/#1037 — on a refusal, <paramref name="sameAsLast"/> says whether the text equals the last
+        /// SUCCESSFULLY written one (a failed or still-running write vouches for nothing).</summary>
         private static bool tryTakeCopySlot(string text, out bool sameAsLast)
         {
             lock (copySlotLock)
@@ -4462,13 +4472,22 @@ namespace SPIXI
                 long now = Environment.TickCount64;
                 if (lastCopyTicks != 0 && now - lastCopyTicks < COPY_MIN_INTERVAL_MS)
                 {
-                    sameAsLast = string.Equals(text, lastCopyText, StringComparison.Ordinal);
+                    sameAsLast = lastCopiedHash != null && string.Equals(copyHash(text), lastCopiedHash, StringComparison.Ordinal);
                     return false;
                 }
                 lastCopyTicks = now;
-                lastCopyText = text;
+                lastCopiedHash = null;
                 sameAsLast = false;
                 return true;
+            }
+        }
+
+        /// <summary>★ #1037 — the write succeeded: remember its hash for the double-tap answer.</summary>
+        private static void recordCopied(string text)
+        {
+            lock (copySlotLock)
+            {
+                lastCopiedHash = copyHash(text);
             }
         }
 

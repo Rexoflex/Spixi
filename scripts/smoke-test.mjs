@@ -37709,11 +37709,15 @@ console.log('★★ #1028+ — the overnight finalization');
       && br.indexOf('tryTakeCopySlot(') < br.indexOf('SetTextAsync')
       && /public const int COPY_MIN_INTERVAL_MS = 750;/.test(cs)
       /* ★ #1036 (r2 m3): PROCESS-WIDE (static state + a static method) and under the lock */
-      && /private static long lastCopyTicks = 0;/.test(cs) && /private static string\? lastCopyText = null;/.test(cs) && /private static readonly object copySlotLock = new object\(\);/.test(cs)
-      && /private static bool tryTakeCopySlot\(string text, out bool sameAsLast\)\s*\{\s*lock \(copySlotLock\)\s*\{\s*long now = Environment\.TickCount64;\s*if \(lastCopyTicks != 0 && now - lastCopyTicks < COPY_MIN_INTERVAL_MS\)\s*\{\s*sameAsLast = string\.Equals\(text, lastCopyText, StringComparison\.Ordinal\);\s*return false;\s*\}\s*lastCopyTicks = now;\s*lastCopyText = text;\s*sameAsLast = false;\s*return true;/.test(cs)
-      && !/Logging\.\w+\([^;]*lastCopyText/.test(cs);
+      && /private static long lastCopyTicks = 0;/.test(cs) && /private static string\? lastCopiedHash = null;/.test(cs) && /private static readonly object copySlotLock = new object\(\);/.test(cs)
+      && /private static bool tryTakeCopySlot\(string text, out bool sameAsLast\)\s*\{\s*lock \(copySlotLock\)\s*\{\s*long now = Environment\.TickCount64;\s*if \(lastCopyTicks != 0 && now - lastCopyTicks < COPY_MIN_INTERVAL_MS\)\s*\{\s*sameAsLast = lastCopiedHash != null && string\.Equals\(copyHash\(text\), lastCopiedHash, StringComparison\.Ordinal\);\s*return false;\s*\}\s*lastCopyTicks = now;\s*lastCopiedHash = null;\s*sameAsLast = false;\s*return true;/.test(cs)
+      /* ★ #1037 (r3 MINOR-1 + NIT-2): only a SUCCEEDED write records the hash (never the plain text) */
+      && /SetTextAsync\(copyNow\);\s*ok = true;\s*recordCopied\(copyNow\);/.test(br)
+      && /private static void recordCopied\(string text\)\s*\{\s*lock \(copySlotLock\)\s*\{\s*lastCopiedHash = copyHash\(text\);/.test(cs)
+      && /return Convert\.ToHexString\(System\.Security\.Cryptography\.SHA256\.HashData\(/.test(cs)
+      && !/lastCopyText/.test(cs) && !/Logging\.\w+\([^;]*lastCopiedHash/.test(cs);
     r.token = /token\.Length > 16/.test(br) && /token\.All\(c => c >= '0' && c <= '9'\)/.test(br);
-    r.decoded = /decodeCopyPayload\(payload\)/.test(br) && /Clipboard\.Default\.SetTextAsync\(text\)/.test(br);
+    r.decoded = /decodeCopyPayload\(payload\)/.test(br) && /Clipboard\.Default\.SetTextAsync\(copyNow\)/.test(br) && /string copyNow = text;/.test(br);
     r.answer = (br.match(/sendUiCommand\(this, "nativeCopyResult", token, /g) || []).length === 3;   // refused · rate-limited (#1036) · the write's outcome
     /* every Logging call in the branch carries nothing but the exception TYPE */
     const decBody = cs.slice(cs.indexOf('public static string? decodeCopyPayload'), cs.indexOf('#if IOS', cs.indexOf('public static string? decodeCopyPayload')));
@@ -38049,7 +38053,7 @@ console.log('★★ #1028+ — the overnight finalization');
       && /if \(macTop >= 0 && macTop < 1000\)\s*\{\s*Utils\.sendUiCommand\(this, "setInsetTop"/.test(blk)
       && /winTop = uiWin\.SafeAreaInsets\.Top;/.test(blk) && blk.indexOf('macTop = Math.Max(macTop, winTop);') > latchEnd && blk.indexOf('macTop = Math.Max(macTop, winTop);') < pushAt
       /* ★ #1036 (r2 M1): the call strip grows by the window inset on the Mac too, or the pushed --safe-top clips its hang-up row */
-      && /double stripHeight = barHeightDip;\s*#if IOS \|\| MACCATALYST[\s\S]{0,1400}?stripHeight \+= win\.SafeAreaInsets\.Top;/.test(stripCode(rdO('Spixi/Pages/Call/CallPage.xaml.cs')));
+      && /double stripHeight = barHeightDip;\s*#if IOS \|\| MACCATALYST[\s\S]{0,1400}?\.FirstOrDefault\(w => w\.IsKeyWindow\);\s*if \(win == null\)\s*\{\s*win = UIKit\.UIApplication\.SharedApplication\.ConnectedScenes[\s\S]{0,200}?\.FirstOrDefault\(\);\s*\}\s*if \(win != null\)\s*\{\s*stripHeight \+= win\.SafeAreaInsets\.Top;/.test(stripCode(rdO('Spixi/Pages/Call/CallPage.xaml.cs')));   /* ★ #1037: no key window (another app active) → the first window */
     ok(Object.values(r).every((v) => v === true),
       '★★ #1028 (walk R.6): every shell (source + built) carries the platform carrier and setInsetTop; on the Mac the title-bar line is ALWAYS 1px at --safe-top (y = 0 when the native bar sits above the WebView), and the Catalyst chrome pass pushes the measured overlap into --safe-top on EVERY pass — ' + JSON.stringify(r) + ' lacking: ' + JSON.stringify(lacks.slice(0, 5)));
   }
@@ -38211,6 +38215,9 @@ console.log('★★ #1028+ — the overnight finalization');
       const t = remapped.get(k);
       if (!t || crO(resolveTok('dark', t), resolveTok('dark', '--surface-sheet-card')) < 1.11) bad.push(k + ' ≈ the sheet card');
     }
+    /* ★ #1037 (r3 NIT-1): pressed is a visible step PAST hover (lighter in dark), not equal to it or reversed */
+    { const h = remapped.get('--surface-interactive-hover'), pr = remapped.get('--surface-interactive-pressed');
+      if (!h || !pr || !(lumO(resolveTok('dark', pr)) > lumO(resolveTok('dark', h))) || crO(resolveTok('dark', pr), resolveTok('dark', h)) < 1.11) bad.push('pressed not past hover'); }
     ok(equal.length >= 5 && unhandled.length === 0 && bad.length === 0,
       '★★ #1035 (auditor C, MAJOR): every dark token equal to the sheet ground (' + equal.length + ': ' + equal.join(' ') + ') is remapped inside .c-sheet/.c-modal or allow-listed with a reason; each remap target lifts ≥ 1.11 off the dark sheet and is value-identical in light — unhandled: ' + JSON.stringify(unhandled) + ' · bad: ' + JSON.stringify(bad));
   }

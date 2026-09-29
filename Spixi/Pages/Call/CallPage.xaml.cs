@@ -649,6 +649,16 @@ namespace SPIXI
                         .OfType<UIKit.UIWindowScene>()
                         .SelectMany(s => s.Windows)
                         .FirstOrDefault(w => w.IsKeyWindow);
+                    /* ★ #1037 (#46 r3 MINOR-2): on the Mac NO window is key while another app is active —
+                     * a call answered then must still grow the strip by the inset the shell was pushed
+                     * (the M6 push reads the first window regardless of key state), so fall back to it. */
+                    if (win == null)
+                    {
+                        win = UIKit.UIApplication.SharedApplication.ConnectedScenes
+                            .OfType<UIKit.UIWindowScene>()
+                            .SelectMany(s => s.Windows)
+                            .FirstOrDefault();
+                    }
                     if (win != null)
                     {
                         stripHeight += win.SafeAreaInsets.Top;

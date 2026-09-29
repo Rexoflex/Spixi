@@ -466,6 +466,9 @@ function formatIxiAmount(value) {
  *      a sign on "less than" reads as nonsense);
  *    - any other number → exactly 2 decimals, ROUNDED half-up on the decimal STRING (never a
  *      float: 0.005 must be 0.01), integer part grouped in the app language;
+ *      ⚠ (#1041, auditor A): C# `Utils.amountToHumanFormatString` already CUTS a value above 1
+ *      to 2 decimals before it gets here, so the half-up only acts on values of 1 or less
+ *      (1.995 arrives as 1.99). Display-only and informative; recorded, not changed in C#;
  *    - anything that is not a plain number → '' (a fiat line is never worth a wrong number).
  *  Returns the digits only; the caller owns the sign and the "$". */
 function formatFiatAmount(value) {
@@ -485,10 +488,16 @@ function formatFiatAmount(value) {
 
 /** ★ #1040: the whole fiat LINE — sign + "$" + formatFiatAmount. A sub-cent value is
  *  "<$0.01" with NO sign; an unusable value is '' (the caller renders no line). */
-function fiatLine(value, sign = '') {
+function fiatLine(value, sign = '', amount) {
   const n = formatFiatAmount(value);
+  /* ★ #1041 (#46 r1, auditor A): an unknown price arrives as ZERO (C# multiplies by
+     Node.fiatPrice, which is 0 until the first price arrives), so a real payment read "+$0.00".
+     When the IXI amount is known and nonzero, a zero fiat is "no price", not "worth nothing":
+     no line — the chat card already hides it the same way (SingleChatPage). */
+  if (amount != null && zeroAmount(value) && !zeroAmount(amount)
+      && /\d/.test(String(amount))) return '';
   if (!n) return '';
-  if (n === '<0.01') return '<$0.01';
+  if (n === '<0.01') return '<$' + groupAmountDisplay('0.01');   // ★ #1041: the app language's decimal mark, like every other fiat line
   return (sign || '') + '$' + n;
 }
 
@@ -13389,8 +13398,11 @@ function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer, disclo
   if (/\d/.test(String(tx.amount || ''))) {
     const unit = document.createElement('span');
     unit.className = 'c-txsheet__unit';
-    unit.textContent = 'IXI';   // i18n-lint-ok:proper-noun (the currency code, never translated)
-    amt.append(unit);
+    unit.textContent = 'IXI';   // the currency code — i18n-lint's ALLOW list covers it (never translated)
+    /* ★ #1041 (#46 r1, auditor B m4): a real SPACE between value and unit in the text, so a
+       reader (and anything reading textContent) gets "+0.05 IXI", not "+0.05IXI". In the flex
+       row the whitespace-only text node is not rendered; the gap does the spacing. */
+    amt.append(document.createTextNode(' '), unit);
   }
   content.append(amt);
   if (tx.fiat) {
@@ -13409,7 +13421,8 @@ function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer, disclo
      monospace the moment it opened. It now lives behind a "See details" disclosure so
      the sheet answers the first question (how much, to whom, did it go through) in one
      glance, and the forensic half is one tap away.
-     Status stays OUTSIDE the disclosure: it is the other half of "did it go through". */
+     Status stays OUTSIDE the disclosure: it is the other half of "did it go through".
+     ★ #1040: it is the STAMP under the amount now, and the only place status appears. */
   const details = document.createElement('div');
   details.className = 'c-txsheet__details';
   details.hidden = true;
@@ -13444,12 +13457,10 @@ function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer, disclo
     details.append(addrLabel, addrRow);   // N25
   }
 
-  /* meta — rows render only when the bridge provided the field (data-honest);
-     Status always renders (legacy confirmation enum incl. unknown, Damir #134) */
-  /* ★ D2 (#453, Damir on device): Status moved INTO the drawer, below the address and
-     above the date. The badge in the header already says it, so a Status row in the
-     collapsed view said the same thing twice on the one screen where the glance matters.
-     It stays available — just one tap down, with the rest of the forensic detail. */
+  /* meta — rows render only when the bridge provided the field (data-honest).
+     History of the Status row: Damir #134 made it always render; D2 (#453) moved it into
+     the drawer; ★ #1040 removed it (below) — the badge stamp carries every status incl.
+     unknown (STATUS_META), so nothing it showed is lost. */
   const metaBox = document.createElement('div');
   metaBox.className = 'c-txsheet__meta';
   /* ★ #1040 (Damir 2026-09-29): the Status ROW is gone. D2 moved it into the drawer so the
@@ -13487,11 +13498,28 @@ function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer, disclo
     rows.push(feeRow);
   }
   if (tx.txid) {
-    /* ★ #1040: MIDDLE-truncated (the #211 address canon) — the end-ellipsis hid the tail,
-       which is the half a user checks against an explorer. The full id stays in `title`
-       and in what the copy button copies. */
-    const idRow = sheetRow(strings.txId || 'Transaction ID', truncateAddressMiddle(tx.txid, 10, 8));
-    idRow.querySelector('.c-txsheet__rowvalue').title = String(tx.txid);
+    /* ★ #1040 → #1041 (#46 r1, auditor B MAJOR-2): the tail is what a user checks against an
+       explorer, and the end-ellipsis hid it. The first cut put a fixed "10…8" STRING in the DOM
+       — which the row's own CSS ellipsis then cut AGAIN on a narrow phone, and which a reader
+       read (and a drag-select copied) as a truncated id. Now the FULL id stays in the DOM as
+       two spans: the head shrinks with an ellipsis, the last 8 characters never shrink. The
+       copy button copies the full id, unchanged. */
+    const idStr = String(tx.txid);
+    const idRow = sheetRow(strings.txId || 'Transaction ID', idStr);
+    const idVal = idRow.querySelector('.c-txsheet__rowvalue');
+    idVal.textContent = '';
+    idVal.classList.add('c-txsheet__rowvalue--id');
+    const idHead = document.createElement('span');
+    idHead.className = 'c-txsheet__idhead';
+    idHead.textContent = idStr.length > 8 ? idStr.slice(0, -8) : idStr;
+    idVal.append(idHead);
+    if (idStr.length > 8) {
+      const idTail = document.createElement('span');
+      idTail.className = 'c-txsheet__idtail';
+      idTail.textContent = idStr.slice(-8);
+      idVal.append(idTail);
+    }
+    idVal.title = idStr;
     idRow.append(copyButton(tx.txid, strings.txId || 'Transaction ID', strings));
     rows.push(idRow);
   }
@@ -13533,12 +13561,18 @@ function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer, disclo
   /* explorer — routes through the external-link confirm in the shell (onExplorer duty).
      ★ #443 (Damir): this opens the TRANSACTION, so it says so. The old copy came from
      the address-only verb the wallet tab used to have. */
+  /* ★ #1041 (Damir 2026-09-29: "remove View on Explorer when details are not open — too many
+     buttons"): the Explorer link is FORENSIC, so it lives WITH the forensic half — the last item
+     of the details drawer. Collapsed, the sheet offers one action (See details) and Close. Where
+     the details are always open (the wallet_sent page, disclose:false) it shows as before. */
   if (onExplorer) {
-    content.append(createButton({
+    const explorerBtn = createButton({
       label: strings.viewTxExplorer || 'View transaction on Explorer', type: 'outline', size: 44, width: 'full',
       icon: icon('external-link', { size: 18 }), iconPosition: 'trailing',   // #710: an Explorer link opens outside the app
       onClick: latched(() => sheet, () => onExplorer(tx)),
-    }));
+    });
+    if (content.contains(details)) details.append(explorerBtn);
+    else content.append(explorerBtn);
   }
 
   /* ★ #453 (Damir on device): the sheet had no way out except the scrim or a swipe. Every
@@ -22836,7 +22870,7 @@ function createSettingsHub({
     label: strings.chatAppearance || 'Chat appearance', key: 'chatappearance',
     // I-11 (#371): subs on SOME rows only — where the label alone does not say
     // what is inside (15c A14: one line, truncates; write to the width).
-    sub: strings.chatAppearanceSub || 'Background, canvas and text size',   // ★ #1040: there is no opacity control since Session M (#774); the Canvas row is the third thing on the screen
+    sub: strings.chatAppearanceSub || 'Background and text size',   // ★ #1040/#1041: no opacity control since #774; the Canvas row exists in LIGHT only, so the sub names what both themes show
     onClick: () => onChatAppearance(),
   }).section);
 
@@ -23798,13 +23832,14 @@ function segGroup({ options, current, ariaLabel, onPick }) {
    flow-face release — so nothing was lost with it.
    What it was: mini chat canvases at each LEVEL's opacity instead of text pills, because
    localized level labels overflowed the pills in longer locales (sl-si "Izklopljeno" /
-   "Standardno"). That reasoning is why the STYLE tiles below carry their label as an
-   aria-label + title rather than as visible text, and it is recorded here so the next person
-   to consider putting words back on a swatch knows it was tried. Recover it from git if the
+   "Standardno"). That reasoning is why the STYLE tiles below USED TO carry their label only as
+   an aria-label + title. ★ #1040 put a small visible name back on each tile (a corner pill —
+   a ~170px tile, not a ~60px pill, so the overflow that forced it out does not apply); the
+   aria-label is still the accessible name. Recover the level row from git if the
    intensity axis ever returns — it will need a per-theme value story again (#422). */
 
 /* pattern STYLE swatches (W5) — native buttons, role=radio, aria-checked, the localized
-   label as aria-label + title (never visible text — see the note above on why), and each
+   label as the aria-label AND (★ #1040) a visible aria-hidden corner pill, and each
    face carries its OWN `data-chat-pattern`.
    ⚠ This said "same grammar as the intensity swatches above" until Session M deleted them.
    The sentence was true when written and became a pointer to nothing (#772); the grammar it
@@ -23846,8 +23881,7 @@ function styleSwatchGroup({ options, current, ariaLabel, onPick, faceAttr = 'cha
     b.className = 'c-settings-swatch';
     b.setAttribute('role', 'radio');
     b.dataset.value = o.id;
-    b.setAttribute('aria-label', o.label);
-    b.title = o.label;
+    b.setAttribute('aria-label', o.label);   // ★ #1041: no `title` — the visible pill names the tile now, a hover tooltip only repeated it
     const face = document.createElement('span');
     face.className = 'c-chat-canvas c-settings-swatch__canvas';
     face.setAttribute('aria-hidden', 'true');
@@ -23873,7 +23907,7 @@ function styleSwatchGroup({ options, current, ariaLabel, onPick, faceAttr = 'cha
        wave): each tile now NAMES itself with a small pill inside its bottom corner. This
        revisits #774's "label on aria-label + title only", whose reason was localized labels
        overflowing the old PILL row; a tile is ~170px wide and the pill ellipsizes, so the
-       longest locale string ("Izklopljeno") still fits. The pill is aria-hidden — the
+       longest locale label (it-it "Curve di livello", 16 chars) still fits. The pill is aria-hidden — the
        button's aria-label stays the accessible name, so a reader does not hear it twice. */
     const cap = document.createElement('span');
     cap.className = 'c-settings-swatch__label';
@@ -24206,26 +24240,41 @@ function createChatAppearance({
      in a chat"): a pinch in the conversation stores ANY scale, so the four presets can all
      be unchecked. Say so instead of looking broken: a one-line note under the control names
      the custom size, and picking a preset replaces it (the note goes with it). */
-  const isPreset = TEXT_SIZES.some((o) => o.value === textScale);
+  /* ★ #1041 (#46 r1, auditor C M1): a pinch that ends a hair off a preset (the chat stores the
+     raw scale; 1.1 × a 1.0012 ratio = 1.10132) is THAT preset — otherwise no pill is checked
+     and the note says "Custom size (110%)", which is the L the user is looking at. Within
+     0.02 of a preset, the preset is checked and no note is shown. */
+  const nearPreset = TEXT_SIZES.find((o) => Math.abs(o.value - Number(textScale)) < 0.02);
+  const sizeCurrent = nearPreset ? nearPreset.value : textScale;
   let customNote = null;
-  if (!isPreset && Number.isFinite(Number(textScale)) && Number(textScale) > 0) {
+  if (!nearPreset && Number.isFinite(Number(textScale)) && Number(textScale) > 0) {
     customNote = document.createElement('p');
     customNote.className = 'c-settings__note c-settings-appearance__custom';
+    customNote.id = 'c-settings-size-custom';
     const pct = Math.round(Number(textScale) * 100);
     customNote.textContent = (strings.textSizeCustom || 'Custom size ({0}%), set by pinching in a chat. Pick a size to replace it.')
       .split('{0}').join(String(pct));
   }
   sizeSec.append(sLab, segGroup({
     options: TEXT_SIZES.map((o) => ({ value: o.value, label: strings[o.key] || o.label })),
-    current: textScale,
+    current: sizeCurrent,
     ariaLabel: strings.textSize || 'Message text size',
     onPick: (v) => {
       preview.style.setProperty('--chat-text-scale', String(v));
-      if (customNote) { customNote.remove(); customNote = null; }
+      if (customNote) {
+        customNote.remove(); customNote = null;
+        const grp = sizeSec.querySelector('.c-settings-seg');
+        if (grp) grp.removeAttribute('aria-describedby');
+      }
       if (onTextScale) onTextScale(v);
     },
   }));
-  if (customNote) sizeSec.append(customNote);
+  if (customNote) {
+    sizeSec.append(customNote);
+    // ★ #1041 (auditor C N5): a group with nothing checked says WHY to a screen reader
+    const grp = sizeSec.querySelector('.c-settings-seg');
+    if (grp) grp.setAttribute('aria-describedby', customNote.id);
+  }
   // AND-35 (#371, Damir dial): Text size first, then Background.
   /* ★ Session M: THREE cards in light — size, background, colour. In dark the colour card
      does not exist, so only two are appended. A live theme flip re-renders this whole
@@ -24422,9 +24471,10 @@ function createNotificationsScreen({
            explanation — the #712 claim boundaries: token + IP to OneSignal, the per-platform
            off cost, the record it keeps — lives in the NOTE below, which follows the switch.
            The two old per-platform sub keys retire (their locales are rebuilt). */
-        /* ★ #1040 (Damir 2026-09-29): the sub said the same sentence the note below the card says —
-           it is now just the WHO; the note keeps the full what-happens explanation (#712). */
-        sub: strings.notifPushProviderSub || 'Uses OneSignal, a push provider.',
+        /* ★ #1040 → #1041 (#46 r1, auditor C M5): NO sub. The first cut shortened it to "Uses
+           OneSignal, a push provider." — which repeated the LABEL ("…via OneSignal") and, with the
+           switch OFF, sat above "Off: nothing more is sent to OneSignal" as a contradiction (the
+           #735 §9 class). The label says who; the note below the card says what happens, per state. */
         checked: pushProvider, live, failText, onToggle: onPushProvider,
       }));
       /* ★ #712 (Damir): THE FEEDBACK IS PROMINENT AND SAYS WHAT HAPPENS IN BOTH STATES.

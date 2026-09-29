@@ -1220,11 +1220,12 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 .c-txsheet__amountvalue { min-width: 0; }
 .c-txsheet__unit {
+  flex: none;
   font-size: var(--font-size-label-lg);
   line-height: var(--line-height-label-lg);
   font-weight: var(--font-weight-semibold);
-  color: inherit;
-  opacity: 0.75;
+  color: inherit;   /* ★ #1041 (#46 r1, auditor B m1): NO opacity — at 0.75 the pending unit read 3.85:1 and the
+                       dark received one 4.50:1 (18px semibold is not large text). Size carries the hierarchy, as on the hero. */
 }
 .c-txsheet__stamp { display: flex; justify-content: center; }
 .c-txsheet__amount[data-type="received"] { color: var(--text-success); }
@@ -1253,14 +1254,19 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 .c-txsheet__addrvalue {
   flex: 1; min-width: 0;
-  display: flex; flex-wrap: wrap; column-gap: 0.45em; row-gap: 2px;   /* ★ #1040: groups of four */
+  /* ★ #1041 (#46 r1, auditor B MAJOR-1): a BLOCK, not a flex row — flex made every group a
+     block item, so a drag-select / innerText / a screen reader got 17 lines ("4dXR\ncrJC…")
+     instead of the one address. Inline-block groups wrap between groups and select as ONE
+     string. LTR-isolated so an RTL document cannot lay the groups out right-to-left. */
+  display: block;
+  direction: ltr; unicode-bidi: isolate; text-align: start;
   font-family: var(--font-mono);
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
   color: var(--text-neutral-01);
   overflow-wrap: anywhere;                     /* the FULL address is the verification truth (#99) */
 }
-.c-txsheet__addrgroup { white-space: nowrap; }
+.c-txsheet__addrgroup { display: inline-block; white-space: nowrap; margin-inline-end: 0.45em; }
 
 .c-txsheet__meta { display: flex; flex-direction: column; }
 .c-txsheet__row {
@@ -1277,6 +1283,16 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   font-size: var(--font-size-body-md);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* ★ #1041: the transaction id — the full id in the DOM, the head shrinks with an ellipsis,
+   the last 8 characters never do (the half a user checks against an explorer) */
+/* A FLEX row: the head shrinks with an ellipsis, the tail keeps its width. ⚠ Trade-off, rendered
+   both ways (#1041): inline-block boxes kept innerText on one line but clipped the head early and
+   left a gap before the tail; flex items are blockified, so a drag-select of the id gets a line
+   break between the two halves. The Copy button is the copy path (it copies the raw id), and a
+   reader still gets every character — the flex row wins on what the user sees. */
+.c-txsheet__rowvalue--id { display: flex; justify-content: flex-end; min-width: 0; }
+.c-txsheet__idhead { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-txsheet__idtail { flex: none; white-space: nowrap; }
 /* fee ⓘ + one-line explanation (Damir #135) */
 .c-txsheet__row--fee { flex-wrap: wrap; }
 .c-txsheet__info {
@@ -1625,7 +1641,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
       address: masked ? '' : (e.address || ''),
       avatar: (masked || unknown) ? null : e.avatar,
       amount: masked ? WALLET_MASK : ((e.amount != null && e.amount !== '') ? sign + amountWithCommas(e.amount) : ''),
-      fiat: masked ? '' : ((e.fiat != null && e.fiat !== '') ? fiatLine(e.fiat, sign) : ''),   // ★ #1040: the one fiat rule
+      fiat: masked ? '' : ((e.fiat != null && e.fiat !== '') ? fiatLine(e.fiat, sign, e.amount) : ''),   // ★ #1040: the one fiat rule
       fee: masked ? '' : ((d.fee != null && d.fee !== '') ? amountWithCommas(d.fee) + ' IXI' : ''),
       timeText: txTimeDisplay(e.timeText || d.time || ''),
     };

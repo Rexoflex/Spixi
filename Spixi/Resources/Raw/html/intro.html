@@ -2333,7 +2333,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   pointer-events: none;
 }
 .c-settings-swatch[aria-checked='true'] .c-settings-swatch__label { color: var(--text-action-default); }
-.c-settings-appearance__custom { margin: var(--spacing-8) 0 0; }
+.c-settings-appearance__custom { margin: 0; }   /* the section's own 8px gap spaces it (#1041, auditor C N5) */
 .c-settings-swatch:active { border-color: var(--outline-action-pressed); }
 .c-settings-swatch[aria-checked='true'] {
   border-color: var(--outline-action-default);

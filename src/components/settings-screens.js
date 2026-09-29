@@ -272,13 +272,14 @@ function segGroup({ options, current, ariaLabel, onPick }) {
    flow-face release — so nothing was lost with it.
    What it was: mini chat canvases at each LEVEL's opacity instead of text pills, because
    localized level labels overflowed the pills in longer locales (sl-si "Izklopljeno" /
-   "Standardno"). That reasoning is why the STYLE tiles below carry their label as an
-   aria-label + title rather than as visible text, and it is recorded here so the next person
-   to consider putting words back on a swatch knows it was tried. Recover it from git if the
+   "Standardno"). That reasoning is why the STYLE tiles below USED TO carry their label only as
+   an aria-label + title. ★ #1040 put a small visible name back on each tile (a corner pill —
+   a ~170px tile, not a ~60px pill, so the overflow that forced it out does not apply); the
+   aria-label is still the accessible name. Recover the level row from git if the
    intensity axis ever returns — it will need a per-theme value story again (#422). */
 
 /* pattern STYLE swatches (W5) — native buttons, role=radio, aria-checked, the localized
-   label as aria-label + title (never visible text — see the note above on why), and each
+   label as the aria-label AND (★ #1040) a visible aria-hidden corner pill, and each
    face carries its OWN `data-chat-pattern`.
    ⚠ This said "same grammar as the intensity swatches above" until Session M deleted them.
    The sentence was true when written and became a pointer to nothing (#772); the grammar it
@@ -320,8 +321,7 @@ function styleSwatchGroup({ options, current, ariaLabel, onPick, faceAttr = 'cha
     b.className = 'c-settings-swatch';
     b.setAttribute('role', 'radio');
     b.dataset.value = o.id;
-    b.setAttribute('aria-label', o.label);
-    b.title = o.label;
+    b.setAttribute('aria-label', o.label);   // ★ #1041: no `title` — the visible pill names the tile now, a hover tooltip only repeated it
     const face = document.createElement('span');
     face.className = 'c-chat-canvas c-settings-swatch__canvas';
     face.setAttribute('aria-hidden', 'true');
@@ -347,7 +347,7 @@ function styleSwatchGroup({ options, current, ariaLabel, onPick, faceAttr = 'cha
        wave): each tile now NAMES itself with a small pill inside its bottom corner. This
        revisits #774's "label on aria-label + title only", whose reason was localized labels
        overflowing the old PILL row; a tile is ~170px wide and the pill ellipsizes, so the
-       longest locale string ("Izklopljeno") still fits. The pill is aria-hidden — the
+       longest locale label (it-it "Curve di livello", 16 chars) still fits. The pill is aria-hidden — the
        button's aria-label stays the accessible name, so a reader does not hear it twice. */
     const cap = document.createElement('span');
     cap.className = 'c-settings-swatch__label';
@@ -680,26 +680,41 @@ export function createChatAppearance({
      in a chat"): a pinch in the conversation stores ANY scale, so the four presets can all
      be unchecked. Say so instead of looking broken: a one-line note under the control names
      the custom size, and picking a preset replaces it (the note goes with it). */
-  const isPreset = TEXT_SIZES.some((o) => o.value === textScale);
+  /* ★ #1041 (#46 r1, auditor C M1): a pinch that ends a hair off a preset (the chat stores the
+     raw scale; 1.1 × a 1.0012 ratio = 1.10132) is THAT preset — otherwise no pill is checked
+     and the note says "Custom size (110%)", which is the L the user is looking at. Within
+     0.02 of a preset, the preset is checked and no note is shown. */
+  const nearPreset = TEXT_SIZES.find((o) => Math.abs(o.value - Number(textScale)) < 0.02);
+  const sizeCurrent = nearPreset ? nearPreset.value : textScale;
   let customNote = null;
-  if (!isPreset && Number.isFinite(Number(textScale)) && Number(textScale) > 0) {
+  if (!nearPreset && Number.isFinite(Number(textScale)) && Number(textScale) > 0) {
     customNote = document.createElement('p');
     customNote.className = 'c-settings__note c-settings-appearance__custom';
+    customNote.id = 'c-settings-size-custom';
     const pct = Math.round(Number(textScale) * 100);
     customNote.textContent = (strings.textSizeCustom || 'Custom size ({0}%), set by pinching in a chat. Pick a size to replace it.')
       .split('{0}').join(String(pct));
   }
   sizeSec.append(sLab, segGroup({
     options: TEXT_SIZES.map((o) => ({ value: o.value, label: strings[o.key] || o.label })),
-    current: textScale,
+    current: sizeCurrent,
     ariaLabel: strings.textSize || 'Message text size',
     onPick: (v) => {
       preview.style.setProperty('--chat-text-scale', String(v));
-      if (customNote) { customNote.remove(); customNote = null; }
+      if (customNote) {
+        customNote.remove(); customNote = null;
+        const grp = sizeSec.querySelector('.c-settings-seg');
+        if (grp) grp.removeAttribute('aria-describedby');
+      }
       if (onTextScale) onTextScale(v);
     },
   }));
-  if (customNote) sizeSec.append(customNote);
+  if (customNote) {
+    sizeSec.append(customNote);
+    // ★ #1041 (auditor C N5): a group with nothing checked says WHY to a screen reader
+    const grp = sizeSec.querySelector('.c-settings-seg');
+    if (grp) grp.setAttribute('aria-describedby', customNote.id);
+  }
   // AND-35 (#371, Damir dial): Text size first, then Background.
   /* ★ Session M: THREE cards in light — size, background, colour. In dark the colour card
      does not exist, so only two are appended. A live theme flip re-renders this whole
@@ -896,9 +911,10 @@ export function createNotificationsScreen({
            explanation — the #712 claim boundaries: token + IP to OneSignal, the per-platform
            off cost, the record it keeps — lives in the NOTE below, which follows the switch.
            The two old per-platform sub keys retire (their locales are rebuilt). */
-        /* ★ #1040 (Damir 2026-09-29): the sub said the same sentence the note below the card says —
-           it is now just the WHO; the note keeps the full what-happens explanation (#712). */
-        sub: strings.notifPushProviderSub || 'Uses OneSignal, a push provider.',
+        /* ★ #1040 → #1041 (#46 r1, auditor C M5): NO sub. The first cut shortened it to "Uses
+           OneSignal, a push provider." — which repeated the LABEL ("…via OneSignal") and, with the
+           switch OFF, sat above "Off: nothing more is sent to OneSignal" as a contradiction (the
+           #735 §9 class). The label says who; the note below the card says what happens, per state. */
         checked: pushProvider, live, failText, onToggle: onPushProvider,
       }));
       /* ★ #712 (Damir): THE FEEDBACK IS PROMINENT AND SAYS WHAT HAPPENS IN BOTH STATES.

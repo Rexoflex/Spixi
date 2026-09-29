@@ -12780,7 +12780,7 @@ console.log('#370/#371 — D-19b reverse-resolve · N48 amOwner · N49/N50 · R2
   const sh370 = njs(read('src/components/settings-shell.js'));
   /* ★ #1007 (D-08c) RE-BASE: Downloads' sub ("Files you received in chats") only restated its
      title and is dropped, with Contacts' and Declined requests'. The two that ADD information stay. */
-  ok(sh370.includes("strings.chatAppearanceSub || 'Background, canvas and text size'")   /* ★ #1040: no opacity control since #774 */
+  ok(sh370.includes("strings.chatAppearanceSub || 'Background and text size'")   /* ★ #1040/#1041: no opacity control since #774; Canvas is light-only */
     && sh370.includes("strings.appLockSub || 'Password check when Spixi opens'")
     && !/strings\.(downloadsSub|contactsSub|declinedRequestsSub|spixiAddressSub)\b/.test(sh370),
     'I-11 (#371) → #1007: SOME rows carry subs — Chat appearance, App lock (a sub must ADD information; the restating Downloads / Contacts / Declined-requests / address subs are gone)');
@@ -18278,7 +18278,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ok(/\.c-bubble-row\[data-direction="sent"\] \.c-bubble__meta > \* \{ opacity: 0\.7; \}/.test(mbcss)
       && /\.c-bubble-row\[data-direction="sent"\] \.c-bubble__meta \.c-status-icon\[data-tone="read"\],\s*\.c-bubble-row\[data-direction="sent"\] \.c-bubble__meta \.c-status-icon\[data-tone="failed"\] \{ opacity: 1; \}/.test(mbcss)
       && !/\.c-bubble__meta \{[^}]*opacity/.test(mbcss),
-      '★ A9: outgoing timestamp + edited marker at 0.7 alpha on the CHILDREN (a box opacity would cap the read tick), the READ tick (and failed) at 1.0; received bubbles untouched. ⚠ E1 amended the DELIVERED glyph out of that 0.7 group — see the pin below; this one still owns the blanket rule and the 1.0 pair');
+      '★ A9: outgoing timestamp + edited marker at 0.7 alpha on the CHILDREN (a box opacity would cap the read tick), the READ tick (and failed) at 1.0; received bubbles take the same 0.7 since #1041 (pinned in the #1040 block). ⚠ E1 amended the DELIVERED glyph out of that 0.7 group — see the pin below; this one still owns the blanket rule and the 1.0 pair');
     {
       /* ★★ E1 (Damir 2026-08-29): "the double check for message delivered … reduce alpha
          by 25% so that the actual read is more distinguishable."
@@ -24451,10 +24451,12 @@ console.log('P2 (#708): the push-provider opt-out — row, latch, verb, apply');
   const offIos = mk({ platform: 'ios', pushProvider: false });
   const offAnd = mk({ platform: 'android', pushProvider: false });
   const subOf = (el) => (el.querySelector('.c-settings__row-sub:last-of-type') || {}).textContent || '';
-  /* ★ #1040 RE-BASE: the sub is the WHO only ("Uses OneSignal, a push provider.") — its first
-     sentence repeated the note under the card. The property held: identical on both platforms, never "Off:". */
-  ok(/OneSignal/.test(withIos.textContent) && /^Uses OneSignal, a push provider\.$/.test(subOf(withIos)) && subOf(withIos) === subOf(withAnd)
-     && !/Wakes this device/.test(subOf(withIos)) && /wakes this device/.test(withIos.textContent)
+  /* ★ #1040 → #1041 RE-BASE: the OneSignal row has NO sub — the label says who, the note says what happens
+     per state (a sub repeated one or the other, and "Uses OneSignal" contradicted the OFF note). The property
+     held: nothing state-claiming sits under the switch on either platform, never "Off:". */
+  const pushRow = (el) => [...el.querySelectorAll('.c-settings__section')].find((x) => /OneSignal/.test(x.textContent)) || null;
+  ok(/OneSignal/.test(withIos.textContent) && !!pushRow(withIos) && !pushRow(withIos).querySelector('.c-settings__row-sub') && !pushRow(withAnd).querySelector('.c-settings__row-sub')
+     && !!pushRow(offIos) && !pushRow(offIos).querySelector('.c-settings__row-sub') && /wakes this device/.test(withIos.textContent)
      && !/^Off:/.test(subOf(withIos)) && !/^Off:/.test(subOf(withAnd)),
     '★★ #735 §9 EXECUTED: the OneSignal SUB is the same state-neutral sentence on iOS and Android — it says what the switch does, never "Off: …" under a switch that is on');
   ok(/open Spixi/.test(offIos.textContent) && !/checks for new messages/.test(offIos.textContent)
@@ -24513,7 +24515,11 @@ console.log('P2 (#708): the push-provider opt-out — row, latch, verb, apply');
   }
   /* ★ Session I re-base (#735 §9): the two per-platform SUB keys retired with the state-neutral
      sub (one key, both platforms); the state-dependent notes keep their four keys. */
-  for (const k of ['notifPushProvider', 'notifPushProviderSub', 'notifPushProviderOn', 'notifPushProviderOffAndroid', 'notifPushProviderOffIos']) {
+  /* ★ #1041 RE-BASE: notifPushProviderSub retired too — the row has NO sub now (the label says who, the note says
+     what happens per state). The four remaining keys keep the property; the retired one must be GONE, not orphaned. */
+  ok(!/^  notifPushProviderSub: "/m.test(rdF('src/strings/en-us.js')) && !/"notifPushProviderSub":/.test(rdF('src/strings/de-de.json')),
+    '★ #1041: the retired OneSignal sub key is gone from en-us and the drafts (no orphan translation)');
+  for (const k of ['notifPushProvider', 'notifPushProviderOn', 'notifPushProviderOffAndroid', 'notifPushProviderOffIos']) {
     ok(new RegExp('^  ' + k + ': "', 'm').test(rdF('src/strings/en-us.js')) && new RegExp('"' + k + '":').test(rdF('src/strings/de-de.json')),
       '#708 [i18n]: ' + k + ' is extracted into en-us and drafted (de-de as the probe; verify-locales holds the other eleven)');
   }
@@ -38239,7 +38245,9 @@ console.log('★★ #1028+ — the overnight finalization');
       && S.fiatLine('0.005', '+') === '+$0.01' && S.fiatLine('0.0049') === '<$0.01'
       && S.fiatLine('850.3') === '$850.30' && S.fiatLine('0.995', '-') === '-$1.00'
       && S.fiatLine('22.47', '+') === '+$22.47' && S.fiatLine('0') === '$0.00'
-      && S.fiatLine('abc') === '' && S.fiatLine('') === '' && S.fiatLine('$1.00') === '';
+      && S.fiatLine('abc') === '' && S.fiatLine('') === '' && S.fiatLine('$1.00') === ''
+      /* ★ #1041: an unknown price (zero fiat on a nonzero amount) is no line; a zero balance keeps "$0.00" */
+      && S.fiatLine('0.00000000', '+', '12.5') === '' && S.fiatLine('0', '', '0') === '$0.00' && S.fiatLine('3.20', '+', '12.5') === '+$3.20';
     /* ② every fiat LINE in the shells goes through it — derived: no shell builds "$" + a number itself */
     const shellDir = join(root, 'src/shells');
     const rogue = [];
@@ -38249,37 +38257,63 @@ console.log('★★ #1028+ — the overnight finalization');
     }
     const home = stripCode(rdO('src/shells/home.html')), chat = stripCode(rdO('src/shells/chat.html')), sent = stripCode(rdO('src/shells/wallet_sent.html'));
     r.shells = rogue.length === 0
-      && /const ft = fiat \? fiatLine\(fiat, status === 'failed' \? '' : sign\) : '';/.test(home)
-      && /\(fiatLine\(zeroAmount\(fiatBalance\) \? '0' : fiatBalance\) \|\| ''\)/.test(home)
-      && /return fiatLine\(f\);/.test(chat) && /fiatLine\(e\.fiat, sign\)/.test(sent);
+      && /const ft = fiat \? fiatLine\(fiat, status === 'failed' \? '' : sign, amount\) : '';/.test(home)
+      && /\? fiatLine\(fiatBalance, '', balance\) : ''/.test(home)
+      && /return fiatLine\(f\);/.test(chat) && /fiatLine\(e\.fiat, sign, e\.amount\)/.test(sent)
+      /* ★ #1041 (auditor B m2): the "Show amounts" reveal sits under the STAMP on the detail page */
+      && /const head = detail\.querySelector\('\.c-txsheet__stamp'\) \|\| detail\.querySelector\('\.c-txsheet__head'\);/.test(sent);
     /* ③ the tx sheet receipt: unit on a real amount only, ONE status (the stamp), grouped address, middle-cut id */
     const addr = '4dXRcrJCdDfbggd6DySMZAWkJZegAMLwbQiHDDqwoi9ZboYRvcS45JptaYhE2Xvvg';
     const txid = '6276945-dtF5wbngiPc43jbAbDpXyZ9QwErTyAbC';
     const sh = S.openTxSheet({ tx: { amount: '+0.05', fiat: '<$0.01', address: addr, name: 'Yooyooboi', txid, status: 'confirmed', direction: 'in', timeText: 'Sep 24, 21:50' }, host: W.document.body, onExplorer() {} });
     const amt = sh.querySelector('.c-txsheet__amount');
     const groups = [...sh.querySelectorAll('.c-txsheet__addrgroup')];
-    const idVal = [...sh.querySelectorAll('.c-txsheet__row')].map((x) => x.querySelector('.c-txsheet__rowvalue')).find((v) => v && v.title === txid);
+    const idVal = sh.querySelector('.c-txsheet__rowvalue--id');
     r.sheet = !!amt && (amt.querySelector('.c-txsheet__unit') || {}).textContent === 'IXI'
       && amt.querySelector('.c-txsheet__amountvalue').textContent === '+0.05'
       && sh.querySelectorAll('.c-badge').length === 1 && !!sh.querySelector('.c-txsheet__stamp .c-badge')
       && ![...sh.querySelectorAll('.c-txsheet__rowlabel')].some((l) => l.textContent === 'Status')
       && sh.querySelector('.c-txsheet__addrvalue').textContent === addr
       && groups.length === Math.ceil(addr.length / 4) && groups.every((g) => g.textContent.length >= 1 && g.textContent.length <= 4)
-      && !!idVal && idVal.textContent.includes('…') && idVal.textContent !== txid
-      && idVal.textContent.startsWith(txid.slice(0, 10)) && idVal.textContent.endsWith(txid.slice(-8));
+      /* ★ #1041 (auditor B MAJOR-2): the FULL id stays in the DOM (a reader and a drag-select get all of it); the
+         last 8 characters are their own non-shrinking span, the head ellipsizes */
+      && !!idVal && idVal.textContent === txid && idVal.title === txid
+      && (idVal.querySelector('.c-txsheet__idtail') || {}).textContent === txid.slice(-8)
+      && (idVal.querySelector('.c-txsheet__idhead') || {}).textContent === txid.slice(0, -8)
+      /* ★ #1041 (auditor B m4): "+0.05 IXI" with a real space for anything reading the text */
+      && amt.textContent === '+0.05 IXI';
     /* the stamp is the receipt's LAST line of the amount block — after the amount, outside the head row */
     const stampEl = sh.querySelector('.c-txsheet__stamp');
     r.stampOrder = !!stampEl && !stampEl.closest('.c-txsheet__head') && !!(amt.compareDocumentPosition(stampEl) & W.Node.DOCUMENT_POSITION_FOLLOWING);
+    /* ★ #1041 (Damir: "too many buttons"): the Explorer link lives INSIDE the details drawer when there is one
+       (hidden with it); a host with the details always open (disclose:false, the detail page) still shows it */
+    const exp = [...sh.querySelectorAll('.c-button')].find((b) => /Explorer/.test(b.textContent));
+    const sh3 = S.openTxSheet({ tx: { amount: '+1', txid, status: 'confirmed', direction: 'in', timeText: 'x' }, host: W.document.body, onExplorer() {}, disclose: false });
+    const exp3 = [...sh3.querySelectorAll('.c-button')].find((b) => /Explorer/.test(b.textContent));
+    r.explorerInDetails = !!exp && !!exp.closest('.c-txsheet__details') && sh.querySelector('.c-txsheet__details').hidden === true
+      && !!exp3 && !exp3.closest('[hidden]');
     const sh2 = S.openTxSheet({ tx: { amount: '••••••', status: 'pending', direction: 'out' }, host: W.document.body });
     r.maskedNoUnit = !sh2.querySelector('.c-txsheet__unit');
+    /* ★ #1041 (auditor B MAJOR-1 / m1 / n1): the address box is a BLOCK of inline-block groups (a flex row made
+       every group a line in a selection / innerText), LTR-isolated; the unit carries no opacity */
+    const wsc = stripCssComments(rdO('src/styles/components/wallet-shell.css'));
+    const addrRule = (/\.c-txsheet__addrvalue \{([^}]*)\}/.exec(wsc) || [])[1] || '';
+    r.addrCss = /display: block;/.test(addrRule) && !/display: flex/.test(addrRule) && /direction: ltr;/.test(addrRule) && /unicode-bidi: isolate;/.test(addrRule)
+      && /\.c-txsheet__addrgroup \{[^}]*display: inline-block;/.test(wsc)
+      && !/opacity/.test((/\.c-txsheet__unit \{([^}]*)\}/.exec(wsc) || [])[1] || 'opacity');
     /* ④ the chat appearance: a pinch-set scale names itself; picking a preset removes the note; tiles name themselves */
     const custom = S.createChatAppearance({ textScale: 1.18, onTextScale() {} });
     const note = custom.querySelector('.c-settings-appearance__custom');
-    r.customNote = !!note && /118%/.test(note.textContent);
+    r.customNote = !!note && /118%/.test(note.textContent) && custom.querySelector('.c-settings-seg').getAttribute('aria-describedby') === note.id;
     const pill = custom.querySelector('.c-settings-seg__pill');
     pill.click();
     r.noteGoes = !custom.querySelector('.c-settings-appearance__custom');
     r.presetNoNote = !S.createChatAppearance({ textScale: 1 }).querySelector('.c-settings-appearance__custom');
+    /* ★ #1041 (auditor C M1): a pinch that ended a hair off a preset IS that preset — checked, no note */
+    const near = S.createChatAppearance({ textScale: 1.10132 });
+    r.nearPreset = !near.querySelector('.c-settings-appearance__custom')
+      && (near.querySelector('.c-settings-seg__pill[aria-checked="true"]') || {}).textContent === 'L';
+    r.describedBy = (custom.querySelector('.c-settings-seg') || { getAttribute() { return 'x'; } }).getAttribute('aria-describedby') === null;
     const tiles = [...custom.querySelectorAll('.c-settings-swatch')];
     r.tileLabels = tiles.length >= 2 && tiles.every((t) => { const c = t.querySelector('.c-settings-swatch__label'); return !!c && c.getAttribute('aria-hidden') === 'true' && c.textContent === t.getAttribute('aria-label'); });
     /* ⑤ the re-presented Account page runs the chrome pass (the Android status-bar glyph defect) */
@@ -38289,6 +38323,12 @@ console.log('★★ #1028+ — the overnight finalization');
     const body = i0 > 0 ? cs.slice(i0, i1 > i0 ? i1 : undefined) : '';
     const rv = body.indexOf('revealStage(op);'), ch = body.indexOf('op.target.applyPlatformPageChrome();');
     r.represent = rv > 0 && ch > rv;
+    /* ★ #1041 (auditor A): a WARM park (loaded off-screen) hands the process-wide bars back to the visible page */
+    const wp = cs.indexOf('Logging.info("warm park ready: "');
+    const wpEnd = cs.indexOf('else if (op.overlayMode)', wp);
+    r.warmParkRepaint = wp > 0 && wpEnd > wp && /repaintSystemBars\(visibleSurfacePage\(op\.host\)\);/.test(cs.slice(wp, wpEnd));
+    /* ★ #1041 (auditor A): the sub-cent line takes the app language's decimal mark */
+    r.subCentLocale = /if \(n === '<0\.01'\) return '<\$' \+ groupAmountDisplay\('0\.01'\);/.test(stripCode(rdO('src/components/money.js')));
     /* ⑥ the lighter settings ground: lighter than grey-50, and the white card still lifts off it */
     const g = resolveTok('light', '--surface-settings-ground');
     r.ground = g === '#f3f5f7' && lumO(g) > lumO('#edf0f2') && crO('#ffffff', g) >= 1.08 && resolveTok('dark', '--surface-settings-ground') === resolveTok('dark', '--surface-screen');
@@ -38297,6 +38337,23 @@ console.log('★★ #1028+ — the overnight finalization');
     r.credits = /\.c-settings-contrib__credit \{[^}]*text-align: start;/.test(sa) && !/\.c-settings-contrib__credit \{[^}]*text-align: center;/.test(sa)
       && /h\.className = 'c-settings__label c-settings-contrib__credits-title';/.test(rdO('src/components/settings-app.js'));
     r.hero = /strings\.availableBalance \|\| 'Available balance'/.test(rdO('src/components/wallet-hero.js'));
+    /* ★ #1041 (Damir: read vs delivered "hard to distinguish" on the chat list): read = the success green (a HUE
+       step from the grey), ≥ 3:1 on the list ground in both themes, and never the delivered grey */
+    const cl = stripCssComments(rdO('src/styles/components/chatlist-item.css'));
+    const readTok = (/\.c-status-icon\[data-tone="read"\] \{ color: var\((--[\w-]+)\); \}/.exec(cl) || [])[1];
+    const delTok = (/\.c-status-icon\[data-tone="delivered"\] \{ color: var\((--[\w-]+)\); opacity: var\(--tick-delivered-opacity, 1\); \}/.exec(cl) || [])[1];
+    /* ★ #1041 (Damir: "delivered at reduced opacity"): the faded delivered tick sits ON the 3:1 non-text floor in
+       both themes (computed from the tokens, not asserted by hand), and below full opacity */
+    const mixO = (fg, bg, a) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(fg.slice(i, i + 2), 16) * a + parseInt(bg.slice(i, i + 2), 16) * (1 - a)).toString(16).padStart(2, '0')).join('');
+    r.deliveredFade = ['light', 'dark'].every((t) => {
+      const a = Number(resolveTok(t, '--tick-delivered-opacity')), fg = resolveTok(t, '--icon-neutral-03'), bg = resolveTok(t, '--surface-screen');
+      return a > 0 && a < 1 && crO(mixO(fg, bg, a), bg) >= 2.95;
+    });
+    /* ★ #1041 (Damir: the incoming timestamp "clashes with the message"): received meta children at 0.7, like sent */
+    r.recvMeta = /\.c-bubble-row\[data-direction="received"\] \.c-bubble__meta > \* \{ opacity: 0\.7; \}/.test(stripCssComments(rdO('src/styles/components/message-bubble.css')));
+    r.readTick = readTok === '--icon-success' && delTok === '--icon-neutral-03'
+      && ['light', 'dark'].every((t) => crO(resolveTok(t, readTok), resolveTok(t, '--surface-screen')) >= 3
+        && resolveTok(t, readTok) !== resolveTok(t, delTok));
     ok(Object.values(r).every((v) => v === true),
       '★★ #1040 (Damir 2026-09-29): one fiat rule (2 dp, "<$0.01") in every shell · the tx sheet reads as a receipt (unit, ONE status stamp, address in groups of four, id cut in the MIDDLE) · a pinch-set text size names itself · Background tiles name themselves · the re-presented Account page repaints the status bar · the settings ground is one step lighter · credits are a list · "Available balance" — ' + JSON.stringify(r));
   }

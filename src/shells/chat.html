@@ -676,7 +676,6 @@
     attachContextMenuAnchors, anchorSheetAbove,   // Batch C (M6): desktop sheet grammar (no-op on mobile)
     isPseudoAddressNick,            // D-19b (#370): blind roster "x"+address pseudo-keys never display
     isAddressShaped,                // ★ #589: the ONE address-shape test — a NICK is never middle-truncated
-    groupAmountDisplay,             // ★ C2 (Session AD): the fiat sub-line groups like the wallet tab (money.js)
     fiatLine,                       // ★ #1040: the fiat sub-line takes the one fiat rule (money.js)
     formatIxiAmount,                // ★ C6 (Session AD): the tip total ("Tipped 5 IXI"), the #77 amount rule
     createNativeBridge, installExecuteUiCommand,
@@ -883,9 +882,10 @@
 
   /* ★ C2: the fiat sub-line. C# pushes the raw human-format number (amount × the
    * last known price, "" when unknown) — the SAME shape the wallet tab receives in
-   * addPaymentActivity, so it takes the same display: grouped per the app language
-   * and a "$" in front (USD is the only fiat the price feed knows). Anything that is
-   * not a plain number renders nothing — a fiat line is never worth a wrong number. */
+   * addPaymentActivity, so it takes the same display: ★ #1040 the ONE fiat rule
+   * (money.js fiatLine — 2 dp, grouped per the app language, "<$0.01" under a cent).
+   * Anything that is not a plain number renders nothing — a fiat line is never worth
+   * a wrong number. */
   function fiatDisplay(fiat) {
     const f = String(fiat == null ? '' : fiat).trim();
     if (!f || !/^\d+(\.\d+)?$/.test(f)) return '';

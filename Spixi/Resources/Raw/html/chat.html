@@ -1190,8 +1190,15 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    one state worth the eye). Opacity goes on the CHILDREN (time, edited, the glyphs) —
    a box-level opacity would cap the read tick at 0.7 too, since a child can never be
    more opaque than its parent. The failed glyph keeps 1.0 as well (an error must not
-   be dimmed — the #48 rule). Received bubbles are untouched. */
+   be dimmed — the #48 rule). Received bubbles were untouched until #1041 (below). */
 .c-bubble-row[data-direction="sent"] .c-bubble__meta > * { opacity: 0.7; }
+/* ★ #1041 (Damir 2026-09-29, screenshot: "the incoming timestamp should be reduced opacity as well,
+   it clashes with the actual message"): the RECEIVED meta row takes the same 0.7 on its children —
+   one timestamp weight on both sides of the conversation. ⚠ Measured, and Damir's knowing trade (the
+   A9 precedent on the sent side): 0.7 puts the light timestamp at 3.51:1 on the white bubble (dark
+   5.14:1) — under 4.5:1 for small text in LIGHT. The timestamp is secondary metadata; the message is
+   the content. Reversal = delete this rule. */
+.c-bubble-row[data-direction="received"] .c-bubble__meta > * { opacity: 0.7; }
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="read"],
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="failed"] { opacity: 1; }
 /* ★ E1 (Damir 2026-08-29): the DELIVERED double-check drops below the rest of the
@@ -5819,7 +5826,6 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     attachContextMenuAnchors, anchorSheetAbove,   // Batch C (M6): desktop sheet grammar (no-op on mobile)
     isPseudoAddressNick,            // D-19b (#370): blind roster "x"+address pseudo-keys never display
     isAddressShaped,                // ★ #589: the ONE address-shape test — a NICK is never middle-truncated
-    groupAmountDisplay,             // ★ C2 (Session AD): the fiat sub-line groups like the wallet tab (money.js)
     fiatLine,                       // ★ #1040: the fiat sub-line takes the one fiat rule (money.js)
     formatIxiAmount,                // ★ C6 (Session AD): the tip total ("Tipped 5 IXI"), the #77 amount rule
     createNativeBridge, installExecuteUiCommand,
@@ -6026,9 +6032,10 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 
   /* ★ C2: the fiat sub-line. C# pushes the raw human-format number (amount × the
    * last known price, "" when unknown) — the SAME shape the wallet tab receives in
-   * addPaymentActivity, so it takes the same display: grouped per the app language
-   * and a "$" in front (USD is the only fiat the price feed knows). Anything that is
-   * not a plain number renders nothing — a fiat line is never worth a wrong number. */
+   * addPaymentActivity, so it takes the same display: ★ #1040 the ONE fiat rule
+   * (money.js fiatLine — 2 dp, grouped per the app language, "<$0.01" under a cent).
+   * Anything that is not a plain number renders nothing — a fiat line is never worth
+   * a wrong number. */
   function fiatDisplay(fiat) {
     const f = String(fiat == null ? '' : fiat).trim();
     if (!f || !/^\d+(\.\d+)?$/.test(f)) return '';

@@ -1394,7 +1394,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-settings-contrib__credits-title {
   /* ★ #1040 (Damir 2026-09-29: "left-align the credits, like a list"): the heading takes the
      hub's section-label look and sits at the card's start edge; only the margin is local */
-  margin-block: var(--spacing-16) var(--spacing-8);
+  margin-block: var(--spacing-8) 0;   /* ★ #1041: the body's 12px gap spaces it from its card, like the hub's labels */
 }
 .c-settings-contrib__credits {
   margin: 0;

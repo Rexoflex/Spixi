@@ -468,8 +468,15 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    one state worth the eye). Opacity goes on the CHILDREN (time, edited, the glyphs) —
    a box-level opacity would cap the read tick at 0.7 too, since a child can never be
    more opaque than its parent. The failed glyph keeps 1.0 as well (an error must not
-   be dimmed — the #48 rule). Received bubbles are untouched. */
+   be dimmed — the #48 rule). Received bubbles were untouched until #1041 (below). */
 .c-bubble-row[data-direction="sent"] .c-bubble__meta > * { opacity: 0.7; }
+/* ★ #1041 (Damir 2026-09-29, screenshot: "the incoming timestamp should be reduced opacity as well,
+   it clashes with the actual message"): the RECEIVED meta row takes the same 0.7 on its children —
+   one timestamp weight on both sides of the conversation. ⚠ Measured, and Damir's knowing trade (the
+   A9 precedent on the sent side): 0.7 puts the light timestamp at 3.51:1 on the white bubble (dark
+   5.14:1) — under 4.5:1 for small text in LIGHT. The timestamp is secondary metadata; the message is
+   the content. Reversal = delete this rule. */
+.c-bubble-row[data-direction="received"] .c-bubble__meta > * { opacity: 0.7; }
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="read"],
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="failed"] { opacity: 1; }
 /* ★ E1 (Damir 2026-08-29): the DELIVERED double-check drops below the rest of the

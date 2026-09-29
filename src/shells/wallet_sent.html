@@ -298,7 +298,7 @@
       address: masked ? '' : (e.address || ''),
       avatar: (masked || unknown) ? null : e.avatar,
       amount: masked ? WALLET_MASK : ((e.amount != null && e.amount !== '') ? sign + amountWithCommas(e.amount) : ''),
-      fiat: masked ? '' : ((e.fiat != null && e.fiat !== '') ? fiatLine(e.fiat, sign) : ''),   // ★ #1040: the one fiat rule
+      fiat: masked ? '' : ((e.fiat != null && e.fiat !== '') ? fiatLine(e.fiat, sign, e.amount) : ''),   // ★ #1040: the one fiat rule
       fee: masked ? '' : ((d.fee != null && d.fee !== '') ? amountWithCommas(d.fee) + ' IXI' : ''),
       timeText: txTimeDisplay(e.timeText || d.time || ''),
     };

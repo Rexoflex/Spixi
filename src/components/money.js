@@ -352,6 +352,9 @@ export function formatIxiAmount(value) {
  *      a sign on "less than" reads as nonsense);
  *    - any other number → exactly 2 decimals, ROUNDED half-up on the decimal STRING (never a
  *      float: 0.005 must be 0.01), integer part grouped in the app language;
+ *      ⚠ (#1041, auditor A): C# `Utils.amountToHumanFormatString` already CUTS a value above 1
+ *      to 2 decimals before it gets here, so the half-up only acts on values of 1 or less
+ *      (1.995 arrives as 1.99). Display-only and informative; recorded, not changed in C#;
  *    - anything that is not a plain number → '' (a fiat line is never worth a wrong number).
  *  Returns the digits only; the caller owns the sign and the "$". */
 export function formatFiatAmount(value) {
@@ -371,10 +374,16 @@ export function formatFiatAmount(value) {
 
 /** ★ #1040: the whole fiat LINE — sign + "$" + formatFiatAmount. A sub-cent value is
  *  "<$0.01" with NO sign; an unusable value is '' (the caller renders no line). */
-export function fiatLine(value, sign = '') {
+export function fiatLine(value, sign = '', amount) {
   const n = formatFiatAmount(value);
+  /* ★ #1041 (#46 r1, auditor A): an unknown price arrives as ZERO (C# multiplies by
+     Node.fiatPrice, which is 0 until the first price arrives), so a real payment read "+$0.00".
+     When the IXI amount is known and nonzero, a zero fiat is "no price", not "worth nothing":
+     no line — the chat card already hides it the same way (SingleChatPage). */
+  if (amount != null && zeroAmount(value) && !zeroAmount(amount)
+      && /\d/.test(String(amount))) return '';
   if (!n) return '';
-  if (n === '<0.01') return '<$0.01';
+  if (n === '<0.01') return '<$' + groupAmountDisplay('0.01');   // ★ #1041: the app language's decimal mark, like every other fiat line
   return (sign || '') + '$' + n;
 }
 

@@ -39,7 +39,7 @@ import { createTxItem } from './txlist-item.js';
 import { createChip, setChipSelected } from './chip.js';
 import { createButton } from './button.js';
 import { createBadge } from './badge.js';
-import { createAvatar, truncateAddressMiddle } from './avatar.js';
+import { createAvatar } from './avatar.js';
 import { createSearchField } from './search-field.js';
 import { createScanRing, setScanRing } from './scan-progress.js';   // #452: the sheet card's ring
 import { setWalletHeroCompact } from './wallet-hero.js';
@@ -809,8 +809,11 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer,
   if (/\d/.test(String(tx.amount || ''))) {
     const unit = document.createElement('span');
     unit.className = 'c-txsheet__unit';
-    unit.textContent = 'IXI';   // i18n-lint-ok:proper-noun (the currency code, never translated)
-    amt.append(unit);
+    unit.textContent = 'IXI';   // the currency code — i18n-lint's ALLOW list covers it (never translated)
+    /* ★ #1041 (#46 r1, auditor B m4): a real SPACE between value and unit in the text, so a
+       reader (and anything reading textContent) gets "+0.05 IXI", not "+0.05IXI". In the flex
+       row the whitespace-only text node is not rendered; the gap does the spacing. */
+    amt.append(document.createTextNode(' '), unit);
   }
   content.append(amt);
   if (tx.fiat) {
@@ -829,7 +832,8 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer,
      monospace the moment it opened. It now lives behind a "See details" disclosure so
      the sheet answers the first question (how much, to whom, did it go through) in one
      glance, and the forensic half is one tap away.
-     Status stays OUTSIDE the disclosure: it is the other half of "did it go through". */
+     Status stays OUTSIDE the disclosure: it is the other half of "did it go through".
+     ★ #1040: it is the STAMP under the amount now, and the only place status appears. */
   const details = document.createElement('div');
   details.className = 'c-txsheet__details';
   details.hidden = true;
@@ -864,12 +868,10 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer,
     details.append(addrLabel, addrRow);   // N25
   }
 
-  /* meta — rows render only when the bridge provided the field (data-honest);
-     Status always renders (legacy confirmation enum incl. unknown, Damir #134) */
-  /* ★ D2 (#453, Damir on device): Status moved INTO the drawer, below the address and
-     above the date. The badge in the header already says it, so a Status row in the
-     collapsed view said the same thing twice on the one screen where the glance matters.
-     It stays available — just one tap down, with the rest of the forensic detail. */
+  /* meta — rows render only when the bridge provided the field (data-honest).
+     History of the Status row: Damir #134 made it always render; D2 (#453) moved it into
+     the drawer; ★ #1040 removed it (below) — the badge stamp carries every status incl.
+     unknown (STATUS_META), so nothing it showed is lost. */
   const metaBox = document.createElement('div');
   metaBox.className = 'c-txsheet__meta';
   /* ★ #1040 (Damir 2026-09-29): the Status ROW is gone. D2 moved it into the drawer so the
@@ -907,11 +909,28 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer,
     rows.push(feeRow);
   }
   if (tx.txid) {
-    /* ★ #1040: MIDDLE-truncated (the #211 address canon) — the end-ellipsis hid the tail,
-       which is the half a user checks against an explorer. The full id stays in `title`
-       and in what the copy button copies. */
-    const idRow = sheetRow(strings.txId || 'Transaction ID', truncateAddressMiddle(tx.txid, 10, 8));
-    idRow.querySelector('.c-txsheet__rowvalue').title = String(tx.txid);
+    /* ★ #1040 → #1041 (#46 r1, auditor B MAJOR-2): the tail is what a user checks against an
+       explorer, and the end-ellipsis hid it. The first cut put a fixed "10…8" STRING in the DOM
+       — which the row's own CSS ellipsis then cut AGAIN on a narrow phone, and which a reader
+       read (and a drag-select copied) as a truncated id. Now the FULL id stays in the DOM as
+       two spans: the head shrinks with an ellipsis, the last 8 characters never shrink. The
+       copy button copies the full id, unchanged. */
+    const idStr = String(tx.txid);
+    const idRow = sheetRow(strings.txId || 'Transaction ID', idStr);
+    const idVal = idRow.querySelector('.c-txsheet__rowvalue');
+    idVal.textContent = '';
+    idVal.classList.add('c-txsheet__rowvalue--id');
+    const idHead = document.createElement('span');
+    idHead.className = 'c-txsheet__idhead';
+    idHead.textContent = idStr.length > 8 ? idStr.slice(0, -8) : idStr;
+    idVal.append(idHead);
+    if (idStr.length > 8) {
+      const idTail = document.createElement('span');
+      idTail.className = 'c-txsheet__idtail';
+      idTail.textContent = idStr.slice(-8);
+      idVal.append(idTail);
+    }
+    idVal.title = idStr;
     idRow.append(copyButton(tx.txid, strings.txId || 'Transaction ID', strings));
     rows.push(idRow);
   }
@@ -953,12 +972,18 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer,
   /* explorer — routes through the external-link confirm in the shell (onExplorer duty).
      ★ #443 (Damir): this opens the TRANSACTION, so it says so. The old copy came from
      the address-only verb the wallet tab used to have. */
+  /* ★ #1041 (Damir 2026-09-29: "remove View on Explorer when details are not open — too many
+     buttons"): the Explorer link is FORENSIC, so it lives WITH the forensic half — the last item
+     of the details drawer. Collapsed, the sheet offers one action (See details) and Close. Where
+     the details are always open (the wallet_sent page, disclose:false) it shows as before. */
   if (onExplorer) {
-    content.append(createButton({
+    const explorerBtn = createButton({
       label: strings.viewTxExplorer || 'View transaction on Explorer', type: 'outline', size: 44, width: 'full',
       icon: icon('external-link', { size: 18 }), iconPosition: 'trailing',   // #710: an Explorer link opens outside the app
       onClick: latched(() => sheet, () => onExplorer(tx)),
-    }));
+    });
+    if (content.contains(details)) details.append(explorerBtn);
+    else content.append(explorerBtn);
   }
 
   /* ★ #453 (Damir on device): the sheet had no way out except the scrim or a swipe. Every

@@ -736,6 +736,10 @@
   /* icon */
   --icon-neutral-01: var(--neutral-950);
   --icon-neutral-02: var(--neutral-490);
+  /* ★ #1041 (Damir 2026-09-29: "delivered should be reduced opacity — more distinguishable at once"):
+     the chat-list DELIVERED tick fades to the 3:1 non-text floor on the list ground (light 2.95→ at 0.76
+     = 3.0:1 on #f9fafb; the bubble E1 precedent sat exactly on 3.00:1). Read stays full (green). */
+  --tick-delivered-opacity: 0.76;
   --icon-neutral-03: var(--neutral-460);
   --icon-neutral-inverse-01: var(--neutral-100);
   --icon-neutral-inverse-02: var(--neutral-300);
@@ -1029,6 +1033,7 @@
   /* icon */
   --icon-neutral-01: var(--neutral-100);
   --icon-neutral-02: var(--neutral-400);
+  --tick-delivered-opacity: 0.6;   /* ★ #1041: 3.02:1 on the dark list ground (neutral-430 on #13171b) */
   --icon-neutral-03: var(--neutral-430);
   --icon-neutral-inverse-01: var(--neutral-900);
   --icon-neutral-inverse-02: var(--neutral-800);

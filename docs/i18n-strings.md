@@ -163,7 +163,7 @@ Summary: **804** keys · **141** map to a legacy id · **663** new · legacy dic
 | Key | English | Kind | Len | {…} | Legacy id |
 |---|---|---|---|---|---|
 | `dismiss` | Dismiss | aria | short |  | `wallet-sent-dismiss` |
-| `status` | Status | aria/label | short |  | `chat-status` |
+| `status` | Status | aria | short |  | `chat-status` |
 
 ## bottomnav.js (2)
 
@@ -766,7 +766,7 @@ Summary: **804** keys · **141** map to a legacy id · **663** new · legacy dic
 | `creditFlags` | Country flags | text | short |  | — |
 | `creditIcons` | Interface icons | text | short |  | — |
 | `creditSounds` | Interface sounds | text | short |  | — |
-| `creditsTitle` | Credits | text | short |  | — |
+| `creditsTitle` | Credits | label | short |  | — |
 | `deleteDownloadsBody` | Received files are removed from this device. Senders keep theirs. | title | long |  | — |
 | `deleteFile` | Delete {name} | aria | short | {name} | — |
 | `deleteFileBody` | “{name}” is removed from this device. | title | medium | {name} | — |
@@ -835,7 +835,6 @@ Summary: **804** keys · **141** map to a legacy id · **663** new · legacy dic
 | `notifPushProviderOffAndroid` | Off: nothing more is sent to OneSignal and this device is unsubscribed there. Spixi checks for new messages itself and notifies you when it finds some, so they can arrive a little later. The record OneSignal already holds is not deleted by this switch. | text | long |  | — |
 | `notifPushProviderOffIos` | Off: nothing more is sent to OneSignal and this device is unsubscribed there. New messages appear when you open Spixi. The record OneSignal already holds is not deleted by this switch. | text | long |  | — |
 | `notifPushProviderOn` | On: OneSignal wakes this device the moment a message arrives. OneSignal receives a push token for this device and sees its IP address. It never sees your messages or your contacts. | text | long |  | — |
-| `notifPushProviderSub` | Wakes this device the moment a message arrives. Uses OneSignal, a push provider. | text | long |  | — |
 | `notifSender` | Show sender name | label | short |  | — |
 | `notifSenderSub` | Message text is never shown in notifications | label | medium |  | — |
 | `notifSounds` | In-app sounds | error | short |  | — |
@@ -857,6 +856,7 @@ Summary: **804** keys · **141** map to a legacy id · **663** new · legacy dic
 | `textM` | M | label | short |  | — |
 | `textS` | S | label | short |  | — |
 | `textSize` | Message text size | text/label | short |  | — |
+| `textSizeCustom` | Custom size ({0}%), set by pinching in a chat. Pick a size to replace it. | text | long | {0} | — |
 | `textXL` | XL | label | short |  | — |
 | `tierBasic` | Basic | label | short |  | — |
 | `tierBasicDesc` | Convenience first. Lock optional, previews on, receipts on. | label | medium |  | — |
@@ -885,7 +885,7 @@ Summary: **804** keys · **141** map to a legacy id · **663** new · legacy dic
 | `backupUpdate` | Update | badge | short |  | — |
 | `cannotUndo` | This action cannot be undone. | text | medium |  | — |
 | `changePhoto` | Change photo | aria | short |  | — |
-| `chatAppearanceSub` | Background, opacity and text size | text | medium |  | — |
+| `chatAppearanceSub` | Background and text size | text | medium |  | — |
 | `choosePhoto` | Choose photo | error | short |  | — |
 | `copyFailedOpenQr` | Couldn’t copy. Open the QR code to copy the full address. | error | medium |  | — |
 | `dangerZone` | Danger zone | text | short |  | — |
@@ -1027,7 +1027,7 @@ Summary: **804** keys · **141** map to a legacy id · **663** new · legacy dic
 
 | Key | English | Kind | Len | {…} | Legacy id |
 |---|---|---|---|---|---|
-| `availableBalance` | Available Balance | label | short |  | — |
+| `availableBalance` | Available balance | label | short |  | — |
 | `hideBalance` | Hide balance | aria | short |  | — |
 | `receive` | Receive | label | short |  | `contact-details-receive` |
 
@@ -1114,7 +1114,7 @@ Summary: **804** keys · **141** map to a legacy id · **663** new · legacy dic
 | `txConfirmed` | Confirmed | label | short |  | `chat-payment-status-confirmed` |
 | `txDetails` | Transaction details | aria/title | short |  | — |
 | `txFailed` | Failed | label | short |  | — |
-| `txId` | Transaction ID | text | short |  | `wallet-sent-txid` |
+| `txId` | Transaction ID | text/title | short |  | `wallet-sent-txid` |
 | `txPending` | Pending | label | short |  | `chat-payment-status-pending` |
 | `txUnknown` | Unknown | label | short |  | — |
 | `viewAllExplorer` | View all transactions on Explorer | label | medium |  | `index-missing-tx-view-all` |

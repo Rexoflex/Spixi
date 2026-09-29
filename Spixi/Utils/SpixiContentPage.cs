@@ -1310,8 +1310,10 @@ namespace SPIXI
                      * inside slideStageIn works on the resurrected op. */
                     revealStage(op);
                     /* ★ #1040 (Damir 2026-09-29, Android screenshots): the RE-PRESENT path never
-                     * ran the chrome pass the fresh present runs (`op.target.applyPlatformPageChrome()`
-                     * after the push), so the status-bar glyphs kept the PREVIOUS screen's answer —
+                     * ran a chrome pass. A fresh overlay present gets one while it LOADS
+                     * (checkIfPageLoaded → applyPlatformPageChrome, the page is about to be shown);
+                     * a parked page loaded long ago, so the status-bar glyphs kept the PREVIOUS
+                     * screen's answer —
                      * from the Wallet hero that is LIGHT glyphs, over the light Account topbar: the
                      * clock and battery all but vanished on Account, Notifications, Contributors,
                      * How to use and Chat appearance (all one parked page). The pass is the same
@@ -3369,6 +3371,13 @@ namespace SPIXI
                         {
                             Logging.info("warm park ready: " + op.target.GetType().Name);
                         }
+                        /* ★ #1041 (#46 r1, auditor A MINOR): the page loaded OFF-SCREEN, and its
+                         * load-time chrome pass (checkIfPageLoaded → applyPlatformPageChrome) painted
+                         * the ONE process-wide Android bar pair from ITS surface — so a warm park
+                         * finishing while the user sat on the Wallet hero left dark glyphs on the
+                         * blue hero. The page the user actually sees takes the bars back. */
+                        try { repaintSystemBars(visibleSurfacePage(op.host)); }
+                        catch (Exception ex) { Logging.warn("warm park repaint: " + ex.GetType().Name); }
                     }
                     else if (op.overlayMode)
                     {

@@ -650,14 +650,14 @@ namespace SPIXI
                         .SelectMany(s => s.Windows)
                         .FirstOrDefault(w => w.IsKeyWindow);
                     /* ★ #1037 (#46 r3 MINOR-2): on the Mac NO window is key while another app is active —
-                     * a call answered then must still grow the strip by the inset the shell was pushed
-                     * (the M6 push reads the first window regardless of key state), so fall back to it. */
+                     * a call answered while another app is active must still grow the strip by the inset the shell was pushed.
+                     * ★ #1038 (r4 MINOR): the fallback is the SAME lookup the M6 push uses
+                     * (SpixiContentPage: MAUI's first window's platform view), not the first UIWindow of
+                     * ConnectedScenes — that list's order is undefined and can hold helper windows, so
+                     * the strip and --safe-top could have come from two different windows. */
                     if (win == null)
                     {
-                        win = UIKit.UIApplication.SharedApplication.ConnectedScenes
-                            .OfType<UIKit.UIWindowScene>()
-                            .SelectMany(s => s.Windows)
-                            .FirstOrDefault();
+                        win = Application.Current?.Windows?.FirstOrDefault()?.Handler?.PlatformView as UIKit.UIWindow;
                     }
                     if (win != null)
                     {

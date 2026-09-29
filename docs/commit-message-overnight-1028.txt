@@ -1,0 +1,15 @@
+Overnight FE round (#1028–#1038): native copy, tick crossfade, sent-file ticks, Mac hairline, dark sheets — Opus #46 CLEAN at r5
+
+The patch series carries one commit per step. Use this message only if you squash.
+
+- #1028 native copy verb ixian:copytext (C# Clipboard.SetTextAsync, JS fallback; foreground-only, 750 ms rate
+  limit, mini-apps refused, payload never logged) · live tick crossfade + replay · sent-file ticks
+  (addFile arg 14, updateFileTicks) · Mac title-bar hairline at --safe-top, max(page, window) inset push
+- #1029 light Contours 0.06 · #1030 dark sheets on --surface-sheet + -sheet remaps
+- #1031/#1032 M3/M4 shades, M5 kept, Canvas radiogroup keys · #1033 R.10 recommendation (not built)
+- #1034 release-readiness §3 verified; Q1 "Replace file"
+- #1035–#1038 Opus #46 loop r1–r5: 3 MAJOR fixed, CLEAN at r5, 87 mutations
+
+Suite 4952 → 4968 / the 2 KNOWN (+16). C# uncompiled in the cloud: SpixiContentPage, HomePage,
+SingleChatPage, CallPage.
+

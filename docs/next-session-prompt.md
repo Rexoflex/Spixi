@@ -1,21 +1,18 @@
-OVERNIGHT, UNATTENDED, CLOUD-ONLY — finalize the FE work left after the Mac + iPhone walk.
+DEVICE DAY — walk the overnight FE round (#1028–#1038) on Mac · iPhone · Android · Windows.
 
-0 · Clone `https://github.com/Rexoflex/Spixi` branch `redesign/frontend` (HEAD must be 8cc96656) and
-`https://github.com/ixian-platform/Ixian-Core` at 097341a as a SIBLING folder. `npm i --no-save jsdom eslint globals`.
-Run the full pipeline + `node scripts/smoke-test.mjs` → expect BASELINE OK 4952 / the 2 KNOWN. Record the number.
+0 · On the PC: `git am overnight-patches/*.patch` on `redesign/frontend` (HEAD must be 26889f1c). Check the
+SHA256 list first. Full pipeline (extract-strings → build-locales → build-strings-iife → build-demo-bundle →
+build-shells) → `build-shells --check` → `node scripts/smoke-test.mjs` → expect BASELINE OK / the 2 KNOWN and a
+delta of +16 from your last run. Wipe `obj`/`bin` (C# changed in 4 files, never compiled).
 
-1 · Read `docs/handoff-2026-09-29.md` FIRST, then DECISIONS #1016–#1027 and
-`docs/walk-verdict-mac-ios-2026-09-28.md`. Work the plate in the handoff's order: A (walk fails) → B (notes)
-→ C (dials, render + pick + record) → D (release-readiness §3, verify each row before building) → E (record only).
+1 · Read `docs/handoff-2026-09-30.md` FIRST, then DECISIONS #1028–#1038 and
+`docs/opus-review-brief-overnight-1028.md`.
 
-2 · Each change: render proof (both themes, phone + desktop where it applies), a pin, a one-token mutation that
-turns it red, full pipeline, smoke delta. New verbs/storage/log lines → `docs/security-handover-gate.md` row FIRST.
-C# you touch is UNCOMPILED here — say so per file. Opus #46 loop (3 auditors → fixes → a fresh break-my-verdict
-reviewer) until CLEAN; write the verdict into a brief.
+2 · Build: Windows F5 (never `dotnet build`, #663) · Android Debug · Mac maccatalyst Debug · iPhone ios-arm64
+Debug. A compile error is this batch's bug — paste it verbatim into the session.
 
-3 · Nobody is there to answer: make the reasonable call, record it as a DECISIONS row, list every open dial at the
-end. Do not stop on a question.
+3 · Walk `docs/walk-artifact-overnight-1028.html` (28 rows). OV.13 needs the `[M6]` log line. OV.16 and OV.24
+are dials — write the pick. Paste "Copy results" into the session.
 
-4 · Deliver: `git format-patch 8cc96656..HEAD` + a tarball of changed files + SHA256 list via SendUserFile; a walk
-sheet artifact for the next device day (Mac · iPhone · Android · Windows); updated handoff + CLAUDE.md row +
-next-session prompt. Do not push (the proxy refuses it). Chat replies in ASD-STE100 (#931).
+4 · The session then: fixes the fails (verify first, #294), records the dials as DECISIONS rows, runs the Opus
+#46 loop over any fix, and writes the next handoff. Commit + push = Damir. Chat replies in ASD-STE100 (#931).

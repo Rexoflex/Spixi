@@ -837,7 +837,7 @@ Summary: **804** keys · **141** map to a legacy id · **663** new · legacy dic
 | `notifPushProviderOn` | On: OneSignal wakes this device the moment a message arrives. OneSignal receives a push token for this device and sees its IP address. It never sees your messages or your contacts. | text | long |  | — |
 | `notifSender` | Show sender name | label | short |  | — |
 | `notifSenderSub` | Message text is never shown in notifications | label | medium |  | — |
-| `notifSounds` | In-app sounds | error | short |  | — |
+| `notifSounds` | In-app sounds | label | short |  | — |
 | `notifications` | Notifications | text/label | short |  | `contact-details-notifications` |
 | `patternNone` | None | label | short |  | — |
 | `patternStyle` | Background | text | short |  | — |

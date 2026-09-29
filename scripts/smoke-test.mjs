@@ -38240,7 +38240,12 @@ console.log('★★ #1028+ — the overnight finalization');
   console.log('★★ #1040 — premium + clarity round');
   {
     const W = mkWin(), S = W.Spixi, r = {};
-    /* ① one fiat rule: 2 dp, half-up on the string, sub-cent = "<$0.01" unsigned, junk = '' */
+    /* ① one fiat rule: 2 dp, half-up on the string, sub-cent = "<$0.01" unsigned, junk = ''.
+     *  ★ The expectations are en-US strings, so the document locale is PINNED to en-US here.
+     *  Unset, docLocale() is undefined and Intl falls to the HOST's locale: on Damir's
+     *  PC (sl-SI) the product correctly printed "$850,30" and this clause went red
+     *  (2026-09-29). The locale-following half is subCentLocale's job, not this one's. */
+    W.document.documentElement.lang = 'en-US';
     r.fiat = S.fiatLine('0.00000089', '+') === '<$0.01' && S.fiatLine('0.00018005', '-') === '<$0.01'
       && S.fiatLine('0.005', '+') === '+$0.01' && S.fiatLine('0.0049') === '<$0.01'
       && S.fiatLine('850.3') === '$850.30' && S.fiatLine('0.995', '-') === '-$1.00'

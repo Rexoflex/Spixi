@@ -217,7 +217,10 @@ img, svg { display: block; max-width: 100%; }
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-full);
-  background: var(--disc-grad, var(--disc-grad-1));
+  /* ★ #1031 (dial M4, #1022): a 15% SHADE under every disc gradient — the white glyph is a non-text graphic
+     (WCAG 1.4.11, 3:1) and on the raw pairs it read 2.31 (sunflower) … 3.29 at the disc's centre; with the
+     shade the floor is 3.16 (computed in the suite). The avatars keep the raw pairs; the discs are icons. */
+  background: var(--disc-shade), var(--disc-grad, var(--disc-grad-1));
   color: #fff;                                   /* sanctioned: a white glyph on a gradient disc — mode-agnostic by design */
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16); /* sanctioned: the disc's glass edge, a white alpha over the gradient in both modes */
 }

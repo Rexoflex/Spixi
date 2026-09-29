@@ -38013,6 +38013,59 @@ console.log('★★ #1028+ — the overnight finalization');
     ok(Object.values(r).every((v) => v === true),
       '★★ #1030 (walk P.18): .c-sheet and .c-modal paint --surface-sheet — light = the menu surface, dark one rung UNDER it and still above the screen; the card lifts ≥ 1.11, its hover ≥ 1.11 on the card, pressed past hover; toasts keep --surface-menu; the destructive fill separates better on the new ground — ' + JSON.stringify(r));
   }
+  {
+    /* —— #1031 (dials M3 + M4): the document tile's label ≥ 4.5:1 and the disc glyph ≥ 3:1, COMPUTED at the centre
+       of every family / pair through the shade the stylesheet actually layers (read from the tokens, not assumed) —— */
+    const tok = stripCssComments(rdO('src/styles/tokens.css'));
+    const shadeOf = (name) => { const m = new RegExp('--' + name + ': linear-gradient\\(rgba\\(0, 0, 0, ([0-9.]+)\\), rgba\\(0, 0, 0, \\1\\)\\);').exec(tok); return m ? Number(m[1]) : NaN; };
+    const tileA = shadeOf('tile-shade'), discA = shadeOf('disc-shade');
+    const pairOf = (n) => { const m = new RegExp('--disc-grad-' + n + ': linear-gradient\\(180deg, (#[0-9A-Fa-f]{6}) 0%, (#[0-9A-Fa-f]{6}) 100%\\);').exec(tok); return m ? [m[1], m[2]] : null; };
+    const midShaded = ([a, b], al) => '#' + [1, 3, 5].map((k) => Math.round(((parseInt(a.slice(k, k + 2), 16) + parseInt(b.slice(k, k + 2), 16)) / 2) * (1 - al)).toString(16).padStart(2, '0')).join('');
+    const tb = stripCssComments(rdO('src/styles/components/typed-bubbles.css'));
+    /* DERIVED: every family rule of the tile, and the default one, layers the shade under its gradient */
+    const tileRules = [...tb.matchAll(/\.c-fbubble__icon(\[data-kind="(\w+)"\])?\s*\{ background: ([^;]+); \}/g)].map((m) => ({ kind: m[2] || 'default', bg: m[3] }));
+    const tileBad = tileRules.filter((t) => !/^var\(--tile-shade\), var\(--disc-grad-(\d+|neutral)\)$/.test(t.bg)).map((t) => t.kind);
+    const tileCr = tileRules.map((t) => { const n = (/--disc-grad-(\d+|neutral)/.exec(t.bg) || [])[1]; const p = pairOf(n); return { kind: t.kind, c: p ? +crO('#ffffff', midShaded(p, tileA)).toFixed(2) : 0 }; });
+    const discCr = []; for (let n = 1; n <= 11; n++) { const p = pairOf(n); discCr.push(p ? +crO('#ffffff', midShaded(p, discA)).toFixed(2) : 0); }
+    const base = stripCssComments(rdO('src/styles/base.css'));
+    const discRule = /\.c-disc \{([^}]*)\}/.exec(base);
+    ok(tileRules.length >= 8 && tileBad.length === 0 && tileCr.every((t) => t.c >= 4.5)
+       && !!discRule && /background: var\(--disc-shade\), var\(--disc-grad, var\(--disc-grad-1\)\);/.test(discRule[1]) && discCr.every((c) => c >= 3),
+      '★★ #1031 (M3/M4): every document-tile rule (' + tileRules.length + ') layers --tile-shade (' + tileA + ') under its family gradient and the white 11px label holds ≥ 4.5:1 at the tile centre on EVERY family; the icon disc layers --disc-shade (' + discA + ') and its white glyph holds ≥ 3:1 on all 11 pairs — ' + JSON.stringify({ tileBad, tileCr, discCr }));
+  }
+  {
+    /* —— #1032 (the #1024 dial): the Canvas radiogroup keyboard contract, EXECUTED —— */
+    const W = mkWin(), S = W.Spixi, d = W.document;
+    d.documentElement.setAttribute('data-theme', 'light');
+    const picks = [];
+    const scr = S.createChatAppearance({ chatGround: 'flat', onChatGround: (id) => picks.push(id), strings: {} });
+    d.body.append(scr);
+    const dots = scr.querySelector('.c-settings-appearance__dots');
+    const kids = dots ? [...dots.children] : [];
+    const tabs = () => kids.map((b) => b.tabIndex);
+    const key = (el, k) => el.dispatchEvent(new W.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+    const r = {};
+    r.oneStop = kids.length >= 2 && tabs().filter((t) => t === 0).length === 1 && kids[tabs().indexOf(0)].getAttribute('aria-checked') === 'true';
+    kids[0].focus();
+    const flatIdx = kids.findIndex((b) => b.dataset.value === 'flat');
+    kids[flatIdx].focus();
+    key(kids[flatIdx], 'ArrowRight');
+    const n1 = (flatIdx + 1) % kids.length;
+    r.arrowSelects = d.activeElement === kids[n1] && kids[n1].getAttribute('aria-checked') === 'true' && picks[picks.length - 1] === kids[n1].dataset.value && kids[n1].tabIndex === 0 && kids[flatIdx].tabIndex === -1;
+    key(kids[n1], 'ArrowLeft');
+    r.back = d.activeElement === kids[flatIdx] && kids[flatIdx].getAttribute('aria-checked') === 'true';
+    key(kids[flatIdx], 'End');
+    r.end = d.activeElement === kids[kids.length - 1];
+    key(kids[kids.length - 1], 'Home');
+    r.home = d.activeElement === kids[0];
+    /* ⚠ RTL mirroring is NOT asserted: with TWO dots next and previous are the same dot, so no test can tell a
+       mirrored key from an unmirrored one (a mutation proved it). The code mirrors for a third ground. */
+    const ev = new W.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }); kids[0].dispatchEvent(ev);
+    r.tabUntouched = !ev.defaultPrevented;
+    ok(Object.values(r).every((v) => v === true),
+      '★ #1032 (the #1024 dial): the Canvas radiogroup has ONE tab stop (the checked dot), arrows move focus AND select (wrapping), Home/End jump, Tab is left to the browser — ' + JSON.stringify(r));
+    W.close();
+  }
 }
 /* ══ OVERNIGHT-1028-END ══ */
 

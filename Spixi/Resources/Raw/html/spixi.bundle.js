@@ -24031,9 +24031,35 @@ function createChatAppearance({
     dots.className = 'c-settings-appearance__dots';
     dots.setAttribute('role', 'radiogroup');
     dots.setAttribute('aria-labelledby', lab.id);
+    /* ★ #1032 (the #1024 dial, under the #205 deferral): the ARIA radio-group keyboard contract — ONE tab stop
+       (the checked dot, roving tabindex), arrows move AND select (Right/Down next, Left/Up previous, mirrored
+       in RTL; Home/End), wrapping. Operable before only by Tab + Enter per dot. The other four radiogroups
+       of the #205 list keep the deferral. */
     const paint = () => {
-      for (const b of dots.children) b.setAttribute('aria-checked', String(b.dataset.value === groundCurrent));
+      const kids = [...dots.children];
+      const anyChecked = kids.some((b) => b.dataset.value === groundCurrent);
+      kids.forEach((b, i) => {
+        const on = b.dataset.value === groundCurrent;
+        b.setAttribute('aria-checked', String(on));
+        b.tabIndex = on || (!anyChecked && i === 0) ? 0 : -1;
+      });
     };
+    dots.addEventListener('keydown', (e) => {
+      const kids = [...dots.children];
+      const i = kids.indexOf(e.target);
+      if (i < 0 || e.altKey || e.ctrlKey || e.metaKey) return;
+      const rtl = (dots.closest('[dir]') || document.documentElement).getAttribute('dir') === 'rtl';
+      const fwd = rtl ? 'ArrowLeft' : 'ArrowRight', back = rtl ? 'ArrowRight' : 'ArrowLeft';
+      let n = -1;
+      if (e.key === fwd || e.key === 'ArrowDown') n = (i + 1) % kids.length;
+      else if (e.key === back || e.key === 'ArrowUp') n = (i - 1 + kids.length) % kids.length;
+      else if (e.key === 'Home') n = 0;
+      else if (e.key === 'End') n = kids.length - 1;
+      if (n < 0) return;
+      e.preventDefault();
+      kids[n].focus();
+      kids[n].click();   // a radio arrow SELECTS (the click handler is a no-op on the current one)
+    });
     for (const o of CHAT_GROUNDS) {
       const b = document.createElement('button');
       b.type = 'button';

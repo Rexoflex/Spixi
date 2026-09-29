@@ -288,13 +288,19 @@
   flex: none;
   transition: filter var(--duration-100) var(--easing-standard);
 }
-.c-fbubble__icon[data-kind="pdf"]     { background: var(--disc-grad-11); }   /* rose */
-.c-fbubble__icon[data-kind="doc"]     { background: var(--disc-grad-7); }    /* blue */
-.c-fbubble__icon[data-kind="archive"] { background: var(--disc-grad-1); }    /* orange */
-.c-fbubble__icon[data-kind="image"]   { background: var(--disc-grad-4); }    /* green */
-.c-fbubble__icon[data-kind="audio"]   { background: var(--disc-grad-9); }    /* purple */
-.c-fbubble__icon[data-kind="video"]   { background: var(--disc-grad-10); }   /* pink */
-.c-fbubble__icon[data-kind="code"]    { background: var(--disc-grad-6); }    /* cyan */
+/* ★★ #1031 (dial M3, #1022): the white extension label is 11px bold — WCAG wants 4.5:1, and on the
+   raw avatar gradients it read 2.7–3.3:1 at the label's height (the tile's midpoint). A uniform 25% black
+   SHADE under the family gradient lifts every family to ≥ 4.5:1 at the midpoint (computed in the suite:
+   code 4.52 is the floor) while keeping the hue — the avatars keep the raw pairs (#364 covers initials).
+   One token, so the whole ladder moves together; rendered before/after both themes. */
+.c-fbubble__icon { background: var(--tile-shade), var(--disc-grad-neutral); }
+.c-fbubble__icon[data-kind="pdf"]     { background: var(--tile-shade), var(--disc-grad-11); }   /* rose */
+.c-fbubble__icon[data-kind="doc"]     { background: var(--tile-shade), var(--disc-grad-7); }    /* blue */
+.c-fbubble__icon[data-kind="archive"] { background: var(--tile-shade), var(--disc-grad-1); }    /* orange */
+.c-fbubble__icon[data-kind="image"]   { background: var(--tile-shade), var(--disc-grad-4); }    /* green */
+.c-fbubble__icon[data-kind="audio"]   { background: var(--tile-shade), var(--disc-grad-9); }    /* purple */
+.c-fbubble__icon[data-kind="video"]   { background: var(--tile-shade), var(--disc-grad-10); }   /* pink */
+.c-fbubble__icon[data-kind="code"]    { background: var(--tile-shade), var(--disc-grad-6); }    /* cyan */
 .c-fbubble__ext {
   max-width: 36px;         /* ★ #1022 (r1 N4): a wide 4-letter extension from a peer clips inside the 40px tile */
   overflow: hidden;

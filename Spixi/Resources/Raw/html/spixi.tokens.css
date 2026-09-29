@@ -1539,6 +1539,8 @@
   --disc-grad-10: linear-gradient(180deg, #E57DCC 0%, #CF4A8C 100%);   /* pink = avatar pair 10 */
   --disc-grad-11: linear-gradient(180deg, #F778A0 0%, #DA4959 100%);   /* rose = avatar pair 11 */
   --disc-grad-neutral: linear-gradient(180deg, #8A96A8 0%, #5B6778 100%);   /* slate — the calm rows */
+  --disc-shade: linear-gradient(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.15));   /* ★ #1031 (M4): the icon disc's shade — a white glyph ≥ 3:1 on every pair */
+  --tile-shade: linear-gradient(rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.25));   /* ★ #1031 (M3): the document tile's shade under a family gradient — white 11px bold ≥ 4.5:1 */
   --disc-grad-error: linear-gradient(135deg, #f87171 0%, #dc2626 100%);
 
   /* state washes over strong surfaces (hero gradient, success call bar) —

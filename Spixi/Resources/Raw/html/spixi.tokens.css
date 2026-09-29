@@ -743,6 +743,12 @@
      a row being PRESSED paints the --surface-press-row overlays, and there the tick reads 2.58–3.10 —
      a momentary state, accepted below the floor (the tick is secondary status, the press lasts a tap).
      A SELECTED desktop row keeps full opacity (chatlist-item.css). Read stays full (green). */
+  /* ★ #1047 (Damir 2026-09-29, pick C of the four-option render): the chat-LIST read tick is the brand's
+     brand-500 in BOTH themes — on brand, and far enough from the faded grey delivered tick in lightness
+     and saturation to read at a glance (3.66:1 on the light list, 3.17 on a pinned row, 4.95 dark). The
+     old accent (brand-600 light / brand-300 dark) sat at the grey's lightness. Inside a bubble the read
+     tick stays the mint (a blue tick on the blue bubble is invisible). */
+  --icon-tick-read: var(--brand-500);
   --tick-delivered-opacity: 0.82;
   --icon-neutral-03: var(--neutral-460);
   --icon-neutral-inverse-01: var(--neutral-100);

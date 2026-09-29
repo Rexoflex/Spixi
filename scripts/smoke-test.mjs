@@ -38375,9 +38375,11 @@ console.log('★★ #1028+ — the overnight finalization');
     r.warmNullFallback = /try \{ repaintSystemBars\(visibleSurfacePage\(null\)\); \}/.test(csw);
     /* ★ #1041 (Damir: the incoming timestamp "clashes with the message"): received meta children at 0.7, like sent */
     r.recvMeta = /\.c-bubble-row\[data-direction="received"\] \.c-bubble__meta > \* \{ opacity: 0\.7; \}/.test(stripCssComments(rdO('src/styles/components/message-bubble.css')));
-    r.readTick = readTok === '--icon-success' && delTok === '--icon-neutral-03'
-      && ['light', 'dark'].every((t) => crO(resolveTok(t, readTok), resolveTok(t, '--surface-screen')) >= 3
-        && resolveTok(t, readTok) !== resolveTok(t, delTok));
+    /* ★ #1047 (Damir picked C): read = brand-500 in both themes, ≥ 3:1 on the list ground AND the pinned wash */
+    r.readTick = readTok === '--icon-tick-read' && delTok === '--icon-neutral-03'
+      && resolveTok('light', readTok) === resolveTok('light', '--brand-500') && resolveTok('dark', readTok) === resolveTok('light', '--brand-500')
+      && ['light', 'dark'].every((t) => { const bg = resolveTok(t, '--surface-screen'), pin = overO(resolveTok(t, '--surface-pinned'), bg);
+        return crO(resolveTok(t, readTok), bg) >= 3 && !!pin && crO(resolveTok(t, readTok), pin) >= 3 && resolveTok(t, readTok) !== resolveTok(t, delTok); });
     ok(Object.values(r).every((v) => v === true),
       '★★ #1040 (Damir 2026-09-29): one fiat rule (2 dp, "<$0.01") in every shell · the tx sheet reads as a receipt (unit, ONE status stamp, address in groups of four, id cut in the MIDDLE) · a pinch-set text size names itself · Background tiles name themselves · the re-presented Account page repaints the status bar · the settings ground is one step lighter · credits are a list · "Available balance" — ' + JSON.stringify(r));
   }

@@ -109,7 +109,7 @@
 .c-status-icon { flex: none; }
 .c-status-icon[data-tone="neutral"] { color: var(--icon-neutral-03); }
 .c-status-icon[data-tone="delivered"] { color: var(--icon-neutral-03); opacity: var(--tick-delivered-opacity, 1); } /* list surface: delivered stays neutral and FADES (#1041); the sent bubble overrides colour and opacity (message-bubble.css E1) */
-.c-status-icon[data-tone="read"] { color: var(--icon-success); }
+.c-status-icon[data-tone="read"] { color: var(--icon-tick-read); }   /* ★ #1047: brand-500 (Damir picked C) — was the #1041 green */
 /* ★ #1042 (#46 r2): a SELECTED desktop row's tint drops the faded tick under 3:1 — it keeps full opacity */
 .c-chatlist-item[aria-current] .c-status-icon[data-tone="delivered"] { opacity: 1; }
 /* ★ #1041 (Damir 2026-09-29, screenshots: "read and delivered are hard to distinguish" on the chat

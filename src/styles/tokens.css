@@ -1367,7 +1367,7 @@
      the Default stroke sat 4.03 L* below it; the colourful canvas is darker and mid-lightness,
      so the same alpha only reached 2.96 (teal end) / 3.62 (green end). .07 restores 3.47 / 4.26
      — the strength Damir already approved, carried onto a different ground rather than re-picked. */
-  --chat-pattern-alpha-1: 0.06;    /* ★ #1029 (walk P.8, Damir 2026-09-28: "light Contours almost invisible"): ONE rung up, back to 0.06 — ΔL* on Mist 2.99 → 3.99 (the brand gradient 2.45 → 3.27); rendered with 0.075 beside it (docs/sheets/overnight-1028/p8-contours-light.png). Was 0.045 — #1002 ("Subtle ≈ 0.045" on Mist); before that 0.06 (2026-08-30). Next rung if still faint = 0.075 (ΔL* 4.99). Dark unchanged. */
+  --chat-pattern-alpha-1: 0.075;   /* ★ #1039 (PC+Android walk OV.16, Damir 2026-09-29: "need stronger"): 0.06 → 0.075, the rung #1029 named — ΔL* on Mist 3.99 → 4.99. ★ #1029 (walk P.8, Damir 2026-09-28: "light Contours almost invisible"): ONE rung up, back to 0.06 — ΔL* on Mist 2.99 → 3.99 (the brand gradient 2.45 → 3.27); rendered with 0.075 beside it (docs/sheets/overnight-1028/p8-contours-light.png). Was 0.045 — #1002 ("Subtle ≈ 0.045" on Mist); before that 0.06 (2026-08-30). Next rung if still faint = 0.075 (ΔL* 4.99). Dark unchanged. */
   --chat-pattern-alpha-2: 0.1;     /* Strong */
   --chat-pattern-opacity: var(--chat-pattern-alpha-1);
   /* message text scale (#147 — Chat appearance setting, FE-only). Bubbles

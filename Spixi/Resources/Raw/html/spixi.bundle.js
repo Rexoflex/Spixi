@@ -5021,7 +5021,10 @@ function crossfadeTick(oldEl, newEl, elapsedMs = 0) {
   /* ★ #1035 (#46 auditor B, M2): a REPLAY continues the fade where it was — a negative delay starts both
      animations `elapsedMs` in — instead of restarting a ghost at full opacity (a blink on a late rebuild). */
   const e = Math.max(0, Math.min(TICK_FADE_MS, Math.round(elapsedMs)));
-  if (e > 0) { oldEl.style.animationDelay = -e + 'ms'; newEl.style.animationDelay = -e + 'ms'; }
+  /* ALWAYS written (#1036, r2 n1): a replayed glyph that later becomes a ghost must not keep its old
+     negative delay and fade out already part-way done */
+  const delay = e > 0 ? -e + 'ms' : '';
+  oldEl.style.animationDelay = delay; newEl.style.animationDelay = delay;
   oldEl.after(newEl);
   const drop = () => { if (oldEl.isConnected) oldEl.remove(); };
   oldEl.addEventListener('animationend', drop, { once: true });

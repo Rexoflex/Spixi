@@ -957,13 +957,14 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   --surface-card-pressed: var(--surface-sheet-card-pressed);
   /* ★ #1035 (#46 auditor C, MAJOR): the other roles that equalled the dark sheet once it moved to 800 —
      the menu dividers, the send-review row lines, the address chip, an in-sheet search field, row and
-     text-button hover/pressed, and the settings card. Light is value-identical (tokens.css). A derived
-     pin requires EVERY dark token equal to the sheet ground to be remapped here or allow-listed. */
+     text-button hover/pressed, and the settings card. Light is value-identical (tokens.css) — for the ROOT
+     values: an ancestor that overrode one of these above a sheet would be reset here (none does today). A
+     derived pin requires EVERY dark token equal to the sheet ground to be remapped here or allow-listed. */
   --outline-neutral-01: var(--outline-sheet-01);
   --surface-input: var(--surface-input-sheet);
   --surface-interactive-hover: var(--surface-interactive-hover-sheet);
   --surface-interactive-pressed: var(--surface-interactive-pressed-sheet);
-  --surface-settings-card: var(--surface-sheet-card);
+  --surface-settings-card: var(--surface-settings-card-sheet);   /* ★ #1036 (r2 n2): light value-identical (was the sheet-card, #edf0f2 for #ffffff) */
 }
 .c-modal {
   position: absolute;

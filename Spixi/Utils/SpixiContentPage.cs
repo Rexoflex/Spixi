@@ -4395,9 +4395,17 @@ namespace SPIXI
                     return true;
                 }
                 string? text = decodeCopyPayload(payload);
-                if (string.IsNullOrEmpty(text) || !App.isInForeground || !tryTakeCopySlot())
+                if (string.IsNullOrEmpty(text) || !App.isInForeground)
                 {
                     Utils.sendUiCommand(this, "nativeCopyResult", token, "0");
+                    return true;
+                }
+                if (!tryTakeCopySlot(text, out bool sameAsLast))
+                {
+                    /* ★ #1036 (#46 r2 m2): a double tap on ONE Copy is refused by the rate limit, but its
+                     * text IS on the clipboard — answer "1" for the SAME text (an honest ✓; a swapper
+                     * gains nothing), "0" for a different one inside the window. */
+                    Utils.sendUiCommand(this, "nativeCopyResult", token, sameAsLast ? "1" : "0");
                     return true;
                 }
                 MainThread.BeginInvokeOnMainThread(async () =>
@@ -4441,20 +4449,25 @@ namespace SPIXI
         /// cannot tap Copy twice inside it; a script polling the clipboard to swap an address can.</summary>
         public const int COPY_MIN_INTERVAL_MS = 750;
         private static long lastCopyTicks = 0;
+        private static string? lastCopyText = null;   // ★ #1036: held only to recognise a double tap; never logged
         private static readonly object copySlotLock = new object();
 
         /// <summary>★ #1035 — true (and the slot taken) when no native copy was accepted in the last
-        /// COPY_MIN_INTERVAL_MS. Environment.TickCount64 is monotonic (a wall-clock change cannot reopen it).</summary>
-        private static bool tryTakeCopySlot()
+        /// COPY_MIN_INTERVAL_MS. Environment.TickCount64 is monotonic (a wall-clock change cannot reopen it).
+        /// ★ #1036 — on a refusal, <paramref name="sameAsLast"/> says whether the text equals the last ACCEPTED one.</summary>
+        private static bool tryTakeCopySlot(string text, out bool sameAsLast)
         {
             lock (copySlotLock)
             {
                 long now = Environment.TickCount64;
                 if (lastCopyTicks != 0 && now - lastCopyTicks < COPY_MIN_INTERVAL_MS)
                 {
+                    sameAsLast = string.Equals(text, lastCopyText, StringComparison.Ordinal);
                     return false;
                 }
                 lastCopyTicks = now;
+                lastCopyText = text;
+                sameAsLast = false;
                 return true;
             }
         }

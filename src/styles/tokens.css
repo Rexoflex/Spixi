@@ -603,6 +603,7 @@
   --surface-input-sheet: var(--surface-input);
   --surface-interactive-hover-sheet: var(--surface-interactive-hover);
   --surface-interactive-pressed-sheet: var(--surface-interactive-pressed);
+  --surface-settings-card-sheet: var(--surface-settings-card);   /* ★ #1036: light = the settings card as it is (value-identical) */
 
   /* text */
   --text-neutral-01: var(--neutral-950);
@@ -973,8 +974,9 @@
   --surface-sheet: var(--neutral-800);
   --outline-sheet-01: var(--neutral-700);                  /* ★ #1035: the hairline on the 800 sheet (1.11 — the step it had on the 700 sheet) */
   --surface-input-sheet: var(--neutral-700);               /* ★ #1035: an input / address chip on the 800 sheet */
-  --surface-interactive-hover-sheet: var(--neutral-700);   /* ★ #1035: row / text-button hover on the sheet (800 → invisible) */
-  --surface-interactive-pressed-sheet: var(--neutral-600); /* ★ #1035: pressed one rung past hover */
+  --surface-interactive-hover-sheet: var(--neutral-600);   /* ★ #1035/#1036: row / text-button hover on the sheet — 600, NOT 700: 700 is the sheet-CARD tone, so a control hosted on a card (the address chip's Copy) hovered to its own colour (r2 m1) */
+  --surface-interactive-pressed-sheet: var(--neutral-500); /* ★ #1035/#1036: pressed one rung past hover */
+  --surface-settings-card-sheet: var(--surface-sheet-card); /* ★ #1036 (r2 n2): the settings card inside a sheet lifts like any card */
 
   /* text */
   --text-neutral-01: var(--neutral-100);

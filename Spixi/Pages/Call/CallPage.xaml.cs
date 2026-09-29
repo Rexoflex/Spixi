@@ -637,7 +637,10 @@ namespace SPIXI
                 {
                     stage.VerticalOptions = LayoutOptions.Start;
                     double stripHeight = barHeightDip;
-#if IOS
+#if IOS || MACCATALYST
+                    // ★ #1036 (#46 r2 M1): the Mac too — since #1035 its shells take the WINDOW's
+                    // top inset into --safe-top (SpixiContentPage M6 block), so call.html's bar grows
+                    // by it; the native strip must grow by the same number or the hang-up row clips.
                     // iOS edge-to-edge: the host grid now starts at the SCREEN top (the
                     // native inset padding is gone) — grow the strip by the status-bar
                     // inset so the 64dip content row lands below it. call.html mirrors

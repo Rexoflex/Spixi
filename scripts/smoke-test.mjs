@@ -37705,13 +37705,16 @@ console.log('★★ #1028+ — the overnight finalization');
     /* ★ #1035 (auditor A, m4): the mini-app refusal is the FIRST statement of the branch, not merely before the write */
     r.miniApp = /^url\.StartsWith\("ixian:copytext:", StringComparison\.Ordinal\)\)\s*\{\s*if \(!hasGeneratedContent\)\s*\{\s*return true;\s*\}/.test(br);
     /* ★ #1035 (auditor A, MAJOR): refused while the app is not in the foreground, and rate-limited process-wide */
-    r.foregroundRate = /if \(string\.IsNullOrEmpty\(text\) \|\| !App\.isInForeground \|\| !tryTakeCopySlot\(\)\)\s*\{\s*Utils\.sendUiCommand\(this, "nativeCopyResult", token, "0"\);\s*return true;/.test(br)
-      && br.indexOf('tryTakeCopySlot()') < br.indexOf('SetTextAsync')
+    r.foregroundRate = /if \(string\.IsNullOrEmpty\(text\) \|\| !App\.isInForeground\)\s*\{\s*Utils\.sendUiCommand\(this, "nativeCopyResult", token, "0"\);\s*return true;\s*\}\s*if \(!tryTakeCopySlot\(text, out bool sameAsLast\)\)\s*\{\s*Utils\.sendUiCommand\(this, "nativeCopyResult", token, sameAsLast \? "1" : "0"\);\s*return true;/.test(br)
+      && br.indexOf('tryTakeCopySlot(') < br.indexOf('SetTextAsync')
       && /public const int COPY_MIN_INTERVAL_MS = 750;/.test(cs)
-      && /long now = Environment\.TickCount64;\s*if \(lastCopyTicks != 0 && now - lastCopyTicks < COPY_MIN_INTERVAL_MS\)\s*\{\s*return false;\s*\}\s*lastCopyTicks = now;\s*return true;/.test(cs);
+      /* ★ #1036 (r2 m3): PROCESS-WIDE (static state + a static method) and under the lock */
+      && /private static long lastCopyTicks = 0;/.test(cs) && /private static string\? lastCopyText = null;/.test(cs) && /private static readonly object copySlotLock = new object\(\);/.test(cs)
+      && /private static bool tryTakeCopySlot\(string text, out bool sameAsLast\)\s*\{\s*lock \(copySlotLock\)\s*\{\s*long now = Environment\.TickCount64;\s*if \(lastCopyTicks != 0 && now - lastCopyTicks < COPY_MIN_INTERVAL_MS\)\s*\{\s*sameAsLast = string\.Equals\(text, lastCopyText, StringComparison\.Ordinal\);\s*return false;\s*\}\s*lastCopyTicks = now;\s*lastCopyText = text;\s*sameAsLast = false;\s*return true;/.test(cs)
+      && !/Logging\.\w+\([^;]*lastCopyText/.test(cs);
     r.token = /token\.Length > 16/.test(br) && /token\.All\(c => c >= '0' && c <= '9'\)/.test(br);
     r.decoded = /decodeCopyPayload\(payload\)/.test(br) && /Clipboard\.Default\.SetTextAsync\(text\)/.test(br);
-    r.answer = (br.match(/sendUiCommand\(this, "nativeCopyResult", token, /g) || []).length === 2;
+    r.answer = (br.match(/sendUiCommand\(this, "nativeCopyResult", token, /g) || []).length === 3;   // refused · rate-limited (#1036) · the write's outcome
     /* every Logging call in the branch carries nothing but the exception TYPE */
     const decBody = cs.slice(cs.indexOf('public static string? decodeCopyPayload'), cs.indexOf('#if IOS', cs.indexOf('public static string? decodeCopyPayload')));
     const logs = [...br.matchAll(/Logging\.\w+\(([^;]*)\);/g)].map((x) => x[1]);
@@ -37874,6 +37877,15 @@ console.log('★★ #1028+ — the overnight finalization');
     W.matchMedia = (q) => ({ matches: /reduce/.test(q), media: q, addListener() {}, removeListener() {} });
     S.setMessageStatus(row, 'delivered', {}, { animate: true });
     const reduced = row.querySelectorAll('.c-status-icon').length === 1 && !row.querySelector('[data-enter]');
+    W.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {} });
+    /* ★ #1036 (r2 n1): a REPLAYED glyph that later becomes a ghost drops its old negative delay */
+    const row2 = S.createMessageBubble({ text: 'y', direction: 'sent', status: 'delivered', timestamp: Date.now(), strings: {} });
+    W.document.body.append(row2);
+    S.replayStatusChange(row2, 'sent', 80);
+    const replayed = row2.querySelector('.c-status-icon:not([data-exit])');
+    const hadDelay = replayed.style.animationDelay === '-80ms';
+    S.setMessageStatus(row2, 'read', {}, { animate: true });
+    const delayCleared = hadDelay && replayed.hasAttribute('data-exit') && replayed.style.animationDelay === '';
     /* a RECEIVED file never carries a tick, whatever the caller passes (the shell passes null — the component holds it too) */
     const recvFile = S.createFileBubble({ name: 'a.pdf', direction: 'received', status: 'read', timestamp: Date.now(), strings: {} });
     const sentFile = S.createFileBubble({ name: 'a.pdf', direction: 'sent', status: 'read', timestamp: Date.now(), strings: {} });
@@ -37893,8 +37905,8 @@ console.log('★★ #1028+ — the overnight finalization');
     const dur = (/--duration-200:\s*(\d+)ms/.exec(rdO('src/styles/tokens.css')) || [])[1];
     const win = (/const TICK_REPLAY_MS = (\d+);/.exec(rdO('src/shells/chat.html')) || [])[1];
     const winOk = !!dur && Number(win) === Math.round(Number(dur) * 0.8);
-    ok(oneGhost && plain && reduced && css && winOk && fileTicks,
-      '★ #1028 (P.13): two changes inside one fade leave ONE ghost; animate:false and reduced motion swap plainly (no ghost); the ghost overlaps by 14px + the SAME gap token the meta and the file stamp use, fades out forwards, and the shell\'s replay window equals the fade (--duration-200 × 0.8) — ' + JSON.stringify({ oneGhost, plain, reduced, css, winOk, fileTicks, gapMeta, gapStamp, dur, win }));
+    ok(oneGhost && plain && reduced && css && winOk && fileTicks && delayCleared,
+      '★ #1028 (P.13): two changes inside one fade leave ONE ghost; animate:false and reduced motion swap plainly (no ghost); the ghost overlaps by 14px + the SAME gap token the meta and the file stamp use, fades out forwards, and the shell\'s replay window equals the fade (--duration-200 × 0.8) — ' + JSON.stringify({ oneGhost, plain, reduced, css, winOk, fileTicks, delayCleared, gapMeta, gapStamp, dur, win }));
     W.close();
   }
 
@@ -37926,6 +37938,13 @@ console.log('★★ #1028+ — the overnight finalization');
     push('updateFileTicks', 'f1', 'True', 'True', 'False');
     const live = tickOf('f1');
     r.ariaLive = btnOf('f1').getAttribute('aria-label').endsWith(live[1] ? live[1].getAttribute('aria-label') : '#');
+    /* ★ #1036 (r2 m4): a transfer that FINISHES (setFileProgress recomposes the name) keeps the tick state in it */
+    {
+      const fb = W.Spixi.createFileBubble({ name: 'a.pdf', direction: 'sent', state: 'progress', progress: 40, status: 'delivered', timestamp: Date.now(), strings: {} });
+      W.Spixi.setFileProgress(fb, 100, { state: 'complete', strings: {} });
+      const lab = fb.querySelector('.c-fbubble').getAttribute('aria-label');
+      r.ariaAfterProgress = lab.endsWith(', delivered') && lab.startsWith(fb.querySelector('.c-fbubble').dataset.ariaBase);
+    }
     r.crossfade = live.length === 2 && live[0].hasAttribute('data-exit') && live[1].dataset.tone === 'delivered' && live[1].hasAttribute('data-enter');
     await sleep(600);
     r.delivered = tickOf('f1').length === 1 && tickOf('f1')[0].dataset.tone === 'delivered';
@@ -38028,7 +38047,9 @@ console.log('★★ #1028+ — the overnight finalization');
     const hgc = blk.indexOf('if (hasGeneratedContent)');
     r.csPush = hgc > 0 && hgc < latch && pushAt > latchEnd && latchEnd > latch && latch > 0
       && /if \(macTop >= 0 && macTop < 1000\)\s*\{\s*Utils\.sendUiCommand\(this, "setInsetTop"/.test(blk)
-      && /winTop = uiWin\.SafeAreaInsets\.Top;/.test(blk) && blk.indexOf('macTop = Math.Max(macTop, winTop);') > latchEnd && blk.indexOf('macTop = Math.Max(macTop, winTop);') < pushAt;
+      && /winTop = uiWin\.SafeAreaInsets\.Top;/.test(blk) && blk.indexOf('macTop = Math.Max(macTop, winTop);') > latchEnd && blk.indexOf('macTop = Math.Max(macTop, winTop);') < pushAt
+      /* ★ #1036 (r2 M1): the call strip grows by the window inset on the Mac too, or the pushed --safe-top clips its hang-up row */
+      && /double stripHeight = barHeightDip;\s*#if IOS \|\| MACCATALYST[\s\S]{0,1400}?stripHeight \+= win\.SafeAreaInsets\.Top;/.test(stripCode(rdO('Spixi/Pages/Call/CallPage.xaml.cs')));
     ok(Object.values(r).every((v) => v === true),
       '★★ #1028 (walk R.6): every shell (source + built) carries the platform carrier and setInsetTop; on the Mac the title-bar line is ALWAYS 1px at --safe-top (y = 0 when the native bar sits above the WebView), and the Catalyst chrome pass pushes the measured overlap into --safe-top on EVERY pass — ' + JSON.stringify(r) + ' lacking: ' + JSON.stringify(lacks.slice(0, 5)));
   }
@@ -38180,7 +38201,15 @@ console.log('★★ #1028+ — the overnight finalization');
       if (!/^--surface-sheet-card$|-sheet(-\w+)?$|^--outline-sheet-01$/.test(target)) continue;
       const dv = resolveTok('dark', target), lv = resolveTok('light', target), lo = resolveTok('light', k);
       if (!dv || crO(dv, sheetDark) < 1.11) bad.push(k + ' dark ' + dv);
-      if (target !== '--surface-sheet-card' && lv !== lo) bad.push(k + ' light ' + lv + ' ≠ ' + lo);
+      /* only the two #1018 card roles may move in light (their own rule: sheet-card = neutral-50 = card there); every
+         #1035/#1036 remap must be value-identical in light */
+      if (!['--surface-card', '--surface-neutral-02'].includes(k) && lv !== lo) bad.push(k + ' light ' + lv + ' ≠ ' + lo);
+    }
+    /* ★ #1036 (r2 m1): a control hosted on a CARD inside the sheet hovers with the sheet hover — it must differ from the
+       sheet-CARD tone too (700 was the card's own colour: an invisible hover on the address chip's Copy) */
+    for (const k of ['--surface-interactive-hover', '--surface-interactive-pressed']) {
+      const t = remapped.get(k);
+      if (!t || crO(resolveTok('dark', t), resolveTok('dark', '--surface-sheet-card')) < 1.11) bad.push(k + ' ≈ the sheet card');
     }
     ok(equal.length >= 5 && unhandled.length === 0 && bad.length === 0,
       '★★ #1035 (auditor C, MAJOR): every dark token equal to the sheet ground (' + equal.length + ': ' + equal.join(' ') + ') is remapped inside .c-sheet/.c-modal or allow-listed with a reason; each remap target lifts ≥ 1.11 off the dark sheet and is value-identical in light — unhandled: ' + JSON.stringify(unhandled) + ' · bad: ' + JSON.stringify(bad));

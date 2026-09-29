@@ -143,6 +143,7 @@
   "copied": "Nukopijuota",
   "copyAddress": "Kopijuoti adresą",
   "copyFailed": "Nepavyko nukopijuoti. Vietoj to pažymėkite adreso tekstą",
+  "copyMessageFailed": "Nepavyko nukopijuoti šios žinutės.",
   "copyLog": "Kopijuoti žurnalą",
   "copyLogFailed": "Nepavyko nukopijuoti. Vietoj to pažymėkite žurnalo tekstą.",
   "copyUrl": "Kopijuoti nuorodą",

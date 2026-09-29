@@ -194,6 +194,7 @@ export const cncn = {
   copyFailedOpenQr: "无法复制。请打开 QR 码以复制完整地址。",
   copyLog: "复制日志",
   copyLogFailed: "无法复制。请手动选择日志文本。",
+  copyMessageFailed: "无法复制此消息。",
   copyUrl: "复制链接",
   createConsent: "创建账户即表示您同意",
   createCta: "创建新账户",

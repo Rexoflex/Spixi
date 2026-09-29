@@ -54,7 +54,7 @@ let copyBuffer = null;
 
 export function getChatCopyBuffer() { return copyBuffer; }
 
-import { execCopyText } from './clipboard.js';   // ★ #993: moved to its own module (shared by every Copy) — no stylesheet family
+import { copyText } from './clipboard.js';     // ★ #993: moved to its own module (shared by every Copy) — no stylesheet family
 
 let selKeySeq = 0;
 
@@ -297,9 +297,9 @@ export function enterChatSelect(listEl, {
     // Exit either way (natives close the bar on Copy) — but report the TRUTH, so
     // the caller can toast "Couldn't copy" instead of a false confirmation.
     const finish = (ok) => { if (onCopy) onCopy(items.length, ok); };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(joined).then(() => finish(true), () => finish(execCopyText(joined)));
-    } else finish(execCopyText(joined));
+    // ★ #1028: the ONE copy path (native first on a bridged page) — this was the last site with its own
+    // async-API-then-execCommand pair, so the multi-select Copy never reached the Mac/iPhone pasteboard
+    copyText(joined).then((ok) => finish(ok === true), () => finish(false));
     exit();
   }
 

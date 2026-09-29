@@ -660,6 +660,20 @@ export function createSettingsHub({
           // ⚠ #1012 (r1 m7): the header shows the TRUNCATED form, so "select the text" cannot work here —
           // the failure points at the QR sheet, where the full address and its own Copy live.
           live.textContent = ok ? (strings.copied || 'Copied') : (strings.copyFailedOpenQr || 'Couldn’t copy. Open the QR code to copy the full address.');
+          /* ★ #1028 (walk P.11): the live region is for a screen reader only — a sighted user saw nothing.
+             The button morphs to a ✓ for a copy that HAPPENED (the member-sheet / tx-sheet grammar, #134①),
+             and only then. */
+          if (ok !== true) return;
+          const idle = copyBtn.querySelector('.c-button__icon');
+          const check = icon('check', { size: 16 });
+          check.classList.add('c-button__icon');
+          if (idle) idle.replaceWith(check); else copyBtn.prepend(check);
+          copyBtn.dataset.copied = '';
+          clearTimeout(copyBtn._copiedTimer);
+          copyBtn._copiedTimer = setTimeout(() => {
+            if (check.isConnected) { const back = icon('copy', { size: 16 }); back.classList.add('c-button__icon'); check.replaceWith(back); }
+            delete copyBtn.dataset.copied;
+          }, 1400);
         });
       },
     });

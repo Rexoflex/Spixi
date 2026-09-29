@@ -194,6 +194,7 @@ export const ptbr = {
   copyFailedOpenQr: "Não foi possível copiar. Abra o código QR para copiar o endereço completo.",
   copyLog: "Copiar log",
   copyLogFailed: "Não foi possível copiar. Selecione o texto do log.",
+  copyMessageFailed: "Não foi possível copiar esta mensagem.",
   copyUrl: "Copiar link",
   createConsent: "Ao criar uma conta, você concorda com os",
   createCta: "Criar nova conta",

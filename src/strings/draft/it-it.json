@@ -147,6 +147,7 @@
   "copied": "Copiato",
   "copyAddress": "Copia indirizzo",
   "copyFailed": "Impossibile copiare. Seleziona invece il testo dell'indirizzo",
+  "copyMessageFailed": "Impossibile copiare questo messaggio.",
   "copyLog": "Copia log",
   "copyLogFailed": "Impossibile copiare. Seleziona invece il testo del log.",
   "copyUrl": "Copia link",

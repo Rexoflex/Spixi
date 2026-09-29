@@ -193,6 +193,7 @@
   "copyFailedOpenQr": "Impossibile copiare. Apri il codice QR per copiare l’indirizzo completo.",
   "copyLog": "Copia log",
   "copyLogFailed": "Impossibile copiare. Seleziona invece il testo del log.",
+  "copyMessageFailed": "Impossibile copiare questo messaggio.",
   "copyUrl": "Copia link",
   "createConsent": "Creando un account, accetti i",
   "createCta": "Crea nuovo account",

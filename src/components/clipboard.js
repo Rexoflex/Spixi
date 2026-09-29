@@ -57,6 +57,25 @@ export function execCopyText(text) {
    something was copied — callers never claim a copy that did not happen. */
 export function copyText(text) {
   if (!text) return Promise.resolve(false);
+  /* ★★ #1028 (walk R.8/R.9/P.11, Mac + iPhone): the NATIVE copy comes FIRST. On a file:// WKWebView the
+     paths below either do nothing or report a copy that other apps cannot paste — so the shell's bridge
+     (native.js) hands C# the text and the result the promise carries is the NATIVE clipboard's answer.
+     `null` = no answer (an older exe, text over the cap, no bridge in this page) → the in-page path.
+     `false` = the native write failed → the in-page path gets its one try too; a success there is real. */
+  const native = (typeof window !== 'undefined') ? window.__spixiNativeCopy : null;
+  if (typeof native === 'function') {
+    let pending = null;
+    try { pending = native(String(text)); } catch (e) { pending = null; }
+    if (pending && typeof pending.then === 'function') {
+      return pending.then((ok) => (ok === true ? true : copyInPage(text)), () => copyInPage(text));
+    }
+  }
+  return copyInPage(text);
+}
+
+/* The pre-#1028 path, unchanged: async API first (Windows/Android), execCommand('copy') when it is absent
+   or refuses. Kept as the fallback for a page with no native bridge and for version skew. */
+function copyInPage(text) {
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       return navigator.clipboard.writeText(text).then(() => true, () => execCopyText(text));

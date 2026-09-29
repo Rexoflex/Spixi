@@ -19,6 +19,7 @@ import { safeImageSrc, identityIndex } from './avatar.js';
 import { createButton } from './button.js';
 import { createBadge } from './badge.js';
 import { docLocale, timeOpts } from './timestamp.js';
+import { createStatusIcon } from './chatlist-item.js';   // ★ #1028 (P.22): the SENT file's tick — the text bubble's glyph set
 import { formatIxiAmount } from './money.js';   // #143: shared money module (was defined here)
 
 function cardTime(d) {
@@ -745,6 +746,7 @@ export function createFileBubble({
   gutter = false,          // group chats: align with gutter-indented text bubbles (C8)
   onAccept, onOpen, onRetry,
   onCancel,                // #334: sender-side cancel while the offer is un-accepted (shell-gated)
+  status = null,           // ★ #1028 (walk P.22): a SENT file's delivery tick — 'sending'|'sent'|'delivered'|'read' (null = none)
   strings = getStrings(),
 } = {}) {
   const row = document.createElement('div');
@@ -821,15 +823,34 @@ export function createFileBubble({
   if (state === 'complete' && onOpen) col.append(fileOpenLabel(strings));   // A8b: only advertise when openable
   el.append(col);
 
+  /* ★★ #1028 (walk P.22, Damir: "a SENT file needs a delivered double check, like text messages"):
+     the time and the tick share ONE stamp, the text bubble's meta grammar (time · tick). Only a SENT
+     file carries a tick, and only when the shell knows its status. The tick is the SAME glyph set as a
+     text bubble (createStatusIcon) and changes through the same setMessageStatus crossfade. */
+  const tick = direction === 'sent' && status ? createStatusIcon(status) : null;
+  let stampTime = null;
   if (timestamp != null) {
     const d = new Date(timestamp);
     if (!isNaN(d)) { // audit r2
-      const time = document.createElement('time');
-      time.className = 'c-fbubble__time u-tabular';
-      time.setAttribute('datetime', d.toISOString());
-      time.textContent = cardTime(d);
-      el.append(time);
+      stampTime = document.createElement('time');
+      stampTime.className = 'c-fbubble__time u-tabular';
+      stampTime.setAttribute('datetime', d.toISOString());
+      stampTime.textContent = cardTime(d);
     }
+  }
+  if (tick) {
+    tick.setAttribute('width', 14);
+    tick.setAttribute('height', 14);
+    tick.removeAttribute('aria-hidden');
+    tick.setAttribute('role', 'img');
+    tick.setAttribute('aria-label', strings['status-' + status] || status);
+    const stamp = document.createElement('span');
+    stamp.className = 'c-fbubble__stamp';
+    if (stampTime) stamp.append(stampTime);
+    stamp.append(tick);
+    el.append(stamp);
+  } else if (stampTime) {
+    el.append(stampTime);
   }
   /* #334 (Damir ask): CANCEL on a sent-but-not-yet-accepted file offer. A
    * SIBLING of the bubble (the bubble itself is a <button> — nesting is

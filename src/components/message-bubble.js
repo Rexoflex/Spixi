@@ -591,7 +591,7 @@ export function setMessageStatus(row, status, strings = getStrings(), opts = {})
     console.warn('setMessageStatus: "failed" restructures the row — re-create it via createMessageBubble and replace');
     return;
   }
-  const st = row.querySelector('.c-bubble__meta .c-status-icon');
+  const st = row.querySelector(TICK_HOST_SEL);
   if (!st) return; // received rows / no meta — nothing to tick
   const next = createStatusIcon(status);
   if (!next) return;
@@ -600,8 +600,57 @@ export function setMessageStatus(row, status, strings = getStrings(), opts = {})
   next.removeAttribute('aria-hidden');
   next.setAttribute('role', 'img');
   next.setAttribute('aria-label', strings['status-' + status] || status);
-  if (opts && opts.animate && st.getAttribute('aria-label') !== next.getAttribute('aria-label')) next.dataset.enter = '';   // a STATE attribute, not a --tone class (#877's tone-rule sweep)
-  st.replaceWith(next);
+  const changed = st.getAttribute('aria-label') !== next.getAttribute('aria-label');
+  if (opts && opts.animate && changed) crossfadeTick(st, next);
+  else { dropTickGhosts(row); st.replaceWith(next); }
+}
+
+/* ★★ #1028 (walk P.13, "the icon swaps, no fade"): a TRUE crossfade. #1010 only faded the NEW glyph in
+   from 0 while the old one vanished in the same frame — at 160 ms that reads as a swap (a ✓ disappears,
+   then a ✓✓ fades up). Now the OLD glyph stays in place, overlapped by the new one (a negative inline
+   margin of its own width + the meta gap, so the layout never shifts), and fades OUT while the new one
+   fades IN. The ghost is aria-hidden and removed on animationend, with a timer belt. Reduced motion: no
+   ghost, no animation — a plain swap (CSS alone cannot drop a ghost that is already in the DOM). */
+const TICK_FADE_MS = 160;
+/* ★ #1028 (P.22): a tick lives in a text bubble's meta OR a sent file card's stamp — ONE selector, so the
+   same setMessageStatus / replay path drives both (a second copy would drift, #251/#288). */
+const TICK_HOST_SEL = '.c-bubble__meta .c-status-icon:not([data-exit]), .c-fbubble__stamp .c-status-icon:not([data-exit])';
+function reducedMotion() {
+  try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; }
+}
+function dropTickGhosts(scope) {
+  for (const g of scope.querySelectorAll('.c-status-icon[data-exit]')) g.remove();
+}
+function crossfadeTick(oldEl, newEl) {
+  const meta = oldEl.parentNode;
+  if (meta) dropTickGhosts(meta);   // a second change inside the fade: only ONE ghost, ever
+  if (reducedMotion()) { oldEl.replaceWith(newEl); return; }
+  newEl.dataset.enter = '';   // a STATE attribute, not a --tone class (#877's tone-rule sweep)
+  oldEl.dataset.exit = '';
+  oldEl.removeAttribute('role');
+  oldEl.removeAttribute('aria-label');
+  oldEl.setAttribute('aria-hidden', 'true');
+  oldEl.after(newEl);
+  const drop = () => { if (oldEl.isConnected) oldEl.remove(); };
+  oldEl.addEventListener('animationend', drop, { once: true });
+  setTimeout(drop, TICK_FADE_MS * 3);
+}
+
+/** ★ #1028 (P.13): REPLAY a live tick change on a freshly REBUILT row. renderLogNow rebuilds every row
+ *  from the model, so a status push that lands next to any full render (the own message's first paint,
+ *  a reaction, a re-flush) lost its fade — the new row simply had the new glyph. The shell records the
+ *  change (from, at) on the record and calls this for a row built inside the fade window: a ghost of the
+ *  PREVIOUS status goes in before the current glyph and the pair crossfades exactly like the live path. */
+export function replayStatusChange(row, fromStatus) {
+  const cur = row.querySelector(TICK_HOST_SEL);
+  if (!cur || !fromStatus) return;
+  const ghost = createStatusIcon(fromStatus);
+  if (!ghost) return;
+  ghost.setAttribute('width', 14);
+  ghost.setAttribute('height', 14);
+  cur.before(ghost);
+  cur.remove();
+  crossfadeTick(ghost, cur);
 }
 
 /** Bridge deleteMessage → remove the row AND repair #63 grouping around it:

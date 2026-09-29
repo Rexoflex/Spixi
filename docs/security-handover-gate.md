@@ -1579,3 +1579,11 @@ The round adds ONE verb (`ixian:unignore:`), ONE app preference family (`ignored
 **r1 review (#983) deltas to the rows above:** the `[SPUSH]` line also prints `faLen=` (a length) and the app line `keyLens=` (lengths) and `mutedNot1to1=` (a count) — non-identifying; the pre-Core peek now refuses packets over 16 KiB before any parse (a contact request is a few KB).
 
 **r2 review (#984):** the ignore list hides EVERY raw push from a listed address (Android `shouldDisplayRawPush`; iOS via `muted`), not only its request — a push carries no type; the messages themselves still arrive. Both preferences ride device backups (`push_trace_salt` in iOS NSUserDefaults; `ignored_requests` in Android SharedPreferences, which APP-1 keeps in system backup): a device backup holds the declined addresses and can reverse the trace tags — 🟡 dial, recorded.
+
+## Overnight finalization (#1028+, 2026-09-29) — after the Mac + iPhone walk
+
+One question per row: does this exposure exist at the baseline?
+
+| row | change | lens | verdict |
+|---|---|---|---|
+| #1028 | **NEW VERB `ixian:copytext:<token>:<base64url>`** in `SpixiContentPage.onNavigatingGlobal` → `Clipboard.Default.SetTextAsync` → push `nativeCopyResult(token, "1"\|"0")`; `native.js` `bridge.copy` + the window hook `__spixiNativeCopy` read by `clipboard.js copyText`; the legacy EMPTY `ixian:copy` branch in HomePage DELETED | **The WebView can now WRITE the system clipboard through C#.** It could already (execCommand / the async API — that is what every Copy did, on every platform where it worked), so the capability is not new; the ROUTE is. Bounded: WRITE-ONLY (a derived walk proves no C# file reads the clipboard) · refused for a mini-app WebView (`!hasGeneratedContent`, first statement of the branch) · token = ≤16 ASCII digits (the cdping filter, so the answer is always base64-encoded) · payload = base64url only, ≤ 64 000 chars decoded, strict UTF-8, validated before any decode · no path, no command, nothing but the OS clipboard · the one log line carries the exception TYPE only. The text is only what the user tapped Copy on (every call site is a click handler). | INTRODUCED (a verb) — accepted: the only route to the pasteboard that works on a file:// WKWebView (walk R.8/R.9/P.11). Every row pinned (smoke #1028) and each clause killed by a one-token mutation. |

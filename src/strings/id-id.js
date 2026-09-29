@@ -194,6 +194,7 @@ export const idid = {
   copyFailedOpenQr: "Tidak dapat menyalin. Buka kode QR untuk menyalin alamat lengkap.",
   copyLog: "Salin log",
   copyLogFailed: "Tidak dapat menyalin. Pilih teks log secara manual.",
+  copyMessageFailed: "Tidak dapat menyalin pesan ini.",
   copyUrl: "Salin tautan",
   createConsent: "Dengan membuat akun, Anda menyetujui",
   createCta: "Buat akun baru",

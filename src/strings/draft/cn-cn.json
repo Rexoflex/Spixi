@@ -143,6 +143,7 @@
   "copied": "已复制",
   "copyAddress": "复制地址",
   "copyFailed": "无法复制。请手动选择地址文本。",
+  "copyMessageFailed": "无法复制此消息。",
   "copyLog": "复制日志",
   "copyLogFailed": "无法复制。请手动选择日志文本。",
   "copyUrl": "复制链接",

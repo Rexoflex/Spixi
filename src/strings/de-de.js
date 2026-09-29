@@ -194,6 +194,7 @@ export const dede = {
   copyFailedOpenQr: "Kopieren fehlgeschlagen. Öffne den QR-Code, um die vollständige Adresse zu kopieren.",
   copyLog: "Protokoll kopieren",
   copyLogFailed: "Kopieren nicht möglich. Markiere stattdessen den Protokolltext.",
+  copyMessageFailed: "Nachricht konnte nicht kopiert werden.",
   copyUrl: "Link kopieren",
   createConsent: "Indem du ein Konto erstellst, stimmst du den",
   createCta: "Neues Konto erstellen",

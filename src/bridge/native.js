@@ -147,8 +147,63 @@ export function createNativeBridge({ emit, win } = {}) {
     },
     cap(name) { return !!capabilities[name]; },
     capabilities,
+    /** ★★ #1028 (walk R.8/R.9/P.11): the NATIVE copy. Spixi's own Copy did not reach the system
+     *  pasteboard on the Mac and the iPhone — the page is a file:// WKWebView, the async clipboard
+     *  API is absent or refused there, and execCommand('copy') returned true for a copy that other
+     *  apps could not paste. C# now writes the text (`ixian:copytext:<token>:<base64url>` →
+     *  `Clipboard.Default.SetTextAsync`, SpixiContentPage.onNavigatingGlobal) and pushes
+     *  `nativeCopyResult(token, '1'|'0')`, so the ✓ follows what the NATIVE clipboard did.
+     *  Resolves true / false from C#, or NULL when no answer comes back (an older exe without the
+     *  verb, or text over the cap) — clipboard.js then falls back to the in-page path.
+     *  WRITE-ONLY: nothing here reads the clipboard, and the payload is never logged. */
+    copy(text) {
+      const s = String(text == null ? '' : text);
+      if (!s || s.length > NATIVE_COPY_MAX) return Promise.resolve(null);
+      let payload;
+      try { payload = utf8ToB64Url(s); } catch (e) { return Promise.resolve(null); }
+      const token = String(++copySeq);
+      return new Promise((resolve) => {
+        const timer = w.setTimeout(() => { pendingCopies.delete(token); resolve(null); }, NATIVE_COPY_TIMEOUT_MS);
+        pendingCopies.set(token, { resolve, timer });
+        try { bridge.send('ixian:copytext:' + token + ':' + payload); }
+        catch (e) { w.clearTimeout(timer); pendingCopies.delete(token); resolve(null); }
+      });
+    },
   };
+  /* The push C# answers with. ONE definition per window, set here so every shell that has a bridge
+     has the global before the first copy — C# emits it as a BARE global reference and an undefined
+     one throws before the dispatcher can catch it (#258). Unknown / stale tokens are ignored. */
+  const pendingCopies = new Map();
+  w.nativeCopyResult = (token, ok) => {
+    const p = pendingCopies.get(String(token));
+    if (!p) return;
+    pendingCopies.delete(String(token));
+    w.clearTimeout(p.timer);
+    p.resolve(ok === '1');
+  };
+  /* clipboard.js (a component) must not import the transport, and native.js imports no component —
+     so the hand-over is ONE window hook. Every shell that builds a bridge gets the native copy; a
+     page without one (the demos, a mini-app) keeps the in-page path. */
+  w.__spixiNativeCopy = bridge.copy;
   return bridge;
+}
+
+/** ★ #1028 — the cap on one native copy. The composer's own limit (#A7): a longer text (a very long
+ *  multi-message selection) takes the in-page path instead of a URL of several hundred KB. */
+export const NATIVE_COPY_MAX = 64000;
+/** No answer inside this window = no native verb on this exe → the in-page fallback. */
+export const NATIVE_COPY_TIMEOUT_MS = 2000;
+let copySeq = 0;
+
+/** UTF-8 → base64url (RFC 4648 §5, no padding). The URL-safe alphabet survives C#'s whole-URL
+ *  HttpUtility.UrlDecode unchanged — a '+' would have come back as a space (security-review MAJOR #8). */
+export function utf8ToB64Url(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 /**

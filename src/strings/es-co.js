@@ -194,6 +194,7 @@ export const esco = {
   copyFailedOpenQr: "No se pudo copiar. Abre el código QR para copiar la dirección completa.",
   copyLog: "Copiar registro",
   copyLogFailed: "No se pudo copiar. Selecciona el texto del registro en su lugar.",
+  copyMessageFailed: "No se pudo copiar el mensaje.",
   copyUrl: "Copiar enlace",
   createConsent: "Al crear una cuenta, aceptas los",
   createCta: "Crear cuenta nueva",

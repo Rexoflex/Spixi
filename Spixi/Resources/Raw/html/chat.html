@@ -17,6 +17,8 @@
      :root[data-desktop]); set BEFORE first paint, constant across window resize
      (TG/Discord behavior). iPad (Macintosh UA + touch) counts as mobile. -->
 <script>(function(){var u=navigator.userAgent;if(!/Android|iPhone|iPad|IEMobile|Mobile/.test(u)&&!(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))document.documentElement.setAttribute('data-desktop','');})();</script>
+<!-- ★ #1028 (walk R.6): the platform CONVENTION flag (#922 carrier) in every shell — base.css draws the Mac title-bar hairline from it -->
+<script>(function(){var p='*SL{SpixiPlatform}';if(/^(android|ios|maccatalyst|windows)$/.test(p))document.documentElement.setAttribute('data-platform',p);})();</script>
 <!-- ★ AND-7 (#396/#401) FULL BLEED: the Android top system-bar inset, in CSS px, set
      BEFORE first paint. MainActivity no longer pads the root view down by the status
      bar, so this page reaches y=0 and its own chrome pads itself from --safe-top
@@ -1383,7 +1385,17 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    A9 sent 0.7 dims. The animation now runs from 0 to the element's OWN computed value and lets go. */
 @keyframes c-tick-in { from { opacity: 0; transform: scale(0.85); } }
 .c-status-icon[data-enter] { animation: c-tick-in calc(var(--duration-200) * 0.8) var(--easing-standard) backwards;   /* 160ms, from the motion token (0 under reduced motion) */ }
-@media (prefers-reduced-motion: reduce) { .c-status-icon[data-enter] { animation: none; } }
+/* ★ #1028 (walk P.13): the OLD glyph stays for the fade and goes OUT while the new one comes in — a
+   crossfade, not a swap. It overlaps the new glyph exactly: a negative inline margin of its own 14px
+   width plus the meta gap, so nothing in the meta moves. `forwards` holds it at 0 until the JS removes it
+   on animationend (a timer belt too). The JS never creates a ghost under reduced motion. */
+@keyframes c-tick-out { to { opacity: 0; transform: scale(0.85); } }
+.c-status-icon[data-exit] {
+  margin-inline-end: calc(-14px - var(--spacing-2));
+  pointer-events: none;
+  animation: c-tick-out calc(var(--duration-200) * 0.8) var(--easing-standard) forwards;
+}
+@media (prefers-reduced-motion: reduce) { .c-status-icon[data-enter], .c-status-icon[data-exit] { animation: none; } }
 
 /* ★ #1012 (Opus r1 m1): an EMOJI-ONLY first message has no bubble fill (line ~242), so its sender
    label sits on the CANVAS, not on white. Solved per anchor against EVERY light ground stop — the
@@ -2164,6 +2176,20 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   line-height: var(--line-height-body-xs);
   color: var(--text-neutral-02);
 }
+/* ★★ #1028 (walk P.22): a SENT file's time + delivery tick — one stamp, the text bubble's meta grammar
+   (time · tick, the same 2px gap the #1028 tick crossfade overlaps by). sending/sent/delivered read in the
+   stamp's own neutral ink (delivered stays neutral, iOS-16 #283); READ is the success green, as on a text
+   bubble; each tone is ≥ 3:1 on the sent card in both themes (smoke #1028, computed). */
+.c-fbubble__stamp {
+  align-self: flex-end;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+.c-fbubble__stamp .c-fbubble__time { align-self: auto; }
+.c-fbubble__stamp .c-status-icon { flex: none; color: var(--text-neutral-02); }
+.c-fbubble__stamp .c-status-icon[data-tone="read"] { color: var(--icon-success); }
 
 /* —— unread divider (full width) —— */
 .c-unread-divider {
@@ -2432,7 +2458,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   z-index: var(--z-44);
   max-width: var(--layout-content-max);
   margin-inline: auto;
-  background: var(--surface-menu);
+  background: var(--surface-sheet);   /* ★ #1030 (walk P.18): the sheet ground (dark one rung under the menu surface) */
   border-radius: var(--radius-24) var(--radius-24) 0 0;
   box-shadow: var(--elevation-3);
   padding: var(--spacing-8) var(--spacing-16) var(--spacing-16);
@@ -2565,7 +2591,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   z-index: var(--z-50);
   width: calc(100% - 2 * var(--spacing-24));
   max-width: 360px; /* dialog max — token candidate at next Figma sync */
-  background: var(--surface-menu);
+  background: var(--surface-sheet);   /* ★ #1030: a dialog shares the sheet ground (the #1018 card remap is scoped to both) */
   border-radius: var(--radius-24);
   box-shadow: var(--elevation-3);
   padding: var(--spacing-24);
@@ -5754,7 +5780,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     setComposerContext, getComposerContext,   // M1 reply-to (#441): the quote strip above the input
     setScrollLatestCount,           // N53: unread badge on the scroll-to-latest chevron (shipped #74, wired here)
     attachPressFeedback,
-    setMessageStatus, removeMessage,
+    setMessageStatus, replayStatusChange, removeMessage,
     createFileBubble, setFileProgress,
     createMediaBubble, setMediaSrc, openMediaViewer,
     createPaymentBubble, createCallBubble,
@@ -7162,6 +7188,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       state: rec.fstate,
       progress: rec.progress || 0,
       timestamp: rec.ts,
+      status: rec.direction === 'sent' ? (rec.status || null) : null,   // ★ #1028 (P.22): the sent file's tick
       gutter: mode.isMulti && rec.direction === 'received',
       onAccept: () => bridge.send('ixian:acceptfile:' + rec.fileid),
       onOpen: () => bridge.send('ixian:openfile:' + rec.fileid),
@@ -8059,7 +8086,15 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     if (composerLock) return;
     if (action === 'react') { reactToMessage(id); return; }
     if (action === 'copy') {
-      if (rec.text) copyText(rec.text);   // ★ #993: + the file:// fallback — the menu's Copy was a no-op on iPhone/Mac
+      // ★ #993: + the file:// fallback — the menu's Copy was a no-op on iPhone/Mac
+      // ★ #1028 (walk R.9): native first, and the result is SHOWN — the menu closed and nothing told the
+      // user whether the copy happened; the select-mode toast grammar (onCopy above), one message
+      if (rec.text) copyText(rec.text).then((ok) => {
+        const s = window.SL || {};
+        showToast(ok === true
+          ? { text: s.copied || 'Copied', tone: 'success', host: overlayHost, strings: s }
+          : { text: s.copyMessageFailed || 'Couldn’t copy this message.', tone: 'error', host: overlayHost, strings: s });
+      });
       return;
     }
     if (action === 'select') { if (row) startChatSelect(row); return; }
@@ -9026,6 +9061,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    * grouping + timestamp order stay correct. Rebuilds date separators too.
    * Call the coalesced `renderLog()` from handlers; `renderLogNow()` is the
    * synchronous rebuild (also used for the first paint). */
+  const TICK_REPLAY_MS = 160;   // ★ #1028: the fade window (message-bubble.css c-tick-in/out, --duration-200 × 0.8)
   function renderLogNow() {
     invalidateMentions();   // rebuild the mention name list from the CURRENT model each render → seen senders (addThem) are always included (review m1)
     const scrollWasAtBottom = nearBottom();
@@ -9078,6 +9114,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       frag.append(row);
       applyRowReactions(rec, row, false);  // re-attach pills after a rebuild
       wireMenu(rec, row);                  // long-press / right-click context menu
+      // ★ #1028 (P.13): a tick that changed LIVE inside the last fade window crossfades on the rebuilt row too
+      if (rec.tickFx && performance.now() - rec.tickFx.at < TICK_REPLAY_MS) replayStatusChange(row, rec.tickFx.from);
     }
     box.replaceChildren(frag);             // atomic swap — no empty intermediate state
     logDirty = false;                      // ★ Session P: on glass
@@ -9449,7 +9487,15 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       // later status push that omits it — updateMessage carries no reply arg.
       if (extra.replyTo !== undefined && extra.replyTo) rec.replyTo = String(extra.replyTo);
     }
+    const prevStatus = existing ? existing.status : null;
     rec.status = statusFrom(flags || {});
+    /* ★ #1028 (walk P.13): remember a LIVE tick change on the record, so a full render that lands inside
+       the fade (renderLogNow rebuilds every row) REPLAYS the crossfade instead of snapping. History and
+       load bursts never animate (#1010); a failed row restructures, so it never animates either. */
+    if (existing && !bursting && !loadPhase && rec.direction === 'sent' && prevStatus && prevStatus !== rec.status
+        && prevStatus !== 'failed' && rec.status !== 'failed') {
+      rec.tickFx = { from: prevStatus, at: performance.now() };
+    }
     /* A2 (#302): the paid marker. `paid` has always been PASSED (addMe/addThem
        both carry it, xaml.cs:1361-1364 sets it from transactionId != "") and then
        silently dropped — statusFrom never read it and nothing persisted it. Keep it
@@ -9499,6 +9545,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     if (extra) {
       if (extra.senderNick !== undefined) rec.senderNick = extra.senderNick || '';
       if (extra.senderAddress !== undefined) rec.senderAddress = extra.senderAddress || '';
+      if (extra.status !== undefined) rec.status = extra.status;   // ★ #1028 (P.22): sent files only (addFile sets null otherwise)
     }
     model.set(id, rec);
     orderInsert(id);
@@ -10402,10 +10449,37 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 
     /* FILE transfer create (chat.js addFile:904, 13-arg). me/sent/read/paid are
      * the .NET bool strings; nick/address feed the group sender label/avatar. */
-    addFile(id, address, nick, avatar, fileid, name, time, me, sent, read, progress, complete, paid) {
+    /* ★★ #1028 (walk P.22): a SENT file carries a delivery tick. C# arg 9 (`sent`) has always been
+     * message.confirmed (the peer HAS it → delivered) and arg 10 message.read; this exe appends arg 14 =
+     * the RELAY flag (message.sent → single check), all three through deliveryTicks so a group file ticks
+     * like a group text (L2 #641). An OLDER exe sends 13 args: no relay flag → treat the file as relayed
+     * (a single check), never a clock that would never clear. Received files carry no tick. */
+    addFile(id, address, nick, avatar, fileid, name, time, me, sent, read, progress, complete, paid, relaySent) {
+      const status = asBool(me)
+        ? statusFrom({ sent: relaySent === undefined ? 'True' : relaySent, confirmed: sent, read })
+        : null;
       upsertFile(id, toMs(time), asBool(me) ? 'sent' : 'received', fileid, name,
         fileStateFrom(me, progress, complete), progress,
-        { senderNick: resolveNick(address, nick), senderAddress: address || '' });
+        { senderNick: resolveNick(address, nick), senderAddress: address || '', status });
+    },
+
+    /* ★★ #1028 (P.22): a LIVE delivery change on a sent file. C#'s updateMessage returns for every
+     * non-text row (it would overwrite the card with the raw file header); for a fileHeader it now pushes
+     * THIS instead — flags only, no text. Unknown id / a received file / an unchanged status → no-op. The
+     * tick crossfades like a text tick (setMessageStatus), and a rebuild inside the fade replays it. */
+    updateFileTicks(id, sent, confirmed, read) {
+      const key = String(id);
+      const rec = model.get(key);
+      if (!rec || rec.kind !== 'file' || rec.direction !== 'sent') return;
+      const next = statusFrom({ sent, confirmed, read });
+      if (next === 'failed' || next === rec.status) return;
+      const prev = rec.status;
+      rec.status = next;
+      const live = !bursting && !loadPhase;
+      if (live && prev) rec.tickFx = { from: prev, at: performance.now() };
+      const row = rows.get(key);
+      if (row && prev) setMessageStatus(row, next, window.SL || {}, { animate: live });
+      else renderLog();
     },
 
     /* FILE transfer progress/complete (chat.js updateFile:1009, keyed by fileid).

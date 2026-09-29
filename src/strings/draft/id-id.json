@@ -143,6 +143,7 @@
   "copied": "Disalin",
   "copyAddress": "Salin alamat",
   "copyFailed": "Tidak dapat menyalin. Pilih teks alamatnya secara manual",
+  "copyMessageFailed": "Tidak dapat menyalin pesan ini.",
   "copyLog": "Salin log",
   "copyLogFailed": "Tidak dapat menyalin. Pilih teks log secara manual.",
   "copyUrl": "Salin tautan",

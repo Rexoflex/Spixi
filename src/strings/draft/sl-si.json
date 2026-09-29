@@ -163,6 +163,7 @@
   "copied": "Kopirano",
   "copyAddress": "Kopiraj naslov",
   "copyFailed": "Kopiranje ni uspelo. Namesto tega izberite besedilo naslova",
+  "copyMessageFailed": "Sporočila ni bilo mogoče kopirati.",
   "copyLog": "Kopiraj dnevnik",
   "copyLogFailed": "Kopiranje ni uspelo. Namesto tega izberite besedilo dnevnika.",
   "copyUrl": "Kopiraj povezavo",

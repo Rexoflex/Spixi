@@ -163,6 +163,7 @@
   "copied": "Copié",
   "copyAddress": "Copier l'adresse",
   "copyFailed": "Impossible de copier. Sélectionnez plutôt le texte de l'adresse",
+  "copyMessageFailed": "Impossible de copier ce message.",
   "copyLog": "Copier le journal",
   "copyLogFailed": "Impossible de copier. Sélectionnez plutôt le texte du journal.",
   "copyUrl": "Copier le lien",

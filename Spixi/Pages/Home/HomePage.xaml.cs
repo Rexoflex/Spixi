@@ -1337,9 +1337,9 @@ namespace SPIXI
                 e.Cancel = true;
                 return;
             }
-            else if (current_url.Equals("ixian:copy", StringComparison.Ordinal))
-            {
-            }
+            // ★ #1028: the legacy EMPTY `ixian:copy` branch is gone — no shell ever sent it, and a
+            // no-op beside the real verb (`ixian:copytext:`, SpixiContentPage.onNavigatingGlobal)
+            // would read as the copy path to the next person grepping for one.
             else if (current_url.StartsWith("ixian:sendLog"))
             {
                 // TODO perhaps move this whole functionality to Logging class and delete spixi.log.zip on start if exists

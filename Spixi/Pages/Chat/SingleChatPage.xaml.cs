@@ -3380,15 +3380,16 @@ namespace SPIXI
                     {
                         progress = "100";
                     }
-                    /* ⚠ NO deliveryTicks HERE, and the first cut of this row put one in.
-                     * The shell's addFile handler NAMES its sent/read parameters and then
-                     * DISCARDS them — upsertFile never assigns a status, so a file card has
-                     * no delivery tick to correct. Deriving values nothing reads is dead code
-                     * carrying a false guarantee, which is worse than the gap it hides.
-                     * ★ THE REAL GAP, logged not faked: a file card in a group shows no
-                     * delivery state at all. Same for the app card and the payment cards.
-                     * That is its own row — it needs a shell change, not a C# one. */
-                    push(batch, "addFile", Crypto.hashToString(message.id), address, nick, avatar, uid, name, message.timestamp.ToString(), message.localSender.ToString(), message.confirmed.ToString(), message.read.ToString(), progress, message.completed.ToString(), paid.ToString());
+                    /* ★★ #1028 (walk P.22, Damir: "a SENT file needs a delivered double check"):
+                     * the shell now READS the flags — upsertFile stores a status for a SENT file and
+                     * the card shows the text bubble's tick. So the values are derived here like a
+                     * text row's (L2 #641: a group answer is DERIVED, not message.confirmed), and the
+                     * RELAY flag rides as a new trailing arg 14 (additive — an older shell ignores
+                     * it; the shell treats its absence as "relayed"). Arg 9 keeps its historical
+                     * meaning (confirmed → delivered), arg 10 read. The app and payment cards still
+                     * show no delivery state — their own rows. */
+                    deliveryTicks(message, out bool fSent, out bool fConfirmed, out bool fRead);
+                    push(batch, "addFile", Crypto.hashToString(message.id), address, nick, avatar, uid, name, message.timestamp.ToString(), message.localSender.ToString(), fConfirmed.ToString(), fRead.ToString(), progress, message.completed.ToString(), paid.ToString(), fSent.ToString());
                 }
             }
 
@@ -3948,6 +3949,17 @@ namespace SPIXI
              * they have no tick this push could have advanced. The reaction and download
              * counts reach the card through `addReactions`, which is a different push
              * and is not gated. */
+            if (message.type == FriendMessageType.fileHeader)
+            {
+                /* ★★ #1028 (walk P.22): a sent FILE's live delivery tick. It cannot ride the
+                 * push below (that one carries message.message as the bubble TEXT — the raw
+                 * `uid:name:size` header, see above), so a file gets its own FLAGS-ONLY push.
+                 * No text, no name, no path: an id and three booleans. The shell ignores it for
+                 * a received file and for an id it has not loaded. */
+                deliveryTicks(message, out bool fSent, out bool fConfirmed, out bool fRead);
+                Utils.sendUiCommand(this, "updateFileTicks", Crypto.hashToString(message.id), fSent.ToString(), fConfirmed.ToString(), fRead.ToString());
+                return;
+            }
             if (message.type != FriendMessageType.standard)
             {
                 return;

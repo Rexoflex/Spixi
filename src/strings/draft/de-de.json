@@ -163,6 +163,7 @@
   "copied": "Kopiert",
   "copyAddress": "Adresse kopieren",
   "copyFailed": "Kopieren nicht möglich. Markiere stattdessen den Adresstext",
+  "copyMessageFailed": "Nachricht konnte nicht kopiert werden.",
   "copyLog": "Protokoll kopieren",
   "copyLogFailed": "Kopieren nicht möglich. Markiere stattdessen den Protokolltext.",
   "copyUrl": "Link kopieren",

@@ -547,6 +547,20 @@ namespace SPIXI
                         lastMacTitlebarInset = macTop;
                         Logging.info("[M6] mac safe-area top=" + macTop);
                     }
+                    /* ★★ #1028 (walk R.6): carry the measured overlap into THIS page's shell, so the
+                     * title-bar line (base.css) and every bar's top padding do not depend on
+                     * WKWebView populating env(safe-area-inset-top) on Catalyst. It rides the
+                     * existing `setInsetTop` push (every shell head defines it; digits-only filter
+                     * there) and --safe-top takes max(env(), this) — so where env() already reports
+                     * the same value nothing moves. EVERY chrome pass, per page: the log above is
+                     * process-wide (a static "last value"), the push must not be — a second page
+                     * with the same inset would never get it. Rounded to 2 decimals in the
+                     * invariant culture (the shell's filter refuses anything else). A number, no
+                     * page or user data. */
+                    if (macTop >= 0 && macTop < 1000)
+                    {
+                        Utils.sendUiCommand(this, "setInsetTop", Math.Round(macTop, 2).ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    }
                 }
                 catch (Exception e) { Logging.warn("[M6] mac safe-area read failed: " + e.GetType().Name); }
             }
@@ -4322,6 +4336,58 @@ namespace SPIXI
                     Utils.sendUiCommand(this, "cdpong", token);
                 }
             }
+            else if (url.StartsWith("ixian:copytext:", StringComparison.Ordinal))
+            {
+                /* ★★ #1028 (walk R.8 / R.9 / P.11, Mac + iPhone): the NATIVE copy. Spixi's own
+                 * Copy never reached the system pasteboard from a file:// WKWebView — the async
+                 * clipboard API is absent there and execCommand('copy') reported copies other apps
+                 * could not paste. The shell sends `ixian:copytext:<token>:<base64url UTF-8>`
+                 * (src/bridge/native.js `bridge.copy`); this writes it and answers
+                 * `nativeCopyResult(token, "1"|"0")` so the shell's ✓ follows the NATIVE result.
+                 *
+                 * Security gate (docs/security-handover-gate.md, #1028):
+                 *   · WRITE-ONLY — nothing here, or anywhere, reads the clipboard back.
+                 *   · The text is only what the user tapped Copy on; the verb carries no path, no
+                 *     command, and C# does nothing with it but hand it to the OS clipboard.
+                 *   · Capped (64 000 chars, the composer's limit) and fully validated: a token of
+                 *     ≤16 ASCII digits (the cdping filter — it can never start with "data:", so the
+                 *     answer always travels base64-encoded) and a base64url payload.
+                 *   · NEVER LOGGED — a failure logs the exception TYPE only.
+                 *   · Refused for a mini-app WebView (!hasGeneratedContent): third-party code must
+                 *     not be able to write the user's clipboard through us. */
+                if (!hasGeneratedContent)
+                {
+                    return true;
+                }
+                string rest = url.Substring("ixian:copytext:".Length);
+                int colon = rest.IndexOf(':');
+                string token = colon > 0 ? rest.Substring(0, colon) : "";
+                string payload = colon > 0 ? rest.Substring(colon + 1) : "";
+                if (token.Length == 0 || token.Length > 16 || !token.All(c => c >= '0' && c <= '9'))
+                {
+                    return true;
+                }
+                string? text = decodeCopyPayload(payload);
+                if (string.IsNullOrEmpty(text))
+                {
+                    Utils.sendUiCommand(this, "nativeCopyResult", token, "0");
+                    return true;
+                }
+                MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    bool ok = false;
+                    try
+                    {
+                        await Microsoft.Maui.ApplicationModel.DataTransfer.Clipboard.Default.SetTextAsync(text);
+                        ok = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.warn("Native copy failed: " + ex.GetType().Name);
+                    }
+                    Utils.sendUiCommand(this, "nativeCopyResult", token, ok ? "1" : "0");
+                });
+            }
             else if (url.StartsWith("ixian:hangUp:"))
             {
                 // ★ review MINOR-1: same inbound gate as onAppReject — a surface that
@@ -4339,6 +4405,51 @@ namespace SPIXI
                 return false;
             }
             return true;
+        }
+
+        /// <summary>★ #1028 — the cap on one native copy (chars). Mirrors NATIVE_COPY_MAX in native.js.</summary>
+        public const int NATIVE_COPY_MAX = 64000;
+
+        /// <summary>
+        /// ★ #1028 — base64url (RFC 4648 §5, padding optional) → UTF-8 text, or null when the payload
+        /// is empty, over the cap, not base64url, or not UTF-8. The alphabet check runs BEFORE any
+        /// decode, so a malformed payload costs nothing and throws nothing.
+        /// </summary>
+        public static string? decodeCopyPayload(string payload)
+        {
+            if (string.IsNullOrEmpty(payload) || payload.Length > NATIVE_COPY_MAX * 4 + 4)   // 64 000 UTF-16 units ≤ 192 000 UTF-8 bytes ≤ 256 000 base64 chars
+            {
+                return null;
+            }
+            foreach (char c in payload)
+            {
+                bool ok = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '=';
+                if (!ok)
+                {
+                    return null;
+                }
+            }
+            string b64 = payload.TrimEnd('=').Replace('-', '+').Replace('_', '/');
+            switch (b64.Length % 4)
+            {
+                case 1: return null;
+                case 2: b64 += "=="; break;
+                case 3: b64 += "="; break;
+            }
+            try
+            {
+                byte[] bytes = Convert.FromBase64String(b64);
+                string text = new System.Text.UTF8Encoding(false, true).GetString(bytes);
+                if (text.Length == 0 || text.Length > NATIVE_COPY_MAX)
+                {
+                    return null;
+                }
+                return text;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
         }
 
 #if IOS

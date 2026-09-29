@@ -194,6 +194,7 @@ export const frfr = {
   copyFailedOpenQr: "Copie impossible. Ouvrez le code QR pour copier l’adresse complète.",
   copyLog: "Copier le journal",
   copyLogFailed: "Impossible de copier. Sélectionnez plutôt le texte du journal.",
+  copyMessageFailed: "Impossible de copier ce message.",
   copyUrl: "Copier le lien",
   createConsent: "En créant un compte, vous acceptez les",
   createCta: "Créer un nouveau compte",

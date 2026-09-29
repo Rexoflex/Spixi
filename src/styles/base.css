@@ -36,7 +36,7 @@
    with no edge. One fixed 1px line at y = --safe-top, in every shell (every WebView reaches the
    window top, so the pieces join). Its height is min(1px, --safe-top): ZERO where there is no
    top inset — Windows (the native title bar sits above the WebView) and desktop previews — so it
-   is Mac-only by geometry, not by a platform flag (most shells carry no data-platform). Desktop
+   is Mac-only by geometry, not by a platform flag (#1028: on the Mac a second rule below makes it 1px always). Desktop
    only: phones keep the status-bar bleed (AND-7). z 31 = the pane divider's slot (home.html):
    above the z-30 takeovers, below scrims and sheets; pointer-events off.
    ★ #993 review (MINOR): a FULL-BLEED screen has no bar edge at --safe-top — the lock and the
@@ -49,6 +49,27 @@
   top: var(--safe-top, 0px);
   inset-inline: 0;
   height: min(var(--outline-width-1), var(--safe-top, 0px));
+  background: var(--outline-neutral-03);
+  z-index: 31;
+  pointer-events: none;
+}
+/* ★★ #1028 (walk R.6, Mac: "the hairline is not there"). The rule above is ZERO tall when --safe-top is 0,
+   and on the Mac it was: either the WebView does NOT sit under the title bar (the native bar is drawn above
+   it) or WKWebView reports no env() inset there. This build carries BOTH branches, so it does not depend on
+   the `[M6] mac safe-area top=` log line that was never captured:
+     · C# (Catalyst) now PUSHES the page's measured title-bar overlap through the existing `setInsetTop`
+       (SpixiContentPage, the M6 block) — --safe-top = max(env(), that) — so a WebView UNDER the title bar
+       gets the right inset even when env() reads 0, and the line sits at its bottom;
+     · on the Mac the line is ALWAYS 1px (never min(1px, --safe-top)), so a WebView BELOW the native title
+       bar draws it at y = 0 — the join between the native bar and the app.
+   Keyed on the compile-time platform carrier (#922, now in every shell), NOT on data-desktop, so a Mac
+   window that ever lost the desktop flag still gets its edge. Full-bleed screens still stand down. */
+:root[data-platform="maccatalyst"]:not([data-bleed-top]) body::before {
+  content: '';
+  position: fixed;
+  top: var(--safe-top, 0px);
+  inset-inline: 0;
+  height: var(--outline-width-1);
   background: var(--outline-neutral-03);
   z-index: 31;
   pointer-events: none;

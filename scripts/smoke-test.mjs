@@ -1050,6 +1050,7 @@ console.log('wallet.html');
   sr2.click();
   ok(selHost.querySelector('.c-chatselect-bar__count').textContent.includes('2'), 'taps toggle — count reaches 2');
   [...selHost.querySelectorAll('.c-chatselect-bar .c-button')].pop().click();
+  await sleep(30);   // ★ #1028: the multi-select Copy rides copyText now (native first) — onCopy lands on the promise, not synchronously
   const sbuf = W2.Spixi.getChatCopyBuffer();
   ok(copied === 2 && sbuf.items.length === 2
     && sbuf.joined === 'Alex: Crew — cabin trip is ON.\nHan Solo: Chewie counts as two people.',
@@ -7490,9 +7491,9 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   /* ★ Session I re-base (#735③, sheet 4): the LIGHT ink is the brand magenta #83058E now (was #061663, AUG) — same 6%; the AUG reasoning below is the superseded ruling. */
   /* ★ Session J re-base (#744/A14, Damir 2026-09-02: "Light mode pattern: 051C8E at 6% opacity") — the k2 magenta #83058E is the superseded ruling, kept in the comment of the token. */
   /* ★★ #1002 RE-BASE (D-09): the light ink is the Mist slate #2A3140 (through --chat-pattern-ink-mist) @ 4.5% — the Session J line below is the superseded ruling. */
-  ok(/--chat-pattern-ink-mist: #2A3140;/.test(lightN81) && /--chat-pattern-ink: var\(--chat-pattern-ink-mist\);/.test(lightN81) && /--chat-pattern-alpha-1: 0\.045;/.test(lightN81)
+  ok(/--chat-pattern-ink-mist: #2A3140;/.test(lightN81) && /--chat-pattern-ink: var\(--chat-pattern-ink-mist\);/.test(lightN81) && /--chat-pattern-alpha-1: 0\.06;/.test(lightN81)   /* ★ #1029 (walk P.8): 0.045 → 0.06 */
     && /--chat-pattern-alpha-2: 0\.1;/.test(lightN81),
-    '★★ #1002: LIGHT pattern = #2A3140 @ 4.5% on Mist (Damir 2026-09-28). Superseded: ★★★ Session J: LIGHT pattern = #051C8E @ 6% (Damir 2026-09-02). Superseded: Session I k2 #83058E @ 6%. Superseded before that: AUG (Damir 2026-08-30): LIGHT pattern = rgba(6,22,99,0.06) — a deep brand indigo. The tile is a MASK, so the artwork\'s own colour is discarded and this token alone decides the ink. MEASURED on the #EBF0F5 ground: ΔL* −4.53, STRONGER than the #231F20 @5% it replaces (−3.53) and back in the range E1c approved (−3.47/−4.26); the composited stroke lands at hue 266° against the ground\'s 256°, the same cool family. It also holds on the GRADIENT option: −3.66 teal / −4.39 periwinkle. ⚠ alpha-2 is pinned but UNREACHABLE — Strong is retired; the token is kept one line from returning. Superseded: AUG TILE: LIGHT pattern = rgba(35,31,32,0.05) at Default — the doodle-pattern-aug ARTWORK colour, since the tile is a mask and this token is the only thing that decides the hue. ⚠ MEASURED AND DELIBERATELY SOFTER: .05 reads ΔL* −2.90 teal / −3.40 green against E1c\'s −3.47 / −4.26, i.e. ~17% fainter than what shipped; .06 would have matched it almost exactly (−3.47 / −4.08) and Damir chose .05 on the render. Superseded, and the E1c reasoning is kept because it is still the record of why the ground moved: E1c (Damir 2026-08-29): LIGHT pattern = rgba(18,59,71,0.07) at Default. The ink followed the ground onto the teal (hue only — the two inks are within 0.03 L* at this alpha) and .06→.07 RESTORES the approved strength rather than raising it: on the old near-white ground the stroke sat 4.03 L* below it, on the colourful one .06 reached only 2.96/3.62 and .07 gives 3.47/4.26. Superseded: rgba(33,57,75,0.06) at Default, 0.1 at Strong. The ink carries a HUE now (slate, C* 1.80 → 2.43 on the composited stroke) and the Default alpha rose because the doodles tile lays down 1.15× the ink of the triangles tile it replaced, yet read as blank at 0.042. Supersedes the N81 pair (#181a20 / 0.042)');
+    '★★ #1029: LIGHT pattern = #2A3140 @ 6% on Mist (walk P.8: "almost invisible" at 4.5%). Superseded: ★★ #1002: LIGHT pattern = #2A3140 @ 4.5% on Mist (Damir 2026-09-28). Superseded: ★★★ Session J: LIGHT pattern = #051C8E @ 6% (Damir 2026-09-02). Superseded: Session I k2 #83058E @ 6%. Superseded before that: AUG (Damir 2026-08-30): LIGHT pattern = rgba(6,22,99,0.06) — a deep brand indigo. The tile is a MASK, so the artwork\'s own colour is discarded and this token alone decides the ink. MEASURED on the #EBF0F5 ground: ΔL* −4.53, STRONGER than the #231F20 @5% it replaces (−3.53) and back in the range E1c approved (−3.47/−4.26); the composited stroke lands at hue 266° against the ground\'s 256°, the same cool family. It also holds on the GRADIENT option: −3.66 teal / −4.39 periwinkle. ⚠ alpha-2 is pinned but UNREACHABLE — Strong is retired; the token is kept one line from returning. Superseded: AUG TILE: LIGHT pattern = rgba(35,31,32,0.05) at Default — the doodle-pattern-aug ARTWORK colour, since the tile is a mask and this token is the only thing that decides the hue. ⚠ MEASURED AND DELIBERATELY SOFTER: .05 reads ΔL* −2.90 teal / −3.40 green against E1c\'s −3.47 / −4.26, i.e. ~17% fainter than what shipped; .06 would have matched it almost exactly (−3.47 / −4.08) and Damir chose .05 on the render. Superseded, and the E1c reasoning is kept because it is still the record of why the ground moved: E1c (Damir 2026-08-29): LIGHT pattern = rgba(18,59,71,0.07) at Default. The ink followed the ground onto the teal (hue only — the two inks are within 0.03 L* at this alpha) and .06→.07 RESTORES the approved strength rather than raising it: on the old near-white ground the stroke sat 4.03 L* below it, on the colourful one .06 reached only 2.96/3.62 and .07 gives 3.47/4.26. Superseded: rgba(33,57,75,0.06) at Default, 0.1 at Strong. The ink carries a HUE now (slate, C* 1.80 → 2.43 on the composited stroke) and the Default alpha rose because the doodles tile lays down 1.15× the ink of the triangles tile it replaced, yet read as blank at 0.042. Supersedes the N81 pair (#181a20 / 0.042)');
   // ★ #711 re-based (Damir on device, 2026-08-30): 0.05 → 0.03 — "reduce dark by 2%". The ink stays white; the 0.05 reasoning below is kept as the superseded ruling.
   /* ★ Session J re-base (#758, Damir 2026-09-03): dark ink #C6CFFD @ 4% — the white @ 3% below is the superseded ruling. */
   ok(/--chat-pattern-ink: #C6CFFD;/.test(darkN81) && /--chat-pattern-alpha-1: 0\.04;/.test(darkN81)
@@ -7704,8 +7705,8 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
         return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
       };
       const L = (map, k) => lum(resolve(map, map[k]));
-      const dSheet = L(dark, '--surface-menu'), dCard = L(dark, '--surface-sheet-card'), dHover = L(dark, '--surface-sheet-card-hover');
-      const lSheet = L(light, '--surface-menu'), lCard = L(light, '--surface-sheet-card'), lHover = L(light, '--surface-sheet-card-hover');
+      const dSheet = L(dark, '--surface-sheet'), dCard = L(dark, '--surface-sheet-card'), dHover = L(dark, '--surface-sheet-card-hover');   /* ★ #1030: the sheet ground is its own token now */
+      const lSheet = L(light, '--surface-sheet'), lCard = L(light, '--surface-sheet-card'), lHover = L(light, '--surface-sheet-card-hover');
       ok([dSheet, dCard, dHover, lSheet, lCard, lHover].every(Number.isFinite) && dCard > dSheet && dHover > dCard && lCard !== lSheet && lHover !== lCard,
         '★ Session X: --surface-sheet-card LIFTS from --surface-menu in dark and its hover lifts again; in light card ≠ sheet and hover ≠ card — resolved to primitives (dark L: sheet ' + dSheet.toFixed(3) + ' card ' + dCard.toFixed(3) + ' hover ' + dHover.toFixed(3) + ')');
       const chooserCss = stripCssComments(readFileSync(join(root, 'src/styles/components/contacts-shell.css'), 'utf8'));
@@ -8340,7 +8341,9 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      689 529 → 694 953 chars (+5 424): the file document tile (fileKind · fileTile · fileBadge and the
      family rules), the app monogram + side-by-side action rules, the avatar-palette disc tokens and the
      sheet remap inlined via the bundle and the stylesheets, and their docblocks. Headroom under 680 is 1 367. */
-  const CHAT_KB_CEIL = 680, INDEX_KB_CEIL = 531;
+  /* ★ #1028: 680 → 688 — the native copy route, the tick crossfade + replay, the sent-file tick and the platform
+     carrier in every head (+~4.4 KB measured on chat.html; index.html has room). Stated, not silent (#345). */
+  const CHAT_KB_CEIL = 688, INDEX_KB_CEIL = 531;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -15341,9 +15344,12 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
     /* ★ #922 (Session AC) added AndroidInsetLeft/Right on every head — and this pin caught it
      * again, as designed. Admitted on the same rule as the others: both keys are SEEDED "0" in
      * SpixiLocalization.customStrings, so they resolve on every page of every platform. */
-    ok(carriers.length === 7
-      && carriers.join(',') === '*SL{AndroidInsetBottom},*SL{AndroidInsetLeft},*SL{AndroidInsetRight},*SL{AndroidInsetTop},*SL{LockAuthPending},*SL{SpixiThemeName},*SL{language-code}',
-      '★ N83 (+AND-45, +#922): the BUILT lock shell carries exactly the SEVEN keys the lock page resolves. Pinned on the built artifact, not the source, because that is the file C# actually substitutes — and pinned as a SET so the next stray carrier is caught rather than the one we happened to find');
+    /* ★ #1028 (walk R.6) added SpixiPlatform to every head (the Mac title-bar line keys on it) — caught here as
+     * designed, admitted on the same rule: it is a compile-time constant SEEDED in SpixiLocalization.customStrings,
+     * so it resolves on every page of every platform. */
+    ok(carriers.length === 8
+      && carriers.join(',') === '*SL{AndroidInsetBottom},*SL{AndroidInsetLeft},*SL{AndroidInsetRight},*SL{AndroidInsetTop},*SL{LockAuthPending},*SL{SpixiPlatform},*SL{SpixiThemeName},*SL{language-code}',
+      '★ N83 (+AND-45, +#922): the BUILT lock shell carries exactly the EIGHT keys (#1028: + SpixiPlatform) the lock page resolves. Pinned on the built artifact, not the source, because that is the file C# actually substitutes — and pinned as a SET so the next stray carrier is caught rather than the one we happened to find');
   }
 }
 
@@ -21190,18 +21196,22 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     /* ⚠ TWO, not four. The first cut called deliveryTicks at the file and app pushes too;
        the audit proved both shell handlers DISCARD those args, so they were dead code
        carrying a guarantee. The gap (no delivery tick on a card) is logged, not faked. */
+    /* ★★ #1028 RE-BASE (walk P.22, Damir: "a SENT file needs a delivered double check"): the shell now RENDERS a
+       file tick, so — exactly as the paired negative below said it would — the C# derivation came BACK for the file:
+       the file insert and the new flags-only updateFileTicks push. FOUR sites now; the app push stays raw (no tick). */
     const calls = (scp.match(/deliveryTicks\(message,/g) || []).length;
-    ok(calls === 2,
-      '★★ L2 (#641): the derivation runs at the TWO push sites that actually render a tick (text insert · updateMessage) — got exactly ' + calls);
+    ok(calls === 4,
+      '★★ L2 (#641) + #1028: the derivation runs at the FOUR push sites that render a tick (text insert · updateMessage · file insert · updateFileTicks) — got exactly ' + calls);
     const chDead = rdf('Spixi/Resources/Raw/html/chat.html');
-    ok(/addFile\(id, address, nick, avatar, fileid, name, time, me, sent, read, progress, complete, paid\) \{[\s\S]{0,400}?upsertFile\(/.test(chDead)
-       && !/upsertFile\([^)]*\bsent\b/.test(chDead),
-      '★★ L2 (#641) PAIRED NEGATIVE: the shipped addFile handler names `sent`/`read` and never passes them on — this is WHY the derivation was removed from that push, and if the shell ever starts reading them this pin goes red and the C# must come back');
+    /* ★★ #1028 INVERTS this paired negative (#835 — inverted, not deleted): the shipped addFile handler now READS
+       `sent`/`read` (and the relay flag, arg 14) into the status it renders, which is why the C# derivation is back. */
+    ok(/addFile\(id, address, nick, avatar, fileid, name, time, me, sent, read, progress, complete, paid, relaySent\) \{[\s\S]{0,500}?statusFrom\(\{ sent: relaySent === undefined \? 'True' : relaySent, confirmed: sent, read \}\)/.test(chDead),
+      '★★ L2 (#641) PAIRED — INVERTED by #1028: the shipped addFile handler READS `sent`/`read` (+ the relay flag) into the tick it renders, so the C# derivation is back on that push (the negative this replaced said: if the shell ever reads them, the C# must come back)');
     ok(/"updateMessage", Crypto\.hashToString\(message\.id\), message\.message, tSent\.ToString\(\), tConfirmed\.ToString\(\), tRead\.ToString\(\)/.test(scp),
       '★ L2 (#641): updateMessage pushes the DERIVED values, not the stored ones — the raw flags would re-stall the tick on every re-push');
-    ok(/"addFile"[^\n]*message\.confirmed\.ToString\(\), message\.read\.ToString\(\)/.test(scp)
+    ok(/"addFile"[^\n]*fConfirmed\.ToString\(\), fRead\.ToString\(\)[^\n]*fSent\.ToString\(\)\);/.test(scp)
        && /"addAppRequest"[^\n]*message\.confirmed\.ToString\(\), message\.read\.ToString\(\)/.test(scp),
-      '★ L2 (#641): the file and app pushes carry the RAW flags — deriving values the shell throws away would be dead code with a false guarantee attached');
+      '★ L2 (#641) + #1028: the FILE push carries the DERIVED flags now (the card renders a tick); the APP push keeps the RAW flags — deriving values the shell throws away would be dead code with a false guarantee attached');
     /* ★★★ L2 (#649) — NO OPTIMISTIC SINGLE CHECK. Damir ruled against his own earlier
        pick: "it's a lie, if it hasn't left the device then it's a clock". Verified at
        source that no truthful trigger exists with Core frozen — two overridable hooks,
@@ -25523,10 +25533,10 @@ console.log('Session I ③: the premium pass token batch');
      light gradient is the BRAND GRADIENT (#CCD0EC → #D0C9EB → #D5C3EB, 180°) with its own ink
      #3A2F66. Superseded: Session J #E4EAF3 · #051C8E @ 6% · the 289° #94D2E3 → #ADAEE8 wash. */
   ok(val('chat-canvas-base', light) === '#ECEEF1' && val('chat-pattern-ink-mist', light) === '#2A3140'
-     && val('chat-pattern-ink', light) === 'var(--chat-pattern-ink-mist)' && val('chat-pattern-alpha-1', light) === '0.045'
+     && val('chat-pattern-ink', light) === 'var(--chat-pattern-ink-mist)' && val('chat-pattern-alpha-1', light) === '0.06'   /* ★ #1029 (walk P.8): 0.045 → 0.06, one rung up; dark untouched */
      && /:root:not\(\[data-theme='dark'\]\)\[data-chat-ground='gradient'\],\s*:root:not\(\[data-theme='dark'\]\) \[data-chat-ground='gradient'\] \{[^}]*--gradient-chat: linear-gradient\(180deg, #CCD0EC 0%, #D0C9EB 50%, #D5C3EB 100%\), var\(--chat-canvas-base\);\s*--chat-pattern-ink: #3A2F66;/.test(tok)
      && /:root:not\(\[data-theme='dark'\]\) \[data-chat-ground='flat'\] \{[^}]*--chat-pattern-ink: var\(--chat-pattern-ink-mist\);/.test(tok),
-    '★★ #1002 (was 4 → Session J): light canvas MIST #ECEEF1 · ink #2A3140 @ 4.5% · the gradient option is the BRAND gradient with its own ink #3A2F66, and a FLAT descendant resets the ink so the brand ink never cascades into the flat tile. Superseded: #E4EAF3 · #051C8E @ 6% · the 289° wash');
+    '★★ #1002 (was 4 → Session J) + #1029: light canvas MIST #ECEEF1 · ink #2A3140 @ 6% (#1029 P.8, was 4.5%) · the gradient option is the BRAND gradient with its own ink #3A2F66, and a FLAT descendant resets the ink so the brand ink never cascades into the flat tile. Superseded: #E4EAF3 · #051C8E @ 6% · the 289° wash');
   /* ★★ #835 REVERSES THIS PIN, and it is pinned as a reversal rather than edited away.
      Damir 2026-09-09: "we will remove the gradient on light, it's too busy" — so SOLID is
      the default now and the gradient remains a CHOICE, which is how this ruling and his
@@ -34840,7 +34850,7 @@ console.log('★ Session Y — contact details, the premium pass (#873/#875/#876
      (1.103, and it was 1.109 BEFORE ② — never above the 1.11 floor; the chooser's hover carries
      --elevation-2 as its second signal, Session X). Pinned at the honest 1.10 so a further drop
      is caught; a real step needs an --ink-400 or a hover-by-elevation-only — Damir's dial. */
-  r.sheetCardD = cr(dark, '--surface-sheet-card', '--surface-menu');
+  r.sheetCardD = cr(dark, '--surface-sheet-card', '--surface-sheet');   /* ★ #1030: the sheet ground token (dark 800, card 700 → 1.111) */
   r.sheetHovD = cr(dark, '--surface-sheet-card-hover', '--surface-sheet-card');
   ok(r.sheetCardD >= 1.11 && r.sheetHovD >= 1.10,
     '★ Session Z (#884 ②): the dark chooser card lifts off the ink-700 sheet by ≥ 1.11 (' + f(r.sheetCardD) + ') and its hover is ≥ 1.10 on the card (' + f(r.sheetHovD) + ' — sub-floor since Session X, recorded, Damir\'s dial)');
@@ -35924,9 +35934,11 @@ console.log('#912: backup exclusions, the html copy skip, and the start clock');
      carry the attribute writer (r-review MINOR-5: the list was the author's) */
   const railShells = shells.filter((f) => /attachLandscapeRail\(/.test(stripCode(rdR('src/shells/' + f))));
   const platWriter = (f) => { const m = scriptsOf(rdR('src/shells/' + f)).map((sc) => /var p='\*SL\{SpixiPlatform\}';if\(\/\^\(([a-z|]+)\)\$\/\.test\(p\)\)document\.documentElement\.setAttribute\('data-platform',p\);/.exec(sc)).find(Boolean); return m ? m[1].split('|') : null; };
-  const platBad = shells.filter((f) => { const allowed = platWriter(f); const needs = railShells.includes(f); if (!needs) return allowed !== null; if (!allowed) return true; const names = platNames.filter(Boolean); return !(names.every((n) => allowed.includes(n)) && allowed.every((n) => names.includes(n))); });
+  /* ★ #1028 INVERTS the "no other shell" half (#835): every shell now carries the carrier (the Mac title-bar line keys on
+     it), so the property is that EVERY shell writes EXACTLY the C# set — the rail stays gated on attachLandscapeRail. */
+  const platBad = shells.filter((f) => { const allowed = platWriter(f); if (!allowed) return true; const names = platNames.filter(Boolean); return !(names.every((n) => allowed.includes(n)) && allowed.every((n) => names.includes(n))); });
   ok(railShells.length >= 2 && railShells.includes('home.html') && railShells.includes('settings.html') && platBad.length === 0,
-    '★ #922 ④ (derived): the shells that attach the rail (' + railShells.join(', ') + ') set data-platform from *SL{SpixiPlatform} for EXACTLY the C# PLATFORM_NAME set, and no other shell writes the attribute (bad: ' + (platBad.join(', ') || 'none') + ')');
+    '★ #922 ④ (derived): the shells that attach the rail (' + railShells.join(', ') + ') set data-platform from *SL{SpixiPlatform} for EXACTLY the C# PLATFORM_NAME set, and so does EVERY other shell (#1028 — inverted) (bad: ' + (platBad.join(', ') || 'none') + ')');
   /* ⑤ landscape-runtime + attachLandscapeRail: the flag is the DEVICE's (screen.orientation,
      phone-sized short side), the rail refuses desktop and non-Android, toggles the class + the
      root flag through the runtime's onChange, and detaches both */
@@ -37046,7 +37058,9 @@ console.log('Office fix round (#974–#981)');
   const baseCss = readFileSync(join(dir, 'spixi.base.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
   const htmls = shells.map((f) => [f, readFileSync(join(dir, f), 'utf8')]);
   const miss = want(baseCss) ? htmls.filter(([, h]) => !/<link rel="stylesheet" href="spixi\.base\.css">/.test(h)).map(([f]) => f) : ['spixi.base.css'];
-  const other = [...(baseCss + '\n' + cssOf(htmls.map(([, h]) => h).join('\n'))).matchAll(/([^{}]+)\{/g)].filter((x) => /body::before/.test(x[1]) && !/^:root\[data-desktop\]:not\(\[data-bleed-top\]\) body::before$/.test(x[1].trim())).map((x) => x[1].trim());
+  const other = [...(baseCss + '\n' + cssOf(htmls.map(([, h]) => h).join('\n'))).matchAll(/([^{}]+)\{/g)].filter((x) => /body::before/.test(x[1]) && !/^:root\[data-desktop\]:not\(\[data-bleed-top\]\) body::before$/.test(x[1].trim())
+    /* ★ #1028 (walk R.6): the Mac twin (always 1px) is the one sanctioned second rule — its own pin asserts its body */
+    && !/^:root\[data-platform="maccatalyst"\]:not\(\[data-bleed-top\]\) body::before$/.test(x[1].trim())).map((x) => x[1].trim());
   /* the #993 review MINOR: full-bleed screens stand the line down — static on lock / launch (intro.html) / call, toggled with the Wallet tab */
   const bleedStatic = ['lock.html', 'intro.html', 'call.html'].filter((f) => !/<html lang="en" data-bleed-top>/.test(readFileSync(join(dir, f), 'utf8')));
   const bleedWallet = /walletView\.hidden = !isWallet;\s*document\.documentElement\.toggleAttribute\('data-bleed-top', isWallet\);/.test(readFileSync(join(dir, 'index.html'), 'utf8'));
@@ -37161,8 +37175,8 @@ console.log('Office fix round (#974–#981)');
   const walk = (d) => readdirSync(join(root, d)).filter((f) => /\.(js|html)$/.test(f)).map((f) => [d + '/' + f, rd(d + '/' + f)]);
   const naked = [...walk('src/components'), ...walk('src/shells')].filter(([f, t]) => /navigator\.clipboard\.writeText\(/.test(t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')))
     .filter(([f, t]) => !(f === 'src/components/clipboard.js' && (t.match(/navigator\.clipboard\.writeText\(/g) || []).length === 1) && f !== 'src/shells/settings.html'
-      /* chat-select's multi-copy keeps its OWN ladder (async → execCopyText, synchronous finish before exit — the toast ordering its pins hold) */
-      && !(f === 'src/components/chat-select.js' && /navigator\.clipboard\.writeText\(joined\)\.then\(\(\) => finish\(true\), \(\) => finish\(execCopyText\(joined\)\)\);\s*\} else finish\(execCopyText\(joined\)\);/.test(t))).map(([f]) => f);
+      /* ★ #1028: chat-select's own ladder is gone — it rides copyText now, so it has no exception here */
+      ).map(([f]) => f);
   r.naked = naked.length === 0;
   ok(Object.values(r).every((v) => v === true),
     '★★ #993 review fixes: #989 M1 the Details divider has its own role (on-card in dark), m1 a selected sent card\'s edge rises, n1 the appearance preview carries the dark edge and the tail-less corner; #990 the phone "?" is the LAST display word and has a 44px hit area; copyText falls back to execCommand when the async API is absent or refuses, keeps the buffer INSIDE an open sheet (focus held, then restored) and never claims a failed copy; no component/shell calls the async clipboard directly — ' + JSON.stringify(r) + ' naked: ' + JSON.stringify(naked));
@@ -37315,15 +37329,18 @@ console.log('★★ #1001–#1010 — the premium polish round');
   /* —— #1009/#1010: the two motion moments, live only —— */
   {
     const row = S.createMessageBubble({ text: 'x', direction: 'sent', status: 'sent', timestamp: 1790600000000, strings: {} });
+    /* ★ #1028 re-base (walk P.13): a live change now keeps the OLD glyph as an aria-hidden ghost (data-exit) for the
+       crossfade — the CURRENT glyph is the one that is not leaving */
+    const cur = () => row.querySelector('.c-status-icon:not([data-exit])');
     S.setMessageStatus(row, 'delivered', {}, { animate: true });
-    const live = row.querySelector('.c-status-icon').hasAttribute('data-enter');
+    const live = cur().hasAttribute('data-enter');
     S.setMessageStatus(row, 'read', {}, {});
-    const hist = row.querySelector('.c-status-icon').hasAttribute('data-enter');
+    const hist = cur().hasAttribute('data-enter');
     S.setMessageStatus(row, 'read', {}, { animate: true });
-    const same = row.querySelector('.c-status-icon').hasAttribute('data-enter');
+    const same = cur().hasAttribute('data-enter');
     const mb = stripCssComments(rdP('src/styles/components/message-bubble.css'));
     ok(live && !hist && !same && /\.c-status-icon\[data-enter\] \{ animation: c-tick-in calc\(var\(--duration-200\) \* 0\.8\)/.test(mb)
-       && /@media \(prefers-reduced-motion: reduce\) \{ \.c-status-icon\[data-enter\] \{ animation: none; \} \}/.test(mb)
+       && /@media \(prefers-reduced-motion: reduce\) \{ \.c-status-icon\[data-enter\], \.c-status-icon\[data-exit\] \{ animation: none; \} \}/.test(mb)   /* ★ #1028: the ghost stands down too */
        && /setMessageStatus\(row, rec\.status, window\.SL \|\| \{\}, \{ animate: !bursting && !loadPhase \}\)/.test(stripCode(rdP('src/shells/chat.html'))),
       '★★ #1010: a LIVE tick change fades in (160ms from the motion token); an unchanged or history status never animates; the shell asks only outside the load burst; reduced motion = none');
     const ch = stripCode(rdP('src/shells/chat.html'));
@@ -37609,6 +37626,395 @@ console.log('★★ #1001–#1010 — the premium polish round');
   }
   dom.window.close();
 }
+
+/* ══ OVERNIGHT-1028-START ══ ★★ #1028+ — THE OVERNIGHT FINALIZATION (2026-09-29, after the Mac + iPhone walk).
+   Every pin here was killed by its own one-token mutation before it landed (verdict: docs/opus-review-brief-overnight-1028.md). */
+console.log('★★ #1028+ — the overnight finalization');
+{
+  const rdO = (p) => readFileSync(join(root, p), 'utf8');
+  const mkWin = () => {
+    const dom = new JSDOM('<!doctype html><body></body>', { runScripts: 'outside-only', pretendToBeVisual: true });
+    const W = dom.window;
+    W.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+    W.eval(rdO('src/components/icons.iife.js')); W.eval(rdO('src/demo/spixi.iife.js'));
+    return W;
+  };
+
+  /* —— #1028 (walk R.8 / R.9 / P.11): Spixi's own Copy goes through the NATIVE clipboard —— */
+  {
+    const W = mkWin(), S = W.Spixi, r = {};
+    const sent = [];
+    let execCalls = 0;
+    W.document.execCommand = (c) => { if (c === 'copy') execCalls++; return c === 'copy'; };
+    try { Object.defineProperty(W.navigator, 'clipboard', { value: undefined, configurable: true }); } catch (e) {}
+    const bridge = S.createNativeBridge({ emit: (c) => sent.push(c), win: W });
+    r.hook = typeof W.__spixiNativeCopy === 'function' && typeof W.nativeCopyResult === 'function';
+    const text = 'Grüße + /slash ✓ 42SpoxAddr';
+    const pr = S.copyText(text);
+    const cmd = sent.find((c) => c.startsWith('ixian:copytext:')) || '';
+    const m = /^ixian:copytext:(\d{1,16}):([A-Za-z0-9_-]+)$/.exec(cmd);
+    r.grammar = !!m;
+    const b64 = m ? m[2].replace(/-/g, '+').replace(/_/g, '/') : '';
+    r.roundTrip = !!m && Buffer.from(b64 + '='.repeat((4 - b64.length % 4) % 4), 'base64').toString('utf8') === text;
+    if (m) W.nativeCopyResult(m[1], '1');
+    r.nativeTrue = await pr === true && execCalls === 0;   // the ✓ follows the NATIVE answer — the in-page path never ran
+    /* the native write failed → the in-page path gets its one try (a success there is real) */
+    sent.length = 0;
+    const pr2 = S.copyText('second');
+    const m2 = /^ixian:copytext:(\d+):/.exec(sent[0] || '');
+    if (m2) W.nativeCopyResult(m2[1], '0');
+    r.nativeFalseFalls = !!m2 && await pr2 === true && execCalls === 1;
+    /* a stale / unknown token is ignored (no throw, no resolve of another copy) */
+    let threw = false; try { W.nativeCopyResult('999999', '1'); W.nativeCopyResult('', ''); } catch (e) { threw = true; }
+    r.staleIgnored = !threw;
+    /* over the cap → no command at all, straight to the in-page path */
+    sent.length = 0;
+    const big = 'x'.repeat(S.NATIVE_COPY_MAX + 1);
+    r.overCap = await S.copyText(big) === true && sent.length === 0 && S.NATIVE_COPY_MAX === 64000;
+    /* no answer (an older exe without the verb) → the in-page path after the timeout */
+    sent.length = 0;
+    const before = execCalls;
+    const pr3 = S.copyText('noanswer');
+    await sleep(S.NATIVE_COPY_TIMEOUT_MS + 150);
+    r.timeoutFalls = sent.length === 1 && await pr3 === true && execCalls === before + 1;
+    /* the encoder's alphabet is the one C#'s decodeCopyPayload accepts — bytes that produce '+' and '/' in plain base64 */
+    const enc = S.utf8ToB64Url('ûÿþ>?' + String.fromCodePoint(0x1F600));
+    r.alphabet = /^[A-Za-z0-9_-]+$/.test(enc) && !/=/.test(enc);
+    ok(Object.values(r).every((v) => v === true),
+      '★★ #1028 (R.8/R.9/P.11): copyText hands the text to C# as ixian:copytext:<digits>:<base64url> (UTF-8 round-trips), the result is the NATIVE answer (the in-page path does not run on a native ✓), a native failure or no answer falls back to the in-page copy, text over the 64 000 cap never becomes a command, stale tokens are ignored, and every shell with a bridge gets the hook — ' + JSON.stringify(r));
+    W.close();
+  }
+  {
+    /* C#: the verb is write-only, validated, refused for a mini-app, and logs no payload */
+    const cs = stripCode(rdO('Spixi/Utils/SpixiContentPage.cs'));
+    const i = cs.indexOf('url.StartsWith("ixian:copytext:"');
+    const j = cs.indexOf('else if', i + 10);
+    const br = i < 0 ? '' : cs.slice(i, j);
+    const r = {};
+    r.miniApp = /if \(!hasGeneratedContent\)\s*\{\s*return true;\s*\}/.test(br) && br.indexOf('!hasGeneratedContent') < br.indexOf('SetTextAsync');
+    r.token = /token\.Length > 16/.test(br) && /token\.All\(c => c >= '0' && c <= '9'\)/.test(br);
+    r.decoded = /decodeCopyPayload\(payload\)/.test(br) && /Clipboard\.Default\.SetTextAsync\(text\)/.test(br);
+    r.answer = (br.match(/sendUiCommand\(this, "nativeCopyResult", token, /g) || []).length === 2;
+    /* every Logging call in the branch carries nothing but the exception TYPE */
+    const logs = [...br.matchAll(/Logging\.\w+\(([^;]*)\);/g)].map((x) => x[1]);
+    r.noPayloadLog = logs.length >= 1 && logs.every((a) => /^"[^"]*" \+ ex\.GetType\(\)\.Name$/.test(a.trim()));
+    /* WRITE-ONLY, derived over every C# file in the app: nothing reads the clipboard */
+    const walkCs = (d) => readdirSync(join(root, d), { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walkCs(d + '/' + e.name) : (/\.cs$/.test(e.name) ? [d + '/' + e.name] : []));
+    const readers = walkCs('Spixi').filter((f) => /\bGetTextAsync\s*\(|UIPasteboard\.General\.String\s*[^=]|\.HasText\b/.test(stripCode(rdO(f))));
+    r.writeOnly = readers.length === 0;
+    /* the decoder refuses before it decodes: alphabet, cap, UTF-8 strict */
+    const dec = cs.slice(cs.indexOf('public static string? decodeCopyPayload'), cs.indexOf('public static string? decodeCopyPayload') + 1600);
+    r.decoder = /payload\.Length > NATIVE_COPY_MAX \* 4 \+ 4/.test(dec) && /c == '-' \|\| c == '_' \|\| c == '='/.test(dec)
+      && /new System\.Text\.UTF8Encoding\(false, true\)/.test(dec) && /text\.Length > NATIVE_COPY_MAX/.test(dec) && /public const int NATIVE_COPY_MAX = 64000;/.test(cs);
+    /* the legacy empty `ixian:copy` stub is gone (one copy verb, not a no-op beside it) */
+    r.stubGone = !/"ixian:copy"/.test(stripCode(rdO('Spixi/Pages/Home/HomePage.xaml.cs')));
+    ok(Object.values(r).every((v) => v === true),
+      '★★ #1028 security gate: the C# copy verb refuses a mini-app WebView before anything else, takes a ≤16-digit token and a base64url payload (alphabet + cap + strict UTF-8 checked BEFORE the clipboard), answers nativeCopyResult on both outcomes, logs only an exception TYPE, and no C# file anywhere READS the clipboard — ' + JSON.stringify(r) + ' readers: ' + JSON.stringify(readers));
+  }
+  {
+    /* P.11: the Account header Copy shows a ✓ for a copy that happened — and only then */
+    const W = mkWin(), S = W.Spixi, d = W.document;
+    let answer = true;
+    W.__spixiNativeCopy = () => Promise.resolve(answer);
+    W.document.execCommand = () => false;
+    try { Object.defineProperty(W.navigator, 'clipboard', { value: undefined, configurable: true }); } catch (e) {}
+    const hub = S.createSettingsHub({ name: 'Ana', address: '42SpoxAddressForTheHubCopyTest000000000000', strings: {} });
+    d.body.append(hub);
+    const btn = hub.querySelector('[data-addr="copy"]');
+    const iconName = () => { const u = btn && btn.querySelector('.c-button__icon'); return u ? (u.getAttribute('data-icon') || u.innerHTML.slice(0, 80)) : ''; };
+    const idle = iconName();
+    btn.click(); await sleep(20);
+    const okMorph = btn.dataset.copied !== undefined && iconName() !== idle && btn.querySelectorAll('.c-button__icon').length === 1;
+    await sleep(1500);
+    const back = btn.dataset.copied === undefined && iconName() === idle;
+    answer = false;
+    btn.click(); await sleep(20);
+    const noFalse = btn.dataset.copied === undefined && iconName() === idle;
+    ok(!!btn && okMorph && back && noFalse,
+      '★★ #1028 (P.11): the Account header Copy morphs to a ✓ (one icon, data-copied) for a NATIVE success, returns after 1.4 s, and shows nothing for a failed copy — ' + JSON.stringify({ okMorph, back, noFalse }));
+    W.close();
+  }
+  {
+    /* R.9: the message-menu Copy tells the user — a success toast or an error toast, never silence */
+    const ch = stripCode(rdO('src/shells/chat.html'));
+    const i = ch.indexOf("if (action === 'copy') {");
+    const br = i < 0 ? '' : ch.slice(i, ch.indexOf("if (action === 'select')", i));
+    const cse = stripCode(rdO('src/components/chat-select.js'));
+    ok(/copyText\(rec\.text\)\.then\(\(ok\) =>/.test(br) && /ok === true\s*\?\s*\{ text: s\.copied/.test(br) && /tone: 'success'/.test(br) && /s\.copyMessageFailed/.test(br) && /tone: 'error'/.test(br)
+       && /copyText\(joined\)\.then\(\(ok\) => finish\(ok === true\)/.test(cse) && !/navigator\.clipboard/.test(cse) && !/execCopyText/.test(cse),
+      '★ #1028 (R.9): the message-menu Copy toasts the NATIVE outcome (success or error), and the multi-select Copy rides copyText — the last site with its own async→execCommand ladder is gone');
+  }
+  /* —— token resolution in BOTH themes (every top-level `:root {` block, then every `[data-theme="dark"] {`
+     block over it) + WCAG 2.1 contrast. Parsed from the stylesheet, never hardcoded. —— */
+  const themeVars = (() => {
+    const t = stripCssComments(rdO('src/styles/tokens.css'));
+    const light = {}, darkOnly = {};
+    for (const m of t.matchAll(/^(:root|\[data-theme="dark"\]) \{([\s\S]*?)^\}/gm)) {
+      const into = m[1] === ':root' ? light : darkOnly;
+      for (const d of m[2].matchAll(/(--[\w-]+):\s*([^;]+);/g)) into[d[1]] = d[2].trim();
+    }
+    return { light, dark: { ...light, ...darkOnly } };
+  })();
+  const resolveTok = (theme, name, depth = 0) => {
+    if (depth > 10) return null;
+    const v = themeVars[theme][name];
+    if (!v) return null;
+    const r = /^var\((--[\w-]+)\)$/.exec(v);
+    return r ? resolveTok(theme, r[1], depth + 1) : v;
+  };
+  const lumO = (hex) => { const h = hex.replace('#', ''); const c = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((u) => (u <= 0.04045 ? u / 12.92 : Math.pow((u + 0.055) / 1.055, 2.4))); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+  const crO = (a, b) => { if (!/^#[0-9a-fA-F]{6}$/.test(a || '') || !/^#[0-9a-fA-F]{6}$/.test(b || '')) return 0; const x = lumO(a), y = lumO(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+
+  /* —— the BUILT chat shell, booted through the real wire (the N71/N81 harness), for the executed pins below —— */
+  const bootChat = async () => {
+    const chatShellPath = join(root, 'Spixi/Resources/Raw/html/chat.html');
+    const vc = new VirtualConsole();
+    const errs = [];
+    vc.on('jsdomError', (e) => errs.push(String(e.message)));
+    vc.on('error', (...a) => errs.push(a.map((x) => String(x && x.stack || x)).join(' ')));
+    const dom = new JSDOM(readFileSync(chatShellPath, 'utf8'), {
+      runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true,
+      url: 'file://' + chatShellPath, virtualConsole: vc,
+      beforeParse(w) {
+        w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+        try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
+        w.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
+      },
+    });
+    await sleep(2000);
+    const W = dom.window;
+    const b64 = (x) => Buffer.from(String(x), 'utf8').toString('base64');
+    const push = (fn, ...a) => W.executeUiCommand(W[fn], ...a.map(b64));
+    return { dom, W, errs, push };
+  };
+  const T0 = Math.floor(Date.now() / 1000) - 120;
+
+  /* —— #1028 (walk P.13): a LIVE tick change is a CROSSFADE — and it survives a rebuild —— */
+  {
+    const { dom, W, errs, push } = await bootChat();
+    const d = W.document;
+    const icons = (id) => { const row = d.querySelector('#messages [data-msgid="' + id + '"]'); return row ? [...row.querySelectorAll('.c-bubble__meta .c-status-icon')] : []; };
+    const r = {};
+    push('onChatScreenReady');
+    push('clearMessages', 'False');
+    push('addMe', 'tk1', 'addrMe', 'Me', '', 'hello there', String(T0), 'True', 'False', 'False', 'False', 'False');
+    push('addMe', 'tk0', 'addrMe', 'Me', '', 'history', String(T0 - 60), 'True', 'True', 'False', 'False', 'False');
+    push('updateMessage', 'tk0', 'history', 'True', 'True', 'True', 'False', 'False');   // a status change INSIDE the load burst
+    if (typeof W.messagesDone === 'function') push('messagesDone');
+    push('onChatScreenLoaded');
+    await sleep(40);
+    r.historyStill = icons('tk0').length === 1 && !icons('tk0')[0].hasAttribute('data-enter') && icons('tk0')[0].dataset.tone === 'read';   // history never animates — not even a change inside the burst
+    await sleep(400);
+    push('updateMessage', 'tk1', 'hello there', 'True', 'True', 'False', 'False', 'False');
+    const live = icons('tk1');
+    r.pair = live.length === 2 && live[0].hasAttribute('data-exit') && live[0].dataset.tone === 'neutral' && live[0].getAttribute('aria-hidden') === 'true'
+      && live[1].hasAttribute('data-enter') && live[1].dataset.tone === 'delivered' && live[1].getAttribute('role') === 'img';
+    await sleep(600);
+    r.settled = icons('tk1').length === 1 && icons('tk1')[0].dataset.tone === 'delivered';
+    /* a read tick that lands next to a FULL render (a new incoming row rebuilds every row) still crossfades */
+    push('updateMessage', 'tk1', 'hello there', 'True', 'True', 'True', 'False', 'False');
+    push('addThem', 'tk2', 'addrPeer', 'Bob', '', 'reply', String(T0 + 30));
+    await sleep(60);   // the rAF render has run: every row node is new
+    const rebuilt = icons('tk1');
+    r.replay = rebuilt.length === 2 && rebuilt[0].hasAttribute('data-exit') && rebuilt[0].dataset.tone === 'delivered'
+      && rebuilt[1].hasAttribute('data-enter') && rebuilt[1].dataset.tone === 'read';
+    await sleep(600);
+    r.replaySettled = icons('tk1').length === 1 && icons('tk1')[0].dataset.tone === 'read';
+    /* a rebuild AFTER the window does not re-animate an old change */
+    push('addThem', 'tk3', 'addrPeer', 'Bob', '', 'again', String(T0 + 40));
+    await sleep(60);
+    r.noLateReplay = icons('tk1').length === 1 && !icons('tk1')[0].hasAttribute('data-enter');
+    r.noErrors = errs.filter((e) => /ReferenceError|TypeError|dispatch failed/.test(e)).length === 0;
+    ok(Object.values(r).every((v) => v === true),
+      '★★ #1028 (walk P.13) EXECUTED on the BUILT chat shell: a live sent→delivered change keeps the OLD glyph (aria-hidden, data-exit) beside the NEW one (data-enter) for the fade, then only the new one; a read tick that lands next to a full re-render REPLAYS the crossfade on the rebuilt row; history and a late rebuild never animate — ' + JSON.stringify(r) + ' errs: ' + errs.slice(0, 2).join(' | '));
+    dom.window.close();
+  }
+  {
+    /* component: two changes inside one fade keep ONE ghost; reduced motion makes no ghost; the CSS ghost
+       overlaps the new glyph by exactly its width + the meta gap (the SAME gap token as the meta and the stamp) */
+    const W = mkWin(), S = W.Spixi;
+    const row = S.createMessageBubble({ text: 'x', direction: 'sent', status: 'sending', timestamp: Date.now(), strings: {} });
+    W.document.body.append(row);
+    S.setMessageStatus(row, 'sent', {}, { animate: true });
+    S.setMessageStatus(row, 'delivered', {}, { animate: true });
+    const all = [...row.querySelectorAll('.c-status-icon')];
+    const oneGhost = all.length === 2 && all.filter((e) => e.hasAttribute('data-exit')).length === 1 && all[1].dataset.tone === 'delivered';
+    S.setMessageStatus(row, 'read', {}, { animate: false });
+    const plain = row.querySelectorAll('.c-status-icon').length === 1;
+    W.matchMedia = (q) => ({ matches: /reduce/.test(q), media: q, addListener() {}, removeListener() {} });
+    S.setMessageStatus(row, 'delivered', {}, { animate: true });
+    const reduced = row.querySelectorAll('.c-status-icon').length === 1 && !row.querySelector('[data-enter]');
+    /* a RECEIVED file never carries a tick, whatever the caller passes (the shell passes null — the component holds it too) */
+    const recvFile = S.createFileBubble({ name: 'a.pdf', direction: 'received', status: 'read', timestamp: Date.now(), strings: {} });
+    const sentFile = S.createFileBubble({ name: 'a.pdf', direction: 'sent', status: 'read', timestamp: Date.now(), strings: {} });
+    const fileTicks = !recvFile.querySelector('.c-status-icon') && !recvFile.querySelector('.c-fbubble__stamp') && !!recvFile.querySelector('.c-fbubble__time')
+      && sentFile.querySelectorAll('.c-fbubble__stamp .c-status-icon[data-tone="read"]').length === 1 && !!sentFile.querySelector('.c-fbubble__stamp .c-fbubble__time');
+    const mb = stripCssComments(rdO('src/styles/components/message-bubble.css'));
+    const tb = stripCssComments(rdO('src/styles/components/typed-bubbles.css'));
+    const gapMeta = (/\.c-bubble__meta \{[^}]*gap: (var\(--spacing-\d+\));/.exec(mb) || [])[1];
+    const gapStamp = (/\.c-fbubble__stamp \{[^}]*gap: (var\(--spacing-\d+\));/.exec(tb) || [])[1];
+    const ghostRule = /\.c-status-icon\[data-exit\] \{([^}]*)\}/.exec(mb);
+    const css = !!ghostRule && gapMeta && gapMeta === gapStamp
+      && ghostRule[1].includes('margin-inline-end: calc(-14px - ' + gapMeta + ')')
+      && /animation: c-tick-out calc\(var\(--duration-200\) \* 0\.8\) var\(--easing-standard\) forwards;/.test(ghostRule[1])
+      && /@keyframes c-tick-out \{ to \{ opacity: 0;/.test(mb)
+      && /@media \(prefers-reduced-motion: reduce\) \{ \.c-status-icon\[data-enter\], \.c-status-icon\[data-exit\] \{ animation: none; \} \}/.test(mb);
+    /* the shell's replay window IS the fade (--duration-200 × 0.8) */
+    const dur = (/--duration-200:\s*(\d+)ms/.exec(rdO('src/styles/tokens.css')) || [])[1];
+    const win = (/const TICK_REPLAY_MS = (\d+);/.exec(rdO('src/shells/chat.html')) || [])[1];
+    const winOk = !!dur && Number(win) === Math.round(Number(dur) * 0.8);
+    ok(oneGhost && plain && reduced && css && winOk && fileTicks,
+      '★ #1028 (P.13): two changes inside one fade leave ONE ghost; animate:false and reduced motion swap plainly (no ghost); the ghost overlaps by 14px + the SAME gap token the meta and the file stamp use, fades out forwards, and the shell\'s replay window equals the fade (--duration-200 × 0.8) — ' + JSON.stringify({ oneGhost, plain, reduced, css, winOk, fileTicks, gapMeta, gapStamp, dur, win }));
+    W.close();
+  }
+
+  /* —— #1028 (walk P.22): a SENT file shows its delivery tick, and it changes live —— */
+  {
+    const { dom, W, errs, push } = await bootChat();
+    const d = W.document;
+    const tickOf = (id) => { const row = d.querySelector('#messages [data-msgid="' + id + '"]'); return row ? [...row.querySelectorAll('.c-fbubble__stamp .c-status-icon')] : null; };
+    const r = {};
+    push('onChatScreenReady');
+    push('clearMessages', 'False');
+    /* this exe: 14 args (arg 14 = relay) · an OLDER exe: 13 · a RECEIVED file */
+    push('addFile', 'f1', 'addrMe', 'Me', '', 'fid1', 'report.pdf', String(T0), 'True', 'False', 'False', '0', 'False', 'False', 'True');
+    push('addFile', 'f0', 'addrMe', 'Me', '', 'fid0', 'old.zip', String(T0 - 30), 'True', 'False', 'False', '100', 'True', 'False');
+    push('addFile', 'f9', 'addrPeer', 'Bob', '', 'fid9', 'theirs.png', String(T0 - 20), 'False', 'True', 'True', '100', 'True', 'False', 'True');
+    push('addFile', 'f8', 'addrMe', 'Me', '', 'fid8', 'queued.txt', String(T0 - 10), 'True', 'False', 'False', '0', 'False', 'False', 'False');
+    if (typeof W.messagesDone === 'function') push('messagesDone');
+    push('onChatScreenLoaded');
+    await sleep(400);
+    const t1 = tickOf('f1'), t0 = tickOf('f0'), t9 = tickOf('f9'), t8 = tickOf('f8');
+    r.sent = !!t1 && t1.length === 1 && t1[0].dataset.tone === 'neutral' && t1[0].getAttribute('aria-label') === (W.SL && W.SL['status-sent'] || 'sent');
+    r.oldExe = !!t0 && t0.length === 1 && t0[0].dataset.tone === 'neutral' && t0[0].getAttribute('aria-label') === t1[0].getAttribute('aria-label') && t0[0].innerHTML === t1[0].innerHTML;   // the relayed ✓, not the clock
+    r.sending = !!t8 && t8.length === 1 && t8[0].getAttribute('aria-label') !== t1[0].getAttribute('aria-label');
+    r.received = Array.isArray(t9) && t9.length === 0;
+    push('updateFileTicks', 'f1', 'True', 'True', 'False');
+    const live = tickOf('f1');
+    r.crossfade = live.length === 2 && live[0].hasAttribute('data-exit') && live[1].dataset.tone === 'delivered' && live[1].hasAttribute('data-enter');
+    await sleep(600);
+    r.delivered = tickOf('f1').length === 1 && tickOf('f1')[0].dataset.tone === 'delivered';
+    push('updateFileTicks', 'f1', 'True', 'True', 'True');
+    await sleep(600);
+    r.read = tickOf('f1').length === 1 && tickOf('f1')[0].dataset.tone === 'read';
+    /* a received file, an unknown id, an unchanged status: nothing */
+    push('updateFileTicks', 'f9', 'True', 'True', 'True');
+    push('updateFileTicks', 'nope', 'True', 'True', 'True');
+    r.ignored = tickOf('f9').length === 0;
+    r.noErrors = errs.filter((e) => /ReferenceError|TypeError|dispatch failed/.test(e)).length === 0;
+    ok(Object.values(r).every((v) => v === true),
+      '★★ #1028 (walk P.22) EXECUTED on the BUILT chat shell: a SENT file carries the text bubble\'s tick in its stamp (relayed = single check; an older exe\'s 13-arg push reads as relayed, never a clock), a queued one reads differently, a RECEIVED file carries none; updateFileTicks crossfades it to delivered, then read; a received file or an unknown id is ignored — ' + JSON.stringify(r) + ' errs: ' + errs.slice(0, 2).join(' | '));
+    dom.window.close();
+  }
+  {
+    /* C#: the file row's flags are DERIVED (deliveryTicks, the group rule), the relay flag rides as arg 14, and the
+       live push is FLAGS ONLY (no message.message — the raw header must never reach a text handler) */
+    const cs = stripCode(rdO('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
+    const addFile = (/push\(batch, "addFile", ([^;]*)\);/.exec(cs) || [])[1] || '';
+    const args = addFile.split(/,\s*/);
+    const um = cs.slice(cs.indexOf('public void updateMessage(FriendMessage message, int channel)'), cs.indexOf('public void updateFile('));
+    const fileBr = um.slice(um.indexOf('if (message.type == FriendMessageType.fileHeader)'), um.indexOf('if (message.type != FriendMessageType.standard)'));
+    const r = {
+      derivedBeforePush: /deliveryTicks\(message, out bool fSent, out bool fConfirmed, out bool fRead\);\s*push\(batch, "addFile"/.test(cs),
+      argOrder: args.length === 14 && args[8] === 'fConfirmed.ToString()' && args[9] === 'fRead.ToString()' && args[13] === 'fSent.ToString()',
+      liveFlagsOnly: /deliveryTicks\(message, out bool fSent, out bool fConfirmed, out bool fRead\);\s*Utils\.sendUiCommand\(this, "updateFileTicks", Crypto\.hashToString\(message\.id\), fSent\.ToString\(\), fConfirmed\.ToString\(\), fRead\.ToString\(\)\);\s*return;/.test(fileBr)
+        && !/message\.message|filePath|transferId/.test(fileBr),
+      beforeTextGuard: um.indexOf('FriendMessageType.fileHeader') > -1 && um.indexOf('FriendMessageType.fileHeader') < um.indexOf('if (message.type != FriendMessageType.standard)'),
+    };
+    ok(Object.values(r).every((v) => v === true),
+      '★ #1028 (P.22) C#: the file row\'s ticks go through deliveryTicks (a group file ticks like a group text), arg 9/10 keep their meaning and the relay flag is arg 14; a fileHeader status change pushes updateFileTicks — id + three flags, no text/name/path — before the standard-only guard — ' + JSON.stringify(r));
+  }
+  {
+    /* P.22: the stamp's tick tones are ≥ 3:1 (a non-text UI glyph, WCAG 1.4.11) on the SENT card in both themes —
+       the tokens are read from the stamp's own rules, not assumed */
+    const tb = stripCssComments(rdO('src/styles/components/typed-bubbles.css'));
+    const base = (/\.c-fbubble__stamp \.c-status-icon \{[^}]*color: var\((--[\w-]+)\);/.exec(tb) || [])[1];
+    const read = (/\.c-fbubble__stamp \.c-status-icon\[data-tone="read"\] \{ color: var\((--[\w-]+)\); \}/.exec(tb) || [])[1];
+    const rows = [];
+    for (const th of ['light', 'dark']) {
+      const card = resolveTok(th, '--surface-card-sent');
+      rows.push({ th, base: +crO(resolveTok(th, base), card).toFixed(2), read: +crO(resolveTok(th, read), card).toFixed(2) });
+    }
+    ok(!!base && !!read && rows.every((x) => x.base >= 3 && x.read >= 3),
+      '★ #1028 (P.22): the sent file\'s tick tones hold ≥ 3:1 on the sent card in BOTH themes (computed from tokens.css) — ' + JSON.stringify({ base, read, rows }));
+  }
+  {
+    /* —— #1028 (walk R.6): the Mac title-bar hairline no longer depends on env() or on the log —— */
+    const shells = readdirSync(join(root, 'src/shells')).filter((f) => f.endsWith('.html'));
+    const built = readdirSync(join(root, 'Spixi/Resources/Raw/html')).filter((f) => f.endsWith('.html'));
+    const r = {};
+    /* every shell (source AND built) runs the #922 platform carrier AND defines setInsetTop — derived, no list */
+    const lacks = [];
+    for (const [dir, list] of [['src/shells', shells], ['Spixi/Resources/Raw/html', built]]) {
+      for (const f of list) {
+        const t = rdO(dir + '/' + f);
+        if (!/<html/i.test(t)) continue;
+        const head = (/<head[\s\S]*?<\/head>/i.exec(t) || [''])[0];
+        const plat = [...head.matchAll(/<script>(\(function\(\)\{var p='\*SL\{SpixiPlatform\}';[^<]*)<\/script>/g)];
+        if (plat.length !== 1 || !/window\.setInsetTop=/.test(head)) { lacks.push(dir + '/' + f); continue; }
+        /* EXECUTED: the carrier as C# substitutes it on the Mac sets data-platform */
+        const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', { runScripts: 'outside-only' });
+        dom.window.eval(plat[0][1].replace('*SL{SpixiPlatform}', 'maccatalyst'));
+        if (dom.window.document.documentElement.getAttribute('data-platform') !== 'maccatalyst') lacks.push(dir + '/' + f + ' (did not set)');
+        dom.window.close();
+      }
+    }
+    r.everyShell = lacks.length === 0 && shells.length >= 18;
+    const base = stripCssComments(rdO('src/styles/base.css'));
+    const macRule = /:root\[data-platform="maccatalyst"\]:not\(\[data-bleed-top\]\) body::before \{([^}]*)\}/.exec(base);
+    r.macRule = !!macRule && /content: '';/.test(macRule[1]) && /position: fixed;/.test(macRule[1]) && /top: var\(--safe-top, 0px\);/.test(macRule[1])
+      && /height: var\(--outline-width-1\);/.test(macRule[1]) && !/min\(/.test(macRule[1]) && /background: var\(--outline-neutral-03\);/.test(macRule[1]) && /z-index: 31;/.test(macRule[1]) && /pointer-events: none;/.test(macRule[1]);
+    r.safeTopMax = /:root \{ --safe-top: max\(env\(safe-area-inset-top, 0px\), var\(--android-inset-top, 0px\)\); \}/.test(base);
+    /* C#: the Catalyst chrome pass pushes the measured overlap through setInsetTop on EVERY pass (outside the log's
+       change-only latch), invariant-culture, only for our own shells */
+    const cs = stripCode(rdO('Spixi/Utils/SpixiContentPage.cs'));
+    const i = cs.indexOf('#if MACCATALYST', cs.indexOf('this.BackgroundColor = pageSurfaceColor;'));
+    const blk = i < 0 ? '' : cs.slice(i, cs.indexOf('#endif', i));
+    const latch = blk.indexOf('if (macTop != lastMacTitlebarInset)');
+    const latchEnd = latch < 0 ? -1 : blk.indexOf('}', blk.indexOf('Logging.info("[M6] mac safe-area top="', latch));
+    const pushAt = blk.indexOf('Utils.sendUiCommand(this, "setInsetTop", Math.Round(macTop, 2).ToString(System.Globalization.CultureInfo.InvariantCulture));');
+    r.csPush = /if \(hasGeneratedContent\)/.test(blk) && pushAt > latchEnd && latchEnd > latch && latch > 0;
+    ok(Object.values(r).every((v) => v === true),
+      '★★ #1028 (walk R.6): every shell (source + built) carries the platform carrier and setInsetTop; on the Mac the title-bar line is ALWAYS 1px at --safe-top (y = 0 when the native bar sits above the WebView), and the Catalyst chrome pass pushes the measured overlap into --safe-top on EVERY pass — ' + JSON.stringify(r) + ' lacking: ' + JSON.stringify(lacks.slice(0, 5)));
+  }
+  {
+    /* —— #1029 (walk P.8): light Contours one rung up — ΔL* on BOTH light grounds, computed; dark untouched —— */
+    const Lstar = (hex) => { const y = lumO(hex); return y > 0.008856 ? 116 * Math.cbrt(y) - 16 : 903.3 * y; };
+    const mix = (g, i, a) => '#' + [0, 2, 4].map((k) => Math.round(parseInt(g.slice(1 + k, 3 + k), 16) * (1 - a) + parseInt(i.slice(1 + k, 3 + k), 16) * a).toString(16).padStart(2, '0')).join('');
+    const a1 = Number(resolveTok('light', '--chat-pattern-alpha-1'));
+    const mist = resolveTok('light', '--chat-canvas-base'), inkMist = resolveTok('light', '--chat-pattern-ink-mist');
+    const tok = stripCssComments(rdO('src/styles/tokens.css'));
+    const gradInk = (/\[data-chat-ground='gradient'\] \{[^}]*--chat-pattern-ink: (#[0-9A-Fa-f]{6});/.exec(tok) || [])[1];
+    const gradMid = (/linear-gradient\(180deg, #[0-9A-Fa-f]{6} 0%, (#[0-9A-Fa-f]{6}) 50%/.exec(tok) || [])[1];
+    const dMist = Lstar(mist) - Lstar(mix(mist, inkMist, a1));
+    const dGrad = gradInk && gradMid ? Lstar(gradMid) - Lstar(mix(gradMid, gradInk, a1)) : 0;
+    ok(a1 > 0.045 && dMist >= 3.5 && dGrad >= 3 && resolveTok('dark', '--chat-pattern-alpha-1') === '0.04',
+      '★ #1029 (walk P.8): the light pattern alpha rose one rung (' + a1 + ') — the ink separates by ΔL* ' + dMist.toFixed(2) + ' on Mist and ' + dGrad.toFixed(2) + ' on the brand gradient (was 2.99 / 2.45 at 0.045); dark stays 0.04');
+  }
+  {
+    /* —— #1030 (walk P.18): dark sheets and dialogs one rung darker, the card pair follows —— */
+    const ov = stripCssComments(rdO('src/styles/components/overlay.css'));
+    /* every rule whose WHOLE selector is `sel` (the remap `.c-sheet,\n.c-modal` block is a different selector) — the LAST background wins */
+    const bg = (sel) => { let hit = null; for (const m of ov.matchAll(/(^|\})\s*([^{}]+)\{([^}]*)\}/g)) { if (m[2].trim() === sel) { const b = /background: var\((--[\w-]+)\);/.exec(m[3]); if (b) hit = b; } } return hit; };
+    const sheetBg = bg('.c-sheet'), modalBg = bg('.c-modal');
+    const Lr = (th, t) => lumO(resolveTok(th, t) || '#000000');
+    const r = {
+      grounds: !!sheetBg && sheetBg[1] === '--surface-sheet' && !!modalBg && modalBg[1] === '--surface-sheet',
+      lightSame: resolveTok('light', '--surface-sheet') === resolveTok('light', '--surface-menu'),
+      darkDown: Lr('dark', '--surface-sheet') < Lr('dark', '--surface-menu') && Lr('dark', '--surface-sheet') > Lr('dark', '--surface-screen'),
+      cardLift: crO(resolveTok('dark', '--surface-sheet-card'), resolveTok('dark', '--surface-sheet')) >= 1.11 && Lr('dark', '--surface-sheet-card') > Lr('dark', '--surface-sheet'),
+      hover: crO(resolveTok('dark', '--surface-sheet-card-hover'), resolveTok('dark', '--surface-sheet-card')) >= 1.11,
+      pressed: Lr('dark', '--surface-sheet-card-pressed') > Lr('dark', '--surface-sheet-card-hover'),
+      /* the menu surface itself did NOT move — toasts, pills and the tray keep it */
+      menuKept: /background: var\(--surface-menu\);/.test(stripCssComments(rdO('src/styles/components/toast.css'))) && resolveTok('dark', '--surface-menu') === resolveTok('dark', '--neutral-700'),
+      /* M5 rides it: the dark destructive fill separates from the dialog ground better than from the old 700 */
+      m5: crO(resolveTok('dark', '--surface-destructive-default'), resolveTok('dark', '--surface-sheet')) > crO(resolveTok('dark', '--surface-destructive-default'), resolveTok('dark', '--surface-menu')),
+    };
+    ok(Object.values(r).every((v) => v === true),
+      '★★ #1030 (walk P.18): .c-sheet and .c-modal paint --surface-sheet — light = the menu surface, dark one rung UNDER it and still above the screen; the card lifts ≥ 1.11, its hover ≥ 1.11 on the card, pressed past hover; toasts keep --surface-menu; the destructive fill separates better on the new ground — ' + JSON.stringify(r));
+  }
+}
+/* ══ OVERNIGHT-1028-END ══ */
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.

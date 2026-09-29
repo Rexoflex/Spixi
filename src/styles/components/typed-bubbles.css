@@ -386,6 +386,20 @@
   line-height: var(--line-height-body-xs);
   color: var(--text-neutral-02);
 }
+/* ★★ #1028 (walk P.22): a SENT file's time + delivery tick — one stamp, the text bubble's meta grammar
+   (time · tick, the same 2px gap the #1028 tick crossfade overlaps by). sending/sent/delivered read in the
+   stamp's own neutral ink (delivered stays neutral, iOS-16 #283); READ is the success green, as on a text
+   bubble; each tone is ≥ 3:1 on the sent card in both themes (smoke #1028, computed). */
+.c-fbubble__stamp {
+  align-self: flex-end;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+.c-fbubble__stamp .c-fbubble__time { align-self: auto; }
+.c-fbubble__stamp .c-status-icon { flex: none; color: var(--text-neutral-02); }
+.c-fbubble__stamp .c-status-icon[data-tone="read"] { color: var(--icon-success); }
 
 /* —— unread divider (full width) —— */
 .c-unread-divider {

@@ -594,6 +594,7 @@
      ink wash, so "lighter" there would mean the opposite operation; ask before moving it. */
   --surface-pinned: rgba(13, 19, 36, 0.07);
   --surface-menu: var(--neutral-10);
+  --surface-sheet: var(--surface-menu);   /* ★ #1030: the SHEET/DIALOG ground (.c-sheet · .c-modal); light = the menu surface, unchanged */
 
   /* text */
   --text-neutral-01: var(--neutral-950);
@@ -897,9 +898,9 @@
   --surface-composer: var(--neutral-900);
   --surface-card: var(--neutral-800);
   --surface-card-raised: var(--neutral-700);
-  --surface-sheet-card: var(--neutral-600);          /* ★ Session X: the sheet is neutral-700 — a card LIFTS in dark, it does not outline */
-  --surface-sheet-card-hover: var(--neutral-500);
-  --surface-sheet-card-pressed: var(--neutral-500);  /* the ramp has no step between 500 and 400 (400 is light) — pressed drops the shadow instead */
+  --surface-sheet-card: var(--neutral-700);          /* ★ #1030: follows the sheet down one rung (was 600 on the 700 sheet, Session X) — a card LIFTS in dark, it does not outline */
+  --surface-sheet-card-hover: var(--neutral-600);    /* ★ #1030: was 500 */
+  --surface-sheet-card-pressed: var(--neutral-500);  /* ★ #1030: now one visible step past hover (was equal to it) */
   --surface-card-hover: var(--neutral-600);          /* ★ Session Y: 1.187:1 on the neutral-800 card after #884 ② (was 1.223 on grey-600; 700 would be 1.048 — invisible) */
   --surface-card-pressed: var(--neutral-500);        /* 1.309:1 (was 1.357) */
   --surface-bubble-sent: #2160c2;      /* ★ Session I (sheet 1d = A): was #1956b2 — matches --gradient-bubble-sent in both themes */
@@ -956,6 +957,12 @@
      the dark contrast check on the neutral-900 list canvas (≈ #1f2327 lift). */
   --surface-pinned: rgba(233, 236, 243, 0.06);
   --surface-menu: var(--neutral-700); /* elevated surfaces lighten in dark mode */
+  /* ★ #1030 (walk P.18, Damir: dark bottom sheets "still one level too light"): the sheet and the
+     dialog step DOWN one rung to neutral-800 (1.108:1 on the 900 screen — the scrim and the elevation
+     carry the separation) while toasts, pills and the tray keep the 700 menu surface. The card pair
+     inside follows it one rung (#1018): card 700 (1.111 on the sheet), hover 600 (1.128 on the card —
+     was 1.103), pressed 500. */
+  --surface-sheet: var(--neutral-800);
 
   /* text */
   --text-neutral-01: var(--neutral-100);
@@ -1346,7 +1353,7 @@
      the Default stroke sat 4.03 L* below it; the colourful canvas is darker and mid-lightness,
      so the same alpha only reached 2.96 (teal end) / 3.62 (green end). .07 restores 3.47 / 4.26
      — the strength Damir already approved, carried onto a different ground rather than re-picked. */
-  --chat-pattern-alpha-1: 0.045;   /* Subtle — ★ #1002 (Damir 2026-09-28: "Subtle ≈ 0.045" on Mist). Was 0.06 (2026-08-30, see the ink note above) */
+  --chat-pattern-alpha-1: 0.06;    /* ★ #1029 (walk P.8, Damir 2026-09-28: "light Contours almost invisible"): ONE rung up, back to 0.06 — ΔL* on Mist 2.99 → 3.99 (the brand gradient 2.45 → 3.27); rendered with 0.075 beside it (docs/sheets/overnight-1028/p8-contours-light.png). Was 0.045 — #1002 ("Subtle ≈ 0.045" on Mist); before that 0.06 (2026-08-30). Next rung if still faint = 0.075 (ΔL* 4.99). Dark unchanged. */
   --chat-pattern-alpha-2: 0.1;     /* Strong */
   --chat-pattern-opacity: var(--chat-pattern-alpha-1);
   /* message text scale (#147 — Chat appearance setting, FE-only). Bubbles

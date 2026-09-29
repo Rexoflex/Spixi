@@ -194,6 +194,7 @@ export const ltlt = {
   copyFailedOpenQr: "Nepavyko nukopijuoti. Atidarykite QR kodą, kad nukopijuotumėte visą adresą.",
   copyLog: "Kopijuoti žurnalą",
   copyLogFailed: "Nepavyko nukopijuoti. Vietoj to pažymėkite žurnalo tekstą.",
+  copyMessageFailed: "Nepavyko nukopijuoti šios žinutės.",
   copyUrl: "Kopijuoti nuorodą",
   createConsent: "Kurdami paskyrą sutinkate su",
   createCta: "Sukurti naują paskyrą",

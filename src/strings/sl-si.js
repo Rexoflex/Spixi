@@ -194,6 +194,7 @@ export const slsi = {
   copyFailedOpenQr: "Kopiranje ni uspelo. Odprite kodo QR, da kopirate celoten naslov.",
   copyLog: "Kopiraj dnevnik",
   copyLogFailed: "Kopiranje ni uspelo. Namesto tega izberite besedilo dnevnika.",
+  copyMessageFailed: "Sporočila ni bilo mogoče kopirati.",
   copyUrl: "Kopiraj povezavo",
   createConsent: "Z ustvaritvijo računa se strinjate z",
   createCta: "Ustvari nov račun",

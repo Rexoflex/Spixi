@@ -194,6 +194,7 @@ export const srsp = {
   copyFailedOpenQr: "Kopiranje nije uspelo. Otvorite QR kod da biste kopirali celu adresu.",
   copyLog: "Kopiraj dnevnik",
   copyLogFailed: "Kopiranje nije uspelo. Umesto toga izaberite tekst dnevnika.",
+  copyMessageFailed: "Poruka nije mogla da se kopira.",
   copyUrl: "Kopiraj link",
   createConsent: "Kreiranjem naloga prihvatate",
   createCta: "Kreiraj novi nalog",

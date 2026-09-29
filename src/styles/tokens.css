@@ -1657,7 +1657,11 @@
      ⚠ Placed in THIS (the second) dark block on purpose: the light values live in the
      :root block at ~:1233, which comes AFTER the first dark block — equal specificity, so
      a dark value written there would lose to light. */
-  --outline-hairline: rgba(255, 255, 255, 0.07);
+  /* ★ #1043 (Damir 2026-09-29, screenshot: "reduce the outline on dark incoming bubbles a little —
+     many in a row gets too visible and bothersome"): 7 % → 4.5 %. Consumers are the chat's received
+     bubbles + typed cards and the appearance preview only (grep var(--outline-hairline)), so the step
+     is chat-scoped. The 4 % top highlight stays — it is the glass edge, the hairline was the noise. */
+  --outline-hairline: rgba(255, 255, 255, 0.045);
   --highlight-top: rgba(255, 255, 255, 0.04);
   --surface-card-sent: #19253B;
   --border-card-sent: 0 solid transparent;

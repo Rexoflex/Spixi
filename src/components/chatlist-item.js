@@ -20,7 +20,11 @@ const STATUS = {
   sent: { glyph: 'check', tone: 'neutral' },
   delivered: { glyph: 'checks', tone: 'delivered' },
   read: { glyph: 'checks', tone: 'read' },
-  failed: { glyph: 'alert-small', tone: 'failed' },
+  /* ★ #1044 (Damir 2026-09-29: "the not-delivered icon looks invisible, in the bubble and in the chat row"):
+     alert-small is a bare "!" — a 2px stroke with nothing around it, lost at 16px on the blue bubble and on a
+     dark row. alert-square-rounded is the app's ONE failure glyph already (the failed tx badge, the error
+     toast, the banner — #602 one glyph, one meaning), so a failed message now wears the same mark. */
+  failed: { glyph: 'alert-square-rounded', tone: 'failed' },
 };
 export function createStatusIcon(status) {
   const s = STATUS[status];

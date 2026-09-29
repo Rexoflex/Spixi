@@ -984,6 +984,17 @@ button.c-bubble__sender {
 .c-bubble[data-emoji-only] .c-bubble__meta .c-status-icon[data-tone="neutral"],
 .c-bubble[data-emoji-only] .c-bubble__meta .c-status-icon[data-tone="delivered"] { color: var(--text-neutral-02); }
 .c-bubble-row[data-direction="sent"] .c-bubble[data-emoji-only] { display: flex; flex-direction: column; align-items: flex-end; }
+/* ★ #1044 (Damir 2026-09-29, screenshots: the outgoing sticker's time + ticks sat on the grey canvas
+   chip, where the sent-tick inks — the near-white delivered at 0.571, the mint read — were near
+   invisible in light): an OUTGOING emoji-only message's meta chip is the SENT bubble's colour, so
+   its time and ticks are exactly the ones every other outgoing message shows (same inks, same
+   contrast the bubble already measures — meta 5.05:1, read mint 4.52:1). Received stickers keep the
+   canvas chip. Specificity (0,4,0)+ over the generic emoji chip rule above; `!important` only where
+   that rule used it (the ink). */
+.c-bubble-row[data-direction="sent"] .c-bubble[data-emoji-only] .c-bubble__meta {
+  background: var(--surface-bubble-sent);
+  color: var(--text-bubble-sent-meta) !important;
+}
 
 /* —— reply quote (batch 3b, §8-gated #25): identity-hue bar + compact excerpt.
    Received: hue inks (sender-label recipe); sent: hue fails on primary-600 →

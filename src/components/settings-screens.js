@@ -883,7 +883,7 @@ export function createNotificationsScreen({
       checked: previews, live, failText, onToggle: onPreviews,
     }));
     if (onSounds) body.append(switchRow({
-      glyph: 'volume', hue: 'accent',   // ★ Session H: Damir's export; alert-small is the FAILED status glyph (chatlist-item) — one glyph, one meaning (#602)
+      glyph: 'volume', hue: 'accent',   // ★ Session H: Damir's export; the FAILED status glyph is alert-square-rounded since #1044 (chatlist-item) — one glyph, one meaning (#602)
       label: strings.notifSounds || 'In-app sounds',
       checked: sounds, live, failText, onToggle: onSounds,
     }));

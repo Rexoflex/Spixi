@@ -24855,7 +24855,7 @@ console.log('Session H: the in-shell subscreen slide · the icon wiring');
   const ss = nc(rdF('src/components/settings-screens.js'));
   ok(/glyph: 'volume', hue: 'accent',\s*label: strings\.notifSounds/.test(ss) && /glyph: 'cloud-bolt', hue: 'info',\s*label: strings\.notifPushProvider/.test(ss)
      && !/glyph: 'alert-small'/.test(ss) && !/glyph: 'topology-star'/.test(ss),
-    '★ Session H (#602 one glyph, one meaning): In-app sounds = volume (alert-small stays the FAILED status), the OneSignal row = cloud-bolt (topology-star stays the secure notice, bell stays Allow notifications)');
+    '★ Session H (#602 one glyph, one meaning): In-app sounds = volume (the FAILED status is alert-square-rounded since #1044), the OneSignal row = cloud-bolt (topology-star stays the secure notice, bell stays Allow notifications)');
 }
 
 /* ═══ ★★ SESSION H ② — the skeleton roster: paint first, fill in frames (L10's family) ═══ */
@@ -36915,7 +36915,7 @@ console.log('Office fix round (#974–#981)');
      the later :root block; the first cut of this batch shipped exactly that and rendered unchanged) */
   const decls = (name) => [...tk.matchAll(new RegExp('--' + name + ':\\s*([^;]+);', 'g'))].map((m) => ({ v: m[1].trim(), at: m.index }));
   const NEW = {
-    'outline-hairline': ['transparent', 'rgba(255, 255, 255, 0.07)'],
+    'outline-hairline': ['transparent', 'rgba(255, 255, 255, 0.045)'],   // ★ #1043 (Damir): 7 % → 4.5 % (a run of received bubbles read busy)
     'highlight-top': ['transparent', 'rgba(255, 255, 255, 0.04)'],
     /* ★ #1003 (D-02 light half, Damir 2026-09-28): light's sent card is a TINT with a 1px tinted
        edge now — the 2px #265 stroke is retired in light too. Dark is exactly the #989 value. */
@@ -38337,6 +38337,18 @@ console.log('★★ #1028+ — the overnight finalization');
     r.credits = /\.c-settings-contrib__credit \{[^}]*text-align: start;/.test(sa) && !/\.c-settings-contrib__credit \{[^}]*text-align: center;/.test(sa)
       && /h\.className = 'c-settings__label c-settings-contrib__credits-title';/.test(rdO('src/components/settings-app.js'));
     r.hero = /strings\.availableBalance \|\| 'Available balance'/.test(rdO('src/components/wallet-hero.js'));
+    /* ★ #1044 (Damir): an OUTGOING sticker's meta chip is the sent bubble's colour + ink (its ticks were near
+       invisible on the canvas chip); the failed status wears the app's one failure glyph, not the bare "!" */
+    const mbc = stripCssComments(rdO('src/styles/components/message-bubble.css'));
+    r.sentSticker = /\.c-bubble-row\[data-direction="sent"\] \.c-bubble\[data-emoji-only\] \.c-bubble__meta \{\s*background: var\(--surface-bubble-sent\);\s*color: var\(--text-bubble-sent-meta\) !important;\s*\}/.test(mbc);
+    const fIcon = S.createStatusIcon('failed'), refIcon = S.icon ? S.icon('alert-square-rounded', { size: 16 }) : null;
+    r.failedGlyph = !!fIcon && fIcon.dataset.tone === 'failed'
+      && /glyph: 'alert-square-rounded', tone: 'failed'/.test(stripCode(rdO('src/components/chatlist-item.js')))
+      && (!refIcon || fIcon.innerHTML === refIcon.innerHTML);
+    /* ★ #1043 (Damir: the dark received-bubble outline "too visible" in a run): the dark hairline is QUIETER than
+       #989's 7 % but still an edge (≥ 3 %); light stays transparent */
+    const hl = /^rgba\(255, 255, 255, ([\d.]+)\)$/.exec(resolveTok('dark', '--outline-hairline') || '');
+    r.darkHairline = !!hl && Number(hl[1]) < 0.07 && Number(hl[1]) >= 0.03 && resolveTok('light', '--outline-hairline') === 'transparent';
     /* ★ #1041 (Damir: read vs delivered "hard to distinguish" on the chat list): read = the success green (a HUE
        step from the grey), ≥ 3:1 on the list ground in both themes, and never the delivered grey */
     const cl = stripCssComments(rdO('src/styles/components/chatlist-item.css'));

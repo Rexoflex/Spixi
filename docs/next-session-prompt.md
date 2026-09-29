@@ -1,18 +1,18 @@
-DEVICE DAY — walk the overnight FE round (#1028–#1038) on Mac · iPhone · Android · Windows.
+DEVICE DAY — walk the premium round (#1040–#1045) on Windows + Android, then the office (Mac + iPhone).
 
-0 · On the PC: `git am overnight-patches/*.patch` on `redesign/frontend` (HEAD must be 26889f1c). Check the
-SHA256 list first. Full pipeline (extract-strings → build-locales → build-strings-iife → build-demo-bundle →
-build-shells) → `build-shells --check` → `node scripts/smoke-test.mjs` → expect BASELINE OK / the 2 KNOWN and a
-delta of +16 from your last run. Wipe `obj`/`bin` (C# changed in 4 files, never compiled).
+0 · On the PC: `git am (Get-ChildItem _to_delete\premium-patches\*.patch | Sort-Object Name).FullName` on
+`redesign/frontend` (HEAD must be 290a7ce9, the #1039 commit). Full pipeline (extract-strings → build-locales →
+build-strings-iife → build-demo-bundle → build-shells) → `build-shells --check` → `node scripts/smoke-test.mjs`
+→ expect BASELINE OK 4969 / the 2 KNOWN (+1). C# changed in SpixiContentPage.cs only (uncompiled).
 
-1 · Read `docs/handoff-2026-09-30.md` FIRST, then DECISIONS #1028–#1038 and
-`docs/opus-review-brief-overnight-1028.md`.
+1 · Read `docs/handoff-2026-09-30.md` FIRST (§8 = this round), then DECISIONS #1039–#1045.
 
-2 · Build: Windows F5 (never `dotnet build`, #663) · Android Debug · Mac maccatalyst Debug · iPhone ios-arm64
-Debug. A compile error is this batch's bug — paste it verbatim into the session.
+2 · Build: Windows F5 (never `dotnet build`, #663) · Android `dotnet build Spixi\Spixi.csproj -f net10.0-android -c Debug -t:Run`.
 
-3 · Walk `docs/walk-artifact-overnight-1028.html` (28 rows). OV.13 needs the `[M6]` log line. OV.16 and OV.24
-are dials — write the pick. Paste "Copy results" into the session.
+3 · Walk `docs/walk-artifact-premium-1040.html` (21 rows). PR.20 = the office rows of the overnight sheet
+(Mac + iPhone). Paste "Copy results" into the session.
 
-4 · The session then: fixes the fails (verify first, #294), records the dials as DECISIONS rows, runs the Opus
-#46 loop over any fix, and writes the next handoff. Commit + push = Damir. Chat replies in ASD-STE100 (#931).
+4 · The session then: fixes the fails (verify first, #294), records dials as DECISIONS rows, runs the Opus #46
+loop over any fix, writes the next handoff. After a clean office walk: the freeze → the read-only sweep
+(docs/audit-refactor-plan.md) → cleanup → security gate re-run → merge → TestFlight (#916/#933/#971).
+Commit + push = Damir. Chat replies in ASD-STE100 (#931).
